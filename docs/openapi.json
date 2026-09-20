@@ -1,0 +1,1479 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "CanFactory API",
+    "version": "1.0.0",
+    "description": "Local parametric STL generation. Dimensions are millimetres. Generated jobs and files expire one hour after creation; there are no saved user designs."
+  },
+  "components": {
+    "schemas": {}
+  },
+  "paths": {
+    "/api/v1/models": {
+      "get": {
+        "operationId": "listModels",
+        "summary": "List provided models",
+        "tags": [
+          "Models"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "version",
+                      "title",
+                      "description",
+                      "attribution",
+                      "license",
+                      "licenseUrl"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "version": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "attribution": {
+                        "type": "string"
+                      },
+                      "license": {
+                        "type": "string"
+                      },
+                      "licenseUrl": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/models/{id}": {
+      "get": {
+        "operationId": "getModel",
+        "summary": "Get a model and its editor schema",
+        "tags": [
+          "Models"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "version",
+                    "title",
+                    "description",
+                    "attribution",
+                    "license",
+                    "licenseUrl",
+                    "controls",
+                    "defaults",
+                    "parameterSchema",
+                    "referenceUrl"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "attribution": {
+                      "type": "string"
+                    },
+                    "license": {
+                      "type": "string"
+                    },
+                    "licenseUrl": {
+                      "type": "string"
+                    },
+                    "controls": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "key",
+                          "label",
+                          "description",
+                          "kind",
+                          "group",
+                          "unit",
+                          "default",
+                          "minimum",
+                          "maximum",
+                          "step",
+                          "enabledWhen"
+                        ],
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "number"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "boolean"
+                                ]
+                              }
+                            ]
+                          },
+                          "group": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "basic"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "advanced"
+                                ]
+                              }
+                            ]
+                          },
+                          "unit": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "mm"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "default": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "boolean"
+                              }
+                            ]
+                          },
+                          "minimum": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "maximum": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "step": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "enabledWhen": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "defaults": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          }
+                        ]
+                      }
+                    },
+                    "parameterSchema": {
+                      "type": "object",
+                      "description": "JSON Schema for this model’s parameter object."
+                    },
+                    "referenceUrl": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/models/{id}/reference.stl": {
+      "get": {
+        "operationId": "getReferenceStl",
+        "summary": "Inspect the original supplied STL",
+        "tags": [
+          "Models"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Original STL bytes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "description": "Original STL bytes."
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/renders": {
+      "post": {
+        "operationId": "createRender",
+        "summary": "Reuse a cached STL or enqueue generation",
+        "tags": [
+          "Renders"
+        ],
+        "description": "Returns 200 for a completed cached render or 202 for queued/running work. All fields are required. Poll the returned ID; retry explicitly after failure. No user designs are saved.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "modelId",
+                      "modelVersion",
+                      "parameters"
+                    ],
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "enum": [
+                          "fruit-fly-trap"
+                        ]
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
+                        "enum": [
+                          "1"
+                        ]
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "required": [
+                          "trapDiameter",
+                          "trapHeight",
+                          "brimWidth",
+                          "nozzleDiameter",
+                          "slotsEnabled",
+                          "wallThickness",
+                          "handles",
+                          "gapHeight",
+                          "gapWidth",
+                          "gapDistanceHorizontal",
+                          "gapDistanceVertical"
+                        ],
+                        "properties": {
+                          "trapDiameter": {
+                            "type": "number",
+                            "title": "Funnel diameter",
+                            "description": "Outer diameter at the wide end, excluding the brim, in mm.",
+                            "default": 60,
+                            "minimum": 20,
+                            "maximum": 200,
+                            "multipleOf": 0.1
+                          },
+                          "trapHeight": {
+                            "type": "number",
+                            "title": "Funnel height",
+                            "description": "Overall printed height in mm.",
+                            "default": 60,
+                            "minimum": 10,
+                            "maximum": 200,
+                            "multipleOf": 0.1
+                          },
+                          "brimWidth": {
+                            "type": "number",
+                            "title": "Brim width",
+                            "description": "Radial width extending outward on each side of the funnel, in mm.",
+                            "default": 10,
+                            "minimum": 1,
+                            "maximum": 30,
+                            "multipleOf": 0.1
+                          },
+                          "nozzleDiameter": {
+                            "type": "number",
+                            "title": "Central opening",
+                            "description": "Inner diameter of the opening at the narrow end, in mm.",
+                            "default": 3.5,
+                            "minimum": 1,
+                            "maximum": 30,
+                            "multipleOf": 0.1
+                          },
+                          "slotsEnabled": {
+                            "type": "boolean",
+                            "title": "Ventilation slots",
+                            "description": "Distribute small slots automatically over the funnel. Disable for a smooth wall.",
+                            "default": true
+                          },
+                          "wallThickness": {
+                            "type": "number",
+                            "title": "Wall thickness",
+                            "description": "Thickness of the funnel wall and brim in mm.",
+                            "default": 0.8,
+                            "minimum": 0.8,
+                            "maximum": 1.6,
+                            "multipleOf": 0.1
+                          },
+                          "handles": {
+                            "type": "boolean",
+                            "title": "Brim handles",
+                            "description": "Add two opposing handles, sized with the brim.",
+                            "default": true
+                          },
+                          "gapHeight": {
+                            "type": "number",
+                            "title": "Slot height",
+                            "description": "Vertical height of each ventilation slot in mm.",
+                            "default": 1.6,
+                            "minimum": 1,
+                            "maximum": 3,
+                            "multipleOf": 0.2
+                          },
+                          "gapWidth": {
+                            "type": "number",
+                            "title": "Slot width",
+                            "description": "Width of each ventilation slot in mm.",
+                            "default": 0.4,
+                            "minimum": 0.3,
+                            "maximum": 0.8,
+                            "multipleOf": 0.1
+                          },
+                          "gapDistanceHorizontal": {
+                            "type": "number",
+                            "title": "Horizontal spacing",
+                            "description": "Target spacing between slots around each layer, in mm.",
+                            "default": 1.6,
+                            "minimum": 1.2,
+                            "maximum": 2,
+                            "multipleOf": 0.2
+                          },
+                          "gapDistanceVertical": {
+                            "type": "number",
+                            "title": "Vertical spacing",
+                            "description": "Target spacing between slot layers, in mm.",
+                            "default": 1.6,
+                            "minimum": 1,
+                            "maximum": 3,
+                            "multipleOf": 0.2
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Fruit fly trap parameters. All fields are required; dimensions are in millimetres."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "Complete, uncoerced settings for one model version."
+              }
+            }
+          },
+          "description": "Complete, uncoerced settings for one model version."
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "modelId",
+                    "modelVersion",
+                    "status",
+                    "createdAt",
+                    "expiresAt",
+                    "slotCount",
+                    "artifact",
+                    "error"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "modelId": {
+                      "type": "string"
+                    },
+                    "modelVersion": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "integer"
+                    },
+                    "expiresAt": {
+                      "type": "integer"
+                    },
+                    "slotCount": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "artifact": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "url",
+                            "sha256",
+                            "bytes",
+                            "triangles",
+                            "dimensions",
+                            "volume"
+                          ],
+                          "properties": {
+                            "url": {
+                              "type": "string",
+                              "description": "The same bytes are used for preview and download. Add ?download=true for attachment disposition."
+                            },
+                            "sha256": {
+                              "type": "string"
+                            },
+                            "bytes": {
+                              "type": "integer"
+                            },
+                            "triangles": {
+                              "type": "integer"
+                            },
+                            "dimensions": {
+                              "type": "object",
+                              "required": [
+                                "x",
+                                "y",
+                                "z"
+                              ],
+                              "properties": {
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "z": {
+                                  "type": "number"
+                                }
+                              },
+                              "additionalProperties": false,
+                              "description": "Axis-aligned dimensions in millimetres, including brim and handles."
+                            },
+                            "volume": {
+                              "type": "number",
+                              "description": "Enclosed material volume in cubic millimetres."
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "error": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "code",
+                            "message",
+                            "issues"
+                          ],
+                          "properties": {
+                            "code": {
+                              "type": "string",
+                              "description": "Stable machine-readable error code.",
+                              "examples": [
+                                "INVALID_PARAMETERS"
+                              ]
+                            },
+                            "message": {
+                              "type": "string",
+                              "description": "Actionable human-readable explanation."
+                            },
+                            "issues": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "field",
+                                  "message"
+                                ],
+                                "properties": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "message": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "modelId",
+                    "modelVersion",
+                    "status",
+                    "createdAt",
+                    "expiresAt",
+                    "slotCount",
+                    "artifact",
+                    "error"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "modelId": {
+                      "type": "string"
+                    },
+                    "modelVersion": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "integer"
+                    },
+                    "expiresAt": {
+                      "type": "integer"
+                    },
+                    "slotCount": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "artifact": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "url",
+                            "sha256",
+                            "bytes",
+                            "triangles",
+                            "dimensions",
+                            "volume"
+                          ],
+                          "properties": {
+                            "url": {
+                              "type": "string",
+                              "description": "The same bytes are used for preview and download. Add ?download=true for attachment disposition."
+                            },
+                            "sha256": {
+                              "type": "string"
+                            },
+                            "bytes": {
+                              "type": "integer"
+                            },
+                            "triangles": {
+                              "type": "integer"
+                            },
+                            "dimensions": {
+                              "type": "object",
+                              "required": [
+                                "x",
+                                "y",
+                                "z"
+                              ],
+                              "properties": {
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "z": {
+                                  "type": "number"
+                                }
+                              },
+                              "additionalProperties": false,
+                              "description": "Axis-aligned dimensions in millimetres, including brim and handles."
+                            },
+                            "volume": {
+                              "type": "number",
+                              "description": "Enclosed material volume in cubic millimetres."
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "error": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "code",
+                            "message",
+                            "issues"
+                          ],
+                          "properties": {
+                            "code": {
+                              "type": "string",
+                              "description": "Stable machine-readable error code.",
+                              "examples": [
+                                "INVALID_PARAMETERS"
+                              ]
+                            },
+                            "message": {
+                              "type": "string",
+                              "description": "Actionable human-readable explanation."
+                            },
+                            "issues": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "field",
+                                  "message"
+                                ],
+                                "properties": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "message": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/renders/{id}": {
+      "get": {
+        "operationId": "getRender",
+        "summary": "Poll a render job",
+        "tags": [
+          "Renders"
+        ],
+        "description": "410 means this temporary render is expired or no longer available. Resubmit current settings to regenerate it.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "modelId",
+                    "modelVersion",
+                    "status",
+                    "createdAt",
+                    "expiresAt",
+                    "slotCount",
+                    "artifact",
+                    "error"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "modelId": {
+                      "type": "string"
+                    },
+                    "modelVersion": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "integer"
+                    },
+                    "expiresAt": {
+                      "type": "integer"
+                    },
+                    "slotCount": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "artifact": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "url",
+                            "sha256",
+                            "bytes",
+                            "triangles",
+                            "dimensions",
+                            "volume"
+                          ],
+                          "properties": {
+                            "url": {
+                              "type": "string",
+                              "description": "The same bytes are used for preview and download. Add ?download=true for attachment disposition."
+                            },
+                            "sha256": {
+                              "type": "string"
+                            },
+                            "bytes": {
+                              "type": "integer"
+                            },
+                            "triangles": {
+                              "type": "integer"
+                            },
+                            "dimensions": {
+                              "type": "object",
+                              "required": [
+                                "x",
+                                "y",
+                                "z"
+                              ],
+                              "properties": {
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "z": {
+                                  "type": "number"
+                                }
+                              },
+                              "additionalProperties": false,
+                              "description": "Axis-aligned dimensions in millimetres, including brim and handles."
+                            },
+                            "volume": {
+                              "type": "number",
+                              "description": "Enclosed material volume in cubic millimetres."
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "error": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "code",
+                            "message",
+                            "issues"
+                          ],
+                          "properties": {
+                            "code": {
+                              "type": "string",
+                              "description": "Stable machine-readable error code.",
+                              "examples": [
+                                "INVALID_PARAMETERS"
+                              ]
+                            },
+                            "message": {
+                              "type": "string",
+                              "description": "Actionable human-readable explanation."
+                            },
+                            "issues": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "field",
+                                  "message"
+                                ],
+                                "properties": {
+                                  "field": {
+                                    "type": "string"
+                                  },
+                                  "message": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/renders/{id}/stl": {
+      "get": {
+        "operationId": "getRenderStl",
+        "summary": "View or download the generated STL",
+        "tags": [
+          "Renders"
+        ],
+        "description": "Preview and download return identical bytes. Use download=true for attachment disposition. Attribution is recorded in the catalogue and STL header.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "in": "query",
+            "name": "download",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Validated binary STL, measured in mm.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "description": "Validated binary STL, measured in mm."
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Models",
+      "description": "Provided, versioned model catalogue."
+    },
+    {
+      "name": "Renders",
+      "description": "Temporary render jobs and their STL artifacts."
+    }
+  ]
+}

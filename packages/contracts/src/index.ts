@@ -1,5 +1,5 @@
 import { Type, type Static } from 'typebox';
-import { ControlSchema, models } from './models.ts';
+import { ControlSchema, fruitFlyTrap } from './models.ts';
 export * from './models.ts';
 
 /** Stable error envelope; clients may branch on code and highlight field issues. */
@@ -19,20 +19,20 @@ export const ModelDetailSchema = Type.Object({
   ...ModelSummarySchema.properties,
   controls: Type.Array(ControlSchema),
   defaults: Type.Record(Type.String(), Type.Union([Type.Number(), Type.Boolean()])),
-  parameterSchema: Type.Record(Type.String(), Type.Unknown(), { description: 'JSON Schema for this model’s parameter object.' }),
+  parameterSchema: Type.Unknown({ type: 'object', description: 'JSON Schema for this model’s parameter object.' }),
   referenceUrl: Type.String(),
 }, { additionalProperties: false });
 export type ModelDetail = Static<typeof ModelDetailSchema>;
 
-/** Model-specific request branches are generated from the trusted model registry. */
-export const RenderRequestSchema = Type.Union(models.map(model => Type.Object({
-  modelId: Type.Literal(model.id),
-  modelVersion: Type.Literal(model.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-  parameters: model.parameterSchema,
-}, { additionalProperties: false })), { description: 'Complete, uncoerced settings for one model version.' });
+/** Register a typed branch for each provided model; preserve the tuple for precise inference. */
+export const RenderRequestSchema = Type.Union([Type.Object({
+  modelId: Type.Literal(fruitFlyTrap.id),
+  modelVersion: Type.Literal(fruitFlyTrap.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
+  parameters: fruitFlyTrap.parameterSchema,
+}, { additionalProperties: false })], { description: 'Complete, uncoerced settings for one model version.' });
 export type RenderRequest = Static<typeof RenderRequestSchema>;
 
-export const RenderStatusSchema = Type.Union((['queued', 'running', 'succeeded', 'failed'] as const).map(value => Type.Literal(value)));
+export const RenderStatusSchema = Type.Enum(['queued', 'running', 'succeeded', 'failed']);
 export type RenderStatus = Static<typeof RenderStatusSchema>;
 export const DimensionsSchema = Type.Object({ x: Type.Number(), y: Type.Number(), z: Type.Number() }, { additionalProperties: false, description: 'Axis-aligned dimensions in millimetres, including brim and handles.' });
 export type Dimensions = Static<typeof DimensionsSchema>;

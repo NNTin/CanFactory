@@ -1,0 +1,53 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { Value } from 'typebox/value';
+import { ErrorSchema, fruitFlyTrap, RenderSchema } from '@canfactory/contracts';
+import { CACHE_TTL_MS, repositoryRoot, Store } from '@canfactory/server';
+import { createApp } from './app.ts';
+
+let store: Store;
+let directory: string;
+let time: number;
+let app: Awaited<ReturnType<typeof createApp>>;
+beforeEach(async () => {
+  time = Date.now(); directory = mkdtempSync(join(tmpdir(), 'canfactory-api-test-'));
+  store = new Store(directory, repositoryRoot, () => time); store.migrate(); store.seed();
+  app = await createApp(store);
+});
+afterEach(async () => { await app.close(); store.close(); rmSync(directory, { recursive: true, force: true }); });
+const payload = { modelId: fruitFlyTrap.id, modelVersion: fruitFlyTrap.version, parameters: fruitFlyTrap.defaults };
+
+describe('model and render API', () => {
+  it('serves the catalogue, reference STL, and OpenAPI', async () => {
+    expect((await app.inject('/api/v1/models')).statusCode).toBe(200);
+    const detail = await app.inject('/api/v1/models/fruit-fly-trap');
+    expect(detail.body).toContain('trapDiameter');
+    expect((await app.inject('/api/v1/models/fruit-fly-trap/reference.stl')).rawPayload.length).toBeGreaterThan(100000);
+    expect((await app.inject('/api/openapi.json')).body).toContain('createRender');
+    expect((await app.inject('/api/v1/models/missing')).statusCode).toBe(404);
+  });
+
+  it('rejects unknown models, stale versions, and invalid fields', async () => {
+    expect((await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { ...payload, modelId: 'missing' } })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { ...payload, modelVersion: 'old' } })).statusCode).toBe(409);
+    for (const parameters of [{ ...payload.parameters, trapDiameter: '60' }, { ...payload.parameters, trapDiameter: 20, nozzleDiameter: 20 }, { ...payload.parameters, surprise: 1 }]) {
+      const response = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { ...payload, parameters } });
+      expect(response.statusCode).toBe(422);
+      expect(Value.Check(ErrorSchema, response.json<unknown>())).toBe(true);
+    }
+  });
+
+  it('deduplicates jobs, prevents early download, and rejects expired renders', async () => {
+    const response = await app.inject({ method: 'POST', url: '/api/v1/renders', payload });
+    expect(response.statusCode).toBe(202);
+    const job = Value.Parse(RenderSchema, response.json<unknown>());
+    const again = await app.inject({ method: 'POST', url: '/api/v1/renders', payload });
+    expect(Value.Parse(RenderSchema, again.json<unknown>()).id).toBe(job.id);
+    expect((await app.inject(`/api/v1/renders/${job.id}/stl`)).statusCode).toBe(409);
+    time += CACHE_TTL_MS + 1;
+    expect((await app.inject(`/api/v1/renders/${job.id}`)).statusCode).toBe(410);
+    expect((await app.inject(`/api/v1/renders/${job.id}/stl`)).statusCode).toBe(410);
+  });
+});
