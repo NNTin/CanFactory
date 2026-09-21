@@ -1,5 +1,3 @@
-import { createReadStream, existsSync } from 'node:fs';
-import { join } from 'node:path';
 import Fastify from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -9,17 +7,18 @@ import {
   DownloadQuerySchema, ErrorSchema, IdParamsSchema, ModelDetailSchema, ModelSummarySchema,
   RenderRequestSchema, RenderSchema, findModel, validateParameters,
 } from '@canfactory/contracts';
-import { AppError, publicRender, type Store } from '@canfactory/server';
+import { AppError, asyncStorage, publicRender, type Storage, type Store } from '@canfactory/server';
 
 /** Build routes without side effects; omitting storage supports offline OpenAPI generation. */
-export async function createApp(storage?: Store, logging = false) {
+export async function createApp(storage?: Store | Storage, logging = false) {
   const app = Fastify({
     logger: logging, bodyLimit: 32_768,
     ajv: { customOptions: { coerceTypes: false, removeAdditional: false, useDefaults: false, multipleOfPrecision: 8 } },
   }).withTypeProvider<TypeBoxTypeProvider>();
+  const adapter = storage ? asyncStorage(storage) : undefined;
   const store = () => {
-    if (!storage) throw new AppError(503, 'NOT_READY', 'The catalogue is not ready.');
-    return storage;
+    if (!adapter) throw new AppError(503, 'NOT_READY', 'The catalogue is not ready.');
+    return adapter;
   };
   const stlResponse = { description: 'STL bytes; coordinates are in millimetres.', content: { 'model/stl': { schema: Type.Unknown({ type: 'string', format: 'binary' }) } } };
   await app.register(swagger, {
@@ -47,7 +46,7 @@ export async function createApp(storage?: Store, logging = false) {
   });
   app.setNotFoundHandler((_request, reply) => reply.code(404).send({ code: 'NOT_FOUND', message: 'This endpoint does not exist.', issues: [] }));
 
-  app.get('/api/health', { schema: { hide: true } }, () => ({ ready: true, workerReady: store().workerReady() }));
+  app.get('/api/health', { schema: { hide: true } }, async () => ({ ready: true, workerReady: await store().workerReady() }));
   app.get('/api/openapi.json', { schema: { hide: true } }, () => app.swagger());
 
   app.get('/api/v1/models', {
@@ -56,8 +55,8 @@ export async function createApp(storage?: Store, logging = false) {
 
   app.get('/api/v1/models/:id', {
     schema: { operationId: 'getModel', tags: ['Models'], summary: 'Get a model and its editor schema', params: IdParamsSchema, response: { 200: ModelDetailSchema, 404: ErrorSchema } },
-  }, request => {
-    const model = store().getModel(request.params.id);
+  }, async request => {
+    const model = await store().getModel(request.params.id);
     if (!model) throw new AppError(404, 'MODEL_NOT_FOUND', 'This model is not available.');
     return model.detail;
   });
@@ -65,11 +64,11 @@ export async function createApp(storage?: Store, logging = false) {
   app.get('/api/v1/models/:id/reference.stl', {
     schema: { operationId: 'getReferenceStl', tags: ['Models'], summary: 'Inspect the original supplied STL', params: IdParamsSchema,
       response: { 200: stlResponse, 404: ErrorSchema } },
-  }, (request, reply) => {
-    const model = store().getModel(request.params.id);
+  }, async (request, reply) => {
+    const model = await store().getModel(request.params.id);
     if (!model) throw new AppError(404, 'MODEL_NOT_FOUND', 'This model is not available.');
     return reply.type('model/stl').header('Content-Disposition', `inline; filename="${model.id}-reference.stl"`)
-      .send(createReadStream(join(store().artifacts.catalogDir, model.referenceName)));
+      .send(await store().readReference(model));
   });
 
   app.post('/api/v1/renders', {
@@ -93,10 +92,10 @@ export async function createApp(storage?: Store, logging = false) {
       body: RenderRequestSchema,
       response: { 200: RenderSchema, 202: RenderSchema, 404: ErrorSchema, 409: ErrorSchema, 422: ErrorSchema, 429: ErrorSchema },
     },
-  }, (request, reply) => {
+  }, async (request, reply) => {
     const model = findModel(request.body.modelId);
     if (!model) throw new AppError(404, 'MODEL_NOT_FOUND', 'This model is not available.');
-    const job = store().enqueue(model, request.body.parameters);
+    const job = await store().enqueue(model, request.body.parameters);
     reply.code(job.status === 'succeeded' ? 200 : 202).header('Cache-Control', 'no-store');
     return publicRender(job);
   });
@@ -105,9 +104,9 @@ export async function createApp(storage?: Store, logging = false) {
     schema: { operationId: 'getRender', tags: ['Renders'], summary: 'Poll a render job', params: IdParamsSchema,
       description: '410 means this temporary render is expired or no longer available. Resubmit current settings to regenerate it.',
       response: { 200: RenderSchema, 410: ErrorSchema } },
-  }, (request, reply) => {
-    const job = store().getJob(request.params.id);
-    if (!job || job.expiresAt <= store().now()) throw new AppError(410, 'RENDER_EXPIRED', 'This render is no longer available. Generate it again.');
+  }, async (request, reply) => {
+    const job = await store().getJob(request.params.id);
+    if (!job || job.expiresAt <= await store().now()) throw new AppError(410, 'RENDER_EXPIRED', 'This render is no longer available. Generate it again.');
     reply.header('Cache-Control', 'no-store');
     return publicRender(job);
   });
@@ -119,17 +118,15 @@ export async function createApp(storage?: Store, logging = false) {
       params: IdParamsSchema, querystring: DownloadQuerySchema,
       response: { 200: stlResponse, 409: ErrorSchema, 410: ErrorSchema },
     },
-  }, (request, reply) => {
-    const job = store().getJob(request.params.id);
-    if (!job || job.expiresAt <= store().now()) throw new AppError(410, 'RENDER_EXPIRED', 'This render has expired. Generate it again.');
+  }, async (request, reply) => {
+    const job = await store().getJob(request.params.id);
+    if (!job || job.expiresAt <= await store().now()) throw new AppError(410, 'RENDER_EXPIRED', 'This render has expired. Generate it again.');
     if (job.status !== 'succeeded' || !job.artifact) throw new AppError(409, 'RENDER_NOT_READY', 'Wait for a successful render before downloading.');
-    const path = store().artifacts.path(job.id);
-    if (!existsSync(path)) throw new AppError(410, 'RENDER_EXPIRED', 'The generated file is no longer available. Generate it again.');
     const disposition = request.query.download === 'true' ? 'attachment' : 'inline';
     return reply.type('model/stl').header('Content-Length', job.artifact.bytes)
       .header('Content-Disposition', `${disposition}; filename="${job.modelId}-${job.id.slice(0, 8)}.stl"`)
       .header('Cache-Control', 'no-store').header('ETag', `"${job.artifact.sha256}"`)
-      .send(createReadStream(path));
+      .send(await store().readArtifact(job));
   });
   return app;
 }
