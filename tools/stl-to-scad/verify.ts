@@ -30,7 +30,14 @@ export interface ManifestPart {
   note?: string;
 }
 
-export interface Manifest { tolerance?: Partial<Tolerance>; cellSize?: number; parts: ManifestPart[] }
+export interface Manifest {
+  title?: string;
+  tolerance?: Partial<Tolerance>;
+  cellSize?: number;
+  /** Free-form Markdown appended to the report (e.g. which sources are scaled copies of each other). */
+  notes?: string[];
+  parts: ManifestPart[];
+}
 
 export interface VerifyResult {
   name: string;
@@ -81,8 +88,12 @@ export async function verifyScad(scadPath: string, stlPath: string, options: Ver
   return verifyMeshes(reference, referenceBytes, render.stl, render, { name: options.name ?? scadPath, scad: scadPath, stl: stlPath, scadBytes: (await stat(scadPath)).size }, options);
 }
 
+export async function readManifest(manifestPath: string): Promise<Manifest> {
+  return JSON.parse(await readFile(manifestPath, 'utf8')) as Manifest;
+}
+
 export async function verifyManifest(manifestPath: string, only?: string[]): Promise<VerifyResult[]> {
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as Manifest;
+  const manifest = await readManifest(manifestPath);
   const base = dirname(resolve(manifestPath));
   const results: VerifyResult[] = [];
   for (const part of manifest.parts) {
@@ -100,7 +111,7 @@ export async function verifyManifest(manifestPath: string, only?: string[]): Pro
 
 const mm = (v: number, digits = 3): string => v.toFixed(digits);
 
-export function toMarkdown(results: VerifyResult[], title = 'STL to SCAD verification'): string {
+export function toMarkdown(results: VerifyResult[], title = 'STL to SCAD verification', notes: string[] = []): string {
   const first = results[0];
   const lines = [
     `# ${title}`, '',
@@ -117,5 +128,6 @@ export function toMarkdown(results: VerifyResult[], title = 'STL to SCAD verific
   ];
   const failed = results.filter(r => !r.pass);
   if (failed.length > 0) lines.push('## Failures', '', ...failed.flatMap(r => [`- ${r.name}: ${r.failures.join('; ')}`]), '');
+  if (notes.length > 0) lines.push(...notes, '');
   return lines.join('\n');
 }

@@ -7,7 +7,7 @@ import { meshToPolyhedron } from './polyhedron.ts';
 import { sectionsToSvg, simplifyLoop, sliceAxial, sliceZ, toPieces } from './sections.ts';
 import { bounds, center, isBinaryStl, parseStl, sha256, size, volume, type Mesh } from './stl.ts';
 import { analyzeTopology } from './topology.ts';
-import { DEFAULT_TOLERANCE, toMarkdown, verifyManifest, verifyScad, type VerifyResult } from './verify.ts';
+import { DEFAULT_TOLERANCE, readManifest, toMarkdown, verifyManifest, verifyScad, type VerifyResult } from './verify.ts';
 
 const USAGE = `Usage: tsx tools/stl-to-scad/cli.ts <command> [options]
 
@@ -83,6 +83,10 @@ function printResult(result: VerifyResult): void {
 
 async function main(): Promise<number> {
   const [command, ...rest] = process.argv.slice(2);
+  if (command === 'help' || command === '--help' || command === '-h') {
+    console.log(USAGE);
+    return 0;
+  }
   const { values, positionals } = parseArgs({
     args: rest, allowPositionals: true,
     options: {
@@ -159,7 +163,10 @@ async function main(): Promise<number> {
       }
       if (values.json) console.log(JSON.stringify(results, null, 2));
       else results.forEach(printResult);
-      if (values.report) await writeFile(values.report, toMarkdown(results));
+      if (values.report) {
+        const manifest = values.manifest ? await readManifest(values.manifest) : undefined;
+        await writeFile(values.report, toMarkdown(results, manifest?.title, manifest?.notes));
+      }
       return results.every(r => r.pass) ? 0 : 1;
     }
     default:

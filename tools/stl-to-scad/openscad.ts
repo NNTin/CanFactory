@@ -30,46 +30,66 @@ async function tryExec(file: string, args: string[]): Promise<string | undefined
   } catch { return undefined; }
 }
 
-/** Runner preference: $OPENSCAD_BIN, `openscad` on PATH, the pinned Docker image, then the optional openscad-wasm-prebuilt package. */
-export async function detectRunner(): Promise<{ kind: RunnerKind; command: string; version: string } | undefined> {
-  const forced = process.env['OPENSCAD_BIN'];
-  for (const command of forced ? [forced] : ['openscad']) {
-    const version = await tryExec(command, ['--version']);
-    if (version !== undefined) return { kind: 'native', command, version: version.split('\n')[0] ?? version };
-  }
-  if (process.env['OPENSCAD_RUNNER'] !== 'wasm' && await tryExec('docker', ['--version']) !== undefined)
-    return { kind: 'docker', command: 'docker', version: RENDERER_IMAGE };
+interface Runner { kind: RunnerKind; command: string; version: string }
+
+let detected: Promise<Runner | undefined> | undefined;
+
+/**
+ * Runner selection. `OPENSCAD_RUNNER=native|docker|wasm` forces one; otherwise the first available of: `$OPENSCAD_BIN` or
+ * `openscad` on PATH, the optional openscad-wasm-prebuilt package, then the pinned Docker image (last, because it may
+ * have to pull a large image).
+ */
+export function detectRunner(): Promise<Runner | undefined> {
+  detected ??= probeRunner();
+  return detected;
+}
+
+async function probeNative(): Promise<Runner | undefined> {
+  const command = process.env['OPENSCAD_BIN'] ?? 'openscad';
+  const version = await tryExec(command, ['--version']);
+  return version === undefined ? undefined : { kind: 'native', command, version: version.split('\n')[0] ?? version };
+}
+
+async function probeDocker(): Promise<Runner | undefined> {
+  return await tryExec('docker', ['--version']) === undefined ? undefined : { kind: 'docker', command: 'docker', version: RENDERER_IMAGE };
+}
+
+async function probeWasm(): Promise<Runner | undefined> {
   const wasm = await loadWasm();
-  if (wasm) return { kind: 'wasm', command: 'openscad-wasm-prebuilt', version: `openscad-wasm-prebuilt ${wasm.version}` };
+  return wasm ? { kind: 'wasm', command: 'openscad-wasm-prebuilt', version: wasm.version } : undefined;
+}
+
+async function probeRunner(): Promise<Runner | undefined> {
+  const probes: Record<RunnerKind, () => Promise<Runner | undefined>> = { native: probeNative, wasm: probeWasm, docker: probeDocker };
+  const forced = process.env['OPENSCAD_RUNNER'];
+  const order: RunnerKind[] = forced === 'native' || forced === 'docker' || forced === 'wasm' ? [forced] : ['native', 'wasm', 'docker'];
+  for (const kind of order) {
+    const found = await probes[kind]();
+    if (found) return found;
+  }
   return undefined;
 }
 
 interface WasmInstance { FS: { writeFile(path: string, data: string): void; readFile(path: string): Uint8Array }; callMain(args: string[]): number }
 interface WasmModule { create: () => Promise<WasmInstance>; version: string }
+type CreateOpenScad = (options: { print: (line: string) => void; printErr: (line: string) => void }) => Promise<{ getInstance(): WasmInstance }>;
 
 async function loadWasm(): Promise<WasmModule | undefined> {
   const specifier = process.env['OPENSCAD_WASM_MODULE'] ?? 'openscad-wasm-prebuilt';
   try {
-    const module = await import(/* @vite-ignore */ specifier) as { createOpenSCAD: (options: object) => Promise<{ getInstance(): WasmInstance }> };
-    let version = 'unknown';
-    try {
-      const packageJson = JSON.parse(await readFile(new URL('package.json', await resolvePackageDir(specifier)), 'utf8')) as { version?: string };
-      version = packageJson.version ?? version;
-    } catch { /* version is informational only */ }
-    return { version, create: async () => (await module.createOpenSCAD({ print: () => undefined, printErr: () => undefined })).getInstance() };
+    const module = await import(/* @vite-ignore */ specifier) as { createOpenSCAD: CreateOpenScad };
+    const lines: string[] = [];
+    const probe = (await module.createOpenSCAD({ print: line => lines.push(line), printErr: line => lines.push(line) })).getInstance();
+    try { probe.callMain(['--version']); } catch { /* the version banner is printed before the runtime exits */ }
+    const banner = lines.find(line => /openscad/i.test(line))?.trim() ?? 'unknown OpenSCAD';
+    return { version: `${banner} via ${specifier}`, create: async () => (await module.createOpenSCAD({ print: () => undefined, printErr: () => undefined })).getInstance() };
   } catch { return undefined; }
-}
-
-async function resolvePackageDir(specifier: string): Promise<URL> {
-  const { createRequire } = await import('node:module');
-  const path = createRequire(join(process.cwd(), 'noop.js')).resolve(`${specifier}/package.json`);
-  return new URL(`file://${path.slice(0, path.length - 'package.json'.length)}`);
 }
 
 /** Render a self-contained SCAD file to a binary STL with the Manifold backend (as the production worker does). */
 export async function renderScad(scadPath: string, defines: Defines = {}, timeoutMs = 600_000): Promise<Render> {
   const runner = await detectRunner();
-  if (!runner) throw new Error('No OpenSCAD runtime found. Install openscad, set OPENSCAD_BIN, install Docker, or run `npm i --no-save openscad-wasm-prebuilt`.');
+  if (!runner) throw new Error('No OpenSCAD runtime found. Install openscad, set OPENSCAD_BIN, run `npm i --no-save openscad-wasm-prebuilt`, or install Docker (OPENSCAD_RUNNER=docker).');
   const directory = await mkdtemp(join(tmpdir(), 'stl-to-scad-'));
   const started = Date.now();
   try {

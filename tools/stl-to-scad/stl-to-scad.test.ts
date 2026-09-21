@@ -116,7 +116,8 @@ describe('polyhedron fallback', () => {
   });
 });
 
-const runner = await detectRunner();
+// Rendering needs an OpenSCAD runtime, so it is opt-in: set STL_TO_SCAD_RENDER_TESTS=1 (the Docker integration workflow does).
+const runner = process.env['STL_TO_SCAD_RENDER_TESTS'] ? await detectRunner() : undefined;
 
 describe.skipIf(!runner)('OpenSCAD round trip', () => {
   it('renders a polyhedron fallback and verifies it against its source STL', async () => {
