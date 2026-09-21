@@ -33,7 +33,7 @@ worker:
   replicas: 1
   scratchSize: 1Gi
   resources:
-    requests: {cpu: "1", memory: 2Gi}
+    requests: {cpu: 750m, memory: 2Gi}
     limits: {cpu: "2", memory: 2Gi}
 maintenance:
   schedule: "* * * * *"

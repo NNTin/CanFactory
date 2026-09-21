@@ -1,0 +1,15 @@
+# Fixed archive date: updating build dependencies is an explicit reviewed change.
+# APT still checks Debian signatures; expiry is disabled for archived metadata.
+Types: deb
+URIs: http://snapshot.debian.org/archive/debian/20260921T000000Z/
+Suites: trixie trixie-updates
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+Check-Valid-Until: no
+
+Types: deb
+URIs: http://snapshot.debian.org/archive/debian-security/20260921T000000Z/
+Suites: trixie-security
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+Check-Valid-Until: no
