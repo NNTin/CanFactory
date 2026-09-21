@@ -1,18 +1,18 @@
-// Moosstab Middle RAUTE (tall diamond-lattice tower segment) - parametric OpenSCAD reconstruction.
+// Moosstab Middle RAUTE small (diamond-lattice tower segment) - parametric OpenSCAD reconstruction.
 //
 // Adapted from "Moss Tower Verdura - The Modular Climbing Support" by HpInvent (MakerWorld):
 // https://makerworld.com/de/models/1200114-moss-tower-verdura-the-modular-climbing-support
-// This file is a derivative reconstruction of that design's STL (obj_4_Moosstab Middle RAUTE.stl) made for
+// This file is a derivative reconstruction of that design's STL (obj_1_Moosstab Middle RAUTE small.stl) made for
 // CanFactory; it grants no additional rights to the original. See ../ATTRIBUTION.md.
 //
-// A 52 mm x 230 mm tube segment: a female-threaded collar at the bottom, a male-threaded ring at the top, and between them a
+// A 52 mm tube segment: a female-threaded collar at the bottom, a male-threaded ring at the top, and between them a
 // diamond ("Raute") lattice of 2 x COLUMNS helical struts that fan out into V-shaped gussets at both ends.
 // Right-handed threads, pitch 5 mm. Units are millimetres; the part is centred on the Z axis with its base on z = 0.
-// Same design as obj_5_Moosstab Middle RAUTE small.scad with ROWS = 10 and slightly taller end rings.
-// Source STL sat at (595, -224) on the print plate.
+// Source STL sat at (175, 160) on the print plate.
+// This file is obj_5_Moosstab Middle RAUTE small.scad scaled by 100/52; only SCALE and this header differ.
 
 // Uniform scale (1 = 52 mm outer diameter).
-SCALE        = 1;
+SCALE        = 100 / 52;
 // Facets around a full circle.
 ROUNDNESS    = 180; //[48:12:360]
 
@@ -21,23 +21,23 @@ COLUMNS      = 6;
 // Angle of the first column (gusset axis).
 COLUMN_PHASE = 0;
 // Rhombus rows.
-ROWS         = 10;
+ROWS         = 4;
 // Height where the first row of struts starts, and the height step between rows.
-NODE_Z0      = 26.55;
+NODE_Z0      = 25.76;
 ROW_DZ       = 17.5;
 // The gusset's sides are the first struts extended downwards; its apex sits slightly higher than the strut start.
-GUSSET_APEX  = 27.15;
+GUSSET_APEX  = 26.36;
 GUSSET_INNER_EXT = 19.5;
 // Fine adjustment of the top gusset (the lattice is not exactly mirror-symmetric).
-TOP_MIRROR_TRIM = 0.3;
+TOP_MIRROR_TRIM = 0;
 // Height at which the top gusset ends inside the top ring.
-TOP_GUSSET_END = 217.4;
+TOP_GUSSET_END = 111.5;
 // Strut rotation about the axis, degrees per mm of height.
 STRUT_TWIST  = 1.656;
 OUTER_R      = 26;
 LATTICE_INNER_R = 23.013;
 // Height of the top thread ring's upper face.
-TOP_Z        = 230;
+TOP_Z        = 125;
 
 THREAD_PITCH = 5;
 THREAD_TURN  = 1;       // 1 = right-handed, -1 = left-handed
@@ -166,8 +166,9 @@ module thread_extrude(table, z_from, z_to, crest_z, crest_angle, r_inner) {
 // Groove profile: [phase from the deepest point, radius]; the flat root sits 0.1 mm inside the 18.7 mm wall.
 FEMALE = [[-0.5, 19.913], [-0.389, 20.008], [-0.212, 20.109], [0, 20.147], [0.212, 20.109], [0.391, 20.009],
           [1.831, 18.6], [3.157, 18.6], [4.5, 19.913]];
-BOTTOM = [[18.7, 0], [26, 0], [26, 11.52], [25.984, 11.678], [25.906, 11.897], [25.818, 12.028], [25.708, 12.138],
-          [25.506, 12.259], [25.278, 12.316], [22.831, 12.32], [20.509, 10], [18.7, 10]];
+BOTTOM = [[18.7, 0], [26, 0], [26, 10.617], [25.985, 10.773], [25.939, 10.923], [25.865, 11.061], [25.766, 11.183],
+          [25.644, 11.282], [25.506, 11.356], [25.356, 11.401], [25.2, 11.418], [22.259, 11.417], [22.102, 11.401],
+          [21.952, 11.356], [21.814, 11.282], [21.693, 11.183], [20.509, 10], [18.7, 10]];
 
 module collar() {
     difference() {
@@ -179,11 +180,11 @@ module collar() {
 // ---- Top ring with external (male) thread ---------------------------------------------------------------------
 MALE = [[-0.5, 19.708], [-0.311, 19.892], [-0.15, 19.98], [0, 20.001], [0.15, 19.98], [0.311, 19.892],
         [1.742, 18.5], [3.258, 18.5], [4.5, 19.708]];
-TOP = [[20.704, 216.74], [25.2, 216.74], [25.356, 216.756], [25.506, 216.802], [25.644, 216.876], [25.766, 216.975],
-       [25.906, 217.164], [25.966, 217.309], [25.996, 217.462], [26, 220], [18.4, 220], [18.4, TOP_Z], [16.25, TOP_Z],
-       [16.25, 223.02], [16.265, 222.637], [16.342, 222.066], [16.43, 221.692], [16.546, 221.326], [16.772, 220.797],
-       [16.956, 220.46], [17.165, 220.138], [17.398, 219.833], [17.653, 219.547], [20.128, 216.985], [20.236, 216.891],
-       [20.424, 216.791], [20.562, 216.753]];
+TOP = [[21.576, 110.837], [25.2, 110.837], [25.356, 110.853], [25.506, 110.899], [25.708, 111.019], [25.818, 111.13],
+       [25.905, 111.261], [25.966, 111.405], [25.996, 111.559], [26, 115], [18.4, 115], [18.4, TOP_Z], [16.25, TOP_Z],
+       [16.25, 118.02], [16.265, 117.637], [16.342, 117.066], [16.485, 116.508], [16.615, 116.147], [16.772, 115.797],
+       [17.057, 115.297], [17.278, 114.983], [17.653, 114.547], [21, 111.081], [21.108, 110.988], [21.231, 110.916],
+       [21.364, 110.866]];
 
 module top_ring() {
     rotate_extrude($fn = ROUNDNESS) polygon(TOP);

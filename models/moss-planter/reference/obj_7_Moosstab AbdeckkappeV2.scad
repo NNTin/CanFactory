@@ -2,16 +2,16 @@
 //
 // Adapted from "Moss Tower Verdura - The Modular Climbing Support" by HpInvent (MakerWorld):
 // https://makerworld.com/de/models/1200114-moss-tower-verdura-the-modular-climbing-support
-// This file is a derivative reconstruction of that design's STL (obj_10_Moosstab AbdeckkappeV2.stl) made for
+// This file is a derivative reconstruction of that design's STL (obj_7_Moosstab AbdeckkappeV2.stl) made for
 // CanFactory; it grants no additional rights to the original. See ../ATTRIBUTION.md.
 //
 // Geometry: a revolved profile (outer skirt, inner plug wall, roof ridge) plus a right-handed internal thread
 // (pitch 5 mm, single start) cut into the skirt. Units are millimetres; the part is centred on the Z axis with its
-// open end on z = 0. Source STL sat at (595, -608) on the print plate.
-// obj_7_Moosstab AbdeckkappeV2.scad is the same part scaled by 100/52.
+// open end on z = 0. Source STL sat at (175, -224) on the print plate.
+// This file is obj_10_Moosstab AbdeckkappeV2.scad scaled by 100/52; only SCALE and this header differ.
 
 // Uniform scale (1 = 52 mm diameter cap).
-SCALE       = 1;
+SCALE       = 100 / 52;
 // Facets around a full circle.
 ROUNDNESS   = 180; //[48:12:360]
 

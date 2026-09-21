@@ -1,45 +1,47 @@
-// Moosstab Middle RAUTE (tall diamond-lattice tower segment) - parametric OpenSCAD reconstruction.
+// Moosstab Middle RAUTE 10cm (100 mm diamond-lattice tower segment) - parametric OpenSCAD reconstruction.
 //
 // Adapted from "Moss Tower Verdura - The Modular Climbing Support" by HpInvent (MakerWorld):
 // https://makerworld.com/de/models/1200114-moss-tower-verdura-the-modular-climbing-support
-// This file is a derivative reconstruction of that design's STL (obj_4_Moosstab Middle RAUTE.stl) made for
+// This file is a derivative reconstruction of that design's STL (obj_9_Moosstab Middle RAUTE 10cm.stl) made for
 // CanFactory; it grants no additional rights to the original. See ../ATTRIBUTION.md.
 //
-// A 52 mm x 230 mm tube segment: a female-threaded collar at the bottom, a male-threaded ring at the top, and between them a
+// A 100 mm x 250 mm tube segment: a female-threaded collar at the bottom, a male-threaded ring at the top, and between them a
 // diamond ("Raute") lattice of 2 x COLUMNS helical struts that fan out into V-shaped gussets at both ends.
-// Right-handed threads, pitch 5 mm. Units are millimetres; the part is centred on the Z axis with its base on z = 0.
-// Same design as obj_5_Moosstab Middle RAUTE small.scad with ROWS = 10 and slightly taller end rings.
-// Source STL sat at (595, -224) on the print plate.
+// Right-handed threads, pitch 100/52 x 5 mm (the threads are the 52 mm design's, scaled). Units are millimetres; the part is centred on the Z axis with its base on z = 0.
+// Same construction as obj_5_Moosstab Middle RAUTE small.scad, with 12 columns and its own strut section.
+// Source STL sat at (595, 160) on the print plate.
 
-// Uniform scale (1 = 52 mm outer diameter).
+// Uniform scale (1 = 100 mm outer diameter).
 SCALE        = 1;
 // Facets around a full circle.
 ROUNDNESS    = 180; //[48:12:360]
 
 // Struts / gussets around the tube.
-COLUMNS      = 6;
+COLUMNS      = 12;
 // Angle of the first column (gusset axis).
-COLUMN_PHASE = 0;
+COLUMN_PHASE = 15;
 // Rhombus rows.
 ROWS         = 10;
 // Height where the first row of struts starts, and the height step between rows.
-NODE_Z0      = 26.55;
-ROW_DZ       = 17.5;
+NODE_Z0      = 36.99;
+ROW_DZ       = 17.31;
 // The gusset's sides are the first struts extended downwards; its apex sits slightly higher than the strut start.
-GUSSET_APEX  = 27.15;
-GUSSET_INNER_EXT = 19.5;
+GUSSET_APEX  = 37.6;
+GUSSET_INNER_EXT = 37;
 // Fine adjustment of the top gusset (the lattice is not exactly mirror-symmetric).
-TOP_MIRROR_TRIM = 0.3;
+TOP_MIRROR_TRIM = 1;
 // Height at which the top gusset ends inside the top ring.
-TOP_GUSSET_END = 217.4;
+TOP_GUSSET_END = 226.1;
 // Strut rotation about the axis, degrees per mm of height.
-STRUT_TWIST  = 1.656;
-OUTER_R      = 26;
-LATTICE_INNER_R = 23.013;
+STRUT_TWIST  = 0.846;
+OUTER_R      = 50;
+LATTICE_INNER_R = 44.249;
 // Height of the top thread ring's upper face.
-TOP_Z        = 230;
+TOP_Z        = 250;
 
-THREAD_PITCH = 5;
+// The threads are the 52 mm design's scaled by K.
+K            = 100 / 52;
+THREAD_PITCH = 5 * K;
 THREAD_TURN  = 1;       // 1 = right-handed, -1 = left-handed
 
 // ---- Lattice ------------------------------------------------------------------------------------------------
@@ -49,17 +51,22 @@ THREAD_TURN  = 1;       // 1 = right-handed, -1 = left-handed
 // Rounded, sheared strut section on a horizontal plane: [radius, arc length] about the strut centre; this is the
 // ascending strut (angle grows with height); the descending strut is its mirror image. The flat faces at radius 26
 // and 23.013 are extended outwards (26.6 / 22.4) for clipping.
-STRUT = [[25.773, 1.745], [25.633, 1.88], [25.451, 1.979], [25.282, 2.012], [25.068, 1.99], [23.515, 1.372],
-         [23.309, 1.216], [23.196, 1.075], [23.072, 0.823], [23.014, 0.541], [22.4, 0.541], [22.4, -0.876],
-         [23.013, -0.876], [23.073, -1.156],
-         [23.151, -1.328], [23.255, -1.48], [23.453, -1.658], [23.603, -1.736], [23.76, -1.777], [25.23, -1.974],
-         [25.456, -1.938], [25.596, -1.869], [25.721, -1.769], [25.826, -1.639], [25.941, -1.399], [25.995, -1.125],
-         [26.6, -1.125], [26.6, 1.053], [26.0, 1.053], [25.985, 1.246], [25.941, 1.431], [25.869, 1.599]];
+STRUT = [[49.376, 2.048], [44.691, 1.415], [44.53, 1.331], [44.458, 1.267], [44.354, 1.128], [44.276, 0.938],
+         [44.249, 0.726], [43.6, 0.726], [43.6, -0.783], [44.25, -0.783], [44.276, -0.988], [44.307, -1.085],
+         [44.354, -1.185], [44.465, -1.332], [44.612, -1.44], [44.779, -1.493], [49.379, -2.086], [49.551, -2.077],
+         [49.634, -2.049], [49.782, -1.949], [49.899, -1.799], [49.942, -1.708], [49.993, -1.508], [50.6, -1.508],
+         [50.6, 1.02], [50.0, 1.02], [49.998, 1.365], [49.972, 1.573], [49.898, 1.761], [49.78, 1.912], [49.631, 2.012],
+         [49.463, 2.052]];
 // The end of the ascending section facing -arc (from the inner extension to the outer one): the gusset's outline.
-STRUT_END = [for (i = [11 : 26]) STRUT[i]];
-STRUT_ODD = STRUT;
-STRUT_END_ODD = STRUT_END;   // (all rows share one strut section in this part)
-STRUT_END_FIRST = [22.4, -0.876];
+STRUT_END = [for (i = [8 : 23]) STRUT[i]];
+// Odd rows of this lattice use a wider strut (about 4.9 mm instead of 4.1 mm across).
+STRUT_ODD = [[43.6, -1.254], [44.256, -1.254], [44.275, -1.357], [44.351, -1.548], [44.405, -1.631], [44.513, -1.742],
+             [44.62, -1.814], [44.789, -1.864], [49.388, -2.389], [49.562, -2.377], [49.722, -2.302], [49.853, -2.173],
+             [49.942, -2.014], [49.975, -1.911], [50.0, -1.709], [50.6, -1.709], [50.6, 1.813], [49.999, 1.813],
+             [49.967, 2.042], [49.898, 2.209], [49.844, 2.29], [49.776, 2.363], [49.63, 2.457], [49.462, 2.495],
+             [49.373, 2.49], [44.773, 1.808], [44.623, 1.76], [44.526, 1.701], [44.391, 1.557], [44.309, 1.407],
+             [44.267, 1.262], [44.249, 1.096], [43.6, 1.096]];
+STRUT_END_ODD = [for (i = [0 : 15]) STRUT_ODD[i]];
 
 BAR_ANGLE = 180 / COLUMNS;                      // rotation of one strut: half the column spacing
 BAR_DZ = BAR_ANGLE / STRUT_TWIST;               // height of one strut
@@ -67,11 +74,11 @@ LATTICE_TOP = NODE_Z0 + (ROWS - 1) * ROW_DZ + BAR_DZ; // where the last struts e
 // The top gusset is the bottom one mirrored about the plane z = TOP_MIRROR_Z / 2 (the lattice is symmetric).
 TOP_MIRROR_Z = NODE_Z0 + LATTICE_TOP + TOP_MIRROR_TRIM;
 
-// Revolved clip: outer radius 26, inner radius 23.013 with the chamfers under the gussets (45 degrees; 0.05 mm inside
+// Revolved clip: outer radius 50, inner radius 44.249 with the chamfers under the gussets (45 degrees; 0.1 mm inside
 // the collar's own chamfer so the two cones are never coincident). It starts 0.06 mm above the collar's inner ledge
-// (z = 10) so their horizontal faces are not coplanar.
-LATTICE_ENVELOPE = [[20.519, 10.06], [OUTER_R, 10.06], [OUTER_R, TOP_Z - 12], [19.16, TOP_Z - 12], [LATTICE_INNER_R, 109.147 + TOP_Z - 125],
-                    [LATTICE_INNER_R, 12.554]];
+// (z = 19.231) so their horizontal faces are not coplanar.
+LATTICE_ENVELOPE = [[39.403, 19.291], [OUTER_R, 19.291], [OUTER_R, 228], [35.83, 228], [LATTICE_INNER_R, 219.58],
+                    [LATTICE_INNER_R, 24.14]];
 
 function deg(s, r) = s / r * 180 / PI;
 function xy(r, angle) = r * [cos(angle), sin(angle)];
@@ -133,7 +140,7 @@ module lattice() {
                     strut(a + BAR_ANGLE * k, 1, NODE_Z0 + k * ROW_DZ, k % 2 == 1);
                     strut(a - BAR_ANGLE * k, -1, NODE_Z0 + k * ROW_DZ, k % 2 == 1);
                 }
-                gusset(a, GUSSET_APEX, 9.5, STRUT_END);
+                gusset(a, GUSSET_APEX, 17.5, STRUT_END);
                 // Top gusset: the bottom one mirrored (z -> TOP_MIRROR_Z - z).
                 translate([0, 0, TOP_MIRROR_Z]) mirror([0, 0, 1]) gusset(a, GUSSET_APEX, TOP_MIRROR_Z - TOP_GUSSET_END, (ROWS - 1) % 2 == 1 ? STRUT_END_ODD : STRUT_END);
             }
@@ -142,7 +149,8 @@ module lattice() {
 }
 
 // ---- Thread helpers -------------------------------------------------------------------------------------------
-function tooth_r(table, phase) = lookup(((phase + 0.5) % THREAD_PITCH + THREAD_PITCH) % THREAD_PITCH - 0.5, table);
+function tooth_r(table, phase) = lookup(((phase + 0.5 * K) % THREAD_PITCH + THREAD_PITCH) % THREAD_PITCH - 0.5 * K, table);
+function scaled(table) = [for (p = table) [p[0] * K, p[1] * K]];
 
 // Polar cross-section on z0 of a thread whose deepest/highest point sits at height crest_z at crest_angle.
 module thread_section(table, z0, crest_z, crest_angle, r_inner) {
@@ -163,31 +171,33 @@ module thread_extrude(table, z_from, z_to, crest_z, crest_angle, r_inner) {
 }
 
 // ---- Collar with internal (female) thread ---------------------------------------------------------------------
-// Groove profile: [phase from the deepest point, radius]; the flat root sits 0.1 mm inside the 18.7 mm wall.
-FEMALE = [[-0.5, 19.913], [-0.389, 20.008], [-0.212, 20.109], [0, 20.147], [0.212, 20.109], [0.391, 20.009],
-          [1.831, 18.6], [3.157, 18.6], [4.5, 19.913]];
-BOTTOM = [[18.7, 0], [26, 0], [26, 11.52], [25.984, 11.678], [25.906, 11.897], [25.818, 12.028], [25.708, 12.138],
-          [25.506, 12.259], [25.278, 12.316], [22.831, 12.32], [20.509, 10], [18.7, 10]];
+// Groove profile of the 52 mm design: [phase from the deepest point, radius]; scaled by K below. The flat root sits
+// 0.1 mm inside the 18.7 mm wall.
+FEMALE = scaled([[-0.5, 19.913], [-0.389, 20.008], [-0.212, 20.109], [0, 20.147], [0.212, 20.109], [0.391, 20.009],
+                 [1.831, 18.6], [3.157, 18.6], [4.5, 19.913]]);
+BOTTOM = [[35.962, 0], [50, 0], [50, 22.567], [49.972, 22.745], [49.937, 22.828], [49.831, 22.975], [49.685, 23.081],
+          [49.513, 23.136], [49.423, 23.144], [43.595, 23.144], [43.416, 23.115], [43.333, 23.081], [43.187, 22.975],
+          [39.443, 19.231], [35.962, 19.231]];
 
 module collar() {
     difference() {
         rotate_extrude($fn = ROUNDNESS) polygon(BOTTOM);
-        thread_extrude(FEMALE, -1, 10.05, 5.385, 30, 18.0);   // the cutter ends 0.05 above the ledge so their faces are not coplanar
+        thread_extrude(FEMALE, -1, 19.281, 5.385 * K, 30, 18.0 * K);   // the cutter ends 0.05 above the ledge so their faces are not coplanar
     }
 }
 
 // ---- Top ring with external (male) thread ---------------------------------------------------------------------
-MALE = [[-0.5, 19.708], [-0.311, 19.892], [-0.15, 19.98], [0, 20.001], [0.15, 19.98], [0.311, 19.892],
-        [1.742, 18.5], [3.258, 18.5], [4.5, 19.708]];
-TOP = [[20.704, 216.74], [25.2, 216.74], [25.356, 216.756], [25.506, 216.802], [25.644, 216.876], [25.766, 216.975],
-       [25.906, 217.164], [25.966, 217.309], [25.996, 217.462], [26, 220], [18.4, 220], [18.4, TOP_Z], [16.25, TOP_Z],
-       [16.25, 223.02], [16.265, 222.637], [16.342, 222.066], [16.43, 221.692], [16.546, 221.326], [16.772, 220.797],
-       [16.956, 220.46], [17.165, 220.138], [17.398, 219.833], [17.653, 219.547], [20.128, 216.985], [20.236, 216.891],
-       [20.424, 216.791], [20.562, 216.753]];
+MALE = scaled([[-0.5, 19.708], [-0.311, 19.892], [-0.15, 19.98], [0, 20.001], [0.15, 19.98], [0.311, 19.892],
+               [1.742, 18.5], [3.258, 18.5], [4.5, 19.708]]);
+TOP = [[39.117, 224.801], [49.423, 224.801], [49.601, 224.829], [49.762, 224.911], [49.89, 225.039], [49.937, 225.116],
+       [49.972, 225.199], [50, 225.378], [50, 230.769], [18.4 * K, 230.769], [18.4 * K, TOP_Z], [31.251, TOP_Z],
+       [31.251, 236.577], [31.279, 235.839], [31.315, 235.472], [31.364, 235.106], [31.505, 234.381], [31.701, 233.67],
+       [31.951, 232.975], [32.096, 232.636], [32.424, 231.974], [32.802, 231.34], [33.228, 230.737], [33.698, 230.168],
+       [33.95, 229.898], [38.702, 224.977], [38.849, 224.866], [38.934, 224.83]];
 
 module top_ring() {
     rotate_extrude($fn = ROUNDNESS) polygon(TOP);
-    thread_extrude(MALE, TOP_Z - 10.1, TOP_Z, TOP_Z - 4.581, 30, 18.0);
+    thread_extrude(MALE, TOP_Z - 10.1 * K, TOP_Z, TOP_Z - 4.581 * K, 30, 18.0 * K);
 }
 
 scale(SCALE) union() {
