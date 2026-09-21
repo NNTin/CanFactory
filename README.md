@@ -3,6 +3,9 @@
 A local workshop for customizable, printable models. Adjust a provided model,
 inspect its actual STL in 3D, and download the same file for your slicer.
 
+See the [container and communication diagrams](docs/container-architecture.md)
+for the current Docker layout, render flow, and proposed Kubernetes scaling path.
+
 The first model is a fruit fly trap with adjustable dimensions, an optional
 ventilation pattern, and advanced wall, handle, and slot controls.
 

@@ -15,8 +15,11 @@ are no accounts, uploads, or saved backend designs.
   localhost; web proxies `/api` to the API.
 
 Separating the worker allows its lifecycle to evolve independently. Kubernetes
-is out of scope. Deployment across machines would require replacing the SQLite
-queue and local file store, not mounting SQLite over network storage.
+is a future migration target; the current deployment remains localhost Docker
+Compose. Deployment across machines would require replacing the SQLite queue
+and local file store, not mounting SQLite over network storage. The
+[container and communication diagrams](container-architecture.md) show the
+implemented topology and a proposed migration path with independent scaling.
 
 ## Contracts and models
 
