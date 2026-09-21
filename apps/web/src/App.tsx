@@ -81,7 +81,17 @@ function Editor({ model }: { model: ModelDetail }) {
   useEffect(() => { setViewerError(null); setDownloadError(null); }, [url]);
 
   const change = (key: string, value: number | boolean) => {
-    setParameters(current => ({ ...current, [key]: value })); setDownloadError(null); setViewerError(null);
+    setParameters(current => {
+      const next = { ...current, [key]: value };
+      if (value === false && definition) {
+        const invalid = validateParameters(definition, next);
+        for (const control of model.controls) {
+          if (control.enabledWhen === key && invalid.some(issue => issue.field === control.key)) next[control.key] = control.default;
+        }
+      }
+      return next;
+    });
+    setDownloadError(null); setViewerError(null);
   };
   const reset = () => { setParameters({ ...model.defaults }); setViewerError(null); setDownloadError(null); };
   const retry = () => { setViewerError(null); setDownloadError(null); rendering.retry(); };

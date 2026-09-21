@@ -85,6 +85,14 @@ test('shows validation and render errors with a working retry', async ({ page })
   await page.getByRole('spinbutton', { name: 'Central opening', exact: true }).fill('30');
   await expect(page.getByRole('alert')).toContainText('smaller than the funnel diameter');
   await expect(page.getByRole('button', { name: 'Download STL', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  await page.getByRole('button', { name: 'Advanced settings' }).click();
+  await page.getByRole('spinbutton', { name: 'Slot height', exact: true }).fill('1.3');
+  await expect(page.getByRole('button', { name: 'Download STL', exact: true })).toBeDisabled();
+  await page.getByRole('switch', { name: 'Ventilation slots' }).click();
+  await expect(page.getByRole('spinbutton', { name: 'Slot height', exact: true })).toBeDisabled();
+  await expect(page.getByRole('spinbutton', { name: 'Slot height', exact: true })).toHaveValue('1.6');
+  await expect(page.getByRole('button', { name: 'Download STL', exact: true })).toBeEnabled();
 });
 
 test('renders a usable mobile layout and model library', async ({ page }, testInfo) => {
