@@ -38,6 +38,10 @@ services:
       context: .
       target: web
     restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - canfactory-web
     ports:
       - "127.0.0.1:${WEB_PORT:-5173}:80"
     depends_on:
@@ -50,3 +54,6 @@ services:
       retries: 3
 volumes:
   data:
+networks:
+  default:
+    name: canfactory-network
