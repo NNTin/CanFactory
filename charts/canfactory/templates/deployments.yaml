@@ -1,0 +1,106 @@
+{{- range $role := list "web" "api" "worker" }}
+{{- $settings := index $.Values $role }}
+{{- $image := index $.Values.images $role }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $.Release.Name }}-{{ $role }}
+  labels:
+    {{- include "canfactory.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $role }}
+spec:
+  replicas: {{ $settings.replicas }}
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 300
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: {{ if eq $role "worker" }}0{{ else }}1{{ end }}
+      maxUnavailable: {{ if eq $role "worker" }}1{{ else }}0{{ end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: {{ $role }}
+  template:
+    metadata:
+      labels:
+        {{- include "canfactory.labels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $role }}
+      {{- if eq $role "web" }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/web-config.yaml") $ | sha256sum }}
+      {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: {{ $.Release.Name }}
+      terminationGracePeriodSeconds: 45
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ if eq $role "web" }}101{{ else }}1000{{ end }}
+        runAsGroup: {{ if eq $role "web" }}101{{ else }}1000{{ end }}
+        fsGroup: {{ if eq $role "web" }}101{{ else }}1000{{ end }}
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: {{ $role }}
+          image: {{ printf "%s@%s" $image.repository (required "Every application image must have a digest" $image.digest) | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext: {{ include "canfactory.security" $ | nindent 12 }}
+          resources: {{ toYaml $settings.resources | nindent 12 }}
+          {{- if eq $role "web" }}
+          command: [nginx, -g, "daemon off;"]
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 15
+          {{- else }}
+          env: {{ include "canfactory.env" (dict "root" $ "role" $role) | nindent 12 }}
+          {{- if eq $role "api" }}
+          ports:
+            - {name: http, containerPort: 3001}
+            - {name: internal, containerPort: 3002}
+          startupProbe:
+            httpGet: {path: /live, port: internal}
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet: {path: /ready, port: internal}
+            periodSeconds: 10
+            timeoutSeconds: 6
+          livenessProbe:
+            httpGet: {path: /live, port: internal}
+            periodSeconds: 15
+          {{- else }}
+          startupProbe:
+            exec:
+              command: [node, -e, "require('node:fs').accessSync('/tmp/canfactory-worker-health')"]
+            failureThreshold: 30
+            periodSeconds: 2
+          livenessProbe:
+            exec:
+              command: [node, -e, "process.exit(Date.now()-Number(require('node:fs').readFileSync('/tmp/canfactory-worker-health','utf8'))<30000?0:1)"]
+            periodSeconds: 10
+            timeoutSeconds: 3
+          {{- end }}
+          {{- end }}
+          volumeMounts:
+            - {name: scratch, mountPath: /tmp}
+            {{- if eq $role "web" }}
+            - {name: nginx, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf, readOnly: true}
+            {{- end }}
+      volumes:
+        - name: scratch
+          emptyDir:
+            sizeLimit: {{ if eq $role "worker" }}{{ $.Values.worker.scratchSize }}{{ else }}128Mi{{ end }}
+        {{- if eq $role "web" }}
+        - name: nginx
+          configMap: {name: {{ $.Release.Name }}-web}
+        {{- end }}
+{{- end }}

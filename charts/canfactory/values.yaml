@@ -1,0 +1,47 @@
+images:
+  web:
+    repository: ghcr.io/nntin/canfactory-web
+    digest: ""
+  api:
+    repository: ghcr.io/nntin/canfactory-api
+    digest: ""
+  worker:
+    repository: ghcr.io/nntin/canfactory-worker
+    digest: ""
+imagePullSecrets: []
+secrets:
+  api: canfactory-api
+  worker: canfactory-worker
+  release: canfactory-release
+  maintenance: canfactory-maintenance
+storage:
+  endpoint: http://garage.canfactory-data.svc.cluster.local:3900
+  region: garage
+  catalogueBucket: canfactory-catalogue
+  generatedBucket: canfactory-generated
+web:
+  replicas: 2
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 250m, memory: 128Mi}
+api:
+  replicas: 2
+  resources:
+    requests: {cpu: 200m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+worker:
+  replicas: 1
+  scratchSize: 1Gi
+  resources:
+    requests: {cpu: "1", memory: 2Gi}
+    limits: {cpu: "2", memory: 2Gi}
+maintenance:
+  schedule: "* * * * *"
+  suspend: false
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+release:
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 512Mi}

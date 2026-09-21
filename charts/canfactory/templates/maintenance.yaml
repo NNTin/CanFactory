@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}-maintenance
+  labels: {{ include "canfactory.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.maintenance.schedule | quote }}
+  suspend: {{ .Values.maintenance.suspend }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 180
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/component: maintenance
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ .Release.Name }}
+          automountServiceAccountToken: false
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: cleanup
+              image: {{ printf "%s@%s" .Values.images.api.repository .Values.images.api.digest | quote }}
+              command: [node, --import, tsx, tools/maintenance.ts, cleanup]
+              securityContext: {{ include "canfactory.security" . | nindent 16 }}
+              resources: {{ toYaml .Values.maintenance.resources | nindent 16 }}
+              env: {{ include "canfactory.env" (dict "root" . "role" "maintenance") | nindent 16 }}
+              volumeMounts:
+                - {name: scratch, mountPath: /tmp}
+          volumes:
+            - name: scratch
+              emptyDir: {sizeLimit: 128Mi}
