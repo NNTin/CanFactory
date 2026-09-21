@@ -54,6 +54,25 @@ function overlap(a: number[], b: number[]): number {
   return sum;
 }
 
+/** Total length of the intervals clipped to [lo, hi]. */
+function clippedTotal(intervals: number[], lo: number, hi: number): number {
+  let sum = 0;
+  for (let i = 0; i + 1 < intervals.length; i += 2) sum += Math.max(0, Math.min(g(intervals, i + 1), hi) - Math.max(g(intervals, i), lo));
+  return sum;
+}
+
+function clippedOverlap(a: number[], b: number[], lo: number, hi: number): number {
+  let sum = 0, i = 0, j = 0;
+  while (i + 1 < a.length && j + 1 < b.length) {
+    const start = Math.max(g(a, i), g(b, j), lo), end = Math.min(g(a, i + 1), g(b, j + 1), hi);
+    if (end > start) sum += end - start;
+    if (g(a, i + 1) < g(b, j + 1)) i += 2; else j += 2;
+  }
+  return sum;
+}
+
+export interface Band { z0: number; z1: number; iou: number; referenceVolume: number; candidateVolume: number }
+
 export interface Comparison {
   /** Per-axis bounding-box size difference candidate − reference (mm). */
   sizeDelta: [number, number, number];
@@ -71,13 +90,15 @@ export interface Comparison {
   skippedColumns: number;
   /** Ray columns that hit either solid (denominator for skippedColumns). */
   occupiedColumns: number;
+  /** Per-height IoU (candidate registered by bounding-box centre) when `bandHeight` is given: shows where a reconstruction departs. */
+  bands?: Band[];
 }
 
 /**
  * Compare a candidate solid with a reference. The candidate is translated so the bounding-box centres coincide (source
  * STLs sit at arbitrary build-plate positions), after the reference is optionally scaled by `referenceScale`.
  */
-export function compareMeshes(reference: Mesh, candidate: Mesh, options: { cellSize?: number; referenceScale?: number } = {}): Comparison {
+export function compareMeshes(reference: Mesh, candidate: Mesh, options: { cellSize?: number; referenceScale?: number; bandHeight?: number } = {}): Comparison {
   const cell = options.cellSize ?? 0.2;
   const ref = options.referenceScale && options.referenceScale !== 1 ? transform(reference, options.referenceScale) : reference;
   const refBounds = bounds(ref), candBounds = bounds(candidate);
@@ -100,6 +121,21 @@ export function compareMeshes(reference: Mesh, candidate: Mesh, options: { cellS
     inter += o;
     union += total(ca) + total(cb) - o;
   }
+  const bands: Band[] = [];
+  if (options.bandHeight && options.bandHeight > 0) {
+    const zMin = Math.min(refBounds.min[2], movedBounds.min[2]), zMax = Math.max(refBounds.max[2], movedBounds.max[2]);
+    for (let z0 = zMin; z0 < zMax; z0 += options.bandHeight) {
+      const z1 = Math.min(z0 + options.bandHeight, zMax);
+      let bi = 0, bu = 0, va = 0, vb = 0;
+      for (let k = 0; k < a.cells.length; k++) {
+        const ca = a.cells[k] ?? [], cb = b.cells[k] ?? [];
+        if (ca.length === 0 && cb.length === 0) continue;
+        const o = clippedOverlap(ca, cb, z0, z1), ta = clippedTotal(ca, z0, z1), tb = clippedTotal(cb, z0, z1);
+        bi += o; bu += ta + tb - o; va += ta; vb += tb;
+      }
+      bands.push({ z0, z1, iou: bu > 0 ? bi / bu : 1, referenceVolume: va * cell * cell, candidateVolume: vb * cell * cell });
+    }
+  }
   const cellArea = cell * cell;
   const refVolume = volume(ref), candVolume = volume(candidate);
   const symmetricDifference = (union - inter) * cellArea;
@@ -108,6 +144,7 @@ export function compareMeshes(reference: Mesh, candidate: Mesh, options: { cellS
     sizeDelta, maxSizeDelta: Math.max(...sizeDelta.map(Math.abs)), referenceVolume: refVolume, candidateVolume: candVolume,
     volumeRelativeError: (candVolume - refVolume) / refVolume, iou: union > 0 ? inter / union : 0,
     meanDeviation: meanArea > 0 ? symmetricDifference / meanArea : 0, cellSize: cell, skippedColumns: a.skipped + b.skipped, occupiedColumns: occupied,
+    ...(bands.length > 0 ? { bands } : {}),
   };
 }
 

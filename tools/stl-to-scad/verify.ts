@@ -46,7 +46,7 @@ export interface VerifyResult {
   tolerance: Tolerance;
 }
 
-export interface VerifyOptions { defines?: Defines; scale?: number; tolerance?: Partial<Tolerance>; cellSize?: number; name?: string }
+export interface VerifyOptions { defines?: Defines; scale?: number; tolerance?: Partial<Tolerance>; cellSize?: number; bandHeight?: number; name?: string }
 
 /** Judge a comparison against tolerances. Pure so it can be unit tested without a renderer. */
 export function judge(topology: Topology, comparison: Comparison, tolerance: Tolerance): string[] {
@@ -64,7 +64,7 @@ export function verifyMeshes(reference: Mesh, referenceBytes: Buffer, candidateB
   const tolerance = { ...DEFAULT_TOLERANCE, ...options.tolerance };
   const candidate = parseStl(candidateBytes);
   const topology = analyzeTopology(candidate);
-  const comparison = compareMeshes(reference, candidate, { ...(options.cellSize === undefined ? {} : { cellSize: options.cellSize }), ...(options.scale === undefined ? {} : { referenceScale: options.scale }) });
+  const comparison = compareMeshes(reference, candidate, { ...(options.cellSize === undefined ? {} : { cellSize: options.cellSize }), ...(options.scale === undefined ? {} : { referenceScale: options.scale }), ...(options.bandHeight === undefined ? {} : { bandHeight: options.bandHeight }) });
   const failures = judge(topology, comparison, tolerance);
   return {
     ...names, pass: failures.length === 0, failures,

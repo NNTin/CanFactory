@@ -2,8 +2,9 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { parseArgs } from 'node:util';
 import { detectScaleVariant } from './compare.ts';
+import { renderScad } from './openscad.ts';
 import { meshToPolyhedron } from './polyhedron.ts';
-import { sectionsToSvg, sliceZ, toPieces } from './sections.ts';
+import { sectionsToSvg, simplifyLoop, sliceAxial, sliceZ, toPieces } from './sections.ts';
 import { bounds, center, isBinaryStl, parseStl, sha256, size, volume, type Mesh } from './stl.ts';
 import { analyzeTopology } from './topology.ts';
 import { DEFAULT_TOLERANCE, toMarkdown, verifyManifest, verifyScad, type VerifyResult } from './verify.ts';
@@ -13,10 +14,13 @@ const USAGE = `Usage: tsx tools/stl-to-scad/cli.ts <command> [options]
   inspect <stl...>                         format, size, volume, topology, SHA-256; detects scaled copies among the inputs
   sections <stl> (--z a,b,c | --step s)    slice at heights; JSON of pieces (area, centroid, angle/radius about the axis)
         [--svg out.svg] [--center x,y]
+  profile <stl> [--angle deg] [--simplify mm]   axial (r,z) outline through the axis: the profile for rotate_extrude() on a revolved part
+        [--center x,y] [--svg out.svg]
   polyhedron <stl> -o out.scad             FALLBACK: dump the mesh as one polyhedron() (large, not editable)
         [--decimals 3] [--cluster mm] [--name module] [--force]
+  render <scad> -o out.stl [-D NAME=value]...   render a SCAD to binary STL with the Manifold backend (check the result with inspect)
   verify <scad> <stl>                      render with OpenSCAD (Manifold) and compare with the STL
-        [-D NAME=value]... [--scale k] [--size mm] [--volume frac] [--iou frac] [--cell mm] [--json]
+        [-D NAME=value]... [--scale k] [--size mm] [--volume frac] [--iou frac] [--cell mm] [--bands mm] [--json]
   verify --manifest file.json              verify every part of a manifest [--only name...] [--report out.md] [--json]
 
 Exit status is 1 when a verification fails.`;
@@ -73,6 +77,7 @@ function printResult(result: VerifyResult): void {
   const c = result.comparison;
   console.log(`${result.pass ? 'PASS' : 'FAIL'} ${result.name}: size Δ ${c.sizeDelta.map(v => v.toFixed(3)).join('/')} mm, volume ${(c.volumeRelativeError * 100).toFixed(2)} %, IoU ${c.iou.toFixed(4)}, mean deviation ${c.meanDeviation.toFixed(3)} mm, ${result.scadBytes} SCAD bytes, ${(result.render.milliseconds / 1000).toFixed(1)} s (${result.render.runner})`);
   for (const failure of result.failures) console.log(`  - ${failure}`);
+  for (const band of c.bands ?? []) console.log(`  z ${band.z0.toFixed(1)}-${band.z1.toFixed(1)}: IoU ${band.iou.toFixed(3)} volume ref ${band.referenceVolume.toFixed(0)} / scad ${band.candidateVolume.toFixed(0)}`);
 }
 
 async function main(): Promise<number> {
@@ -80,10 +85,10 @@ async function main(): Promise<number> {
   const { values, positionals } = parseArgs({
     args: rest, allowPositionals: true,
     options: {
-      z: { type: 'string' }, step: { type: 'string' }, svg: { type: 'string' }, center: { type: 'string' }, o: { type: 'string', short: 'o' },
+      angle: { type: 'string' }, simplify: { type: 'string' }, z: { type: 'string' }, step: { type: 'string' }, svg: { type: 'string' }, center: { type: 'string' }, o: { type: 'string', short: 'o' },
       decimals: { type: 'string' }, cluster: { type: 'string' }, name: { type: 'string' }, force: { type: 'boolean' },
       D: { type: 'string', short: 'D', multiple: true }, scale: { type: 'string' }, size: { type: 'string' }, volume: { type: 'string' }, iou: { type: 'string' },
-      cell: { type: 'string' }, json: { type: 'boolean' }, manifest: { type: 'string' }, only: { type: 'string', multiple: true }, report: { type: 'string' },
+      cell: { type: 'string' }, bands: { type: 'string' }, json: { type: 'boolean' }, manifest: { type: 'string' }, only: { type: 'string', multiple: true }, report: { type: 'string' },
     },
   });
   switch (command) {
@@ -95,6 +100,29 @@ async function main(): Promise<number> {
       const [path] = positionals;
       if (!path || (!values.z && !values.step)) break;
       await sections(path, values, (await load(path)).mesh);
+      return 0;
+    }
+    case 'profile': {
+      const [path] = positionals;
+      if (!path) break;
+      const { mesh } = await load(path);
+      const b = bounds(mesh);
+      const [mx, my] = values.center ? values.center.split(',').map(Number) as [number, number] : [center(b)[0], center(b)[1]];
+      const loops = sliceAxial(mesh, mx, my, Number(values.angle ?? 0)).filter(l => l.points.every(p => p[0] >= -1e-6) && Math.abs(l.signedArea) > 1e-6);
+      const tolerance = Number(values.simplify ?? 0.02);
+      const simplified = loops.map(l => ({ ...l, points: simplifyLoop(l.points, tolerance) }));
+      console.log(JSON.stringify({ file: basename(path), center: [mx, my], angle: Number(values.angle ?? 0), simplifyMm: tolerance,
+        loops: simplified.map(l => ({ signedArea: round(l.signedArea, 3), hole: l.signedArea < 0, points: l.points.map(p => [round(p[0], 3), round(p[1], 3)]) })) }));
+      if (values.svg) await writeFile(values.svg, sectionsToSvg([{ z: Number(values.angle ?? 0), loops: simplified }]));
+      return 0;
+    }
+    case 'render': {
+      const [scad] = positionals;
+      if (!scad || !values.o) break;
+      const defines = Object.fromEntries((values.D ?? []).map(entry => { const [name, ...value] = entry.split('='); return [name ?? '', value.join('=')]; }));
+      const rendered = await renderScad(scad, defines);
+      await writeFile(values.o, rendered.stl);
+      console.log(`${values.o}: ${rendered.stl.length} bytes, ${(rendered.milliseconds / 1000).toFixed(1)} s (${rendered.runner}: ${rendered.version})`);
       return 0;
     }
     case 'polyhedron': {
@@ -125,7 +153,7 @@ async function main(): Promise<number> {
         if (!scad || !stl) break;
         const defines = Object.fromEntries((values.D ?? []).map(entry => { const [name, ...value] = entry.split('='); return [name ?? '', value.join('=')]; }));
         results = [await verifyScad(scad, stl, {
-          defines, tolerance, ...(values.scale ? { scale: Number(values.scale) } : {}), ...(values.cell ? { cellSize: Number(values.cell) } : {}),
+          defines, tolerance, ...(values.scale ? { scale: Number(values.scale) } : {}), ...(values.cell ? { cellSize: Number(values.cell) } : {}), ...(values.bands ? { bandHeight: Number(values.bands) } : {}),
         })];
       }
       if (values.json) console.log(JSON.stringify(results, null, 2));

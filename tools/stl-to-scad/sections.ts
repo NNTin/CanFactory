@@ -112,3 +112,70 @@ export function sectionsToSvg(sections: { z: number; loops: Loop[] }[], padding 
   });
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${(w * sections.length).toFixed(3)} ${h.toFixed(3)}" width="${Math.round(w * sections.length * 6)}" height="${Math.round(h * 6)}">${cells.join('')}</svg>\n`;
 }
+
+/**
+ * Cut with the vertical half-plane through the axis (cx, cy) at `angleDeg` and return outlines in (r, z) coordinates
+ * (r along the half-plane direction, negative on the far side). For a body of revolution the r >= 0 loops are the
+ * profile to feed to rotate_extrude(). The plane sits a hair off-axis for the same on-plane-vertex reason as sliceZ.
+ */
+export function sliceAxial(mesh: Mesh, cx: number, cy: number, angleDeg: number): Loop[] {
+  const a = (angleDeg * Math.PI) / 180;
+  const cos = Math.cos(a), sin = Math.sin(a);
+  const t = mesh.tris;
+  const mapped = new Float64Array(t.length);
+  for (let i = 0; i < triangleCount(mesh); i++) {
+    // (x, y, z) -> (r, z, s) is a reflection, so swap two vertices to keep the winding outward.
+    const order = [0, 2, 1];
+    order.forEach((v, slot) => {
+      const x = g(t, i * 9 + v * 3) - cx, y = g(t, i * 9 + v * 3 + 1) - cy, z = g(t, i * 9 + v * 3 + 2);
+      mapped[i * 9 + slot * 3] = x * cos + y * sin;
+      mapped[i * 9 + slot * 3 + 1] = z;
+      mapped[i * 9 + slot * 3 + 2] = -x * sin + y * cos;
+    });
+  }
+  return sliceZ({ tris: mapped }, 0);
+}
+
+/** Douglas-Peucker simplification of a closed loop (tolerance in the loop's units). */
+export function simplifyLoop(points: Point2[], tolerance: number): Point2[] {
+  if (points.length <= 4) return points;
+  // Anchor on the two most distant points so the closed loop splits into two open chains.
+  let a = 0, b = 0, best = -1;
+  for (let i = 0; i < points.length; i++) {
+    const [x0, y0] = points[i] ?? [0, 0];
+    const [x1, y1] = points[Math.floor(points.length / 2)] ?? [0, 0];
+    const d = Math.hypot(x0 - x1, y0 - y1);
+    if (d > best) { best = d; a = i; }
+  }
+  best = -1;
+  for (let i = 0; i < points.length; i++) {
+    const [x0, y0] = points[i] ?? [0, 0];
+    const [x1, y1] = points[a] ?? [0, 0];
+    const d = Math.hypot(x0 - x1, y0 - y1);
+    if (d > best) { best = d; b = i; }
+  }
+  const [lo, hi] = a < b ? [a, b] : [b, a];
+  const chain = (from: number[]): Point2[] => {
+    const keep = new Array<boolean>(from.length).fill(false);
+    keep[0] = true; keep[from.length - 1] = true;
+    const stack: [number, number][] = [[0, from.length - 1]];
+    while (stack.length > 0) {
+      const [s, e] = stack.pop() ?? [0, 0];
+      const [sx, sy] = points[from[s] ?? 0] ?? [0, 0];
+      const [ex, ey] = points[from[e] ?? 0] ?? [0, 0];
+      const length = Math.hypot(ex - sx, ey - sy) || 1;
+      let far = -1, index = -1;
+      for (let k = s + 1; k < e; k++) {
+        const [px, py] = points[from[k] ?? 0] ?? [0, 0];
+        const d = Math.abs((ex - sx) * (sy - py) - (sx - px) * (ey - sy)) / length;
+        if (d > far) { far = d; index = k; }
+      }
+      if (far > tolerance && index > 0) { keep[index] = true; stack.push([s, index], [index, e]); }
+    }
+    return from.filter((_, k) => keep[k]).map(i => points[i] ?? [0, 0]);
+  };
+  const first = Array.from({ length: hi - lo + 1 }, (_, k) => lo + k);
+  const second = [...Array.from({ length: points.length - hi }, (_, k) => hi + k), ...Array.from({ length: lo + 1 }, (_, k) => k)];
+  const one = chain(first), two = chain(second);
+  return [...one.slice(0, -1), ...two.slice(0, -1)];
+}
