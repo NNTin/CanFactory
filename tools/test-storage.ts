@@ -61,6 +61,7 @@ try {
   assert.ok(pgPort && s3Port);
   const databaseUrl = `postgresql://canfactory:${password}@127.0.0.1:${pgPort}/canfactory`;
   admin = new Pool({ connectionString: databaseUrl, connectionTimeoutMillis: 1000 });
+  admin.on('error', () => undefined);
   const control = admin;
   await waitFor(async () => { await control.query('SELECT 1'); });
   await waitFor(async () => { await docker('exec', garage, '/garage', 'status'); });
@@ -159,6 +160,62 @@ try {
     await first.heartbeat(randomUUID());
     assert.equal(await second.workerReady(), true);
     assert.match(await first.metrics(), /canfactory_jobs\{status="queued"\} 13/);
+
+    await control.query('UPDATE render_jobs SET expires_at=0');
+    await first.cleanup();
+    const publication = await first.enqueue(fruitFlyTrap, { ...fruitFlyTrap.defaults, trapHeight: 159 });
+    const publishing = await first.claim(); assert.ok(publishing?.leaseToken); assert.equal(publishing.id, publication.id);
+    const blocker = await control.connect();
+    first.objects.put = async (...args: Parameters<ObjectStorage['put']>) => {
+      await originalPut(...args);
+      await blocker.query('BEGIN');
+      await blocker.query('LOCK TABLE render_jobs IN ACCESS EXCLUSIVE MODE');
+    };
+    try { await assert.rejects(first.complete(publishing.id, publishing.leaseToken, metadata, file)); }
+    finally { await blocker.query('ROLLBACK'); blocker.release(); first.objects.put = originalPut; }
+    assert.equal((await second.getJob(publication.id))?.status, 'running');
+    assert.equal((await apis[1].inject(`/api/v1/renders/${publication.id}/stl`)).statusCode, 409);
+    const abandonedKey = `renders/${publishing.id}/${publishing.leaseToken}.stl`;
+    assert.equal(await first.objects.exists(config.generatedBucket, abandonedKey), true);
+    await control.query('UPDATE render_jobs SET lease_until=0 WHERE id=$1', [publication.id]);
+    await second.recover();
+    const originalListing = first.objects.generatedObjects.bind(first.objects);
+    // Advance only the orphan's age; retain the real object/queue and database clock.
+    first.objects.generatedObjects = async function* () {
+      for await (const object of originalListing()) yield { ...object, modified: 0 };
+    };
+    try { await first.cleanup(); } finally { first.objects.generatedObjects = originalListing; }
+    assert.equal(await first.objects.exists(config.generatedBucket, abandonedKey), false);
+    console.log('PASS upload followed by real database lock timeout never publishes; orphan is collected after grace');
+
+    const recovered = await first.claim(); assert.ok(recovered?.leaseToken);
+    assert.equal(await first.complete(recovered.id, recovered.leaseToken, metadata, file), true);
+    const recoveredKey = `renders/${recovered.id}/${recovered.leaseToken}.stl`;
+    await control.query('UPDATE render_jobs SET expires_at=0 WHERE id=$1', [recovered.id]);
+    const originalRemove = first.objects.remove.bind(first.objects);
+    first.objects.remove = () => Promise.reject(new Error('Injected object deletion failure'));
+    try { await first.cleanup(); } finally { first.objects.remove = originalRemove; }
+    assert.equal(await first.getJob(recovered.id), undefined);
+    assert.equal(await first.objects.exists(config.generatedBucket, recoveredKey), true);
+    const deletion = await control.query<{ attempts: number }>('SELECT attempts FROM object_deletions WHERE object_key=$1', [recoveredKey]);
+    assert.equal(deletion.rows[0]?.attempts, 1);
+    await control.query('UPDATE object_deletions SET retry_after=0 WHERE object_key=$1', [recoveredKey]);
+    await second.cleanup();
+    assert.equal(await first.objects.exists(config.generatedBucket, recoveredKey), false);
+    assert.equal(await first.objects.exists(config.catalogueBucket, model.referenceName), true);
+    console.log('PASS expired settings disappear despite failed object deletion; durable retry removes file and preserves references');
+
+    await docker('pause', garage);
+    try { await assert.rejects(first.ready()); } finally { await docker('unpause', garage); }
+    await first.ready();
+    await docker('pause', postgres);
+    try {
+      const outcome = await Promise.race([first.ready().then(() => 'resolved', () => 'rejected'), delay(15_000, 'hung', { ref: false })]);
+      assert.equal(outcome, 'rejected', 'Database outage must have a client-side deadline');
+    } finally { await docker('unpause', postgres); }
+    await first.ready();
+    console.log('PASS Garage and PostgreSQL outages fail readiness and recover without process restart');
+
   } finally { await Promise.all(apis.map(api => api.close())); }
 } finally {
   await Promise.all(stores.map(store => store.close()));

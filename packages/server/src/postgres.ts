@@ -39,7 +39,7 @@ export class PostgresStorage implements Storage {
   ) {
     this.pool = new Pool({ connectionString: databaseUrl, max: connections,
       connectionTimeoutMillis: 5000, idleTimeoutMillis: 30_000,
-      statement_timeout: 10_000, lock_timeout: 5000, idle_in_transaction_session_timeout: 15_000 });
+      query_timeout: 10_000, statement_timeout: 10_000, lock_timeout: 5000, idle_in_transaction_session_timeout: 15_000 });
     // An idle connection failure is retried on the next operation; do not crash the process.
     this.pool.on('error', () => { process.stderr.write('PostgreSQL idle connection lost.\n'); });
     this.fingerprints = models.map(model => sourceFingerprint(projectRoot, model));
