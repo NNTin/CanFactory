@@ -43,7 +43,7 @@ and model licensing are recorded in [ATTRIBUTION.md](models/fruit-fly-trap/ATTRI
 
 ## Development and verification
 
-Use Node.js 22.12 or newer, then install the locked dependencies:
+Use Node.js 22.13 or newer, then install the locked dependencies:
 
 ```sh
 npm ci
