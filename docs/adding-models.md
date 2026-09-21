@@ -21,6 +21,12 @@
 6. Run `npm run contracts:generate`, `npm run check`, `npm run test:renderer`, and
    browser tests. Rebuild Compose to include the model in the catalogue.
 
+If the only source is an STL, reconstruct the SCAD with the `stl-to-scad` skill (`.claude/skills/stl-to-scad/`,
+tooling in `tools/stl-to-scad/`, `npm run stl-scad -- --help`): inspect and dedupe the mesh, rebuild it from primitives,
+and prove the result with `verify` (bounding box, volume, IoU and one closed manifold body). Commit the SCAD next to the
+original in `reference/` together with a manifest and the generated `VERIFICATION.md`; `models/moss-planter/reference/`
+is the worked example.
+
 Bump the model version when parameter meanings or defaults change. Browser
 preferences are isolated by version and stale API requests receive a conflict.
 Source/schema/mapping changes also alter the cache fingerprint. The current
