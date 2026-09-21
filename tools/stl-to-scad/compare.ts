@@ -5,6 +5,24 @@ interface Columns { cells: number[][]; nx: number; ny: number; cell: number; ski
 
 const JITTER_X = 1.2345678e-7, JITTER_Y = 2.3456789e-7;
 
+/**
+ * Both solids are turned by this odd angle about Z before sampling so axis-parallel walls (fins, plates) are not aligned
+ * with the sample grid: otherwise a sub-cell offset flips a whole row of samples at once and biases volume and IoU.
+ */
+const SAMPLE_ROTATION = 0.2391;
+
+function rotateZ(mesh: Mesh, angle: number, cx: number, cy: number): Mesh {
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  const tris = new Float64Array(mesh.tris.length);
+  for (let i = 0; i < tris.length; i += 3) {
+    const x = g(mesh.tris, i) - cx, y = g(mesh.tris, i + 1) - cy;
+    tris[i] = x * cos - y * sin;
+    tris[i + 1] = x * sin + y * cos;
+    tris[i + 2] = g(mesh.tris, i + 2);
+  }
+  return { tris };
+}
+
 /** Cast one vertical ray per grid cell centre (jittered to avoid hitting mesh edges exactly) and collect the solid Z intervals. */
 function castColumns(mesh: Mesh, originX: number, originY: number, nx: number, ny: number, cell: number): Columns {
   const hits: number[][] = Array.from({ length: nx * ny }, () => []);
@@ -106,12 +124,15 @@ export function compareMeshes(reference: Mesh, candidate: Mesh, options: { cellS
   const moved = transform(candidate, 1, [rc[0] - cc[0], rc[1] - cc[1], rc[2] - cc[2]]);
   const rs = size(refBounds), cs = size(candBounds);
   const sizeDelta: [number, number, number] = [cs[0] - rs[0], cs[1] - rs[1], cs[2] - rs[2]];
+  const turnedRef = rotateZ(ref, SAMPLE_ROTATION, rc[0], rc[1]);
+  const turnedMoved = rotateZ(moved, SAMPLE_ROTATION, rc[0], rc[1]);
+  const turnedRefBounds = bounds(turnedRef), turnedMovedBounds = bounds(turnedMoved);
+  const originX = Math.min(turnedRefBounds.min[0], turnedMovedBounds.min[0]) - cell, originY = Math.min(turnedRefBounds.min[1], turnedMovedBounds.min[1]) - cell;
+  const nx = Math.ceil((Math.max(turnedRefBounds.max[0], turnedMovedBounds.max[0]) + cell - originX) / cell);
+  const ny = Math.ceil((Math.max(turnedRefBounds.max[1], turnedMovedBounds.max[1]) + cell - originY) / cell);
+  const a = castColumns(turnedRef, originX, originY, nx, ny, cell);
+  const b = castColumns(turnedMoved, originX, originY, nx, ny, cell);
   const movedBounds = bounds(moved);
-  const originX = Math.min(refBounds.min[0], movedBounds.min[0]) - cell, originY = Math.min(refBounds.min[1], movedBounds.min[1]) - cell;
-  const nx = Math.ceil((Math.max(refBounds.max[0], movedBounds.max[0]) + cell - originX) / cell);
-  const ny = Math.ceil((Math.max(refBounds.max[1], movedBounds.max[1]) + cell - originY) / cell);
-  const a = castColumns(ref, originX, originY, nx, ny, cell);
-  const b = castColumns(moved, originX, originY, nx, ny, cell);
   let inter = 0, union = 0, occupied = 0;
   for (let k = 0; k < a.cells.length; k++) {
     const ca = a.cells[k] ?? [], cb = b.cells[k] ?? [];

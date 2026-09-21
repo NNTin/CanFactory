@@ -15,7 +15,8 @@ const USAGE = `Usage: tsx tools/stl-to-scad/cli.ts <command> [options]
   sections <stl> (--z a,b,c | --step s)    slice at heights; JSON of pieces (area, centroid, angle/radius about the axis)
         [--svg out.svg] [--center x,y]
   profile <stl> [--angle deg] [--simplify mm]   axial (r,z) outline through the axis: the profile for rotate_extrude() on a revolved part
-        [--center x,y] [--svg out.svg]
+                                           (--full keeps loops that cross the axis, e.g. solid parts, with r < 0 on the far side)
+        [--center x,y] [--svg out.svg] [--full]
   polyhedron <stl> -o out.scad             FALLBACK: dump the mesh as one polyhedron() (large, not editable)
         [--decimals 3] [--cluster mm] [--name module] [--force]
   render <scad> -o out.stl [-D NAME=value]...   render a SCAD to binary STL with the Manifold backend (check the result with inspect)
@@ -86,7 +87,7 @@ async function main(): Promise<number> {
     args: rest, allowPositionals: true,
     options: {
       angle: { type: 'string' }, simplify: { type: 'string' }, z: { type: 'string' }, step: { type: 'string' }, svg: { type: 'string' }, center: { type: 'string' }, o: { type: 'string', short: 'o' },
-      decimals: { type: 'string' }, cluster: { type: 'string' }, name: { type: 'string' }, force: { type: 'boolean' },
+      decimals: { type: 'string' }, cluster: { type: 'string' }, name: { type: 'string' }, force: { type: 'boolean' }, full: { type: 'boolean' },
       D: { type: 'string', short: 'D', multiple: true }, scale: { type: 'string' }, size: { type: 'string' }, volume: { type: 'string' }, iou: { type: 'string' },
       cell: { type: 'string' }, bands: { type: 'string' }, json: { type: 'boolean' }, manifest: { type: 'string' }, only: { type: 'string', multiple: true }, report: { type: 'string' },
     },
@@ -108,7 +109,7 @@ async function main(): Promise<number> {
       const { mesh } = await load(path);
       const b = bounds(mesh);
       const [mx, my] = values.center ? values.center.split(',').map(Number) as [number, number] : [center(b)[0], center(b)[1]];
-      const loops = sliceAxial(mesh, mx, my, Number(values.angle ?? 0)).filter(l => l.points.every(p => p[0] >= -1e-6) && Math.abs(l.signedArea) > 1e-6);
+      const loops = sliceAxial(mesh, mx, my, Number(values.angle ?? 0)).filter(l => (values.full || l.points.every(p => p[0] >= -1e-6)) && Math.abs(l.signedArea) > 1e-6);
       const tolerance = Number(values.simplify ?? 0.02);
       const simplified = loops.map(l => ({ ...l, points: simplifyLoop(l.points, tolerance) }));
       console.log(JSON.stringify({ file: basename(path), center: [mx, my], angle: Number(values.angle ?? 0), simplifyMm: tolerance,
