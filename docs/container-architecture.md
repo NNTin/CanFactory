@@ -1,7 +1,8 @@
 # Containers and communication
 
-The first two diagrams describe the running Docker Compose application. The
-Kubernetes view below describes a future target; it is not deployed today.
+The first two diagrams describe the running Docker Compose application, including
+the public route verified on 2026-09-21. The Kubernetes view describes the agreed
+migration direction, with implementation details under review; it is not deployed.
 Service names and ports match [compose.yaml](../compose.yaml).
 
 ## Current Docker containers
@@ -9,8 +10,13 @@ Service names and ports match [compose.yaml](../compose.yaml).
 ```mermaid
 flowchart TB
     browser["Browser<br/>React editor + Three.js STL viewer"]
+    edge["Cloudflare edge<br/>HTTPS: canfactory.nntin.xyz"]
+    browser <-->|"Public HTTPS"| edge
 
     subgraph host["Local Docker host"]
+        tunnel["Existing lair cloudflared<br/>Outbound tunnel connection"]
+        traefik["Shared Docker Traefik :443<br/>DNS-01 certificate + security headers<br/>No CanFactory forward-auth"]
+        other["Unrelated applications"]
         subgraph network["Docker network: canfactory-network"]
             web["web container<br/>Nginx :80<br/>Static frontend + API reverse proxy"]
             api["api container<br/>Fastify :3001<br/>Catalogue, validation, render jobs, STL downloads"]
@@ -22,7 +28,11 @@ flowchart TB
         end
     end
 
-    browser <-->|"HTTP — 127.0.0.1:5173 to web:80<br/>HTML, JS, JSON, STL bytes"| web
+    edge <-->|"Encrypted tunnel"| tunnel
+    tunnel <-->|"HTTPS origin, noTLSVerify=true<br/>Verified remote CanFactory rule"| traefik
+    traefik <-->|"HTTP — canfactory-web:80"| web
+    traefik <--> other
+    browser <-->|"Alternative local access: HTTP 127.0.0.1:5173"| web
     web <-->|"HTTP — api:3001<br/>Proxy /api/* requests and responses"| api
     api <-->|"Local SQL reads and writes"| db
     worker <-->|"Local SQL: claim jobs, renew leases, publish status"| db
@@ -41,7 +51,8 @@ sources are packaged in their images, outside that writable volume.
 
 | Connection | Purpose | Current protocol or access |
 | --- | --- | --- |
-| Browser ↔ web | Load the editor; submit settings; poll; preview/download STL | HTTP on localhost port 5173 (configurable with `WEB_PORT`) |
+| Browser ↔ Cloudflare ↔ cloudflared ↔ Traefik ↔ web | Public editor/API/STL access | Edge HTTPS, encrypted tunnel, origin HTTPS with verification disabled, then HTTP to web |
+| Browser ↔ web | Alternative local editor/API/STL access | HTTP on localhost port 5173 (configurable with `WEB_PORT`) |
 | web ↔ api | Forward every `/api/*` request and its response | HTTP to Docker service DNS `api:3001` |
 | api ↔ SQLite | Catalogue, cached results, queued jobs, maintenance | SQLite file access on `/data`; no database TCP port |
 | worker ↔ SQLite | Claim jobs, heartbeat, renew leases, record completion/failure | SQLite file access on the same volume |
@@ -112,112 +123,89 @@ readable. Failed renders return a terminal error without an artifact. Abandoned
 leases allow one retry, while fencing tokens prevent stale workers from
 publishing. The API refuses expired jobs/files; maintenance removes them.
 
-## Proposed Kubernetes target
+## Agreed Kubernetes direction — not deployed
 
-This is a planning option, not an approved technology decision or an implemented
-deployment. It uses PostgreSQL for both metadata and the render queue, and an
-object store for STL files. Keeping queued work in the metadata database avoids
-introducing a separate broker initially. Queue technology, storage provider,
-cluster entry point, and replica limits remain architectural decisions.
+The user selected one WSL2/NUC host, RKE2, Flux, an application Helm chart,
+PostgreSQL-backed jobs, local Garage, a dedicated tunnel, and independent manual
+web/API/worker scaling. Short interruption and discarding old temporary renders
+are acceptable. Detailed behavior is in the draft [tech plan](kubernetes-tech-plan.md).
 
 ```mermaid
 flowchart TB
-    browser["Browser<br/>Same editor and public API paths"]
+    browser["Browser: same hostname and editor"]
+    cloud["Cloudflare: public HTTPS"]
+    browser <-->|"HTTPS"| cloud
 
-    subgraph cluster["Future Kubernetes cluster — application workloads"]
-        entry["HTTP entry point<br/>Ingress or Gateway controller"]
-        webService["web Service<br/>ClusterIP :80"]
-        web["web Deployment — 1..N pods<br/>Nginx static frontend"]
-        apiService["api Service<br/>ClusterIP :3001"]
-        api["api Deployment — 1..N pods<br/>Stateless Fastify API"]
-        worker["worker Deployment — 1..N pods<br/>One OpenSCAD render per pod<br/>Ephemeral local scratch space"]
-        migrate["Migration and catalogue-seeding Job<br/>Run before application rollout"]
-        cleanup["Maintenance CronJob<br/>Expired records and orphan artifacts"]
-        metrics["Queue metrics + autoscaling controller<br/>Pending work and oldest-job age"]
+    subgraph cluster["New single-node RKE2 on existing WSL2/NUC"]
+        tunnel["Dedicated CanFactory cloudflared"]
+        ingress["Internal Traefik ClusterIP + Gateway API"]
+        web["web Service + Deployment<br/>Initially 2 replicas; static assets"]
+        api["api Service + Deployment<br/>Initially 2 replicas; async storage"]
+        workers["worker Deployment<br/>Initially 1, manual maximum 2<br/>One render per pod; local scratch"]
+        release["Release migration/seeding Job"]
+        maintenance["Maintenance CronJob"]
+        pg[("PostgreSQL<br/>Catalogue, jobs, leases, heartbeats<br/>One instance, local PV")]
+        garage[("Garage S3<br/>Persistent references + temporary artifacts<br/>One instance, local PV")]
     end
 
-    subgraph state["Durable services — placement and provider to be decided"]
-        db[("Proposed PostgreSQL<br/>Catalogue, jobs, leases, artifact metadata")]
-        objects[("Object storage<br/>Persistent originals + expiring generated STL files")]
-    end
+    cloud <-->|"Encrypted outbound tunnel"| tunnel
+    tunnel <-->|"Internal HTTP"| ingress
+    ingress <-->|"/ and static assets"| web
+    ingress <-->|"/api/* JSON and STL bytes"| api
+    api <-->|"SQL"| pg
+    workers <-->|"SQL: claim, renew, fenced publication"| pg
+    api <-->|"S3: stream reference/generated bytes"| garage
+    workers -->|"S3: immutable attempt upload"| garage
+    release --> pg
+    release --> garage
+    maintenance --> pg
+    maintenance --> garage
 
-    browser <-->|"HTTP or HTTPS"| entry
-    entry <-->|"/ and static assets"| webService
-    webService <--> web
-    entry <-->|"/api/* — JSON and STL responses"| apiService
-    apiService <--> api
-    api <-->|"SQL over TCP<br/>Catalogue, submit jobs, read status"| db
-    worker <-->|"SQL over TCP<br/>Claim jobs, renew leases, complete jobs"| db
-    api <-->|"HTTPS object API<br/>Read and stream STL files"| objects
-    worker -->|"HTTPS object API<br/>Upload validated STL"| objects
-    migrate -->|"Schema and catalogue updates"| db
-    migrate -->|"Seed original STL objects"| objects
-    cleanup -->|"Expire records"| db
-    cleanup -->|"Delete expired and orphan objects"| objects
-    db -.->|"Queue observations via metrics adapter"| metrics
-    metrics -.->|"Adjust worker replica count"| worker
+    shared["Existing lair tunnel + Docker Traefik<br/>Continue serving unrelated apps"]
+    cloud <--> shared
 ```
 
-Solid arrows show application traffic or storage access; dotted arrows show
-observability and scaling control. Durable services may be managed externally
-or operated in the cluster. They are drawn separately because replicating the
-application pods does not replicate or scale the database and object store.
+Preview and download still pass through the API and reference the same immutable
+artifact. API reads enforce expiry regardless of object cleanup timing. There is
+no worker HTTP Service or API-to-worker RPC. PostgreSQL is also the job queue;
+no broker is introduced. Generated settings/files expire after one hour and
+catalogue reference objects persist.
 
-The entry point routes `/api/*` directly to the API Service in this proposal.
-That removes the web container from the API traffic path; Nginx would serve only
-static assets. STL bytes still travel through the API, preserving the current
-expiry checks and same-origin viewer/download behavior. Direct object-store
-downloads with short-lived URLs are a separate future optimization.
+Both data services use network APIs even though their local volumes reside on
+one node. Replicating application pods does not replicate these volumes or provide
+availability after losing the NUC. Local copies support rollback; machine-loss
+recovery rebuilds from Git/images and reseeds references with an empty render queue.
 
-Each Deployment can have an independent replica count. Kubernetes Services
-provide stable endpoints for the HTTP workloads. Workers pull jobs from the
-queue and do not need an inbound application Service. These roles follow the
-Kubernetes [Deployment](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)
-and [Service](https://kubernetes.io/docs/concepts/services-networking/service/)
-models.
+## Publication and failure boundaries
 
-## Scaling boundaries and migration work
+```mermaid
+sequenceDiagram
+    participant API
+    participant DB as PostgreSQL
+    participant Worker
+    participant S3 as Garage
+    API->>DB: Validate/fingerprint, deduplicate and enqueue transaction
+    Worker->>DB: Atomic compatible claim + fencing token
+    Note over Worker: Render/validate in local scratch; renew lease
+    Worker->>S3: Upload immutable attempt object
+    S3-->>Worker: Upload complete
+    Worker->>DB: Publish metadata only with live token and unexpired job
+    alt Winning live claim
+        DB-->>Worker: Commit success
+        API->>DB: Check success, expiry and object metadata
+        API->>S3: Stream the recorded object for preview/download
+    else Lost claim or failed commit
+        Note over Worker,S3: Unreferenced upload is collected; stale result stays invisible
+    end
+```
 
-| Component | Current constraint | Change before scaling across nodes |
-| --- | --- | --- |
-| web | One published localhost port; Nginx also proxies the API | Put replicas behind a Service and entry point; update routing and remove Docker-specific DNS configuration |
-| api | SQLite and filesystem access; migrations, seeding, and cleanup run in each API process | Use networked storage adapters; run migrations/seeding once per rollout; coordinate maintenance independently of API replicas |
-| worker | One render per process; shared local SQLite and artifact paths | Use a concurrent networked queue and object store; keep render scratch space local to each pod |
-| Database / queue | SQLite is a file inside the Docker volume | Proposed PostgreSQL adapter with atomic claims, leases, deduplication, and fencing; size connection pools across all replicas |
-| STL storage | Publication uses a filesystem rename into a shared directory | Upload to an immutable object key per attempt, then conditionally publish its metadata while holding the valid lease; collect abandoned uploads |
-| Maintenance | API timer performs expiry and recovery; workers also recover leases | Make recovery safe under concurrent callers; use coordinated scheduled cleanup while enforcing expiry on every API read |
+There is no atomic transaction spanning PostgreSQL and Garage. The adapter must
+handle upload/commit failures, durable deletion retries and abandoned uploads.
+API processes no longer own migrations, seeding or cleanup. Release Jobs serialize
+schema/catalogue changes; maintenance is independently coordinated. Fingerprint-
+changing releases pause submissions and drain old work before catalogue activation.
 
-SQLite on a shared network filesystem is not the cross-node scaling path; its
-locking and filesystem requirements need care over networks. See the
-[SQLite network-storage guidance](https://www.sqlite.org/useovernet.html).
-
-Preserve the existing worker contract during migration: only one live claim may
-publish a result, retries must tolerate duplicate execution, and successful
-metadata must reference a complete validated STL. Object upload and database
-commit cannot share the current filesystem transaction; failed attempts must
-leave only collectible, unreferenced objects. The current `Store` and
-`ArtifactStore` still use synchronous SQLite/filesystem operations, so networked
-adapters require asynchronous interfaces and changes at their call sites.
-
-Scale the API using measured HTTP load and latency. Scale workers using queue
-depth and waiting time, bounded by node CPU/memory and database capacity. Queue
-metrics require an exporter/adapter and configured autoscaling; Kubernetes does
-not infer queue demand from the database. Its
-[Horizontal Pod Autoscaler](https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/)
-supports custom/external metrics with the appropriate metrics APIs installed.
-The current two-CPU, 2 GB worker limit is a starting point for measurement, not
-a proven Kubernetes resource allocation.
-
-Before enabling multiple replicas, verify concurrent claims and cache
-deduplication, pod termination during renders, abandoned-upload cleanup,
-one-hour expiry, and a preview/download handled by different API replicas.
-During rolling upgrades, API and worker model/renderer fingerprints must remain
-compatible with queued jobs; drain old work or route jobs to compatible workers.
-Kubernetes probes and shutdown handling also need explicit configuration;
-Compose startup ordering does not become a Kubernetes rollout dependency.
-
-The diagrams leave these decisions open: PostgreSQL queue versus a dedicated
-broker, database/object-storage hosting, entry controller, autoscaling limits,
-and whether the migrated installation remains local or becomes externally
-accessible. See [architecture decisions](architecture.md) and
-[interface contracts](interfaces.md) for the implemented behavior.
+Resource budgets, probe/shutdown behavior, lease recovery, immutable publication,
+expiry and rolling upgrades must pass real multi-replica tests before cutover.
+The existing Compose deployment remains operational during implementation and
+validation. Production DNS switching requires a separate cutover agreement.
