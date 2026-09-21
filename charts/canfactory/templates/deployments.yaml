@@ -12,6 +12,7 @@ metadata:
 spec:
   replicas: {{ $settings.replicas }}
   revisionHistoryLimit: 3
+  minReadySeconds: 5
   progressDeadlineSeconds: 300
   strategy:
     type: RollingUpdate
@@ -50,6 +51,12 @@ spec:
           imagePullPolicy: IfNotPresent
           securityContext: {{ include "canfactory.security" $ | nindent 12 }}
           resources: {{ toYaml $settings.resources | nindent 12 }}
+          {{- if ne $role "worker" }}
+          # Keep serving while endpoint withdrawal reaches ingress and kube-proxy.
+          lifecycle:
+            preStop:
+              sleep: {seconds: 5}
+          {{- end }}
           {{- if eq $role "web" }}
           command: [nginx, -g, "daemon off;"]
           ports:
