@@ -146,6 +146,8 @@ export interface operations {
                         attribution: string;
                         license: string;
                         licenseUrl: string;
+                        /** @description Model-specific orientation or printing guidance. */
+                        printNotes: string;
                     }[];
                 };
             };
@@ -176,6 +178,8 @@ export interface operations {
                         attribution: string;
                         license: string;
                         licenseUrl: string;
+                        /** @description Model-specific orientation or printing guidance. */
+                        printNotes: string;
                         controls: {
                             key: string;
                             label: string;
@@ -193,7 +197,9 @@ export interface operations {
                             [key: string]: number | boolean;
                         };
                         /** @description JSON Schema for this model’s parameter object. */
-                        parameterSchema: Record<string, never>;
+                        parameterSchema: {
+                            [key: string]: unknown;
+                        };
                         referenceUrl: string;
                     };
                 };
@@ -232,13 +238,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Original STL bytes. */
+            /** @description STL bytes; coordinates are in millimetres. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": string;
+                    "model/stl": string;
                 };
             };
             /** @description Default Response */
@@ -626,13 +632,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Validated binary STL, measured in mm. */
+            /** @description STL bytes; coordinates are in millimetres. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": string;
+                    "model/stl": string;
                 };
             };
             /** @description Default Response */

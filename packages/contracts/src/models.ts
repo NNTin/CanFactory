@@ -94,6 +94,7 @@ export interface ModelDefinition {
   title: string;
   description: string;
   attribution: string;
+  printNotes: string;
   license: string;
   licenseUrl: string;
   sourcePath: string;
@@ -110,6 +111,7 @@ export const fruitFlyTrap = {
   id: 'fruit-fly-trap' as const, version: '1' as const, title: 'Fruit fly trap',
   description: 'A customizable funnel that sits on a jar. Choose a smooth wall or a pattern of fine ventilation slots.',
   attribution: 'Stefan Schönberger · adapted for CanFactory',
+  printNotes: 'Print brim-side down',
   license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
   sourcePath: 'models/fruit-fly-trap/generator.scad',
   referencePath: 'models/fruit-fly-trap/reference/fruit_fly_trap.stl',

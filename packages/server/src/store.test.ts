@@ -29,7 +29,9 @@ describe('temporary render queue', () => {
     if (!first?.leaseToken) throw new Error('Expected claim');
     const secondStore = new Store(directory, repositoryRoot, () => time);
     try { expect(secondStore.claim()).toBeUndefined(); } finally { secondStore.close(); }
-    time += LEASE_MS + 1; store.recover();
+    time += LEASE_MS + 1;
+    expect(store.renew(initial.id, first.leaseToken)).toBe(false);
+    store.recover();
     const retry = store.claim();
     if (!retry?.leaseToken) throw new Error('Expected retry');
     expect(retry.attempts).toBe(2);

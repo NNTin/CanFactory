@@ -21,6 +21,7 @@ export async function createApp(storage?: Store, logging = false) {
     if (!storage) throw new AppError(503, 'NOT_READY', 'The catalogue is not ready.');
     return storage;
   };
+  const stlResponse = { description: 'STL bytes; coordinates are in millimetres.', content: { 'model/stl': { schema: Type.Unknown({ type: 'string', format: 'binary' }) } } };
   await app.register(swagger, {
     openapi: {
       openapi: '3.0.3',
@@ -63,7 +64,7 @@ export async function createApp(storage?: Store, logging = false) {
 
   app.get('/api/v1/models/:id/reference.stl', {
     schema: { operationId: 'getReferenceStl', tags: ['Models'], summary: 'Inspect the original supplied STL', params: IdParamsSchema,
-      response: { 200: Type.Unknown({ type: 'string', format: 'binary', description: 'Original STL bytes.' }), 404: ErrorSchema } },
+      response: { 200: stlResponse, 404: ErrorSchema } },
   }, (request, reply) => {
     const model = store().getModel(request.params.id);
     if (!model) throw new AppError(404, 'MODEL_NOT_FOUND', 'This model is not available.');
@@ -116,7 +117,7 @@ export async function createApp(storage?: Store, logging = false) {
       operationId: 'getRenderStl', tags: ['Renders'], summary: 'View or download the generated STL',
       description: 'Preview and download return identical bytes. Use download=true for attachment disposition. Attribution is recorded in the catalogue and STL header.',
       params: IdParamsSchema, querystring: DownloadQuerySchema,
-      response: { 200: Type.Unknown({ type: 'string', format: 'binary', description: 'Validated binary STL, measured in mm.' }), 409: ErrorSchema, 410: ErrorSchema },
+      response: { 200: stlResponse, 409: ErrorSchema, 410: ErrorSchema },
     },
   }, (request, reply) => {
     const job = store().getJob(request.params.id);

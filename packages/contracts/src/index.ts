@@ -13,13 +13,14 @@ export type ApiError = Static<typeof ErrorSchema>;
 export const ModelSummarySchema = Type.Object({
   id: Type.String(), version: Type.String(), title: Type.String(), description: Type.String(),
   attribution: Type.String(), license: Type.String(), licenseUrl: Type.String(),
+  printNotes: Type.String({ description: 'Model-specific orientation or printing guidance.' }),
 }, { additionalProperties: false });
 
 export const ModelDetailSchema = Type.Object({
   ...ModelSummarySchema.properties,
   controls: Type.Array(ControlSchema),
   defaults: Type.Record(Type.String(), Type.Union([Type.Number(), Type.Boolean()])),
-  parameterSchema: Type.Unknown({ type: 'object', description: 'JSON Schema for this model’s parameter object.' }),
+  parameterSchema: Type.Record(Type.String(), Type.Unknown(), { description: 'JSON Schema for this model’s parameter object.' }),
   referenceUrl: Type.String(),
 }, { additionalProperties: false });
 export type ModelDetail = Static<typeof ModelDetailSchema>;

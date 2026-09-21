@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { ErrorSchema, fruitFlyTrap, RenderSchema } from '@canfactory/contracts';
+import { ErrorSchema, fruitFlyTrap, ModelDetailSchema, RenderSchema } from '@canfactory/contracts';
 import { CACHE_TTL_MS, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from './app.ts';
 
@@ -23,7 +23,8 @@ describe('model and render API', () => {
   it('serves the catalogue, reference STL, and OpenAPI', async () => {
     expect((await app.inject('/api/v1/models')).statusCode).toBe(200);
     const detail = await app.inject('/api/v1/models/fruit-fly-trap');
-    expect(detail.body).toContain('trapDiameter');
+    const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
+    expect(model.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false, properties: { trapDiameter: { type: 'number', minimum: 20, maximum: 200 } } });
     expect((await app.inject('/api/v1/models/fruit-fly-trap/reference.stl')).rawPayload.length).toBeGreaterThan(100000);
     expect((await app.inject('/api/openapi.json')).body).toContain('createRender');
     expect((await app.inject('/api/v1/models/missing')).statusCode).toBe(404);

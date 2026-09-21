@@ -32,7 +32,8 @@
                       "description",
                       "attribution",
                       "license",
-                      "licenseUrl"
+                      "licenseUrl",
+                      "printNotes"
                     ],
                     "properties": {
                       "id": {
@@ -55,6 +56,10 @@
                       },
                       "licenseUrl": {
                         "type": "string"
+                      },
+                      "printNotes": {
+                        "type": "string",
+                        "description": "Model-specific orientation or printing guidance."
                       }
                     },
                     "additionalProperties": false
@@ -101,6 +106,7 @@
                     "attribution",
                     "license",
                     "licenseUrl",
+                    "printNotes",
                     "controls",
                     "defaults",
                     "parameterSchema",
@@ -127,6 +133,10 @@
                     },
                     "licenseUrl": {
                       "type": "string"
+                    },
+                    "printNotes": {
+                      "type": "string",
+                      "description": "Model-specific orientation or printing guidance."
                     },
                     "controls": {
                       "type": "array",
@@ -269,7 +279,8 @@
                     },
                     "parameterSchema": {
                       "type": "object",
-                      "description": "JSON Schema for this model’s parameter object."
+                      "description": "JSON Schema for this model’s parameter object.",
+                      "additionalProperties": {}
                     },
                     "referenceUrl": {
                       "type": "string"
@@ -351,13 +362,12 @@
         ],
         "responses": {
           "200": {
-            "description": "Original STL bytes.",
+            "description": "STL bytes; coordinates are in millimetres.",
             "content": {
-              "application/json": {
+              "model/stl": {
                 "schema": {
                   "type": "string",
-                  "format": "binary",
-                  "description": "Original STL bytes."
+                  "format": "binary"
                 }
               }
             }
@@ -1354,13 +1364,12 @@
         ],
         "responses": {
           "200": {
-            "description": "Validated binary STL, measured in mm.",
+            "description": "STL bytes; coordinates are in millimetres.",
             "content": {
-              "application/json": {
+              "model/stl": {
                 "schema": {
                   "type": "string",
-                  "format": "binary",
-                  "description": "Validated binary STL, measured in mm."
+                  "format": "binary"
                 }
               }
             }

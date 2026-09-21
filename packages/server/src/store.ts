@@ -76,7 +76,8 @@ export class Store implements RenderQueue {
       const detail: ModelDetail = {
         id: model.id, version: model.version, title: model.title, description: model.description,
         attribution: model.attribution, license: model.license, licenseUrl: model.licenseUrl,
-        controls: model.controls, defaults: model.defaults, parameterSchema: model.parameterSchema,
+        printNotes: model.printNotes,
+        controls: model.controls, defaults: model.defaults, parameterSchema: { ...model.parameterSchema },
         referenceUrl: `/api/v1/models/${model.id}/reference.stl`,
       };
       this.db.insert(catalog).values({ id: model.id, version: model.version, detail, sourceHash, referenceName })
@@ -122,7 +123,7 @@ export class Store implements RenderQueue {
   }
   renew(id: string, token: string): boolean {
     return this.db.update(jobs).set({ leaseUntil: this.now() + LEASE_MS })
-      .where(and(eq(jobs.id, id), eq(jobs.status, 'running'), eq(jobs.leaseToken, token), gt(jobs.expiresAt, this.now()))).run().changes === 1;
+      .where(and(eq(jobs.id, id), eq(jobs.status, 'running'), eq(jobs.leaseToken, token), gt(jobs.leaseUntil, this.now()), gt(jobs.expiresAt, this.now()))).run().changes === 1;
   }
   complete(id: string, token: string, metadata: MeshInfo, temporaryFile: string): boolean {
     return this.db.transaction(tx => {
