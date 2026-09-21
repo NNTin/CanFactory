@@ -4,3 +4,6 @@ export * from './mesh.ts';
 export * from './schema.ts';
 export * from './store.ts';
 export * from './storage.ts';
+export * from './objects.ts';
+export * from './postgres.ts';
+export * from './runtime.ts';
