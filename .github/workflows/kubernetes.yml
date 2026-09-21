@@ -1,0 +1,93 @@
+name: Kubernetes release
+
+on:
+  push:
+    branches: [develop, feat/kubernetes]
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kubernetes-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.22.3
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - name: Install checksum-verified Helm and schema validator
+        run: |
+          bash tools/install-ci-tools.sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: bash tools/check-chart.sh
+      - run: npm run test:storage
+      - run: npm run test:renderer
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish immutable application images
+        env:
+          REVISION: ${{ github.sha }}
+        run: |
+          mkdir -p release
+          for role in api worker web; do
+            docker buildx build --platform linux/amd64 --target "$role" \
+              --tag "ghcr.io/nntin/canfactory-$role:sha-$REVISION" \
+              --label "org.opencontainers.image.revision=$REVISION" \
+              --cache-from "type=gha,scope=canfactory-$role" \
+              --cache-to "type=gha,mode=max,scope=canfactory-$role" \
+              --metadata-file "release/$role.json" --provenance=mode=max --sbom=true --push .
+          done
+      - name: Publish application chart and release index
+        env:
+          REVISION: ${{ github.sha }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+          RELEASE_RUN: ${{ github.run_number }}
+        run: |
+          bash tools/install-ci-tools.sh
+          export PATH="$HOME/.local/bin:$PATH"
+          printf '%s' "$REGISTRY_TOKEN" | helm registry login ghcr.io -u "$REGISTRY_USER" --password-stdin
+          chart_version="0.1.0-dev.$RELEASE_RUN"
+          helm package charts/canfactory --version "$chart_version" --app-version "$REVISION" --destination release
+          helm push "release/canfactory-$chart_version.tgz" oci://ghcr.io/nntin/charts
+          python3 - <<'PY'
+          import json,os,pathlib
+          directory=pathlib.Path('release')
+          release={'revision':os.environ['REVISION'],'chartVersion':'0.1.0-dev.'+os.environ['RELEASE_RUN'],'images':{}}
+          for role in ['api','worker','web']:
+              metadata=json.loads((directory/(role+'.json')).read_text())
+              release['images'][role]={'repository':'ghcr.io/nntin/canfactory-'+role,'digest':metadata['containerimage.digest']}
+          (directory/'release.json').write_text(json.dumps(release,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: canfactory-release-${{ github.sha }}
+          path: release/
+          retention-days: 30
