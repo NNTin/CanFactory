@@ -13,5 +13,6 @@ export function config() {
     projectRoot: resolve(process.env['PROJECT_ROOT'] ?? process.cwd()),
     dataDir: resolve(process.env['DATA_DIR'] ?? '.data'),
     port: Number(process.env['PORT'] ?? 3001),
+    host: process.env['HOST'] ?? '127.0.0.1',
   };
 }

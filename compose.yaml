@@ -1,0 +1,52 @@
+name: canfactory
+services:
+  api:
+    build:
+      context: .
+      target: api
+    init: true
+    restart: unless-stopped
+    volumes:
+      - data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+  worker:
+    build:
+      context: .
+      target: worker
+    init: true
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    cpus: 2
+    mem_limit: 2g
+    volumes:
+      - data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "const fs=require('node:fs');process.exit(Date.now()-Number(fs.readFileSync('/tmp/canfactory-worker-health','utf8'))<30000?0:1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WEB_PORT:-5173}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ && wget -q --spider http://127.0.0.1/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+volumes:
+  data:
