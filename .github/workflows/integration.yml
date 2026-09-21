@@ -1,0 +1,71 @@
+name: Docker integration
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Compose, browser, renderer, and recovery checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate Compose configuration
+        run: docker compose config
+
+      - name: Build and start Compose services
+        run: docker compose up --build -d --wait
+
+      - name: Run browser checks
+        run: npm run test:browser
+
+      - name: Run restart and persistence checks
+        run: npm run test:restart
+
+      - name: Run renderer geometry checks
+        run: npm run test:renderer
+
+      - name: Capture Compose logs
+        if: always()
+        run: docker compose logs --no-color > compose.log 2>&1 || true
+
+      - name: Upload integration diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: |
+            compose.log
+            playwright-report/
+            test-results/
+
+      - name: Stop Compose services
+        if: always()
+        run: docker compose down -v --remove-orphans
