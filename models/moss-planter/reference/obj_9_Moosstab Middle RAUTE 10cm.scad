@@ -76,9 +76,13 @@ TOP_MIRROR_Z = NODE_Z0 + LATTICE_TOP + TOP_MIRROR_TRIM;
 
 // Revolved clip: outer radius 50, inner radius 44.249 with the chamfers under the gussets (45 degrees; 0.1 mm inside
 // the collar's own chamfer so the two cones are never coincident). It starts 0.06 mm above the collar's inner ledge
-// (z = 19.231) so their horizontal faces are not coplanar.
-LATTICE_ENVELOPE = [[39.403, 19.291], [OUTER_R, 19.291], [OUTER_R, 228], [35.83, 228], [LATTICE_INNER_R, 219.58],
-                    [LATTICE_INNER_R, 24.14]];
+// (z = 19.231) so their horizontal faces are not coplanar. The outer corner is chamfered by 0.05 mm over 0.1 mm of
+// height: BOTTOM's own r=OUTER_R wall runs from z=0 to 22.567, overlapping this envelope's r=OUTER_R wall exactly
+// over z=19.291-22.567 - a coincident vertical face, not just a point, which produced a zero-area triangle under
+// the pinned OpenSCAD/Manifold build. Reaching full OUTER_R again by z=19.4 leaves the exterior silhouette
+// unaffected above that.
+LATTICE_ENVELOPE = [[39.403, 19.291], [OUTER_R - 0.05, 19.291], [OUTER_R, 19.4], [OUTER_R, 228], [35.83, 228],
+                    [LATTICE_INNER_R, 219.58], [LATTICE_INNER_R, 24.14]];
 
 function deg(s, r) = s / r * 180 / PI;
 function xy(r, angle) = r * [cos(angle), sin(angle)];
