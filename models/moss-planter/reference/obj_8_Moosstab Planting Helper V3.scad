@@ -45,9 +45,13 @@ RIDGE_CREST_Z = 92;       // height of the crest at angle 0
 
 // Eighth of the hub-and-fins cross (between the +x axis and the diagonal): fin of half-width 2 and length 26 with a
 // rounded end, blending into the round hub (radius 8.5). The full cross is this mirrored and rotated.
+// The last six points are nudged to radius 8.65 (from the measured ~8.5, which sat almost exactly on BODY's r=8.503
+// hub wall): a near-tangent union there rendered fine under development but produced a zero-area triangle with the
+// pinned OpenSCAD/Manifold build in CI. The nudge only adds buried material inside the already-solid hub cylinder
+// (this entire arc sits in the z range where BODY's radius is exactly 8.503), so the exterior surface is unchanged.
 CROSS_EIGHTH = [[0, 0], [26, 0], [25.989, 0.636], [25.927, 0.947], [25.85, 1.143], [25.685, 1.413], [25.384, 1.708],
                 [25.11, 1.868], [24.706, 1.985], [9.368, 2.0], [9.049, 2.034], [8.844, 2.094], [8.469, 2.299],
-                [8.167, 2.601], [8.003, 2.876], [7.547, 3.91], [7.163, 4.576], [6.561, 5.403], [6.0, 6.0]];
+                [8.242, 2.625], [8.14, 2.925], [7.68, 3.979], [7.289, 4.657], [6.677, 5.499], [6.116, 6.116]];
 
 module cross() {
     for (a = [0, 90, 180, 270]) rotate(a) {
