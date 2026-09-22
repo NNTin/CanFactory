@@ -110,6 +110,8 @@ test('renders a usable mobile layout and model library', async ({ page }, testIn
 });
 
 test('shows the moss planter assembly with no parameter form and a downloadable ZIP of every part', async ({ page }) => {
+  // Ten sequential OpenSCAD invocations take much longer than fruit-fly-trap's single render.
+  test.setTimeout(300_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
@@ -119,7 +121,7 @@ test('shows the moss planter assembly with no parameter form and a downloadable 
   await expect(page.getByText("This model doesn’t have adjustable settings yet.")).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toHaveCount(0);
   const downloadButton = page.getByRole('button', { name: 'Download ZIP', exact: true });
-  await expect(downloadButton).toBeEnabled({ timeout: 90_000 });
+  await expect(downloadButton).toBeEnabled({ timeout: 270_000 });
   await expect(page.getByText(/10\s*·\s*[\d.]+\s*cm³ total/)).toBeVisible();
   const downloadEvent = page.waitForEvent('download');
   await downloadButton.click();

@@ -52,7 +52,9 @@ export async function renderJob(storage: Store | Storage, job: RenderJob, signal
         const bytes = await readFile(output);
         if (bytes.length < 84) throw new Error(`OpenSCAD produced an incomplete STL for "${part.title}".`);
         stampAttribution(bytes, model);
-        const info = inspectStl(bytes);
+        let info;
+        try { info = inspectStl(bytes); }
+        catch (error) { throw new Error(`"${part.title}" (${part.id}): ${error instanceof Error ? error.message : String(error)}`, { cause: error }); }
         entries[`${part.id}.stl`] = bytes;
         parts.push({ id: part.id, title: part.title, bytes: info.bytes, triangles: info.triangles, dimensions: info.dimensions, volume: info.volume });
       }
