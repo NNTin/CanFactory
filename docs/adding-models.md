@@ -27,6 +27,20 @@ and prove the result with `verify` (bounding box, volume, IoU and one closed man
 original in `reference/` together with a manifest and the generated `VERIFICATION.md`; `models/moss-planter/reference/`
 is the worked example.
 
+### Static multi-part assemblies
+
+A model with no adjustable parameters that is really a set of independent parts (e.g. moss-planter's ten SCAD files)
+uses `ModelDefinition.parts: { id, title, sourcePath }[]` instead of `sourcePath`, and an empty
+`parameterSchema`/`controls`/`defaults`/`scadMapping`. This changes the shape end to end, generically (no per-model
+code elsewhere): the worker (`apps/worker/src/render.ts`) renders each part with its own OpenSCAD invocation and no
+`-D` overrides, validates each with the same `inspectStl`, and packages them as one ZIP
+(`packages/server/src/mesh.ts`'s `combineParts`); the artifact is served from `/api/v1/renders/{id}/zip` instead of
+`/stl` (`artifactFormat()` in `packages/contracts` decides which); and the web viewer loads every part and arranges
+them on an auto-sized grid instead of one centred mesh. Each part must independently be one closed, connected solid —
+`inspectStl` rejects multi-body meshes, so parts are never merged into a single STL before validation. `referencePath`
+is optional: omit it (as moss-planter does) when there is no small, permanent original file to preserve — do not point
+it at a large STL that will not stay in the repository, since `Store.seed()` reads it at every startup.
+
 Bump the model version when parameter meanings or defaults change. Browser
 preferences are isolated by version and stale API requests receive a conflict.
 Source/schema/mapping changes also alter the cache fingerprint. The current

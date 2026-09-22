@@ -111,6 +111,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/renders/{id}/zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * View or download the generated ZIP of STL parts
+         * @description Only used by multi-part assembly models. Preview and download return identical bytes. Use download=true for attachment disposition. Attribution is recorded in the catalogue and in each STL header.
+         */
+        get: operations["getRenderZip"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -148,6 +168,10 @@ export interface operations {
                         licenseUrl: string;
                         /** @description Model-specific orientation or printing guidance. */
                         printNotes: string;
+                        /** @description The shape of the generated file: one STL, or a ZIP of one STL per part. */
+                        artifactFormat: "stl" | "zip";
+                        /** @description Whether this model exposes adjustable parameters yet. */
+                        customizable: boolean;
                     }[];
                 };
             };
@@ -180,6 +204,10 @@ export interface operations {
                         licenseUrl: string;
                         /** @description Model-specific orientation or printing guidance. */
                         printNotes: string;
+                        /** @description The shape of the generated file: one STL, or a ZIP of one STL per part. */
+                        artifactFormat: "stl" | "zip";
+                        /** @description Whether this model exposes adjustable parameters yet. */
+                        customizable: boolean;
                         controls: {
                             key: string;
                             label: string;
@@ -200,7 +228,13 @@ export interface operations {
                         parameterSchema: {
                             [key: string]: unknown;
                         };
-                        referenceUrl: string;
+                        /** @description Absent when this model has no small, permanent original file. */
+                        referenceUrl?: string;
+                        /** @description Present only for multi-part assembly models, in render/ZIP order. */
+                        parts?: {
+                            id: string;
+                            title: string;
+                        }[];
                     };
                 };
             };
@@ -357,6 +391,16 @@ export interface operations {
                          */
                         gapDistanceVertical: number;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "moss-planter";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Moss planter parameters. There are no adjustable settings yet. */
+                    parameters: Record<string, never>;
                 };
             };
         };
@@ -383,13 +427,28 @@ export interface operations {
                             bytes: number;
                             triangles: number;
                             /** @description Axis-aligned dimensions in millimetres, including brim and handles. */
-                            dimensions: {
+                            dimensions?: {
                                 x: number;
                                 y: number;
                                 z: number;
                             };
-                            /** @description Enclosed material volume in cubic millimetres. */
+                            /** @description Enclosed material volume in cubic millimetres, summed across parts for an assembly. */
                             volume: number;
+                            /** @description Present only for a multi-part assembly’s ZIP artifact, in ZIP order. */
+                            parts?: {
+                                id: string;
+                                title: string;
+                                bytes: number;
+                                triangles: number;
+                                /** @description Axis-aligned dimensions in millimetres, including brim and handles. */
+                                dimensions: {
+                                    x: number;
+                                    y: number;
+                                    z: number;
+                                };
+                                /** @description Enclosed material volume in cubic millimetres. */
+                                volume: number;
+                            }[];
                         } | null;
                         error: {
                             /**
@@ -429,13 +488,28 @@ export interface operations {
                             bytes: number;
                             triangles: number;
                             /** @description Axis-aligned dimensions in millimetres, including brim and handles. */
-                            dimensions: {
+                            dimensions?: {
                                 x: number;
                                 y: number;
                                 z: number;
                             };
-                            /** @description Enclosed material volume in cubic millimetres. */
+                            /** @description Enclosed material volume in cubic millimetres, summed across parts for an assembly. */
                             volume: number;
+                            /** @description Present only for a multi-part assembly’s ZIP artifact, in ZIP order. */
+                            parts?: {
+                                id: string;
+                                title: string;
+                                bytes: number;
+                                triangles: number;
+                                /** @description Axis-aligned dimensions in millimetres, including brim and handles. */
+                                dimensions: {
+                                    x: number;
+                                    y: number;
+                                    z: number;
+                                };
+                                /** @description Enclosed material volume in cubic millimetres. */
+                                volume: number;
+                            }[];
                         } | null;
                         error: {
                             /**
@@ -572,13 +646,28 @@ export interface operations {
                             bytes: number;
                             triangles: number;
                             /** @description Axis-aligned dimensions in millimetres, including brim and handles. */
-                            dimensions: {
+                            dimensions?: {
                                 x: number;
                                 y: number;
                                 z: number;
                             };
-                            /** @description Enclosed material volume in cubic millimetres. */
+                            /** @description Enclosed material volume in cubic millimetres, summed across parts for an assembly. */
                             volume: number;
+                            /** @description Present only for a multi-part assembly’s ZIP artifact, in ZIP order. */
+                            parts?: {
+                                id: string;
+                                title: string;
+                                bytes: number;
+                                triangles: number;
+                                /** @description Axis-aligned dimensions in millimetres, including brim and handles. */
+                                dimensions: {
+                                    x: number;
+                                    y: number;
+                                    z: number;
+                                };
+                                /** @description Enclosed material volume in cubic millimetres. */
+                                volume: number;
+                            }[];
                         } | null;
                         error: {
                             /**
@@ -639,6 +728,72 @@ export interface operations {
                 };
                 content: {
                     "model/stl": string;
+                };
+            };
+            /** @description Default Response */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Stable machine-readable error code.
+                         * @example INVALID_PARAMETERS
+                         */
+                        code: string;
+                        /** @description Actionable human-readable explanation. */
+                        message: string;
+                        issues: {
+                            field: string;
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Default Response */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Stable machine-readable error code.
+                         * @example INVALID_PARAMETERS
+                         */
+                        code: string;
+                        /** @description Actionable human-readable explanation. */
+                        message: string;
+                        issues: {
+                            field: string;
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    getRenderZip: {
+        parameters: {
+            query?: {
+                download?: "true";
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ZIP archive containing this model’s STL parts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
                 };
             };
             /** @description Default Response */

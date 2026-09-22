@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { ErrorSchema, fruitFlyTrap, ModelDetailSchema, RenderSchema } from '@canfactory/contracts';
+import { ErrorSchema, fruitFlyTrap, ModelDetailSchema, mossPlanter, RenderSchema } from '@canfactory/contracts';
 import { CACHE_TTL_MS, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from './app.ts';
 
@@ -21,13 +21,29 @@ const payload = { modelId: fruitFlyTrap.id, modelVersion: fruitFlyTrap.version, 
 
 describe('model and render API', () => {
   it('serves the catalogue, reference STL, and OpenAPI', async () => {
-    expect((await app.inject('/api/v1/models')).statusCode).toBe(200);
+    const catalogue = await app.inject('/api/v1/models');
+    expect(catalogue.statusCode).toBe(200);
+    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['fruit-fly-trap', 'moss-planter']);
     const detail = await app.inject('/api/v1/models/fruit-fly-trap');
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false, properties: { trapDiameter: { type: 'number', minimum: 20, maximum: 200 } } });
+    expect(model.artifactFormat).toBe('stl');
+    expect(model.customizable).toBe(true);
     expect((await app.inject('/api/v1/models/fruit-fly-trap/reference.stl')).rawPayload.length).toBeGreaterThan(100000);
     expect((await app.inject('/api/openapi.json')).body).toContain('createRender');
     expect((await app.inject('/api/v1/models/missing')).statusCode).toBe(404);
+  });
+
+  it('serves the moss planter as a static, multi-part, ZIP-formatted assembly model', async () => {
+    const detail = await app.inject('/api/v1/models/moss-planter');
+    const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
+    expect(model.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false });
+    expect(model.artifactFormat).toBe('zip');
+    expect(model.customizable).toBe(false);
+    expect(model.controls).toEqual([]);
+    expect(model.parts).toHaveLength(10);
+    expect(model.referenceUrl).toBeUndefined();
+    expect((await app.inject('/api/v1/models/moss-planter/reference.stl')).statusCode).toBe(404);
   });
 
   it('rejects unknown models, stale versions, and invalid fields', async () => {
@@ -50,5 +66,26 @@ describe('model and render API', () => {
     time += CACHE_TTL_MS + 1;
     expect((await app.inject(`/api/v1/renders/${job.id}`)).statusCode).toBe(410);
     expect((await app.inject(`/api/v1/renders/${job.id}/stl`)).statusCode).toBe(410);
+  });
+
+  const mossPayload = { modelId: mossPlanter.id, modelVersion: mossPlanter.version, parameters: {} };
+
+  it('accepts a moss planter render request with empty parameters, deduplicates it, and points at the ZIP route', async () => {
+    const response = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: mossPayload });
+    expect(response.statusCode).toBe(202);
+    const job = Value.Parse(RenderSchema, response.json<unknown>());
+    const again = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: mossPayload });
+    expect(Value.Parse(RenderSchema, again.json<unknown>()).id).toBe(job.id);
+    expect((await app.inject(`/api/v1/renders/${job.id}/zip`)).statusCode).toBe(409);
+    expect((await app.inject(`/api/v1/renders/${job.id}/stl`)).statusCode).toBe(409);
+    time += CACHE_TTL_MS + 1;
+    expect((await app.inject(`/api/v1/renders/${job.id}`)).statusCode).toBe(410);
+    expect((await app.inject(`/api/v1/renders/${job.id}/zip`)).statusCode).toBe(410);
+  });
+
+  it('rejects a moss planter request with any parameters, since it has none', async () => {
+    const response = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { ...mossPayload, parameters: { anything: 1 } } });
+    expect(response.statusCode).toBe(422);
+    expect(Value.Check(ErrorSchema, response.json<unknown>())).toBe(true);
   });
 });

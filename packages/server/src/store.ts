@@ -5,11 +5,16 @@ import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { and, asc, count, eq, gt, lte } from 'drizzle-orm';
-import { models, type ApiError, type ModelDefinition, type ModelDetail, type ParameterValues, type Render } from '@canfactory/contracts';
+import {
+  artifactFormat, findModel, models, modelSourcePaths,
+  type ApiError, type ModelDefinition, type ModelDetail, type ParameterValues, type Render,
+} from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS, QUEUE_LIMIT, RENDERER_FINGERPRINT } from './config.ts';
 import { AppError } from './errors.ts';
-import type { MeshInfo } from './mesh.ts';
+import type { AssemblyInfo, MeshInfo } from './mesh.ts';
 import { catalog, jobs, workers, type RenderJob } from './schema.ts';
+
+export type ArtifactFormat = 'stl' | 'zip';
 
 /** File operations are isolated so a future object store can replace the local volume. */
 export class ArtifactStore {
@@ -21,22 +26,24 @@ export class ArtifactStore {
     for (const dir of [this.outputDir, this.temporaryDir, this.catalogDir]) mkdirSync(dir, { recursive: true });
   }
   /** IDs are generated UUIDs; callers must not pass client-controlled filesystem paths. */
-  path(id: string): string { return join(this.outputDir, `${id}.stl`); }
-  remove(id: string): void { rmSync(this.path(id), { force: true }); }
+  path(id: string, format: ArtifactFormat = 'stl'): string { return join(this.outputDir, `${id}.${format}`); }
+  /** Removes whichever artifact extension this job produced; a missing file of either format is a silent no-op. */
+  remove(id: string): void { rmSync(this.path(id, 'stl'), { force: true }); rmSync(this.path(id, 'zip'), { force: true }); }
 }
 
 /** Persistent queue contract. Claims carry fencing tokens; stale workers cannot publish results. */
 export interface RenderQueue {
   claim(): RenderJob | undefined;
   renew(id: string, token: string): boolean;
-  complete(id: string, token: string, metadata: MeshInfo, temporaryFile: string): boolean;
+  complete(id: string, token: string, metadata: MeshInfo | AssemblyInfo, temporaryFile: string, format?: ArtifactFormat): boolean;
   fail(id: string, token: string, error: ApiError): void;
 }
 
-/** Hash all inputs that determine model behavior, not only the user-visible version. */
+/** Hash all inputs that determine model behavior, not only the user-visible version (all SCAD sources, for an assembly). */
 export function sourceFingerprint(root: string, model: ModelDefinition): string {
-  return createHash('sha256').update(readFileSync(resolve(root, model.sourcePath)))
-    .update(JSON.stringify({ schema: model.parameterSchema, mapping: model.scadMapping, version: model.version })).digest('hex');
+  const hash = createHash('sha256');
+  for (const relative of modelSourcePaths(model)) hash.update(readFileSync(resolve(root, relative)));
+  return hash.update(JSON.stringify({ schema: model.parameterSchema, mapping: model.scadMapping, version: model.version })).digest('hex');
 }
 
 export class Store implements RenderQueue {
@@ -68,17 +75,22 @@ export class Store implements RenderQueue {
   seed(): void {
     for (const model of models) {
       const sourceHash = sourceFingerprint(this.projectRoot, model);
-      const referenceName = `${model.id}-${model.version}.stl`;
-      const target = join(this.artifacts.catalogDir, referenceName);
-      const temporary = `${target}.${randomUUID()}.tmp`;
-      copyFileSync(resolve(this.projectRoot, model.referencePath), temporary);
-      renameSync(temporary, target);
+      let referenceName = '';
+      if (model.referencePath) {
+        referenceName = `${model.id}-${model.version}.stl`;
+        const target = join(this.artifacts.catalogDir, referenceName);
+        const temporary = `${target}.${randomUUID()}.tmp`;
+        copyFileSync(resolve(this.projectRoot, model.referencePath), temporary);
+        renameSync(temporary, target);
+      }
       const detail: ModelDetail = {
         id: model.id, version: model.version, title: model.title, description: model.description,
         attribution: model.attribution, license: model.license, licenseUrl: model.licenseUrl,
         printNotes: model.printNotes,
         controls: model.controls, defaults: model.defaults, parameterSchema: { ...model.parameterSchema },
-        referenceUrl: `/api/v1/models/${model.id}/reference.stl`,
+        artifactFormat: artifactFormat(model), customizable: model.controls.length > 0,
+        ...(referenceName ? { referenceUrl: `/api/v1/models/${model.id}/reference.stl` } : {}),
+        ...(model.parts ? { parts: model.parts.map(part => ({ id: part.id, title: part.title })) } : {}),
       };
       this.db.insert(catalog).values({ id: model.id, version: model.version, detail, sourceHash, referenceName })
         .onConflictDoUpdate({ target: catalog.id, set: { version: model.version, detail, sourceHash, referenceName } }).run();
@@ -97,7 +109,7 @@ export class Store implements RenderQueue {
     return this.db.transaction(tx => {
       const previous = tx.select().from(jobs).where(eq(jobs.cacheKey, cacheKey)).get();
       if (previous && previous.expiresAt > this.now() && previous.status !== 'failed' &&
-          (previous.status !== 'succeeded' || existsSync(this.artifacts.path(previous.id)))) return previous;
+          (previous.status !== 'succeeded' || existsSync(this.artifacts.path(previous.id, artifactFormat(model))))) return previous;
       if (previous) {
         tx.delete(jobs).where(eq(jobs.id, previous.id)).run();
         this.artifacts.remove(previous.id);
@@ -125,11 +137,11 @@ export class Store implements RenderQueue {
     return this.db.update(jobs).set({ leaseUntil: this.now() + LEASE_MS })
       .where(and(eq(jobs.id, id), eq(jobs.status, 'running'), eq(jobs.leaseToken, token), gt(jobs.leaseUntil, this.now()), gt(jobs.expiresAt, this.now()))).run().changes === 1;
   }
-  complete(id: string, token: string, metadata: MeshInfo, temporaryFile: string): boolean {
+  complete(id: string, token: string, metadata: MeshInfo | AssemblyInfo, temporaryFile: string, format: ArtifactFormat = 'stl'): boolean {
     return this.db.transaction(tx => {
       const job = tx.select().from(jobs).where(and(eq(jobs.id, id), eq(jobs.status, 'running'), eq(jobs.leaseToken, token), gt(jobs.leaseUntil, this.now()), gt(jobs.expiresAt, this.now()))).get();
       if (!job) return false;
-      renameSync(temporaryFile, this.artifacts.path(id));
+      renameSync(temporaryFile, this.artifacts.path(id, format));
       tx.update(jobs).set({ status: 'succeeded', artifact: metadata, error: null, leaseToken: null, leaseUntil: null }).where(eq(jobs.id, id)).run();
       return true;
     }, { behavior: 'immediate' });
@@ -158,7 +170,8 @@ export class Store implements RenderQueue {
     }, { behavior: 'immediate' });
     const live = new Set(this.db.select({ id: jobs.id }).from(jobs).all().map(row => row.id));
     for (const filename of readdirSync(this.artifacts.outputDir)) {
-      if (filename.endsWith('.stl') && !live.has(filename.slice(0, -4))) rmSync(join(this.artifacts.outputDir, filename), { force: true });
+      const extension = /\.(stl|zip)$/.exec(filename)?.[0];
+      if (extension && !live.has(filename.slice(0, -extension.length))) rmSync(join(this.artifacts.outputDir, filename), { force: true });
     }
     for (const filename of readdirSync(this.artifacts.temporaryDir)) {
       const path = join(this.artifacts.temporaryDir, filename);
@@ -174,10 +187,12 @@ export class Store implements RenderQueue {
 
 /** Sanitized public view of a job; internal paths, parameters, and leases stay private. */
 export function publicRender(job: RenderJob): Render {
+  const model = findModel(job.modelId);
+  const suffix = model && artifactFormat(model) === 'zip' ? 'zip' : 'stl';
   return {
     id: job.id, modelId: job.modelId, modelVersion: job.modelVersion, status: job.status,
     createdAt: job.createdAt, expiresAt: job.expiresAt, slotCount: job.slotCount,
-    artifact: job.status === 'succeeded' && job.artifact ? { ...job.artifact, url: `/api/v1/renders/${job.id}/stl` } : null,
+    artifact: job.status === 'succeeded' && job.artifact ? { ...job.artifact, url: `/api/v1/renders/${job.id}/${suffix}` } : null,
     error: job.error,
   };
 }

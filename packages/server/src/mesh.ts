@@ -4,6 +4,26 @@ import type { Dimensions } from '@canfactory/contracts';
 /** Validated binary STL metadata. Volume is mm³; dimensions are mm. */
 export interface MeshInfo { sha256: string; bytes: number; triangles: number; dimensions: Dimensions; volume: number }
 
+/** One part's metadata inside an assembly's ZIP artifact. */
+export interface AssemblyPart { id: string; title: string; bytes: number; triangles: number; dimensions: Dimensions; volume: number }
+
+/**
+ * Combined metadata for a multi-part assembly's ZIP artifact. There is deliberately no top-level `dimensions`: each
+ * part is independently centred, so a bounding box across all of them is not a meaningful "printed size."
+ */
+export interface AssemblyInfo { sha256: string; bytes: number; triangles: number; volume: number; parts: AssemblyPart[] }
+
+/** Aggregate validated per-part metadata (from `inspectStl`, plus id/title) into one ZIP's combined metadata. */
+export function combineParts(zipBytes: Buffer, parts: AssemblyPart[]): AssemblyInfo {
+  return {
+    sha256: createHash('sha256').update(zipBytes).digest('hex'),
+    bytes: zipBytes.length,
+    triangles: parts.reduce((sum, part) => sum + part.triangles, 0),
+    volume: parts.reduce((sum, part) => sum + part.volume, 0),
+    parts,
+  };
+}
+
 /** Reject incomplete, degenerate, open, inconsistently wound, or disconnected generated solids. */
 export function inspectStl(bytes: Buffer): MeshInfo {
   if (bytes.length < 84) throw new Error('The renderer produced an incomplete STL.');

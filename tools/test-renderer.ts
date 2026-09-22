@@ -4,7 +4,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { fruitFlyTrap, validateParameters, type ParameterValues } from '@canfactory/contracts';
+import { unzipSync } from 'fflate';
+import { fruitFlyTrap, mossPlanter, validateParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, RENDERER_IMAGE, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, runOpenScad, type OpenScadRunner } from '../apps/worker/src/render.ts';
@@ -42,6 +43,7 @@ try {
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true); }
     finally { clearInterval(heartbeat); }
     const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded'); assert.ok(result.artifact);
+    if (!('dimensions' in result.artifact)) throw new Error('Expected a single-STL artifact for fruit-fly-trap.');
     const actual = result.artifact.dimensions;
     for (const [index, value] of [actual.x, actual.y, actual.z].entries()) {
       const expected = testCase.dimensions[index]; assert.ok(expected !== undefined);
@@ -58,6 +60,35 @@ try {
     assert.match(String(download.headers['content-disposition']), /attachment/);
     assert.equal(store.enqueue(fruitFlyTrap, parameters).id, job.id);
     console.log(`PASS ${testCase.name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+
+  {
+    const started = Date.now();
+    assert.deepEqual(validateParameters(mossPlanter, {}), []);
+    const queued = store.enqueue(mossPlanter, {});
+    const job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken;
+    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded'); assert.ok(result.artifact);
+    if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for moss planter.');
+    assert.equal(result.artifact.parts.length, mossPlanter.parts.length);
+    for (const part of result.artifact.parts) assert.ok(part.volume > 0, `${part.id}: expected positive volume`);
+    const bytes = await readFile(store.artifacts.path(job.id, 'zip'));
+    const entries = unzipSync(new Uint8Array(bytes));
+    assert.deepEqual(Object.keys(entries).sort(), mossPlanter.parts.map(part => `${part.id}.stl`).sort());
+    for (const [name, entryBytes] of Object.entries(entries)) {
+      const asBuffer = Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength);
+      assert.ok(inspectStl(asBuffer).sha256, `${name}: expected a valid individual STL`);
+    }
+    const preview = await app.inject(`/api/v1/renders/${job.id}/zip`);
+    const download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
+    assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
+    assert.equal(preview.headers['content-type'], 'application/zip'); assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
+    assert.match(String(download.headers['content-disposition']), /attachment/);
+    assert.equal(store.enqueue(mossPlanter, {}).id, job.id);
+    console.log(`PASS moss planter assembly: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 } finally {
   await app.close(); store.close(); await rm(directory, { recursive: true, force: true });

@@ -5,7 +5,7 @@ import { findModel, validateParameters, type Control, type ModelDetail, type Par
 import { Viewer } from './Viewer.tsx';
 import { useRender } from './useRender.ts';
 
-type ModelCard = Pick<ModelDetail, 'id' | 'version' | 'title' | 'description' | 'attribution' | 'license' | 'licenseUrl'>;
+type ModelCard = Pick<ModelDetail, 'id' | 'version' | 'title' | 'description' | 'attribution' | 'license' | 'licenseUrl' | 'artifactFormat' | 'customizable'>;
 const settingsKey = (model: ModelDetail) => `canfactory:settings:${model.id}:${model.version}`;
 
 function restoreSettings(model: ModelDetail): ParameterValues {
@@ -99,13 +99,15 @@ function Editor({ model }: { model: ModelDetail }) {
     if (!render || !ready) return;
     setDownloading(true); setDownloadError(null);
     try {
-      const response = await api.GET('/api/v1/renders/{id}/stl', { params: { path: { id: render.id }, query: { download: 'true' } }, parseAs: 'blob' });
+      const response = model.artifactFormat === 'zip'
+        ? await api.GET('/api/v1/renders/{id}/zip', { params: { path: { id: render.id }, query: { download: 'true' } }, parseAs: 'blob' })
+        : await api.GET('/api/v1/renders/{id}/stl', { params: { path: { id: render.id }, query: { download: 'true' } }, parseAs: 'blob' });
       if (response.error) {
         if (response.response.status === 410) rendering.retry();
         throw new Error(response.error.message);
       }
       const blobUrl = URL.createObjectURL(response.data);
-      const link = document.createElement('a'); link.href = blobUrl; link.download = `${model.id}-${render.id.slice(0, 8)}.stl`;
+      const link = document.createElement('a'); link.href = blobUrl; link.download = `${model.id}-${render.id.slice(0, 8)}.${model.artifactFormat}`;
       link.click(); setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
     } catch (caught) { setDownloadError(caught instanceof Error ? caught.message : 'Download failed. Please try again.'); }
     finally { setDownloading(false); }
@@ -118,29 +120,36 @@ function Editor({ model }: { model: ModelDetail }) {
   return <>
     <div className="editor-layout">
       <aside className="settings-panel">
-        <div className="panel-heading"><div><SlidersHorizontal size={16} /><h2>Make it yours</h2></div><button className="text-button" type="button" onClick={reset}><RotateCcw size={13} /> Reset</button></div>
-        <p className="panel-intro">A few adjustments. A perfect fit.</p>
-        <div className="basic-controls">{model.controls.filter(control => control.group === 'basic').map(field)}</div>
-        {derived?.slotCount !== undefined && derived.slotCount !== null && <div className="slot-note"><Sparkles size={14} /><span>{derived.slotCount === 0 ? 'One opening. A smooth funnel.' : `${derived.slotCount.toLocaleString()} slots, automatically spaced.`}</span></div>}
-        <button className="advanced-button" type="button" aria-expanded={advanced} aria-controls="advanced-controls" onClick={() => setAdvanced(value => !value)}>
-          Advanced settings <ChevronDown size={16} className={advanced ? 'rotated' : ''} />
-        </button>
-        {advanced && <div id="advanced-controls" className="advanced-controls">{model.controls.filter(control => control.group === 'advanced').map(field)}</div>}
-        <p className="local-note">Your settings stay in this browser.</p>
+        {model.customizable ? <>
+          <div className="panel-heading"><div><SlidersHorizontal size={16} /><h2>Make it yours</h2></div><button className="text-button" type="button" onClick={reset}><RotateCcw size={13} /> Reset</button></div>
+          <p className="panel-intro">A few adjustments. A perfect fit.</p>
+          <div className="basic-controls">{model.controls.filter(control => control.group === 'basic').map(field)}</div>
+          {derived?.slotCount !== undefined && derived.slotCount !== null && <div className="slot-note"><Sparkles size={14} /><span>{derived.slotCount === 0 ? 'One opening. A smooth funnel.' : `${derived.slotCount.toLocaleString()} slots, automatically spaced.`}</span></div>}
+          <button className="advanced-button" type="button" aria-expanded={advanced} aria-controls="advanced-controls" onClick={() => setAdvanced(value => !value)}>
+            Advanced settings <ChevronDown size={16} className={advanced ? 'rotated' : ''} />
+          </button>
+          {advanced && <div id="advanced-controls" className="advanced-controls">{model.controls.filter(control => control.group === 'advanced').map(field)}</div>}
+          <p className="local-note">Your settings stay in this browser.</p>
+        </> : <>
+          <div className="panel-heading"><div><SlidersHorizontal size={16} /><h2>About this model</h2></div></div>
+          <p className="panel-intro">This model doesn’t have adjustable settings yet. {model.parts && model.parts.length > 0 ? `All ${model.parts.length} parts render together, exactly as designed.` : 'It renders exactly as designed.'}</p>
+        </>}
       </aside>
       <section className="preview-panel" aria-label="Model preview and download">
         <div className="preview-heading"><span className="eyebrow"><Box size={15} /> LIVE PREVIEW</span><span className={`status ${ready && !error ? 'status-ready' : ''}`} role="status">
           {ready && !error ? <Check size={13} /> : error || !valid ? <CircleAlert size={13} /> : <LoaderCircle size={13} className="spin" />}{status}
         </span></div>
-        <Viewer url={url} onError={setViewerError} onLoaded={setLoadedUrl} />
+        <Viewer url={url} format={model.artifactFormat} onError={setViewerError} onLoaded={setLoadedUrl} />
         {!ready && url && !error && <div className="previous-preview">Showing the previous preview while your changes are prepared.</div>}
         {(error || (!valid && issues.length > 0)) && <div className="error-banner" role="alert"><CircleAlert size={17} /><span>{error ?? issues[0]?.message}</span>{error && <button type="button" onClick={retry}>Try again</button>}</div>}
-        <div className="model-stats"><div><span>PRINT DIMENSIONS</span><strong>{artifact ? `${artifact.dimensions.x.toFixed(1)} × ${artifact.dimensions.y.toFixed(1)} × ${artifact.dimensions.z.toFixed(1)}` : '—'} <small>mm</small></strong></div>
-          <div><span>FILE FORMAT</span><strong>STL <small>{artifact ? `· ${(artifact.bytes / 1_000_000).toFixed(2)} MB` : '· binary'}</small></strong></div>
+        <div className="model-stats">
+          {artifact?.parts ? <div><span>PARTS</span><strong>{artifact.parts.length} <small>· {(artifact.volume / 1000).toFixed(1)} cm³ total</small></strong></div>
+            : <div><span>PRINT DIMENSIONS</span><strong>{artifact?.dimensions ? `${artifact.dimensions.x.toFixed(1)} × ${artifact.dimensions.y.toFixed(1)} × ${artifact.dimensions.z.toFixed(1)}` : '—'} <small>mm</small></strong></div>}
+          <div><span>FILE FORMAT</span><strong>{model.artifactFormat.toUpperCase()} <small>{artifact ? `· ${(artifact.bytes / 1_000_000).toFixed(2)} MB` : '· binary'}</small></strong></div>
         </div>
         <div className="download-bar"><div><span className="download-icon"><Layers3 size={23} /></span><div><strong>From your screen to your workbench.</strong><p>Download your model and open it in your slicer.</p></div></div>
           <button className="download-button" type="button" disabled={!ready || downloading} onClick={() => { void download(); }}>
-            {downloading ? <LoaderCircle size={17} className="spin" /> : <ArrowDownToLine size={17} />} {downloading ? 'Downloading…' : 'Download STL'}
+            {downloading ? <LoaderCircle size={17} className="spin" /> : <ArrowDownToLine size={17} />} {downloading ? 'Downloading…' : `Download ${model.artifactFormat.toUpperCase()}`}
           </button>
         </div>
       </section>
@@ -183,9 +192,9 @@ export function App() {
       <div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button>{model && <><span>/</span><span>{model.title}</span></>}</div>
       {error ? <div className="empty-state" role="alert"><CircleAlert size={30} /><h1>Let’s reconnect.</h1><p>{error}</p><button className="primary-button" type="button" onClick={() => window.location.reload()}>Reload catalogue</button></div>
         : loading ? <div className="empty-state"><LoaderCircle className="spin" size={30} /><p>Opening the workshop…</p></div>
-          : model ? <><div className="page-heading"><div><div className="eyebrow">THE MODEL WORKSHOP</div><h1>{model.title}</h1><p>{model.description}</p></div><span className="model-tag"><span /> PARAMETRIC MODEL</span></div><Editor key={`${model.id}:${model.version}`} model={model} /></>
+          : model ? <><div className="page-heading"><div><div className="eyebrow">THE MODEL WORKSHOP</div><h1>{model.title}</h1><p>{model.description}</p></div><span className="model-tag"><span /> {model.customizable ? 'PARAMETRIC MODEL' : 'ASSEMBLY PREVIEW'}</span></div><Editor key={`${model.id}:${model.version}`} model={model} /></>
             : <><div className="page-heading library-heading"><div><div className="eyebrow">THE MODEL LIBRARY</div><h1>Useful things. Made to fit.</h1><p>Start with a model. Make a few changes. Make it yours.</p></div></div>
-              <div className="model-library">{models.map(item => <button type="button" className="model-card" key={item.id} onClick={() => setSelectedId(item.id)}><div className="card-art">{item.id === 'fruit-fly-trap' ? <FunnelIllustration /> : <Box size={60} strokeWidth={1} />}</div><div className="card-copy"><span className="eyebrow">CUSTOMIZABLE · STL</span><h2>{item.title}</h2><p>{item.description}</p><span className="card-action">Customize model <ArrowRight size={17} /></span></div></button>)}
+              <div className="model-library">{models.map(item => <button type="button" className="model-card" key={item.id} onClick={() => setSelectedId(item.id)}><div className="card-art">{item.id === 'fruit-fly-trap' ? <FunnelIllustration /> : <Box size={60} strokeWidth={1} />}</div><div className="card-copy"><span className="eyebrow">{item.customizable ? 'CUSTOMIZABLE' : 'PREVIEW'} · {item.artifactFormat.toUpperCase()}</span><h2>{item.title}</h2><p>{item.description}</p><span className="card-action">{item.customizable ? 'Customize model' : 'View model'} <ArrowRight size={17} /></span></div></button>)}
                 <div className="coming-next"><span className="plus-shape">+</span><h2>More useful things to come.</h2><p>A growing collection for everyday making.</p></div></div></>}
     </main>
     <footer className="site-footer"><span>MAKE IT FIT. MAKE IT REAL.</span><span>CanFactory · Your local workshop</span></footer>

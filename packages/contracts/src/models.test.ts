@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { fruitFlyTrap, FruitFlyTrapParametersSchema, slotCount, validateParameters } from './models.ts';
+import {
+  artifactFormat, findModel, fruitFlyTrap, FruitFlyTrapParametersSchema, isAssembly, modelSourcePaths,
+  mossPlanter, slotCount, validateParameters,
+} from './models.ts';
 import { RenderRequestSchema } from './index.ts';
 
 const defaults = Value.Parse(FruitFlyTrapParametersSchema, fruitFlyTrap.defaults);
@@ -27,5 +30,27 @@ describe('fruit fly trap contract', () => {
     expect(validateParameters(fruitFlyTrap, { ...defaults, trapDiameter: 200, trapHeight: 200, brimWidth: 30 })).toEqual([]);
     expect(validateParameters(fruitFlyTrap, { ...defaults, trapDiameter: 200, trapHeight: 200, gapHeight: 1, gapWidth: 0.3, gapDistanceHorizontal: 1.2, gapDistanceVertical: 1 })).not.toEqual([]);
     expect(Value.Check(RenderRequestSchema, { modelId: 'unknown', modelVersion: '1', parameters: defaults })).toBe(false);
+  });
+});
+
+describe('moss planter contract', () => {
+  it('is a registered assembly model with no adjustable parameters', () => {
+    expect(findModel('moss-planter')).toBe(mossPlanter);
+    expect(isAssembly(mossPlanter)).toBe(true);
+    expect(isAssembly(fruitFlyTrap)).toBe(false);
+    expect(artifactFormat(mossPlanter)).toBe('zip');
+    expect(artifactFormat(fruitFlyTrap)).toBe('stl');
+    expect(mossPlanter.controls).toEqual([]);
+    expect(mossPlanter.defaults).toEqual({});
+    expect(modelSourcePaths(mossPlanter)).toHaveLength(10);
+    expect(new Set(modelSourcePaths(mossPlanter)).size).toBe(10);
+  });
+
+  it('accepts only an empty parameter object and validates against RenderRequestSchema', () => {
+    expect(validateParameters(mossPlanter, {})).toEqual([]);
+    expect(validateParameters(mossPlanter, { anything: 1 })).not.toEqual([]);
+    expect(mossPlanter.derived()).toEqual({ slotCount: null });
+    expect(Value.Check(RenderRequestSchema, { modelId: 'moss-planter', modelVersion: '1', parameters: {} })).toBe(true);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'moss-planter', modelVersion: '1', parameters: { extra: 1 } })).toBe(false);
   });
 });

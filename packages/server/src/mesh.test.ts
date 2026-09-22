@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { inspectStl } from './mesh.ts';
+import { combineParts, inspectStl } from './mesh.ts';
 
 type Point = [number, number, number];
 type Triangle = [Point, Point, Point];
@@ -28,5 +29,30 @@ describe('generated STL validation', () => {
       return [shift(triangle[0]), shift(triangle[1]), shift(triangle[2])];
     });
     expect(() => inspectStl(stl([...tetrahedron, ...shifted]))).toThrow('disconnected');
+  });
+});
+
+describe('assembly artifact aggregation', () => {
+  it('sums triangles and volume across parts and hashes the ZIP, not any one part', () => {
+    const a1 = inspectStl(stl(tetrahedron));
+    const a2 = inspectStl(stl(tetrahedron.map(([p, q, r]) => [[p[0] + 20, p[1], p[2]], [q[0] + 20, q[1], q[2]], [r[0] + 20, r[1], r[2]]])));
+    const zipBytes = Buffer.from('not a real zip, just bytes to hash');
+    const info = combineParts(zipBytes, [
+      { id: 'a', title: 'A', bytes: a1.bytes, triangles: a1.triangles, dimensions: a1.dimensions, volume: a1.volume },
+      { id: 'b', title: 'B', bytes: a2.bytes, triangles: a2.triangles, dimensions: a2.dimensions, volume: a2.volume },
+    ]);
+    expect(info.triangles).toBe(a1.triangles + a2.triangles);
+    expect(info.volume).toBeCloseTo(a1.volume + a2.volume);
+    expect(info.bytes).toBe(zipBytes.length);
+    expect(info.sha256).toBe(createHash('sha256').update(zipBytes).digest('hex'));
+    expect(info.parts).toEqual([
+      { id: 'a', title: 'A', bytes: a1.bytes, triangles: a1.triangles, dimensions: a1.dimensions, volume: a1.volume },
+      { id: 'b', title: 'B', bytes: a2.bytes, triangles: a2.triangles, dimensions: a2.dimensions, volume: a2.volume },
+    ]);
+  });
+
+  it('returns zero totals for no parts without throwing', () => {
+    const info = combineParts(Buffer.from(''), []);
+    expect(info).toMatchObject({ triangles: 0, volume: 0, parts: [] });
   });
 });
