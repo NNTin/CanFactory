@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { zipSync } from 'fflate';
 import { findModel, isAssembly, validateParameters, type ModelDefinition } from '@canfactory/contracts';
 import {
-  asyncStorage, combineParts, inspectStl, RENDER_TIMEOUT_MS, RENDERER_FINGERPRINT, sourceFingerprint,
+  asyncStorage, combineParts, firstDegenerateTriangle, inspectStl, RENDER_TIMEOUT_MS, RENDERER_FINGERPRINT, sourceFingerprint,
   type AssemblyPart, type RenderJob, type Storage, type Store,
 } from '@canfactory/server';
 
@@ -54,7 +54,11 @@ export async function renderJob(storage: Store | Storage, job: RenderJob, signal
         stampAttribution(bytes, model);
         let info;
         try { info = inspectStl(bytes); }
-        catch (error) { throw new Error(`"${part.title}" (${part.id}): ${error instanceof Error ? error.message : String(error)}`, { cause: error }); }
+        catch (error) {
+          const culprit = firstDegenerateTriangle(bytes);
+          const detail = culprit ? ` triangle #${culprit.index}: a=${JSON.stringify(culprit.a)} b=${JSON.stringify(culprit.b)} c=${JSON.stringify(culprit.c)}` : '';
+          throw new Error(`"${part.title}" (${part.id}): ${error instanceof Error ? error.message : String(error)}${detail}`, { cause: error });
+        }
         entries[`${part.id}.stl`] = bytes;
         parts.push({ id: part.id, title: part.title, bytes: info.bytes, triangles: info.triangles, dimensions: info.dimensions, volume: info.volume });
       }

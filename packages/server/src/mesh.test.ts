@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { combineParts, inspectStl } from './mesh.ts';
+import { combineParts, firstDegenerateTriangle, inspectStl } from './mesh.ts';
 
 type Point = [number, number, number];
 type Triangle = [Point, Point, Point];
@@ -54,5 +54,21 @@ describe('assembly artifact aggregation', () => {
   it('returns zero totals for no parts without throwing', () => {
     const info = combineParts(Buffer.from(''), []);
     expect(info).toMatchObject({ triangles: 0, volume: 0, parts: [] });
+  });
+});
+
+describe('degenerate triangle diagnostics', () => {
+  it('locates a zero-area triangle by index and coordinates', () => {
+    const collapsed: Triangle = [a, a, b]; // two shared vertices: zero area
+    const last = tetrahedron[3]; if (!last) throw new Error('Expected a fourth triangle');
+    const bytes = stl([...tetrahedron.slice(0, 2), collapsed, last]);
+    const culprit = firstDegenerateTriangle(bytes);
+    expect(culprit).toEqual({ index: 2, a, b: a, c: b });
+  });
+
+  it('finds nothing in a valid mesh or an incomplete/corrupt buffer', () => {
+    expect(firstDegenerateTriangle(stl(tetrahedron))).toBeUndefined();
+    expect(firstDegenerateTriangle(Buffer.alloc(10))).toBeUndefined();
+    expect(firstDegenerateTriangle(stl(tetrahedron).subarray(0, 100))).toBeUndefined();
   });
 });
