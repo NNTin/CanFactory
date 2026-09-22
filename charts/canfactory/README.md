@@ -31,5 +31,5 @@ Service and all other requests to web. API probes/metrics listen on a private
 3002 port which is intentionally absent from the public Service. The web image's
 Compose proxy configuration is replaced with a chart-owned static-only config.
 
-Use `tools/check-chart.sh` to validate all supported replica combinations. See
+Use `tools/check-chart.sh` to validate representative replica configurations and the worker bound. See
 `docs/kubernetes-tech-plan.md` for fencing, expiry and upgrade behavior.

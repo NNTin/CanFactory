@@ -2,8 +2,9 @@
 
 ## Architectural Approach
 
-Status: approved and implemented, 2026-09-22; production DNS cutover is pending.
-The pinned release has passed real PostgreSQL/Garage and RKE2 acceptance checks.
+Status: approved, implemented and serving production since 2026-09-22.
+The pinned release has passed real PostgreSQL/Garage and RKE2 acceptance checks,
+and the production browser suite passed after the separately approved DNS cutover.
 The infrastructure repository's `docs/canfactory/migration-plan.md` holds phases,
 ownership, validation, operational procedures, and remaining verification gates.
 

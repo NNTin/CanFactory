@@ -1,11 +1,12 @@
 # Containers and communication
 
-The first two diagrams describe the running Docker Compose application, including
-the public route verified on 2026-09-21. The Kubernetes view describes the agreed
-migration direction, with implementation details under review; it is not deployed.
-Service names and ports match [compose.yaml](../compose.yaml).
+Production moved to Kubernetes on 2026-09-22 after explicit cutover approval.
+The Kubernetes diagrams below describe the live production and preview endpoints.
+The first two diagrams preserve the former Compose architecture for rollback;
+service names and ports match [compose.yaml](../compose.yaml). The old API/worker
+are stopped after temporary-data cleanup, while old web serves maintenance.
 
-## Current Docker containers
+## Former Docker deployment (rollback reference)
 
 ```mermaid
 flowchart TB
@@ -123,7 +124,7 @@ readable. Failed renders return a terminal error without an artifact. Abandoned
 leases allow one retry, while fencing tokens prevent stale workers from
 publishing. The API refuses expired jobs/files; maintenance removes them.
 
-## Kubernetes deployment — preview verified, production cutover pending
+## Live Kubernetes deployment — production and preview
 
 The user selected one WSL2/NUC host, RKE2, Flux, an application Helm chart,
 PostgreSQL-backed jobs, local Garage, a dedicated tunnel, and independent manual
@@ -132,7 +133,7 @@ are acceptable. Detailed behavior is in the implemented [tech plan](kubernetes-t
 
 ```mermaid
 flowchart TB
-    browser["Browser: preview hostname; same editor"]
+    browser["Browser: production + preview hostnames; same editor"]
     cloud["Cloudflare: public HTTPS"]
     browser <-->|"HTTPS"| cloud
 
@@ -161,7 +162,7 @@ flowchart TB
     maintenance --> pg
     maintenance --> garage
 
-    shared["Existing lair tunnel + Docker Traefik<br/>Production CanFactory + unrelated apps until cutover"]
+    shared["Existing lair tunnel + Docker Traefik<br/>Unrelated apps + retained CanFactory rollback route"]
     cloud <--> shared
 ```
 
@@ -208,5 +209,8 @@ changing releases pause submissions and drain old work before catalogue activati
 Resource budgets, HTTP draining, lease recovery, immutable publication, expiry and
 rolling upgrades have passed real multi-replica tests. The infrastructure repository
 records exact evidence and remaining limits in `docs/canfactory/validation.md`.
-The existing Compose deployment remains operational during implementation and
-validation. Production DNS switching requires a separate cutover agreement.
+Production cutover was separately authorized and executed. Browser customization,
+inspection and downloads passed on the production hostname after routing converged.
+Shared Compose infrastructure remains operational; legacy CanFactory images and its
+route are retained for rollback. See the infrastructure validation record for
+one-hour observation results and remaining recovery limits.
