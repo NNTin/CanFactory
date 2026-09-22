@@ -4,16 +4,16 @@ Renderer: wasm — OpenSCAD version 2025.01.19 via openscad-wasm-prebuilt (Manif
 
 | Part | Result | Size Δ (mm) | Volume Δ | IoU | Mean dev (mm) | Ref tris | SCAD bytes | Render (s) |
 |---|---|---|---|---|---|---|---|---|
-| obj_1_Moosstab Middle RAUTE small | PASS | 0.000 / 0.000 / -0.000 | 0.50 % | 0.9782 | 0.054 | 531784 | 10870 | 10.0 |
-| obj_2_erdspiessV2 | PASS | -0.003 / -0.003 / -0.003 | 0.05 % | 0.9938 | 0.031 | 112886 | 4260 | 2.2 |
-| obj_3_erdspiessV2 | PASS | -0.001 / -0.001 / -0.000 | 0.06 % | 0.9936 | 0.017 | 112886 | 4222 | 2.0 |
-| obj_4_Moosstab Middle RAUTE | PASS | 0.000 / 0.000 / 0.000 | 0.20 % | 0.9664 | 0.038 | 1048348 | 10766 | 17.8 |
-| obj_5_Moosstab Middle RAUTE small | PASS | 0.000 / 0.000 / 0.000 | 0.50 % | 0.9784 | 0.028 | 531784 | 10834 | 9.2 |
-| obj_6_Moosstab Planting Helper V3 | PASS | 0.000 / 0.002 / 0.000 | -0.29 % | 0.9821 | 0.041 | 147048 | 5887 | 3.6 |
-| obj_7_Moosstab AbdeckkappeV2 | PASS | 0.000 / 0.000 / -0.006 | -0.02 % | 0.9987 | 0.005 | 84996 | 3395 | 1.7 |
-| obj_8_Moosstab Planting Helper V3 | PASS | -0.002 / 0.002 / -0.002 | -0.30 % | 0.9821 | 0.078 | 147048 | 5924 | 3.4 |
-| obj_9_Moosstab Middle RAUTE 10cm | PASS | 0.000 / 0.000 / 0.000 | -0.37 % | 0.9784 | 0.041 | 770918 | 11814 | 29.3 |
-| obj_10_Moosstab AbdeckkappeV2 | PASS | 0.000 / 0.000 / -0.003 | -0.02 % | 0.9987 | 0.002 | 84996 | 3357 | 1.7 |
+| obj_1_Moosstab Middle RAUTE small | PASS | 0.000 / 0.000 / -0.000 | 0.50 % | 0.9782 | 0.054 | 531784 | 10870 | 9.6 |
+| obj_2_erdspiessV2 | PASS | -0.003 / -0.003 / -0.003 | 0.05 % | 0.9938 | 0.031 | 112886 | 4260 | 2.1 |
+| obj_3_erdspiessV2 | PASS | -0.001 / -0.001 / -0.000 | 0.06 % | 0.9936 | 0.017 | 112886 | 4222 | 1.9 |
+| obj_4_Moosstab Middle RAUTE | PASS | 0.000 / 0.000 / 0.000 | 0.20 % | 0.9664 | 0.038 | 1048348 | 10766 | 17.6 |
+| obj_5_Moosstab Middle RAUTE small | PASS | 0.000 / 0.000 / 0.000 | 0.50 % | 0.9784 | 0.028 | 531784 | 10834 | 9.3 |
+| obj_6_Moosstab Planting Helper V3 | PASS | 0.000 / 0.002 / 0.000 | -0.30 % | 0.9821 | 0.041 | 147048 | 6190 | 3.7 |
+| obj_7_Moosstab AbdeckkappeV2 | PASS | 0.000 / 0.000 / -0.006 | -0.02 % | 0.9987 | 0.005 | 84996 | 3395 | 2.0 |
+| obj_8_Moosstab Planting Helper V3 | PASS | -0.002 / 0.002 / -0.002 | -0.30 % | 0.9822 | 0.078 | 147048 | 6227 | 3.5 |
+| obj_9_Moosstab Middle RAUTE 10cm | PASS | 0.000 / 0.000 / 0.000 | -0.37 % | 0.9784 | 0.041 | 770918 | 11814 | 27.4 |
+| obj_10_Moosstab AbdeckkappeV2 | PASS | 0.000 / 0.000 / -0.003 | -0.02 % | 0.9987 | 0.002 | 84996 | 3357 | 1.8 |
 
 ## Sources
 

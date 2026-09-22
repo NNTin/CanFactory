@@ -27,8 +27,11 @@ SLOT_FROM    = 15.25;     // slot end centres, measured from the axis
 SLOT_TO      = 34.38;
 
 // Revolved body (radius, z): plate with rim, hub with its fillet, cone, wall, funnel and threaded ring core.
+// [14.283, 2] (not the originally-measured 2.002): the two points span the base slot cutter's outer edge
+// (SLOT_TO + SLOT_R = 36.38), and the 0.002 mm slope there produced a near-zero-area sliver under one
+// OpenSCAD/Manifold build. This whole run (39.5 to 14.283) is meant to be one flat annular face.
 BODY = [[0, 0], [42, 0], [42.5, 0.5], [42.5, 3.5], [42, 4], [40.5, 4], [40, 3.5], [40, 2.5], [39.5, 2],
-        [14.283, 2.002], [12.121, 2.124], [10.154, 2.453], [9.651, 2.719], [9.159, 3.169], [8.816, 3.685],
+        [14.283, 2], [12.121, 2.124], [10.154, 2.453], [9.651, 2.719], [9.159, 3.169], [8.816, 3.685],
         [8.581, 4.325], [8.503, 5], [8.503, 53.037], [8.584, 54.604], [8.878, 56.386], [9.239, 57.687],
         [9.715, 58.951], [10.302, 60.166], [11.187, 61.604], [25.691, 80.597], [25.983, 81.291], [26, RING_Z0],
         [18.4, RING_Z0], [18.4, TOP_Z], [17.345, TOP_Z], [16.788, 96.034], [13.993, 85.59], [13.692, 83.983],
