@@ -34,7 +34,11 @@ BODY = [[0, 0], [42, 0], [42.5, 0.5], [42.5, 3.5], [42, 4], [40.5, 4], [40, 3.5]
         [14.283, 2], [12.121, 2.124], [10.154, 2.453], [9.651, 2.719], [9.159, 3.169], [8.816, 3.685],
         [8.581, 4.325], [8.503, 5], [8.503, 53.037], [8.584, 54.604], [8.878, 56.386], [9.239, 57.687],
         [9.715, 58.951], [10.302, 60.166], [11.187, 61.604], [25.691, 80.597], [25.983, 81.291], [26, RING_Z0],
-        [18.4, RING_Z0], [18.4, TOP_Z], [17.345, TOP_Z], [16.788, 96.034], [13.993, 85.59], [13.692, 83.983],
+        // 18.4 steps down 0.1 mm short of TOP_Z (not flat all the way, as originally measured): the thread ridge's
+        // own top face (a linear_extrude always caps flat) is exactly coplanar with BODY's here over r 18-18.4,
+        // which is exactly the triangle CI's pinned build rejected. The tiny slope removes that without changing
+        // the part's height at all (the r=17.345 point, unchanged, still reaches TOP_Z).
+        [18.4, RING_Z0], [18.4, TOP_Z - 0.1], [17.345, TOP_Z], [16.788, 96.034], [13.993, 85.59], [13.692, 83.983],
         [13.567, 82.352], [13.563, 72], [0, 84]];
 
 // The funnel socket, cut out again after the fins are added so the fins do not fill it. Inset 0.3 mm radially from
