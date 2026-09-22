@@ -34,9 +34,12 @@ BODY = [[0, 0], [42, 0], [42.5, 0.5], [42.5, 3.5], [42, 4], [40.5, 4], [40, 3.5]
         [18.4, RING_Z0], [18.4, TOP_Z], [17.345, TOP_Z], [16.788, 96.034], [13.993, 85.59], [13.692, 83.983],
         [13.567, 82.352], [13.563, 72], [0, 84]];
 
-// The funnel socket, cut out again after the fins are added so the fins do not fill it.
-SOCKET = [[0, 84], [13.563, 72], [13.567, 82.352], [13.692, 83.983], [13.993, 85.59], [16.788, 96.034], [17.345, TOP_Z],
-          [17.345, TOP_Z + 1], [0, TOP_Z + 1]];
+// The funnel socket, cut out again after the fins are added so the fins do not fill it. Inset 0.3 mm radially from
+// BODY's own wall curve (it originally retraced that curve exactly, which is a coincident-surface pitfall: fine
+// under one OpenSCAD/Manifold build, but a real zero-area triangle under another). A real, if thin, wall here does
+// not change the exterior surface at all, since this cavity is entirely internal.
+SOCKET = [[0, 84], [13.263, 72], [13.267, 82.352], [13.392, 83.983], [13.693, 85.59], [16.488, 96.034], [17.045, TOP_Z],
+          [17.045, TOP_Z + 1], [0, TOP_Z + 1]];
 
 // Thread ridge profile: [phase from the crest, radius] (periodic with THREAD_PITCH).
 RIDGE = [[-0.5, 19.708], [-0.311, 19.892], [-0.15, 19.98], [0, 20.001], [0.15, 19.98], [0.311, 19.892],
