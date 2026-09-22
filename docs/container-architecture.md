@@ -123,16 +123,16 @@ readable. Failed renders return a terminal error without an artifact. Abandoned
 leases allow one retry, while fencing tokens prevent stale workers from
 publishing. The API refuses expired jobs/files; maintenance removes them.
 
-## Agreed Kubernetes direction — not deployed
+## Kubernetes deployment — preview verified, production cutover pending
 
 The user selected one WSL2/NUC host, RKE2, Flux, an application Helm chart,
 PostgreSQL-backed jobs, local Garage, a dedicated tunnel, and independent manual
 web/API/worker scaling. Short interruption and discarding old temporary renders
-are acceptable. Detailed behavior is in the draft [tech plan](kubernetes-tech-plan.md).
+are acceptable. Detailed behavior is in the implemented [tech plan](kubernetes-tech-plan.md).
 
 ```mermaid
 flowchart TB
-    browser["Browser: same hostname and editor"]
+    browser["Browser: preview hostname; same editor"]
     cloud["Cloudflare: public HTTPS"]
     browser <-->|"HTTPS"| cloud
 
@@ -161,7 +161,7 @@ flowchart TB
     maintenance --> pg
     maintenance --> garage
 
-    shared["Existing lair tunnel + Docker Traefik<br/>Continue serving unrelated apps"]
+    shared["Existing lair tunnel + Docker Traefik<br/>Production CanFactory + unrelated apps until cutover"]
     cloud <--> shared
 ```
 
@@ -205,7 +205,8 @@ API processes no longer own migrations, seeding or cleanup. Release Jobs seriali
 schema/catalogue changes; maintenance is independently coordinated. Fingerprint-
 changing releases pause submissions and drain old work before catalogue activation.
 
-Resource budgets, probe/shutdown behavior, lease recovery, immutable publication,
-expiry and rolling upgrades must pass real multi-replica tests before cutover.
+Resource budgets, HTTP draining, lease recovery, immutable publication, expiry and
+rolling upgrades have passed real multi-replica tests. The infrastructure repository
+records exact evidence and remaining limits in `docs/canfactory/validation.md`.
 The existing Compose deployment remains operational during implementation and
 validation. Production DNS switching requires a separate cutover agreement.

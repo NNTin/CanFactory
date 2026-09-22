@@ -205,6 +205,43 @@ try {
     assert.equal(await first.objects.exists(config.catalogueBucket, model.referenceName), true);
     console.log('PASS expired settings disappear despite failed object deletion; durable retry removes file and preserves references');
 
+    const uploadInterrupted = await first.enqueue(fruitFlyTrap, { ...fruitFlyTrap.defaults, trapHeight: 157 });
+    const uploadClaim = await first.claim(); assert.ok(uploadClaim?.leaseToken); assert.equal(uploadClaim.id, uploadInterrupted.id);
+    const cancellation = new AbortController();
+    await docker('pause', garage);
+    const cancelUpload = setTimeout(() => cancellation.abort(), 250);
+    try {
+      const outcome = await Promise.race([
+        first.complete(uploadClaim.id, uploadClaim.leaseToken, metadata, file, cancellation.signal).then(() => 'resolved', () => 'rejected'),
+        delay(3000, 'hung', { ref: false }),
+      ]);
+      assert.equal(outcome, 'rejected', 'Shutdown must abort an outstanding S3 upload promptly');
+    } finally { clearTimeout(cancelUpload); await docker('unpause', garage); }
+    assert.equal((await apis[1].inject(`/api/v1/renders/${uploadClaim.id}/stl`)).statusCode, 409);
+    await control.query('UPDATE render_jobs SET lease_until=0 WHERE id=$1', [uploadClaim.id]);
+    await second.recover();
+    const uploadRetry = await second.claim(); assert.ok(uploadRetry?.leaseToken); assert.equal(uploadRetry.attempts, 2);
+    assert.equal(await second.complete(uploadRetry.id, uploadRetry.leaseToken, metadata, file), true);
+    console.log('PASS cancelled in-flight Garage upload stays unpublished and another worker can recover');
+
+    const committedUpload = await first.enqueue(fruitFlyTrap, { ...fruitFlyTrap.defaults, trapHeight: 158 });
+    const committedClaim = await first.claim(); assert.ok(committedClaim?.leaseToken); assert.equal(committedClaim.id, committedUpload.id);
+    const afterUpload = new AbortController();
+    first.objects.put = async (...args: Parameters<ObjectStorage['put']>) => { await originalPut(...args); afterUpload.abort(); };
+    try { await assert.rejects(first.complete(committedClaim.id, committedClaim.leaseToken, metadata, file, afterUpload.signal)); }
+    finally { first.objects.put = originalPut; }
+    const interruptedKey = `renders/${committedClaim.id}/${committedClaim.leaseToken}.stl`;
+    assert.equal(await first.objects.exists(config.generatedBucket, interruptedKey), true);
+    assert.equal((await apis[0].inject(`/api/v1/renders/${committedClaim.id}/stl`)).statusCode, 409);
+    await control.query('UPDATE render_jobs SET lease_until=0 WHERE id=$1', [committedClaim.id]);
+    first.objects.generatedObjects = async function* () {
+      for await (const object of originalListing()) yield { ...object, modified: 0 };
+    };
+    try { await first.cleanup(); } finally { first.objects.generatedObjects = originalListing; }
+    assert.equal(await first.objects.exists(config.generatedBucket, interruptedKey), false);
+    assert.equal(await first.objects.exists(config.generatedBucket, `renders/${uploadRetry.id}/${uploadRetry.leaseToken}.stl`), true);
+    console.log('PASS cancellation after upload never publishes; orphan cleanup preserves the winning artifact');
+
     await docker('pause', garage);
     try { await assert.rejects(first.ready()); } finally { await docker('unpause', garage); }
     await first.ready();

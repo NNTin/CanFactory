@@ -2,8 +2,8 @@
 
 ## Architectural Approach
 
-Status: draft for implementation review, 2026-09-21. Architectural direction was
-agreed interactively; the detailed mechanisms below are proposals for that review.
+Status: approved and implemented, 2026-09-22; production DNS cutover is pending.
+The pinned release has passed real PostgreSQL/Garage and RKE2 acceptance checks.
 The infrastructure repository's `docs/canfactory/migration-plan.md` holds phases,
 ownership, validation, operational procedures, and remaining verification gates.
 
@@ -54,7 +54,7 @@ decisions to avoid disagreement between replicas.
 | Model revisions | Immutable model ID/version/source hash, schema, controls, defaults, attribution, reference-object key and SHA-256; retain revisions required by active jobs |
 | Catalogue activation | Transactionally select a release's available revisions; repeated seeding is idempotent and never rewrites supplied bytes |
 | Render jobs | UUID, unique cache identity, normalized parameters, source and renderer fingerprints, status, created/expiry times, attempts, fencing token, lease deadline, result metadata or sanitized error |
-| Workers | Process UUID, supported release/fingerprints, heartbeat; stale rows expire |
+| Workers | Process UUID and heartbeat; stale rows expire. Claim predicates enforce fingerprints from each worker image |
 | Object deletion tasks | Object key and retry metadata only; no settings or STL payloads; survive failed deletion after job removal |
 | Schema migrations | Applied migration IDs; release startup checks the supported schema range |
 
@@ -133,11 +133,14 @@ API startup never migrates/seeds. A failed hook prevents rollout. Hooks and Helm
 rollback do not undo SQL migrations; only backward-compatible migrations roll back
 automatically. Incompatible changes require a separately reviewed maintenance step.
 
-Expose private queue depth, oldest queued age, running jobs, healthy workers,
-render duration/failures, lease recoveries, and cleanup backlog metrics. Queue
-gauges describe shared state and must not be summed across API replicas. Keep
-metrics off the public HTTPRoute and avoid a new monitoring stack in this phase.
+Private Prometheus gauges expose queue counts, oldest queued age and cleanup backlog.
+Worker JSON logs expose durations, failures and retry attempt numbers; PostgreSQL
+retains worker heartbeats. Dedicated duration/recovery counters and healthy-worker
+gauges are not implemented. Queue gauges describe shared state and must not be summed
+across API replicas. Metrics stay off the public HTTPRoute; no monitoring stack is added.
 
 Validation includes real PostgreSQL/Garage concurrency tests, real pinned OpenSCAD,
 cross-replica preview/download hash equality, deletion retry, interruption/fencing,
-one-hour expiry, reference integrity, and compatible/incompatible release upgrades.
+one-hour expiry, reference integrity, compatible rolling releases and a failed migration
+hook. Incompatible schema/fingerprint changes require the documented maintenance
+procedure; a real fingerprint-changing release has not been exercised.
