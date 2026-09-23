@@ -76,6 +76,9 @@ try {
   await Promise.all([first.migrate(), second.migrate()]);
   await Promise.all([first.seed(), second.seed()]);
   await first.ready();
+  await first.pool.query(`UPDATE model_revisions SET detail = detail - 'artifactFormat' - 'customizable'`);
+  await second.seed();
+  assert.ok((await second.listModels()).every(entry => ['stl', 'zip'].includes(entry.artifactFormat) && typeof entry.customizable === 'boolean'), 'reseeding must refresh stored model details');
   const apis = await Promise.all([createApp(first), createApp(second)]);
   try {
     const model = await first.getModel(fruitFlyTrap.id); assert.ok(model);

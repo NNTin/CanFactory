@@ -112,7 +112,7 @@ export class PostgresStorage implements Storage {
       await client.query('SELECT pg_advisory_xact_lock($1)', [MIGRATION_LOCK]);
       for (const entry of entries) {
         await client.query(`INSERT INTO model_revisions(id,version,source_hash,detail,reference_key,reference_sha256)
-          VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id,source_hash) DO NOTHING`,
+          VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id,source_hash) DO UPDATE SET version=excluded.version, detail=excluded.detail`,
         [entry.model.id, entry.model.version, entry.source, entry.detail, entry.key, entry.sha]);
         await client.query(`INSERT INTO catalogue(id,source_hash) VALUES($1,$2)
           ON CONFLICT(id) DO UPDATE SET source_hash=excluded.source_hash`, [entry.model.id, entry.source]);
