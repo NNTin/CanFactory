@@ -1,10 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { fruitFlyTrap } from '@canfactory/contracts';
+import { fruitFlyTrap, mossPlanter } from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS } from './config.ts';
-import { Store, repositoryRoot } from './store.ts';
+import { Store, repositoryRoot, sourceFingerprint } from './store.ts';
 
 let directory: string;
 let store: Store;
@@ -17,10 +17,43 @@ afterEach(() => { store.close(); rmSync(directory, { recursive: true, force: tru
 
 describe('temporary render queue', () => {
   it('seeds idempotently and reuses equivalent normalized parameters', () => {
-    store.seed(); expect(store.listModels()).toHaveLength(1);
+    store.seed(); expect(store.listModels()).toHaveLength(2);
     const first = store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
     const reordered = Object.fromEntries(Object.entries(fruitFlyTrap.defaults).reverse());
     expect(store.enqueue(fruitFlyTrap, reordered).id).toBe(first.id);
+  });
+
+  it('seeds an assembly model with no reference file and a ZIP artifact format', () => {
+    const detail = store.getModel(mossPlanter.id)?.detail;
+    expect(detail?.artifactFormat).toBe('zip');
+    expect(detail?.customizable).toBe(false);
+    expect(detail?.referenceUrl).toBeUndefined();
+    expect(detail?.parts).toHaveLength(10);
+    expect(existsSync(join(store.artifacts.catalogDir, `${mossPlanter.id}-${mossPlanter.version}.stl`))).toBe(false);
+  });
+
+  it('enqueues an assembly model with empty parameters and reuses/clears both artifact extensions', () => {
+    const job = store.enqueue(mossPlanter, {});
+    writeFileSync(store.artifacts.path(job.id, 'zip'), 'temporary output');
+    expect(existsSync(store.artifacts.path(job.id, 'stl'))).toBe(false);
+    expect(existsSync(store.artifacts.path(job.id, 'zip'))).toBe(true);
+    expect(store.enqueue(mossPlanter, {}).id).toBe(job.id);
+    store.artifacts.remove(job.id);
+    expect(existsSync(store.artifacts.path(job.id, 'zip'))).toBe(false);
+  });
+
+  it('fingerprints every part of an assembly, so editing one part invalidates the cache', () => {
+    const before = sourceFingerprint(repositoryRoot, mossPlanter);
+    const firstPart = mossPlanter.parts[0];
+    if (!firstPart) throw new Error('Expected at least one part');
+    const path = resolve(repositoryRoot, firstPart.sourcePath);
+    const contents = readFileSync(path, 'utf8');
+    writeFileSync(path, `${contents}\n// touched-by-test\n`);
+    try {
+      expect(sourceFingerprint(repositoryRoot, mossPlanter)).not.toBe(before);
+    } finally {
+      writeFileSync(path, contents); // restore: this must not permanently modify a verified SCAD file
+    }
   });
 
   it('allows only one claim and fences old workers after lease recovery', () => {
@@ -49,7 +82,7 @@ describe('temporary render queue', () => {
     time += CACHE_TTL_MS + 1; store.cleanup();
     expect(store.getJob(job.id)).toBeUndefined();
     expect(existsSync(store.artifacts.path(job.id))).toBe(false);
-    expect(store.listModels()).toHaveLength(1);
+    expect(store.listModels()).toHaveLength(2);
     expect(existsSync(join(store.artifacts.catalogDir, 'fruit-fly-trap-1.stl'))).toBe(true);
   });
 

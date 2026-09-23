@@ -36,7 +36,7 @@ export class ObjectStorage {
       await this.client.send(new HeadBucketCommand({ Bucket }), { abortSignal: AbortSignal.timeout(5000) });
     }
   }
-  async put(bucket: string, key: string, path: string, sha256: string, signal?: AbortSignal): Promise<void> {
+  async put(bucket: string, key: string, path: string, sha256: string, signal?: AbortSignal, contentType = 'model/stl'): Promise<void> {
     const timeout = AbortSignal.timeout(UPLOAD_TIMEOUT_MS);
     const abortSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
     const info = await stat(path);
@@ -44,7 +44,7 @@ export class ObjectStorage {
     try {
       await this.client.send(new PutObjectCommand({
         Bucket: bucket, Key: key, Body: body, ContentLength: info.size,
-        ContentType: 'model/stl', Metadata: { sha256 },
+        ContentType: contentType, Metadata: { sha256 },
       }), { abortSignal });
     } finally { body.destroy(); }
   }

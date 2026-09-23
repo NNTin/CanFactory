@@ -1,5 +1,5 @@
 import { Type, type Static } from 'typebox';
-import { ControlSchema, fruitFlyTrap } from './models.ts';
+import { ControlSchema, fruitFlyTrap, mossPlanter } from './models.ts';
 export * from './models.ts';
 
 /** Stable error envelope; clients may branch on code and highlight field issues. */
@@ -10,10 +10,14 @@ export const ErrorSchema = Type.Object({
 }, { additionalProperties: false });
 export type ApiError = Static<typeof ErrorSchema>;
 
+export const ModelPartSummarySchema = Type.Object({ id: Type.String(), title: Type.String() }, { additionalProperties: false });
+
 export const ModelSummarySchema = Type.Object({
   id: Type.String(), version: Type.String(), title: Type.String(), description: Type.String(),
   attribution: Type.String(), license: Type.String(), licenseUrl: Type.String(),
   printNotes: Type.String({ description: 'Model-specific orientation or printing guidance.' }),
+  artifactFormat: Type.Union([Type.Literal('stl'), Type.Literal('zip')], { description: 'The shape of the generated file: one STL, or a ZIP of one STL per part.' }),
+  customizable: Type.Boolean({ description: 'Whether this model exposes adjustable parameters yet.' }),
 }, { additionalProperties: false });
 
 export const ModelDetailSchema = Type.Object({
@@ -21,16 +25,24 @@ export const ModelDetailSchema = Type.Object({
   controls: Type.Array(ControlSchema),
   defaults: Type.Record(Type.String(), Type.Union([Type.Number(), Type.Boolean()])),
   parameterSchema: Type.Record(Type.String(), Type.Unknown(), { description: 'JSON Schema for this model’s parameter object.' }),
-  referenceUrl: Type.String(),
+  referenceUrl: Type.Optional(Type.String({ description: 'Absent when this model has no small, permanent original file.' })),
+  parts: Type.Optional(Type.Array(ModelPartSummarySchema, { description: 'Present only for multi-part assembly models, in render/ZIP order.' })),
 }, { additionalProperties: false });
 export type ModelDetail = Static<typeof ModelDetailSchema>;
 
 /** Register a typed branch for each provided model; preserve the tuple for precise inference. */
-export const RenderRequestSchema = Type.Union([Type.Object({
-  modelId: Type.Literal(fruitFlyTrap.id),
-  modelVersion: Type.Literal(fruitFlyTrap.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-  parameters: fruitFlyTrap.parameterSchema,
-}, { additionalProperties: false })], { description: 'Complete, uncoerced settings for one model version.' });
+export const RenderRequestSchema = Type.Union([
+  Type.Object({
+    modelId: Type.Literal(fruitFlyTrap.id),
+    modelVersion: Type.Literal(fruitFlyTrap.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
+    parameters: fruitFlyTrap.parameterSchema,
+  }, { additionalProperties: false }),
+  Type.Object({
+    modelId: Type.Literal(mossPlanter.id),
+    modelVersion: Type.Literal(mossPlanter.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
+    parameters: mossPlanter.parameterSchema,
+  }, { additionalProperties: false }),
+], { description: 'Complete, uncoerced settings for one model version.' });
 export type RenderRequest = Static<typeof RenderRequestSchema>;
 
 export const RenderStatusSchema = Type.Enum(['queued', 'running', 'succeeded', 'failed']);
@@ -38,10 +50,17 @@ export type RenderStatus = Static<typeof RenderStatusSchema>;
 export const DimensionsSchema = Type.Object({ x: Type.Number(), y: Type.Number(), z: Type.Number() }, { additionalProperties: false, description: 'Axis-aligned dimensions in millimetres, including brim and handles.' });
 export type Dimensions = Static<typeof DimensionsSchema>;
 
+export const ArtifactPartSchema = Type.Object({
+  id: Type.String(), title: Type.String(), bytes: Type.Integer(), triangles: Type.Integer(),
+  dimensions: DimensionsSchema, volume: Type.Number({ description: 'Enclosed material volume in cubic millimetres.' }),
+}, { additionalProperties: false });
+
 export const ArtifactSchema = Type.Object({
   url: Type.String({ description: 'The same bytes are used for preview and download. Add ?download=true for attachment disposition.' }),
   sha256: Type.String(), bytes: Type.Integer(), triangles: Type.Integer(),
-  dimensions: DimensionsSchema, volume: Type.Number({ description: 'Enclosed material volume in cubic millimetres.' }),
+  dimensions: Type.Optional(DimensionsSchema),
+  volume: Type.Number({ description: 'Enclosed material volume in cubic millimetres, summed across parts for an assembly.' }),
+  parts: Type.Optional(Type.Array(ArtifactPartSchema, { description: 'Present only for a multi-part assembly’s ZIP artifact, in ZIP order.' })),
 }, { additionalProperties: false });
 
 /** Pending/failed renders have no downloadable artifact. expiresAt is Unix time in milliseconds. */

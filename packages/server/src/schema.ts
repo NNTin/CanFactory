@@ -1,6 +1,6 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { ApiError, ModelDetail, ParameterValues, RenderStatus } from '@canfactory/contracts';
-import type { MeshInfo } from './mesh.ts';
+import type { AssemblyInfo, MeshInfo } from './mesh.ts';
 
 export const catalog = sqliteTable('models', {
   id: text('id').primaryKey(), version: text('version').notNull(),
@@ -18,7 +18,7 @@ export const jobs = sqliteTable('render_jobs', {
   attempts: integer('attempts').notNull().default(0),
   leaseToken: text('lease_token'), leaseUntil: integer('lease_until'),
   slotCount: integer('slot_count'),
-  artifact: text('artifact', { mode: 'json' }).$type<MeshInfo>(),
+  artifact: text('artifact', { mode: 'json' }).$type<MeshInfo | AssemblyInfo>(),
   error: text('error', { mode: 'json' }).$type<ApiError>(),
 });
 

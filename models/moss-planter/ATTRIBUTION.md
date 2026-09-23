@@ -21,3 +21,13 @@ Unless explicitly stated otherwise, the application code and original work produ
 Redistribution
 
 The original MakerWorld files are not relicensed by this project. Redistribution of the original files or of derivative files based on them is subject to the rights granted by the original license and, where required, permission from the original creator.
+
+SCAD reconstructions
+
+`reference/*.scad` are parametric OpenSCAD reconstructions of the ten original STL files in `reference/`, made for this
+application with the `stl-to-scad` tooling (`tools/stl-to-scad`, `.claude/skills/stl-to-scad`). Each is an adaptation of
+the corresponding original geometry: the shapes were measured from the STL and rebuilt from primitives, and
+`reference/VERIFICATION.md` records how closely each one reproduces its source (bounding box, volume, overlap, manifold
+check). Four of the files (`obj_1`, `obj_2`, `obj_7`, `obj_8`) are the same geometry as another file scaled by 100/52. The
+reconstructions carry the same credit to HpInvent and the same terms as the original design; this attribution grants no
+additional rights to the original or to the reconstructions.

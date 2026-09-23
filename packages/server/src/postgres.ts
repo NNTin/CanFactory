@@ -4,14 +4,16 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Pool, type PoolClient } from 'pg';
-import { models, type ApiError, type ModelDefinition, type ModelDetail, type ParameterValues } from '@canfactory/contracts';
+import { artifactFormat, models, type ApiError, type ModelDefinition, type ModelDetail, type ParameterValues } from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS, QUEUE_LIMIT, RENDERER_FINGERPRINT } from './config.ts';
 import { AppError } from './errors.ts';
-import type { MeshInfo } from './mesh.ts';
+import type { AssemblyInfo, MeshInfo } from './mesh.ts';
 import { ObjectStorage, ORPHAN_GRACE_MS } from './objects.ts';
 import type { RenderJob } from './schema.ts';
 import type { CatalogueEntry, Storage } from './storage.ts';
-import { sourceFingerprint } from './store.ts';
+import { sourceFingerprint, type ArtifactFormat } from './store.ts';
+
+const CONTENT_TYPES: Record<ArtifactFormat, string> = { stl: 'model/stl', zip: 'application/zip' };
 
 const CLOCK = 'floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint';
 const JOB_COLUMNS = `id::text, cache_key AS "cacheKey", model_id AS "modelId", model_version AS "modelVersion",
@@ -86,15 +88,23 @@ export class PostgresStorage implements Storage {
     // Upload first, then activate all definitions atomically. Concurrent identical seeds are safe.
     const entries: { model: ModelDefinition; sha: string; key: string; detail: ModelDetail; source: string }[] = [];
     for (const model of models) {
-      const path = resolve(this.projectRoot, model.referencePath);
-      const sha = createHash('sha256').update(readFileSync(path)).digest('hex');
-      const key = `references/${sha}.stl`;
-      await this.objects.put(this.objects.config.catalogueBucket, key, path, sha);
+      // Empty sha/key (not NULL - the columns are NOT NULL) for a model with no small, permanent original file to
+      // preserve, matching Store.seed()'s local/SQLite convention.
+      let sha = '', key = '';
+      if (model.referencePath) {
+        const path = resolve(this.projectRoot, model.referencePath);
+        sha = createHash('sha256').update(readFileSync(path)).digest('hex');
+        key = `references/${sha}.stl`;
+        await this.objects.put(this.objects.config.catalogueBucket, key, path, sha);
+      }
       const detail: ModelDetail = {
         id: model.id, version: model.version, title: model.title, description: model.description,
         attribution: model.attribution, license: model.license, licenseUrl: model.licenseUrl,
         printNotes: model.printNotes, controls: model.controls, defaults: model.defaults,
-        parameterSchema: { ...model.parameterSchema }, referenceUrl: `/api/v1/models/${model.id}/reference.stl`,
+        parameterSchema: { ...model.parameterSchema },
+        artifactFormat: artifactFormat(model), customizable: model.controls.length > 0,
+        ...(key ? { referenceUrl: `/api/v1/models/${model.id}/reference.stl` } : {}),
+        ...(model.parts ? { parts: model.parts.map(part => ({ id: part.id, title: part.title })) } : {}),
       };
       entries.push({ model, sha, key, detail, source: sourceFingerprint(this.projectRoot, model) });
     }
@@ -183,10 +193,10 @@ export class PostgresStorage implements Storage {
   private async scheduleDeletion(client: PoolClient, key: string): Promise<void> {
     await client.query('INSERT INTO object_deletions(object_key) VALUES($1) ON CONFLICT DO NOTHING', [key]);
   }
-  async complete(id: string, token: string, metadata: MeshInfo, file: string, signal?: AbortSignal): Promise<boolean> {
+  async complete(id: string, token: string, metadata: MeshInfo | AssemblyInfo, file: string, signal?: AbortSignal, format: ArtifactFormat = 'stl'): Promise<boolean> {
     if (!await this.renew(id, token)) return false;
-    const key = `renders/${id}/${token}.stl`;
-    await this.objects.put(this.objects.config.generatedBucket, key, file, metadata.sha256, signal);
+    const key = `renders/${id}/${token}.${format}`;
+    await this.objects.put(this.objects.config.generatedBucket, key, file, metadata.sha256, signal, CONTENT_TYPES[format]);
     signal?.throwIfAborted();
     // If this query errors, the grace-period orphan scan handles the uploaded object.
     const result = await this.pool.query(`UPDATE render_jobs SET status='succeeded',artifact=$3,object_key=$4,
@@ -219,7 +229,8 @@ export class PostgresStorage implements Storage {
         // A bounded attempt cannot newly publish a five-minute-old unreferenced upload.
         const reference = await client.query(`SELECT 1 FROM render_jobs WHERE object_key=$1 OR
           (status='running' AND lease_until > ${CLOCK} AND expires_at > ${CLOCK} AND
-           'renders/' || id::text || '/' || lease_token::text || '.stl' = $1) LIMIT 1`, [object.key]);
+           ('renders/' || id::text || '/' || lease_token::text || '.stl' = $1 OR
+            'renders/' || id::text || '/' || lease_token::text || '.zip' = $1)) LIMIT 1`, [object.key]);
         if (reference.rowCount === 0) await this.scheduleDeletion(client, object.key);
       }
       const deletions = await client.query<{ object_key: string }>(`SELECT object_key FROM object_deletions WHERE retry_after <= ${CLOCK} LIMIT 1000`);

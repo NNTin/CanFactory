@@ -94,6 +94,7 @@ sequenceDiagram
     loop While rendering, every 5 seconds
         Worker->>DB: Renew 30-second lease and worker heartbeat
     end
+    Note over Worker,Files: A static assembly model (e.g. moss-planter) repeats this render+validate step once per<br/>part, with no parameter overrides, then packages every part's STL into one ZIP instead of writing one STL.
     Worker->>Files: Write temporary STL and validate mesh
     Worker->>DB: Verify lease in completion transaction
     Worker->>Files: Atomically rename STL to final path
@@ -116,7 +117,7 @@ sequenceDiagram
     API-->>Web: Stream STL
     Web-->>Browser: Load into Three.js viewer
     User->>Browser: Download STL
-    Note over Browser,Files: Download uses the same artifact via this HTTP path
+    Note over Browser,Files: Download uses the same artifact via this HTTP path.<br/>An assembly model uses /renders/{id}/zip instead, and the<br/>viewer loads every part it contains onto one auto-sized grid.
 ```
 
 Status polling overlaps rendering; it is drawn afterward to keep the sequence

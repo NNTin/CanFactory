@@ -3,9 +3,9 @@ import { join } from 'node:path';
 import type { Readable } from 'node:stream';
 import type { ApiError, ModelDefinition, ModelDetail, ParameterValues } from '@canfactory/contracts';
 import { AppError } from './errors.ts';
-import type { MeshInfo } from './mesh.ts';
+import type { AssemblyInfo, MeshInfo } from './mesh.ts';
 import type { RenderJob } from './schema.ts';
-import { Store } from './store.ts';
+import { Store, type ArtifactFormat } from './store.ts';
 
 export interface CatalogueEntry {
   id: string;
@@ -29,14 +29,16 @@ export interface Storage {
   enqueue(model: ModelDefinition, parameters: ParameterValues): Promise<RenderJob>;
   claim(): Promise<RenderJob | undefined>;
   renew(id: string, token: string): Promise<boolean>;
-  complete(id: string, token: string, metadata: MeshInfo, temporaryFile: string, signal?: AbortSignal): Promise<boolean>;
+  complete(id: string, token: string, metadata: MeshInfo | AssemblyInfo, temporaryFile: string, signal?: AbortSignal, format?: ArtifactFormat): Promise<boolean>;
   fail(id: string, token: string, error: ApiError): Promise<void>;
   recover(): Promise<void>;
   cleanup(): Promise<void>;
   heartbeat(id: string): Promise<void>;
   workerReady(): Promise<boolean>;
   readReference(model: CatalogueEntry): Promise<Readable>;
-  readArtifact(job: RenderJob): Promise<Readable>;
+  /** `format` only matters for the local/SQLite backend, whose file extension isn't otherwise known; the
+   * PostgreSQL/S3 backend's stored object key already encodes it. */
+  readArtifact(job: RenderJob, format?: ArtifactFormat): Promise<Readable>;
   metrics(): Promise<string>;
   close(): Promise<void>;
 }
@@ -59,9 +61,9 @@ export class LocalStorage implements Storage {
   enqueue(model: ModelDefinition, parameters: ParameterValues) { return Promise.resolve(this.local.enqueue(model, parameters)); }
   claim() { return Promise.resolve(this.local.claim()); }
   renew(id: string, token: string) { return Promise.resolve(this.local.renew(id, token)); }
-  complete(id: string, token: string, metadata: MeshInfo, file: string, signal?: AbortSignal) {
+  complete(id: string, token: string, metadata: MeshInfo | AssemblyInfo, file: string, signal?: AbortSignal, format?: ArtifactFormat) {
     signal?.throwIfAborted();
-    return Promise.resolve(this.local.complete(id, token, metadata, file));
+    return Promise.resolve(this.local.complete(id, token, metadata, file, format));
   }
   fail(id: string, token: string, error: ApiError) { this.local.fail(id, token, error); return Promise.resolve(); }
   recover() { this.local.recover(); return Promise.resolve(); }
@@ -69,8 +71,8 @@ export class LocalStorage implements Storage {
   heartbeat(id: string) { this.local.heartbeat(id); return Promise.resolve(); }
   workerReady() { return Promise.resolve(this.local.workerReady()); }
   readReference(model: CatalogueEntry) { return Promise.resolve(createReadStream(join(this.local.artifacts.catalogDir, model.referenceName))); }
-  readArtifact(job: RenderJob) {
-    const path = this.local.artifacts.path(job.id);
+  readArtifact(job: RenderJob, format: ArtifactFormat = 'stl') {
+    const path = this.local.artifacts.path(job.id, format);
     if (!existsSync(path)) throw new AppError(410, 'RENDER_EXPIRED', 'The generated file is no longer available. Generate it again.');
     return Promise.resolve(createReadStream(path));
   }

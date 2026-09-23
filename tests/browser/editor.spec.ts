@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect, type Route } from '@playwright/test';
+import { unzipSync } from 'fflate';
 import { Value } from 'typebox/value';
-import { RenderRequestSchema, type Render } from '@canfactory/contracts';
+import { mossPlanter, RenderRequestSchema, type Render } from '@canfactory/contracts';
 import { inspectStl } from '@canfactory/server';
 
 test('customize, inspect, download identical geometry, and restore local settings', async ({ page }, testInfo) => {
@@ -66,6 +67,7 @@ test('keeps stale results out of the viewer and coalesces pending edits', async 
   const body: unknown = current.request().postDataJSON();
   expect(Value.Check(RenderRequestSchema, body)).toBe(true);
   if (!Value.Check(RenderRequestSchema, body)) throw new Error('Invalid request body');
+  if (body.modelId !== 'fruit-fly-trap') throw new Error('Expected a fruit fly trap request');
   expect(body.parameters.trapHeight).toBe(80);
   await current.fulfill({ status: 200, json: result('new') });
   await expect(page.getByRole('button', { name: 'Download STL', exact: true })).toBeEnabled();
@@ -105,4 +107,34 @@ test('renders a usable mobile layout and model library', async ({ page }, testIn
   await expect(page.getByRole('heading', { name: 'Useful things. Made to fit.' })).toBeVisible();
   await page.getByRole('button', { name: /CUSTOMIZABLE · STL Fruit fly trap/ }).click();
   await expect(page.getByRole('heading', { name: 'Fruit fly trap', exact: true })).toBeVisible();
+});
+
+test('shows the moss planter assembly with no parameter form and a downloadable ZIP of every part', async ({ page }) => {
+  // Ten sequential OpenSCAD invocations take much longer than fruit-fly-trap's single render.
+  test.setTimeout(300_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'CanFactory model library' }).click();
+  await page.getByRole('button', { name: /PREVIEW · ZIP Moss planter/ }).click();
+  await expect(page.getByRole('heading', { name: 'Moss planter (Verdura)', exact: true })).toBeVisible();
+  await expect(page.getByText("This model doesn’t have adjustable settings yet.")).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toHaveCount(0);
+  const downloadButton = page.getByRole('button', { name: 'Download ZIP', exact: true });
+  await expect(downloadButton).toBeEnabled({ timeout: 270_000 });
+  await expect(page.getByText(/10\s*·\s*[\d.]+\s*cm³ total/)).toBeVisible();
+  const downloadEvent = page.waitForEvent('download');
+  await downloadButton.click();
+  const download = await downloadEvent;
+  const path = await download.path();
+  expect(path).not.toBeNull();
+  if (!path) throw new Error('Missing download');
+  const bytes = await readFile(path);
+  const entries = unzipSync(new Uint8Array(bytes));
+  expect(Object.keys(entries).sort()).toEqual(mossPlanter.parts.map(part => `${part.id}.stl`).sort());
+  for (const [name, entryBytes] of Object.entries(entries)) {
+    const asBuffer = Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength);
+    expect(inspectStl(asBuffer).volume, name).toBeGreaterThan(0);
+  }
+  expect(errors).toEqual([]);
 });

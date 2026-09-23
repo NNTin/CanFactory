@@ -87,7 +87,17 @@ const controls = [
   control('gapDistanceHorizontal', 'advanced', 'slotsEnabled'), control('gapDistanceVertical', 'advanced', 'slotsEnabled'),
 ];
 
-/** Trusted repository model. Source paths never come from API callers. */
+/** One independently rendered, self-contained SCAD file that is part of a multi-part assembly model. */
+export interface ModelPart { id: string; title: string; sourcePath: string }
+
+/**
+ * Trusted repository model. Source paths never come from API callers.
+ *
+ * Exactly one of `sourcePath` or `parts` must be set: `sourcePath` for an ordinary single-generator model (rendered
+ * once, one STL); `parts` for a static assembly (each part rendered independently, packaged as one ZIP — see
+ * `isAssembly`/`artifactFormat`). `referencePath` is optional: omit it when there is no small, permanent "original"
+ * STL to preserve (e.g. when the only source was a large STL that will not stay in the repository).
+ */
 export interface ModelDefinition {
   id: string;
   version: string;
@@ -97,14 +107,31 @@ export interface ModelDefinition {
   printNotes: string;
   license: string;
   licenseUrl: string;
-  sourcePath: string;
-  referencePath: string;
+  sourcePath?: string;
+  referencePath?: string;
+  parts?: ModelPart[];
   parameterSchema: TSchema;
   controls: Control[];
   defaults: ParameterValues;
   scadMapping: Record<string, string>;
   validate: (parameters: unknown) => ParameterIssue[];
   derived: (parameters: unknown) => { slotCount: number | null };
+}
+
+/** True for a static, multi-part assembly model (rendered as N independent solids, packaged as one ZIP). */
+export function isAssembly(model: ModelDefinition): model is ModelDefinition & { parts: ModelPart[] } {
+  return Boolean(model.parts && model.parts.length > 0);
+}
+
+/** Every SCAD file that determines this model's geometry, in render order (1 entry, or N for an assembly). */
+export function modelSourcePaths(model: ModelDefinition): string[] {
+  if (isAssembly(model)) return model.parts.map(part => part.sourcePath);
+  return model.sourcePath ? [model.sourcePath] : [];
+}
+
+/** The shape of the generated artifact: one STL, or a ZIP of one STL per part. */
+export function artifactFormat(model: ModelDefinition): 'stl' | 'zip' {
+  return isAssembly(model) ? 'zip' : 'stl';
 }
 
 export const fruitFlyTrap = {
@@ -133,8 +160,48 @@ export const fruitFlyTrap = {
   },
 } satisfies ModelDefinition;
 
-/** Add models here; shared API contracts and the generic editor consume this registry. */
-export const models = [fruitFlyTrap] as const;
+/** Moss planter has no adjustable parameters yet; the parts always render as designed. */
+export const MossPlanterParametersSchema = Type.Object({}, {
+  additionalProperties: false, description: 'Moss planter parameters. There are no adjustable settings yet.',
+});
+
+const MOSS_PLANTER_DIR = 'models/moss-planter/reference/';
+
+/** All ten parts of the moss tower assembly. `id` matches the STL basename (without extension) in both directions. */
+const mossPlanterParts: ModelPart[] = [
+  { id: 'obj_1_Moosstab Middle RAUTE small', title: 'RAUTE lattice segment, small (100 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_1_Moosstab Middle RAUTE small.scad` },
+  { id: 'obj_2_erdspiessV2', title: 'Ground spike (79 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_2_erdspiessV2.scad` },
+  { id: 'obj_3_erdspiessV2', title: 'Ground spike (41 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_3_erdspiessV2.scad` },
+  { id: 'obj_4_Moosstab Middle RAUTE', title: 'RAUTE lattice segment, tall (52 × 230 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_4_Moosstab Middle RAUTE.scad` },
+  { id: 'obj_5_Moosstab Middle RAUTE small', title: 'RAUTE lattice segment, small (52 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_5_Moosstab Middle RAUTE small.scad` },
+  { id: 'obj_6_Moosstab Planting Helper V3', title: 'Planting helper (85 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_6_Moosstab Planting Helper V3.scad` },
+  { id: 'obj_7_Moosstab AbdeckkappeV2', title: 'Cover cap (100 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_7_Moosstab AbdeckkappeV2.scad` },
+  { id: 'obj_8_Moosstab Planting Helper V3', title: 'Planting helper (163 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_8_Moosstab Planting Helper V3.scad` },
+  { id: 'obj_9_Moosstab Middle RAUTE 10cm', title: 'RAUTE lattice segment (100 × 250 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_9_Moosstab Middle RAUTE 10cm.scad` },
+  { id: 'obj_10_Moosstab AbdeckkappeV2', title: 'Cover cap (52 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_10_Moosstab AbdeckkappeV2.scad` },
+];
+
+export const mossPlanter = {
+  id: 'moss-planter' as const, version: '1' as const, title: 'Moss planter (Verdura)',
+  description: 'Ten parts of a modular moss-tower kit — lattice segments, ground spikes, planting helpers, and cover caps — shown together. Not yet customizable; download the full set as a ZIP of STL files.',
+  attribution: 'HpInvent (MakerWorld)',
+  printNotes: 'Print each part separately. See models/moss-planter/ATTRIBUTION.md for source credit.',
+  // Kept short deliberately: this string and `attribution` together are stamped into each STL's 80-byte header
+  // (see apps/worker/src/render.ts's stampAttribution) and would otherwise be silently truncated there.
+  license: 'Adapted, original MakerWorld terms apply', licenseUrl: 'https://makerworld.com/de/models/1200114-moss-tower-verdura-the-modular-climbing-support',
+  parts: mossPlanterParts,
+  parameterSchema: MossPlanterParametersSchema,
+  controls: [],
+  defaults: {},
+  scadMapping: {},
+  validate: (): ParameterIssue[] => [],
+  derived: () => ({ slotCount: null }),
+} satisfies ModelDefinition;
+
+/** Add models here; shared API contracts and the generic editor consume this registry. Widened to the shared
+ * interface (rather than the precise literal-typed tuple) so generic code can read optional fields uniformly;
+ * `findModel`/`RenderRequestSchema` still discriminate on each model's own literal `id`/`version`. */
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

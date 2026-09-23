@@ -1,13 +1,13 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyReply } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import { Type } from 'typebox';
 import {
   DownloadQuerySchema, ErrorSchema, IdParamsSchema, ModelDetailSchema, ModelSummarySchema,
-  RenderRequestSchema, RenderSchema, findModel, validateParameters,
+  RenderRequestSchema, RenderSchema, findModel, validateParameters, type ParameterValues,
 } from '@canfactory/contracts';
-import { AppError, asyncStorage, publicRender, type Storage, type Store } from '@canfactory/server';
+import { AppError, asyncStorage, publicRender, type ArtifactFormat, type Storage, type Store } from '@canfactory/server';
 
 /** Build routes without side effects; omitting storage supports offline OpenAPI generation. */
 export async function createApp(storage?: Store | Storage, logging = false) {
@@ -21,6 +21,18 @@ export async function createApp(storage?: Store | Storage, logging = false) {
     return adapter;
   };
   const stlResponse = { description: 'STL bytes; coordinates are in millimetres.', content: { 'model/stl': { schema: Type.Unknown({ type: 'string', format: 'binary' }) } } };
+  const zipResponse = { description: 'ZIP archive containing this model’s STL parts.', content: { 'application/zip': { schema: Type.Unknown({ type: 'string', format: 'binary' }) } } };
+  /** Shared by the STL and ZIP render-artifact routes: same expiry/readiness/ETag/disposition logic, different format. */
+  async function serveArtifact(reply: FastifyReply, id: string, download: string | undefined, format: ArtifactFormat, contentType: string) {
+    const job = await store().getJob(id);
+    if (!job || job.expiresAt <= await store().now()) throw new AppError(410, 'RENDER_EXPIRED', 'This render has expired. Generate it again.');
+    if (job.status !== 'succeeded' || !job.artifact) throw new AppError(409, 'RENDER_NOT_READY', 'Wait for a successful render before downloading.');
+    const disposition = download === 'true' ? 'attachment' : 'inline';
+    return reply.type(contentType).header('Content-Length', job.artifact.bytes)
+      .header('Content-Disposition', `${disposition}; filename="${job.modelId}-${job.id.slice(0, 8)}.${format}"`)
+      .header('Cache-Control', 'no-store').header('ETag', `"${job.artifact.sha256}"`)
+      .send(await store().readArtifact(job, format));
+  }
   await app.register(swagger, {
     openapi: {
       openapi: '3.0.3',
@@ -67,6 +79,7 @@ export async function createApp(storage?: Store | Storage, logging = false) {
   }, async (request, reply) => {
     const model = await store().getModel(request.params.id);
     if (!model) throw new AppError(404, 'MODEL_NOT_FOUND', 'This model is not available.');
+    if (!model.referenceName) throw new AppError(404, 'REFERENCE_NOT_AVAILABLE', 'This model has no downloadable reference file.');
     return reply.type('model/stl').header('Content-Disposition', `inline; filename="${model.id}-reference.stl"`)
       .send(await store().readReference(model));
   });
@@ -95,7 +108,9 @@ export async function createApp(storage?: Store | Storage, logging = false) {
   }, async (request, reply) => {
     const model = findModel(request.body.modelId);
     if (!model) throw new AppError(404, 'MODEL_NOT_FOUND', 'This model is not available.');
-    const job = await store().enqueue(model, request.body.parameters);
+    // Each RenderRequestSchema branch's parameters shape is already validated above; the union collapses to
+    // ParameterValues once discriminated by modelId, which enqueue() re-normalizes generically.
+    const job = await store().enqueue(model, request.body.parameters as ParameterValues);
     reply.code(job.status === 'succeeded' ? 200 : 202).header('Cache-Control', 'no-store');
     return publicRender(job);
   });
@@ -118,15 +133,15 @@ export async function createApp(storage?: Store | Storage, logging = false) {
       params: IdParamsSchema, querystring: DownloadQuerySchema,
       response: { 200: stlResponse, 409: ErrorSchema, 410: ErrorSchema },
     },
-  }, async (request, reply) => {
-    const job = await store().getJob(request.params.id);
-    if (!job || job.expiresAt <= await store().now()) throw new AppError(410, 'RENDER_EXPIRED', 'This render has expired. Generate it again.');
-    if (job.status !== 'succeeded' || !job.artifact) throw new AppError(409, 'RENDER_NOT_READY', 'Wait for a successful render before downloading.');
-    const disposition = request.query.download === 'true' ? 'attachment' : 'inline';
-    return reply.type('model/stl').header('Content-Length', job.artifact.bytes)
-      .header('Content-Disposition', `${disposition}; filename="${job.modelId}-${job.id.slice(0, 8)}.stl"`)
-      .header('Cache-Control', 'no-store').header('ETag', `"${job.artifact.sha256}"`)
-      .send(await store().readArtifact(job));
-  });
+  }, (request, reply) => serveArtifact(reply, request.params.id, request.query.download, 'stl', 'model/stl'));
+
+  app.get('/api/v1/renders/:id/zip', {
+    schema: {
+      operationId: 'getRenderZip', tags: ['Renders'], summary: 'View or download the generated ZIP of STL parts',
+      description: 'Only used by multi-part assembly models. Preview and download return identical bytes. Use download=true for attachment disposition. Attribution is recorded in the catalogue and in each STL header.',
+      params: IdParamsSchema, querystring: DownloadQuerySchema,
+      response: { 200: zipResponse, 409: ErrorSchema, 410: ErrorSchema },
+    },
+  }, (request, reply) => serveArtifact(reply, request.params.id, request.query.download, 'zip', 'application/zip'));
   return app;
 }

@@ -11,15 +11,22 @@ them offline using `npm run contracts:generate` and `npm run contracts:check`.
 | --- | --- |
 | `GET /api/v1/models` | List supplied model summaries and attribution. |
 | `GET /api/v1/models/{id}` | Get a versioned model, defaults, JSON Schema, and control descriptors. |
-| `GET /api/v1/models/{id}/reference.stl` | Stream the original supplied reference bytes. |
+| `GET /api/v1/models/{id}/reference.stl` | Stream the original supplied reference bytes. 404 if the model has none. |
 | `POST /api/v1/renders` | Submit complete settings; return an existing successful render (200) or pending job (202). |
 | `GET /api/v1/renders/{id}` | Poll status, expiry, derived slot count, and available artifact metadata. |
 | `GET /api/v1/renders/{id}/stl` | Stream generated binary STL; `?download=true` changes only content disposition. |
+| `GET /api/v1/renders/{id}/zip` | Same, but for a multi-part assembly model's ZIP of STL parts (`application/zip`). |
 
 All dimensions are mm; volume is mm³; timestamps are Unix milliseconds. Render
 requests include `modelId`, `modelVersion`, and the complete `parameters` object.
 Model IDs discriminate parameter types. Unknown keys, numeric strings, invalid
 ranges, and invalid combinations are rejected, not silently coerced or clamped.
+
+A model's `artifactFormat` (`stl` or `zip`) says which of the two render-artifact routes to use;
+`customizable` says whether it has any controls at all. A `zip`-formatted model's artifact has no top-level
+`dimensions` (a bounding box across independently placed parts isn't meaningful) but a `parts` array, one entry
+per part, each with its own dimensions/volume/triangle count; a single-part model's artifact has `dimensions` and
+no `parts`. `ModelDetail.parts` (id/title only) lists an assembly's parts regardless of render state.
 
 Errors have `{ code, message, issues: [{ field, message }] }`. Field values are
 parameter keys, or empty for an object-level issue. Relevant status codes:

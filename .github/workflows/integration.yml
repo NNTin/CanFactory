@@ -51,6 +51,12 @@ jobs:
       - name: Run renderer geometry checks
         run: npm run test:renderer
 
+      - name: Run STL-to-SCAD renderer tests (pinned OpenSCAD image)
+        run: npx vitest run tools
+        env:
+          STL_TO_SCAD_RENDER_TESTS: '1'
+          OPENSCAD_RUNNER: docker
+
       - name: Capture Compose logs
         if: always()
         run: docker compose logs --no-color > compose.log 2>&1 || true

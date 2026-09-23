@@ -33,7 +33,9 @@
                       "attribution",
                       "license",
                       "licenseUrl",
-                      "printNotes"
+                      "printNotes",
+                      "artifactFormat",
+                      "customizable"
                     ],
                     "properties": {
                       "id": {
@@ -60,6 +62,27 @@
                       "printNotes": {
                         "type": "string",
                         "description": "Model-specific orientation or printing guidance."
+                      },
+                      "artifactFormat": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "stl"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "zip"
+                            ]
+                          }
+                        ],
+                        "description": "The shape of the generated file: one STL, or a ZIP of one STL per part."
+                      },
+                      "customizable": {
+                        "type": "boolean",
+                        "description": "Whether this model exposes adjustable parameters yet."
                       }
                     },
                     "additionalProperties": false
@@ -107,10 +130,11 @@
                     "license",
                     "licenseUrl",
                     "printNotes",
+                    "artifactFormat",
+                    "customizable",
                     "controls",
                     "defaults",
-                    "parameterSchema",
-                    "referenceUrl"
+                    "parameterSchema"
                   ],
                   "properties": {
                     "id": {
@@ -137,6 +161,27 @@
                     "printNotes": {
                       "type": "string",
                       "description": "Model-specific orientation or printing guidance."
+                    },
+                    "artifactFormat": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "stl"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "zip"
+                          ]
+                        }
+                      ],
+                      "description": "The shape of the generated file: one STL, or a ZIP of one STL per part."
+                    },
+                    "customizable": {
+                      "type": "boolean",
+                      "description": "Whether this model exposes adjustable parameters yet."
                     },
                     "controls": {
                       "type": "array",
@@ -283,7 +328,28 @@
                       "additionalProperties": {}
                     },
                     "referenceUrl": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Absent when this model has no small, permanent original file."
+                    },
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "title"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "description": "Present only for multi-part assembly models, in render/ZIP order."
                     }
                   },
                   "additionalProperties": false
@@ -571,6 +637,36 @@
                       }
                     },
                     "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "modelId",
+                      "modelVersion",
+                      "parameters"
+                    ],
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "enum": [
+                          "moss-planter"
+                        ]
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
+                        "enum": [
+                          "1"
+                        ]
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": false,
+                        "description": "Moss planter parameters. There are no adjustable settings yet."
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 ],
                 "description": "Complete, uncoerced settings for one model version."
@@ -640,7 +736,6 @@
                             "sha256",
                             "bytes",
                             "triangles",
-                            "dimensions",
                             "volume"
                           ],
                           "properties": {
@@ -680,7 +775,62 @@
                             },
                             "volume": {
                               "type": "number",
-                              "description": "Enclosed material volume in cubic millimetres."
+                              "description": "Enclosed material volume in cubic millimetres, summed across parts for an assembly."
+                            },
+                            "parts": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "title",
+                                  "bytes",
+                                  "triangles",
+                                  "dimensions",
+                                  "volume"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "bytes": {
+                                    "type": "integer"
+                                  },
+                                  "triangles": {
+                                    "type": "integer"
+                                  },
+                                  "dimensions": {
+                                    "type": "object",
+                                    "required": [
+                                      "x",
+                                      "y",
+                                      "z"
+                                    ],
+                                    "properties": {
+                                      "x": {
+                                        "type": "number"
+                                      },
+                                      "y": {
+                                        "type": "number"
+                                      },
+                                      "z": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "Axis-aligned dimensions in millimetres, including brim and handles."
+                                  },
+                                  "volume": {
+                                    "type": "number",
+                                    "description": "Enclosed material volume in cubic millimetres."
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "description": "Present only for a multi-part assembly’s ZIP artifact, in ZIP order."
                             }
                           },
                           "additionalProperties": false
@@ -804,7 +954,6 @@
                             "sha256",
                             "bytes",
                             "triangles",
-                            "dimensions",
                             "volume"
                           ],
                           "properties": {
@@ -844,7 +993,62 @@
                             },
                             "volume": {
                               "type": "number",
-                              "description": "Enclosed material volume in cubic millimetres."
+                              "description": "Enclosed material volume in cubic millimetres, summed across parts for an assembly."
+                            },
+                            "parts": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "title",
+                                  "bytes",
+                                  "triangles",
+                                  "dimensions",
+                                  "volume"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "bytes": {
+                                    "type": "integer"
+                                  },
+                                  "triangles": {
+                                    "type": "integer"
+                                  },
+                                  "dimensions": {
+                                    "type": "object",
+                                    "required": [
+                                      "x",
+                                      "y",
+                                      "z"
+                                    ],
+                                    "properties": {
+                                      "x": {
+                                        "type": "number"
+                                      },
+                                      "y": {
+                                        "type": "number"
+                                      },
+                                      "z": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "Axis-aligned dimensions in millimetres, including brim and handles."
+                                  },
+                                  "volume": {
+                                    "type": "number",
+                                    "description": "Enclosed material volume in cubic millimetres."
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "description": "Present only for a multi-part assembly’s ZIP artifact, in ZIP order."
                             }
                           },
                           "additionalProperties": false
@@ -1177,7 +1381,6 @@
                             "sha256",
                             "bytes",
                             "triangles",
-                            "dimensions",
                             "volume"
                           ],
                           "properties": {
@@ -1217,7 +1420,62 @@
                             },
                             "volume": {
                               "type": "number",
-                              "description": "Enclosed material volume in cubic millimetres."
+                              "description": "Enclosed material volume in cubic millimetres, summed across parts for an assembly."
+                            },
+                            "parts": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "title",
+                                  "bytes",
+                                  "triangles",
+                                  "dimensions",
+                                  "volume"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "bytes": {
+                                    "type": "integer"
+                                  },
+                                  "triangles": {
+                                    "type": "integer"
+                                  },
+                                  "dimensions": {
+                                    "type": "object",
+                                    "required": [
+                                      "x",
+                                      "y",
+                                      "z"
+                                    ],
+                                    "properties": {
+                                      "x": {
+                                        "type": "number"
+                                      },
+                                      "y": {
+                                        "type": "number"
+                                      },
+                                      "z": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "Axis-aligned dimensions in millimetres, including brim and handles."
+                                  },
+                                  "volume": {
+                                    "type": "number",
+                                    "description": "Enclosed material volume in cubic millimetres."
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "description": "Present only for a multi-part assembly’s ZIP artifact, in ZIP order."
                             }
                           },
                           "additionalProperties": false
@@ -1367,6 +1625,145 @@
             "description": "STL bytes; coordinates are in millimetres.",
             "content": {
               "model/stl": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/renders/{id}/zip": {
+      "get": {
+        "operationId": "getRenderZip",
+        "summary": "View or download the generated ZIP of STL parts",
+        "tags": [
+          "Renders"
+        ],
+        "description": "Only used by multi-part assembly models. Preview and download return identical bytes. Use download=true for attachment disposition. Attribution is recorded in the catalogue and in each STL header.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "in": "query",
+            "name": "download",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ZIP archive containing this model’s STL parts.",
+            "content": {
+              "application/zip": {
                 "schema": {
                   "type": "string",
                   "format": "binary"

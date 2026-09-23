@@ -4,6 +4,45 @@ import type { Dimensions } from '@canfactory/contracts';
 /** Validated binary STL metadata. Volume is mm³; dimensions are mm. */
 export interface MeshInfo { sha256: string; bytes: number; triangles: number; dimensions: Dimensions; volume: number }
 
+/** One part's metadata inside an assembly's ZIP artifact. */
+export interface AssemblyPart { id: string; title: string; bytes: number; triangles: number; dimensions: Dimensions; volume: number }
+
+/**
+ * Combined metadata for a multi-part assembly's ZIP artifact. There is deliberately no top-level `dimensions`: each
+ * part is independently centred, so a bounding box across all of them is not a meaningful "printed size."
+ */
+export interface AssemblyInfo { sha256: string; bytes: number; triangles: number; volume: number; parts: AssemblyPart[] }
+
+/** Aggregate validated per-part metadata (from `inspectStl`, plus id/title) into one ZIP's combined metadata. */
+export function combineParts(zipBytes: Buffer, parts: AssemblyPart[]): AssemblyInfo {
+  return {
+    sha256: createHash('sha256').update(zipBytes).digest('hex'),
+    bytes: zipBytes.length,
+    triangles: parts.reduce((sum, part) => sum + part.triangles, 0),
+    volume: parts.reduce((sum, part) => sum + part.volume, 0),
+    parts,
+  };
+}
+
+/** Diagnostic only (not used by `inspectStl` itself): locate the first triangle with near-zero area, if any. Lets
+ * callers report exactly which geometry an "empty or invalid binary STL" / "zero-area triangle" failure came from. */
+export function firstDegenerateTriangle(bytes: Buffer): { index: number; a: [number, number, number]; b: [number, number, number]; c: [number, number, number] } | undefined {
+  if (bytes.length < 84) return undefined;
+  const triangleCount = bytes.readUInt32LE(80);
+  if (bytes.length !== 84 + triangleCount * 50) return undefined;
+  for (let index = 0; index < triangleCount; index++) {
+    const offset = 84 + index * 50 + 12;
+    const a: [number, number, number] = [bytes.readFloatLE(offset), bytes.readFloatLE(offset + 4), bytes.readFloatLE(offset + 8)];
+    const b: [number, number, number] = [bytes.readFloatLE(offset + 12), bytes.readFloatLE(offset + 16), bytes.readFloatLE(offset + 20)];
+    const c: [number, number, number] = [bytes.readFloatLE(offset + 24), bytes.readFloatLE(offset + 28), bytes.readFloatLE(offset + 32)];
+    const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
+    const ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+    const nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    if (nx * nx + ny * ny + nz * nz < 1e-20) return { index, a, b, c };
+  }
+  return undefined;
+}
+
 /** Reject incomplete, degenerate, open, inconsistently wound, or disconnected generated solids. */
 export function inspectStl(bytes: Buffer): MeshInfo {
   if (bytes.length < 84) throw new Error('The renderer produced an incomplete STL.');
