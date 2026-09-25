@@ -5,7 +5,7 @@ import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import { Type } from 'typebox';
 import {
   DownloadQuerySchema, ErrorSchema, IdParamsSchema, ModelDetailSchema, ModelSummarySchema,
-  RenderRequestSchema, RenderSchema, findModel, validateParameters,
+  RenderRequestSchema, RenderSchema, findModel, validateParameters, type ParameterValues,
 } from '@canfactory/contracts';
 import { AppError, asyncStorage, publicRender, type ArtifactFormat, type Storage, type Store } from '@canfactory/server';
 
@@ -110,7 +110,7 @@ export async function createApp(storage?: Store | Storage, logging = false) {
     if (!model) throw new AppError(404, 'MODEL_NOT_FOUND', 'This model is not available.');
     // Each RenderRequestSchema branch's parameters shape is already validated above; the union collapses to
     // ParameterValues once discriminated by modelId, which enqueue() re-normalizes generically.
-    const job = await store().enqueue(model, request.body.parameters);
+    const job = await store().enqueue(model, request.body.parameters as ParameterValues);
     reply.code(job.status === 'succeeded' ? 200 : 202).header('Cache-Control', 'no-store');
     return publicRender(job);
   });

@@ -76,7 +76,22 @@ function MossPlanterIllustration() {
   </svg>;
 }
 
+/** A large honeycomb case with its lid lifted, and the small box beside it. */
+function CigaretteCaseIllustration() {
+  const cells = [0, 1, 2, 3].flatMap(row => [0, 1, 2].map(col => ({ x: 28 + col * 16 + (row % 2) * 8, y: 98 + row * 13 })));
+  return <svg viewBox="0 0 240 190" aria-hidden="true" className="funnel-illustration">
+    <ellipse cx="120" cy="170" rx="108" ry="12" fill="#c8cec1" opacity=".35" />
+    <rect x="18" y="92" width="76" height="66" rx="12" fill="#8b513a" opacity=".75" />
+    <rect x="18" y="52" width="76" height="34" rx="12" fill="#a86b50" opacity=".85" />
+    {cells.map(cell => <path key={`${cell.x}-${cell.y}`} d={`M${cell.x} ${cell.y}l5-3 5 3v6l-5 3-5-3z`} fill="none" stroke="#f4eee4" strokeWidth="1.4" opacity=".7" />)}
+    <rect x="128" y="112" width="86" height="46" rx="10" fill="#7b8e6b" opacity=".8" />
+    <rect x="132" y="86" width="78" height="20" rx="8" fill="#93a682" opacity=".9" />
+    <ellipse cx="171" cy="112" rx="14" ry="6" fill="#3f4f34" opacity=".35" />
+  </svg>;
+}
+
 const ILLUSTRATIONS: Record<string, () => ReactElement> = {
+  'cigarette-case': CigaretteCaseIllustration,
   'fruit-fly-trap': FunnelIllustration,
   'moss-planter': MossPlanterIllustration,
 };

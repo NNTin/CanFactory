@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { test, expect, type Route } from '@playwright/test';
 import { unzipSync } from 'fflate';
 import { Value } from 'typebox/value';
-import { mossPlanter, RenderRequestSchema, type Render } from '@canfactory/contracts';
+import { cigaretteCase, mossPlanter, RenderRequestSchema, type Render } from '@canfactory/contracts';
 import { inspectStl } from '@canfactory/server';
 
 test('customize, inspect, download identical geometry, and restore local settings', async ({ page }, testInfo) => {
@@ -142,5 +142,29 @@ test('customizes the moss planter tower diameter and downloads a ZIP of all five
   if (!cap || !spike) throw new Error('Missing parts in the ZIP');
   expect(inspectStl(Buffer.from(cap.buffer, cap.byteOffset, cap.byteLength)).dimensions.x).toBeCloseTo(75, 1);
   expect(inspectStl(Buffer.from(spike.buffer, spike.byteOffset, spike.byteLength)).dimensions.z).toBeCloseTo(180, 1);
+  expect(errors).toEqual([]);
+});
+
+test('shows the static cigarette case and downloads a ZIP of all five parts', async ({ page }) => {
+  test.setTimeout(300_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'CanFactory model library' }).click();
+  await page.getByRole('button', { name: /PREVIEW · ZIP Cigarette case/ }).click();
+  await expect(page.getByRole('heading', { name: 'Cigarette case (Onz)', exact: true })).toBeVisible();
+  await expect(page.getByText('ASSEMBLY PREVIEW')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toHaveCount(0);
+  const downloadButton = page.getByRole('button', { name: 'Download ZIP', exact: true });
+  await expect(downloadButton).toBeEnabled({ timeout: 270_000 });
+  const downloadEvent = page.waitForEvent('download');
+  await downloadButton.click();
+  const path = await (await downloadEvent).path();
+  if (!path) throw new Error('Missing download');
+  const entries = unzipSync(new Uint8Array(await readFile(path)));
+  expect(Object.keys(entries).sort()).toEqual(cigaretteCase.parts.map(part => `${part.id}.stl`).sort());
+  for (const [name, entryBytes] of Object.entries(entries)) {
+    expect(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength)).volume, name).toBeGreaterThan(0);
+  }
   expect(errors).toEqual([]);
 });

@@ -7,8 +7,8 @@ Renderer: wasm — OpenSCAD version 2025.01.19 via openscad-wasm-prebuilt (Manif
 | 11_-_Honeycomb_-_minibox | PASS | -0.007 / -0.013 / 0.001 | -0.44 % | 0.9664 | 0.016 | 15404 | 4976 | 0.7 |
 | 11_-_Honeycomb_-_topminibox_-_box | PASS | -0.049 / -0.002 / -0.000 | 1.12 % | 0.9719 | 0.014 | 11082 | 4333 | 0.2 |
 | 11_-_Honeycomb_-_topminibox_-_top | PASS | -0.001 / -0.002 / -0.000 | 1.57 % | 0.9747 | 0.013 | 10512 | 5233 | 0.2 |
-| 11_v11.3__-_honeycomb_-_box | PASS | 0.019 / -0.002 / -0.000 | 0.65 % | 0.9810 | 0.016 | 571808 | 66212 | 12.7 |
-| 11_v11.3__-_honeycomb_-_top | PASS | -0.001 / -0.001 / 0.000 | 1.06 % | 0.9729 | 0.018 | 423568 | 56979 | 9.3 |
+| 11_v11.3__-_honeycomb_-_box | PASS | 0.019 / -0.002 / -0.000 | 0.76 % | 0.9818 | 0.015 | 571808 | 72755 | 12.5 |
+| 11_v11.3__-_honeycomb_-_top | PASS | -0.001 / -0.001 / 0.000 | 1.06 % | 0.9729 | 0.018 | 423568 | 56979 | 9.5 |
 
 ## Sources
 
@@ -42,6 +42,8 @@ The lid's lattice top is two extruded section polygons (pockets included). The b
 ## Source meshes
 
 The two large source STLs are not watertight (box: 56 open or non-manifold edges, lid: 45; 570 k and 420 k triangles). Volume and IoU use them as is.
+
+The large box also carries the small clip tab inside its round bay (14 stacked 0.2 mm outlines of the ledge, fused to the bay wall).
 
 Reproduce with `npm run stl-scad -- verify --manifest models/cigarette-case/reference/manifest.json --report models/cigarette-case/reference/VERIFICATION.md`
 (needs the source STLs and an OpenSCAD runtime; see `.claude/skills/stl-to-scad/SKILL.md`).

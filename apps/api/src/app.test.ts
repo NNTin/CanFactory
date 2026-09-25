@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { ErrorSchema, fruitFlyTrap, ModelDetailSchema, mossPlanter, RenderSchema } from '@canfactory/contracts';
+import { cigaretteCase, ErrorSchema, fruitFlyTrap, ModelDetailSchema, mossPlanter, RenderSchema } from '@canfactory/contracts';
 import { CACHE_TTL_MS, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from './app.ts';
 
@@ -23,7 +23,7 @@ describe('model and render API', () => {
   it('serves the catalogue, reference STL, and OpenAPI', async () => {
     const catalogue = await app.inject('/api/v1/models');
     expect(catalogue.statusCode).toBe(200);
-    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['fruit-fly-trap', 'moss-planter']);
+    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['cigarette-case', 'fruit-fly-trap', 'moss-planter']);
     const detail = await app.inject('/api/v1/models/fruit-fly-trap');
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false, properties: { trapDiameter: { type: 'number', minimum: 20, maximum: 200 } } });
@@ -45,6 +45,20 @@ describe('model and render API', () => {
     expect(model.parts).toHaveLength(5);
     expect(model.referenceUrl).toBeUndefined();
     expect((await app.inject('/api/v1/models/moss-planter/reference.stl')).statusCode).toBe(404);
+  });
+
+  it('serves the cigarette case as a static, five-part, ZIP-formatted assembly model', async () => {
+    const detail = await app.inject('/api/v1/models/cigarette-case');
+    const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
+    expect(model.artifactFormat).toBe('zip');
+    expect(model.customizable).toBe(false);
+    expect(model.controls).toEqual([]);
+    expect(model.parts).toHaveLength(5);
+    expect(model.referenceUrl).toBeUndefined();
+    const accepted = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: {} } });
+    expect(accepted.statusCode).toBeLessThan(300);
+    const extra = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { anything: 1 } } });
+    expect(extra.statusCode).toBeGreaterThanOrEqual(400);
   });
 
   it('rejects unknown models, stale versions, and invalid fields', async () => {

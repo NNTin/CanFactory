@@ -1,5 +1,5 @@
 import { Type, type Static } from 'typebox';
-import { ControlSchema, fruitFlyTrap, mossPlanter } from './models.ts';
+import { cigaretteCase, ControlSchema, fruitFlyTrap, mossPlanter } from './models.ts';
 export * from './models.ts';
 
 /** Stable error envelope; clients may branch on code and highlight field issues. */
@@ -41,6 +41,11 @@ export const RenderRequestSchema = Type.Union([
     modelId: Type.Literal(mossPlanter.id),
     modelVersion: Type.Literal(mossPlanter.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
     parameters: mossPlanter.parameterSchema,
+  }, { additionalProperties: false }),
+  Type.Object({
+    modelId: Type.Literal(cigaretteCase.id),
+    modelVersion: Type.Literal(cigaretteCase.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
+    parameters: cigaretteCase.parameterSchema,
   }, { additionalProperties: false }),
 ], { description: 'Complete, uncoerced settings for one model version.' });
 export type RenderRequest = Static<typeof RenderRequestSchema>;

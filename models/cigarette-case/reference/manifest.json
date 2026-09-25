@@ -32,6 +32,8 @@
     "",
     "The two large source STLs are not watertight (box: 56 open or non-manifold edges, lid: 45; 570 k and 420 k triangles). Volume and IoU use them as is.",
     "",
+    "The large box also carries the small clip tab inside its round bay (14 stacked 0.2 mm outlines of the ledge, fused to the bay wall).",
+    "",
     "Reproduce with `npm run stl-scad -- verify --manifest models/cigarette-case/reference/manifest.json --report models/cigarette-case/reference/VERIFICATION.md`",
     "(needs the source STLs and an OpenSCAD runtime; see `.claude/skills/stl-to-scad/SKILL.md`)."
   ],

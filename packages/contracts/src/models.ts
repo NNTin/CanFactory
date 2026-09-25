@@ -251,10 +251,47 @@ export const mossPlanter = {
   derived: () => ({ slotCount: null }),
 } satisfies ModelDefinition;
 
+/**
+ * Cigarette case (Onz by sez16sez): five independent parts, reconstructed from STL as static SCAD for now. A large box and lid
+ * with a honeycomb wall and a small set (holder, shallow box and lid) without one. There are no parameters yet, so the parameter
+ * object is empty and every part mapping is empty; a later iteration replaces the static files with parametric generators.
+ */
+export const CigaretteCaseParametersSchema = Type.Object({}, { additionalProperties: false, description: 'The cigarette case has no adjustable parameters yet; send an empty object.' });
+export type CigaretteCaseParameters = Static<typeof CigaretteCaseParametersSchema>;
+
+const CIGARETTE_CASE_DIR = 'models/cigarette-case/reference/';
+
+/** The five parts. `id` is the STL basename inside the ZIP. The SCAD files are the verified static reconstructions. */
+const cigaretteCaseParts: ModelPart[] = [
+  { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: {} },
+  { id: 'case-lid', title: 'Case lid (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_top.scad`, scadMapping: {} },
+  { id: 'mini-holder', title: 'Mini holder', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_minibox.scad`, scadMapping: {} },
+  { id: 'mini-box', title: 'Mini box', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_box.scad`, scadMapping: {} },
+  { id: 'mini-lid', title: 'Mini box lid', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_top.scad`, scadMapping: {} },
+];
+
+export const cigaretteCase = {
+  id: 'cigarette-case' as const, version: '1' as const, title: 'Cigarette case (Onz)',
+  description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Static for now: download all five parts as a ZIP of STL files.',
+  attribution: 'sez16sez (Thingiverse)',
+  printNotes: 'Print each part separately; the lids print rim-side down.',
+  // Kept short deliberately: this string and `attribution` are stamped into each STL's 80-byte header (see stampAttribution).
+  license: 'CC BY-NC 4.0 (non-commercial)', licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
+  parts: cigaretteCaseParts,
+  parameterSchema: CigaretteCaseParametersSchema,
+  controls: [] as Control[],
+  defaults: {} as ParameterValues,
+  scadMapping: {},
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(CigaretteCaseParametersSchema, parameters) ? [] : [{ field: '', message: 'Parameters do not match the model schema.' }];
+  },
+  derived: () => ({ slotCount: null }),
+} satisfies ModelDefinition;
+
 /** Add models here; shared API contracts and the generic editor consume this registry. Widened to the shared
  * interface (rather than the precise literal-typed tuple) so generic code can read optional fields uniformly;
  * `findModel`/`RenderRequestSchema` still discriminate on each model's own literal `id`/`version`. */
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter];
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

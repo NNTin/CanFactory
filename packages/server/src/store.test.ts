@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { fruitFlyTrap, mossPlanter } from '@canfactory/contracts';
+import { cigaretteCase, fruitFlyTrap, mossPlanter } from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS } from './config.ts';
 import { Store, repositoryRoot, sourceFingerprint } from './store.ts';
 
@@ -17,7 +17,7 @@ afterEach(() => { store.close(); rmSync(directory, { recursive: true, force: tru
 
 describe('temporary render queue', () => {
   it('seeds idempotently and reuses equivalent normalized parameters', () => {
-    store.seed(); expect(store.listModels()).toHaveLength(2);
+    store.seed(); expect(store.listModels()).toHaveLength(3);
     const first = store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
     const reordered = Object.fromEntries(Object.entries(fruitFlyTrap.defaults).reverse());
     expect(store.enqueue(fruitFlyTrap, reordered).id).toBe(first.id);
@@ -30,6 +30,17 @@ describe('temporary render queue', () => {
     expect(detail?.referenceUrl).toBeUndefined();
     expect(detail?.parts).toHaveLength(5);
     expect(existsSync(join(store.artifacts.catalogDir, `${mossPlanter.id}-${mossPlanter.version}.stl`))).toBe(false);
+  });
+
+  it('seeds the parameterless cigarette case as a non-customizable ZIP assembly', () => {
+    const detail = store.getModel(cigaretteCase.id)?.detail;
+    expect(detail?.artifactFormat).toBe('zip');
+    expect(detail?.customizable).toBe(false);
+    expect(detail?.controls).toEqual([]);
+    expect(detail?.parts?.map(part => part.id)).toEqual(['case-box', 'case-lid', 'mini-holder', 'mini-box', 'mini-lid']);
+    expect(detail?.referenceUrl).toBeUndefined();
+    const job = store.enqueue(cigaretteCase, {});
+    expect(store.enqueue(cigaretteCase, {}).id).toBe(job.id);
   });
 
   it('enqueues an assembly model with its parameters and reuses/clears both artifact extensions', () => {
@@ -88,7 +99,7 @@ describe('temporary render queue', () => {
     time += CACHE_TTL_MS + 1; store.cleanup();
     expect(store.getJob(job.id)).toBeUndefined();
     expect(existsSync(store.artifacts.path(job.id))).toBe(false);
-    expect(store.listModels()).toHaveLength(2);
+    expect(store.listModels()).toHaveLength(3);
     expect(existsSync(join(store.artifacts.catalogDir, 'fruit-fly-trap-1.stl'))).toBe(true);
   });
 

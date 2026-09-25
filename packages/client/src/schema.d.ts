@@ -432,6 +432,16 @@ export interface operations {
                          */
                         rauteColumns: number;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "cigarette-case";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description The cigarette case has no adjustable parameters yet; send an empty object. */
+                    parameters: Record<string, never>;
                 };
             };
         };

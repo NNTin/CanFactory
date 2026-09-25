@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
 import {
-  artifactFormat, findModel, fruitFlyTrap, FruitFlyTrapParametersSchema, isAssembly, modelSourcePaths,
+  artifactFormat, cigaretteCase, findModel, fruitFlyTrap, FruitFlyTrapParametersSchema, isAssembly, modelSourcePaths,
   minimumSpikeLength, mossPlanter, rauteColumns, slotCount, validateParameters, type MossPlanterParameters,
 } from './models.ts';
 import { RenderRequestSchema } from './index.ts';
@@ -94,5 +94,26 @@ describe('moss planter contract', () => {
     expect(Value.Check(RenderRequestSchema, { modelId: 'moss-planter', modelVersion: '2', parameters: defaults })).toBe(true);
     expect(Value.Check(RenderRequestSchema, { modelId: 'moss-planter', modelVersion: '1', parameters: defaults })).toBe(false);
     expect(Value.Check(RenderRequestSchema, { modelId: 'moss-planter', modelVersion: '2', parameters: { ...defaults, extra: 1 } })).toBe(false);
+  });
+});
+
+describe('cigarette case contract', () => {
+  it('is a parameterless five-part ZIP assembly whose sources are the verified static SCADs', () => {
+    expect(findModel('cigarette-case')).toBe(cigaretteCase);
+    expect(isAssembly(cigaretteCase)).toBe(true);
+    expect(artifactFormat(cigaretteCase)).toBe('zip');
+    expect(cigaretteCase.parts.map(part => part.id)).toEqual(['case-box', 'case-lid', 'mini-holder', 'mini-box', 'mini-lid']);
+    expect(new Set(modelSourcePaths(cigaretteCase)).size).toBe(5);
+    expect(cigaretteCase.controls).toEqual([]);
+    expect(cigaretteCase.defaults).toEqual({});
+    for (const part of cigaretteCase.parts) expect(part.scadMapping, part.id).toEqual({});
+  });
+
+  it('accepts only the empty parameter object and its own version', () => {
+    expect(validateParameters(cigaretteCase, {})).toEqual([]);
+    expect(validateParameters(cigaretteCase, { anything: 1 })).not.toEqual([]);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '1', parameters: {} })).toBe(true);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '2', parameters: {} })).toBe(false);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '1', parameters: { extra: 1 } })).toBe(false);
   });
 });
