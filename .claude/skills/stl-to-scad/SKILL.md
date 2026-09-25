@@ -13,16 +13,18 @@ Worked example and recipes: [reference.md](reference.md). Results: `models/moss-
 
 ## Tools
 
-Run from the repository root (`npm ci` first). All commands are `npm run stl-scad -- <command>` (= `tsx tools/stl-to-scad/cli.ts`).
+Run from the repository root (`npm ci` first). Big SCADs render faster with a native OpenSCAD (`OPENSCAD_BIN`); the wasm runtime is enough for everything checked in. All commands are `npm run stl-scad -- <command>` (= `tsx tools/stl-to-scad/cli.ts`).
 
 | Command | Purpose |
 |---|---|
 | `inspect <stl...>` | format, size, volume, watertightness, SHA-256; **detects scaled copies** among the inputs (e.g. `SCALE COPY obj_1 = obj_5 x 1.9231`) |
 | `sections <stl> --z a,b,c` or `--step s` `[--svg f]` | horizontal cuts: pieces, net area, centroid angle/radius (finds lattices, fins, holes) |
 | `profile <stl> --angle deg [--simplify mm] [--full]` | axial (r, z) outline through the axis: the polygon for `rotate_extrude()`; angle-to-angle changes reveal helical features such as threads |
+| `overlay <stl> <stl\|scad> --z a,b,c -o out.svg [-D ..]` | the source's cuts (black) and the reconstruction's (red) on top of each other, heights from each part's lowest point, registered by bounding-box centre: shows where and how a SCAD deviates |
 | `render <scad> -o out.stl [-D VAR=val]` | render with OpenSCAD (Manifold backend, as the production worker does) |
 | `verify <scad> <stl> [-D ..] [--scale k] [--bands mm]` | render and compare with the STL; exit code 1 if outside tolerance; `--bands 10` prints IoU/volume per 10 mm of height to localise errors |
 | `verify --manifest m.json [--only name] [--report out.md]` | batch verify and write a Markdown report |
+| `relief <stl> --base-z z --z0 a --z1 b -o f.scad [--open-radius r] [--levels h,..] [--px mm] [--simplify mm] [--min-area mm2] [--origin x,y,z] [--no-refine]` | **wall patterns** (honeycomb, knurling, ribs): height map of the wall against its smooth base outline, cut into plateau levels and written as SCAD data plus `relief_wrap()`, which bends it back around the outline (see "Wall patterns" in reference.md) |
 | `polyhedron <stl> -o f.scad [--cluster mm]` | **fallback only**: welded `polyhedron()` dump, refuses > 5 MB |
 
 OpenSCAD runtime, first match wins: `$OPENSCAD_BIN` / `openscad` on PATH, then `openscad-wasm-prebuilt`
@@ -46,6 +48,15 @@ OpenSCAD runtime, first match wins: `$OPENSCAD_BIN` / `openscad` on PATH, then `
 5. **Fix manifold problems by construction**, not by nudging numbers: see "Pitfalls" in reference.md.
 6. **Record**: put every pair in `manifest.json`, run `verify --manifest ... --report .../VERIFICATION.md`, update
    `ATTRIBUTION.md`, and mention any accepted deviation.
+
+## Wall patterns (relief)
+
+When a prismatic wall carries a repeating surface pattern (the cigarette case's honeycomb, 570 k triangles per part) primitives do not
+fit, but the pattern is only a height field over the wall. `relief` measures it and `relief_wrap()` rebuilds it: 66 KB of SCAD per part,
+IoU 0.973-0.981, renders in 2 s. Use it for the pattern only; the body (base prism, cavities, floor, flange, cap) is still extruded
+section polygons, and a lattice that lies flat (a lid top) is just two extruded sections. Procedural generation of a regular pattern is
+preferable when the pattern really is regular; check with `relief`'s level regions (a lattice fitted at 91 % here because its phase drifts
+around the corners). Details, the wrapper's design and the manifold pitfalls it avoids: reference.md.
 
 ## Acceptance (defaults, override per manifest)
 

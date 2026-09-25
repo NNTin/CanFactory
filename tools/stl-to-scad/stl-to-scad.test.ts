@@ -6,7 +6,7 @@ import { compareMeshes, detectScaleVariant } from './compare.ts';
 import { box, cylinder, merge, ring, withHole } from './fixtures.ts';
 import { detectRunner, renderScad } from './openscad.ts';
 import { meshToPolyhedron } from './polyhedron.ts';
-import { sliceZ, sectionsToSvg, toPieces } from './sections.ts';
+import { overlayToSvg, sliceZ, sectionsToSvg, toPieces } from './sections.ts';
 import { bounds, isBinaryStl, parseStl, size, surfaceArea, transform, volume, writeBinaryStl } from './stl.ts';
 import { analyzeTopology } from './topology.ts';
 import { DEFAULT_TOLERANCE, judge, verifyScad } from './verify.ts';
@@ -25,6 +25,15 @@ describe('stl reader/writer', () => {
     const ascii = 'solid t\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid t\n';
     expect(parseStl(Buffer.from(ascii)).tris).toHaveLength(9);
     expect(() => parseStl(Buffer.from('garbage'))).toThrow(/valid/);
+  });
+});
+
+describe('overlay', () => {
+  it('draws reference and candidate cuts in different colours', () => {
+    const svg = overlayToSvg([{ z: 3, reference: sliceZ(box(2, 2, 4), 3), candidate: sliceZ(box(2.2, 2, 4), 3) }]);
+    expect(svg).toContain('stroke="#000"');
+    expect(svg).toContain('stroke="#d00"');
+    expect(svg).toContain('z=3');
   });
 });
 

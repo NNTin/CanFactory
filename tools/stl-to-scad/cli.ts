@@ -3,8 +3,9 @@ import { basename } from 'node:path';
 import { parseArgs } from 'node:util';
 import { detectScaleVariant } from './compare.ts';
 import { renderScad } from './openscad.ts';
+import { buildRelief, reliefScad } from './relief.ts';
 import { meshToPolyhedron } from './polyhedron.ts';
-import { sectionsToSvg, simplifyLoop, sliceAxial, sliceZ, toPieces } from './sections.ts';
+import { overlayToSvg, sectionsToSvg, simplifyLoop, sliceAxial, sliceZ, toPieces } from './sections.ts';
 import { bounds, center, isBinaryStl, parseStl, sha256, size, volume, type Mesh } from './stl.ts';
 import { analyzeTopology } from './topology.ts';
 import { DEFAULT_TOLERANCE, readManifest, toMarkdown, verifyManifest, verifyScad, type VerifyResult } from './verify.ts';
@@ -17,6 +18,11 @@ const USAGE = `Usage: tsx tools/stl-to-scad/cli.ts <command> [options]
   profile <stl> [--angle deg] [--simplify mm]   axial (r,z) outline through the axis: the profile for rotate_extrude() on a revolved part
                                            (--full keeps loops that cross the axis, e.g. solid parts, with r < 0 on the far side)
         [--center x,y] [--svg out.svg] [--full]
+  relief <stl> --base-z z --z0 a --z1 b -o out.scad   WALL PATTERN (honeycomb, knurling): height map of the wall against its base outline, cut into
+        [--open-radius r] [--levels h,h,..]      plateau regions and written as SCAD data plus the relief_wrap() module that bends it back
+        [--px mm] [--simplify mm] [--min-area mm2] [--origin x,y,z] [--no-refine]
+  overlay <stl> <stl|scad> --z a,b,c -o out.svg   cuts of the source (black) and of a reconstruction (red) on top of each other; heights are measured
+        [-D NAME=value]...                       from each part's lowest point and the parts are registered by bounding-box centre
   polyhedron <stl> -o out.scad             FALLBACK: dump the mesh as one polyhedron() (large, not editable)
         [--decimals 3] [--cluster mm] [--name module] [--force]
   render <scad> -o out.stl [-D NAME=value]...   render a SCAD to binary STL with the Manifold backend (check the result with inspect)
@@ -93,7 +99,8 @@ async function main(): Promise<number> {
       angle: { type: 'string' }, simplify: { type: 'string' }, z: { type: 'string' }, step: { type: 'string' }, svg: { type: 'string' }, center: { type: 'string' }, o: { type: 'string', short: 'o' },
       decimals: { type: 'string' }, cluster: { type: 'string' }, name: { type: 'string' }, force: { type: 'boolean' }, full: { type: 'boolean' },
       D: { type: 'string', short: 'D', multiple: true }, scale: { type: 'string' }, size: { type: 'string' }, volume: { type: 'string' }, iou: { type: 'string' },
-      cell: { type: 'string' }, bands: { type: 'string' }, json: { type: 'boolean' }, manifest: { type: 'string' }, only: { type: 'string', multiple: true }, report: { type: 'string' },
+      cell: { type: 'string' }, bands: { type: 'string' },
+      'base-z': { type: 'string' }, z0: { type: 'string' }, z1: { type: 'string' }, 'open-radius': { type: 'string' }, levels: { type: 'string' }, px: { type: 'string' }, 'min-area': { type: 'string' }, origin: { type: 'string' }, 'no-refine': { type: 'boolean' }, json: { type: 'boolean' }, manifest: { type: 'string' }, only: { type: 'string', multiple: true }, report: { type: 'string' },
     },
   });
   switch (command) {
@@ -142,6 +149,38 @@ async function main(): Promise<number> {
       if (megabytes > 5 && !values.force) throw new Error(`Output would be ${megabytes.toFixed(1)} MB; reduce with --cluster/--decimals or pass --force. Prefer a parametric reconstruction.`);
       await writeFile(values.o, result.scad);
       console.log(`${values.o}: ${result.points} points, ${result.faces} faces, ${megabytes.toFixed(2)} MB${megabytes > 0.5 ? ' (LARGE: do not commit without review)' : ''}`);
+      return 0;
+    }
+    case 'overlay': {
+      const [referencePath, candidatePath] = positionals;
+      if (!referencePath || !candidatePath || !values.z || !values.o) break;
+      const defines = Object.fromEntries((values.D ?? []).map(entry => { const [name, ...value] = entry.split('='); return [name ?? '', value.join('=')]; }));
+      const reference = (await load(referencePath)).mesh;
+      const candidate = candidatePath.endsWith('.scad') ? parseStl((await renderScad(candidatePath, defines)).stl) : (await load(candidatePath)).mesh;
+      const rb = bounds(reference), cb = bounds(candidate);
+      const [rx, ry] = [(rb.min[0] + rb.max[0]) / 2, (rb.min[1] + rb.max[1]) / 2], [cx, cy] = [(cb.min[0] + cb.max[0]) / 2, (cb.min[1] + cb.max[1]) / 2];
+      const move = (loops: ReturnType<typeof sliceZ>, dx: number, dy: number): ReturnType<typeof sliceZ> => loops.map(l => ({ ...l, points: l.points.map(([x, y]): [number, number] => [x - dx, y - dy]) }));
+      const cuts = values.z.split(',').map(Number).map(z => ({
+        z, reference: move(sliceZ(reference, rb.min[2] + z), rx, ry), candidate: move(sliceZ(candidate, cb.min[2] + z), cx, cy),
+      }));
+      await writeFile(values.o, overlayToSvg(cuts));
+      return 0;
+    }
+    case 'relief': {
+      const [path] = positionals;
+      if (!path || !values.o || !values['base-z'] || !values.z0 || !values.z1) break;
+      const { mesh } = await load(path);
+      const b = bounds(mesh);
+      const origin = (values.origin ? values.origin.split(',').map(Number) : [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, b.min[2]]) as [number, number, number];
+      const relief = buildRelief(mesh, {
+        baseZ: Number(values['base-z']), z0: Number(values.z0), z1: Number(values.z1), refine: !values['no-refine'],
+        ...(values['open-radius'] ? { openRadius: Number(values['open-radius']) } : {}), ...(values.levels ? { levels: values.levels.split(',').map(Number) } : {}),
+        ...(values.px ? { px: Number(values.px) } : {}), ...(values.simplify ? { simplify: Number(values.simplify) } : {}), ...(values['min-area'] ? { minArea: Number(values['min-area']) } : {}),
+      });
+      const scad = reliefScad(relief.map, relief.regions, { origin });
+      await writeFile(values.o, scad);
+      console.log(`${values.o}: ${(scad.length / 1024).toFixed(0)} KB, outline ${relief.map.base.points.length} vertices / ${relief.map.base.perimeter.toFixed(1)} mm, levels ${relief.levels.join(', ')} mm, ` +
+        relief.regions.map(r => `${r.kind} ${r.height}: ${r.loops.length} loops`).join(', '));
       return 0;
     }
     case 'verify': {

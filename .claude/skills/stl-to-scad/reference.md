@@ -25,6 +25,55 @@ diverging struts in (radius, arc) space). Faces: bottom = section order, top = r
 **Cross sections with fins, holes and rounded ends.** Extract one octant of the outline from `sections`, mirror/rotate
 it into the full outline and `linear_extrude`. Tapers: intersect with a cone.
 
+## Recipes for thin shells with cutters (cigarette case)
+
+**Convex plan, prismatic wall.** The plan is the convex hull of a section's points (`sections` + a hull); `polygon()` of it, extruded, with
+`offset(delta = -wall)` for the cavity. Free-form ovals (not ellipses) are best kept as the measured polygon (60 points at 0.02 mm).
+
+**Swept or scooped ends.** A wall whose end climbs like a scoop is the plan prism intersected with a 2D region in the (x, z) plane
+extruded along Y: measure the section's extreme x per height (`xmax(z)` every 0.5 mm) and use it as the region's edge. The cavity is the same
+with `offset(delta = -wall)` applied to the region, which also gives the floor.
+
+**Notches and windows.** Read the opening half-width per height from the section (min |y| of the points beyond a threshold x): an
+ellipse in (y, z) fits, extruded along X. Detent pads are half-ellipses standing on a floor.
+
+**Domes.** Stack thin `linear_extrude(scale)` slices of the wall outline scaled by a `[z, factor]` table read from the section areas.
+
+**Debugging.** `overlay` on three or four heights shows immediately which feature is missing; band IoU (`verify --bands`) says which heights.
+A mirrored part is often its twin's plan mirrored and inset by wall + clearance: try that before measuring it.
+
+## Wall patterns: `relief` and `relief_wrap()`
+
+For a prismatic wall with a repeating pattern (honeycomb, knurling, ribs, text) and no rotational symmetry:
+
+1. **Base outline.** Section the part at a height where the pattern is absent or only ribs are present (`--base-z`). If ribs stick out of
+   that section (the cigarette case's 29 fins), `--open-radius r` takes the morphological opening of the outline with a disc of radius `r`
+   (wider than half a rib), which leaves the smooth wall. The tool then shifts the outline by the median height of the plain-wall cells
+   and measures again (`refine`, on by default), so the plain wall sits at d = 0 within about 0.02 mm.
+2. **Height map.** Every 0.1 mm along the outline and in z, a ray along the outward normal finds the outermost surface (hits farther out
+   than 6 mm are ignored, so rays cannot reach neighbouring features at corners). `d(s, z)` is the result.
+3. **Levels.** Histogram peaks (share >= 0.4 %) become plateaus, each moved to the median of its cells; the level nearest to 0 is the
+   wall itself. Pass `--levels` to override. The honeycomb reduced to three: 0, 1.36 and 2.39 mm (ridge network and Y ridges).
+4. **Regions.** Each level above (below) zero becomes the set of cells at or above (at or below) it: nested regions, traced with a
+   lattice boundary tracer (pinch points filled), simplified (`--simplify`, default 0.12 mm) and dropped below `--min-area`. Loops are
+   in the unrolled (s, z) plane.
+5. **SCAD.** `relief_wrap(1)` unions the plateaus, `relief_wrap(-1)` makes the cuts. Each straight piece of the outline gets its own frame
+   (u along, v outward, w up); the region polygons are clipped to the piece, extruded along v and trimmed to the mitre cell between the
+   bisectors at its ends, so bends neither gap nor overshoot. Put `linear_extrude(polygon(RELIEF_BASE))` under it for the wall.
+
+What the wrapper does to keep the result one manifold body (each was a real failure with the honeycomb):
+
+- straight walls are single pieces (the base is simplified after refining; a run of collinear vertices makes many exactly coplanar faces);
+- nested levels shrink by 0.03 mm per level (`grow`) and start at different depths, so their side faces and roots never coincide;
+- band ends are shifted per level (`RELIEF_ZLAP`), and each piece is lifted by a few micrometres (`RELIEF_JITTER`): neighbouring pieces overlap
+  and carry the same polygon edges, and identical horizontal faces in the overlap gave thousands of zero-area triangles;
+- the pattern is shifted 0.0137 mm along the outline so no lattice line passes through an outline vertex;
+- no recursion deeper than a few dozen calls (the wasm runtime overflows its stack on 200 levels of recursion: sums are done with dot products).
+
+Limits: the pattern is data (a few thousand points per part), not a generator. Regions are quantised to plateaus and 0.1 mm cells, so
+sloped ridge flanks become vertical, and a pattern that is not exactly periodic cannot be compressed by periodicity. The relief
+of the cigarette case is 0.4-2.4 mm high on a 1.6-5 mm wall; the IoU loss to the source is mostly ridge edges and the base outline.
+
 ## Pitfalls that produce non-manifold or degenerate meshes
 
 - **Coincident or almost-coincident faces** between operands (a cutter root equal to the wall radius, a strut face equal

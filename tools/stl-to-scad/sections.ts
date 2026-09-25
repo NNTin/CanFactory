@@ -113,6 +113,18 @@ export function sectionsToSvg(sections: { z: number; loops: Loop[] }[], padding 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${(w * sections.length).toFixed(3)} ${h.toFixed(3)}" width="${Math.round(w * sections.length * 6)}" height="${Math.round(h * 6)}">${cells.join('')}</svg>\n`;
 }
 
+/** Reference (black) and candidate (red) outlines of the same cuts side by side, for spotting where a reconstruction deviates. */
+export function overlayToSvg(cuts: { z: number; reference: Loop[]; candidate: Loop[] }[], padding = 2): string {
+  const all = cuts.flatMap(c => [...c.reference, ...c.candidate].flatMap(l => l.points));
+  if (all.length === 0) return '<svg xmlns="http://www.w3.org/2000/svg"/>';
+  const xs = all.map(p => p[0]), ys = all.map(p => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const w = maxX - minX + 2 * padding, h = maxY - minY + 2 * padding;
+  const path = (loops: Loop[], color: string): string => `<path d="${loops.map(l => 'M' + l.points.map(([x, y]) => `${(x - minX + padding).toFixed(3)},${(maxY - y + padding).toFixed(3)}`).join('L') + 'Z').join(' ')}" fill="none" stroke="${color}" stroke-width="0.12"/>`;
+  const cells = cuts.map((c, i) => `<g transform="translate(${(i * w).toFixed(3)},0)">${path(c.reference, '#000')}${path(c.candidate, '#d00')}<text x="1" y="3" font-size="3">z=${c.z}</text></g>`);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${(w * cuts.length).toFixed(3)} ${h.toFixed(3)}" width="${Math.round(w * cuts.length * 12)}" height="${Math.round(h * 12)}"><rect width="100%" height="100%" fill="#fff"/>${cells.join('')}</svg>\n`;
+}
+
 /**
  * Cut with the vertical half-plane through the axis (cx, cy) at `angleDeg` and return outlines in (r, z) coordinates
  * (r along the half-plane direction, negative on the far side). For a body of revolution the r >= 0 loops are the
