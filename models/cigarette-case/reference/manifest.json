@@ -1,0 +1,70 @@
+{
+  "title": "Cigarette case (Onz): STL to SCAD verification",
+  "tolerance": {
+    "size": 0.1,
+    "volume": 0.02,
+    "iou": 0.96
+  },
+  "cellSize": 0.2,
+  "notes": [
+    "## The five parts",
+    "",
+    "Only the two large v11.3 parts carry the honeycomb. The three mini parts (`minibox`, `topminibox box`, `topminibox top`) are smooth",
+    "thin-walled shells without any relief; none of the five STLs is a scaled copy of another (`inspect` reports no scale copies).",
+    "The large box and lid share one outline (a rounded D shape, 55.9 x 34.4 mm) and one honeycomb; the lid slides over the box's upper 17 mm.",
+    "The topminibox lid is the topminibox box's plan mirrored in X and pulled in by 1.2 mm (wall 1 mm + 0.2 mm clearance).",
+    "",
+    "## Method and limits",
+    "",
+    "The mini parts are rebuilt from measured primitives: the plan outline as a polygon, walls and floors of 1 mm, an elliptical window or notch,",
+    "a curved end profile swept along Y, half-ellipse detent pads and a dome traced as a stack of scaled slices.",
+    "",
+    "The honeycomb of the large parts is a relief of three plateaus (0, 1.36 and 2.39 mm above the plain wall: a hexagonal ridge network with a Y-shaped",
+    "ridge in every cell) on a rounded outline. It was measured with `npm run stl-scad -- relief` (a height map of the wall against its smooth base",
+    "outline, cut into plateau regions, written as data) and is bent back around the outline by the `relief_wrap()` module inside each SCAD. The",
+    "regions are data, not a generator: the lattice in the STL is a stretched hexagonal grid (10.0 mm across flats, rows 9.14 mm apart, ridges 1.16 mm",
+    "wide) but its phase drifts along the outline (the corners compress it by up to 7 %), so a single ideal lattice fitted only 91 % of the wall cells.",
+    "Regenerating it procedurally, with the corner compression, is left to the parametrisation phase.",
+    "",
+    "The lid's lattice top is two extruded section polygons (pockets included). The box's plain upper wall, flange and cavities are extruded section polygons.",
+    "",
+    "## Source meshes",
+    "",
+    "The two large source STLs are not watertight (box: 56 open or non-manifold edges, lid: 45; 570 k and 420 k triangles). Volume and IoU use them as is.",
+    "",
+    "Reproduce with `npm run stl-scad -- verify --manifest models/cigarette-case/reference/manifest.json --report models/cigarette-case/reference/VERIFICATION.md`",
+    "(needs the source STLs and an OpenSCAD runtime; see `.claude/skills/stl-to-scad/SKILL.md`)."
+  ],
+  "parts": [
+    {
+      "name": "11_-_Honeycomb_-_minibox",
+      "scad": "11_-_Honeycomb_-_minibox.scad",
+      "stl": "11_-_Honeycomb_-_minibox.stl",
+      "note": "Mini box: small oval holder with an elliptical side window (no honeycomb)"
+    },
+    {
+      "name": "11_-_Honeycomb_-_topminibox_-_box",
+      "scad": "11_-_Honeycomb_-_topminibox_-_box.scad",
+      "stl": "11_-_Honeycomb_-_topminibox_-_box.stl",
+      "note": "Mini top-box: shell with a swept end and end notches (no honeycomb)"
+    },
+    {
+      "name": "11_-_Honeycomb_-_topminibox_-_top",
+      "scad": "11_-_Honeycomb_-_topminibox_-_top.scad",
+      "stl": "11_-_Honeycomb_-_topminibox_-_top.stl",
+      "note": "Mini top-box lid: mirrored, inset shell with detent pads (no honeycomb)"
+    },
+    {
+      "name": "11_v11.3__-_honeycomb_-_box",
+      "scad": "11_v11.3__-_honeycomb_-_box.scad",
+      "stl": "11_v11.3__-_honeycomb_-_box.stl",
+      "note": "Large box v11.3: two bays and a round bay, honeycomb wall relief"
+    },
+    {
+      "name": "11_v11.3__-_honeycomb_-_top",
+      "scad": "11_v11.3__-_honeycomb_-_top.scad",
+      "stl": "11_v11.3__-_honeycomb_-_top.stl",
+      "note": "Large lid v11.3: sleeve with honeycomb wall relief and lattice top"
+    }
+  ]
+}
