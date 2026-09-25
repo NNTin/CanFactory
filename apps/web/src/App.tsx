@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Box, Check, ChevronDown, CircleAlert, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { api } from '@canfactory/client';
 import { findModel, validateParameters, type Control, type ModelDetail, type ParameterValues } from '@canfactory/contracts';
@@ -34,6 +34,52 @@ function FunnelIllustration() {
     {[0, 1, 2, 3, 4, 5].map(row => <path key={row} d={`M${101 - row * 8} ${66 + row * 12} Q120 ${74 + row * 12} ${139 + row * 8} ${66 + row * 12}`} fill="none" stroke="#8b513a" strokeWidth="2" strokeDasharray="1 6" opacity=".6" />)}
   </svg>;
 }
+
+const STEM_BOTTOM = 132;
+
+function MossTower({ x, height, foot }: { x: number; height: number; foot: 'spike' | 'helper' }) {
+  const top = STEM_BOTTOM - height;
+  const clip = `moss-stem-${foot}`;
+  const starts = Array.from({ length: Math.ceil((44 + height) / 15) + 1 }, (_, n) => -22 - height + n * 15);
+  return <g transform={`translate(${x} 0)`}>
+    <defs><clipPath id={clip}><rect x="-22" y={top} width="44" height={height} /></clipPath></defs>
+    <g className="mp-guide" stroke="#7b8e6b" strokeWidth="1.5" strokeDasharray="3 4" fill="none">
+      <path d={`M0 ${top - 20}V${top}`} /><path d={`M0 ${STEM_BOTTOM}v20`} />
+    </g>
+    <g className="mp-part mp-cap">
+      <path d={`M-22 ${top}q0-22 22-22t22 22z`} fill="#d98460" />
+      <path d={`M0 ${top - 22}q22 0 22 22h-11q0-16-11-22z`} fill="#c46543" />
+      <rect x="-25" y={top - 7} width="50" height="8" rx="3" fill="#7b8e6b" />
+    </g>
+    <g className="mp-part mp-stem">
+      <rect x="-22" y={top} width="44" height={height} fill="#8fa27c" opacity=".35" />
+      <g clipPath={`url(#${clip})`} stroke="#5f7350" strokeWidth="3" strokeLinecap="round" fill="none">
+        {starts.map(x0 => <path key={`a${x0}`} d={`M${x0} ${top}L${x0 + height} ${STEM_BOTTOM}`} />)}
+        {starts.map(x0 => <path key={`b${x0}`} d={`M${x0 + height} ${top}L${x0} ${STEM_BOTTOM}`} />)}
+      </g>
+      <path d={`M22 ${top}v${height}h-7q7-${height / 2} 0-${height}z`} fill="#3f4f34" opacity=".2" />
+      <rect x="-25" y={STEM_BOTTOM - 1} width="50" height="8" rx="3" fill="#7b8e6b" />
+    </g>
+    <g className="mp-part mp-foot">
+      {foot === 'spike'
+        ? <><path d={`M-14 ${STEM_BOTTOM + 7}h28L0 ${STEM_BOTTOM + 40}z`} fill="#8b513a" opacity=".7" /><path d={`M0 ${STEM_BOTTOM + 7}h14L0 ${STEM_BOTTOM + 40}z`} fill="#753e2d" opacity=".5" /></>
+        : <><path d={`M-14 ${STEM_BOTTOM + 7}h28v10q12 4 12 16h-52q0-12 12-16z`} fill="#8b513a" opacity=".7" /><path d={`M0 ${STEM_BOTTOM + 7}h14v10q12 4 12 16H0z`} fill="#753e2d" opacity=".5" /></>}
+    </g>
+  </g>;
+}
+
+function MossPlanterIllustration() {
+  return <svg viewBox="0 0 240 190" aria-hidden="true" className="moss-planter-illustration">
+    <ellipse cx="120" cy="146" rx="108" ry="14" fill="#c8cec1" opacity=".35" />
+    <MossTower x={68} height={44} foot="spike" />
+    <MossTower x={172} height={80} foot="helper" />
+  </svg>;
+}
+
+const ILLUSTRATIONS: Record<string, () => ReactElement> = {
+  'fruit-fly-trap': FunnelIllustration,
+  'moss-planter': MossPlanterIllustration,
+};
 
 function Field({ control, value, disabled, issue, change }: { control: Control; value: number | boolean | undefined; disabled: boolean; issue: string | undefined; change: (value: number | boolean) => void }) {
   const id = `parameter-${control.key}`;
@@ -194,7 +240,7 @@ export function App() {
         : loading ? <div className="empty-state"><LoaderCircle className="spin" size={30} /><p>Opening the workshop…</p></div>
           : model ? <><div className="page-heading"><div><div className="eyebrow">THE MODEL WORKSHOP</div><h1>{model.title}</h1><p>{model.description}</p></div><span className="model-tag"><span /> {model.customizable ? 'PARAMETRIC MODEL' : 'ASSEMBLY PREVIEW'}</span></div><Editor key={`${model.id}:${model.version}`} model={model} /></>
             : <><div className="page-heading library-heading"><div><div className="eyebrow">THE MODEL LIBRARY</div><h1>Useful things. Made to fit.</h1><p>Start with a model. Make a few changes. Make it yours.</p></div></div>
-              <div className="model-library">{models.map(item => <button type="button" className="model-card" key={item.id} onClick={() => setSelectedId(item.id)}><div className="card-art">{item.id === 'fruit-fly-trap' ? <FunnelIllustration /> : <Box size={60} strokeWidth={1} />}</div><div className="card-copy"><span className="eyebrow">{item.customizable ? 'CUSTOMIZABLE' : 'PREVIEW'} · {item.artifactFormat.toUpperCase()}</span><h2>{item.title}</h2><p>{item.description}</p><span className="card-action">{item.customizable ? 'Customize model' : 'View model'} <ArrowRight size={17} /></span></div></button>)}
+              <div className="model-library">{models.map(item => <button type="button" className="model-card" key={item.id} onClick={() => setSelectedId(item.id)}><div className="card-art">{(() => { const Illustration = ILLUSTRATIONS[item.id]; return Illustration ? <Illustration /> : <Box size={60} strokeWidth={1} />; })()}</div><div className="card-copy"><span className="eyebrow">{item.customizable ? 'CUSTOMIZABLE' : 'PREVIEW'} · {item.artifactFormat.toUpperCase()}</span><h2>{item.title}</h2><p>{item.description}</p><span className="card-action">{item.customizable ? 'Customize model' : 'View model'} <ArrowRight size={17} /></span></div></button>)}
                 <div className="coming-next"><span className="plus-shape">+</span><h2>More useful things to come.</h2><p>A growing collection for everyday making.</p></div></div></>}
     </main>
     <footer className="site-footer"><span>MAKE IT FIT. MAKE IT REAL.</span><span>CanFactory · Your local workshop</span></footer>

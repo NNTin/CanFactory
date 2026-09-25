@@ -736,9 +736,38 @@ main {
   align-items: center;
   color: #7b8e6b;
 }
-.funnel-illustration {
+.funnel-illustration,
+.moss-planter-illustration {
   width: 250px;
   height: 210px;
+}
+.moss-planter-illustration {
+  overflow: visible;
+}
+.mp-part {
+  transition: transform 0.35s ease-out;
+}
+.mp-guide {
+  opacity: 0;
+  transition: opacity 0.35s ease-out;
+}
+.model-card:hover .mp-cap,
+.model-card:focus-visible .mp-cap {
+  transform: translateY(-18px);
+}
+.model-card:hover .mp-foot,
+.model-card:focus-visible .mp-foot {
+  transform: translateY(18px);
+}
+.model-card:hover .mp-guide,
+.model-card:focus-visible .mp-guide {
+  opacity: 0.6;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-part,
+  .mp-guide {
+    transition: none;
+  }
 }
 .card-copy {
   padding: 25px;
