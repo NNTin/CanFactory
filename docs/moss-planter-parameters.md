@@ -49,6 +49,16 @@ scaled short lattice (`obj_1`: 7.9 mm struts, 6 columns).
 - The lattice's inner wall is 22.97 mm (x `s`) rather than the measured 23.013: the strut sections have vertices within
   0.001 mm of the latter and the near-tangent cuts leave zero-area triangles at some diameters.
 
+## Known limits
+
+The lattice is built from many overlapping solids, and `inspectStl` rejects zero-area triangles. Sweeping the whole
+range (every diameter 40–120 at 4 rows, 250+ random combinations of diameter, rows and columns, and 60 spike lengths)
+renders all but about 1 in 300 lattice combinations (seen once: 2 rows, 8 columns, 111 mm), which fail with
+"The mesh contains a zero-area triangle"; a neighbouring value normally renders. Two earlier failure
+classes were real bugs and are fixed: the top gusset was not turned for an odd number of rows, which left slivers or
+disconnected pieces at every odd row count, and the lattice's root/clip surfaces sat within 0.001 mm of ring and strut
+vertices.
+
 ## Verification
 
 `tools/test-renderer.ts` renders five settings end to end (the two original towers, 77 mm with custom rows and columns,

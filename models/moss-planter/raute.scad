@@ -52,7 +52,8 @@ LATTICE_TOP  = NODE_Z0 + (ROWS - 1) * ROW_DZ + BAR_DZ;
 TOP_MIRROR_Z = NODE_Z0 + LATTICE_TOP;
 TOP_Z        = TOP_MIRROR_Z + TOP_MARGIN;
 // Height at which a gusset ends inside its ring, in the frame of the bottom gusset (the top one is its mirror image).
-GUSSET_ROOT  = 10.7 * S;
+// Well inside the ring wall, clear of the ring's rounded lower corner: a root plane there leaves slivers at some diameters.
+GUSSET_ROOT  = 9.8 * S;
 
 THREAD_PITCH = 5;
 THREAD_TURN  = 1;       // 1 = right-handed, -1 = left-handed
@@ -146,8 +147,9 @@ module lattice() {
                     strut(a - BAR_ANGLE * k, -1, NODE_Z0 + k * ROW_DZ);
                 }
                 gusset(a, GUSSET_APEX, 9.5 * S, STRUT_END);
-                // Top gusset: the bottom one mirrored (z -> TOP_MIRROR_Z - z).
-                translate([0, 0, TOP_MIRROR_Z]) mirror([0, 0, 1]) gusset(a, GUSSET_APEX, GUSSET_ROOT, STRUT_END);
+                // Top gusset: the bottom one mirrored (z -> TOP_MIRROR_Z - z), turned to where the last struts meet: each
+                // strut turns BAR_ANGLE per row, so that is a column angle for an even ROWS and half a column off for an odd one.
+                translate([0, 0, TOP_MIRROR_Z]) mirror([0, 0, 1]) gusset(a + ROWS * BAR_ANGLE, GUSSET_APEX, GUSSET_ROOT, STRUT_END);
             }
         }
     }
