@@ -1,4 +1,4 @@
-# Moss planter: parameter specification (draft, pre-implementation)
+# Moss planter: parameter specification (draft 2, pre-implementation)
 
 Goal: show 5 parts (ground spike, planting helper, cover cap, RAUTE short, RAUTE tall) instead of 10 fixed files, with
 size and other parameters adjustable in the editor. Architecture: option A — `ModelPart` gains its own parameter
@@ -24,63 +24,51 @@ mapping (shared, generic change). This document fixes *which* parameters exist a
    `TOP_MIRROR_TRIM`, the `BODY`/`PROFILE` point lists). Parameters that move geometry beyond the two verified
    configurations need new bounds tests, not just plumbing.
 
+## Decisions so far
+
+- Tower size is **continuous**, not two presets: any outer diameter `D` (52 and 100 must stay exactly reproducible,
+  and every value in between and around them must work: 53, 54 ... 99).
+- All five parts must mate at every `D`. Spike, helper, cap, and the two collar/top-ring end sections of the RAUTE
+  are the 52 mm design uniformly scaled by `s = D / 52` (thread pitch `5 * s`), so their threads mate by construction.
+- RAUTE size (height) and spike length are user-adjustable.
+
+## Additional finding: strut width is not scaled
+
+obj_4 (52 mm) and obj_9 (100 mm) have the *same* strut width (about 4.1 mm; odd rows 4.9 mm at 100 mm) while the tube
+radius doubles; obj_1 (short RAUTE, scaled x100/52) instead has 7.9 mm struts and 6 columns. Wall thickness also
+differs (3 mm at 52, 5.75 mm at 100), and obj_9 uses 12 columns and unscaled row pitch. Two different ways to grow a
+lattice exist in the source data, so the generator must pick one for the lattice zone.
+
 ## Parameter catalogue
 
-`Verified` = both endpoints reproduce a source STL. `New` = would need new geometry work and verification.
-
-### Shared
-
-| Key | Type | Applies to | Maps to | Notes |
+| Key | Applies to | Type / range | Maps to | Notes |
 |---|---|---|---|---|
-| `towerSize` | enum {52, 100} mm outer diameter (default 52) | all five parts | `SCALE` (spike, helper, cap, RAUTE short); `SIZE` preset (RAUTE tall) | Verified. One shared value keeps threads mating. |
+| `towerDiameter` | all five | number, 40–120 mm, default 52 | `SCALE = D/52` (rings, threads, spike, helper, cap); RAUTE lattice radius | 52 and 100 verified; the rest interpolate. Thread clearance scales with `D`, so very small values may print too tight. |
+| `spikeLength` | spike | number, mm, ~60–250 | `TIP_Z` (fins clipped by the taper cone), measured after scaling | New geometry; needs min above the base + fin start. |
+| `shortRauteRows` | RAUTE short | integer, 1–20, default 4 | `ROWS` (+ `TOP_Z`, `TOP_GUSSET_END` derived) | Height = collar + rows x row pitch + top ring. |
+| `tallRauteRows` | RAUTE tall | integer, 1–24, default 10 | `ROWS` | Same generator, different default. |
+| `rauteColumns` | both RAUTE | integer, 4–16 (even), default derived from `D` | `COLUMNS` | Default about `round(D / 8.5)`: 6 at 52, 12 at 100. Optional; the same value for both RAUTEs. |
 
-### Ground spike
+Ground spike (drain holes), planting helper (funnel curve, slots) and cover cap (profile) have no other parameters:
+their profiles are point tables fitted to the STL and only scale.
 
-| Key | Type | Range | Maps to | Status |
-|---|---|---|---|---|
-| `spikeLength` | number, mm at 52 size | ~60–124 (default 124) | `TIP_Z` | New. `TIP_SLOPE` fixed, fins clipped by the cone; needs min > `FIN_START_Z` (24) plus the base, and a manifold check. |
+## Open forks (need your call before building)
 
-Everything else (thread, fins, drain holes) stays fixed. Drain hole radius (`HOLE_R`) is technically free but has
-no reason to vary.
-
-### Planting helper
-
-None beyond size. Height/funnel are baked into the `BODY` point list (funnel curve from z 53 to 80), so changing
-height would mean re-fitting the profile. Base slots/holes (`SLOT_*`, `HOLE_*`) are possible but low value.
-
-### Cover cap
-
-None beyond size (profile and groove fixed).
-
-### RAUTE short
-
-| Key | Type | Range | Maps to | Status |
-|---|---|---|---|---|
-| `shortRows` | integer | 4 (fixed) | `ROWS` | Not exposed: see below. |
-
-### RAUTE tall
-
-| Key | Type | Range | Maps to | Status |
-|---|---|---|---|---|
-| `tallSize` | (uses `towerSize`) | 52 / 100 | preset block: `COLUMNS`, `COLUMN_PHASE`, `ROW_DZ`, `STRUT_TWIST`, `OUTER_R`, `LATTICE_INNER_R`, `STRUT*`, `K` | Verified. Each value selects a full constant set inside one SCAD. |
-
-### RAUTE rows (candidate, open)
-
-`ROWS` is the only thing separating RAUTE short from tall at 52 mm. A `rows` parameter (say 2–12) with
-`TOP_Z = NODE_Z0 + (rows-1)*ROW_DZ + tail` would make short and tall one part with a continuous height. Two
-problems: (a) at 100 mm the short and tall designs disagree (finding 3), so `rows` would only be valid at 52 mm or
-would need obj_9's construction for every 100 mm row count; (b) it collapses 5 parts to 4, contradicting the target.
-Recommended: do not expose `rows`; keep short and tall as two parts with presets.
+1. **Lattice growth.** (a) uniform scale: identical look at every size, strut width grows with `D`; reproduces
+   obj_1 and obj_5 exactly, but obj_9 becomes an approximation (6 columns, thick struts). (b) constant strut width
+   (about 4.1 mm), column count grows with `D`, wall thickness grows with `D`; reproduces obj_4/obj_5 at 52 and
+   approximates obj_9 at 100 (its wider odd rows are dropped), but obj_1 no longer matches. Recommended: (b).
+   It is what the 100 mm tall part actually does, and it keeps struts printable.
+2. **Rows vs mm height.** Rows (integer) are recommended: height derives from row pitch, gusset constants stay
+   valid. Free millimetre height would need row pitch to stretch.
+3. **Regression.** Without a source STL for most sizes, verification is: closed, single-body, positive volume,
+   expected bounding box, and thread mating checked by mating two parts' thread sections at several `D`.
 
 ## Resulting contract
 
-- Model parameters: `towerSize` (enum/boolean), `spikeLength` (number). Everything else fixed.
-- Parts (5): `spike` (`SCALE`, `TIP_Z`), `helper` (`SCALE`), `cap` (`SCALE`), `raute-short` (`SCALE`),
-  `raute-tall` (`SIZE`).
-- Generators: 5 SCAD files (merging the 10 existing files), each reusing the verified geometry with `SCALE` /
-  `SIZE` as the only new inputs.
-- Shared change (option A): `ModelPart.scadMapping?: Record<string, string>` naming the parameter keys the part
-  consumes; worker passes `-D` per part from its own mapping; fingerprint hashes all part sources plus mappings; a
-  new generic `enum` control kind (or a boolean).
-- Version bump `1` → `2`. Update `docs/adding-models.md` ("Static multi-part assemblies" becomes "Multi-part
-  assemblies"; per-part mapping documented) and the "All ten parts" comment.
+- Parts (5): `spike`, `helper`, `cap`, `raute-short`, `raute-tall`.
+- Model parameters: `towerDiameter`, `spikeLength`, `shortRauteRows`, `tallRauteRows` (+ optional `rauteColumns`).
+- Shared change (option A): `ModelPart.scadMapping` naming the parameter keys each part consumes; worker passes `-D`
+  per part from its own mapping; fingerprint hashes all part sources plus mappings; per-part validation.
+- 5 SCAD generators replace the 10 files; the reconstructed sources stay in `reference/` as the regression baseline.
+- Version `1` to `2`; update `docs/adding-models.md` and the "All ten parts" comment.
