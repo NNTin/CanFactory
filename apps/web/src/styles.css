@@ -737,7 +737,8 @@ main {
   color: #7b8e6b;
 }
 .funnel-illustration,
-.moss-planter-illustration {
+.moss-planter-illustration,
+.cigarette-case-illustration {
   width: 250px;
   height: 210px;
 }
@@ -766,6 +767,47 @@ main {
 @media (prefers-reduced-motion: reduce) {
   .mp-part,
   .mp-guide {
+    transition: none;
+  }
+}
+.cc-part {
+  transition: transform 0.35s ease-out;
+}
+.cc-guide,
+.cc-shadow {
+  transition: opacity 0.35s ease-out;
+}
+.cc-guide {
+  opacity: 0;
+}
+.model-card:hover .cc-lid,
+.model-card:focus-visible .cc-lid {
+  transform: translateY(-40px);
+}
+.model-card:hover .cc-box,
+.model-card:focus-visible .cc-box {
+  transform: translateY(6px);
+}
+.model-card:hover .cc-holder,
+.model-card:focus-visible .cc-holder {
+  transform: translate(-62px, -8px);
+}
+.model-card:hover .cc-mini-box,
+.model-card:focus-visible .cc-mini-box {
+  transform: translate(58px, 8px);
+}
+.model-card:hover .cc-mini-lid,
+.model-card:focus-visible .cc-mini-lid {
+  transform: translate(58px, -22px);
+}
+.model-card:hover .cc-guide,
+.model-card:focus-visible .cc-guide {
+  opacity: 0.6;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cc-part,
+  .cc-guide,
+  .cc-shadow {
     transition: none;
   }
 }
