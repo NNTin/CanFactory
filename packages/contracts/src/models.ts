@@ -185,7 +185,7 @@ export const mossPlanter = {
   id: 'moss-planter' as const, version: '1' as const, title: 'Moss planter (Verdura)',
   description: 'Ten parts of a modular moss-tower kit — lattice segments, ground spikes, planting helpers, and cover caps — shown together. Not yet customizable; download the full set as a ZIP of STL files.',
   attribution: 'HpInvent (MakerWorld)',
-  printNotes: 'Print each part separately. See models/moss-planter/ATTRIBUTION.md for source credit.',
+  printNotes: 'Print each part separately.',
   // Kept short deliberately: this string and `attribution` together are stamped into each STL's 80-byte header
   // (see apps/worker/src/render.ts's stampAttribution) and would otherwise be silently truncated there.
   license: 'Adapted, original MakerWorld terms apply', licenseUrl: 'https://makerworld.com/de/models/1200114-moss-tower-verdura-the-modular-climbing-support',
