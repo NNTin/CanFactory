@@ -614,9 +614,9 @@ RELIEF_ROOT = 1;      // additive plateaus start this far inside the outline so 
 RELIEF_OVER = 0.3;    // cuts run this far outside the outline
 RELIEF_LAP = 0.8;     // pieces are drawn this much beyond their ends along the outline, then trimmed at the mitre lines
 RELIEF_ZLAP = 0.03;   // the pattern band is moved down by this much (more for each further level), so band ends never share a plane
-RELIEF_SHIFT = 0.0137;   // pattern shifted along the outline by this much: its lattice lines then never pass through an outline vertex
-RELIEF_JITTER = 0.0037;
-RELIEF_MERGE = 0.1;  // neighbouring cells overlap by this much so the union has no coincident faces
+RELIEF_SHIFT = 0.0137; // pattern shifted along the outline by this much: its lattice lines then never pass through an outline vertex
+RELIEF_JITTER = 0.0037; // neighbouring pieces overlap and carry the same polygon edges: lifting them by different tiny amounts keeps equal faces apart
+RELIEF_MERGE = 0.1;   // neighbouring cells overlap by this much so the union has no coincident faces
 RELIEF_REACH = 3.5;   // cells reach this far outside the outline (more than the tallest plateau)
 
 RELIEF_N = len(RELIEF_BASE);

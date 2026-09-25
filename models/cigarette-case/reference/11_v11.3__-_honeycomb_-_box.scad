@@ -6,8 +6,8 @@
 // no additional rights to the original. See ../ATTRIBUTION.md.
 //
 // Geometry: a prismatic body on a rounded D-shaped outline (RELIEF_BASE) with three cavities (two cigarette bays split by a
-// thin divider, and a round bay open through the floor), a base flange (FLANGE), and a honeycomb relief of raised ridges, tall ribs
-// and recesses measured from that outline up to z = RELIEF_Z1; above it the wall steps in to a plain thin shell (UPPER)
+// thin divider, and a round bay open through the floor), a base flange (FLANGE), and a honeycomb relief of raised ridges
+// measured from that outline between FLANGE_TOP and BASE_TOP; above BASE_TOP the wall steps in to a plain thin shell (UPPER)
 // that the lid slides over. The relief is stored as plateau regions in the unrolled (s, z) plane and bent back around the
 // outline by relief_wrap() (generated with tools/stl-to-scad `relief`). Units are millimetres; the part is centred on the
 // Z axis with its underside on z = 0. The source STL sat at (217.2, 84.5) on the print plate with its underside at -1.48.
@@ -696,9 +696,9 @@ RELIEF_ROOT = 1;      // additive plateaus start this far inside the outline so 
 RELIEF_OVER = 0.3;    // cuts run this far outside the outline
 RELIEF_LAP = 0.8;     // pieces are drawn this much beyond their ends along the outline, then trimmed at the mitre lines
 RELIEF_ZLAP = 0.03;   // the pattern band is moved down by this much (more for each further level), so band ends never share a plane
-RELIEF_SHIFT = 0.0137;   // pattern shifted along the outline by this much: its lattice lines then never pass through an outline vertex
-RELIEF_JITTER = 0.0037;
-RELIEF_MERGE = 0.1;  // neighbouring cells overlap by this much so the union has no coincident faces
+RELIEF_SHIFT = 0.0137; // pattern shifted along the outline by this much: its lattice lines then never pass through an outline vertex
+RELIEF_JITTER = 0.0037; // neighbouring pieces overlap and carry the same polygon edges: lifting them by different tiny amounts keeps equal faces apart
+RELIEF_MERGE = 0.1;   // neighbouring cells overlap by this much so the union has no coincident faces
 RELIEF_REACH = 3.5;   // cells reach this far outside the outline (more than the tallest plateau)
 
 RELIEF_N = len(RELIEF_BASE);
