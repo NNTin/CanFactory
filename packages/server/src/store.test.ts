@@ -32,15 +32,17 @@ describe('temporary render queue', () => {
     expect(existsSync(join(store.artifacts.catalogDir, `${mossPlanter.id}-${mossPlanter.version}.stl`))).toBe(false);
   });
 
-  it('seeds the parameterless cigarette case as a non-customizable ZIP assembly', () => {
+  it('seeds the cigarette case as a customizable ZIP assembly with a snap-mode enum', () => {
     const detail = store.getModel(cigaretteCase.id)?.detail;
     expect(detail?.artifactFormat).toBe('zip');
-    expect(detail?.customizable).toBe(false);
-    expect(detail?.controls).toEqual([]);
+    expect(detail?.customizable).toBe(true);
+    expect(detail?.controls.map(control => [control.key, control.kind])).toEqual([['snap', 'enum']]);
+    expect(detail?.defaults).toEqual({ snap: 'friction' });
     expect(detail?.parts?.map(part => part.id)).toEqual(['case-box', 'case-lid', 'mini-holder', 'mini-box', 'mini-lid']);
     expect(detail?.referenceUrl).toBeUndefined();
-    const job = store.enqueue(cigaretteCase, {});
-    expect(store.enqueue(cigaretteCase, {}).id).toBe(job.id);
+    const job = store.enqueue(cigaretteCase, { snap: 'friction' });
+    expect(store.enqueue(cigaretteCase, { snap: 'friction' }).id).toBe(job.id);
+    expect(store.enqueue(cigaretteCase, { snap: 'clip' }).id).not.toBe(job.id);
   });
 
   it('enqueues an assembly model with its parameters and reuses/clears both artifact extensions', () => {

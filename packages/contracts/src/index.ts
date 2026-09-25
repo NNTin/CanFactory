@@ -23,7 +23,7 @@ export const ModelSummarySchema = Type.Object({
 export const ModelDetailSchema = Type.Object({
   ...ModelSummarySchema.properties,
   controls: Type.Array(ControlSchema),
-  defaults: Type.Record(Type.String(), Type.Union([Type.Number(), Type.Boolean()])),
+  defaults: Type.Record(Type.String(), Type.Union([Type.Number(), Type.Boolean(), Type.String()])),
   parameterSchema: Type.Record(Type.String(), Type.Unknown(), { description: 'JSON Schema for this model’s parameter object.' }),
   referenceUrl: Type.Optional(Type.String({ description: 'Absent when this model has no small, permanent original file.' })),
   parts: Type.Optional(Type.Array(ModelPartSummarySchema, { description: 'Present only for multi-part assembly models, in render/ZIP order.' })),

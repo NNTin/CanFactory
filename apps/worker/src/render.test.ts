@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mossPlanter } from '@canfactory/contracts';
+import { cigaretteCase, mossPlanter } from '@canfactory/contracts';
 import { repositoryRoot, Store } from '@canfactory/server';
 import { renderJob, type OpenScadRunner } from './render.ts';
 
@@ -81,5 +81,15 @@ describe('renderJob for an assembly model', () => {
       const header = Buffer.from(bytes.buffer, bytes.byteOffset, 80).toString('utf8');
       expect(header, name).toContain(`CanFactory | ${mossPlanter.license} | ${mossPlanter.attribution}`);
     }
+  });
+
+  it('passes the snap mode to exactly the cigarette-case parts that map it, as a quoted OpenSCAD string', async () => {
+    const invocations: string[][] = [];
+    store.enqueue(cigaretteCase, { snap: 'crush-ribs' });
+    const claimed = store.claim();
+    if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
+    expect(await renderJob(store, claimed, new AbortController().signal, fakeRunner(invocations))).toBe(true);
+    const defines = invocations.map(args => args.flatMap((arg, index) => args[index - 1] === '-D' ? [arg] : []));
+    expect(defines).toEqual([['SNAP="crush-ribs"'], ['SNAP="crush-ribs"'], [], [], ['SNAP="crush-ribs"']]);
   });
 });

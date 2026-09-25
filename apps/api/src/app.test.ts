@@ -47,17 +47,20 @@ describe('model and render API', () => {
     expect((await app.inject('/api/v1/models/moss-planter/reference.stl')).statusCode).toBe(404);
   });
 
-  it('serves the cigarette case as a static, five-part, ZIP-formatted assembly model', async () => {
+  it('serves the cigarette case as a five-part, ZIP-formatted assembly with a snap-mode enum', async () => {
     const detail = await app.inject('/api/v1/models/cigarette-case');
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.artifactFormat).toBe('zip');
-    expect(model.customizable).toBe(false);
-    expect(model.controls).toEqual([]);
+    expect(model.customizable).toBe(true);
+    expect(model.controls.map(control => control.kind)).toEqual(['enum']);
+    expect(model.defaults).toEqual({ snap: 'friction' });
     expect(model.parts).toHaveLength(5);
     expect(model.referenceUrl).toBeUndefined();
-    const accepted = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: {} } });
+    const accepted = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { snap: 'magnet' } } });
     expect(accepted.statusCode).toBeLessThan(300);
-    const extra = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { anything: 1 } } });
+    const unknownMode = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { snap: 'glue' } } });
+    expect(unknownMode.statusCode).toBeGreaterThanOrEqual(400);
+    const extra = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { snap: 'clip', anything: 1 } } });
     expect(extra.statusCode).toBeGreaterThanOrEqual(400);
   });
 

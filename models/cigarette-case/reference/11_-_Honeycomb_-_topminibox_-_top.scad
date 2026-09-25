@@ -9,7 +9,8 @@
 // cap at z = 0 (the lid is modelled as printed, cap down). The -X (chamfered) end is swept away by a curved profile and its
 // end sheet stops at SHEET_TOP; a half-ellipse pad on each end (a detent for the box notch) stands on the cap.
 // Units are millimetres; the part is centred on the Z axis with the cap's underside on z = 0. The source STL sat at
-// (244.0, -84.8) on the print plate. Static reconstruction: named dimensions only, no parameter interface yet.
+// (244.0, -84.8) on the print plate. Named dimensions only; the one parameter is SNAP (default
+// "friction" is the reconstruction as verified).
 
 SCALE     = 1;
 ROUNDNESS = 96;
@@ -44,6 +45,22 @@ PAD_A = 4.2;          // half-width along Y
 PAD_C = 6.25;         // height
 PAD_X = 17.24;
 PAD_IN_X = 15.5;      // pad reaches this far towards the centre so it overlaps the wall
+
+// Snap mechanism, chosen by SNAP (a -D override): "friction" (the original geometry, nothing added), "detent", "clip",
+// "magnet" or "crush-ribs". The end pads above already latch into the box's notches, so they stay in every mode; only
+// "crush-ribs" adds anything: three ribs on each straight side wall, squeezed by the box's wall.
+SNAP = "friction";
+LID_Y = 12.55;        // outer face of the straight side walls (the box's inner face is 0.2 further out)
+CRUSH_H = 0.3;
+CRUSH_X = [-2, 1.5, 5];
+CRUSH_W = 0.5;
+CRUSH_Z0 = 2;
+CRUSH_Z1 = 13.2;      // the rim end is ramped so the box finds the ribs
+
+module crush_ribs() {
+  for (x = CRUSH_X, m = [0, 1]) mirror([0, m, 0]) translate([x - CRUSH_W / 2, 0, 0]) rotate([90, 0, 90]) linear_extrude(height = CRUSH_W)
+    polygon([[LID_Y - 0.3, CRUSH_Z0], [LID_Y + CRUSH_H, CRUSH_Z0], [LID_Y + CRUSH_H, CRUSH_Z1 - 1.4], [LID_Y, CRUSH_Z1], [LID_Y - 0.3, CRUSH_Z1]]);
+}
 
 HEADROOM = 10;
 module lid_plan() { mirror([1, 0]) offset(delta = -CLEARANCE) polygon(BOX_PLAN); }
@@ -82,6 +99,7 @@ module topminibox_top() {
     }
     pad();
     mirror([1, 0, 0]) pad();
+    if (SNAP == "crush-ribs") crush_ribs();
   }
 }
 

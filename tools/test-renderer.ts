@@ -113,39 +113,41 @@ try {
     console.log(`PASS moss planter ${testCase.name}: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 
-  // Cigarette case: five static parts without parameters. Each must be one closed solid with the dimensions of the source STL (which the
-  // reconstructions are verified against in models/cigarette-case/reference/VERIFICATION.md), packaged as one ZIP.
-  {
+  // Cigarette case: five parts, rendered once per snap mode. Each must be one closed solid with the dimensions of the source STL (which
+  // the reconstructions are verified against in models/cigarette-case/reference/VERIFICATION.md), packaged as one ZIP. The snap
+  // features only stand proud by a fraction of a millimetre, except the mini lid's crush ribs (0.3 mm proud of its 25.119 mm width).
+  for (const snap of ['friction', 'detent', 'clip', 'magnet', 'crush-ribs']) {
     const started = Date.now();
-    assert.deepEqual(validateParameters(cigaretteCase, {}), []);
-    const queued = store.enqueue(cigaretteCase, {});
+    const parameters = { snap };
+    assert.deepEqual(validateParameters(cigaretteCase, parameters), []);
+    const queued = store.enqueue(cigaretteCase, parameters);
     const job = store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
     const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
-    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true, 'cigarette case'); }
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true, `cigarette case ${snap}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', 'cigarette case'); assert.ok(result.artifact);
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `cigarette case ${snap}`); assert.ok(result.artifact);
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for the cigarette case.');
     assert.equal(result.artifact.parts.length, cigaretteCase.parts.length);
     const expected: Record<string, [number, number, number]> = {
       'case-box': [55.888, 34.398, 77.171], 'case-lid': [55.888, 34.398, 41.868], 'mini-holder': [10.876, 21.842, 32.694],
-      'mini-box': [34.481, 27.519, 14.391], 'mini-lid': [34.481, 25.119, 13.391],
+      'mini-box': [34.481, 27.519, 14.391], 'mini-lid': [34.481, snap === 'crush-ribs' ? 25.7 : 25.119, 13.391],
     };
     for (const part of result.artifact.parts) {
-      assert.ok(part.volume > 0, `cigarette case ${part.id}: expected positive volume`);
+      assert.ok(part.volume > 0, `cigarette case ${snap} ${part.id}: expected positive volume`);
       const size = expected[part.id];
       assert.ok(size, `unexpected part ${part.id}`);
       for (const [axis, want] of [['x', size[0]], ['y', size[1]], ['z', size[2]]] as const)
-        assert.ok(Math.abs(part.dimensions[axis] - want) <= 0.1, `cigarette case ${part.id} ${axis}: ${part.dimensions[axis]} != ${want}`);
+        assert.ok(Math.abs(part.dimensions[axis] - want) <= 0.1, `cigarette case ${snap} ${part.id} ${axis}: ${part.dimensions[axis]} != ${want}`);
     }
     const bytes = await readFile(store.artifacts.path(job.id, 'zip'));
     const entries = unzipSync(new Uint8Array(bytes));
     assert.deepEqual(Object.keys(entries).sort(), cigaretteCase.parts.map(part => `${part.id}.stl`).sort());
     for (const [name, entryBytes] of Object.entries(entries)) {
-      assert.ok(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength)).sha256, `cigarette case ${name}: expected a valid individual STL`);
+      assert.ok(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength)).sha256, `cigarette case ${snap} ${name}: expected a valid individual STL`);
     }
-    assert.equal(store.enqueue(cigaretteCase, {}).id, job.id);
-    console.log(`PASS cigarette case: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+    assert.equal(store.enqueue(cigaretteCase, parameters).id, job.id);
+    console.log(`PASS cigarette case ${snap}: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 } finally {
   await app.close(); store.close(); await rm(directory, { recursive: true, force: true });

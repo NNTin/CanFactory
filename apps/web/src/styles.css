@@ -331,6 +331,33 @@ main {
   font-family: ui-monospace, monospace;
   letter-spacing: 0.2px;
 }
+.select-field {
+  margin-bottom: 20px;
+}
+.select-field label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.select-field select {
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  color: inherit;
+  background: #fffefa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.select-field p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.select-field .field-error {
+  color: #b23b2e;
+}
 .toggle-field {
   display: flex;
   align-items: center;

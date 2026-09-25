@@ -198,7 +198,8 @@
                           "minimum",
                           "maximum",
                           "step",
-                          "enabledWhen"
+                          "enabledWhen",
+                          "options"
                         ],
                         "properties": {
                           "key": {
@@ -222,6 +223,12 @@
                                 "type": "string",
                                 "enum": [
                                   "boolean"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "enum"
                                 ]
                               }
                             ]
@@ -262,6 +269,9 @@
                               },
                               {
                                 "type": "boolean"
+                              },
+                              {
+                                "type": "string"
                               }
                             ]
                           },
@@ -304,6 +314,37 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "options": {
+                            "anyOf": [
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "value",
+                                    "label",
+                                    "description"
+                                  ],
+                                  "properties": {
+                                    "value": {
+                                      "type": "string"
+                                    },
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "description": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The allowed values of an enum control, in display order; null for other kinds."
                           }
                         },
                         "additionalProperties": false
@@ -318,6 +359,9 @@
                           },
                           {
                             "type": "boolean"
+                          },
+                          {
+                            "type": "string"
                           }
                         ]
                       }
@@ -736,14 +780,30 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "1"
+                          "2"
                         ]
                       },
                       "parameters": {
                         "type": "object",
-                        "properties": {},
+                        "required": [
+                          "snap"
+                        ],
+                        "properties": {
+                          "snap": {
+                            "enum": [
+                              "friction",
+                              "detent",
+                              "clip",
+                              "magnet",
+                              "crush-ribs"
+                            ],
+                            "title": "Snap mechanism",
+                            "description": "How the parts hold together: a plain close fit, a detent, a flexible clip, magnets or crush ribs. It applies to every joint that supports it.",
+                            "default": "friction"
+                          }
+                        },
                         "additionalProperties": false,
-                        "description": "The cigarette case has no adjustable parameters yet; send an empty object."
+                        "description": "Cigarette case parameters. All fields are required."
                       }
                     },
                     "additionalProperties": false

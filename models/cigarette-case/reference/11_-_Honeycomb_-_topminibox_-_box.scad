@@ -8,8 +8,8 @@
 // Geometry: a 1 mm shell over a D-shaped plan (rounded -X end, chamfered +X end) with a 1 mm floor. The +X end is swept
 // away by a curved profile (the outer surface climbs from x = 6 at the floor to x = 17.2 at the rim) and an elliptical
 // notch is cut through the rim at both ends. Units are millimetres; the part is centred on the Z axis with its floor on z = 0.
-// The source STL sat at (239.3, -84.8) on the print plate. Static reconstruction: named dimensions only, no parameter
-// interface yet.
+// The source STL sat at (239.3, -84.8) on the print plate. Static reconstruction: named dimensions only; no snap
+// parameter (its notches already are the detent the lid latches into).
 
 SCALE     = 1;
 ROUNDNESS = 96;

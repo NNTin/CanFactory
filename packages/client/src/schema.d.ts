@@ -212,17 +212,23 @@ export interface operations {
                             key: string;
                             label: string;
                             description: string;
-                            kind: "number" | "boolean";
+                            kind: "number" | "boolean" | "enum";
                             group: "basic" | "advanced";
                             unit: "mm" | null;
-                            default: number | boolean;
+                            default: number | boolean | string;
                             minimum: number | null;
                             maximum: number | null;
                             step: number | null;
                             enabledWhen: string | null;
+                            /** @description The allowed values of an enum control, in display order; null for other kinds. */
+                            options: {
+                                value: string;
+                                label: string;
+                                description: string;
+                            }[] | null;
                         }[];
                         defaults: {
-                            [key: string]: number | boolean;
+                            [key: string]: number | boolean | string;
                         };
                         /** @description JSON Schema for this model’s parameter object. */
                         parameterSchema: {
@@ -439,9 +445,17 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "1";
-                    /** @description The cigarette case has no adjustable parameters yet; send an empty object. */
-                    parameters: Record<string, never>;
+                    modelVersion: "2";
+                    /** @description Cigarette case parameters. All fields are required. */
+                    parameters: {
+                        /**
+                         * Snap mechanism
+                         * @description How the parts hold together: a plain close fit, a detent, a flexible clip, magnets or crush ribs. It applies to every joint that supports it.
+                         * @default friction
+                         * @enum {unknown}
+                         */
+                        snap: "friction" | "detent" | "clip" | "magnet" | "crush-ribs";
+                    };
                 };
             };
         };

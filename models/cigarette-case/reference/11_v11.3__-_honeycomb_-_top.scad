@@ -10,8 +10,8 @@
 // pockets, split into rhombi by the Y-shaped ridges on the lower level). The wall carries the honeycomb relief of the box,
 // stored as plateau regions in the unrolled (s, z) plane and bent back around the outline by relief_wrap() (generated with
 // tools/stl-to-scad `relief`). Units are millimetres; the part is centred on the Z axis with its rim on z = 0. The source
-// STL sat at (217.2, 84.5) on the print plate with its rim at z = 58.9. Static reconstruction: named dimensions
-// only, no parameter interface yet.
+// STL sat at (217.2, 84.5) on the print plate with its rim at z = 58.9. Named dimensions only; the one
+// parameter is SNAP, how the lid snaps onto the box (default "friction" is the reconstruction as verified).
 
 SCALE = 1;
 
@@ -167,6 +167,54 @@ PLATE_HIGH = [
 // Base outline the relief is measured from (counter-clockwise), and the pattern as plateau regions in the unrolled (s, z) plane:
 // s = arc length along the outline from its first point, z = height. Each level is [height, +1 add / -1 cut, grow, loops]; height is
 // the distance of the plateau from the outline along its outward normal; loops are outer boundaries and holes (even-odd).
+// Snap mechanism, chosen by SNAP (a -D override): "friction" (the original geometry, nothing added), "detent", "clip",
+// "magnet" or "crush-ribs". This is the lid's half of what the box file carries on its upper shell: the two straight side walls
+// (y = +/-CAVITY_Y, x in SNAP_X0..SNAP_X1) and the same heights, measured up from the rim (z = 0). Millimetres.
+SNAP = "friction";
+CAVITY_Y = 13.79;     // inner face of the sleeve on its straight sides (the box's upper shell is at 13.63)
+OUTER_Y = 14.8;       // outer face of the plain sleeve wall, below the honeycomb (1 mm wall)
+RELIEF_TOP_Y = 17.2;  // tallest honeycomb ridge (2.39 mm proud of the plain wall)
+SNAP_X0 = -1;
+SNAP_X1 = 9.5;
+SNAP_XC = (SNAP_X0 + SNAP_X1) / 2;
+// detent: a groove for the box's bump, 0.1 deeper and 0.2 wider than it
+DETENT_Z = 9;
+DETENT_H = 0.35;
+// clip: a tongue cut free of the wall by two slits and thinned to the plain wall, with a nib on its free end at the rim
+CLIP_X0 = 0.3;        // tongue width; the nib is narrower and centred
+CLIP_X1 = 8.2;
+CLIP_NIB_X0 = 1.5;
+CLIP_NIB_X1 = 7;
+CLIP_SLIT = 0.6;
+CLIP_LEN = 13;        // the tongue is joined to the wall above this height
+CLIP_NIB = 0.6;       // the nib stands this far into the cavity
+// magnet: a pocket for a round magnet in a flat boss on the outside of the wall
+MAGNET_D = 6.2;
+MAGNET_T = 2.1;
+MAGNET_Z = 8;
+
+module side_bar(x0, x1, profile) {
+  for (m = [0, 1]) mirror([0, m, 0]) translate([x0, 0, 0]) rotate([90, 0, 90]) linear_extrude(height = x1 - x0) polygon(profile);
+}
+module snap_add() {
+  if (SNAP == "clip")
+    side_bar(CLIP_NIB_X0, CLIP_NIB_X1, [[CAVITY_Y + 0.2, 1], [CAVITY_Y, 1], [CAVITY_Y - CLIP_NIB, 1.7], [CAVITY_Y - CLIP_NIB, 2.7], [CAVITY_Y, 3.9], [CAVITY_Y + 0.2, 3.9]]);
+  if (SNAP == "magnet")
+    side_bar(SNAP_XC - MAGNET_D / 2 - 0.4, SNAP_XC + MAGNET_D / 2 + 0.4, [[OUTER_Y - 0.2, MAGNET_Z - MAGNET_D / 2 - 0.4], [RELIEF_TOP_Y, MAGNET_Z - MAGNET_D / 2 - 0.4],
+      [RELIEF_TOP_Y, MAGNET_Z + MAGNET_D / 2 + 0.4], [OUTER_Y - 0.2, MAGNET_Z + MAGNET_D / 2 + 0.4]]);
+}
+module snap_cut() {
+  if (SNAP == "detent")
+    side_bar(SNAP_X0, SNAP_X1, [[CAVITY_Y - 0.3, DETENT_Z - 1.5], [CAVITY_Y, DETENT_Z - 1.5], [CAVITY_Y + DETENT_H + 0.1, DETENT_Z - 0.6],
+      [CAVITY_Y + DETENT_H + 0.1, DETENT_Z + 0.6], [CAVITY_Y, DETENT_Z + 1.5], [CAVITY_Y - 0.3, DETENT_Z + 1.5]]);
+  if (SNAP == "clip") {
+    for (x = [CLIP_X0 - CLIP_SLIT, CLIP_X1]) side_bar(x, x + CLIP_SLIT, [[CAVITY_Y - 0.3, -1], [RELIEF_TOP_Y + 1, -1], [RELIEF_TOP_Y + 1, CLIP_LEN], [CAVITY_Y - 0.3, CLIP_LEN]]);
+    side_bar(CLIP_X0, CLIP_X1, [[OUTER_Y - 0.05, -1], [RELIEF_TOP_Y + 1, -1], [RELIEF_TOP_Y + 1, CLIP_LEN], [OUTER_Y - 0.05, CLIP_LEN]]);
+  }
+  if (SNAP == "magnet")
+    for (m = [0, 1]) mirror([0, m, 0]) translate([SNAP_XC, CAVITY_Y - 0.2, MAGNET_Z]) rotate([-90, 0, 0]) cylinder(d = MAGNET_D, h = MAGNET_T + 0.2, $fn = 64);
+}
+
 RELIEF_BASE = [[-24.801, -7.312], [-24.164, -9.209], [-23.553, -10.281], [-23.137, -10.904], [-22.801, -11.28], [-22.08, -11.978],
   [-20.818, -12.769], [-19.614, -13.105], [-10.948, -14.251], [-7.974, -14.579], [-5.988, -14.731],
   [-0.988, -14.805], [12.244, -14.796], [12.745, -14.771], [13.485, -14.652], [13.966, -14.513], [14.179, -14.392],
@@ -672,12 +720,18 @@ module plate(loops) polygon(relief_points(loops), relief_paths(loops));
 module lid() {
   difference() {
     union() {
-      linear_extrude(height = BASE_TOP) polygon(RELIEF_BASE);
-      relief_wrap(1);
-      translate([0, 0, BASE_TOP - 0.01]) linear_extrude(height = PLATE_MID - BASE_TOP + 0.01) plate(PLATE_LOW);
-      translate([0, 0, PLATE_MID - 0.01]) linear_extrude(height = TOP_Z - PLATE_MID + 0.01) plate(PLATE_HIGH);
+      difference() {
+        union() {
+          linear_extrude(height = BASE_TOP) polygon(RELIEF_BASE);
+          relief_wrap(1);
+          translate([0, 0, BASE_TOP - 0.01]) linear_extrude(height = PLATE_MID - BASE_TOP + 0.01) plate(PLATE_LOW);
+          translate([0, 0, PLATE_MID - 0.01]) linear_extrude(height = TOP_Z - PLATE_MID + 0.01) plate(PLATE_HIGH);
+        }
+        translate([0, 0, -1]) linear_extrude(height = CAVITY_TOP + 1) polygon(CAVITY);
+      }
+      snap_add();
     }
-    translate([0, 0, -1]) linear_extrude(height = CAVITY_TOP + 1) polygon(CAVITY);
+    snap_cut();
   }
 }
 

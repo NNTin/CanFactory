@@ -6,7 +6,9 @@
    with units interpreted as millimetres.
 2. Define a TypeBox parameter object with `additionalProperties: false`. Document
    each property’s title, meaning, units, default, and numeric bounds/steps. The
-   current generic editor supports numeric fields and boolean switches.
+   current generic editor supports numeric fields, boolean switches and enums (a `Type.Enum` string parameter with an
+   `enumControl` listing each value's label and description; the value reaches SCAD as a quoted string, see
+   [cigarette-case-snap.md](cigarette-case-snap.md)).
 3. Add a `ModelDefinition` with stable ID, explicit version, display metadata,
    reference/source paths, control grouping, defaults, SCAD variable mapping,
    dependent validation, and derived metadata. Variable names must use uppercase

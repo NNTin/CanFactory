@@ -29,24 +29,26 @@ export const ControlSchema = Type.Object({
   key: Type.String(),
   label: Type.String(),
   description: Type.String(),
-  kind: Type.Union([Type.Literal('number'), Type.Literal('boolean')]),
+  kind: Type.Union([Type.Literal('number'), Type.Literal('boolean'), Type.Literal('enum')]),
   group: Type.Union([Type.Literal('basic'), Type.Literal('advanced')]),
   unit: Type.Union([Type.Literal('mm'), Type.Null()]),
-  default: Type.Union([Type.Number(), Type.Boolean()]),
+  default: Type.Union([Type.Number(), Type.Boolean(), Type.String()]),
   minimum: Type.Union([Type.Number(), Type.Null()]),
   maximum: Type.Union([Type.Number(), Type.Null()]),
   step: Type.Union([Type.Number(), Type.Null()]),
   enabledWhen: Type.Union([Type.String(), Type.Null()]),
+  options: Type.Union([Type.Array(Type.Object({ value: Type.String(), label: Type.String(), description: Type.String() }, { additionalProperties: false })), Type.Null()],
+    { description: 'The allowed values of an enum control, in display order; null for other kinds.' }),
 }, { additionalProperties: false });
 export type Control = Static<typeof ControlSchema>;
-export type ParameterValues = Record<string, number | boolean>;
+export type ParameterValues = Record<string, number | boolean | string>;
 
 function control<T extends { properties: Record<string, TSchema> }>(
   schema: T, key: keyof T['properties'] & string, group: Control['group'], enabledWhen: string | null = null, unit: Control['unit'] = 'mm',
 ): Control {
   const property: TSchema & { type?: unknown } = schema.properties[key] ?? (() => { throw new Error(`Unknown parameter ${key}.`); })();
   return {
-    key, group, enabledWhen,
+    key, group, enabledWhen, options: null,
     label: 'title' in property && typeof property.title === 'string' ? property.title : key,
     description: 'description' in property && typeof property.description === 'string' ? property.description : '',
     kind: property.type === 'boolean' ? 'boolean' : 'number',
@@ -55,6 +57,20 @@ function control<T extends { properties: Record<string, TSchema> }>(
     minimum: 'minimum' in property && typeof property.minimum === 'number' ? property.minimum : null,
     maximum: 'maximum' in property && typeof property.maximum === 'number' ? property.maximum : null,
     step: property.type === 'integer' ? 1 : 'multipleOf' in property && typeof property.multipleOf === 'number' ? property.multipleOf : null,
+  };
+}
+
+/** A control for a string-literal union property: a pick-one list with a short explanation of every value. */
+function enumControl<T extends { properties: Record<string, TSchema> }>(
+  schema: T, key: keyof T['properties'] & string, group: Control['group'], options: Control['options'] & object,
+): Control {
+  const property: TSchema & { title?: string; description?: string; default?: unknown } = schema.properties[key] ?? (() => { throw new Error(`Unknown parameter ${key}.`); })();
+  const first = options[0];
+  if (!first) throw new Error(`Enum ${key} needs at least one option.`);
+  return {
+    key, group, enabledWhen: null, options, kind: 'enum', unit: null, minimum: null, maximum: null, step: null,
+    label: property.title ?? key, description: property.description ?? '',
+    default: typeof property.default === 'string' ? property.default : first.value,
   };
 }
 
@@ -252,35 +268,55 @@ export const mossPlanter = {
 } satisfies ModelDefinition;
 
 /**
- * Cigarette case (Onz by sez16sez): five independent parts, reconstructed from STL as static SCAD for now. A large box and lid
- * with a honeycomb wall and a small set (holder, shallow box and lid) without one. There are no parameters yet, so the parameter
- * object is empty and every part mapping is empty; a later iteration replaces the static files with parametric generators.
+ * Cigarette case (Onz by sez16sez): five independent parts, reconstructed from STL as static SCAD, with one parameter: how the
+ * parts snap together. The large box and lid have a honeycomb wall; the small set (holder, shallow box and lid) does not. The
+ * `snap` mode drives every joint through the parts' `SNAP` variable: the lid over the box's upper shell (all modes add a
+ * matching pair of features to the box and the lid) and the mini lid in the mini box (only `crush-ribs` adds ribs to the mini
+ * lid; the original detent pads and notches stay in every mode). `friction` is the original geometry, unchanged.
  */
-export const CigaretteCaseParametersSchema = Type.Object({}, { additionalProperties: false, description: 'The cigarette case has no adjustable parameters yet; send an empty object.' });
+const SNAP_VALUES = ['friction', 'detent', 'clip', 'magnet', 'crush-ribs'] as const;
+export type SnapMode = typeof SNAP_VALUES[number];
+const SNAP_TEXT: Record<SnapMode, { label: string; description: string }> = {
+  friction: { label: 'Friction fit', description: 'The original design: smooth walls held by a close fit. Nothing is added.' },
+  detent: { label: 'Detent', description: 'A small bump on the box that clicks into a groove in the lid.' },
+  clip: { label: 'Clip', description: 'A flexible tongue on the lid whose nib snaps into a pocket in the box.' },
+  magnet: { label: 'Magnets', description: 'Pockets for 6 x 2 mm round magnets in the box and lid (magnets not included).' },
+  'crush-ribs': { label: 'Crush ribs', description: 'Thin ribs that are squeezed slightly by the mating wall for a snug press fit.' },
+};
+
+export const CigaretteCaseParametersSchema = Type.Object({
+  snap: Type.Enum(SNAP_VALUES, {
+    title: 'Snap mechanism', description: 'How the parts hold together: a plain close fit, a detent, a flexible clip, magnets or crush ribs. It applies to every joint that supports it.', default: 'friction',
+  }),
+}, { additionalProperties: false, description: 'Cigarette case parameters. All fields are required.' });
 export type CigaretteCaseParameters = Static<typeof CigaretteCaseParametersSchema>;
 
-const CIGARETTE_CASE_DIR = 'models/cigarette-case/reference/';
+const cigaretteCaseControls = [enumControl(CigaretteCaseParametersSchema, 'snap', 'basic', SNAP_VALUES.map(value => ({ value, ...SNAP_TEXT[value] })))];
 
-/** The five parts. `id` is the STL basename inside the ZIP. The SCAD files are the verified static reconstructions. */
+const CIGARETTE_CASE_DIR = 'models/cigarette-case/reference/';
+const SNAP_MAPPING = { snap: 'SNAP' };
+
+/** The five parts. `id` is the STL basename inside the ZIP. The SCAD files are the verified reconstructions. The holder and the
+ * shallow box have no snap features of their own (the holder's clip tab and the box's notches are part of the original). */
 const cigaretteCaseParts: ModelPart[] = [
-  { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: {} },
-  { id: 'case-lid', title: 'Case lid (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_top.scad`, scadMapping: {} },
+  { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: SNAP_MAPPING },
+  { id: 'case-lid', title: 'Case lid (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_top.scad`, scadMapping: SNAP_MAPPING },
   { id: 'mini-holder', title: 'Mini holder', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_minibox.scad`, scadMapping: {} },
   { id: 'mini-box', title: 'Mini box', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_box.scad`, scadMapping: {} },
-  { id: 'mini-lid', title: 'Mini box lid', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_top.scad`, scadMapping: {} },
+  { id: 'mini-lid', title: 'Mini box lid', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_top.scad`, scadMapping: SNAP_MAPPING },
 ];
 
 export const cigaretteCase = {
-  id: 'cigarette-case' as const, version: '1' as const, title: 'Cigarette case (Onz)',
-  description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Static for now: download all five parts as a ZIP of STL files.',
+  id: 'cigarette-case' as const, version: '2' as const, title: 'Cigarette case (Onz)',
+  description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Choose how the parts snap together, then download all five parts as a ZIP of STL files.',
   attribution: 'sez16sez (Thingiverse)',
   printNotes: 'Print each part separately; the lids print rim-side down.',
   // Kept short deliberately: this string and `attribution` are stamped into each STL's 80-byte header (see stampAttribution).
   license: 'CC BY-NC 4.0 (non-commercial)', licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
   parts: cigaretteCaseParts,
   parameterSchema: CigaretteCaseParametersSchema,
-  controls: [] as Control[],
-  defaults: {} as ParameterValues,
+  controls: cigaretteCaseControls,
+  defaults: Object.fromEntries(cigaretteCaseControls.map(c => [c.key, c.default])),
   scadMapping: {},
   validate(parameters: unknown): ParameterIssue[] {
     return Value.Check(CigaretteCaseParametersSchema, parameters) ? [] : [{ field: '', message: 'Parameters do not match the model schema.' }];

@@ -15,7 +15,7 @@ function restoreSettings(model: ModelDetail): ParameterValues {
     if (stored && definition) {
       const values: unknown = JSON.parse(stored);
       if (values !== null && typeof values === 'object' && validateParameters(definition, values).length === 0) {
-        const entries = Object.entries(values).filter((entry): entry is [string, number | boolean] => typeof entry[1] === 'number' || typeof entry[1] === 'boolean');
+        const entries = Object.entries(values).filter((entry): entry is [string, number | boolean | string] => ['number', 'boolean', 'string'].includes(typeof entry[1]));
         return Object.fromEntries(entries);
       }
     }
@@ -132,8 +132,19 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'moss-planter': MossPlanterIllustration,
 };
 
-function Field({ control, value, disabled, issue, change }: { control: Control; value: number | boolean | undefined; disabled: boolean; issue: string | undefined; change: (value: number | boolean) => void }) {
+function Field({ control, value, disabled, issue, change }: { control: Control; value: number | boolean | string | undefined; disabled: boolean; issue: string | undefined; change: (value: number | boolean | string) => void }) {
   const id = `parameter-${control.key}`;
+  if (control.kind === 'enum') {
+    const selected = control.options?.find(option => option.value === value);
+    return <div className={`select-field ${disabled ? 'field-disabled' : ''}`}>
+      <label htmlFor={id}>{control.label}</label>
+      <select id={id} value={typeof value === 'string' ? value : ''} disabled={disabled} aria-invalid={Boolean(issue)} aria-describedby={`${id}-description`} onChange={event => change(event.currentTarget.value)}>
+        {control.options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+      <p id={`${id}-description`}>{selected?.description ?? control.description}</p>
+      {issue && <p className="field-error">{issue}</p>}
+    </div>;
+  }
   if (control.kind === 'boolean') return <div className="toggle-field">
     <div><label htmlFor={id}>{control.label}</label><p>{control.description}</p></div>
     <button id={id} type="button" className="switch" role="switch" aria-checked={value === true} onClick={() => change(value !== true)} disabled={disabled}><span /></button>
@@ -177,7 +188,7 @@ function Editor({ model }: { model: ModelDetail }) {
   }, [parameters, model, valid]);
   useEffect(() => { setViewerError(null); setDownloadError(null); }, [url]);
 
-  const change = (key: string, value: number | boolean) => {
+  const change = (key: string, value: number | boolean | string) => {
     setParameters(current => {
       const next = { ...current, [key]: value };
       if (value === false && definition) {
@@ -222,9 +233,9 @@ function Editor({ model }: { model: ModelDetail }) {
           <p className="panel-intro">A few adjustments. A perfect fit.</p>
           <div className="basic-controls">{model.controls.filter(control => control.group === 'basic').map(field)}</div>
           {derived?.slotCount !== undefined && derived.slotCount !== null && <div className="slot-note"><Sparkles size={14} /><span>{derived.slotCount === 0 ? 'One opening. A smooth funnel.' : `${derived.slotCount.toLocaleString()} slots, automatically spaced.`}</span></div>}
-          <button className="advanced-button" type="button" aria-expanded={advanced} aria-controls="advanced-controls" onClick={() => setAdvanced(value => !value)}>
+          {model.controls.some(control => control.group === 'advanced') && <button className="advanced-button" type="button" aria-expanded={advanced} aria-controls="advanced-controls" onClick={() => setAdvanced(value => !value)}>
             Advanced settings <ChevronDown size={16} className={advanced ? 'rotated' : ''} />
-          </button>
+          </button>}
           {advanced && <div id="advanced-controls" className="advanced-controls">{model.controls.filter(control => control.group === 'advanced').map(field)}</div>}
           <p className="local-note">Your settings stay in this browser.</p>
         </> : <>

@@ -98,22 +98,28 @@ describe('moss planter contract', () => {
 });
 
 describe('cigarette case contract', () => {
-  it('is a parameterless five-part ZIP assembly whose sources are the verified static SCADs', () => {
+  it('is a five-part ZIP assembly with one snap-mechanism enum that reaches only the parts that use it', () => {
     expect(findModel('cigarette-case')).toBe(cigaretteCase);
     expect(isAssembly(cigaretteCase)).toBe(true);
     expect(artifactFormat(cigaretteCase)).toBe('zip');
     expect(cigaretteCase.parts.map(part => part.id)).toEqual(['case-box', 'case-lid', 'mini-holder', 'mini-box', 'mini-lid']);
     expect(new Set(modelSourcePaths(cigaretteCase)).size).toBe(5);
-    expect(cigaretteCase.controls).toEqual([]);
-    expect(cigaretteCase.defaults).toEqual({});
-    for (const part of cigaretteCase.parts) expect(part.scadMapping, part.id).toEqual({});
+    expect(cigaretteCase.controls).toHaveLength(1);
+    expect(cigaretteCase.controls[0]).toMatchObject({ key: 'snap', kind: 'enum', default: 'friction', unit: null, enabledWhen: null });
+    expect(cigaretteCase.controls[0]?.options?.map(option => option.value)).toEqual(['friction', 'detent', 'clip', 'magnet', 'crush-ribs']);
+    expect(cigaretteCase.defaults).toEqual({ snap: 'friction' });
+    const mapped = Object.fromEntries(cigaretteCase.parts.map(part => [part.id, part.scadMapping]));
+    expect(mapped).toEqual({ 'case-box': { snap: 'SNAP' }, 'case-lid': { snap: 'SNAP' }, 'mini-holder': {}, 'mini-box': {}, 'mini-lid': { snap: 'SNAP' } });
   });
 
-  it('accepts only the empty parameter object and its own version', () => {
-    expect(validateParameters(cigaretteCase, {})).toEqual([]);
-    expect(validateParameters(cigaretteCase, { anything: 1 })).not.toEqual([]);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '1', parameters: {} })).toBe(true);
+  it('accepts exactly one snap mode from the list, and only its own version', () => {
+    for (const snap of ['friction', 'detent', 'clip', 'magnet', 'crush-ribs']) expect(validateParameters(cigaretteCase, { snap }), snap).toEqual([]);
+    expect(validateParameters(cigaretteCase, {})).not.toEqual([]);
+    expect(validateParameters(cigaretteCase, { snap: 'glue' })).not.toEqual([]);
+    expect(validateParameters(cigaretteCase, { snap: 1 })).not.toEqual([]);
+    expect(validateParameters(cigaretteCase, { snap: 'clip', anything: 1 })).not.toEqual([]);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '2', parameters: { snap: 'detent' } })).toBe(true);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '1', parameters: { snap: 'detent' } })).toBe(false);
     expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '2', parameters: {} })).toBe(false);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '1', parameters: { extra: 1 } })).toBe(false);
   });
 });

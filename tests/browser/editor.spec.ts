@@ -145,16 +145,21 @@ test('customizes the moss planter tower diameter and downloads a ZIP of all five
   expect(errors).toEqual([]);
 });
 
-test('shows the static cigarette case and downloads a ZIP of all five parts', async ({ page }) => {
+test('shows the cigarette case, offers the snap mechanism and downloads a ZIP of all five parts', async ({ page }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await page.getByRole('button', { name: 'CanFactory model library' }).click();
-  await page.getByRole('button', { name: /PREVIEW · ZIP Cigarette case/ }).click();
+  await page.getByRole('button', { name: /CUSTOMIZABLE · ZIP Cigarette case/ }).click();
   await expect(page.getByRole('heading', { name: 'Cigarette case (Onz)', exact: true })).toBeVisible();
-  await expect(page.getByText('ASSEMBLY PREVIEW')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toHaveCount(0);
+  await expect(page.getByText('PARAMETRIC MODEL')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Advanced settings/ })).toHaveCount(0);
+  const snap = page.getByLabel('Snap mechanism');
+  await expect(snap).toHaveValue('friction');
+  await snap.selectOption('clip');
+  await expect(page.getByText('A flexible tongue on the lid')).toBeVisible();
   const downloadButton = page.getByRole('button', { name: 'Download ZIP', exact: true });
   await expect(downloadButton).toBeEnabled({ timeout: 270_000 });
   const downloadEvent = page.waitForEvent('download');

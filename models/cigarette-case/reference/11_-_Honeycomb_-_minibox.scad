@@ -8,7 +8,7 @@
 // Geometry: a free-form oval tube (10.9 x 21.8 mm) closed by a flat floor and an ellipsoidal-profile dome, with a
 // elliptical window cut through the +X wall. Units are millimetres; the part is
 // centred on the Z axis with its floor on z = 0. The source STL sat at (260.6, 77.4) on the print plate, floor at 0.86.
-// Static reconstruction: named dimensions only, no parameter interface yet.
+// Static reconstruction: named dimensions only; no snap parameter (the box's clip tab already holds it).
 
 SCALE     = 1;
 ROUNDNESS = 96;
