@@ -771,44 +771,62 @@ main {
   }
 }
 .cc-part {
-  transition: transform 0.35s ease-out;
+  transition:
+    transform 0.4s ease-out,
+    opacity 0.4s ease-out;
 }
-.cc-guide,
-.cc-shadow {
-  transition: opacity 0.35s ease-out;
+.cc-box-carry,
+.cc-lift {
+  transition-delay: 0.56s;
+}
+.cc-mini-slide,
+.cc-holder-slide {
+  transition-delay: 0.28s;
 }
 .cc-guide {
   opacity: 0;
 }
-.model-card:hover .cc-lid,
-.model-card:focus-visible .cc-lid {
-  transform: translateY(-40px);
+.model-card:hover .cc-box-carry,
+.model-card:focus-visible .cc-box-carry {
+  transform: translateY(10px);
+  transition-delay: 0s;
 }
-.model-card:hover .cc-box,
-.model-card:focus-visible .cc-box {
-  transform: translateY(6px);
+.model-card:hover .cc-lift,
+.model-card:focus-visible .cc-lift {
+  transform: translateY(-50px);
+  transition-delay: 0s;
 }
-.model-card:hover .cc-holder,
-.model-card:focus-visible .cc-holder {
-  transform: translate(-62px, -8px);
+.model-card:hover .cc-holder-slide,
+.model-card:focus-visible .cc-holder-slide {
+  transform: translateY(78px);
 }
-.model-card:hover .cc-mini-box,
-.model-card:focus-visible .cc-mini-box {
-  transform: translate(58px, 8px);
+.model-card:hover .cc-mini-slide,
+.model-card:focus-visible .cc-mini-slide {
+  transform: translateY(30.5px);
 }
-.model-card:hover .cc-mini-lid,
-.model-card:focus-visible .cc-mini-lid {
-  transform: translate(58px, -22px);
+.model-card:hover .cc-split-box,
+.model-card:focus-visible .cc-split-box {
+  transform: translateX(-30px);
+  transition-delay: 0.56s;
+}
+.model-card:hover .cc-split-lid,
+.model-card:focus-visible .cc-split-lid {
+  transform: translateX(19px);
+  transition-delay: 0.56s;
+}
+.model-card:hover .cc-shadow,
+.model-card:focus-visible .cc-shadow {
+  transform: translateY(34px);
+  transition-delay: 0.28s;
 }
 .model-card:hover .cc-guide,
 .model-card:focus-visible .cc-guide {
   opacity: 0.6;
+  transition-delay: 0.56s;
 }
 @media (prefers-reduced-motion: reduce) {
-  .cc-part,
-  .cc-guide,
-  .cc-shadow {
-    transition: none;
+  .cc-part {
+    transition: none !important;
   }
 }
 .card-copy {

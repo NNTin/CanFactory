@@ -77,8 +77,8 @@ function MossPlanterIllustration() {
 }
 
 /**
- * The five-part cigarette case, drawn front-on: a large box and sliding lid (terracotta) with the small holder, shallow box and
- * its lid (green) tucked inside. Closed, only the large case shows; on card hover the parts fan out (see `.cc-*` in styles.css).
+ * The five-part cigarette case, drawn front-on: a large box and sliding lid (terracotta) with the small holder (in the box) and the
+ * closed shallow box (in the lid) tucked inside. On card hover they come out in stages, then the shallow box and its lid part (`.cc-*` in styles.css).
  */
 function CigaretteCaseIllustration() {
   return <svg viewBox="0 0 240 190" aria-hidden="true" className="cigarette-case-illustration">
@@ -87,37 +87,41 @@ function CigaretteCaseIllustration() {
         <path d="M0 3.5 6 0l6 3.5v7L6 14l-6-3.5z" fill="none" stroke="#f4eee4" strokeWidth="1.2" opacity=".55" />
       </pattern>
     </defs>
-    <ellipse className="cc-shadow" cx="120" cy="162" rx="76" ry="10" fill="#c8cec1" opacity=".35" />
-    <g className="cc-guide" stroke="#7b8e6b" strokeWidth="1.5" strokeDasharray="3 4" fill="none">
-      <path d="M120 60V80" /><path d="M58 70H92" /><path d="M148 94H166" /><path d="M148 64H170" />
-    </g>
-    <g className="cc-part cc-holder">
-      <path d="M99 93V70q0-9 10-9t10 9v23z" fill="#8fa27c" />
-      <path d="M109 61q10 0 10 9v23h-6V70q0-6-4-9z" fill="#5f7350" opacity=".45" />
-      <ellipse cx="109" cy="78" rx="3" ry="6" fill="#3f4f34" opacity=".45" />
-    </g>
-    <g className="cc-part cc-mini-box">
-      <rect x="110" y="79" width="33" height="14" rx="3" fill="#7b8e6b" />
-      <rect x="110" y="79" width="33" height="4" rx="2" fill="#93a682" />
-      <path d="M143 79v14h-7q2-7 0-14z" fill="#3f4f34" opacity=".3" />
-    </g>
-    <g className="cc-part cc-mini-lid">
-      <rect x="112" y="79" width="30" height="13" rx="3" fill="#93a682" />
-      <rect x="116" y="83" width="4" height="5" rx="2" fill="#5f7350" opacity=".5" />
-      <rect x="134" y="83" width="4" height="5" rx="2" fill="#5f7350" opacity=".5" />
-    </g>
-    <g className="cc-part cc-box">
-      <rect x="93.5" y="78" width="53" height="73" rx="6" fill="#c46543" />
-      <rect x="93.5" y="78" width="53" height="17" rx="3" fill="#a9563a" />
-      <rect x="93.5" y="95" width="53" height="56" rx="6" fill="#d98460" />
-      <rect x="93.5" y="95" width="53" height="56" rx="6" fill="url(#cc-honeycomb)" />
-      <path d="M138 95h8.5v50q0 6-6 6h-2.5z" fill="#753e2d" opacity=".25" />
-    </g>
-    <g className="cc-part cc-lid">
-      <rect x="93.5" y="55" width="53" height="40" rx="3" fill="#d98460" />
-      <rect x="93.5" y="55" width="53" height="40" rx="3" fill="url(#cc-honeycomb)" />
-      <rect x="93.5" y="55" width="53" height="5" rx="2.5" fill="#e8ab87" />
-      <path d="M138 60h8.5v29q0 6-6 6h-2.5z" fill="#753e2d" opacity=".25" />
+    <g transform="translate(120 95) scale(.8) translate(-120 -95)">
+      <ellipse className="cc-part cc-shadow" cx="120" cy="162" rx="76" ry="10" fill="#c8cec1" opacity=".35" />
+      <path className="cc-guide" d="M120 45V88" stroke="#7b8e6b" strokeWidth="1.5" strokeDasharray="3 4" fill="none" />
+      <g className="cc-part cc-box-carry">
+        <g className="cc-part cc-holder-slide">
+          <g transform="translate(0 18)">
+            <path d="M99 93V70q0-9 10-9t10 9v23z" fill="#8fa27c" />
+            <path d="M109 61q10 0 10 9v23h-6V70q0-6-4-9z" fill="#5f7350" opacity=".45" />
+            <ellipse cx="109" cy="78" rx="3" ry="6" fill="#3f4f34" opacity=".45" />
+          </g>
+        </g>
+        <rect x="93.5" y="78" width="53" height="73" rx="6" fill="#c46543" />
+        <rect x="93.5" y="78" width="53" height="17" rx="3" fill="#a9563a" />
+        <rect x="93.5" y="95" width="53" height="56" rx="6" fill="#d98460" />
+        <rect x="93.5" y="95" width="53" height="56" rx="6" fill="url(#cc-honeycomb)" />
+        <path d="M138 95h8.5v50q0 6-6 6h-2.5z" fill="#753e2d" opacity=".25" />
+      </g>
+      <g className="cc-part cc-lift">
+        <g className="cc-part cc-mini-slide">
+          <g className="cc-part cc-split-box">
+            <rect x="110" y="79" width="33" height="14" rx="3" fill="#7b8e6b" />
+            <rect x="110" y="79" width="33" height="4" rx="2" fill="#93a682" />
+            <path d="M143 79v14h-7q2-7 0-14z" fill="#3f4f34" opacity=".3" />
+          </g>
+          <g className="cc-part cc-split-lid">
+            <rect x="112" y="79" width="30" height="13" rx="3" fill="#93a682" />
+            <rect x="116" y="83" width="4" height="5" rx="2" fill="#5f7350" opacity=".5" />
+            <rect x="134" y="83" width="4" height="5" rx="2" fill="#5f7350" opacity=".5" />
+          </g>
+        </g>
+        <rect x="93.5" y="55" width="53" height="40" rx="3" fill="#d98460" />
+        <rect x="93.5" y="55" width="53" height="40" rx="3" fill="url(#cc-honeycomb)" />
+        <rect x="93.5" y="55" width="53" height="5" rx="2.5" fill="#e8ab87" />
+        <path d="M138 60h8.5v29q0 6-6 6h-2.5z" fill="#753e2d" opacity=".25" />
+      </g>
     </g>
   </svg>;
 }
