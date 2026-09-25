@@ -34,14 +34,15 @@ describe('model and render API', () => {
     expect((await app.inject('/api/v1/models/missing')).statusCode).toBe(404);
   });
 
-  it('serves the moss planter as a static, multi-part, ZIP-formatted assembly model', async () => {
+  it('serves the moss planter as a customizable, five-part, ZIP-formatted assembly model', async () => {
     const detail = await app.inject('/api/v1/models/moss-planter');
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false });
     expect(model.artifactFormat).toBe('zip');
-    expect(model.customizable).toBe(false);
-    expect(model.controls).toEqual([]);
-    expect(model.parts).toHaveLength(10);
+    expect(model.customizable).toBe(true);
+    expect(model.controls.map(control => control.key)).toEqual(['towerDiameter', 'spikeLength', 'shortRauteRows', 'tallRauteRows', 'rauteColumns']);
+    expect(model.defaults).toEqual(mossPlanter.defaults);
+    expect(model.parts).toHaveLength(5);
     expect(model.referenceUrl).toBeUndefined();
     expect((await app.inject('/api/v1/models/moss-planter/reference.stl')).statusCode).toBe(404);
   });
@@ -68,9 +69,9 @@ describe('model and render API', () => {
     expect((await app.inject(`/api/v1/renders/${job.id}/stl`)).statusCode).toBe(410);
   });
 
-  const mossPayload = { modelId: mossPlanter.id, modelVersion: mossPlanter.version, parameters: {} };
+  const mossPayload = { modelId: mossPlanter.id, modelVersion: mossPlanter.version, parameters: mossPlanter.defaults };
 
-  it('accepts a moss planter render request with empty parameters, deduplicates it, and points at the ZIP route', async () => {
+  it('accepts a moss planter render request, deduplicates it, and points at the ZIP route', async () => {
     const response = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: mossPayload });
     expect(response.statusCode).toBe(202);
     const job = Value.Parse(RenderSchema, response.json<unknown>());
@@ -83,9 +84,19 @@ describe('model and render API', () => {
     expect((await app.inject(`/api/v1/renders/${job.id}/zip`)).statusCode).toBe(410);
   });
 
-  it('rejects a moss planter request with any parameters, since it has none', async () => {
-    const response = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { ...mossPayload, parameters: { anything: 1 } } });
-    expect(response.statusCode).toBe(422);
-    expect(Value.Check(ErrorSchema, response.json<unknown>())).toBe(true);
+  it('rejects moss planter requests with unknown, out-of-range or inconsistent parameters, and stale versions', async () => {
+    for (const parameters of [{ ...mossPlanter.defaults, anything: 1 }, { ...mossPlanter.defaults, towerDiameter: 500 }, { ...mossPlanter.defaults, spikeLength: 10 }, {}]) {
+      const response = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { ...mossPayload, parameters } });
+      expect(response.statusCode, JSON.stringify(parameters)).toBe(422);
+      expect(Value.Check(ErrorSchema, response.json<unknown>())).toBe(true);
+    }
+    expect((await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { ...mossPayload, modelVersion: '1' } })).statusCode).toBeGreaterThanOrEqual(400);
+  });
+
+  it('renders distinct moss planter settings as distinct cached jobs', async () => {
+    const one = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: mossPayload });
+    const other = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { ...mossPayload, parameters: { ...mossPlanter.defaults, towerDiameter: 77 } } });
+    expect(other.statusCode).toBe(202);
+    expect(Value.Parse(RenderSchema, other.json<unknown>()).id).not.toBe(Value.Parse(RenderSchema, one.json<unknown>()).id);
   });
 });

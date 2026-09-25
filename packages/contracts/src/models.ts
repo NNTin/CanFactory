@@ -41,18 +41,20 @@ export const ControlSchema = Type.Object({
 export type Control = Static<typeof ControlSchema>;
 export type ParameterValues = Record<string, number | boolean>;
 
-function control(key: keyof FruitFlyTrapParameters, group: Control['group'], enabledWhen: string | null = null): Control {
-  const property = FruitFlyTrapParametersSchema.properties[key];
+function control<T extends { properties: Record<string, TSchema> }>(
+  schema: T, key: keyof T['properties'] & string, group: Control['group'], enabledWhen: string | null = null, unit: Control['unit'] = 'mm',
+): Control {
+  const property: TSchema & { type?: unknown } = schema.properties[key] ?? (() => { throw new Error(`Unknown parameter ${key}.`); })();
   return {
     key, group, enabledWhen,
     label: 'title' in property && typeof property.title === 'string' ? property.title : key,
     description: 'description' in property && typeof property.description === 'string' ? property.description : '',
     kind: property.type === 'boolean' ? 'boolean' : 'number',
-    unit: property.type === 'boolean' ? null : 'mm',
+    unit: property.type === 'boolean' ? null : unit,
     default: 'default' in property && (typeof property.default === 'boolean' || typeof property.default === 'number') ? property.default : 0,
     minimum: 'minimum' in property && typeof property.minimum === 'number' ? property.minimum : null,
     maximum: 'maximum' in property && typeof property.maximum === 'number' ? property.maximum : null,
-    step: 'multipleOf' in property && typeof property.multipleOf === 'number' ? property.multipleOf : null,
+    step: property.type === 'integer' ? 1 : 'multipleOf' in property && typeof property.multipleOf === 'number' ? property.multipleOf : null,
   };
 }
 
@@ -80,22 +82,29 @@ function validateTrap(p: FruitFlyTrapParameters): ParameterIssue[] {
 }
 
 const controls = [
-  control('trapDiameter', 'basic'), control('trapHeight', 'basic'), control('brimWidth', 'basic'),
-  control('nozzleDiameter', 'basic'), control('slotsEnabled', 'basic'),
-  control('wallThickness', 'advanced'), control('handles', 'advanced'),
-  control('gapHeight', 'advanced', 'slotsEnabled'), control('gapWidth', 'advanced', 'slotsEnabled'),
-  control('gapDistanceHorizontal', 'advanced', 'slotsEnabled'), control('gapDistanceVertical', 'advanced', 'slotsEnabled'),
+  control(FruitFlyTrapParametersSchema, 'trapDiameter', 'basic'), control(FruitFlyTrapParametersSchema, 'trapHeight', 'basic'),
+  control(FruitFlyTrapParametersSchema, 'brimWidth', 'basic'), control(FruitFlyTrapParametersSchema, 'nozzleDiameter', 'basic'),
+  control(FruitFlyTrapParametersSchema, 'slotsEnabled', 'basic'),
+  control(FruitFlyTrapParametersSchema, 'wallThickness', 'advanced'), control(FruitFlyTrapParametersSchema, 'handles', 'advanced'),
+  control(FruitFlyTrapParametersSchema, 'gapHeight', 'advanced', 'slotsEnabled'), control(FruitFlyTrapParametersSchema, 'gapWidth', 'advanced', 'slotsEnabled'),
+  control(FruitFlyTrapParametersSchema, 'gapDistanceHorizontal', 'advanced', 'slotsEnabled'),
+  control(FruitFlyTrapParametersSchema, 'gapDistanceVertical', 'advanced', 'slotsEnabled'),
 ];
 
 /** One independently rendered, self-contained SCAD file that is part of a multi-part assembly model. */
-export interface ModelPart { id: string; title: string; sourcePath: string }
+export interface ModelPart {
+  id: string; title: string; sourcePath: string;
+  /** Parameter key -> SCAD variable, for the parameters this part consumes (a subset of the model's; may be shared). */
+  scadMapping?: Record<string, string>;
+}
 
 /**
  * Trusted repository model. Source paths never come from API callers.
  *
  * Exactly one of `sourcePath` or `parts` must be set: `sourcePath` for an ordinary single-generator model (rendered
- * once, one STL); `parts` for a static assembly (each part rendered independently, packaged as one ZIP — see
- * `isAssembly`/`artifactFormat`). `referencePath` is optional: omit it when there is no small, permanent "original"
+ * once, one STL); `parts` for an assembly (each part rendered independently, packaged as one ZIP — see
+ * `isAssembly`/`artifactFormat`). An assembly's parts may share the model's parameters: each part's `scadMapping` names
+ * the parameter keys it consumes, and the same key may feed several parts. `referencePath` is optional: omit it when there is no small, permanent "original"
  * STL to preserve (e.g. when the only source was a large STL that will not stay in the repository).
  */
 export interface ModelDefinition {
@@ -118,7 +127,7 @@ export interface ModelDefinition {
   derived: (parameters: unknown) => { slotCount: number | null };
 }
 
-/** True for a static, multi-part assembly model (rendered as N independent solids, packaged as one ZIP). */
+/** True for a multi-part assembly model (rendered as N independent solids, packaged as one ZIP). */
 export function isAssembly(model: ModelDefinition): model is ModelDefinition & { parts: ModelPart[] } {
   return Boolean(model.parts && model.parts.length > 0);
 }
@@ -160,30 +169,71 @@ export const fruitFlyTrap = {
   },
 } satisfies ModelDefinition;
 
-/** Moss planter has no adjustable parameters yet; the parts always render as designed. */
-export const MossPlanterParametersSchema = Type.Object({}, {
-  additionalProperties: false, description: 'Moss planter parameters. There are no adjustable settings yet.',
-});
+/**
+ * Moss planter: five parts (ground spike, planting helper, cover cap, and two RAUTE lattice segments) that share one
+ * thread, so parts built for the same `towerDiameter` screw together. `towerDiameter` scales every part (52 and 100
+ * are the sizes of the original design); the other parameters apply to one part each.
+ */
+export const MossPlanterParametersSchema = Type.Object({
+  towerDiameter: dimension('Tower diameter', 'Outer diameter of the lattice segments and cover cap, in mm. Every part is scaled to it, so all parts fit together. The original design is 52 or 100.', 52, 40, 120, 1),
+  spikeLength: dimension('Ground spike length', 'Overall length of the ground spike in mm. At least 60 mm for a 52 mm tower, growing in proportion to the tower diameter (the original 52 mm spike is 124 mm).', 124, 50, 300, 1),
+  shortRauteRows: Type.Integer({ title: 'Short lattice rows', description: 'Rows of diamonds in the short lattice segment. The height grows by about 17.5 mm per row (the original has 4).', default: 4, minimum: 2, maximum: 20 }),
+  tallRauteRows: Type.Integer({ title: 'Tall lattice rows', description: 'Rows of diamonds in the tall lattice segment. The height grows by about 17.5 mm per row (the original has 10).', default: 10, minimum: 2, maximum: 24 }),
+  rauteColumns: Type.Integer({ title: 'Lattice columns', description: 'Struts around both lattice segments. 0 chooses automatically from the tower diameter (6 at 52 mm, 12 at 100 mm); otherwise 4 to 16.', default: 0, minimum: 0, maximum: 16 }),
+}, { additionalProperties: false, description: 'Moss planter parameters. Lengths are in millimetres. All fields are required.' });
+export type MossPlanterParameters = Static<typeof MossPlanterParametersSchema>;
 
-const MOSS_PLANTER_DIR = 'models/moss-planter/reference/';
+const mossPlanterControls = [
+  control(MossPlanterParametersSchema, 'towerDiameter', 'basic'),
+  control(MossPlanterParametersSchema, 'spikeLength', 'basic'),
+  control(MossPlanterParametersSchema, 'shortRauteRows', 'basic', null, null),
+  control(MossPlanterParametersSchema, 'tallRauteRows', 'basic', null, null),
+  control(MossPlanterParametersSchema, 'rauteColumns', 'advanced', null, null),
+];
 
-/** All ten parts of the moss tower assembly. `id` matches the STL basename (without extension) in both directions. */
+/** Columns the RAUTE generator picks for `rauteColumns = 0`; mirrors `NCOLS` in models/moss-planter/raute.scad. */
+export function rauteColumns(p: MossPlanterParameters): number {
+  return p.rauteColumns > 0 ? p.rauteColumns : Math.max(3, Math.round(p.towerDiameter / 8.66));
+}
+
+/** Shortest spike (mm) at this tower diameter: the base alone is about 50 mm tall at 52 mm. */
+export const minimumSpikeLength = (towerDiameter: number): number => Math.ceil(60 * towerDiameter / 52);
+
+/** Struts (rows x columns) one lattice segment may have; more exceeds the 120-second render limit. */
+const MAX_LATTICE_CELLS = 340;
+
+function validateMossPlanter(p: MossPlanterParameters): ParameterIssue[] {
+  const issues: ParameterIssue[] = [];
+  if (p.rauteColumns !== 0 && p.rauteColumns < 4)
+    issues.push({ field: 'rauteColumns', message: 'Use 0 for automatic, or at least 4 columns.' });
+  if (p.spikeLength < minimumSpikeLength(p.towerDiameter))
+    issues.push({ field: 'spikeLength', message: `At a ${p.towerDiameter} mm tower diameter the spike must be at least ${minimumSpikeLength(p.towerDiameter)} mm long.` });
+  const columns = rauteColumns(p);
+  if (columns * Math.max(p.shortRauteRows, p.tallRauteRows) > MAX_LATTICE_CELLS)
+    issues.push({ field: p.tallRauteRows >= p.shortRauteRows ? 'tallRauteRows' : 'shortRauteRows',
+      message: `${columns} columns times this many rows is too complex to render. Use fewer rows or columns.` });
+  return issues;
+}
+
+const MOSS_PLANTER_DIR = 'models/moss-planter/';
+
+/** The five parts of the moss tower. `id` is the STL basename inside the ZIP. Every part takes `towerDiameter`. */
 const mossPlanterParts: ModelPart[] = [
-  { id: 'obj_1_Moosstab Middle RAUTE small', title: 'RAUTE lattice segment, small (100 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_1_Moosstab Middle RAUTE small.scad` },
-  { id: 'obj_2_erdspiessV2', title: 'Ground spike (79 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_2_erdspiessV2.scad` },
-  { id: 'obj_3_erdspiessV2', title: 'Ground spike (41 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_3_erdspiessV2.scad` },
-  { id: 'obj_4_Moosstab Middle RAUTE', title: 'RAUTE lattice segment, tall (52 × 230 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_4_Moosstab Middle RAUTE.scad` },
-  { id: 'obj_5_Moosstab Middle RAUTE small', title: 'RAUTE lattice segment, small (52 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_5_Moosstab Middle RAUTE small.scad` },
-  { id: 'obj_6_Moosstab Planting Helper V3', title: 'Planting helper (85 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_6_Moosstab Planting Helper V3.scad` },
-  { id: 'obj_7_Moosstab AbdeckkappeV2', title: 'Cover cap (100 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_7_Moosstab AbdeckkappeV2.scad` },
-  { id: 'obj_8_Moosstab Planting Helper V3', title: 'Planting helper (163 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_8_Moosstab Planting Helper V3.scad` },
-  { id: 'obj_9_Moosstab Middle RAUTE 10cm', title: 'RAUTE lattice segment (100 × 250 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_9_Moosstab Middle RAUTE 10cm.scad` },
-  { id: 'obj_10_Moosstab AbdeckkappeV2', title: 'Cover cap (52 mm)', sourcePath: `${MOSS_PLANTER_DIR}obj_10_Moosstab AbdeckkappeV2.scad` },
+  { id: 'ground-spike', title: 'Ground spike', sourcePath: `${MOSS_PLANTER_DIR}spike.scad`,
+    scadMapping: { towerDiameter: 'TOWER_DIAMETER', spikeLength: 'SPIKE_LENGTH' } },
+  { id: 'planting-helper', title: 'Planting helper', sourcePath: `${MOSS_PLANTER_DIR}helper.scad`,
+    scadMapping: { towerDiameter: 'TOWER_DIAMETER' } },
+  { id: 'cover-cap', title: 'Cover cap', sourcePath: `${MOSS_PLANTER_DIR}cap.scad`,
+    scadMapping: { towerDiameter: 'TOWER_DIAMETER' } },
+  { id: 'lattice-short', title: 'Lattice segment, short', sourcePath: `${MOSS_PLANTER_DIR}raute.scad`,
+    scadMapping: { towerDiameter: 'TOWER_DIAMETER', shortRauteRows: 'ROWS', rauteColumns: 'COLUMNS' } },
+  { id: 'lattice-tall', title: 'Lattice segment, tall', sourcePath: `${MOSS_PLANTER_DIR}raute.scad`,
+    scadMapping: { towerDiameter: 'TOWER_DIAMETER', tallRauteRows: 'ROWS', rauteColumns: 'COLUMNS' } },
 ];
 
 export const mossPlanter = {
-  id: 'moss-planter' as const, version: '1' as const, title: 'Moss planter (Verdura)',
-  description: 'Ten parts of a modular moss-tower kit — lattice segments, ground spikes, planting helpers, and cover caps — shown together. Not yet customizable; download the full set as a ZIP of STL files.',
+  id: 'moss-planter' as const, version: '2' as const, title: 'Moss planter (Verdura)',
+  description: 'Five parts of a modular moss-tower kit — ground spike, planting helper, cover cap, and two lattice segments — in any tower diameter. Every part is generated to fit the others; download the full set as a ZIP of STL files.',
   attribution: 'HpInvent (MakerWorld)',
   printNotes: 'Print each part separately.',
   // Kept short deliberately: this string and `attribution` together are stamped into each STL's 80-byte header
@@ -191,10 +241,13 @@ export const mossPlanter = {
   license: 'Adapted, original MakerWorld terms apply', licenseUrl: 'https://makerworld.com/de/models/1200114-moss-tower-verdura-the-modular-climbing-support',
   parts: mossPlanterParts,
   parameterSchema: MossPlanterParametersSchema,
-  controls: [],
-  defaults: {},
+  controls: mossPlanterControls,
+  defaults: Object.fromEntries(mossPlanterControls.map(c => [c.key, c.default])),
   scadMapping: {},
-  validate: (): ParameterIssue[] => [],
+  validate(parameters: unknown): ParameterIssue[] {
+    if (!Value.Check(MossPlanterParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
+    return validateMossPlanter(parameters);
+  },
   derived: () => ({ slotCount: null }),
 } satisfies ModelDefinition;
 

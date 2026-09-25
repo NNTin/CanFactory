@@ -398,9 +398,40 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "1";
-                    /** @description Moss planter parameters. There are no adjustable settings yet. */
-                    parameters: Record<string, never>;
+                    modelVersion: "2";
+                    /** @description Moss planter parameters. Lengths are in millimetres. All fields are required. */
+                    parameters: {
+                        /**
+                         * Tower diameter
+                         * @description Outer diameter of the lattice segments and cover cap, in mm. Every part is scaled to it, so all parts fit together. The original design is 52 or 100.
+                         * @default 52
+                         */
+                        towerDiameter: number;
+                        /**
+                         * Ground spike length
+                         * @description Overall length of the ground spike in mm. At least 60 mm for a 52 mm tower, growing in proportion to the tower diameter (the original 52 mm spike is 124 mm).
+                         * @default 124
+                         */
+                        spikeLength: number;
+                        /**
+                         * Short lattice rows
+                         * @description Rows of diamonds in the short lattice segment. The height grows by about 17.5 mm per row (the original has 4).
+                         * @default 4
+                         */
+                        shortRauteRows: number;
+                        /**
+                         * Tall lattice rows
+                         * @description Rows of diamonds in the tall lattice segment. The height grows by about 17.5 mm per row (the original has 10).
+                         * @default 10
+                         */
+                        tallRauteRows: number;
+                        /**
+                         * Lattice columns
+                         * @description Struts around both lattice segments. 0 chooses automatically from the tower diameter (6 at 52 mm, 12 at 100 mm); otherwise 4 to 16.
+                         * @default 0
+                         */
+                        rauteColumns: number;
+                    };
                 };
             };
         };

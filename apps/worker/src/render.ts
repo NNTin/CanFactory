@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { zipSync } from 'fflate';
-import { findModel, isAssembly, validateParameters, type ModelDefinition } from '@canfactory/contracts';
+import { findModel, isAssembly, validateParameters, type ModelDefinition, type ModelPart, type ParameterValues } from '@canfactory/contracts';
 import {
   asyncStorage, combineParts, firstDegenerateTriangle, inspectStl, RENDER_TIMEOUT_MS, RENDERER_FINGERPRINT, sourceFingerprint,
   type AssemblyPart, type RenderJob, type Storage, type Store,
@@ -26,10 +26,21 @@ function stampAttribution(bytes: Buffer, model: ModelDefinition): void {
   Buffer.from(`CanFactory | ${model.license} | ${model.attribution}`, 'utf8').copy(bytes, 0, 0, 80);
 }
 
-/** Render one self-contained SCAD file to a binary STL. No `-D` overrides are passed for assembly parts: each part's
- * own constants (e.g. its `ROUNDNESS`) must apply exactly as verified, not the fruit-fly-trap-specific defaults. */
-async function renderPart(run: OpenScadRunner, signal: AbortSignal, projectRoot: string, sourcePath: string, output: string): Promise<void> {
-  await run(['--backend', 'Manifold', '--export-format', 'binstl', '-o', output, resolve(projectRoot, sourcePath)], signal);
+/** `-D NAME=value` overrides for the parameters a scadMapping consumes; only mapped, validated values reach the command. */
+function mappedDefines(mapping: Record<string, string> | undefined, parameters: ParameterValues): string[] {
+  const args: string[] = [];
+  for (const [key, scadName] of Object.entries(mapping ?? {})) {
+    const value = parameters[key];
+    if (value === undefined || !/^[A-Z_]+$/.test(scadName)) throw new Error('Invalid generator parameter mapping.');
+    args.push('-D', `${scadName}=${JSON.stringify(value)}`);
+  }
+  return args;
+}
+
+/** Render one self-contained SCAD file to a binary STL. An assembly part receives only the overrides its own mapping
+ * names: its other constants (e.g. `ROUNDNESS`) must apply exactly as verified, not the fruit-fly-trap-specific defaults. */
+async function renderPart(run: OpenScadRunner, signal: AbortSignal, projectRoot: string, part: ModelPart, parameters: ParameterValues, output: string): Promise<void> {
+  await run(['--backend', 'Manifold', '--export-format', 'binstl', '-o', output, ...mappedDefines(part.scadMapping, parameters), resolve(projectRoot, part.sourcePath)], signal);
 }
 
 /** Revalidate trusted model/version and queued parameters before invoking the geometry engine. */
@@ -47,7 +58,7 @@ export async function renderJob(storage: Store | Storage, job: RenderJob, signal
       const parts: AssemblyPart[] = [];
       for (const part of model.parts) {
         const output = join(directory, `${part.id}.stl`);
-        await renderPart(run, signal, store.projectRoot, part.sourcePath, output);
+        await renderPart(run, signal, store.projectRoot, part, job.parameters, output);
         signal.throwIfAborted();
         const bytes = await readFile(output);
         if (bytes.length < 84) throw new Error(`OpenSCAD produced an incomplete STL for "${part.title}".`);
@@ -70,12 +81,7 @@ export async function renderJob(storage: Store | Storage, job: RenderJob, signal
     if (!model.sourcePath) throw new Error('This model declares neither a generator source nor parts.');
     const output = join(directory, 'model.stl');
     const args = ['--backend', 'Manifold', '--export-format', 'binstl', '-o', output,
-      '-D', 'ROUNDNESS=48', '-D', 'OBJECT="flytrap"'];
-    for (const [key, scadName] of Object.entries(model.scadMapping)) {
-      const value = job.parameters[key];
-      if (value === undefined || !/^[A-Z_]+$/.test(scadName)) throw new Error('Invalid generator parameter mapping.');
-      args.push('-D', `${scadName}=${JSON.stringify(value)}`);
-    }
+      '-D', 'ROUNDNESS=48', '-D', 'OBJECT="flytrap"', ...mappedDefines(model.scadMapping, job.parameters)];
     args.push(resolve(store.projectRoot, model.sourcePath));
     await run(args, signal);
     signal.throwIfAborted();

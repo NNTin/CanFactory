@@ -43,7 +43,7 @@ export interface RenderQueue {
 export function sourceFingerprint(root: string, model: ModelDefinition): string {
   const hash = createHash('sha256');
   for (const relative of modelSourcePaths(model)) hash.update(readFileSync(resolve(root, relative)));
-  return hash.update(JSON.stringify({ schema: model.parameterSchema, mapping: model.scadMapping, version: model.version })).digest('hex');
+  return hash.update(JSON.stringify({ schema: model.parameterSchema, mapping: model.scadMapping, parts: model.parts?.map(part => ({ id: part.id, mapping: part.scadMapping })), version: model.version })).digest('hex');
 }
 
 export class Store implements RenderQueue {

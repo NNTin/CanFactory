@@ -43,18 +43,26 @@ beforeEach(() => {
 afterEach(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
 
 describe('renderJob for an assembly model', () => {
-  it('renders each part with no -D overrides, zips them, stamps attribution, and stores combined metadata', async () => {
+  it('renders each part with only the -D overrides its own mapping names, zips them, stamps attribution, and stores combined metadata', async () => {
     const invocations: string[][] = [];
-    const job = store.enqueue(mossPlanter, {});
+    const job = store.enqueue(mossPlanter, { ...mossPlanter.defaults, towerDiameter: 77, spikeLength: 190, tallRauteRows: 8, rauteColumns: 9 });
     const claimed = store.claim();
     if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
 
     const published = await renderJob(store, claimed, new AbortController().signal, fakeRunner(invocations));
     expect(published).toBe(true);
     expect(invocations).toHaveLength(mossPlanter.parts.length);
+    const defines = invocations.map(args => args.flatMap((arg, index) => args[index - 1] === '-D' ? [arg] : []));
+    expect(defines).toEqual([
+      ['TOWER_DIAMETER=77', 'SPIKE_LENGTH=190'],
+      ['TOWER_DIAMETER=77'],
+      ['TOWER_DIAMETER=77'],
+      ['TOWER_DIAMETER=77', 'ROWS=4', 'COLUMNS=9'],
+      ['TOWER_DIAMETER=77', 'ROWS=8', 'COLUMNS=9'],
+    ]);
     for (const args of invocations) {
-      expect(args).not.toContain('-D');
       expect(args.slice(0, 4)).toEqual(['--backend', 'Manifold', '--export-format', 'binstl']);
+      expect(args).not.toContain('ROUNDNESS=48'); // the fruit-fly-trap defaults must not leak into verified parts
     }
 
     const result = store.getJob(job.id);

@@ -46,11 +46,11 @@ function Field({ control, value, disabled, issue, change }: { control: Control; 
     <div className="field-heading"><label htmlFor={id} title={control.description}>{control.label}</label><span className="number-input-wrap">
       <input id={id} type="number" value={number} min={control.minimum ?? undefined} max={control.maximum ?? undefined} step={control.step ?? 0.1}
         disabled={disabled} aria-invalid={Boolean(issue)} aria-describedby={`${id}-description${issue ? ` ${id}-error` : ''}`}
-        onChange={event => change(event.currentTarget.value === '' ? Number.NaN : Number(event.currentTarget.value))} /><span>mm</span>
+        onChange={event => change(event.currentTarget.value === '' ? Number.NaN : Number(event.currentTarget.value))} />{control.unit && <span>{control.unit}</span>}
     </span></div>
     <input className="range-input" type="range" aria-label={`${control.label} slider`} value={number === '' ? control.minimum ?? 0 : number}
       min={control.minimum ?? undefined} max={control.maximum ?? undefined} step={control.step ?? 0.1} disabled={disabled} onChange={event => change(Number(event.currentTarget.value))} />
-    <div className="range-limits"><span>{control.minimum} mm</span><span>{control.maximum} mm</span></div>
+    <div className="range-limits"><span>{control.minimum}{control.unit ? ` ${control.unit}` : ''}</span><span>{control.maximum}{control.unit ? ` ${control.unit}` : ''}</span></div>
     <span id={`${id}-description`} className="sr-only">{control.description}</span>
     {issue && <p className="field-error" id={`${id}-error`}>{issue}</p>}
   </div>;

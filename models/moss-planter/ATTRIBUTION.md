@@ -31,3 +31,11 @@ the corresponding original geometry: the shapes were measured from the STL and r
 check). Four of the files (`obj_1`, `obj_2`, `obj_7`, `obj_8`) are the same geometry as another file scaled by 100/52. The
 reconstructions carry the same credit to HpInvent and the same terms as the original design; this attribution grants no
 additional rights to the original or to the reconstructions.
+
+Parametric generators
+
+`spike.scad`, `helper.scad`, `cap.scad` and `raute.scad` are the generators the application renders. They are derived from
+the reconstructions above: the spike, helper and cap are the reconstructions with the tower diameter (and the spike
+length) exposed as parameters, and `raute.scad` generalises the two RAUTE reconstructions (`obj_4`, `obj_5`) to any
+diameter and row count. They carry the same credit to HpInvent and the same terms as the original design, and this
+attribution grants no additional rights to the original or to the generators.

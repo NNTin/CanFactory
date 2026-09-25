@@ -62,33 +62,55 @@ try {
     console.log(`PASS ${testCase.name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 
-  {
+  // Moss planter: the original 52 and 100 mm towers plus intermediate and extreme custom ones. Whatever the settings, every part
+  // must be one closed solid whose diameter follows the tower diameter, so that the threads of all five parts mate.
+  const mossCases: { name: string; overrides: ParameterValues; heights: { 'lattice-short'?: number; 'lattice-tall'?: number } }[] = [
+    { name: 'original 52 mm tower', overrides: {}, heights: { 'lattice-short': 125, 'lattice-tall': 230 } },
+    { name: '77 mm tower, custom spike and rows', overrides: { towerDiameter: 77, spikeLength: 190, shortRauteRows: 3, tallRauteRows: 12, rauteColumns: 9 }, heights: {} },
+    { name: 'original 100 mm tower', overrides: { towerDiameter: 100, spikeLength: 238 }, heights: {} },
+    { name: 'smallest tower', overrides: { towerDiameter: 40, spikeLength: 50, shortRauteRows: 2, tallRauteRows: 2 }, heights: {} },
+    { name: 'largest tower', overrides: { towerDiameter: 120, spikeLength: 300 }, heights: {} },
+  ];
+  for (const testCase of mossCases) {
     const started = Date.now();
-    assert.deepEqual(validateParameters(mossPlanter, {}), []);
-    const queued = store.enqueue(mossPlanter, {});
+    const parameters = { ...mossPlanter.defaults, ...testCase.overrides };
+    assert.deepEqual(validateParameters(mossPlanter, parameters), [], testCase.name);
+    const queued = store.enqueue(mossPlanter, parameters);
     const job = store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
     const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
-    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true); }
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true, testCase.name); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded'); assert.ok(result.artifact);
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', testCase.name); assert.ok(result.artifact);
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for moss planter.');
     assert.equal(result.artifact.parts.length, mossPlanter.parts.length);
-    for (const part of result.artifact.parts) assert.ok(part.volume > 0, `${part.id}: expected positive volume`);
+    for (const part of result.artifact.parts) assert.ok(part.volume > 0, `${testCase.name} ${part.id}: expected positive volume`);
+    const scale = Number(parameters['towerDiameter']) / 52;
+    const dimensions = Object.fromEntries(result.artifact.parts.map(part => [part.id, part.dimensions]));
+    const near = (actual: number | undefined, expected: number, tolerance: number, label: string) =>
+      assert.ok(actual !== undefined && Math.abs(actual - expected) <= tolerance, `${testCase.name} ${label}: ${actual} != ${expected}`);
+    // Parts are scaled copies of the 52 mm design, so their widths are fixed multiples of the tower diameter.
+    near(dimensions['cover-cap']?.x, Number(parameters['towerDiameter']), 0.01, 'cover cap diameter');
+    near(dimensions['lattice-short']?.x, Number(parameters['towerDiameter']), 0.01, 'short lattice diameter');
+    near(dimensions['lattice-tall']?.x, Number(parameters['towerDiameter']), 0.01, 'tall lattice diameter');
+    near(dimensions['ground-spike']?.x, 41.146 * scale, 0.02, 'spike flange');
+    near(dimensions['planting-helper']?.x, 85 * scale, 0.02, 'helper base');
+    near(dimensions['ground-spike']?.z, Math.max(Number(parameters['spikeLength']), 50.02 * scale), 0.02, 'spike length');
+    for (const [id, height] of Object.entries(testCase.heights)) near(dimensions[id]?.z, height, 0.1, `${id} height`);
     const bytes = await readFile(store.artifacts.path(job.id, 'zip'));
     const entries = unzipSync(new Uint8Array(bytes));
     assert.deepEqual(Object.keys(entries).sort(), mossPlanter.parts.map(part => `${part.id}.stl`).sort());
     for (const [name, entryBytes] of Object.entries(entries)) {
       const asBuffer = Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength);
-      assert.ok(inspectStl(asBuffer).sha256, `${name}: expected a valid individual STL`);
+      assert.ok(inspectStl(asBuffer).sha256, `${testCase.name} ${name}: expected a valid individual STL`);
     }
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`);
     const download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.equal(preview.headers['content-type'], 'application/zip'); assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
     assert.match(String(download.headers['content-disposition']), /attachment/);
-    assert.equal(store.enqueue(mossPlanter, {}).id, job.id);
-    console.log(`PASS moss planter assembly: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+    assert.equal(store.enqueue(mossPlanter, parameters).id, job.id);
+    console.log(`PASS moss planter ${testCase.name}: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 } finally {
   await app.close(); store.close(); await rm(directory, { recursive: true, force: true });

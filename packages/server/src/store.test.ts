@@ -26,18 +26,18 @@ describe('temporary render queue', () => {
   it('seeds an assembly model with no reference file and a ZIP artifact format', () => {
     const detail = store.getModel(mossPlanter.id)?.detail;
     expect(detail?.artifactFormat).toBe('zip');
-    expect(detail?.customizable).toBe(false);
+    expect(detail?.customizable).toBe(true);
     expect(detail?.referenceUrl).toBeUndefined();
-    expect(detail?.parts).toHaveLength(10);
+    expect(detail?.parts).toHaveLength(5);
     expect(existsSync(join(store.artifacts.catalogDir, `${mossPlanter.id}-${mossPlanter.version}.stl`))).toBe(false);
   });
 
-  it('enqueues an assembly model with empty parameters and reuses/clears both artifact extensions', () => {
-    const job = store.enqueue(mossPlanter, {});
+  it('enqueues an assembly model with its parameters and reuses/clears both artifact extensions', () => {
+    const job = store.enqueue(mossPlanter, mossPlanter.defaults);
     writeFileSync(store.artifacts.path(job.id, 'zip'), 'temporary output');
     expect(existsSync(store.artifacts.path(job.id, 'stl'))).toBe(false);
     expect(existsSync(store.artifacts.path(job.id, 'zip'))).toBe(true);
-    expect(store.enqueue(mossPlanter, {}).id).toBe(job.id);
+    expect(store.enqueue(mossPlanter, mossPlanter.defaults).id).toBe(job.id);
     store.artifacts.remove(job.id);
     expect(existsSync(store.artifacts.path(job.id, 'zip'))).toBe(false);
   });
@@ -54,6 +54,12 @@ describe('temporary render queue', () => {
     } finally {
       writeFileSync(path, contents); // restore: this must not permanently modify a verified SCAD file
     }
+  });
+
+  it('fingerprints each part\'s parameter mapping, so remapping a parameter invalidates the cache', () => {
+    const before = sourceFingerprint(repositoryRoot, mossPlanter);
+    const remapped = { ...mossPlanter, parts: mossPlanter.parts.map(part => ({ ...part, scadMapping: { ...part.scadMapping, towerDiameter: 'OTHER_NAME' } })) };
+    expect(sourceFingerprint(repositoryRoot, remapped)).not.toBe(before);
   });
 
   it('allows only one claim and fences old workers after lease recovery', () => {

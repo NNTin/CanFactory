@@ -656,14 +656,64 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "1"
+                          "2"
                         ]
                       },
                       "parameters": {
                         "type": "object",
-                        "properties": {},
+                        "required": [
+                          "towerDiameter",
+                          "spikeLength",
+                          "shortRauteRows",
+                          "tallRauteRows",
+                          "rauteColumns"
+                        ],
+                        "properties": {
+                          "towerDiameter": {
+                            "type": "number",
+                            "title": "Tower diameter",
+                            "description": "Outer diameter of the lattice segments and cover cap, in mm. Every part is scaled to it, so all parts fit together. The original design is 52 or 100.",
+                            "default": 52,
+                            "minimum": 40,
+                            "maximum": 120,
+                            "multipleOf": 1
+                          },
+                          "spikeLength": {
+                            "type": "number",
+                            "title": "Ground spike length",
+                            "description": "Overall length of the ground spike in mm. At least 60 mm for a 52 mm tower, growing in proportion to the tower diameter (the original 52 mm spike is 124 mm).",
+                            "default": 124,
+                            "minimum": 50,
+                            "maximum": 300,
+                            "multipleOf": 1
+                          },
+                          "shortRauteRows": {
+                            "type": "integer",
+                            "title": "Short lattice rows",
+                            "description": "Rows of diamonds in the short lattice segment. The height grows by about 17.5 mm per row (the original has 4).",
+                            "default": 4,
+                            "minimum": 2,
+                            "maximum": 20
+                          },
+                          "tallRauteRows": {
+                            "type": "integer",
+                            "title": "Tall lattice rows",
+                            "description": "Rows of diamonds in the tall lattice segment. The height grows by about 17.5 mm per row (the original has 10).",
+                            "default": 10,
+                            "minimum": 2,
+                            "maximum": 24
+                          },
+                          "rauteColumns": {
+                            "type": "integer",
+                            "title": "Lattice columns",
+                            "description": "Struts around both lattice segments. 0 chooses automatically from the tower diameter (6 at 52 mm, 12 at 100 mm); otherwise 4 to 16.",
+                            "default": 0,
+                            "minimum": 0,
+                            "maximum": 16
+                          }
+                        },
                         "additionalProperties": false,
-                        "description": "Moss planter parameters. There are no adjustable settings yet."
+                        "description": "Moss planter parameters. Lengths are in millimetres. All fields are required."
                       }
                     },
                     "additionalProperties": false

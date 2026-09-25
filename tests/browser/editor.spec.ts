@@ -109,20 +109,21 @@ test('renders a usable mobile layout and model library', async ({ page }, testIn
   await expect(page.getByRole('heading', { name: 'Fruit fly trap', exact: true })).toBeVisible();
 });
 
-test('shows the moss planter assembly with no parameter form and a downloadable ZIP of every part', async ({ page }) => {
-  // Ten sequential OpenSCAD invocations take much longer than fruit-fly-trap's single render.
+test('customizes the moss planter tower diameter and downloads a ZIP of all five parts', async ({ page }) => {
+  // Five sequential OpenSCAD invocations (two are lattices) take much longer than fruit-fly-trap's single render.
   test.setTimeout(300_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await page.getByRole('button', { name: 'CanFactory model library' }).click();
-  await page.getByRole('button', { name: /PREVIEW · ZIP Moss planter/ }).click();
+  await page.getByRole('button', { name: /CUSTOMIZABLE · ZIP Moss planter/ }).click();
   await expect(page.getByRole('heading', { name: 'Moss planter (Verdura)', exact: true })).toBeVisible();
-  await expect(page.getByText("This model doesn’t have adjustable settings yet.")).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toBeVisible();
+  await page.getByLabel('Tower diameter', { exact: true }).fill('75');
+  await page.getByLabel('Ground spike length', { exact: true }).fill('180');
   const downloadButton = page.getByRole('button', { name: 'Download ZIP', exact: true });
   await expect(downloadButton).toBeEnabled({ timeout: 270_000 });
-  await expect(page.getByText(/10\s*·\s*[\d.]+\s*cm³ total/)).toBeVisible();
+  await expect(page.getByText(/5\s*·\s*[\d.]+\s*cm³ total/)).toBeVisible();
   const downloadEvent = page.waitForEvent('download');
   await downloadButton.click();
   const download = await downloadEvent;
@@ -136,5 +137,10 @@ test('shows the moss planter assembly with no parameter form and a downloadable 
     const asBuffer = Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength);
     expect(inspectStl(asBuffer).volume, name).toBeGreaterThan(0);
   }
+  const cap = entries['cover-cap.stl'];
+  const spike = entries['ground-spike.stl'];
+  if (!cap || !spike) throw new Error('Missing parts in the ZIP');
+  expect(inspectStl(Buffer.from(cap.buffer, cap.byteOffset, cap.byteLength)).dimensions.x).toBeCloseTo(75, 1);
+  expect(inspectStl(Buffer.from(spike.buffer, spike.byteOffset, spike.byteLength)).dimensions.z).toBeCloseTo(180, 1);
   expect(errors).toEqual([]);
 });
