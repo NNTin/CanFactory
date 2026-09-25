@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Box, Check, ChevronDown, CircleAlert, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { api } from '@canfactory/client';
 import { findModel, validateParameters, type Control, type ModelDetail, type ParameterValues } from '@canfactory/contracts';
@@ -34,6 +34,32 @@ function FunnelIllustration() {
     {[0, 1, 2, 3, 4, 5].map(row => <path key={row} d={`M${101 - row * 8} ${66 + row * 12} Q120 ${74 + row * 12} ${139 + row * 8} ${66 + row * 12}`} fill="none" stroke="#8b513a" strokeWidth="2" strokeDasharray="1 6" opacity=".6" />)}
   </svg>;
 }
+
+const LATTICE_STRUTS = [-3, -2, -1, 0, 1, 2, 3].map(n => n * 20);
+
+function MossPlanterIllustration() {
+  return <svg viewBox="0 0 240 190" aria-hidden="true" className="moss-planter-illustration">
+    <defs><clipPath id="moss-planter-tube"><rect x="92" y="52" width="56" height="88" /></clipPath></defs>
+    <ellipse cx="120" cy="152" rx="90" ry="16" fill="#c8cec1" opacity=".35" />
+    <path d="M104 150 120 184l16-34z" fill="#8b513a" opacity=".55" />
+    <rect x="92" y="52" width="56" height="88" fill="#8fa27c" opacity=".35" />
+    <g clipPath="url(#moss-planter-tube)" stroke="#5f7350" strokeWidth="3.5" strokeLinecap="round" fill="none">
+      {LATTICE_STRUTS.map(x => <path key={`a${x}`} d={`M${120 + x - 44} 52 L${120 + x + 44} 140`} />)}
+      {LATTICE_STRUTS.map(x => <path key={`b${x}`} d={`M${120 + x + 44} 52 L${120 + x - 44} 140`} />)}
+    </g>
+    <path d="M148 52v88h-9q9-44 0-88z" fill="#3f4f34" opacity=".2" />
+    <rect x="88" y="138" width="64" height="8" rx="3" fill="#7b8e6b" />
+    <rect x="88" y="46" width="64" height="8" rx="3" fill="#7b8e6b" />
+    <path d="M92 46q0-24 28-24t28 24z" fill="#d98460" />
+    <path d="M120 22q28 0 28 24h-14q0-18-14-24z" fill="#c46543" />
+    <path d="M30 148q90 24 180 0v6q-90 24-180 0z" fill="#8b513a" opacity=".35" />
+  </svg>;
+}
+
+const ILLUSTRATIONS: Record<string, () => ReactElement> = {
+  'fruit-fly-trap': FunnelIllustration,
+  'moss-planter': MossPlanterIllustration,
+};
 
 function Field({ control, value, disabled, issue, change }: { control: Control; value: number | boolean | undefined; disabled: boolean; issue: string | undefined; change: (value: number | boolean) => void }) {
   const id = `parameter-${control.key}`;
@@ -194,7 +220,7 @@ export function App() {
         : loading ? <div className="empty-state"><LoaderCircle className="spin" size={30} /><p>Opening the workshop…</p></div>
           : model ? <><div className="page-heading"><div><div className="eyebrow">THE MODEL WORKSHOP</div><h1>{model.title}</h1><p>{model.description}</p></div><span className="model-tag"><span /> {model.customizable ? 'PARAMETRIC MODEL' : 'ASSEMBLY PREVIEW'}</span></div><Editor key={`${model.id}:${model.version}`} model={model} /></>
             : <><div className="page-heading library-heading"><div><div className="eyebrow">THE MODEL LIBRARY</div><h1>Useful things. Made to fit.</h1><p>Start with a model. Make a few changes. Make it yours.</p></div></div>
-              <div className="model-library">{models.map(item => <button type="button" className="model-card" key={item.id} onClick={() => setSelectedId(item.id)}><div className="card-art">{item.id === 'fruit-fly-trap' ? <FunnelIllustration /> : <Box size={60} strokeWidth={1} />}</div><div className="card-copy"><span className="eyebrow">{item.customizable ? 'CUSTOMIZABLE' : 'PREVIEW'} · {item.artifactFormat.toUpperCase()}</span><h2>{item.title}</h2><p>{item.description}</p><span className="card-action">{item.customizable ? 'Customize model' : 'View model'} <ArrowRight size={17} /></span></div></button>)}
+              <div className="model-library">{models.map(item => <button type="button" className="model-card" key={item.id} onClick={() => setSelectedId(item.id)}><div className="card-art">{(() => { const Illustration = ILLUSTRATIONS[item.id]; return Illustration ? <Illustration /> : <Box size={60} strokeWidth={1} />; })()}</div><div className="card-copy"><span className="eyebrow">{item.customizable ? 'CUSTOMIZABLE' : 'PREVIEW'} · {item.artifactFormat.toUpperCase()}</span><h2>{item.title}</h2><p>{item.description}</p><span className="card-action">{item.customizable ? 'Customize model' : 'View model'} <ArrowRight size={17} /></span></div></button>)}
                 <div className="coming-next"><span className="plus-shape">+</span><h2>More useful things to come.</h2><p>A growing collection for everyday making.</p></div></div></>}
     </main>
     <footer className="site-footer"><span>MAKE IT FIT. MAKE IT REAL.</span><span>CanFactory · Your local workshop</span></footer>

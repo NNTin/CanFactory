@@ -736,7 +736,8 @@ main {
   align-items: center;
   color: #7b8e6b;
 }
-.funnel-illustration {
+.funnel-illustration,
+.moss-planter-illustration {
   width: 250px;
   height: 210px;
 }
