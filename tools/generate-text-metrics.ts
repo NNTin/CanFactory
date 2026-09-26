@@ -4,39 +4,34 @@
  * underside of the cigarette case without needing a renderer. Regenerate after changing a font or the text size unit.
  *   npx tsx tools/generate-text-metrics.ts
  */
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createOpenSCAD } from 'openscad-wasm-prebuilt';
-import { FONTS_DIR } from './stl-to-scad/openscad.ts';
+import { writeFileSync } from 'node:fs';
+import { renderScad } from './stl-to-scad/openscad.ts';
 
 const FONTS: Record<string, string> = {
   sans: 'Liberation Sans:style=Bold', serif: 'Liberation Serif:style=Bold', mono: 'Liberation Mono:style=Bold', wide: 'DejaVu Sans:style=Bold',
 };
 const UNIT = 10; // measured at text size 10, stored per 1 mm of size
 
-async function instance() {
-  const lines: string[] = [];
-  const openscad = (await createOpenSCAD({ print: line => lines.push(line), printErr: line => lines.push(line) })).getInstance();
-  for (const dir of ['/fonts', '/etc', '/etc/fonts']) openscad.FS.mkdir(dir);
-  for (const font of readdirSync(FONTS_DIR).filter(name => name.endsWith('.ttf'))) openscad.FS.writeFile(`/fonts/${font}`, readFileSync(join(FONTS_DIR, font)));
-  openscad.FS.writeFile('/etc/fonts/fonts.conf', '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig><dir>/fonts</dir></fontconfig>');
-  return { openscad, lines };
-}
-
+/** Renders the text with the bundled fonts (renderScad installs them; needs an OpenSCAD runtime, see the stl-to-scad skill). */
 async function bounds(font: string, text: string): Promise<{ width: number; minY: number; maxY: number }> {
-  const { openscad, lines } = await instance();
-  openscad.FS.writeFile('/m.scad', `linear_extrude(1) text(${JSON.stringify(text)}, size = ${UNIT}, font = ${JSON.stringify(font)});`);
-  openscad.callMain(['/m.scad', '--backend=Manifold', '--export-format', 'binstl', '-o', '/o.stl']);
-  const stl = Buffer.from(openscad.FS.readFile('/o.stl'));
-  const count = stl.readUInt32LE(80);
-  if (count === 0) throw new Error(`No geometry for ${JSON.stringify(text)} in ${font}: ${lines.slice(-3).join(' | ')}`);
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (let i = 0; i < count; i++) for (let v = 0; v < 3; v++) {
-    const offset = 84 + i * 50 + 12 + v * 12;
-    const x = stl.readFloatLE(offset), y = stl.readFloatLE(offset + 4);
-    minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-  }
-  return { width: maxX - minX, minY, maxY };
+  const directory = await mkdtemp(join(tmpdir(), 'text-metrics-'));
+  try {
+    const scad = join(directory, 'text.scad');
+    await writeFile(scad, `linear_extrude(1) text(${JSON.stringify(text)}, size = ${UNIT}, font = ${JSON.stringify(font)});`);
+    const { stl } = await renderScad(scad);
+    const count = stl.readUInt32LE(80);
+    if (count === 0) throw new Error(`No geometry for ${JSON.stringify(text)} in ${font}`);
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < count; i++) for (let v = 0; v < 3; v++) {
+      const offset = 84 + i * 50 + 12 + v * 12;
+      const x = stl.readFloatLE(offset), y = stl.readFloatLE(offset + 4);
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    }
+    return { width: maxX - minX, minY, maxY };
+  } finally { await rm(directory, { recursive: true, force: true }); }
 }
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
