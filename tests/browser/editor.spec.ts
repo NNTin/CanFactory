@@ -166,8 +166,9 @@ test('shows the cigarette case, offers snap and text settings and downloads a ZI
   await page.getByLabel('Text font').selectOption('mono');
   await page.getByLabel('Text style').selectOption('second-filament');
   await text.fill('W'.repeat(14));
-  await expect(page.getByText(/mm wide at this font and size/)).toBeVisible();
+  await expect(page.locator('#parameter-engraveText-error')).toContainText('mm wide at this font and size');
   await text.fill('Tom');
+  await expect(page.locator('#parameter-engraveText-error')).toHaveCount(0);
   await expect(page.getByText(/mm wide at this font and size/)).toHaveCount(0);
   const downloadButton = page.getByRole('button', { name: 'Download ZIP', exact: true });
   await expect(downloadButton).toBeEnabled({ timeout: 270_000 });
