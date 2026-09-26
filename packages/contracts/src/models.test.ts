@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
 import {
-  activeParts, artifactFormat, cigaretteCase, findModel, fruitFlyTrap, FruitFlyTrapParametersSchema, isAssembly, modelSourcePaths,
+  activeParts, artifactFormat, cigaretteCase, CLEARANCE_HOLES, findModel, holeDiameter, plankConnector, fruitFlyTrap, FruitFlyTrapParametersSchema, isAssembly, modelSourcePaths,
   minimumSpikeLength, mossPlanter, rauteColumns, slotCount, SNAP_CLEARANCE, textWidth, validateParameters, type MossPlanterParameters,
 } from './models.ts';
 import { RenderRequestSchema } from './index.ts';
@@ -168,7 +168,7 @@ describe('cigarette case contract', () => {
     expect(SNAP_CLEARANCE.friction).toEqual({ minimum: 0.1, maximum: 0.6 });
     expect(SNAP_CLEARANCE.magnet).toEqual(SNAP_CLEARANCE.friction);
     // the other models' controls carry neither
-    for (const model of [fruitFlyTrap, mossPlanter]) for (const control of model.controls) expect([control.bands, control.recommended]).toEqual([null, null]);
+    for (const model of [fruitFlyTrap, mossPlanter, plankConnector]) for (const control of model.controls) expect([control.bands, control.recommended]).toEqual([null, null]);
   });
 
   it('rejects text that will not fit the free underside, using the measured font widths', () => {
@@ -189,5 +189,63 @@ describe('cigarette case contract', () => {
     const box = block('models/cigarette-case/reference/11_v11.3__-_honeycomb_-_box.scad');
     expect(box).toContain('TEXT_DEPTH');
     expect(block('models/cigarette-case/underside-text.scad')).toBe(box);
+  });
+});
+
+describe('plank connector contract', () => {
+  const defaults = plankConnector.defaults;
+
+  it('is a registered single-STL model with a 50.22 x 4.80 mm pocket, a separate insertion depth and no holes by default', () => {
+    expect(findModel('plank-connector')).toBe(plankConnector);
+    expect(isAssembly(plankConnector)).toBe(false);
+    expect(artifactFormat(plankConnector)).toBe('stl');
+    expect(defaults).toEqual({ pocketWidth: 50.22, pocketThickness: 4.8, insertionDepth: 20, screwHoles: 'none', holeFit: 'medium', holesPerEnd: 2, wallThickness: 2, stopThickness: 2, entryChamfer: 0.5 });
+    expect(validateParameters(plankConnector, defaults)).toEqual([]);
+    expect(Object.keys(plankConnector.scadMapping).sort()).toEqual(Object.keys(defaults).sort());
+    for (const name of Object.values(plankConnector.scadMapping)) expect(name).toMatch(/^[A-Z_]+$/);
+    expect(Value.Check(RenderRequestSchema, { modelId: plankConnector.id, modelVersion: plankConnector.version, parameters: defaults })).toBe(true);
+  });
+
+  it('lets the pocket and depth be set freely, in 0.01 mm steps for the pocket', () => {
+    for (const values of [{ pocketWidth: 50.2, pocketThickness: 4.81 }, { pocketWidth: 5, pocketThickness: 1, insertionDepth: 5, wallThickness: 0.8, entryChamfer: 0.4 }, { pocketWidth: 200, pocketThickness: 50, insertionDepth: 150, stopThickness: 0, entryChamfer: 0 }])
+      expect(validateParameters(plankConnector, { ...defaults, ...values }), JSON.stringify(values)).toEqual([]);
+    for (const values of [{ pocketWidth: 50.225 }, { pocketWidth: 201 }, { pocketThickness: 0.5 }, { insertionDepth: 4 }, { insertionDepth: 20.2 }, { holesPerEnd: 1.5 }, { holesPerEnd: 5 }])
+      expect(validateParameters(plankConnector, { ...defaults, ...values }), JSON.stringify(values)).not.toEqual([]);
+  });
+
+  it('offers no holes or one option per metric screw, each with its DIN EN 20273 clearance hole', () => {
+    const screwHoles = plankConnector.controls.find(control => control.key === 'screwHoles');
+    expect(screwHoles).toMatchObject({ kind: 'enum', group: 'basic', default: 'none' });
+    expect(screwHoles?.options?.map(option => option.value)).toEqual(['none', 'M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8']);
+    expect(screwHoles?.options?.find(option => option.value === 'M4')?.label).toBe('M4 (4.5 mm hole)');
+    expect(plankConnector.controls.find(control => control.key === 'holeFit')?.options?.map(option => option.value)).toEqual(['fine', 'medium', 'coarse']);
+    // spot checks against the published table
+    expect(CLEARANCE_HOLES.M3).toEqual({ fine: 3.2, medium: 3.4, coarse: 3.6 });
+    expect(CLEARANCE_HOLES.M6).toEqual({ fine: 6.4, medium: 6.6, coarse: 7 });
+    expect(CLEARANCE_HOLES.M8).toEqual({ fine: 8.4, medium: 9, coarse: 10 });
+    expect(holeDiameter({ screwHoles: 'none', holeFit: 'coarse' })).toBe(0);
+    expect(holeDiameter({ screwHoles: 'M5', holeFit: 'fine' })).toBe(5.3);
+    for (const series of Object.values(CLEARANCE_HOLES)) expect(series.fine < series.medium && series.medium < series.coarse).toBe(true);
+    expect(validateParameters(plankConnector, { ...defaults, screwHoles: 'M7' })).not.toEqual([]);
+    expect(validateParameters(plankConnector, { ...defaults, holeFit: 'loose' })).not.toEqual([]);
+  });
+
+  it('keeps the SCAD hole table identical to the contract', () => {
+    const scad = readFileSync(new URL('../../../models/plank-connector/generator.scad', import.meta.url), 'utf8');
+    const rows = [...scad.matchAll(/\["(M[\d.]+)",\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\]/g)]
+      .map(([, screw, fine, medium, coarse]) => [screw, { fine: Number(fine), medium: Number(medium), coarse: Number(coarse) }]);
+    expect(Object.fromEntries(rows)).toEqual(CLEARANCE_HOLES);
+    expect(scad).toContain('SCREW_SIZE       = "none"; //[none,M2,M2.5,M3,M4,M5,M6,M8]');
+  });
+
+  it('rejects holes that do not fit the plank and chamfers that cut through the wall', () => {
+    expect(validateParameters(plankConnector, { ...defaults, screwHoles: 'M8', holeFit: 'coarse', holesPerEnd: 4 })).toEqual([]);
+    expect(validateParameters(plankConnector, { ...defaults, screwHoles: 'M8', holeFit: 'coarse', insertionDepth: 11.5 })).toContainEqual(expect.objectContaining({ field: 'insertionDepth' }));
+    expect(validateParameters(plankConnector, { ...defaults, screwHoles: 'M8', holeFit: 'coarse', insertionDepth: 12 })).toEqual([]);
+    expect(validateParameters(plankConnector, { ...defaults, pocketWidth: 20, screwHoles: 'M6', holesPerEnd: 3 })).toContainEqual(expect.objectContaining({ field: 'holesPerEnd' }));
+    // without holes, neither rule applies
+    expect(validateParameters(plankConnector, { ...defaults, pocketWidth: 5, insertionDepth: 5, holesPerEnd: 4 })).toEqual([]);
+    expect(validateParameters(plankConnector, { ...defaults, entryChamfer: 1.7 })).toContainEqual(expect.objectContaining({ field: 'entryChamfer' }));
+    expect(validateParameters(plankConnector, { ...defaults, entryChamfer: 1.6 })).toEqual([]);
   });
 });

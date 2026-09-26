@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cigaretteCase, fruitFlyTrap, mossPlanter } from '@canfactory/contracts';
+import { cigaretteCase, fruitFlyTrap, mossPlanter, plankConnector } from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS } from './config.ts';
 import { Store, repositoryRoot, sourceFingerprint } from './store.ts';
 
@@ -17,7 +17,7 @@ afterEach(() => { store.close(); rmSync(directory, { recursive: true, force: tru
 
 describe('temporary render queue', () => {
   it('seeds idempotently and reuses equivalent normalized parameters', () => {
-    store.seed(); expect(store.listModels()).toHaveLength(3);
+    store.seed(); expect(store.listModels()).toHaveLength(4);
     const first = store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
     const reordered = Object.fromEntries(Object.entries(fruitFlyTrap.defaults).reverse());
     expect(store.enqueue(fruitFlyTrap, reordered).id).toBe(first.id);
@@ -43,6 +43,20 @@ describe('temporary render queue', () => {
     const job = store.enqueue(cigaretteCase, cigaretteCase.defaults);
     expect(store.enqueue(cigaretteCase, cigaretteCase.defaults).id).toBe(job.id);
     expect(store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, engraveText: 'Tom' }).id).not.toBe(job.id);
+  });
+
+  it('seeds the plank connector as a customizable single-STL model without a reference file', () => {
+    const detail = store.getModel(plankConnector.id)?.detail;
+    expect(detail?.artifactFormat).toBe('stl');
+    expect(detail?.customizable).toBe(true);
+    expect(detail?.referenceUrl).toBeUndefined();
+    expect(detail?.parts).toBeUndefined();
+    expect(detail?.controls.map(control => control.key)).toEqual(['pocketWidth', 'pocketThickness', 'insertionDepth', 'screwHoles', 'holeFit', 'holesPerEnd', 'wallThickness', 'stopThickness', 'entryChamfer']);
+    expect(detail?.defaults).toEqual(plankConnector.defaults);
+    const job = store.enqueue(plankConnector, plankConnector.defaults);
+    expect(store.enqueue(plankConnector, { ...plankConnector.defaults }).id).toBe(job.id);
+    expect(store.enqueue(plankConnector, { ...plankConnector.defaults, screwHoles: 'M4' }).id).not.toBe(job.id);
+    expect(store.enqueue(plankConnector, { ...plankConnector.defaults, insertionDepth: 25 }).id).not.toBe(job.id);
   });
 
   it('enqueues an assembly model with its parameters and reuses/clears both artifact extensions', () => {
@@ -101,7 +115,7 @@ describe('temporary render queue', () => {
     time += CACHE_TTL_MS + 1; store.cleanup();
     expect(store.getJob(job.id)).toBeUndefined();
     expect(existsSync(store.artifacts.path(job.id))).toBe(false);
-    expect(store.listModels()).toHaveLength(3);
+    expect(store.listModels()).toHaveLength(4);
     expect(existsSync(join(store.artifacts.catalogDir, 'fruit-fly-trap-1.stl'))).toBe(true);
   });
 

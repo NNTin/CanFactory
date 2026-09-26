@@ -526,6 +526,73 @@ export interface operations {
                          */
                         clearance: number;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "plank-connector";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Plank connector parameters. All fields are required; dimensions are in millimetres. */
+                    parameters: {
+                        /**
+                         * Pocket width
+                         * @description Wide side of each pocket in mm: the plank width plus clearance. The default fits a 50.20 mm plank with 0.02 mm to spare.
+                         * @default 50.22
+                         */
+                        pocketWidth: number;
+                        /**
+                         * Pocket thickness
+                         * @description Thin side of each pocket in mm: the plank thickness plus clearance. The default fits a 4.80 mm plank exactly.
+                         * @default 4.8
+                         */
+                        pocketThickness: number;
+                        /**
+                         * Insertion depth
+                         * @description How far each plank end goes into the connector, in mm.
+                         * @default 20
+                         */
+                        insertionDepth: number;
+                        /**
+                         * Screw holes
+                         * @description Optional through-holes across the wide faces, to screw or bolt each plank in place, sized for the chosen metric screw per DIN EN 20273. Drill the planks to match.
+                         * @default none
+                         * @enum {unknown}
+                         */
+                        screwHoles: "none" | "M2" | "M2.5" | "M3" | "M4" | "M5" | "M6" | "M8";
+                        /**
+                         * Hole fit
+                         * @description The DIN EN 20273 series of the screw holes (when there are holes).
+                         * @default medium
+                         * @enum {unknown}
+                         */
+                        holeFit: "fine" | "medium" | "coarse";
+                        /**
+                         * Holes per plank
+                         * @description Screw holes per plank end, spread evenly across the pocket width (when there are holes).
+                         * @default 2
+                         */
+                        holesPerEnd: number;
+                        /**
+                         * Wall thickness
+                         * @description Material around the pockets on every side, in mm.
+                         * @default 2
+                         */
+                        wallThickness: number;
+                        /**
+                         * Centre stop
+                         * @description Thickness of the solid stop between the two pockets, in mm. 0 makes an open sleeve that the planks can slide through.
+                         * @default 2
+                         */
+                        stopThickness: number;
+                        /**
+                         * Entry chamfer
+                         * @description Size of the 45° lead-in at each pocket opening, in mm, which eases the plank in. 0 for none.
+                         * @default 0.5
+                         */
+                        entryChamfer: number;
+                    };
                 };
             };
         };

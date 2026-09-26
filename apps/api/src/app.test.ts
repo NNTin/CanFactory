@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { cigaretteCase, ErrorSchema, fruitFlyTrap, ModelDetailSchema, mossPlanter, RenderSchema } from '@canfactory/contracts';
+import { cigaretteCase, ErrorSchema, fruitFlyTrap, ModelDetailSchema, mossPlanter, plankConnector, RenderSchema } from '@canfactory/contracts';
 import { CACHE_TTL_MS, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from './app.ts';
 
@@ -23,7 +23,7 @@ describe('model and render API', () => {
   it('serves the catalogue, reference STL, and OpenAPI', async () => {
     const catalogue = await app.inject('/api/v1/models');
     expect(catalogue.statusCode).toBe(200);
-    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['cigarette-case', 'fruit-fly-trap', 'moss-planter']);
+    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['cigarette-case', 'fruit-fly-trap', 'moss-planter', 'plank-connector']);
     const detail = await app.inject('/api/v1/models/fruit-fly-trap');
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false, properties: { trapDiameter: { type: 'number', minimum: 20, maximum: 200 } } });
@@ -71,6 +71,22 @@ describe('model and render API', () => {
     expect(unknownMode.statusCode).toBeGreaterThanOrEqual(400);
     const extra = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, anything: 1 } } });
     expect(extra.statusCode).toBeGreaterThanOrEqual(400);
+  });
+
+  it('serves the plank connector as a single-STL model with a screw-hole enum and accepts each screw size', async () => {
+    const detail = await app.inject('/api/v1/models/plank-connector');
+    const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
+    expect(model.artifactFormat).toBe('stl');
+    expect(model.customizable).toBe(true);
+    expect(model.defaults).toEqual(plankConnector.defaults);
+    expect(model.controls.find(control => control.key === 'screwHoles')?.options?.map(option => option.value)).toEqual(['none', 'M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8']);
+    expect(model.parts).toBeUndefined();
+    const render = (parameters: Record<string, unknown>) => app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: plankConnector.id, modelVersion: plankConnector.version, parameters: { ...plankConnector.defaults, ...parameters } } });
+    for (const screwHoles of ['none', 'M3', 'M8']) expect((await render({ screwHoles })).statusCode, screwHoles).toBeLessThan(300);
+    expect((await render({ screwHoles: 'M7' })).statusCode).toBeGreaterThanOrEqual(400);
+    const shallow = await render({ screwHoles: 'M8', holeFit: 'coarse', insertionDepth: 10 });
+    expect(shallow.statusCode).toBeGreaterThanOrEqual(400);
+    expect(shallow.json<{ issues: { field: string }[] }>().issues[0]?.field).toBe('insertionDepth');
   });
 
   it('rejects unknown models, stale versions, and invalid fields', async () => {
