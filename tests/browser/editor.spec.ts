@@ -210,3 +210,42 @@ test('shows the cigarette case, offers snap, clearance and text settings and dow
   }
   expect(errors).toEqual([]);
 });
+
+test('customizes the plank connector pocket, depth and screw holes and downloads the matching STL', async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'CanFactory model library' }).click();
+  const card = page.getByRole('button', { name: /CUSTOMIZABLE · STL Plank connector/ });
+  await card.hover();
+  await page.screenshot({ path: testInfo.outputPath('library.png'), fullPage: true });
+  await card.click();
+  await expect(page.getByRole('heading', { name: 'Plank connector', exact: true })).toBeVisible();
+  const downloadButton = page.getByRole('button', { name: 'Download STL', exact: true });
+  await expect(page.getByRole('spinbutton', { name: 'Pocket width', exact: true })).toHaveValue('50.22');
+  await expect(page.getByRole('spinbutton', { name: 'Pocket thickness', exact: true })).toHaveValue('4.8');
+  const screwHoles = page.getByLabel('Screw holes');
+  await expect(screwHoles).toHaveValue('none');
+  await expect(downloadButton).toBeEnabled({ timeout: 90_000 });
+  await expect(page.getByText('54.2 × 8.8 × 42.0')).toBeVisible();
+  // a hole too large for a shallow pocket is rejected before rendering
+  await page.getByRole('spinbutton', { name: 'Insertion depth', exact: true }).fill('8');
+  await screwHoles.selectOption('M8');
+  await expect(page.locator('#parameter-insertionDepth-error')).toContainText('insertion depth of at least 11 mm');
+  await expect(downloadButton).toBeDisabled();
+  await screwHoles.selectOption('M4');
+  await expect(page.getByText('Through-holes for M4 screws: 4.3 / 4.5 / 4.8 mm')).toBeVisible();
+  await page.getByRole('spinbutton', { name: 'Insertion depth', exact: true }).fill('25');
+  await page.getByRole('spinbutton', { name: 'Pocket width', exact: true }).fill('60.3');
+  await expect(downloadButton).toBeEnabled({ timeout: 90_000 });
+  await page.screenshot({ path: testInfo.outputPath('plank-connector.png'), fullPage: true });
+  const downloadEvent = page.waitForEvent('download');
+  await downloadButton.click();
+  const path = await (await downloadEvent).path();
+  if (!path) throw new Error('Missing download');
+  const mesh = inspectStl(await readFile(path));
+  expect(mesh.dimensions.x).toBeCloseTo(64.3, 3);
+  expect(mesh.dimensions.y).toBeCloseTo(8.8, 3);
+  expect(mesh.dimensions.z).toBeCloseTo(52, 3);
+  expect(errors).toEqual([]);
+});
