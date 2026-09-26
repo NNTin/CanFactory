@@ -8,9 +8,10 @@
 // Geometry: a free-form oval tube (the bay's 11.8 x 22.8 mm, less CLEARANCE per side) closed by a flat floor and an
 // ellipsoidal-profile dome, with an elliptical window cut through the +X wall. Units are millimetres; the part is
 // centred on the Z axis with its floor on z = 0. The source STL sat at (260.6, 77.4) on the print plate, floor at 0.86.
-// Named dimensions only; no snap parameter (the box's clip tab already holds it). The one parameter is CLEARANCE: the holder
-// slides into the large box's round bay, so its outer skin is that bay's outline pulled in by CLEARANCE (the source STL's
-// skin stood 0.45 to 0.5 mm inside the bay). The cavity is as measured.
+// Named dimensions only; the parameters are CLEARANCE and HOLDER_SNAP. The holder slides into the large box's round bay, so its
+// outer skin is that bay's outline pulled in by CLEARANCE (the source STL's skin stood 0.45 to 0.5 mm inside the bay); the
+// cavity is as measured. The tab in the bay is only the upper stop: HOLDER_SNAP chooses what keeps the holder from dropping out
+// through the open floor (see the holder retention block, identical in the box file).
 
 SCALE     = 1;
 ROUNDNESS = 96;
@@ -32,6 +33,7 @@ BAY_ROUND = [[-13.813, -10.401], [-14.397, -10.8], [-15.128, -11.136], [-15.685,
        [-11.834, -7.326], [-12.177, -8.188], [-12.551, -8.908], [-12.868, -9.393], [-13.227, -9.843]];
 BAY_X = -16.84;
 BAY = [for (p = BAY_ROUND) p - [BAY_X, 0]];
+HOLDER_BAY = BAY;
 // Cavity outline at mid height (x, y) about the part centre, as measured (free-form, not an ellipse).
 INNER = [[-1.424, 9.673], [-0.871, 9.862], [-0.293, 9.952], [0.29, 9.952], [0.793, 9.879], [1.356, 9.701], [1.757, 9.499],
          [2.169, 9.208], [2.59, 8.801], [2.948, 8.337], [3.25, 7.835], [3.505, 7.299], [3.736, 6.686], [3.907, 6.125],
@@ -57,6 +59,58 @@ WINDOW_A  = 9.16;
 WINDOW_C  = 13.15;
 WINDOW_Z0 = 14.5;
 
+// --- holder retention (this block is identical in the box file and in the holder file; a test keeps them in sync) ---
+// How the mini holder is held in the case box's round bay, chosen by HOLDER_SNAP (a -D override): "friction" (nothing added),
+// "detent" or "crush-ribs". The holder is pushed up into the bay through the open floor, and the tab in the bay stops it at the
+// top. It must not drop out when the case is turned over, yet a lighter pushed down onto its dome from above must still push it
+// out. Both features therefore sit near the holder's floor, its trailing end, so they only rub over the last few millimetres of
+// the push. They come in opposing pairs: a feature on one side only would let the holder shift sideways by CLEARANCE and lose
+// its engagement. Heights are above the box's underside, which is where the holder's floor sits. Frame: HOLDER_BAY is the bay
+// outline about its own centre. Sizes follow CLEARANCE, so each feature engages the same amount at any clearance.
+HOLDER_SNAP = "friction";
+// detent: a bump on each end of the holder (the bay's +/-Y ends; the holder's +X half is its window, so it springs in along Y),
+// and a groove in the bay wall that clears the bump by CLEARANCE on every side
+HOLDER_DETENT_Z = 5;         // centre height of the bump
+HOLDER_DETENT_ENGAGE = 0.15; // the bump reaches this far past the bay wall: less than the case lid's detent, so a push releases it
+HOLDER_DETENT_W = 3.5;       // width across the bay's end (along X)
+HOLDER_DETENT_TOP = 0.6;     // height of the bump's crest
+HOLDER_DETENT_FLANK = 30;    // flank angle from the wall, in degrees: shallow both ways, for pushing in and pushing out
+HOLDER_DETENT_ROOT = 0.2;    // the bump starts this far inside the holder's skin, so it fuses with the wall
+HOLDER_DETENT_RUN = (CLEARANCE + HOLDER_DETENT_ENGAGE + HOLDER_DETENT_ROOT) / tan(HOLDER_DETENT_FLANK);   // height of each flank
+// crush-ribs: four vertical ribs on the holder's skin, squeezed by HOLDER_CRUSH_SQUEEZE by the bay wall; symmetric in X and Y, so
+// the holder stays centred. Nothing is cut into the box.
+HOLDER_CRUSH_SQUEEZE = 0.1;
+HOLDER_CRUSH_ANGLES = [60, 120, 240, 300];   // about the bay centre, from +X; below the window, which starts above z = 9.3 there
+HOLDER_CRUSH_W = 0.6;
+HOLDER_CRUSH_Z0 = 0.5;
+HOLDER_CRUSH_Z1 = 7;         // the top end is ramped over HOLDER_CRUSH_RAMP, since the top leads into the bay
+HOLDER_CRUSH_RAMP = 1.5;
+
+// A thin band just inside the bay outline offset by d (d = 0 is the bay wall, -CLEARANCE the holder's skin), clipped to the
+// children, at height z. The features are hulls of these bands, so their surfaces follow the curved bay wall.
+module holder_band(z, d) {
+  translate([0, 0, z]) linear_extrude(height = 0.01) intersection() {
+    difference() { offset(delta = d) polygon(HOLDER_BAY); offset(delta = d - 0.1) polygon(HOLDER_BAY); }
+    children();
+  }
+}
+// The detent bump as [z, d] stations: grow = 0 is the bump on the holder, grow = CLEARANCE the groove that clears it.
+function holder_detent_profile(grow) =
+  let(z0 = HOLDER_DETENT_Z - HOLDER_DETENT_TOP / 2 - HOLDER_DETENT_RUN, z1 = HOLDER_DETENT_Z + HOLDER_DETENT_TOP / 2 + HOLDER_DETENT_RUN,
+      d0 = -CLEARANCE - HOLDER_DETENT_ROOT + grow, d1 = HOLDER_DETENT_ENGAGE + grow)
+  [[z0 - grow, d0], [z0 + HOLDER_DETENT_RUN - grow, d1], [z1 - HOLDER_DETENT_RUN + grow, d1], [z1 + grow, d0]];
+module holder_detent(grow) {
+  for (s = [1, -1]) hull() for (p = holder_detent_profile(grow))
+    holder_band(p[0], p[1]) translate([-HOLDER_DETENT_W / 2 - grow, s > 0 ? 5 : -20]) square([HOLDER_DETENT_W + 2 * grow, 15]);
+}
+module holder_crush_ribs() {
+  d0 = -CLEARANCE - 0.2;
+  for (a = HOLDER_CRUSH_ANGLES) hull()
+    for (p = [[HOLDER_CRUSH_Z0, d0], [HOLDER_CRUSH_Z0, HOLDER_CRUSH_SQUEEZE], [HOLDER_CRUSH_Z1 - HOLDER_CRUSH_RAMP, HOLDER_CRUSH_SQUEEZE], [HOLDER_CRUSH_Z1, d0]])
+      holder_band(p[0], p[1]) rotate(a) translate([0, -HOLDER_CRUSH_W / 2]) square([20, HOLDER_CRUSH_W]);
+}
+// --- end holder retention ---
+
 // Outer skin: the bay pulled in by CLEARANCE.
 module outer() offset(delta = -CLEARANCE) polygon(BAY);
 
@@ -72,6 +126,8 @@ module minibox() {
     union() {
       linear_extrude(height = DOME_OUT[0][0] + 0.01) outer();
       dome(DOME_OUT) outer();
+      if (HOLDER_SNAP == "detent") holder_detent(0);
+      if (HOLDER_SNAP == "crush-ribs") holder_crush_ribs();
     }
     union() {
       translate([0, 0, FLOOR_T]) linear_extrude(height = DOME_IN[0][0] - FLOOR_T + 0.01) polygon(INNER);
