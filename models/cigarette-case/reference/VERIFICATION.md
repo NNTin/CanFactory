@@ -1,14 +1,14 @@
 # Cigarette case (Onz): STL to SCAD verification
 
-Renderer: wasm — OpenSCAD version 2025.01.19 via openscad-wasm-prebuilt (Manifold backend). Tolerance: bbox ≤ 0.1 mm, volume ≤ 2 %, IoU ≥ 0.96, one closed manifold body; cell 0.2 mm.
+Renderer: native — OpenSCAD version 2026.09.23 (Manifold backend). Tolerance: bbox ≤ 0.1 mm, volume ≤ 2 %, IoU ≥ 0.96, one closed manifold body; cell 0.2 mm.
 
 | Part | Result | Size Δ (mm) | Volume Δ | IoU | Mean dev (mm) | Ref tris | SCAD bytes | Render (s) |
 |---|---|---|---|---|---|---|---|---|
-| 11_-_Honeycomb_-_minibox | PASS | -0.024 / 0.006 / 0.001 | -0.26 % | 0.9618 | 0.018 | 15404 | 5757 | 0.6 |
-| 11_-_Honeycomb_-_topminibox_-_box | PASS | -0.049 / -0.002 / -0.000 | 1.12 % | 0.9719 | 0.014 | 11082 | 5071 | 0.2 |
-| 11_-_Honeycomb_-_topminibox_-_top | FAIL | -0.001 / -0.002 / -0.000 | 1.30 % | 0.9532 | 0.024 | 10512 | 7683 | 0.3 |
-| 11_v11.3__-_honeycomb_-_box | PASS | 0.019 / -0.002 / -0.000 | 0.86 % | 0.9796 | 0.017 | 571808 | 79234 | 11.7 |
-| 11_v11.3__-_honeycomb_-_top | PASS | -0.001 / -0.001 / 0.000 | 1.06 % | 0.9729 | 0.018 | 423568 | 60423 | 9.2 |
+| 11_-_Honeycomb_-_minibox | PASS | -0.024 / 0.006 / 0.001 | -0.26 % | 0.9618 | 0.018 | 15404 | 10372 | 0.2 |
+| 11_-_Honeycomb_-_topminibox_-_box | PASS | -0.049 / -0.002 / -0.000 | 1.12 % | 0.9719 | 0.014 | 11082 | 11344 | 0.1 |
+| 11_-_Honeycomb_-_topminibox_-_top | FAIL | -0.001 / -0.002 / -0.000 | 1.30 % | 0.9532 | 0.024 | 10512 | 10227 | 0.1 |
+| 11_v11.3__-_honeycomb_-_box | PASS | 0.019 / -0.002 / -0.000 | 0.86 % | 0.9796 | 0.017 | 571808 | 83965 | 2.4 |
+| 11_v11.3__-_honeycomb_-_top | PASS | -0.001 / -0.001 / 0.000 | 1.06 % | 0.9729 | 0.018 | 423568 | 63883 | 1.6 |
 
 ## Sources
 
