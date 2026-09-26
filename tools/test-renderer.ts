@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { unzipSync } from 'fflate';
-import { activeParts, cigaretteCase, fruitFlyTrap, mossPlanter, textWidth, validateParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, cigaretteCase, fruitFlyTrap, holeDiameter, mossPlanter, plankConnector, textWidth, validateParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, RENDERER_IMAGE, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, runOpenScad, type OpenScadRunner } from '../apps/worker/src/render.ts';
@@ -32,7 +32,7 @@ const wasmRunner: OpenScadRunner = async (args) => {
   await writeFile(output, (await renderScad(scad, defines)).stl);
 };
 const mode = process.env['OPENSCAD_TEST_MODE'];
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = mode === 'native' ? runOpenScad : mode === 'wasm' ? wasmRunner : dockerRunner;
 const cases: { name: string; overrides: ParameterValues; dimensions: [number, number, number] }[] = [
@@ -178,6 +178,52 @@ try {
     }
     assert.equal(store.enqueue(cigaretteCase, parameters).id, job.id);
     console.log(`PASS cigarette case ${name}: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+
+  // Plank connector: every screw size and hole series, and the extremes of the pocket. Each must be one closed solid of exactly
+  // (pocket + 2 walls) x (2 depths + stop); without a chamfer or holes the volume is the box minus the two pockets, and every hole
+  // removes material, the more the larger the screw.
+  const plankRuns: { name: string; overrides: ParameterValues }[] = [
+    { name: 'default', overrides: {} },
+    ...['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8'].map(screwHoles => ({ name: `${screwHoles} medium`, overrides: { screwHoles } })),
+    { name: 'M3 fine, 4 per end', overrides: { screwHoles: 'M3', holeFit: 'fine', holesPerEnd: 4 } },
+    { name: 'M8 coarse, 1 per end', overrides: { screwHoles: 'M8', holeFit: 'coarse', holesPerEnd: 1 } },
+    { name: 'open sleeve, no chamfer', overrides: { stopThickness: 0, entryChamfer: 0 } },
+    { name: 'smallest', overrides: { pocketWidth: 5, pocketThickness: 1, insertionDepth: 5, wallThickness: 0.8, entryChamfer: 0.4, screwHoles: 'M2', holeFit: 'fine', holesPerEnd: 1 } },
+    { name: 'largest', overrides: { pocketWidth: 200, pocketThickness: 50, insertionDepth: 150, wallThickness: 10, stopThickness: 20, entryChamfer: 5, screwHoles: 'M8', holesPerEnd: 4 } },
+  ];
+  let plainVolume = 0; let previousHoleVolume = Number.POSITIVE_INFINITY;
+  for (const { name, overrides } of only && only !== 'plank-connector' ? [] : plankRuns) {
+    const started = Date.now();
+    const parameters = { ...plankConnector.defaults, ...overrides };
+    assert.deepEqual(validateParameters(plankConnector, parameters), [], name);
+    const queued = store.enqueue(plankConnector, parameters);
+    const job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken;
+    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true, `plank connector ${name}`); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `plank connector ${name}`); assert.ok(result.artifact);
+    if (!('dimensions' in result.artifact)) throw new Error('Expected a single-STL artifact for the plank connector.');
+    const [w, t, d, wall, stop] = [parameters['pocketWidth'], parameters['pocketThickness'], parameters['insertionDepth'], parameters['wallThickness'], parameters['stopThickness']].map(Number) as [number, number, number, number, number];
+    const want = { x: w + 2 * wall, y: t + 2 * wall, z: 2 * d + stop };
+    for (const axis of ['x', 'y', 'z'] as const)
+      assert.ok(Math.abs(result.artifact.dimensions[axis] - want[axis]) < 0.001, `plank connector ${name} ${axis}: ${result.artifact.dimensions[axis]} != ${want[axis]}`);
+    const volume = result.artifact.volume;
+    if (name === 'open sleeve, no chamfer') assert.ok(Math.abs(volume - (want.x * want.y * want.z - w * t * 2 * d)) < 0.5, `open sleeve volume ${volume}`);
+    if (name === 'default') plainVolume = volume;
+    if (name.endsWith(' medium')) {
+      // one hole's worth of material goes through both walls: at least the cylinder through them, the holes growing with the screw
+      const hole = holeDiameter({ screwHoles: String(parameters['screwHoles']) as 'M2', holeFit: 'medium' });
+      const removed = plainVolume - volume;
+      assert.ok(Math.abs(removed - 4 * Math.PI * (hole / 2) ** 2 * 2 * wall) < 0.02 * removed, `plank connector ${name}: removed ${removed}`);
+      assert.ok(volume < previousHoleVolume, `plank connector ${name}: holes must grow with the screw`);
+      previousHoleVolume = volume;
+    }
+    const bytes = await readFile(store.artifacts.path(job.id));
+    assert.equal(inspectStl(bytes).sha256, result.artifact.sha256);
+    assert.equal(store.enqueue(plankConnector, parameters).id, job.id);
+    console.log(`PASS plank connector ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 } finally {
   await app.close(); store.close(); await rm(directory, { recursive: true, force: true });

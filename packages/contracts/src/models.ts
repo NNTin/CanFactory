@@ -492,10 +492,118 @@ export const cigaretteCase = {
   derived: () => ({ slotCount: null }),
 } satisfies ModelDefinition;
 
+/**
+ * Plank connector: an original design (models/plank-connector/generator.scad). A symmetric sleeve with one pocket per plank end
+ * and a solid stop between them, so two planks meet end to end inside it. The default pocket, 50.22 x 4.80 mm, fits a
+ * 50.20 x 4.80 mm plank with 0.02 mm of clearance on the wide side only. Screw holes are optional through-holes across the wide
+ * faces, sized as clearance holes per DIN EN 20273 (ISO 273).
+ */
+const SCREW_HOLE_VALUES = ['none', 'M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8'] as const;
+export type ScrewHoles = typeof SCREW_HOLE_VALUES[number];
+const HOLE_FIT_VALUES = ['fine', 'medium', 'coarse'] as const;
+export type HoleFit = typeof HOLE_FIT_VALUES[number];
+
+/**
+ * DIN EN 20273 (ISO 273) clearance-hole diameters in mm, per screw size and series: fine (H12), medium (H13, the usual choice)
+ * and coarse (H14). Mirrors `DIN_EN_20273` in models/plank-connector/generator.scad (a test keeps the two identical).
+ */
+export const CLEARANCE_HOLES: Record<Exclude<ScrewHoles, 'none'>, Record<HoleFit, number>> = {
+  M2: { fine: 2.2, medium: 2.4, coarse: 2.6 },
+  'M2.5': { fine: 2.7, medium: 2.9, coarse: 3.1 },
+  M3: { fine: 3.2, medium: 3.4, coarse: 3.6 },
+  M4: { fine: 4.3, medium: 4.5, coarse: 4.8 },
+  M5: { fine: 5.3, medium: 5.5, coarse: 5.8 },
+  M6: { fine: 6.4, medium: 6.6, coarse: 7 },
+  M8: { fine: 8.4, medium: 9, coarse: 10 },
+};
+
+/** Diameter in mm of the through-holes for these settings; 0 without holes. */
+export const holeDiameter = (p: { screwHoles: ScrewHoles; holeFit: HoleFit }): number =>
+  p.screwHoles === 'none' ? 0 : CLEARANCE_HOLES[p.screwHoles][p.holeFit];
+
+const SCREW_HOLE_TEXT: Record<ScrewHoles, { label: string; description: string }> = {
+  none: { label: 'No holes', description: 'A plain sleeve; the planks are held by the close fit alone (or glue).' },
+  ...Object.fromEntries(Object.entries(CLEARANCE_HOLES).map(([screw, hole]) => [screw, {
+    label: `${screw} (${hole.medium} mm hole)`,
+    description: `Through-holes for ${screw} screws: ${hole.fine} / ${hole.medium} / ${hole.coarse} mm (fine / medium / coarse, DIN EN 20273).`,
+  }])) as Record<Exclude<ScrewHoles, 'none'>, { label: string; description: string }>,
+};
+const HOLE_FIT_TEXT: Record<HoleFit, { label: string; description: string }> = {
+  fine: { label: 'Fine (H12)', description: 'The smallest DIN EN 20273 hole: the screw is located closely.' },
+  medium: { label: 'Medium (H13)', description: 'The standard DIN EN 20273 hole, the usual choice.' },
+  coarse: { label: 'Coarse (H14)', description: 'The largest DIN EN 20273 hole: most play, easiest to line up with a hole drilled in the plank.' },
+};
+
+export const PlankConnectorParametersSchema = Type.Object({
+  pocketWidth: dimension('Pocket width', 'Wide side of each pocket in mm: the plank width plus clearance. The default fits a 50.20 mm plank with 0.02 mm to spare.', 50.22, 5, 200, 0.01),
+  pocketThickness: dimension('Pocket thickness', 'Thin side of each pocket in mm: the plank thickness plus clearance. The default fits a 4.80 mm plank exactly.', 4.8, 1, 50, 0.01),
+  insertionDepth: dimension('Insertion depth', 'How far each plank end goes into the connector, in mm.', 20, 5, 150, 0.5),
+  screwHoles: Type.Enum(SCREW_HOLE_VALUES, {
+    title: 'Screw holes', description: 'Optional through-holes across the wide faces, to screw or bolt each plank in place, sized for the chosen metric screw per DIN EN 20273. Drill the planks to match.', default: 'none',
+  }),
+  holeFit: Type.Enum(HOLE_FIT_VALUES, { title: 'Hole fit', description: 'The DIN EN 20273 series of the screw holes (when there are holes).', default: 'medium' }),
+  holesPerEnd: Type.Integer({ title: 'Holes per plank', description: 'Screw holes per plank end, spread evenly across the pocket width (when there are holes).', default: 2, minimum: 1, maximum: 4 }),
+  wallThickness: dimension('Wall thickness', 'Material around the pockets on every side, in mm.', 2, 0.8, 10),
+  stopThickness: dimension('Centre stop', 'Thickness of the solid stop between the two pockets, in mm. 0 makes an open sleeve that the planks can slide through.', 2, 0, 20),
+  entryChamfer: dimension('Entry chamfer', 'Size of the 45° lead-in at each pocket opening, in mm, which eases the plank in. 0 for none.', 0.5, 0, 5),
+}, { additionalProperties: false, description: 'Plank connector parameters. All fields are required; dimensions are in millimetres.' });
+export type PlankConnectorParameters = Static<typeof PlankConnectorParametersSchema>;
+
+/** Least material in mm between a screw hole and a plank edge, a neighbouring hole or the plank end. */
+const HOLE_MARGIN = 1;
+
+function validatePlankConnector(p: PlankConnectorParameters): ParameterIssue[] {
+  const issues: ParameterIssue[] = [];
+  if (p.entryChamfer > p.wallThickness - 0.4)
+    issues.push({ field: 'entryChamfer', message: `The entry chamfer must leave at least 0.4 mm of wall: at most ${Math.max(0, p.wallThickness - 0.4).toFixed(1)} mm for this wall thickness.` });
+  const hole = holeDiameter(p);
+  if (hole > 0) {
+    if (hole + 2 * HOLE_MARGIN > p.insertionDepth)
+      issues.push({ field: 'insertionDepth', message: `A ${hole} mm screw hole needs an insertion depth of at least ${hole + 2 * HOLE_MARGIN} mm.` });
+    if (hole + 2 * HOLE_MARGIN > p.pocketWidth / p.holesPerEnd)
+      issues.push({ field: 'holesPerEnd', message: `${p.holesPerEnd} holes of ${hole} mm do not fit across a ${p.pocketWidth} mm pocket. Use fewer holes or a smaller screw.` });
+  }
+  return issues;
+}
+
+const plankConnectorControls = [
+  control(PlankConnectorParametersSchema, 'pocketWidth', 'basic'),
+  control(PlankConnectorParametersSchema, 'pocketThickness', 'basic'),
+  control(PlankConnectorParametersSchema, 'insertionDepth', 'basic'),
+  enumControl(PlankConnectorParametersSchema, 'screwHoles', 'basic', SCREW_HOLE_VALUES.map(value => ({ value, ...SCREW_HOLE_TEXT[value] }))),
+  enumControl(PlankConnectorParametersSchema, 'holeFit', 'advanced', HOLE_FIT_VALUES.map(value => ({ value, ...HOLE_FIT_TEXT[value] }))),
+  control(PlankConnectorParametersSchema, 'holesPerEnd', 'advanced', null, null),
+  control(PlankConnectorParametersSchema, 'wallThickness', 'advanced'),
+  control(PlankConnectorParametersSchema, 'stopThickness', 'advanced'),
+  control(PlankConnectorParametersSchema, 'entryChamfer', 'advanced'),
+];
+
+export const plankConnector = {
+  id: 'plank-connector' as const, version: '1' as const, title: 'Plank connector',
+  description: 'A sleeve that joins two planks end to end: each plank slides into its own pocket up to a centre stop. Set the pocket to your plank’s cross-section and the insertion depth, and add screw holes sized per DIN EN 20273 if you like.',
+  attribution: 'CanFactory (original design)',
+  printNotes: 'Print standing on one end, as generated; no supports needed.',
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  sourcePath: 'models/plank-connector/generator.scad',
+  parameterSchema: PlankConnectorParametersSchema,
+  controls: plankConnectorControls,
+  defaults: Object.fromEntries(plankConnectorControls.map(c => [c.key, c.default])),
+  scadMapping: {
+    pocketWidth: 'POCKET_WIDTH', pocketThickness: 'POCKET_THICKNESS', insertionDepth: 'INSERTION_DEPTH',
+    screwHoles: 'SCREW_SIZE', holeFit: 'HOLE_FIT', holesPerEnd: 'HOLES_PER_END',
+    wallThickness: 'WALL_THICKNESS', stopThickness: 'STOP_THICKNESS', entryChamfer: 'ENTRY_CHAMFER',
+  },
+  validate(parameters: unknown): ParameterIssue[] {
+    if (!Value.Check(PlankConnectorParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
+    return validatePlankConnector(parameters);
+  },
+  derived: () => ({ slotCount: null }),
+} satisfies ModelDefinition;
+
 /** Add models here; shared API contracts and the generic editor consume this registry. Widened to the shared
  * interface (rather than the precise literal-typed tuple) so generic code can read optional fields uniformly;
  * `findModel`/`RenderRequestSchema` still discriminate on each model's own literal `id`/`version`. */
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase];
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

@@ -909,7 +909,8 @@ main {
 }
 .funnel-illustration,
 .moss-planter-illustration,
-.cigarette-case-illustration {
+.cigarette-case-illustration,
+.plank-connector-illustration {
   width: 250px;
   height: 210px;
 }
@@ -998,6 +999,31 @@ main {
 @media (prefers-reduced-motion: reduce) {
   .cc-part {
     transition: none !important;
+  }
+}
+.pc-part {
+  transition: transform 0.4s ease-out;
+}
+.pc-guide {
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+.model-card:hover .pc-left,
+.model-card:focus-visible .pc-left {
+  transform: translateX(-18px);
+}
+.model-card:hover .pc-right,
+.model-card:focus-visible .pc-right {
+  transform: translateX(18px);
+}
+.model-card:hover .pc-guide,
+.model-card:focus-visible .pc-guide {
+  opacity: 0.6;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc-part,
+  .pc-guide {
+    transition: none;
   }
 }
 .card-copy {

@@ -126,10 +126,40 @@ function CigaretteCaseIllustration() {
   </svg>;
 }
 
+/** One plank, drawn front-on with its top and end faces: the wide face towards the viewer, its thickness going back up-right. */
+function Plank({ x, width }: { x: number; width: number }) {
+  return <>
+    <path d={`M${x} 71h${width}l7-5h-${width}z`} fill="#93a682" />
+    <rect x={x} y="71" width={width} height="44" fill="#8fa27c" />
+    <path d={`M${x + width} 71l7-5v44l-7 5z`} fill="#5f7350" />
+    <path d={`M${x + 6} 85h${width - 14}M${x + 12} 101h${width - 26}`} stroke="#7b8e6b" strokeWidth="1.5" strokeLinecap="round" opacity=".6" />
+  </>;
+}
+
+/**
+ * The plank connector, drawn front-on: a terracotta sleeve with two planks (green) pushed into it from either side, and its screw
+ * holes. On card hover the planks slide out of their pockets, showing the open pocket in the sleeve's end (`.pc-*` in styles.css).
+ */
+function PlankConnectorIllustration() {
+  return <svg viewBox="0 0 240 190" aria-hidden="true" className="plank-connector-illustration">
+    <ellipse cx="122" cy="140" rx="106" ry="11" fill="#c8cec1" opacity=".35" />
+    <path className="pc-guide" d="M8 93H84M170 93H236" stroke="#7b8e6b" strokeWidth="1.5" strokeDasharray="3 4" fill="none" />
+    <g className="pc-part pc-left"><Plank x={20} width={80} /></g>
+    <path d="M88 66h64l14-10H102z" fill="#e8ab87" />
+    <rect x="88" y="66" width="64" height="58" fill="#d98460" />
+    <path d="M152 66l14-10v58l-14 10z" fill="#c46543" />
+    <path d="M154 70l10-7v44l-10 7z" fill="#753e2d" opacity=".55" />
+    {[102, 138].flatMap(cx => [81, 109].map(cy => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="3.5" fill="#753e2d" opacity=".7" />))}
+    <path d="M120 69v52" stroke="#c46543" strokeWidth="1.5" strokeDasharray="2 3" opacity=".7" />
+    <g className="pc-part pc-right"><Plank x={155} width={67} /></g>
+  </svg>;
+}
+
 const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'cigarette-case': CigaretteCaseIllustration,
   'fruit-fly-trap': FunnelIllustration,
   'moss-planter': MossPlanterIllustration,
+  'plank-connector': PlankConnectorIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of another control (Control.recommended), with that value's label. */
