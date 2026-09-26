@@ -185,6 +185,32 @@ test('shows the cigarette case, offers snap, clearance and text settings and dow
   await page.getByLabel('Mini box lid', { exact: true }).selectOption('detent');
   await expect(fit).toContainText('In the 0.20–0.40 mm recommended for these settings');
   await expect(fit).not.toContainText('Friction fit');
+  // Each joint's engagement or squeeze appears in advanced settings only while that joint uses the mechanism, with its default and
+  // recommended range; a groove too deep for its 1 mm wall is refused.
+  const holderEngage = page.getByRole('spinbutton', { name: 'Detent engagement (holder in the box)' });
+  const holderNote = page.getByTestId('parameter-holderDetentEngage-note');
+  await expect(holderEngage).toHaveValue('0.15');
+  await expect(holderNote).toContainText('Default 0.15 mm');
+  await expect(holderNote).toContainText('In the 0.10–0.20 mm recommended for Detent');
+  await expect(page.getByRole('slider', { name: 'Detent engagement (holder in the box) slider' })).toHaveClass(/range-recommended/);
+  await expect(page.getByRole('spinbutton', { name: 'Crush-rib squeeze (mini box in the lid)' })).toHaveValue('0.1');
+  const miniLidEngage = page.getByRole('spinbutton', { name: 'Detent engagement (mini box lid)' });
+  await expect(miniLidEngage).toHaveValue('0.12');
+  await expect(page.getByRole('spinbutton', { name: 'Detent engagement (case lid)' })).toHaveCount(0);
+  await expect(page.getByRole('spinbutton', { name: 'Crush-rib squeeze (holder in the box)' })).toHaveCount(0);
+  await holderEngage.fill('0.25');
+  await expect(holderNote).toContainText('Outside the 0.10–0.20 mm recommended for Detent');
+  await miniLidEngage.fill('0.4');
+  await clearance.fill('0.45');
+  await expect(page.locator('#parameter-miniLidDetentEngage-error')).toContainText('deep groove');
+  await clearance.fill('0.3');
+  await expect(page.locator('#parameter-miniLidDetentEngage-error')).toHaveCount(0);
+  await miniLidEngage.fill('0.12');
+  await holderEngage.fill('0.15');
+  await page.getByLabel('Holder in the box', { exact: true }).selectOption('friction');
+  await expect(holderEngage).toHaveCount(0);
+  await page.getByLabel('Holder in the box', { exact: true }).selectOption('detent');
+  await expect(holderEngage).toHaveValue('0.15');
   const text = page.getByLabel('Underside text');
   await expect(text).toHaveValue('');
   await text.fill('Tom');
