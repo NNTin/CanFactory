@@ -11,8 +11,8 @@
 // that the lid slides over. The relief is stored as plateau regions in the unrolled (s, z) plane and bent back around the
 // outline by relief_wrap() (generated with tools/stl-to-scad `relief`). Units are millimetres; the part is centred on the
 // Z axis with its underside on z = 0. The source STL sat at (217.2, 84.5) on the print plate with its underside at -1.48.
-// Named dimensions only; the parameters are CLEARANCE, the gap between mating surfaces, SNAP, how the lid snaps on, and the TEXT_*
-// underside text. The upper shell is not the source STL's: it is derived from the lid's cavity so that every joint has the same gap.
+// Named dimensions only; the parameters are CLEARANCE, the gap between mating surfaces, SNAP, how the lid snaps on, HOLDER_SNAP,
+// how the mini holder is held in the round bay (the tab is only its upper stop), and the TEXT_* underside text. The upper shell is not the source STL's: it is derived from the lid's cavity so that every joint has the same gap.
 
 SCALE = 1;
 
@@ -46,6 +46,9 @@ BAY_ROUND = [[-13.813, -10.401], [-14.397, -10.8], [-15.128, -11.136], [-15.685,
 // listed height; the slices overlap a little and are grown by TAB_GROW so the tab fuses with the bay wall.
 TAB_STEP = 0.2;
 TAB_GROW = 0.08;
+// The round bay about its own centre, the frame of the holder retention block below (the holder stands centred at HOLDER_BAY_X).
+HOLDER_BAY_X = -16.84;
+HOLDER_BAY = [for (p = BAY_ROUND) p - [HOLDER_BAY_X, 0]];
 TAB = [
   [32.31, [[-11.93, -6.32], [-12.31, -6.32], [-12.91, -7.66], [-13.38, -8.49], [-13.96, -9.25], [-14.31, -9.63], [-15.03, -10.22], [-15.59, -10.52], [-16.2, -10.72], [-16.84, -10.79], [-17.46, -10.73], [-18.07, -10.53], [-18.64, -10.22], [-19.36, -9.63], [-19.71, -9.25], [-20.32, -8.44], [-20.77, -7.66], [-21.37, -6.32], [-21.75, -6.32], [-21.26, -7.53], [-20.76, -8.51], [-20.3, -9.23], [-19.68, -9.99], [-19, -10.61], [-18.18, -11.11], [-17.72, -11.28], [-17.25, -11.38], [-16.84, -11.4], [-16.43, -11.38], [-15.96, -11.28], [-15.49, -11.11], [-14.69, -10.62], [-13.99, -9.99], [-13.39, -9.25], [-12.9, -8.49], [-12.35, -7.4]]],
   [32.51, [[-21.72, -6.32], [-21.18, -7.65], [-20.75, -8.49], [-20.25, -9.25], [-19.64, -9.99], [-18.93, -10.62], [-18.12, -11.09], [-17.57, -11.28], [-16.84, -11.36], [-16.1, -11.28], [-15.57, -11.1], [-14.74, -10.62], [-14.03, -9.99], [-13.43, -9.25], [-12.93, -8.49], [-12.46, -7.57], [-11.95, -6.32], [-12.47, -6.32], [-12.86, -7.21], [-13.6, -8.49], [-14.22, -9.25], [-14.61, -9.63], [-15.08, -9.99], [-15.71, -10.32], [-16.29, -10.49], [-16.84, -10.54], [-17.38, -10.49], [-17.97, -10.32], [-18.59, -9.99], [-19.06, -9.63], [-19.45, -9.25], [-20.07, -8.49], [-20.81, -7.21], [-21.2, -6.32]]],
@@ -159,6 +162,61 @@ module snap_cut() {
   if (SNAP == "magnet")
     for (m = [0, 1]) mirror([0, m, 0]) translate([SNAP_XC, UPPER_Y + 0.2, z0 + MAGNET_Z]) rotate([90, 0, 0]) cylinder(d = MAGNET_D, h = MAGNET_T + 0.2, $fn = 64);
 }
+
+// --- holder retention (this block is identical in the box file and in the holder file; a test keeps them in sync) ---
+// How the mini holder is held in the case box's round bay, chosen by HOLDER_SNAP (a -D override): "friction" (nothing added),
+// "detent" or "crush-ribs". The holder is pushed up into the bay through the open floor, and the tab in the bay stops it at the
+// top. It must not drop out when the case is turned over, yet a lighter pushed down onto its dome from above must still push it
+// out. Both features therefore sit near the holder's floor, its trailing end, so they only rub over the last few millimetres of
+// the push. They come in opposing pairs: a feature on one side only would let the holder shift sideways by CLEARANCE and lose
+// its engagement. Heights are above the box's underside, which is where the holder's floor sits. Frame: HOLDER_BAY is the bay
+// outline about its own centre. Sizes follow CLEARANCE, so each feature engages the same amount at any clearance.
+HOLDER_SNAP = "friction";
+// detent: a bump on each end of the holder (the bay's +/-Y ends; the holder's +X half is its window, so it springs in along Y),
+// and a groove in the bay wall that clears the bump by CLEARANCE on every side
+HOLDER_DETENT_Z = 5;         // centre height of the bump
+HOLDER_DETENT_ENGAGE = 0.15; // the bump reaches this far past the bay wall: less than the case lid's detent, so a push releases it
+HOLDER_DETENT_W = 3.5;       // width across the bay's end (along X)
+HOLDER_DETENT_TOP = 0.6;     // height of the bump's crest
+HOLDER_DETENT_FLANK = 30;    // flank angle from the wall, in degrees: shallow both ways, for pushing in and pushing out
+HOLDER_DETENT_ROOT = 0.2;    // the bump starts this far inside the holder's skin, so it fuses with the wall
+HOLDER_DETENT_RUN = (CLEARANCE + HOLDER_DETENT_ENGAGE + HOLDER_DETENT_ROOT) / tan(HOLDER_DETENT_FLANK);   // height of each flank
+// crush-ribs: four vertical ribs on the holder's skin, squeezed by HOLDER_CRUSH_SQUEEZE by the bay wall; symmetric in X and Y, so
+// the holder stays centred. Nothing is cut into the box.
+HOLDER_CRUSH_SQUEEZE = 0.1;
+HOLDER_CRUSH_ANGLES = [60, 120, 240, 300];   // about the bay centre, from +X; below the window, which starts above z = 9.3 there
+HOLDER_CRUSH_W = 0.6;
+HOLDER_CRUSH_Z0 = 0.5;
+HOLDER_CRUSH_Z1 = 7;         // the top end is ramped over HOLDER_CRUSH_RAMP, since the top leads into the bay
+HOLDER_CRUSH_RAMP = 1.5;
+
+// A thin band just inside the bay outline offset by d (d = 0 is the bay wall, -CLEARANCE the holder's skin), clipped to the
+// children, at height z. The features are hulls of these bands, so their surfaces follow the curved bay wall. The hull's edges
+// run along the bisectors of the outline's vertices, right through the bay's (and the skin's) vertical edges; HOLDER_JITTER, a
+// few micrometres, moves them off those edges, which would otherwise leave zero-area triangles in the mesh.
+HOLDER_JITTER = [0.0071, 0.0043];
+module holder_band(z, d) {
+  translate([HOLDER_JITTER[0], HOLDER_JITTER[1], z]) linear_extrude(height = 0.01) intersection() {
+    difference() { offset(delta = d) polygon(HOLDER_BAY); offset(delta = d - 0.1) polygon(HOLDER_BAY); }
+    children();
+  }
+}
+// The detent bump as [z, d] stations: grow = 0 is the bump on the holder, grow = CLEARANCE the groove that clears it.
+function holder_detent_profile(grow) =
+  let(z0 = HOLDER_DETENT_Z - HOLDER_DETENT_TOP / 2 - HOLDER_DETENT_RUN, z1 = HOLDER_DETENT_Z + HOLDER_DETENT_TOP / 2 + HOLDER_DETENT_RUN,
+      d0 = -CLEARANCE - HOLDER_DETENT_ROOT + grow, d1 = HOLDER_DETENT_ENGAGE + grow)
+  [[z0 - grow, d0], [z0 + HOLDER_DETENT_RUN - grow, d1], [z1 - HOLDER_DETENT_RUN + grow, d1], [z1 + grow, d0]];
+module holder_detent(grow) {
+  for (s = [1, -1]) hull() for (p = holder_detent_profile(grow))
+    holder_band(p[0], p[1]) translate([-HOLDER_DETENT_W / 2 - grow, s > 0 ? 5 : -20]) square([HOLDER_DETENT_W + 2 * grow, 15]);
+}
+module holder_crush_ribs() {
+  d0 = -CLEARANCE - 0.2;
+  for (a = HOLDER_CRUSH_ANGLES) hull()
+    for (p = [[HOLDER_CRUSH_Z0, d0], [HOLDER_CRUSH_Z0, HOLDER_CRUSH_SQUEEZE], [HOLDER_CRUSH_Z1 - HOLDER_CRUSH_RAMP, HOLDER_CRUSH_SQUEEZE], [HOLDER_CRUSH_Z1, d0]])
+      holder_band(p[0], p[1]) rotate(a) translate([0, -HOLDER_CRUSH_W / 2]) square([20, HOLDER_CRUSH_W]);
+}
+// --- end holder retention ---
 
 // --- underside text (this block is identical in the box file and in underside-text.scad; a test keeps them in sync) ---
 // Text on the underside of the box, the face that sits on the print bed. It reads correctly when the box is turned over, so it is
@@ -883,6 +941,7 @@ module box() {
       snap_add();
     }
     snap_cut();
+    if (HOLDER_SNAP == "detent") translate([HOLDER_BAY_X, 0, 0]) holder_detent(CLEARANCE);
     if (len(TEXT) > 0) translate([0, 0, -0.01]) linear_extrude(height = TEXT_DEPTH + 0.01) underside_text_2d();
   }
 }

@@ -85,14 +85,23 @@ describe('renderJob for an assembly model', () => {
 
   it('passes the snap mode, clearance and text settings only to the cigarette-case parts that map them, strings quoted', async () => {
     const invocations: string[][] = [];
-    store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, snap: 'crush-ribs', clearance: 0.35, engraveText: 'Tom "T" \\1', textSize: 3 });
+    store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, snap: 'crush-ribs', miniLidSnap: 'detent', holderSnap: 'crush-ribs', miniBoxSnap: 'detent', clearance: 0.35, engraveText: 'Tom "T" \\1', textSize: 3 });
     const claimed = store.claim();
     if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
     expect(await renderJob(store, claimed, new AbortController().signal, fakeRunner(invocations))).toBe(true);
     const defines = invocations.map(args => args.flatMap((arg, index) => args[index - 1] === '-D' ? [arg] : []));
     const text = ['TEXT="Tom \\"T\\" \\\\1"', 'TEXT_FONT="sans"', 'TEXT_SIZE=3'];
-    const snap = ['SNAP="crush-ribs"', 'CLEARANCE=0.35'];
-    expect(defines).toEqual([[...snap, ...text], snap, ['CLEARANCE=0.35'], ['CLEARANCE=0.35'], snap]);
+    // each joint's setting reaches only the two parts of that joint
+    // (with its engagement, which its groove needs too, and its squeeze where the ribs are)
+    const fit = 'CLEARANCE=0.35';
+    const snap = ['SNAP="crush-ribs"', 'DETENT_ENGAGE=0.19'];
+    const holder = ['HOLDER_SNAP="crush-ribs"', 'HOLDER_DETENT_ENGAGE=0.15'];
+    const miniLid = ['MINI_LID_SNAP="detent"', 'ML_DETENT_ENGAGE=0.12'];
+    const miniBox = ['MINI_BOX_SNAP="detent"', 'MB_DETENT_ENGAGE=0.15'];
+    expect(defines).toEqual([
+      [fit, ...snap, 'CRUSH_SQUEEZE=0.16', ...holder, ...text], [fit, ...snap, ...miniBox, 'MB_CRUSH_SQUEEZE=0.1'], [fit, ...holder, 'HOLDER_CRUSH_SQUEEZE=0.1'],
+      [fit, ...miniLid, ...miniBox], [fit, ...miniLid, 'CRUSH_SQUEEZE=0.1'],
+    ]);
   });
 
   it('adds the text part in second-filament mode, tolerating its separate letters, and points OpenSCAD at the bundled fonts', async () => {

@@ -8,8 +8,9 @@
 // Geometry: a 1 mm shell over a D-shaped plan (rounded -X end, chamfered +X end) with a 1 mm floor. The +X end is swept
 // away by a curved profile (the outer surface climbs from x = 6 at the floor to x = 17.2 at the rim) and an elliptical
 // notch is cut through the rim at both ends. Units are millimetres; the part is centred on the Z axis with its floor on z = 0.
-// The source STL sat at (239.3, -84.8) on the print plate. Named dimensions only; no snap parameter (its notches already are
-// the detent the lid latches into). The one parameter is CLEARANCE: the closed box slides into the case lid's cavity, so the
+// The source STL sat at (239.3, -84.8) on the print plate. Named dimensions only; the parameters are CLEARANCE, MINI_LID_SNAP (how
+// the mini lid is held in this box; its end pads sit in the rim notches in every mode) and MINI_BOX_SNAP (how this box, closed,
+// is held in the case lid's cavity). The closed box slides into the case lid's cavity, so the
 // measured outline is pulled in until it stands CLEARANCE inside that cavity (the source STL stood only FIT_GAP inside).
 
 SCALE     = 1;
@@ -56,6 +57,90 @@ module keep_region() {
   polygon(concat([[-30, -HEADROOM], [END_CURVE[0][0], -HEADROOM]], END_CURVE, [[END_TOP_X, HEIGHT + HEADROOM], [-30, HEIGHT + HEADROOM]]));
 }
 
+// --- mini lid retention (this block is identical in the mini box file and in the mini lid file; a test keeps them in sync) ---
+// How the mini lid is held in the mini box, chosen by MINI_LID_SNAP (a -D override): "friction" (the original end pads in the rim
+// notches, one clearance all round: they locate the lid but do not latch it), "detent" or "crush-ribs". The pads stay in every
+// mode. Frame: the mini lid's, as printed (cap underside on z = 0); in the mini box's frame the lid is turned over about Y with
+// its cap level with the box's rim (ML_RIM). The detent sits on the straight side walls, just below the cap: the lid's bump
+// rides over the box's free rim for only a couple of millimetres and clicks into a groove there, and the rim gives way
+// outwards. (A detent on the pads cannot work: the rim notches are widest at the rim, so nothing can hook under them, and
+// spreading the notch posts sideways is far too stiff.) The crush ribs are in the mini lid file. Sizes follow CLEARANCE.
+MINI_LID_SNAP = "friction";
+ML_RIM = 14.391;      // the mini box's rim height
+ML_Y = 13.759 + FIT - WALL;   // inner face of the mini box's straight side walls; the lid's outer face is CLEARANCE further in
+ML_X0 = -4;           // straight stretch of the lid's side walls (lid frame)
+ML_X1 = 5.5;
+ML_DETENT_Z = 2.2;    // centre of the bump above the cap's underside, 2.2 mm below the box's rim
+ML_DETENT_ENGAGE = 0.12;   // the bump reaches this far past the box's inner face
+ML_DETENT_H = CLEARANCE + ML_DETENT_ENGAGE;   // so it stands this far proud of the lid's wall
+
+module ml_bar(x0, x1, profile) {
+  for (m = [0, 1]) mirror([0, m, 0]) translate([x0, 0, 0]) rotate([90, 0, 90]) linear_extrude(height = x1 - x0) polygon(profile);
+}
+// The mini lid's half: a bump on each straight side wall.
+module mini_lid_retention_lid() {
+  y = ML_Y - CLEARANCE; z = ML_DETENT_Z;
+  if (MINI_LID_SNAP == "detent")
+    ml_bar(ML_X0, ML_X1, [[y - 0.3, z - 1.3], [y, z - 1], [y + ML_DETENT_H, z - 0.4], [y + ML_DETENT_H, z + 0.4], [y, z + 1], [y - 0.3, z + 1.3]]);
+}
+// The mini box's half, in the lid's frame: a groove in each side wall that clears the bump by CLEARANCE.
+module mini_lid_retention_box() {
+  y = ML_Y; z = ML_DETENT_Z; g = ML_DETENT_ENGAGE + CLEARANCE;
+  if (MINI_LID_SNAP == "detent")
+    ml_bar(ML_X0 - CLEARANCE, ML_X1 + CLEARANCE, [[y - 0.3, z - 1.5], [y, z - 1.5], [y + g, z - 0.4 - CLEARANCE], [y + g, z + 0.4 + CLEARANCE], [y, z + 1.5], [y - 0.3, z + 1.5]]);
+}
+// The mini lid's frame placed in the mini box's frame (turned over about Y, cap level with the rim).
+module mini_lid_in_box() { translate([0, 0, ML_RIM]) rotate([0, 180, 0]) children(); }
+// --- end mini lid retention ---
+
+// --- mini box retention (this block is identical in the case lid file and in the mini box file; a test keeps them in sync) ---
+// How the closed mini box is held in the case lid's cavity, chosen by MINI_BOX_SNAP (a -D override): "friction" (nothing added),
+// "detent" or "crush-ribs". The mini box slides up into the lid until its rim meets the lid's ceiling, and must stay there when
+// the lid is lifted off the box; it is pulled out with a finger. Frame: the case lid's, rim at z = 0; the mini box stands at
+// MB_POSE (its floor 23.5 mm above the lid's rim). The features sit on the lid's cavity wall near the ceiling, where the mini
+// box ends up, so the mini box only rubs over them for the last few millimetres (a feature on the mini box would rub the whole
+// way up the lid). They sit on both straight sides of the cavity, where the cavity and the mini box are both straight. Sizes
+// follow CLEARANCE, so each feature engages the same amount at any clearance.
+MINI_BOX_SNAP = "friction";
+MB_POSE = [6.43, 0, 23.459];   // the mini box's origin in the lid's frame (its rim, 14.391 mm up, is at the ceiling, z = 37.85)
+MB_CAVITY_Y = 13.79;  // the cavity's straight sides; the mini box's outer face is CLEARANCE further in
+MB_CEILING = 37.85;
+MB_X0 = 0.5;          // straight stretch shared by the cavity and the mini box
+MB_X1 = 9;
+// detent: a bump on each side of the cavity, and a groove in the mini box's side walls that clears it by CLEARANCE
+MB_DETENT_Z = 30.5;   // halfway up the mini box
+MB_DETENT_ENGAGE = 0.15;   // the bump reaches this far past the mini box's face; not more than the smallest recommended clearance,
+                           // so the mini box's wall can give way into its gap to the mini lid inside it
+MB_DETENT_H = CLEARANCE + MB_DETENT_ENGAGE;   // so the bump stands this far proud of the cavity wall
+// crush-ribs: vertical ribs on the cavity wall, squeezed by MB_CRUSH_SQUEEZE by the mini box; the lower end is ramped so the
+// mini box finds them
+MB_CRUSH_SQUEEZE = 0.1;
+MB_CRUSH_H = CLEARANCE + MB_CRUSH_SQUEEZE;
+MB_CRUSH_X = [1, 4.75, 8.5];
+MB_CRUSH_W = 0.5;
+MB_CRUSH_Z0 = 26;
+
+// A profile given as (y, z) pairs, stretched along x from x0 to x1; mirrored to both sides.
+module mb_bar(x0, x1, profile) {
+  for (m = [0, 1]) mirror([0, m, 0]) translate([x0, 0, 0]) rotate([90, 0, 90]) linear_extrude(height = x1 - x0) polygon(profile);
+}
+// The case lid's half: added to the cavity wall.
+module mini_box_retention_lid() {
+  y = MB_CAVITY_Y; z = MB_DETENT_Z;
+  if (MINI_BOX_SNAP == "detent")
+    mb_bar(MB_X0, MB_X1, [[y + 0.3, z - 1.3], [y, z - 1], [y - MB_DETENT_H, z - 0.4], [y - MB_DETENT_H, z + 0.4], [y, z + 1], [y + 0.3, z + 1.3]]);
+  if (MINI_BOX_SNAP == "crush-ribs")
+    for (x = MB_CRUSH_X)
+      mb_bar(x - MB_CRUSH_W / 2, x + MB_CRUSH_W / 2, [[y + 0.3, MB_CRUSH_Z0], [y, MB_CRUSH_Z0], [y - MB_CRUSH_H, MB_CRUSH_Z0 + 1.4], [y - MB_CRUSH_H, MB_CEILING + 0.2], [y + 0.3, MB_CEILING + 0.2]]);
+}
+// The mini box's half, in the lid's frame: cut from its side walls.
+module mini_box_retention_box() {
+  y = MB_CAVITY_Y - CLEARANCE; z = MB_DETENT_Z; g = MB_DETENT_ENGAGE + CLEARANCE;
+  if (MINI_BOX_SNAP == "detent")
+    mb_bar(MB_X0, MB_X1, [[y + 0.3, z - 1.5], [y, z - 1.5], [y - g, z - 0.4 - CLEARANCE], [y - g, z + 0.4 + CLEARANCE], [y, z + 1.5], [y + 0.3, z + 1.5]]);
+}
+// --- end mini box retention ---
+
 module plan() offset(delta = FIT) polygon(PLAN);
 module fitted_keep_region() offset(delta = FIT) keep_region();
 
@@ -71,6 +156,8 @@ module topminibox_box() {
       translate([0, 0, WALL]) linear_extrude(height = HEIGHT) offset(delta = -WALL) plan();
       across_y(40) offset(delta = -WALL) fitted_keep_region();
     }
+    translate(-MB_POSE) mini_box_retention_box();
+    mini_lid_in_box() mini_lid_retention_box();
     translate([0, 0, NOTCH_Z0]) rotate([0, 90, 0]) scale([NOTCH_C, NOTCH_A, 1]) cylinder(r = 1, h = NOTCH_LEN, center = true, $fn = ROUNDNESS);
   }
 }

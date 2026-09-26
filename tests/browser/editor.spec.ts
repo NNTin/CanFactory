@@ -156,25 +156,61 @@ test('shows the cigarette case, offers snap, clearance and text settings and dow
   await expect(page.getByRole('heading', { name: 'Cigarette case (Onz)', exact: true })).toBeVisible();
   await expect(page.getByText('PARAMETRIC MODEL')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toBeVisible();
-  const snap = page.getByLabel('Snap mechanism');
+  const snap = page.getByLabel('Case lid snap');
   await expect(snap).toHaveValue('friction');
-  // Clearance, in advanced settings: the fit is named as the value changes, and the range recommended for the snap mode is shown.
+  for (const label of ['Mini box lid', 'Holder in the box', 'Mini box in the lid']) await expect(page.getByLabel(label, { exact: true })).toHaveValue('friction');
+  // Clearance, in advanced settings: the fit is named as the value changes, and the range that suits every joint's setting is shown,
+  // with the joints the value is outside of.
   await page.getByRole('button', { name: 'Advanced settings' }).click();
   const clearance = page.getByRole('spinbutton', { name: 'Clearance' });
   const fit = page.getByTestId('parameter-clearance-note');
   await expect(clearance).toHaveValue('0.2');
   await expect(fit).toContainText('Snug fit');
-  await expect(fit).toContainText('In the 0.10–0.60 mm recommended for Friction fit');
+  await expect(fit).toContainText('In the 0.10–0.20 mm recommended for these settings');
   await snap.selectOption('clip');
   await expect(page.getByText('A flexible tongue on the lid')).toBeVisible();
-  await expect(fit).toContainText('In the 0.20–0.40 mm recommended for Clip');
+  await expect(fit).toContainText('In the 0.20 mm recommended for these settings');
   await expect(page.getByRole('slider', { name: 'Clearance slider' })).toHaveClass(/range-recommended/);
   await clearance.fill('0.12');
   await expect(fit).toContainText('Very tight (press fit)');
-  await expect(fit).toContainText('Outside the 0.20–0.40 mm recommended for Clip');
+  await expect(fit).toContainText('Outside the 0.20 mm recommended for these settings');
+  await expect(fit).toContainText('Case lid snap (Clip): 0.20–0.40 mm');
   await clearance.fill('0.3');
   await expect(fit).toContainText('Sliding fit');
-  await expect(fit).toContainText('In the 0.20–0.40 mm');
+  await expect(fit).toContainText('Holder in the box (Friction fit): 0.10–0.20 mm');
+  await expect(fit).not.toContainText('Case lid snap (Clip)');
+  await page.getByLabel('Holder in the box', { exact: true }).selectOption('detent');
+  await expect(page.getByText('push it out from above', { exact: false })).toBeVisible();
+  await page.getByLabel('Mini box in the lid', { exact: true }).selectOption('crush-ribs');
+  await page.getByLabel('Mini box lid', { exact: true }).selectOption('detent');
+  await expect(fit).toContainText('In the 0.20–0.40 mm recommended for these settings');
+  await expect(fit).not.toContainText('Friction fit');
+  // Each joint's engagement or squeeze appears in advanced settings only while that joint uses the mechanism, with its default and
+  // recommended range; a groove too deep for its 1 mm wall is refused.
+  const holderEngage = page.getByRole('spinbutton', { name: 'Detent engagement (holder in the box)' });
+  const holderNote = page.getByTestId('parameter-holderDetentEngage-note');
+  await expect(holderEngage).toHaveValue('0.15');
+  await expect(holderNote).toContainText('Default 0.15 mm');
+  await expect(holderNote).toContainText('In the 0.10–0.20 mm recommended for Detent');
+  await expect(page.getByRole('slider', { name: 'Detent engagement (holder in the box) slider' })).toHaveClass(/range-recommended/);
+  await expect(page.getByRole('spinbutton', { name: 'Crush-rib squeeze (mini box in the lid)' })).toHaveValue('0.1');
+  const miniLidEngage = page.getByRole('spinbutton', { name: 'Detent engagement (mini box lid)' });
+  await expect(miniLidEngage).toHaveValue('0.12');
+  await expect(page.getByRole('spinbutton', { name: 'Detent engagement (case lid)' })).toHaveCount(0);
+  await expect(page.getByRole('spinbutton', { name: 'Crush-rib squeeze (holder in the box)' })).toHaveCount(0);
+  await holderEngage.fill('0.25');
+  await expect(holderNote).toContainText('Outside the 0.10–0.20 mm recommended for Detent');
+  await miniLidEngage.fill('0.4');
+  await clearance.fill('0.45');
+  await expect(page.locator('#parameter-miniLidDetentEngage-error')).toContainText('deep groove');
+  await clearance.fill('0.3');
+  await expect(page.locator('#parameter-miniLidDetentEngage-error')).toHaveCount(0);
+  await miniLidEngage.fill('0.12');
+  await holderEngage.fill('0.15');
+  await page.getByLabel('Holder in the box', { exact: true }).selectOption('friction');
+  await expect(holderEngage).toHaveCount(0);
+  await page.getByLabel('Holder in the box', { exact: true }).selectOption('detent');
+  await expect(holderEngage).toHaveValue('0.15');
   const text = page.getByLabel('Underside text');
   await expect(text).toHaveValue('');
   await text.fill('Tom');

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { unzipSync } from 'fflate';
-import { activeParts, cigaretteCase, fruitFlyTrap, holeDiameter, mossPlanter, plankConnector, textWidth, validateParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, mossPlanter, plankConnector, textWidth, validateParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, RENDERER_IMAGE, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, runOpenScad, type OpenScadRunner } from '../apps/worker/src/render.ts';
@@ -125,18 +125,29 @@ try {
     console.log(`PASS moss planter ${testCase.name}: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 
-  // Cigarette case: rendered once per snap mode, then with engraved text in every font and in second-filament mode. Each part must be one
+  // Cigarette case: rendered once per mode of each joint's snap setting, then with engraved text in every font and in second-filament mode. Each part must be one
   // closed solid (the text part: closed letters) with the expected dimensions, packaged as one ZIP. The large box and lid have the source
   // STL's (which the reconstructions are verified against in models/cigarette-case/reference/VERIFICATION.md); the three mini parts are
   // fitted to their mating surfaces with the clearance C (0.2 mm by default), so they shrink by 2C (the mini lid's width by 4C: it is
   // fitted inside the fitted mini box). The snap features only stand proud by a fraction of a millimetre, except the mini lid's crush
-  // ribs (C + 0.1 mm proud of each side), and are also rendered at the ends of the clearance range.
+  // ribs and detent bumps (C + 0.1 and C + 0.12 mm proud of each side) and the holder's detent bumps (0.15 mm past the bay at each end),
+  // and are also rendered at the ends of the clearance range.
   const caseRuns: { name: string; parameters: ParameterValues }[] = [
     ...['friction', 'detent', 'clip', 'magnet', 'crush-ribs'].map(snap => ({ name: `snap ${snap}`, parameters: { ...cigaretteCase.defaults, snap } })),
     ...['sans', 'serif', 'mono', 'wide'].map(textFont => ({ name: `engraved ${textFont}`, parameters: { ...cigaretteCase.defaults, engraveText: 'Tom & Jo', textFont, textSize: 4 } })),
     { name: 'second filament', parameters: { ...cigaretteCase.defaults, engraveText: 'Hello', textMode: 'second-filament', textSize: 6 } },
     ...[0.1, 0.6].map(clearance => ({ name: `clearance ${clearance}`, parameters: { ...cigaretteCase.defaults, clearance } })),
     { name: 'crush ribs at clearance 0.4', parameters: { ...cigaretteCase.defaults, snap: 'crush-ribs', clearance: 0.4 } },
+    ...['miniLidSnap', 'holderSnap', 'miniBoxSnap'].flatMap(key => ['detent', 'crush-ribs'].map(mode => ({ name: `${key} ${mode}`, parameters: { ...cigaretteCase.defaults, [key]: mode } }))),
+    ...['detent', 'crush-ribs'].flatMap(mode => [0.1, 0.4, 0.6].map(clearance => ({
+      name: `every joint ${mode} at clearance ${clearance}`, parameters: { ...cigaretteCase.defaults, snap: mode, miniLidSnap: mode, holderSnap: mode, miniBoxSnap: mode, clearance },
+    }))),
+    // every engagement and squeeze at the ends of its slider (the deepest groove the contract allows: engagement + clearance = 0.8 mm)
+    ...[[0.02, 0.1], [0.3, 0.5], [0.4, 0.4]].flatMap(([value, clearance]) => ['detent', 'crush-ribs'].map(mode => ({
+      name: `every joint ${mode}, engagement and squeeze ${value} at clearance ${clearance}`,
+      parameters: { ...cigaretteCase.defaults, snap: mode, miniLidSnap: mode, holderSnap: mode, miniBoxSnap: mode, clearance: clearance ?? 0.2,
+        ...Object.fromEntries(Object.keys(SNAP_TUNING).map(key => [key, value ?? 0.1])) },
+    }))),
   ];
   for (const { name, parameters } of only && only !== 'cigarette-case' ? [] : caseRuns) {
     const started = Date.now();
@@ -152,9 +163,12 @@ try {
     const wanted = activeParts(cigaretteCase, parameters);
     assert.deepEqual(result.artifact.parts.map(part => part.id), wanted.map(part => part.id), `cigarette case ${name}: parts`);
     const c = Number(parameters['clearance']);
+    // the mini lid's ribs and bumps stand C + squeeze or C + engagement proud of its sides, the holder's bumps the engagement past the bay
+    const miniLidWidth = { 'crush-ribs': 25.579 - 2 * c + 2 * Number(parameters['miniLidCrushSqueeze']), detent: 25.579 - 2 * c + 2 * Number(parameters['miniLidDetentEngage']) }[String(parameters['miniLidSnap'])] ?? 25.579 - 4 * c;
     const expected: Record<string, [number, number, number]> = {
-      'case-box': [55.888, 34.398, 77.171], 'case-lid': [55.888, 34.398, 41.868], 'mini-holder': [11.792 - 2 * c, 22.789 - 2 * c, 32.695],
-      'mini-box': [34.494 - 2 * c, 27.579 - 2 * c, 14.391], 'mini-lid': [34.542 - 2 * c, parameters['snap'] === 'crush-ribs' ? 25.779 - 2 * c : 25.579 - 4 * c, 13.391],
+      'case-box': [55.888, 34.398, 77.171], 'case-lid': [55.888, 34.398, 41.868],
+      'mini-holder': [11.792 - 2 * c, parameters['holderSnap'] === 'detent' ? 22.789 + 2 * Number(parameters['holderDetentEngage']) : 22.789 - 2 * c, 32.695],
+      'mini-box': [34.494 - 2 * c, 27.579 - 2 * c, 14.391], 'mini-lid': [34.542 - 2 * c, miniLidWidth, 13.391],
     };
     for (const part of result.artifact.parts) {
       assert.ok(part.volume > 0, `cigarette case ${name} ${part.id}: expected positive volume`);

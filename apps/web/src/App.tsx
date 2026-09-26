@@ -162,16 +162,23 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'plank-connector': PlankConnectorIllustration,
 };
 
-/** The sub-range of a number control recommended for the current value of another control (Control.recommended), with that value's label. */
-interface Recommendation { minimum: number; maximum: number; label: string }
+/** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names
+ * that control and `choice` its value. */
+interface RecommendedRange { minimum: number; maximum: number; label: string; choice: string }
+/** What the current values of all those controls recommend together: the range that suits all of them (empty when
+ * minimum > maximum), and each control's own range. */
+interface Recommendation { minimum: number; maximum: number; ranges: RecommendedRange[] }
 
 function recommendation(control: Control, controls: readonly Control[], parameters: ParameterValues): Recommendation | undefined {
-  if (!control.recommended) return undefined;
-  const choice = parameters[control.recommended.control];
-  const range = control.recommended.ranges.find(candidate => candidate.value === choice);
-  if (!range) return undefined;
-  const label = controls.find(candidate => candidate.key === control.recommended?.control)?.options?.find(option => option.value === choice)?.label ?? String(choice);
-  return { minimum: range.minimum, maximum: range.maximum, label };
+  const ranges = (control.recommended ?? []).flatMap(entry => {
+    const value = parameters[entry.control];
+    const range = entry.ranges.find(candidate => candidate.value === value);
+    if (!range) return [];
+    const other = controls.find(candidate => candidate.key === entry.control);
+    return [{ minimum: range.minimum, maximum: range.maximum, label: other?.label ?? entry.control, choice: other?.options?.find(option => option.value === value)?.label ?? String(value) }];
+  });
+  if (ranges.length === 0) return undefined;
+  return { minimum: Math.max(...ranges.map(range => range.minimum)), maximum: Math.min(...ranges.map(range => range.maximum)), ranges };
 }
 
 /** The band (Control.bands) a value is in: minimum included, maximum excluded, except for the last band. */
@@ -207,25 +214,43 @@ function Field({ control, value, disabled, issue, recommended, change }: { contr
   const number = typeof value === 'number' && Number.isFinite(value) ? value : '';
   const band = number === '' ? undefined : bandOf(control, number);
   const span = control.minimum !== null && control.maximum !== null && control.maximum > control.minimum ? [control.minimum, control.maximum] as const : undefined;
+  const fits = (range: { minimum: number; maximum: number }, n: number) => n >= range.minimum - 1e-9 && n <= range.maximum + 1e-9;
+  // No single value suits every control's range: nothing is highlighted, and each range is listed.
+  const conflict = recommended !== undefined && recommended.minimum > recommended.maximum + 1e-9;
   // The highlighted stretch of the track, as fractions of it (the thumb's centre moves between its half-widths, see styles.css).
-  const highlight = recommended && span ? [(recommended.minimum - span[0]) / (span[1] - span[0]), (recommended.maximum - span[0]) / (span[1] - span[0])] as const : undefined;
-  const outside = recommended && number !== '' && (number < recommended.minimum - 1e-9 || number > recommended.maximum + 1e-9);
+  const highlight = recommended && !conflict && span ? [(recommended.minimum - span[0]) / (span[1] - span[0]), (recommended.maximum - span[0]) / (span[1] - span[0])] as const : undefined;
+  const outside = recommended !== undefined && !conflict && number !== '' && !fits(recommended, number);
   const fixed = (n: number) => n.toFixed(2);
+  // A range, or a single value when the ranges of several settings meet in one point.
+  const rangeText = (range: { minimum: number; maximum: number }) => Math.abs(range.maximum - range.minimum) < 1e-9 ? fixed(range.minimum) : `${fixed(range.minimum)}–${fixed(range.maximum)}`;
+  const unit = control.unit ? ` ${control.unit}` : '';
+  // The controls whose range the value is outside of (all of them when they conflict), to say which setting asks for what.
+  const misfits = recommended && number !== '' ? recommended.ranges.filter(range => conflict ? true : !fits(range, number)) : [];
+  const forWhat = recommended?.ranges.length === 1 ? recommended.ranges[0]?.choice : 'these settings';
+  // Advisory sliders (those with a recommended range) also mark their default, as a tick on the track and in the note.
+  const defaultValue = control.recommended && typeof control.default === 'number' ? control.default : undefined;
+  const defaultAt = defaultValue !== undefined && span ? (defaultValue - span[0]) / (span[1] - span[0]) : undefined;
   return <div className={`number-field ${disabled ? 'field-disabled' : ''}`}>
     <div className="field-heading"><label htmlFor={id} title={control.description}>{control.label}</label><span className="number-input-wrap">
       <input id={id} type="number" value={number} min={control.minimum ?? undefined} max={control.maximum ?? undefined} step={control.step ?? 0.1}
         disabled={disabled} aria-invalid={Boolean(issue)} aria-describedby={`${id}-description${issue ? ` ${id}-error` : ''}`}
         onChange={event => change(event.currentTarget.value === '' ? Number.NaN : Number(event.currentTarget.value))} />{control.unit && <span>{control.unit}</span>}
     </span></div>
-    <input className={`range-input${highlight ? ' range-recommended' : ''}`} type="range" aria-label={`${control.label} slider`} value={number === '' ? control.minimum ?? 0 : number}
-      style={highlight ? { '--recommended-from': highlight[0], '--recommended-to': highlight[1] } as CSSProperties : undefined}
-      min={control.minimum ?? undefined} max={control.maximum ?? undefined} step={control.step ?? 0.1} disabled={disabled} onChange={event => change(Number(event.currentTarget.value))} />
+    <div className="range-track">
+      <input className={`range-input${highlight ? ' range-recommended' : ''}`} type="range" aria-label={`${control.label} slider`} value={number === '' ? control.minimum ?? 0 : number}
+        style={highlight ? { '--recommended-from': highlight[0], '--recommended-to': highlight[1] } as CSSProperties : undefined}
+        min={control.minimum ?? undefined} max={control.maximum ?? undefined} step={control.step ?? 0.1} disabled={disabled} onChange={event => change(Number(event.currentTarget.value))} />
+      {defaultAt !== undefined && <span className="range-default-tick" style={{ '--default-at': defaultAt } as CSSProperties} aria-hidden="true" />}
+    </div>
     <div className="range-limits"><span>{control.minimum}{control.unit ? ` ${control.unit}` : ''}</span><span>{control.maximum}{control.unit ? ` ${control.unit}` : ''}</span></div>
-    {(band || recommended) && <p className="range-note" data-testid={`${id}-note`}>
+    {(band || recommended || defaultValue !== undefined) && <p className="range-note" data-testid={`${id}-note`}>
       {band && <strong className="range-band">{band.label}</strong>}
-      {recommended && <span className={outside ? 'range-outside' : undefined}>
-        {outside ? 'Outside' : 'In'} the {fixed(recommended.minimum)}–{fixed(recommended.maximum)}{control.unit ? ` ${control.unit}` : ''} recommended for {recommended.label}
-      </span>}
+      {defaultValue !== undefined && <span className="range-default">Default {fixed(defaultValue)}{unit}</span>}
+      {recommended && (conflict
+        ? <span className="range-outside">No single value suits all of these settings</span>
+        : <span className={outside ? 'range-outside' : undefined}>{outside ? 'Outside' : 'In'} the {rangeText(recommended)}{unit} recommended for {forWhat}</span>)}
+      {recommended && recommended.ranges.length > 1 && misfits.map(range =>
+        <span key={range.label} className="range-misfit">{range.label} ({range.choice}): {rangeText(range)}{unit}</span>)}
     </p>}
     <span id={`${id}-description`} className="sr-only">{control.description}</span>
     {issue && <p className="field-error" id={`${id}-error`}>{issue}</p>}
@@ -289,6 +314,8 @@ function Editor({ model }: { model: ModelDetail }) {
     finally { setDownloading(false); }
   };
   const status = error ? 'Needs attention' : !valid ? 'Check settings' : ready ? 'Ready to print' : rendering.phase === 'queued' ? 'Waiting for renderer' : rendering.phase === 'running' ? 'Rendering your model' : rendering.ready ? 'Loading preview' : 'Updating preview';
+  // Controls that only matter in some modes of another control (Control.visibleWhen) are hidden in the others.
+  const shown = (control: Control) => control.visibleWhen === null || control.visibleWhen.values.includes(String(parameters[control.visibleWhen.control]));
   const field = (control: Control) => <Field key={control.key} control={control} value={parameters[control.key]}
     disabled={control.enabledWhen !== null && parameters[control.enabledWhen] !== true}
     issue={issues.find(issue => issue.field === control.key)?.message} recommended={recommendation(control, model.controls, parameters)} change={value => change(control.key, value)} />;
@@ -299,12 +326,12 @@ function Editor({ model }: { model: ModelDetail }) {
         {model.customizable ? <>
           <div className="panel-heading"><div><SlidersHorizontal size={16} /><h2>Make it yours</h2></div><button className="text-button" type="button" onClick={reset}><RotateCcw size={13} /> Reset</button></div>
           <p className="panel-intro">A few adjustments. A perfect fit.</p>
-          <div className="basic-controls">{model.controls.filter(control => control.group === 'basic').map(field)}</div>
+          <div className="basic-controls">{model.controls.filter(control => control.group === 'basic' && shown(control)).map(field)}</div>
           {derived?.slotCount !== undefined && derived.slotCount !== null && <div className="slot-note"><Sparkles size={14} /><span>{derived.slotCount === 0 ? 'One opening. A smooth funnel.' : `${derived.slotCount.toLocaleString()} slots, automatically spaced.`}</span></div>}
           {model.controls.some(control => control.group === 'advanced') && <button className="advanced-button" type="button" aria-expanded={advanced} aria-controls="advanced-controls" onClick={() => setAdvanced(value => !value)}>
             Advanced settings <ChevronDown size={16} className={advanced ? 'rotated' : ''} />
           </button>}
-          {advanced && <div id="advanced-controls" className="advanced-controls">{model.controls.filter(control => control.group === 'advanced').map(field)}</div>}
+          {advanced && <div id="advanced-controls" className="advanced-controls">{model.controls.filter(control => control.group === 'advanced' && shown(control)).map(field)}</div>}
           <p className="local-note">Your settings stay in this browser.</p>
         </> : <>
           <div className="panel-heading"><div><SlidersHorizontal size={16} /><h2>About this model</h2></div></div>

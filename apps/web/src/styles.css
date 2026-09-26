@@ -346,6 +346,26 @@ main {
 .range-outside {
   color: var(--accent);
 }
+/* One line per setting whose own recommended range the value is outside of. */
+.range-misfit {
+  flex-basis: 100%;
+}
+/* The default of an advisory slider: a short tick under the track, on the thumb's path (see .range-recommended). */
+.range-track {
+  position: relative;
+}
+.range-default-tick {
+  position: absolute;
+  left: calc(5.5px + (100% - 11px) * var(--default-at));
+  bottom: -3px;
+  width: 1px;
+  height: 5px;
+  background: #3f4a37;
+  pointer-events: none;
+}
+.range-default {
+  color: #3f4a37;
+}
 .range-limits {
   display: flex;
   justify-content: space-between;

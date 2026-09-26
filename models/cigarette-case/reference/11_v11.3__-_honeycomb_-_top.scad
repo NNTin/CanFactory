@@ -11,7 +11,7 @@
 // stored as plateau regions in the unrolled (s, z) plane and bent back around the outline by relief_wrap() (generated with
 // tools/stl-to-scad `relief`). Units are millimetres; the part is centred on the Z axis with its rim on z = 0. The source
 // STL sat at (217.2, 84.5) on the print plate with its rim at z = 58.9. Named dimensions only; the parameters are SNAP, how the
-// lid snaps onto the box, and CLEARANCE, the gap between mating surfaces. The cavity is the reference that the box's upper
+// lid snaps onto the box, MINI_BOX_SNAP, how the closed mini box is held in the cavity, and CLEARANCE, the gap between mating surfaces. The cavity is the reference that the box's upper
 // shell and the closed mini box are fitted to, so it does not depend on CLEARANCE; only the snap features do.
 
 SCALE = 1;
@@ -195,6 +195,54 @@ CLIP_NIB = 0.6;       // the nib stands this far into the cavity
 MAGNET_D = 6.2;
 MAGNET_T = 2.1;
 MAGNET_Z = 8;
+
+// --- mini box retention (this block is identical in the case lid file and in the mini box file; a test keeps them in sync) ---
+// How the closed mini box is held in the case lid's cavity, chosen by MINI_BOX_SNAP (a -D override): "friction" (nothing added),
+// "detent" or "crush-ribs". The mini box slides up into the lid until its rim meets the lid's ceiling, and must stay there when
+// the lid is lifted off the box; it is pulled out with a finger. Frame: the case lid's, rim at z = 0; the mini box stands at
+// MB_POSE (its floor 23.5 mm above the lid's rim). The features sit on the lid's cavity wall near the ceiling, where the mini
+// box ends up, so the mini box only rubs over them for the last few millimetres (a feature on the mini box would rub the whole
+// way up the lid). They sit on both straight sides of the cavity, where the cavity and the mini box are both straight. Sizes
+// follow CLEARANCE, so each feature engages the same amount at any clearance.
+MINI_BOX_SNAP = "friction";
+MB_POSE = [6.43, 0, 23.459];   // the mini box's origin in the lid's frame (its rim, 14.391 mm up, is at the ceiling, z = 37.85)
+MB_CAVITY_Y = 13.79;  // the cavity's straight sides; the mini box's outer face is CLEARANCE further in
+MB_CEILING = 37.85;
+MB_X0 = 0.5;          // straight stretch shared by the cavity and the mini box
+MB_X1 = 9;
+// detent: a bump on each side of the cavity, and a groove in the mini box's side walls that clears it by CLEARANCE
+MB_DETENT_Z = 30.5;   // halfway up the mini box
+MB_DETENT_ENGAGE = 0.15;   // the bump reaches this far past the mini box's face; not more than the smallest recommended clearance,
+                           // so the mini box's wall can give way into its gap to the mini lid inside it
+MB_DETENT_H = CLEARANCE + MB_DETENT_ENGAGE;   // so the bump stands this far proud of the cavity wall
+// crush-ribs: vertical ribs on the cavity wall, squeezed by MB_CRUSH_SQUEEZE by the mini box; the lower end is ramped so the
+// mini box finds them
+MB_CRUSH_SQUEEZE = 0.1;
+MB_CRUSH_H = CLEARANCE + MB_CRUSH_SQUEEZE;
+MB_CRUSH_X = [1, 4.75, 8.5];
+MB_CRUSH_W = 0.5;
+MB_CRUSH_Z0 = 26;
+
+// A profile given as (y, z) pairs, stretched along x from x0 to x1; mirrored to both sides.
+module mb_bar(x0, x1, profile) {
+  for (m = [0, 1]) mirror([0, m, 0]) translate([x0, 0, 0]) rotate([90, 0, 90]) linear_extrude(height = x1 - x0) polygon(profile);
+}
+// The case lid's half: added to the cavity wall.
+module mini_box_retention_lid() {
+  y = MB_CAVITY_Y; z = MB_DETENT_Z;
+  if (MINI_BOX_SNAP == "detent")
+    mb_bar(MB_X0, MB_X1, [[y + 0.3, z - 1.3], [y, z - 1], [y - MB_DETENT_H, z - 0.4], [y - MB_DETENT_H, z + 0.4], [y, z + 1], [y + 0.3, z + 1.3]]);
+  if (MINI_BOX_SNAP == "crush-ribs")
+    for (x = MB_CRUSH_X)
+      mb_bar(x - MB_CRUSH_W / 2, x + MB_CRUSH_W / 2, [[y + 0.3, MB_CRUSH_Z0], [y, MB_CRUSH_Z0], [y - MB_CRUSH_H, MB_CRUSH_Z0 + 1.4], [y - MB_CRUSH_H, MB_CEILING + 0.2], [y + 0.3, MB_CEILING + 0.2]]);
+}
+// The mini box's half, in the lid's frame: cut from its side walls.
+module mini_box_retention_box() {
+  y = MB_CAVITY_Y - CLEARANCE; z = MB_DETENT_Z; g = MB_DETENT_ENGAGE + CLEARANCE;
+  if (MINI_BOX_SNAP == "detent")
+    mb_bar(MB_X0, MB_X1, [[y + 0.3, z - 1.5], [y, z - 1.5], [y - g, z - 0.4 - CLEARANCE], [y - g, z + 0.4 + CLEARANCE], [y, z + 1.5], [y + 0.3, z + 1.5]]);
+}
+// --- end mini box retention ---
 
 module side_bar(x0, x1, profile) {
   for (m = [0, 1]) mirror([0, m, 0]) translate([x0, 0, 0]) rotate([90, 0, 90]) linear_extrude(height = x1 - x0) polygon(profile);
@@ -733,6 +781,7 @@ module lid() {
         translate([0, 0, -1]) linear_extrude(height = CAVITY_TOP + 1) polygon(CAVITY);
       }
       snap_add();
+      mini_box_retention_lid();
     }
     snap_cut();
   }

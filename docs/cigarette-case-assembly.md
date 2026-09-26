@@ -38,17 +38,27 @@ functions the web app uses, and measures the volume shared by parts on a 0.25 mm
 - **The exploded layout:** every pair of parts, and that nothing is below the floor.
 - **Each step:** 17 samples along the step's path, the moving parts against all the others.
 
-Default settings (`friction`, 0.2 mm clearance): every value is 0.00 mm³. The `magnet` mode is just as clean, and so is
+Default settings (`friction` on every joint, 0.2 mm clearance): every value is 0.00 mm³. The `magnet` mode is just as clean, and so is
 second-filament text. The measured gap on each of the four mating surfaces (case lid on box, mini lid in mini box, mini box in
 case lid, holder in bay) is the clearance, from 0.1 to 0.6 mm; see [cigarette-case-snap.md](cigarette-case-snap.md#clearance).
 
-The other snap modes show only their intended interference, where the snap acts:
+The other modes show only their intended interference, where each joint's snap acts (0.2 mm clearance, one setting changed at a
+time; each joint's own setting, see [cigarette-case-snap.md](cigarette-case-snap.md)):
 
-| Mode | Shared volume | Where |
-|---|---|---|
-| `detent` | 5.9 mm³ | While the case closes: the bump passes the lid wall before it drops into its groove. |
-| `clip` | 7.4 mm³ while the case closes; 8.7 mm³ as the mini box enters the lid | The lid's clip nibs stand 0.6 mm into the cavity. The tongues flex out of the way in both steps. |
-| `crush-ribs` | 8.2 mm³ lid on box, 3.7 mm³ mini lid in mini box, when closed | The ribs are squeezed (the designed interference, see the snap doc). |
+| Setting | Mode | Shared volume | Where |
+|---|---|---|---|
+| `snap` | `detent` | 5.9 mm³ | While the case closes: the bump passes the lid wall before it drops into its groove. |
+| `snap` | `clip` | 7.4 mm³ while the case closes; 8.7 mm³ as the mini box enters the lid | The lid's clip nibs stand 0.6 mm into the cavity. The tongues flex out of the way in both steps. |
+| `snap` | `crush-ribs` | 8.2 mm³ when closed | The ribs are squeezed (the designed interference). |
+| `miniLidSnap` | `detent` | 1.1 mm³ in step 1 only | The lid's bumps pass the mini box's rim before they drop into its grooves. |
+| `miniLidSnap` | `crush-ribs` | 3.7 mm³ when closed | The ribs are squeezed. |
+| `holderSnap` | `detent` | 1.0 mm³ in step 3 only | The holder's bumps pass the bay wall over the last 5 mm. |
+| `holderSnap` | `crush-ribs` | 1.6 mm³ when assembled | The ribs are squeezed. |
+| `miniBoxSnap` | `detent` | 4.3 mm³ in step 2 only | The lid's bumps pass the mini box's side walls over the last 7 mm. |
+| `miniBoxSnap` | `crush-ribs` | 4.0 mm³ when assembled | The ribs are squeezed. |
+
+The check's vertical rays sample thin, side-facing ribs unevenly, so its rib figures vary with the clearance; the snap doc gives
+the exact CSG volumes, which do not.
 
 A negative control: if the holder comes in from the top instead (`from: [0, 0, 90]`), the check fails with 15.1 mm³ against
 the clip tab. That is why step 4 brings it in from below.

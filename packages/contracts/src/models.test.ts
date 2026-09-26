@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
 import {
   activeParts, artifactFormat, cigaretteCase, CLEARANCE_HOLES, findModel, holeDiameter, plankConnector, fruitFlyTrap, FruitFlyTrapParametersSchema, isAssembly, modelSourcePaths,
-  minimumSpikeLength, mossPlanter, rauteColumns, slotCount, SNAP_CLEARANCE, textWidth, validateParameters, type MossPlanterParameters,
+  minimumSpikeLength, mossPlanter, rauteColumns, slotCount, SNAP_CLEARANCE, SNAP_TUNING, HOLDER_SNAP_CLEARANCE, MINI_BOX_SNAP_CLEARANCE, MINI_LID_SNAP_CLEARANCE, textWidth, validateParameters, type MossPlanterParameters,
 } from './models.ts';
 import { RenderRequestSchema } from './index.ts';
 
@@ -100,21 +100,31 @@ describe('moss planter contract', () => {
 
 describe('cigarette case contract', () => {
   const ok = { ...cigaretteCase.defaults };
-  it('is a ZIP assembly with snap, text, font, size, style and clearance controls that reach only the parts that use them', () => {
+  it('is a ZIP assembly with four snap, text, font, size, style and clearance controls that reach only the parts that use them', () => {
     expect(findModel('cigarette-case')).toBe(cigaretteCase);
     expect(isAssembly(cigaretteCase)).toBe(true);
     expect(artifactFormat(cigaretteCase)).toBe('zip');
     expect(cigaretteCase.parts.map(part => part.id)).toEqual(['case-box', 'case-lid', 'mini-holder', 'mini-box', 'mini-lid', 'case-text']);
     expect(new Set(modelSourcePaths(cigaretteCase)).size).toBe(6);
-    expect(cigaretteCase.controls.map(control => [control.key, control.kind])).toEqual([['snap', 'enum'], ['engraveText', 'text'], ['textFont', 'enum'], ['textSize', 'number'], ['textMode', 'enum'], ['clearance', 'number']]);
+    expect(cigaretteCase.controls.map(control => [control.key, control.kind])).toEqual([['snap', 'enum'], ['miniLidSnap', 'enum'], ['holderSnap', 'enum'], ['miniBoxSnap', 'enum'], ['engraveText', 'text'], ['textFont', 'enum'], ['textSize', 'number'], ['textMode', 'enum'], ['clearance', 'number'],
+      ['snapDetentEngage', 'number'], ['snapCrushSqueeze', 'number'], ['miniLidDetentEngage', 'number'], ['miniLidCrushSqueeze', 'number'], ['holderDetentEngage', 'number'], ['holderCrushSqueeze', 'number'], ['miniBoxDetentEngage', 'number'], ['miniBoxCrushSqueeze', 'number']]);
     expect(cigaretteCase.controls[0]?.options?.map(option => option.value)).toEqual(['friction', 'detent', 'clip', 'magnet', 'crush-ribs']);
-    expect(cigaretteCase.controls[2]?.options?.map(option => option.value)).toEqual(['sans', 'serif', 'mono', 'wide']);
-    expect(cigaretteCase.controls[1]).toMatchObject({ default: '', maximum: 20 });
-    expect(cigaretteCase.defaults).toEqual({ snap: 'friction', engraveText: '', textFont: 'sans', textSize: 6, textMode: 'engrave', clearance: 0.2 });
+    for (const index of [1, 2, 3]) expect(cigaretteCase.controls[index]?.options?.map(option => option.value)).toEqual(['friction', 'detent', 'crush-ribs']);
+    expect(cigaretteCase.controls[5]?.options?.map(option => option.value)).toEqual(['sans', 'serif', 'mono', 'wide']);
+    expect(cigaretteCase.controls[4]).toMatchObject({ default: '', maximum: 20 });
+    expect(cigaretteCase.defaults).toEqual({ snap: 'friction', miniLidSnap: 'friction', holderSnap: 'friction', miniBoxSnap: 'friction', engraveText: '', textFont: 'sans', textSize: 6, textMode: 'engrave', clearance: 0.2,
+      snapDetentEngage: 0.19, snapCrushSqueeze: 0.16, miniLidDetentEngage: 0.12, miniLidCrushSqueeze: 0.1, holderDetentEngage: 0.15, holderCrushSqueeze: 0.1, miniBoxDetentEngage: 0.15, miniBoxCrushSqueeze: 0.1 });
     const mapped = Object.fromEntries(cigaretteCase.parts.map(part => [part.id, part.scadMapping]));
     const text = { engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE' };
     const fit = { clearance: 'CLEARANCE' };
-    expect(mapped).toEqual({ 'case-box': { snap: 'SNAP', ...fit, ...text }, 'case-lid': { snap: 'SNAP', ...fit }, 'mini-holder': fit, 'mini-box': fit, 'mini-lid': { snap: 'SNAP', ...fit }, 'case-text': text });
+    // each snap setting reaches exactly the two parts of its joint
+    expect(mapped).toEqual({
+      'case-box': { snap: 'SNAP', snapDetentEngage: 'DETENT_ENGAGE', snapCrushSqueeze: 'CRUSH_SQUEEZE', holderSnap: 'HOLDER_SNAP', holderDetentEngage: 'HOLDER_DETENT_ENGAGE', ...fit, ...text },
+      'case-lid': { snap: 'SNAP', snapDetentEngage: 'DETENT_ENGAGE', miniBoxSnap: 'MINI_BOX_SNAP', miniBoxDetentEngage: 'MB_DETENT_ENGAGE', miniBoxCrushSqueeze: 'MB_CRUSH_SQUEEZE', ...fit },
+      'mini-holder': { holderSnap: 'HOLDER_SNAP', holderDetentEngage: 'HOLDER_DETENT_ENGAGE', holderCrushSqueeze: 'HOLDER_CRUSH_SQUEEZE', ...fit },
+      'mini-box': { miniLidSnap: 'MINI_LID_SNAP', miniLidDetentEngage: 'ML_DETENT_ENGAGE', miniBoxSnap: 'MINI_BOX_SNAP', miniBoxDetentEngage: 'MB_DETENT_ENGAGE', ...fit },
+      'mini-lid': { miniLidSnap: 'MINI_LID_SNAP', miniLidDetentEngage: 'ML_DETENT_ENGAGE', miniLidCrushSqueeze: 'CRUSH_SQUEEZE', ...fit }, 'case-text': text,
+    });
   });
 
   it('renders the text part only for visible text in second-filament mode', () => {
@@ -129,6 +139,10 @@ describe('cigarette case contract', () => {
 
   it('accepts only known snap modes, fonts and styles, printable ASCII text within the limits, and its own version', () => {
     for (const snap of ['friction', 'detent', 'clip', 'magnet', 'crush-ribs']) expect(validateParameters(cigaretteCase, { ...ok, snap }), snap).toEqual([]);
+    for (const key of ['miniLidSnap', 'holderSnap', 'miniBoxSnap']) {
+      for (const value of ['friction', 'detent', 'crush-ribs']) expect(validateParameters(cigaretteCase, { ...ok, [key]: value }), `${key} ${value}`).toEqual([]);
+      for (const value of ['clip', 'magnet', 'glue']) expect(validateParameters(cigaretteCase, { ...ok, [key]: value }), `${key} ${value}`).not.toEqual([]);
+    }
     for (const textFont of ['sans', 'serif', 'mono', 'wide']) expect(validateParameters(cigaretteCase, { ...ok, engraveText: 'Tom', textFont }), textFont).toEqual([]);
     expect(validateParameters(cigaretteCase, { ...ok, engraveText: 'Tom', textMode: 'second-filament' })).toEqual([]);
     expect(validateParameters(cigaretteCase, { snap: 'clip' })).not.toEqual([]);
@@ -142,12 +156,12 @@ describe('cigarette case contract', () => {
     expect(validateParameters(cigaretteCase, { ...ok, engraveText: 'tab\there' })).not.toEqual([]);
     expect(validateParameters(cigaretteCase, { ...ok, engraveText: 'say "hi" \\ $x', textSize: 3 })).toEqual([]);
     expect(validateParameters(cigaretteCase, { ...ok, anything: 1 })).not.toEqual([]);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '4', parameters: ok })).toBe(true);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '3', parameters: ok })).toBe(false);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '4', parameters: { snap: 'clip' } })).toBe(false);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '5', parameters: ok })).toBe(true);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '4', parameters: ok })).toBe(false);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '5', parameters: { snap: 'clip' } })).toBe(false);
   });
 
-  it('offers a 0.10 to 0.60 mm clearance in advanced settings, with named fits and a recommended range for every snap mode', () => {
+  it('offers a 0.10 to 0.60 mm clearance in advanced settings, with named fits and a recommended range for every mode of every joint', () => {
     const clearance = cigaretteCase.controls.find(control => control.key === 'clearance');
     expect(clearance).toMatchObject({ kind: 'number', group: 'advanced', unit: 'mm', default: 0.2, minimum: 0.1, maximum: 0.6, step: 0.01 });
     for (const value of [0.1, 0.2, 0.37, 0.6]) expect(validateParameters(cigaretteCase, { ...ok, clearance: value }), String(value)).toEqual([]);
@@ -159,16 +173,57 @@ describe('cigarette case contract', () => {
     expect(bands.at(-1)?.maximum).toBe(0.6);
     bands.slice(1).forEach((band, index) => expect(band.minimum).toBe(bands[index]?.maximum));
     expect(bands.find(band => 0.2 >= band.minimum && 0.2 < band.maximum)?.label).toBe('Snug fit');
-    // every snap mode has a range inside the slider; clips need 0.2 to 0.4 mm, friction and magnets work across it
-    const snap = cigaretteCase.controls.find(control => control.key === 'snap');
-    expect(clearance?.recommended?.control).toBe('snap');
-    expect(clearance?.recommended?.ranges.map(range => range.value)).toEqual(snap?.options?.map(option => option.value));
-    for (const range of clearance?.recommended?.ranges ?? []) expect(range.minimum >= 0.1 && range.maximum <= 0.6 && range.minimum < range.maximum, range.value).toBe(true);
+    // every mode of every joint has a range inside the slider; clips need 0.2 to 0.4 mm, friction and magnets on the case lid work across it
+    expect(clearance?.recommended?.map(entry => entry.control)).toEqual(['snap', 'miniLidSnap', 'holderSnap', 'miniBoxSnap']);
+    for (const entry of clearance?.recommended ?? []) {
+      const joint = cigaretteCase.controls.find(control => control.key === entry.control);
+      expect(entry.ranges.map(range => range.value), entry.control).toEqual(joint?.options?.map(option => option.value));
+      for (const range of entry.ranges) expect(range.minimum >= 0.1 && range.maximum <= 0.6 && range.minimum < range.maximum, `${entry.control} ${range.value}`).toBe(true);
+    }
+    // the defaults (friction everywhere, 0.2 mm) are recommended: a friction fit alone holds the holder and the mini box only up to 0.2 mm
+    for (const ranges of [SNAP_CLEARANCE, MINI_LID_SNAP_CLEARANCE, HOLDER_SNAP_CLEARANCE, MINI_BOX_SNAP_CLEARANCE]) expect(ranges.friction.minimum <= 0.2 && ranges.friction.maximum >= 0.2).toBe(true);
+    expect(HOLDER_SNAP_CLEARANCE.friction).toEqual({ minimum: 0.1, maximum: 0.2 });
+    expect(MINI_BOX_SNAP_CLEARANCE.friction).toEqual({ minimum: 0.1, maximum: 0.2 });
+    // the new detents reach no further than the smallest clearance they are recommended for (see docs/cigarette-case-snap.md)
+    expect(MINI_BOX_SNAP_CLEARANCE.detent.minimum).toBeGreaterThanOrEqual(0.15);
     expect(SNAP_CLEARANCE.clip).toEqual({ minimum: 0.2, maximum: 0.4 });
     expect(SNAP_CLEARANCE.friction).toEqual({ minimum: 0.1, maximum: 0.6 });
     expect(SNAP_CLEARANCE.magnet).toEqual(SNAP_CLEARANCE.friction);
     // the other models' controls carry neither
     for (const model of [fruitFlyTrap, mossPlanter, plankConnector]) for (const control of model.controls) expect([control.bands, control.recommended]).toEqual([null, null]);
+  });
+
+  it('offers each joint\'s detent engagement and crush-rib squeeze in advanced settings, only while that joint uses the mechanism', () => {
+    for (const [key, tuning] of Object.entries(SNAP_TUNING)) {
+      const tuned = cigaretteCase.controls.find(control => control.key === key);
+      expect(tuned, key).toMatchObject({ kind: 'number', group: 'advanced', unit: 'mm', default: tuning.default, minimum: 0.02, maximum: 0.4, step: 0.01, visibleWhen: { control: tuning.joint, values: [tuning.mode] } });
+      // the default sits inside its recommended range, which is highlighted only in that mode
+      expect(tuning.recommended.minimum <= tuning.default && tuning.default <= tuning.recommended.maximum, key).toBe(true);
+      expect(tuned?.recommended).toEqual([{ control: tuning.joint, ranges: [{ value: tuning.mode, ...tuning.recommended }] }]);
+      // it reaches the parts that carry the feature, under the SCAD name
+      expect(cigaretteCase.parts.some(part => part.scadMapping?.[key] === tuning.variable), key).toBe(true);
+    }
+    // the SCAD files carry the same defaults
+    for (const part of cigaretteCase.parts) for (const [key, variable] of Object.entries(part.scadMapping ?? {})) {
+      const tuning = (SNAP_TUNING as Record<string, { default: number }>)[key];
+      if (tuning) expect(new RegExp(`^${variable} = ${tuning.default};`, 'm').test(readFileSync(new URL(`../../../${part.sourcePath}`, import.meta.url), 'utf8')), `${part.id} ${variable}`).toBe(true);
+    }
+    for (const value of [0.02, 0.33, 0.4]) expect(validateParameters(cigaretteCase, { ...ok, holderSnap: 'detent', holderDetentEngage: value }), String(value)).toEqual([]);
+    for (const value of [0.01, 0.41, 0.125]) expect(validateParameters(cigaretteCase, { ...ok, holderDetentEngage: value }), String(value)).not.toEqual([]);
+  });
+
+  it('keeps a detent groove from cutting too deep into a 1 mm wall, but only while that detent is in use', () => {
+    // engagement + clearance may reach 0.8 mm: the defaults pass at the widest clearance
+    for (const snap of ['detent', 'friction']) expect(validateParameters(cigaretteCase, { ...ok, snap, miniLidSnap: 'detent', miniBoxSnap: 'detent', clearance: 0.6 })).toEqual([]);
+    const deep = validateParameters(cigaretteCase, { ...ok, miniBoxSnap: 'detent', miniBoxDetentEngage: 0.3, clearance: 0.6 });
+    expect(deep).toHaveLength(1);
+    expect(deep[0]?.field).toBe('miniBoxDetentEngage');
+    expect(deep[0]?.message).toContain('0.90 mm deep groove');
+    expect(validateParameters(cigaretteCase, { ...ok, miniBoxSnap: 'crush-ribs', miniBoxDetentEngage: 0.3, clearance: 0.6 })).toEqual([]);
+    expect(validateParameters(cigaretteCase, { ...ok, snap: 'detent', snapDetentEngage: 0.3, clearance: 0.5 })).toEqual([]);
+    expect(validateParameters(cigaretteCase, { ...ok, snap: 'detent', snapDetentEngage: 0.31, clearance: 0.5 })[0]?.field).toBe('snapDetentEngage');
+    // the holder's groove is in the 2.1 mm bay wall
+    expect(validateParameters(cigaretteCase, { ...ok, holderSnap: 'detent', holderDetentEngage: 0.4, clearance: 0.6 })).toEqual([]);
   });
 
   it('rejects text that will not fit the free underside, using the measured font widths', () => {
@@ -182,6 +237,19 @@ describe('cigarette case contract', () => {
     expect(textWidth('nope', 'a', 5)).toBe(Number.POSITIVE_INFINITY);
     // the widest possible one-line text at the largest size must still be rejected, never clipped silently
     expect(validateParameters(cigaretteCase, { ...ok, engraveText: 'W'.repeat(20), textSize: 10 })).not.toEqual([]);
+  });
+
+  it('keeps each joint\'s shared SCAD block identical in the two files of that joint', () => {
+    const read = (path: string) => readFileSync(new URL(`../../../models/cigarette-case/reference/${path}`, import.meta.url), 'utf8');
+    const block = (name: string, path: string) => new RegExp(`// --- ${name} [\\s\\S]*?// --- end ${name} ---`).exec(read(path))?.[0];
+    for (const [name, a, b, marker] of [
+      ['holder retention', '11_v11.3__-_honeycomb_-_box.scad', '11_-_Honeycomb_-_minibox.scad', 'HOLDER_DETENT_ENGAGE'],
+      ['mini box retention', '11_v11.3__-_honeycomb_-_top.scad', '11_-_Honeycomb_-_topminibox_-_box.scad', 'MB_DETENT_ENGAGE'],
+      ['mini lid retention', '11_-_Honeycomb_-_topminibox_-_box.scad', '11_-_Honeycomb_-_topminibox_-_top.scad', 'ML_DETENT_ENGAGE'],
+    ] as const) {
+      expect(block(name, a), name).toContain(marker);
+      expect(block(name, b), name).toBe(block(name, a));
+    }
   });
 
   it('keeps the underside-text block identical in the box SCAD and the text-part SCAD', () => {
