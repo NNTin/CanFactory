@@ -233,7 +233,7 @@ export interface operations {
                                 maximum: number;
                                 label: string;
                             }[] | null;
-                            /** @description For a number control, the sub-range recommended for each value of another (enum) control: the editor highlights it on the slider. Advice only; values outside it stay valid. Null for none. */
+                            /** @description For a number control, the sub-range recommended for each value of other (enum) controls, one entry per control: the editor highlights the range that suits all their current values on the slider, and names the controls a value is outside of. Advice only; values outside it stay valid. Null for none. */
                             recommended: {
                                 /** @description The key of an enum control of the same model. */
                                 control: string;
@@ -242,7 +242,7 @@ export interface operations {
                                     minimum: number;
                                     maximum: number;
                                 }[];
-                            } | null;
+                            }[] | null;
                         }[];
                         defaults: {
                             [key: string]: number | boolean | string;
@@ -483,16 +483,37 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "4";
+                    modelVersion: "5";
                     /** @description Cigarette case parameters. All fields are required. */
                     parameters: {
                         /**
-                         * Snap mechanism
-                         * @description How the parts hold together: a plain close fit, a detent, a flexible clip, magnets or crush ribs. It applies to every joint that supports it.
+                         * Case lid snap
+                         * @description How the case lid holds on the case box: a plain close fit, a detent, a flexible clip, magnets or crush ribs. The other joints have their own settings.
                          * @default friction
                          * @enum {unknown}
                          */
                         snap: "friction" | "detent" | "clip" | "magnet" | "crush-ribs";
+                        /**
+                         * Mini box lid
+                         * @description How the mini lid holds in the mini box: the original pads (a clearance fit), a detent or crush ribs.
+                         * @default friction
+                         * @enum {unknown}
+                         */
+                        miniLidSnap: "friction" | "detent" | "crush-ribs";
+                        /**
+                         * Holder in the box
+                         * @description How the mini holder is held in the case box's round bay, which is open through the floor: a friction fit, a detent or crush ribs.
+                         * @default friction
+                         * @enum {unknown}
+                         */
+                        holderSnap: "friction" | "detent" | "crush-ribs";
+                        /**
+                         * Mini box in the lid
+                         * @description How the closed mini box is held in the case lid, so that it comes off with the lid: a friction fit, a detent or crush ribs.
+                         * @default friction
+                         * @enum {unknown}
+                         */
+                        miniBoxSnap: "friction" | "detent" | "crush-ribs";
                         /**
                          * Underside text
                          * @description Text on the underside of the large box, one line, up to 20 characters (letters, digits, spaces and punctuation, no accents). Leave empty for none.

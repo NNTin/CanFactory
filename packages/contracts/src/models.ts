@@ -42,11 +42,11 @@ export const ControlSchema = Type.Object({
     { description: 'The allowed values of an enum control, in display order; null for other kinds.' }),
   bands: Type.Union([Type.Array(Type.Object({ minimum: Type.Number(), maximum: Type.Number(), label: Type.String() }, { additionalProperties: false })), Type.Null()],
     { description: 'Named sub-ranges of a number control, in order, from minimum (included) to maximum (excluded, except for the last): the editor names the one the value is in. Null for none.' }),
-  recommended: Type.Union([Type.Object({
+  recommended: Type.Union([Type.Array(Type.Object({
     control: Type.String({ description: 'The key of an enum control of the same model.' }),
     ranges: Type.Array(Type.Object({ value: Type.String(), minimum: Type.Number(), maximum: Type.Number() }, { additionalProperties: false })),
-  }, { additionalProperties: false }), Type.Null()],
-  { description: 'For a number control, the sub-range recommended for each value of another (enum) control: the editor highlights it on the slider. Advice only; values outside it stay valid. Null for none.' }),
+  }, { additionalProperties: false })), Type.Null()],
+  { description: 'For a number control, the sub-range recommended for each value of other (enum) controls, one entry per control: the editor highlights the range that suits all their current values on the slider, and names the controls a value is outside of. Advice only; values outside it stay valid. Null for none.' }),
 }, { additionalProperties: false });
 export type Control = Static<typeof ControlSchema>;
 export type ParameterValues = Record<string, number | boolean | string>;
@@ -326,11 +326,14 @@ export const mossPlanter = {
 
 /**
  * Cigarette case (Onz by sez16sez): five independent parts, reconstructed from STL as static SCAD. The large box and lid have a
- * honeycomb wall; the small set (holder, shallow box and lid) does not. The `snap` mode drives every joint through the parts'
- * `SNAP` variable: the lid over the box's upper shell (all modes add a matching pair of features to the box and the lid) and the
- * mini lid in the mini box (only `crush-ribs` adds ribs to the mini lid; the original detent pads and notches stay in every
- * mode). `friction` adds nothing. The `clearance` reaches every part as `CLEARANCE`: the gap per side on all four mating
- * surfaces, which the snap features are sized from.
+ * honeycomb wall; the small set (holder, shallow box and lid) does not. Each of the four joints has its own snap setting, which
+ * reaches exactly the two parts of that joint (docs/cigarette-case-snap.md):
+ * - `snap` (`SNAP`): the case lid over the case box's upper shell; every mode adds a matching pair of features to both.
+ * - `miniLidSnap` (`MINI_LID_SNAP`): the mini lid in the mini box; the original end pads in the rim notches stay in every mode.
+ * - `holderSnap` (`HOLDER_SNAP`): the mini holder in the case box's round bay; the bay's tab is only the upper stop.
+ * - `miniBoxSnap` (`MINI_BOX_SNAP`): the closed mini box in the case lid's cavity.
+ * `friction` adds nothing. The `clearance` reaches every part as `CLEARANCE`: the gap per side on all four mating surfaces,
+ * which the snap features are sized from.
  */
 const SNAP_VALUES = ['friction', 'detent', 'clip', 'magnet', 'crush-ribs'] as const;
 export type SnapMode = typeof SNAP_VALUES[number];
@@ -340,6 +343,25 @@ const SNAP_TEXT: Record<SnapMode, { label: string; description: string }> = {
   clip: { label: 'Clip', description: 'A flexible tongue on the lid whose nib snaps into a pocket in the box.' },
   magnet: { label: 'Magnets', description: 'Pockets for 6 x 2 mm round magnets in the box and lid (magnets not included).' },
   'crush-ribs': { label: 'Crush ribs', description: 'Thin ribs that are squeezed slightly by the mating wall for a snug press fit.' },
+};
+
+/** The three smaller joints offer a subset of the modes; each describes what is added at that joint. */
+const INSERT_SNAP_VALUES = ['friction', 'detent', 'crush-ribs'] as const;
+export type InsertSnapMode = typeof INSERT_SNAP_VALUES[number];
+const MINI_LID_SNAP_TEXT: Record<InsertSnapMode, { label: string; description: string }> = {
+  friction: { label: 'Clearance fit', description: 'The original design: the end pads sit in the rim notches, one clearance all round. They locate the lid but do not latch it.' },
+  detent: { label: 'Detent', description: 'A small bump on each side of the mini lid clicks into a groove just under the mini box\'s rim.' },
+  'crush-ribs': { label: 'Crush ribs', description: 'Three thin ribs on each side of the mini lid are squeezed slightly by the mini box\'s walls.' },
+};
+const HOLDER_SNAP_TEXT: Record<InsertSnapMode, { label: string; description: string }> = {
+  friction: { label: 'Friction fit', description: 'Only a close fit holds the holder in the bay; it can drop out of the open floor if the clearance is loose.' },
+  detent: { label: 'Detent', description: 'A bump on each end of the holder clicks into a groove in the bay. Push it out from above, e.g. with a lighter.' },
+  'crush-ribs': { label: 'Crush ribs', description: 'Four thin ribs near the holder\'s floor are squeezed by the bay wall. Push it out from above, e.g. with a lighter.' },
+};
+const MINI_BOX_SNAP_TEXT: Record<InsertSnapMode, { label: string; description: string }> = {
+  friction: { label: 'Friction fit', description: 'Only a close fit holds the closed mini box in the case lid when the lid is lifted off.' },
+  detent: { label: 'Detent', description: 'A bump on each side of the case lid\'s cavity clicks into a groove in the mini box. Pull it out with a finger.' },
+  'crush-ribs': { label: 'Crush ribs', description: 'Thin ribs near the top of the case lid\'s cavity are squeezed by the mini box. Pull it out with a finger.' },
 };
 
 /**
@@ -360,6 +382,23 @@ export const SNAP_CLEARANCE: Record<SnapMode, { minimum: number; maximum: number
   detent: { minimum: 0.2, maximum: 0.4 },
   clip: { minimum: 0.2, maximum: 0.4 },
   magnet: { minimum: 0.1, maximum: 0.6 },
+  'crush-ribs': { minimum: 0.2, maximum: 0.4 },
+};
+/** The same for the three smaller joints. A friction fit is all that holds the holder and the mini box in the lid against their
+ * weight, so it is only recommended up to a snug fit; the detents and ribs work as on the case lid. */
+export const MINI_LID_SNAP_CLEARANCE: Record<InsertSnapMode, { minimum: number; maximum: number }> = {
+  friction: { minimum: 0.1, maximum: 0.25 },
+  detent: { minimum: 0.2, maximum: 0.4 },
+  'crush-ribs': { minimum: 0.2, maximum: 0.4 },
+};
+export const HOLDER_SNAP_CLEARANCE: Record<InsertSnapMode, { minimum: number; maximum: number }> = {
+  friction: { minimum: 0.1, maximum: 0.2 },
+  detent: { minimum: 0.2, maximum: 0.4 },
+  'crush-ribs': { minimum: 0.2, maximum: 0.4 },
+};
+export const MINI_BOX_SNAP_CLEARANCE: Record<InsertSnapMode, { minimum: number; maximum: number }> = {
+  friction: { minimum: 0.1, maximum: 0.2 },
+  detent: { minimum: 0.2, maximum: 0.4 },
   'crush-ribs': { minimum: 0.2, maximum: 0.4 },
 };
 
@@ -383,7 +422,16 @@ export const TEXT_AREA = { width: 35, height: 16, margin: 0.5, maxCharacters: 20
 
 export const CigaretteCaseParametersSchema = Type.Object({
   snap: Type.Enum(SNAP_VALUES, {
-    title: 'Snap mechanism', description: 'How the parts hold together: a plain close fit, a detent, a flexible clip, magnets or crush ribs. It applies to every joint that supports it.', default: 'friction',
+    title: 'Case lid snap', description: 'How the case lid holds on the case box: a plain close fit, a detent, a flexible clip, magnets or crush ribs. The other joints have their own settings.', default: 'friction',
+  }),
+  miniLidSnap: Type.Enum(INSERT_SNAP_VALUES, {
+    title: 'Mini box lid', description: 'How the mini lid holds in the mini box: the original pads (a clearance fit), a detent or crush ribs.', default: 'friction',
+  }),
+  holderSnap: Type.Enum(INSERT_SNAP_VALUES, {
+    title: 'Holder in the box', description: 'How the mini holder is held in the case box\'s round bay, which is open through the floor: a friction fit, a detent or crush ribs.', default: 'friction',
+  }),
+  miniBoxSnap: Type.Enum(INSERT_SNAP_VALUES, {
+    title: 'Mini box in the lid', description: 'How the closed mini box is held in the case lid, so that it comes off with the lid: a friction fit, a detent or crush ribs.', default: 'friction',
   }),
   engraveText: Type.String({
     title: 'Underside text', description: `Text on the underside of the large box, one line, up to ${TEXT_AREA.maxCharacters} characters (letters, digits, spaces and punctuation, no accents). Leave empty for none.`,
@@ -418,29 +466,40 @@ function validateCigaretteCase(p: CigaretteCaseParameters): ParameterIssue[] {
 
 const cigaretteCaseControls = [
   enumControl(CigaretteCaseParametersSchema, 'snap', 'basic', SNAP_VALUES.map(value => ({ value, ...SNAP_TEXT[value] }))),
+  enumControl(CigaretteCaseParametersSchema, 'miniLidSnap', 'basic', INSERT_SNAP_VALUES.map(value => ({ value, ...MINI_LID_SNAP_TEXT[value] }))),
+  enumControl(CigaretteCaseParametersSchema, 'holderSnap', 'basic', INSERT_SNAP_VALUES.map(value => ({ value, ...HOLDER_SNAP_TEXT[value] }))),
+  enumControl(CigaretteCaseParametersSchema, 'miniBoxSnap', 'basic', INSERT_SNAP_VALUES.map(value => ({ value, ...MINI_BOX_SNAP_TEXT[value] }))),
   textControl(CigaretteCaseParametersSchema, 'engraveText', 'basic'),
   enumControl(CigaretteCaseParametersSchema, 'textFont', 'basic', TEXT_FONT_VALUES.map(value => ({ value, ...TEXT_FONT_TEXT[value] }))),
   control(CigaretteCaseParametersSchema, 'textSize', 'basic'),
   enumControl(CigaretteCaseParametersSchema, 'textMode', 'basic', TEXT_MODE_VALUES.map(value => ({ value, ...TEXT_MODE_TEXT[value] }))),
   { ...control(CigaretteCaseParametersSchema, 'clearance', 'advanced'), bands: FIT_BANDS,
-    recommended: { control: 'snap', ranges: SNAP_VALUES.map(value => ({ value, ...SNAP_CLEARANCE[value] })) } },
+    recommended: [
+      { control: 'snap', ranges: SNAP_VALUES.map(value => ({ value, ...SNAP_CLEARANCE[value] })) },
+      { control: 'miniLidSnap', ranges: INSERT_SNAP_VALUES.map(value => ({ value, ...MINI_LID_SNAP_CLEARANCE[value] })) },
+      { control: 'holderSnap', ranges: INSERT_SNAP_VALUES.map(value => ({ value, ...HOLDER_SNAP_CLEARANCE[value] })) },
+      { control: 'miniBoxSnap', ranges: INSERT_SNAP_VALUES.map(value => ({ value, ...MINI_BOX_SNAP_CLEARANCE[value] })) },
+    ] },
 ];
 
 const CIGARETTE_CASE_DIR = 'models/cigarette-case/reference/';
 const CLEARANCE_MAPPING = { clearance: 'CLEARANCE' };
-const SNAP_MAPPING = { snap: 'SNAP', ...CLEARANCE_MAPPING };
+const SNAP_MAPPING = { snap: 'SNAP' };
+const MINI_LID_SNAP_MAPPING = { miniLidSnap: 'MINI_LID_SNAP' };
+const HOLDER_SNAP_MAPPING = { holderSnap: 'HOLDER_SNAP' };
+const MINI_BOX_SNAP_MAPPING = { miniBoxSnap: 'MINI_BOX_SNAP' };
 const TEXT_MAPPING = { engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE' };
 
 /** The parts. `id` is the STL basename inside the ZIP. The SCAD files are the verified reconstructions, with their mating surfaces
  * fitted to one clearance (the `clearance` parameter; see models/cigarette-case/reference/VERIFICATION.md), except
- * `case-text`, which is new: the underside text as a separate body, present only in `second-filament` mode. The holder and the
- * shallow box have no snap parameter (the holder's clip tab and the box's notches are part of the original). */
+ * `case-text`, which is new: the underside text as a separate body, present only in `second-filament` mode. Each snap setting
+ * reaches the two parts of its joint. */
 const cigaretteCaseParts: ModelPart[] = [
-  { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: { ...SNAP_MAPPING, ...TEXT_MAPPING } },
-  { id: 'case-lid', title: 'Case lid (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_top.scad`, scadMapping: SNAP_MAPPING },
-  { id: 'mini-holder', title: 'Mini holder', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_minibox.scad`, scadMapping: CLEARANCE_MAPPING },
-  { id: 'mini-box', title: 'Mini box', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_box.scad`, scadMapping: CLEARANCE_MAPPING },
-  { id: 'mini-lid', title: 'Mini box lid', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_top.scad`, scadMapping: SNAP_MAPPING },
+  { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, ...HOLDER_SNAP_MAPPING, ...TEXT_MAPPING } },
+  { id: 'case-lid', title: 'Case lid (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_top.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, ...MINI_BOX_SNAP_MAPPING } },
+  { id: 'mini-holder', title: 'Mini holder', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_minibox.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...HOLDER_SNAP_MAPPING } },
+  { id: 'mini-box', title: 'Mini box', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...MINI_LID_SNAP_MAPPING, ...MINI_BOX_SNAP_MAPPING } },
+  { id: 'mini-lid', title: 'Mini box lid', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_top.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...MINI_LID_SNAP_MAPPING } },
   { id: 'case-text', title: 'Case text (second filament)', sourcePath: 'models/cigarette-case/underside-text.scad', scadMapping: TEXT_MAPPING, separateBodies: true,
     includedWhen: parameters => typeof parameters['engraveText'] === 'string' && hasSecondFilamentText({ engraveText: parameters['engraveText'], textMode: String(parameters['textMode']) }) },
 ];
@@ -472,8 +531,8 @@ const cigaretteCaseAssembly: Assembly = {
 };
 
 export const cigaretteCase = {
-  id: 'cigarette-case' as const, version: '4' as const, title: 'Cigarette case (Onz)',
-  description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Choose how the parts snap together and how closely they fit, add text to the underside of the box (engraved, or as a second-filament part), then download every part as a ZIP of STL files.',
+  id: 'cigarette-case' as const, version: '5' as const, title: 'Cigarette case (Onz)',
+  description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Choose how each joint holds (the lid on the box, the mini lid, the holder in the box and the mini box in the lid) and how closely the parts fit, add text to the underside of the box (engraved, or as a second-filament part), then download every part as a ZIP of STL files.',
   attribution: 'sez16sez (Thingiverse)',
   printNotes: 'Print each part separately; the lids print rim-side down. The optional text part prints flat, in a second colour.',
   // Kept short deliberately: this string and `attribution` are stamped into each STL's 80-byte header (see stampAttribution).

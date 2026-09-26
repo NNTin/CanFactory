@@ -162,16 +162,23 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'plank-connector': PlankConnectorIllustration,
 };
 
-/** The sub-range of a number control recommended for the current value of another control (Control.recommended), with that value's label. */
-interface Recommendation { minimum: number; maximum: number; label: string }
+/** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names
+ * that control and `choice` its value. */
+interface RecommendedRange { minimum: number; maximum: number; label: string; choice: string }
+/** What the current values of all those controls recommend together: the range that suits all of them (empty when
+ * minimum > maximum), and each control's own range. */
+interface Recommendation { minimum: number; maximum: number; ranges: RecommendedRange[] }
 
 function recommendation(control: Control, controls: readonly Control[], parameters: ParameterValues): Recommendation | undefined {
-  if (!control.recommended) return undefined;
-  const choice = parameters[control.recommended.control];
-  const range = control.recommended.ranges.find(candidate => candidate.value === choice);
-  if (!range) return undefined;
-  const label = controls.find(candidate => candidate.key === control.recommended?.control)?.options?.find(option => option.value === choice)?.label ?? String(choice);
-  return { minimum: range.minimum, maximum: range.maximum, label };
+  const ranges = (control.recommended ?? []).flatMap(entry => {
+    const value = parameters[entry.control];
+    const range = entry.ranges.find(candidate => candidate.value === value);
+    if (!range) return [];
+    const other = controls.find(candidate => candidate.key === entry.control);
+    return [{ minimum: range.minimum, maximum: range.maximum, label: other?.label ?? entry.control, choice: other?.options?.find(option => option.value === value)?.label ?? String(value) }];
+  });
+  if (ranges.length === 0) return undefined;
+  return { minimum: Math.max(...ranges.map(range => range.minimum)), maximum: Math.min(...ranges.map(range => range.maximum)), ranges };
 }
 
 /** The band (Control.bands) a value is in: minimum included, maximum excluded, except for the last band. */
@@ -207,10 +214,17 @@ function Field({ control, value, disabled, issue, recommended, change }: { contr
   const number = typeof value === 'number' && Number.isFinite(value) ? value : '';
   const band = number === '' ? undefined : bandOf(control, number);
   const span = control.minimum !== null && control.maximum !== null && control.maximum > control.minimum ? [control.minimum, control.maximum] as const : undefined;
+  const fits = (range: { minimum: number; maximum: number }, n: number) => n >= range.minimum - 1e-9 && n <= range.maximum + 1e-9;
+  // No single value suits every control's range: nothing is highlighted, and each range is listed.
+  const conflict = recommended !== undefined && recommended.minimum > recommended.maximum + 1e-9;
   // The highlighted stretch of the track, as fractions of it (the thumb's centre moves between its half-widths, see styles.css).
-  const highlight = recommended && span ? [(recommended.minimum - span[0]) / (span[1] - span[0]), (recommended.maximum - span[0]) / (span[1] - span[0])] as const : undefined;
-  const outside = recommended && number !== '' && (number < recommended.minimum - 1e-9 || number > recommended.maximum + 1e-9);
+  const highlight = recommended && !conflict && span ? [(recommended.minimum - span[0]) / (span[1] - span[0]), (recommended.maximum - span[0]) / (span[1] - span[0])] as const : undefined;
+  const outside = recommended !== undefined && !conflict && number !== '' && !fits(recommended, number);
   const fixed = (n: number) => n.toFixed(2);
+  const unit = control.unit ? ` ${control.unit}` : '';
+  // The controls whose range the value is outside of (all of them when they conflict), to say which setting asks for what.
+  const misfits = recommended && number !== '' ? recommended.ranges.filter(range => conflict ? true : !fits(range, number)) : [];
+  const forWhat = recommended?.ranges.length === 1 ? recommended.ranges[0]?.choice : 'these settings';
   return <div className={`number-field ${disabled ? 'field-disabled' : ''}`}>
     <div className="field-heading"><label htmlFor={id} title={control.description}>{control.label}</label><span className="number-input-wrap">
       <input id={id} type="number" value={number} min={control.minimum ?? undefined} max={control.maximum ?? undefined} step={control.step ?? 0.1}
@@ -223,9 +237,11 @@ function Field({ control, value, disabled, issue, recommended, change }: { contr
     <div className="range-limits"><span>{control.minimum}{control.unit ? ` ${control.unit}` : ''}</span><span>{control.maximum}{control.unit ? ` ${control.unit}` : ''}</span></div>
     {(band || recommended) && <p className="range-note" data-testid={`${id}-note`}>
       {band && <strong className="range-band">{band.label}</strong>}
-      {recommended && <span className={outside ? 'range-outside' : undefined}>
-        {outside ? 'Outside' : 'In'} the {fixed(recommended.minimum)}–{fixed(recommended.maximum)}{control.unit ? ` ${control.unit}` : ''} recommended for {recommended.label}
-      </span>}
+      {recommended && (conflict
+        ? <span className="range-outside">No single value suits all of these settings</span>
+        : <span className={outside ? 'range-outside' : undefined}>{outside ? 'Outside' : 'In'} the {fixed(recommended.minimum)}–{fixed(recommended.maximum)}{unit} recommended for {forWhat}</span>)}
+      {recommended && recommended.ranges.length > 1 && misfits.map(range =>
+        <span key={range.label} className="range-misfit">{range.label} ({range.choice}): {fixed(range.minimum)}–{fixed(range.maximum)}{unit}</span>)}
     </p>}
     <span id={`${id}-description`} className="sr-only">{control.description}</span>
     {issue && <p className="field-error" id={`${id}-error`}>{issue}</p>}

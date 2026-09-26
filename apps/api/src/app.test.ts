@@ -53,13 +53,14 @@ describe('model and render API', () => {
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.artifactFormat).toBe('zip');
     expect(model.customizable).toBe(true);
-    expect(model.controls.map(control => control.kind)).toEqual(['enum', 'text', 'enum', 'number', 'enum', 'number']);
-    expect(model.controls.at(-1)).toMatchObject({ key: 'clearance', group: 'advanced', default: 0.2, minimum: 0.1, maximum: 0.6, recommended: { control: 'snap' } });
+    expect(model.controls.map(control => control.kind)).toEqual(['enum', 'enum', 'enum', 'enum', 'text', 'enum', 'number', 'enum', 'number']);
+    expect(model.controls.at(-1)).toMatchObject({ key: 'clearance', group: 'advanced', default: 0.2, minimum: 0.1, maximum: 0.6 });
+    expect(model.controls.at(-1)?.recommended?.map(entry => entry.control)).toEqual(['snap', 'miniLidSnap', 'holderSnap', 'miniBoxSnap']);
     expect(model.defaults).toEqual(cigaretteCase.defaults);
     expect(model.parts).toHaveLength(6);
     expect(model.assembly).toEqual(cigaretteCase.assembly);
     expect(model.referenceUrl).toBeUndefined();
-    const accepted = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, snap: 'magnet', engraveText: 'Tom', textMode: 'second-filament' } } });
+    const accepted = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, snap: 'magnet', holderSnap: 'detent', engraveText: 'Tom', textMode: 'second-filament' } } });
     expect(accepted.statusCode).toBeLessThan(300);
     const unknownMode = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, snap: 'glue' } } });
     expect(unknownMode.statusCode).toBeGreaterThanOrEqual(400);

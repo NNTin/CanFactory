@@ -346,6 +346,10 @@ main {
 .range-outside {
   color: var(--accent);
 }
+/* One line per setting whose own recommended range the value is outside of. */
+.range-misfit {
+  flex-basis: 100%;
+}
 .range-limits {
   display: flex;
   justify-content: space-between;
