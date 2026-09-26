@@ -6,7 +6,9 @@
    with units interpreted as millimetres.
 2. Define a TypeBox parameter object with `additionalProperties: false`. Document
    each property’s title, meaning, units, default, and numeric bounds/steps. The
-   current generic editor supports numeric fields and boolean switches.
+   current generic editor supports numeric fields, boolean switches, enums and short text (a `Type.Enum` string parameter with an
+   `enumControl` listing each value's label and description, or a `Type.String` with `maxLength` and a `textControl`; the value reaches SCAD as a quoted string, see
+   [cigarette-case-snap.md](cigarette-case-snap.md)).
 3. Add a `ModelDefinition` with stable ID, explicit version, display metadata,
    reference/source paths, control grouping, defaults, SCAD variable mapping,
    dependent validation, and derived metadata. Variable names must use uppercase
@@ -45,7 +47,9 @@ permanent original file to preserve — do not point it at a large STL that will
 empty model-level `scadMapping`); each part's own `scadMapping` names the parameter keys it consumes and the SCAD
 variable each becomes, and the worker passes only those as `-D`. One key may feed several parts (moss-planter's
 `towerDiameter` feeds all five, which is what makes their threads mate), and several parts may share a source file with
-different mappings (both lattice segments are `raute.scad`, with `ROWS` fed by `shortRauteRows` or `tallRauteRows`). A
+different mappings (both lattice segments are `raute.scad`, with `ROWS` fed by `shortRauteRows` or `tallRauteRows`). A part that only exists for some settings (the cigarette case's `case-text`) sets `ModelPart.includedWhen`; the worker renders
+`activeParts(model, parameters)`, and `separateBodies` relaxes the one-connected-body check for a part that is several closed
+bodies by design (see [cigarette-case-text.md](cigarette-case-text.md)). A
 model with no adjustable parameters simply leaves every mapping empty (empty `parameterSchema`, no controls); the catalogue then reports `customizable: false` and the web app shows it as an assembly preview. The cigarette case is registered this way: its five parts point at the verified static reconstructions in `models/cigarette-case/reference/`, and a later iteration replaces them with parametric generators (add the parameters, bump the version). Part
 mappings are part of the cache fingerprint, as are all part sources. Because a part receives no other `-D`, its own
 constants (`ROUNDNESS` etc.) apply exactly as written.

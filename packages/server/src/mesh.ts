@@ -43,8 +43,9 @@ export function firstDegenerateTriangle(bytes: Buffer): { index: number; a: [num
   return undefined;
 }
 
-/** Reject incomplete, degenerate, open, inconsistently wound, or disconnected generated solids. */
-export function inspectStl(bytes: Buffer): MeshInfo {
+/** Reject incomplete, degenerate, open, inconsistently wound, or disconnected generated solids. `allowDisconnected` is for a part
+ * that is several separate closed bodies by design (the letters of engraved text); every body must still be closed. */
+export function inspectStl(bytes: Buffer, options: { allowDisconnected?: boolean } = {}): MeshInfo {
   if (bytes.length < 84) throw new Error('The renderer produced an incomplete STL.');
   const triangleCount = bytes.readUInt32LE(80);
   if (triangleCount === 0 || triangleCount > 1_000_000 || bytes.length !== 84 + triangleCount * 50)
@@ -99,7 +100,7 @@ export function inspectStl(bytes: Buffer): MeshInfo {
   for (const edgeInfo of edges.values()) {
     if (edgeInfo.count !== 2 || edgeInfo.winding !== 0) throw new Error('The mesh is not a closed, consistently wound solid.');
   }
-  if (parents.some((_, index) => root(index) !== root(0))) throw new Error('The mesh contains disconnected pieces.');
+  if (!options.allowDisconnected && parents.some((_, index) => root(index) !== root(0))) throw new Error('The mesh contains disconnected pieces.');
   if (!Number.isFinite(volume) || volume <= 0) throw new Error('The mesh has no positive enclosed volume.');
   return {
     sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length, triangles: triangleCount, volume,

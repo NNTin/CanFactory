@@ -15,7 +15,7 @@ function restoreSettings(model: ModelDetail): ParameterValues {
     if (stored && definition) {
       const values: unknown = JSON.parse(stored);
       if (values !== null && typeof values === 'object' && validateParameters(definition, values).length === 0) {
-        const entries = Object.entries(values).filter((entry): entry is [string, number | boolean] => typeof entry[1] === 'number' || typeof entry[1] === 'boolean');
+        const entries = Object.entries(values).filter((entry): entry is [string, number | boolean | string] => ['number', 'boolean', 'string'].includes(typeof entry[1]));
         return Object.fromEntries(entries);
       }
     }
@@ -76,17 +76,53 @@ function MossPlanterIllustration() {
   </svg>;
 }
 
-/** A large honeycomb case with its lid lifted, and the small box beside it. */
+/**
+ * The five-part cigarette case, drawn front-on: a large box and sliding lid (terracotta) with the small holder (in the box) and the
+ * closed shallow box (in the lid) tucked inside. On card hover they come out in stages, then the shallow box and its lid part (`.cc-*` in styles.css).
+ */
 function CigaretteCaseIllustration() {
-  const cells = [0, 1, 2, 3].flatMap(row => [0, 1, 2].map(col => ({ x: 28 + col * 16 + (row % 2) * 8, y: 98 + row * 13 })));
-  return <svg viewBox="0 0 240 190" aria-hidden="true" className="funnel-illustration">
-    <ellipse cx="120" cy="170" rx="108" ry="12" fill="#c8cec1" opacity=".35" />
-    <rect x="18" y="92" width="76" height="66" rx="12" fill="#8b513a" opacity=".75" />
-    <rect x="18" y="52" width="76" height="34" rx="12" fill="#a86b50" opacity=".85" />
-    {cells.map(cell => <path key={`${cell.x}-${cell.y}`} d={`M${cell.x} ${cell.y}l5-3 5 3v6l-5 3-5-3z`} fill="none" stroke="#f4eee4" strokeWidth="1.4" opacity=".7" />)}
-    <rect x="128" y="112" width="86" height="46" rx="10" fill="#7b8e6b" opacity=".8" />
-    <rect x="132" y="86" width="78" height="20" rx="8" fill="#93a682" opacity=".9" />
-    <ellipse cx="171" cy="112" rx="14" ry="6" fill="#3f4f34" opacity=".35" />
+  return <svg viewBox="0 0 240 190" aria-hidden="true" className="cigarette-case-illustration">
+    <defs>
+      <pattern id="cc-honeycomb" width="12" height="14" patternUnits="userSpaceOnUse">
+        <path d="M0 3.5 6 0l6 3.5v7L6 14l-6-3.5z" fill="none" stroke="#f4eee4" strokeWidth="1.2" opacity=".55" />
+      </pattern>
+    </defs>
+    <g transform="translate(120 95) scale(.8) translate(-120 -95)">
+      <ellipse className="cc-part cc-shadow" cx="120" cy="162" rx="76" ry="10" fill="#c8cec1" opacity=".35" />
+      <path className="cc-guide" d="M120 45V88" stroke="#7b8e6b" strokeWidth="1.5" strokeDasharray="3 4" fill="none" />
+      <g className="cc-part cc-box-carry">
+        <g className="cc-part cc-holder-slide">
+          <g transform="translate(0 18)">
+            <path d="M99 93V70q0-9 10-9t10 9v23z" fill="#8fa27c" />
+            <path d="M109 61q10 0 10 9v23h-6V70q0-6-4-9z" fill="#5f7350" opacity=".45" />
+            <ellipse cx="109" cy="78" rx="3" ry="6" fill="#3f4f34" opacity=".45" />
+          </g>
+        </g>
+        <rect x="93.5" y="78" width="53" height="73" rx="6" fill="#c46543" />
+        <rect x="93.5" y="78" width="53" height="17" rx="3" fill="#a9563a" />
+        <rect x="93.5" y="95" width="53" height="56" rx="6" fill="#d98460" />
+        <rect x="93.5" y="95" width="53" height="56" rx="6" fill="url(#cc-honeycomb)" />
+        <path d="M138 95h8.5v50q0 6-6 6h-2.5z" fill="#753e2d" opacity=".25" />
+      </g>
+      <g className="cc-part cc-lift">
+        <g className="cc-part cc-mini-slide">
+          <g className="cc-part cc-split-box">
+            <rect x="110" y="79" width="33" height="14" rx="3" fill="#7b8e6b" />
+            <rect x="110" y="79" width="33" height="4" rx="2" fill="#93a682" />
+            <path d="M143 79v14h-7q2-7 0-14z" fill="#3f4f34" opacity=".3" />
+          </g>
+          <g className="cc-part cc-split-lid">
+            <rect x="112" y="79" width="30" height="13" rx="3" fill="#93a682" />
+            <rect x="116" y="83" width="4" height="5" rx="2" fill="#5f7350" opacity=".5" />
+            <rect x="134" y="83" width="4" height="5" rx="2" fill="#5f7350" opacity=".5" />
+          </g>
+        </g>
+        <rect x="93.5" y="55" width="53" height="40" rx="3" fill="#d98460" />
+        <rect x="93.5" y="55" width="53" height="40" rx="3" fill="url(#cc-honeycomb)" />
+        <rect x="93.5" y="55" width="53" height="5" rx="2.5" fill="#e8ab87" />
+        <path d="M138 60h8.5v29q0 6-6 6h-2.5z" fill="#753e2d" opacity=".25" />
+      </g>
+    </g>
   </svg>;
 }
 
@@ -96,8 +132,29 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'moss-planter': MossPlanterIllustration,
 };
 
-function Field({ control, value, disabled, issue, change }: { control: Control; value: number | boolean | undefined; disabled: boolean; issue: string | undefined; change: (value: number | boolean) => void }) {
+function Field({ control, value, disabled, issue, change }: { control: Control; value: number | boolean | string | undefined; disabled: boolean; issue: string | undefined; change: (value: number | boolean | string) => void }) {
   const id = `parameter-${control.key}`;
+  if (control.kind === 'text') {
+    const text = typeof value === 'string' ? value : '';
+    return <div className={`select-field ${disabled ? 'field-disabled' : ''}`}>
+      <div className="field-heading"><label htmlFor={id}>{control.label}</label>{control.maximum !== null && <span className="text-count">{text.length}/{control.maximum}</span>}</div>
+      <input id={id} type="text" value={text} maxLength={control.maximum ?? undefined} disabled={disabled} autoComplete="off" spellCheck={false} placeholder="Nothing"
+        aria-invalid={Boolean(issue)} aria-describedby={`${id}-description${issue ? ` ${id}-error` : ''}`} onChange={event => change(event.currentTarget.value)} />
+      <p id={`${id}-description`}>{control.description}</p>
+      {issue && <p className="field-error" id={`${id}-error`}>{issue}</p>}
+    </div>;
+  }
+  if (control.kind === 'enum') {
+    const selected = control.options?.find(option => option.value === value);
+    return <div className={`select-field ${disabled ? 'field-disabled' : ''}`}>
+      <label htmlFor={id}>{control.label}</label>
+      <select id={id} value={typeof value === 'string' ? value : ''} disabled={disabled} aria-invalid={Boolean(issue)} aria-describedby={`${id}-description`} onChange={event => change(event.currentTarget.value)}>
+        {control.options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+      <p id={`${id}-description`}>{selected?.description ?? control.description}</p>
+      {issue && <p className="field-error">{issue}</p>}
+    </div>;
+  }
   if (control.kind === 'boolean') return <div className="toggle-field">
     <div><label htmlFor={id}>{control.label}</label><p>{control.description}</p></div>
     <button id={id} type="button" className="switch" role="switch" aria-checked={value === true} onClick={() => change(value !== true)} disabled={disabled}><span /></button>
@@ -141,7 +198,7 @@ function Editor({ model }: { model: ModelDetail }) {
   }, [parameters, model, valid]);
   useEffect(() => { setViewerError(null); setDownloadError(null); }, [url]);
 
-  const change = (key: string, value: number | boolean) => {
+  const change = (key: string, value: number | boolean | string) => {
     setParameters(current => {
       const next = { ...current, [key]: value };
       if (value === false && definition) {
@@ -186,9 +243,9 @@ function Editor({ model }: { model: ModelDetail }) {
           <p className="panel-intro">A few adjustments. A perfect fit.</p>
           <div className="basic-controls">{model.controls.filter(control => control.group === 'basic').map(field)}</div>
           {derived?.slotCount !== undefined && derived.slotCount !== null && <div className="slot-note"><Sparkles size={14} /><span>{derived.slotCount === 0 ? 'One opening. A smooth funnel.' : `${derived.slotCount.toLocaleString()} slots, automatically spaced.`}</span></div>}
-          <button className="advanced-button" type="button" aria-expanded={advanced} aria-controls="advanced-controls" onClick={() => setAdvanced(value => !value)}>
+          {model.controls.some(control => control.group === 'advanced') && <button className="advanced-button" type="button" aria-expanded={advanced} aria-controls="advanced-controls" onClick={() => setAdvanced(value => !value)}>
             Advanced settings <ChevronDown size={16} className={advanced ? 'rotated' : ''} />
-          </button>
+          </button>}
           {advanced && <div id="advanced-controls" className="advanced-controls">{model.controls.filter(control => control.group === 'advanced').map(field)}</div>}
           <p className="local-note">Your settings stay in this browser.</p>
         </> : <>

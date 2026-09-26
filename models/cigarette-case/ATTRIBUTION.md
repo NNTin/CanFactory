@@ -28,3 +28,9 @@ be used for commercial purposes.
 
 These model terms do not establish a license for unrelated application code, and this
 attribution grants no additional rights to the original design or its files.
+
+## Added by CanFactory
+
+- `underside-text.scad` is new: the optional text on the underside of the large box, as a separate part. It is licensed under the
+  same CC BY-NC 4.0 terms as the adaptation.
+- The fonts used for that text are bundled in `../fonts/` with their own licenses (SIL OFL 1.1 for Liberation, Bitstream Vera for DejaVu).

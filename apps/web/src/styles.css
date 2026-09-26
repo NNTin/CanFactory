@@ -331,6 +331,47 @@ main {
   font-family: ui-monospace, monospace;
   letter-spacing: 0.2px;
 }
+.select-field {
+  margin-bottom: 20px;
+}
+.select-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 550;
+  margin-bottom: 8px;
+}
+.select-field select,
+.select-field input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  color: inherit;
+  background: #fffefa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.select-field p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.select-field .field-heading {
+  margin-bottom: 8px;
+}
+.select-field .field-heading label {
+  margin-bottom: 0;
+}
+.text-count {
+  font-size: 12px;
+  color: var(--muted);
+}
+.select-field input[aria-invalid="true"] {
+  border-color: #b23b2e;
+}
+.select-field .field-error {
+  color: #b23b2e;
+}
 .toggle-field {
   display: flex;
   align-items: center;
@@ -737,7 +778,8 @@ main {
   color: #7b8e6b;
 }
 .funnel-illustration,
-.moss-planter-illustration {
+.moss-planter-illustration,
+.cigarette-case-illustration {
   width: 250px;
   height: 210px;
 }
@@ -767,6 +809,65 @@ main {
   .mp-part,
   .mp-guide {
     transition: none;
+  }
+}
+.cc-part {
+  transition:
+    transform 0.4s ease-out,
+    opacity 0.4s ease-out;
+}
+.cc-box-carry,
+.cc-lift {
+  transition-delay: 0.56s;
+}
+.cc-mini-slide,
+.cc-holder-slide {
+  transition-delay: 0.28s;
+}
+.cc-guide {
+  opacity: 0;
+}
+.model-card:hover .cc-box-carry,
+.model-card:focus-visible .cc-box-carry {
+  transform: translateY(10px);
+  transition-delay: 0s;
+}
+.model-card:hover .cc-lift,
+.model-card:focus-visible .cc-lift {
+  transform: translateY(-50px);
+  transition-delay: 0s;
+}
+.model-card:hover .cc-holder-slide,
+.model-card:focus-visible .cc-holder-slide {
+  transform: translateY(78px);
+}
+.model-card:hover .cc-mini-slide,
+.model-card:focus-visible .cc-mini-slide {
+  transform: translateY(30.5px);
+}
+.model-card:hover .cc-split-box,
+.model-card:focus-visible .cc-split-box {
+  transform: translateX(-30px);
+  transition-delay: 0.56s;
+}
+.model-card:hover .cc-split-lid,
+.model-card:focus-visible .cc-split-lid {
+  transform: translateX(19px);
+  transition-delay: 0.56s;
+}
+.model-card:hover .cc-shadow,
+.model-card:focus-visible .cc-shadow {
+  transform: translateY(34px);
+  transition-delay: 0.28s;
+}
+.model-card:hover .cc-guide,
+.model-card:focus-visible .cc-guide {
+  opacity: 0.6;
+  transition-delay: 0.56s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cc-part {
+    transition: none !important;
   }
 }
 .card-copy {

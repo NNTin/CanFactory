@@ -1,28 +1,40 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { unzipSync } from 'fflate';
-import { cigaretteCase, fruitFlyTrap, mossPlanter, validateParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, cigaretteCase, fruitFlyTrap, mossPlanter, textWidth, validateParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, RENDERER_IMAGE, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, runOpenScad, type OpenScadRunner } from '../apps/worker/src/render.ts';
+import { renderScad } from './stl-to-scad/openscad.ts';
 
 const exec = promisify(execFile);
 const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
 store.migrate(); store.seed();
 const app = await createApp(store);
-const dockerRunner: OpenScadRunner = async (args, signal) => {
+const dockerRunner: OpenScadRunner = async (args, signal, fontPath) => {
   const mapped = args.map(arg => arg.startsWith(directory) ? arg.replace(directory, '/data') : arg.startsWith(repositoryRoot) ? arg.replace(repositoryRoot, '/app') : arg);
   await exec('docker', ['run', '--rm', '--init', '--network', 'none', '--cpus', '2', '--memory', '2g',
     '--user', `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
-    '--mount', `type=bind,src=${repositoryRoot},dst=/app,readonly`, '--mount', `type=bind,src=${directory},dst=/data`,
+    '--env', `OPENSCAD_FONT_PATH=${fontPath.replace(repositoryRoot, '/app')}`, '--mount', `type=bind,src=${repositoryRoot},dst=/app,readonly`, '--mount', `type=bind,src=${directory},dst=/data`,
     RENDERER_IMAGE, 'timeout', '120', 'openscad', ...mapped], { signal, maxBuffer: 1_048_576 });
 };
-const runner = process.env['OPENSCAD_TEST_MODE'] === 'native' ? runOpenScad : dockerRunner;
+/** OPENSCAD_TEST_MODE=wasm renders with the optional openscad-wasm-prebuilt package (`npm i --no-save openscad-wasm-prebuilt`) and the bundled fonts. */
+const wasmRunner: OpenScadRunner = async (args) => {
+  const defines: Record<string, string> = {};
+  args.forEach((arg, index) => { if (args[index - 1] === '-D') { const [name, ...value] = arg.split('='); if (name) defines[name] = value.join('='); } });
+  const scad = args.at(-1); const output = args[args.indexOf('-o') + 1];
+  if (!scad || !output) throw new Error('Expected a SCAD file and -o');
+  await writeFile(output, (await renderScad(scad, defines)).stl);
+};
+const mode = process.env['OPENSCAD_TEST_MODE'];
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter) runs a single model's cases. */
+const only = process.env['TEST_ONLY'];
+const runner = mode === 'native' ? runOpenScad : mode === 'wasm' ? wasmRunner : dockerRunner;
 const cases: { name: string; overrides: ParameterValues; dimensions: [number, number, number] }[] = [
   { name: 'default slots', overrides: {}, dimensions: [80, 104, 60] },
   { name: 'smooth narrow opening', overrides: { slotsEnabled: false, nozzleDiameter: 1 }, dimensions: [80, 104, 60] },
@@ -32,7 +44,7 @@ const cases: { name: string; overrides: ParameterValues; dimensions: [number, nu
 ];
 let defaultTriangles = 0;
 try {
-  for (const testCase of cases) {
+  for (const testCase of only && only !== 'fruit-fly-trap' ? [] : cases) {
     const parameters = { ...fruitFlyTrap.defaults, ...testCase.overrides };
     assert.deepEqual(validateParameters(fruitFlyTrap, parameters), []);
     const queued = store.enqueue(fruitFlyTrap, parameters);
@@ -71,7 +83,7 @@ try {
     { name: 'smallest tower', overrides: { towerDiameter: 40, spikeLength: 50, shortRauteRows: 2, tallRauteRows: 2 }, heights: {} },
     { name: 'largest tower', overrides: { towerDiameter: 120, spikeLength: 300 }, heights: {} },
   ];
-  for (const testCase of mossCases) {
+  for (const testCase of only && only !== 'moss-planter' ? [] : mossCases) {
     const started = Date.now();
     const parameters = { ...mossPlanter.defaults, ...testCase.overrides };
     assert.deepEqual(validateParameters(mossPlanter, parameters), [], testCase.name);
@@ -113,39 +125,54 @@ try {
     console.log(`PASS moss planter ${testCase.name}: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 
-  // Cigarette case: five static parts without parameters. Each must be one closed solid with the dimensions of the source STL (which the
-  // reconstructions are verified against in models/cigarette-case/reference/VERIFICATION.md), packaged as one ZIP.
-  {
+  // Cigarette case: rendered once per snap mode, then with engraved text in every font and in second-filament mode. Each part must be one
+  // closed solid (the text part: closed letters) with the dimensions of the source STL (which the reconstructions are verified against in
+  // models/cigarette-case/reference/VERIFICATION.md), packaged as one ZIP. The snap features only stand proud by a fraction of a millimetre,
+  // except the mini lid's crush ribs (0.3 mm proud of its 25.119 mm width).
+  const caseRuns: { name: string; parameters: ParameterValues }[] = [
+    ...['friction', 'detent', 'clip', 'magnet', 'crush-ribs'].map(snap => ({ name: `snap ${snap}`, parameters: { ...cigaretteCase.defaults, snap } })),
+    ...['sans', 'serif', 'mono', 'wide'].map(textFont => ({ name: `engraved ${textFont}`, parameters: { ...cigaretteCase.defaults, engraveText: 'Tom & Jo', textFont, textSize: 4 } })),
+    { name: 'second filament', parameters: { ...cigaretteCase.defaults, engraveText: 'Hello', textMode: 'second-filament', textSize: 6 } },
+  ];
+  for (const { name, parameters } of only && only !== 'cigarette-case' ? [] : caseRuns) {
     const started = Date.now();
-    assert.deepEqual(validateParameters(cigaretteCase, {}), []);
-    const queued = store.enqueue(cigaretteCase, {});
+    assert.deepEqual(validateParameters(cigaretteCase, parameters), []);
+    const queued = store.enqueue(cigaretteCase, parameters);
     const job = store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
     const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
-    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true, 'cigarette case'); }
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true, `cigarette case ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', 'cigarette case'); assert.ok(result.artifact);
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `cigarette case ${name}`); assert.ok(result.artifact);
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for the cigarette case.');
-    assert.equal(result.artifact.parts.length, cigaretteCase.parts.length);
+    const wanted = activeParts(cigaretteCase, parameters);
+    assert.deepEqual(result.artifact.parts.map(part => part.id), wanted.map(part => part.id), `cigarette case ${name}: parts`);
     const expected: Record<string, [number, number, number]> = {
       'case-box': [55.888, 34.398, 77.171], 'case-lid': [55.888, 34.398, 41.868], 'mini-holder': [10.876, 21.842, 32.694],
-      'mini-box': [34.481, 27.519, 14.391], 'mini-lid': [34.481, 25.119, 13.391],
+      'mini-box': [34.481, 27.519, 14.391], 'mini-lid': [34.481, parameters['snap'] === 'crush-ribs' ? 25.7 : 25.119, 13.391],
     };
     for (const part of result.artifact.parts) {
-      assert.ok(part.volume > 0, `cigarette case ${part.id}: expected positive volume`);
+      assert.ok(part.volume > 0, `cigarette case ${name} ${part.id}: expected positive volume`);
+      if (part.id === 'case-text') {
+        // The letters must lie inside the free area, be 0.8 mm thick, and be no wider than the contract's estimate, which is an upper bound (else the estimate would let clipped text through).
+        const estimate = textWidth(String(parameters['textFont']), String(parameters['engraveText']), Number(parameters['textSize']));
+        assert.ok(part.dimensions.x <= 35.01 && part.dimensions.y <= 16.01 && Math.abs(part.dimensions.z - 0.8) < 0.01, `case-text size ${JSON.stringify(part.dimensions)}`);
+        assert.ok(part.dimensions.x <= estimate + 0.05, `case-text width ${part.dimensions.x} vs estimate ${estimate}`);
+        continue;
+      }
       const size = expected[part.id];
       assert.ok(size, `unexpected part ${part.id}`);
       for (const [axis, want] of [['x', size[0]], ['y', size[1]], ['z', size[2]]] as const)
-        assert.ok(Math.abs(part.dimensions[axis] - want) <= 0.1, `cigarette case ${part.id} ${axis}: ${part.dimensions[axis]} != ${want}`);
+        assert.ok(Math.abs(part.dimensions[axis] - want) <= 0.1, `cigarette case ${name} ${part.id} ${axis}: ${part.dimensions[axis]} != ${want}`);
     }
     const bytes = await readFile(store.artifacts.path(job.id, 'zip'));
     const entries = unzipSync(new Uint8Array(bytes));
-    assert.deepEqual(Object.keys(entries).sort(), cigaretteCase.parts.map(part => `${part.id}.stl`).sort());
-    for (const [name, entryBytes] of Object.entries(entries)) {
-      assert.ok(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength)).sha256, `cigarette case ${name}: expected a valid individual STL`);
+    assert.deepEqual(Object.keys(entries).sort(), wanted.map(part => `${part.id}.stl`).sort());
+    for (const [entryName, entryBytes] of Object.entries(entries)) {
+      assert.ok(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength), { allowDisconnected: entryName === 'case-text.stl' }).sha256, `cigarette case ${name} ${entryName}: expected a valid individual STL`);
     }
-    assert.equal(store.enqueue(cigaretteCase, {}).id, job.id);
-    console.log(`PASS cigarette case: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+    assert.equal(store.enqueue(cigaretteCase, parameters).id, job.id);
+    console.log(`PASS cigarette case ${name}: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 } finally {
   await app.close(); store.close(); await rm(directory, { recursive: true, force: true });

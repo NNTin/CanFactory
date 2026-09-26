@@ -11,7 +11,7 @@
 // that the lid slides over. The relief is stored as plateau regions in the unrolled (s, z) plane and bent back around the
 // outline by relief_wrap() (generated with tools/stl-to-scad `relief`). Units are millimetres; the part is centred on the
 // Z axis with its underside on z = 0. The source STL sat at (217.2, 84.5) on the print plate with its underside at -1.48.
-// Static reconstruction: named dimensions only, no parameter interface yet.
+// Named dimensions only; the parameters are SNAP, how the lid snaps on, and the TEXT_* underside text (with both at their defaults this is the reconstruction as verified).
 
 SCALE = 1;
 
@@ -95,6 +95,85 @@ UPPER = [[-22.35, 8.211], [-22.709, 7.221], [-23.101, 5.65], [-23.322, 4.234], [
 // Base outline the relief is measured from (counter-clockwise), and the pattern as plateau regions in the unrolled (s, z) plane:
 // s = arc length along the outline from its first point, z = height. Each level is [height, +1 add / -1 cut, grow, loops]; height is
 // the distance of the plateau from the outline along its outward normal; loops are outer boundaries and holes (even-odd).
+// Snap mechanism, chosen by SNAP (a -D override): "friction" (the original geometry, nothing added), "detent", "clip",
+// "magnet" or "crush-ribs". The features sit on the two straight side walls (y = +/-UPPER_Y, x in SNAP_X0..SNAP_X1) of the
+// plain upper shell, the part the lid slides over; the lid file carries the matching half. Heights are measured from the
+// lid's rim when closed (z = BASE_TOP), so both files use the same numbers. Millimetres.
+SNAP = "friction";
+UPPER_Y = 13.63;      // outer face of the upper shell on its straight sides (lid cavity: 13.79, so 0.16 clearance)
+WALL_IN_Y = 12.63;    // inner face of that wall (the bays), so the wall is 1 mm thick
+SNAP_X0 = -1;         // straight stretch shared by the shell and the lid cavity
+SNAP_X1 = 9.5;
+SNAP_XC = (SNAP_X0 + SNAP_X1) / 2;
+// detent: a bump on the shell, and a groove in the lid, at this height above the lid rim
+DETENT_Z = 9;
+DETENT_H = 0.35;      // the bump stands this far proud; the lid groove is 0.1 deeper and 0.2 wider
+// crush-ribs: vertical ribs that stand this far proud of the shell and are squeezed by the lid
+CRUSH_H = 0.32;
+CRUSH_X = [0.5, 4.25, 8];
+CRUSH_W = 0.5;
+CRUSH_Z0 = 3;
+CRUSH_Z1 = 15;        // the top end is ramped so the lid finds it
+// clip: a pocket in the shell for the nib on the lid's flexible tongue
+CLIP_X0 = 1.2;
+CLIP_X1 = 7.3;
+CLIP_Z0 = 0.8;
+CLIP_Z1 = 4.1;
+CLIP_DEPTH = 0.5;
+// magnet: a round magnet (MAGNET_D x MAGNET_T) in a pocket in the shell wall, backed by a boss inside the bay
+MAGNET_D = 6.2;       // pocket diameter: a 6 mm magnet with a little play
+MAGNET_T = 2.1;       // pocket depth: a 2 mm magnet with a little play
+MAGNET_Z = 8;         // height of the magnet centre above the lid rim
+BOSS_IN_Y = 10.9;     // the boss reaches this far inwards from the centre line
+
+// A profile given as (a, z) pairs, a along y, stretched along x from x0 to x1; mirrored to both side walls.
+module side_bar(x0, x1, profile) {
+  for (m = [0, 1]) mirror([0, m, 0]) translate([x0, 0, 0]) rotate([90, 0, 90]) linear_extrude(height = x1 - x0) polygon(profile);
+}
+module snap_add() {
+  z0 = BASE_TOP;
+  if (SNAP == "detent")
+    side_bar(SNAP_X0, SNAP_X1, [for (p = [[-0.3, -1.3], [0, -1], [DETENT_H, -0.4], [DETENT_H, 0.4], [0, 1], [-0.3, 1.3]]) [UPPER_Y + p[0], z0 + DETENT_Z + p[1]]]);
+  if (SNAP == "crush-ribs")
+    for (x = CRUSH_X)
+      side_bar(x - CRUSH_W / 2, x + CRUSH_W / 2, [[UPPER_Y - 0.3, z0 + CRUSH_Z0], [UPPER_Y + CRUSH_H, z0 + CRUSH_Z0], [UPPER_Y + CRUSH_H, z0 + CRUSH_Z1 - 1.4], [UPPER_Y, z0 + CRUSH_Z1], [UPPER_Y - 0.3, z0 + CRUSH_Z1]]);
+  if (SNAP == "magnet")
+    side_bar(SNAP_XC - MAGNET_D / 2 - 0.2, SNAP_XC + MAGNET_D / 2 + 0.2, [[BOSS_IN_Y, z0 + MAGNET_Z - MAGNET_D / 2 - 0.2], [WALL_IN_Y + 0.1, z0 + MAGNET_Z - MAGNET_D / 2 - 0.2],
+      [WALL_IN_Y + 0.1, z0 + MAGNET_Z + MAGNET_D / 2 + 0.2], [BOSS_IN_Y, z0 + MAGNET_Z + MAGNET_D / 2 + 0.2]]);
+}
+module snap_cut() {
+  z0 = BASE_TOP;
+  if (SNAP == "clip")
+    side_bar(CLIP_X0, CLIP_X1, [[UPPER_Y - CLIP_DEPTH, z0 + CLIP_Z0], [UPPER_Y + 0.2, z0 + CLIP_Z0], [UPPER_Y + 0.2, z0 + CLIP_Z1], [UPPER_Y - CLIP_DEPTH, z0 + CLIP_Z1]]);
+  if (SNAP == "magnet")
+    for (m = [0, 1]) mirror([0, m, 0]) translate([SNAP_XC, UPPER_Y + 0.2, z0 + MAGNET_Z]) rotate([90, 0, 0]) cylinder(d = MAGNET_D, h = MAGNET_T + 0.2, $fn = 64);
+}
+
+// --- underside text (this block is identical in the box file and in underside-text.scad; a test keeps them in sync) ---
+// Text on the underside of the box, the face that sits on the print bed. It reads correctly when the box is turned over, so it is
+// mirrored here. Carved TEXT_DEPTH deep into the box; underside-text.scad is the same letters as a separate part that fills the
+// carving exactly, for a printer with a second nozzle. All of these can be overridden with -D.
+TEXT = "";              // the text, one line; empty for none
+TEXT_FONT = "sans";     // "sans", "serif", "mono" or "wide": the bold fonts bundled in models/fonts
+TEXT_SIZE = 6;          // letter height in mm (OpenSCAD's text size: about the height of a capital)
+TEXT_DEPTH = 0.8;       // the floor above the underside is 2.45 mm, so this leaves 1.65 mm
+// The flat underside that is free for text: clear of the round bay (x < -10.9) and of the flange edge, centred on the middle.
+TEXT_X0 = -9;
+TEXT_X1 = 26;
+TEXT_HALF_H = 8;
+
+function text_font(name) = name == "serif" ? "Liberation Serif:style=Bold" : name == "mono" ? "Liberation Mono:style=Bold"
+  : name == "wide" ? "DejaVu Sans:style=Bold" : "Liberation Sans:style=Bold";
+
+// The letters, clipped to the free area so that a string that is too long can never reach the bay or the flange edge.
+module underside_text_2d() {
+  intersection() {
+    translate([(TEXT_X0 + TEXT_X1) / 2, 0]) mirror([1, 0]) text(TEXT, size = TEXT_SIZE, font = text_font(TEXT_FONT), halign = "center", valign = "center");
+    translate([TEXT_X0, -TEXT_HALF_H]) square([TEXT_X1 - TEXT_X0, 2 * TEXT_HALF_H]);
+  }
+}
+// --- end underside text ---
+
 RELIEF_BASE = [[-24.949, -6.749], [-24.538, -8.192], [-24.188, -9.132], [-23.598, -10.213], [-23.185, -10.839], [-22.334, -11.759],
   [-21.311, -12.483], [-20.878, -12.736], [-20.176, -12.966], [-19.446, -13.138], [-11.026, -14.237],
   [-8.053, -14.571], [-6.058, -14.728], [-1.067, -14.803], [11.669, -14.796], [12.668, -14.782], [13.41, -14.671],
@@ -776,19 +855,24 @@ module tab() {
 }
 
 module box() {
-  union() {
-    difference() {
-      union() {
-        linear_extrude(height = FLANGE_TOP + 0.02) polygon(FLANGE);
-        translate([0, 0, FLANGE_TOP - 0.01]) linear_extrude(height = BASE_TOP - FLANGE_TOP + 0.01) polygon(RELIEF_BASE);
-        relief_wrap(1);
-        translate([0, 0, BASE_TOP - 0.01]) linear_extrude(height = TOP_Z - BASE_TOP + 0.01) polygon(UPPER);
+  difference() {
+    union() {
+      difference() {
+        union() {
+          linear_extrude(height = FLANGE_TOP + 0.02) polygon(FLANGE);
+          translate([0, 0, FLANGE_TOP - 0.01]) linear_extrude(height = BASE_TOP - FLANGE_TOP + 0.01) polygon(RELIEF_BASE);
+          relief_wrap(1);
+          translate([0, 0, BASE_TOP - 0.01]) linear_extrude(height = TOP_Z - BASE_TOP + 0.01) polygon(UPPER);
+        }
+        relief_wrap(-1);
+        translate([0, 0, FLOOR_TOP]) linear_extrude(height = TOP_Z) { polygon(BAY_A); polygon(BAY_B); }
+        translate([0, 0, -1]) linear_extrude(height = TOP_Z + 2) polygon(BAY_ROUND);
       }
-      relief_wrap(-1);
-      translate([0, 0, FLOOR_TOP]) linear_extrude(height = TOP_Z) { polygon(BAY_A); polygon(BAY_B); }
-      translate([0, 0, -1]) linear_extrude(height = TOP_Z + 2) polygon(BAY_ROUND);
+      tab();
+      snap_add();
     }
-    tab();
+    snap_cut();
+    if (len(TEXT) > 0) translate([0, 0, -0.01]) linear_extrude(height = TEXT_DEPTH + 0.01) underside_text_2d();
   }
 }
 

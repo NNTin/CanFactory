@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { test, expect, type Route } from '@playwright/test';
 import { unzipSync } from 'fflate';
 import { Value } from 'typebox/value';
-import { cigaretteCase, mossPlanter, RenderRequestSchema, type Render } from '@canfactory/contracts';
+import { activeParts, cigaretteCase, mossPlanter, RenderRequestSchema, type Render } from '@canfactory/contracts';
 import { inspectStl } from '@canfactory/server';
 
 test('customize, inspect, download identical geometry, and restore local settings', async ({ page }, testInfo) => {
@@ -145,16 +145,31 @@ test('customizes the moss planter tower diameter and downloads a ZIP of all five
   expect(errors).toEqual([]);
 });
 
-test('shows the static cigarette case and downloads a ZIP of all five parts', async ({ page }) => {
+test('shows the cigarette case, offers snap and text settings and downloads a ZIP with the second-filament text part', async ({ page }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await page.getByRole('button', { name: 'CanFactory model library' }).click();
-  await page.getByRole('button', { name: /PREVIEW · ZIP Cigarette case/ }).click();
+  await page.getByRole('button', { name: /CUSTOMIZABLE · ZIP Cigarette case/ }).click();
   await expect(page.getByRole('heading', { name: 'Cigarette case (Onz)', exact: true })).toBeVisible();
-  await expect(page.getByText('ASSEMBLY PREVIEW')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toHaveCount(0);
+  await expect(page.getByText('PARAMETRIC MODEL')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Advanced settings/ })).toHaveCount(0);
+  const snap = page.getByLabel('Snap mechanism');
+  await expect(snap).toHaveValue('friction');
+  await snap.selectOption('clip');
+  await expect(page.getByText('A flexible tongue on the lid')).toBeVisible();
+  const text = page.getByLabel('Underside text');
+  await expect(text).toHaveValue('');
+  await text.fill('Tom');
+  await page.getByLabel('Text font').selectOption('mono');
+  await page.getByLabel('Text style').selectOption('second-filament');
+  await text.fill('W'.repeat(14));
+  await expect(page.locator('#parameter-engraveText-error')).toContainText('mm wide at this font and size');
+  await text.fill('Tom');
+  await expect(page.locator('#parameter-engraveText-error')).toHaveCount(0);
+  await expect(page.getByText(/mm wide at this font and size/)).toHaveCount(0);
   const downloadButton = page.getByRole('button', { name: 'Download ZIP', exact: true });
   await expect(downloadButton).toBeEnabled({ timeout: 270_000 });
   const downloadEvent = page.waitForEvent('download');
@@ -162,9 +177,10 @@ test('shows the static cigarette case and downloads a ZIP of all five parts', as
   const path = await (await downloadEvent).path();
   if (!path) throw new Error('Missing download');
   const entries = unzipSync(new Uint8Array(await readFile(path)));
-  expect(Object.keys(entries).sort()).toEqual(cigaretteCase.parts.map(part => `${part.id}.stl`).sort());
+  expect(Object.keys(entries).sort()).toEqual(activeParts(cigaretteCase, { ...cigaretteCase.defaults, engraveText: 'Tom', textMode: 'second-filament' }).map(part => `${part.id}.stl`).sort());
+  expect(Object.keys(entries)).toContain('case-text.stl');
   for (const [name, entryBytes] of Object.entries(entries)) {
-    expect(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength)).volume, name).toBeGreaterThan(0);
+    expect(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength), { allowDisconnected: name === 'case-text.stl' }).volume, name).toBeGreaterThan(0);
   }
   expect(errors).toEqual([]);
 });
