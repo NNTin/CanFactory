@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Box, Grid2X2, RotateCcw } from 'lucide-react';
+import { assemblyOffset, assemblyState, assemblyStops, type Assembly, type AssemblyState } from '@canfactory/contracts';
 import { unzipSync } from 'fflate';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -8,10 +9,35 @@ import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 interface Part { name: string; bytes: ArrayBuffer }
 
 interface SceneController {
-  /** Replaces every mesh with one per part, auto-arranged in a grid. A single part sits centred, exactly as before. */
-  setParts: (parts: Part[]) => void;
+  /**
+   * Replaces every mesh with one per part, auto-arranged in a grid. A single part sits centred, exactly as before. With an
+   * assembly, the grid is where the assembly slider starts (see `setProgress`).
+   */
+  setParts: (parts: Part[], assembly?: Assembly) => void;
+  /** Places the parts for the assembly slider at `t` (0 = print bed, 1 = assembled); no-op without an assembly. */
+  setProgress: (t: number) => void;
   reset: () => void;
   wireframe: (enabled: boolean) => void;
+}
+
+const GRID_ROTATION = new THREE.Quaternion();
+
+/** One part's mesh: where it lies on the print bed, and how the assembly slider moves it from there. */
+class Placement {
+  private readonly rotation = new THREE.Quaternion();
+  private readonly position = new THREE.Vector3();
+  constructor(readonly id: string, private readonly mesh: THREE.Mesh, private readonly grid: THREE.Vector3) {}
+
+  /** Blends from the print bed to the part's (offset) assembled pose while the parts are lifted, then follows the steps. */
+  apply(assembly: Assembly, state: AssemblyState) {
+    const pose = assembly.poses[this.id];
+    if (!pose) { this.mesh.position.copy(this.grid); this.mesh.quaternion.identity(); return; }
+    const [rx, ry, rz] = (pose.rotation ?? [0, 0, 0]).map(THREE.MathUtils.degToRad) as [number, number, number];
+    this.rotation.setFromEuler(new THREE.Euler(rx, ry, rz, 'ZYX'));
+    this.position.fromArray(pose.position).add(new THREE.Vector3().fromArray(assemblyOffset(assembly, this.id, state)));
+    this.mesh.quaternion.slerpQuaternions(GRID_ROTATION, this.rotation, state.arrange);
+    this.mesh.position.lerpVectors(this.grid, this.position, state.arrange);
+  }
 }
 
 /** Splits a fetched ZIP into its STL entries, in archive order. Throws if it contains no entries. */
@@ -22,12 +48,23 @@ function partsFromZip(bytes: ArrayBuffer): Part[] {
   return parts;
 }
 
-/** Displays the actual downloadable file(s). Camera controls do not change model dimensions. */
-export function Viewer({ url, format, onError, onLoaded }: { url: string | null; format: 'stl' | 'zip'; onError: (message: string) => void; onLoaded: (url: string) => void }) {
+/** The caption for slider value `t`: the movement that is playing, or that has just finished at a stop. */
+function assemblyCaption(assembly: Assembly, t: number): string {
+  if (t <= 0) return 'Parts as printed';
+  if (t >= 1) return 'Assembled';
+  const segment = Math.ceil(t * (assembly.steps.length + 1) - 1e-6);
+  const step = assembly.steps[segment - 2];
+  return step ? `Step ${segment - 1} of ${assembly.steps.length} · ${step.title}` : 'Lift and lay out the parts';
+}
+
+/** Displays the actual downloadable file(s). Camera controls do not change model dimensions. With an assembly, a slider takes the parts from the print bed to the finished assembly. */
+export function Viewer({ url, format, assembly, onError, onLoaded }: { url: string | null; format: 'stl' | 'zip'; assembly?: Assembly | undefined; onError: (message: string) => void; onLoaded: (url: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const scene = useRef<SceneController | null>(null);
   const [wireframe, setWireframe] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const assemblyRef = useRef(assembly); assemblyRef.current = assembly;
   const onErrorRef = useRef(onError); onErrorRef.current = onError;
   const onLoadedRef = useRef(onLoaded); onLoadedRef.current = onLoaded;
 
@@ -59,52 +96,71 @@ export function Viewer({ url, format, onError, onLoaded }: { url: string | null;
     world.add(light);
     const fill = new THREE.DirectionalLight(0xffffff, 1.5); fill.position.set(120, 40, -100); world.add(fill);
     const material = new THREE.MeshStandardMaterial({ color: 0xc76743, metalness: 0.06, roughness: 0.58, side: THREE.DoubleSide });
-    const group = new THREE.Group(); world.add(group);
+    // Parts keep their SCAD frame (Z up) inside `group`, which turns it to the scene's Y up.
+    const group = new THREE.Group(); group.rotation.x = -Math.PI / 2; world.add(group);
+    let placements: Placement[] = []; let currentAssembly: Assembly | undefined; let sliderValue = 0;
+    const place = (t: number) => {
+      sliderValue = t;
+      if (!currentAssembly) return;
+      const state = assemblyState(currentAssembly, t);
+      for (const placement of placements) placement.apply(currentAssembly, state);
+    };
     let geometries: THREE.BufferGeometry[] = [];
     const floorMaterial = new THREE.ShadowMaterial({ opacity: 0.1 });
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), floorMaterial);
     floor.rotation.x = -Math.PI / 2; floor.position.y = -0.06; floor.receiveShadow = true; world.add(floor);
     const grid = new THREE.GridHelper(600, 60, 0xd1d4c9, 0xe1e2d9); grid.position.y = -0.1; world.add(grid);
-    let extent = 100; let height = 60; let first = true;
+    let extent = 100; let height = 60; let first = true; const focus = new THREE.Vector3();
     const reset = () => {
-      camera.position.set(extent * 1.55, extent * 1.18, extent * 1.85);
-      controls.target.set(0, height * 0.42, 0); controls.update();
+      camera.position.set(focus.x + extent * 1.55, extent * 1.18, focus.z + extent * 1.85);
+      controls.target.set(focus.x, height * 0.42, focus.z); controls.update();
     };
     reset();
     scene.current = {
       reset,
       wireframe(enabled) { material.wireframe = enabled; },
-      setParts(parts) {
+      setParts(parts, assembly) {
         group.clear();
         for (const geometry of geometries) geometry.dispose();
         geometries = [];
         const prepared = parts.map(part => {
           const geometry = new STLLoader().parse(part.bytes);
-          geometry.rotateX(-Math.PI / 2); geometry.computeVertexNormals(); geometry.computeBoundingBox();
+          geometry.computeVertexNormals(); geometry.computeBoundingBox();
           const bounds = geometry.boundingBox;
           if (!bounds) { geometry.dispose(); return null; }
-          const size = bounds.getSize(new THREE.Vector3());
-          geometry.translate(-(bounds.min.x + bounds.max.x) / 2, -bounds.min.y, -(bounds.min.z + bounds.max.z) / 2);
-          return { geometry, size };
-        }).filter((part): part is { geometry: THREE.BufferGeometry; size: THREE.Vector3 } => part !== null);
+          return { id: part.name.replace(/\.stl$/i, ''), geometry, bounds, size: bounds.getSize(new THREE.Vector3()) };
+        }).filter(part => part !== null);
         if (prepared.length === 0) throw new Error('The preview contains no visible geometry.');
         geometries = prepared.map(part => part.geometry);
-        // Arrange parts on an auto-sized grid, one cell per part; a single part sits centred at the origin.
+        // Arrange parts on an auto-sized grid, one cell per part, each centred in its cell and standing on the floor (z = 0
+        // in the parts' frame); a single part sits centred at the origin.
         const columns = Math.ceil(Math.sqrt(prepared.length));
         const rows = Math.ceil(prepared.length / columns);
-        const cell = Math.max(...prepared.map(part => Math.max(part.size.x, part.size.z))) * 1.4;
-        const footprintX = columns * cell; const footprintZ = rows * cell;
-        prepared.forEach((part, index) => {
+        const cell = Math.max(...prepared.map(part => Math.max(part.size.x, part.size.y))) * 1.4;
+        const footprintX = columns * cell; const footprintY = rows * cell;
+        placements = prepared.map((part, index) => {
           const column = index % columns; const row = Math.floor(index / columns);
           const partMesh = new THREE.Mesh(part.geometry, material); partMesh.castShadow = true;
-          partMesh.position.set((column + 0.5) * cell - footprintX / 2, 0, (row + 0.5) * cell - footprintZ / 2);
+          const grid = new THREE.Vector3(
+            (column + 0.5) * cell - footprintX / 2 - (part.bounds.min.x + part.bounds.max.x) / 2,
+            footprintY / 2 - (row + 0.5) * cell - (part.bounds.min.y + part.bounds.max.y) / 2,
+            -part.bounds.min.z);
+          partMesh.position.copy(grid);
           group.add(partMesh);
+          return new Placement(part.id, partMesh, grid);
         });
-        const tallest = Math.max(...prepared.map(part => part.size.y));
-        const oldExtent = extent; extent = Math.max(footprintX, footprintZ, tallest); height = tallest;
+        currentAssembly = assembly;
+        // Frame every layout the slider passes through, so that no part leaves the view while scrubbing.
+        const frame = new THREE.Box3();
+        for (const t of assembly ? [0, 1 / (assemblyStops(assembly) - 1), 1] : [0]) { place(t); group.updateMatrixWorld(true); frame.union(new THREE.Box3().setFromObject(group)); }
+        place(sliderValue);
+        const frameSize = frame.getSize(new THREE.Vector3());
+        const oldExtent = extent; extent = Math.max(footprintX, footprintY, frameSize.x, frameSize.y, frameSize.z); height = frame.max.y;
+        if (assembly) { frame.getCenter(focus); focus.y = 0; } else focus.set(0, 0, 0);
         if (first || extent > oldExtent * 1.5 || extent < oldExtent / 2) reset();
         first = false;
       },
+      setProgress: place,
     };
     const resize = new ResizeObserver(() => {
       const width = element.clientWidth; const height = element.clientHeight;
@@ -131,7 +187,7 @@ export function Viewer({ url, format, onError, onLoaded }: { url: string | null;
       if (!response.ok) throw new Error('The preview file is unavailable. Generate it again.');
       const bytes = await response.arrayBuffer();
       if (abort.signal.aborted) return;
-      scene.current?.setParts(format === 'zip' ? partsFromZip(bytes) : [{ name: 'model', bytes }]);
+      scene.current?.setParts(format === 'zip' ? partsFromZip(bytes) : [{ name: 'model', bytes }], format === 'zip' ? assemblyRef.current : undefined);
       if (scene.current) onLoadedRef.current(url);
     }).catch((error: unknown) => {
       if (!abort.signal.aborted) onErrorRef.current(error instanceof Error ? error.message : 'Could not load the preview.');
@@ -139,15 +195,36 @@ export function Viewer({ url, format, onError, onLoaded }: { url: string | null;
     return () => abort.abort();
   }, [url, format]);
 
-  return <div className="viewer-content">
-    <div ref={container} className="canvas-container" data-testid="stl-viewer" />
-    {!url && !unsupported && <div className="viewer-placeholder"><Box size={32} strokeWidth={1} /><span>Preparing your first preview</span></div>}
-    {unsupported && <div className="viewer-placeholder"><span>3D preview is unavailable in this browser.</span></div>}
-    <div className="viewer-tools">
-      <button type="button" onClick={() => scene.current?.reset()} title="Reset camera" aria-label="Reset camera"><RotateCcw size={17} /></button>
-      <button type="button" aria-label="Toggle wireframe" aria-pressed={wireframe} title="Toggle wireframe" onClick={() => { setWireframe(value => !value); scene.current?.wireframe(!wireframe); }}><Grid2X2 size={17} /></button>
+  useEffect(() => { scene.current?.setProgress(progress); }, [progress]);
+  const stops = assembly ? assemblyStops(assembly) - 1 : 1;
+  // Arrow keys and Page Up/Down jump between the stops; Home and End keep their native meaning.
+  const stepSlider = (event: KeyboardEvent<HTMLInputElement>) => {
+    const direction = { ArrowRight: 1, ArrowUp: 1, PageUp: 1, ArrowLeft: -1, ArrowDown: -1, PageDown: -1 }[event.key];
+    if (!direction) return;
+    event.preventDefault();
+    const stop = direction > 0 ? Math.floor(progress * stops + 1e-6) + 1 : Math.ceil(progress * stops - 1e-6) - 1;
+    setProgress(Math.min(stops, Math.max(0, stop)) / stops);
+  };
+
+  return <>
+    <div className="viewer-content">
+      <div ref={container} className="canvas-container" data-testid="stl-viewer" />
+      {!url && !unsupported && <div className="viewer-placeholder"><Box size={32} strokeWidth={1} /><span>Preparing your first preview</span></div>}
+      {unsupported && <div className="viewer-placeholder"><span>3D preview is unavailable in this browser.</span></div>}
+      <div className="viewer-tools">
+        <button type="button" onClick={() => scene.current?.reset()} title="Reset camera" aria-label="Reset camera"><RotateCcw size={17} /></button>
+        <button type="button" aria-label="Toggle wireframe" aria-pressed={wireframe} title="Toggle wireframe" onClick={() => { setWireframe(value => !value); scene.current?.wireframe(!wireframe); }}><Grid2X2 size={17} /></button>
+      </div>
+      <div className="viewer-instructions"><span>Drag to orbit</span><i /><span>Scroll to zoom</span><i /><span>Right-drag to pan</span></div>
+      <div className="axis-label"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
     </div>
-    <div className="viewer-instructions"><span>Drag to orbit</span><i /><span>Scroll to zoom</span><i /><span>Right-drag to pan</span></div>
-    <div className="axis-label"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
-  </div>;
+    {assembly && format === 'zip' && url && <div className="assembly-bar">
+      <div className="assembly-caption"><span>ASSEMBLY</span><strong aria-hidden="true">{assemblyCaption(assembly, progress)}</strong></div>
+      <div className="assembly-track">
+        <input type="range" min={0} max={1} step={0.001} value={progress} aria-label="Assembly" aria-valuetext={assemblyCaption(assembly, progress)}
+          onChange={event => setProgress(Number(event.currentTarget.value))} onKeyDown={stepSlider} />
+        <div className="assembly-stops" aria-hidden="true">{Array.from({ length: stops + 1 }, (_, index) => <i key={index} className={progress * stops >= index - 1e-6 ? 'reached' : ''} />)}</div>
+      </div>
+    </div>}
+  </>;
 }

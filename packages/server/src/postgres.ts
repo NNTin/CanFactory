@@ -105,6 +105,7 @@ export class PostgresStorage implements Storage {
         artifactFormat: artifactFormat(model), customizable: model.controls.length > 0,
         ...(key ? { referenceUrl: `/api/v1/models/${model.id}/reference.stl` } : {}),
         ...(model.parts ? { parts: model.parts.map(part => ({ id: part.id, title: part.title })) } : {}),
+        ...(model.assembly ? { assembly: model.assembly } : {}),
       };
       entries.push({ model, sha, key, detail, source: sourceFingerprint(this.projectRoot, model) });
     }

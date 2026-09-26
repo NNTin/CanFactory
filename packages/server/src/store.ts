@@ -91,6 +91,7 @@ export class Store implements RenderQueue {
         artifactFormat: artifactFormat(model), customizable: model.controls.length > 0,
         ...(referenceName ? { referenceUrl: `/api/v1/models/${model.id}/reference.stl` } : {}),
         ...(model.parts ? { parts: model.parts.map(part => ({ id: part.id, title: part.title })) } : {}),
+        ...(model.assembly ? { assembly: model.assembly } : {}),
       };
       this.db.insert(catalog).values({ id: model.id, version: model.version, detail, sourceHash, referenceName })
         .onConflictDoUpdate({ target: catalog.id, set: { version: model.version, detail, sourceHash, referenceName } }).run();

@@ -128,6 +128,30 @@ export interface ModelPart {
   separateBodies?: boolean;
 }
 
+const Vector = (description: string) => Type.Array(Type.Number(), { minItems: 3, maxItems: 3, description });
+
+/**
+ * How an assembly's parts go together, for the preview's assembly slider. Millimetres and degrees, in the parts' own SCAD
+ * frame (Z up). Each part's pose places its STL, exactly as rendered, at its assembled position. The exploded layout is
+ * every part's pose plus the `from` offset of each step it moves in, raised by `lift`. The slider first lifts the parts from
+ * the print bed into that layout, then plays the steps in order: each step moves its parts from `from` to 0. List every
+ * part that moves together (e.g. a box already inside the lid that moves). `lift` is removed during the last step, so the
+ * finished assembly stands on the floor. Parts without a pose stay on the print bed.
+ */
+export const AssemblySchema = Type.Object({
+  poses: Type.Record(Type.String(), Type.Object({
+    position: Vector('Translation in mm, applied after the rotation.'),
+    rotation: Type.Optional(Vector('Rotation in degrees about the part’s own origin, applied about X, then Y, then Z.')),
+  }, { additionalProperties: false }), { description: 'Assembled pose per part id.' }),
+  steps: Type.Array(Type.Object({
+    title: Type.String({ description: 'Short caption, e.g. “Close the mini box”.' }),
+    parts: Type.Array(Type.String(), { description: 'The part ids that move together in this step.' }),
+    from: Vector('Offset in mm at which the parts start this step; they end it at their assembled pose.'),
+  }, { additionalProperties: false })),
+  lift: Type.Number({ description: 'Height in mm of the exploded layout above the print bed.' }),
+}, { additionalProperties: false });
+export type Assembly = Static<typeof AssemblySchema>;
+
 /**
  * Trusted repository model. Source paths never come from API callers.
  *
@@ -149,6 +173,8 @@ export interface ModelDefinition {
   sourcePath?: string;
   referencePath?: string;
   parts?: ModelPart[];
+  /** Only for an assembly: how its parts go together (the preview's assembly slider). */
+  assembly?: Assembly;
   /** Other files whose content changes the geometry (e.g. fonts), so that they are part of the cache fingerprint. */
   assetPaths?: string[];
   parameterSchema: TSchema;
@@ -384,6 +410,31 @@ const cigaretteCaseParts: ModelPart[] = [
     includedWhen: parameters => typeof parameters['engraveText'] === 'string' && hasSecondFilamentText({ engraveText: parameters['engraveText'], textMode: String(parameters['textMode']) }) },
 ];
 
+/**
+ * The closed case, in the case box's frame. Found by collision checks on the rendered parts (docs/cigarette-case-assembly.md,
+ * `npm run check:assembly`): the lid's rim sits on the box's step at 60.38 mm. The holder stands flush with the box's
+ * underside in the round bay, which is open through the floor; the clip tab stops it from coming in from the top. The mini
+ * lid is turned over onto the mini box, with its cap on the rim and its pads in the notches. The closed mini box sits under
+ * the lid's ceiling (98.23 mm), with its chamfered end against the lid's chamfer.
+ */
+const cigaretteCaseAssembly: Assembly = {
+  poses: {
+    'case-box': { position: [0, 0, 0] },
+    'case-text': { position: [0, 0, 0] },
+    'case-lid': { position: [0, 0, 60.38] },
+    'mini-holder': { position: [-16.84, 0, 0] },
+    'mini-box': { position: [6.45, 0, 82.84] },
+    'mini-lid': { position: [6.25, 0, 98.23], rotation: [0, 180, 0] },
+  },
+  steps: [
+    { title: 'Close the mini box', parts: ['mini-lid'], from: [0, 0, 20] },
+    { title: 'Slide the mini box into the lid', parts: ['mini-box', 'mini-lid'], from: [0, 0, -66] },
+    { title: 'Push the holder into the box', parts: ['mini-holder'], from: [0, 0, -42] },
+    { title: 'Close the case', parts: ['case-lid', 'mini-box', 'mini-lid'], from: [0, 0, 70] },
+  ],
+  lift: 50,
+};
+
 export const cigaretteCase = {
   id: 'cigarette-case' as const, version: '3' as const, title: 'Cigarette case (Onz)',
   description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Choose how the parts snap together, add text to the underside of the box (engraved, or as a second-filament part), then download every part as a ZIP of STL files.',
@@ -392,6 +443,7 @@ export const cigaretteCase = {
   // Kept short deliberately: this string and `attribution` are stamped into each STL's 80-byte header (see stampAttribution).
   license: 'CC BY-NC 4.0 (non-commercial)', licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
   parts: cigaretteCaseParts,
+  assembly: cigaretteCaseAssembly,
   assetPaths: ['LiberationSans-Bold.ttf', 'LiberationSerif-Bold.ttf', 'LiberationMono-Bold.ttf', 'DejaVuSans-Bold.ttf'].map(name => `${FONTS_DIR}/${name}`),
   parameterSchema: CigaretteCaseParametersSchema,
   controls: cigaretteCaseControls,

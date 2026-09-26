@@ -19,6 +19,7 @@
     "test:browser": "playwright test",
     "stl-scad": "tsx tools/stl-to-scad/cli.ts",
     "test:renderer": "tsx tools/test-renderer.ts",
+    "check:assembly": "tsx tools/check-assembly.ts",
     "test:restart": "tsx tools/test-restart.ts",
     "contracts:generate": "tsx tools/generate-openapi.ts",
     "contracts:check": "tsx tools/generate-openapi.ts --check",

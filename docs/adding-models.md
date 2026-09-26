@@ -37,7 +37,7 @@ and two lattice segments) uses `ModelDefinition.parts: { id, title, sourcePath, 
 (`apps/worker/src/render.ts`) renders each part with its own OpenSCAD invocation, validates each with the same
 `inspectStl`, and packages them as one ZIP (`packages/server/src/mesh.ts`'s `combineParts`); the artifact is served from
 `/api/v1/renders/{id}/zip` instead of `/stl` (`artifactFormat()` in `packages/contracts` decides which); and the web
-viewer loads every part and arranges them on an auto-sized grid instead of one centred mesh. Each part must
+viewer loads every part and arranges them on an auto-sized grid instead of one centred mesh (see the assembly slider below). Each part must
 independently be one closed, connected solid — `inspectStl` rejects multi-body meshes, so parts are never merged into
 a single STL before validation. `referencePath` is optional: omit it (as moss-planter does) when there is no small,
 permanent original file to preserve — do not point it at a large STL that will not stay in the repository, since
@@ -53,6 +53,18 @@ bodies by design (see [cigarette-case-text.md](cigarette-case-text.md)). A
 model with no adjustable parameters simply leaves every mapping empty (empty `parameterSchema`, no controls); the catalogue then reports `customizable: false` and the web app shows it as an assembly preview. The cigarette case is registered this way: its five parts point at the verified static reconstructions in `models/cigarette-case/reference/`, and a later iteration replaces them with parametric generators (add the parameters, bump the version). Part
 mappings are part of the cache fingerprint, as are all part sources. Because a part receives no other `-D`, its own
 constants (`ROUNDNESS` etc.) apply exactly as written.
+
+**Assembly slider (optional).** An assembly may also set `ModelDefinition.assembly` (`AssemblySchema` in
+`packages/contracts/src/models.ts`): the assembled `poses` of its parts (position in mm and optional rotation in degrees,
+in the parts' own SCAD frame, Z up), the ordered `steps` that put them together (each lists the parts that move together
+and the offset `from` which they start), and a `lift` for the exploded layout. The catalogue serves it, and the live
+preview then shows a slider below the viewer: the parts rise from the print-bed grid into the exploded layout, then each
+step plays in turn until the finished assembly stands on the floor (`assemblyState`/`assemblyOffset` in
+`packages/contracts/src/assembly.ts` do the maths, for the web app and for the check). Give every part a pose, including
+optional ones such as the cigarette case's `case-text`. Derive the poses from the geometry, never by eye, and prove them
+with `npm run check:assembly -- <model-id>`. It renders the parts and measures the volume shared by colliding parts: in
+the assembled state, in the exploded layout and along each step's path (see [cigarette-case-assembly.md](cigarette-case-assembly.md)).
+Models without `assembly` keep the plain grid.
 
 Generators for continuous parameters need extra care. Choose which dimensions scale with each parameter and record it in
 the SCAD header (moss-planter: tube radius, thread and end rings scale with the tower diameter; strut width and row
