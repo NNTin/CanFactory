@@ -147,6 +147,37 @@ The lid cavity and the round bay do not change with the clearance, so the assemb
 slicing the rendered, assembled parts at several heights: the gap on each joint is the clearance to within 0.01 mm at 0.1, 0.2 and
 0.6 mm (the mini box's rounded end is a little further from the cavity than its sides and chamfer).
 
+## Engagement and squeeze (advanced settings)
+
+Each joint's detent engagement and crush-rib squeeze is its own advanced setting: `SNAP_TUNING` in
+`packages/contracts/src/models.ts`, eight in all. Each one appears only while its joint uses that mechanism
+(`Control.visibleWhen`). Its slider runs from 0.02 to 0.40 mm in 0.01 mm steps, marks the default, and highlights the recommended
+range (a one-entry `Control.recommended`, keyed on the joint's mode). The value reaches every part that carries the feature or its
+groove.
+
+| Setting | SCAD variable (parts) | Default | Recommended |
+|---|---|---|---|
+| `snapDetentEngage` | `DETENT_ENGAGE` (case box, case lid) | 0.19 | 0.12–0.25 |
+| `snapCrushSqueeze` | `CRUSH_SQUEEZE` (case box) | 0.16 | 0.08–0.20 |
+| `miniLidDetentEngage` | `ML_DETENT_ENGAGE` (mini box, mini lid) | 0.12 | 0.08–0.18 |
+| `miniLidCrushSqueeze` | `CRUSH_SQUEEZE` (mini lid) | 0.10 | 0.06–0.15 |
+| `holderDetentEngage` | `HOLDER_DETENT_ENGAGE` (case box, holder) | 0.15 | 0.10–0.20 |
+| `holderCrushSqueeze` | `HOLDER_CRUSH_SQUEEZE` (holder) | 0.10 | 0.06–0.15 |
+| `miniBoxDetentEngage` | `MB_DETENT_ENGAGE` (case lid, mini box) | 0.15 | 0.10–0.20 |
+| `miniBoxCrushSqueeze` | `MB_CRUSH_SQUEEZE` (case lid) | 0.10 | 0.06–0.15 |
+
+The recommended ranges keep each mechanism close to the value it was designed and checked at:
+- Less than the lower end hardly holds.
+- More than the upper end makes the part hard to close, or to push or pull out: the holder is pushed out with a lighter, and the
+  mini box in the lid is pulled out with a finger. The mini box's detent should also stay at or below the clearance, so its wall can
+  give way into its gap to the mini lid.
+
+A detent's groove is engagement + clearance deep. In the 1 mm walls the grooves are cut into (the case lid's wall, and the mini
+box's for its two joints), at least 0.2 mm must remain. The contract therefore refuses engagement + clearance above 0.80 mm, but
+only while that detent is in use (`GROOVE_WALL`). The holder's groove is in the 2.1 mm bay wall, so it has no such limit. Every
+engagement and squeeze was rendered at 0.02 to 0.40 mm against clearances of 0.1 to 0.6 mm, within that limit, and inspected like
+the worker does: every part is one clean closed body.
+
 ## Where the features are
 
 **Case lid:** all features sit on the two straight side walls: `y = +/-13.59` on the shell at 0.2 mm clearance, `+/-13.79` in the
@@ -181,11 +212,8 @@ Tune them in the SCAD constants; nothing else needs to change.
 
 ## Limits
 
-Printed tolerances differ by machine. `CLEARANCE` is the first thing to adjust, then the squeeze and engagement constants:
-- case lid: `CRUSH_SQUEEZE`, `DETENT_ENGAGE`, `CLIP_NIB` and the magnet pocket sizes;
-- holder: `HOLDER_DETENT_ENGAGE`, `HOLDER_CRUSH_SQUEEZE`;
-- mini box in the lid: `MB_DETENT_ENGAGE`, `MB_CRUSH_SQUEEZE`;
-- mini lid: `ML_DETENT_ENGAGE`.
+Printed tolerances differ by machine. The clearance is the first thing to adjust. Then adjust each joint's engagement and
+squeeze in the advanced settings (above), and, in the SCAD constants, `CLIP_NIB` and the magnet pocket sizes.
 
 The clip tongue is 1 mm thick and 13 mm long, so it will fatigue if opened many times. The magnet bosses reduce the box bay width by
 about 1.8 mm locally. All features were checked geometrically, not by printing. How hard a lighter has to push the holder out, and a

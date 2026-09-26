@@ -11,7 +11,9 @@
    [cigarette-case-snap.md](cigarette-case-snap.md)). A number control can also carry `bands` (named sub-ranges; the editor
    names the one the value is in) and `recommended` (a list of enum controls, each with a sub-range per value; the editor
    highlights the range that suits all their current values on the slider, and names the controls whose range the value is
-   outside of); both are advice only. See the cigarette case's `clearance`.
+   outside of; the slider also marks the control's default); both are advice only. `visibleWhen` shows a control only while
+   another enum control has one of the listed values (e.g. a detent's engagement only in `detent` mode); its value still
+   applies, so the SCAD file must only use it in those modes. See the cigarette case's `clearance`.
 3. Add a `ModelDefinition` with stable ID, explicit version, display metadata,
    reference/source paths, control grouping, defaults, SCAD variable mapping,
    dependent validation, and derived metadata. Variable names must use uppercase
