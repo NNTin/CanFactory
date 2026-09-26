@@ -323,6 +323,29 @@ main {
   border-radius: 50%;
   background: var(--accent);
 }
+/* The sub-range recommended for another setting (Control.recommended). The thumb's centre travels between its half-widths
+   (11 px thumb), so the stretch is placed on that path to line up with the values under the thumb. */
+.range-recommended {
+  --recommended-a: calc(5.5px + (100% - 11px) * var(--recommended-from));
+  --recommended-b: calc(5.5px + (100% - 11px) * var(--recommended-to));
+  background: linear-gradient(to right, #e7e8df var(--recommended-a), #8fb07b var(--recommended-a), #8fb07b var(--recommended-b), #e7e8df var(--recommended-b));
+}
+.range-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.range-band {
+  color: #3f4a37;
+  font-weight: 600;
+}
+.range-outside {
+  color: var(--accent);
+}
 .range-limits {
   display: flex;
   justify-content: space-between;

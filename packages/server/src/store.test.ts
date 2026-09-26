@@ -36,7 +36,7 @@ describe('temporary render queue', () => {
     const detail = store.getModel(cigaretteCase.id)?.detail;
     expect(detail?.artifactFormat).toBe('zip');
     expect(detail?.customizable).toBe(true);
-    expect(detail?.controls.map(control => control.key)).toEqual(['snap', 'engraveText', 'textFont', 'textSize', 'textMode']);
+    expect(detail?.controls.map(control => control.key)).toEqual(['snap', 'engraveText', 'textFont', 'textSize', 'textMode', 'clearance']);
     expect(detail?.defaults).toEqual(cigaretteCase.defaults);
     expect(detail?.parts?.map(part => part.id)).toEqual(['case-box', 'case-lid', 'mini-holder', 'mini-box', 'mini-lid', 'case-text']);
     expect(detail?.referenceUrl).toBeUndefined();

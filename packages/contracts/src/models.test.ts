@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
 import {
   activeParts, artifactFormat, cigaretteCase, findModel, fruitFlyTrap, FruitFlyTrapParametersSchema, isAssembly, modelSourcePaths,
-  minimumSpikeLength, mossPlanter, rauteColumns, slotCount, textWidth, validateParameters, type MossPlanterParameters,
+  minimumSpikeLength, mossPlanter, rauteColumns, slotCount, SNAP_CLEARANCE, textWidth, validateParameters, type MossPlanterParameters,
 } from './models.ts';
 import { RenderRequestSchema } from './index.ts';
 
@@ -100,20 +100,21 @@ describe('moss planter contract', () => {
 
 describe('cigarette case contract', () => {
   const ok = { ...cigaretteCase.defaults };
-  it('is a ZIP assembly with snap, text, font, size and style controls that reach only the parts that use them', () => {
+  it('is a ZIP assembly with snap, text, font, size, style and clearance controls that reach only the parts that use them', () => {
     expect(findModel('cigarette-case')).toBe(cigaretteCase);
     expect(isAssembly(cigaretteCase)).toBe(true);
     expect(artifactFormat(cigaretteCase)).toBe('zip');
     expect(cigaretteCase.parts.map(part => part.id)).toEqual(['case-box', 'case-lid', 'mini-holder', 'mini-box', 'mini-lid', 'case-text']);
     expect(new Set(modelSourcePaths(cigaretteCase)).size).toBe(6);
-    expect(cigaretteCase.controls.map(control => [control.key, control.kind])).toEqual([['snap', 'enum'], ['engraveText', 'text'], ['textFont', 'enum'], ['textSize', 'number'], ['textMode', 'enum']]);
+    expect(cigaretteCase.controls.map(control => [control.key, control.kind])).toEqual([['snap', 'enum'], ['engraveText', 'text'], ['textFont', 'enum'], ['textSize', 'number'], ['textMode', 'enum'], ['clearance', 'number']]);
     expect(cigaretteCase.controls[0]?.options?.map(option => option.value)).toEqual(['friction', 'detent', 'clip', 'magnet', 'crush-ribs']);
     expect(cigaretteCase.controls[2]?.options?.map(option => option.value)).toEqual(['sans', 'serif', 'mono', 'wide']);
     expect(cigaretteCase.controls[1]).toMatchObject({ default: '', maximum: 20 });
-    expect(cigaretteCase.defaults).toEqual({ snap: 'friction', engraveText: '', textFont: 'sans', textSize: 6, textMode: 'engrave' });
+    expect(cigaretteCase.defaults).toEqual({ snap: 'friction', engraveText: '', textFont: 'sans', textSize: 6, textMode: 'engrave', clearance: 0.2 });
     const mapped = Object.fromEntries(cigaretteCase.parts.map(part => [part.id, part.scadMapping]));
     const text = { engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE' };
-    expect(mapped).toEqual({ 'case-box': { snap: 'SNAP', ...text }, 'case-lid': { snap: 'SNAP' }, 'mini-holder': {}, 'mini-box': {}, 'mini-lid': { snap: 'SNAP' }, 'case-text': text });
+    const fit = { clearance: 'CLEARANCE' };
+    expect(mapped).toEqual({ 'case-box': { snap: 'SNAP', ...fit, ...text }, 'case-lid': { snap: 'SNAP', ...fit }, 'mini-holder': fit, 'mini-box': fit, 'mini-lid': { snap: 'SNAP', ...fit }, 'case-text': text });
   });
 
   it('renders the text part only for visible text in second-filament mode', () => {
@@ -141,9 +142,33 @@ describe('cigarette case contract', () => {
     expect(validateParameters(cigaretteCase, { ...ok, engraveText: 'tab\there' })).not.toEqual([]);
     expect(validateParameters(cigaretteCase, { ...ok, engraveText: 'say "hi" \\ $x', textSize: 3 })).toEqual([]);
     expect(validateParameters(cigaretteCase, { ...ok, anything: 1 })).not.toEqual([]);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '3', parameters: ok })).toBe(true);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '2', parameters: ok })).toBe(false);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '3', parameters: { snap: 'clip' } })).toBe(false);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '4', parameters: ok })).toBe(true);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '3', parameters: ok })).toBe(false);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '4', parameters: { snap: 'clip' } })).toBe(false);
+  });
+
+  it('offers a 0.10 to 0.60 mm clearance in advanced settings, with named fits and a recommended range for every snap mode', () => {
+    const clearance = cigaretteCase.controls.find(control => control.key === 'clearance');
+    expect(clearance).toMatchObject({ kind: 'number', group: 'advanced', unit: 'mm', default: 0.2, minimum: 0.1, maximum: 0.6, step: 0.01 });
+    for (const value of [0.1, 0.2, 0.37, 0.6]) expect(validateParameters(cigaretteCase, { ...ok, clearance: value }), String(value)).toEqual([]);
+    for (const value of [0.09, 0.61, 0.205]) expect(validateParameters(cigaretteCase, { ...ok, clearance: value }), String(value)).not.toEqual([]);
+    // the bands tile the whole range, in order, and name the default a snug fit
+    const bands = clearance?.bands ?? [];
+    expect(bands.map(band => band.label)).toEqual(['Very tight (press fit)', 'Snug fit', 'Sliding fit', 'Easy sliding (removable)']);
+    expect(bands[0]?.minimum).toBe(0.1);
+    expect(bands.at(-1)?.maximum).toBe(0.6);
+    bands.slice(1).forEach((band, index) => expect(band.minimum).toBe(bands[index]?.maximum));
+    expect(bands.find(band => 0.2 >= band.minimum && 0.2 < band.maximum)?.label).toBe('Snug fit');
+    // every snap mode has a range inside the slider; clips need 0.2 to 0.4 mm, friction and magnets work across it
+    const snap = cigaretteCase.controls.find(control => control.key === 'snap');
+    expect(clearance?.recommended?.control).toBe('snap');
+    expect(clearance?.recommended?.ranges.map(range => range.value)).toEqual(snap?.options?.map(option => option.value));
+    for (const range of clearance?.recommended?.ranges ?? []) expect(range.minimum >= 0.1 && range.maximum <= 0.6 && range.minimum < range.maximum, range.value).toBe(true);
+    expect(SNAP_CLEARANCE.clip).toEqual({ minimum: 0.2, maximum: 0.4 });
+    expect(SNAP_CLEARANCE.friction).toEqual({ minimum: 0.1, maximum: 0.6 });
+    expect(SNAP_CLEARANCE.magnet).toEqual(SNAP_CLEARANCE.friction);
+    // the other models' controls carry neither
+    for (const model of [fruitFlyTrap, mossPlanter]) for (const control of model.controls) expect([control.bands, control.recommended]).toEqual([null, null]);
   });
 
   it('rejects text that will not fit the free underside, using the measured font widths', () => {

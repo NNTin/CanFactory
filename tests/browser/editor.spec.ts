@@ -146,7 +146,7 @@ test('customizes the moss planter tower diameter and downloads a ZIP of all five
   expect(errors).toEqual([]);
 });
 
-test('shows the cigarette case, offers snap and text settings and downloads a ZIP with the second-filament text part', async ({ page }) => {
+test('shows the cigarette case, offers snap, clearance and text settings and downloads a ZIP with the second-filament text part', async ({ page }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -156,11 +156,25 @@ test('shows the cigarette case, offers snap and text settings and downloads a ZI
   await expect(page.getByRole('heading', { name: 'Cigarette case (Onz)', exact: true })).toBeVisible();
   await expect(page.getByText('PARAMETRIC MODEL')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Advanced settings/ })).toHaveCount(0);
   const snap = page.getByLabel('Snap mechanism');
   await expect(snap).toHaveValue('friction');
+  // Clearance, in advanced settings: the fit is named as the value changes, and the range recommended for the snap mode is shown.
+  await page.getByRole('button', { name: 'Advanced settings' }).click();
+  const clearance = page.getByRole('spinbutton', { name: 'Clearance' });
+  const fit = page.getByTestId('parameter-clearance-note');
+  await expect(clearance).toHaveValue('0.2');
+  await expect(fit).toContainText('Snug fit');
+  await expect(fit).toContainText('In the 0.10–0.60 mm recommended for Friction fit');
   await snap.selectOption('clip');
   await expect(page.getByText('A flexible tongue on the lid')).toBeVisible();
+  await expect(fit).toContainText('In the 0.20–0.40 mm recommended for Clip');
+  await expect(page.getByRole('slider', { name: 'Clearance slider' })).toHaveClass(/range-recommended/);
+  await clearance.fill('0.12');
+  await expect(fit).toContainText('Very tight (press fit)');
+  await expect(fit).toContainText('Outside the 0.20–0.40 mm recommended for Clip');
+  await clearance.fill('0.3');
+  await expect(fit).toContainText('Sliding fit');
+  await expect(fit).toContainText('In the 0.20–0.40 mm');
   const text = page.getByLabel('Underside text');
   await expect(text).toHaveValue('');
   await text.fill('Tom');

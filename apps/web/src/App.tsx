@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Box, Check, ChevronDown, CircleAlert, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { api } from '@canfactory/client';
 import { findModel, validateParameters, type Control, type ModelDetail, type ParameterValues } from '@canfactory/contracts';
@@ -132,7 +132,22 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'moss-planter': MossPlanterIllustration,
 };
 
-function Field({ control, value, disabled, issue, change }: { control: Control; value: number | boolean | string | undefined; disabled: boolean; issue: string | undefined; change: (value: number | boolean | string) => void }) {
+/** The sub-range of a number control recommended for the current value of another control (Control.recommended), with that value's label. */
+interface Recommendation { minimum: number; maximum: number; label: string }
+
+function recommendation(control: Control, controls: readonly Control[], parameters: ParameterValues): Recommendation | undefined {
+  if (!control.recommended) return undefined;
+  const choice = parameters[control.recommended.control];
+  const range = control.recommended.ranges.find(candidate => candidate.value === choice);
+  if (!range) return undefined;
+  const label = controls.find(candidate => candidate.key === control.recommended?.control)?.options?.find(option => option.value === choice)?.label ?? String(choice);
+  return { minimum: range.minimum, maximum: range.maximum, label };
+}
+
+/** The band (Control.bands) a value is in: minimum included, maximum excluded, except for the last band. */
+const bandOf = (control: Control, value: number) => control.bands?.find((band, index, bands) => value >= band.minimum && (value < band.maximum || (index === bands.length - 1 && value <= band.maximum)));
+
+function Field({ control, value, disabled, issue, recommended, change }: { control: Control; value: number | boolean | string | undefined; disabled: boolean; issue: string | undefined; recommended?: Recommendation | undefined; change: (value: number | boolean | string) => void }) {
   const id = `parameter-${control.key}`;
   if (control.kind === 'text') {
     const text = typeof value === 'string' ? value : '';
@@ -160,15 +175,28 @@ function Field({ control, value, disabled, issue, change }: { control: Control; 
     <button id={id} type="button" className="switch" role="switch" aria-checked={value === true} onClick={() => change(value !== true)} disabled={disabled}><span /></button>
   </div>;
   const number = typeof value === 'number' && Number.isFinite(value) ? value : '';
+  const band = number === '' ? undefined : bandOf(control, number);
+  const span = control.minimum !== null && control.maximum !== null && control.maximum > control.minimum ? [control.minimum, control.maximum] as const : undefined;
+  // The highlighted stretch of the track, as fractions of it (the thumb's centre moves between its half-widths, see styles.css).
+  const highlight = recommended && span ? [(recommended.minimum - span[0]) / (span[1] - span[0]), (recommended.maximum - span[0]) / (span[1] - span[0])] as const : undefined;
+  const outside = recommended && number !== '' && (number < recommended.minimum - 1e-9 || number > recommended.maximum + 1e-9);
+  const fixed = (n: number) => n.toFixed(2);
   return <div className={`number-field ${disabled ? 'field-disabled' : ''}`}>
     <div className="field-heading"><label htmlFor={id} title={control.description}>{control.label}</label><span className="number-input-wrap">
       <input id={id} type="number" value={number} min={control.minimum ?? undefined} max={control.maximum ?? undefined} step={control.step ?? 0.1}
         disabled={disabled} aria-invalid={Boolean(issue)} aria-describedby={`${id}-description${issue ? ` ${id}-error` : ''}`}
         onChange={event => change(event.currentTarget.value === '' ? Number.NaN : Number(event.currentTarget.value))} />{control.unit && <span>{control.unit}</span>}
     </span></div>
-    <input className="range-input" type="range" aria-label={`${control.label} slider`} value={number === '' ? control.minimum ?? 0 : number}
+    <input className={`range-input${highlight ? ' range-recommended' : ''}`} type="range" aria-label={`${control.label} slider`} value={number === '' ? control.minimum ?? 0 : number}
+      style={highlight ? { '--recommended-from': highlight[0], '--recommended-to': highlight[1] } as CSSProperties : undefined}
       min={control.minimum ?? undefined} max={control.maximum ?? undefined} step={control.step ?? 0.1} disabled={disabled} onChange={event => change(Number(event.currentTarget.value))} />
     <div className="range-limits"><span>{control.minimum}{control.unit ? ` ${control.unit}` : ''}</span><span>{control.maximum}{control.unit ? ` ${control.unit}` : ''}</span></div>
+    {(band || recommended) && <p className="range-note" data-testid={`${id}-note`}>
+      {band && <strong className="range-band">{band.label}</strong>}
+      {recommended && <span className={outside ? 'range-outside' : undefined}>
+        {outside ? 'Outside' : 'In'} the {fixed(recommended.minimum)}–{fixed(recommended.maximum)}{control.unit ? ` ${control.unit}` : ''} recommended for {recommended.label}
+      </span>}
+    </p>}
     <span id={`${id}-description`} className="sr-only">{control.description}</span>
     {issue && <p className="field-error" id={`${id}-error`}>{issue}</p>}
   </div>;
@@ -233,7 +261,7 @@ function Editor({ model }: { model: ModelDetail }) {
   const status = error ? 'Needs attention' : !valid ? 'Check settings' : ready ? 'Ready to print' : rendering.phase === 'queued' ? 'Waiting for renderer' : rendering.phase === 'running' ? 'Rendering your model' : rendering.ready ? 'Loading preview' : 'Updating preview';
   const field = (control: Control) => <Field key={control.key} control={control} value={parameters[control.key]}
     disabled={control.enabledWhen !== null && parameters[control.enabledWhen] !== true}
-    issue={issues.find(issue => issue.field === control.key)?.message} change={value => change(control.key, value)} />;
+    issue={issues.find(issue => issue.field === control.key)?.message} recommended={recommendation(control, model.controls, parameters)} change={value => change(control.key, value)} />;
 
   return <>
     <div className="editor-layout">

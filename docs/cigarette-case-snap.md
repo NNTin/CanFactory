@@ -1,6 +1,6 @@
 # Cigarette case: snap mechanisms
 
-The cigarette case's `snap` parameter (the others are the underside text, see [cigarette-case-text.md](cigarette-case-text.md)) is an enum (`ControlSchema.kind = 'enum'`, with its `options`). It reaches the
+The cigarette case's `snap` parameter (the others are the underside text, see [cigarette-case-text.md](cigarette-case-text.md), and the [clearance](#clearance)) is an enum (`ControlSchema.kind = 'enum'`, with its `options`). It reaches the
 SCAD files as `-D SNAP="<value>"` (`apps/worker/src/render.ts`, `mappedDefines`); only the parts whose `scadMapping`
 names `snap` receive it: the case box, the case lid and the mini lid. Every other part renders exactly as before. The
 features that reach into the mating part are sized from the clearance (see [Clearance](#clearance)), so each mechanism
@@ -21,7 +21,21 @@ neither joint has a snap variant.
 
 ## Clearance
 
-Every SCAD file has `CLEARANCE`, the gap per side between mating surfaces, 0.2 mm by default (a snug fit). The source STLs
+Every SCAD file has `CLEARANCE`, the gap per side between mating surfaces, 0.2 mm by default (a snug fit). It is the
+`clearance` parameter in the editor's advanced settings: 0.10 to 0.60 mm in 0.01 mm steps, reaching every part except
+the text part. The editor names the fit as the value changes (the bands of issue #7: very tight 0.10–0.15, snug
+0.15–0.25, sliding 0.25–0.40, easy sliding 0.40–0.60) and highlights the range recommended for the selected snap mode
+(`SNAP_CLEARANCE` in `packages/contracts/src/models.ts`):
+
+| Snap mode | Recommended clearance | Why |
+|---|---|---|
+| `friction` | 0.10–0.60 mm | The walls themselves hold; pick the fit you want. |
+| `magnet` | 0.10–0.60 mm | As friction: the magnets hold, and their pockets are oversized on their own (6.2 x 2.1 mm for 6 x 2 mm magnets). |
+| `clip` | 0.20–0.40 mm | The nib stands 0.6 mm into the lid cavity, so it reaches 0.6 mm − clearance into the box's pocket: 0.4 mm at 0.2, only 0.2 mm at 0.4, nothing at 0.6. Below 0.2 the tongue has to flex further than it is designed to. |
+| `detent` | 0.20–0.40 mm | The bump always reaches 0.19 mm past the lid wall, so the lid must flex; the walls should clear each other so that only the bump touches, and above 0.4 mm the groove leaves little of the 1 mm lid wall. |
+| `crush-ribs` | 0.20–0.40 mm | The ribs always squeeze by 0.16 mm (0.1 on the mini lid); the walls should clear each other so that only the ribs touch, and above 0.4 mm the ribs grow tall and thin. |
+
+Values outside the range stay valid; the editor only says so. The source STLs
 had a different gap at each joint, which the assembly slider made visible (issue #7). Each fitted part is now derived from
 the surface it fits into, so the gap is exactly the clearance all round:
 
