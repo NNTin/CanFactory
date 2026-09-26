@@ -87,9 +87,12 @@ HOLDER_CRUSH_Z1 = 7;         // the top end is ramped over HOLDER_CRUSH_RAMP, si
 HOLDER_CRUSH_RAMP = 1.5;
 
 // A thin band just inside the bay outline offset by d (d = 0 is the bay wall, -CLEARANCE the holder's skin), clipped to the
-// children, at height z. The features are hulls of these bands, so their surfaces follow the curved bay wall.
+// children, at height z. The features are hulls of these bands, so their surfaces follow the curved bay wall. The hull's edges
+// run along the bisectors of the outline's vertices, right through the bay's (and the skin's) vertical edges; HOLDER_JITTER, a
+// few micrometres, moves them off those edges, which would otherwise leave zero-area triangles in the mesh.
+HOLDER_JITTER = [0.0071, 0.0043];
 module holder_band(z, d) {
-  translate([0, 0, z]) linear_extrude(height = 0.01) intersection() {
+  translate([HOLDER_JITTER[0], HOLDER_JITTER[1], z]) linear_extrude(height = 0.01) intersection() {
     difference() { offset(delta = d) polygon(HOLDER_BAY); offset(delta = d - 0.1) polygon(HOLDER_BAY); }
     children();
   }
