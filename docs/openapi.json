@@ -401,6 +401,86 @@
                         "additionalProperties": false
                       },
                       "description": "Present only for multi-part assembly models, in render/ZIP order."
+                    },
+                    "assembly": {
+                      "type": "object",
+                      "required": [
+                        "poses",
+                        "steps",
+                        "lift"
+                      ],
+                      "properties": {
+                        "poses": {
+                          "type": "object",
+                          "description": "Assembled pose per part id.",
+                          "additionalProperties": {
+                            "type": "object",
+                            "required": [
+                              "position"
+                            ],
+                            "properties": {
+                              "position": {
+                                "type": "array",
+                                "items": {
+                                  "type": "number"
+                                },
+                                "minItems": 3,
+                                "maxItems": 3,
+                                "description": "Translation in mm, applied after the rotation."
+                              },
+                              "rotation": {
+                                "type": "array",
+                                "items": {
+                                  "type": "number"
+                                },
+                                "minItems": 3,
+                                "maxItems": 3,
+                                "description": "Rotation in degrees about the part’s own origin, applied about X, then Y, then Z."
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "steps": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "title",
+                              "parts",
+                              "from"
+                            ],
+                            "properties": {
+                              "title": {
+                                "type": "string",
+                                "description": "Short caption, e.g. “Close the mini box”."
+                              },
+                              "parts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "description": "The part ids that move together in this step."
+                              },
+                              "from": {
+                                "type": "array",
+                                "items": {
+                                  "type": "number"
+                                },
+                                "minItems": 3,
+                                "maxItems": 3,
+                                "description": "Offset in mm at which the parts start this step; they end it at their assembled pose."
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "lift": {
+                          "type": "number",
+                          "description": "Height in mm of the exploded layout above the print bed."
+                        }
+                      },
+                      "additionalProperties": false
                     }
                   },
                   "additionalProperties": false

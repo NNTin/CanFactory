@@ -1,6 +1,7 @@
 import { Type, type Static } from 'typebox';
-import { cigaretteCase, ControlSchema, fruitFlyTrap, mossPlanter } from './models.ts';
+import { AssemblySchema, cigaretteCase, ControlSchema, fruitFlyTrap, mossPlanter } from './models.ts';
 export * from './models.ts';
+export * from './assembly.ts';
 
 /** Stable error envelope; clients may branch on code and highlight field issues. */
 export const ErrorSchema = Type.Object({
@@ -27,6 +28,7 @@ export const ModelDetailSchema = Type.Object({
   parameterSchema: Type.Record(Type.String(), Type.Unknown(), { description: 'JSON Schema for this model’s parameter object.' }),
   referenceUrl: Type.Optional(Type.String({ description: 'Absent when this model has no small, permanent original file.' })),
   parts: Type.Optional(Type.Array(ModelPartSummarySchema, { description: 'Present only for multi-part assembly models, in render/ZIP order.' })),
+  assembly: Type.Optional(AssemblySchema),
 }, { additionalProperties: false });
 export type ModelDetail = Static<typeof ModelDetailSchema>;
 

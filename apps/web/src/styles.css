@@ -571,6 +571,113 @@ main {
   border-radius: 50%;
   background: #a6ac9c;
 }
+.assembly-bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--line);
+}
+.assembly-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 260px;
+  flex: none;
+}
+.assembly-caption span {
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.assembly-caption strong {
+  font-size: 11px;
+  font-weight: 600;
+  color: #3d463b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.assembly-track {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: 8px 0;
+}
+.assembly-track input {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  display: block;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.assembly-track input::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 4px;
+  background: #e2e4d9;
+}
+.assembly-track input::-moz-range-track {
+  height: 4px;
+  border-radius: 4px;
+  background: #e2e4d9;
+}
+.assembly-track input::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px #fffefa, 0 1px 4px #0003;
+}
+.assembly-track input::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px #fffefa, 0 1px 4px #0003;
+}
+.assembly-track input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.assembly-stops {
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  top: 50%;
+  display: flex;
+  justify-content: space-between;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.assembly-stops i {
+  width: 8px;
+  height: 8px;
+  margin: 0 -4px;
+  border-radius: 50%;
+  background: #fffefa;
+  border: 2px solid #cfd3c5;
+}
+.assembly-stops i.reached {
+  border-color: var(--accent);
+}
+@media (max-width: 640px) {
+  .assembly-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .assembly-caption {
+    width: auto;
+  }
+}
 .axis-label {
   position: absolute;
   right: 24px;

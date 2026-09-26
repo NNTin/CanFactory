@@ -43,6 +43,7 @@ describe('model and render API', () => {
     expect(model.controls.map(control => control.key)).toEqual(['towerDiameter', 'spikeLength', 'shortRauteRows', 'tallRauteRows', 'rauteColumns']);
     expect(model.defaults).toEqual(mossPlanter.defaults);
     expect(model.parts).toHaveLength(5);
+    expect(model.assembly).toBeUndefined();
     expect(model.referenceUrl).toBeUndefined();
     expect((await app.inject('/api/v1/models/moss-planter/reference.stl')).statusCode).toBe(404);
   });
@@ -55,6 +56,7 @@ describe('model and render API', () => {
     expect(model.controls.map(control => control.kind)).toEqual(['enum', 'text', 'enum', 'number', 'enum']);
     expect(model.defaults).toEqual(cigaretteCase.defaults);
     expect(model.parts).toHaveLength(6);
+    expect(model.assembly).toEqual(cigaretteCase.assembly);
     expect(model.referenceUrl).toBeUndefined();
     const accepted = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, snap: 'magnet', engraveText: 'Tom', textMode: 'second-filament' } } });
     expect(accepted.statusCode).toBeLessThan(300);

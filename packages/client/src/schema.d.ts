@@ -242,6 +242,27 @@ export interface operations {
                             id: string;
                             title: string;
                         }[];
+                        assembly?: {
+                            /** @description Assembled pose per part id. */
+                            poses: {
+                                [key: string]: {
+                                    /** @description Translation in mm, applied after the rotation. */
+                                    position: number[];
+                                    /** @description Rotation in degrees about the part’s own origin, applied about X, then Y, then Z. */
+                                    rotation?: number[];
+                                };
+                            };
+                            steps: {
+                                /** @description Short caption, e.g. “Close the mini box”. */
+                                title: string;
+                                /** @description The part ids that move together in this step. */
+                                parts: string[];
+                                /** @description Offset in mm at which the parts start this step; they end it at their assembled pose. */
+                                from: number[];
+                            }[];
+                            /** @description Height in mm of the exploded layout above the print bed. */
+                            lift: number;
+                        };
                     };
                 };
             };

@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { compareMeshes, detectScaleVariant } from './compare.ts';
+import { compareMeshes, detectScaleVariant, intersectionVolume } from './compare.ts';
 import { box, cylinder, merge, ring, withHole } from './fixtures.ts';
 import { detectRunner, renderScad } from './openscad.ts';
 import { meshToPolyhedron } from './polyhedron.ts';
@@ -10,6 +10,17 @@ import { overlayToSvg, sliceZ, sectionsToSvg, toPieces } from './sections.ts';
 import { bounds, isBinaryStl, parseStl, size, surfaceArea, transform, volume, writeBinaryStl } from './stl.ts';
 import { analyzeTopology } from './topology.ts';
 import { DEFAULT_TOLERANCE, judge, verifyScad } from './verify.ts';
+
+describe('intersectionVolume', () => {
+  it('measures the volume two placed solids share, and 0 for touching or separate ones', () => {
+    expect(intersectionVolume(box(10, 10, 10), box(10, 10, 10, [5, 0, 4]), 0.1)).toBeCloseTo(5 * 10 * 6, 0);
+    expect(intersectionVolume(box(10, 10, 10), box(10, 10, 10, [10, 0, 0]), 0.1)).toBe(0);
+    expect(intersectionVolume(box(10, 10, 10), box(4, 4, 4, [20, 20, 20]))).toBe(0);
+    // A pin inside a ring's hole does not collide with it; one through its wall does.
+    expect(intersectionVolume(ring(5, 8, 10), cylinder(4.5, 20, 48, [0, 0, -5]), 0.1)).toBe(0);
+    expect(intersectionVolume(ring(5, 8, 10), box(2, 2, 20, [5.5, -1, -5]), 0.1)).toBeCloseTo(2 * 2 * 10, 0);
+  });
+});
 
 describe('stl reader/writer', () => {
   it('round-trips a binary STL and reports bounds, volume and area', () => {

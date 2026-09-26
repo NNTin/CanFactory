@@ -195,3 +195,20 @@ export function detectScaleVariant(a: Mesh, b: Mesh, tolerance = 1e-3): VariantM
   }
   return max <= tolerance * Math.max(1, scale) ? { scale, maxDeviation: max } : undefined;
 }
+
+/**
+ * Volume (mm³) shared by two solids exactly as placed (no registration), sampled on a grid of vertical rays: 0 means the
+ * parts do not collide. Used to check assembled poses; `cell` trades precision for speed.
+ */
+export function intersectionVolume(a: Mesh, b: Mesh, cell = 0.2): number {
+  const ba = bounds(a), bb = bounds(b);
+  const lo = [Math.max(ba.min[0], bb.min[0]), Math.max(ba.min[1], bb.min[1]), Math.max(ba.min[2], bb.min[2])];
+  const hi = [Math.min(ba.max[0], bb.max[0]), Math.min(ba.max[1], bb.max[1]), Math.min(ba.max[2], bb.max[2])];
+  if (lo.some((value, axis) => value >= g(hi, axis))) return 0;
+  const originX = g(lo, 0) - cell, originY = g(lo, 1) - cell;
+  const nx = Math.ceil((g(hi, 0) + cell - originX) / cell), ny = Math.ceil((g(hi, 1) + cell - originY) / cell);
+  const ca = castColumns(a, originX, originY, nx, ny, cell), cb = castColumns(b, originX, originY, nx, ny, cell);
+  let shared = 0;
+  for (let k = 0; k < ca.cells.length; k++) shared += overlap(ca.cells[k] ?? [], cb.cells[k] ?? []);
+  return shared * cell * cell;
+}

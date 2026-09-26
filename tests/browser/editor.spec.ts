@@ -13,6 +13,7 @@ test('customize, inspect, download identical geometry, and restore local setting
   const downloadButton = page.getByRole('button', { name: 'Download STL', exact: true });
   await expect(downloadButton).toBeEnabled({ timeout: 90_000 });
   await page.screenshot({ path: testInfo.outputPath('desktop.png'), fullPage: true });
+  await expect(page.getByRole('slider', { name: 'Assembly' })).toHaveCount(0);
   await page.getByRole('switch', { name: 'Ventilation slots' }).click();
   await page.getByRole('spinbutton', { name: 'Funnel diameter', exact: true }).fill('70');
   await page.getByRole('spinbutton', { name: 'Funnel height', exact: true }).fill('72');
@@ -172,6 +173,17 @@ test('shows the cigarette case, offers snap and text settings and downloads a ZI
   await expect(page.getByText(/mm wide at this font and size/)).toHaveCount(0);
   const downloadButton = page.getByRole('button', { name: 'Download ZIP', exact: true });
   await expect(downloadButton).toBeEnabled({ timeout: 270_000 });
+  // The assembly slider: from the print bed, stop by stop (arrow keys), to the finished case.
+  const assembly = page.getByRole('slider', { name: 'Assembly' });
+  await expect(assembly).toHaveAttribute('aria-valuetext', 'Parts as printed');
+  await assembly.press('ArrowRight');
+  await expect(assembly).toHaveAttribute('aria-valuetext', 'Lift and lay out the parts');
+  await assembly.press('ArrowRight');
+  await expect(assembly).toHaveAttribute('aria-valuetext', `Step 1 of ${cigaretteCase.assembly.steps.length} · Close the mini box`);
+  await assembly.press('End');
+  await expect(assembly).toHaveAttribute('aria-valuetext', 'Assembled');
+  await assembly.press('ArrowLeft');
+  await expect(assembly).toHaveAttribute('aria-valuetext', `Step ${cigaretteCase.assembly.steps.length - 1} of ${cigaretteCase.assembly.steps.length} · Push the holder into the box`);
   const downloadEvent = page.waitForEvent('download');
   await downloadButton.click();
   const path = await (await downloadEvent).path();
