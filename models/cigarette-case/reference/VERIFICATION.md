@@ -4,11 +4,11 @@ Renderer: wasm — OpenSCAD version 2025.01.19 via openscad-wasm-prebuilt (Manif
 
 | Part | Result | Size Δ (mm) | Volume Δ | IoU | Mean dev (mm) | Ref tris | SCAD bytes | Render (s) |
 |---|---|---|---|---|---|---|---|---|
-| 11_-_Honeycomb_-_minibox | PASS | -0.007 / -0.013 / 0.001 | -0.44 % | 0.9664 | 0.016 | 15404 | 5005 | 0.6 |
-| 11_-_Honeycomb_-_topminibox_-_box | PASS | -0.049 / -0.002 / -0.000 | 1.12 % | 0.9719 | 0.014 | 11082 | 4382 | 0.2 |
-| 11_-_Honeycomb_-_topminibox_-_top | PASS | -0.001 / -0.002 / -0.000 | 1.57 % | 0.9747 | 0.013 | 10512 | 6225 | 0.3 |
-| 11_v11.3__-_honeycomb_-_box | PASS | 0.019 / -0.002 / -0.000 | 0.76 % | 0.9818 | 0.015 | 571808 | 78015 | 11.5 |
-| 11_v11.3__-_honeycomb_-_top | PASS | -0.001 / -0.001 / 0.000 | 1.06 % | 0.9729 | 0.018 | 423568 | 60027 | 8.5 |
+| 11_-_Honeycomb_-_minibox | PASS | -0.024 / 0.006 / 0.001 | -0.26 % | 0.9618 | 0.018 | 15404 | 5757 | 0.6 |
+| 11_-_Honeycomb_-_topminibox_-_box | PASS | -0.049 / -0.002 / -0.000 | 1.12 % | 0.9719 | 0.014 | 11082 | 5071 | 0.2 |
+| 11_-_Honeycomb_-_topminibox_-_top | FAIL | -0.001 / -0.002 / -0.000 | 1.30 % | 0.9532 | 0.024 | 10512 | 7683 | 0.3 |
+| 11_v11.3__-_honeycomb_-_box | PASS | 0.019 / -0.002 / -0.000 | 0.86 % | 0.9796 | 0.017 | 571808 | 79234 | 11.7 |
+| 11_v11.3__-_honeycomb_-_top | PASS | -0.001 / -0.001 / 0.000 | 1.06 % | 0.9729 | 0.018 | 423568 | 60423 | 9.2 |
 
 ## Sources
 
@@ -18,12 +18,29 @@ Renderer: wasm — OpenSCAD version 2025.01.19 via openscad-wasm-prebuilt (Manif
 - `11_v11.3__-_honeycomb_-_box`: source STL SHA-256 `60fcee1d38b5622a0b71535830a14ae86f6655b1a5af6dc043c42114bc3dc1c0`, 55.89 × 34.40 × 77.17 mm
 - `11_v11.3__-_honeycomb_-_top`: source STL SHA-256 `e4df9a299667373e8b1e5997b5f8e690696b0c53043fe0b58eab1cbbedae755e`, 55.89 × 34.40 × 41.87 mm
 
+## Failures
+
+- 11_-_Honeycomb_-_topminibox_-_top: IoU 0.9532 below 0.96
+
 ## The five parts
 
 Only the two large v11.3 parts carry the honeycomb. The three mini parts (`minibox`, `topminibox box`, `topminibox top`) are smooth
 thin-walled shells without any relief; none of the five STLs is a scaled copy of another (`inspect` reports no scale copies).
 The large box and lid share one outline (a rounded D shape, 55.9 x 34.4 mm) and one honeycomb; the lid slides over the box's upper 17 mm.
-The topminibox lid is the topminibox box's plan mirrored in X and pulled in by 1.2 mm (wall 1 mm + 0.2 mm clearance).
+The topminibox lid is the topminibox box's plan mirrored in X and pulled in by the box's wall and the clearance (1.2 mm in the source).
+
+## Clearance (issue #7)
+
+Every SCAD file has a `CLEARANCE` parameter, the gap per side between mating surfaces (default 0.2 mm), and the fitted parts are
+derived from the surface they fit into: the large box's upper shell and the closed mini box from the large lid's cavity, the mini lid
+from the mini box (plan, swept end and notches) and the mini holder from the large box's round bay. The source STLs had different gaps
+per joint (lid on box 0.15 to 0.31 mm, mini box in lid 0.02 to 0.04, holder in bay 0.45 to 0.5, and the mini lid's swept end collided
+with the mini box), so the default geometry of the mini parts is no longer the source's. They are verified here at the source's own
+clearance (`defines`): the holder at 0.47, the mini box at 0.031 (its measured gap in the lid, which reproduces the source exactly) and
+the mini lid at 0.2 against an unfitted mini box (`FIT_GAP` = 0.2). The mini lid's IoU is below 0.96 on purpose: its swept end now
+follows the mini box's inner surface at the clearance instead of the source's end sheet, which cut 0.06 to 0.4 mm into the mini box.
+Before this change it scored 0.9747. The large box's upper shell is its lid's cavity pulled in by 0.2 mm; that part still passes at the
+default.
 
 ## Method and limits
 

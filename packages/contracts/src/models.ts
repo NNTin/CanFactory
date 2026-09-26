@@ -397,9 +397,10 @@ const CIGARETTE_CASE_DIR = 'models/cigarette-case/reference/';
 const SNAP_MAPPING = { snap: 'SNAP' };
 const TEXT_MAPPING = { engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE' };
 
-/** The parts. `id` is the STL basename inside the ZIP. The SCAD files are the verified reconstructions, except `case-text`, which is
- * new: the underside text as a separate body, present only in `second-filament` mode. The holder and the shallow box have no
- * parameters (the holder's clip tab and the box's notches are part of the original). */
+/** The parts. `id` is the STL basename inside the ZIP. The SCAD files are the verified reconstructions, with their mating surfaces
+ * fitted to one clearance (the SCAD files' `CLEARANCE`, 0.2 mm per side; see models/cigarette-case/reference/VERIFICATION.md), except
+ * `case-text`, which is new: the underside text as a separate body, present only in `second-filament` mode. The holder and the
+ * shallow box have no snap parameter (the holder's clip tab and the box's notches are part of the original). */
 const cigaretteCaseParts: ModelPart[] = [
   { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: { ...SNAP_MAPPING, ...TEXT_MAPPING } },
   { id: 'case-lid', title: 'Case lid (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_top.scad`, scadMapping: SNAP_MAPPING },
@@ -414,8 +415,9 @@ const cigaretteCaseParts: ModelPart[] = [
  * The closed case, in the case box's frame. Found by collision checks on the rendered parts (docs/cigarette-case-assembly.md,
  * `npm run check:assembly`): the lid's rim sits on the box's step at 60.38 mm. The holder stands flush with the box's
  * underside in the round bay, which is open through the floor; the clip tab stops it from coming in from the top. The mini
- * lid is turned over onto the mini box, with its cap on the rim and its pads in the notches. The closed mini box sits under
- * the lid's ceiling (98.23 mm), with its chamfered end against the lid's chamfer.
+ * lid is turned over into the mini box and sits flush: cap level with the rim, pads centred in the notches. The closed mini
+ * box sits under the lid's ceiling (98.23 mm), its chamfered end one clearance from the lid's chamfer. Every fitted part is
+ * derived from the surface it fits into (issue #7), so these poses hold for any clearance.
  */
 const cigaretteCaseAssembly: Assembly = {
   poses: {
@@ -423,8 +425,8 @@ const cigaretteCaseAssembly: Assembly = {
     'case-text': { position: [0, 0, 0] },
     'case-lid': { position: [0, 0, 60.38] },
     'mini-holder': { position: [-16.84, 0, 0] },
-    'mini-box': { position: [6.45, 0, 82.84] },
-    'mini-lid': { position: [6.25, 0, 98.23], rotation: [0, 180, 0] },
+    'mini-box': { position: [6.43, 0, 83.839] },
+    'mini-lid': { position: [6.43, 0, 98.23], rotation: [0, 180, 0] },
   },
   steps: [
     { title: 'Close the mini box', parts: ['mini-lid'], from: [0, 0, 20] },

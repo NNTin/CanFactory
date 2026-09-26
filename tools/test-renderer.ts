@@ -126,9 +126,10 @@ try {
   }
 
   // Cigarette case: rendered once per snap mode, then with engraved text in every font and in second-filament mode. Each part must be one
-  // closed solid (the text part: closed letters) with the dimensions of the source STL (which the reconstructions are verified against in
-  // models/cigarette-case/reference/VERIFICATION.md), packaged as one ZIP. The snap features only stand proud by a fraction of a millimetre,
-  // except the mini lid's crush ribs (0.3 mm proud of its 25.119 mm width).
+  // closed solid (the text part: closed letters) with the expected dimensions, packaged as one ZIP. The large box and lid have the source
+  // STL's (which the reconstructions are verified against in models/cigarette-case/reference/VERIFICATION.md); the three mini parts are
+  // fitted to their mating surfaces with the 0.2 mm default clearance, so they are smaller. The snap features only stand proud by a
+  // fraction of a millimetre, except the mini lid's crush ribs (0.3 mm proud of its 24.779 mm width).
   const caseRuns: { name: string; parameters: ParameterValues }[] = [
     ...['friction', 'detent', 'clip', 'magnet', 'crush-ribs'].map(snap => ({ name: `snap ${snap}`, parameters: { ...cigaretteCase.defaults, snap } })),
     ...['sans', 'serif', 'mono', 'wide'].map(textFont => ({ name: `engraved ${textFont}`, parameters: { ...cigaretteCase.defaults, engraveText: 'Tom & Jo', textFont, textSize: 4 } })),
@@ -148,8 +149,8 @@ try {
     const wanted = activeParts(cigaretteCase, parameters);
     assert.deepEqual(result.artifact.parts.map(part => part.id), wanted.map(part => part.id), `cigarette case ${name}: parts`);
     const expected: Record<string, [number, number, number]> = {
-      'case-box': [55.888, 34.398, 77.171], 'case-lid': [55.888, 34.398, 41.868], 'mini-holder': [10.876, 21.842, 32.694],
-      'mini-box': [34.481, 27.519, 14.391], 'mini-lid': [34.481, parameters['snap'] === 'crush-ribs' ? 25.7 : 25.119, 13.391],
+      'case-box': [55.888, 34.398, 77.171], 'case-lid': [55.888, 34.398, 41.868], 'mini-holder': [11.392, 22.389, 32.695],
+      'mini-box': [34.094, 27.179, 14.391], 'mini-lid': [34.142, parameters['snap'] === 'crush-ribs' ? 25.38 : 24.779, 13.391],
     };
     for (const part of result.artifact.parts) {
       assert.ok(part.volume > 0, `cigarette case ${name} ${part.id}: expected positive volume`);

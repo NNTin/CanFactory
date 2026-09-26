@@ -8,16 +8,21 @@
 // Geometry: a 1 mm shell over a D-shaped plan (rounded -X end, chamfered +X end) with a 1 mm floor. The +X end is swept
 // away by a curved profile (the outer surface climbs from x = 6 at the floor to x = 17.2 at the rim) and an elliptical
 // notch is cut through the rim at both ends. Units are millimetres; the part is centred on the Z axis with its floor on z = 0.
-// The source STL sat at (239.3, -84.8) on the print plate. Static reconstruction: named dimensions only; no snap
-// parameter (its notches already are the detent the lid latches into).
+// The source STL sat at (239.3, -84.8) on the print plate. Named dimensions only; no snap parameter (its notches already are
+// the detent the lid latches into). The one parameter is CLEARANCE: the closed box slides into the case lid's cavity, so the
+// measured outline is pulled in until it stands CLEARANCE inside that cavity (the source STL stood only FIT_GAP inside).
 
 SCALE     = 1;
 ROUNDNESS = 96;
 
 HEIGHT = 14.391;      // rim height
 WALL   = 1;           // wall and floor thickness
+// Gap per side between mating surfaces (a -D override, mm), the same for every cigarette-case part; 0.2 is a snug fit.
+CLEARANCE = 0.2;
+FIT_GAP = 0.031;      // how far the measured outline (PLAN, END_CURVE) stands inside the case lid's cavity on its straight sides
+FIT = FIT_GAP - CLEARANCE;   // the outline is offset by this much
 
-// Plan outline (x, y) about the part centre.
+// Plan outline (x, y) about the part centre, as measured; the part uses it offset by FIT (plan()).
 PLAN = [[16.982, -6.369], [17.106, -5.977], [17.184, -5.568], [17.24, -4.666], [17.239, 4.701], [17.175, 5.631], [17.081,
         6.07], [16.94, 6.474], [16.771, 6.817], [16.453, 7.294], [16.141, 7.637], [15.749, 7.972], [15.043, 8.463],
         [13.397, 9.458], [6.903, 13.252], [6.483, 13.466], [6.088, 13.608], [5.633, 13.709], [5.133, 13.75], [-6.87,
@@ -51,17 +56,20 @@ module keep_region() {
   polygon(concat([[-30, -HEADROOM], [END_CURVE[0][0], -HEADROOM]], END_CURVE, [[END_TOP_X, HEIGHT + HEADROOM], [-30, HEIGHT + HEADROOM]]));
 }
 
+module plan() offset(delta = FIT) polygon(PLAN);
+module fitted_keep_region() offset(delta = FIT) keep_region();
+
 module across_y(len) rotate([90, 0, 0]) linear_extrude(height = len, center = true) children();
 
 module topminibox_box() {
   difference() {
     intersection() {
-      linear_extrude(height = HEIGHT) polygon(PLAN);
-      across_y(40) keep_region();
+      linear_extrude(height = HEIGHT) plan();
+      across_y(40) fitted_keep_region();
     }
     intersection() {
-      translate([0, 0, WALL]) linear_extrude(height = HEIGHT) offset(delta = -WALL) polygon(PLAN);
-      across_y(40) offset(delta = -WALL) keep_region();
+      translate([0, 0, WALL]) linear_extrude(height = HEIGHT) offset(delta = -WALL) plan();
+      across_y(40) offset(delta = -WALL) fitted_keep_region();
     }
     translate([0, 0, NOTCH_Z0]) rotate([0, 90, 0]) scale([NOTCH_C, NOTCH_A, 1]) cylinder(r = 1, h = NOTCH_LEN, center = true, $fn = ROUNDNESS);
   }
