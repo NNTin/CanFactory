@@ -201,10 +201,10 @@ describe('cigarette case contract', () => {
       expect(tuning.recommended.minimum <= tuning.default && tuning.default <= tuning.recommended.maximum, key).toBe(true);
       expect(tuned?.recommended).toEqual([{ control: tuning.joint, ranges: [{ value: tuning.mode, ...tuning.recommended }] }]);
       // it reaches the parts that carry the feature, under the SCAD name
-      expect(cigaretteCase.parts.some(part => part.scadMapping[key] === tuning.variable), key).toBe(true);
+      expect(cigaretteCase.parts.some(part => part.scadMapping?.[key] === tuning.variable), key).toBe(true);
     }
     // the SCAD files carry the same defaults
-    for (const part of cigaretteCase.parts) for (const [key, variable] of Object.entries(part.scadMapping)) {
+    for (const part of cigaretteCase.parts) for (const [key, variable] of Object.entries(part.scadMapping ?? {})) {
       const tuning = (SNAP_TUNING as Record<string, { default: number }>)[key];
       if (tuning) expect(new RegExp(`^${variable} = ${tuning.default};`, 'm').test(readFileSync(new URL(`../../../${part.sourcePath}`, import.meta.url), 'utf8')), `${part.id} ${variable}`).toBe(true);
     }
