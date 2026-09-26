@@ -221,6 +221,8 @@ function Field({ control, value, disabled, issue, recommended, change }: { contr
   const highlight = recommended && !conflict && span ? [(recommended.minimum - span[0]) / (span[1] - span[0]), (recommended.maximum - span[0]) / (span[1] - span[0])] as const : undefined;
   const outside = recommended !== undefined && !conflict && number !== '' && !fits(recommended, number);
   const fixed = (n: number) => n.toFixed(2);
+  // A range, or a single value when the ranges of several settings meet in one point.
+  const rangeText = (range: { minimum: number; maximum: number }) => Math.abs(range.maximum - range.minimum) < 1e-9 ? fixed(range.minimum) : `${fixed(range.minimum)}–${fixed(range.maximum)}`;
   const unit = control.unit ? ` ${control.unit}` : '';
   // The controls whose range the value is outside of (all of them when they conflict), to say which setting asks for what.
   const misfits = recommended && number !== '' ? recommended.ranges.filter(range => conflict ? true : !fits(range, number)) : [];
@@ -239,9 +241,9 @@ function Field({ control, value, disabled, issue, recommended, change }: { contr
       {band && <strong className="range-band">{band.label}</strong>}
       {recommended && (conflict
         ? <span className="range-outside">No single value suits all of these settings</span>
-        : <span className={outside ? 'range-outside' : undefined}>{outside ? 'Outside' : 'In'} the {fixed(recommended.minimum)}–{fixed(recommended.maximum)}{unit} recommended for {forWhat}</span>)}
+        : <span className={outside ? 'range-outside' : undefined}>{outside ? 'Outside' : 'In'} the {rangeText(recommended)}{unit} recommended for {forWhat}</span>)}
       {recommended && recommended.ranges.length > 1 && misfits.map(range =>
-        <span key={range.label} className="range-misfit">{range.label} ({range.choice}): {fixed(range.minimum)}–{fixed(range.maximum)}{unit}</span>)}
+        <span key={range.label} className="range-misfit">{range.label} ({range.choice}): {rangeText(range)}{unit}</span>)}
     </p>}
     <span id={`${id}-description`} className="sr-only">{control.description}</span>
     {issue && <p className="field-error" id={`${id}-error`}>{issue}</p>}

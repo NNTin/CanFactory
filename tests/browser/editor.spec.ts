@@ -169,11 +169,11 @@ test('shows the cigarette case, offers snap, clearance and text settings and dow
   await expect(fit).toContainText('In the 0.10–0.20 mm recommended for these settings');
   await snap.selectOption('clip');
   await expect(page.getByText('A flexible tongue on the lid')).toBeVisible();
-  await expect(fit).toContainText('In the 0.20–0.20 mm recommended for these settings');
+  await expect(fit).toContainText('In the 0.20 mm recommended for these settings');
   await expect(page.getByRole('slider', { name: 'Clearance slider' })).toHaveClass(/range-recommended/);
   await clearance.fill('0.12');
   await expect(fit).toContainText('Very tight (press fit)');
-  await expect(fit).toContainText('Outside the 0.20–0.20 mm recommended for these settings');
+  await expect(fit).toContainText('Outside the 0.20 mm recommended for these settings');
   await expect(fit).toContainText('Case lid snap (Clip): 0.20–0.40 mm');
   await clearance.fill('0.3');
   await expect(fit).toContainText('Sliding fit');
