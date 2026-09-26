@@ -92,8 +92,16 @@ describe('renderJob for an assembly model', () => {
     const defines = invocations.map(args => args.flatMap((arg, index) => args[index - 1] === '-D' ? [arg] : []));
     const text = ['TEXT="Tom \\"T\\" \\\\1"', 'TEXT_FONT="sans"', 'TEXT_SIZE=3'];
     // each joint's setting reaches only the two parts of that joint
-    const [fit, snap, holder, miniLid, miniBox] = ['CLEARANCE=0.35', 'SNAP="crush-ribs"', 'HOLDER_SNAP="crush-ribs"', 'MINI_LID_SNAP="detent"', 'MINI_BOX_SNAP="detent"'];
-    expect(defines).toEqual([[fit, snap, holder, ...text], [fit, snap, miniBox], [fit, holder], [fit, miniLid, miniBox], [fit, miniLid]]);
+    // (with its engagement, which its groove needs too, and its squeeze where the ribs are)
+    const fit = 'CLEARANCE=0.35';
+    const snap = ['SNAP="crush-ribs"', 'DETENT_ENGAGE=0.19'];
+    const holder = ['HOLDER_SNAP="crush-ribs"', 'HOLDER_DETENT_ENGAGE=0.15'];
+    const miniLid = ['MINI_LID_SNAP="detent"', 'ML_DETENT_ENGAGE=0.12'];
+    const miniBox = ['MINI_BOX_SNAP="detent"', 'MB_DETENT_ENGAGE=0.15'];
+    expect(defines).toEqual([
+      [fit, ...snap, 'CRUSH_SQUEEZE=0.16', ...holder, ...text], [fit, ...snap, ...miniBox, 'MB_CRUSH_SQUEEZE=0.1'], [fit, ...holder, 'HOLDER_CRUSH_SQUEEZE=0.1'],
+      [fit, ...miniLid, ...miniBox], [fit, ...miniLid, 'CRUSH_SQUEEZE=0.1'],
+    ]);
   });
 
   it('adds the text part in second-filament mode, tolerating its separate letters, and points OpenSCAD at the bundled fonts', async () => {

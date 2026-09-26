@@ -221,6 +221,12 @@ export interface operations {
                             maximum: number | null;
                             step: number | null;
                             enabledWhen: string | null;
+                            /** @description Show this control only while another (enum) control has one of these values; its value still applies (it only matters in those modes). Null to always show it. */
+                            visibleWhen: {
+                                /** @description The key of an enum control of the same model. */
+                                control: string;
+                                values: string[];
+                            } | null;
                             /** @description The allowed values of an enum control, in display order; null for other kinds. */
                             options: {
                                 value: string;
@@ -546,6 +552,54 @@ export interface operations {
                          * @default 0.2
                          */
                         clearance: number;
+                        /**
+                         * Detent engagement (case lid)
+                         * @description How far the bump on the case box reaches past the case lid's wall, in mm, on top of the clearance. More clicks harder.
+                         * @default 0.19
+                         */
+                        snapDetentEngage: number;
+                        /**
+                         * Crush-rib squeeze (case lid)
+                         * @description How much the ribs on the case box are squeezed by the case lid, in mm, on top of the clearance. More holds tighter.
+                         * @default 0.16
+                         */
+                        snapCrushSqueeze: number;
+                        /**
+                         * Detent engagement (mini box lid)
+                         * @description How far the bumps on the mini lid reach past the mini box's wall, in mm, on top of the clearance. More clicks harder.
+                         * @default 0.12
+                         */
+                        miniLidDetentEngage: number;
+                        /**
+                         * Crush-rib squeeze (mini box lid)
+                         * @description How much the ribs on the mini lid are squeezed by the mini box, in mm, on top of the clearance. More holds tighter.
+                         * @default 0.1
+                         */
+                        miniLidCrushSqueeze: number;
+                        /**
+                         * Detent engagement (holder in the box)
+                         * @description How far the bumps on the holder reach past the bay wall, in mm, on top of the clearance. More holds harder, but a lighter must still push the holder out.
+                         * @default 0.15
+                         */
+                        holderDetentEngage: number;
+                        /**
+                         * Crush-rib squeeze (holder in the box)
+                         * @description How much the ribs on the holder are squeezed by the bay wall, in mm, on top of the clearance. More holds tighter, but a lighter must still push the holder out.
+                         * @default 0.1
+                         */
+                        holderCrushSqueeze: number;
+                        /**
+                         * Detent engagement (mini box in the lid)
+                         * @description How far the bumps in the case lid reach past the mini box's wall, in mm, on top of the clearance. More holds harder, but a finger must still pull the mini box out.
+                         * @default 0.15
+                         */
+                        miniBoxDetentEngage: number;
+                        /**
+                         * Crush-rib squeeze (mini box in the lid)
+                         * @description How much the ribs in the case lid are squeezed by the mini box, in mm, on top of the clearance. More holds tighter, but a finger must still pull the mini box out.
+                         * @default 0.1
+                         */
+                        miniBoxCrushSqueeze: number;
                     };
                 } | {
                     /** @enum {string} */

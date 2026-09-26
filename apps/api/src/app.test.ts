@@ -53,9 +53,10 @@ describe('model and render API', () => {
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.artifactFormat).toBe('zip');
     expect(model.customizable).toBe(true);
-    expect(model.controls.map(control => control.kind)).toEqual(['enum', 'enum', 'enum', 'enum', 'text', 'enum', 'number', 'enum', 'number']);
-    expect(model.controls.at(-1)).toMatchObject({ key: 'clearance', group: 'advanced', default: 0.2, minimum: 0.1, maximum: 0.6 });
-    expect(model.controls.at(-1)?.recommended?.map(entry => entry.control)).toEqual(['snap', 'miniLidSnap', 'holderSnap', 'miniBoxSnap']);
+    expect(model.controls.map(control => control.kind)).toEqual(['enum', 'enum', 'enum', 'enum', 'text', 'enum', 'number', 'enum', 'number', ...Array<string>(8).fill('number')]);
+    const clearanceControl = model.controls.find(control => control.key === 'clearance');
+    expect(clearanceControl).toMatchObject({ key: 'clearance', group: 'advanced', default: 0.2, minimum: 0.1, maximum: 0.6 });
+    expect(clearanceControl?.recommended?.map(entry => entry.control)).toEqual(['snap', 'miniLidSnap', 'holderSnap', 'miniBoxSnap']);
     expect(model.defaults).toEqual(cigaretteCase.defaults);
     expect(model.parts).toHaveLength(6);
     expect(model.assembly).toEqual(cigaretteCase.assembly);

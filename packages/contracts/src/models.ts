@@ -38,6 +38,11 @@ export const ControlSchema = Type.Object({
   maximum: Type.Union([Type.Number(), Type.Null()], { description: 'Upper bound of a number; for a text control, the most characters allowed.' }),
   step: Type.Union([Type.Number(), Type.Null()]),
   enabledWhen: Type.Union([Type.String(), Type.Null()]),
+  visibleWhen: Type.Union([Type.Object({
+    control: Type.String({ description: 'The key of an enum control of the same model.' }),
+    values: Type.Array(Type.String()),
+  }, { additionalProperties: false }), Type.Null()],
+  { description: 'Show this control only while another (enum) control has one of these values; its value still applies (it only matters in those modes). Null to always show it.' }),
   options: Type.Union([Type.Array(Type.Object({ value: Type.String(), label: Type.String(), description: Type.String() }, { additionalProperties: false })), Type.Null()],
     { description: 'The allowed values of an enum control, in display order; null for other kinds.' }),
   bands: Type.Union([Type.Array(Type.Object({ minimum: Type.Number(), maximum: Type.Number(), label: Type.String() }, { additionalProperties: false })), Type.Null()],
@@ -56,7 +61,7 @@ function control<T extends { properties: Record<string, TSchema> }>(
 ): Control {
   const property: TSchema & { type?: unknown } = schema.properties[key] ?? (() => { throw new Error(`Unknown parameter ${key}.`); })();
   return {
-    key, group, enabledWhen, options: null, bands: null, recommended: null,
+    key, group, enabledWhen, visibleWhen: null, options: null, bands: null, recommended: null,
     label: 'title' in property && typeof property.title === 'string' ? property.title : key,
     description: 'description' in property && typeof property.description === 'string' ? property.description : '',
     kind: property.type === 'boolean' ? 'boolean' : 'number',
@@ -76,7 +81,7 @@ function enumControl<T extends { properties: Record<string, TSchema> }>(
   const first = options[0];
   if (!first) throw new Error(`Enum ${key} needs at least one option.`);
   return {
-    key, group, enabledWhen: null, options, bands: null, recommended: null, kind: 'enum', unit: null, minimum: null, maximum: null, step: null,
+    key, group, enabledWhen: null, visibleWhen: null, options, bands: null, recommended: null, kind: 'enum', unit: null, minimum: null, maximum: null, step: null,
     label: property.title ?? key, description: property.description ?? '',
     default: typeof property.default === 'string' ? property.default : first.value,
   };
@@ -86,7 +91,7 @@ function enumControl<T extends { properties: Record<string, TSchema> }>(
 function textControl<T extends { properties: Record<string, TSchema> }>(schema: T, key: keyof T['properties'] & string, group: Control['group']): Control {
   const property: TSchema & { title?: string; description?: string; default?: unknown; maxLength?: number } = schema.properties[key] ?? (() => { throw new Error(`Unknown parameter ${key}.`); })();
   return {
-    key, group, enabledWhen: null, options: null, bands: null, recommended: null, kind: 'text', unit: null, minimum: 0, maximum: property.maxLength ?? null, step: null,
+    key, group, enabledWhen: null, visibleWhen: null, options: null, bands: null, recommended: null, kind: 'text', unit: null, minimum: 0, maximum: property.maxLength ?? null, step: null,
     label: property.title ?? key, description: property.description ?? '', default: typeof property.default === 'string' ? property.default : '',
   };
 }
@@ -402,6 +407,33 @@ export const MINI_BOX_SNAP_CLEARANCE: Record<InsertSnapMode, { minimum: number; 
   'crush-ribs': { minimum: 0.2, maximum: 0.4 },
 };
 
+/**
+ * How far each detent bump reaches past the mating wall (`*_DETENT_ENGAGE`) and how much each crush rib is squeezed
+ * (`*_CRUSH_SQUEEZE`), per joint: the SCAD defaults, the slider range and the recommended range. Both are on top of the
+ * clearance, so they engage the same amount at any clearance (docs/cigarette-case-snap.md). They are advanced settings, shown only
+ * while their joint uses that mechanism.
+ */
+export const SNAP_TUNING = {
+  snapDetentEngage: { joint: 'snap', mode: 'detent', variable: 'DETENT_ENGAGE', default: 0.19, recommended: { minimum: 0.12, maximum: 0.25 } },
+  snapCrushSqueeze: { joint: 'snap', mode: 'crush-ribs', variable: 'CRUSH_SQUEEZE', default: 0.16, recommended: { minimum: 0.08, maximum: 0.2 } },
+  miniLidDetentEngage: { joint: 'miniLidSnap', mode: 'detent', variable: 'ML_DETENT_ENGAGE', default: 0.12, recommended: { minimum: 0.08, maximum: 0.18 } },
+  miniLidCrushSqueeze: { joint: 'miniLidSnap', mode: 'crush-ribs', variable: 'CRUSH_SQUEEZE', default: 0.1, recommended: { minimum: 0.06, maximum: 0.15 } },
+  holderDetentEngage: { joint: 'holderSnap', mode: 'detent', variable: 'HOLDER_DETENT_ENGAGE', default: 0.15, recommended: { minimum: 0.1, maximum: 0.2 } },
+  holderCrushSqueeze: { joint: 'holderSnap', mode: 'crush-ribs', variable: 'HOLDER_CRUSH_SQUEEZE', default: 0.1, recommended: { minimum: 0.06, maximum: 0.15 } },
+  miniBoxDetentEngage: { joint: 'miniBoxSnap', mode: 'detent', variable: 'MB_DETENT_ENGAGE', default: 0.15, recommended: { minimum: 0.1, maximum: 0.2 } },
+  miniBoxCrushSqueeze: { joint: 'miniBoxSnap', mode: 'crush-ribs', variable: 'MB_CRUSH_SQUEEZE', default: 0.1, recommended: { minimum: 0.06, maximum: 0.15 } },
+} as const;
+export type SnapTuningKey = keyof typeof SNAP_TUNING;
+/** The slider range of every engagement and squeeze, in mm. */
+export const SNAP_TUNING_RANGE = { minimum: 0.02, maximum: 0.4, step: 0.01 } as const;
+/** A detent's groove is engagement + clearance deep; in the 1 mm walls it is cut into, at least this much wall must remain. */
+export const GROOVE_WALL = { thickness: 1, minimumLeft: 0.2 } as const;
+const JOINT_NAME: Record<string, string> = { snap: 'case lid', miniLidSnap: 'mini box lid', holderSnap: 'holder in the box', miniBoxSnap: 'mini box in the lid' };
+const tuningControl = (key: SnapTuningKey, what: string, description: string) => {
+  const tuning = SNAP_TUNING[key];
+  return dimension(`${what} (${JOINT_NAME[tuning.joint]})`, description, tuning.default, SNAP_TUNING_RANGE.minimum, SNAP_TUNING_RANGE.maximum, SNAP_TUNING_RANGE.step);
+};
+
 const TEXT_FONT_VALUES = ['sans', 'serif', 'mono', 'wide'] as const;
 export type TextFont = typeof TEXT_FONT_VALUES[number];
 const TEXT_FONT_TEXT: Record<TextFont, { label: string; description: string }> = {
@@ -442,6 +474,14 @@ export const CigaretteCaseParametersSchema = Type.Object({
   textMode: Type.Enum(TEXT_MODE_VALUES, { title: 'Text style', description: 'Engraved into the box, or carved and filled by a separate part for a second filament.', default: 'engrave' }),
   clearance: dimension('Clearance', 'Gap per side between parts that fit together (lid on box, mini box in the lid, holder in the box), in mm. Larger is looser; raise it if your printer prints parts that are too tight.',
     CLEARANCE_RANGE.default, CLEARANCE_RANGE.minimum, CLEARANCE_RANGE.maximum, CLEARANCE_RANGE.step),
+  snapDetentEngage: tuningControl('snapDetentEngage', 'Detent engagement', 'How far the bump on the case box reaches past the case lid\'s wall, in mm, on top of the clearance. More clicks harder.'),
+  snapCrushSqueeze: tuningControl('snapCrushSqueeze', 'Crush-rib squeeze', 'How much the ribs on the case box are squeezed by the case lid, in mm, on top of the clearance. More holds tighter.'),
+  miniLidDetentEngage: tuningControl('miniLidDetentEngage', 'Detent engagement', 'How far the bumps on the mini lid reach past the mini box\'s wall, in mm, on top of the clearance. More clicks harder.'),
+  miniLidCrushSqueeze: tuningControl('miniLidCrushSqueeze', 'Crush-rib squeeze', 'How much the ribs on the mini lid are squeezed by the mini box, in mm, on top of the clearance. More holds tighter.'),
+  holderDetentEngage: tuningControl('holderDetentEngage', 'Detent engagement', 'How far the bumps on the holder reach past the bay wall, in mm, on top of the clearance. More holds harder, but a lighter must still push the holder out.'),
+  holderCrushSqueeze: tuningControl('holderCrushSqueeze', 'Crush-rib squeeze', 'How much the ribs on the holder are squeezed by the bay wall, in mm, on top of the clearance. More holds tighter, but a lighter must still push the holder out.'),
+  miniBoxDetentEngage: tuningControl('miniBoxDetentEngage', 'Detent engagement', 'How far the bumps in the case lid reach past the mini box\'s wall, in mm, on top of the clearance. More holds harder, but a finger must still pull the mini box out.'),
+  miniBoxCrushSqueeze: tuningControl('miniBoxCrushSqueeze', 'Crush-rib squeeze', 'How much the ribs in the case lid are squeezed by the mini box, in mm, on top of the clearance. More holds tighter, but a finger must still pull the mini box out.'),
 }, { additionalProperties: false, description: 'Cigarette case parameters. All fields are required.' });
 export type CigaretteCaseParameters = Static<typeof CigaretteCaseParametersSchema>;
 
@@ -461,6 +501,14 @@ function validateCigaretteCase(p: CigaretteCaseParameters): ParameterIssue[] {
   const width = textWidth(p.textFont, p.engraveText, p.textSize);
   if (width > TEXT_AREA.width - TEXT_AREA.margin)
     return [{ field: 'engraveText', message: `This text is about ${Number.isFinite(width) ? width.toFixed(0) : 'too many'} mm wide at this font and size, but only ${TEXT_AREA.width - TEXT_AREA.margin} mm are free on the underside. Shorten it or lower the text size.` }];
+  // A detent's groove (engagement + clearance deep) must leave enough of the 1 mm wall it is cut into: the case lid's wall, and the
+  // mini box's for its own two joints. The holder's groove is in the 2.1 mm bay wall. Checked only while that detent is in use.
+  const deepest = GROOVE_WALL.thickness - GROOVE_WALL.minimumLeft;
+  for (const key of ['snapDetentEngage', 'miniLidDetentEngage', 'miniBoxDetentEngage'] as const) {
+    const tuning = SNAP_TUNING[key];
+    if (p[tuning.joint] !== tuning.mode || p[key] + p.clearance <= deepest + 1e-9) continue;
+    return [{ field: key, message: `With ${p.clearance.toFixed(2)} mm clearance, a ${p[key].toFixed(2)} mm detent engagement needs a ${(p[key] + p.clearance).toFixed(2)} mm deep groove, which leaves less than ${GROOVE_WALL.minimumLeft} mm of the ${GROOVE_WALL.thickness} mm wall (${JOINT_NAME[tuning.joint]}). Keep engagement + clearance at or below ${deepest.toFixed(2)} mm.` }];
+  }
   return [];
 }
 
@@ -480,14 +528,21 @@ const cigaretteCaseControls = [
       { control: 'holderSnap', ranges: INSERT_SNAP_VALUES.map(value => ({ value, ...HOLDER_SNAP_CLEARANCE[value] })) },
       { control: 'miniBoxSnap', ranges: INSERT_SNAP_VALUES.map(value => ({ value, ...MINI_BOX_SNAP_CLEARANCE[value] })) },
     ] },
+  // each joint's engagement or squeeze, shown only while that joint uses the mechanism, with its recommended range highlighted
+  ...(Object.keys(SNAP_TUNING) as SnapTuningKey[]).map(key => {
+    const tuning = SNAP_TUNING[key];
+    return { ...control(CigaretteCaseParametersSchema, key, 'advanced'), visibleWhen: { control: tuning.joint, values: [tuning.mode] },
+      recommended: [{ control: tuning.joint, ranges: [{ value: tuning.mode, ...tuning.recommended }] }] };
+  }),
 ];
 
 const CIGARETTE_CASE_DIR = 'models/cigarette-case/reference/';
 const CLEARANCE_MAPPING = { clearance: 'CLEARANCE' };
-const SNAP_MAPPING = { snap: 'SNAP' };
-const MINI_LID_SNAP_MAPPING = { miniLidSnap: 'MINI_LID_SNAP' };
-const HOLDER_SNAP_MAPPING = { holderSnap: 'HOLDER_SNAP' };
-const MINI_BOX_SNAP_MAPPING = { miniBoxSnap: 'MINI_BOX_SNAP' };
+// Each joint's setting, engagement and squeeze reach the parts of that joint that carry the feature (a groove needs the engagement too).
+const SNAP_MAPPING = { snap: 'SNAP', snapDetentEngage: 'DETENT_ENGAGE' };
+const MINI_LID_SNAP_MAPPING = { miniLidSnap: 'MINI_LID_SNAP', miniLidDetentEngage: 'ML_DETENT_ENGAGE' };
+const HOLDER_SNAP_MAPPING = { holderSnap: 'HOLDER_SNAP', holderDetentEngage: 'HOLDER_DETENT_ENGAGE' };
+const MINI_BOX_SNAP_MAPPING = { miniBoxSnap: 'MINI_BOX_SNAP', miniBoxDetentEngage: 'MB_DETENT_ENGAGE' };
 const TEXT_MAPPING = { engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE' };
 
 /** The parts. `id` is the STL basename inside the ZIP. The SCAD files are the verified reconstructions, with their mating surfaces
@@ -495,11 +550,11 @@ const TEXT_MAPPING = { engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TE
  * `case-text`, which is new: the underside text as a separate body, present only in `second-filament` mode. Each snap setting
  * reaches the two parts of its joint. */
 const cigaretteCaseParts: ModelPart[] = [
-  { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, ...HOLDER_SNAP_MAPPING, ...TEXT_MAPPING } },
-  { id: 'case-lid', title: 'Case lid (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_top.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, ...MINI_BOX_SNAP_MAPPING } },
-  { id: 'mini-holder', title: 'Mini holder', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_minibox.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...HOLDER_SNAP_MAPPING } },
+  { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, snapCrushSqueeze: 'CRUSH_SQUEEZE', ...HOLDER_SNAP_MAPPING, ...TEXT_MAPPING } },
+  { id: 'case-lid', title: 'Case lid (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_top.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, ...MINI_BOX_SNAP_MAPPING, miniBoxCrushSqueeze: 'MB_CRUSH_SQUEEZE' } },
+  { id: 'mini-holder', title: 'Mini holder', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_minibox.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...HOLDER_SNAP_MAPPING, holderCrushSqueeze: 'HOLDER_CRUSH_SQUEEZE' } },
   { id: 'mini-box', title: 'Mini box', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...MINI_LID_SNAP_MAPPING, ...MINI_BOX_SNAP_MAPPING } },
-  { id: 'mini-lid', title: 'Mini box lid', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_top.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...MINI_LID_SNAP_MAPPING } },
+  { id: 'mini-lid', title: 'Mini box lid', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_top.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...MINI_LID_SNAP_MAPPING, miniLidCrushSqueeze: 'CRUSH_SQUEEZE' } },
   { id: 'case-text', title: 'Case text (second filament)', sourcePath: 'models/cigarette-case/underside-text.scad', scadMapping: TEXT_MAPPING, separateBodies: true,
     includedWhen: parameters => typeof parameters['engraveText'] === 'string' && hasSecondFilamentText({ engraveText: parameters['engraveText'], textMode: String(parameters['textMode']) }) },
 ];

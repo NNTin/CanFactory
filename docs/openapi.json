@@ -199,6 +199,7 @@
                           "maximum",
                           "step",
                           "enabledWhen",
+                          "visibleWhen",
                           "options",
                           "bands",
                           "recommended"
@@ -323,6 +324,34 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "visibleWhen": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "control",
+                                  "values"
+                                ],
+                                "properties": {
+                                  "control": {
+                                    "type": "string",
+                                    "description": "The key of an enum control of the same model."
+                                  },
+                                  "values": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Show this control only while another (enum) control has one of these values; its value still applies (it only matters in those modes). Null to always show it."
                           },
                           "options": {
                             "anyOf": [
@@ -962,7 +991,15 @@
                           "textFont",
                           "textSize",
                           "textMode",
-                          "clearance"
+                          "clearance",
+                          "snapDetentEngage",
+                          "snapCrushSqueeze",
+                          "miniLidDetentEngage",
+                          "miniLidCrushSqueeze",
+                          "holderDetentEngage",
+                          "holderCrushSqueeze",
+                          "miniBoxDetentEngage",
+                          "miniBoxCrushSqueeze"
                         ],
                         "properties": {
                           "snap": {
@@ -1051,6 +1088,78 @@
                             "default": 0.2,
                             "minimum": 0.1,
                             "maximum": 0.6,
+                            "multipleOf": 0.01
+                          },
+                          "snapDetentEngage": {
+                            "type": "number",
+                            "title": "Detent engagement (case lid)",
+                            "description": "How far the bump on the case box reaches past the case lid's wall, in mm, on top of the clearance. More clicks harder.",
+                            "default": 0.19,
+                            "minimum": 0.02,
+                            "maximum": 0.4,
+                            "multipleOf": 0.01
+                          },
+                          "snapCrushSqueeze": {
+                            "type": "number",
+                            "title": "Crush-rib squeeze (case lid)",
+                            "description": "How much the ribs on the case box are squeezed by the case lid, in mm, on top of the clearance. More holds tighter.",
+                            "default": 0.16,
+                            "minimum": 0.02,
+                            "maximum": 0.4,
+                            "multipleOf": 0.01
+                          },
+                          "miniLidDetentEngage": {
+                            "type": "number",
+                            "title": "Detent engagement (mini box lid)",
+                            "description": "How far the bumps on the mini lid reach past the mini box's wall, in mm, on top of the clearance. More clicks harder.",
+                            "default": 0.12,
+                            "minimum": 0.02,
+                            "maximum": 0.4,
+                            "multipleOf": 0.01
+                          },
+                          "miniLidCrushSqueeze": {
+                            "type": "number",
+                            "title": "Crush-rib squeeze (mini box lid)",
+                            "description": "How much the ribs on the mini lid are squeezed by the mini box, in mm, on top of the clearance. More holds tighter.",
+                            "default": 0.1,
+                            "minimum": 0.02,
+                            "maximum": 0.4,
+                            "multipleOf": 0.01
+                          },
+                          "holderDetentEngage": {
+                            "type": "number",
+                            "title": "Detent engagement (holder in the box)",
+                            "description": "How far the bumps on the holder reach past the bay wall, in mm, on top of the clearance. More holds harder, but a lighter must still push the holder out.",
+                            "default": 0.15,
+                            "minimum": 0.02,
+                            "maximum": 0.4,
+                            "multipleOf": 0.01
+                          },
+                          "holderCrushSqueeze": {
+                            "type": "number",
+                            "title": "Crush-rib squeeze (holder in the box)",
+                            "description": "How much the ribs on the holder are squeezed by the bay wall, in mm, on top of the clearance. More holds tighter, but a lighter must still push the holder out.",
+                            "default": 0.1,
+                            "minimum": 0.02,
+                            "maximum": 0.4,
+                            "multipleOf": 0.01
+                          },
+                          "miniBoxDetentEngage": {
+                            "type": "number",
+                            "title": "Detent engagement (mini box in the lid)",
+                            "description": "How far the bumps in the case lid reach past the mini box's wall, in mm, on top of the clearance. More holds harder, but a finger must still pull the mini box out.",
+                            "default": 0.15,
+                            "minimum": 0.02,
+                            "maximum": 0.4,
+                            "multipleOf": 0.01
+                          },
+                          "miniBoxCrushSqueeze": {
+                            "type": "number",
+                            "title": "Crush-rib squeeze (mini box in the lid)",
+                            "description": "How much the ribs in the case lid are squeezed by the mini box, in mm, on top of the clearance. More holds tighter, but a finger must still pull the mini box out.",
+                            "default": 0.1,
+                            "minimum": 0.02,
+                            "maximum": 0.4,
                             "multipleOf": 0.01
                           }
                         },

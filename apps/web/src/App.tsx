@@ -227,18 +227,25 @@ function Field({ control, value, disabled, issue, recommended, change }: { contr
   // The controls whose range the value is outside of (all of them when they conflict), to say which setting asks for what.
   const misfits = recommended && number !== '' ? recommended.ranges.filter(range => conflict ? true : !fits(range, number)) : [];
   const forWhat = recommended?.ranges.length === 1 ? recommended.ranges[0]?.choice : 'these settings';
+  // Advisory sliders (those with a recommended range) also mark their default, as a tick on the track and in the note.
+  const defaultValue = control.recommended && typeof control.default === 'number' ? control.default : undefined;
+  const defaultAt = defaultValue !== undefined && span ? (defaultValue - span[0]) / (span[1] - span[0]) : undefined;
   return <div className={`number-field ${disabled ? 'field-disabled' : ''}`}>
     <div className="field-heading"><label htmlFor={id} title={control.description}>{control.label}</label><span className="number-input-wrap">
       <input id={id} type="number" value={number} min={control.minimum ?? undefined} max={control.maximum ?? undefined} step={control.step ?? 0.1}
         disabled={disabled} aria-invalid={Boolean(issue)} aria-describedby={`${id}-description${issue ? ` ${id}-error` : ''}`}
         onChange={event => change(event.currentTarget.value === '' ? Number.NaN : Number(event.currentTarget.value))} />{control.unit && <span>{control.unit}</span>}
     </span></div>
-    <input className={`range-input${highlight ? ' range-recommended' : ''}`} type="range" aria-label={`${control.label} slider`} value={number === '' ? control.minimum ?? 0 : number}
-      style={highlight ? { '--recommended-from': highlight[0], '--recommended-to': highlight[1] } as CSSProperties : undefined}
-      min={control.minimum ?? undefined} max={control.maximum ?? undefined} step={control.step ?? 0.1} disabled={disabled} onChange={event => change(Number(event.currentTarget.value))} />
+    <div className="range-track">
+      <input className={`range-input${highlight ? ' range-recommended' : ''}`} type="range" aria-label={`${control.label} slider`} value={number === '' ? control.minimum ?? 0 : number}
+        style={highlight ? { '--recommended-from': highlight[0], '--recommended-to': highlight[1] } as CSSProperties : undefined}
+        min={control.minimum ?? undefined} max={control.maximum ?? undefined} step={control.step ?? 0.1} disabled={disabled} onChange={event => change(Number(event.currentTarget.value))} />
+      {defaultAt !== undefined && <span className="range-default-tick" style={{ '--default-at': defaultAt } as CSSProperties} aria-hidden="true" />}
+    </div>
     <div className="range-limits"><span>{control.minimum}{control.unit ? ` ${control.unit}` : ''}</span><span>{control.maximum}{control.unit ? ` ${control.unit}` : ''}</span></div>
-    {(band || recommended) && <p className="range-note" data-testid={`${id}-note`}>
+    {(band || recommended || defaultValue !== undefined) && <p className="range-note" data-testid={`${id}-note`}>
       {band && <strong className="range-band">{band.label}</strong>}
+      {defaultValue !== undefined && <span className="range-default">Default {fixed(defaultValue)}{unit}</span>}
       {recommended && (conflict
         ? <span className="range-outside">No single value suits all of these settings</span>
         : <span className={outside ? 'range-outside' : undefined}>{outside ? 'Outside' : 'In'} the {rangeText(recommended)}{unit} recommended for {forWhat}</span>)}
@@ -307,6 +314,8 @@ function Editor({ model }: { model: ModelDetail }) {
     finally { setDownloading(false); }
   };
   const status = error ? 'Needs attention' : !valid ? 'Check settings' : ready ? 'Ready to print' : rendering.phase === 'queued' ? 'Waiting for renderer' : rendering.phase === 'running' ? 'Rendering your model' : rendering.ready ? 'Loading preview' : 'Updating preview';
+  // Controls that only matter in some modes of another control (Control.visibleWhen) are hidden in the others.
+  const shown = (control: Control) => control.visibleWhen === null || control.visibleWhen.values.includes(String(parameters[control.visibleWhen.control]));
   const field = (control: Control) => <Field key={control.key} control={control} value={parameters[control.key]}
     disabled={control.enabledWhen !== null && parameters[control.enabledWhen] !== true}
     issue={issues.find(issue => issue.field === control.key)?.message} recommended={recommendation(control, model.controls, parameters)} change={value => change(control.key, value)} />;
@@ -317,12 +326,12 @@ function Editor({ model }: { model: ModelDetail }) {
         {model.customizable ? <>
           <div className="panel-heading"><div><SlidersHorizontal size={16} /><h2>Make it yours</h2></div><button className="text-button" type="button" onClick={reset}><RotateCcw size={13} /> Reset</button></div>
           <p className="panel-intro">A few adjustments. A perfect fit.</p>
-          <div className="basic-controls">{model.controls.filter(control => control.group === 'basic').map(field)}</div>
+          <div className="basic-controls">{model.controls.filter(control => control.group === 'basic' && shown(control)).map(field)}</div>
           {derived?.slotCount !== undefined && derived.slotCount !== null && <div className="slot-note"><Sparkles size={14} /><span>{derived.slotCount === 0 ? 'One opening. A smooth funnel.' : `${derived.slotCount.toLocaleString()} slots, automatically spaced.`}</span></div>}
           {model.controls.some(control => control.group === 'advanced') && <button className="advanced-button" type="button" aria-expanded={advanced} aria-controls="advanced-controls" onClick={() => setAdvanced(value => !value)}>
             Advanced settings <ChevronDown size={16} className={advanced ? 'rotated' : ''} />
           </button>}
-          {advanced && <div id="advanced-controls" className="advanced-controls">{model.controls.filter(control => control.group === 'advanced').map(field)}</div>}
+          {advanced && <div id="advanced-controls" className="advanced-controls">{model.controls.filter(control => control.group === 'advanced' && shown(control)).map(field)}</div>}
           <p className="local-note">Your settings stay in this browser.</p>
         </> : <>
           <div className="panel-heading"><div><SlidersHorizontal size={16} /><h2>About this model</h2></div></div>
