@@ -11,7 +11,7 @@
 // that the lid slides over. The relief is stored as plateau regions in the unrolled (s, z) plane and bent back around the
 // outline by relief_wrap() (generated with tools/stl-to-scad `relief`). Units are millimetres; the part is centred on the
 // Z axis with its underside on z = 0. The source STL sat at (217.2, 84.5) on the print plate with its underside at -1.48.
-// Named dimensions only; the one parameter is SNAP, how the lid snaps on (default "friction" is the reconstruction as verified).
+// Named dimensions only; the parameters are SNAP, how the lid snaps on, and the TEXT_* underside text (with both at their defaults this is the reconstruction as verified).
 
 SCALE = 1;
 
@@ -148,6 +148,31 @@ module snap_cut() {
   if (SNAP == "magnet")
     for (m = [0, 1]) mirror([0, m, 0]) translate([SNAP_XC, UPPER_Y + 0.2, z0 + MAGNET_Z]) rotate([90, 0, 0]) cylinder(d = MAGNET_D, h = MAGNET_T + 0.2, $fn = 64);
 }
+
+// --- underside text (this block is identical in the box file and in underside-text.scad; a test keeps them in sync) ---
+// Text on the underside of the box, the face that sits on the print bed. It reads correctly when the box is turned over, so it is
+// mirrored here. Carved TEXT_DEPTH deep into the box; underside-text.scad is the same letters as a separate part that fills the
+// carving exactly, for a printer with a second nozzle. All of these can be overridden with -D.
+TEXT = "";              // the text, one line; empty for none
+TEXT_FONT = "sans";     // "sans", "serif", "mono" or "wide": the bold fonts bundled in models/fonts
+TEXT_SIZE = 6;          // letter height in mm (OpenSCAD's text size: about the height of a capital)
+TEXT_DEPTH = 0.8;       // the floor above the underside is 2.45 mm, so this leaves 1.65 mm
+// The flat underside that is free for text: clear of the round bay (x < -10.9) and of the flange edge, centred on the middle.
+TEXT_X0 = -9;
+TEXT_X1 = 26;
+TEXT_HALF_H = 8;
+
+function text_font(name) = name == "serif" ? "Liberation Serif:style=Bold" : name == "mono" ? "Liberation Mono:style=Bold"
+  : name == "wide" ? "DejaVu Sans:style=Bold" : "Liberation Sans:style=Bold";
+
+// The letters, clipped to the free area so that a string that is too long can never reach the bay or the flange edge.
+module underside_text_2d() {
+  intersection() {
+    translate([(TEXT_X0 + TEXT_X1) / 2, 0]) mirror([1, 0]) text(TEXT, size = TEXT_SIZE, font = text_font(TEXT_FONT), halign = "center", valign = "center");
+    translate([TEXT_X0, -TEXT_HALF_H]) square([TEXT_X1 - TEXT_X0, 2 * TEXT_HALF_H]);
+  }
+}
+// --- end underside text ---
 
 RELIEF_BASE = [[-24.949, -6.749], [-24.538, -8.192], [-24.188, -9.132], [-23.598, -10.213], [-23.185, -10.839], [-22.334, -11.759],
   [-21.311, -12.483], [-20.878, -12.736], [-20.176, -12.966], [-19.446, -13.138], [-11.026, -14.237],
@@ -847,6 +872,7 @@ module box() {
       snap_add();
     }
     snap_cut();
+    if (len(TEXT) > 0) translate([0, 0, -0.01]) linear_extrude(height = TEXT_DEPTH + 0.01) underside_text_2d();
   }
 }
 

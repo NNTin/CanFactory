@@ -52,15 +52,21 @@ describe('model and render API', () => {
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.artifactFormat).toBe('zip');
     expect(model.customizable).toBe(true);
-    expect(model.controls.map(control => control.kind)).toEqual(['enum']);
-    expect(model.defaults).toEqual({ snap: 'friction' });
-    expect(model.parts).toHaveLength(5);
+    expect(model.controls.map(control => control.kind)).toEqual(['enum', 'text', 'enum', 'number', 'enum']);
+    expect(model.defaults).toEqual(cigaretteCase.defaults);
+    expect(model.parts).toHaveLength(6);
     expect(model.referenceUrl).toBeUndefined();
-    const accepted = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { snap: 'magnet' } } });
+    const accepted = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, snap: 'magnet', engraveText: 'Tom', textMode: 'second-filament' } } });
     expect(accepted.statusCode).toBeLessThan(300);
-    const unknownMode = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { snap: 'glue' } } });
+    const unknownMode = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, snap: 'glue' } } });
     expect(unknownMode.statusCode).toBeGreaterThanOrEqual(400);
-    const extra = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { snap: 'clip', anything: 1 } } });
+    const longText = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, engraveText: 'W'.repeat(12) } } });
+    expect(longText.statusCode).toBeGreaterThanOrEqual(400);
+    expect(longText.json<{ issues: { field: string }[] }>().issues[0]?.field).toBe('engraveText');
+    const quoted = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, engraveText: 'a"b\\c' } } });
+    expect(quoted.statusCode).toBeLessThan(300);
+    expect(unknownMode.statusCode).toBeGreaterThanOrEqual(400);
+    const extra = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, anything: 1 } } });
     expect(extra.statusCode).toBeGreaterThanOrEqual(400);
   });
 

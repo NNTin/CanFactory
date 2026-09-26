@@ -230,6 +230,12 @@
                                 "enum": [
                                   "enum"
                                 ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
                               }
                             ]
                           },
@@ -293,7 +299,8 @@
                               {
                                 "type": "null"
                               }
-                            ]
+                            ],
+                            "description": "Upper bound of a number; for a text control, the most characters allowed."
                           },
                           "step": {
                             "anyOf": [
@@ -780,13 +787,17 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "2"
+                          "3"
                         ]
                       },
                       "parameters": {
                         "type": "object",
                         "required": [
-                          "snap"
+                          "snap",
+                          "engraveText",
+                          "textFont",
+                          "textSize",
+                          "textMode"
                         ],
                         "properties": {
                           "snap": {
@@ -800,6 +811,43 @@
                             "title": "Snap mechanism",
                             "description": "How the parts hold together: a plain close fit, a detent, a flexible clip, magnets or crush ribs. It applies to every joint that supports it.",
                             "default": "friction"
+                          },
+                          "engraveText": {
+                            "type": "string",
+                            "title": "Underside text",
+                            "description": "Text on the underside of the large box, one line, up to 20 characters (letters, digits, spaces and punctuation, no accents). Leave empty for none.",
+                            "default": "",
+                            "maxLength": 20,
+                            "pattern": "^[ -~]*$"
+                          },
+                          "textFont": {
+                            "enum": [
+                              "sans",
+                              "serif",
+                              "mono",
+                              "wide"
+                            ],
+                            "title": "Text font",
+                            "description": "The font of the underside text. All are bold, so that the strokes print cleanly.",
+                            "default": "sans"
+                          },
+                          "textSize": {
+                            "type": "number",
+                            "title": "Text size",
+                            "description": "Letter height of the underside text in mm (the height of a capital letter). Longer text needs a smaller size.",
+                            "default": 6,
+                            "minimum": 3,
+                            "maximum": 10,
+                            "multipleOf": 0.5
+                          },
+                          "textMode": {
+                            "enum": [
+                              "engrave",
+                              "second-filament"
+                            ],
+                            "title": "Text style",
+                            "description": "Engraved into the box, or carved and filled by a separate part for a second filament.",
+                            "default": "engrave"
                           }
                         },
                         "additionalProperties": false,

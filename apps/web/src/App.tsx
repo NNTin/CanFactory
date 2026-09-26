@@ -134,6 +134,16 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
 
 function Field({ control, value, disabled, issue, change }: { control: Control; value: number | boolean | string | undefined; disabled: boolean; issue: string | undefined; change: (value: number | boolean | string) => void }) {
   const id = `parameter-${control.key}`;
+  if (control.kind === 'text') {
+    const text = typeof value === 'string' ? value : '';
+    return <div className={`select-field ${disabled ? 'field-disabled' : ''}`}>
+      <div className="field-heading"><label htmlFor={id}>{control.label}</label>{control.maximum !== null && <span className="text-count">{text.length}/{control.maximum}</span>}</div>
+      <input id={id} type="text" value={text} maxLength={control.maximum ?? undefined} disabled={disabled} autoComplete="off" spellCheck={false} placeholder="Nothing"
+        aria-invalid={Boolean(issue)} aria-describedby={`${id}-description${issue ? ` ${id}-error` : ''}`} onChange={event => change(event.currentTarget.value)} />
+      <p id={`${id}-description`}>{control.description}</p>
+      {issue && <p className="field-error" id={`${id}-error`}>{issue}</p>}
+    </div>;
+  }
   if (control.kind === 'enum') {
     const selected = control.options?.find(option => option.value === value);
     return <div className={`select-field ${disabled ? 'field-disabled' : ''}`}>

@@ -212,11 +212,12 @@ export interface operations {
                             key: string;
                             label: string;
                             description: string;
-                            kind: "number" | "boolean" | "enum";
+                            kind: "number" | "boolean" | "enum" | "text";
                             group: "basic" | "advanced";
                             unit: "mm" | null;
                             default: number | boolean | string;
                             minimum: number | null;
+                            /** @description Upper bound of a number; for a text control, the most characters allowed. */
                             maximum: number | null;
                             step: number | null;
                             enabledWhen: string | null;
@@ -445,7 +446,7 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "2";
+                    modelVersion: "3";
                     /** @description Cigarette case parameters. All fields are required. */
                     parameters: {
                         /**
@@ -455,6 +456,32 @@ export interface operations {
                          * @enum {unknown}
                          */
                         snap: "friction" | "detent" | "clip" | "magnet" | "crush-ribs";
+                        /**
+                         * Underside text
+                         * @description Text on the underside of the large box, one line, up to 20 characters (letters, digits, spaces and punctuation, no accents). Leave empty for none.
+                         * @default
+                         */
+                        engraveText: string;
+                        /**
+                         * Text font
+                         * @description The font of the underside text. All are bold, so that the strokes print cleanly.
+                         * @default sans
+                         * @enum {unknown}
+                         */
+                        textFont: "sans" | "serif" | "mono" | "wide";
+                        /**
+                         * Text size
+                         * @description Letter height of the underside text in mm (the height of a capital letter). Longer text needs a smaller size.
+                         * @default 6
+                         */
+                        textSize: number;
+                        /**
+                         * Text style
+                         * @description Engraved into the box, or carved and filled by a separate part for a second filament.
+                         * @default engrave
+                         * @enum {unknown}
+                         */
+                        textMode: "engrave" | "second-filament";
                     };
                 };
             };

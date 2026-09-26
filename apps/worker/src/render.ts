@@ -2,17 +2,18 @@ import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { zipSync } from 'fflate';
-import { findModel, isAssembly, validateParameters, type ModelDefinition, type ModelPart, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, findModel, FONTS_DIR, isAssembly, validateParameters, type ModelDefinition, type ModelPart, type ParameterValues } from '@canfactory/contracts';
 import {
   asyncStorage, combineParts, firstDegenerateTriangle, inspectStl, RENDER_TIMEOUT_MS, RENDERER_FINGERPRINT, sourceFingerprint,
   type AssemblyPart, type RenderJob, type Storage, type Store,
 } from '@canfactory/server';
 
-/** The test harness may supply an equivalent Docker invocation; production executes OpenSCAD directly. */
-export type OpenScadRunner = (args: string[], signal: AbortSignal) => Promise<void>;
+/** The test harness may supply an equivalent Docker invocation; production executes OpenSCAD directly. `fontPath` is the folder of
+ * bundled fonts (models/fonts): text must not depend on whatever fonts the host has. */
+export type OpenScadRunner = (args: string[], signal: AbortSignal, fontPath: string) => Promise<void>;
 
-export const runOpenScad: OpenScadRunner = (args, signal) => new Promise((resolveRun, reject) => {
-  execFile('openscad', args, { signal, timeout: RENDER_TIMEOUT_MS, killSignal: 'SIGKILL', maxBuffer: 1_048_576 }, (error, _stdout, stderr) => {
+export const runOpenScad: OpenScadRunner = (args, signal, fontPath) => new Promise((resolveRun, reject) => {
+  execFile('openscad', args, { signal, timeout: RENDER_TIMEOUT_MS, killSignal: 'SIGKILL', maxBuffer: 1_048_576, env: { ...process.env, OPENSCAD_FONT_PATH: fontPath } }, (error, _stdout, stderr) => {
     if (error) {
       if (error.killed) reject(new Error('Rendering exceeded the 120-second limit. Reduce size or slot density and try again.'));
       else reject(new Error(`OpenSCAD could not generate this configuration. ${stderr.slice(-1000)}`));
@@ -40,7 +41,7 @@ function mappedDefines(mapping: Record<string, string> | undefined, parameters: 
 /** Render one self-contained SCAD file to a binary STL. An assembly part receives only the overrides its own mapping
  * names: its other constants (e.g. `ROUNDNESS`) must apply exactly as verified, not the fruit-fly-trap-specific defaults. */
 async function renderPart(run: OpenScadRunner, signal: AbortSignal, projectRoot: string, part: ModelPart, parameters: ParameterValues, output: string): Promise<void> {
-  await run(['--backend', 'Manifold', '--export-format', 'binstl', '-o', output, ...mappedDefines(part.scadMapping, parameters), resolve(projectRoot, part.sourcePath)], signal);
+  await run(['--backend', 'Manifold', '--export-format', 'binstl', '-o', output, ...mappedDefines(part.scadMapping, parameters), resolve(projectRoot, part.sourcePath)], signal, resolve(projectRoot, FONTS_DIR));
 }
 
 /** Revalidate trusted model/version and queued parameters before invoking the geometry engine. */
@@ -56,7 +57,7 @@ export async function renderJob(storage: Store | Storage, job: RenderJob, signal
     if (isAssembly(model)) {
       const entries: Record<string, Uint8Array> = {};
       const parts: AssemblyPart[] = [];
-      for (const part of model.parts) {
+      for (const part of activeParts(model, job.parameters)) {
         const output = join(directory, `${part.id}.stl`);
         await renderPart(run, signal, store.projectRoot, part, job.parameters, output);
         signal.throwIfAborted();
@@ -64,7 +65,7 @@ export async function renderJob(storage: Store | Storage, job: RenderJob, signal
         if (bytes.length < 84) throw new Error(`OpenSCAD produced an incomplete STL for "${part.title}".`);
         stampAttribution(bytes, model);
         let info;
-        try { info = inspectStl(bytes); }
+        try { info = inspectStl(bytes, { allowDisconnected: part.separateBodies === true }); }
         catch (error) {
           const culprit = firstDegenerateTriangle(bytes);
           const detail = culprit ? ` triangle #${culprit.index}: a=${JSON.stringify(culprit.a)} b=${JSON.stringify(culprit.b)} c=${JSON.stringify(culprit.c)}` : '';
@@ -83,7 +84,7 @@ export async function renderJob(storage: Store | Storage, job: RenderJob, signal
     const args = ['--backend', 'Manifold', '--export-format', 'binstl', '-o', output,
       '-D', 'ROUNDNESS=48', '-D', 'OBJECT="flytrap"', ...mappedDefines(model.scadMapping, job.parameters)];
     args.push(resolve(store.projectRoot, model.sourcePath));
-    await run(args, signal);
+    await run(args, signal, resolve(store.projectRoot, FONTS_DIR));
     signal.throwIfAborted();
     const bytes = await readFile(output);
     if (bytes.length < 84) throw new Error('The renderer produced an incomplete STL.');

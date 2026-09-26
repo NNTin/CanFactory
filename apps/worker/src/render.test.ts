@@ -83,13 +83,33 @@ describe('renderJob for an assembly model', () => {
     }
   });
 
-  it('passes the snap mode to exactly the cigarette-case parts that map it, as a quoted OpenSCAD string', async () => {
+  it('passes the snap mode and text settings only to the cigarette-case parts that map them, as quoted OpenSCAD strings', async () => {
     const invocations: string[][] = [];
-    store.enqueue(cigaretteCase, { snap: 'crush-ribs' });
+    store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, snap: 'crush-ribs', engraveText: 'Tom "T" \\1', textSize: 3 });
     const claimed = store.claim();
     if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
     expect(await renderJob(store, claimed, new AbortController().signal, fakeRunner(invocations))).toBe(true);
     const defines = invocations.map(args => args.flatMap((arg, index) => args[index - 1] === '-D' ? [arg] : []));
-    expect(defines).toEqual([['SNAP="crush-ribs"'], ['SNAP="crush-ribs"'], [], [], ['SNAP="crush-ribs"']]);
+    const text = ['TEXT="Tom \\"T\\" \\\\1"', 'TEXT_FONT="sans"', 'TEXT_SIZE=3'];
+    expect(defines).toEqual([['SNAP="crush-ribs"', ...text], ['SNAP="crush-ribs"'], [], [], ['SNAP="crush-ribs"']]);
+  });
+
+  it('adds the text part in second-filament mode, tolerating its separate letters, and points OpenSCAD at the bundled fonts', async () => {
+    const invocations: string[][] = [];
+    const fonts: string[] = [];
+    const runner = fakeRunner(invocations);
+    store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, engraveText: 'Tom', textMode: 'second-filament', textFont: 'mono', textSize: 4.5 });
+    const claimed = store.claim();
+    if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
+    expect(await renderJob(store, claimed, new AbortController().signal, (args, signal, fontPath) => { fonts.push(fontPath); return runner(args, signal, fontPath); })).toBe(true);
+    expect(invocations).toHaveLength(6);
+    const last = invocations.at(-1) ?? [];
+    expect(last.at(-1)).toMatch(/models\/cigarette-case\/underside-text\.scad$/);
+    expect(last.filter((_arg, index) => last[index - 1] === '-D')).toEqual(['TEXT="Tom"', 'TEXT_FONT="mono"', 'TEXT_SIZE=4.5']);
+    expect(new Set(fonts).size).toBe(1);
+    expect(fonts[0]).toMatch(/models\/fonts$/);
+    const result = store.getJob(claimed.id);
+    if (!result?.artifact || !('parts' in result.artifact)) throw new Error('Expected an assembly artifact');
+    expect(result.artifact.parts.map(part => part.id).at(-1)).toBe('case-text');
   });
 });

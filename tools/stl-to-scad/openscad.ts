@@ -1,11 +1,15 @@
 import { execFile } from 'node:child_process';
-import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { RENDERER_IMAGE } from '../../packages/server/src/config.ts';
 
 const exec = promisify(execFile);
+
+/** The bundled fonts (models/fonts): engraved text must render the same everywhere, so the renderer never relies on system fonts. */
+export const FONTS_DIR = fileURLToPath(new URL('../../models/fonts', import.meta.url));
 
 export type RunnerKind = 'native' | 'docker' | 'wasm';
 
@@ -70,7 +74,7 @@ async function probeRunner(): Promise<Runner | undefined> {
   return undefined;
 }
 
-interface WasmInstance { FS: { writeFile(path: string, data: string): void; readFile(path: string): Uint8Array }; callMain(args: string[]): number }
+interface WasmInstance { FS: { writeFile(path: string, data: string | Uint8Array): void; readFile(path: string): Uint8Array; mkdir(path: string): void }; callMain(args: string[]): number }
 interface WasmModule { create: () => Promise<WasmInstance>; version: string }
 type CreateOpenScad = (options: { print: (line: string) => void; printErr: (line: string) => void }) => Promise<{ getInstance(): WasmInstance }>;
 
@@ -98,16 +102,20 @@ export async function renderScad(scadPath: string, defines: Defines = {}, timeou
     await copyFile(scadPath, input);
     const args = ['--backend', 'Manifold', '--export-format', 'binstl', ...defineArgs(defines)];
     if (runner.kind === 'native') {
-      await exec(runner.command, [...args, '-o', output, input], { timeout: timeoutMs, maxBuffer: 16_777_216 });
+      await exec(runner.command, [...args, '-o', output, input], { timeout: timeoutMs, maxBuffer: 16_777_216, env: { ...process.env, OPENSCAD_FONT_PATH: FONTS_DIR } });
     } else if (runner.kind === 'docker') {
       await exec('docker', ['run', '--rm', '--init', '--network', 'none', '--cpus', '2', '--memory', '4g',
         '--user', `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
-        '--mount', `type=bind,src=${directory},dst=/data`, RENDERER_IMAGE,
+        '--mount', `type=bind,src=${directory},dst=/data`, '--mount', `type=bind,src=${FONTS_DIR},dst=/fonts,readonly`, '--env', 'OPENSCAD_FONT_PATH=/fonts', RENDERER_IMAGE,
         'openscad', ...args, '-o', `/data/${basename(output)}`, `/data/${basename(input)}`], { timeout: timeoutMs, maxBuffer: 16_777_216 });
     } else {
       const wasm = await loadWasm();
       if (!wasm) throw new Error('openscad-wasm-prebuilt disappeared.');
       const instance = await wasm.create();
+      // The wasm build has no system fonts: give fontconfig the bundled ones.
+      for (const dir of ['/fonts', '/etc', '/etc/fonts']) instance.FS.mkdir(dir);
+      for (const font of (await readdir(FONTS_DIR)).filter(name => name.endsWith('.ttf'))) instance.FS.writeFile(`/fonts/${font}`, await readFile(join(FONTS_DIR, font)));
+      instance.FS.writeFile('/etc/fonts/fonts.conf', '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig><dir>/fonts</dir></fontconfig>');
       instance.FS.writeFile('/model.scad', await readFile(input, 'utf8'));
       const code = instance.callMain(['/model.scad', '--backend=Manifold', '--export-format', 'binstl', ...defineArgs(defines), '-o', '/model.stl']);
       if (code !== 0) throw new Error(`openscad-wasm exited with code ${code}`);

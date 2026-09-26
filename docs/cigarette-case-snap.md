@@ -1,6 +1,6 @@
 # Cigarette case: snap mechanisms
 
-The cigarette case has one parameter, `snap`, an enum (`ControlSchema.kind = 'enum'`, with its `options`). It reaches the
+The cigarette case's `snap` parameter (the others are the underside text, see [cigarette-case-text.md](cigarette-case-text.md)) is an enum (`ControlSchema.kind = 'enum'`, with its `options`). It reaches the
 SCAD files as `-D SNAP="<value>"` (`apps/worker/src/render.ts`, `mappedDefines`); only the parts whose `scadMapping`
 names `snap` receive it: the case box, the case lid and the mini lid. Every other part renders exactly as before.
 
