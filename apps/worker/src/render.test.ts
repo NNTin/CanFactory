@@ -83,15 +83,16 @@ describe('renderJob for an assembly model', () => {
     }
   });
 
-  it('passes the snap mode and text settings only to the cigarette-case parts that map them, as quoted OpenSCAD strings', async () => {
+  it('passes the snap mode, clearance and text settings only to the cigarette-case parts that map them, strings quoted', async () => {
     const invocations: string[][] = [];
-    store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, snap: 'crush-ribs', engraveText: 'Tom "T" \\1', textSize: 3 });
+    store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, snap: 'crush-ribs', clearance: 0.35, engraveText: 'Tom "T" \\1', textSize: 3 });
     const claimed = store.claim();
     if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
     expect(await renderJob(store, claimed, new AbortController().signal, fakeRunner(invocations))).toBe(true);
     const defines = invocations.map(args => args.flatMap((arg, index) => args[index - 1] === '-D' ? [arg] : []));
     const text = ['TEXT="Tom \\"T\\" \\\\1"', 'TEXT_FONT="sans"', 'TEXT_SIZE=3'];
-    expect(defines).toEqual([['SNAP="crush-ribs"', ...text], ['SNAP="crush-ribs"'], [], [], ['SNAP="crush-ribs"']]);
+    const snap = ['SNAP="crush-ribs"', 'CLEARANCE=0.35'];
+    expect(defines).toEqual([[...snap, ...text], snap, ['CLEARANCE=0.35'], ['CLEARANCE=0.35'], snap]);
   });
 
   it('adds the text part in second-filament mode, tolerating its separate letters, and points OpenSCAD at the bundled fonts', async () => {

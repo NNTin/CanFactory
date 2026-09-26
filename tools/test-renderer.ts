@@ -126,13 +126,17 @@ try {
   }
 
   // Cigarette case: rendered once per snap mode, then with engraved text in every font and in second-filament mode. Each part must be one
-  // closed solid (the text part: closed letters) with the dimensions of the source STL (which the reconstructions are verified against in
-  // models/cigarette-case/reference/VERIFICATION.md), packaged as one ZIP. The snap features only stand proud by a fraction of a millimetre,
-  // except the mini lid's crush ribs (0.3 mm proud of its 25.119 mm width).
+  // closed solid (the text part: closed letters) with the expected dimensions, packaged as one ZIP. The large box and lid have the source
+  // STL's (which the reconstructions are verified against in models/cigarette-case/reference/VERIFICATION.md); the three mini parts are
+  // fitted to their mating surfaces with the clearance C (0.2 mm by default), so they shrink by 2C (the mini lid's width by 4C: it is
+  // fitted inside the fitted mini box). The snap features only stand proud by a fraction of a millimetre, except the mini lid's crush
+  // ribs (C + 0.1 mm proud of each side), and are also rendered at the ends of the clearance range.
   const caseRuns: { name: string; parameters: ParameterValues }[] = [
     ...['friction', 'detent', 'clip', 'magnet', 'crush-ribs'].map(snap => ({ name: `snap ${snap}`, parameters: { ...cigaretteCase.defaults, snap } })),
     ...['sans', 'serif', 'mono', 'wide'].map(textFont => ({ name: `engraved ${textFont}`, parameters: { ...cigaretteCase.defaults, engraveText: 'Tom & Jo', textFont, textSize: 4 } })),
     { name: 'second filament', parameters: { ...cigaretteCase.defaults, engraveText: 'Hello', textMode: 'second-filament', textSize: 6 } },
+    ...[0.1, 0.6].map(clearance => ({ name: `clearance ${clearance}`, parameters: { ...cigaretteCase.defaults, clearance } })),
+    { name: 'crush ribs at clearance 0.4', parameters: { ...cigaretteCase.defaults, snap: 'crush-ribs', clearance: 0.4 } },
   ];
   for (const { name, parameters } of only && only !== 'cigarette-case' ? [] : caseRuns) {
     const started = Date.now();
@@ -147,9 +151,10 @@ try {
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for the cigarette case.');
     const wanted = activeParts(cigaretteCase, parameters);
     assert.deepEqual(result.artifact.parts.map(part => part.id), wanted.map(part => part.id), `cigarette case ${name}: parts`);
+    const c = Number(parameters['clearance']);
     const expected: Record<string, [number, number, number]> = {
-      'case-box': [55.888, 34.398, 77.171], 'case-lid': [55.888, 34.398, 41.868], 'mini-holder': [10.876, 21.842, 32.694],
-      'mini-box': [34.481, 27.519, 14.391], 'mini-lid': [34.481, parameters['snap'] === 'crush-ribs' ? 25.7 : 25.119, 13.391],
+      'case-box': [55.888, 34.398, 77.171], 'case-lid': [55.888, 34.398, 41.868], 'mini-holder': [11.792 - 2 * c, 22.789 - 2 * c, 32.695],
+      'mini-box': [34.494 - 2 * c, 27.579 - 2 * c, 14.391], 'mini-lid': [34.542 - 2 * c, parameters['snap'] === 'crush-ribs' ? 25.779 - 2 * c : 25.579 - 4 * c, 13.391],
     };
     for (const part of result.artifact.parts) {
       assert.ok(part.volume > 0, `cigarette case ${name} ${part.id}: expected positive volume`);

@@ -8,7 +8,9 @@
    each property’s title, meaning, units, default, and numeric bounds/steps. The
    current generic editor supports numeric fields, boolean switches, enums and short text (a `Type.Enum` string parameter with an
    `enumControl` listing each value's label and description, or a `Type.String` with `maxLength` and a `textControl`; the value reaches SCAD as a quoted string, see
-   [cigarette-case-snap.md](cigarette-case-snap.md)).
+   [cigarette-case-snap.md](cigarette-case-snap.md)). A number control can also carry `bands` (named sub-ranges; the editor
+   names the one the value is in) and `recommended` (a sub-range per value of an enum control; the editor highlights it on
+   the slider and says when the value is outside it); both are advice only. See the cigarette case's `clearance`.
 3. Add a `ModelDefinition` with stable ID, explicit version, display metadata,
    reference/source paths, control grouping, defaults, SCAD variable mapping,
    dependent validation, and derived metadata. Variable names must use uppercase

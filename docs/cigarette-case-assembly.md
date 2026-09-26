@@ -25,8 +25,8 @@ every SCAD file centres its part at the origin.
 | `case-box`, `case-text` | 0, 0, 0 | none | The frame itself; the text part is modelled in the box's frame. |
 | `case-lid` | 0, 0, 60.38 | none | The lid is printed rim down, which is also how it is used. Its rim sits on the step at the top of the box's honeycomb (`BASE_TOP`), where the snap features are measured from (see [cigarette-case-snap.md](cigarette-case-snap.md)). |
 | `mini-holder` | −16.84, 0, 0 | none | Centred in the round bay (`BAY_ROUND`), flush with the box's underside. The bay is open through the floor, and the clip tab (z 32.3 to 34.9) stops the holder's dome: collisions start about 1.6 mm higher. |
-| `mini-box` | 6.45, 0, 82.84 | none | Its chamfered end has the same slope (−0.584) as the lid cavity's chamfer. At x = 6.7 it collides with the lid wall, so it sits with its chamfer against the lid's. Its closed top is against the lid ceiling (60.38 + 37.85 = 98.23 mm). |
-| `mini-lid` | 6.25, 0, 98.23 | 0, 180, 0 | The lid is printed cap down and is used cap up, so it is turned over about Y; turning about Y undoes the X mirror of its plan. The cap rests on the mini box's rim (15.39 mm above the mini box's floor), which puts the end pads in the rim notches. The best fit is 0.2 mm towards −X. |
+| `mini-box` | 6.43, 0, 83.839 | none | Its chamfered end has the same slope (−0.584) as the lid cavity's chamfer; it sits one clearance (0.2 mm) from it, the same gap as its straight sides. Its rim is against the lid ceiling (60.38 + 37.85 = 98.23 mm, less the rim height 14.391). |
+| `mini-lid` | 6.43, 0, 98.23 | 0, 180, 0 | The lid is printed cap down and is used cap up, so it is turned over about Y; turning about Y undoes the X mirror of its plan. It sits flush: the cap is level with the mini box's rim, the end pads are centred in the rim notches and the lid's rim stands on the mini box's floor. |
 
 ## How the poses were checked
 
@@ -38,18 +38,19 @@ functions the web app uses, and measures the volume shared by parts on a 0.25 mm
 - **The exploded layout:** every pair of parts, and that nothing is below the floor.
 - **Each step:** 17 samples along the step's path, the moving parts against all the others.
 
-Default settings (`friction`): every value is at most 0.29 mm³. The largest is the mini lid's pads touching the mini box
-at its notches, which is contact rather than overlap. The `magnet` mode is just as clean, and so is second-filament text.
+Default settings (`friction`, 0.2 mm clearance): every value is 0.00 mm³. The `magnet` mode is just as clean, and so is
+second-filament text. The measured gap on each of the four mating surfaces (case lid on box, mini lid in mini box, mini box in
+case lid, holder in bay) is the clearance, from 0.1 to 0.6 mm; see [cigarette-case-snap.md](cigarette-case-snap.md#clearance).
 
 The other snap modes show only their intended interference, where the snap acts:
 
 | Mode | Shared volume | Where |
 |---|---|---|
-| `detent` | 6.1 mm³ | While the case closes: the bump passes the lid wall before it drops into its groove. |
-| `clip` | 7.4 mm³ while the case closes; 10.9 mm³ as the mini box enters the lid | The lid's clip nibs stand 0.6 mm into the cavity. The tongues flex out of the way in both steps. |
-| `crush-ribs` | 8.2 mm³ lid on box, 4.1 mm³ mini lid in mini box, when closed | The ribs are squeezed (the designed interference, see the snap doc). |
+| `detent` | 5.9 mm³ | While the case closes: the bump passes the lid wall before it drops into its groove. |
+| `clip` | 7.4 mm³ while the case closes; 8.7 mm³ as the mini box enters the lid | The lid's clip nibs stand 0.6 mm into the cavity. The tongues flex out of the way in both steps. |
+| `crush-ribs` | 8.2 mm³ lid on box, 3.7 mm³ mini lid in mini box, when closed | The ribs are squeezed (the designed interference, see the snap doc). |
 
-A negative control: if the holder comes in from the top instead (`from: [0, 0, 90]`), the check fails with 15.3 mm³ against
+A negative control: if the holder comes in from the top instead (`from: [0, 0, 90]`), the check fails with 15.1 mm³ against
 the clip tab. That is why step 4 brings it in from below.
 
 ## What the collision check cannot decide

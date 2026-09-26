@@ -10,8 +10,9 @@
 // pockets, split into rhombi by the Y-shaped ridges on the lower level). The wall carries the honeycomb relief of the box,
 // stored as plateau regions in the unrolled (s, z) plane and bent back around the outline by relief_wrap() (generated with
 // tools/stl-to-scad `relief`). Units are millimetres; the part is centred on the Z axis with its rim on z = 0. The source
-// STL sat at (217.2, 84.5) on the print plate with its rim at z = 58.9. Named dimensions only; the one
-// parameter is SNAP, how the lid snaps onto the box (default "friction" is the reconstruction as verified).
+// STL sat at (217.2, 84.5) on the print plate with its rim at z = 58.9. Named dimensions only; the parameters are SNAP, how the
+// lid snaps onto the box, and CLEARANCE, the gap between mating surfaces. The cavity is the reference that the box's upper
+// shell and the closed mini box are fitted to, so it does not depend on CLEARANCE; only the snap features do.
 
 SCALE = 1;
 
@@ -171,15 +172,17 @@ PLATE_HIGH = [
 // "magnet" or "crush-ribs". This is the lid's half of what the box file carries on its upper shell: the two straight side walls
 // (y = +/-CAVITY_Y, x in SNAP_X0..SNAP_X1) and the same heights, measured up from the rim (z = 0). Millimetres.
 SNAP = "friction";
-CAVITY_Y = 13.79;     // inner face of the sleeve on its straight sides (the box's upper shell is at 13.63)
+// Gap per side between mating surfaces (a -D override, mm), the same for every cigarette-case part; 0.2 is a snug fit.
+CLEARANCE = 0.2;
+CAVITY_Y = 13.79;     // inner face of the sleeve on its straight sides (the box's upper shell is CLEARANCE further in)
 OUTER_Y = 14.8;       // outer face of the plain sleeve wall, below the honeycomb (1 mm wall)
 RELIEF_TOP_Y = 17.2;  // tallest honeycomb ridge (2.39 mm proud of the plain wall)
 SNAP_X0 = -1;
 SNAP_X1 = 9.5;
 SNAP_XC = (SNAP_X0 + SNAP_X1) / 2;
-// detent: a groove for the box's bump, 0.1 deeper and 0.2 wider than it
+// detent: a groove for the box's bump, which reaches DETENT_ENGAGE past this face; the groove clears it by CLEARANCE
 DETENT_Z = 9;
-DETENT_H = 0.35;
+DETENT_ENGAGE = 0.19;
 // clip: a tongue cut free of the wall by two slits and thinned to the plain wall, with a nib on its free end at the rim
 CLIP_X0 = 0.3;        // tongue width; the nib is narrower and centred
 CLIP_X1 = 8.2;
@@ -205,8 +208,8 @@ module snap_add() {
 }
 module snap_cut() {
   if (SNAP == "detent")
-    side_bar(SNAP_X0, SNAP_X1, [[CAVITY_Y - 0.3, DETENT_Z - 1.5], [CAVITY_Y, DETENT_Z - 1.5], [CAVITY_Y + DETENT_H + 0.1, DETENT_Z - 0.6],
-      [CAVITY_Y + DETENT_H + 0.1, DETENT_Z + 0.6], [CAVITY_Y, DETENT_Z + 1.5], [CAVITY_Y - 0.3, DETENT_Z + 1.5]]);
+    side_bar(SNAP_X0, SNAP_X1, [[CAVITY_Y - 0.3, DETENT_Z - 1.5], [CAVITY_Y, DETENT_Z - 1.5], [CAVITY_Y + DETENT_ENGAGE + CLEARANCE, DETENT_Z - 0.4 - CLEARANCE],
+      [CAVITY_Y + DETENT_ENGAGE + CLEARANCE, DETENT_Z + 0.4 + CLEARANCE], [CAVITY_Y, DETENT_Z + 1.5], [CAVITY_Y - 0.3, DETENT_Z + 1.5]]);
   if (SNAP == "clip") {
     for (x = [CLIP_X0 - CLIP_SLIT, CLIP_X1]) side_bar(x, x + CLIP_SLIT, [[CAVITY_Y - 0.3, -1], [RELIEF_TOP_Y + 1, -1], [RELIEF_TOP_Y + 1, CLIP_LEN], [CAVITY_Y - 0.3, CLIP_LEN]]);
     side_bar(CLIP_X0, CLIP_X1, [[OUTER_Y - 0.05, -1], [RELIEF_TOP_Y + 1, -1], [RELIEF_TOP_Y + 1, CLIP_LEN], [OUTER_Y - 0.05, CLIP_LEN]]);

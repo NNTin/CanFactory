@@ -7,11 +7,12 @@
 //
 // Geometry: a prismatic body on a rounded D-shaped outline (RELIEF_BASE) with three cavities (two cigarette bays split by a
 // thin divider, and a round bay open through the floor), a base flange (FLANGE), a small clip tab inside the round bay (TAB), and a honeycomb relief of raised ridges
-// measured from that outline between FLANGE_TOP and BASE_TOP; above BASE_TOP the wall steps in to a plain thin shell (UPPER)
+// measured from that outline between FLANGE_TOP and BASE_TOP; above BASE_TOP the wall steps in to a plain thin shell (the lid's cavity outline pulled in by CLEARANCE)
 // that the lid slides over. The relief is stored as plateau regions in the unrolled (s, z) plane and bent back around the
 // outline by relief_wrap() (generated with tools/stl-to-scad `relief`). Units are millimetres; the part is centred on the
 // Z axis with its underside on z = 0. The source STL sat at (217.2, 84.5) on the print plate with its underside at -1.48.
-// Named dimensions only; the parameters are SNAP, how the lid snaps on, and the TEXT_* underside text (with both at their defaults this is the reconstruction as verified).
+// Named dimensions only; the parameters are CLEARANCE, the gap between mating surfaces, SNAP, how the lid snaps on, and the TEXT_*
+// underside text. The upper shell is not the source STL's: it is derived from the lid's cavity so that every joint has the same gap.
 
 SCALE = 1;
 
@@ -62,9 +63,13 @@ TAB = [
   [34.91, [[-15.35, -6.32], [-18.32, -6.32], [-17.97, -6.58], [-17.58, -6.79], [-17.21, -6.9], [-16.84, -6.94], [-16.47, -6.9], [-16.09, -6.79], [-15.7, -6.58]]]
 ];
 
-// Outline of the base flange (underside to FLANGE_TOP) and of the plain upper wall (above the relief).
+// Outline of the base flange (underside to FLANGE_TOP), and the inner surface of the lid's sleeve (a copy of CAVITY in the lid file):
+// the plain upper wall (above the relief) is that outline pulled in by CLEARANCE, so the lid slides over it with the same gap all round.
 FLANGE_TOP = 2.98;
-BASE_TOP = 60.38;      // top of the relief zone; above it the wall is the plain UPPER shell
+BASE_TOP = 60.38;      // top of the relief zone; above it the wall is the plain upper shell
+// Gap per side between mating surfaces (a -D override, mm). Here: the lid over the upper shell. Every cigarette-case part uses
+// the same value (the mini holder, for example, is the round bay pulled in by it); 0.2 is a snug fit.
+CLEARANCE = 0.2;
 FLANGE = [[27.612, 7.395], [27.287, 8.213], [26.943, 8.811], [26.7, 9.158], [26.299, 9.642], [25.962, 9.988],
   [25.468, 10.422], [24.954, 10.802], [23.496, 11.72], [15.498, 16.397], [15.009, 16.643], [14.419, 16.866],
   [13.323, 17.11], [12.332, 17.195], [-1.994, 17.188], [-4.164, 17.169], [-6.006, 17.116], [-8.017, 16.981],
@@ -79,18 +84,18 @@ FLANGE = [[27.612, 7.395], [27.287, 8.213], [26.943, 8.811], [26.7, 9.158], [26.
   [14.932, -16.678], [15.694, -16.297], [17.171, -15.404], [23.352, -11.809], [24.792, -10.911], [25.57, -10.343],
   [26.197, -9.759], [26.768, -9.07], [27.239, -8.305], [27.58, -7.5], [27.803, -6.633], [27.919, -5.622],
   [27.944, -4.857], [27.943, 4.915], [27.917, 5.7], [27.817, 6.525]];
-UPPER = [[-22.35, 8.211], [-22.709, 7.221], [-23.101, 5.65], [-23.322, 4.234], [-23.489, 2.445], [-23.536, 0.732],
-  [-23.532, -1.234], [-23.495, -2.353], [-23.354, -4.001], [-23.115, -5.603], [-22.88, -6.648], [-22.572, -7.657],
-  [-22.154, -8.673], [-21.62, -9.622], [-21.325, -10.036], [-20.976, -10.45], [-20.598, -10.825], [-20.181, -11.166],
-  [-19.734, -11.462], [-19.256, -11.712], [-18.756, -11.91], [-18.223, -12.062], [-17.757, -12.15],
-  [-8.291, -13.335], [-6.002, -13.536], [-4.384, -13.6], [-1.854, -13.63], [10.738, -13.631], [11.852, -13.603],
-  [12.324, -13.524], [12.797, -13.373], [13.253, -13.151], [21.179, -8.497], [22.091, -7.871], [22.657, -7.341],
-  [22.822, -7.137], [23.102, -6.693], [23.316, -6.201], [23.45, -5.681], [23.514, -5.143], [23.532, -4.605],
-  [23.532, 4.513], [23.518, 5.063], [23.464, 5.598], [23.341, 6.121], [23.139, 6.618], [22.862, 7.079],
-  [22.538, 7.468], [22.145, 7.826], [21.234, 8.46], [13.31, 13.116], [12.66, 13.422], [12.127, 13.563],
-  [11.849, 13.601], [10.792, 13.628], [-2.105, 13.626], [-5.377, 13.563], [-6.989, 13.46], [-8.603, 13.295],
-  [-17.855, 12.109], [-18.618, 11.932], [-19.182, 11.72], [-19.643, 11.489], [-20.081, 11.213], [-20.518, 10.871],
-  [-20.921, 10.484], [-21.267, 10.085], [-21.584, 9.652], [-21.876, 9.18]];
+LID_CAVITY = [[-22.611, -8.332], [-22.983, -7.31], [-23.136, -6.779], [-23.38, -5.719], [-23.558, -4.652], [-23.773, -2.466],
+  [-23.813, -1.376], [-23.802, 1.849], [-23.74, 2.952], [-23.633, 4.065], [-23.491, 5.119], [-23.15, 6.747],
+  [-22.837, 7.768], [-22.431, 8.753], [-21.893, 9.717], [-21.582, 10.155], [-21.229, 10.573], [-20.846, 10.953],
+  [-20.424, 11.298], [-19.972, 11.598], [-19.489, 11.85], [-18.984, 12.051], [-18.409, 12.213], [-17.917, 12.302],
+  [-8.253, 13.509], [-6.057, 13.698], [-3.948, 13.772], [-1.698, 13.792], [10.274, 13.793], [12.005, 13.764],
+  [12.441, 13.692], [12.936, 13.538], [13.412, 13.308], [20.046, 9.433], [21.918, 8.283], [22.363, 7.959],
+  [22.921, 7.439], [23.245, 7.006], [23.499, 6.526], [23.597, 6.273], [23.733, 5.747], [23.797, 5.204],
+  [23.816, 4.662], [23.802, -5.124], [23.747, -5.667], [23.623, -6.198], [23.531, -6.453], [23.288, -6.939],
+  [23.138, -7.167], [22.808, -7.563], [22.406, -7.927], [21.496, -8.561], [13.453, -13.287], [13.035, -13.5],
+  [12.545, -13.669], [12.033, -13.764], [10.929, -13.795], [-2.193, -13.793], [-5.423, -13.73], [-6.538, -13.667],
+  [-8.682, -13.461], [-18.067, -12.258], [-18.837, -12.081], [-19.413, -11.864], [-19.898, -11.621],
+  [-20.357, -11.327], [-20.776, -10.995], [-21.166, -10.621], [-21.519, -10.214], [-21.844, -9.771], [-22.13, -9.311]];
 
 // Base outline the relief is measured from (counter-clockwise), and the pattern as plateau regions in the unrolled (s, z) plane:
 // s = arc length along the outline from its first point, z = height. Each level is [height, +1 add / -1 cut, grow, loops]; height is
@@ -98,28 +103,34 @@ UPPER = [[-22.35, 8.211], [-22.709, 7.221], [-23.101, 5.65], [-23.322, 4.234], [
 // Snap mechanism, chosen by SNAP (a -D override): "friction" (the original geometry, nothing added), "detent", "clip",
 // "magnet" or "crush-ribs". The features sit on the two straight side walls (y = +/-UPPER_Y, x in SNAP_X0..SNAP_X1) of the
 // plain upper shell, the part the lid slides over; the lid file carries the matching half. Heights are measured from the
-// lid's rim when closed (z = BASE_TOP), so both files use the same numbers. Millimetres.
+// lid's rim when closed (z = BASE_TOP), so both files use the same numbers. Millimetres. Each feature keeps its designed
+// engagement at any CLEARANCE: heights that reach into the lid are CLEARANCE plus a fixed amount.
 SNAP = "friction";
-UPPER_Y = 13.63;      // outer face of the upper shell on its straight sides (lid cavity: 13.79, so 0.16 clearance)
+CAVITY_Y = 13.79;     // inner face of the lid's sleeve on its straight sides
+UPPER_Y = CAVITY_Y - CLEARANCE;   // outer face of the upper shell there
 WALL_IN_Y = 12.63;    // inner face of that wall (the bays), so the wall is 1 mm thick
 SNAP_X0 = -1;         // straight stretch shared by the shell and the lid cavity
 SNAP_X1 = 9.5;
 SNAP_XC = (SNAP_X0 + SNAP_X1) / 2;
 // detent: a bump on the shell, and a groove in the lid, at this height above the lid rim
 DETENT_Z = 9;
-DETENT_H = 0.35;      // the bump stands this far proud; the lid groove is 0.1 deeper and 0.2 wider
-// crush-ribs: vertical ribs that stand this far proud of the shell and are squeezed by the lid
-CRUSH_H = 0.32;
+DETENT_ENGAGE = 0.19; // the bump reaches this far past the lid's inner face (the lid flexes over it)
+DETENT_H = CLEARANCE + DETENT_ENGAGE;   // so it stands this far proud of the shell
+// crush-ribs: vertical ribs, squeezed by CRUSH_SQUEEZE by the lid
+CRUSH_SQUEEZE = 0.16;
+CRUSH_H = CLEARANCE + CRUSH_SQUEEZE;
 CRUSH_X = [0.5, 4.25, 8];
 CRUSH_W = 0.5;
 CRUSH_Z0 = 3;
 CRUSH_Z1 = 15;        // the top end is ramped so the lid finds it
-// clip: a pocket in the shell for the nib on the lid's flexible tongue
-CLIP_X0 = 1.2;
-CLIP_X1 = 7.3;
-CLIP_Z0 = 0.8;
-CLIP_Z1 = 4.1;
-CLIP_DEPTH = 0.5;
+// clip: a pocket in the shell for the nib on the lid's flexible tongue (the nib, as in the lid file: x 1.5 to 7, z 1 to 3.9,
+// standing CLIP_NIB into the lid cavity); the pocket clears the nib by CLEARANCE on every side
+CLIP_NIB = 0.6;
+CLIP_X0 = 1.5 - CLEARANCE;
+CLIP_X1 = 7 + CLEARANCE;
+CLIP_Z0 = 1 - CLEARANCE;
+CLIP_Z1 = 3.9 + CLEARANCE;
+CLIP_DEPTH = CLIP_NIB;  // measured from the shell face, CLEARANCE inside the lid face: the floor is CLEARANCE below the nib tip
 // magnet: a round magnet (MAGNET_D x MAGNET_T) in a pocket in the shell wall, backed by a boss inside the bay
 MAGNET_D = 6.2;       // pocket diameter: a 6 mm magnet with a little play
 MAGNET_T = 2.1;       // pocket depth: a 2 mm magnet with a little play
@@ -862,7 +873,7 @@ module box() {
           linear_extrude(height = FLANGE_TOP + 0.02) polygon(FLANGE);
           translate([0, 0, FLANGE_TOP - 0.01]) linear_extrude(height = BASE_TOP - FLANGE_TOP + 0.01) polygon(RELIEF_BASE);
           relief_wrap(1);
-          translate([0, 0, BASE_TOP - 0.01]) linear_extrude(height = TOP_Z - BASE_TOP + 0.01) polygon(UPPER);
+          translate([0, 0, BASE_TOP - 0.01]) linear_extrude(height = TOP_Z - BASE_TOP + 0.01) offset(delta = -CLEARANCE) polygon(LID_CAVITY);
         }
         relief_wrap(-1);
         translate([0, 0, FLOOR_TOP]) linear_extrude(height = TOP_Z) { polygon(BAY_A); polygon(BAY_B); }

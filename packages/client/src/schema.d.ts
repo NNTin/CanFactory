@@ -227,6 +227,22 @@ export interface operations {
                                 label: string;
                                 description: string;
                             }[] | null;
+                            /** @description Named sub-ranges of a number control, in order, from minimum (included) to maximum (excluded, except for the last): the editor names the one the value is in. Null for none. */
+                            bands: {
+                                minimum: number;
+                                maximum: number;
+                                label: string;
+                            }[] | null;
+                            /** @description For a number control, the sub-range recommended for each value of another (enum) control: the editor highlights it on the slider. Advice only; values outside it stay valid. Null for none. */
+                            recommended: {
+                                /** @description The key of an enum control of the same model. */
+                                control: string;
+                                ranges: {
+                                    value: string;
+                                    minimum: number;
+                                    maximum: number;
+                                }[];
+                            } | null;
                         }[];
                         defaults: {
                             [key: string]: number | boolean | string;
@@ -467,7 +483,7 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "3";
+                    modelVersion: "4";
                     /** @description Cigarette case parameters. All fields are required. */
                     parameters: {
                         /**
@@ -503,6 +519,12 @@ export interface operations {
                          * @enum {unknown}
                          */
                         textMode: "engrave" | "second-filament";
+                        /**
+                         * Clearance
+                         * @description Gap per side between parts that fit together (lid on box, mini box in the lid, holder in the box), in mm. Larger is looser; raise it if your printer prints parts that are too tight.
+                         * @default 0.2
+                         */
+                        clearance: number;
                     };
                 };
             };

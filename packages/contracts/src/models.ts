@@ -40,6 +40,13 @@ export const ControlSchema = Type.Object({
   enabledWhen: Type.Union([Type.String(), Type.Null()]),
   options: Type.Union([Type.Array(Type.Object({ value: Type.String(), label: Type.String(), description: Type.String() }, { additionalProperties: false })), Type.Null()],
     { description: 'The allowed values of an enum control, in display order; null for other kinds.' }),
+  bands: Type.Union([Type.Array(Type.Object({ minimum: Type.Number(), maximum: Type.Number(), label: Type.String() }, { additionalProperties: false })), Type.Null()],
+    { description: 'Named sub-ranges of a number control, in order, from minimum (included) to maximum (excluded, except for the last): the editor names the one the value is in. Null for none.' }),
+  recommended: Type.Union([Type.Object({
+    control: Type.String({ description: 'The key of an enum control of the same model.' }),
+    ranges: Type.Array(Type.Object({ value: Type.String(), minimum: Type.Number(), maximum: Type.Number() }, { additionalProperties: false })),
+  }, { additionalProperties: false }), Type.Null()],
+  { description: 'For a number control, the sub-range recommended for each value of another (enum) control: the editor highlights it on the slider. Advice only; values outside it stay valid. Null for none.' }),
 }, { additionalProperties: false });
 export type Control = Static<typeof ControlSchema>;
 export type ParameterValues = Record<string, number | boolean | string>;
@@ -49,7 +56,7 @@ function control<T extends { properties: Record<string, TSchema> }>(
 ): Control {
   const property: TSchema & { type?: unknown } = schema.properties[key] ?? (() => { throw new Error(`Unknown parameter ${key}.`); })();
   return {
-    key, group, enabledWhen, options: null,
+    key, group, enabledWhen, options: null, bands: null, recommended: null,
     label: 'title' in property && typeof property.title === 'string' ? property.title : key,
     description: 'description' in property && typeof property.description === 'string' ? property.description : '',
     kind: property.type === 'boolean' ? 'boolean' : 'number',
@@ -69,7 +76,7 @@ function enumControl<T extends { properties: Record<string, TSchema> }>(
   const first = options[0];
   if (!first) throw new Error(`Enum ${key} needs at least one option.`);
   return {
-    key, group, enabledWhen: null, options, kind: 'enum', unit: null, minimum: null, maximum: null, step: null,
+    key, group, enabledWhen: null, options, bands: null, recommended: null, kind: 'enum', unit: null, minimum: null, maximum: null, step: null,
     label: property.title ?? key, description: property.description ?? '',
     default: typeof property.default === 'string' ? property.default : first.value,
   };
@@ -79,7 +86,7 @@ function enumControl<T extends { properties: Record<string, TSchema> }>(
 function textControl<T extends { properties: Record<string, TSchema> }>(schema: T, key: keyof T['properties'] & string, group: Control['group']): Control {
   const property: TSchema & { title?: string; description?: string; default?: unknown; maxLength?: number } = schema.properties[key] ?? (() => { throw new Error(`Unknown parameter ${key}.`); })();
   return {
-    key, group, enabledWhen: null, options: null, kind: 'text', unit: null, minimum: 0, maximum: property.maxLength ?? null, step: null,
+    key, group, enabledWhen: null, options: null, bands: null, recommended: null, kind: 'text', unit: null, minimum: 0, maximum: property.maxLength ?? null, step: null,
     label: property.title ?? key, description: property.description ?? '', default: typeof property.default === 'string' ? property.default : '',
   };
 }
@@ -318,11 +325,12 @@ export const mossPlanter = {
 } satisfies ModelDefinition;
 
 /**
- * Cigarette case (Onz by sez16sez): five independent parts, reconstructed from STL as static SCAD, with one parameter: how the
- * parts snap together. The large box and lid have a honeycomb wall; the small set (holder, shallow box and lid) does not. The
- * `snap` mode drives every joint through the parts' `SNAP` variable: the lid over the box's upper shell (all modes add a
- * matching pair of features to the box and the lid) and the mini lid in the mini box (only `crush-ribs` adds ribs to the mini
- * lid; the original detent pads and notches stay in every mode). `friction` is the original geometry, unchanged.
+ * Cigarette case (Onz by sez16sez): five independent parts, reconstructed from STL as static SCAD. The large box and lid have a
+ * honeycomb wall; the small set (holder, shallow box and lid) does not. The `snap` mode drives every joint through the parts'
+ * `SNAP` variable: the lid over the box's upper shell (all modes add a matching pair of features to the box and the lid) and the
+ * mini lid in the mini box (only `crush-ribs` adds ribs to the mini lid; the original detent pads and notches stay in every
+ * mode). `friction` adds nothing. The `clearance` reaches every part as `CLEARANCE`: the gap per side on all four mating
+ * surfaces, which the snap features are sized from.
  */
 const SNAP_VALUES = ['friction', 'detent', 'clip', 'magnet', 'crush-ribs'] as const;
 export type SnapMode = typeof SNAP_VALUES[number];
@@ -332,6 +340,27 @@ const SNAP_TEXT: Record<SnapMode, { label: string; description: string }> = {
   clip: { label: 'Clip', description: 'A flexible tongue on the lid whose nib snaps into a pocket in the box.' },
   magnet: { label: 'Magnets', description: 'Pockets for 6 x 2 mm round magnets in the box and lid (magnets not included).' },
   'crush-ribs': { label: 'Crush ribs', description: 'Thin ribs that are squeezed slightly by the mating wall for a snug press fit.' },
+};
+
+/**
+ * Clearance: the gap per side between every pair of mating surfaces (the SCAD files' `CLEARANCE`; see docs/cigarette-case-snap.md).
+ * The bands name the kind of fit, and each snap mode has the range in which it works as designed (issue #7): a plain friction fit, and
+ * magnets (whose pockets are oversized on their own), work across the whole range; a clip needs 0.2 to 0.4 mm around the moving nib;
+ * the detent and crush ribs are sized from the clearance but need the walls to clear each other, so that only the bump or ribs touch.
+ */
+export const CLEARANCE_RANGE = { minimum: 0.1, maximum: 0.6, default: 0.2, step: 0.01 } as const;
+const FIT_BANDS = [
+  { minimum: 0.1, maximum: 0.15, label: 'Very tight (press fit)' },
+  { minimum: 0.15, maximum: 0.25, label: 'Snug fit' },
+  { minimum: 0.25, maximum: 0.4, label: 'Sliding fit' },
+  { minimum: 0.4, maximum: 0.6, label: 'Easy sliding (removable)' },
+];
+export const SNAP_CLEARANCE: Record<SnapMode, { minimum: number; maximum: number }> = {
+  friction: { minimum: 0.1, maximum: 0.6 },
+  detent: { minimum: 0.2, maximum: 0.4 },
+  clip: { minimum: 0.2, maximum: 0.4 },
+  magnet: { minimum: 0.1, maximum: 0.6 },
+  'crush-ribs': { minimum: 0.2, maximum: 0.4 },
 };
 
 const TEXT_FONT_VALUES = ['sans', 'serif', 'mono', 'wide'] as const;
@@ -363,6 +392,8 @@ export const CigaretteCaseParametersSchema = Type.Object({
   textFont: Type.Enum(TEXT_FONT_VALUES, { title: 'Text font', description: 'The font of the underside text. All are bold, so that the strokes print cleanly.', default: 'sans' }),
   textSize: dimension('Text size', 'Letter height of the underside text in mm (the height of a capital letter). Longer text needs a smaller size.', 6, TEXT_AREA.minSize, TEXT_AREA.maxSize, 0.5),
   textMode: Type.Enum(TEXT_MODE_VALUES, { title: 'Text style', description: 'Engraved into the box, or carved and filled by a separate part for a second filament.', default: 'engrave' }),
+  clearance: dimension('Clearance', 'Gap per side between parts that fit together (lid on box, mini box in the lid, holder in the box), in mm. Larger is looser; raise it if your printer prints parts that are too tight.',
+    CLEARANCE_RANGE.default, CLEARANCE_RANGE.minimum, CLEARANCE_RANGE.maximum, CLEARANCE_RANGE.step),
 }, { additionalProperties: false, description: 'Cigarette case parameters. All fields are required.' });
 export type CigaretteCaseParameters = Static<typeof CigaretteCaseParametersSchema>;
 
@@ -391,20 +422,24 @@ const cigaretteCaseControls = [
   enumControl(CigaretteCaseParametersSchema, 'textFont', 'basic', TEXT_FONT_VALUES.map(value => ({ value, ...TEXT_FONT_TEXT[value] }))),
   control(CigaretteCaseParametersSchema, 'textSize', 'basic'),
   enumControl(CigaretteCaseParametersSchema, 'textMode', 'basic', TEXT_MODE_VALUES.map(value => ({ value, ...TEXT_MODE_TEXT[value] }))),
+  { ...control(CigaretteCaseParametersSchema, 'clearance', 'advanced'), bands: FIT_BANDS,
+    recommended: { control: 'snap', ranges: SNAP_VALUES.map(value => ({ value, ...SNAP_CLEARANCE[value] })) } },
 ];
 
 const CIGARETTE_CASE_DIR = 'models/cigarette-case/reference/';
-const SNAP_MAPPING = { snap: 'SNAP' };
+const CLEARANCE_MAPPING = { clearance: 'CLEARANCE' };
+const SNAP_MAPPING = { snap: 'SNAP', ...CLEARANCE_MAPPING };
 const TEXT_MAPPING = { engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE' };
 
-/** The parts. `id` is the STL basename inside the ZIP. The SCAD files are the verified reconstructions, except `case-text`, which is
- * new: the underside text as a separate body, present only in `second-filament` mode. The holder and the shallow box have no
- * parameters (the holder's clip tab and the box's notches are part of the original). */
+/** The parts. `id` is the STL basename inside the ZIP. The SCAD files are the verified reconstructions, with their mating surfaces
+ * fitted to one clearance (the `clearance` parameter; see models/cigarette-case/reference/VERIFICATION.md), except
+ * `case-text`, which is new: the underside text as a separate body, present only in `second-filament` mode. The holder and the
+ * shallow box have no snap parameter (the holder's clip tab and the box's notches are part of the original). */
 const cigaretteCaseParts: ModelPart[] = [
   { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: { ...SNAP_MAPPING, ...TEXT_MAPPING } },
   { id: 'case-lid', title: 'Case lid (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_top.scad`, scadMapping: SNAP_MAPPING },
-  { id: 'mini-holder', title: 'Mini holder', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_minibox.scad`, scadMapping: {} },
-  { id: 'mini-box', title: 'Mini box', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_box.scad`, scadMapping: {} },
+  { id: 'mini-holder', title: 'Mini holder', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_minibox.scad`, scadMapping: CLEARANCE_MAPPING },
+  { id: 'mini-box', title: 'Mini box', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_box.scad`, scadMapping: CLEARANCE_MAPPING },
   { id: 'mini-lid', title: 'Mini box lid', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_top.scad`, scadMapping: SNAP_MAPPING },
   { id: 'case-text', title: 'Case text (second filament)', sourcePath: 'models/cigarette-case/underside-text.scad', scadMapping: TEXT_MAPPING, separateBodies: true,
     includedWhen: parameters => typeof parameters['engraveText'] === 'string' && hasSecondFilamentText({ engraveText: parameters['engraveText'], textMode: String(parameters['textMode']) }) },
@@ -414,8 +449,9 @@ const cigaretteCaseParts: ModelPart[] = [
  * The closed case, in the case box's frame. Found by collision checks on the rendered parts (docs/cigarette-case-assembly.md,
  * `npm run check:assembly`): the lid's rim sits on the box's step at 60.38 mm. The holder stands flush with the box's
  * underside in the round bay, which is open through the floor; the clip tab stops it from coming in from the top. The mini
- * lid is turned over onto the mini box, with its cap on the rim and its pads in the notches. The closed mini box sits under
- * the lid's ceiling (98.23 mm), with its chamfered end against the lid's chamfer.
+ * lid is turned over into the mini box and sits flush: cap level with the rim, pads centred in the notches. The closed mini
+ * box sits under the lid's ceiling (98.23 mm), its chamfered end one clearance from the lid's chamfer. Every fitted part is
+ * derived from the surface it fits into (issue #7), so these poses hold for any clearance.
  */
 const cigaretteCaseAssembly: Assembly = {
   poses: {
@@ -423,8 +459,8 @@ const cigaretteCaseAssembly: Assembly = {
     'case-text': { position: [0, 0, 0] },
     'case-lid': { position: [0, 0, 60.38] },
     'mini-holder': { position: [-16.84, 0, 0] },
-    'mini-box': { position: [6.45, 0, 82.84] },
-    'mini-lid': { position: [6.25, 0, 98.23], rotation: [0, 180, 0] },
+    'mini-box': { position: [6.43, 0, 83.839] },
+    'mini-lid': { position: [6.43, 0, 98.23], rotation: [0, 180, 0] },
   },
   steps: [
     { title: 'Close the mini box', parts: ['mini-lid'], from: [0, 0, 20] },
@@ -436,8 +472,8 @@ const cigaretteCaseAssembly: Assembly = {
 };
 
 export const cigaretteCase = {
-  id: 'cigarette-case' as const, version: '3' as const, title: 'Cigarette case (Onz)',
-  description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Choose how the parts snap together, add text to the underside of the box (engraved, or as a second-filament part), then download every part as a ZIP of STL files.',
+  id: 'cigarette-case' as const, version: '4' as const, title: 'Cigarette case (Onz)',
+  description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Choose how the parts snap together and how closely they fit, add text to the underside of the box (engraved, or as a second-filament part), then download every part as a ZIP of STL files.',
   attribution: 'sez16sez (Thingiverse)',
   printNotes: 'Print each part separately; the lids print rim-side down. The optional text part prints flat, in a second colour.',
   // Kept short deliberately: this string and `attribution` are stamped into each STL's 80-byte header (see stampAttribution).

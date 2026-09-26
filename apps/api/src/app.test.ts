@@ -53,7 +53,8 @@ describe('model and render API', () => {
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.artifactFormat).toBe('zip');
     expect(model.customizable).toBe(true);
-    expect(model.controls.map(control => control.kind)).toEqual(['enum', 'text', 'enum', 'number', 'enum']);
+    expect(model.controls.map(control => control.kind)).toEqual(['enum', 'text', 'enum', 'number', 'enum', 'number']);
+    expect(model.controls.at(-1)).toMatchObject({ key: 'clearance', group: 'advanced', default: 0.2, minimum: 0.1, maximum: 0.6, recommended: { control: 'snap' } });
     expect(model.defaults).toEqual(cigaretteCase.defaults);
     expect(model.parts).toHaveLength(6);
     expect(model.assembly).toEqual(cigaretteCase.assembly);
