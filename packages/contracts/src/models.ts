@@ -563,8 +563,10 @@ const cigaretteCaseParts: ModelPart[] = [
  * The closed case, in the case box's frame. Found by collision checks on the rendered parts (docs/cigarette-case-assembly.md,
  * `npm run check:assembly`): the lid's rim sits on the box's step at 60.38 mm. The holder stands flush with the box's
  * underside in the round bay, which is open through the floor; the clip tab stops it from coming in from the top. The mini
- * lid is turned over into the mini box and sits flush: cap level with the rim, pads centred in the notches. The closed mini
- * box sits under the lid's ceiling (98.23 mm), its chamfered end one clearance from the lid's chamfer. Every fitted part is
+ * lid sits flush in the mini box: cap level with the rim, pads centred in the notches. The closed mini box goes into the lid
+ * upside down, turned over about X: its floor, whose +X end is the curved sweep, lies against the lid's flat ceiling (98.23 mm)
+ * and its open side, closed by the mini lid's flat cap, faces the case box. Turning about X keeps its chamfered end one
+ * clearance from the lid's chamfer. The mini lid, printed cap down, is used cap down, turned about Z only. Every fitted part is
  * derived from the surface it fits into (issue #7), so these poses hold for any clearance.
  */
 const cigaretteCaseAssembly: Assembly = {
@@ -573,12 +575,12 @@ const cigaretteCaseAssembly: Assembly = {
     'case-text': { position: [0, 0, 0] },
     'case-lid': { position: [0, 0, 60.38] },
     'mini-holder': { position: [-16.84, 0, 0] },
-    'mini-box': { position: [6.43, 0, 83.839] },
-    'mini-lid': { position: [6.43, 0, 98.23], rotation: [0, 180, 0] },
+    'mini-box': { position: [6.43, 0, 98.23], rotation: [180, 0, 0] },
+    'mini-lid': { position: [6.43, 0, 83.839], rotation: [0, 0, 180] },
   },
   steps: [
-    { title: 'Close the mini box', parts: ['mini-lid'], from: [0, 0, 20] },
-    { title: 'Slide the mini box into the lid', parts: ['mini-box', 'mini-lid'], from: [0, 0, -66] },
+    { title: 'Close the mini box', parts: ['mini-lid'], from: [0, 0, -20] },
+    { title: 'Slide the mini box into the lid', parts: ['mini-box', 'mini-lid'], from: [0, 0, -44] },
     { title: 'Push the holder into the box', parts: ['mini-holder'], from: [0, 0, -42] },
     { title: 'Close the case', parts: ['case-lid', 'mini-box', 'mini-lid'], from: [0, 0, 70] },
   ],
