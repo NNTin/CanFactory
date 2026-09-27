@@ -1431,3 +1431,71 @@ main {
     scroll-behavior: auto !important;
   }
 }
+.logo-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo-preview {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  padding: 6px;
+  background: #fffefa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  fill: #282e2b;
+}
+.logo-empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.logo-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.select-field .logo-choose {
+  position: relative;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 620;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffefa;
+  cursor: pointer;
+}
+.logo-choose:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.logo-choose:focus-within {
+  outline: 3px solid #aa553d;
+  outline-offset: 4px;
+}
+.logo-choose input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.logo-actions .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.logo-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted);
+}
+.select-field .logo-warning {
+  color: #8a5a17;
+}

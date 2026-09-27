@@ -1,6 +1,7 @@
 import { Type, type Static, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { TEXT_ADVANCES } from './textMetrics.ts';
+import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
 
 /** A field-level, user-readable validation failure. Paths are parameter names. */
 export interface ParameterIssue { field: string; message: string }
@@ -30,7 +31,9 @@ export const ControlSchema = Type.Object({
   key: Type.String(),
   label: Type.String(),
   description: Type.String(),
-  kind: Type.Union([Type.Literal('number'), Type.Literal('boolean'), Type.Literal('enum'), Type.Literal('text')]),
+  kind: Type.Union([Type.Literal('number'), Type.Literal('boolean'), Type.Literal('enum'), Type.Literal('text'), Type.Literal('svg')], {
+    description: 'An `svg` control takes an SVG file, which the editor turns into a logo string (packages/contracts/src/svgLogo.ts); its value is that string, empty for none.',
+  }),
   group: Type.Union([Type.Literal('basic'), Type.Literal('advanced')]),
   unit: Type.Union([Type.Literal('mm'), Type.Null()]),
   default: Type.Union([Type.Number(), Type.Boolean(), Type.String()]),
@@ -94,6 +97,11 @@ function textControl<T extends { properties: Record<string, TSchema> }>(schema: 
     key, group, enabledWhen: null, visibleWhen: null, options: null, bands: null, recommended: null, kind: 'text', unit: null, minimum: 0, maximum: property.maxLength ?? null, step: null,
     label: property.title ?? key, description: property.description ?? '', default: typeof property.default === 'string' ? property.default : '',
   };
+}
+
+/** A control for a logo-string property: the editor reads an SVG file into it (`svgToLogo`). `maximum` carries the string's length limit. */
+function svgControl<T extends { properties: Record<string, TSchema> }>(schema: T, key: keyof T['properties'] & string, group: Control['group']): Control {
+  return { ...textControl(schema, key, group), kind: 'svg' };
 }
 
 /** Mirrors the original SCAD layout, counting unique cutters (the seam is not duplicated). */
@@ -208,8 +216,21 @@ export interface ModelDefinition {
   controls: Control[];
   defaults: ParameterValues;
   scadMapping: Record<string, string>;
+  /** How a mapped parameter is written after `-D NAME=`, for values that are not plain numbers, booleans or strings (see `scadLiteral`). */
+  scadEncode?: Record<string, (value: string) => string>;
   validate: (parameters: unknown) => ParameterIssue[];
   derived: (parameters: unknown) => { slotCount: number | null };
+}
+
+/** The OpenSCAD literal for a validated parameter value: the model's `scadEncode` for that key (given a string), or else JSON, which
+ * writes numbers, booleans and quoted, escaped strings the way OpenSCAD reads them. */
+export function scadLiteral(model: ModelDefinition, key: string, value: number | boolean | string): string {
+  const encode = model.scadEncode?.[key];
+  if (encode) {
+    if (typeof value !== 'string') throw new Error(`Parameter ${key} must be a string.`);
+    return encode(value);
+  }
+  return JSON.stringify(value);
 }
 
 /** True for a multi-part assembly model (rendered as N independent solids, packaged as one ZIP). */
@@ -475,12 +496,21 @@ const TEXT_FONT_TEXT: Record<TextFont, { label: string; description: string }> =
 const TEXT_MODE_VALUES = ['engrave', 'second-filament'] as const;
 export type TextMode = typeof TEXT_MODE_VALUES[number];
 const TEXT_MODE_TEXT: Record<TextMode, { label: string; description: string }> = {
-  engrave: { label: 'Engraved', description: 'The text is carved 0.8 mm into the underside of the box. Works on any printer.' },
-  'second-filament': { label: 'Second filament', description: 'The text is carved the same way, and a separate "case-text" part fills it exactly: print it in another colour on a multi-nozzle printer or with a filament change.' },
+  engrave: { label: 'Engraved', description: 'The text or logo is carved 0.8 mm into the underside of the box. Works on any printer.' },
+  'second-filament': { label: 'Second filament', description: 'The text or logo is carved the same way, and a separate "case-text" part fills it exactly: print it in another colour on a multi-nozzle printer or with a filament change.' },
+};
+/** What goes on the underside: a line of text, or a logo read from an SVG file (packages/contracts/src/svgLogo.ts). */
+const UNDERSIDE_MARK_VALUES = ['text', 'logo'] as const;
+export type UndersideMark = typeof UNDERSIDE_MARK_VALUES[number];
+const UNDERSIDE_MARK_TEXT: Record<UndersideMark, { label: string; description: string }> = {
+  text: { label: 'Text', description: 'One line of text in one of four fonts.' },
+  logo: { label: 'SVG logo', description: 'The filled shapes of an SVG file, scaled to fit the free area.' },
 };
 
 /** The free, flat area on the underside of the case box (see models/cigarette-case/reference/11_v11.3__-_honeycomb_-_box.scad). */
 export const TEXT_AREA = { width: 35, height: 16, margin: 0.5, maxCharacters: 20, minSize: 3, maxSize: 10 } as const;
+/** The logo is scaled to `logoSize` high, or less if it would then be wider than the free area less its margin (`LOGO_W` in the SCAD). */
+export const LOGO_AREA = { width: TEXT_AREA.width - TEXT_AREA.margin, minSize: 3, maxSize: 15, defaultSize: 12 } as const;
 
 export const CigaretteCaseParametersSchema = Type.Object({
   snap: Type.Enum(SNAP_VALUES, {
@@ -504,7 +534,13 @@ export const CigaretteCaseParametersSchema = Type.Object({
   }),
   textFont: Type.Enum(TEXT_FONT_VALUES, { title: 'Text font', description: 'The font of the underside text. All are bold, so that the strokes print cleanly.', default: 'sans' }),
   textSize: dimension('Text size', 'Letter height of the underside text in mm (the height of a capital letter). Longer text needs a smaller size.', 6, TEXT_AREA.minSize, TEXT_AREA.maxSize, 0.5),
-  textMode: Type.Enum(TEXT_MODE_VALUES, { title: 'Text style', description: 'Engraved into the box, or carved and filled by a separate part for a second filament.', default: 'engrave' }),
+  undersideMark: Type.Enum(UNDERSIDE_MARK_VALUES, { title: 'Underside mark', description: 'What goes on the underside of the large box: a line of text, or a logo from an SVG file.', default: 'text' }),
+  logo: Type.String({
+    title: 'Underside logo', description: 'An SVG file whose filled shapes are engraved on the underside of the large box, mirrored so that they read correctly. Strokes, text, pictures and style sheets in the file are left out. The file itself is never uploaded, only its outline.',
+    default: '', maxLength: LOGO_MAX_LENGTH, pattern: '^[MLZ0-9 ]*$',
+  }),
+  logoSize: dimension('Logo size', `Height of the underside logo in mm. A wide logo is made smaller, so that it stays within the ${LOGO_AREA.width} mm free width.`, LOGO_AREA.defaultSize, LOGO_AREA.minSize, LOGO_AREA.maxSize, 0.5),
+  textMode: Type.Enum(TEXT_MODE_VALUES, { title: 'Underside style', description: 'The text or logo is engraved into the box, or carved and filled by a separate part for a second filament.', default: 'engrave' }),
   clearance: dimension('Clearance', 'Gap per side between parts that fit together (lid on box, mini box in the lid, holder and lighter in the box), in mm. Larger is looser; raise it if your printer prints parts that are too tight.',
     CLEARANCE_RANGE.default, CLEARANCE_RANGE.minimum, CLEARANCE_RANGE.maximum, CLEARANCE_RANGE.step),
   snapDetentEngage: tuningControl('snapDetentEngage', 'Detent engagement', 'How far the bump on the case box reaches past the case lid\'s wall, in mm, on top of the clearance. More clicks harder.'),
@@ -528,12 +564,19 @@ export function textWidth(font: string, text: string, size: number): number {
   return width * size;
 }
 
+/** Whether the underside carries anything: visible text, or a logo, whichever `undersideMark` chooses. */
+export const hasUndersideMark = (p: { undersideMark: string; engraveText: string; logo: string }): boolean =>
+  p.undersideMark === 'logo' ? p.logo !== '' : p.engraveText.trim() !== '';
 /** Whether the text part exists: only when there is something visible to print in a second filament. */
-export const hasSecondFilamentText = (p: { engraveText: string; textMode: string }): boolean => p.textMode === 'second-filament' && p.engraveText.trim() !== '';
+export const hasSecondFilamentMark = (p: { undersideMark: string; engraveText: string; logo: string; textMode: string }): boolean =>
+  p.textMode === 'second-filament' && hasUndersideMark(p);
 
 function validateCigaretteCase(p: CigaretteCaseParameters): ParameterIssue[] {
+  // The logo reaches OpenSCAD whichever mark is chosen, so it is always checked in full.
+  try { decodeLogo(p.logo); }
+  catch (error) { return [{ field: 'logo', message: error instanceof SvgError ? error.message : 'The logo is malformed. Load the SVG file again.' }]; }
   const width = textWidth(p.textFont, p.engraveText, p.textSize);
-  if (width > TEXT_AREA.width - TEXT_AREA.margin)
+  if (p.undersideMark === 'text' && width > TEXT_AREA.width - TEXT_AREA.margin)
     return [{ field: 'engraveText', message: `This text is about ${Number.isFinite(width) ? width.toFixed(0) : 'too many'} mm wide at this font and size, but only ${TEXT_AREA.width - TEXT_AREA.margin} mm are free on the underside. Shorten it or lower the text size.` }];
   // A detent's groove (engagement + clearance deep) must leave enough of the 1 mm wall it is cut into: the case lid's wall, and the
   // mini box's for its own two joints. The holder's groove is in the 2.1 mm bay wall. Checked only while that detent is in use.
@@ -552,9 +595,13 @@ const cigaretteCaseControls = [
   enumControl(CigaretteCaseParametersSchema, 'holderSnap', 'basic', INSERT_SNAP_VALUES.map(value => ({ value, ...HOLDER_SNAP_TEXT[value] }))),
   enumControl(CigaretteCaseParametersSchema, 'lighterSnap', 'basic', LIGHTER_SNAP_VALUES.map(value => ({ value, ...LIGHTER_SNAP_TEXT[value] }))),
   enumControl(CigaretteCaseParametersSchema, 'miniBoxSnap', 'basic', INSERT_SNAP_VALUES.map(value => ({ value, ...MINI_BOX_SNAP_TEXT[value] }))),
-  textControl(CigaretteCaseParametersSchema, 'engraveText', 'basic'),
-  enumControl(CigaretteCaseParametersSchema, 'textFont', 'basic', TEXT_FONT_VALUES.map(value => ({ value, ...TEXT_FONT_TEXT[value] }))),
-  control(CigaretteCaseParametersSchema, 'textSize', 'basic'),
+  enumControl(CigaretteCaseParametersSchema, 'undersideMark', 'basic', UNDERSIDE_MARK_VALUES.map(value => ({ value, ...UNDERSIDE_MARK_TEXT[value] }))),
+  // the text's settings while the mark is text, the logo's while it is a logo
+  ...[textControl(CigaretteCaseParametersSchema, 'engraveText', 'basic'),
+    enumControl(CigaretteCaseParametersSchema, 'textFont', 'basic', TEXT_FONT_VALUES.map(value => ({ value, ...TEXT_FONT_TEXT[value] }))),
+    control(CigaretteCaseParametersSchema, 'textSize', 'basic')].map(c => ({ ...c, visibleWhen: { control: 'undersideMark', values: ['text'] } })),
+  ...[svgControl(CigaretteCaseParametersSchema, 'logo', 'basic'), control(CigaretteCaseParametersSchema, 'logoSize', 'basic')]
+    .map(c => ({ ...c, visibleWhen: { control: 'undersideMark', values: ['logo'] } })),
   enumControl(CigaretteCaseParametersSchema, 'textMode', 'basic', TEXT_MODE_VALUES.map(value => ({ value, ...TEXT_MODE_TEXT[value] }))),
   { ...control(CigaretteCaseParametersSchema, 'clearance', 'advanced'), bands: FIT_BANDS,
     recommended: [
@@ -580,7 +627,7 @@ const MINI_LID_SNAP_MAPPING = { miniLidSnap: 'MINI_LID_SNAP', miniLidDetentEngag
 const HOLDER_SNAP_MAPPING = { holderSnap: 'HOLDER_SNAP', holderDetentEngage: 'HOLDER_DETENT_ENGAGE' };
 const LIGHTER_SNAP_MAPPING = { lighterSnap: 'LIGHTER_SNAP', lighterCrushSqueeze: 'LIGHTER_CRUSH_SQUEEZE' };
 const MINI_BOX_SNAP_MAPPING = { miniBoxSnap: 'MINI_BOX_SNAP', miniBoxDetentEngage: 'MB_DETENT_ENGAGE' };
-const TEXT_MAPPING = { engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE' };
+const TEXT_MAPPING = { undersideMark: 'MARK', engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE', logo: 'LOGO', logoSize: 'LOGO_SIZE' };
 
 /** The parts. `id` is the STL basename inside the ZIP. The SCAD files are the verified reconstructions, with their mating surfaces
  * fitted to one clearance (the `clearance` parameter; see models/cigarette-case/reference/VERIFICATION.md), except
@@ -593,7 +640,7 @@ const cigaretteCaseParts: ModelPart[] = [
   { id: 'mini-box', title: 'Mini box', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...MINI_LID_SNAP_MAPPING, ...MINI_BOX_SNAP_MAPPING } },
   { id: 'mini-lid', title: 'Mini box lid', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_top.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...MINI_LID_SNAP_MAPPING, miniLidCrushSqueeze: 'CRUSH_SQUEEZE' } },
   { id: 'case-text', title: 'Case text (second filament)', sourcePath: 'models/cigarette-case/underside-text.scad', scadMapping: TEXT_MAPPING, separateBodies: true,
-    includedWhen: parameters => typeof parameters['engraveText'] === 'string' && hasSecondFilamentText({ engraveText: parameters['engraveText'], textMode: String(parameters['textMode']) }) },
+    includedWhen: parameters => hasSecondFilamentMark({ undersideMark: String(parameters['undersideMark']), engraveText: String(parameters['engraveText'] ?? ''), logo: String(parameters['logo'] ?? ''), textMode: String(parameters['textMode']) }) },
 ];
 
 /**
@@ -633,8 +680,8 @@ const cigaretteCaseAssembly: Assembly = {
 };
 
 export const cigaretteCase = {
-  id: 'cigarette-case' as const, version: '6' as const, title: 'Cigarette case (Onz)',
-  description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Choose how each joint holds (the lid on the box, the mini lid, the holder and the lighter in the box, and the mini box in the lid) and how closely the parts fit, add text to the underside of the box (engraved, or as a second-filament part), then download every part as a ZIP of STL files.',
+  id: 'cigarette-case' as const, version: '7' as const, title: 'Cigarette case (Onz)',
+  description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Choose how each joint holds (the lid on the box, the mini lid, the holder and the lighter in the box, and the mini box in the lid) and how closely the parts fit, add text or an SVG logo to the underside of the box (engraved, or as a second-filament part), then download every part as a ZIP of STL files.',
   attribution: 'sez16sez (Thingiverse)',
   printNotes: 'Print each part separately; the lids print rim-side down. The optional text part prints flat, in a second colour.',
   // Kept short deliberately: this string and `attribution` are stamped into each STL's 80-byte header (see stampAttribution).
@@ -646,6 +693,8 @@ export const cigaretteCase = {
   controls: cigaretteCaseControls,
   defaults: Object.fromEntries(cigaretteCaseControls.map(c => [c.key, c.default])),
   scadMapping: {},
+  // The logo string becomes a vector of numbers; OpenSCAD never sees it as text.
+  scadEncode: { logo: logoScad },
   validate(parameters: unknown): ParameterIssue[] {
     if (!Value.Check(CigaretteCaseParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
     return validateCigaretteCase(parameters);

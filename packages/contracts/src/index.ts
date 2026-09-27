@@ -2,6 +2,7 @@ import { Type, type Static } from 'typebox';
 import { AssemblySchema, cigaretteCase, ControlSchema, fruitFlyTrap, mossPlanter, plankConnector } from './models.ts';
 export * from './models.ts';
 export * from './assembly.ts';
+export * from './svgLogo.ts';
 
 /** Stable error envelope; clients may branch on code and highlight field issues. */
 export const ErrorSchema = Type.Object({

@@ -90,7 +90,7 @@ describe('renderJob for an assembly model', () => {
     if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
     expect(await renderJob(store, claimed, new AbortController().signal, fakeRunner(invocations))).toBe(true);
     const defines = invocations.map(args => args.flatMap((arg, index) => args[index - 1] === '-D' ? [arg] : []));
-    const text = ['TEXT="Tom \\"T\\" \\\\1"', 'TEXT_FONT="sans"', 'TEXT_SIZE=3'];
+    const text = ['MARK="text"', 'TEXT="Tom \\"T\\" \\\\1"', 'TEXT_FONT="sans"', 'TEXT_SIZE=3', 'LOGO=[]', 'LOGO_SIZE=12'];
     // each joint's setting reaches only the printed parts of that joint (the lighter's only the case box)
     // (with its engagement, which its groove needs too, and its squeeze where the ribs are)
     const fit = 'CLEARANCE=0.35';
@@ -115,11 +115,22 @@ describe('renderJob for an assembly model', () => {
     expect(invocations).toHaveLength(6);
     const last = invocations.at(-1) ?? [];
     expect(last.at(-1)).toMatch(/models\/cigarette-case\/underside-text\.scad$/);
-    expect(last.filter((_arg, index) => last[index - 1] === '-D')).toEqual(['TEXT="Tom"', 'TEXT_FONT="mono"', 'TEXT_SIZE=4.5']);
+    expect(last.filter((_arg, index) => last[index - 1] === '-D')).toEqual(['MARK="text"', 'TEXT="Tom"', 'TEXT_FONT="mono"', 'TEXT_SIZE=4.5', 'LOGO=[]', 'LOGO_SIZE=12']);
     expect(new Set(fonts).size).toBe(1);
     expect(fonts[0]).toMatch(/models\/fonts$/);
     const result = store.getJob(claimed.id);
     if (!result?.artifact || !('parts' in result.artifact)) throw new Error('Expected an assembly artifact');
     expect(result.artifact.parts.map(part => part.id).at(-1)).toBe('case-text');
+  });
+
+  it('passes a logo to OpenSCAD as a vector of numbers, never as the logo string', async () => {
+    const invocations: string[][] = [];
+    store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, undersideMark: 'logo', logo: 'M0 0L2000 0L1000 1500ZM800 200L1200 200L1000 500Z', logoSize: 8, textMode: 'second-filament' });
+    const claimed = store.claim();
+    if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
+    expect(await renderJob(store, claimed, new AbortController().signal, fakeRunner(invocations))).toBe(true);
+    expect(invocations).toHaveLength(6);
+    const last = invocations.at(-1) ?? [];
+    expect(last.filter((_arg, index) => last[index - 1] === '-D')).toEqual(['MARK="logo"', 'TEXT=""', 'TEXT_FONT="sans"', 'TEXT_SIZE=6', 'LOGO=[[[0,0],[2000,0],[1000,1500]],[[800,200],[1200,200],[1000,500]]]', 'LOGO_SIZE=8']);
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
-import { ArrowDownToLine, ArrowLeft, ArrowRight, Box, Check, ChevronDown, CircleAlert, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, ArrowRight, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from '@canfactory/client';
-import { findModel, validateParameters, type Control, type ModelDetail, type ParameterValues } from '@canfactory/contracts';
+import { decodeLogo, findModel, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues } from '@canfactory/contracts';
 import { referenceObjects } from './referenceObjects.ts';
 import { Viewer } from './Viewer.tsx';
 import { useRender } from './useRender.ts';
@@ -185,8 +185,66 @@ function recommendation(control: Control, controls: readonly Control[], paramete
 /** The band (Control.bands) a value is in: minimum included, maximum excluded, except for the last band. */
 const bandOf = (control: Control, value: number) => control.bands?.find((band, index, bands) => value >= band.minimum && (value < band.maximum || (index === bands.length - 1 && value <= band.maximum)));
 
+/**
+ * An `svg` control: the user picks an SVG file, which is read here, in the browser, into a logo string (`svgToLogo`); only that
+ * string is kept and sent. The file's own markup is never put into the page: the preview is drawn from the logo string, and
+ * only after `decodeLogo` has accepted it, so it can contain nothing but numbers and M, L and Z.
+ */
+function LogoField({ control, value, disabled, issue, change }: { control: Control; value: string; disabled: boolean; issue: string | undefined; change: (value: string) => void }) {
+  const id = `parameter-${control.key}`;
+  const [loaded, setLoaded] = useState<{ name: string; warnings: string[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
+  const rings = useMemo(() => { try { return decodeLogo(value); } catch { return null; } }, [value]);
+  const box = useMemo(() => {
+    const points = rings?.flat() ?? [];
+    if (points.length === 0) return null;
+    const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const pad = Math.max(x1 - x0, y1 - y0) * 0.04;
+    // y points up in the logo, so the preview is flipped: its viewBox is the box of (x, -y).
+    return `${x0 - pad} ${-y1 - pad} ${x1 - x0 + 2 * pad} ${y1 - y0 + 2 * pad}`;
+  }, [rings]);
+  const load = async (file: File | undefined) => {
+    if (!file) return;
+    setError(null);
+    if (file.size > SVG_MAX_BYTES) { setError(`This file is larger than ${SVG_MAX_BYTES / 1_000_000} MB. Choose a smaller SVG file.`); return; }
+    setReading(true);
+    try {
+      const logo = svgToLogo(await file.text());
+      change(logo.logo);
+      setLoaded({ name: file.name, warnings: logo.warnings });
+    } catch (caught) {
+      setError(caught instanceof SvgError ? caught.message : 'This file could not be read as an SVG file.');
+    } finally { setReading(false); }
+  };
+  const remove = () => { change(''); setLoaded(null); setError(null); };
+  const shown = error ?? issue;
+  return <div className={`select-field logo-field ${disabled ? 'field-disabled' : ''}`}>
+    <div className="field-heading"><label htmlFor={id}>{control.label}</label>{rings && rings.length > 0 && <span className="text-count">{rings.length} outline{rings.length === 1 ? '' : 's'}, {rings.reduce((sum, ring) => sum + ring.length, 0)} points</span>}</div>
+    <div className="logo-picker">
+      {box && rings
+        ? <svg className="logo-preview" viewBox={box} role="img" aria-label={`${control.label} preview`}><path transform="scale(1 -1)" fillRule="evenodd" d={value} /></svg>
+        : <div className="logo-preview logo-empty" aria-hidden="true"><FileUp size={20} /></div>}
+      <div className="logo-actions">
+        <label className="logo-choose">
+          <input id={id} type="file" accept=".svg,image/svg+xml" disabled={disabled || reading} aria-invalid={Boolean(shown)} aria-describedby={`${id}-description${shown ? ` ${id}-error` : ''}`}
+            onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void load(file); }} />
+          {reading ? 'Reading…' : box ? 'Choose another SVG' : 'Choose an SVG file'}
+        </label>
+        {value !== '' && <button type="button" className="text-button" onClick={remove} disabled={disabled}><X size={12} /> Remove</button>}
+        {loaded && value !== '' && <span className="logo-name" title={loaded.name}>{loaded.name}</span>}
+      </div>
+    </div>
+    <p id={`${id}-description`}>{control.description}</p>
+    {loaded && value !== '' && loaded.warnings.map(warning => <p key={warning} className="logo-warning">{warning}</p>)}
+    {shown && <p className="field-error" id={`${id}-error`}>{shown}</p>}
+  </div>;
+}
+
 function Field({ control, value, disabled, issue, recommended, change }: { control: Control; value: number | boolean | string | undefined; disabled: boolean; issue: string | undefined; recommended?: Recommendation | undefined; change: (value: number | boolean | string) => void }) {
   const id = `parameter-${control.key}`;
+  if (control.kind === 'svg') return <LogoField control={control} value={typeof value === 'string' ? value : ''} disabled={disabled} issue={issue} change={change} />;
   if (control.kind === 'text') {
     const text = typeof value === 'string' ? value : '';
     return <div className={`select-field ${disabled ? 'field-disabled' : ''}`}>

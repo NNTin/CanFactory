@@ -212,7 +212,8 @@ export interface operations {
                             key: string;
                             label: string;
                             description: string;
-                            kind: "number" | "boolean" | "enum" | "text";
+                            /** @description An `svg` control takes an SVG file, which the editor turns into a logo string (packages/contracts/src/svgLogo.ts); its value is that string, empty for none. */
+                            kind: "number" | "boolean" | "enum" | "text" | "svg";
                             group: "basic" | "advanced";
                             unit: "mm" | null;
                             default: number | boolean | string;
@@ -496,7 +497,7 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "6";
+                    modelVersion: "7";
                     /** @description Cigarette case parameters. All fields are required. */
                     parameters: {
                         /**
@@ -554,8 +555,27 @@ export interface operations {
                          */
                         textSize: number;
                         /**
-                         * Text style
-                         * @description Engraved into the box, or carved and filled by a separate part for a second filament.
+                         * Underside mark
+                         * @description What goes on the underside of the large box: a line of text, or a logo from an SVG file.
+                         * @default text
+                         * @enum {unknown}
+                         */
+                        undersideMark: "text" | "logo";
+                        /**
+                         * Underside logo
+                         * @description An SVG file whose filled shapes are engraved on the underside of the large box, mirrored so that they read correctly. Strokes, text, pictures and style sheets in the file are left out. The file itself is never uploaded, only its outline.
+                         * @default
+                         */
+                        logo: string;
+                        /**
+                         * Logo size
+                         * @description Height of the underside logo in mm. A wide logo is made smaller, so that it stays within the 34.5 mm free width.
+                         * @default 12
+                         */
+                        logoSize: number;
+                        /**
+                         * Underside style
+                         * @description The text or logo is engraved into the box, or carved and filled by a separate part for a second filament.
                          * @default engrave
                          * @enum {unknown}
                          */

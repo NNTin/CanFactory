@@ -59,6 +59,12 @@ model with no adjustable parameters simply leaves every mapping empty (empty `pa
 mappings are part of the cache fingerprint, as are all part sources. Because a part receives no other `-D`, its own
 constants (`ROUNDNESS` etc.) apply exactly as written.
 
+**Values that are not plain literals.** The worker writes each mapped value after `-D NAME=` with `scadLiteral`: JSON for
+numbers, booleans and strings (which OpenSCAD reads as they are), unless the model's `scadEncode` has a function for that key.
+The cigarette case's `logo` uses one: the parameter is a validated logo string, and `logoScad` writes it as a vector of numbers.
+Its control is of kind `svg`: the editor reads an SVG file the user picks into that string, in the browser
+(`packages/contracts/src/svgLogo.ts`, see [cigarette-case-text.md](cigarette-case-text.md)), so a file never reaches the server.
+
 **Assembly slider (optional).** An assembly may also set `ModelDefinition.assembly` (`AssemblySchema` in
 `packages/contracts/src/models.ts`): the assembled `poses` of its parts (position in mm and optional rotation in degrees,
 in the parts' own SCAD frame, Z up), the ordered `steps` that put them together (each lists the parts that move together

@@ -3,9 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
 import {
   activeParts, artifactFormat, cigaretteCase, CLEARANCE_HOLES, findModel, holeDiameter, plankConnector, fruitFlyTrap, FruitFlyTrapParametersSchema, isAssembly, modelSourcePaths,
-  minimumSpikeLength, mossPlanter, rauteColumns, slotCount, SNAP_CLEARANCE, SNAP_TUNING, HOLDER_SNAP_CLEARANCE, LIGHTER_SNAP_CLEARANCE, MINI_BOX_SNAP_CLEARANCE, MINI_LID_SNAP_CLEARANCE, textWidth, validateParameters, type MossPlanterParameters,
+  minimumSpikeLength, mossPlanter, rauteColumns, slotCount, SNAP_CLEARANCE, SNAP_TUNING, HOLDER_SNAP_CLEARANCE, LIGHTER_SNAP_CLEARANCE, MINI_BOX_SNAP_CLEARANCE, MINI_LID_SNAP_CLEARANCE, scadLiteral, textWidth, validateParameters, type MossPlanterParameters,
 } from './models.ts';
-import { RenderRequestSchema } from './index.ts';
+import { LOGO_MAX_LENGTH, RenderRequestSchema } from './index.ts';
+
+/** A logo string: one square filling the whole grid. */
+const SQUARE = 'M0 0L2000 0L2000 2000L0 2000Z';
 
 const defaults = Value.Parse(FruitFlyTrapParametersSchema, fruitFlyTrap.defaults);
 
@@ -106,17 +109,20 @@ describe('cigarette case contract', () => {
     expect(artifactFormat(cigaretteCase)).toBe('zip');
     expect(cigaretteCase.parts.map(part => part.id)).toEqual(['case-box', 'case-lid', 'mini-holder', 'mini-box', 'mini-lid', 'case-text']);
     expect(new Set(modelSourcePaths(cigaretteCase)).size).toBe(6);
-    expect(cigaretteCase.controls.map(control => [control.key, control.kind])).toEqual([['snap', 'enum'], ['miniLidSnap', 'enum'], ['holderSnap', 'enum'], ['lighterSnap', 'enum'], ['miniBoxSnap', 'enum'], ['engraveText', 'text'], ['textFont', 'enum'], ['textSize', 'number'], ['textMode', 'enum'], ['clearance', 'number'],
+    expect(cigaretteCase.controls.map(control => [control.key, control.kind])).toEqual([['snap', 'enum'], ['miniLidSnap', 'enum'], ['holderSnap', 'enum'], ['lighterSnap', 'enum'], ['miniBoxSnap', 'enum'], ['undersideMark', 'enum'], ['engraveText', 'text'], ['textFont', 'enum'], ['textSize', 'number'], ['logo', 'svg'], ['logoSize', 'number'], ['textMode', 'enum'], ['clearance', 'number'],
       ['snapDetentEngage', 'number'], ['snapCrushSqueeze', 'number'], ['miniLidDetentEngage', 'number'], ['miniLidCrushSqueeze', 'number'], ['holderDetentEngage', 'number'], ['holderCrushSqueeze', 'number'], ['lighterCrushSqueeze', 'number'], ['miniBoxDetentEngage', 'number'], ['miniBoxCrushSqueeze', 'number']]);
     expect(cigaretteCase.controls[0]?.options?.map(option => option.value)).toEqual(['friction', 'detent', 'clip', 'magnet', 'crush-ribs']);
     for (const index of [1, 2, 4]) expect(cigaretteCase.controls[index]?.options?.map(option => option.value)).toEqual(['friction', 'detent', 'crush-ribs']);
     expect(cigaretteCase.controls[3]?.options?.map(option => option.value)).toEqual(['friction', 'crush-ribs']);
-    expect(cigaretteCase.controls[6]?.options?.map(option => option.value)).toEqual(['sans', 'serif', 'mono', 'wide']);
-    expect(cigaretteCase.controls[5]).toMatchObject({ default: '', maximum: 20 });
-    expect(cigaretteCase.defaults).toEqual({ snap: 'friction', miniLidSnap: 'friction', holderSnap: 'friction', lighterSnap: 'friction', miniBoxSnap: 'friction', engraveText: '', textFont: 'sans', textSize: 6, textMode: 'engrave', clearance: 0.2,
+    expect(cigaretteCase.controls[5]?.options?.map(option => option.value)).toEqual(['text', 'logo']);
+    expect(cigaretteCase.controls[7]?.options?.map(option => option.value)).toEqual(['sans', 'serif', 'mono', 'wide']);
+    expect(cigaretteCase.controls[6]).toMatchObject({ default: '', maximum: 20, visibleWhen: { control: 'undersideMark', values: ['text'] } });
+    expect(cigaretteCase.controls[9]).toMatchObject({ default: '', maximum: LOGO_MAX_LENGTH, visibleWhen: { control: 'undersideMark', values: ['logo'] } });
+    expect(cigaretteCase.controls[10]).toMatchObject({ default: 12, minimum: 3, maximum: 15, visibleWhen: { control: 'undersideMark', values: ['logo'] } });
+    expect(cigaretteCase.defaults).toEqual({ snap: 'friction', miniLidSnap: 'friction', holderSnap: 'friction', lighterSnap: 'friction', miniBoxSnap: 'friction', undersideMark: 'text', engraveText: '', textFont: 'sans', textSize: 6, logo: '', logoSize: 12, textMode: 'engrave', clearance: 0.2,
       snapDetentEngage: 0.19, snapCrushSqueeze: 0.16, miniLidDetentEngage: 0.12, miniLidCrushSqueeze: 0.1, holderDetentEngage: 0.15, holderCrushSqueeze: 0.1, lighterCrushSqueeze: 0.1, miniBoxDetentEngage: 0.15, miniBoxCrushSqueeze: 0.1 });
     const mapped = Object.fromEntries(cigaretteCase.parts.map(part => [part.id, part.scadMapping]));
-    const text = { engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE' };
+    const text = { undersideMark: 'MARK', engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE', logo: 'LOGO', logoSize: 'LOGO_SIZE' };
     const fit = { clearance: 'CLEARANCE' };
     // each snap setting reaches exactly the printed parts of its joint: the lighter's only the case box, as the lighter is not printed
     expect(mapped).toEqual({
@@ -135,6 +141,11 @@ describe('cigarette case contract', () => {
     expect(ids({ textMode: 'second-filament' })).not.toContain('case-text');
     expect(ids({ textMode: 'second-filament', engraveText: '   ' })).not.toContain('case-text');
     expect(ids({ textMode: 'second-filament', engraveText: 'Tom' }).at(-1)).toBe('case-text');
+    // a logo takes the text's place: the part exists for a loaded logo, and only while the mark is the logo
+    expect(ids({ textMode: 'second-filament', undersideMark: 'logo', engraveText: 'Tom' })).not.toContain('case-text');
+    expect(ids({ textMode: 'second-filament', undersideMark: 'logo', logo: SQUARE }).at(-1)).toBe('case-text');
+    expect(ids({ textMode: 'second-filament', undersideMark: 'text', logo: SQUARE })).not.toContain('case-text');
+    expect(ids({ undersideMark: 'logo', logo: SQUARE })).not.toContain('case-text');
     expect(cigaretteCase.parts.find(part => part.id === 'case-text')?.separateBodies).toBe(true);
   });
 
@@ -160,9 +171,32 @@ describe('cigarette case contract', () => {
     expect(validateParameters(cigaretteCase, { ...ok, engraveText: 'tab\there' })).not.toEqual([]);
     expect(validateParameters(cigaretteCase, { ...ok, engraveText: 'say "hi" \\ $x', textSize: 3 })).toEqual([]);
     expect(validateParameters(cigaretteCase, { ...ok, anything: 1 })).not.toEqual([]);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '6', parameters: ok })).toBe(true);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '5', parameters: ok })).toBe(false);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '6', parameters: { snap: 'clip' } })).toBe(false);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '7', parameters: ok })).toBe(true);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '6', parameters: ok })).toBe(false);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '7', parameters: { snap: 'clip' } })).toBe(false);
+  });
+
+  it('accepts a logo only as a well-formed logo string within its limits, and checks the text width only for text', () => {
+    expect(validateParameters(cigaretteCase, { ...ok, undersideMark: 'logo', logo: SQUARE })).toEqual([]);
+    expect(validateParameters(cigaretteCase, { ...ok, undersideMark: 'logo', logo: '' })).toEqual([]);
+    for (const logo of ['<svg/>', 'M0 0L10 0Z', 'M0 0L10 0L10 10', 'M0 0L2001 0L10 10Z', 'M0 0L10 0L10 10Z;M1 1L2 1L2 2Z', 'M-1 0L10 0L10 10Z', 'M0  0L10 0L10 10Z', 'M00 0L10 0L10 10Z', 'M0 0L1e3 0L10 10Z'])
+      expect(validateParameters(cigaretteCase, { ...ok, undersideMark: 'logo', logo }), logo).not.toEqual([]);
+    // checked whichever mark is chosen, since every part that maps it receives it
+    expect(validateParameters(cigaretteCase, { ...ok, logo: 'M0 0L10 0L10 10' })[0]?.field).toBe('logo');
+    expect(validateParameters(cigaretteCase, { ...ok, logo: 'M0 0L10 0L10 10'.repeat(3000) })).not.toEqual([]);
+    // too-wide text does not matter while the logo is chosen
+    expect(validateParameters(cigaretteCase, { ...ok, engraveText: 'W'.repeat(20), textSize: 10 })).not.toEqual([]);
+    expect(validateParameters(cigaretteCase, { ...ok, undersideMark: 'logo', engraveText: 'W'.repeat(20), textSize: 10 })).toEqual([]);
+    expect(validateParameters(cigaretteCase, { ...ok, logoSize: 2.5 })).not.toEqual([]);
+    expect(validateParameters(cigaretteCase, { ...ok, logoSize: 15.5 })).not.toEqual([]);
+  });
+
+  it('writes the logo for OpenSCAD as numbers only, and every other value as JSON', () => {
+    expect(scadLiteral(cigaretteCase, 'logo', SQUARE)).toBe('[[[0,0],[2000,0],[2000,2000],[0,2000]]]');
+    expect(scadLiteral(cigaretteCase, 'logo', '')).toBe('[]');
+    expect(() => scadLiteral(cigaretteCase, 'logo', 'M0 0L1 0L1 1Z"; import("x")')).toThrow();
+    expect(scadLiteral(cigaretteCase, 'engraveText', 'say "hi"')).toBe('"say \\"hi\\""');
+    expect(scadLiteral(cigaretteCase, 'logoSize', 12)).toBe('12');
   });
 
   it('offers a 0.10 to 0.60 mm clearance in advanced settings, with named fits and a recommended range for every mode of every joint', () => {
