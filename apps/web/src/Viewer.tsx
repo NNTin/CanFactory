@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Box, Grid2X2, RotateCcw } from 'lucide-react';
+import { Box, Eye, EyeOff, Grid2X2, RotateCcw } from 'lucide-react';
 import { assemblyOffset, assemblyState, assemblyStops, type Assembly, type AssemblyState } from '@canfactory/contracts';
 import { unzipSync } from 'fflate';
 import * as THREE from 'three';
@@ -15,12 +15,17 @@ interface SceneController {
    * Replaces every mesh with one per part, auto-arranged in a grid. A single part sits centred, exactly as before. With an
    * assembly, the grid is where the assembly slider starts (see `setProgress`).
    */
-  setParts: (parts: Part[], assembly?: Assembly) => void;
+  setParts: (parts: Part[], assembly?: Assembly) => LoadedPart[];
+  /** Hides the parts with these ids and shows every other one (parts load visible); kept for the parts loaded later. */
+  setHidden: (hidden: ReadonlySet<string>) => void;
   /** Places the parts for the assembly slider at `t` (0 = print bed, 1 = assembled); no-op without an assembly. */
   setProgress: (t: number) => void;
   reset: () => void;
   wireframe: (enabled: boolean) => void;
 }
+
+/** A part as the viewer shows it, for the parts list: its id (the STL name without `.stl`) and whether it is a reference object. */
+interface LoadedPart { id: string; reference: boolean }
 
 const GRID_ROTATION = new THREE.Quaternion();
 
@@ -28,7 +33,7 @@ const GRID_ROTATION = new THREE.Quaternion();
 class Placement {
   private readonly rotation = new THREE.Quaternion();
   private readonly position = new THREE.Vector3();
-  constructor(readonly id: string, private readonly mesh: THREE.Mesh, private readonly grid: THREE.Vector3) {}
+  constructor(readonly id: string, readonly mesh: THREE.Mesh, private readonly grid: THREE.Vector3) {}
 
   /** Blends from the print bed to the part's (offset) assembled pose while the parts are lifted, then follows the steps. */
   apply(assembly: Assembly, state: AssemblyState) {
@@ -62,13 +67,16 @@ function assemblyCaption(assembly: Assembly, t: number): string {
 /**
  * Displays the actual downloadable file(s). Camera controls do not change model dimensions. With an assembly, a slider takes the
  * parts from the print bed to the finished assembly, together with its reference objects (`references`), which are not in the file.
+ * Every part is shown by default; the parts list under the slider hides or shows each one (`partTitles` names them).
  */
-export function Viewer({ url, format, assembly, references = [], onError, onLoaded }: { url: string | null; format: 'stl' | 'zip'; assembly?: Assembly | undefined; references?: ReferenceObject[]; onError: (message: string) => void; onLoaded: (url: string) => void }) {
+export function Viewer({ url, format, assembly, references = [], partTitles = {}, onError, onLoaded }: { url: string | null; format: 'stl' | 'zip'; assembly?: Assembly | undefined; references?: ReferenceObject[]; partTitles?: Record<string, string>; onError: (message: string) => void; onLoaded: (url: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const scene = useRef<SceneController | null>(null);
   const [wireframe, setWireframe] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [loadedParts, setLoadedParts] = useState<LoadedPart[]>([]);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
   const assemblyRef = useRef(assembly); assemblyRef.current = assembly;
   const referencesRef = useRef(references); referencesRef.current = references;
   const onErrorRef = useRef(onError); onErrorRef.current = onError;
@@ -106,6 +114,12 @@ export function Viewer({ url, format, assembly, references = [], onError, onLoad
     // Parts keep their SCAD frame (Z up) inside `group`, which turns it to the scene's Y up.
     const group = new THREE.Group(); group.rotation.x = -Math.PI / 2; world.add(group);
     let placements: Placement[] = []; let currentAssembly: Assembly | undefined; let sliderValue = 0;
+    let hiddenIds: ReadonlySet<string> = new Set();
+    // The visible parts, also on the container (`data-visible-parts`), so the page's tests can see what the scene shows.
+    const showParts = () => {
+      for (const placement of placements) placement.mesh.visible = !hiddenIds.has(placement.id);
+      element.dataset['visibleParts'] = placements.filter(placement => placement.mesh.visible).map(placement => placement.id).join(' ');
+    };
     const place = (t: number) => {
       sliderValue = t;
       if (!currentAssembly) return;
@@ -166,8 +180,11 @@ export function Viewer({ url, format, assembly, references = [], onError, onLoad
         if (assembly) { frame.getCenter(focus); focus.y = 0; } else focus.set(0, 0, 0);
         if (first || extent > oldExtent * 1.5 || extent < oldExtent / 2) reset();
         first = false;
+        showParts();
+        return prepared.map(part => ({ id: part.id, reference: part.reference }));
       },
       setProgress: place,
+      setHidden(ids) { hiddenIds = ids; showParts(); },
     };
     const resize = new ResizeObserver(() => {
       const width = element.clientWidth; const height = element.clientHeight;
@@ -199,7 +216,8 @@ export function Viewer({ url, format, assembly, references = [], onError, onLoad
       const bytes = await response.arrayBuffer();
       const extra = await loadReferences;
       if (abort.signal.aborted) return;
-      scene.current?.setParts(format === 'zip' ? [...partsFromZip(bytes), ...extra] : [{ name: 'model', bytes }], format === 'zip' ? assemblyRef.current : undefined);
+      const loaded = scene.current?.setParts(format === 'zip' ? [...partsFromZip(bytes), ...extra] : [{ name: 'model', bytes }], format === 'zip' ? assemblyRef.current : undefined);
+      if (loaded) setLoadedParts(format === 'zip' ? loaded : []);
       if (scene.current) onLoadedRef.current(url);
     }).catch((error: unknown) => {
       if (!abort.signal.aborted) onErrorRef.current(error instanceof Error ? error.message : 'Could not load the preview.');
@@ -208,6 +226,12 @@ export function Viewer({ url, format, assembly, references = [], onError, onLoad
   }, [url, format]);
 
   useEffect(() => { scene.current?.setProgress(progress); }, [progress]);
+  useEffect(() => { scene.current?.setHidden(hidden); }, [hidden]);
+  const toggle = (id: string) => setHidden(current => {
+    const next = new Set(current);
+    if (!next.delete(id)) next.add(id);
+    return next;
+  });
   const stops = assembly ? assemblyStops(assembly) - 1 : 1;
   // Arrow keys and Page Up/Down jump between the stops; Home and End keep their native meaning.
   const stepSlider = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -237,6 +261,17 @@ export function Viewer({ url, format, assembly, references = [], onError, onLoad
           onChange={event => setProgress(Number(event.currentTarget.value))} onKeyDown={stepSlider} />
         <div className="assembly-stops" aria-hidden="true">{Array.from({ length: stops + 1 }, (_, index) => <i key={index} className={progress * stops >= index - 1e-6 ? 'reached' : ''} />)}</div>
       </div>
+    </div>}
+    {assembly && format === 'zip' && url && loadedParts.length > 0 && <div className="assembly-parts" role="group" aria-label="Visible parts">
+      <span>PARTS</span>
+      <div>{loadedParts.map(part => {
+        const visible = !hidden.has(part.id);
+        const title = partTitles[part.id] ?? part.id;
+        return <button key={part.id} type="button" className={part.reference ? 'reference' : undefined} aria-pressed={visible}
+          title={`${visible ? 'Hide' : 'Show'} ${title}`} onClick={() => toggle(part.id)}>
+          {visible ? <Eye size={13} aria-hidden="true" /> : <EyeOff size={13} aria-hidden="true" />}{title}
+        </button>;
+      })}</div>
     </div>}
   </>;
 }

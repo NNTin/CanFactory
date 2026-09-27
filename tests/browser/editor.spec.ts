@@ -234,6 +234,20 @@ test('shows the cigarette case, offers snap, clearance and text settings and dow
   await expect(assembly).toHaveAttribute('aria-valuetext', 'Assembled');
   await assembly.press('ArrowLeft');
   await expect(assembly).toHaveAttribute('aria-valuetext', `Step ${cigaretteCase.assembly.steps.length - 1} of ${cigaretteCase.assembly.steps.length} · Insert the lighter into its bay`);
+  // Every part, and the lighter, is shown by default; each can be hidden and shown again from the parts list under the slider.
+  const viewer = page.getByTestId('stl-viewer');
+  const visibleParts = [...activeParts(cigaretteCase, { ...cigaretteCase.defaults, engraveText: 'Tom', textMode: 'second-filament' }).map(part => part.id), 'mini-bic-lighter'];
+  const partsList = page.getByRole('group', { name: 'Visible parts' });
+  for (const title of [...cigaretteCase.parts.filter(part => part.id !== 'case-text').map(part => part.title), 'BIC Mini lighter (J25)'])
+    await expect(partsList.getByRole('button', { name: title, exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(viewer).toHaveAttribute('data-visible-parts', visibleParts.join(' '));
+  const caseBox = partsList.getByRole('button', { name: 'Case box (large)', exact: true });
+  await caseBox.click();
+  await expect(caseBox).toHaveAttribute('aria-pressed', 'false');
+  await expect(viewer).toHaveAttribute('data-visible-parts', visibleParts.filter(id => id !== 'case-box').join(' '));
+  await caseBox.click();
+  await expect(caseBox).toHaveAttribute('aria-pressed', 'true');
+  await expect(viewer).toHaveAttribute('data-visible-parts', visibleParts.join(' '));
   const downloadEvent = page.waitForEvent('download');
   await downloadButton.click();
   const path = await (await downloadEvent).path();
