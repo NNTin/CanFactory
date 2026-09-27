@@ -25,7 +25,9 @@
     "the mini lid at 0.2 against an unfitted mini box (`FIT_GAP` = 0.2). The mini lid's IoU is below 0.96 on purpose: its swept end now",
     "follows the mini box's inner surface at the clearance instead of the source's end sheet, which cut 0.06 to 0.4 mm into the mini box.",
     "Before this change it scored 0.9747. The large box's upper shell is its lid's cavity pulled in by 0.2 mm; that part still passes at the",
-    "default.",
+    "default. Above the clip tab, the large box's round bay is the BIC Mini lighter's plan pushed out by the clearance (issue #17). The",
+    "traced bay stood 0.31 to 0.41 mm from that plan, so the box is verified with the lighter's gap at 0.36 mm (`LIGHTER_GAP`, which is",
+    "always the clearance otherwise); at 0.2 its thicker bay wall adds 2.1 % volume (IoU 0.9671).",
     "",
     "## Method and limits",
     "",
@@ -45,7 +47,12 @@
     "",
     "The two large source STLs are not watertight (box: 56 open or non-manifold edges, lid: 45; 570 k and 420 k triangles). Volume and IoU use them as is.",
     "",
-    "The large box also carries the small clip tab inside its round bay (14 stacked 0.2 mm outlines of the ledge, fused to the bay wall).",
+    "The large box also carries the small clip tab inside its round bay (14 stacked 0.2 mm outlines). As traced, it is a curved hood that",
+    "follows the holder's dome and leans away from the bay wall, in the source STL too: only its lowest 0.4 mm touched the wall, 0.08 mm",
+    "deep and about 1.8 mm long, which is not a printable joint. The SCAD therefore fills the pocket between the hood and the wall (0.3 mm",
+    "into the wall, 0.2 mm into the hood, with a top rising at 45 degrees to the wall), so the tab is rooted over its full 2.8 mm height and",
+    "length. The hood's underside, the holder's stop, is unchanged. The fill adds 23 mm³: the box's volume Δ went from 0.86 % to 0.93 % and",
+    "its IoU from 0.9796 to 0.9790. `tools/stl-to-scad/cigarette-case-tab.test.ts` checks the joint.",
     "",
     "Reproduce with `npm run stl-scad -- verify --manifest models/cigarette-case/reference/manifest.json --report models/cigarette-case/reference/VERIFICATION.md`",
     "(needs the source STLs and an OpenSCAD runtime; see `.claude/skills/stl-to-scad/SKILL.md`)."
@@ -83,7 +90,10 @@
       "name": "11_v11.3__-_honeycomb_-_box",
       "scad": "11_v11.3__-_honeycomb_-_box.scad",
       "stl": "11_v11.3__-_honeycomb_-_box.stl",
-      "note": "Large box v11.3: two bays and a round bay, honeycomb wall relief"
+      "note": "Large box v11.3: two bays and a round bay, honeycomb wall relief",
+      "defines": {
+        "LIGHTER_GAP": "0.36"
+      }
     },
     {
       "name": "11_v11.3__-_honeycomb_-_top",

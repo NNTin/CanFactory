@@ -85,13 +85,13 @@ describe('renderJob for an assembly model', () => {
 
   it('passes the snap mode, clearance and text settings only to the cigarette-case parts that map them, strings quoted', async () => {
     const invocations: string[][] = [];
-    store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, snap: 'crush-ribs', miniLidSnap: 'detent', holderSnap: 'crush-ribs', miniBoxSnap: 'detent', clearance: 0.35, engraveText: 'Tom "T" \\1', textSize: 3 });
+    store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, snap: 'crush-ribs', miniLidSnap: 'detent', holderSnap: 'crush-ribs', lighterSnap: 'crush-ribs', lighterCrushSqueeze: 0.12, miniBoxSnap: 'detent', clearance: 0.35, engraveText: 'Tom "T" \\1', textSize: 3 });
     const claimed = store.claim();
     if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
     expect(await renderJob(store, claimed, new AbortController().signal, fakeRunner(invocations))).toBe(true);
     const defines = invocations.map(args => args.flatMap((arg, index) => args[index - 1] === '-D' ? [arg] : []));
     const text = ['TEXT="Tom \\"T\\" \\\\1"', 'TEXT_FONT="sans"', 'TEXT_SIZE=3'];
-    // each joint's setting reaches only the two parts of that joint
+    // each joint's setting reaches only the printed parts of that joint (the lighter's only the case box)
     // (with its engagement, which its groove needs too, and its squeeze where the ribs are)
     const fit = 'CLEARANCE=0.35';
     const snap = ['SNAP="crush-ribs"', 'DETENT_ENGAGE=0.19'];
@@ -99,7 +99,7 @@ describe('renderJob for an assembly model', () => {
     const miniLid = ['MINI_LID_SNAP="detent"', 'ML_DETENT_ENGAGE=0.12'];
     const miniBox = ['MINI_BOX_SNAP="detent"', 'MB_DETENT_ENGAGE=0.15'];
     expect(defines).toEqual([
-      [fit, ...snap, 'CRUSH_SQUEEZE=0.16', ...holder, ...text], [fit, ...snap, ...miniBox, 'MB_CRUSH_SQUEEZE=0.1'], [fit, ...holder, 'HOLDER_CRUSH_SQUEEZE=0.1'],
+      [fit, ...snap, 'CRUSH_SQUEEZE=0.16', ...holder, 'LIGHTER_SNAP="crush-ribs"', 'LIGHTER_CRUSH_SQUEEZE=0.12', ...text], [fit, ...snap, ...miniBox, 'MB_CRUSH_SQUEEZE=0.1'], [fit, ...holder, 'HOLDER_CRUSH_SQUEEZE=0.1'],
       [fit, ...miniLid, ...miniBox], [fit, ...miniLid, 'CRUSH_SQUEEZE=0.1'],
     ]);
   });

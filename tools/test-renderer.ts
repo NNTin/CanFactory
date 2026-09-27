@@ -132,6 +132,8 @@ try {
   // fitted inside the fitted mini box). The snap features only stand proud by a fraction of a millimetre, except the mini lid's crush
   // ribs and detent bumps (C + 0.1 and C + 0.12 mm proud of each side) and the holder's detent bumps (0.15 mm past the bay at each end),
   // and are also rendered at the ends of the clearance range.
+  // the lighter's joint has no detent (the lighter cannot carry a bump or a groove)
+  const lighterMode = (mode: string) => mode === 'crush-ribs' ? mode : 'friction';
   const caseRuns: { name: string; parameters: ParameterValues }[] = [
     ...['friction', 'detent', 'clip', 'magnet', 'crush-ribs'].map(snap => ({ name: `snap ${snap}`, parameters: { ...cigaretteCase.defaults, snap } })),
     ...['sans', 'serif', 'mono', 'wide'].map(textFont => ({ name: `engraved ${textFont}`, parameters: { ...cigaretteCase.defaults, engraveText: 'Tom & Jo', textFont, textSize: 4 } })),
@@ -139,13 +141,15 @@ try {
     ...[0.1, 0.6].map(clearance => ({ name: `clearance ${clearance}`, parameters: { ...cigaretteCase.defaults, clearance } })),
     { name: 'crush ribs at clearance 0.4', parameters: { ...cigaretteCase.defaults, snap: 'crush-ribs', clearance: 0.4 } },
     ...['miniLidSnap', 'holderSnap', 'miniBoxSnap'].flatMap(key => ['detent', 'crush-ribs'].map(mode => ({ name: `${key} ${mode}`, parameters: { ...cigaretteCase.defaults, [key]: mode } }))),
+    // the lighter's bay (only the box's own ribs: the lighter is not printed), across the clearance range
+    ...[0.1, 0.2, 0.46, 0.6].map(clearance => ({ name: `lighterSnap crush-ribs at clearance ${clearance}`, parameters: { ...cigaretteCase.defaults, lighterSnap: 'crush-ribs', clearance } })),
     ...['detent', 'crush-ribs'].flatMap(mode => [0.1, 0.4, 0.6].map(clearance => ({
-      name: `every joint ${mode} at clearance ${clearance}`, parameters: { ...cigaretteCase.defaults, snap: mode, miniLidSnap: mode, holderSnap: mode, miniBoxSnap: mode, clearance },
+      name: `every joint ${mode} at clearance ${clearance}`, parameters: { ...cigaretteCase.defaults, snap: mode, miniLidSnap: mode, holderSnap: mode, lighterSnap: lighterMode(mode), miniBoxSnap: mode, clearance },
     }))),
     // every engagement and squeeze at the ends of its slider (the deepest groove the contract allows: engagement + clearance = 0.8 mm)
     ...[[0.02, 0.1], [0.3, 0.5], [0.4, 0.4]].flatMap(([value, clearance]) => ['detent', 'crush-ribs'].map(mode => ({
       name: `every joint ${mode}, engagement and squeeze ${value} at clearance ${clearance}`,
-      parameters: { ...cigaretteCase.defaults, snap: mode, miniLidSnap: mode, holderSnap: mode, miniBoxSnap: mode, clearance: clearance ?? 0.2,
+      parameters: { ...cigaretteCase.defaults, snap: mode, miniLidSnap: mode, holderSnap: mode, lighterSnap: lighterMode(mode), miniBoxSnap: mode, clearance: clearance ?? 0.2,
         ...Object.fromEntries(Object.keys(SNAP_TUNING).map(key => [key, value ?? 0.1])) },
     }))),
   ];
@@ -187,6 +191,8 @@ try {
     const bytes = await readFile(store.artifacts.path(job.id, 'zip'));
     const entries = unzipSync(new Uint8Array(bytes));
     assert.deepEqual(Object.keys(entries).sort(), wanted.map(part => `${part.id}.stl`).sort());
+    // reference objects (the lighter) are shown in the preview only, never printed
+    for (const reference of cigaretteCase.assembly.references ?? []) assert.ok(!(`${reference.id}.stl` in entries), `cigarette case ${name}: ${reference.id} must not be in the ZIP`);
     for (const [entryName, entryBytes] of Object.entries(entries)) {
       assert.ok(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength), { allowDisconnected: entryName === 'case-text.stl' }).sha256, `cigarette case ${name} ${entryName}: expected a valid individual STL`);
     }

@@ -496,7 +496,7 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "5";
+                    modelVersion: "6";
                     /** @description Cigarette case parameters. All fields are required. */
                     parameters: {
                         /**
@@ -520,6 +520,13 @@ export interface operations {
                          * @enum {unknown}
                          */
                         holderSnap: "friction" | "detent" | "crush-ribs";
+                        /**
+                         * Lighter in the box
+                         * @description How the BIC Mini lighter is held in the round bay, above the holder: the fitted bay alone (a friction fit) or crush ribs.
+                         * @default friction
+                         * @enum {unknown}
+                         */
+                        lighterSnap: "friction" | "crush-ribs";
                         /**
                          * Mini box in the lid
                          * @description How the closed mini box is held in the case lid, so that it comes off with the lid: a friction fit, a detent or crush ribs.
@@ -555,7 +562,7 @@ export interface operations {
                         textMode: "engrave" | "second-filament";
                         /**
                          * Clearance
-                         * @description Gap per side between parts that fit together (lid on box, mini box in the lid, holder in the box), in mm. Larger is looser; raise it if your printer prints parts that are too tight.
+                         * @description Gap per side between parts that fit together (lid on box, mini box in the lid, holder and lighter in the box), in mm. Larger is looser; raise it if your printer prints parts that are too tight.
                          * @default 0.2
                          */
                         clearance: number;
@@ -595,6 +602,12 @@ export interface operations {
                          * @default 0.1
                          */
                         holderCrushSqueeze: number;
+                        /**
+                         * Crush-rib squeeze (lighter in the box)
+                         * @description How much the ribs in the round bay are squeezed by the lighter, in mm, on top of the clearance. More holds tighter, but the lighter must still slide in, and push the holder out upside down.
+                         * @default 0.1
+                         */
+                        lighterCrushSqueeze: number;
                         /**
                          * Detent engagement (mini box in the lid)
                          * @description How far the bumps in the case lid reach past the mini box's wall, in mm, on top of the clearance. More holds harder, but a finger must still pull the mini box out.

@@ -4,11 +4,11 @@ Renderer: native — OpenSCAD version 2026.09.23 (Manifold backend). Tolerance: 
 
 | Part | Result | Size Δ (mm) | Volume Δ | IoU | Mean dev (mm) | Ref tris | SCAD bytes | Render (s) |
 |---|---|---|---|---|---|---|---|---|
-| 11_-_Honeycomb_-_minibox | PASS | -0.024 / 0.006 / 0.001 | -0.26 % | 0.9618 | 0.018 | 15404 | 10372 | 0.2 |
-| 11_-_Honeycomb_-_topminibox_-_box | PASS | -0.049 / -0.002 / -0.000 | 1.12 % | 0.9719 | 0.014 | 11082 | 11344 | 0.1 |
+| 11_-_Honeycomb_-_minibox | PASS | -0.024 / 0.006 / 0.001 | -0.26 % | 0.9618 | 0.018 | 15404 | 10668 | 0.2 |
+| 11_-_Honeycomb_-_topminibox_-_box | PASS | -0.049 / -0.002 / -0.000 | 1.12 % | 0.9719 | 0.014 | 11082 | 11729 | 0.1 |
 | 11_-_Honeycomb_-_topminibox_-_top | FAIL | -0.001 / -0.002 / -0.000 | 1.30 % | 0.9532 | 0.024 | 10512 | 10227 | 0.1 |
-| 11_v11.3__-_honeycomb_-_box | PASS | 0.019 / -0.002 / -0.000 | 0.93 % | 0.9790 | 0.018 | 571808 | 85448 | 1.8 |
-| 11_v11.3__-_honeycomb_-_top | PASS | -0.001 / -0.001 / 0.000 | 1.06 % | 0.9729 | 0.018 | 423568 | 63883 | 1.6 |
+| 11_v11.3__-_honeycomb_-_box | PASS | 0.019 / -0.002 / -0.000 | 1.01 % | 0.9769 | 0.020 | 571808 | 91560 | 1.7 |
+| 11_v11.3__-_honeycomb_-_top | PASS | -0.001 / -0.001 / 0.000 | 1.06 % | 0.9729 | 0.018 | 423568 | 64270 | 1.3 |
 
 ## Sources
 
@@ -40,7 +40,9 @@ clearance (`defines`): the holder at 0.47, the mini box at 0.031 (its measured g
 the mini lid at 0.2 against an unfitted mini box (`FIT_GAP` = 0.2). The mini lid's IoU is below 0.96 on purpose: its swept end now
 follows the mini box's inner surface at the clearance instead of the source's end sheet, which cut 0.06 to 0.4 mm into the mini box.
 Before this change it scored 0.9747. The large box's upper shell is its lid's cavity pulled in by 0.2 mm; that part still passes at the
-default.
+default. Above the clip tab, the large box's round bay is the BIC Mini lighter's plan pushed out by the clearance (issue #17). The
+traced bay stood 0.31 to 0.41 mm from that plan, so the box is verified with the lighter's gap at 0.36 mm (`LIGHTER_GAP`, which is
+always the clearance otherwise); at 0.2 its thicker bay wall adds 2.1 % volume (IoU 0.9671).
 
 ## Method and limits
 

@@ -61,18 +61,30 @@ front of the plan up to the wheel, with the 3.6 × 4 mm flame slot over the burn
 (0.1 mm from each, where they are narrowest along the wheel). The flint tube and the lever stand on the shoulder inside the
 cheeks; the lever reaches back past the hood's rear end, to 9 mm behind the centre.
 
-The pose follows from the shapes. The bay is 11.8 × 22.8 mm, so the lighter is centred in it, as the holder is. It is about
-0.4 mm from the wall on each side (0.3 mm at the closest point, with the estimated plan). It rests on the clip tab at 35.12 mm,
-2.4 mm above the holder's top. Its top is then at 97.12 mm: 20 mm above the box's rim and 1.1 mm under the lid's ceiling
-(98.23 mm). So the lighter's height is what the bay and the lid were sized for. These figures rest on the estimated plan; a real
-lighter shows how loose it really is. The fit is left as it is here: tightening the bay is
-[#17](https://github.com/NNTin/CanFactory/issues/17). The hood does not change the pose: the lighter rests on its base, and the
-hood stays inside the body's plan.
+The pose follows from the shapes. The lighter is centred in the round bay, as the holder is, and rests on the clip tab at
+35.12 mm, 2.4 mm above the holder's top. Its top is then at 97.12 mm: 20 mm above the box's rim and 1.1 mm under the lid's
+ceiling (98.23 mm). So the lighter's height is what the bay and the lid were sized for. The hood does not change the pose: the
+lighter rests on its base, and the hood stays inside the body's plan.
+
+**The fit (issue #17).** The traced bay (11.8 × 22.8 mm) left the lighter 0.31 to 0.41 mm from the wall. Above the tab's top
+(35.11 mm) the bay is now the lighter's plan pushed out by the clearance, like every other joint. Below it, the holder's part and
+the tab are the traced bay, unchanged. The gap is the clearance all round up to 0.46 mm; above that, the −X end keeps a
+0.4 mm shell wall. `lighterSnap` adds crush ribs if wanted. See
+[cigarette-case-snap.md](cigarette-case-snap.md#lighter-in-the-box-lightersnap). The pose does not depend on the clearance.
+
+The fit rests on the plan's estimated shape (a superellipse with exponent 2.5). No measured profile of the J25 was found to
+check it against: BIC publishes only the 62 × 22 × 11 mm envelope, and the CAD models found online (Printables, GrabCAD) are not
+openly readable. If a real lighter shows a different oval, change `PROFILE_N` (or the plan) in `mini-bic-lighter.scad`, render
+its STL again, and copy the value to `LIGHTER_PROFILE_N` in the box file. The bay follows, and a test fails until both agree.
 
 ### Upside down: the push-out
 
 Measured with the parts as rendered at default settings (the lighter centred in the bay, lowered in 0.25 mm steps to its first
-contact, then refined; the same vertical-ray volume test as the collision check below). The heights are of the lighter's lowest
+contact, then refined; the same vertical-ray volume test as the collision check below). Measured again with the fitted bay of
+#17, in steps of 0.25 mm: `friction` at 0.1 and 0.2 mm clearance, `crush-ribs` at 0.2 and 0.6 mm. Every figure below is
+unchanged. With the ribs, the shared volume with the box stays at the ribs' squeeze (0.9 to 1.3 mm³) all the way down, and only
+jumps when the lever reaches the tab. So neither the fitted wall nor the ribs stop the lighter. Upright, it still first touches
+the box on the tab, between 35.25 and 35.00 mm, and never the holder. The heights are of the lighter's lowest
 point, the top of its hood and wheel.
 
 - **Wheel side towards the tab** (the lighter turned over about X, so its wheel and lever face the bay's −Y end, where the tab
@@ -86,8 +98,8 @@ point, the top of its hood and wheel.
 - **Hood's front end towards the tab** (turned over about Y): the hood's front end, the body's oval carried up, is over the tab,
   and lands on its top at 34.92 mm, 2.4 mm short of the dome. There is no push-out that way round.
 
-For [#17](https://github.com/NNTin/CanFactory/issues/17): the hood has the body's outline, so a bay fitted to the body is fitted to
-the hood too, and ribs that grip the body pass the hood. What the push-out needs is that the tab stays at the bay's −Y end,
+This is why the bay of [#17](https://github.com/NNTin/CanFactory/issues/17) could be fitted without breaking the push-out. The hood
+has the body's outline, so a bay fitted to the body is fitted to the hood too, and ribs that grip the body pass the hood. What the push-out needs is that the tab stays at the bay's −Y end,
 no nearer the centre than the hood's cheeks (5.4 mm), and that the lighter goes in wheel side towards it. The lever landing on the
 tab is what limits the push to 5.2 mm: moving the tab's top or its chord changes that.
 
@@ -105,8 +117,9 @@ It includes the reference objects, rendered from their SCAD files, and fails if 
 longer matches the SCAD file's bounds.
 
 Default settings (`friction` on every joint, 0.2 mm clearance): every value is 0.00 mm³. The `magnet` mode is just as clean, and so is
-second-filament text. The measured gap on each of the four mating surfaces (case lid on box, mini lid in mini box, mini box in
-case lid, holder in bay) is the clearance, from 0.1 to 0.6 mm; see [cigarette-case-snap.md](cigarette-case-snap.md#clearance).
+second-filament text. The measured gap on each of the five mating surfaces (case lid on box, mini lid in mini box, mini box in
+case lid, holder in bay, lighter in bay) is the clearance, from 0.1 to 0.6 mm (the lighter's up to 0.46 mm, then the −X end is
+capped by the minimum wall); see [cigarette-case-snap.md](cigarette-case-snap.md#clearance).
 
 The other modes show only their intended interference, where each joint's snap acts (0.2 mm clearance, one setting changed at a
 time; each joint's own setting, see [cigarette-case-snap.md](cigarette-case-snap.md)):
@@ -120,6 +133,7 @@ time; each joint's own setting, see [cigarette-case-snap.md](cigarette-case-snap
 | `miniLidSnap` | `crush-ribs` | 3.7 mm³ when closed | The ribs are squeezed. |
 | `holderSnap` | `detent` | 1.0 mm³ in step 3 only | The holder's bumps pass the bay wall over the last 5 mm. |
 | `holderSnap` | `crush-ribs` | 1.6 mm³ when assembled | The ribs are squeezed. |
+| `lighterSnap` | `crush-ribs` | 1.4 mm³ when assembled, and while the lighter goes in (step 4) | The bay's ribs are squeezed by the lighter; they sit just above its rest height. |
 | `miniBoxSnap` | `detent` | 4.3 mm³ in step 2 only | The lid's bumps pass the mini box's side walls over the last 7 mm. |
 | `miniBoxSnap` | `crush-ribs` | 4.0 mm³ when assembled | The ribs are squeezed. |
 

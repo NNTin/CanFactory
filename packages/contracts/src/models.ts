@@ -346,13 +346,15 @@ export const mossPlanter = {
 
 /**
  * Cigarette case (Onz by sez16sez): five independent parts, reconstructed from STL as static SCAD. The large box and lid have a
- * honeycomb wall; the small set (holder, shallow box and lid) does not. Each of the four joints has its own snap setting, which
- * reaches exactly the two parts of that joint (docs/cigarette-case-snap.md):
+ * honeycomb wall; the small set (holder, shallow box and lid) does not. Each of the five joints has its own snap setting, which
+ * reaches exactly the printed parts of that joint (docs/cigarette-case-snap.md):
  * - `snap` (`SNAP`): the case lid over the case box's upper shell; every mode adds a matching pair of features to both.
  * - `miniLidSnap` (`MINI_LID_SNAP`): the mini lid in the mini box; the original end pads in the rim notches stay in every mode.
  * - `holderSnap` (`HOLDER_SNAP`): the mini holder in the case box's round bay; the bay's tab is only the upper stop.
+ * - `lighterSnap` (`LIGHTER_SNAP`): the BIC Mini lighter (a reference object, never printed) in the same bay, above the tab; only
+ *   the case box carries it, since the lighter cannot be changed.
  * - `miniBoxSnap` (`MINI_BOX_SNAP`): the closed mini box in the case lid's cavity.
- * `friction` adds nothing. The `clearance` reaches every part as `CLEARANCE`: the gap per side on all four mating surfaces,
+ * `friction` adds nothing. The `clearance` reaches every part as `CLEARANCE`: the gap per side on all five mating surfaces,
  * which the snap features are sized from.
  */
 const SNAP_VALUES = ['friction', 'detent', 'clip', 'magnet', 'crush-ribs'] as const;
@@ -377,6 +379,13 @@ const HOLDER_SNAP_TEXT: Record<InsertSnapMode, { label: string; description: str
   friction: { label: 'Friction fit', description: 'Only a close fit holds the holder in the bay; it can drop out of the open floor if the clearance is loose.' },
   detent: { label: 'Detent', description: 'A bump on each end of the holder clicks into a groove in the bay. Push it out from above, e.g. with a lighter turned upside down.' },
   'crush-ribs': { label: 'Crush ribs', description: 'Four thin ribs near the holder\'s floor are squeezed by the bay wall. Push it out from above, e.g. with a lighter turned upside down.' },
+};
+/** The lighter is not printed, so it takes only what the case box alone can do: its fit, or crush ribs on the bay wall. */
+const LIGHTER_SNAP_VALUES = ['friction', 'crush-ribs'] as const;
+export type LighterSnapMode = typeof LIGHTER_SNAP_VALUES[number];
+const LIGHTER_SNAP_TEXT: Record<LighterSnapMode, { label: string; description: string }> = {
+  friction: { label: 'Friction fit', description: 'The bay above the tab follows the lighter\'s outline, one clearance all round. Nothing is added.' },
+  'crush-ribs': { label: 'Crush ribs', description: 'Four thin ribs on the bay wall, just above the tab, are squeezed by the lighter\'s flat faces. It still pushes the holder out, turned upside down.' },
 };
 const MINI_BOX_SNAP_TEXT: Record<InsertSnapMode, { label: string; description: string }> = {
   friction: { label: 'Friction fit', description: 'Only a close fit holds the closed mini box in the case lid when the lid is lifted off.' },
@@ -416,6 +425,11 @@ export const HOLDER_SNAP_CLEARANCE: Record<InsertSnapMode, { minimum: number; ma
   detent: { minimum: 0.2, maximum: 0.4 },
   'crush-ribs': { minimum: 0.2, maximum: 0.4 },
 };
+/** The closed case lid traps the lighter, so a friction fit may be a little looser than the holder's; the ribs work as elsewhere. */
+export const LIGHTER_SNAP_CLEARANCE: Record<LighterSnapMode, { minimum: number; maximum: number }> = {
+  friction: { minimum: 0.1, maximum: 0.25 },
+  'crush-ribs': { minimum: 0.2, maximum: 0.4 },
+};
 export const MINI_BOX_SNAP_CLEARANCE: Record<InsertSnapMode, { minimum: number; maximum: number }> = {
   friction: { minimum: 0.1, maximum: 0.2 },
   detent: { minimum: 0.2, maximum: 0.4 },
@@ -435,6 +449,7 @@ export const SNAP_TUNING = {
   miniLidCrushSqueeze: { joint: 'miniLidSnap', mode: 'crush-ribs', variable: 'CRUSH_SQUEEZE', default: 0.1, recommended: { minimum: 0.06, maximum: 0.15 } },
   holderDetentEngage: { joint: 'holderSnap', mode: 'detent', variable: 'HOLDER_DETENT_ENGAGE', default: 0.15, recommended: { minimum: 0.1, maximum: 0.2 } },
   holderCrushSqueeze: { joint: 'holderSnap', mode: 'crush-ribs', variable: 'HOLDER_CRUSH_SQUEEZE', default: 0.1, recommended: { minimum: 0.06, maximum: 0.15 } },
+  lighterCrushSqueeze: { joint: 'lighterSnap', mode: 'crush-ribs', variable: 'LIGHTER_CRUSH_SQUEEZE', default: 0.1, recommended: { minimum: 0.06, maximum: 0.15 } },
   miniBoxDetentEngage: { joint: 'miniBoxSnap', mode: 'detent', variable: 'MB_DETENT_ENGAGE', default: 0.15, recommended: { minimum: 0.1, maximum: 0.2 } },
   miniBoxCrushSqueeze: { joint: 'miniBoxSnap', mode: 'crush-ribs', variable: 'MB_CRUSH_SQUEEZE', default: 0.1, recommended: { minimum: 0.06, maximum: 0.15 } },
 } as const;
@@ -443,7 +458,7 @@ export type SnapTuningKey = keyof typeof SNAP_TUNING;
 export const SNAP_TUNING_RANGE = { minimum: 0.02, maximum: 0.4, step: 0.01 } as const;
 /** A detent's groove is engagement + clearance deep; in the 1 mm walls it is cut into, at least this much wall must remain. */
 export const GROOVE_WALL = { thickness: 1, minimumLeft: 0.2 } as const;
-const JOINT_NAME: Record<string, string> = { snap: 'case lid', miniLidSnap: 'mini box lid', holderSnap: 'holder in the box', miniBoxSnap: 'mini box in the lid' };
+const JOINT_NAME: Record<string, string> = { snap: 'case lid', miniLidSnap: 'mini box lid', holderSnap: 'holder in the box', lighterSnap: 'lighter in the box', miniBoxSnap: 'mini box in the lid' };
 const tuningControl = (key: SnapTuningKey, what: string, description: string) => {
   const tuning = SNAP_TUNING[key];
   return dimension(`${what} (${JOINT_NAME[tuning.joint]})`, description, tuning.default, SNAP_TUNING_RANGE.minimum, SNAP_TUNING_RANGE.maximum, SNAP_TUNING_RANGE.step);
@@ -477,6 +492,9 @@ export const CigaretteCaseParametersSchema = Type.Object({
   holderSnap: Type.Enum(INSERT_SNAP_VALUES, {
     title: 'Holder in the box', description: 'How the mini holder is held in the case box\'s round bay, which is open through the floor: a friction fit, a detent or crush ribs.', default: 'friction',
   }),
+  lighterSnap: Type.Enum(LIGHTER_SNAP_VALUES, {
+    title: 'Lighter in the box', description: 'How the BIC Mini lighter is held in the round bay, above the holder: the fitted bay alone (a friction fit) or crush ribs.', default: 'friction',
+  }),
   miniBoxSnap: Type.Enum(INSERT_SNAP_VALUES, {
     title: 'Mini box in the lid', description: 'How the closed mini box is held in the case lid, so that it comes off with the lid: a friction fit, a detent or crush ribs.', default: 'friction',
   }),
@@ -487,7 +505,7 @@ export const CigaretteCaseParametersSchema = Type.Object({
   textFont: Type.Enum(TEXT_FONT_VALUES, { title: 'Text font', description: 'The font of the underside text. All are bold, so that the strokes print cleanly.', default: 'sans' }),
   textSize: dimension('Text size', 'Letter height of the underside text in mm (the height of a capital letter). Longer text needs a smaller size.', 6, TEXT_AREA.minSize, TEXT_AREA.maxSize, 0.5),
   textMode: Type.Enum(TEXT_MODE_VALUES, { title: 'Text style', description: 'Engraved into the box, or carved and filled by a separate part for a second filament.', default: 'engrave' }),
-  clearance: dimension('Clearance', 'Gap per side between parts that fit together (lid on box, mini box in the lid, holder in the box), in mm. Larger is looser; raise it if your printer prints parts that are too tight.',
+  clearance: dimension('Clearance', 'Gap per side between parts that fit together (lid on box, mini box in the lid, holder and lighter in the box), in mm. Larger is looser; raise it if your printer prints parts that are too tight.',
     CLEARANCE_RANGE.default, CLEARANCE_RANGE.minimum, CLEARANCE_RANGE.maximum, CLEARANCE_RANGE.step),
   snapDetentEngage: tuningControl('snapDetentEngage', 'Detent engagement', 'How far the bump on the case box reaches past the case lid\'s wall, in mm, on top of the clearance. More clicks harder.'),
   snapCrushSqueeze: tuningControl('snapCrushSqueeze', 'Crush-rib squeeze', 'How much the ribs on the case box are squeezed by the case lid, in mm, on top of the clearance. More holds tighter.'),
@@ -495,6 +513,7 @@ export const CigaretteCaseParametersSchema = Type.Object({
   miniLidCrushSqueeze: tuningControl('miniLidCrushSqueeze', 'Crush-rib squeeze', 'How much the ribs on the mini lid are squeezed by the mini box, in mm, on top of the clearance. More holds tighter.'),
   holderDetentEngage: tuningControl('holderDetentEngage', 'Detent engagement', 'How far the bumps on the holder reach past the bay wall, in mm, on top of the clearance. More holds harder, but a lighter must still push the holder out.'),
   holderCrushSqueeze: tuningControl('holderCrushSqueeze', 'Crush-rib squeeze', 'How much the ribs on the holder are squeezed by the bay wall, in mm, on top of the clearance. More holds tighter, but a lighter must still push the holder out.'),
+  lighterCrushSqueeze: tuningControl('lighterCrushSqueeze', 'Crush-rib squeeze', 'How much the ribs in the round bay are squeezed by the lighter, in mm, on top of the clearance. More holds tighter, but the lighter must still slide in, and push the holder out upside down.'),
   miniBoxDetentEngage: tuningControl('miniBoxDetentEngage', 'Detent engagement', 'How far the bumps in the case lid reach past the mini box\'s wall, in mm, on top of the clearance. More holds harder, but a finger must still pull the mini box out.'),
   miniBoxCrushSqueeze: tuningControl('miniBoxCrushSqueeze', 'Crush-rib squeeze', 'How much the ribs in the case lid are squeezed by the mini box, in mm, on top of the clearance. More holds tighter, but a finger must still pull the mini box out.'),
 }, { additionalProperties: false, description: 'Cigarette case parameters. All fields are required.' });
@@ -531,6 +550,7 @@ const cigaretteCaseControls = [
   enumControl(CigaretteCaseParametersSchema, 'snap', 'basic', SNAP_VALUES.map(value => ({ value, ...SNAP_TEXT[value] }))),
   enumControl(CigaretteCaseParametersSchema, 'miniLidSnap', 'basic', INSERT_SNAP_VALUES.map(value => ({ value, ...MINI_LID_SNAP_TEXT[value] }))),
   enumControl(CigaretteCaseParametersSchema, 'holderSnap', 'basic', INSERT_SNAP_VALUES.map(value => ({ value, ...HOLDER_SNAP_TEXT[value] }))),
+  enumControl(CigaretteCaseParametersSchema, 'lighterSnap', 'basic', LIGHTER_SNAP_VALUES.map(value => ({ value, ...LIGHTER_SNAP_TEXT[value] }))),
   enumControl(CigaretteCaseParametersSchema, 'miniBoxSnap', 'basic', INSERT_SNAP_VALUES.map(value => ({ value, ...MINI_BOX_SNAP_TEXT[value] }))),
   textControl(CigaretteCaseParametersSchema, 'engraveText', 'basic'),
   enumControl(CigaretteCaseParametersSchema, 'textFont', 'basic', TEXT_FONT_VALUES.map(value => ({ value, ...TEXT_FONT_TEXT[value] }))),
@@ -541,6 +561,7 @@ const cigaretteCaseControls = [
       { control: 'snap', ranges: SNAP_VALUES.map(value => ({ value, ...SNAP_CLEARANCE[value] })) },
       { control: 'miniLidSnap', ranges: INSERT_SNAP_VALUES.map(value => ({ value, ...MINI_LID_SNAP_CLEARANCE[value] })) },
       { control: 'holderSnap', ranges: INSERT_SNAP_VALUES.map(value => ({ value, ...HOLDER_SNAP_CLEARANCE[value] })) },
+      { control: 'lighterSnap', ranges: LIGHTER_SNAP_VALUES.map(value => ({ value, ...LIGHTER_SNAP_CLEARANCE[value] })) },
       { control: 'miniBoxSnap', ranges: INSERT_SNAP_VALUES.map(value => ({ value, ...MINI_BOX_SNAP_CLEARANCE[value] })) },
     ] },
   // each joint's engagement or squeeze, shown only while that joint uses the mechanism, with its recommended range highlighted
@@ -557,15 +578,16 @@ const CLEARANCE_MAPPING = { clearance: 'CLEARANCE' };
 const SNAP_MAPPING = { snap: 'SNAP', snapDetentEngage: 'DETENT_ENGAGE' };
 const MINI_LID_SNAP_MAPPING = { miniLidSnap: 'MINI_LID_SNAP', miniLidDetentEngage: 'ML_DETENT_ENGAGE' };
 const HOLDER_SNAP_MAPPING = { holderSnap: 'HOLDER_SNAP', holderDetentEngage: 'HOLDER_DETENT_ENGAGE' };
+const LIGHTER_SNAP_MAPPING = { lighterSnap: 'LIGHTER_SNAP', lighterCrushSqueeze: 'LIGHTER_CRUSH_SQUEEZE' };
 const MINI_BOX_SNAP_MAPPING = { miniBoxSnap: 'MINI_BOX_SNAP', miniBoxDetentEngage: 'MB_DETENT_ENGAGE' };
 const TEXT_MAPPING = { engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE' };
 
 /** The parts. `id` is the STL basename inside the ZIP. The SCAD files are the verified reconstructions, with their mating surfaces
  * fitted to one clearance (the `clearance` parameter; see models/cigarette-case/reference/VERIFICATION.md), except
  * `case-text`, which is new: the underside text as a separate body, present only in `second-filament` mode. Each snap setting
- * reaches the two parts of its joint. */
+ * reaches the printed parts of its joint (the lighter setting only the case box). */
 const cigaretteCaseParts: ModelPart[] = [
-  { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, snapCrushSqueeze: 'CRUSH_SQUEEZE', ...HOLDER_SNAP_MAPPING, ...TEXT_MAPPING } },
+  { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, snapCrushSqueeze: 'CRUSH_SQUEEZE', ...HOLDER_SNAP_MAPPING, ...LIGHTER_SNAP_MAPPING, ...TEXT_MAPPING } },
   { id: 'case-lid', title: 'Case lid (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_top.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, ...MINI_BOX_SNAP_MAPPING, miniBoxCrushSqueeze: 'MB_CRUSH_SQUEEZE' } },
   { id: 'mini-holder', title: 'Mini holder', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_minibox.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...HOLDER_SNAP_MAPPING, holderCrushSqueeze: 'HOLDER_CRUSH_SQUEEZE' } },
   { id: 'mini-box', title: 'Mini box', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...MINI_LID_SNAP_MAPPING, ...MINI_BOX_SNAP_MAPPING } },
@@ -596,7 +618,7 @@ const cigaretteCaseAssembly: Assembly = {
     // clear of the box and the holder). Its top is 1.1 mm under the lid's ceiling (docs/cigarette-case-assembly.md). Upright, the
     // tab stops it short of the holder; turned upside down, wheel side towards the tab, its hood and wheel pass the tab and push
     // the holder out.
-    // TODO(#17): the bay is not fitted to the lighter yet, so it sits loose (about 0.4 mm a side, not CLEARANCE).
+    // The bay above the tab is fitted to it (its plan plus the clearance), so this pose holds for any clearance.
     'mini-bic-lighter': { position: [-16.84, 0, 35.12] },
   },
   steps: [
@@ -611,8 +633,8 @@ const cigaretteCaseAssembly: Assembly = {
 };
 
 export const cigaretteCase = {
-  id: 'cigarette-case' as const, version: '5' as const, title: 'Cigarette case (Onz)',
-  description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Choose how each joint holds (the lid on the box, the mini lid, the holder in the box and the mini box in the lid) and how closely the parts fit, add text to the underside of the box (engraved, or as a second-filament part), then download every part as a ZIP of STL files.',
+  id: 'cigarette-case' as const, version: '6' as const, title: 'Cigarette case (Onz)',
+  description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Choose how each joint holds (the lid on the box, the mini lid, the holder and the lighter in the box, and the mini box in the lid) and how closely the parts fit, add text to the underside of the box (engraved, or as a second-filament part), then download every part as a ZIP of STL files.',
   attribution: 'sez16sez (Thingiverse)',
   printNotes: 'Print each part separately; the lids print rim-side down. The optional text part prints flat, in a second colour.',
   // Kept short deliberately: this string and `attribution` are stamped into each STL's 80-byte header (see stampAttribution).

@@ -999,7 +999,7 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "5"
+                          "6"
                         ]
                       },
                       "parameters": {
@@ -1008,6 +1008,7 @@
                           "snap",
                           "miniLidSnap",
                           "holderSnap",
+                          "lighterSnap",
                           "miniBoxSnap",
                           "engraveText",
                           "textFont",
@@ -1020,6 +1021,7 @@
                           "miniLidCrushSqueeze",
                           "holderDetentEngage",
                           "holderCrushSqueeze",
+                          "lighterCrushSqueeze",
                           "miniBoxDetentEngage",
                           "miniBoxCrushSqueeze"
                         ],
@@ -1054,6 +1056,15 @@
                             ],
                             "title": "Holder in the box",
                             "description": "How the mini holder is held in the case box's round bay, which is open through the floor: a friction fit, a detent or crush ribs.",
+                            "default": "friction"
+                          },
+                          "lighterSnap": {
+                            "enum": [
+                              "friction",
+                              "crush-ribs"
+                            ],
+                            "title": "Lighter in the box",
+                            "description": "How the BIC Mini lighter is held in the round bay, above the holder: the fitted bay alone (a friction fit) or crush ribs.",
                             "default": "friction"
                           },
                           "miniBoxSnap": {
@@ -1106,7 +1117,7 @@
                           "clearance": {
                             "type": "number",
                             "title": "Clearance",
-                            "description": "Gap per side between parts that fit together (lid on box, mini box in the lid, holder in the box), in mm. Larger is looser; raise it if your printer prints parts that are too tight.",
+                            "description": "Gap per side between parts that fit together (lid on box, mini box in the lid, holder and lighter in the box), in mm. Larger is looser; raise it if your printer prints parts that are too tight.",
                             "default": 0.2,
                             "minimum": 0.1,
                             "maximum": 0.6,
@@ -1161,6 +1172,15 @@
                             "type": "number",
                             "title": "Crush-rib squeeze (holder in the box)",
                             "description": "How much the ribs on the holder are squeezed by the bay wall, in mm, on top of the clearance. More holds tighter, but a lighter must still push the holder out.",
+                            "default": 0.1,
+                            "minimum": 0.02,
+                            "maximum": 0.4,
+                            "multipleOf": 0.01
+                          },
+                          "lighterCrushSqueeze": {
+                            "type": "number",
+                            "title": "Crush-rib squeeze (lighter in the box)",
+                            "description": "How much the ribs in the round bay are squeezed by the lighter, in mm, on top of the clearance. More holds tighter, but the lighter must still slide in, and push the holder out upside down.",
                             "default": 0.1,
                             "minimum": 0.02,
                             "maximum": 0.4,
