@@ -86,7 +86,7 @@ to the holder's sideways play. The holder also has about 1.6 mm of vertical play
 
 ## Mini box in the lid (`miniBoxSnap`)
 
-The closed mini box slides up into the case lid until its rim meets the ceiling. It has to stay there when the lid is lifted off
+The closed mini box slides up into the case lid upside down, until its floor meets the ceiling. It has to stay there when the lid is lifted off
 (issue #8), and it is pulled out with a finger. The features sit on the lid's cavity wall near the ceiling, on both straight
 sides (lid x 0.5 to 9, where the cavity and the mini box are both straight). Nothing is added below lid z 23, clear of the case lid
 detent's groove, the clip tongues and the magnet bosses.
@@ -97,7 +97,7 @@ detent's groove, the clip tongues and the magnet bosses.
 | `detent` | A bump on each side of the cavity at lid z 30.5, halfway up the seated mini box, so it rubs over 7 mm. It reaches 0.15 mm past the mini box's face (`MB_DETENT_ENGAGE`), no more than the smallest clearance recommended for it. The mini box's wall can therefore give way into its own gap to the mini lid inside it. The groove in the mini box's side walls clears the bump by the clearance, and at least 0.45 mm of the 1 mm wall remains at 0.4 mm clearance. |
 | `crush-ribs` | Three ribs on each side of the cavity (lid x 1, 4.75 and 8.5), from lid z 26 to the ceiling, with the lower end ramped. They stand clearance + 0.1 mm proud and are squeezed by 0.1 mm by the mini box's upper 11 mm. |
 
-The mini box's two grooves stay apart: the outer one is at mini box z 7 (from `miniBoxSnap`) and the inner one is just under the rim
+The mini box's two grooves stay apart: the outer one is at mini box z 7.35 (from `miniBoxSnap`) and the inner one is just under the rim
 (from `miniLidSnap`). The 1 mm wall is never thinned from both sides at the same height.
 
 ## Clearance

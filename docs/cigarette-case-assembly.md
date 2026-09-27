@@ -10,8 +10,8 @@ and how they are checked. The generic mechanism is described in [adding-models.m
 |---|---|
 | 0 | The parts lie on the print bed as printed (the viewer's grid). |
 | 1 | The parts lift off and move into the exploded layout (50 mm above the floor), turned the way they are used. |
-| 2 | **Close the mini box**: the mini lid comes down onto the mini box. |
-| 3 | **Slide the mini box into the lid**: the closed mini box rises into the case lid's open bottom. |
+| 2 | **Close the mini box**: the mini box hangs upside down, as it goes into the case lid; the mini lid comes up into it from below. |
+| 3 | **Slide the mini box into the lid**: the closed mini box rises into the case lid's open bottom, floor first. |
 | 4 | **Push the holder into the box**: the holder rises into the round bay through the box's open floor. |
 | 5 | **Close the case**: the case lid, with the mini box inside, comes down onto the box. The closed case settles onto the floor. |
 
@@ -25,8 +25,8 @@ every SCAD file centres its part at the origin.
 | `case-box`, `case-text` | 0, 0, 0 | none | The frame itself; the text part is modelled in the box's frame. |
 | `case-lid` | 0, 0, 60.38 | none | The lid is printed rim down, which is also how it is used. Its rim sits on the step at the top of the box's honeycomb (`BASE_TOP`), where the snap features are measured from (see [cigarette-case-snap.md](cigarette-case-snap.md)). |
 | `mini-holder` | −16.84, 0, 0 | none | Centred in the round bay (`BAY_ROUND`), flush with the box's underside. The bay is open through the floor, and the clip tab (z 32.3 to 34.9) stops the holder's dome: collisions start about 1.6 mm higher. |
-| `mini-box` | 6.43, 0, 83.839 | none | Its chamfered end has the same slope (−0.584) as the lid cavity's chamfer; it sits one clearance (0.2 mm) from it, the same gap as its straight sides. Its rim is against the lid ceiling (60.38 + 37.85 = 98.23 mm, less the rim height 14.391). |
-| `mini-lid` | 6.43, 0, 98.23 | 0, 180, 0 | The lid is printed cap down and is used cap up, so it is turned over about Y; turning about Y undoes the X mirror of its plan. It sits flush: the cap is level with the mini box's rim, the end pads are centred in the rim notches and the lid's rim stands on the mini box's floor. |
+| `mini-box` | 6.43, 0, 98.23 | 180, 0, 0 | Upside down: its floor, whose +X end is the curved sweep, lies against the lid's flat ceiling (60.38 + 37.85 = 98.23 mm), and its rim, closed by the mini lid's flat cap, faces the case box 14.391 mm lower. It is turned over about X, not Y, so that its chamfered end stays at +X: it has the same slope (−0.584) as the lid cavity's chamfer and sits one clearance (0.2 mm) from it, the same gap as its straight sides. |
+| `mini-lid` | 6.43, 0, 83.839 | 0, 0, 180 | The lid is printed cap down and, in the upside-down mini box, is used cap down too. Relative to the mini box it is turned over about Y (the box's X turnover followed by a half turn about Z), which undoes the X mirror of its plan. It sits flush: the cap is level with the mini box's rim, the end pads are centred in the rim notches and the lid's rim stands on the mini box's floor. |
 
 ## How the poses were checked
 
@@ -50,7 +50,7 @@ time; each joint's own setting, see [cigarette-case-snap.md](cigarette-case-snap
 | `snap` | `detent` | 5.9 mm³ | While the case closes: the bump passes the lid wall before it drops into its groove. |
 | `snap` | `clip` | 7.4 mm³ while the case closes; 8.7 mm³ as the mini box enters the lid | The lid's clip nibs stand 0.6 mm into the cavity. The tongues flex out of the way in both steps. |
 | `snap` | `crush-ribs` | 8.2 mm³ when closed | The ribs are squeezed (the designed interference). |
-| `miniLidSnap` | `detent` | 1.1 mm³ in step 1 only | The lid's bumps pass the mini box's rim before they drop into its grooves. |
+| `miniLidSnap` | `detent` | 1.5 mm³ in step 1 only | The lid's bumps pass the mini box's rim before they drop into its grooves. |
 | `miniLidSnap` | `crush-ribs` | 3.7 mm³ when closed | The ribs are squeezed. |
 | `holderSnap` | `detent` | 1.0 mm³ in step 3 only | The holder's bumps pass the bay wall over the last 5 mm. |
 | `holderSnap` | `crush-ribs` | 1.6 mm³ when assembled | The ribs are squeezed. |
@@ -70,4 +70,6 @@ These choices fit either way, so they are judgement calls:
 - **The holder's rotation about Z.** Its window faces +X, as printed. Turned 180°, it fits just as well.
 - **The mini box's height in the lid.** It could hang anywhere between the box's rim and the lid ceiling; it is shown under
   the ceiling, because it comes out with the lid (issue #8, "the top minibox separates from the honeycomb top").
-- **The mini box's orientation.** Floor down or floor up both fit; it is shown floor down.
+- **The mini box's orientation.** Floor down or floor up both fit. It is shown floor up, so that its curved end faces the lid's
+  flat ceiling and the mini lid's flat cap faces the case box. Turned floor down, the curved sweep
+  would hang into the case box and the flat cap would face the flat ceiling.
