@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type ReactElement } f
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Box, Check, ChevronDown, CircleAlert, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { api } from '@canfactory/client';
 import { findModel, validateParameters, type Control, type ModelDetail, type ParameterValues } from '@canfactory/contracts';
+import { referenceObjects } from './referenceObjects.ts';
 import { Viewer } from './Viewer.tsx';
 import { useRender } from './useRender.ts';
 
@@ -268,6 +269,7 @@ function Editor({ model }: { model: ModelDetail }) {
   const issues = useMemo(() => definition ? validateParameters(definition, parameters) : [{ field: '', message: 'Reload the page to use this model’s current editor.' }], [definition, parameters]);
   const valid = issues.length === 0;
   const rendering = useRender(model, parameters, valid);
+  const references = useMemo(() => referenceObjects(model.id, model.assembly), [model]);
   const render = rendering.completed?.render;
   const artifact = render?.artifact;
   const url = artifact?.url ?? null;
@@ -342,7 +344,7 @@ function Editor({ model }: { model: ModelDetail }) {
         <div className="preview-heading"><span className="eyebrow"><Box size={15} /> LIVE PREVIEW</span><span className={`status ${ready && !error ? 'status-ready' : ''}`} role="status">
           {ready && !error ? <Check size={13} /> : error || !valid ? <CircleAlert size={13} /> : <LoaderCircle size={13} className="spin" />}{status}
         </span></div>
-        <Viewer url={url} format={model.artifactFormat} assembly={model.assembly} onError={setViewerError} onLoaded={setLoadedUrl} />
+        <Viewer url={url} format={model.artifactFormat} assembly={model.assembly} references={references} onError={setViewerError} onLoaded={setLoadedUrl} />
         {!ready && url && !error && <div className="previous-preview">Showing the previous preview while your changes are prepared.</div>}
         {(error || (!valid && issues.length > 0)) && <div className="error-banner" role="alert"><CircleAlert size={17} /><span>{error ?? issues[0]?.message}</span>{error && <button type="button" onClick={retry}>Try again</button>}</div>}
         <div className="model-stats">

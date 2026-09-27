@@ -233,7 +233,7 @@ test('shows the cigarette case, offers snap, clearance and text settings and dow
   await assembly.press('End');
   await expect(assembly).toHaveAttribute('aria-valuetext', 'Assembled');
   await assembly.press('ArrowLeft');
-  await expect(assembly).toHaveAttribute('aria-valuetext', `Step ${cigaretteCase.assembly.steps.length - 1} of ${cigaretteCase.assembly.steps.length} · Push the holder into the box`);
+  await expect(assembly).toHaveAttribute('aria-valuetext', `Step ${cigaretteCase.assembly.steps.length - 1} of ${cigaretteCase.assembly.steps.length} · Insert the lighter into its bay`);
   const downloadEvent = page.waitForEvent('download');
   await downloadButton.click();
   const path = await (await downloadEvent).path();
@@ -241,6 +241,8 @@ test('shows the cigarette case, offers snap, clearance and text settings and dow
   const entries = unzipSync(new Uint8Array(await readFile(path)));
   expect(Object.keys(entries).sort()).toEqual(activeParts(cigaretteCase, { ...cigaretteCase.defaults, engraveText: 'Tom', textMode: 'second-filament' }).map(part => `${part.id}.stl`).sort());
   expect(Object.keys(entries)).toContain('case-text.stl');
+  // The lighter is shown in the preview only: it is a real object, not a part to print.
+  expect(Object.keys(entries)).not.toContain('mini-bic-lighter.stl');
   for (const [name, entryBytes] of Object.entries(entries)) {
     expect(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength), { allowDisconnected: name === 'case-text.stl' }).volume, name).toBeGreaterThan(0);
   }

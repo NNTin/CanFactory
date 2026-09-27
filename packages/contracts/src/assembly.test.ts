@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { existsSync } from 'node:fs';
 import { Value } from 'typebox/value';
 import { assemblyOffset, assemblyState, assemblyStops } from './assembly.ts';
-import { AssemblySchema, isAssembly, models, type Assembly } from './models.ts';
+import { activeParts, AssemblySchema, isAssembly, models, referenceObjectPath, type Assembly } from './models.ts';
 
 const assembly: Assembly = {
   poses: { base: { position: [0, 0, 0] }, top: { position: [0, 0, 10] }, insert: { position: [1, 0, 5] } },
@@ -53,11 +54,27 @@ describe('registered assemblies', () => {
       const { assembly: data } = model;
       if (!data || !isAssembly(model)) throw new Error('Expected an assembly model');
       expect(Value.Check(AssemblySchema, data)).toBe(true);
-      const ids = model.parts.map(part => part.id);
+      const references = (data.references ?? []).map(reference => reference.id);
+      const ids = [...model.parts.map(part => part.id), ...references];
+      expect(new Set(ids).size).toBe(ids.length);
       expect(ids.filter(id => !(id in data.poses))).toEqual([]);
       for (const id of [...Object.keys(data.poses), ...data.steps.flatMap(step => step.parts)]) expect(ids).toContain(id);
       expect(data.steps.length).toBeGreaterThan(0);
       expect(data.lift).toBeGreaterThanOrEqual(0);
+      // Reference objects are shown, never printed: each has its source and the STL the preview bundles, and none is rendered.
+      for (const id of references) {
+        expect(existsSync(referenceObjectPath(model.id, id, 'scad')), id).toBe(true);
+        expect(existsSync(referenceObjectPath(model.id, id, 'stl')), id).toBe(true);
+        expect(activeParts(model, model.defaults).map(part => part.id)).not.toContain(id);
+      }
     });
   }
+
+  it('shows the BIC Mini lighter in the cigarette case, inserted before the case is closed, without adding a part to print', () => {
+    const cigaretteCase = models.find(model => model.id === 'cigarette-case');
+    if (!cigaretteCase?.assembly || !isAssembly(cigaretteCase)) throw new Error('Expected the cigarette case assembly');
+    expect(cigaretteCase.assembly.references).toEqual([{ id: 'mini-bic-lighter', title: 'BIC Mini lighter (J25)' }]);
+    expect(cigaretteCase.parts.map(part => part.id)).not.toContain('mini-bic-lighter');
+    expect(cigaretteCase.assembly.steps.map(step => step.title).slice(-2)).toEqual(['Insert the lighter into its bay', 'Close the case']);
+  });
 });

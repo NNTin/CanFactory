@@ -13,7 +13,11 @@ and how they are checked. The generic mechanism is described in [adding-models.m
 | 2 | **Close the mini box**: the mini box hangs upside down, as it goes into the case lid; the mini lid comes up into it from below. |
 | 3 | **Slide the mini box into the lid**: the closed mini box rises into the case lid's open bottom, floor first. |
 | 4 | **Push the holder into the box**: the holder rises into the round bay through the box's open floor. |
-| 5 | **Close the case**: the case lid, with the mini box inside, comes down onto the box. The closed case settles onto the floor. |
+| 5 | **Insert the lighter into its bay**: a BIC Mini lighter (a reference object, not printed) drops into `BAY_B`. |
+| 6 | **Close the case**: the case lid, with the mini box inside, comes down onto the box. The closed case settles onto the floor. |
+
+The lid starts 135 mm above its closed position so that the lighter, which drops 80 mm, fits between the box and the mini box
+in the exploded layout.
 
 ## Assembled poses
 
@@ -28,6 +32,31 @@ every SCAD file centres its part at the origin.
 | `mini-box` | 6.43, 0, 98.23 | 180, 0, 0 | Upside down: its floor, whose +X end is the curved sweep, lies against the lid's flat ceiling (60.38 + 37.85 = 98.23 mm), and its rim, closed by the mini lid's flat cap, faces the case box 14.391 mm lower. It is turned over about X, not Y, so that its chamfered end stays at +X: it has the same slope (−0.584) as the lid cavity's chamfer and sits one clearance (0.2 mm) from it, the same gap as its straight sides. |
 | `mini-lid` | 6.43, 0, 83.839 | 0, 0, 180 | The lid is printed cap down and, in the upside-down mini box, is used cap down too. Relative to the mini box it is turned over about Y (the box's X turnover followed by a half turn about Z), which undoes the X mirror of its plan. It sits flush: the cap is level with the mini box's rim, the end pads are centred in the rim notches and the lid's rim stands on the mini box's floor. |
 
+| `mini-bic-lighter` | 12.62, 0, 2.45 | none | A reference object (see below), standing on the floor of `BAY_B` (`FLOOR_TOP`), its width along Y and its hood towards −Y. |
+
+## Reference objects
+
+The mini box is not the only thing the case holds. Of the two rectangular bays, `BAY_A` (x −14.2 to 6.3, 20.5 × 25.3 mm, its −X
+side curved around the round bay) holds the cigarettes. `BAY_B` (x 6.9 to 22.5, 15.6 × 25.3 mm, chamfered at its +X end) is on the
+side opposite the mini holder's round bay, and it holds a BIC Mini lighter. The lighter is modelled in
+`models/cigarette-case/reference-objects/mini-bic-lighter.scad` and shown in the preview, in blue, so that its fit can be seen. It
+is not printed and not in the ZIP (see [adding-models.md](adding-models.md), “Reference objects”).
+
+| Dimension | Value | Source |
+|---|---|---|
+| Height, width, thickness | 62 × 22 × 11 mm | Confirmed: BIC's own specification ([BIC Graphic, J25](https://www.bicgraphic.com/gb/bic-j25-lighter-3460002360.html)), [4imprint UK](https://www.4imprint.co.uk/product/502972/BIC-J25-Standard-Lighter) and [WE MAG](https://wemag.gr/en/product/bic-mini-lighter-j25-2360/); US listings give 7/8 × 2 7/16 in (22.2 × 61.9 mm). |
+| Plan: a superellipse, exponent 2.5 | | Estimated from photographs. |
+| Body height 50 mm, hood 9.4 mm wide, wheel 7.4 mm (thumb rings) and 6 mm (flint wheel), lever | | Estimated from photographs and the overall height. |
+
+The body is opaque, as on every BIC lighter, so it has no fuel window. The inside of the hood (burner, flint, child-guard spring)
+is left out.
+
+The pose follows from the shapes. The lighter's rounded edges meet the chamfers at the +X end of `BAY_B`, and its hood's corners
+meet them higher up, so it can move only 0.37 mm along X (x = 12.43 to 12.80). It is shown in the middle of that range. There it
+is 0.2 mm from the divider, 1.6 mm from each ±Y wall, and 4.4 mm of the bay is left empty on its +X side. Its top is at 64.45 mm,
+19 mm below the mini lid's cap. These figures rest on the estimated plan; a real lighter shows how loose it really is. The fit is
+left as it is here: tightening the bay is a separate change.
+
 ## How the poses were checked
 
 `npm run check:assembly` (`tools/check-assembly.ts`) renders every part as the worker does, places them with the same
@@ -38,6 +67,9 @@ functions the web app uses, and measures the volume shared by parts on a 0.25 mm
 - **The exploded layout:** every pair of parts, and that nothing is below the floor.
 - **Each step:** 17 samples along the step's path, the moving parts against all the others.
 
+It includes the reference objects, rendered from their SCAD files, and fails if the committed STL that the preview uses no
+longer matches the SCAD file's bounds.
+
 Default settings (`friction` on every joint, 0.2 mm clearance): every value is 0.00 mm³. The `magnet` mode is just as clean, and so is
 second-filament text. The measured gap on each of the four mating surfaces (case lid on box, mini lid in mini box, mini box in
 case lid, holder in bay) is the clearance, from 0.1 to 0.6 mm; see [cigarette-case-snap.md](cigarette-case-snap.md#clearance).
@@ -47,7 +79,7 @@ time; each joint's own setting, see [cigarette-case-snap.md](cigarette-case-snap
 
 | Setting | Mode | Shared volume | Where |
 |---|---|---|---|
-| `snap` | `detent` | 5.9 mm³ | While the case closes: the bump passes the lid wall before it drops into its groove. |
+| `snap` | `detent` | 5.7 mm³ | While the case closes: the bump passes the lid wall before it drops into its groove. |
 | `snap` | `clip` | 7.4 mm³ while the case closes; 8.7 mm³ as the mini box enters the lid | The lid's clip nibs stand 0.6 mm into the cavity. The tongues flex out of the way in both steps. |
 | `snap` | `crush-ribs` | 8.2 mm³ when closed | The ribs are squeezed (the designed interference). |
 | `miniLidSnap` | `detent` | 1.5 mm³ in step 1 only | The lid's bumps pass the mini box's rim before they drop into its grooves. |

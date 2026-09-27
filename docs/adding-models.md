@@ -71,6 +71,14 @@ with `npm run check:assembly -- <model-id>`. It renders the parts and measures t
 the assembled state, in the exploded layout and along each step's path (see [cigarette-case-assembly.md](cigarette-case-assembly.md)).
 Models without `assembly` keep the plain grid.
 
+**Reference objects (optional).** `assembly.references` lists real-world objects the assembly holds, such as the lighter that
+the cigarette case's bay is sized for. They get poses and steps like parts, so the preview shows how they fit, but they are
+never printed: they are not in `parts`, the worker does not render them and they are not in the ZIP. Each lives in
+`models/<model-id>/reference-objects/` (`referenceObjectPath`): `<id>.scad` with the real dimensions as named values, and
+`<id>.stl`, that file rendered with `openscad --backend Manifold --export-format binstl`, which the web app bundles
+(`apps/web/src/referenceObjects.ts`). Render the STL again after changing the SCAD file: `npm run check:assembly` renders
+the SCAD file, fails if the committed STL's bounds differ, and includes the object in its collision checks.
+
 Generators for continuous parameters need extra care. Choose which dimensions scale with each parameter and record it in
 the SCAD header (moss-planter: tube radius, thread and end rings scale with the tower diameter; strut width and row
 pitch do not). Every reachable parameter combination must yield one closed solid, and `inspectStl` rejects zero-area
