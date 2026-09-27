@@ -1,23 +1,28 @@
-# Cigarette case: text on the underside
+# Cigarette case: text or a logo on the underside
 
-Four parameters put a line of text on the underside of the large box (the face that sits on the print bed):
+These parameters put a line of text, or a logo from an SVG file, on the underside of the large box (the face that sits on the
+print bed):
 
 | Key | Kind | Default | Meaning | SCAD variable |
 |---|---|---|---|---|
+| `undersideMark` | enum: `text`, `logo` | `text` | Which of the two goes on the underside. The editor shows only the chosen one's settings. | `MARK` |
 | `engraveText` | text, at most 20 printable ASCII characters | empty (no text) | The text. Empty or only spaces means none. | `TEXT` |
 | `textFont` | enum: `sans`, `serif`, `mono`, `wide` | `sans` | The font (all bold, see `models/fonts/README.md`). | `TEXT_FONT` |
 | `textSize` | 3 to 10 mm, step 0.5 | 6 | Letter height (OpenSCAD's `text` size, about a capital's height). | `TEXT_SIZE` |
-| `textMode` | enum: `engrave`, `second-filament` | `engrave` | See below. Not passed to SCAD: it decides which parts are rendered. | none |
+| `logo` | `svg`: a logo string, read from an SVG file | empty (no logo) | The logo's outline; see [The logo](#the-logo). | `LOGO` (as numbers) |
+| `logoSize` | 3 to 15 mm, step 0.5 | 12 | The logo's height, or less for a logo that would be wider than 34.5 mm. | `LOGO_SIZE` |
+| `textMode` (editor label "Underside style") | enum: `engrave`, `second-filament` | `engrave` | See below, for text and logo alike. Not passed to SCAD: it decides which parts are rendered. | none |
 
 ## The two styles
 
 - `engrave`: the letters are carved 0.8 mm into the underside of `case-box` (the floor above it is 2.45 mm thick). Any printer.
 - `second-filament`: the box is carved exactly the same way, and a sixth part, `case-text`, is added to the ZIP. It is the
-  same letters (0.8 mm thick), in the box's own coordinate frame with the underside on z = 0, so importing it into the slicer
-  together with `case-box` puts it in the carving, flush. Print it in another colour on a multi-nozzle printer, or with a
-  filament change. It exists only when the mode is `second-filament` and the text has a visible character
-  (`ModelPart.includedWhen`, `activeParts()` in `packages/contracts`); its letters are separate bodies by design
-  (`ModelPart.separateBodies`, so the mesh check allows several closed bodies for it, and only for it).
+  same letters or logo (0.8 mm thick), in the box's own coordinate frame with the underside on z = 0, so importing it into the
+  slicer together with `case-box` puts it in the carving, flush. Print it in another colour on a multi-nozzle printer, or with
+  a filament change. It exists only when the mode is `second-filament` and the chosen mark has something to print: text with
+  a visible character, or a loaded logo (`hasSecondFilamentMark`, `ModelPart.includedWhen`, `activeParts()` in
+  `packages/contracts`). Its letters or shapes are separate bodies by design (`ModelPart.separateBodies`, so the mesh check
+  allows several closed bodies for it, and only for it).
 
 ## Layout
 
@@ -30,6 +35,54 @@ letters to that area, so nothing can reach the bay or the edge; the contract mak
   rejects text wider than 34.5 mm ("shorten it or lower the text size"). At size 6 that is about 10 characters of "Hello"
   width; at 3 mm about 20. Kerning is ignored, which is why the limit is 0.5 mm inside the area.
 - The tallest text (10 mm size, with descenders) is 14.4 mm high, inside the 16 mm area.
+
+The logo is centred on the same area and mirrored the same way. It is scaled to `logoSize` high, or smaller if it would then
+be wider than 34.5 mm (the area less the text's margin, `LOGO_W`), so it always fits and needs no width check. The same clip
+applies.
+
+## The logo
+
+The editor's logo control takes an SVG file. The file is read **in the browser** and turned into a *logo string*
+(`svgToLogo` in `packages/contracts/src/svgLogo.ts`); only that string is kept, saved with the other settings and sent to the
+API. It is the filled outline in a tiny subset of SVG path data: `M x yL x y…Z` per ring, every coordinate an integer from 0
+to 2000 (`LOGO_GRID`, the longest side), y up. The rings are simple outlines and holes that do not overlap, so filling them
+even-odd, as OpenSCAD's `polygon()` does, gives exactly the SVG's filled area.
+
+**What is read from the file.** Paths (every command, including arcs), `rect` (with rounded corners), `circle`, `ellipse`,
+`polygon`, `polyline`, groups, `transform`, and `fill`, `fill-rule`, `display`, `visibility` and `opacity` (as attributes or
+in `style`, inherited). Each shape is filled by its own rule, nonzero by default, so an outline that crosses itself (a
+calligraphic stroke, a star) stays filled where it overlaps itself, and shapes painted over each other are joined. Both are
+done with Clipper (`clipper-lib`), the polygon library OpenSCAD itself uses. Curves are flattened to within about 0.01 mm at
+the largest size, then simplified, up to 1 % of the logo's size, until there are at most 2500 points (`LOGO_MAX_POINTS`) in
+at most 1000 rings. A file that is still more detailed is refused with a hint to simplify it.
+
+**What is left out**, with a note under the control: text (convert it to paths first), strokes without a fill (convert them
+with Stroke to Path), embedded pictures, `<use>` copies, clip paths and masks, and style sheets (`<style>`, so only fill set
+on the shapes counts). `defs`, `symbol`, `marker`, `pattern`, metadata and every element in a foreign namespace (Inkscape's
+`sodipodi:*`, RDF, …) are never drawn. The root's `viewBox` and size are not needed, since the outline is scaled to fit.
+
+### Security
+
+The SVG file is untrusted input, so it is never rendered, stored or sent:
+
+- **The server and OpenSCAD never see it.** The API accepts only the logo string: the schema allows only `M`, `L`, `Z`,
+  digits and spaces, up to 26,000 characters (`LOGO_MAX_LENGTH`, which fits in the API's 32 KB request limit). The contract's
+  `validate` then reads it strictly (`decodeLogo`: exactly the form `encodeLogo` writes, coordinates 0 to 2000, at least three
+  points per ring, the point and ring limits), whichever mark is chosen, since every part that maps it receives it. The
+  worker revalidates every job, and writes the logo with `logoScad`, as a vector of numbers (`-D LOGO=[[[0,0],…]]`, through
+  `execFile`, no shell). So OpenSCAD's own SVG importer, its XML parser and its file access are never used, and a hostile API
+  caller can send nothing but numbers.
+- **The file is read by a strict parser of our own** (`parseSvgXml`), not the browser's: no DTDs (a `DOCTYPE` with an internal
+  subset is refused, so there are no entity declarations, external entities or entity expansion), no entities beyond the five
+  predefined ones and character references, no external references of any kind (it has no way to load anything), and
+  limits on the file size (1 MB), nesting depth (64) and element count (20,000). Malformed XML is refused.
+- **Only geometry is interpreted.** Scripts, event handlers, links, `href`s, styles, pictures and foreign content are never
+  read, let alone run.
+- **The preview is drawn from the logo string**, only after `decodeLogo` has accepted it, so it holds nothing but numbers and
+  `M`, `L`, `Z`. The file's markup is never put into the page, and never shown as an image.
+
+`packages/contracts/src/svgLogo.test.ts` covers these: XXE and "billion laughs" files, scripts and event handlers, external
+references, malformed XML, the limits, and logo strings that are not exactly what `encodeLogo` writes.
 
 ## Fonts and reproducibility
 

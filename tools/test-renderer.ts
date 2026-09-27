@@ -5,13 +5,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { unzipSync } from 'fflate';
-import { activeParts, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, mossPlanter, plankConnector, textWidth, validateParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, mossPlanter, plankConnector, svgToLogo, textWidth, validateParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, RENDERER_IMAGE, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, runOpenScad, type OpenScadRunner } from '../apps/worker/src/render.ts';
 import { renderScad } from './stl-to-scad/openscad.ts';
 
 const exec = promisify(execFile);
+// Two logos for the cigarette case's underside, read from SVG as the editor does.
+const RING_AND_STAR = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill-rule="evenodd" d="M50 2a48 48 0 1 0 0.01 0zM50 10a40 40 0 1 1 -0.01 0z"/><path d="M50 18 L69 76 L20 40 L80 40 L31 76 Z"/></svg>');
+const WIDE_BAR = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg"><rect width="80" height="20" rx="5"/></svg>');
 const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
 store.migrate(); store.seed();
@@ -138,6 +141,10 @@ try {
     ...['friction', 'detent', 'clip', 'magnet', 'crush-ribs'].map(snap => ({ name: `snap ${snap}`, parameters: { ...cigaretteCase.defaults, snap } })),
     ...['sans', 'serif', 'mono', 'wide'].map(textFont => ({ name: `engraved ${textFont}`, parameters: { ...cigaretteCase.defaults, engraveText: 'Tom & Jo', textFont, textSize: 4 } })),
     { name: 'second filament', parameters: { ...cigaretteCase.defaults, engraveText: 'Hello', textMode: 'second-filament', textSize: 6 } },
+    // an SVG logo instead of the text: a ring with a star in it (a self-crossing outline, filled nonzero), engraved and as a second-filament part,
+    // at its largest; and a logo four times as wide as high, which is made smaller to fit the free width
+    ...(['engrave', 'second-filament'] as const).map(textMode => ({ name: `logo ${textMode}`, parameters: { ...cigaretteCase.defaults, undersideMark: 'logo', logo: RING_AND_STAR.logo, logoSize: 15, textMode } })),
+    { name: 'wide logo, second filament', parameters: { ...cigaretteCase.defaults, undersideMark: 'logo', logo: WIDE_BAR.logo, logoSize: 15, textMode: 'second-filament' } },
     ...[0.1, 0.6].map(clearance => ({ name: `clearance ${clearance}`, parameters: { ...cigaretteCase.defaults, clearance } })),
     { name: 'crush ribs at clearance 0.4', parameters: { ...cigaretteCase.defaults, snap: 'crush-ribs', clearance: 0.4 } },
     ...['miniLidSnap', 'holderSnap', 'miniBoxSnap'].flatMap(key => ['detent', 'crush-ribs'].map(mode => ({ name: `${key} ${mode}`, parameters: { ...cigaretteCase.defaults, [key]: mode } }))),
@@ -176,6 +183,13 @@ try {
     };
     for (const part of result.artifact.parts) {
       assert.ok(part.volume > 0, `cigarette case ${name} ${part.id}: expected positive volume`);
+      if (part.id === 'case-text' && parameters['undersideMark'] === 'logo') {
+        // The logo is logoSize high, or less if it would be wider than the free width (34.5 mm), 0.8 mm thick.
+        const aspect = parameters['logo'] === WIDE_BAR.logo ? WIDE_BAR.aspect : RING_AND_STAR.aspect;
+        const height = Math.min(Number(parameters['logoSize']), 34.5 / aspect);
+        assert.ok(Math.abs(part.dimensions.y - height) < 0.02 && Math.abs(part.dimensions.x - height * aspect) < 0.02 && Math.abs(part.dimensions.z - 0.8) < 0.01, `case-text logo size ${JSON.stringify(part.dimensions)}, expected ${height * aspect} x ${height}`);
+        continue;
+      }
       if (part.id === 'case-text') {
         // The letters must lie inside the free area, be 0.8 mm thick, and be no wider than the contract's estimate, which is an upper bound (else the estimate would let clipped text through).
         const estimate = textWidth(String(parameters['textFont']), String(parameters['engraveText']), Number(parameters['textSize']));

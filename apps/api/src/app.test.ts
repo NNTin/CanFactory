@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { cigaretteCase, ErrorSchema, fruitFlyTrap, ModelDetailSchema, mossPlanter, plankConnector, RenderSchema } from '@canfactory/contracts';
+import { cigaretteCase, ErrorSchema, LOGO_MAX_LENGTH, LOGO_MAX_POINTS, fruitFlyTrap, ModelDetailSchema, mossPlanter, plankConnector, RenderSchema } from '@canfactory/contracts';
 import { CACHE_TTL_MS, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from './app.ts';
 
@@ -53,7 +53,7 @@ describe('model and render API', () => {
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.artifactFormat).toBe('zip');
     expect(model.customizable).toBe(true);
-    expect(model.controls.map(control => control.kind)).toEqual(['enum', 'enum', 'enum', 'enum', 'enum', 'text', 'enum', 'number', 'enum', 'number', ...Array<string>(9).fill('number')]);
+    expect(model.controls.map(control => control.kind)).toEqual(['enum', 'enum', 'enum', 'enum', 'enum', 'enum', 'text', 'enum', 'number', 'svg', 'number', 'enum', 'number', ...Array<string>(9).fill('number')]);
     const clearanceControl = model.controls.find(control => control.key === 'clearance');
     expect(clearanceControl).toMatchObject({ key: 'clearance', group: 'advanced', default: 0.2, minimum: 0.1, maximum: 0.6 });
     expect(clearanceControl?.recommended?.map(entry => entry.control)).toEqual(['snap', 'miniLidSnap', 'holderSnap', 'lighterSnap', 'miniBoxSnap']);
@@ -73,6 +73,21 @@ describe('model and render API', () => {
     expect(unknownMode.statusCode).toBeGreaterThanOrEqual(400);
     const extra = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, anything: 1 } } });
     expect(extra.statusCode).toBeGreaterThanOrEqual(400);
+  });
+
+  it('accepts the longest valid logo within the request size limit, and refuses anything but a logo string', async () => {
+    const post = (logo: string) => app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, undersideMark: 'logo', logo, textMode: 'second-filament' } } });
+    // LOGO_MAX_POINTS points at their longest, in as many three-point rings as fit
+    const ring = 'M2000 2000L2000 2000L2000 2000Z';
+    const rings = Math.floor(LOGO_MAX_POINTS / 3);
+    const longest = ring.repeat(rings - 1) + 'M2000 2000' + 'L2000 2000'.repeat(LOGO_MAX_POINTS - 3 * (rings - 1) - 1) + 'Z';
+    expect(longest.length).toBeLessThanOrEqual(LOGO_MAX_LENGTH);
+    expect((await post(longest)).statusCode).toBeLessThan(300);
+    const tooMany = await post(longest.replace(/Z$/, 'L2000 2000Z'));
+    expect(tooMany.statusCode).toBe(422);
+    expect(tooMany.json<{ issues: { field: string }[] }>().issues[0]?.field).toBe('logo');
+    for (const logo of ['<svg onload="alert(1)"/>', 'M0 0L10 0L10 10Z" import("/etc/passwd")', 'M0 0L10 0L10 10'])
+      expect((await post(logo)).statusCode, logo).toBeGreaterThanOrEqual(400);
   });
 
   it('serves the plank connector as a single-STL model with a screw-hole enum and accepts each screw size', async () => {

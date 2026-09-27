@@ -222,7 +222,7 @@ test('shows the cigarette case, offers snap, clearance and text settings and dow
   await expect(text).toHaveValue('');
   await text.fill('Tom');
   await page.getByLabel('Text font').selectOption('mono');
-  await page.getByLabel('Text style').selectOption('second-filament');
+  await page.getByLabel('Underside style').selectOption('second-filament');
   await text.fill('W'.repeat(14));
   await expect(page.locator('#parameter-engraveText-error')).toContainText('mm wide at this font and size');
   await text.fill('Tom');
@@ -267,6 +267,65 @@ test('shows the cigarette case, offers snap, clearance and text settings and dow
   for (const [name, entryBytes] of Object.entries(entries)) {
     expect(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength), { allowDisconnected: name === 'case-text.stl' }).volume, name).toBeGreaterThan(0);
   }
+  expect(errors).toEqual([]);
+});
+
+test('engraves an SVG logo read in the browser: only its outline is sent, and hostile or broken files are refused', async ({ page }, testInfo) => {
+  test.setTimeout(300_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  const sent: unknown[] = [];
+  page.on('request', request => { if (request.method() === 'POST' && request.url().endsWith('/api/v1/renders')) sent.push(request.postDataJSON()); });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'CanFactory model library' }).click();
+  await page.getByRole('button', { name: /CUSTOMIZABLE · ZIP Cigarette case/ }).click();
+  await expect(page.getByLabel('Underside text')).toBeVisible();
+  await page.getByLabel('Underside mark').selectOption('logo');
+  // the text's settings give way to the logo's
+  await expect(page.getByLabel('Underside text')).toHaveCount(0);
+  await expect(page.getByLabel('Text font')).toHaveCount(0);
+  const logo = page.locator('#parameter-logo');
+  const file = (name: string, content: string) => ({ name, mimeType: 'image/svg+xml', buffer: Buffer.from(content) });
+  // an entity declaration (XXE) is refused before anything is read
+  await logo.setInputFiles(file('xxe.svg', '<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg"><path d="&x;"/></svg>'));
+  await expect(page.locator('#parameter-logo-error')).toContainText('declares its own entities');
+  await logo.setInputFiles(file('broken.svg', '<svg><g></svg>'));
+  await expect(page.locator('#parameter-logo-error')).toContainText('not well-formed');
+  // a file with scripts, handlers and a picture: only its filled shapes are used, and nothing in it runs
+  await logo.setInputFiles(file('logo.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" onload="window.pwned = 1">
+    <script>window.pwned = 2</script><image href="https://example.com/x.png" width="10" height="10"/>
+    <rect width="100" height="50" rx="10" onclick="window.pwned = 3"/><circle cx="25" cy="25" r="15" fill="none" stroke="red"/></svg>`));
+  await expect(page.locator('#parameter-logo-error')).toHaveCount(0);
+  await expect(page.getByRole('img', { name: 'Underside logo preview' })).toBeVisible();
+  await expect(page.getByText('logo.svg')).toBeVisible();
+  await expect(page.getByText('Embedded pictures were left out')).toBeVisible();
+  await expect(page.getByText('Shapes with only an outline (a stroke)')).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { pwned?: number }).pwned)).toBeUndefined();
+  await page.locator('.logo-field').screenshot({ path: testInfo.outputPath('logo-field.png') });
+  await page.getByRole('spinbutton', { name: 'Logo size' }).fill('10');
+  await page.getByLabel('Underside style').selectOption('second-filament');
+  const downloadButton = page.getByRole('button', { name: 'Download ZIP', exact: true });
+  await expect(downloadButton).toBeEnabled({ timeout: 270_000 });
+  // the API received the outline as a logo string, never the file
+  const last = sent.at(-1) as { parameters: Record<string, unknown> };
+  expect(last.parameters['undersideMark']).toBe('logo');
+  expect(last.parameters['logo']).toMatch(/^M[MLZ0-9 ]+Z$/);
+  expect(JSON.stringify(sent)).not.toContain('pwned');
+  const downloadEvent = page.waitForEvent('download');
+  await downloadButton.click();
+  const path = await (await downloadEvent).path();
+  if (!path) throw new Error('Missing download');
+  const entries = unzipSync(new Uint8Array(await readFile(path)));
+  const textPart = entries['case-text.stl'];
+  if (!textPart) throw new Error('Expected the second-filament logo part');
+  // a 2:1 logo, 10 mm high and 20 mm wide, 0.8 mm thick
+  const dimensions = inspectStl(Buffer.from(textPart.buffer, textPart.byteOffset, textPart.byteLength), { allowDisconnected: true }).dimensions;
+  expect(dimensions.x).toBeCloseTo(20, 1);
+  expect(dimensions.y).toBeCloseTo(10, 1);
+  expect(dimensions.z).toBeCloseTo(0.8, 2);
+  // removing the logo leaves nothing to print in a second filament
+  await page.getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByRole('img', { name: 'Underside logo preview' })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

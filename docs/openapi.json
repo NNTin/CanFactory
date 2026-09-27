@@ -239,8 +239,15 @@
                                 "enum": [
                                   "text"
                                 ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "svg"
+                                ]
                               }
-                            ]
+                            ],
+                            "description": "An `svg` control takes an SVG file, which the editor turns into a logo string (packages/contracts/src/svgLogo.ts); its value is that string, empty for none."
                           },
                           "group": {
                             "anyOf": [
@@ -999,7 +1006,7 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "6"
+                          "7"
                         ]
                       },
                       "parameters": {
@@ -1013,6 +1020,9 @@
                           "engraveText",
                           "textFont",
                           "textSize",
+                          "undersideMark",
+                          "logo",
+                          "logoSize",
                           "textMode",
                           "clearance",
                           "snapDetentEngage",
@@ -1105,13 +1115,39 @@
                             "maximum": 10,
                             "multipleOf": 0.5
                           },
+                          "undersideMark": {
+                            "enum": [
+                              "text",
+                              "logo"
+                            ],
+                            "title": "Underside mark",
+                            "description": "What goes on the underside of the large box: a line of text, or a logo from an SVG file.",
+                            "default": "text"
+                          },
+                          "logo": {
+                            "type": "string",
+                            "title": "Underside logo",
+                            "description": "An SVG file whose filled shapes are engraved on the underside of the large box, mirrored so that they read correctly. Strokes, text, pictures and style sheets in the file are left out. The file itself is never uploaded, only its outline.",
+                            "default": "",
+                            "maxLength": 26000,
+                            "pattern": "^[MLZ0-9 ]*$"
+                          },
+                          "logoSize": {
+                            "type": "number",
+                            "title": "Logo size",
+                            "description": "Height of the underside logo in mm. A wide logo is made smaller, so that it stays within the 34.5 mm free width.",
+                            "default": 12,
+                            "minimum": 3,
+                            "maximum": 15,
+                            "multipleOf": 0.5
+                          },
                           "textMode": {
                             "enum": [
                               "engrave",
                               "second-filament"
                             ],
-                            "title": "Text style",
-                            "description": "Engraved into the box, or carved and filled by a separate part for a second filament.",
+                            "title": "Underside style",
+                            "description": "The text or logo is engraved into the box, or carved and filled by a separate part for a second filament.",
                             "default": "engrave"
                           },
                           "clearance": {

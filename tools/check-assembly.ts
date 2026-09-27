@@ -13,7 +13,7 @@
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
-import { activeParts, assemblyOffset, isAssembly, models, referenceObjectPath, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '../packages/contracts/src/index.ts';
+import { activeParts, assemblyOffset, isAssembly, models, referenceObjectPath, scadLiteral, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '../packages/contracts/src/index.ts';
 import { intersectionVolume } from './stl-to-scad/compare.ts';
 import { renderScad } from './stl-to-scad/openscad.ts';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
@@ -60,8 +60,8 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
   const assembly = model.assembly;
   const parts = new Map<string, Mesh>();
   for (const part of activeParts(model, parameters)) {
-    // As apps/worker/src/render.ts: each part gets only its own mapped parameters, as JSON literals.
-    const defines = Object.fromEntries(Object.entries(part.scadMapping ?? {}).flatMap(([key, name]) => { const value = parameters[key]; return value === undefined ? [] : [[name, JSON.stringify(value)]]; }));
+    // As apps/worker/src/render.ts: each part gets only its own mapped parameters, as OpenSCAD literals.
+    const defines = Object.fromEntries(Object.entries(part.scadMapping ?? {}).flatMap(([key, name]) => { const value = parameters[key]; return value === undefined ? [] : [[name, scadLiteral(model, key, value)]]; }));
     const render = await renderScad(resolve(part.sourcePath), defines);
     parts.set(part.id, parseStl(render.stl));
     console.log(`rendered ${part.id} (${render.runner}, ${(render.milliseconds / 1000).toFixed(1)} s)`);
