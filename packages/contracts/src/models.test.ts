@@ -4,7 +4,10 @@ import { Value } from 'typebox/value';
 import {
   activeParts, artifactFormat, cigaretteCase, CLEARANCE_HOLES, findModel, holeDiameter, plankConnector, fruitFlyTrap, FruitFlyTrapParametersSchema, isAssembly, modelSourcePaths,
   minimumSpikeLength, mossPlanter, rauteColumns, slotCount, SNAP_CLEARANCE, SNAP_TUNING, HOLDER_SNAP_CLEARANCE, LIGHTER_SNAP_CLEARANCE, MINI_BOX_SNAP_CLEARANCE, MINI_LID_SNAP_CLEARANCE, scadLiteral, textWidth, validateParameters, type MossPlanterParameters,
+  AssemblySchema, CASE_MAGNETS, CLEARANCE_RANGE, DEFAULT_CASE_MAGNET, linkedPartData, MAGNET_SEAT, magnetFits, partUsage, scadDefines,
 } from './models.ts';
+import { resolveAssembly } from './assembly.ts';
+import { dimensionOf, findPart, parts } from './parts/index.ts';
 import { LOGO_MAX_LENGTH, RenderRequestSchema } from './index.ts';
 
 /** A logo string: one square filling the whole grid. */
@@ -109,17 +112,21 @@ describe('cigarette case contract', () => {
     expect(artifactFormat(cigaretteCase)).toBe('zip');
     expect(cigaretteCase.parts.map(part => part.id)).toEqual(['case-box', 'case-lid', 'mini-holder', 'mini-box', 'mini-lid', 'case-text']);
     expect(new Set(modelSourcePaths(cigaretteCase)).size).toBe(6);
-    expect(cigaretteCase.controls.map(control => [control.key, control.kind])).toEqual([['snap', 'enum'], ['miniLidSnap', 'enum'], ['holderSnap', 'enum'], ['lighterSnap', 'enum'], ['miniBoxSnap', 'enum'], ['undersideMark', 'enum'], ['engraveText', 'text'], ['textFont', 'enum'], ['textSize', 'number'], ['logo', 'svg'], ['logoSize', 'number'], ['textMode', 'enum'], ['clearance', 'number'],
+    expect(cigaretteCase.controls.map(control => [control.key, control.kind])).toEqual([['snap', 'enum'], ['magnet', 'enum'], ['miniLidSnap', 'enum'], ['holderSnap', 'enum'], ['lighterSnap', 'enum'], ['miniBoxSnap', 'enum'], ['undersideMark', 'enum'], ['engraveText', 'text'], ['textFont', 'enum'], ['textSize', 'number'], ['logo', 'svg'], ['logoSize', 'number'], ['textMode', 'enum'], ['clearance', 'number'],
       ['snapDetentEngage', 'number'], ['snapCrushSqueeze', 'number'], ['miniLidDetentEngage', 'number'], ['miniLidCrushSqueeze', 'number'], ['holderDetentEngage', 'number'], ['holderCrushSqueeze', 'number'], ['lighterCrushSqueeze', 'number'], ['miniBoxDetentEngage', 'number'], ['miniBoxCrushSqueeze', 'number']]);
-    expect(cigaretteCase.controls[0]?.options?.map(option => option.value)).toEqual(['friction', 'detent', 'clip', 'magnet', 'crush-ribs']);
-    for (const index of [1, 2, 4]) expect(cigaretteCase.controls[index]?.options?.map(option => option.value)).toEqual(['friction', 'detent', 'crush-ribs']);
-    expect(cigaretteCase.controls[3]?.options?.map(option => option.value)).toEqual(['friction', 'crush-ribs']);
-    expect(cigaretteCase.controls[5]?.options?.map(option => option.value)).toEqual(['text', 'logo']);
-    expect(cigaretteCase.controls[7]?.options?.map(option => option.value)).toEqual(['sans', 'serif', 'mono', 'wide']);
-    expect(cigaretteCase.controls[6]).toMatchObject({ default: '', maximum: 20, visibleWhen: { control: 'undersideMark', values: ['text'] } });
-    expect(cigaretteCase.controls[9]).toMatchObject({ default: '', maximum: LOGO_MAX_LENGTH, visibleWhen: { control: 'undersideMark', values: ['logo'] } });
-    expect(cigaretteCase.controls[10]).toMatchObject({ default: 12, minimum: 3, maximum: 15, visibleWhen: { control: 'undersideMark', values: ['logo'] } });
-    expect(cigaretteCase.defaults).toEqual({ snap: 'friction', miniLidSnap: 'friction', holderSnap: 'friction', lighterSnap: 'friction', miniBoxSnap: 'friction', undersideMark: 'text', engraveText: '', textFont: 'sans', textSize: 6, logo: '', logoSize: 12, textMode: 'engrave', clearance: 0.2,
+    const byKey = (key: string) => cigaretteCase.controls.find(control => control.key === key);
+    const values = (key: string) => byKey(key)?.options?.map(option => option.value);
+    expect(values('snap')).toEqual(['friction', 'detent', 'clip', 'magnet', 'crush-ribs']);
+    for (const key of ['miniLidSnap', 'holderSnap', 'miniBoxSnap']) expect(values(key)).toEqual(['friction', 'detent', 'crush-ribs']);
+    expect(values('lighterSnap')).toEqual(['friction', 'crush-ribs']);
+    expect(values('undersideMark')).toEqual(['text', 'logo']);
+    expect(values('textFont')).toEqual(['sans', 'serif', 'mono', 'wide']);
+    expect(byKey('engraveText')).toMatchObject({ default: '', maximum: 20, visibleWhen: { control: 'undersideMark', values: ['text'] } });
+    expect(byKey('logo')).toMatchObject({ default: '', maximum: LOGO_MAX_LENGTH, visibleWhen: { control: 'undersideMark', values: ['logo'] } });
+    expect(byKey('logoSize')).toMatchObject({ default: 12, minimum: 3, maximum: 15, visibleWhen: { control: 'undersideMark', values: ['logo'] } });
+    // the magnets, only in magnet mode, linked to the parts library
+    expect(byKey('magnet')).toMatchObject({ default: 'supermagnete-s-06-02-n', visibleWhen: { control: 'snap', values: ['magnet'] }, part: { family: 'magnet', attribute: null } });
+    expect(cigaretteCase.defaults).toEqual({ snap: 'friction', magnet: 'supermagnete-s-06-02-n', miniLidSnap: 'friction', holderSnap: 'friction', lighterSnap: 'friction', miniBoxSnap: 'friction', undersideMark: 'text', engraveText: '', textFont: 'sans', textSize: 6, logo: '', logoSize: 12, textMode: 'engrave', clearance: 0.2,
       snapDetentEngage: 0.19, snapCrushSqueeze: 0.16, miniLidDetentEngage: 0.12, miniLidCrushSqueeze: 0.1, holderDetentEngage: 0.15, holderCrushSqueeze: 0.1, lighterCrushSqueeze: 0.1, miniBoxDetentEngage: 0.15, miniBoxCrushSqueeze: 0.1 });
     const mapped = Object.fromEntries(cigaretteCase.parts.map(part => [part.id, part.scadMapping]));
     const text = { undersideMark: 'MARK', engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE', logo: 'LOGO', logoSize: 'LOGO_SIZE' };
@@ -171,9 +178,9 @@ describe('cigarette case contract', () => {
     expect(validateParameters(cigaretteCase, { ...ok, engraveText: 'tab\there' })).not.toEqual([]);
     expect(validateParameters(cigaretteCase, { ...ok, engraveText: 'say "hi" \\ $x', textSize: 3 })).toEqual([]);
     expect(validateParameters(cigaretteCase, { ...ok, anything: 1 })).not.toEqual([]);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '7', parameters: ok })).toBe(true);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '6', parameters: ok })).toBe(false);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '7', parameters: { snap: 'clip' } })).toBe(false);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '8', parameters: ok })).toBe(true);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '7', parameters: ok })).toBe(false);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'cigarette-case', modelVersion: '8', parameters: { snap: 'clip' } })).toBe(false);
   });
 
   it('accepts a logo only as a well-formed logo string within its limits, and checks the text width only for text', () => {
@@ -371,5 +378,64 @@ describe('plank connector contract', () => {
     expect(validateParameters(plankConnector, { ...defaults, pocketWidth: 5, insertionDepth: 5, holesPerEnd: 4 })).toEqual([]);
     expect(validateParameters(plankConnector, { ...defaults, entryChamfer: 1.7 })).toContainEqual(expect.objectContaining({ field: 'entryChamfer' }));
     expect(validateParameters(plankConnector, { ...defaults, entryChamfer: 1.6 })).toEqual([]);
+  });
+});
+
+describe('cigarette case magnets (parts library)', () => {
+  const read = (file: string) => readFileSync(new URL(`../../../models/cigarette-case/reference/${file}`, import.meta.url), 'utf8');
+  const box = read('11_v11.3__-_honeycomb_-_box.scad');
+  const lid = read('11_v11.3__-_honeycomb_-_top.scad');
+  const value = (source: string, name: string) => Number(new RegExp(`^${name} = (-?[\\d.]+);`, 'm').exec(source)?.[1]);
+  const magnet = (id: string) => findPart(id) ?? (() => { throw new Error(`Missing ${id}`); })();
+
+  it('offers every library magnet that fits, and only those', () => {
+    expect(CASE_MAGNETS).toEqual(parts.filter(magnetFits).map(part => part.id));
+    expect(CASE_MAGNETS).toContain(DEFAULT_CASE_MAGNET);
+    // too wide for the straight stretch of the wall, too high for the box's boss, or not round
+    for (const id of ['supermagnete-s-10-02-n', 'supermagnete-s-06-03-n', 'supermagnete-q-05-05-02-n', 'supermagnete-r-10-04-05-n'])
+      expect(magnetFits(magnet(id)), id).toBe(false);
+    expect(validateParameters(cigaretteCase, { ...cigaretteCase.defaults, snap: 'magnet', magnet: 'supermagnete-s-10-02-n' })).not.toEqual([]);
+  });
+
+  it('keeps the fit constants and the default magnet equal to both SCAD files', () => {
+    for (const source of [box, lid]) {
+      expect([value(source, 'SNAP_X0'), value(source, 'SNAP_X1'), value(source, 'MAGNET_Z'), value(source, 'MAGNET_PLAY')]).toEqual([MAGNET_SEAT.x0, MAGNET_SEAT.x1, MAGNET_SEAT.z, MAGNET_SEAT.play]);
+      // the SCAD defaults are the default magnet's greatest size, so a render without overrides cuts its pocket
+      expect([value(source, 'MAGNET_D'), value(source, 'MAGNET_T')]).toEqual([dimensionOf(magnet(DEFAULT_CASE_MAGNET), 'diameter', 'max'), dimensionOf(magnet(DEFAULT_CASE_MAGNET), 'thickness', 'max')]);
+    }
+    expect(value(lid, 'CAVITY_Y')).toBe(MAGNET_SEAT.cavityY);
+    expect(value(box, 'CAVITY_Y')).toBe(MAGNET_SEAT.cavityY);
+    expect(value(box, 'BASE_TOP')).toBe(MAGNET_SEAT.baseTop);
+    expect(lid).toContain(`POCKET_D / 2 + ${MAGNET_SEAT.lidBossMargin}`);
+    // the box's boss still backs the deepest pocket at the largest clearance, as it did the original 6 x 2 mm pocket (0.19 mm)
+    expect(MAGNET_SEAT.cavityY - CLEARANCE_RANGE.maximum - MAGNET_SEAT.maxThickness - value(box, 'BOSS_IN_Y')).toBeCloseTo(0.19, 6);
+  });
+
+  it('passes the chosen magnet’s greatest size to both halves of the lid snap', () => {
+    const [caseBox, caseLid] = cigaretteCase.parts;
+    if (!caseBox || !caseLid) throw new Error('Expected the case box and lid');
+    const defines = (part: typeof caseBox, magnetId: string) => Object.fromEntries(scadDefines(cigaretteCase, part, { ...cigaretteCase.defaults, magnet: magnetId }));
+    expect(defines(caseBox, DEFAULT_CASE_MAGNET)).toMatchObject({ MAGNET_D: '6.1', MAGNET_T: '2.1' });
+    expect(defines(caseLid, 'supermagnete-s-04-02-n')).toMatchObject({ MAGNET_D: '4.1', MAGNET_T: '2.1' });
+    expect(() => defines(caseBox, 'no-such-magnet')).toThrow();
+    // the library data behind them is part of the cache fingerprint
+    expect(linkedPartData(cigaretteCase).map(part => part.id)).toEqual([...CASE_MAGNETS]);
+    expect(partUsage(magnet('supermagnete-s-08-02-n'))).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Magnets' }]);
+  });
+
+  it('shows the four magnets in the assembly only in magnet mode, the lid’s moving with the lid', () => {
+    expect(resolveAssembly(cigaretteCase, cigaretteCase.assembly, cigaretteCase.defaults)).toBe(cigaretteCase.assembly);
+    const assembly = resolveAssembly(cigaretteCase, cigaretteCase.assembly, { ...cigaretteCase.defaults, snap: 'magnet', magnet: 'supermagnete-s-08-02-n', clearance: 0.3 });
+    if (!assembly) throw new Error('Expected an assembly');
+    expect(Value.Check(AssemblySchema, assembly)).toBe(true);
+    const magnets = (assembly.references ?? []).filter(reference => reference.part === 'supermagnete-s-08-02-n');
+    expect(magnets.map(reference => reference.id)).toEqual(['magnet-box-plus-y', 'magnet-box-minus-y', 'magnet-lid-plus-y', 'magnet-lid-minus-y']);
+    expect(magnets[0]?.title).toBe('Disc magnet Ø 8 × 2 mm, N45 (case box, +Y side)');
+    // the box's magnet fills its pocket inwards from the shell's face (CAVITY_Y less the clearance); the lid's outwards from the cavity wall
+    expect(assembly.poses['magnet-box-plus-y']).toEqual({ position: [4.25, 13.79 - 0.3 - 2.1, 68.38], rotation: [-90, 0, 0] });
+    expect(assembly.poses['magnet-lid-minus-y']).toEqual({ position: [4.25, -13.79, 68.38], rotation: [90, 0, 0] });
+    const close = assembly.steps.find(step => step.title === 'Close the case');
+    expect(close?.parts).toEqual(expect.arrayContaining(['magnet-lid-plus-y', 'magnet-lid-minus-y']));
+    expect(assembly.steps.flatMap(step => step.parts)).not.toContain('magnet-box-plus-y');
   });
 });

@@ -13,12 +13,14 @@
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
-import { activeParts, assemblyOffset, findPart, isAssembly, models, partAssetPath, scadLiteral, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '../packages/contracts/src/index.ts';
+import { activeParts, assemblyOffset, dimensionOf, findPart, isAssembly, models, partAssetPath, resolveAssembly, scadDefines, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '../packages/contracts/src/index.ts';
 import { intersectionVolume } from './stl-to-scad/compare.ts';
 import { renderScad } from './stl-to-scad/openscad.ts';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
 
 const SAMPLES = 16;
+/** The generic magnet model: magnets are built from their dimensions, so they have no STL of their own. */
+const MAGNET_SCAD = 'parts/magnets/magnet.scad';
 const CELL = 0.25;
 
 /** Rotates about X, then Y, then Z (degrees), then translates. */
@@ -57,11 +59,12 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
   if (!isAssembly(model)) throw new Error(`${model.id} has an assembly but no parts.`);
   const issues = validateParameters(model, parameters);
   if (issues.length > 0) throw new Error(`Invalid parameters for ${model.id}: ${issues.map(issue => issue.message).join(' ')}`);
-  const assembly = model.assembly;
+  // With the reference objects these parameters add (e.g. the magnets of a magnet snap).
+  const assembly = resolveAssembly(model, model.assembly, parameters) ?? model.assembly;
   const parts = new Map<string, Mesh>();
   for (const part of activeParts(model, parameters)) {
-    // As apps/worker/src/render.ts: each part gets only its own mapped parameters, as OpenSCAD literals.
-    const defines = Object.fromEntries(Object.entries(part.scadMapping ?? {}).flatMap(([key, name]) => { const value = parameters[key]; return value === undefined ? [] : [[name, scadLiteral(model, key, value)]]; }));
+    // As apps/worker/src/render.ts: each part gets only its own mapped parameters and chosen parts' dimensions.
+    const defines = Object.fromEntries(scadDefines(model, part, parameters));
     const render = await renderScad(resolve(part.sourcePath), defines);
     parts.set(part.id, parseStl(render.stl));
     console.log(`rendered ${part.id} (${render.runner}, ${(render.milliseconds / 1000).toFixed(1)} s)`);
@@ -70,8 +73,18 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
   // STL rendered from it, so it must match.
   for (const reference of assembly.references ?? []) {
     const part = findPart(reference.part);
-    const [scad, stl] = [part && partAssetPath(part, 'scad'), part && partAssetPath(part, 'stl')];
-    if (!scad || !stl) throw new Error(`${model.id}: reference ${reference.id} is not a parts-library entry with an STL preview.`);
+    if (!part) throw new Error(`${model.id}: reference ${reference.id} is not in the parts library.`);
+    // A magnet (built from its dimensions in the preview) is rendered from the generic magnet model, at its greatest size.
+    if (part.family === 'magnet') {
+      const size = (key: string) => part.dimensions[key] ? String(dimensionOf(part, key, 'max')) : '0';
+      const shape = part.attributes['shape'] === 'block' ? 'block' : part.attributes['shape'] === 'ring' ? 'ring' : 'disc';
+      const render = await renderScad(resolve(MAGNET_SCAD), { SHAPE: JSON.stringify(shape), DIAMETER: size('diameter'), HOLE: size('innerDiameter'), LENGTH: size('length'), WIDTH: size('width'), HEIGHT: size('thickness') });
+      parts.set(reference.id, parseStl(render.stl));
+      console.log(`rendered reference ${reference.id} (${part.id}, ${render.runner}, ${(render.milliseconds / 1000).toFixed(1)} s)`);
+      continue;
+    }
+    const [scad, stl] = [partAssetPath(part, 'scad'), partAssetPath(part, 'stl')];
+    if (!scad || !stl) throw new Error(`${model.id}: reference ${reference.id} has neither an STL preview nor a generic model.`);
     const render = await renderScad(resolve(scad), {});
     const mesh = parseStl(render.stl);
     const committed = parseStl(await readFile(resolve(stl)));

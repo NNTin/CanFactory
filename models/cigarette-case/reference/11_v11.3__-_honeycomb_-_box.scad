@@ -151,9 +151,13 @@ CLIP_X1 = 7 + CLEARANCE;
 CLIP_Z0 = 1 - CLEARANCE;
 CLIP_Z1 = 3.9 + CLEARANCE;
 CLIP_DEPTH = CLIP_NIB;  // measured from the shell face, CLEARANCE inside the lid face: the floor is CLEARANCE below the nib tip
-// magnet: a round magnet (MAGNET_D x MAGNET_T) in a pocket in the shell wall, backed by a boss inside the bay
-MAGNET_D = 6.2;       // pocket diameter: a 6 mm magnet with a little play
-MAGNET_T = 2.1;       // pocket depth: a 2 mm magnet with a little play
+// magnet: a round magnet in a pocket in the shell wall, backed by a boss inside the bay. MAGNET_D x MAGNET_T is the greatest size
+// of the magnet chosen by the `magnet` setting, a parts-library product (-D overrides; the defaults are supermagnete S-06-02-N,
+// 6 x 2 mm +/- 0.1). The pocket is MAGNET_PLAY wider than the magnet and exactly as deep, so the magnet sits flush with the wall.
+MAGNET_D = 6.1;
+MAGNET_T = 2.1;
+MAGNET_PLAY = 0.1;
+POCKET_D = MAGNET_D + MAGNET_PLAY;
 MAGNET_Z = 8;         // height of the magnet centre above the lid rim
 BOSS_IN_Y = 10.9;     // the boss reaches this far inwards from the centre line
 
@@ -169,15 +173,15 @@ module snap_add() {
     for (x = CRUSH_X)
       side_bar(x - CRUSH_W / 2, x + CRUSH_W / 2, [[UPPER_Y - 0.3, z0 + CRUSH_Z0], [UPPER_Y + CRUSH_H, z0 + CRUSH_Z0], [UPPER_Y + CRUSH_H, z0 + CRUSH_Z1 - 1.4], [UPPER_Y, z0 + CRUSH_Z1], [UPPER_Y - 0.3, z0 + CRUSH_Z1]]);
   if (SNAP == "magnet")
-    side_bar(SNAP_XC - MAGNET_D / 2 - 0.2, SNAP_XC + MAGNET_D / 2 + 0.2, [[BOSS_IN_Y, z0 + MAGNET_Z - MAGNET_D / 2 - 0.2], [WALL_IN_Y + 0.1, z0 + MAGNET_Z - MAGNET_D / 2 - 0.2],
-      [WALL_IN_Y + 0.1, z0 + MAGNET_Z + MAGNET_D / 2 + 0.2], [BOSS_IN_Y, z0 + MAGNET_Z + MAGNET_D / 2 + 0.2]]);
+    side_bar(SNAP_XC - POCKET_D / 2 - 0.2, SNAP_XC + POCKET_D / 2 + 0.2, [[BOSS_IN_Y, z0 + MAGNET_Z - POCKET_D / 2 - 0.2], [WALL_IN_Y + 0.1, z0 + MAGNET_Z - POCKET_D / 2 - 0.2],
+      [WALL_IN_Y + 0.1, z0 + MAGNET_Z + POCKET_D / 2 + 0.2], [BOSS_IN_Y, z0 + MAGNET_Z + POCKET_D / 2 + 0.2]]);
 }
 module snap_cut() {
   z0 = BASE_TOP;
   if (SNAP == "clip")
     side_bar(CLIP_X0, CLIP_X1, [[UPPER_Y - CLIP_DEPTH, z0 + CLIP_Z0], [UPPER_Y + 0.2, z0 + CLIP_Z0], [UPPER_Y + 0.2, z0 + CLIP_Z1], [UPPER_Y - CLIP_DEPTH, z0 + CLIP_Z1]]);
   if (SNAP == "magnet")
-    for (m = [0, 1]) mirror([0, m, 0]) translate([SNAP_XC, UPPER_Y + 0.2, z0 + MAGNET_Z]) rotate([90, 0, 0]) cylinder(d = MAGNET_D, h = MAGNET_T + 0.2, $fn = 64);
+    for (m = [0, 1]) mirror([0, m, 0]) translate([SNAP_XC, UPPER_Y + 0.2, z0 + MAGNET_Z]) rotate([90, 0, 0]) cylinder(d = POCKET_D, h = MAGNET_T + 0.2, $fn = 64);
 }
 
 // --- lighter bay ---

@@ -78,3 +78,26 @@ test('links a model’s part choice to the library, and comes back', async ({ pa
   await page.getByLabel('Screw holes').selectOption('none');
   await expect(page.getByRole('link', { name: /parts library/ })).toHaveCount(0);
 });
+
+test('sizes the cigarette case’s magnet pockets for a library magnet, and shows the magnets in the assembly', async ({ page }, testInfo) => {
+  await page.goto('/#/models/cigarette-case');
+  await expect(page.getByLabel('Magnets', { exact: true })).toHaveCount(0);
+  await page.getByLabel('Case lid snap').selectOption('magnet');
+  const magnets = page.getByLabel('Magnets', { exact: true });
+  await expect(magnets.locator('option')).toHaveText([/S-04-02-N/, /S-05-02-N52N/, /S-06-02-N/, /S-08-02-N/]);
+  await expect(magnets).toHaveValue('supermagnete-s-06-02-n');
+  await magnets.selectOption('supermagnete-s-08-02-n');
+  await expect(page.getByText(findPart('supermagnete-s-08-02-n')?.description ?? 'missing')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download ZIP', exact: true })).toBeEnabled({ timeout: 120_000 });
+  // the four magnets stand in their pockets in the preview, listed with the parts, and are not in the ZIP
+  const ids = ['magnet-box-plus-y', 'magnet-box-minus-y', 'magnet-lid-plus-y', 'magnet-lid-minus-y'];
+  await expect(page.getByTestId('stl-viewer')).toHaveAttribute('data-visible-parts', new RegExp(ids.join('.*')));
+  const group = page.getByRole('group', { name: 'Visible parts' });
+  await expect(group.getByRole('button', { name: /Disc magnet Ø 8 × 2 mm, N45/ })).toHaveCount(4);
+  await page.getByRole('slider', { name: 'Assembly' }).fill('1');
+  await page.screenshot({ path: testInfo.outputPath('magnets.png') });
+  // the choice links to the magnet's library page, which lists the case under “Used by”
+  await page.getByRole('link', { name: 'See this part in the parts library' }).click();
+  await expect(page).toHaveURL(/#\/parts\/magnet\/supermagnete-s-08-02-n$/);
+  await expect(page.getByRole('article', { name: /Disc magnet Ø 8 × 2 mm/ }).getByRole('link', { name: 'Cigarette case (Onz)' })).toBeVisible();
+});

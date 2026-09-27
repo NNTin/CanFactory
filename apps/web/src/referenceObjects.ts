@@ -1,4 +1,6 @@
 import { findPart, partAssetPath, type Assembly, type Part } from '@canfactory/contracts';
+import type { BufferGeometry } from 'three';
+import { partGeometry } from './partGeometry.ts';
 
 // The parts library's rendered models (e.g. a lighter), bundled as static files: they do not depend on any model's settings, so
 // they are not rendered per preview (see `partAssetPath`). Only this folder is bundled, never the models' own STLs.
@@ -10,13 +12,15 @@ export function partStlUrl(part: Part): string | undefined {
   return path ? urls[`../../../${path}`] : undefined;
 }
 
-export interface ReferenceObject { id: string; url: string }
+/** A reference object as the viewer loads it: its bundled STL, or its geometry built from the part's dimensions (e.g. a magnet). */
+export type ReferenceObject = { id: string; url: string } | { id: string; geometry: () => BufferGeometry | null };
 
-/** The assembly's reference objects that have a bundled STL, in the order the assembly lists them. */
+/** The assembly's reference objects that the viewer can show, in the order the assembly lists them. */
 export function referenceObjects(assembly: Assembly | undefined): ReferenceObject[] {
-  return (assembly?.references ?? []).flatMap(({ id, part }) => {
+  return (assembly?.references ?? []).flatMap(({ id, part }): ReferenceObject[] => {
     const found = findPart(part);
-    const url = found && partStlUrl(found);
-    return url ? [{ id, url }] : [];
+    if (!found) return [];
+    const url = partStlUrl(found);
+    return url ? [{ id, url }] : [{ id, geometry: () => partGeometry(found) }];
   });
 }

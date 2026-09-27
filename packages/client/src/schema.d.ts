@@ -347,7 +347,7 @@ export interface operations {
                             references?: {
                                 /** @description Its key in `poses` and `steps`. */
                                 id: string;
-                                /** @description The id of the parts-library entry it is, which has an STL preview. */
+                                /** @description The id of the parts-library entry it is. */
                                 part: string;
                                 /** @description What it is: the part’s title, e.g. “BIC Mini lighter (J25)”. */
                                 title: string;
@@ -864,7 +864,7 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "7";
+                    modelVersion: "8";
                     /** @description Cigarette case parameters. All fields are required. */
                     parameters: {
                         /**
@@ -874,6 +874,13 @@ export interface operations {
                          * @enum {unknown}
                          */
                         snap: "friction" | "detent" | "clip" | "magnet" | "crush-ribs";
+                        /**
+                         * Magnets
+                         * @description The round magnets the case lid snap is sized for, with magnets: two in the box and two in the lid. Each is a real product from the parts library; its pockets are cut to its greatest size.
+                         * @default supermagnete-s-06-02-n
+                         * @enum {unknown}
+                         */
+                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-02-n" | "supermagnete-s-08-02-n";
                         /**
                          * Mini box lid
                          * @description How the mini lid holds in the mini box: the original pads (a clearance fit), a detent or crush ribs.

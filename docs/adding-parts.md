@@ -70,7 +70,9 @@ for a reference object, `npm run check:assembly` fails until you do.
 - **A setting that chooses a part**: set `part: { family, attribute }` on the enum control (see
   [adding-models.md](adding-models.md), “Real-world parts”). The plank connector's screw holes link each size to the screws of
   that thread: `part: { family: 'screw', attribute: 'thread' }`.
+- **A setting that chooses one part** (a part id per option): `partControl` for the options and `partDefines` for the geometry;
+  the cigarette case's magnet snap sizes its pockets from the chosen magnet (see [adding-models.md](adding-models.md)).
 - **An object the model holds**: add it to `assembly.references` with `referencePart(poseId, partId)`, as the cigarette case
-  does with the lighter.
+  does with the lighter; or, when it depends on the settings, return it from `linkedReferences`, as the case does with its magnets.
 
 Either way the library lists the model under the part's “Used by” (`partUsage`).

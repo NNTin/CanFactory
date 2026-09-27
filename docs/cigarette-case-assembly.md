@@ -80,6 +80,20 @@ openly readable. If a real lighter shows a different oval, change `PROFILE_N` (o
 library entry's `profileExponent`), render
 its STL again, and copy the value to `LIGHTER_PROFILE_N` in the box file. The bay follows, and a test fails until both agree.
 
+### Magnets
+
+In `magnet` mode ([cigarette-case-snap.md](cigarette-case-snap.md#magnets)) the preview also shows the four chosen magnets, as
+reference objects from the parts library that depend on the settings (`linkedReferences`, `resolveAssembly`). They are placed at
+their greatest height, as their pockets are cut, with their axis along Y, at x 4.25 mm and 8 mm above the lid rim (z 68.38 mm):
+
+- **In the box:** the pocket opens on the upper shell's outer face, 13.79 mm less the clearance from the centre, and the magnet fills
+  it inwards.
+- **In the lid:** the pocket opens on the cavity wall, 13.79 mm from the centre, and the magnet fills it outwards; these two move
+  with the lid when the case closes.
+
+So each pair faces across the clearance, at any clearance. The collision check renders them from the generic magnet model
+(`parts/magnets/magnet.scad`); moving the box's magnets 0.5 mm outwards makes each pair share 7.29 mm³, so the check does see them.
+
 ### Upside down: the push-out
 
 Measured with the parts as rendered at default settings (the lighter centred in the bay, lowered in 0.25 mm steps to its first
@@ -119,7 +133,8 @@ functions the web app uses, and measures the volume shared by parts on a 0.25 mm
 It includes the reference objects, rendered from their SCAD files, and fails if the committed STL that the preview uses no
 longer matches the SCAD file's bounds.
 
-Default settings (`friction` on every joint, 0.2 mm clearance): every value is 0.00 mm³. The `magnet` mode is just as clean, and so is
+Default settings (`friction` on every joint, 0.2 mm clearance): every value is 0.00 mm³. The `magnet` mode is just as clean, with its
+four magnets in their pockets (checked with S-08-02-N at 0.6 mm and S-04-02-N at 0.1 mm clearance; see below), and so is
 second-filament text. The measured gap on each of the five mating surfaces (case lid on box, mini lid in mini box, mini box in
 case lid, holder in bay, lighter in bay) is the clearance, from 0.1 to 0.6 mm (the lighter's up to 0.46 mm, then the −X end is
 capped by the minimum wall); see [cigarette-case-snap.md](cigarette-case-snap.md#clearance).

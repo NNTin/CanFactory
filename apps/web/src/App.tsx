@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from '@canfactory/client';
-import { decodeLogo, findModel, findPartFamily, parts, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
+import { decodeLogo, findModel, findPartFamily, parts, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
 import { PartsLibrary } from './PartsLibrary.tsx';
 import { referenceObjects } from './referenceObjects.ts';
 import { formatHash, parseHash, partLink, type Route } from './route.ts';
@@ -333,8 +333,10 @@ function Editor({ model }: { model: ModelDetail }) {
   const issues = useMemo(() => definition ? validateParameters(definition, parameters) : [{ field: '', message: 'Reload the page to use this model’s current editor.' }], [definition, parameters]);
   const valid = issues.length === 0;
   const rendering = useRender(model, parameters, valid);
-  const references = useMemo(() => referenceObjects(model.assembly), [model]);
-  const partTitles = useMemo(() => Object.fromEntries([...(model.parts ?? []), ...(model.assembly?.references ?? [])].map(part => [part.id, part.title])), [model]);
+  // The assembly for the current settings: with the reference objects they add, such as the chosen magnets of a magnet snap.
+  const assembly = useMemo(() => resolveAssembly(definition, model.assembly, parameters), [definition, model, parameters]);
+  const references = useMemo(() => referenceObjects(assembly), [assembly]);
+  const partTitles = useMemo(() => Object.fromEntries([...(model.parts ?? []), ...(assembly?.references ?? [])].map(part => [part.id, part.title])), [model, assembly]);
   const render = rendering.completed?.render;
   const artifact = render?.artifact;
   const url = artifact?.url ?? null;
@@ -409,7 +411,7 @@ function Editor({ model }: { model: ModelDetail }) {
         <div className="preview-heading"><span className="eyebrow"><Box size={15} /> LIVE PREVIEW</span><span className={`status ${ready && !error ? 'status-ready' : ''}`} role="status">
           {ready && !error ? <Check size={13} /> : error || !valid ? <CircleAlert size={13} /> : <LoaderCircle size={13} className="spin" />}{status}
         </span></div>
-        <Viewer url={url} format={model.artifactFormat} assembly={model.assembly} references={references} partTitles={partTitles} onError={setViewerError} onLoaded={setLoadedUrl} />
+        <Viewer url={url} format={model.artifactFormat} assembly={assembly} references={references} partTitles={partTitles} onError={setViewerError} onLoaded={setLoadedUrl} />
         {!ready && url && !error && <div className="previous-preview">Showing the previous preview while your changes are prepared.</div>}
         {(error || (!valid && issues.length > 0)) && <div className="error-banner" role="alert"><CircleAlert size={17} /><span>{error ?? issues[0]?.message}</span>{error && <button type="button" onClick={retry}>Try again</button>}</div>}
         <div className="model-stats">

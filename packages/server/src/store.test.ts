@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cigaretteCase, fruitFlyTrap, mossPlanter, plankConnector } from '@canfactory/contracts';
+import { cigaretteCase, findPart, fruitFlyTrap, mossPlanter, plankConnector } from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS } from './config.ts';
 import { Store, repositoryRoot, sourceFingerprint } from './store.ts';
 
@@ -36,7 +36,7 @@ describe('temporary render queue', () => {
     const detail = store.getModel(cigaretteCase.id)?.detail;
     expect(detail?.artifactFormat).toBe('zip');
     expect(detail?.customizable).toBe(true);
-    expect(detail?.controls.map(control => control.key)).toEqual(['snap', 'miniLidSnap', 'holderSnap', 'lighterSnap', 'miniBoxSnap', 'undersideMark', 'engraveText', 'textFont', 'textSize', 'logo', 'logoSize', 'textMode', 'clearance', 'snapDetentEngage', 'snapCrushSqueeze', 'miniLidDetentEngage', 'miniLidCrushSqueeze', 'holderDetentEngage', 'holderCrushSqueeze', 'lighterCrushSqueeze', 'miniBoxDetentEngage', 'miniBoxCrushSqueeze']);
+    expect(detail?.controls.map(control => control.key)).toEqual(['snap', 'magnet', 'miniLidSnap', 'holderSnap', 'lighterSnap', 'miniBoxSnap', 'undersideMark', 'engraveText', 'textFont', 'textSize', 'logo', 'logoSize', 'textMode', 'clearance', 'snapDetentEngage', 'snapCrushSqueeze', 'miniLidDetentEngage', 'miniLidCrushSqueeze', 'holderDetentEngage', 'holderCrushSqueeze', 'lighterCrushSqueeze', 'miniBoxDetentEngage', 'miniBoxCrushSqueeze']);
     expect(detail?.defaults).toEqual(cigaretteCase.defaults);
     expect(detail?.parts?.map(part => part.id)).toEqual(['case-box', 'case-lid', 'mini-holder', 'mini-box', 'mini-lid', 'case-text']);
     expect(detail?.referenceUrl).toBeUndefined();
@@ -87,6 +87,20 @@ describe('temporary render queue', () => {
     const before = sourceFingerprint(repositoryRoot, mossPlanter);
     const remapped = { ...mossPlanter, parts: mossPlanter.parts.map(part => ({ ...part, scadMapping: { ...part.scadMapping, towerDiameter: 'OTHER_NAME' } })) };
     expect(sourceFingerprint(repositoryRoot, remapped)).not.toBe(before);
+  });
+
+  it('fingerprints the library parts a model can choose, so correcting a part\'s value invalidates the cache', () => {
+    const before = sourceFingerprint(repositoryRoot, cigaretteCase);
+    const thickness = findPart('supermagnete-s-04-02-n')?.dimensions['thickness'];
+    if (!thickness) throw new Error('Expected the magnet\'s thickness');
+    const original = thickness.max;
+    thickness.max = 2.05;
+    try {
+      expect(sourceFingerprint(repositoryRoot, cigaretteCase)).not.toBe(before);
+    } finally {
+      thickness.max = original; // restore the shared library entry
+    }
+    expect(sourceFingerprint(repositoryRoot, cigaretteCase)).toBe(before);
   });
 
   it('allows only one claim and fences old workers after lease recovery', () => {

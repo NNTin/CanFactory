@@ -646,7 +646,7 @@
                               },
                               "part": {
                                 "type": "string",
-                                "description": "The id of the parts-library entry it is, which has an STL preview."
+                                "description": "The id of the parts-library entry it is."
                               },
                               "title": {
                                 "type": "string",
@@ -2088,13 +2088,14 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "7"
+                          "8"
                         ]
                       },
                       "parameters": {
                         "type": "object",
                         "required": [
                           "snap",
+                          "magnet",
                           "miniLidSnap",
                           "holderSnap",
                           "lighterSnap",
@@ -2129,6 +2130,17 @@
                             "title": "Case lid snap",
                             "description": "How the case lid holds on the case box: a plain close fit, a detent, a flexible clip, magnets or crush ribs. The other joints have their own settings.",
                             "default": "friction"
+                          },
+                          "magnet": {
+                            "enum": [
+                              "supermagnete-s-04-02-n",
+                              "supermagnete-s-05-02-n52n",
+                              "supermagnete-s-06-02-n",
+                              "supermagnete-s-08-02-n"
+                            ],
+                            "title": "Magnets",
+                            "description": "The round magnets the case lid snap is sized for, with magnets: two in the box and two in the lid. Each is a real product from the parts library; its pockets are cut to its greatest size.",
+                            "default": "supermagnete-s-06-02-n"
                           },
                           "miniLidSnap": {
                             "enum": [

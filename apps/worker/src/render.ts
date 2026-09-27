@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { zipSync } from 'fflate';
-import { activeParts, findModel, FONTS_DIR, isAssembly, scadLiteral, validateParameters, type ModelDefinition, type ModelPart, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, findModel, FONTS_DIR, isAssembly, scadDefines, validateParameters, type ModelDefinition, type ModelPart, type ParameterValues } from '@canfactory/contracts';
 import {
   asyncStorage, combineParts, firstDegenerateTriangle, inspectStl, RENDER_TIMEOUT_MS, RENDERER_FINGERPRINT, sourceFingerprint,
   type AssemblyPart, type RenderJob, type Storage, type Store,
@@ -27,22 +27,16 @@ function stampAttribution(bytes: Buffer, model: ModelDefinition): void {
   Buffer.from(`CanFactory | ${model.license} | ${model.attribution}`, 'utf8').copy(bytes, 0, 0, 80);
 }
 
-/** `-D NAME=value` overrides for the parameters a scadMapping consumes; only mapped, validated values reach the command, written
- * by `scadLiteral` (JSON, or the model's own encoding, such as a logo as a vector of numbers). */
-function mappedDefines(model: ModelDefinition, mapping: Record<string, string> | undefined, parameters: ParameterValues): string[] {
-  const args: string[] = [];
-  for (const [key, scadName] of Object.entries(mapping ?? {})) {
-    const value = parameters[key];
-    if (value === undefined || !/^[A-Z_]+$/.test(scadName)) throw new Error('Invalid generator parameter mapping.');
-    args.push('-D', `${scadName}=${scadLiteral(model, key, value)}`);
-  }
-  return args;
+/** `-D NAME=value` overrides for one SCAD file (`scadDefines`): the parameters its scadMapping consumes and the dimensions of the
+ * chosen parts its partDefines names; only mapped, validated values reach the command. */
+function mappedDefines(model: ModelDefinition, source: Pick<ModelPart, 'scadMapping' | 'partDefines'>, parameters: ParameterValues): string[] {
+  return scadDefines(model, source, parameters).flatMap(([name, literal]) => ['-D', `${name}=${literal}`]);
 }
 
 /** Render one self-contained SCAD file to a binary STL. An assembly part receives only the overrides its own mapping
  * names: its other constants (e.g. `ROUNDNESS`) must apply exactly as verified, not the fruit-fly-trap-specific defaults. */
 async function renderPart(run: OpenScadRunner, signal: AbortSignal, projectRoot: string, model: ModelDefinition, part: ModelPart, parameters: ParameterValues, output: string): Promise<void> {
-  await run(['--backend', 'Manifold', '--export-format', 'binstl', '-o', output, ...mappedDefines(model, part.scadMapping, parameters), resolve(projectRoot, part.sourcePath)], signal, resolve(projectRoot, FONTS_DIR));
+  await run(['--backend', 'Manifold', '--export-format', 'binstl', '-o', output, ...mappedDefines(model, part, parameters), resolve(projectRoot, part.sourcePath)], signal, resolve(projectRoot, FONTS_DIR));
 }
 
 /** Revalidate trusted model/version and queued parameters before invoking the geometry engine. */
@@ -83,7 +77,7 @@ export async function renderJob(storage: Store | Storage, job: RenderJob, signal
     if (!model.sourcePath) throw new Error('This model declares neither a generator source nor parts.');
     const output = join(directory, 'model.stl');
     const args = ['--backend', 'Manifold', '--export-format', 'binstl', '-o', output,
-      '-D', 'ROUNDNESS=48', '-D', 'OBJECT="flytrap"', ...mappedDefines(model, model.scadMapping, job.parameters)];
+      '-D', 'ROUNDNESS=48', '-D', 'OBJECT="flytrap"', ...mappedDefines(model, model, job.parameters)];
     args.push(resolve(store.projectRoot, model.sourcePath));
     await run(args, signal, resolve(store.projectRoot, FONTS_DIR));
     signal.throwIfAborted();

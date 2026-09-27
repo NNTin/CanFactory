@@ -30,6 +30,16 @@ export function findPart(id: string): Part | undefined { return parts.find(part 
 export function findPartFamily(id: string): PartFamily | undefined { return partFamilies.find(family => family.id === id); }
 export function partsOfFamily(family: string): Part[] { return parts.filter(part => part.family === family); }
 
+/**
+ * One value of a part's dimension in mm: its nominal `value`, or the `min` or `max` of its tolerance, which is the nominal value
+ * when the source gives no limit. Throws for a dimension the part does not have.
+ */
+export function dimensionOf(part: Part, key: string, limit: 'value' | 'min' | 'max' = 'value'): number {
+  const dimension = part.dimensions[key];
+  if (!dimension) throw new Error(`${part.id} has no dimension ${key}.`);
+  return limit === 'value' ? dimension.value : dimension[limit] ?? dimension.value;
+}
+
 /** Where a part's model lives, for a part with an STL preview: `<path>.scad` is its source and `<path>.stl` that file rendered. */
 export function partAssetPath(part: Part, extension: 'scad' | 'stl'): string | undefined {
   return part.preview.kind === 'stl' ? part.preview.path.replace(/\.stl$/, `.${extension}`) : undefined;

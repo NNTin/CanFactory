@@ -6,7 +6,7 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { and, asc, count, eq, gt, lte } from 'drizzle-orm';
 import {
-  artifactFormat, findModel, models, modelSourcePaths,
+  artifactFormat, findModel, linkedPartData, models, modelSourcePaths,
   type ApiError, type ModelDefinition, type ModelDetail, type ParameterValues, type Render,
 } from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS, QUEUE_LIMIT, RENDERER_FINGERPRINT } from './config.ts';
@@ -43,7 +43,7 @@ export interface RenderQueue {
 export function sourceFingerprint(root: string, model: ModelDefinition): string {
   const hash = createHash('sha256');
   for (const relative of [...modelSourcePaths(model), ...model.assetPaths ?? []]) hash.update(readFileSync(resolve(root, relative)));
-  return hash.update(JSON.stringify({ schema: model.parameterSchema, mapping: model.scadMapping, parts: model.parts?.map(part => ({ id: part.id, mapping: part.scadMapping, separateBodies: part.separateBodies === true })), version: model.version })).digest('hex');
+  return hash.update(JSON.stringify({ schema: model.parameterSchema, mapping: model.scadMapping, parts: model.parts?.map(part => ({ id: part.id, mapping: part.scadMapping, separateBodies: part.separateBodies === true, partDefines: part.partDefines })), partDefines: model.partDefines, linkedParts: linkedPartData(model), version: model.version })).digest('hex');
 }
 
 export class Store implements RenderQueue {

@@ -1,4 +1,5 @@
-import type { Assembly } from './models.ts';
+import type { Assembly, ModelDefinition, ParameterValues } from './models.ts';
+import { findPart } from './parts/index.ts';
 
 type Vector = [number, number, number];
 
@@ -33,4 +34,22 @@ export function assemblyOffset(assembly: Assembly, partId: string, state: Assemb
     for (let axis = 0; axis < 3; axis++) offset[axis] = (offset[axis] ?? 0) + (step.from[axis] ?? 0) * remaining;
   });
   return offset;
+}
+
+/**
+ * The assembly for these parameters: `assembly` (as served) with the model's `linkedReferences` for them added, e.g. the magnets
+ * of a magnet snap. Each gets its pose, joins the steps that move the part it is mounted in, and is titled after its library part.
+ */
+export function resolveAssembly(model: Pick<ModelDefinition, 'linkedReferences'> | undefined, assembly: Assembly | undefined, parameters: ParameterValues): Assembly | undefined {
+  const linked = assembly ? model?.linkedReferences?.(parameters) ?? [] : [];
+  if (!assembly || linked.length === 0) return assembly;
+  return {
+    ...assembly,
+    poses: { ...assembly.poses, ...Object.fromEntries(linked.map(reference => [reference.id, reference.pose])) },
+    steps: assembly.steps.map(step => {
+      const riders = linked.filter(reference => reference.movesWith !== undefined && step.parts.includes(reference.movesWith)).map(reference => reference.id);
+      return riders.length > 0 ? { ...step, parts: [...step.parts, ...riders] } : step;
+    }),
+    references: [...assembly.references ?? [], ...linked.map(reference => ({ id: reference.id, part: reference.part, title: `${findPart(reference.part)?.title ?? reference.part} (${reference.label})` }))],
+  };
 }

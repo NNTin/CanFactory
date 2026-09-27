@@ -191,9 +191,12 @@ CLIP_NIB_X1 = 7;
 CLIP_SLIT = 0.6;
 CLIP_LEN = 13;        // the tongue is joined to the wall above this height
 CLIP_NIB = 0.6;       // the nib stands this far into the cavity
-// magnet: a pocket for a round magnet in a flat boss on the outside of the wall
-MAGNET_D = 6.2;
+// magnet: a pocket for a round magnet in a flat boss on the outside of the wall; the same magnet and pocket as in the box file
+// (MAGNET_D x MAGNET_T is the chosen magnet's greatest size, -D overrides; the pocket is MAGNET_PLAY wider and exactly as deep)
+MAGNET_D = 6.1;
 MAGNET_T = 2.1;
+MAGNET_PLAY = 0.1;
+POCKET_D = MAGNET_D + MAGNET_PLAY;
 MAGNET_Z = 8;
 
 // --- mini box retention (this block is identical in the case lid file and in the mini box file; a test keeps them in sync) ---
@@ -254,8 +257,8 @@ module snap_add() {
   if (SNAP == "clip")
     side_bar(CLIP_NIB_X0, CLIP_NIB_X1, [[CAVITY_Y + 0.2, 1], [CAVITY_Y, 1], [CAVITY_Y - CLIP_NIB, 1.7], [CAVITY_Y - CLIP_NIB, 2.7], [CAVITY_Y, 3.9], [CAVITY_Y + 0.2, 3.9]]);
   if (SNAP == "magnet")
-    side_bar(SNAP_XC - MAGNET_D / 2 - 0.4, SNAP_XC + MAGNET_D / 2 + 0.4, [[OUTER_Y - 0.2, MAGNET_Z - MAGNET_D / 2 - 0.4], [RELIEF_TOP_Y, MAGNET_Z - MAGNET_D / 2 - 0.4],
-      [RELIEF_TOP_Y, MAGNET_Z + MAGNET_D / 2 + 0.4], [OUTER_Y - 0.2, MAGNET_Z + MAGNET_D / 2 + 0.4]]);
+    side_bar(SNAP_XC - POCKET_D / 2 - 0.4, SNAP_XC + POCKET_D / 2 + 0.4, [[OUTER_Y - 0.2, MAGNET_Z - POCKET_D / 2 - 0.4], [RELIEF_TOP_Y, MAGNET_Z - POCKET_D / 2 - 0.4],
+      [RELIEF_TOP_Y, MAGNET_Z + POCKET_D / 2 + 0.4], [OUTER_Y - 0.2, MAGNET_Z + POCKET_D / 2 + 0.4]]);
 }
 module snap_cut() {
   if (SNAP == "detent")
@@ -266,7 +269,7 @@ module snap_cut() {
     side_bar(CLIP_X0, CLIP_X1, [[OUTER_Y - 0.05, -1], [RELIEF_TOP_Y + 1, -1], [RELIEF_TOP_Y + 1, CLIP_LEN], [OUTER_Y - 0.05, CLIP_LEN]]);
   }
   if (SNAP == "magnet")
-    for (m = [0, 1]) mirror([0, m, 0]) translate([SNAP_XC, CAVITY_Y - 0.2, MAGNET_Z]) rotate([-90, 0, 0]) cylinder(d = MAGNET_D, h = MAGNET_T + 0.2, $fn = 64);
+    for (m = [0, 1]) mirror([0, m, 0]) translate([SNAP_XC, CAVITY_Y - 0.2, MAGNET_Z]) rotate([-90, 0, 0]) cylinder(d = POCKET_D, h = MAGNET_T + 0.2, $fn = 64);
 }
 
 RELIEF_BASE = [[-24.801, -7.312], [-24.164, -9.209], [-23.553, -10.281], [-23.137, -10.904], [-22.801, -11.28], [-22.08, -11.978],

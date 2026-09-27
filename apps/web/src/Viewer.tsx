@@ -7,8 +7,11 @@ import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import type { ReferenceObject } from './referenceObjects.ts';
 import { createStage } from './stage.ts';
 
-/** `reference` marks a real-world object from the assembly (e.g. a lighter), shown in its own colour: it is not printed. */
-interface Part { name: string; bytes: ArrayBuffer; reference?: boolean }
+/**
+ * One mesh to show: STL `bytes`, or a `geometry` built from a library part's dimensions (e.g. a magnet). `reference` marks a
+ * real-world object from the assembly (e.g. a lighter), shown in its own colour: it is not printed.
+ */
+type Part = { name: string; reference?: boolean } & ({ bytes: ArrayBuffer } | { geometry: THREE.BufferGeometry });
 
 interface SceneController {
   /**
@@ -112,7 +115,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         for (const geometry of geometries) geometry.dispose();
         geometries = [];
         const prepared = parts.map(part => {
-          const geometry = new STLLoader().parse(part.bytes);
+          const geometry = 'geometry' in part ? part.geometry : new STLLoader().parse(part.bytes);
           geometry.computeVertexNormals(); geometry.computeBoundingBox();
           const bounds = geometry.boundingBox;
           if (!bounds) { geometry.dispose(); return null; }
@@ -162,10 +165,15 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
   useEffect(() => {
     if (!url) return;
     const abort = new AbortController();
-    // Reference objects are static files: one that cannot be loaded is left out rather than failing the preview.
-    const loadReferences = format === 'zip' && assemblyRef.current ? Promise.all(referencesRef.current.map(reference =>
-      fetch(reference.url, { signal: abort.signal }).then(async (response): Promise<Part[]> => response.ok ? [{ name: `${reference.id}.stl`, bytes: await response.arrayBuffer(), reference: true }] : [])
-        .catch((): Part[] => []))).then(loaded => loaded.flat()) : Promise.resolve([]);
+    // Reference objects are static files, or built from their part's dimensions: one that cannot be loaded is left out rather
+    // than failing the preview.
+    const loadReference = async (reference: ReferenceObject): Promise<Part[]> => {
+      if (!('url' in reference)) { const geometry = reference.geometry(); return geometry ? [{ name: reference.id, geometry, reference: true }] : []; }
+      const response = await fetch(reference.url, { signal: abort.signal });
+      return response.ok ? [{ name: `${reference.id}.stl`, bytes: await response.arrayBuffer(), reference: true }] : [];
+    };
+    const loadReferences = format === 'zip' && assemblyRef.current
+      ? Promise.all(referencesRef.current.map(reference => loadReference(reference).catch((): Part[] => []))).then(loaded => loaded.flat()) : Promise.resolve([]);
     void fetch(url, { signal: abort.signal }).then(async response => {
       if (!response.ok) throw new Error('The preview file is unavailable. Generate it again.');
       const bytes = await response.arrayBuffer();
