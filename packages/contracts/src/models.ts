@@ -375,8 +375,8 @@ const MINI_LID_SNAP_TEXT: Record<InsertSnapMode, { label: string; description: s
 };
 const HOLDER_SNAP_TEXT: Record<InsertSnapMode, { label: string; description: string }> = {
   friction: { label: 'Friction fit', description: 'Only a close fit holds the holder in the bay; it can drop out of the open floor if the clearance is loose.' },
-  detent: { label: 'Detent', description: 'A bump on each end of the holder clicks into a groove in the bay. Push it out from above, e.g. with a lighter.' },
-  'crush-ribs': { label: 'Crush ribs', description: 'Four thin ribs near the holder\'s floor are squeezed by the bay wall. Push it out from above, e.g. with a lighter.' },
+  detent: { label: 'Detent', description: 'A bump on each end of the holder clicks into a groove in the bay. Push it out from above, e.g. with a lighter turned upside down.' },
+  'crush-ribs': { label: 'Crush ribs', description: 'Four thin ribs near the holder\'s floor are squeezed by the bay wall. Push it out from above, e.g. with a lighter turned upside down.' },
 };
 const MINI_BOX_SNAP_TEXT: Record<InsertSnapMode, { label: string; description: string }> = {
   friction: { label: 'Friction fit', description: 'Only a close fit holds the closed mini box in the case lid when the lid is lifted off.' },
@@ -593,7 +593,10 @@ const cigaretteCaseAssembly: Assembly = {
     'mini-box': { position: [6.43, 0, 98.23], rotation: [180, 0, 0] },
     'mini-lid': { position: [6.43, 0, 83.839], rotation: [0, 0, 180] },
     // In the round bay, above the holder: centred like it, width along Y, base down, resting on the clip tab (the lowest point
-    // clear of the box and the holder). Its top is 1.1 mm under the lid's ceiling (docs/cigarette-case-assembly.md).
+    // clear of the box and the holder). Its top is 1.1 mm under the lid's ceiling (docs/cigarette-case-assembly.md). Upright, the
+    // tab stops it short of the holder; turned upside down, its hood and wheel pass the tab and push the holder out.
+    // TODO(#17): the bay is not fitted to the lighter yet, so it sits loose (about 0.4 mm a side, not CLEARANCE).
+    // TODO(#18): the lighter model's hood is rectangular; the real one continues the body's oval outline.
     'mini-bic-lighter': { position: [-16.84, 0, 35.12] },
   },
   steps: [

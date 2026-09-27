@@ -1,6 +1,9 @@
 // BIC Mini lighter (model J25), as a reference object: a real-world item the cigarette case holds, shown in the assembly
 // preview so that its fit can be seen: it goes into the box's round bay (BAY_ROUND) from the top and rests on the clip tab,
-// above the mini holder. It is never printed and never part of the ZIP. The
+// above the mini holder. Upright (base down, as shown) the tab stops it, so it cannot reach the holder, which is intended.
+// Turned upside down, its hood and wheel pass beside the tab and push the holder out through the box's floor.
+// TODO(#17): the bay is not fitted to the lighter yet, so it sits loose. The lighter is a third-party object: the fix goes
+// into the case box, never into this file's confirmed dimensions. It is never printed and never part of the ZIP. The
 // preview loads mini-bic-lighter.stl, which is this file rendered (see docs/cigarette-case-assembly.md#reference-objects);
 // render it again after any change here.
 //
@@ -71,6 +74,9 @@ module hood_profile() {
 
 // Sheet-metal hood: two cheeks that carry the wheel's axle, a front wall and a top with the flame slot. Open at the rear
 // (where the wheel shows) and at the bottom.
+// TODO(#18): wrong shape. This hood is a rectangular box standing inside the body's outline; the real hood continues the body's
+// oval outline (plan(), PROFILE_N) upwards. It matters because the hood is what pushes the holder out when the lighter is
+// upside down (#17).
 module hood() {
   for (m = [0, 1]) mirror([m, 0, 0]) translate([HOOD_W / 2 - HOOD_WALL, 0, 0]) rotate([90, 0, 90]) linear_extrude(height = HOOD_WALL) hood_profile();
   translate([-HOOD_W / 2, HOOD_Y0, HOOD_Z0]) cube([HOOD_W, HOOD_WALL, HEIGHT - HOOD_Z0]);

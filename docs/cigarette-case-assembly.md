@@ -37,8 +37,9 @@ every SCAD file centres its part at the origin.
 ## Reference objects
 
 The round bay (`BAY_ROUND`) is a tube open at both ends. The mini holder is pushed up into it from below, and the clip tab stops
-it. A BIC Mini lighter goes in from the top and rests on the tab, above the holder. Pushed down, the lighter also pushes the holder
-out (see [cigarette-case-snap.md](cigarette-case-snap.md)). The lighter is modelled in
+it. A BIC Mini lighter goes in from the top and rests on the tab, above the holder. Upright, the tab stops it, so it cannot reach
+the holder, which is intended. Turned upside down, its hood and wheel pass beside the tab and push the holder out through the
+floor (see [cigarette-case-snap.md](cigarette-case-snap.md)). The lighter is modelled in
 `models/cigarette-case/reference-objects/mini-bic-lighter.scad` and shown in the preview, in blue, so that its fit can be seen. It
 is not printed and not in the ZIP (see [adding-models.md](adding-models.md), “Reference objects”).
 
@@ -55,7 +56,9 @@ The pose follows from the shapes. The bay is 11.8 × 22.8 mm, so the lighter is 
 0.4 mm from the wall on each side (0.3 mm at the closest point, with the estimated plan). It rests on the clip tab at 35.12 mm,
 2.4 mm above the holder's top. Its top is then at 97.12 mm: 20 mm above the box's rim and 1.1 mm under the lid's ceiling
 (98.23 mm). So the lighter's height is what the bay and the lid were sized for. These figures rest on the estimated plan; a real
-lighter shows how loose it really is. The fit is left as it is here: tightening the bay is a separate change.
+lighter shows how loose it really is. The fit is left as it is here: tightening the bay is
+[#17](https://github.com/NNTin/CanFactory/issues/17). The model's hood is a rectangular box, while the real hood continues the
+body's oval outline; correcting it is [#18](https://github.com/NNTin/CanFactory/issues/18).
 
 ## How the poses were checked
 

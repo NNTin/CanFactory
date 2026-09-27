@@ -67,7 +67,8 @@ The detent sits on the side walls and not on the pads, for two reasons:
 
 The holder is pushed up into the round bay through the box's open floor. The tab in the bay (z 32.3 to 34.9) is only its upper
 stop. What `holderSnap` adds keeps the holder from dropping out of the floor when the case is turned over. It is also sized so that
-a lighter pushed down onto the holder's dome from above, beside the tab, pushes it out again. Both features sit near the holder's
+a lighter turned upside down and pushed down from above, its hood and wheel beside the tab, pushes it out again (upright, the
+lighter rests on the tab and cannot reach the holder). Both features sit near the holder's
 floor, its trailing end, so they rub only over the last few millimetres of the push. There is nothing on the 0.79 mm wall between
 the round bay and the next bay (+X).
 
