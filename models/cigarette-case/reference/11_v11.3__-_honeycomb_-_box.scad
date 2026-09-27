@@ -6,7 +6,7 @@
 // no additional rights to the original. See ../ATTRIBUTION.md.
 //
 // Geometry: a prismatic body on a rounded D-shaped outline (RELIEF_BASE) with three cavities (two cigarette bays split by a
-// thin divider, and a round bay open through the floor), a base flange (FLANGE), a small clip tab inside the round bay (TAB), and a honeycomb relief of raised ridges
+// thin divider, and a round bay open through the floor), a base flange (FLANGE), a small clip tab inside the round bay (TAB, with a fill that roots it in the bay wall), and a honeycomb relief of raised ridges
 // measured from that outline between FLANGE_TOP and BASE_TOP; above BASE_TOP the wall steps in to a plain thin shell (the lid's cavity outline pulled in by CLEARANCE)
 // that the lid slides over. The relief is stored as plateau regions in the unrolled (s, z) plane and bent back around the
 // outline by relief_wrap() (generated with tools/stl-to-scad `relief`). Units are millimetres; the part is centred on the
@@ -42,10 +42,17 @@ BAY_ROUND = [[-13.813, -10.401], [-14.397, -10.8], [-15.128, -11.136], [-15.685,
   [-10.942, -1.035], [-10.99, -2.42], [-11.091, -3.695], [-11.24, -4.854], [-11.383, -5.647], [-11.659, -6.773],
   [-11.834, -7.326], [-12.177, -8.188], [-12.551, -8.908], [-12.868, -9.393], [-13.227, -9.843]];
 
-// Clip tab: a ledge inside the round bay, on its -Y side, 2.9 mm tall. One outline per slice of TAB_STEP mm, starting at the
-// listed height; the slices overlap a little and are grown by TAB_GROW so the tab fuses with the bay wall.
+// Clip tab: a hood inside the round bay, on its -Y side, 2.8 mm tall: a curved shell that follows the holder's dome, so it leans
+// away from the bay wall as it rises. One outline per slice of TAB_STEP mm, starting at the listed height; the slices overlap a
+// little and are grown by TAB_GROW so they fuse with each other. As traced from the source, only the lowest 0.4 mm touched the wall
+// (0.08 mm deep, 1.8 mm long), so the hood could snap off. The pocket between the hood and the wall is therefore filled: TAB_ROOT
+// into the wall and TAB_FUSE into the hood, up to a top that rises at 45 degrees to the wall and meets it at the hood's top. The
+// hood's underside, where the holder stops, is unchanged.
 TAB_STEP = 0.2;
 TAB_GROW = 0.08;
+TAB_ROOT = 0.3;
+TAB_FUSE = 0.2;
+TAB_CHORD = -6.32;   // the hood's flat ends, across the bay
 // The round bay about its own centre, the frame of the holder retention block below (the holder stands centred at HOLDER_BAY_X).
 HOLDER_BAY_X = -16.84;
 HOLDER_BAY = [for (p = BAY_ROUND) p - [HOLDER_BAY_X, 0]];
@@ -918,9 +925,30 @@ module relief_wrap(kind) {
   }
 }
 
+// Per slice, the fill reaches (top - slice top) from the wall, so its top rises at 45 degrees and meets the wall at the hood's top.
+// It stays out of the hood's outline (less TAB_FUSE, taken past the flat ends so nothing grows along them), so the underside keeps
+// its shape, and out of the cigarette bays next to the round bay.
+TAB_TOP = TAB[len(TAB) - 1][0] + TAB_STEP;
+module tab_fill(slice) {
+  reach = TAB_TOP - slice[0] - TAB_STEP;
+  if (reach > 0.01)
+    difference() {
+      intersection() {
+        difference() { offset(delta = TAB_ROOT) polygon(BAY_ROUND); offset(delta = -reach) polygon(BAY_ROUND); }
+        translate([-100, TAB_CHORD - 100]) square(100);
+      }
+      offset(delta = -TAB_FUSE) hull() { polygon(slice[1]); translate([0, 1]) polygon(slice[1]); }
+      polygon(BAY_A);
+      polygon(BAY_B);
+    }
+}
+
 module tab() {
   for (slice = TAB)
-    translate([0, 0, slice[0]]) linear_extrude(height = TAB_STEP + 0.01) offset(delta = TAB_GROW) polygon(slice[1]);
+    translate([0, 0, slice[0]]) linear_extrude(height = TAB_STEP + 0.01) {
+      offset(delta = TAB_GROW) polygon(slice[1]);
+      tab_fill(slice);
+    }
 }
 
 module box() {
