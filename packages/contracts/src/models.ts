@@ -1,5 +1,6 @@
 import { Type, type Static, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
+import { findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type Part } from './parts/index.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
 
@@ -55,6 +56,11 @@ export const ControlSchema = Type.Object({
     ranges: Type.Array(Type.Object({ value: Type.String(), minimum: Type.Number(), maximum: Type.Number() }, { additionalProperties: false })),
   }, { additionalProperties: false })), Type.Null()],
   { description: 'For a number control, the sub-range recommended for each value of other (enum) controls, one entry per control: the editor highlights the range that suits all their current values on the slider, and names the controls a value is outside of. Advice only; values outside it stay valid. Null for none.' }),
+  part: Type.Union([Type.Object({
+    family: Type.String({ description: 'The id of a parts-library family.' }),
+    attribute: Type.Union([Type.String(), Type.Null()], { description: 'Null: each option value is the id of a part of the family. Otherwise each option value is a value of this attribute of the family (e.g. `thread` = `M3`), which stands for every part that has it.' }),
+  }, { additionalProperties: false }), Type.Null()],
+  { description: 'For an enum control whose options are real-world parts: the parts-library family they link to. The editor links the selected option to the library. Null for none.' }),
 }, { additionalProperties: false });
 export type Control = Static<typeof ControlSchema>;
 export type ParameterValues = Record<string, number | boolean | string>;
@@ -64,7 +70,7 @@ function control<T extends { properties: Record<string, TSchema> }>(
 ): Control {
   const property: TSchema & { type?: unknown } = schema.properties[key] ?? (() => { throw new Error(`Unknown parameter ${key}.`); })();
   return {
-    key, group, enabledWhen, visibleWhen: null, options: null, bands: null, recommended: null,
+    key, group, enabledWhen, visibleWhen: null, options: null, bands: null, recommended: null, part: null,
     label: 'title' in property && typeof property.title === 'string' ? property.title : key,
     description: 'description' in property && typeof property.description === 'string' ? property.description : '',
     kind: property.type === 'boolean' ? 'boolean' : 'number',
@@ -84,7 +90,7 @@ function enumControl<T extends { properties: Record<string, TSchema> }>(
   const first = options[0];
   if (!first) throw new Error(`Enum ${key} needs at least one option.`);
   return {
-    key, group, enabledWhen: null, visibleWhen: null, options, bands: null, recommended: null, kind: 'enum', unit: null, minimum: null, maximum: null, step: null,
+    key, group, enabledWhen: null, visibleWhen: null, options, bands: null, recommended: null, part: null, kind: 'enum', unit: null, minimum: null, maximum: null, step: null,
     label: property.title ?? key, description: property.description ?? '',
     default: typeof property.default === 'string' ? property.default : first.value,
   };
@@ -94,7 +100,7 @@ function enumControl<T extends { properties: Record<string, TSchema> }>(
 function textControl<T extends { properties: Record<string, TSchema> }>(schema: T, key: keyof T['properties'] & string, group: Control['group']): Control {
   const property: TSchema & { title?: string; description?: string; default?: unknown; maxLength?: number } = schema.properties[key] ?? (() => { throw new Error(`Unknown parameter ${key}.`); })();
   return {
-    key, group, enabledWhen: null, visibleWhen: null, options: null, bands: null, recommended: null, kind: 'text', unit: null, minimum: 0, maximum: property.maxLength ?? null, step: null,
+    key, group, enabledWhen: null, visibleWhen: null, options: null, bands: null, recommended: null, part: null, kind: 'text', unit: null, minimum: 0, maximum: property.maxLength ?? null, step: null,
     label: property.title ?? key, description: property.description ?? '', default: typeof property.default === 'string' ? property.default : '',
   };
 }
@@ -158,7 +164,8 @@ const Vector = (description: string) => Type.Array(Type.Number(), { minItems: 3,
  * part that moves together (e.g. a box already inside the lid that moves). `lift` is removed during the last step, so the
  * finished assembly stands on the floor. Parts without a pose stay on the print bed. `references` are real-world objects the
  * assembly holds (e.g. the lighter a bay is sized for), shown and moved like parts so that their fit can be seen; they are
- * never printed, so the worker does not render them and they are not in the ZIP (see `referenceObjectPath`).
+ * parts-library entries with an STL preview, never printed, so the worker does not render them and they are not in the ZIP
+ * (see `referencePart`).
  */
 export const AssemblySchema = Type.Object({
   poses: Type.Record(Type.String(), Type.Object({
@@ -173,18 +180,22 @@ export const AssemblySchema = Type.Object({
   lift: Type.Number({ description: 'Height in mm of the exploded layout above the print bed.' }),
   references: Type.Optional(Type.Array(Type.Object({
     id: Type.String({ description: 'Its key in `poses` and `steps`.' }),
-    title: Type.String({ description: 'What it is, e.g. “BIC Mini lighter (J25)”.' }),
-  }, { additionalProperties: false }), { description: 'Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. Not printed and not in the ZIP.' })),
+    part: Type.String({ description: 'The id of the parts-library entry it is, which has an STL preview.' }),
+    title: Type.String({ description: 'What it is: the part’s title, e.g. “BIC Mini lighter (J25)”.' }),
+  }, { additionalProperties: false }), { description: 'Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. They are parts-library entries. Not printed and not in the ZIP.' })),
 }, { additionalProperties: false });
 export type Assembly = Static<typeof AssemblySchema>;
 
 /**
- * Where an assembly's reference object lives: `<id>.scad` is its source, with the real-world dimensions as named values, and
- * `<id>.stl` beside it is that file rendered, which the web app bundles for the preview. Reference objects do not depend on
- * the model's parameters, so they are rendered once, when the SCAD file changes, rather than by the worker.
+ * An assembly's reference object: the parts-library entry `partId`, under the pose key `id`. It must have an STL preview: its
+ * `.scad` source has the real-world dimensions as named values and the `.stl` beside it is that file rendered, which the web app
+ * bundles (`partAssetPath`). Reference objects do not depend on the model's parameters, so they are rendered once, when the
+ * SCAD file changes, rather than by the worker.
  */
-export function referenceObjectPath(modelId: string, id: string, extension: 'scad' | 'stl'): string {
-  return `models/${modelId}/reference-objects/${id}.${extension}`;
+export function referencePart(id: string, partId: string): NonNullable<Assembly['references']>[number] {
+  const part = findPart(partId);
+  if (!part || !partAssetPath(part, 'stl')) throw new Error(`Reference ${id}: ${partId} is not a parts-library entry with an STL preview.`);
+  return { id, part: part.id, title: part.title };
 }
 
 /**
@@ -676,7 +687,7 @@ const cigaretteCaseAssembly: Assembly = {
     { title: 'Close the case', parts: ['case-lid', 'mini-box', 'mini-lid'], from: [0, 0, 100] },
   ],
   lift: 50,
-  references: [{ id: 'mini-bic-lighter', title: 'BIC Mini lighter (J25)' }],
+  references: [referencePart('mini-bic-lighter', 'bic-j25-mini-lighter')],
 };
 
 export const cigaretteCase = {
@@ -713,19 +724,8 @@ export type ScrewHoles = typeof SCREW_HOLE_VALUES[number];
 const HOLE_FIT_VALUES = ['fine', 'medium', 'coarse'] as const;
 export type HoleFit = typeof HOLE_FIT_VALUES[number];
 
-/**
- * DIN EN 20273 (ISO 273) clearance-hole diameters in mm, per screw size and series: fine (H12), medium (H13, the usual choice)
- * and coarse (H14). Mirrors `DIN_EN_20273` in models/plank-connector/generator.scad (a test keeps the two identical).
- */
-export const CLEARANCE_HOLES: Record<Exclude<ScrewHoles, 'none'>, Record<HoleFit, number>> = {
-  M2: { fine: 2.2, medium: 2.4, coarse: 2.6 },
-  'M2.5': { fine: 2.7, medium: 2.9, coarse: 3.1 },
-  M3: { fine: 3.2, medium: 3.4, coarse: 3.6 },
-  M4: { fine: 4.3, medium: 4.5, coarse: 4.8 },
-  M5: { fine: 5.3, medium: 5.5, coarse: 5.8 },
-  M6: { fine: 6.4, medium: 6.6, coarse: 7 },
-  M8: { fine: 8.4, medium: 9, coarse: 10 },
-};
+/** DIN EN 20273 (ISO 273) clearance-hole diameters in mm, per screw size and series, from the parts library. */
+export const CLEARANCE_HOLES: Record<Exclude<ScrewHoles, 'none'>, Record<HoleFit, number>> = ISO_273_CLEARANCE_HOLES;
 
 /** Diameter in mm of the through-holes for these settings; 0 without holes. */
 export const holeDiameter = (p: { screwHoles: ScrewHoles; holeFit: HoleFit }): number =>
@@ -780,7 +780,8 @@ const plankConnectorControls = [
   control(PlankConnectorParametersSchema, 'pocketWidth', 'basic'),
   control(PlankConnectorParametersSchema, 'pocketThickness', 'basic'),
   control(PlankConnectorParametersSchema, 'insertionDepth', 'basic'),
-  enumControl(PlankConnectorParametersSchema, 'screwHoles', 'basic', SCREW_HOLE_VALUES.map(value => ({ value, ...SCREW_HOLE_TEXT[value] }))),
+  // Each size links to the library's screws of that thread (`none` to nothing).
+  { ...enumControl(PlankConnectorParametersSchema, 'screwHoles', 'basic', SCREW_HOLE_VALUES.map(value => ({ value, ...SCREW_HOLE_TEXT[value] }))), part: { family: 'screw', attribute: 'thread' } },
   enumControl(PlankConnectorParametersSchema, 'holeFit', 'advanced', HOLE_FIT_VALUES.map(value => ({ value, ...HOLE_FIT_TEXT[value] }))),
   control(PlankConnectorParametersSchema, 'holesPerEnd', 'advanced', null, null),
   control(PlankConnectorParametersSchema, 'wallThickness', 'advanced'),
@@ -816,6 +817,18 @@ export const plankConnector = {
 export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
+
+/** A model that links to a part: through an option of a part-linked control, or as a reference object of its assembly. */
+export interface PartUsage { modelId: string; modelTitle: string; via: string }
+
+/** Every model that links to this part (the parts library's “Used by”). */
+export function partUsage(part: Part): PartUsage[] {
+  return models.flatMap(model => [
+    ...model.controls.filter(control => control.part?.family === part.family && control.options?.some(option =>
+      option.value === (control.part?.attribute ? part.attributes[control.part.attribute] : part.id))).map(control => ({ modelId: model.id, modelTitle: model.title, via: control.label })),
+    ...(model.assembly?.references ?? []).filter(reference => reference.part === part.id).map(() => ({ modelId: model.id, modelTitle: model.title, via: 'Assembly preview' })),
+  ]);
+}
 
 /** Validates unknown browser/API input, including cross-field rules, without coercion. */
 export function validateParameters(model: ModelDefinition, parameters: unknown): ParameterIssue[] {

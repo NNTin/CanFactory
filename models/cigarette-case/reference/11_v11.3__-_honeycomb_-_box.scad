@@ -23,7 +23,7 @@ TOP_Z     = 77.171;    // rim height of the box
 
 // Cavities (x, y) about the part centre: the two bays and the round bay that is open through the floor. The round bay holds two
 // things, one from each end: the mini holder, pushed up through the floor until the clip tab (TAB) stops it, and a BIC Mini
-// lighter (models/cigarette-case/reference-objects/mini-bic-lighter.scad), put in from the top and resting on the tab above the
+// lighter (parts/everyday-objects/bic-j25-mini-lighter.scad), put in from the top and resting on the tab above the
 // holder. Upright, the lighter cannot pass the tab; upside down (wheel side towards the tab), its hood and wheel pass beside it
 // and push the holder out.
 // BAY_ROUND is the traced outline, and the bay keeps it up to the tab's top (the holder's part, and the tab). Above that the bay is
@@ -183,7 +183,7 @@ module snap_cut() {
 // --- lighter bay ---
 // Above the clip tab the round bay is fitted to the BIC Mini lighter (issue #17): the lighter's plan, pushed out by CLEARANCE, as
 // every other joint is derived from the part it fits. The plan is a copy of plan() in
-// models/cigarette-case/reference-objects/mini-bic-lighter.scad (a test keeps the three values below equal to its THICKNESS,
+// parts/everyday-objects/bic-j25-mini-lighter.scad (a test keeps the three values below equal to its THICKNESS,
 // WIDTH and PROFILE_N), centred in the bay like the lighter (x = HOLDER_BAY_X), width along Y. The whole lighter, hood, wheel and
 // lever included, stays inside that plan, so an upside-down lighter passes the fitted bay as freely as an upright one.
 // Below TAB_TOP the bay stays BAY_ROUND (the holder's part and the tab); a LIGHTER_LEAD tall loft joins the two, so a lighter

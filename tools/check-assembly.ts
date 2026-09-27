@@ -13,7 +13,7 @@
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
-import { activeParts, assemblyOffset, isAssembly, models, referenceObjectPath, scadLiteral, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '../packages/contracts/src/index.ts';
+import { activeParts, assemblyOffset, findPart, isAssembly, models, partAssetPath, scadLiteral, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '../packages/contracts/src/index.ts';
 import { intersectionVolume } from './stl-to-scad/compare.ts';
 import { renderScad } from './stl-to-scad/openscad.ts';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
@@ -69,12 +69,15 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
   // Reference objects (e.g. a lighter in its bay) are checked like parts, rendered from their SCAD source; the preview uses the
   // STL rendered from it, so it must match.
   for (const reference of assembly.references ?? []) {
-    const render = await renderScad(resolve(referenceObjectPath(model.id, reference.id, 'scad')), {});
+    const part = findPart(reference.part);
+    const [scad, stl] = [part && partAssetPath(part, 'scad'), part && partAssetPath(part, 'stl')];
+    if (!scad || !stl) throw new Error(`${model.id}: reference ${reference.id} is not a parts-library entry with an STL preview.`);
+    const render = await renderScad(resolve(scad), {});
     const mesh = parseStl(render.stl);
-    const committed = parseStl(await readFile(resolve(referenceObjectPath(model.id, reference.id, 'stl'))));
+    const committed = parseStl(await readFile(resolve(stl)));
     const [fresh, stored] = [bounds(mesh), bounds(committed)];
     if ([...fresh.min, ...fresh.max].some((value, index) => Math.abs(value - g([...stored.min, ...stored.max], index)) > 0.01))
-      throw new Error(`${referenceObjectPath(model.id, reference.id, 'stl')} is out of date: render ${referenceObjectPath(model.id, reference.id, 'scad')} again.`);
+      throw new Error(`${stl} is out of date: render ${scad} again.`);
     parts.set(reference.id, mesh);
     console.log(`rendered reference ${reference.id} (${render.runner}, ${(render.milliseconds / 1000).toFixed(1)} s)`);
   }

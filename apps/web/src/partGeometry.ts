@@ -1,0 +1,177 @@
+import type { Part } from '@canfactory/contracts';
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/**
+ * Builds a part of the library from its dimensions, for the parts library's preview: millimetres, Z up, standing on z = 0. The
+ * shapes are simplified (a thread is drawn as rings at its pitch, knurls as bands) but every size in them is the part's own,
+ * so that parts can be compared. Colours are vertex colours, so that one mesh (one hover target) can have a dark socket.
+ */
+
+const STEEL = 0xa3a8ad;
+const DARK = 0x3b4046;
+const BRASS = 0xc9a24c;
+const NICKEL = 0xcfd2d6;
+const NYLON = 0xece4cc;
+const SHIELD = 0x58606a;
+
+type Piece = THREE.BufferGeometry;
+
+function paint(geometry: Piece, color: number): Piece {
+  const flat = geometry.index ? geometry.toNonIndexed() : geometry;
+  if (flat !== geometry) geometry.dispose();
+  flat.deleteAttribute('uv');
+  const { r, g, b } = new THREE.Color(color);
+  const count = flat.getAttribute('position').count;
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) colors.set([r, g, b], i * 3);
+  flat.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return flat;
+}
+
+/** A solid of revolution about Z from an outline of (radius, z) points; an outline that starts and ends on the axis is closed. */
+function revolve(outline: [number, number][], color: number, segments = 48): Piece {
+  const geometry = new THREE.LatheGeometry(outline.map(([r, z]) => new THREE.Vector2(Math.max(r, 0), z)), segments);
+  geometry.rotateX(Math.PI / 2);
+  return paint(geometry, color);
+}
+
+/** A closed ring (tube) of revolution from its cross-section, given counter-clockwise in (radius, z). */
+function ring(section: [number, number][], color: number, segments = 48): Piece {
+  return revolve([...section, section[0] ?? [0, 0]], color, segments);
+}
+
+function polygon(sides: number, circumradius: number, rotation = Math.PI / 6): THREE.Shape {
+  const shape = new THREE.Shape();
+  for (let i = 0; i <= sides; i++) {
+    const angle = rotation + i * 2 * Math.PI / sides;
+    if (i === 0) shape.moveTo(circumradius * Math.cos(angle), circumradius * Math.sin(angle));
+    else shape.lineTo(circumradius * Math.cos(angle), circumradius * Math.sin(angle));
+  }
+  return shape;
+}
+
+function circle(radius: number): THREE.Path {
+  const path = new THREE.Path(); path.absarc(0, 0, radius, 0, Math.PI * 2, false); return path;
+}
+
+/** A prism of `shape` from z0 up by `height`. */
+function prism(shape: THREE.Shape, z0: number, height: number, color: number): Piece {
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false, curveSegments: 32 });
+  geometry.translate(0, 0, z0);
+  return paint(geometry, color);
+}
+
+const hexAcrossFlats = (s: number) => s / Math.sqrt(3);
+
+/** A threaded shaft from z0 to z1, threaded over `threadLength` from z0: rings at the pitch between the major and minor radius. */
+function shaft(d: number, pitch: number, z0: number, z1: number, threadLength: number, color: number): Piece {
+  const major = d / 2; const minor = major - 0.6 * pitch;
+  const outline: [number, number][] = [[0, z0], [minor, z0]];
+  const top = Math.min(z1, z0 + threadLength);
+  for (let z = z0 + pitch / 2; z < top; z += pitch) outline.push([major, z], [minor, Math.min(z + pitch / 2, top)]);
+  outline.push([major, top], [major, z1], [0, z1]);
+  return revolve(outline, color, 32);
+}
+
+const value = (part: Part, key: string, fallback = 0) => part.dimensions[key]?.value ?? fallback;
+/** The largest size a dimension may have: what a printed pocket must take. */
+const largest = (part: Part, key: string, fallback = 0) => part.dimensions[key]?.max ?? value(part, key, fallback);
+
+function screw(part: Part): Piece[] {
+  const d = value(part, 'd'); const pitch = value(part, 'pitch'); const l = value(part, 'l'); const k = largest(part, 'k');
+  const dk = largest(part, 'dk', d * 1.7); const s = value(part, 's'); const t = value(part, 't', k * 0.5);
+  const head = part.attributes['head'];
+  const color = head === 'socket-cap' ? DARK : STEEL;
+  const socketColor = head === 'socket-cap' ? 0x1f2226 : DARK;
+  if (head === 'countersunk') {
+    // The length includes the head: the cone sits on top of the shaft.
+    return [shaft(d, pitch, 0, l - k, value(part, 'b', l), color), revolve([[0, l - k], [d / 2, l - k], [dk / 2, l], [0, l]], color),
+      prism(polygon(6, hexAcrossFlats(s)), l - 0.01, 0.02, socketColor)];
+  }
+  const threaded = value(part, 'b', l) < l ? value(part, 'b', l) : l;
+  const pieces = [shaft(d, pitch, 0, l, threaded, color)];
+  if (head === 'socket-cap') {
+    const socket = new THREE.Shape(); socket.absarc(0, 0, dk / 2, 0, Math.PI * 2, false);
+    socket.holes.push(polygon(6, hexAcrossFlats(s)));
+    pieces.push(revolve([[0, l], [dk / 2 - 0.2, l], [dk / 2, l + 0.2], [dk / 2, l + k - t], [0, l + k - t]], color), prism(socket, l + k - t, t, color),
+      prism(polygon(6, hexAcrossFlats(s)), l + k - t, 0.02, socketColor));
+  } else if (head === 'button') {
+    const arc: [number, number][] = Array.from({ length: 9 }, (_, i) => { const a = (i / 8) * Math.PI / 2; return [s * 0.75 + (dk / 2 - s * 0.75) * Math.cos(a), l + k * 0.2 + k * 0.8 * Math.sin(a)]; });
+    pieces.push(revolve([[0, l], [dk / 2, l], ...arc, [0, l + k]], color), prism(polygon(6, hexAcrossFlats(s)), l + k - 0.01, 0.02, socketColor));
+  } else if (head === 'hex') {
+    pieces.push(prism(polygon(6, value(part, 'e', s * 1.15) / 2), l, k, color));
+  } else {
+    // pan head with a cross recess
+    const arc: [number, number][] = Array.from({ length: 9 }, (_, i) => { const a = (i / 8) * Math.PI / 2; return [dk * 0.3 + dk * 0.2 * Math.cos(a), l + k * 0.45 + k * 0.55 * Math.sin(a)]; });
+    const slot = (width: number, depth: number) => { const box = new THREE.BoxGeometry(width, depth, 0.04); box.translate(0, 0, l + k); return paint(box, socketColor); };
+    pieces.push(revolve([[0, l], [dk / 2, l], [dk / 2, l + k * 0.45], ...arc, [0, l + k]], color), slot(dk * 0.45, dk * 0.1), slot(dk * 0.1, dk * 0.45));
+  }
+  return pieces;
+}
+
+function nut(part: Part): Piece[] {
+  const d = value(part, 'd'); const s = largest(part, 's'); const m = largest(part, 'm');
+  const shape = part.attributes['shape']?.startsWith('square') ? polygon(4, s / Math.SQRT2, Math.PI / 4) : polygon(6, hexAcrossFlats(s));
+  shape.holes.push(circle(d / 2));
+  const pieces = [prism(shape, 0, m, STEEL)];
+  if (part.attributes['shape'] === 'hex-nyloc') {
+    const h = largest(part, 'h'); const collar = value(part, 'dw', s * 0.85) / 2;
+    pieces.push(ring([[d / 2 + 0.3, m], [collar, m], [collar, h - 0.4], [collar - 0.4, h], [d / 2 + 0.3, h]], STEEL),
+      ring([[d / 2, m], [d / 2 + 0.3, m], [d / 2 + 0.3, h - 0.3], [d / 2, h - 0.3]], NYLON));
+  }
+  return pieces;
+}
+
+function washer(part: Part): Piece[] {
+  const d1 = value(part, 'd1') / 2; const d2 = value(part, 'd2') / 2; const h = value(part, 'h');
+  const chamfer = part.attributes['series']?.includes('chamfered') ? h * 0.35 : 0;
+  return [ring([[d1, 0], [d2, 0], [d2, h - chamfer], [d2 - chamfer, h], [d1, h]], STEEL)];
+}
+
+function insert(part: Part): Piece[] {
+  const l = value(part, 'l'); const outer = value(part, 'd') / 2; const pilot = value(part, 'pilot', outer * 1.7 - value(part, 'hole') * 0.7) / 2;
+  const bore = Number(part.attributes['thread']?.slice(1) ?? 3) / 2 * 0.85; const groove = outer - (outer - pilot) * 0.6;
+  // pilot at the bottom, then two knurled bands with a groove between them
+  return [ring([[bore, 0], [pilot, 0], [pilot, l * 0.2], [outer, l * 0.22], [outer, l * 0.52], [groove, l * 0.55], [groove, l * 0.65], [outer, l * 0.68], [outer, l], [bore, l]], BRASS, 24)];
+}
+
+function bearing(part: Part): Piece[] {
+  const d = value(part, 'd') / 2; const D = value(part, 'D') / 2; const B = value(part, 'B');
+  const wall = (D - d) * 0.22; const c = Math.min(0.3, wall / 3);
+  const race = (r0: number, r1: number): Piece => ring([[r0 + c, 0], [r1 - c, 0], [r1, c], [r1, B - c], [r1 - c, B], [r0 + c, B], [r0, B - c], [r0, c]], STEEL);
+  return [race(d, d + wall), race(D - wall, D), ring([[d + wall, 0.3], [D - wall, 0.3], [D - wall, B - 0.3], [d + wall, B - 0.3]], SHIELD)];
+}
+
+function pin(part: Part): Piece[] {
+  const r = largest(part, 'd') / 2; const l = value(part, 'l'); const c = value(part, 'c');
+  return [revolve([[0, 0], [r - c, 0], [r, c], [r, l - c], [r - c, l], [0, l]], STEEL, 32)];
+}
+
+function magnet(part: Part): Piece[] {
+  const t = value(part, 'thickness'); const c = Math.min(0.15, t / 6);
+  const shape = part.attributes['shape'];
+  if (shape === 'block') {
+    const box = new THREE.BoxGeometry(value(part, 'length'), value(part, 'width'), t); box.translate(0, 0, t / 2);
+    return [paint(box, NICKEL)];
+  }
+  const r = value(part, 'diameter') / 2; const hole = value(part, 'innerDiameter') / 2;
+  if (shape === 'countersunk-pot') {
+    const sink = value(part, 'countersinkDiameter', hole * 2) / 2;
+    return [ring([[hole, 0], [r - c, 0], [r, c], [r, t - c], [r - c, t], [sink, t], [hole, t - (sink - hole)]], STEEL)];
+  }
+  if (hole > 0) return [ring([[hole, 0], [r - c, 0], [r, c], [r, t - c], [r - c, t], [hole, t]], NICKEL)];
+  return [revolve([[0, 0], [r - c, 0], [r, c], [r, t - c], [r - c, t], [0, t]], NICKEL)];
+}
+
+const BUILDERS: Record<string, (part: Part) => Piece[]> = { screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet };
+
+/** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */
+export function partGeometry(part: Part): THREE.BufferGeometry | null {
+  const build = BUILDERS[part.family];
+  if (!build) return null;
+  const pieces = build(part);
+  const merged = mergeGeometries(pieces, false);
+  for (const piece of pieces) piece.dispose();
+  return merged;
+}

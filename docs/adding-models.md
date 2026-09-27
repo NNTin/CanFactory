@@ -81,11 +81,18 @@ model for this. Models without `assembly` keep the plain grid.
 
 **Reference objects (optional).** `assembly.references` lists real-world objects the assembly holds, such as the lighter that
 the cigarette case's round bay is sized for. They get poses and steps like parts, so the preview shows how they fit, but they are
-never printed: they are not in `parts`, the worker does not render them and they are not in the ZIP. Each lives in
-`models/<model-id>/reference-objects/` (`referenceObjectPath`): `<id>.scad` with the real dimensions as named values, and
-`<id>.stl`, that file rendered with `openscad --backend Manifold --export-format binstl`, which the web app bundles
-(`apps/web/src/referenceObjects.ts`). Render the STL again after changing the SCAD file: `npm run check:assembly` renders
-the SCAD file, fails if the committed STL's bounds differ, and includes the object in its collision checks.
+never printed: they are not in `parts`, the worker does not render them and they are not in the ZIP. Each is a parts-library
+entry with an STL preview, added with `referencePart(poseId, partId)` (see [adding-parts.md](adding-parts.md)): its SCAD file
+under `parts/` has the real dimensions as named values, and the STL beside it is that file rendered with
+`openscad --backend Manifold --export-format binstl`, which the web app bundles (`apps/web/src/referenceObjects.ts`). Render the
+STL again after changing the SCAD file: `npm run check:assembly` renders the SCAD file, fails if the committed STL's bounds
+differ, and includes the object in its collision checks.
+
+**Real-world parts.** When a setting chooses a real part (a screw size, a magnet), link the control to the parts library: set
+`part: { family, attribute }` on it. With `attribute: null` each option value is a part id; otherwise each value is a value of
+that attribute (the plank connector's `screwHoles` = `M3` stands for every M3 screw). The editor then links the chosen option to
+the library, and the library lists the model under the part's “Used by”. Take the sizes a model needs (e.g. `ISO_273_CLEARANCE_HOLES`)
+from the library rather than copying them.
 
 Generators for continuous parameters need extra care. Choose which dimensions scale with each parameter and record it in
 the SCAD header (moss-planter: tube radius, thread and end rings scale with the tower diameter; strut width and row

@@ -292,12 +292,12 @@ describe('cigarette case contract', () => {
     }
   });
 
-  it('fits the round bay to the lighter\'s plan as the reference object models it', () => {
-    // the box copies the lighter's plan (the reference object is never changed for the fit); its three values must stay the same
-    const read = (path: string) => readFileSync(new URL(`../../../models/cigarette-case/${path}`, import.meta.url), 'utf8');
+  it('fits the round bay to the lighter\'s plan as the parts library models it', () => {
+    // the box copies the lighter's plan (the library's lighter is never changed for the fit); its three values must stay the same
+    const read = (path: string) => readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8');
     const value = (source: string, name: string) => new RegExp(`^${name} = ([\\d.]+);`, 'm').exec(source)?.[1];
-    const box = read('reference/11_v11.3__-_honeycomb_-_box.scad');
-    const lighter = read('reference-objects/mini-bic-lighter.scad');
+    const box = read('models/cigarette-case/reference/11_v11.3__-_honeycomb_-_box.scad');
+    const lighter = read('parts/everyday-objects/bic-j25-mini-lighter.scad');
     for (const name of ['THICKNESS', 'WIDTH', 'PROFILE_N']) {
       expect(value(lighter, name), name).toBeDefined();
       expect(value(box, `LIGHTER_${name}`), name).toBe(value(lighter, name));

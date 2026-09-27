@@ -202,7 +202,8 @@
                           "visibleWhen",
                           "options",
                           "bands",
-                          "recommended"
+                          "recommended",
+                          "part"
                         ],
                         "properties": {
                           "key": {
@@ -469,6 +470,39 @@
                               }
                             ],
                             "description": "For a number control, the sub-range recommended for each value of other (enum) controls, one entry per control: the editor highlights the range that suits all their current values on the slider, and names the controls a value is outside of. Advice only; values outside it stay valid. Null for none."
+                          },
+                          "part": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "family",
+                                  "attribute"
+                                ],
+                                "properties": {
+                                  "family": {
+                                    "type": "string",
+                                    "description": "The id of a parts-library family."
+                                  },
+                                  "attribute": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "description": "Null: each option value is the id of a part of the family. Otherwise each option value is a value of this attribute of the family (e.g. `thread` = `M3`), which stands for every part that has it."
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "For an enum control whose options are real-world parts: the parts-library family they link to. The editor links the selected option to the library. Null for none."
                           }
                         },
                         "additionalProperties": false
@@ -602,6 +636,7 @@
                             "type": "object",
                             "required": [
                               "id",
+                              "part",
                               "title"
                             ],
                             "properties": {
@@ -609,14 +644,18 @@
                                 "type": "string",
                                 "description": "Its key in `poses` and `steps`."
                               },
+                              "part": {
+                                "type": "string",
+                                "description": "The id of the parts-library entry it is, which has an STL preview."
+                              },
                               "title": {
                                 "type": "string",
-                                "description": "What it is, e.g. “BIC Mini lighter (J25)”."
+                                "description": "What it is: the part’s title, e.g. “BIC Mini lighter (J25)”."
                               }
                             },
                             "additionalProperties": false
                           },
-                          "description": "Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. Not printed and not in the ZIP."
+                          "description": "Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. They are parts-library entries. Not printed and not in the ZIP."
                         }
                       },
                       "additionalProperties": false
@@ -704,6 +743,1049 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/part-families": {
+      "get": {
+        "operationId": "listPartFamilies",
+        "summary": "List the parts library’s families",
+        "tags": [
+          "Parts"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "title",
+                      "description",
+                      "attributes",
+                      "dimensions",
+                      "count"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "attributes": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "key",
+                            "label"
+                          ],
+                          "properties": {
+                            "key": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "description": "Facets of the family, in display order."
+                      },
+                      "dimensions": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "key",
+                            "label",
+                            "symbol",
+                            "required"
+                          ],
+                          "properties": {
+                            "key": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "symbol": {
+                              "type": "string",
+                              "description": "The letter used in the standard’s drawing, e.g. “dk”."
+                            },
+                            "required": {
+                              "type": "boolean",
+                              "description": "Whether every part of the family has it."
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "description": "The dimensions of the family, in display order."
+                      },
+                      "count": {
+                        "type": "integer",
+                        "description": "How many parts the family has."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/part-families/{id}": {
+      "get": {
+        "operationId": "getPartFamily",
+        "summary": "Get a family with all its parts and their sources",
+        "tags": [
+          "Parts"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "family",
+                    "parts",
+                    "sources",
+                    "usage"
+                  ],
+                  "properties": {
+                    "family": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "title",
+                        "description",
+                        "attributes",
+                        "dimensions"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "attributes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "label"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Facets of the family, in display order."
+                        },
+                        "dimensions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "label",
+                              "symbol",
+                              "required"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "symbol": {
+                                "type": "string",
+                                "description": "The letter used in the standard’s drawing, e.g. “dk”."
+                              },
+                              "required": {
+                                "type": "boolean",
+                                "description": "Whether every part of the family has it."
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "The dimensions of the family, in display order."
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "family",
+                          "title",
+                          "designation",
+                          "aliases",
+                          "description",
+                          "standard",
+                          "product",
+                          "attributes",
+                          "dimensions",
+                          "sources",
+                          "notes",
+                          "preview"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                          },
+                          "family": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string",
+                            "description": "A plain name, e.g. “Socket head cap screw M3 × 10”."
+                          },
+                          "designation": {
+                            "type": "string",
+                            "description": "How it is ordered: the standard designation or the manufacturer’s article number."
+                          },
+                          "aliases": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Other designations of the same part, e.g. the DIN standard an ISO standard replaced."
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "What exactly this item is, in one or two sentences, so that it can be told apart from its neighbours."
+                          },
+                          "standard": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The id of the source that defines it, for a standard part."
+                          },
+                          "product": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "manufacturer",
+                                  "sku",
+                                  "url"
+                                ],
+                                "properties": {
+                                  "manufacturer": {
+                                    "type": "string"
+                                  },
+                                  "sku": {
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The product, for a part that is not defined by a standard."
+                          },
+                          "attributes": {
+                            "type": "object",
+                            "description": "Facets the library filters by (see the family’s `attributes`).",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          },
+                          "dimensions": {
+                            "type": "object",
+                            "description": "Keyed by the family’s dimension keys.",
+                            "additionalProperties": {
+                              "type": "object",
+                              "required": [
+                                "value",
+                                "min",
+                                "max",
+                                "basis",
+                                "source"
+                              ],
+                              "properties": {
+                                "value": {
+                                  "type": "number",
+                                  "description": "Nominal value in mm."
+                                },
+                                "min": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Smallest allowed value in mm, when known."
+                                },
+                                "max": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Largest allowed value in mm, when known."
+                                },
+                                "basis": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "standard"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "manufacturer"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "estimated"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "`standard`: from the part’s standard. `manufacturer`: from the maker’s data. `estimated`: no published figure; estimated (e.g. from photographs), as `source` explains."
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "description": "The id of the source it was read from."
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "sources": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Ids of every source used for this part."
+                          },
+                          "notes": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "preview": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "kind"
+                                ],
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "procedural"
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "kind",
+                                  "path"
+                                ],
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "stl"
+                                    ]
+                                  },
+                                  "path": {
+                                    "type": "string",
+                                    "description": "The STL, rendered from the SCAD file beside it (see `partAssetPath`)."
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "title",
+                          "publisher",
+                          "url",
+                          "kind",
+                          "accessed"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Stable id, referenced by parts and dimensions."
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "publisher": {
+                            "type": "string",
+                            "description": "Who publishes it, e.g. “ISO” or “supermagnete (Webcraft GmbH)”."
+                          },
+                          "url": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "standard"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "manufacturer"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "reference"
+                                ]
+                              }
+                            ],
+                            "description": "`standard`: the standard that defines the part. `manufacturer`: the maker’s own data sheet or product page. `reference`: a published copy of a standard’s table, or other secondary data."
+                          },
+                          "accessed": {
+                            "type": "string",
+                            "description": "The date the values were read from it (ISO 8601), for web pages that can change."
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "usage": {
+                      "type": "object",
+                      "description": "Models that link to a part, by part id; parts no model links to are left out.",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "modelId",
+                            "modelTitle",
+                            "via"
+                          ],
+                          "properties": {
+                            "modelId": {
+                              "type": "string"
+                            },
+                            "modelTitle": {
+                              "type": "string"
+                            },
+                            "via": {
+                              "type": "string",
+                              "description": "The model’s setting that links to the part, or “Assembly preview” for a reference object."
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parts/{id}": {
+      "get": {
+        "operationId": "getPart",
+        "summary": "Get one part, its family and its sources",
+        "tags": [
+          "Parts"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "part",
+                    "family",
+                    "sources",
+                    "usage"
+                  ],
+                  "properties": {
+                    "part": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "family",
+                        "title",
+                        "designation",
+                        "aliases",
+                        "description",
+                        "standard",
+                        "product",
+                        "attributes",
+                        "dimensions",
+                        "sources",
+                        "notes",
+                        "preview"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                        },
+                        "family": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "A plain name, e.g. “Socket head cap screw M3 × 10”."
+                        },
+                        "designation": {
+                          "type": "string",
+                          "description": "How it is ordered: the standard designation or the manufacturer’s article number."
+                        },
+                        "aliases": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Other designations of the same part, e.g. the DIN standard an ISO standard replaced."
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "What exactly this item is, in one or two sentences, so that it can be told apart from its neighbours."
+                        },
+                        "standard": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The id of the source that defines it, for a standard part."
+                        },
+                        "product": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "manufacturer",
+                                "sku",
+                                "url"
+                              ],
+                              "properties": {
+                                "manufacturer": {
+                                  "type": "string"
+                                },
+                                "sku": {
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The product, for a part that is not defined by a standard."
+                        },
+                        "attributes": {
+                          "type": "object",
+                          "description": "Facets the library filters by (see the family’s `attributes`).",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "dimensions": {
+                          "type": "object",
+                          "description": "Keyed by the family’s dimension keys.",
+                          "additionalProperties": {
+                            "type": "object",
+                            "required": [
+                              "value",
+                              "min",
+                              "max",
+                              "basis",
+                              "source"
+                            ],
+                            "properties": {
+                              "value": {
+                                "type": "number",
+                                "description": "Nominal value in mm."
+                              },
+                              "min": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Smallest allowed value in mm, when known."
+                              },
+                              "max": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Largest allowed value in mm, when known."
+                              },
+                              "basis": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "standard"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "manufacturer"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "estimated"
+                                    ]
+                                  }
+                                ],
+                                "description": "`standard`: from the part’s standard. `manufacturer`: from the maker’s data. `estimated`: no published figure; estimated (e.g. from photographs), as `source` explains."
+                              },
+                              "source": {
+                                "type": "string",
+                                "description": "The id of the source it was read from."
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Ids of every source used for this part."
+                        },
+                        "notes": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "preview": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "kind"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "procedural"
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "required": [
+                                "kind",
+                                "path"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "stl"
+                                  ]
+                                },
+                                "path": {
+                                  "type": "string",
+                                  "description": "The STL, rendered from the SCAD file beside it (see `partAssetPath`)."
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "family": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "title",
+                        "description",
+                        "attributes",
+                        "dimensions"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "attributes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "label"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Facets of the family, in display order."
+                        },
+                        "dimensions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "label",
+                              "symbol",
+                              "required"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "symbol": {
+                                "type": "string",
+                                "description": "The letter used in the standard’s drawing, e.g. “dk”."
+                              },
+                              "required": {
+                                "type": "boolean",
+                                "description": "Whether every part of the family has it."
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "The dimensions of the family, in display order."
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "title",
+                          "publisher",
+                          "url",
+                          "kind",
+                          "accessed"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Stable id, referenced by parts and dimensions."
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "publisher": {
+                            "type": "string",
+                            "description": "Who publishes it, e.g. “ISO” or “supermagnete (Webcraft GmbH)”."
+                          },
+                          "url": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "standard"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "manufacturer"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "reference"
+                                ]
+                              }
+                            ],
+                            "description": "`standard`: the standard that defines the part. `manufacturer`: the maker’s own data sheet or product page. `reference`: a published copy of a standard’s table, or other secondary data."
+                          },
+                          "accessed": {
+                            "type": "string",
+                            "description": "The date the values were read from it (ISO 8601), for web pages that can change."
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "usage": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "modelId",
+                          "modelTitle",
+                          "via"
+                        ],
+                        "properties": {
+                          "modelId": {
+                            "type": "string"
+                          },
+                          "modelTitle": {
+                            "type": "string"
+                          },
+                          "via": {
+                            "type": "string",
+                            "description": "The model’s setting that links to the part, or “Assembly preview” for a reference object."
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
                 }
               }
             }
@@ -2584,6 +3666,10 @@
     {
       "name": "Models",
       "description": "Provided, versioned model catalogue."
+    },
+    {
+      "name": "Parts",
+      "description": "The parts library: real-world parts that models are made to fit."
     },
     {
       "name": "Renders",

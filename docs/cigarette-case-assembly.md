@@ -40,8 +40,10 @@ The round bay (`BAY_ROUND`) is a tube open at both ends. The mini holder is push
 it. A BIC Mini lighter goes in from the top and rests on the tab, above the holder. Upright, the tab stops it, so it cannot reach
 the holder, which is intended. Turned upside down, wheel side towards the tab, its hood and wheel pass beside the tab and push
 the holder out through the floor (see [below](#upside-down-the-push-out) and [cigarette-case-snap.md](cigarette-case-snap.md)).
-The lighter is modelled in `models/cigarette-case/reference-objects/mini-bic-lighter.scad` and shown in the preview, in blue, so
-that its fit can be seen. It is not printed and not in the ZIP (see [adding-models.md](adding-models.md), “Reference objects”).
+The lighter is the parts library's `bic-j25-mini-lighter` (see [adding-parts.md](adding-parts.md)), modelled in
+`parts/everyday-objects/bic-j25-mini-lighter.scad` and shown in the preview, in blue, so that its fit can be seen. It is not
+printed and not in the ZIP (see [adding-models.md](adding-models.md), “Reference objects”). The table below is also its entry in
+the parts library, with the same sources.
 
 | Dimension | Value | Source |
 |---|---|---|
@@ -74,7 +76,8 @@ the tab are the traced bay, unchanged. The gap is the clearance all round up to 
 
 The fit rests on the plan's estimated shape (a superellipse with exponent 2.5). No measured profile of the J25 was found to
 check it against: BIC publishes only the 62 × 22 × 11 mm envelope, and the CAD models found online (Printables, GrabCAD) are not
-openly readable. If a real lighter shows a different oval, change `PROFILE_N` (or the plan) in `mini-bic-lighter.scad`, render
+openly readable. If a real lighter shows a different oval, change `PROFILE_N` (or the plan) in `bic-j25-mini-lighter.scad` (and the
+library entry's `profileExponent`), render
 its STL again, and copy the value to `LIGHTER_PROFILE_N` in the box file. The bay follows, and a test fails until both agree.
 
 ### Upside down: the push-out

@@ -95,7 +95,7 @@ so everything is in the case box (the `lighter bay` block of the box file).
 
 **The fitted bay.** Up to the tab's top (`TAB_TOP`, z 35.11) the bay stays the traced `BAY_ROUND`: the holder's part and the tab
 are unchanged. Above it the bay is the lighter's plan pushed out by the clearance (`lighter_bay_2d`): the same superellipse as
-`plan()` in `mini-bic-lighter.scad`, copied as `LIGHTER_THICKNESS`, `LIGHTER_WIDTH` and `LIGHTER_PROFILE_N` (a test keeps them
+`plan()` in `parts/everyday-objects/bic-j25-mini-lighter.scad`, copied as `LIGHTER_THICKNESS`, `LIGHTER_WIDTH` and `LIGHTER_PROFILE_N` (a test keeps them
 equal), centred like the lighter. Before, the lighter stood 0.31 to 0.41 mm from the traced wall; now the gap is the clearance
 all round. A 0.4 mm tall loft (`LIGHTER_LEAD`) joins the two outlines, at 52° or steeper. It centres a lighter coming back up,
 and funnels one going down into the narrower `BAY_ROUND` at large clearances. The gap is `LIGHTER_GAP`, which is always

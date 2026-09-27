@@ -101,7 +101,8 @@ npm run check
 
 Commit both generated contract files. They are generated without a running
 server or database. See [architecture decisions](docs/architecture.md),
-[interface contracts](docs/interfaces.md), and [adding models](docs/adding-models.md).
+[interface contracts](docs/interfaces.md), [adding models](docs/adding-models.md), and
+[the parts library](docs/adding-parts.md).
 Use small Conventional Commits, for example `feat(renderer): add a model option`.
 
 ## Model settings
