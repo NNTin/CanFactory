@@ -38,27 +38,58 @@ every SCAD file centres its part at the origin.
 
 The round bay (`BAY_ROUND`) is a tube open at both ends. The mini holder is pushed up into it from below, and the clip tab stops
 it. A BIC Mini lighter goes in from the top and rests on the tab, above the holder. Upright, the tab stops it, so it cannot reach
-the holder, which is intended. Turned upside down, its hood and wheel pass beside the tab and push the holder out through the
-floor (see [cigarette-case-snap.md](cigarette-case-snap.md)). The lighter is modelled in
-`models/cigarette-case/reference-objects/mini-bic-lighter.scad` and shown in the preview, in blue, so that its fit can be seen. It
-is not printed and not in the ZIP (see [adding-models.md](adding-models.md), “Reference objects”).
+the holder, which is intended. Turned upside down, wheel side towards the tab, its hood and wheel pass beside the tab and push
+the holder out through the floor (see [below](#upside-down-the-push-out) and [cigarette-case-snap.md](cigarette-case-snap.md)).
+The lighter is modelled in `models/cigarette-case/reference-objects/mini-bic-lighter.scad` and shown in the preview, in blue, so
+that its fit can be seen. It is not printed and not in the ZIP (see [adding-models.md](adding-models.md), “Reference objects”).
 
 | Dimension | Value | Source |
 |---|---|---|
 | Height, width, thickness | 62 × 22 × 11 mm | Confirmed: BIC's own specification ([BIC Graphic, J25](https://www.bicgraphic.com/gb/bic-j25-lighter-3460002360.html)), [4imprint UK](https://www.4imprint.co.uk/product/502972/BIC-J25-Standard-Lighter) and [WE MAG](https://wemag.gr/en/product/bic-mini-lighter-j25-2360/); US listings give 7/8 × 2 7/16 in (22.2 × 61.9 mm). |
 | Plan: a superellipse, exponent 2.5 | | Estimated from photographs. |
-| Body height 50 mm, hood 9.4 mm wide, wheel 7.4 mm (thumb rings) and 6 mm (flint wheel), lever | | Estimated from photographs and the overall height. |
+| Body height 50 mm, hood wall 0.4 mm, wheel 7.4 mm (thumb rings) and 6 mm (flint wheel), lever | | Estimated from photographs and the overall height. |
 
 The body is opaque, as on every BIC lighter, so it has no fuel window. The inside of the hood (burner, flint, child-guard spring)
 is left out.
+
+The hood is the body's oval carried on upwards: its outside is the same superellipse plan (`plan()`, `PROFILE_N`), flush with the
+body, as a sheet-metal wall 0.4 mm thick from its crimped lower edge (1.5 mm below the 50 mm shoulder) to the top. Seen from
+the side it is flat on top from its front end (the burner side, −Y) to the wheel, and rounds down around the wheel at the rear;
+behind that it is open, so the wheel's rear half and the lever show. Its front end and its two cheeks therefore follow the body's
+curve; the cheeks carry the wheel's axle, whose ends sit in them, which also makes the lighter one closed body. The top covers the
+front of the plan up to the wheel, with the 3.6 × 4 mm flame slot over the burner. The wheel fills the space between the cheeks
+(0.1 mm from each, where they are narrowest along the wheel). The flint tube and the lever stand on the shoulder inside the
+cheeks; the lever reaches back past the hood's rear end, to 9 mm behind the centre.
 
 The pose follows from the shapes. The bay is 11.8 × 22.8 mm, so the lighter is centred in it, as the holder is. It is about
 0.4 mm from the wall on each side (0.3 mm at the closest point, with the estimated plan). It rests on the clip tab at 35.12 mm,
 2.4 mm above the holder's top. Its top is then at 97.12 mm: 20 mm above the box's rim and 1.1 mm under the lid's ceiling
 (98.23 mm). So the lighter's height is what the bay and the lid were sized for. These figures rest on the estimated plan; a real
 lighter shows how loose it really is. The fit is left as it is here: tightening the bay is
-[#17](https://github.com/NNTin/CanFactory/issues/17). The model's hood is a rectangular box, while the real hood continues the
-body's oval outline; correcting it is [#18](https://github.com/NNTin/CanFactory/issues/18).
+[#17](https://github.com/NNTin/CanFactory/issues/17). The hood does not change the pose: the lighter rests on its base, and the
+hood stays inside the body's plan.
+
+### Upside down: the push-out
+
+Measured with the parts as rendered at default settings (the lighter centred in the bay, lowered in 0.25 mm steps to its first
+contact, then refined; the same vertical-ray volume test as the collision check below). The heights are of the lighter's lowest
+point, the top of its hood and wheel.
+
+- **Wheel side towards the tab** (the lighter turned over about X, so its wheel and lever face the bay's −Y end, where the tab
+  is): the tab only covers the bay's −Y end, beyond 6.32 mm from the centre (`TAB_CHORD`). The hood's cheeks end 5.4 mm behind
+  the centre (around the wheel) and the wheel 4.7 mm, so both pass beside the tab's flat ends, 0.9 and 1.6 mm clear. The hood's
+  oval front end and flat top are at the other end of the bay, away from the tab. The hood and wheel reach the holder's dome
+  together, at 32.52 mm (the dome's top is at 32.70 mm; the thumb rings straddle it and the hood's top meets its slope). The
+  first part to meet the tab is the lever, behind the wheel (7.8 mm below the hood's top where it crosses the tab's edge), at
+  27.34 mm. So the lighter pushes the holder 5.2 mm down, out through the box's underside, before the lever lands on the tab;
+  the body's shoulder would only land on it at 23.12 mm.
+- **Hood's front end towards the tab** (turned over about Y): the hood's front end, the body's oval carried up, is over the tab,
+  and lands on its top at 34.92 mm, 2.4 mm short of the dome. There is no push-out that way round.
+
+For [#17](https://github.com/NNTin/CanFactory/issues/17): the hood has the body's outline, so a bay fitted to the body is fitted to
+the hood too, and ribs that grip the body pass the hood. What the push-out needs is that the tab stays at the bay's −Y end,
+no nearer the centre than the hood's cheeks (5.4 mm), and that the lighter goes in wheel side towards it. The lever landing on the
+tab is what limits the push to 5.2 mm: moving the tab's top or its chord changes that.
 
 ## How the poses were checked
 

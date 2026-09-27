@@ -22,7 +22,8 @@ TOP_Z     = 77.171;    // rim height of the box
 // Cavities (x, y) about the part centre: the two bays and the round bay that is open through the floor. The round bay holds two
 // things, one from each end: the mini holder, pushed up through the floor until the clip tab (TAB) stops it, and a BIC Mini
 // lighter (models/cigarette-case/reference-objects/mini-bic-lighter.scad), put in from the top and resting on the tab above the
-// holder. Upright, the lighter cannot pass the tab; upside down, its hood and wheel pass beside it and push the holder out.
+// holder. Upright, the lighter cannot pass the tab; upside down (wheel side towards the tab), its hood and wheel pass beside it
+// and push the holder out.
 // TODO(#17): above the tab the bay is still the traced source outline, not fitted to the lighter, which sits loose in it. Fit it
 // to the lighter's outline plus CLEARANCE, as every other joint is, and add a lighter snap setting (friction or crush ribs,
 // with its own rib size). Keep the holder's part of the bay and the tab as they are, and keep the upside-down push-out working.
@@ -54,7 +55,8 @@ BAY_ROUND = [[-13.813, -10.401], [-14.397, -10.8], [-15.128, -11.136], [-15.685,
 // (0.08 mm deep, 1.8 mm long), so the hood could snap off. The pocket between the hood and the wall is therefore filled: TAB_ROOT
 // into the wall and TAB_FUSE into the hood, up to a top that rises at 45 degrees to the wall and meets it at the hood's top. The
 // hood's underside, where the holder stops, is unchanged. The hood's top is the lighter's stop: an upright lighter rests on it.
-// Only an upside-down lighter's hood and wheel, narrower than its body, pass beside it to the holder's dome.
+// Only an upside-down lighter, wheel side towards the tab, passes it: its hood ends short of the lighter's rear, so the hood and
+// wheel reach the holder's dome beside the tab (docs/cigarette-case-assembly.md#reference-objects).
 TAB_STEP = 0.2;
 TAB_GROW = 0.08;
 TAB_ROOT = 0.3;

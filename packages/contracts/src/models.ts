@@ -594,9 +594,9 @@ const cigaretteCaseAssembly: Assembly = {
     'mini-lid': { position: [6.43, 0, 83.839], rotation: [0, 0, 180] },
     // In the round bay, above the holder: centred like it, width along Y, base down, resting on the clip tab (the lowest point
     // clear of the box and the holder). Its top is 1.1 mm under the lid's ceiling (docs/cigarette-case-assembly.md). Upright, the
-    // tab stops it short of the holder; turned upside down, its hood and wheel pass the tab and push the holder out.
+    // tab stops it short of the holder; turned upside down, wheel side towards the tab, its hood and wheel pass the tab and push
+    // the holder out.
     // TODO(#17): the bay is not fitted to the lighter yet, so it sits loose (about 0.4 mm a side, not CLEARANCE).
-    // TODO(#18): the lighter model's hood is rectangular; the real one continues the body's oval outline.
     'mini-bic-lighter': { position: [-16.84, 0, 35.12] },
   },
   steps: [
