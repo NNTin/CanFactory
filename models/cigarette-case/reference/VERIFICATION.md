@@ -7,7 +7,7 @@ Renderer: native — OpenSCAD version 2026.09.23 (Manifold backend). Tolerance: 
 | 11_-_Honeycomb_-_minibox | PASS | -0.024 / 0.006 / 0.001 | -0.26 % | 0.9618 | 0.018 | 15404 | 10372 | 0.2 |
 | 11_-_Honeycomb_-_topminibox_-_box | PASS | -0.049 / -0.002 / -0.000 | 1.12 % | 0.9719 | 0.014 | 11082 | 11344 | 0.1 |
 | 11_-_Honeycomb_-_topminibox_-_top | FAIL | -0.001 / -0.002 / -0.000 | 1.30 % | 0.9532 | 0.024 | 10512 | 10227 | 0.1 |
-| 11_v11.3__-_honeycomb_-_box | PASS | 0.019 / -0.002 / -0.000 | 0.86 % | 0.9796 | 0.017 | 571808 | 83965 | 2.4 |
+| 11_v11.3__-_honeycomb_-_box | PASS | 0.019 / -0.002 / -0.000 | 0.93 % | 0.9790 | 0.018 | 571808 | 85448 | 1.8 |
 | 11_v11.3__-_honeycomb_-_top | PASS | -0.001 / -0.001 / 0.000 | 1.06 % | 0.9729 | 0.018 | 423568 | 63883 | 1.6 |
 
 ## Sources
@@ -60,7 +60,12 @@ The lid's lattice top is two extruded section polygons (pockets included). The b
 
 The two large source STLs are not watertight (box: 56 open or non-manifold edges, lid: 45; 570 k and 420 k triangles). Volume and IoU use them as is.
 
-The large box also carries the small clip tab inside its round bay (14 stacked 0.2 mm outlines of the ledge, fused to the bay wall).
+The large box also carries the small clip tab inside its round bay (14 stacked 0.2 mm outlines). As traced, it is a curved hood that
+follows the holder's dome and leans away from the bay wall, in the source STL too: only its lowest 0.4 mm touched the wall, 0.08 mm
+deep and about 1.8 mm long, which is not a printable joint. The SCAD therefore fills the pocket between the hood and the wall (0.3 mm
+into the wall, 0.2 mm into the hood, with a top rising at 45 degrees to the wall), so the tab is rooted over its full 2.8 mm height and
+length. The hood's underside, the holder's stop, is unchanged. The fill adds 23 mm³: the box's volume Δ went from 0.86 % to 0.93 % and
+its IoU from 0.9796 to 0.9790. `tools/stl-to-scad/cigarette-case-tab.test.ts` checks the joint.
 
 Reproduce with `npm run stl-scad -- verify --manifest models/cigarette-case/reference/manifest.json --report models/cigarette-case/reference/VERIFICATION.md`
 (needs the source STLs and an OpenSCAD runtime; see `.claude/skills/stl-to-scad/SKILL.md`).
