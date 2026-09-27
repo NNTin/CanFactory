@@ -711,7 +711,61 @@ main {
 .assembly-stops i.reached {
   border-color: var(--accent);
 }
+.assembly-parts {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 24px 12px;
+}
+.assembly-parts > span {
+  width: 260px;
+  flex: none;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.assembly-parts > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.assembly-parts button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fffefa;
+  color: #3d463b;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.assembly-parts button[aria-pressed="true"] {
+  border-color: #c76743;
+}
+.assembly-parts button.reference[aria-pressed="true"] {
+  border-color: #3f6ea6;
+}
+.assembly-parts button[aria-pressed="false"] {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.assembly-parts button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 @media (max-width: 640px) {
+  .assembly-parts {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .assembly-parts > span {
+    width: auto;
+  }
   .assembly-bar {
     flex-direction: column;
     align-items: stretch;

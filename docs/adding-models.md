@@ -69,7 +69,9 @@ step plays in turn until the finished assembly stands on the floor (`assemblySta
 optional ones such as the cigarette case's `case-text`. Derive the poses from the geometry, never by eye, and prove them
 with `npm run check:assembly -- <model-id>`. It renders the parts and measures the volume shared by colliding parts: in
 the assembled state, in the exploded layout and along each step's path (see [cigarette-case-assembly.md](cigarette-case-assembly.md)).
-Models without `assembly` keep the plain grid.
+Under the slider, a parts list names every part and reference object (their `title`s). All of them are shown by default, and each
+button hides or shows its part, at any point of the slider, so that the parts inside can be seen. Nothing needs to be added to the
+model for this. Models without `assembly` keep the plain grid.
 
 **Reference objects (optional).** `assembly.references` lists real-world objects the assembly holds, such as the lighter that
 the cigarette case's round bay is sized for. They get poses and steps like parts, so the preview shows how they fit, but they are
