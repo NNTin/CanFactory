@@ -12,7 +12,9 @@
 // outline by relief_wrap() (generated with tools/stl-to-scad `relief`). Units are millimetres; the part is centred on the
 // Z axis with its underside on z = 0. The source STL sat at (217.2, 84.5) on the print plate with its underside at -1.48.
 // Named dimensions only; the parameters are CLEARANCE, the gap between mating surfaces, SNAP, how the lid snaps on, HOLDER_SNAP,
-// how the mini holder is held in the round bay (the tab is only its upper stop), and the TEXT_* underside text. The upper shell is not the source STL's: it is derived from the lid's cavity so that every joint has the same gap.
+// how the mini holder is held in the round bay (the tab is only its upper stop), LIGHTER_SNAP, how the lighter is held above it,
+// and the TEXT_* underside text. The upper shell is not the source STL's: it is derived from the lid's cavity so that every joint has the same gap;
+// likewise the round bay above the tab is derived from the lighter's plan (LIGHTER_*), not traced.
 
 SCALE = 1;
 
@@ -24,9 +26,8 @@ TOP_Z     = 77.171;    // rim height of the box
 // lighter (models/cigarette-case/reference-objects/mini-bic-lighter.scad), put in from the top and resting on the tab above the
 // holder. Upright, the lighter cannot pass the tab; upside down (wheel side towards the tab), its hood and wheel pass beside it
 // and push the holder out.
-// TODO(#17): above the tab the bay is still the traced source outline, not fitted to the lighter, which sits loose in it. Fit it
-// to the lighter's outline plus CLEARANCE, as every other joint is, and add a lighter snap setting (friction or crush ribs,
-// with its own rib size). Keep the holder's part of the bay and the tab as they are, and keep the upside-down push-out working.
+// BAY_ROUND is the traced outline, and the bay keeps it up to the tab's top (the holder's part, and the tab). Above that the bay is
+// fitted to the lighter (lighter_bay_2d, below): its plan pushed out by CLEARANCE, as every other joint is.
 BAY_A = [[6.292, 12.629], [6.292, -12.631], [-5.974, -12.631], [-14.153, -11.581], [-13.567, -11.22], [-13.033, -10.786],
   [-12.566, -10.301], [-12.137, -9.745], [-11.773, -9.161], [-11.461, -8.548], [-11.186, -7.888], [-10.976, -7.28],
   [-10.625, -5.93], [-10.493, -5.242], [-10.306, -3.891], [-10.162, -1.831], [-10.138, 0.43], [-10.195, 2.501],
@@ -178,6 +179,65 @@ module snap_cut() {
   if (SNAP == "magnet")
     for (m = [0, 1]) mirror([0, m, 0]) translate([SNAP_XC, UPPER_Y + 0.2, z0 + MAGNET_Z]) rotate([90, 0, 0]) cylinder(d = MAGNET_D, h = MAGNET_T + 0.2, $fn = 64);
 }
+
+// --- lighter bay ---
+// Above the clip tab the round bay is fitted to the BIC Mini lighter (issue #17): the lighter's plan, pushed out by CLEARANCE, as
+// every other joint is derived from the part it fits. The plan is a copy of plan() in
+// models/cigarette-case/reference-objects/mini-bic-lighter.scad (a test keeps the three values below equal to its THICKNESS,
+// WIDTH and PROFILE_N), centred in the bay like the lighter (x = HOLDER_BAY_X), width along Y. The whole lighter, hood, wheel and
+// lever included, stays inside that plan, so an upside-down lighter passes the fitted bay as freely as an upright one.
+// Below TAB_TOP the bay stays BAY_ROUND (the holder's part and the tab); a LIGHTER_LEAD tall loft joins the two, so a lighter
+// that comes back up is centred, and one going down at a large clearance is funnelled into the narrower BAY_ROUND.
+// The bay keeps at least LIGHTER_WALL of wall to the upper shell's outside (the lid's cavity pulled in by CLEARANCE): the shell
+// is 1.33 mm from the lighter's plan at the bay's -X end, so up to a clearance of 0.46 mm the gap is CLEARANCE all round; above
+// that it is less on that end (0.33 mm at 0.6), rather than an unprintable wall.
+// How the lighter is held, chosen by LIGHTER_SNAP (a -D override): "friction" (the fit alone) or "crush-ribs": four vertical ribs
+// on the bay wall, on the lighter's flat faces (+/-X, at y = LIGHTER_CRUSH_Y), squeezed by LIGHTER_CRUSH_SQUEEZE. They sit just
+// above the lighter's rest height, so it rubs over them only for the last few millimetres, and are ramped at both ends, since
+// an upside-down lighter pushing the holder out passes them both ways. Symmetric in X and Y, so the lighter stays centred.
+LIGHTER_THICKNESS = 11;     // across the flat faces (X)
+LIGHTER_WIDTH = 22;         // along Y
+LIGHTER_PROFILE_N = 2.5;    // superellipse exponent of the plan
+LIGHTER_GAP = CLEARANCE;    // gap per side between the lighter and the bay; only VERIFICATION.md sets it apart (to the traced bay's)
+LIGHTER_WALL = 0.4;         // least wall between the bay and the upper shell's outside
+LIGHTER_LEAD = 0.4;         // height of the loft from BAY_ROUND to the fitted bay, above the tab
+LIGHTER_SNAP = "friction";
+LIGHTER_CRUSH_SQUEEZE = 0.1;
+LIGHTER_CRUSH_Y = [-3.5, 3.5];
+LIGHTER_CRUSH_W = 0.6;
+LIGHTER_CRUSH_Z0 = 37;      // above the lighter's rounded base (it rests at 35.12)
+LIGHTER_CRUSH_Z1 = 45;
+LIGHTER_CRUSH_RAMP = 1.5;
+LIGHTER_JITTER = [0.0067, 0.0041];   // as HOLDER_JITTER: keeps the ribs' hull edges off the plan's vertices
+
+// The lighter's plan inset by d (a superellipse |x/a|^n + |y/b|^n = 1), about the bay centre.
+function lighter_plan(d = 0, steps = 96) = [for (i = [0 : steps - 1]) let (t = 360 * i / steps, c = cos(t), s = sin(t))
+  [(LIGHTER_THICKNESS / 2 - d) * sign(c) * pow(abs(c), 2 / LIGHTER_PROFILE_N), (LIGHTER_WIDTH / 2 - d) * sign(s) * pow(abs(s), 2 / LIGHTER_PROFILE_N)]];
+
+// The fitted bay above the tab, in the box frame.
+module lighter_bay_2d() {
+  intersection() {
+    translate([HOLDER_BAY_X, 0]) offset(delta = LIGHTER_GAP) polygon(lighter_plan());
+    offset(delta = -CLEARANCE - LIGHTER_WALL) polygon(LID_CAVITY);
+  }
+}
+
+// A thin band just outside the lighter's plan offset by d (d = 0 is the lighter, LIGHTER_GAP the bay wall; outwards is the box's
+// side), clipped to the children, at height z, in the bay frame.
+module lighter_band(z, d) {
+  translate([LIGHTER_JITTER[0], LIGHTER_JITTER[1], z]) linear_extrude(height = 0.01) intersection() {
+    difference() { offset(delta = d + 0.1) polygon(lighter_plan()); offset(delta = d) polygon(lighter_plan()); }
+    children();
+  }
+}
+module lighter_crush_ribs() {
+  d0 = LIGHTER_GAP + 0.2;   // the root, inside the bay wall
+  translate([HOLDER_BAY_X, 0, 0]) for (s = [1, -1], y = LIGHTER_CRUSH_Y) hull()
+    for (p = [[LIGHTER_CRUSH_Z0, d0], [LIGHTER_CRUSH_Z0 + LIGHTER_CRUSH_RAMP, -LIGHTER_CRUSH_SQUEEZE],
+              [LIGHTER_CRUSH_Z1 - LIGHTER_CRUSH_RAMP, -LIGHTER_CRUSH_SQUEEZE], [LIGHTER_CRUSH_Z1, d0]])
+      lighter_band(p[0], p[1]) translate([s > 0 ? 0 : -20, y - LIGHTER_CRUSH_W / 2]) square([20, LIGHTER_CRUSH_W]);
+}
+// --- end lighter bay ---
 
 // --- holder retention (this block is identical in the box file and in the holder file; a test keeps them in sync) ---
 // How the mini holder is held in the case box's round bay, chosen by HOLDER_SNAP (a -D override): "friction" (nothing added),
@@ -974,10 +1034,17 @@ module box() {
         }
         relief_wrap(-1);
         translate([0, 0, FLOOR_TOP]) linear_extrude(height = TOP_Z) { polygon(BAY_A); polygon(BAY_B); }
-        translate([0, 0, -1]) linear_extrude(height = TOP_Z + 2) polygon(BAY_ROUND);
+        // the round bay: as traced up to the tab's top, then a short loft to the bay fitted to the lighter
+        translate([0, 0, -1]) linear_extrude(height = TAB_TOP + 1.01) polygon(BAY_ROUND);
+        hull() {
+          translate([0, 0, TAB_TOP]) linear_extrude(height = 0.01) polygon(BAY_ROUND);
+          translate([0, 0, TAB_TOP + LIGHTER_LEAD - 0.01]) linear_extrude(height = 0.01) lighter_bay_2d();
+        }
+        translate([0, 0, TAB_TOP + LIGHTER_LEAD - 0.02]) linear_extrude(height = TOP_Z - TAB_TOP - LIGHTER_LEAD + 1) lighter_bay_2d();
       }
       tab();
       snap_add();
+      if (LIGHTER_SNAP == "crush-ribs") lighter_crush_ribs();
     }
     snap_cut();
     if (HOLDER_SNAP == "detent") translate([HOLDER_BAY_X, 0, 0]) holder_detent(CLEARANCE);
