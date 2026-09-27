@@ -592,16 +592,16 @@ const cigaretteCaseAssembly: Assembly = {
     'mini-holder': { position: [-16.84, 0, 0] },
     'mini-box': { position: [6.43, 0, 98.23], rotation: [180, 0, 0] },
     'mini-lid': { position: [6.43, 0, 83.839], rotation: [0, 0, 180] },
-    // On the bay floor (FLOOR_TOP), width along Y. X is the middle of the 0.37 mm it can move: the chamfers of BAY_B and the hood
-    // hold it near the divider, and 4.4 mm of the bay stays empty on its +X side (docs/cigarette-case-assembly.md).
-    'mini-bic-lighter': { position: [12.62, 0, 2.45] },
+    // In the round bay, above the holder: centred like it, width along Y, base down, resting on the clip tab (the lowest point
+    // clear of the box and the holder). Its top is 1.1 mm under the lid's ceiling (docs/cigarette-case-assembly.md).
+    'mini-bic-lighter': { position: [-16.84, 0, 35.12] },
   },
   steps: [
     { title: 'Close the mini box', parts: ['mini-lid'], from: [0, 0, -20] },
     { title: 'Slide the mini box into the lid', parts: ['mini-box', 'mini-lid'], from: [0, 0, -44] },
     { title: 'Push the holder into the box', parts: ['mini-holder'], from: [0, 0, -42] },
-    { title: 'Insert the lighter into its bay', parts: ['mini-bic-lighter'], from: [0, 0, 80] },
-    { title: 'Close the case', parts: ['case-lid', 'mini-box', 'mini-lid'], from: [0, 0, 135] },
+    { title: 'Insert the lighter into its bay', parts: ['mini-bic-lighter'], from: [0, 0, 50] },
+    { title: 'Close the case', parts: ['case-lid', 'mini-box', 'mini-lid'], from: [0, 0, 100] },
   ],
   lift: 50,
   references: [{ id: 'mini-bic-lighter', title: 'BIC Mini lighter (J25)' }],

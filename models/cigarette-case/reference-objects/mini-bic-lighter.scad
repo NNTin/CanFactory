@@ -1,5 +1,6 @@
 // BIC Mini lighter (model J25), as a reference object: a real-world item the cigarette case holds, shown in the assembly
-// preview so that its fit in the box's lighter bay (BAY_B) can be seen. It is never printed and never part of the ZIP. The
+// preview so that its fit can be seen: it goes into the box's round bay (BAY_ROUND) from the top and rests on the clip tab,
+// above the mini holder. It is never printed and never part of the ZIP. The
 // preview loads mini-bic-lighter.stl, which is this file rendered (see docs/cigarette-case-assembly.md#reference-objects);
 // render it again after any change here.
 //

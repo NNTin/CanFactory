@@ -72,7 +72,7 @@ the assembled state, in the exploded layout and along each step's path (see [cig
 Models without `assembly` keep the plain grid.
 
 **Reference objects (optional).** `assembly.references` lists real-world objects the assembly holds, such as the lighter that
-the cigarette case's bay is sized for. They get poses and steps like parts, so the preview shows how they fit, but they are
+the cigarette case's round bay is sized for. They get poses and steps like parts, so the preview shows how they fit, but they are
 never printed: they are not in `parts`, the worker does not render them and they are not in the ZIP. Each lives in
 `models/<model-id>/reference-objects/` (`referenceObjectPath`): `<id>.scad` with the real dimensions as named values, and
 `<id>.stl`, that file rendered with `openscad --backend Manifold --export-format binstl`, which the web app bundles
