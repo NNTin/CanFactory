@@ -158,7 +158,7 @@ test('shows the cigarette case, offers snap, clearance and text settings and dow
   await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toBeVisible();
   const snap = page.getByLabel('Case lid snap');
   await expect(snap).toHaveValue('friction');
-  for (const label of ['Mini box lid', 'Holder in the box', 'Mini box in the lid']) await expect(page.getByLabel(label, { exact: true })).toHaveValue('friction');
+  for (const label of ['Mini box lid', 'Holder in the box', 'Lighter in the box', 'Mini box in the lid']) await expect(page.getByLabel(label, { exact: true })).toHaveValue('friction');
   // Clearance, in advanced settings: the fit is named as the value changes, and the range that suits every joint's setting is shown,
   // with the joints the value is outside of.
   await page.getByRole('button', { name: 'Advanced settings' }).click();
@@ -178,11 +178,18 @@ test('shows the cigarette case, offers snap, clearance and text settings and dow
   await clearance.fill('0.3');
   await expect(fit).toContainText('Sliding fit');
   await expect(fit).toContainText('Holder in the box (Friction fit): 0.10–0.20 mm');
+  await expect(fit).toContainText('Lighter in the box (Friction fit): 0.10–0.25 mm');
   await expect(fit).not.toContainText('Case lid snap (Clip)');
   await page.getByLabel('Holder in the box', { exact: true }).selectOption('detent');
   await expect(page.getByText('push it out from above', { exact: false })).toBeVisible();
   await page.getByLabel('Mini box in the lid', { exact: true }).selectOption('crush-ribs');
   await page.getByLabel('Mini box lid', { exact: true }).selectOption('detent');
+  // the lighter's friction fit is recommended only up to 0.25 mm, so at 0.3 mm it is still listed until it uses crush ribs too
+  await expect(fit).toContainText('Outside the 0.20–0.25 mm recommended for these settings');
+  await expect(fit).toContainText('Lighter in the box (Friction fit): 0.10–0.25 mm');
+  await expect(page.getByRole('spinbutton', { name: 'Crush-rib squeeze (lighter in the box)' })).toHaveCount(0);
+  await page.getByLabel('Lighter in the box', { exact: true }).selectOption('crush-ribs');
+  await expect(page.getByRole('spinbutton', { name: 'Crush-rib squeeze (lighter in the box)' })).toHaveValue('0.1');
   await expect(fit).toContainText('In the 0.20–0.40 mm recommended for these settings');
   await expect(fit).not.toContainText('Friction fit');
   // Each joint's engagement or squeeze appears in advanced settings only while that joint uses the mechanism, with its default and
