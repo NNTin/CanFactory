@@ -10,9 +10,10 @@
  *
  * Needs an OpenSCAD runtime (see tools/stl-to-scad/openscad.ts). Exits 1 if any check fails.
  */
+import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
-import { activeParts, assemblyOffset, isAssembly, models, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '../packages/contracts/src/index.ts';
+import { activeParts, assemblyOffset, isAssembly, models, referenceObjectPath, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '../packages/contracts/src/index.ts';
 import { intersectionVolume } from './stl-to-scad/compare.ts';
 import { renderScad } from './stl-to-scad/openscad.ts';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
@@ -65,7 +66,20 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
     parts.set(part.id, parseStl(render.stl));
     console.log(`rendered ${part.id} (${render.runner}, ${(render.milliseconds / 1000).toFixed(1)} s)`);
   }
-  const unknown = [...Object.keys(assembly.poses), ...assembly.steps.flatMap(step => step.parts)].filter(id => !model.parts.some(part => part.id === id));
+  // Reference objects (e.g. a lighter in its bay) are checked like parts, rendered from their SCAD source; the preview uses the
+  // STL rendered from it, so it must match.
+  for (const reference of assembly.references ?? []) {
+    const render = await renderScad(resolve(referenceObjectPath(model.id, reference.id, 'scad')), {});
+    const mesh = parseStl(render.stl);
+    const committed = parseStl(await readFile(resolve(referenceObjectPath(model.id, reference.id, 'stl'))));
+    const [fresh, stored] = [bounds(mesh), bounds(committed)];
+    if ([...fresh.min, ...fresh.max].some((value, index) => Math.abs(value - g([...stored.min, ...stored.max], index)) > 0.01))
+      throw new Error(`${referenceObjectPath(model.id, reference.id, 'stl')} is out of date: render ${referenceObjectPath(model.id, reference.id, 'scad')} again.`);
+    parts.set(reference.id, mesh);
+    console.log(`rendered reference ${reference.id} (${render.runner}, ${(render.milliseconds / 1000).toFixed(1)} s)`);
+  }
+  const ids = [...model.parts.map(part => part.id), ...(assembly.references ?? []).map(reference => reference.id)];
+  const unknown = [...Object.keys(assembly.poses), ...assembly.steps.flatMap(step => step.parts)].filter(id => !ids.includes(id));
   if (unknown.length > 0) throw new Error(`${model.id}: the assembly names parts that do not exist: ${unknown.join(', ')}`);
 
   const findings: Finding[] = [];

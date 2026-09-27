@@ -5,8 +5,10 @@ import { unzipSync } from 'fflate';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import type { ReferenceObject } from './referenceObjects.ts';
 
-interface Part { name: string; bytes: ArrayBuffer }
+/** `reference` marks a real-world object from the assembly (e.g. a lighter), shown in its own colour: it is not printed. */
+interface Part { name: string; bytes: ArrayBuffer; reference?: boolean }
 
 interface SceneController {
   /**
@@ -57,14 +59,18 @@ function assemblyCaption(assembly: Assembly, t: number): string {
   return step ? `Step ${segment - 1} of ${assembly.steps.length} · ${step.title}` : 'Lift and lay out the parts';
 }
 
-/** Displays the actual downloadable file(s). Camera controls do not change model dimensions. With an assembly, a slider takes the parts from the print bed to the finished assembly. */
-export function Viewer({ url, format, assembly, onError, onLoaded }: { url: string | null; format: 'stl' | 'zip'; assembly?: Assembly | undefined; onError: (message: string) => void; onLoaded: (url: string) => void }) {
+/**
+ * Displays the actual downloadable file(s). Camera controls do not change model dimensions. With an assembly, a slider takes the
+ * parts from the print bed to the finished assembly, together with its reference objects (`references`), which are not in the file.
+ */
+export function Viewer({ url, format, assembly, references = [], onError, onLoaded }: { url: string | null; format: 'stl' | 'zip'; assembly?: Assembly | undefined; references?: ReferenceObject[]; onError: (message: string) => void; onLoaded: (url: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const scene = useRef<SceneController | null>(null);
   const [wireframe, setWireframe] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
   const [progress, setProgress] = useState(0);
   const assemblyRef = useRef(assembly); assemblyRef.current = assembly;
+  const referencesRef = useRef(references); referencesRef.current = references;
   const onErrorRef = useRef(onError); onErrorRef.current = onError;
   const onLoadedRef = useRef(onLoaded); onLoadedRef.current = onLoaded;
 
@@ -96,6 +102,7 @@ export function Viewer({ url, format, assembly, onError, onLoaded }: { url: stri
     world.add(light);
     const fill = new THREE.DirectionalLight(0xffffff, 1.5); fill.position.set(120, 40, -100); world.add(fill);
     const material = new THREE.MeshStandardMaterial({ color: 0xc76743, metalness: 0.06, roughness: 0.58, side: THREE.DoubleSide });
+    const referenceMaterial = new THREE.MeshStandardMaterial({ color: 0x3f6ea6, metalness: 0.2, roughness: 0.45, side: THREE.DoubleSide });
     // Parts keep their SCAD frame (Z up) inside `group`, which turns it to the scene's Y up.
     const group = new THREE.Group(); group.rotation.x = -Math.PI / 2; world.add(group);
     let placements: Placement[] = []; let currentAssembly: Assembly | undefined; let sliderValue = 0;
@@ -118,7 +125,7 @@ export function Viewer({ url, format, assembly, onError, onLoaded }: { url: stri
     reset();
     scene.current = {
       reset,
-      wireframe(enabled) { material.wireframe = enabled; },
+      wireframe(enabled) { material.wireframe = enabled; referenceMaterial.wireframe = enabled; },
       setParts(parts, assembly) {
         group.clear();
         for (const geometry of geometries) geometry.dispose();
@@ -128,7 +135,7 @@ export function Viewer({ url, format, assembly, onError, onLoaded }: { url: stri
           geometry.computeVertexNormals(); geometry.computeBoundingBox();
           const bounds = geometry.boundingBox;
           if (!bounds) { geometry.dispose(); return null; }
-          return { id: part.name.replace(/\.stl$/i, ''), geometry, bounds, size: bounds.getSize(new THREE.Vector3()) };
+          return { id: part.name.replace(/\.stl$/i, ''), reference: part.reference === true, geometry, bounds, size: bounds.getSize(new THREE.Vector3()) };
         }).filter(part => part !== null);
         if (prepared.length === 0) throw new Error('The preview contains no visible geometry.');
         geometries = prepared.map(part => part.geometry);
@@ -140,7 +147,7 @@ export function Viewer({ url, format, assembly, onError, onLoaded }: { url: stri
         const footprintX = columns * cell; const footprintY = rows * cell;
         placements = prepared.map((part, index) => {
           const column = index % columns; const row = Math.floor(index / columns);
-          const partMesh = new THREE.Mesh(part.geometry, material); partMesh.castShadow = true;
+          const partMesh = new THREE.Mesh(part.geometry, part.reference ? referenceMaterial : material); partMesh.castShadow = true;
           const grid = new THREE.Vector3(
             (column + 0.5) * cell - footprintX / 2 - (part.bounds.min.x + part.bounds.max.x) / 2,
             footprintY / 2 - (row + 0.5) * cell - (part.bounds.min.y + part.bounds.max.y) / 2,
@@ -174,7 +181,7 @@ export function Viewer({ url, format, assembly, onError, onLoaded }: { url: stri
     return () => {
       scene.current = null; resize.disconnect(); cancelAnimationFrame(animation); controls.dispose();
       for (const geometry of geometries) geometry.dispose();
-      material.dispose(); floor.geometry.dispose(); floorMaterial.dispose(); grid.geometry.dispose();
+      material.dispose(); referenceMaterial.dispose(); floor.geometry.dispose(); floorMaterial.dispose(); grid.geometry.dispose();
       grid.material.dispose();
       renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
     };
@@ -183,11 +190,16 @@ export function Viewer({ url, format, assembly, onError, onLoaded }: { url: stri
   useEffect(() => {
     if (!url) return;
     const abort = new AbortController();
+    // Reference objects are static files: one that cannot be loaded is left out rather than failing the preview.
+    const loadReferences = format === 'zip' && assemblyRef.current ? Promise.all(referencesRef.current.map(reference =>
+      fetch(reference.url, { signal: abort.signal }).then(async (response): Promise<Part[]> => response.ok ? [{ name: `${reference.id}.stl`, bytes: await response.arrayBuffer(), reference: true }] : [])
+        .catch((): Part[] => []))).then(loaded => loaded.flat()) : Promise.resolve([]);
     void fetch(url, { signal: abort.signal }).then(async response => {
       if (!response.ok) throw new Error('The preview file is unavailable. Generate it again.');
       const bytes = await response.arrayBuffer();
+      const extra = await loadReferences;
       if (abort.signal.aborted) return;
-      scene.current?.setParts(format === 'zip' ? partsFromZip(bytes) : [{ name: 'model', bytes }], format === 'zip' ? assemblyRef.current : undefined);
+      scene.current?.setParts(format === 'zip' ? [...partsFromZip(bytes), ...extra] : [{ name: 'model', bytes }], format === 'zip' ? assemblyRef.current : undefined);
       if (scene.current) onLoadedRef.current(url);
     }).catch((error: unknown) => {
       if (!abort.signal.aborted) onErrorRef.current(error instanceof Error ? error.message : 'Could not load the preview.');

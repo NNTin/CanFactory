@@ -284,6 +284,13 @@ export interface operations {
                             }[];
                             /** @description Height in mm of the exploded layout above the print bed. */
                             lift: number;
+                            /** @description Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. Not printed and not in the ZIP. */
+                            references?: {
+                                /** @description Its key in `poses` and `steps`. */
+                                id: string;
+                                /** @description What it is, e.g. “BIC Mini lighter (J25)”. */
+                                title: string;
+                            }[];
                         };
                     };
                 };

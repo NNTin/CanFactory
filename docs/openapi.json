@@ -588,6 +588,28 @@
                         "lift": {
                           "type": "number",
                           "description": "Height in mm of the exploded layout above the print bed."
+                        },
+                        "references": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "title"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Its key in `poses` and `steps`."
+                              },
+                              "title": {
+                                "type": "string",
+                                "description": "What it is, e.g. “BIC Mini lighter (J25)”."
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. Not printed and not in the ZIP."
                         }
                       },
                       "additionalProperties": false

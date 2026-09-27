@@ -62,9 +62,11 @@ WINDOW_Z0 = 14.5;
 // --- holder retention (this block is identical in the box file and in the holder file; a test keeps them in sync) ---
 // How the mini holder is held in the case box's round bay, chosen by HOLDER_SNAP (a -D override): "friction" (nothing added),
 // "detent" or "crush-ribs". The holder is pushed up into the bay through the open floor, and the tab in the bay stops it at the
-// top. It must not drop out when the case is turned over, yet a lighter pushed down onto its dome from above must still push it
-// out. Both features therefore sit near the holder's floor, its trailing end, so they only rub over the last few millimetres of
-// the push. They come in opposing pairs: a feature on one side only would let the holder shift sideways by CLEARANCE and lose
+// top. It must not drop out when the case is turned over, yet it must still come out when pushed down from above. The push comes
+// from the BIC Mini lighter, which is kept in the same bay above the holder: stood upright (base down) it rests on the tab and
+// cannot reach the holder, which is intended; turned upside down, its hood and wheel pass beside the tab onto the holder's dome
+// and push the holder out through the floor. Both features therefore sit near the holder's floor, its trailing end, so they only
+// rub over the last few millimetres of the push. They come in opposing pairs: a feature on one side only would let the holder shift sideways by CLEARANCE and lose
 // its engagement. Heights are above the box's underside, which is where the holder's floor sits. Frame: HOLDER_BAY is the bay
 // outline about its own centre. Sizes follow CLEARANCE, so each feature engages the same amount at any clearance.
 HOLDER_SNAP = "friction";

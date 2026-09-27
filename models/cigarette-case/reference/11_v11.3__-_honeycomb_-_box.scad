@@ -19,7 +19,13 @@ SCALE = 1;
 FLOOR_TOP = 2.45;      // top of the cavity floor
 TOP_Z     = 77.171;    // rim height of the box
 
-// Cavities (x, y) about the part centre: the two bays and the round bay that is open through the floor.
+// Cavities (x, y) about the part centre: the two bays and the round bay that is open through the floor. The round bay holds two
+// things, one from each end: the mini holder, pushed up through the floor until the clip tab (TAB) stops it, and a BIC Mini
+// lighter (models/cigarette-case/reference-objects/mini-bic-lighter.scad), put in from the top and resting on the tab above the
+// holder. Upright, the lighter cannot pass the tab; upside down, its hood and wheel pass beside it and push the holder out.
+// TODO(#17): above the tab the bay is still the traced source outline, not fitted to the lighter, which sits loose in it. Fit it
+// to the lighter's outline plus CLEARANCE, as every other joint is, and add a lighter snap setting (friction or crush ribs,
+// with its own rib size). Keep the holder's part of the bay and the tab as they are, and keep the upside-down push-out working.
 BAY_A = [[6.292, 12.629], [6.292, -12.631], [-5.974, -12.631], [-14.153, -11.581], [-13.567, -11.22], [-13.033, -10.786],
   [-12.566, -10.301], [-12.137, -9.745], [-11.773, -9.161], [-11.461, -8.548], [-11.186, -7.888], [-10.976, -7.28],
   [-10.625, -5.93], [-10.493, -5.242], [-10.306, -3.891], [-10.162, -1.831], [-10.138, 0.43], [-10.195, 2.501],
@@ -47,7 +53,8 @@ BAY_ROUND = [[-13.813, -10.401], [-14.397, -10.8], [-15.128, -11.136], [-15.685,
 // little and are grown by TAB_GROW so they fuse with each other. As traced from the source, only the lowest 0.4 mm touched the wall
 // (0.08 mm deep, 1.8 mm long), so the hood could snap off. The pocket between the hood and the wall is therefore filled: TAB_ROOT
 // into the wall and TAB_FUSE into the hood, up to a top that rises at 45 degrees to the wall and meets it at the hood's top. The
-// hood's underside, where the holder stops, is unchanged.
+// hood's underside, where the holder stops, is unchanged. The hood's top is the lighter's stop: an upright lighter rests on it.
+// Only an upside-down lighter's hood and wheel, narrower than its body, pass beside it to the holder's dome.
 TAB_STEP = 0.2;
 TAB_GROW = 0.08;
 TAB_ROOT = 0.3;
@@ -173,9 +180,11 @@ module snap_cut() {
 // --- holder retention (this block is identical in the box file and in the holder file; a test keeps them in sync) ---
 // How the mini holder is held in the case box's round bay, chosen by HOLDER_SNAP (a -D override): "friction" (nothing added),
 // "detent" or "crush-ribs". The holder is pushed up into the bay through the open floor, and the tab in the bay stops it at the
-// top. It must not drop out when the case is turned over, yet a lighter pushed down onto its dome from above must still push it
-// out. Both features therefore sit near the holder's floor, its trailing end, so they only rub over the last few millimetres of
-// the push. They come in opposing pairs: a feature on one side only would let the holder shift sideways by CLEARANCE and lose
+// top. It must not drop out when the case is turned over, yet it must still come out when pushed down from above. The push comes
+// from the BIC Mini lighter, which is kept in the same bay above the holder: stood upright (base down) it rests on the tab and
+// cannot reach the holder, which is intended; turned upside down, its hood and wheel pass beside the tab onto the holder's dome
+// and push the holder out through the floor. Both features therefore sit near the holder's floor, its trailing end, so they only
+// rub over the last few millimetres of the push. They come in opposing pairs: a feature on one side only would let the holder shift sideways by CLEARANCE and lose
 // its engagement. Heights are above the box's underside, which is where the holder's floor sits. Frame: HOLDER_BAY is the bay
 // outline about its own centre. Sizes follow CLEARANCE, so each feature engages the same amount at any clearance.
 HOLDER_SNAP = "friction";

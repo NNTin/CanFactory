@@ -148,7 +148,9 @@ const Vector = (description: string) => Type.Array(Type.Number(), { minItems: 3,
  * every part's pose plus the `from` offset of each step it moves in, raised by `lift`. The slider first lifts the parts from
  * the print bed into that layout, then plays the steps in order: each step moves its parts from `from` to 0. List every
  * part that moves together (e.g. a box already inside the lid that moves). `lift` is removed during the last step, so the
- * finished assembly stands on the floor. Parts without a pose stay on the print bed.
+ * finished assembly stands on the floor. Parts without a pose stay on the print bed. `references` are real-world objects the
+ * assembly holds (e.g. the lighter a bay is sized for), shown and moved like parts so that their fit can be seen; they are
+ * never printed, so the worker does not render them and they are not in the ZIP (see `referenceObjectPath`).
  */
 export const AssemblySchema = Type.Object({
   poses: Type.Record(Type.String(), Type.Object({
@@ -161,8 +163,21 @@ export const AssemblySchema = Type.Object({
     from: Vector('Offset in mm at which the parts start this step; they end it at their assembled pose.'),
   }, { additionalProperties: false })),
   lift: Type.Number({ description: 'Height in mm of the exploded layout above the print bed.' }),
+  references: Type.Optional(Type.Array(Type.Object({
+    id: Type.String({ description: 'Its key in `poses` and `steps`.' }),
+    title: Type.String({ description: 'What it is, e.g. “BIC Mini lighter (J25)”.' }),
+  }, { additionalProperties: false }), { description: 'Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. Not printed and not in the ZIP.' })),
 }, { additionalProperties: false });
 export type Assembly = Static<typeof AssemblySchema>;
+
+/**
+ * Where an assembly's reference object lives: `<id>.scad` is its source, with the real-world dimensions as named values, and
+ * `<id>.stl` beside it is that file rendered, which the web app bundles for the preview. Reference objects do not depend on
+ * the model's parameters, so they are rendered once, when the SCAD file changes, rather than by the worker.
+ */
+export function referenceObjectPath(modelId: string, id: string, extension: 'scad' | 'stl'): string {
+  return `models/${modelId}/reference-objects/${id}.${extension}`;
+}
 
 /**
  * Trusted repository model. Source paths never come from API callers.
@@ -360,8 +375,8 @@ const MINI_LID_SNAP_TEXT: Record<InsertSnapMode, { label: string; description: s
 };
 const HOLDER_SNAP_TEXT: Record<InsertSnapMode, { label: string; description: string }> = {
   friction: { label: 'Friction fit', description: 'Only a close fit holds the holder in the bay; it can drop out of the open floor if the clearance is loose.' },
-  detent: { label: 'Detent', description: 'A bump on each end of the holder clicks into a groove in the bay. Push it out from above, e.g. with a lighter.' },
-  'crush-ribs': { label: 'Crush ribs', description: 'Four thin ribs near the holder\'s floor are squeezed by the bay wall. Push it out from above, e.g. with a lighter.' },
+  detent: { label: 'Detent', description: 'A bump on each end of the holder clicks into a groove in the bay. Push it out from above, e.g. with a lighter turned upside down.' },
+  'crush-ribs': { label: 'Crush ribs', description: 'Four thin ribs near the holder\'s floor are squeezed by the bay wall. Push it out from above, e.g. with a lighter turned upside down.' },
 };
 const MINI_BOX_SNAP_TEXT: Record<InsertSnapMode, { label: string; description: string }> = {
   friction: { label: 'Friction fit', description: 'Only a close fit holds the closed mini box in the case lid when the lid is lifted off.' },
@@ -577,14 +592,22 @@ const cigaretteCaseAssembly: Assembly = {
     'mini-holder': { position: [-16.84, 0, 0] },
     'mini-box': { position: [6.43, 0, 98.23], rotation: [180, 0, 0] },
     'mini-lid': { position: [6.43, 0, 83.839], rotation: [0, 0, 180] },
+    // In the round bay, above the holder: centred like it, width along Y, base down, resting on the clip tab (the lowest point
+    // clear of the box and the holder). Its top is 1.1 mm under the lid's ceiling (docs/cigarette-case-assembly.md). Upright, the
+    // tab stops it short of the holder; turned upside down, its hood and wheel pass the tab and push the holder out.
+    // TODO(#17): the bay is not fitted to the lighter yet, so it sits loose (about 0.4 mm a side, not CLEARANCE).
+    // TODO(#18): the lighter model's hood is rectangular; the real one continues the body's oval outline.
+    'mini-bic-lighter': { position: [-16.84, 0, 35.12] },
   },
   steps: [
     { title: 'Close the mini box', parts: ['mini-lid'], from: [0, 0, -20] },
     { title: 'Slide the mini box into the lid', parts: ['mini-box', 'mini-lid'], from: [0, 0, -44] },
     { title: 'Push the holder into the box', parts: ['mini-holder'], from: [0, 0, -42] },
-    { title: 'Close the case', parts: ['case-lid', 'mini-box', 'mini-lid'], from: [0, 0, 70] },
+    { title: 'Insert the lighter into its bay', parts: ['mini-bic-lighter'], from: [0, 0, 50] },
+    { title: 'Close the case', parts: ['case-lid', 'mini-box', 'mini-lid'], from: [0, 0, 100] },
   ],
   lift: 50,
+  references: [{ id: 'mini-bic-lighter', title: 'BIC Mini lighter (J25)' }],
 };
 
 export const cigaretteCase = {
