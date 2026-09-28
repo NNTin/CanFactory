@@ -1119,10 +1119,42 @@ export interface operations {
                         gapSpacing: number;
                         /**
                          * Sieve margin
-                         * @description Solid border kept between the gaps and the wall’s edges (flange, corners and arched top), in mm.
+                         * @description Solid border kept between the gaps and the wall’s edges (the solid band above the cap, the corners and the arch), in mm.
                          * @default 3.2
                          */
                         sieveMargin: number;
+                        /**
+                         * Handle on the container
+                         * @description How the handle’s ring holds on the container’s band: a close fit only, or a detent.
+                         * @default detent
+                         * @enum {unknown}
+                         */
+                        handleSnap: "friction" | "detent";
+                        /**
+                         * Scoop in the handle
+                         * @description How the scoop holds in the handle’s upstand: a close fit only, or a detent.
+                         * @default detent
+                         * @enum {unknown}
+                         */
+                        scoopSnap: "friction" | "detent";
+                        /**
+                         * Clearance
+                         * @description Gap per side between parts that fit together (the handle on the container, the scoop in the handle), in mm. Larger is looser; raise it if your printer prints parts that are too tight.
+                         * @default 0.2
+                         */
+                        clearance: number;
+                        /**
+                         * Detent engagement (handle on the container)
+                         * @description How far the bumps on the container reach past the handle’s ring, in mm, on top of the clearance. More clicks harder.
+                         * @default 0.2
+                         */
+                        handleDetentEngage: number;
+                        /**
+                         * Detent engagement (scoop in the handle)
+                         * @description How far the bumps on the handle’s upstand reach past the scoop’s wall, in mm, on top of the clearance. More clicks harder.
+                         * @default 0.15
+                         */
+                        scoopDetentEngage: number;
                     };
                 };
             };

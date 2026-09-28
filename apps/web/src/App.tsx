@@ -159,27 +159,29 @@ function PlankConnectorIllustration() {
 }
 
 /**
- * The litter shovel, drawn from behind the scoop so the sieve faces the viewer: the terracotta container, the scoop (sand) with its
- * arched, slotted back wall resting on the rim, and the handle's collar (green) around the scoop's flange. On card hover the
- * scoop lifts out of the container and the handle lifts off the scoop (`.ls-*` in styles.css).
+ * The litter shovel, drawn from behind the scoop so the sieve faces the viewer: the terracotta container with its ledge and finger
+ * lever, the handle's ring (green) resting on the ledge with its grip reaching out behind, and the scoop (sand) with its arched,
+ * slotted back wall standing on the handle. On card hover the scoop lifts off the handle and the handle off the container
+ * (`.ls-*` in styles.css).
  */
 function LitterShovelIllustration() {
-  const slots = [0, 1, 2, 3, 4, 5, 6].flatMap(column => [30.8, 47.6, 64.5].map(y => ({ x: 118 + (column - 3) * 7.04, y })));
+  const slots = [-2, -1, 0, 1, 2].flatMap(column => [74.4, 55.9, 37.4].map(y => ({ x: 120 + column * 7.1, y })));
   return <svg viewBox="0 0 240 190" aria-hidden="true" className="litter-shovel-illustration">
     <ellipse cx="120" cy="162" rx="62" ry="8" fill="#c8cec1" opacity=".35" />
-    <path d="M93.5 160 90.5 82h59l-3 78z" fill="#d98460" />
-    <path d="M90.5 82h59l-.3 9h-58.4z" fill="#c46543" />
-    <path d="M100 150V100M140 150V100" stroke="#c46543" strokeWidth="1.5" opacity=".5" />
-    <g className="ls-part ls-scoop">
-      <path d="M88.5 90.7V34a31.5 21.3 0 0 1 63 0v56.7z" fill="#e4cf9e" />
-      <path d="M92 88V34.6a28 18.3 0 0 1 56 0V88" fill="none" stroke="#cdb57f" strokeWidth="1.5" />
-      {slots.map(({ x, y }) => <rect key={`${x}-${y}`} x={x} y={y - 6.9} width="4" height="13.8" rx="2" fill="#8a6d3b" opacity=".75" />)}
-      <rect x="87.1" y="72.5" width="65.8" height="3" rx="1.5" fill="#cdb57f" />
-    </g>
+    <path d="M150 99h24v4l-24 24z" fill="#c46543" />
+    <path d="M93.5 160 90.5 84h59l-3 76z" fill="#d98460" />
+    <path d="M100 150V104M140 150V104" stroke="#c46543" strokeWidth="1.5" opacity=".5" />
+    <rect x="87" y="97" width="66" height="3" rx="1" fill="#c46543" />
     <g className="ls-part ls-handle">
-      <rect x="85.4" y="72" width="69.2" height="11" rx="3" fill="#8fa27c" />
-      <path d="M86 75h68" stroke="#5f7350" strokeWidth="1.2" opacity=".6" />
-      <rect x="116" y="74" width="8" height="7" rx="1" fill="#5f7350" opacity=".7" />
+      <path d="M150 88h22a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5h-22" fill="none" stroke="#5f7350" strokeWidth="3.5" />
+      <rect x="85.5" y="86" width="69" height="11" rx="2.5" fill="#8fa27c" />
+      <path d="M86 90h68" stroke="#5f7350" strokeWidth="1.2" opacity=".6" />
+    </g>
+    <g className="ls-part ls-scoop">
+      <path d="M88 91V34H98A22 16 0 0 1 142 34H152V91z" fill="#e4cf9e" />
+      <path d="M91.5 88V37H100.5A19.5 13 0 0 1 139.5 37H148.5V88" fill="none" stroke="#cdb57f" strokeWidth="1.5" />
+      {slots.map(({ x, y }) => <rect key={`${x}-${y}`} x={x - 2} y={y - 7.5} width="4" height="15" rx="2" fill="#8a6d3b" opacity=".75" />)}
+      <rect x="87" y="84" width="66" height="7" rx="1.5" fill="#cdb57f" />
     </g>
   </svg>;
 }
