@@ -9,6 +9,12 @@ Set immutable image digests for `images.web`, `images.api` and `images.worker`.
 The defaults intentionally cannot be installed without these values. Set
 `imagePullSecrets` when using private registry packages.
 
+Charts published by `.github/workflows/kubernetes.yml` already embed the digests of
+the images built in the same run (`tools/stamp-chart-digests.py`), so they install
+without image values. Versions form two channels: `0.2.0-dev.N` from `develop`
+(production) and `0.2.0-pr.N` from same-repository pull requests (preview). `N` is
+the workflow run number, so the highest version in a channel is the newest build.
+
 Each named Secret under `secrets` must contain `DATABASE_URL`, `S3_ACCESS_KEY_ID`
 and `S3_SECRET_ACCESS_KEY`. Supply credentials outside Git. The release role owns
 schema migrations; runtime database accounts should have only the permissions

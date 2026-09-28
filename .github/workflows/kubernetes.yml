@@ -1,18 +1,28 @@
 name: Kubernetes release
 
+# Every publish deploys: chart 0.2.0-dev.N follows develop to canfactory.nntin.xyz and chart
+# 0.2.0-pr.N follows the newest same-repository pull request to canfactory-preview.nntin.xyz.
+# Flux in lair.nntin.xyz tracks each channel by semver; the charts embed their image digests.
 on:
   push:
-    branches: [develop, feat/kubernetes]
+    branches: [develop]
   pull_request:
     branches: [develop]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      channel:
+        description: Deploy target for this build
+        type: choice
+        options: [preview, production]
+        default: preview
 
 permissions:
   contents: read
 
 concurrency:
   group: kubernetes-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
@@ -36,15 +46,21 @@ jobs:
       - run: npm run test:renderer
 
   publish:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
       packages: write
+    env:
+      REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      CHANNEL: ${{ (github.event_name == 'push' || inputs.channel == 'production') && 'dev' || 'pr' }}
+      PULL_REQUEST: ${{ github.event.pull_request.number }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.REVISION }}
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
@@ -52,8 +68,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish immutable application images
-        env:
-          REVISION: ${{ github.sha }}
         run: |
           mkdir -p release
           for role in api worker web; do
@@ -66,7 +80,6 @@ jobs:
           done
       - name: Publish application chart and release index
         env:
-          REVISION: ${{ github.sha }}
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REGISTRY_USER: ${{ github.actor }}
           RELEASE_RUN: ${{ github.run_number }}
@@ -74,13 +87,17 @@ jobs:
           bash tools/install-ci-tools.sh
           export PATH="$HOME/.local/bin:$PATH"
           printf '%s' "$REGISTRY_TOKEN" | helm registry login ghcr.io -u "$REGISTRY_USER" --password-stdin
-          chart_version="0.1.0-dev.$RELEASE_RUN"
+          chart_version="0.2.0-$CHANNEL.$RELEASE_RUN"
+          python3 tools/stamp-chart-digests.py release
+          helm template canfactory charts/canfactory --kube-version 1.36.4 > /dev/null
           helm package charts/canfactory --version "$chart_version" --app-version "$REVISION" --destination release
           helm push "release/canfactory-$chart_version.tgz" oci://ghcr.io/nntin/charts
           python3 - <<'PY'
           import json,os,pathlib
           directory=pathlib.Path('release')
-          release={'revision':os.environ['REVISION'],'chartVersion':'0.1.0-dev.'+os.environ['RELEASE_RUN'],'images':{}}
+          release={'revision':os.environ['REVISION'],'channel':os.environ['CHANNEL'],
+                   'chartVersion':'0.2.0-'+os.environ['CHANNEL']+'.'+os.environ['RELEASE_RUN'],'images':{}}
+          if os.environ['PULL_REQUEST']: release['pullRequest']=int(os.environ['PULL_REQUEST'])
           for role in ['api','worker','web']:
               metadata=json.loads((directory/(role+'.json')).read_text())
               release['images'][role]={'repository':'ghcr.io/nntin/canfactory-'+role,'digest':metadata['containerimage.digest']}
@@ -88,6 +105,6 @@ jobs:
           PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: canfactory-release-${{ github.sha }}
+          name: canfactory-release-${{ env.CHANNEL }}-${{ env.REVISION }}
           path: release/
           retention-days: 30
