@@ -367,3 +367,46 @@ test('customizes the plank connector pocket, depth and screw holes and downloads
   expect(mesh.dimensions.z).toBeCloseTo(52, 3);
   expect(errors).toEqual([]);
 });
+
+test('chooses the litter shovel sieve texture and gap size and downloads the three parts', async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'CanFactory model library' }).click();
+  const card = page.getByRole('button', { name: /CUSTOMIZABLE · ZIP Litter shovel/ });
+  await card.hover();
+  await card.screenshot({ path: testInfo.outputPath('litter-shovel-card.png') });
+  await card.click();
+  await expect(page.getByRole('heading', { name: 'Litter shovel', exact: true })).toBeVisible();
+  const downloadButton = page.getByRole('button', { name: 'Download ZIP', exact: true });
+  const texture = page.getByLabel('Sieve texture');
+  await expect(texture).toHaveValue('slots');
+  await expect(page.getByRole('spinbutton', { name: 'Gap width', exact: true })).toHaveValue('7.2');
+  await expect(downloadButton).toBeEnabled({ timeout: 120_000 });
+  await expect(page.getByText('21 slots, automatically spaced.')).toBeVisible();
+  await expect(page.getByRole('slider', { name: 'Assembly' })).toBeVisible();
+  // a slot shorter than it is wide is rejected before rendering
+  await page.getByRole('spinbutton', { name: 'Slot length', exact: true }).fill('6');
+  await expect(page.locator('#parameter-gapLength-error')).toContainText('at least as long as it is wide');
+  await expect(downloadButton).toBeDisabled();
+  // round holes have no length: the control goes away and the error with it
+  await texture.selectOption('round');
+  await expect(page.getByRole('spinbutton', { name: 'Slot length', exact: true })).toHaveCount(0);
+  await page.getByRole('spinbutton', { name: 'Gap width', exact: true }).fill('5');
+  await expect(page.getByText('75 slots, automatically spaced.')).toBeVisible();
+  await expect(downloadButton).toBeEnabled({ timeout: 120_000 });
+  await page.screenshot({ path: testInfo.outputPath('litter-shovel.png'), fullPage: true });
+  const downloadEvent = page.waitForEvent('download');
+  await downloadButton.click();
+  const path = await (await downloadEvent).path();
+  if (!path) throw new Error('Missing download');
+  const entries = unzipSync(new Uint8Array(await readFile(path)));
+  expect(Object.keys(entries).sort()).toEqual(['container.stl', 'handle.stl', 'scoop.stl']);
+  const scoop = entries['scoop.stl'];
+  if (!scoop) throw new Error('Expected the scoop');
+  const dimensions = inspectStl(Buffer.from(scoop.buffer, scoop.byteOffset, scoop.byteLength)).dimensions;
+  expect(dimensions.x).toBeCloseTo(87.4, 2);
+  expect(dimensions.y).toBeCloseTo(119.7, 2);
+  expect(dimensions.z).toBeCloseTo(141.8, 2);
+  expect(errors).toEqual([]);
+});

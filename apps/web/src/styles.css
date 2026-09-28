@@ -984,7 +984,8 @@ main {
 .funnel-illustration,
 .moss-planter-illustration,
 .cigarette-case-illustration,
-.plank-connector-illustration {
+.plank-connector-illustration,
+.litter-shovel-illustration {
   width: 250px;
   height: 210px;
 }
@@ -1097,6 +1098,22 @@ main {
 @media (prefers-reduced-motion: reduce) {
   .pc-part,
   .pc-guide {
+    transition: none;
+  }
+}
+.ls-part {
+  transition: transform 0.4s ease-out;
+}
+.model-card:hover .ls-scoop,
+.model-card:focus-visible .ls-scoop {
+  transform: translateY(-14px);
+}
+.model-card:hover .ls-handle,
+.model-card:focus-visible .ls-handle {
+  transform: translateY(-34px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ls-part {
     transition: none;
   }
 }

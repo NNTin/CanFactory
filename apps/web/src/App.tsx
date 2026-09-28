@@ -158,11 +158,38 @@ function PlankConnectorIllustration() {
   </svg>;
 }
 
+/**
+ * The litter shovel, drawn from behind the scoop so the sieve faces the viewer: the terracotta container, the scoop (sand) with its
+ * arched, slotted back wall resting on the rim, and the handle's collar (green) around the scoop's flange. On card hover the
+ * scoop lifts out of the container and the handle lifts off the scoop (`.ls-*` in styles.css).
+ */
+function LitterShovelIllustration() {
+  const slots = [0, 1, 2, 3, 4, 5, 6].flatMap(column => [30.8, 47.6, 64.5].map(y => ({ x: 118 + (column - 3) * 7.04, y })));
+  return <svg viewBox="0 0 240 190" aria-hidden="true" className="litter-shovel-illustration">
+    <ellipse cx="120" cy="162" rx="62" ry="8" fill="#c8cec1" opacity=".35" />
+    <path d="M93.5 160 90.5 82h59l-3 78z" fill="#d98460" />
+    <path d="M90.5 82h59l-.3 9h-58.4z" fill="#c46543" />
+    <path d="M100 150V100M140 150V100" stroke="#c46543" strokeWidth="1.5" opacity=".5" />
+    <g className="ls-part ls-scoop">
+      <path d="M88.5 90.7V34a31.5 21.3 0 0 1 63 0v56.7z" fill="#e4cf9e" />
+      <path d="M92 88V34.6a28 18.3 0 0 1 56 0V88" fill="none" stroke="#cdb57f" strokeWidth="1.5" />
+      {slots.map(({ x, y }) => <rect key={`${x}-${y}`} x={x} y={y - 6.9} width="4" height="13.8" rx="2" fill="#8a6d3b" opacity=".75" />)}
+      <rect x="87.1" y="72.5" width="65.8" height="3" rx="1.5" fill="#cdb57f" />
+    </g>
+    <g className="ls-part ls-handle">
+      <rect x="85.4" y="72" width="69.2" height="11" rx="3" fill="#8fa27c" />
+      <path d="M86 75h68" stroke="#5f7350" strokeWidth="1.2" opacity=".6" />
+      <rect x="116" y="74" width="8" height="7" rx="1" fill="#5f7350" opacity=".7" />
+    </g>
+  </svg>;
+}
+
 const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'cigarette-case': CigaretteCaseIllustration,
   'fruit-fly-trap': FunnelIllustration,
   'moss-planter': MossPlanterIllustration,
   'plank-connector': PlankConnectorIllustration,
+  'litter-shovel': LitterShovelIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names
