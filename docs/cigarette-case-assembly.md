@@ -129,9 +129,6 @@ functions the web app uses, and measures the volume shared by parts on a 0.25 mm
 - **The assembled state:** every pair of parts.
 - **The exploded layout:** every pair of parts, and that nothing is below the floor.
 - **Each step:** 17 samples along the step's path, the moving parts against all the others.
-- **Each step's last 10 mm,** where snaps engage, every 0.25 mm. A detent's bump shares volume there while it passes the mating
-  wall, so these samples are held to a looser snap tolerance (`--snap-tolerance`, 10 mm³ by default) instead of the 1 mm³ one; the
-  regular samples skip that stretch, except the seated end.
 
 It includes the reference objects, rendered from their SCAD files, and fails if the committed STL that the preview uses no
 longer matches the SCAD file's bounds.

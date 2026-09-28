@@ -1106,11 +1106,11 @@ main {
 }
 .model-card:hover .ls-scoop,
 .model-card:focus-visible .ls-scoop {
-  transform: translateY(-34px);
+  transform: translateY(-14px);
 }
 .model-card:hover .ls-handle,
 .model-card:focus-visible .ls-handle {
-  transform: translateY(-14px);
+  transform: translateY(-34px);
 }
 @media (prefers-reduced-motion: reduce) {
   .ls-part {
