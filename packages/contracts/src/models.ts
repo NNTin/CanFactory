@@ -1046,7 +1046,7 @@ const litterShovelAssembly: Assembly = {
   },
   steps: [
     { title: 'Set the scoop on the container', parts: ['scoop'], from: [0, 0, 60] },
-    { title: 'Clip the handle over the scoop', parts: ['handle'], from: [0, 0, 60] },
+    { title: 'Clip the handle over the scoop', parts: ['handle'], from: [0, 0, 200] },
   ],
   lift: 60,
 };
