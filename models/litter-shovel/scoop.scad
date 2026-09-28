@@ -1,15 +1,20 @@
 // Litter shovel, part 2 of 3: the scoop. An original CanFactory design, published under CC BY 4.0.
 //
-// An open sifting blade on a rounded-rectangle collar. The tall, flat back wall (-X) is the sieve; the side cheeks
-// curve down from it to the collar at the front (+X). Inside the collar a ledge rests on the container's rim, and
-// outside it a flange is captured from above by the handle (docs/litter-shovel.md). Modelled as it prints, open
-// collar down: Z up, the collar's lower edge at Z = 0.
+// A sifting blade on a cap, the middle of the stack container, scoop, handle. The cap is a closed U-shaped ring over the
+// container's lip. Its flat ceiling sits on the lip's flat top (the bag folded over the lip is pinched between them), its sleeve
+// reaches 5 mm into the container's mouth and its skirt hangs 5 mm around the lip. The cap's flat top carries the handle's ring,
+// flush with the skirt. Inside, a 45 degree funnel leads from the blade into the sleeve, so clumps fall into the bag and never
+// onto the rim. The blade rises from the cap: the flat back wall (-X) carries the sieve and ends in a round arch; the side walls
+// fall in a straight line from the arch's shoulders to a low front (+X). See docs/litter-shovel.md.
 //
-// The parameters only change the sieve, the pattern of gaps through the back wall. Every other surface is fitted
-// to the container and the handle and stays fixed. The gaps are laid out on a grid, centred across the wall and
-// starting just above the flange, and only whole gaps that keep SIEVE_MARGIN of solid wall to the flange, the
-// curved corners, the arched top and the thinning top edge are cut, so no sliver is left. The layout is mirrored
-// by sieveGaps() in packages/contracts/src/models.ts; keep the two identical.
+// Modelled as it prints, cap down: Z up, the sleeve's and the skirt's lower edges at Z = 0. Nothing needs support: the U's
+// ceiling is a 7.4 mm bridge and the funnel is a top surface. In `detent` mode the sleeve has bumps for the grooves in the
+// container's mouth (SCOOP_SNAP), and the blade's base has bumps for the grooves in the handle's ring (HANDLE_SNAP).
+//
+// The sieve parameters only change the gaps through the back wall. They are laid out on a grid, centred across the wall,
+// starting above a solid root band (covered by the handle's ring and a little more), and only whole gaps that keep SIEVE_MARGIN
+// of solid wall to the root band, the curved corners and the arch are cut, so no sliver is left. The layout is mirrored by
+// sieveGaps() in packages/contracts/src/models.ts; keep the two identical.
 
 // Sieve texture: vertical slots on a grid, slots with alternate rows offset (brick), round holes or hexagons
 SIEVE_PATTERN = "slots"; //[slots,staggered,round,hex]
@@ -18,49 +23,101 @@ GAP_WIDTH = 7.2; //[3:0.1:15]
 // Slot length along Z (slot patterns only)
 GAP_LENGTH = 25; //[6:0.5:40]
 // Solid bar between neighbouring gaps
-GAP_SPACING = 5.6; //[2:0.1:15]
+GAP_SPACING = 5.6; //[3:0.1:15]
 // Solid border kept around the sieve
-SIEVE_MARGIN = 3.2; //[2:0.1:10]
+SIEVE_MARGIN = 3.2; //[3:0.1:10]
+// How the sleeve holds in the container's mouth: a close fit only, or a detent (bumps on the sleeve, grooves in the mouth)
+SCOOP_SNAP = "detent"; //[friction,detent]
+// How the handle's ring holds on the blade's base: a close fit only, or a detent (bumps on the blade, grooves in the ring)
+HANDLE_SNAP = "detent"; //[friction,detent]
+// Gap per side between mating surfaces, in mm
+CLEARANCE = 0.2; //[0.1:0.01:0.6]
+// How far the sleeve's bumps reach past the mouth's wall, in mm, on top of the clearance
+SCOOP_DETENT_ENGAGE = 0.15; //[0.02:0.01:0.4]
+// How far the blade's bumps reach past the handle's ring, in mm, on top of the clearance
+HANDLE_DETENT_ENGAGE = 0.15; //[0.02:0.01:0.4]
 
 $fa = 4; $fs = 0.5;
 E = 0.01;
 
-// Blade: outer plan, wall, height and corner radius.
-BLADE_W = 82.1; BLADE_L = 114.4; WALL = 3.2; HEIGHT = 141.8; CORNER = 12;
-// Top arch (YZ): a half-ellipse centred at Z = ARCH_Z with semi-axes BLADE_L / 2 (Y) and ARCH_H (Z).
-ARCH_Z = 103; ARCH_H = 38.8;
-// Side profile (XZ): the cheeks fall from the back wall's top to the collar along this Bezier.
-CHEEK = [[41.1, 36], [-16, 36], [-22, 60], [-41, 141.8]];
-// Flange (captured by the handle) and container seat (inside ledge).
-FLANGE_Z = 30; FLANGE_H = 2;
-SEAT_Z = 15.5;
+// The container's band, mouth and lip (outer plan [width (X), length (Y), corner radius]); the lip's top is RIM_H above the
+// cap's lower edges.
+BAND = [74.5, 106.8, 14];
+MOUTH = [69.7, 102, 11.6];
+LIP = [82.5, 114.8, 18];
+RIM_H = 5;
+// Cap: its ceiling's thickness above the lip; the bag's gap between the lip and the skirt, the skirt's wall; the sleeve's
+// inner face (fixed: the sleeve's outer face is the mouth less the clearance).
+CAP_T = 3; BAG_GAP = 0.8; SKIRT_T = 2.4; SLEEVE_IN_OFFSET = 2.2;
+// Blade: its outer wall stands RING_T inside the skirt's outer face (room for the handle's ring); wall thickness.
+RING_T = 3.6; WALL = 3.2;
+// Blade: apex of the arch, height of its shoulders (where the side walls reach it), and the front's height.
+HEIGHT = 127; SHOULDER_Z = 101; FRONT_Z = 26;
+// Solid root band between the cap's top and the lowest gaps: the handle's 15 mm ring and 3 mm more.
+ROOT_BAND = 18;
+// Detent bumps: on the sleeve (mid-way down it) and on the blade's base (4 mm above the cap); length along the wall.
+SLEEVE_DETENT_Z = 2.5; BLADE_DETENT_Z = 4; DETENT_L = 16;
 
-// Sieve zone on the back wall. Flat between the corner radii; the cheek curve cuts into the wall above SIEVE_TOP.
-SIEVE_Y = BLADE_L / 2 - CORNER;
-SIEVE_BOTTOM = FLANGE_Z + FLANGE_H;
-SIEVE_TOP = 128;
+function grow(p, d) = [p[0] + 2 * d, p[1] + 2 * d, p[2] + d];
+module rr2d(p) { offset(r = p[2], $fn = 64) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
+module slab(p, z, h) { translate([0, 0, z]) linear_extrude(h) rr2d(p); }
 
-module rr2d(w, l, r) { offset(r = r) square([w - 2 * r, l - 2 * r], center = true); }
-module rr(w, l, r, h, z = 0) { translate([0, 0, z]) linear_extrude(h) rr2d(w, l, r); }
-module ring(w, l, r, t, h, z = 0) {
-  difference() { rr(w, l, r, h, z); rr(w - 2 * t, l - 2 * t, r - t, h + 2, z - 1); }
+CAP_TOP = RIM_H + CAP_T;
+SKIRT_IN = grow(LIP, BAG_GAP);
+CAP_OUT = grow(SKIRT_IN, SKIRT_T);         // 88.9 x 121.2: the skirt's and the handle's ring's outer face
+SLEEVE_OUT = grow(MOUTH, -CLEARANCE);
+SLEEVE_IN = grow(MOUTH, -SLEEVE_IN_OFFSET);
+OUT = grow(CAP_OUT, -RING_T);              // the blade's outer face: 81.7 x 114
+OUT_IN = grow(OUT, -WALL);                 // the blade's inner face
+// The funnel falls at 45 degrees from the blade's inner face to the sleeve's inner face, 1 mm above the lip's top at its foot.
+FUNNEL_BOTTOM = RIM_H + 1;
+FUNNEL_TOP = FUNNEL_BOTTOM + (OUT_IN[0] - SLEEVE_IN[0]) / 2;
+
+// The back wall: its outer and inner faces (X), and the half-width of its flat part between the corners.
+BACK_X = -OUT[0] / 2;
+BACK_IN_X = -OUT_IN[0] / 2;
+FLAT_Y = OUT[1] / 2 - OUT[2];
+// The arch over the flat part of the back wall: a circular arc from the shoulders at |y| = FLAT_Y up to the apex. Beyond the
+// shoulders it falls away, under the side walls' limit.
+ARCH_R = (FLAT_Y * FLAT_Y + (HEIGHT - SHOULDER_Z) * (HEIGHT - SHOULDER_Z)) / (2 * (HEIGHT - SHOULDER_Z));
+function arch(y) = abs(y) <= FLAT_Y ? HEIGHT - ARCH_R + sqrt(ARCH_R * ARCH_R - y * y) : SHOULDER_Z - (abs(y) - FLAT_Y);
+
+// ---- The cap: skirt, ceiling, sleeve and funnel. ----
+module cap() {
+  difference() {
+    union() { slab(CAP_OUT, 0, CAP_TOP); slab(OUT, 0, FUNNEL_TOP); }
+    difference() { slab(SKIRT_IN, -1, RIM_H + 1); slab(SLEEVE_OUT, -2, RIM_H + 3); }
+    slab(SLEEVE_IN, -1, FUNNEL_TOP + 2);
+    hull() { slab(SLEEVE_IN, FUNNEL_BOTTOM, E); slab(OUT_IN, FUNNEL_TOP, E); }
+    slab(OUT_IN, FUNNEL_TOP, 1);
+  }
 }
 
-function bezier(p, t) = let(u = 1 - t) u * u * u * p[0] + 3 * u * u * t * p[1] + 3 * u * t * t * p[2] + t * t * t * p[3];
-
-// XZ region kept by the side profile, extruded across the whole blade (Y).
-module cheek_limit() {
-  outline = concat([[-44, -1], [44, -1], [44, 36]], [for (i = [0 : 48]) bezier(CHEEK, i / 48)], [[-44, HEIGHT]]);
-  translate([0, 70, 0]) rotate([90, 0, 0]) linear_extrude(140) polygon(outline);
+// ---- The blade: its outer wall above the cap, trimmed by the side walls' line and the back wall's arch. ----
+// XZ region kept by the side walls: flat at the shoulders over the back corners, a straight line down to the front, flat again
+// over the front corners.
+module side_limit() {
+  x0 = BACK_X + OUT[2]; x1 = -x0;
+  outline = [[-60, -1], [60, -1], [60, FRONT_Z], [x1, FRONT_Z], [x0, SHOULDER_Z], [-60, SHOULDER_Z]];
+  translate([0, 80, 0]) rotate([90, 0, 0]) linear_extrude(160) polygon(outline);
 }
 
-// YZ region under the arched top, extruded along X.
+// YZ region under the arch, only over the back wall (to just inside its inner face).
 module arch_limit() {
-  outline = concat([[BLADE_L / 2, -1]], [for (i = [0 : 64]) let(a = 180 * i / 64) [BLADE_L / 2 * cos(a), ARCH_Z + ARCH_H * sin(a)]], [[-BLADE_L / 2, -1]]);
-  translate([-50, 0, 0]) rotate([90, 0, 90]) linear_extrude(150) polygon(outline);
+  outline = concat([[OUT[1] / 2 + 1, -1]], [for (i = [0 : 96]) let(y = (OUT[1] / 2 + 1) * (1 - i / 48)) [y, arch(y)]], [[-(OUT[1] / 2 + 1), -1]]);
+  translate([-60, 0, 0]) rotate([90, 0, 90]) linear_extrude(60 + BACK_IN_X + 0.5) polygon(outline);
+}
+
+module blade() {
+  intersection() {
+    difference() { slab(OUT, CAP_TOP - 1, HEIGHT - CAP_TOP + 1); slab(OUT_IN, CAP_TOP - 2, HEIGHT); }
+    union() { side_limit(); arch_limit(); }
+  }
 }
 
 // ---- Sieve layout. Every gap is [y, z] (its centre on the back wall). ----
+SIEVE_Y = FLAT_Y;
+SIEVE_BOTTOM = CAP_TOP + ROOT_BAND;
 IS_SLOT = SIEVE_PATTERN == "slots" || SIEVE_PATTERN == "staggered";
 // Extent of one gap across (Y) and along (Z) the wall.
 GAP_Y = GAP_WIDTH;
@@ -69,13 +126,13 @@ PITCH_Y = GAP_WIDTH + GAP_SPACING;
 // Slots stack at their length plus a bar; round holes and hexagons are close-packed (rows 60 degrees apart).
 PITCH_Z = IS_SLOT ? GAP_LENGTH + GAP_SPACING : PITCH_Y * sqrt(3) / 2;
 OFFSET_ROWS = SIEVE_PATTERN != "slots";
-ROWS = floor((SIEVE_TOP - SIEVE_BOTTOM) / PITCH_Z) + 1;
+ROWS = floor((HEIGHT - SIEVE_BOTTOM) / PITCH_Z) + 1;
 COLUMNS = ceil(SIEVE_Y / PITCH_Y) + 1;
 
-function inside_arch(y, z) = let(a = BLADE_L / 2 - SIEVE_MARGIN, b = ARCH_H - SIEVE_MARGIN)
-  z <= ARCH_Z || pow(y / a, 2) + pow((z - ARCH_Z) / b, 2) <= 1;
+// A gap fits when its outer edge keeps the margin to the corners, its bottom to the root band, and its top outer corner to
+// the arch (which falls away from the middle, so the outer corner is the closest).
 function fits(y, z) = let(y1 = abs(y) + GAP_Y / 2, z0 = z - GAP_Z / 2, z1 = z + GAP_Z / 2)
-  y1 <= SIEVE_Y - SIEVE_MARGIN + 1e-6 && z0 >= SIEVE_BOTTOM + SIEVE_MARGIN - 1e-6 && z1 <= SIEVE_TOP - SIEVE_MARGIN + 1e-6 && inside_arch(y1, z1);
+  y1 <= SIEVE_Y - SIEVE_MARGIN + 1e-6 && z0 >= SIEVE_BOTTOM + SIEVE_MARGIN - 1e-6 && z1 <= arch(y1) - SIEVE_MARGIN + 1e-6;
 
 GAPS = [for (row = [0 : ROWS - 1], column = [-COLUMNS : COLUMNS])
           let(y = (column + (OFFSET_ROWS && row % 2 == 1 ? 0.5 : 0)) * PITCH_Y,
@@ -86,31 +143,39 @@ echo(SIEVE_GAPS = len(GAPS));
 // One gap, cut along X through the back wall.
 module gap() {
   rotate([0, 90, 0]) {
-    if (IS_SLOT) hull() for (dz = [-1, 1]) translate([dz * (GAP_LENGTH - GAP_WIDTH) / 2, 0, 0]) cylinder(d = GAP_WIDTH, h = 14);
-    else if (SIEVE_PATTERN == "hex") cylinder(d = GAP_WIDTH * 2 / sqrt(3), h = 14, $fn = 6);
-    else cylinder(d = GAP_WIDTH, h = 14);
+    if (IS_SLOT) hull() for (dz = [-1, 1]) translate([dz * (GAP_LENGTH - GAP_WIDTH) / 2, 0, 0]) cylinder(d = GAP_WIDTH, h = 8);
+    else if (SIEVE_PATTERN == "hex") cylinder(d = GAP_WIDTH * 2 / sqrt(3), h = 8, $fn = 6);
+    else cylinder(d = GAP_WIDTH, h = 8);
   }
 }
 
-module sieve() { for (g = GAPS) translate([-48, g[0], g[1]]) gap(); }
+module sieve() { for (g = GAPS) translate([BACK_X - 2, g[0], g[1]]) gap(); }
 
-// Rear notch: clears the container's snap support in the collar.
-module rear_relief() { translate([34, -13.5, -0.1]) cube([50, 27, 32.2]); }
+// ---- Detent bumps. ----
+// Places children on the middle of each straight side of plan `p`, in the wall's frame (X along the wall, Y outward).
+module on_sides(p) {
+  for (s = [-1, 1]) {
+    translate([s * p[0] / 2, 0, 0]) rotate([0, 0, -s * 90]) children();
+    translate([0, s * p[1] / 2, 0]) rotate([0, 0, s > 0 ? 0 : 180]) children();
+  }
+}
+
+// A detent ridge on a wall face, in the wall's frame, standing `p` proud (towards +Y): 45 degree flanks and ends. Its flanks
+// carry on 0.3 mm into the wall, so that no edge of it lies in the wall's face.
+module ridge(l, p) {
+  d = 0.3;
+  hull() {
+    translate([-(l / 2 + d), -d - E, -(p + d)]) cube([l + 2 * d, E, 2 * (p + d)]);
+    translate([-(l / 2 - p), p - E, -E / 2]) cube([l - 2 * p, E, E]);
+  }
+}
 
 difference() {
   union() {
-    difference() {
-      intersection() {
-        ring(BLADE_W, BLADE_L, CORNER, WALL, HEIGHT);
-        cheek_limit();
-        arch_limit();
-      }
-      sieve();
-    }
-    // Inside ledge that rests on the container's rim.
-    difference() { rr(BLADE_W - E, BLADE_L - E, CORNER, 2, SEAT_Z); rr(70.9, 103.2, 12.2, 4, SEAT_Z - 1); }
-    // Outside flange, captured from above by the handle's shoulder.
-    ring(87.4, 119.7, 14.65, 5.85, FLANGE_H, FLANGE_Z);
+    cap();
+    blade();
+    if (SCOOP_SNAP == "detent") translate([0, 0, SLEEVE_DETENT_Z]) on_sides(SLEEVE_OUT) ridge(DETENT_L, CLEARANCE + SCOOP_DETENT_ENGAGE);
+    if (HANDLE_SNAP == "detent") translate([0, 0, CAP_TOP + BLADE_DETENT_Z]) on_sides(OUT) ridge(DETENT_L, CLEARANCE + HANDLE_DETENT_ENGAGE);
   }
-  rear_relief();
+  sieve();
 }

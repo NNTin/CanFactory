@@ -132,16 +132,18 @@ describe('model and render API', () => {
     }
   });
 
-  it('serves the litter shovel as a three-part ZIP model and validates the sieve', async () => {
+  it('serves the litter shovel as a three-part ZIP model and validates the sieve and the snaps', async () => {
     const detail = await app.inject('/api/v1/models/litter-shovel');
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.artifactFormat).toBe('zip');
     expect(model.defaults).toEqual(litterShovel.defaults);
-    expect(model.parts?.map(part => part.id)).toEqual(['container', 'scoop', 'handle']);
+    expect(model.parts?.map(part => part.id)).toEqual(['container', 'handle', 'scoop']);
     expect(model.controls.find(control => control.key === 'sievePattern')?.options?.map(option => option.value)).toEqual(['slots', 'staggered', 'round', 'hex']);
     const render = (parameters: Record<string, unknown>) => app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: litterShovel.id, modelVersion: litterShovel.version, parameters: { ...litterShovel.defaults, ...parameters } } });
     for (const sievePattern of ['slots', 'staggered', 'round', 'hex']) expect((await render({ sievePattern })).statusCode, sievePattern).toBeLessThan(300);
+    for (const handleSnap of ['friction', 'detent']) expect((await render({ handleSnap, scoopSnap: handleSnap })).statusCode, handleSnap).toBeLessThan(300);
     expect((await render({ sievePattern: 'diamond' })).statusCode).toBeGreaterThanOrEqual(400);
+    expect((await render({ scoopSnap: 'clip' })).statusCode).toBeGreaterThanOrEqual(400);
     const short = await render({ gapWidth: 10, gapLength: 8 });
     expect(short.statusCode).toBeGreaterThanOrEqual(400);
     expect(short.json<{ issues: { field: string }[] }>().issues[0]?.field).toBe('gapLength');

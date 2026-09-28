@@ -1,101 +1,93 @@
 // Litter shovel, part 3 of 3: the handle. An original CanFactory design, published under CC BY 4.0.
 //
-// An outer collar that slides down over the scoop's flange: its lower opening clears the flange by 0.6 mm per side,
-// and its top shoulder, whose opening clears the blade by 1 mm per side, stops on the flange. Two spring fingers,
-// rooted at the collar's lower edge in side windows, hook under the flange (0.3 mm axial play). At the rear (+X) a
-// boss carries four blind sockets that clip onto the container's split pegs, and an oval grip hangs down beside the
-// container (docs/litter-shovel.md). Nothing here is a parameter: every surface is fitted to the scoop and the
-// container. The handle is modelled upright, as it is used, and lifted so that the grip's tip is at Z = 0; the
-// collar's lower edge is at Z = DROP.
+// The top of the stack container, scoop, handle: a closed ring that comes down around the base of the scoop's blade and sits
+// flat on the scoop's cap, flush with its skirt, and a pan-style grip: a closed loop pointing straight out at the front (+X).
+// Just under the grip's root lies the container's finger lever, as wide as the grip, so the two make one grip. The index finger
+// pulls the lever up and the palm presses the grip down, which pinches the scoop's cap between the ring and the container's lip
+// and clamps the three parts together (docs/litter-shovel.md).
+//
+// Modelled as it prints: flat underside down at Z = 0, which sits on the scoop's cap (Z = 144.5 in the container's frame). The
+// ring and the grip both stand on that face, so nothing needs support, and the grip's layers run along it. In `detent` mode
+// grooves in the ring take the bumps on the blade's base.
+
+// How the ring holds on the blade's base: a close fit only, or a detent (bumps on the blade, grooves in the ring)
+HANDLE_SNAP = "detent"; //[friction,detent]
+// Gap per side between mating surfaces, in mm
+CLEARANCE = 0.2; //[0.1:0.01:0.6]
+// How far the blade's bumps reach past the ring's wall, in mm, on top of the clearance
+HANDLE_DETENT_ENGAGE = 0.15; //[0.02:0.01:0.4]
 
 $fa = 4; $fs = 0.5;
 E = 0.01;
 
-// Grip sections [z, width (X), length (Y), centre X], tip to root; the tip is capped by a half ellipsoid.
-GRIP = [[-41, 10.2, 16.5, 88], [17, 13.7, 23.5, 84], [23, 20, 29, 78]];
-TIP_DEPTH = 8.6;
-// The grip's tip (the lowest ring of its 64-segment ellipsoid) lies this far below the collar's lower edge, about 49.6.
-DROP = -GRIP[0][0] + TIP_DEPTH * cos(180 / 64);
-// Collar (outer plan, corner radius, wall, height) and shoulder opening.
-COLLAR_W = 93.4; COLLAR_L = 125.7; COLLAR_R = 17.65; COLLAR_T = 2.4; COLLAR_H = 18;
-SHOULDER_W = 84.1; SHOULDER_L = 116.4; SHOULDER_R = 13; SHOULDER_H = 2;
-// Socket boss: centre X, plan and height; the socket grid pitch.
-PAD_X = 61.2; BOSS_W = 30; BOSS_L = 34; SOCKET_DEPTH = 4.7; BOSS_H = SOCKET_DEPTH + 2; BOSS_FILLET = 1.1;
-PITCH_X = 12.8; PITCH_Y = 14.4;
-// Socket: throat, and the wider recess the peg heads snap into.
-SOCKET_D = 4.8; SOCKET_RETENTION_D = 5.1;
+// The scoop's cap (its skirt's outer face, which the ring is flush with) and its blade's outer face (scoop.scad), as outer plans
+// [width (X), length (Y), corner radius].
+CAP_OUT = [88.9, 121.2, 21.2];
+BLADE = [81.7, 114, 17.6];
+// Ring height.
+RING_H = 15;
+// Grip: a closed loop from the ring out to GRIP_X, GRIP_W wide (Y) and GRIP_H high, with fully rounded ends; the finger slot in
+// it runs from SLOT_X0 (past the container's finger lever, under the solid root) to SLOT_X1 and is SLOT_W wide.
+GRIP_X = 154.45; GRIP_W = 34; GRIP_H = 20;
+SLOT_X0 = 74; SLOT_X1 = 140; SLOT_W = 12;
+// Top edges of the ring and the grip are eased by a 2 mm, 45 degree chamfer, in steps of CHAMFER_STEP.
+CHAMFER = 2; CHAMFER_STEP = 0.25;
+// Detent grooves: 4 mm up the ring, facing the blade's bumps; their length along the wall.
+DETENT_Z = 4; DETENT_L = 16;
 
-module rr2d(w, l, r) { offset(r = r) square([w - 2 * r, l - 2 * r], center = true); }
-module rr(w, l, r, h, z = 0, x = 0) { translate([x, 0, z]) linear_extrude(h) rr2d(w, l, r); }
-module ring(w, l, r, t, h, z = 0) {
-  difference() { rr(w, l, r, h, z); rr(w - 2 * t, l - 2 * t, r - t, h + 2, z - 1); }
-}
-module box(w, l, h, x = 0, y = 0, z = 0) { translate([x - w / 2, y - l / 2, z]) cube([w, l, h]); }
+function grow(p, d) = [p[0] + 2 * d, p[1] + 2 * d, p[2] + d];
+module rr2d(p) { offset(r = p[2], $fn = 64) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
 
-module collar() {
+RING_IN = grow(BLADE, CLEARANCE);
+
+// The handle's plan: the ring, and the grip from inside the ring out to its rounded end, less the finger slot and the blade.
+module plan() {
   difference() {
-    ring(COLLAR_W, COLLAR_L, COLLAR_R, COLLAR_T, COLLAR_H);
-    box(50, 27, COLLAR_H + 0.1, x = 68.8, z = -0.1);                  // rear notch around the container's support
-    for (y = [-61.5, 61.5]) box(14, 6, 16, y = y, z = 2);             // windows for the spring fingers
-  }
-  difference() {
-    rr(COLLAR_W, COLLAR_L, COLLAR_R, SHOULDER_H, COLLAR_H);
-    rr(SHOULDER_W, SHOULDER_L, SHOULDER_R, SHOULDER_H + 2, COLLAR_H - 1);
-  }
-}
-
-// The socket boss, its top edges eased by a 45 degree chamfer.
-module boss() {
-  hull() {
-    rr(BOSS_W, BOSS_L, 4, BOSS_H - BOSS_FILLET, COLLAR_H, PAD_X);
-    rr(BOSS_W - 2 * BOSS_FILLET, BOSS_L - 2 * BOSS_FILLET, 4 - BOSS_FILLET, BOSS_H, COLLAR_H, PAD_X);
-  }
-}
-
-module grip() {
-  for (i = [0 : len(GRIP) - 2]) {
-    a = GRIP[i]; b = GRIP[i + 1];
-    hull() {
-      translate([a[3], 0, a[0]]) linear_extrude(E) scale([a[1] / 2, a[2] / 2]) circle(r = 1, $fn = 64);
-      translate([b[3], 0, b[0] - E]) linear_extrude(E) scale([b[1] / 2, b[2] / 2]) circle(r = 1, $fn = 64);
+    union() {
+      rr2d(CAP_OUT);
+      translate([0, -GRIP_W / 2]) offset(r = GRIP_W / 2 - E) offset(delta = -(GRIP_W / 2 - E)) square([GRIP_X, GRIP_W]);
     }
-  }
-  tip = GRIP[0];
-  translate([tip[3], 0, tip[0]]) intersection() {
-    scale([tip[1] / 2, tip[2] / 2, TIP_DEPTH]) sphere(r = 1, $fn = 64);
-    translate([-tip[1], -tip[2], -TIP_DEPTH - 1]) cube([2 * tip[1], 2 * tip[2], TIP_DEPTH + 1 + E]);
+    translate([SLOT_X0, -SLOT_W / 2]) offset(r = SLOT_W / 2 - E) offset(delta = -(SLOT_W / 2 - E)) square([SLOT_X1 - SLOT_X0, SLOT_W]);
+    rr2d(RING_IN);
   }
 }
 
-// A blind socket opening on the boss's underside at (x, y): a lead-in, the throat and the retention recess. The cones run
-// 0.01 mm into the throat and the recess starts inside the cone, so no two cutters meet on a shared edge.
-module socket(x, y) {
-  r = SOCKET_D / 2; c = SOCKET_RETENTION_D / 2;
-  lead = 0.6 / 0.25;       // lead-in: 0.25 mm wider over 0.6 mm
-  flare = 0.4 / (c - r);   // retention cone: from the throat to the recess over 0.4 mm
-  translate([x, y, COLLAR_H]) {
-    translate([0, 0, -0.1]) cylinder(r = r, h = SOCKET_DEPTH + 0.1);
-    translate([0, 0, -E]) cylinder(r1 = r + 0.25, r2 = r - 0.01, h = 0.6 + 0.01 * lead + E);
-    translate([0, 0, 2.8 - 0.01 * flare]) cylinder(r1 = r - 0.01, r2 = c, h = 0.4 + 0.01 * flare);
-    translate([0, 0, 3.2 - 0.05]) cylinder(r = c, h = SOCKET_DEPTH - 3.2 + 0.05);
+// The grip's part of the plan (outside the ring).
+module grip_plan() { difference() { plan(); rr2d(CAP_OUT); } }
+
+// A prism of plan `h` high whose top edges are eased by the chamfer, in steps.
+module chamfered(h) {
+  steps = round(CHAMFER / CHAMFER_STEP);
+  linear_extrude(h - CHAMFER) children();
+  for (i = [1 : steps]) translate([0, 0, h - CHAMFER + (i - 1) * CHAMFER_STEP])
+    linear_extrude(CHAMFER_STEP) offset(delta = -i * CHAMFER_STEP) children();
+}
+
+// Places children on the middle of each straight side of plan `p`, in the wall's frame (X along the wall, Y outward).
+module on_sides(p) {
+  for (s = [-1, 1]) {
+    translate([s * p[0] / 2, 0, 0]) rotate([0, 0, -s * 90]) children();
+    translate([0, s * p[1] / 2, 0]) rotate([0, 0, s > 0 ? 0 : 180]) children();
   }
 }
 
-// The two spring fingers: a 1.2 mm stem rooted below each window, with an inward hook under the scoop's flange. The stem's
-// inner face stands 0.05 mm proud of the collar's (60.45), so the two never share a face; the flange still clears it by 0.55 mm.
-module spring_catches() {
-  for (sign = [-1, 1]) {
-    box(10, 1.25, 14.15, y = sign * 61.025, z = 1.5);
-    // The hook's outer face and ends stay 0.05 mm inside the stem's; the stem stops 0.05 mm under the hook's top.
-    hook = [[60.45, 11.7], [61.6, 11.7], [61.6, 15.7], [59.25, 15.7], [59.25, 15.0], [60.45, 12.3]];
-    translate([-4.95, 0, 0]) rotate([90, 0, 90]) linear_extrude(9.9) polygon([for (p = hook) [sign * p[0], p[1]]]);
+// The groove a bump of engagement `g` clicks into, in the mating wall's frame (the wall's face at Y = 0, the groove going
+// towards +Y, into the wall): `g` + clearance deep, clearing the bump by the clearance on every side. Its flanks start 0.3 mm
+// in front of the face, so that no edge of it lies in the face.
+module groove(l, g) {
+  c = CLEARANCE; d = g + c; w = g + c * sqrt(2); o = 0.3;
+  hull() {
+    translate([-(l / 2 + 2 * c + o), -o, -(w + o)]) cube([l + 4 * c + 2 * o, E, 2 * (w + o)]);
+    translate([-(l / 2 + 2 * c - d), d - E, -(w - d)]) cube([l + 4 * c - 2 * d, E, 2 * (w - d)]);
   }
 }
 
-translate([0, 0, DROP]) union() {
-  difference() {
-    union() { collar(); boss(); grip(); }
-    for (dx = [-PITCH_X / 2, PITCH_X / 2], dy = [-PITCH_Y / 2, PITCH_Y / 2]) socket(PAD_X + dx, dy);
+difference() {
+  union() {
+    chamfered(RING_H) difference() { rr2d(CAP_OUT); rr2d(RING_IN); }
+    chamfered(GRIP_H) grip_plan();
+    // where the grip meets the ring, the ring's own chamfer is filled up to the grip's height
+    linear_extrude(RING_H) intersection() { plan(); translate([0, -GRIP_W / 2]) square([GRIP_X, GRIP_W]); }
   }
-  spring_catches();
+  if (HANDLE_SNAP == "detent") translate([0, 0, DETENT_Z]) on_sides(RING_IN) groove(DETENT_L, HANDLE_DETENT_ENGAGE);
 }

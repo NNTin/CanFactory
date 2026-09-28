@@ -942,55 +942,93 @@ export const plankConnector = {
 } satisfies ModelDefinition;
 
 /**
- * Litter shovel: an original design in three parts (models/litter-shovel/, docs/litter-shovel.md). A container that a liner bag
- * fits into, a sifting scoop that sits on its rim and a handle collar that captures the scoop's flange and clips onto four split
- * pegs at the container's rear. The fits are fixed; the parameters only shape the sieve in the scoop's back wall.
+ * Litter shovel: an original design in three parts (models/litter-shovel/, docs/litter-shovel.md), all closed rings, stacked
+ * container, scoop, handle. The container's flat lip carries the scoop's U-shaped cap (the bag folded over the lip is pinched
+ * between them); the cap's flat top carries the handle's ring, flush with it; the handle's pan-style grip points out at the front,
+ * with the container's finger lever just under its root. Pulling the lever up against the grip pinches the cap between the lip and
+ * the ring and clamps the three parts. Two joints hold by a close fit or a detent (`scoopSnap`: the scoop's sleeve in the
+ * container's mouth; `handleSnap`: the handle's ring on the blade's base), sized from one `clearance`. The other parameters shape
+ * the sieve in the scoop's back wall.
  */
 const SIEVE_PATTERN_VALUES = ['slots', 'staggered', 'round', 'hex'] as const;
 export type SievePattern = typeof SIEVE_PATTERN_VALUES[number];
 const SIEVE_PATTERN_TEXT: Record<SievePattern, { label: string; description: string }> = {
-  slots: { label: 'Vertical slots', description: 'Rounded slots on a straight grid, like the original scoop. Long slots sift fastest.' },
+  slots: { label: 'Vertical slots', description: 'Rounded slots on a straight grid. Long slots sift fastest.' },
   staggered: { label: 'Staggered slots', description: 'Rounded slots with every other row shifted by half a pitch, like brickwork: a stiffer wall for the same open area.' },
   round: { label: 'Round holes', description: 'Circular holes, close-packed in offset rows. Holds finer clumps back.' },
   hex: { label: 'Hexagons', description: 'A honeycomb of hexagonal holes: the most open area for a given bar width.' },
 };
 const SLOT_PATTERNS: SievePattern[] = ['slots', 'staggered'];
 
+/** Both joints of the litter shovel hold by a close fit alone or by a detent. */
+const SHOVEL_SNAP_VALUES = ['friction', 'detent'] as const;
+export type ShovelSnapMode = typeof SHOVEL_SNAP_VALUES[number];
+const SCOOP_SNAP_TEXT: Record<ShovelSnapMode, { label: string; description: string }> = {
+  friction: { label: 'Friction fit', description: 'Only a close fit (and the bag in between) holds the scoop’s sleeve in the container’s mouth. Squeeze the finger lever when you lift the shovel.' },
+  detent: { label: 'Detent', description: 'Four bumps on the scoop’s sleeve click into grooves just inside the container’s mouth, through the bag, so the container stays on even when you do not squeeze the lever.' },
+};
+const HANDLE_SNAP_TEXT: Record<ShovelSnapMode, { label: string; description: string }> = {
+  friction: { label: 'Friction fit', description: 'Only a close fit holds the handle’s ring on the base of the scoop’s blade.' },
+  detent: { label: 'Detent', description: 'Four bumps on the base of the scoop’s blade click into grooves in the handle’s ring, so the handle stays on while you sift.' },
+};
+/** The clearance range in which each mode works as designed: a friction fit must be snug to hold, a detent needs the walls to clear. */
+export const SHOVEL_SNAP_CLEARANCE: Record<ShovelSnapMode, { minimum: number; maximum: number }> = {
+  friction: { minimum: 0.1, maximum: 0.25 },
+  detent: { minimum: 0.2, maximum: 0.4 },
+};
+/** Each joint's detent engagement: how far its bumps reach past the mating wall, on top of the clearance (the SCAD variable, its
+ * default and the recommended range). */
+export const SHOVEL_SNAP_TUNING = {
+  scoopDetentEngage: { joint: 'scoopSnap', variable: 'SCOOP_DETENT_ENGAGE', default: 0.15, recommended: { minimum: 0.1, maximum: 0.25 } },
+  handleDetentEngage: { joint: 'handleSnap', variable: 'HANDLE_DETENT_ENGAGE', default: 0.15, recommended: { minimum: 0.1, maximum: 0.25 } },
+} as const;
+
 export const LitterShovelParametersSchema = Type.Object({
   sievePattern: Type.Enum(SIEVE_PATTERN_VALUES, { title: 'Sieve texture', description: 'The shape and arrangement of the gaps in the scoop’s back wall.', default: 'slots' }),
   gapWidth: dimension('Gap width', 'Width of each gap in mm: the slot width, the hole diameter or the hexagon’s size across flats. Litter finer than this falls through.', 7.2, 3, 15),
   gapLength: dimension('Slot length', 'Length of each slot along the wall, in mm (slot textures only). At least the gap width.', 25, 6, 40, 0.5),
-  gapSpacing: dimension('Bar width', 'Solid wall between neighbouring gaps, in mm. Wider bars make a stiffer sieve with less open area.', 5.6, 2, 15),
-  sieveMargin: dimension('Sieve margin', 'Solid border kept between the gaps and the wall’s edges (flange, corners and arched top), in mm.', 3.2, 2, 10),
+  gapSpacing: dimension('Bar width', 'Solid wall between neighbouring gaps, in mm. Wider bars make a stiffer sieve with less open area.', 5.6, 3, 15),
+  sieveMargin: dimension('Sieve margin', 'Solid border kept between the gaps and the wall’s edges (the solid band above the cap, the corners and the arch), in mm.', 3.2, 3, 10),
+  scoopSnap: Type.Enum(SHOVEL_SNAP_VALUES, { title: 'Scoop on the container', description: 'How the scoop’s sleeve holds in the container’s mouth: a close fit only, or a detent.', default: 'detent' }),
+  handleSnap: Type.Enum(SHOVEL_SNAP_VALUES, { title: 'Handle on the scoop', description: 'How the handle’s ring holds on the base of the scoop’s blade: a close fit only, or a detent.', default: 'detent' }),
+  clearance: dimension('Clearance', 'Gap per side between parts that fit together (the scoop’s sleeve in the container’s mouth, the handle’s ring on the scoop’s blade), in mm. Larger is looser; raise it if your printer prints parts that are too tight.',
+    CLEARANCE_RANGE.default, CLEARANCE_RANGE.minimum, CLEARANCE_RANGE.maximum, CLEARANCE_RANGE.step),
+  scoopDetentEngage: dimension('Detent engagement (scoop on the container)', 'How far the bumps on the scoop’s sleeve reach past the container’s mouth, in mm, on top of the clearance. More clicks harder.',
+    SHOVEL_SNAP_TUNING.scoopDetentEngage.default, SNAP_TUNING_RANGE.minimum, SNAP_TUNING_RANGE.maximum, SNAP_TUNING_RANGE.step),
+  handleDetentEngage: dimension('Detent engagement (handle on the scoop)', 'How far the bumps on the scoop’s blade reach past the handle’s ring, in mm, on top of the clearance. More clicks harder.',
+    SHOVEL_SNAP_TUNING.handleDetentEngage.default, SNAP_TUNING_RANGE.minimum, SNAP_TUNING_RANGE.maximum, SNAP_TUNING_RANGE.step),
 }, { additionalProperties: false, description: 'Litter shovel parameters. All fields are required; dimensions are in millimetres.' });
 export type LitterShovelParameters = Static<typeof LitterShovelParametersSchema>;
 
 /**
- * The scoop's back-wall sieve zone, in the scoop's frame (mm). Mirrors the constants of models/litter-shovel/scoop.scad: the flat
- * part of the wall between the corner radii, from the flange's top up to where the cheek curve starts to thin the wall, under an
- * elliptical arch.
+ * The scoop's back-wall sieve zone, in the scoop's frame (mm). Mirrors models/litter-shovel/scoop.scad: the flat part of the wall
+ * between the corners (`FLAT_Y`), from a solid root band above the cap's top (`CAP_TOP` + `ROOT_BAND`, which the handle's ring
+ * covers) up to the arch, a circular arc from the shoulders (`SHOULDER_Z`) at the flat part's edges to the apex (`HEIGHT`).
  */
-const SIEVE_ZONE = { halfWidth: 114.4 / 2 - 12, bottom: 32, top: 128, archZ: 103, archHalfWidth: 114.4 / 2, archHeight: 38.8 };
-/** Most gaps one sieve may have; more makes the scoop slow to render and a bar-thin, fragile wall. */
+export const SIEVE_ZONE = { halfWidth: 39.4, bottom: 26, shoulder: 101, apex: 127 } as const;
+/** Most gaps one sieve may have; more makes the scoop slow to render. */
 export const MAX_SIEVE_GAPS = 400;
 
+/** The height of the scoop's arched top at `y` over the flat part of the back wall (scoop.scad's `arch`). */
+export function sieveArch(y: number): number {
+  const { halfWidth, shoulder, apex } = SIEVE_ZONE;
+  const rise = apex - shoulder, radius = (halfWidth ** 2 + rise ** 2) / (2 * rise);
+  return Math.abs(y) <= halfWidth ? apex - radius + Math.sqrt(radius ** 2 - y * y) : shoulder - (Math.abs(y) - halfWidth);
+}
+
 /** The centres [y, z] of the sieve's gaps, exactly as scoop.scad lays them out (its `GAPS`). */
-export function sieveGaps(p: LitterShovelParameters): [number, number][] {
+export function sieveGaps(p: Pick<LitterShovelParameters, 'sievePattern' | 'gapWidth' | 'gapLength' | 'gapSpacing' | 'sieveMargin'>): [number, number][] {
   const slot = SLOT_PATTERNS.includes(p.sievePattern);
   const gapZ = slot ? p.gapLength : p.sievePattern === 'hex' ? p.gapWidth * 2 / Math.sqrt(3) : p.gapWidth;
   const pitchY = p.gapWidth + p.gapSpacing;
   const pitchZ = slot ? p.gapLength + p.gapSpacing : pitchY * Math.sqrt(3) / 2;
   const offsetRows = p.sievePattern !== 'slots';
   const zone = SIEVE_ZONE, margin = p.sieveMargin;
-  const rows = Math.floor((zone.top - zone.bottom) / pitchZ) + 1;
+  const rows = Math.floor((zone.apex - zone.bottom) / pitchZ) + 1;
   const columns = Math.ceil(zone.halfWidth / pitchY) + 1;
-  const insideArch = (y: number, z: number) => {
-    const a = zone.archHalfWidth - margin, b = zone.archHeight - margin;
-    return z <= zone.archZ || (y / a) ** 2 + ((z - zone.archZ) / b) ** 2 <= 1;
-  };
   const fits = (y: number, z: number) => {
     const y1 = Math.abs(y) + p.gapWidth / 2, z0 = z - gapZ / 2, z1 = z + gapZ / 2;
-    return y1 <= zone.halfWidth - margin + 1e-6 && z0 >= zone.bottom + margin - 1e-6 && z1 <= zone.top - margin + 1e-6 && insideArch(y1, z1);
+    return y1 <= zone.halfWidth - margin + 1e-6 && z0 >= zone.bottom + margin - 1e-6 && z1 <= sieveArch(y1) - margin + 1e-6;
   };
   const gaps: [number, number][] = [];
   for (let row = 0; row < rows; row++) for (let column = -columns; column <= columns; column++) {
@@ -1019,43 +1057,54 @@ const litterShovelControls = [
   control(LitterShovelParametersSchema, 'gapWidth', 'basic'),
   { ...control(LitterShovelParametersSchema, 'gapLength', 'basic'), visibleWhen: { control: 'sievePattern', values: [...SLOT_PATTERNS] } },
   control(LitterShovelParametersSchema, 'gapSpacing', 'basic'),
+  enumControl(LitterShovelParametersSchema, 'scoopSnap', 'basic', SHOVEL_SNAP_VALUES.map(value => ({ value, ...SCOOP_SNAP_TEXT[value] }))),
+  enumControl(LitterShovelParametersSchema, 'handleSnap', 'basic', SHOVEL_SNAP_VALUES.map(value => ({ value, ...HANDLE_SNAP_TEXT[value] }))),
   control(LitterShovelParametersSchema, 'sieveMargin', 'advanced'),
+  { ...control(LitterShovelParametersSchema, 'clearance', 'advanced'), bands: FIT_BANDS,
+    recommended: (['scoopSnap', 'handleSnap'] as const).map(key => ({ control: key, ranges: SHOVEL_SNAP_VALUES.map(value => ({ value, ...SHOVEL_SNAP_CLEARANCE[value] })) })) },
+  // each joint's engagement, shown only while that joint uses a detent, with its recommended range highlighted
+  ...(Object.keys(SHOVEL_SNAP_TUNING) as (keyof typeof SHOVEL_SNAP_TUNING)[]).map(key => {
+    const tuning = SHOVEL_SNAP_TUNING[key];
+    return { ...control(LitterShovelParametersSchema, key, 'advanced'), visibleWhen: { control: tuning.joint, values: ['detent'] },
+      recommended: [{ control: tuning.joint, ranges: [{ value: 'detent', ...tuning.recommended }] }] };
+  }),
 ];
 
 const LITTER_SHOVEL_DIR = 'models/litter-shovel/';
+const SHOVEL_SCOOP_SNAP_MAPPING = { scoopSnap: 'SCOOP_SNAP', scoopDetentEngage: 'SCOOP_DETENT_ENGAGE' };
+const SHOVEL_HANDLE_SNAP_MAPPING = { handleSnap: 'HANDLE_SNAP', handleDetentEngage: 'HANDLE_DETENT_ENGAGE' };
 
-/** The parts, in assembly order. Only the scoop takes parameters: the sieve. */
+/** The parts, in stacking order. Each joint's setting reaches the two parts of that joint; the sieve reaches only the scoop. */
 const litterShovelParts: ModelPart[] = [
-  { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: {} },
+  { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: { clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING } },
   { id: 'scoop', title: 'Scoop', sourcePath: `${LITTER_SHOVEL_DIR}scoop.scad`,
-    scadMapping: { sievePattern: 'SIEVE_PATTERN', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN' } },
-  { id: 'handle', title: 'Handle', sourcePath: `${LITTER_SHOVEL_DIR}handle.scad`, scadMapping: {} },
+    scadMapping: { sievePattern: 'SIEVE_PATTERN', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING } },
+  { id: 'handle', title: 'Handle', sourcePath: `${LITTER_SHOVEL_DIR}handle.scad`, scadMapping: { clearance: 'CLEARANCE', ...SHOVEL_HANDLE_SNAP_MAPPING } },
 ];
 
 /**
- * Stored on the container, in the container's frame. The scoop's ledge rests on the container's rim (141.5 mm), which puts
- * its lower edge at 126 mm. The handle's collar starts at 140 mm, so that its shoulder stops on the scoop's flange (158 mm) and its
- * sockets meet the pegs on the pad (158 mm); handle.scad lifts the handle by its grip's depth (`DROP`, 49.5896 mm), so it is
- * placed that much lower. None of this depends on the sieve (docs/litter-shovel.md).
+ * In the container's frame. The scoop's cap sits on the container's lip (141.5 mm), with its sleeve and skirt 5 mm below it
+ * (136.5 mm); the handle's ring sits on the cap's top, 8 mm above that (144.5 mm). The scoop goes on first, then the handle comes
+ * down over the blade. None of this depends on the parameters (docs/litter-shovel.md).
  */
 const litterShovelAssembly: Assembly = {
   poses: {
     container: { position: [0, 0, 0] },
-    scoop: { position: [0, 0, 126] },
-    handle: { position: [0, 0, 140 - 49.5896] },
+    scoop: { position: [0, 0, 136.5] },
+    handle: { position: [0, 0, 144.5] },
   },
   steps: [
     { title: 'Set the scoop on the container', parts: ['scoop'], from: [0, 0, 60] },
-    { title: 'Clip the handle over the scoop', parts: ['handle'], from: [0, 0, 200] },
+    { title: 'Lower the handle over the scoop', parts: ['handle'], from: [0, 0, 200] },
   ],
   lift: 60,
 };
 
 export const litterShovel = {
   id: 'litter-shovel' as const, version: '1' as const, title: 'Litter shovel',
-  description: 'A cat-litter sifting scoop with a container for a liner bag and a handle that clips the scoop onto the container for storage. Choose the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and the bar width, then download the three parts as a ZIP of STL files.',
+  description: 'A cat-litter sifting shovel in three closed-ring parts, stacked: a container for a liner bag, a sifting scoop that caps its rim, and a handle whose ring sits on the scoop. Pull the container’s finger lever up against the handle’s grip to clamp all three together. Choose the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and bar width, and how the parts hold (a close fit or a detent), then download the three parts as a ZIP of STL files.',
   attribution: 'CanFactory (original design)',
-  printNotes: 'Print each part as generated: container and scoop upright, handle with supports under the grip.',
+  printNotes: 'Print each part as generated, without supports: the container standing on its floor, the scoop on its cap, the handle on its flat underside.',
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   parts: litterShovelParts,
   assembly: litterShovelAssembly,
