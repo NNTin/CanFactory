@@ -3,12 +3,15 @@ import { Box, Eye, EyeOff, Grid2X2, RotateCcw } from 'lucide-react';
 import { assemblyOffset, assemblyState, assemblyStops, type Assembly, type AssemblyState } from '@canfactory/contracts';
 import { unzipSync } from 'fflate';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import type { ReferenceObject } from './referenceObjects.ts';
+import { createStage } from './stage.ts';
 
-/** `reference` marks a real-world object from the assembly (e.g. a lighter), shown in its own colour: it is not printed. */
-interface Part { name: string; bytes: ArrayBuffer; reference?: boolean }
+/**
+ * One mesh to show: STL `bytes`, or a `geometry` built from a library part's dimensions (e.g. a magnet). `reference` marks a
+ * real-world object from the assembly (e.g. a lighter), shown in its own colour: it is not printed.
+ */
+type Part = { name: string; reference?: boolean } & ({ bytes: ArrayBuffer } | { geometry: THREE.BufferGeometry });
 
 interface SceneController {
   /**
@@ -85,34 +88,11 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
   useEffect(() => {
     const element = container.current;
     if (!element) return;
-    let renderer: THREE.WebGLRenderer;
-    try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
-    catch { setUnsupported(true); onErrorRef.current('3D preview requires WebGL. Enable browser hardware acceleration and reload.'); return; }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap;
-    renderer.setClearColor(0xf0f0e9, 1);
-    renderer.domElement.setAttribute('aria-label', 'Interactive STL preview. Drag to orbit, scroll to zoom, right-drag to pan.');
-    renderer.domElement.setAttribute('role', 'img');
-    element.appendChild(renderer.domElement);
-    const world = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 10000);
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true; controls.dampingFactor = 0.075;
-    controls.minDistance = 10; controls.maxDistance = 2000;
-    const ambient = new THREE.HemisphereLight(0xffffff, 0xa1a797, 2.3); world.add(ambient);
-    const light = new THREE.DirectionalLight(0xfff7ec, 3.5);
-    light.position.set(-120, 200, 100); light.castShadow = true;
-    light.shadow.mapSize.set(2048, 2048);
-    light.shadow.camera.left = -250; light.shadow.camera.right = 250;
-    light.shadow.camera.top = 250; light.shadow.camera.bottom = -250;
-    light.shadow.camera.far = 1000; light.shadow.bias = -0.0005;
-    world.add(light);
-    const fill = new THREE.DirectionalLight(0xffffff, 1.5); fill.position.set(120, 40, -100); world.add(fill);
+    const stage = createStage(element, 'Interactive STL preview. Drag to orbit, scroll to zoom, right-drag to pan.');
+    if (!stage) { setUnsupported(true); onErrorRef.current('3D preview requires WebGL. Enable browser hardware acceleration and reload.'); return; }
+    const { group } = stage;
     const material = new THREE.MeshStandardMaterial({ color: 0xc76743, metalness: 0.06, roughness: 0.58, side: THREE.DoubleSide });
     const referenceMaterial = new THREE.MeshStandardMaterial({ color: 0x3f6ea6, metalness: 0.2, roughness: 0.45, side: THREE.DoubleSide });
-    // Parts keep their SCAD frame (Z up) inside `group`, which turns it to the scene's Y up.
-    const group = new THREE.Group(); group.rotation.x = -Math.PI / 2; world.add(group);
     let placements: Placement[] = []; let currentAssembly: Assembly | undefined; let sliderValue = 0;
     let hiddenIds: ReadonlySet<string> = new Set();
     // The visible parts, also on the container (`data-visible-parts`), so the page's tests can see what the scene shows.
@@ -127,25 +107,15 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
       for (const placement of placements) placement.apply(currentAssembly, state);
     };
     let geometries: THREE.BufferGeometry[] = [];
-    const floorMaterial = new THREE.ShadowMaterial({ opacity: 0.1 });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), floorMaterial);
-    floor.rotation.x = -Math.PI / 2; floor.position.y = -0.06; floor.receiveShadow = true; world.add(floor);
-    const grid = new THREE.GridHelper(600, 60, 0xd1d4c9, 0xe1e2d9); grid.position.y = -0.1; world.add(grid);
-    let extent = 100; let height = 60; let first = true; const focus = new THREE.Vector3();
-    const reset = () => {
-      camera.position.set(focus.x + extent * 1.55, extent * 1.18, focus.z + extent * 1.85);
-      controls.target.set(focus.x, height * 0.42, focus.z); controls.update();
-    };
-    reset();
     scene.current = {
-      reset,
+      reset: stage.reset,
       wireframe(enabled) { material.wireframe = enabled; referenceMaterial.wireframe = enabled; },
       setParts(parts, assembly) {
         group.clear();
         for (const geometry of geometries) geometry.dispose();
         geometries = [];
         const prepared = parts.map(part => {
-          const geometry = new STLLoader().parse(part.bytes);
+          const geometry = 'geometry' in part ? part.geometry : new STLLoader().parse(part.bytes);
           geometry.computeVertexNormals(); geometry.computeBoundingBox();
           const bounds = geometry.boundingBox;
           if (!bounds) { geometry.dispose(); return null; }
@@ -176,41 +146,34 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         for (const t of assembly ? [0, 1 / (assemblyStops(assembly) - 1), 1] : [0]) { place(t); group.updateMatrixWorld(true); frame.union(new THREE.Box3().setFromObject(group)); }
         place(sliderValue);
         const frameSize = frame.getSize(new THREE.Vector3());
-        const oldExtent = extent; extent = Math.max(footprintX, footprintY, frameSize.x, frameSize.y, frameSize.z); height = frame.max.y;
-        if (assembly) { frame.getCenter(focus); focus.y = 0; } else focus.set(0, 0, 0);
-        if (first || extent > oldExtent * 1.5 || extent < oldExtent / 2) reset();
-        first = false;
+        const focus = new THREE.Vector3();
+        if (assembly) { frame.getCenter(focus); focus.y = 0; }
+        stage.frame(Math.max(footprintX, footprintY, frameSize.x, frameSize.y, frameSize.z), frame.max.y, focus);
         showParts();
         return prepared.map(part => ({ id: part.id, reference: part.reference }));
       },
       setProgress: place,
       setHidden(ids) { hiddenIds = ids; showParts(); },
     };
-    const resize = new ResizeObserver(() => {
-      const width = element.clientWidth; const height = element.clientHeight;
-      if (!width || !height) return;
-      renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix();
-    });
-    resize.observe(element);
-    let animation = 0;
-    const frame = () => { animation = requestAnimationFrame(frame); controls.update(); renderer.render(world, camera); };
-    frame();
     return () => {
-      scene.current = null; resize.disconnect(); cancelAnimationFrame(animation); controls.dispose();
+      scene.current = null;
       for (const geometry of geometries) geometry.dispose();
-      material.dispose(); referenceMaterial.dispose(); floor.geometry.dispose(); floorMaterial.dispose(); grid.geometry.dispose();
-      grid.material.dispose();
-      renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
+      material.dispose(); referenceMaterial.dispose(); stage.dispose();
     };
   }, []);
 
   useEffect(() => {
     if (!url) return;
     const abort = new AbortController();
-    // Reference objects are static files: one that cannot be loaded is left out rather than failing the preview.
-    const loadReferences = format === 'zip' && assemblyRef.current ? Promise.all(referencesRef.current.map(reference =>
-      fetch(reference.url, { signal: abort.signal }).then(async (response): Promise<Part[]> => response.ok ? [{ name: `${reference.id}.stl`, bytes: await response.arrayBuffer(), reference: true }] : [])
-        .catch((): Part[] => []))).then(loaded => loaded.flat()) : Promise.resolve([]);
+    // Reference objects are static files, or built from their part's dimensions: one that cannot be loaded is left out rather
+    // than failing the preview.
+    const loadReference = async (reference: ReferenceObject): Promise<Part[]> => {
+      if (!('url' in reference)) { const geometry = reference.geometry(); return geometry ? [{ name: reference.id, geometry, reference: true }] : []; }
+      const response = await fetch(reference.url, { signal: abort.signal });
+      return response.ok ? [{ name: `${reference.id}.stl`, bytes: await response.arrayBuffer(), reference: true }] : [];
+    };
+    const loadReferences = format === 'zip' && assemblyRef.current
+      ? Promise.all(referencesRef.current.map(reference => loadReference(reference).catch((): Part[] => []))).then(loaded => loaded.flat()) : Promise.resolve([]);
     void fetch(url, { signal: abort.signal }).then(async response => {
       if (!response.ok) throw new Error('The preview file is unavailable. Generate it again.');
       const bytes = await response.arrayBuffer();

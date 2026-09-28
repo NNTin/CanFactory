@@ -4,8 +4,9 @@ import swaggerUi from '@fastify/swagger-ui';
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import { Type } from 'typebox';
 import {
-  DownloadQuerySchema, ErrorSchema, IdParamsSchema, ModelDetailSchema, ModelSummarySchema,
-  RenderRequestSchema, RenderSchema, findModel, validateParameters,
+  DownloadQuerySchema, ErrorSchema, IdParamsSchema, ModelDetailSchema, ModelSummarySchema, PartDetailSchema, PartFamilyDetailSchema,
+  PartFamilySummarySchema, RenderRequestSchema, RenderSchema, findModel, findPart, findPartFamily, findPartSource, partFamilies,
+  partUsage, partsOfFamily, validateParameters, type Part, type PartSource,
 } from '@canfactory/contracts';
 import { AppError, asyncStorage, publicRender, type ArtifactFormat, type Storage, type Store } from '@canfactory/server';
 
@@ -38,7 +39,7 @@ export async function createApp(storage?: Store | Storage, logging = false) {
       openapi: '3.0.3',
       info: { title: 'CanFactory API', version: '1.0.0', description: 'Local parametric STL generation. Dimensions are millimetres. Generated jobs and files expire one hour after creation; there are no saved user designs.' },
       servers: [{ url: '/' }],
-      tags: [{ name: 'Models', description: 'Provided, versioned model catalogue.' }, { name: 'Renders', description: 'Temporary render jobs and their STL artifacts.' }],
+      tags: [{ name: 'Models', description: 'Provided, versioned model catalogue.' }, { name: 'Parts', description: 'The parts library: real-world parts that models are made to fit.' }, { name: 'Renders', description: 'Temporary render jobs and their STL artifacts.' }],
     },
   });
   await app.register(swaggerUi, { routePrefix: '/api/docs' });
@@ -82,6 +83,35 @@ export async function createApp(storage?: Store | Storage, logging = false) {
     if (!model.referenceName) throw new AppError(404, 'REFERENCE_NOT_AVAILABLE', 'This model has no downloadable reference file.');
     return reply.type('model/stl').header('Content-Disposition', `inline; filename="${model.id}-reference.stl"`)
       .send(await store().readReference(model));
+  });
+
+  // The parts library is static repository data: served straight from the contracts registry, with no storage.
+  const sourcesOf = (list: readonly Part[]): PartSource[] => [...new Set(list.flatMap(part => [...part.sources, ...Object.values(part.dimensions).map(dimension => dimension.source)]))]
+    .flatMap(id => { const source = findPartSource(id); return source ? [source] : []; });
+
+  app.get('/api/v1/part-families', {
+    schema: { operationId: 'listPartFamilies', tags: ['Parts'], summary: 'List the parts library’s families', response: { 200: Type.Array(PartFamilySummarySchema) } },
+  }, () => partFamilies.map(family => ({ ...family, count: partsOfFamily(family.id).length })));
+
+  app.get('/api/v1/part-families/:id', {
+    schema: { operationId: 'getPartFamily', tags: ['Parts'], summary: 'Get a family with all its parts and their sources', params: IdParamsSchema,
+      response: { 200: PartFamilyDetailSchema, 404: ErrorSchema } },
+  }, request => {
+    const family = findPartFamily(request.params.id);
+    if (!family) throw new AppError(404, 'PART_FAMILY_NOT_FOUND', 'This part family is not in the library.');
+    const members = partsOfFamily(family.id);
+    const usage = Object.fromEntries(members.flatMap(part => { const used = partUsage(part); return used.length > 0 ? [[part.id, used]] : []; }));
+    return { family, parts: members, sources: sourcesOf(members), usage };
+  });
+
+  app.get('/api/v1/parts/:id', {
+    schema: { operationId: 'getPart', tags: ['Parts'], summary: 'Get one part, its family and its sources', params: IdParamsSchema,
+      response: { 200: PartDetailSchema, 404: ErrorSchema } },
+  }, request => {
+    const part = findPart(request.params.id);
+    const family = part && findPartFamily(part.family);
+    if (!part || !family) throw new AppError(404, 'PART_NOT_FOUND', 'This part is not in the library.');
+    return { part, family, sources: sourcesOf([part]), usage: partUsage(part) };
   });
 
   app.post('/api/v1/renders', {

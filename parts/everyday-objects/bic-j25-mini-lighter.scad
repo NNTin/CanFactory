@@ -1,5 +1,6 @@
-// BIC Mini lighter (model J25), as a reference object: a real-world item the cigarette case holds, shown in the assembly
-// preview so that its fit can be seen: it goes into the box's round bay (BAY_ROUND) from the top and rests on the clip tab,
+// BIC Mini lighter (model J25), the parts library's `bic-j25-mini-lighter` (packages/contracts/src/parts/everyday-objects.ts,
+// which lists the same dimensions with their sources). The cigarette case shows it as a reference object in its assembly
+// preview, so that its fit can be seen: it goes into the box's round bay (BAY_ROUND) from the top and rests on the clip tab,
 // above the mini holder. Upright (base down, as shown) the tab stops it, so it cannot reach the holder, which is intended.
 // Turned upside down, with its wheel side (+Y here) towards the tab, its hood and wheel pass beside the tab and push the holder
 // out through the box's floor: the hood ends 5.4 mm behind the centre and the tab only starts 6.3 mm out, so only the lever
@@ -7,8 +8,8 @@
 // The box's bay above the tab is fitted to this plan (THICKNESS, WIDTH, PROFILE_N and plan(), copied as LIGHTER_* into the box
 // file; a test keeps them equal): the lighter is a third-party object, so every fit lives in the case box, never in this file's
 // confirmed dimensions. It is never printed and never part of the ZIP. The
-// preview loads mini-bic-lighter.stl, which is this file rendered (see docs/cigarette-case-assembly.md#reference-objects);
-// render it again after any change here.
+// parts library and the assembly preview load bic-j25-mini-lighter.stl, which is this file rendered (see
+// docs/adding-parts.md); render it again after any change here.
 //
 // Frame: millimetres, Z up, underside on z = 0, centred on the Z axis. The width (WIDTH) runs along Y, the thickness
 // (THICKNESS) along X. The top, from -Y to +Y: the metal hood over the burner, the spark wheel (axle along X, its rear half

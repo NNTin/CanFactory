@@ -18,9 +18,10 @@ Original model page: <https://www.thingiverse.com/thing:2739061>
 
 - The STL files in `reference/` are the original files, unchanged, as published by
   sez16sez.
-- `reference-objects/` is not part of the design: it models a real object the case holds (a BIC Mini lighter) for the
-  preview. It is CanFactory's own work, is never printed, and is not derived from sez16sez's files. BIC is a trademark of
-  Société BIC, named only to identify the lighter.
+- The BIC Mini lighter shown in the assembly preview is not part of the design: it is a parts-library entry
+  (`parts/everyday-objects/bic-j25-mini-lighter.scad`) that models a real object the case holds. It is CanFactory's own
+  work, is never printed, and is not derived from sez16sez's files. BIC is a trademark of Société BIC, named only to
+  identify the lighter.
 - The SCAD files are adapted files. They are OpenSCAD adaptations of the original
   geometry, made for this application.
 

@@ -1,5 +1,6 @@
 import { Type, type Static, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
+import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type Part } from './parts/index.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
 
@@ -55,6 +56,11 @@ export const ControlSchema = Type.Object({
     ranges: Type.Array(Type.Object({ value: Type.String(), minimum: Type.Number(), maximum: Type.Number() }, { additionalProperties: false })),
   }, { additionalProperties: false })), Type.Null()],
   { description: 'For a number control, the sub-range recommended for each value of other (enum) controls, one entry per control: the editor highlights the range that suits all their current values on the slider, and names the controls a value is outside of. Advice only; values outside it stay valid. Null for none.' }),
+  part: Type.Union([Type.Object({
+    family: Type.String({ description: 'The id of a parts-library family.' }),
+    attribute: Type.Union([Type.String(), Type.Null()], { description: 'Null: each option value is the id of a part of the family. Otherwise each option value is a value of this attribute of the family (e.g. `thread` = `M3`), which stands for every part that has it.' }),
+  }, { additionalProperties: false }), Type.Null()],
+  { description: 'For an enum control whose options are real-world parts: the parts-library family they link to. The editor links the selected option to the library. Null for none.' }),
 }, { additionalProperties: false });
 export type Control = Static<typeof ControlSchema>;
 export type ParameterValues = Record<string, number | boolean | string>;
@@ -64,7 +70,7 @@ function control<T extends { properties: Record<string, TSchema> }>(
 ): Control {
   const property: TSchema & { type?: unknown } = schema.properties[key] ?? (() => { throw new Error(`Unknown parameter ${key}.`); })();
   return {
-    key, group, enabledWhen, visibleWhen: null, options: null, bands: null, recommended: null,
+    key, group, enabledWhen, visibleWhen: null, options: null, bands: null, recommended: null, part: null,
     label: 'title' in property && typeof property.title === 'string' ? property.title : key,
     description: 'description' in property && typeof property.description === 'string' ? property.description : '',
     kind: property.type === 'boolean' ? 'boolean' : 'number',
@@ -84,17 +90,33 @@ function enumControl<T extends { properties: Record<string, TSchema> }>(
   const first = options[0];
   if (!first) throw new Error(`Enum ${key} needs at least one option.`);
   return {
-    key, group, enabledWhen: null, visibleWhen: null, options, bands: null, recommended: null, kind: 'enum', unit: null, minimum: null, maximum: null, step: null,
+    key, group, enabledWhen: null, visibleWhen: null, options, bands: null, recommended: null, part: null, kind: 'enum', unit: null, minimum: null, maximum: null, step: null,
     label: property.title ?? key, description: property.description ?? '',
     default: typeof property.default === 'string' ? property.default : first.value,
   };
+}
+
+/**
+ * A control for a parameter whose values are parts-library ids (a `Type.Enum` of them): a pick-one list of those parts, named and
+ * described by the library, and linked to it (`part`), so that the editor links the choice to the library and the library lists
+ * the model under the part's “Used by”. Their dimensions reach the SCAD files through `partDefines`.
+ */
+function partControl<T extends { properties: Record<string, TSchema> }>(
+  schema: T, key: keyof T['properties'] & string, group: Control['group'], family: string, partIds: readonly string[],
+): Control {
+  const options = partIds.map(id => {
+    const part = findPart(id);
+    if (part?.family !== family) throw new Error(`${key}: ${id} is not a ${family} in the parts library.`);
+    return { value: id, label: `${part.title} (${part.product?.sku ?? part.designation})`, description: part.description };
+  });
+  return { ...enumControl(schema, key, group, options), part: { family, attribute: null } };
 }
 
 /** A control for a string property: a one-line text box. `maximum` carries the character limit. */
 function textControl<T extends { properties: Record<string, TSchema> }>(schema: T, key: keyof T['properties'] & string, group: Control['group']): Control {
   const property: TSchema & { title?: string; description?: string; default?: unknown; maxLength?: number } = schema.properties[key] ?? (() => { throw new Error(`Unknown parameter ${key}.`); })();
   return {
-    key, group, enabledWhen: null, visibleWhen: null, options: null, bands: null, recommended: null, kind: 'text', unit: null, minimum: 0, maximum: property.maxLength ?? null, step: null,
+    key, group, enabledWhen: null, visibleWhen: null, options: null, bands: null, recommended: null, part: null, kind: 'text', unit: null, minimum: 0, maximum: property.maxLength ?? null, step: null,
     label: property.title ?? key, description: property.description ?? '', default: typeof property.default === 'string' ? property.default : '',
   };
 }
@@ -146,6 +168,27 @@ export interface ModelPart {
   includedWhen?: (parameters: ParameterValues) => boolean;
   /** True when the part is several separate closed bodies by design, such as the letters of engraved text. */
   separateBodies?: boolean;
+  /** Dimensions of chosen library parts that this part is sized from (see `PartDefines`). */
+  partDefines?: PartDefines;
+}
+
+/**
+ * How a chosen real-world part reaches a SCAD file: parameter key (a part-linked control, whose value is a parts-library id) ->
+ * SCAD variable -> which dimension of the chosen part, and which of its values: the nominal `value`, or the `min` or `max` of its
+ * tolerance (the nominal value when the source gives no limit). A pocket takes the `max`. The worker passes the number as
+ * `-D NAME=value` (`scadDefines`).
+ */
+export type PartDefines = Record<string, Record<string, [dimension: string, limit: 'value' | 'min' | 'max']>>;
+
+/**
+ * A reference object that depends on the settings, such as the magnets chosen for a snap: shown in the assembly preview like
+ * `Assembly.references`, only for the parameters it is returned for, at a pose that may follow them. `movesWith` names a part it is
+ * mounted in: it joins every step that moves that part. Its title is the part's, followed by `label`.
+ */
+export interface LinkedReference {
+  id: string; part: string; label: string;
+  pose: { position: [number, number, number]; rotation?: [number, number, number] };
+  movesWith?: string;
 }
 
 const Vector = (description: string) => Type.Array(Type.Number(), { minItems: 3, maxItems: 3, description });
@@ -158,7 +201,8 @@ const Vector = (description: string) => Type.Array(Type.Number(), { minItems: 3,
  * part that moves together (e.g. a box already inside the lid that moves). `lift` is removed during the last step, so the
  * finished assembly stands on the floor. Parts without a pose stay on the print bed. `references` are real-world objects the
  * assembly holds (e.g. the lighter a bay is sized for), shown and moved like parts so that their fit can be seen; they are
- * never printed, so the worker does not render them and they are not in the ZIP (see `referenceObjectPath`).
+ * parts-library entries with an STL preview, never printed, so the worker does not render them and they are not in the ZIP
+ * (see `referencePart`).
  */
 export const AssemblySchema = Type.Object({
   poses: Type.Record(Type.String(), Type.Object({
@@ -173,18 +217,22 @@ export const AssemblySchema = Type.Object({
   lift: Type.Number({ description: 'Height in mm of the exploded layout above the print bed.' }),
   references: Type.Optional(Type.Array(Type.Object({
     id: Type.String({ description: 'Its key in `poses` and `steps`.' }),
-    title: Type.String({ description: 'What it is, e.g. “BIC Mini lighter (J25)”.' }),
-  }, { additionalProperties: false }), { description: 'Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. Not printed and not in the ZIP.' })),
+    part: Type.String({ description: 'The id of the parts-library entry it is.' }),
+    title: Type.String({ description: 'What it is: the part’s title, e.g. “BIC Mini lighter (J25)”.' }),
+  }, { additionalProperties: false }), { description: 'Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. They are parts-library entries. Not printed and not in the ZIP.' })),
 }, { additionalProperties: false });
 export type Assembly = Static<typeof AssemblySchema>;
 
 /**
- * Where an assembly's reference object lives: `<id>.scad` is its source, with the real-world dimensions as named values, and
- * `<id>.stl` beside it is that file rendered, which the web app bundles for the preview. Reference objects do not depend on
- * the model's parameters, so they are rendered once, when the SCAD file changes, rather than by the worker.
+ * An assembly's reference object: the parts-library entry `partId`, under the pose key `id`. It must have an STL preview: its
+ * `.scad` source has the real-world dimensions as named values and the `.stl` beside it is that file rendered, which the web app
+ * bundles (`partAssetPath`). Reference objects do not depend on the model's parameters, so they are rendered once, when the
+ * SCAD file changes, rather than by the worker.
  */
-export function referenceObjectPath(modelId: string, id: string, extension: 'scad' | 'stl'): string {
-  return `models/${modelId}/reference-objects/${id}.${extension}`;
+export function referencePart(id: string, partId: string): NonNullable<Assembly['references']>[number] {
+  const part = findPart(partId);
+  if (!part || !partAssetPath(part, 'stl')) throw new Error(`Reference ${id}: ${partId} is not a parts-library entry with an STL preview.`);
+  return { id, part: part.id, title: part.title };
 }
 
 /**
@@ -218,6 +266,10 @@ export interface ModelDefinition {
   scadMapping: Record<string, string>;
   /** How a mapped parameter is written after `-D NAME=`, for values that are not plain numbers, booleans or strings (see `scadLiteral`). */
   scadEncode?: Record<string, (value: string) => string>;
+  /** For a single-generator model: dimensions of chosen library parts it is sized from (see `PartDefines`). */
+  partDefines?: PartDefines;
+  /** Only for an assembly: reference objects that depend on the parameters (see `LinkedReference`, `resolveAssembly`). */
+  linkedReferences?: (parameters: ParameterValues) => LinkedReference[];
   validate: (parameters: unknown) => ParameterIssue[];
   derived: (parameters: unknown) => { slotCount: number | null };
 }
@@ -231,6 +283,38 @@ export function scadLiteral(model: ModelDefinition, key: string, value: number |
     return encode(value);
   }
   return JSON.stringify(value);
+}
+
+/**
+ * Every `-D NAME=value` override one SCAD file gets, as [NAME, literal] pairs: the parameters its `scadMapping` names (as
+ * `scadLiteral` writes them) and the dimensions of the parts its `partDefines` names. Only mapped, validated values reach
+ * OpenSCAD. Shared by the worker and `npm run check:assembly`, so that both render the same thing.
+ */
+export function scadDefines(model: ModelDefinition, source: { scadMapping?: Record<string, string>; partDefines?: PartDefines }, parameters: ParameterValues): [string, string][] {
+  const defines: [string, string][] = [];
+  const name = (scadName: string) => { if (!/^[A-Z_]+$/.test(scadName)) throw new Error('Invalid generator parameter mapping.'); return scadName; };
+  for (const [key, scadName] of Object.entries(source.scadMapping ?? {})) {
+    const value = parameters[key];
+    if (value === undefined) throw new Error('Invalid generator parameter mapping.');
+    defines.push([name(scadName), scadLiteral(model, key, value)]);
+  }
+  for (const [key, variables] of Object.entries(source.partDefines ?? {})) {
+    const id = parameters[key];
+    const part = typeof id === 'string' ? findPart(id) : undefined;
+    if (!part) throw new Error(`Parameter ${key} is not a part of the library.`);
+    for (const [scadName, [dimension, limit]] of Object.entries(variables)) defines.push([name(scadName), JSON.stringify(dimensionOf(part, dimension, limit))]);
+  }
+  return defines;
+}
+
+/**
+ * The parts-library data a model's geometry depends on: every part its `partDefines` can choose, with its dimensions. Part of the
+ * cache fingerprint, so that correcting a part's value (under the same id) renders the model again.
+ */
+export function linkedPartData(model: ModelDefinition): { id: string; dimensions: Part['dimensions'] }[] {
+  const keys = new Set([model.partDefines, ...(model.parts ?? []).map(part => part.partDefines)].flatMap(defines => Object.keys(defines ?? {})));
+  return [...keys].flatMap(key => model.controls.find(control => control.key === key)?.options ?? [])
+    .flatMap(option => { const part = findPart(option.value); return part ? [{ id: part.id, dimensions: part.dimensions }] : []; });
 }
 
 /** True for a multi-part assembly model (rendered as N independent solids, packaged as one ZIP). */
@@ -384,9 +468,36 @@ const SNAP_TEXT: Record<SnapMode, { label: string; description: string }> = {
   friction: { label: 'Friction fit', description: 'The original design: smooth walls held by a close fit. Nothing is added.' },
   detent: { label: 'Detent', description: 'A small bump on the box that clicks into a groove in the lid.' },
   clip: { label: 'Clip', description: 'A flexible tongue on the lid whose nib snaps into a pocket in the box.' },
-  magnet: { label: 'Magnets', description: 'Pockets for 6 x 2 mm round magnets in the box and lid (magnets not included).' },
+  magnet: { label: 'Magnets', description: 'Pockets for four round magnets, sized for the magnets chosen below: two in the box and two in the lid, facing each other (magnets not included).' },
   'crush-ribs': { label: 'Crush ribs', description: 'Thin ribs that are squeezed slightly by the mating wall for a snug press fit.' },
 };
+
+/**
+ * Where the case lid's magnets sit, and how much room they have: the SCAD files' SNAP_X0 / SNAP_X1 (the straight stretch of the side
+ * walls), CAVITY_Y (the lid's inner face there), MAGNET_Z (the magnets' height above the lid rim), BASE_TOP (the lid rim in the box's
+ * frame), MAGNET_PLAY (the pocket's diametral play) and the lid boss's margin around the pocket; a test keeps them equal to the SCAD
+ * files. A magnet sits flush with the wall face, as deep as it is high: in the box's 1 mm shell wall, backed by a boss that ends at
+ * BOSS_IN_Y (10.9), and in the lid's wall, backed by a boss that fills the honeycomb. `maxThickness` is the original 6 x 2 mm pocket's
+ * depth: no pocket goes deeper into the box's boss than it did, which leaves 0.19 mm behind it at the largest clearance
+ * (docs/cigarette-case-snap.md#magnets).
+ */
+export const MAGNET_SEAT = { x0: -1, x1: 9.5, cavityY: 13.79, z: 8, baseTop: 60.38, play: 0.1, lidBossMargin: 0.4, maxThickness: 2.1 } as const;
+
+/** Whether the lid's magnet pockets can take this library part: a round (disc) magnet no higher than the box's boss allows, whose
+ * pocket and the lid's boss around it fit on the straight stretch of the wall. */
+export function magnetFits(part: Part): boolean {
+  if (part.family !== 'magnet' || part.attributes['shape'] !== 'disc') return false;
+  const width = dimensionOf(part, 'diameter', 'max') + MAGNET_SEAT.play + 2 * MAGNET_SEAT.lidBossMargin;
+  return dimensionOf(part, 'thickness', 'max') <= MAGNET_SEAT.maxThickness + 1e-9 && width <= MAGNET_SEAT.x1 - MAGNET_SEAT.x0 + 1e-9;
+}
+
+/**
+ * The magnets the case lid offers: every magnet of the parts library that fits (`magnetFits`), in the library's order. Listed
+ * rather than computed, so that the parameter's type names them; a test keeps the list equal to the library's fitting magnets.
+ */
+export const CASE_MAGNETS = ['supermagnete-s-04-02-n', 'supermagnete-s-05-02-n52n', 'supermagnete-s-06-02-n', 'supermagnete-s-08-02-n'] as const;
+/** S-06-02-N: 6.1 x 2.1 mm at most, the pocket of the original design. */
+export const DEFAULT_CASE_MAGNET = 'supermagnete-s-06-02-n';
 
 /** The three smaller joints offer a subset of the modes; each describes what is added at that joint. */
 const INSERT_SNAP_VALUES = ['friction', 'detent', 'crush-ribs'] as const;
@@ -516,6 +627,9 @@ export const CigaretteCaseParametersSchema = Type.Object({
   snap: Type.Enum(SNAP_VALUES, {
     title: 'Case lid snap', description: 'How the case lid holds on the case box: a plain close fit, a detent, a flexible clip, magnets or crush ribs. The other joints have their own settings.', default: 'friction',
   }),
+  magnet: Type.Enum(CASE_MAGNETS, {
+    title: 'Magnets', description: 'The round magnets the case lid snap is sized for, with magnets: two in the box and two in the lid. Each is a real product from the parts library; its pockets are cut to its greatest size.', default: DEFAULT_CASE_MAGNET,
+  }),
   miniLidSnap: Type.Enum(INSERT_SNAP_VALUES, {
     title: 'Mini box lid', description: 'How the mini lid holds in the mini box: the original pads (a clearance fit), a detent or crush ribs.', default: 'friction',
   }),
@@ -591,6 +705,7 @@ function validateCigaretteCase(p: CigaretteCaseParameters): ParameterIssue[] {
 
 const cigaretteCaseControls = [
   enumControl(CigaretteCaseParametersSchema, 'snap', 'basic', SNAP_VALUES.map(value => ({ value, ...SNAP_TEXT[value] }))),
+  { ...partControl(CigaretteCaseParametersSchema, 'magnet', 'basic', 'magnet', CASE_MAGNETS), visibleWhen: { control: 'snap', values: ['magnet'] } },
   enumControl(CigaretteCaseParametersSchema, 'miniLidSnap', 'basic', INSERT_SNAP_VALUES.map(value => ({ value, ...MINI_LID_SNAP_TEXT[value] }))),
   enumControl(CigaretteCaseParametersSchema, 'holderSnap', 'basic', INSERT_SNAP_VALUES.map(value => ({ value, ...HOLDER_SNAP_TEXT[value] }))),
   enumControl(CigaretteCaseParametersSchema, 'lighterSnap', 'basic', LIGHTER_SNAP_VALUES.map(value => ({ value, ...LIGHTER_SNAP_TEXT[value] }))),
@@ -627,6 +742,8 @@ const MINI_LID_SNAP_MAPPING = { miniLidSnap: 'MINI_LID_SNAP', miniLidDetentEngag
 const HOLDER_SNAP_MAPPING = { holderSnap: 'HOLDER_SNAP', holderDetentEngage: 'HOLDER_DETENT_ENGAGE' };
 const LIGHTER_SNAP_MAPPING = { lighterSnap: 'LIGHTER_SNAP', lighterCrushSqueeze: 'LIGHTER_CRUSH_SQUEEZE' };
 const MINI_BOX_SNAP_MAPPING = { miniBoxSnap: 'MINI_BOX_SNAP', miniBoxDetentEngage: 'MB_DETENT_ENGAGE' };
+// The chosen magnet's greatest size, which the pockets and bosses of both halves are cut to.
+const MAGNET_DEFINES: PartDefines = { magnet: { MAGNET_D: ['diameter', 'max'], MAGNET_T: ['thickness', 'max'] } };
 const TEXT_MAPPING = { undersideMark: 'MARK', engraveText: 'TEXT', textFont: 'TEXT_FONT', textSize: 'TEXT_SIZE', logo: 'LOGO', logoSize: 'LOGO_SIZE' };
 
 /** The parts. `id` is the STL basename inside the ZIP. The SCAD files are the verified reconstructions, with their mating surfaces
@@ -634,8 +751,8 @@ const TEXT_MAPPING = { undersideMark: 'MARK', engraveText: 'TEXT', textFont: 'TE
  * `case-text`, which is new: the underside text as a separate body, present only in `second-filament` mode. Each snap setting
  * reaches the printed parts of its joint (the lighter setting only the case box). */
 const cigaretteCaseParts: ModelPart[] = [
-  { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, snapCrushSqueeze: 'CRUSH_SQUEEZE', ...HOLDER_SNAP_MAPPING, ...LIGHTER_SNAP_MAPPING, ...TEXT_MAPPING } },
-  { id: 'case-lid', title: 'Case lid (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_top.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, ...MINI_BOX_SNAP_MAPPING, miniBoxCrushSqueeze: 'MB_CRUSH_SQUEEZE' } },
+  { id: 'case-box', title: 'Case box (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, snapCrushSqueeze: 'CRUSH_SQUEEZE', ...HOLDER_SNAP_MAPPING, ...LIGHTER_SNAP_MAPPING, ...TEXT_MAPPING }, partDefines: MAGNET_DEFINES },
+  { id: 'case-lid', title: 'Case lid (large)', sourcePath: `${CIGARETTE_CASE_DIR}11_v11.3__-_honeycomb_-_top.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...SNAP_MAPPING, ...MINI_BOX_SNAP_MAPPING, miniBoxCrushSqueeze: 'MB_CRUSH_SQUEEZE' }, partDefines: MAGNET_DEFINES },
   { id: 'mini-holder', title: 'Mini holder', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_minibox.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...HOLDER_SNAP_MAPPING, holderCrushSqueeze: 'HOLDER_CRUSH_SQUEEZE' } },
   { id: 'mini-box', title: 'Mini box', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...MINI_LID_SNAP_MAPPING, ...MINI_BOX_SNAP_MAPPING } },
   { id: 'mini-lid', title: 'Mini box lid', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_top.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...MINI_LID_SNAP_MAPPING, miniLidCrushSqueeze: 'CRUSH_SQUEEZE' } },
@@ -676,11 +793,34 @@ const cigaretteCaseAssembly: Assembly = {
     { title: 'Close the case', parts: ['case-lid', 'mini-box', 'mini-lid'], from: [0, 0, 100] },
   ],
   lift: 50,
-  references: [{ id: 'mini-bic-lighter', title: 'BIC Mini lighter (J25)' }],
+  references: [referencePart('mini-bic-lighter', 'bic-j25-mini-lighter')],
 };
 
+/**
+ * The four magnets in magnet mode, as reference objects in their pockets (docs/cigarette-case-assembly.md): in the box, the pocket
+ * opens on the upper shell's outer face (CAVITY_Y less the clearance) and the magnet fills it inwards; in the lid, it opens on the
+ * cavity wall (CAVITY_Y) and the magnet fills it outwards, so the two face each other across the clearance. Each is placed at its
+ * greatest height, as the pocket is cut, and turned so that its axis runs along Y. The lid's move with the lid.
+ */
+function caseMagnets(parameters: ParameterValues): LinkedReference[] {
+  const part = parameters['snap'] === 'magnet' && typeof parameters['magnet'] === 'string' ? findPart(parameters['magnet']) : undefined;
+  if (!part) return [];
+  const t = dimensionOf(part, 'thickness', 'max');
+  const clearance = typeof parameters['clearance'] === 'number' ? parameters['clearance'] : CLEARANCE_RANGE.default;
+  const [x, z] = [(MAGNET_SEAT.x0 + MAGNET_SEAT.x1) / 2, MAGNET_SEAT.baseTop + MAGNET_SEAT.z];
+  const box = MAGNET_SEAT.cavityY - clearance - t;
+  // Turned about X by -90 degrees, a magnet's axis (Z) points to +Y; by +90 degrees, to -Y.
+  const at = (y: number, sign: 1 | -1): LinkedReference['pose'] => ({ position: [x, sign * y, z], rotation: [-90 * sign, 0, 0] });
+  return [
+    { id: 'magnet-box-plus-y', part: part.id, label: 'case box, +Y side', pose: at(box, 1) },
+    { id: 'magnet-box-minus-y', part: part.id, label: 'case box, −Y side', pose: at(box, -1) },
+    { id: 'magnet-lid-plus-y', part: part.id, label: 'case lid, +Y side', pose: at(MAGNET_SEAT.cavityY, 1), movesWith: 'case-lid' },
+    { id: 'magnet-lid-minus-y', part: part.id, label: 'case lid, −Y side', pose: at(MAGNET_SEAT.cavityY, -1), movesWith: 'case-lid' },
+  ];
+}
+
 export const cigaretteCase = {
-  id: 'cigarette-case' as const, version: '7' as const, title: 'Cigarette case (Onz)',
+  id: 'cigarette-case' as const, version: '8' as const, title: 'Cigarette case (Onz)',
   description: 'A honeycomb cigarette case in two sizes: a large box with a sliding lid, and a small holder with a shallow box and lid. Choose how each joint holds (the lid on the box, the mini lid, the holder and the lighter in the box, and the mini box in the lid) and how closely the parts fit, add text or an SVG logo to the underside of the box (engraved, or as a second-filament part), then download every part as a ZIP of STL files.',
   attribution: 'sez16sez (Thingiverse)',
   printNotes: 'Print each part separately; the lids print rim-side down. The optional text part prints flat, in a second colour.',
@@ -688,6 +828,7 @@ export const cigaretteCase = {
   license: 'CC BY-NC 4.0 (non-commercial)', licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
   parts: cigaretteCaseParts,
   assembly: cigaretteCaseAssembly,
+  linkedReferences: caseMagnets,
   assetPaths: ['LiberationSans-Bold.ttf', 'LiberationSerif-Bold.ttf', 'LiberationMono-Bold.ttf', 'DejaVuSans-Bold.ttf'].map(name => `${FONTS_DIR}/${name}`),
   parameterSchema: CigaretteCaseParametersSchema,
   controls: cigaretteCaseControls,
@@ -713,19 +854,8 @@ export type ScrewHoles = typeof SCREW_HOLE_VALUES[number];
 const HOLE_FIT_VALUES = ['fine', 'medium', 'coarse'] as const;
 export type HoleFit = typeof HOLE_FIT_VALUES[number];
 
-/**
- * DIN EN 20273 (ISO 273) clearance-hole diameters in mm, per screw size and series: fine (H12), medium (H13, the usual choice)
- * and coarse (H14). Mirrors `DIN_EN_20273` in models/plank-connector/generator.scad (a test keeps the two identical).
- */
-export const CLEARANCE_HOLES: Record<Exclude<ScrewHoles, 'none'>, Record<HoleFit, number>> = {
-  M2: { fine: 2.2, medium: 2.4, coarse: 2.6 },
-  'M2.5': { fine: 2.7, medium: 2.9, coarse: 3.1 },
-  M3: { fine: 3.2, medium: 3.4, coarse: 3.6 },
-  M4: { fine: 4.3, medium: 4.5, coarse: 4.8 },
-  M5: { fine: 5.3, medium: 5.5, coarse: 5.8 },
-  M6: { fine: 6.4, medium: 6.6, coarse: 7 },
-  M8: { fine: 8.4, medium: 9, coarse: 10 },
-};
+/** DIN EN 20273 (ISO 273) clearance-hole diameters in mm, per screw size and series, from the parts library. */
+export const CLEARANCE_HOLES: Record<Exclude<ScrewHoles, 'none'>, Record<HoleFit, number>> = ISO_273_CLEARANCE_HOLES;
 
 /** Diameter in mm of the through-holes for these settings; 0 without holes. */
 export const holeDiameter = (p: { screwHoles: ScrewHoles; holeFit: HoleFit }): number =>
@@ -780,7 +910,8 @@ const plankConnectorControls = [
   control(PlankConnectorParametersSchema, 'pocketWidth', 'basic'),
   control(PlankConnectorParametersSchema, 'pocketThickness', 'basic'),
   control(PlankConnectorParametersSchema, 'insertionDepth', 'basic'),
-  enumControl(PlankConnectorParametersSchema, 'screwHoles', 'basic', SCREW_HOLE_VALUES.map(value => ({ value, ...SCREW_HOLE_TEXT[value] }))),
+  // Each size links to the library's screws of that thread (`none` to nothing).
+  { ...enumControl(PlankConnectorParametersSchema, 'screwHoles', 'basic', SCREW_HOLE_VALUES.map(value => ({ value, ...SCREW_HOLE_TEXT[value] }))), part: { family: 'screw', attribute: 'thread' } },
   enumControl(PlankConnectorParametersSchema, 'holeFit', 'advanced', HOLE_FIT_VALUES.map(value => ({ value, ...HOLE_FIT_TEXT[value] }))),
   control(PlankConnectorParametersSchema, 'holesPerEnd', 'advanced', null, null),
   control(PlankConnectorParametersSchema, 'wallThickness', 'advanced'),
@@ -816,6 +947,18 @@ export const plankConnector = {
 export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
+
+/** A model that links to a part: through an option of a part-linked control, or as a reference object of its assembly. */
+export interface PartUsage { modelId: string; modelTitle: string; via: string }
+
+/** Every model that links to this part (the parts library's “Used by”). */
+export function partUsage(part: Part): PartUsage[] {
+  return models.flatMap(model => [
+    ...model.controls.filter(control => control.part?.family === part.family && control.options?.some(option =>
+      option.value === (control.part?.attribute ? part.attributes[control.part.attribute] : part.id))).map(control => ({ modelId: model.id, modelTitle: model.title, via: control.label })),
+    ...(model.assembly?.references ?? []).filter(reference => reference.part === part.id).map(() => ({ modelId: model.id, modelTitle: model.title, via: 'Assembly preview' })),
+  ]);
+}
 
 /** Validates unknown browser/API input, including cross-field rules, without coercion. */
 export function validateParameters(model: ModelDefinition, parameters: unknown): ParameterIssue[] {

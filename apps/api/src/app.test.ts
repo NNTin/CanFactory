@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { cigaretteCase, ErrorSchema, LOGO_MAX_LENGTH, LOGO_MAX_POINTS, fruitFlyTrap, ModelDetailSchema, mossPlanter, plankConnector, RenderSchema } from '@canfactory/contracts';
+import { cigaretteCase, ErrorSchema, LOGO_MAX_LENGTH, LOGO_MAX_POINTS, fruitFlyTrap, ModelDetailSchema, mossPlanter, PartDetailSchema, PartFamilyDetailSchema, PartFamilySummarySchema, partFamilies, parts, plankConnector, RenderSchema } from '@canfactory/contracts';
 import { CACHE_TTL_MS, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from './app.ts';
 
@@ -53,7 +53,9 @@ describe('model and render API', () => {
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.artifactFormat).toBe('zip');
     expect(model.customizable).toBe(true);
-    expect(model.controls.map(control => control.kind)).toEqual(['enum', 'enum', 'enum', 'enum', 'enum', 'enum', 'text', 'enum', 'number', 'svg', 'number', 'enum', 'number', ...Array<string>(9).fill('number')]);
+    expect(model.controls.map(control => control.kind)).toEqual(['enum', 'enum', 'enum', 'enum', 'enum', 'enum', 'enum', 'text', 'enum', 'number', 'svg', 'number', 'enum', 'number', ...Array<string>(9).fill('number')]);
+    // the magnets are real parts, linked to the parts library, and offered only in magnet mode
+    expect(model.controls.find(control => control.key === 'magnet')).toMatchObject({ part: { family: 'magnet', attribute: null }, visibleWhen: { control: 'snap', values: ['magnet'] }, default: 'supermagnete-s-06-02-n' });
     const clearanceControl = model.controls.find(control => control.key === 'clearance');
     expect(clearanceControl).toMatchObject({ key: 'clearance', group: 'advanced', default: 0.2, minimum: 0.1, maximum: 0.6 });
     expect(clearanceControl?.recommended?.map(entry => entry.control)).toEqual(['snap', 'miniLidSnap', 'holderSnap', 'lighterSnap', 'miniBoxSnap']);
@@ -104,6 +106,30 @@ describe('model and render API', () => {
     const shallow = await render({ screwHoles: 'M8', holeFit: 'coarse', insertionDepth: 10 });
     expect(shallow.statusCode).toBeGreaterThanOrEqual(400);
     expect(shallow.json<{ issues: { field: string }[] }>().issues[0]?.field).toBe('insertionDepth');
+  });
+
+  it('serves the parts library: families with counts, a family with its parts and sources, and one part with its users', async () => {
+    const list = await app.inject('/api/v1/part-families');
+    expect(list.statusCode).toBe(200);
+    const families = list.json<unknown[]>().map(family => Value.Parse(PartFamilySummarySchema, family));
+    expect(families.map(family => family.id)).toEqual(partFamilies.map(family => family.id));
+    expect(families.reduce((sum, family) => sum + family.count, 0)).toBe(parts.length);
+    const screws = Value.Parse(PartFamilyDetailSchema, (await app.inject('/api/v1/part-families/screw')).json<unknown>());
+    expect(screws.parts.every(part => part.family === 'screw')).toBe(true);
+    // every source a part or a dimension cites is served with the family
+    const served = new Set(screws.sources.map(source => source.id));
+    for (const part of screws.parts) for (const id of [...part.sources, ...Object.values(part.dimensions).map(value => value.source)]) expect(served.has(id), `${part.id}: ${id}`).toBe(true);
+    // the plank connector links every M3 screw through its screw-hole sizes
+    expect(screws.usage['iso-4762-m3x10']).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes' }]);
+    const lighter = Value.Parse(PartDetailSchema, (await app.inject('/api/v1/parts/bic-j25-mini-lighter')).json<unknown>());
+    expect(lighter.family.id).toBe('everyday-object');
+    expect(lighter.usage).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview' }]);
+    expect(lighter.sources.map(source => source.kind)).toContain('manufacturer');
+    for (const url of ['/api/v1/part-families/missing', '/api/v1/parts/missing']) {
+      const missing = await app.inject(url);
+      expect(missing.statusCode, url).toBe(404);
+      expect(Value.Check(ErrorSchema, missing.json<unknown>())).toBe(true);
+    }
   });
 
   it('rejects unknown models, stale versions, and invalid fields', async () => {

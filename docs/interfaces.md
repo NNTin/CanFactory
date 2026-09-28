@@ -12,6 +12,9 @@ them offline using `npm run contracts:generate` and `npm run contracts:check`.
 | `GET /api/v1/models` | List supplied model summaries and attribution. |
 | `GET /api/v1/models/{id}` | Get a versioned model, defaults, JSON Schema, and control descriptors. |
 | `GET /api/v1/models/{id}/reference.stl` | Stream the original supplied reference bytes. 404 if the model has none. |
+| `GET /api/v1/part-families` | List the parts library's families, with their part counts. |
+| `GET /api/v1/part-families/{id}` | Get a family with all its parts, the sources they cite, and the models that link to each part. |
+| `GET /api/v1/parts/{id}` | Get one part, its family, its sources, and the models that link to it. |
 | `POST /api/v1/renders` | Submit complete settings; return an existing successful render (200) or pending job (202). |
 | `GET /api/v1/renders/{id}` | Poll status, expiry, derived slot count, and available artifact metadata. |
 | `GET /api/v1/renders/{id}/stl` | Stream generated binary STL; `?download=true` changes only content disposition. |

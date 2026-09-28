@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
-import { ArrowDownToLine, ArrowLeft, ArrowRight, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
+import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from '@canfactory/client';
-import { decodeLogo, findModel, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues } from '@canfactory/contracts';
+import { decodeLogo, findModel, findPartFamily, parts, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
+import { PartsLibrary } from './PartsLibrary.tsx';
 import { referenceObjects } from './referenceObjects.ts';
+import { formatHash, parseHash, partLink, type Route } from './route.ts';
 import { Viewer } from './Viewer.tsx';
 import { useRender } from './useRender.ts';
 
@@ -257,12 +259,16 @@ function Field({ control, value, disabled, issue, recommended, change }: { contr
   }
   if (control.kind === 'enum') {
     const selected = control.options?.find(option => option.value === value);
+    // A part-linked control links its choice to the parts library, when the library has it (e.g. not a “none” option).
+    const link = control.part;
+    const inLibrary = link && selected && parts.some(part => part.family === link.family && (link.attribute ? part.attributes[link.attribute] === selected.value : part.id === selected.value));
     return <div className={`select-field ${disabled ? 'field-disabled' : ''}`}>
       <label htmlFor={id}>{control.label}</label>
       <select id={id} value={typeof value === 'string' ? value : ''} disabled={disabled} aria-invalid={Boolean(issue)} aria-describedby={`${id}-description`} onChange={event => change(event.currentTarget.value)}>
         {control.options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
       <p id={`${id}-description`}>{selected?.description ?? control.description}</p>
+      {inLibrary && <a className="part-link" href={partLink(link, selected.value)}><BookOpen size={12} aria-hidden="true" /> {link.attribute ? `See the ${selected.value} ${findPartFamily(link.family)?.title.toLowerCase() ?? 'parts'} in the parts library` : 'See this part in the parts library'}</a>}
       {issue && <p className="field-error">{issue}</p>}
     </div>;
   }
@@ -327,8 +333,10 @@ function Editor({ model }: { model: ModelDetail }) {
   const issues = useMemo(() => definition ? validateParameters(definition, parameters) : [{ field: '', message: 'Reload the page to use this model’s current editor.' }], [definition, parameters]);
   const valid = issues.length === 0;
   const rendering = useRender(model, parameters, valid);
-  const references = useMemo(() => referenceObjects(model.id, model.assembly), [model]);
-  const partTitles = useMemo(() => Object.fromEntries([...(model.parts ?? []), ...(model.assembly?.references ?? [])].map(part => [part.id, part.title])), [model]);
+  // The assembly for the current settings: with the reference objects they add, such as the chosen magnets of a magnet snap.
+  const assembly = useMemo(() => resolveAssembly(definition, model.assembly, parameters), [definition, model, parameters]);
+  const references = useMemo(() => referenceObjects(assembly), [assembly]);
+  const partTitles = useMemo(() => Object.fromEntries([...(model.parts ?? []), ...(assembly?.references ?? [])].map(part => [part.id, part.title])), [model, assembly]);
   const render = rendering.completed?.render;
   const artifact = render?.artifact;
   const url = artifact?.url ?? null;
@@ -403,7 +411,7 @@ function Editor({ model }: { model: ModelDetail }) {
         <div className="preview-heading"><span className="eyebrow"><Box size={15} /> LIVE PREVIEW</span><span className={`status ${ready && !error ? 'status-ready' : ''}`} role="status">
           {ready && !error ? <Check size={13} /> : error || !valid ? <CircleAlert size={13} /> : <LoaderCircle size={13} className="spin" />}{status}
         </span></div>
-        <Viewer url={url} format={model.artifactFormat} assembly={model.assembly} references={references} partTitles={partTitles} onError={setViewerError} onLoaded={setLoadedUrl} />
+        <Viewer url={url} format={model.artifactFormat} assembly={assembly} references={references} partTitles={partTitles} onError={setViewerError} onLoaded={setLoadedUrl} />
         {!ready && url && !error && <div className="previous-preview">Showing the previous preview while your changes are prepared.</div>}
         {(error || (!valid && issues.length > 0)) && <div className="error-banner" role="alert"><CircleAlert size={17} /><span>{error ?? issues[0]?.message}</span>{error && <button type="button" onClick={retry}>Try again</button>}</div>}
         <div className="model-stats">
@@ -424,19 +432,37 @@ function Editor({ model }: { model: ModelDetail }) {
 
 export function App() {
   const [models, setModels] = useState<ModelCard[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [families, setFamilies] = useState<PartFamilySummary[]>([]);
+  const [route, setRoute] = useState<Route | null>(() => parseHash(window.location.hash));
   const [model, setModel] = useState<ModelDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const openLibrary = () => { setSelectedId(null); setLoading(false); setError(null); };
+  /** Goes to a page by changing the hash (the `hashchange` listener follows); filters replace the history entry instead of adding one. */
+  const navigate = useCallback((next: Route, replace = false) => {
+    const hash = formatHash(next);
+    if (replace) { window.history.replaceState(null, '', hash); setRoute(parseHash(hash)); }
+    else window.location.hash = hash;
+  }, []);
+  const openLibrary = () => { navigate({ view: 'models', model: null }); setError(null); };
+  const openParts = () => { navigate({ view: 'parts', family: null, part: null, filters: {} }); setError(null); };
+  useEffect(() => {
+    const follow = () => setRoute(parseHash(window.location.hash));
+    window.addEventListener('hashchange', follow);
+    return () => window.removeEventListener('hashchange', follow);
+  }, []);
   useEffect(() => {
     const abort = new AbortController();
     void api.GET('/api/v1/models', { signal: abort.signal }).then(response => {
       if (!response.data) throw new Error('The model catalogue is unavailable.');
-      setModels(response.data); setSelectedId(response.data[0]?.id ?? null); setLoading(false);
+      setModels(response.data); setLoading(false);
+      // Without a page in the URL, the app opens the first model.
+      const first = response.data[0]?.id ?? null;
+      setRoute(current => current ?? (window.history.replaceState(null, '', formatHash({ view: 'models', model: first })), { view: 'models', model: first }));
     }).catch((caught: unknown) => { if (!abort.signal.aborted) { setError(caught instanceof Error ? caught.message : 'Cannot load models.'); setLoading(false); } });
+    void api.GET('/api/v1/part-families', { signal: abort.signal }).then(response => { if (response.data) setFamilies(response.data); }).catch(() => { /* The header count is optional. */ });
     return () => abort.abort();
   }, []);
+  const selectedId = route?.view === 'models' ? route.model : null;
   useEffect(() => {
     setModel(null);
     if (!selectedId) return;
@@ -447,19 +473,34 @@ export function App() {
     }).catch((caught: unknown) => { if (!abort.signal.aborted) { setError(caught instanceof Error ? caught.message : 'Cannot load this model.'); setLoading(false); } });
     return () => abort.abort();
   }, [selectedId]);
+  const partsRoute = route?.view === 'parts' ? route : null;
+  const family = partsRoute?.family ? families.find(candidate => candidate.id === partsRoute.family) : undefined;
+  const partCount = families.reduce((sum, candidate) => sum + candidate.count, 0);
 
   return <div className="app-shell">
     <header className="site-header"><button className="brand" type="button" aria-label="CanFactory model library" onClick={openLibrary}><span className="brand-mark"><Layers3 size={24} strokeWidth={1.7} /></span>CanFactory<span className="brand-dot">.</span></button>
-      <span className="header-tagline">A little factory for useful things.</span><div className="header-right"><button type="button" className="library-link" onClick={openLibrary}>Model library <span>{models.length.toString().padStart(2, '0')}</span></button><span className="local-badge"><i /> Local workspace</span></div>
+      <span className="header-tagline">A little factory for useful things.</span><div className="header-right">
+        <button type="button" className="library-link" aria-current={route?.view === 'models' ? 'page' : undefined} onClick={openLibrary}>Model library <span>{models.length.toString().padStart(2, '0')}</span></button>
+        <button type="button" className="library-link" aria-current={partsRoute ? 'page' : undefined} onClick={openParts}>Parts library <span>{partCount.toString().padStart(2, '0')}</span></button>
+        <span className="local-badge"><i /> Local workspace</span></div>
     </header>
     <main>
+      {partsRoute ? <>
+        <div className="breadcrumb"><button type="button" onClick={openParts}><ArrowLeft size={13} /> Parts library</button>
+          {partsRoute.family && <><span>/</span>{partsRoute.part
+            ? <button type="button" onClick={() => navigate({ ...partsRoute, part: null })}>{family?.title ?? partsRoute.family}</button>
+            : <span>{family?.title ?? partsRoute.family}</span>}</>}
+          {partsRoute.part && <><span>/</span><span>{parts.find(part => part.id === partsRoute.part)?.designation ?? partsRoute.part}</span></>}</div>
+        <PartsLibrary route={partsRoute} families={families} navigate={navigate} />
+      </> : <>
       <div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button>{model && <><span>/</span><span>{model.title}</span></>}</div>
       {error ? <div className="empty-state" role="alert"><CircleAlert size={30} /><h1>Let’s reconnect.</h1><p>{error}</p><button className="primary-button" type="button" onClick={() => window.location.reload()}>Reload catalogue</button></div>
         : loading ? <div className="empty-state"><LoaderCircle className="spin" size={30} /><p>Opening the workshop…</p></div>
           : model ? <><div className="page-heading"><div><div className="eyebrow">THE MODEL WORKSHOP</div><h1>{model.title}</h1><p>{model.description}</p></div><span className="model-tag"><span /> {model.customizable ? 'PARAMETRIC MODEL' : 'ASSEMBLY PREVIEW'}</span></div><Editor key={`${model.id}:${model.version}`} model={model} /></>
             : <><div className="page-heading library-heading"><div><div className="eyebrow">THE MODEL LIBRARY</div><h1>Useful things. Made to fit.</h1><p>Start with a model. Make a few changes. Make it yours.</p></div></div>
-              <div className="model-library">{models.map(item => <button type="button" className="model-card" key={item.id} onClick={() => setSelectedId(item.id)}><div className="card-art">{(() => { const Illustration = ILLUSTRATIONS[item.id]; return Illustration ? <Illustration /> : <Box size={60} strokeWidth={1} />; })()}</div><div className="card-copy"><span className="eyebrow">{item.customizable ? 'CUSTOMIZABLE' : 'PREVIEW'} · {item.artifactFormat.toUpperCase()}</span><h2>{item.title}</h2><p>{item.description}</p><span className="card-action">{item.customizable ? 'Customize model' : 'View model'} <ArrowRight size={17} /></span></div></button>)}
+              <div className="model-library">{models.map(item => <button type="button" className="model-card" key={item.id} onClick={() => navigate({ view: 'models', model: item.id })}><div className="card-art">{(() => { const Illustration = ILLUSTRATIONS[item.id]; return Illustration ? <Illustration /> : <Box size={60} strokeWidth={1} />; })()}</div><div className="card-copy"><span className="eyebrow">{item.customizable ? 'CUSTOMIZABLE' : 'PREVIEW'} · {item.artifactFormat.toUpperCase()}</span><h2>{item.title}</h2><p>{item.description}</p><span className="card-action">{item.customizable ? 'Customize model' : 'View model'} <ArrowRight size={17} /></span></div></button>)}
                 <div className="coming-next"><span className="plus-shape">+</span><h2>More useful things to come.</h2><p>A growing collection for everyday making.</p></div></div></>}
+      </>}
     </main>
     <footer className="site-footer"><span>MAKE IT FIT. MAKE IT REAL.</span><span>CanFactory · Your local workshop</span></footer>
   </div>;

@@ -47,8 +47,35 @@ identical (`packages/contracts/src/models.test.ts`):
 | `friction` (default) | Nothing: the plain walls, one clearance apart. |
 | `detent` | A bump on each straight side of the box's upper shell stands clearance + 0.19 mm proud, so it reaches 0.19 mm past the lid's wall. It clicks into a groove in the lid, 9 mm above the lid rim, that clears it by the clearance. The flanks are about 45°, printable without support. |
 | `clip` | Each straight side of the lid gets a 7.9 mm wide tongue. It is cut free by two 0.6 mm slits from the rim to 13 mm and thinned to the plain 1 mm wall, with the honeycomb removed there. A 0.6 mm nib at its free end snaps into a pocket in the box that clears the nib by the clearance on every side. |
-| `magnet` | A pocket for a 6 x 2 mm round magnet (6.2 x 2.1 mm) on each side: in the box wall, backed by a boss inside the bay, and in the lid, backed by a flat boss that fills the honeycomb outside. The pockets do not depend on the clearance. |
+| `magnet` | A pocket for a round magnet on each side, sized for the magnet chosen in `magnet` (see [Magnets](#magnets)): in the box wall, backed by a boss inside the bay, and in the lid, backed by a flat boss that fills the honeycomb outside. The pockets do not depend on the clearance. |
 | `crush-ribs` | Three vertical 0.5 mm ribs on each straight side of the box's upper shell, clearance + 0.16 mm proud. The lid squeezes them by 0.16 mm. The top ends are ramped. |
+
+### Magnets
+
+In `magnet` mode the `magnet` setting chooses the magnets: real products from the parts library ([adding-parts.md](adding-parts.md)),
+linked to their library page from the editor. The chosen magnet's greatest size (its nominal size plus its stated tolerance) reaches
+both SCAD files as `MAGNET_D` and `MAGNET_T` (`partDefines`; the defaults are S-06-02-N's). Each pocket is `MAGNET_PLAY` (0.1 mm)
+wider than that and exactly as deep, so the magnet sits flush with the wall face; the bosses grow with the pocket. The four magnets
+are shown in the assembly preview, in their pockets, and the collision check includes them.
+
+A magnet is offered when it fits (`magnetFits` in `packages/contracts/src/models.ts`; a test keeps the list equal to the library's
+fitting magnets):
+
+- **Round:** a disc, since the pockets are round.
+- **No higher than 2.1 mm:** the depth of the original 6 x 2 mm pocket. The box's boss ends at `BOSS_IN_Y` (10.9 mm), which leaves
+  0.19 mm behind such a pocket at the largest clearance; a deeper pocket would need a larger boss in the bay.
+- **No wider than the wall allows:** the pocket and the lid's boss around it (0.4 mm each side) must fit on the 10.5 mm straight
+  stretch of the side wall (`SNAP_X0` to `SNAP_X1`).
+
+| Magnet | Size (±0.1 mm) | Grade | Pull force | Pocket |
+|---|---|---|---|---|
+| supermagnete S-04-02-N | Ø 4 × 2 mm | N45 | approx. 420 g | 4.2 × 2.1 mm |
+| supermagnete S-05-02-N52N | Ø 5 × 2 mm | N52 | approx. 680 g | 5.2 × 2.1 mm |
+| supermagnete S-06-02-N (default) | Ø 6 × 2 mm | N45 | approx. 740 g | 6.2 × 2.1 mm, the original pocket |
+| supermagnete S-08-02-N | Ø 8 × 2 mm | N45 | approx. 1.1 kg | 8.2 × 2.1 mm |
+
+The 3 mm discs are too high, the 10 and 12 mm discs too wide, and the blocks and the ring are not round. Glue the magnets in, and
+mind their poles: each magnet in the box must attract the one facing it in the lid.
 
 ## Mini box lid (`miniLidSnap`)
 
@@ -95,7 +122,7 @@ so everything is in the case box (the `lighter bay` block of the box file).
 
 **The fitted bay.** Up to the tab's top (`TAB_TOP`, z 35.11) the bay stays the traced `BAY_ROUND`: the holder's part and the tab
 are unchanged. Above it the bay is the lighter's plan pushed out by the clearance (`lighter_bay_2d`): the same superellipse as
-`plan()` in `mini-bic-lighter.scad`, copied as `LIGHTER_THICKNESS`, `LIGHTER_WIDTH` and `LIGHTER_PROFILE_N` (a test keeps them
+`plan()` in `parts/everyday-objects/bic-j25-mini-lighter.scad`, copied as `LIGHTER_THICKNESS`, `LIGHTER_WIDTH` and `LIGHTER_PROFILE_N` (a test keeps them
 equal), centred like the lighter. Before, the lighter stood 0.31 to 0.41 mm from the traced wall; now the gap is the clearance
 all round. A 0.4 mm tall loft (`LIGHTER_LEAD`) joins the two outlines, at 52° or steeper. It centres a lighter coming back up,
 and funnels one going down into the narrower `BAY_ROUND` at large clearances. The gap is `LIGHTER_GAP`, which is always
@@ -161,7 +188,8 @@ Why these ranges:
 - **Friction:** on the case lid, the walls themselves hold, so pick the fit you want. The holder and the mini box in the lid are held
   against their own weight by nothing but the fit, so they get no more than a snug fit. The mini lid is trapped in the case lid
   once it is in, and the lighter under the closed case lid, so they get a little more.
-- **Magnet:** as friction. The magnets hold, and their pockets are oversized on their own (6.2 x 2.1 mm for 6 x 2 mm magnets).
+- **Magnet:** as friction. The magnets hold, and their pockets are sized from the magnet, not from the clearance (6.2 x 2.1 mm for
+  the default 6 x 2 mm magnets).
 - **Clip:** the nib stands 0.6 mm into the lid cavity, so it reaches 0.6 mm − clearance into the box's pocket: 0.4 mm at 0.2, only
   0.2 mm at 0.4, and nothing at 0.6. Below 0.2 the tongue has to flex further than it is designed to.
 - **Detent:** the bump always reaches its engagement past the mating wall, so a wall must flex. The walls should clear each other so
@@ -260,8 +288,8 @@ Tune them in the SCAD constants; nothing else needs to change.
 ## Limits
 
 Printed tolerances differ by machine. The clearance is the first thing to adjust. Then adjust each joint's engagement and
-squeeze in the advanced settings (above), and, in the SCAD constants, `CLIP_NIB` and the magnet pocket sizes.
+squeeze in the advanced settings (above), and, in the SCAD constants, `CLIP_NIB` and the magnets' pocket play (`MAGNET_PLAY`).
 
 The clip tongue is 1 mm thick and 13 mm long, so it will fatigue if opened many times. The magnet bosses reduce the box bay width by
-about 1.8 mm locally. All features were checked geometrically, not by printing. How hard a lighter has to push the holder out, and a
+about 1.8 mm locally, over the pocket's width plus 0.4 mm. All features were checked geometrically, not by printing. How hard a lighter has to push the holder out, and a
 finger has to pull the mini box, depends on the printer and filament: lower the engagement if it is too firm.

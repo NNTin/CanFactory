@@ -1,8 +1,10 @@
 import { Type, type Static } from 'typebox';
 import { AssemblySchema, cigaretteCase, ControlSchema, fruitFlyTrap, mossPlanter, plankConnector } from './models.ts';
+import { PartFamilySchema, PartSchema, PartSourceSchema } from './parts/index.ts';
 export * from './models.ts';
 export * from './assembly.ts';
 export * from './svgLogo.ts';
+export * from './parts/index.ts';
 
 /** Stable error envelope; clients may branch on code and highlight field issues. */
 export const ErrorSchema = Type.Object({
@@ -57,6 +59,31 @@ export const RenderRequestSchema = Type.Union([
   }, { additionalProperties: false }),
 ], { description: 'Complete, uncoerced settings for one model version.' });
 export type RenderRequest = Static<typeof RenderRequestSchema>;
+
+export const PartUsageSchema = Type.Object({
+  modelId: Type.String(), modelTitle: Type.String(),
+  via: Type.String({ description: 'The model’s setting that links to the part, or “Assembly preview” for a reference object.' }),
+}, { additionalProperties: false });
+
+export const PartFamilySummarySchema = Type.Object({
+  ...PartFamilySchema.properties,
+  count: Type.Integer({ description: 'How many parts the family has.' }),
+}, { additionalProperties: false });
+export type PartFamilySummary = Static<typeof PartFamilySummarySchema>;
+
+/** A family with all its parts, the sources they cite, and the models that link to each part (by part id). */
+export const PartFamilyDetailSchema = Type.Object({
+  family: PartFamilySchema,
+  parts: Type.Array(PartSchema),
+  sources: Type.Array(PartSourceSchema),
+  usage: Type.Record(Type.String(), Type.Array(PartUsageSchema), { description: 'Models that link to a part, by part id; parts no model links to are left out.' }),
+}, { additionalProperties: false });
+export type PartFamilyDetail = Static<typeof PartFamilyDetailSchema>;
+
+export const PartDetailSchema = Type.Object({
+  part: PartSchema, family: PartFamilySchema, sources: Type.Array(PartSourceSchema), usage: Type.Array(PartUsageSchema),
+}, { additionalProperties: false });
+export type PartDetail = Static<typeof PartDetailSchema>;
 
 export const RenderStatusSchema = Type.Enum(['queued', 'running', 'succeeded', 'failed']);
 export type RenderStatus = Static<typeof RenderStatusSchema>;

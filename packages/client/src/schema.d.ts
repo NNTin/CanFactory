@@ -51,6 +51,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/part-families": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the parts library’s families */
+        get: operations["listPartFamilies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/part-families/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a family with all its parts and their sources */
+        get: operations["getPartFamily"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/parts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one part, its family and its sources */
+        get: operations["getPart"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/renders": {
         parameters: {
             query?: never;
@@ -250,6 +301,13 @@ export interface operations {
                                     maximum: number;
                                 }[];
                             }[] | null;
+                            /** @description For an enum control whose options are real-world parts: the parts-library family they link to. The editor links the selected option to the library. Null for none. */
+                            part: {
+                                /** @description The id of a parts-library family. */
+                                family: string;
+                                /** @description Null: each option value is the id of a part of the family. Otherwise each option value is a value of this attribute of the family (e.g. `thread` = `M3`), which stands for every part that has it. */
+                                attribute: string | null;
+                            } | null;
                         }[];
                         defaults: {
                             [key: string]: number | boolean | string;
@@ -285,11 +343,13 @@ export interface operations {
                             }[];
                             /** @description Height in mm of the exploded layout above the print bed. */
                             lift: number;
-                            /** @description Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. Not printed and not in the ZIP. */
+                            /** @description Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. They are parts-library entries. Not printed and not in the ZIP. */
                             references?: {
                                 /** @description Its key in `poses` and `steps`. */
                                 id: string;
-                                /** @description What it is, e.g. “BIC Mini lighter (J25)”. */
+                                /** @description The id of the parts-library entry it is. */
+                                part: string;
+                                /** @description What it is: the part’s title, e.g. “BIC Mini lighter (J25)”. */
                                 title: string;
                             }[];
                         };
@@ -337,6 +397,313 @@ export interface operations {
                 };
                 content: {
                     "model/stl": string;
+                };
+            };
+            /** @description Default Response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Stable machine-readable error code.
+                         * @example INVALID_PARAMETERS
+                         */
+                        code: string;
+                        /** @description Actionable human-readable explanation. */
+                        message: string;
+                        issues: {
+                            field: string;
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    listPartFamilies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        title: string;
+                        description: string;
+                        /** @description Facets of the family, in display order. */
+                        attributes: {
+                            key: string;
+                            label: string;
+                        }[];
+                        /** @description The dimensions of the family, in display order. */
+                        dimensions: {
+                            key: string;
+                            label: string;
+                            /** @description The letter used in the standard’s drawing, e.g. “dk”. */
+                            symbol: string;
+                            /** @description Whether every part of the family has it. */
+                            required: boolean;
+                        }[];
+                        /** @description How many parts the family has. */
+                        count: number;
+                    }[];
+                };
+            };
+        };
+    };
+    getPartFamily: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        family: {
+                            id: string;
+                            title: string;
+                            description: string;
+                            /** @description Facets of the family, in display order. */
+                            attributes: {
+                                key: string;
+                                label: string;
+                            }[];
+                            /** @description The dimensions of the family, in display order. */
+                            dimensions: {
+                                key: string;
+                                label: string;
+                                /** @description The letter used in the standard’s drawing, e.g. “dk”. */
+                                symbol: string;
+                                /** @description Whether every part of the family has it. */
+                                required: boolean;
+                            }[];
+                        };
+                        parts: {
+                            id: string;
+                            family: string;
+                            /** @description A plain name, e.g. “Socket head cap screw M3 × 10”. */
+                            title: string;
+                            /** @description How it is ordered: the standard designation or the manufacturer’s article number. */
+                            designation: string;
+                            /** @description Other designations of the same part, e.g. the DIN standard an ISO standard replaced. */
+                            aliases: string[];
+                            /** @description What exactly this item is, in one or two sentences, so that it can be told apart from its neighbours. */
+                            description: string;
+                            /** @description The id of the source that defines it, for a standard part. */
+                            standard: string | null;
+                            /** @description The product, for a part that is not defined by a standard. */
+                            product: {
+                                manufacturer: string;
+                                sku: string;
+                                url: string;
+                            } | null;
+                            /** @description Facets the library filters by (see the family’s `attributes`). */
+                            attributes: {
+                                [key: string]: string;
+                            };
+                            /** @description Keyed by the family’s dimension keys. */
+                            dimensions: {
+                                [key: string]: {
+                                    /** @description Nominal value in mm. */
+                                    value: number;
+                                    /** @description Smallest allowed value in mm, when known. */
+                                    min: number | null;
+                                    /** @description Largest allowed value in mm, when known. */
+                                    max: number | null;
+                                    /** @description `standard`: from the part’s standard. `manufacturer`: from the maker’s data. `estimated`: no published figure; estimated (e.g. from photographs), as `source` explains. */
+                                    basis: "standard" | "manufacturer" | "estimated";
+                                    /** @description The id of the source it was read from. */
+                                    source: string;
+                                };
+                            };
+                            /** @description Ids of every source used for this part. */
+                            sources: string[];
+                            notes: string | null;
+                            preview: {
+                                /** @enum {string} */
+                                kind: "procedural";
+                            } | {
+                                /** @enum {string} */
+                                kind: "stl";
+                                /** @description The STL, rendered from the SCAD file beside it (see `partAssetPath`). */
+                                path: string;
+                            };
+                        }[];
+                        sources: {
+                            /** @description Stable id, referenced by parts and dimensions. */
+                            id: string;
+                            title: string;
+                            /** @description Who publishes it, e.g. “ISO” or “supermagnete (Webcraft GmbH)”. */
+                            publisher: string;
+                            url: string | null;
+                            /** @description `standard`: the standard that defines the part. `manufacturer`: the maker’s own data sheet or product page. `reference`: a published copy of a standard’s table, or other secondary data. */
+                            kind: "standard" | "manufacturer" | "reference";
+                            /** @description The date the values were read from it (ISO 8601), for web pages that can change. */
+                            accessed: string;
+                        }[];
+                        /** @description Models that link to a part, by part id; parts no model links to are left out. */
+                        usage: {
+                            [key: string]: {
+                                modelId: string;
+                                modelTitle: string;
+                                /** @description The model’s setting that links to the part, or “Assembly preview” for a reference object. */
+                                via: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            /** @description Default Response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Stable machine-readable error code.
+                         * @example INVALID_PARAMETERS
+                         */
+                        code: string;
+                        /** @description Actionable human-readable explanation. */
+                        message: string;
+                        issues: {
+                            field: string;
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    getPart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        part: {
+                            id: string;
+                            family: string;
+                            /** @description A plain name, e.g. “Socket head cap screw M3 × 10”. */
+                            title: string;
+                            /** @description How it is ordered: the standard designation or the manufacturer’s article number. */
+                            designation: string;
+                            /** @description Other designations of the same part, e.g. the DIN standard an ISO standard replaced. */
+                            aliases: string[];
+                            /** @description What exactly this item is, in one or two sentences, so that it can be told apart from its neighbours. */
+                            description: string;
+                            /** @description The id of the source that defines it, for a standard part. */
+                            standard: string | null;
+                            /** @description The product, for a part that is not defined by a standard. */
+                            product: {
+                                manufacturer: string;
+                                sku: string;
+                                url: string;
+                            } | null;
+                            /** @description Facets the library filters by (see the family’s `attributes`). */
+                            attributes: {
+                                [key: string]: string;
+                            };
+                            /** @description Keyed by the family’s dimension keys. */
+                            dimensions: {
+                                [key: string]: {
+                                    /** @description Nominal value in mm. */
+                                    value: number;
+                                    /** @description Smallest allowed value in mm, when known. */
+                                    min: number | null;
+                                    /** @description Largest allowed value in mm, when known. */
+                                    max: number | null;
+                                    /** @description `standard`: from the part’s standard. `manufacturer`: from the maker’s data. `estimated`: no published figure; estimated (e.g. from photographs), as `source` explains. */
+                                    basis: "standard" | "manufacturer" | "estimated";
+                                    /** @description The id of the source it was read from. */
+                                    source: string;
+                                };
+                            };
+                            /** @description Ids of every source used for this part. */
+                            sources: string[];
+                            notes: string | null;
+                            preview: {
+                                /** @enum {string} */
+                                kind: "procedural";
+                            } | {
+                                /** @enum {string} */
+                                kind: "stl";
+                                /** @description The STL, rendered from the SCAD file beside it (see `partAssetPath`). */
+                                path: string;
+                            };
+                        };
+                        family: {
+                            id: string;
+                            title: string;
+                            description: string;
+                            /** @description Facets of the family, in display order. */
+                            attributes: {
+                                key: string;
+                                label: string;
+                            }[];
+                            /** @description The dimensions of the family, in display order. */
+                            dimensions: {
+                                key: string;
+                                label: string;
+                                /** @description The letter used in the standard’s drawing, e.g. “dk”. */
+                                symbol: string;
+                                /** @description Whether every part of the family has it. */
+                                required: boolean;
+                            }[];
+                        };
+                        sources: {
+                            /** @description Stable id, referenced by parts and dimensions. */
+                            id: string;
+                            title: string;
+                            /** @description Who publishes it, e.g. “ISO” or “supermagnete (Webcraft GmbH)”. */
+                            publisher: string;
+                            url: string | null;
+                            /** @description `standard`: the standard that defines the part. `manufacturer`: the maker’s own data sheet or product page. `reference`: a published copy of a standard’s table, or other secondary data. */
+                            kind: "standard" | "manufacturer" | "reference";
+                            /** @description The date the values were read from it (ISO 8601), for web pages that can change. */
+                            accessed: string;
+                        }[];
+                        usage: {
+                            modelId: string;
+                            modelTitle: string;
+                            /** @description The model’s setting that links to the part, or “Assembly preview” for a reference object. */
+                            via: string;
+                        }[];
+                    };
                 };
             };
             /** @description Default Response */
@@ -497,7 +864,7 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "7";
+                    modelVersion: "8";
                     /** @description Cigarette case parameters. All fields are required. */
                     parameters: {
                         /**
@@ -507,6 +874,13 @@ export interface operations {
                          * @enum {unknown}
                          */
                         snap: "friction" | "detent" | "clip" | "magnet" | "crush-ribs";
+                        /**
+                         * Magnets
+                         * @description The round magnets the case lid snap is sized for, with magnets: two in the box and two in the lid. Each is a real product from the parts library; its pockets are cut to its greatest size.
+                         * @default supermagnete-s-06-02-n
+                         * @enum {unknown}
+                         */
+                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-02-n" | "supermagnete-s-08-02-n";
                         /**
                          * Mini box lid
                          * @description How the mini lid holds in the mini box: the original pads (a clearance fit), a detent or crush ribs.

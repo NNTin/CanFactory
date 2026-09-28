@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { Value } from 'typebox/value';
 import { assemblyOffset, assemblyState, assemblyStops } from './assembly.ts';
-import { activeParts, AssemblySchema, isAssembly, models, referenceObjectPath, type Assembly } from './models.ts';
+import { activeParts, AssemblySchema, isAssembly, models, type Assembly } from './models.ts';
+import { findPart, partAssetPath } from './parts/index.ts';
 
 const assembly: Assembly = {
   poses: { base: { position: [0, 0, 0] }, top: { position: [0, 0, 10] }, insert: { position: [1, 0, 5] } },
@@ -61,11 +62,14 @@ describe('registered assemblies', () => {
       for (const id of [...Object.keys(data.poses), ...data.steps.flatMap(step => step.parts)]) expect(ids).toContain(id);
       expect(data.steps.length).toBeGreaterThan(0);
       expect(data.lift).toBeGreaterThanOrEqual(0);
-      // Reference objects are shown, never printed: each has its source and the STL the preview bundles, and none is rendered.
-      for (const id of references) {
-        expect(existsSync(referenceObjectPath(model.id, id, 'scad')), id).toBe(true);
-        expect(existsSync(referenceObjectPath(model.id, id, 'stl')), id).toBe(true);
-        expect(activeParts(model, model.defaults).map(part => part.id)).not.toContain(id);
+      // Reference objects are shown, never printed: each is a parts-library entry with its source and the STL the preview
+      // bundles, and none is rendered.
+      for (const reference of data.references ?? []) {
+        const part = findPart(reference.part);
+        if (!part) throw new Error(`${reference.id}: ${reference.part} is not in the parts library`);
+        expect(reference.title).toBe(part.title);
+        for (const extension of ['scad', 'stl'] as const) expect(existsSync(partAssetPath(part, extension) ?? ''), `${reference.id}.${extension}`).toBe(true);
+        expect(activeParts(model, model.defaults).map(active => active.id)).not.toContain(reference.id);
       }
     });
   }
@@ -73,7 +77,7 @@ describe('registered assemblies', () => {
   it('shows the BIC Mini lighter in the cigarette case, inserted before the case is closed, without adding a part to print', () => {
     const cigaretteCase = models.find(model => model.id === 'cigarette-case');
     if (!cigaretteCase?.assembly || !isAssembly(cigaretteCase)) throw new Error('Expected the cigarette case assembly');
-    expect(cigaretteCase.assembly.references).toEqual([{ id: 'mini-bic-lighter', title: 'BIC Mini lighter (J25)' }]);
+    expect(cigaretteCase.assembly.references).toEqual([{ id: 'mini-bic-lighter', part: 'bic-j25-mini-lighter', title: 'BIC Mini lighter (J25)' }]);
     expect(cigaretteCase.parts.map(part => part.id)).not.toContain('mini-bic-lighter');
     expect(cigaretteCase.assembly.steps.map(step => step.title).slice(-2)).toEqual(['Insert the lighter into its bay', 'Close the case']);
   });

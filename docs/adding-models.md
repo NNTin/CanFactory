@@ -81,11 +81,28 @@ model for this. Models without `assembly` keep the plain grid.
 
 **Reference objects (optional).** `assembly.references` lists real-world objects the assembly holds, such as the lighter that
 the cigarette case's round bay is sized for. They get poses and steps like parts, so the preview shows how they fit, but they are
-never printed: they are not in `parts`, the worker does not render them and they are not in the ZIP. Each lives in
-`models/<model-id>/reference-objects/` (`referenceObjectPath`): `<id>.scad` with the real dimensions as named values, and
-`<id>.stl`, that file rendered with `openscad --backend Manifold --export-format binstl`, which the web app bundles
-(`apps/web/src/referenceObjects.ts`). Render the STL again after changing the SCAD file: `npm run check:assembly` renders
-the SCAD file, fails if the committed STL's bounds differ, and includes the object in its collision checks.
+never printed: they are not in `parts`, the worker does not render them and they are not in the ZIP. Each is a parts-library
+entry with an STL preview, added with `referencePart(poseId, partId)` (see [adding-parts.md](adding-parts.md)): its SCAD file
+under `parts/` has the real dimensions as named values, and the STL beside it is that file rendered with
+`openscad --backend Manifold --export-format binstl`, which the web app bundles (`apps/web/src/referenceObjects.ts`). Render the
+STL again after changing the SCAD file: `npm run check:assembly` renders the SCAD file, fails if the committed STL's bounds
+differ, and includes the object in its collision checks.
+
+**Real-world parts.** When a setting chooses a real part (a screw size, a magnet), link the control to the parts library: set
+`part: { family, attribute }` on it. With `attribute: null` each option value is a part id; otherwise each value is a value of
+that attribute (the plank connector's `screwHoles` = `M3` stands for every M3 screw). The editor then links the chosen option to
+the library, and the library lists the model under the part's “Used by”. Take the sizes a model needs (e.g. `ISO_273_CLEARANCE_HOLES`)
+from the library rather than copying them. For a setting whose values are part ids (e.g. the cigarette case's `magnet`):
+
+- **The control:** `partControl(schema, key, group, family, partIds)` names and describes each option from the library. Offer only the
+  parts the geometry can take, and prove it with a test (the case's `magnetFits`).
+- **The geometry:** `partDefines` on the part (or the model) passes the chosen part's dimensions to the SCAD file:
+  `{ magnet: { MAGNET_D: ['diameter', 'max'], MAGNET_T: ['thickness', 'max'] } }` gives `-D MAGNET_D=6.1` for a 6 ± 0.1 mm magnet.
+  Size a pocket from the `max`. The worker and `npm run check:assembly` both use `scadDefines`, and the library data behind every
+  selectable part is part of the cache fingerprint (`linkedPartData`).
+- **The preview:** `linkedReferences(parameters)` returns reference objects that depend on the settings (part, pose, and the part
+  they are mounted in, `movesWith`); `resolveAssembly` adds them to the assembly for the editor and the collision check. Parts
+  without an STL are built from their dimensions in the preview; the check renders magnets from `parts/magnets/magnet.scad`.
 
 Generators for continuous parameters need extra care. Choose which dimensions scale with each parameter and record it in
 the SCAD header (moss-planter: tube radius, thread and end rings scale with the tower diameter; strut width and row

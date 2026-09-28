@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { unzipSync } from 'fflate';
-import { activeParts, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, mossPlanter, plankConnector, svgToLogo, textWidth, validateParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, CASE_MAGNETS, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, mossPlanter, plankConnector, svgToLogo, textWidth, validateParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, RENDERER_IMAGE, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, runOpenScad, type OpenScadRunner } from '../apps/worker/src/render.ts';
@@ -139,6 +139,8 @@ try {
   const lighterMode = (mode: string) => mode === 'crush-ribs' ? mode : 'friction';
   const caseRuns: { name: string; parameters: ParameterValues }[] = [
     ...['friction', 'detent', 'clip', 'magnet', 'crush-ribs'].map(snap => ({ name: `snap ${snap}`, parameters: { ...cigaretteCase.defaults, snap } })),
+    // every magnet the case lid offers, at both ends of the clearance range (its pockets and bosses are cut to the magnet)
+    ...CASE_MAGNETS.flatMap(magnet => [0.1, 0.6].map(clearance => ({ name: `magnet ${magnet} at clearance ${clearance}`, parameters: { ...cigaretteCase.defaults, snap: 'magnet', magnet, clearance } }))),
     ...['sans', 'serif', 'mono', 'wide'].map(textFont => ({ name: `engraved ${textFont}`, parameters: { ...cigaretteCase.defaults, engraveText: 'Tom & Jo', textFont, textSize: 4 } })),
     { name: 'second filament', parameters: { ...cigaretteCase.defaults, engraveText: 'Hello', textMode: 'second-filament', textSize: 6 } },
     // an SVG logo instead of the text: a ring with a star in it (a self-crossing outline, filled nonzero), engraved and as a second-filament part,
