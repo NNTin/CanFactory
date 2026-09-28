@@ -261,22 +261,29 @@ try {
     assert.equal(store.enqueue(plankConnector, parameters).id, job.id);
     console.log(`PASS plank connector ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
-  // Litter shovel: every sieve texture, and the sieve extremes (most gaps, a single gap). Each part must be one closed solid of the
-  // fixed size (only the sieve changes), and the scoop's sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm back wall:
-  // its volume plus the gaps' volume is the same solid scoop for every sieve.
+  // Litter shovel: every sieve texture, the sieve extremes (most gaps, a single gap), and both snap modes of both joints at the
+  // clearance extremes. Each part must be one closed solid of the expected size (only the handle's depends on the clearance), and
+  // the scoop's sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm back wall: at the default fit, its volume plus
+  // the gaps' volume is the same solid scoop for every sieve.
   const shovelRuns: { name: string; overrides: Partial<LitterShovelParameters> }[] = [
-    { name: 'default (reference slots)', overrides: {} },
+    { name: 'default (slots, detents)', overrides: {} },
     { name: 'staggered slots', overrides: { sievePattern: 'staggered' } },
     { name: 'round holes', overrides: { sievePattern: 'round' } },
     { name: 'hexagons', overrides: { sievePattern: 'hex' } },
-    { name: 'finest round holes', overrides: { sievePattern: 'round', gapWidth: 3, gapSpacing: 2, sieveMargin: 2 } },
-    { name: 'finest hexagons', overrides: { sievePattern: 'hex', gapWidth: 3, gapSpacing: 2, sieveMargin: 2 } },
-    { name: 'long thin staggered slots', overrides: { sievePattern: 'staggered', gapWidth: 3, gapLength: 40, gapSpacing: 2, sieveMargin: 2 } },
+    { name: 'finest round holes', overrides: { sievePattern: 'round', gapWidth: 3, gapSpacing: 3, sieveMargin: 3 } },
+    { name: 'finest hexagons', overrides: { sievePattern: 'hex', gapWidth: 3, gapSpacing: 3, sieveMargin: 3 } },
+    { name: 'long thin staggered slots', overrides: { sievePattern: 'staggered', gapWidth: 3, gapLength: 40, gapSpacing: 3, sieveMargin: 3 } },
     { name: 'single largest slot', overrides: { gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10 } },
+    { name: 'friction fits at 0.1 mm', overrides: { handleSnap: 'friction', scoopSnap: 'friction', clearance: 0.1 } },
+    { name: 'detents at 0.1 mm, least engagement', overrides: { clearance: 0.1, handleDetentEngage: 0.02, scoopDetentEngage: 0.02 } },
+    { name: 'detents at 0.6 mm, most engagement', overrides: { clearance: 0.6, handleDetentEngage: 0.4, scoopDetentEngage: 0.4 } },
   ];
-  const shovelSizes: Record<string, [number, number, number]> = { container: [110.95, 106.8, 162.5], scoop: [87.4, 119.7, 141.8], handle: [139.8, 125.7, 74.29] };
+  const shovelSizes = (p: LitterShovelParameters): Record<string, [number, number, number]> => ({
+    container: [136.25, 114.8, 141.5], handle: [140.65 + p.clearance, 119.6 + 2 * p.clearance, 20], scoop: [82.5, 114.8, 136],
+  });
   const gapArea = (p: LitterShovelParameters) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
     : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (p.gapLength - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
+  const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'clearance', 'scoopDetentEngage'] as const).every(key => p[key] === litterShovel.defaults[key]);
   let solidScoop: number | undefined;
   for (const { name, overrides } of only && only !== 'litter-shovel' ? [] : shovelRuns) {
     const started = Date.now();
@@ -290,9 +297,9 @@ try {
     finally { clearInterval(heartbeat); }
     const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `litter shovel ${name}`); assert.ok(result.artifact);
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for the litter shovel.');
-    assert.deepEqual(result.artifact.parts.map(part => part.id), ['container', 'scoop', 'handle'], `litter shovel ${name}: parts`);
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['container', 'handle', 'scoop'], `litter shovel ${name}: parts`);
     for (const part of result.artifact.parts) {
-      const size = shovelSizes[part.id];
+      const size = shovelSizes(parameters)[part.id];
       assert.ok(size && part.volume > 0, `litter shovel ${name} ${part.id}`);
       for (const [axis, want] of [['x', size[0]], ['y', size[1]], ['z', size[2]]] as const)
         assert.ok(Math.abs(part.dimensions[axis] - want) <= 0.05, `litter shovel ${name} ${part.id} ${axis}: ${part.dimensions[axis]} != ${want}`);
@@ -302,9 +309,11 @@ try {
     const gaps = sieveGaps(parameters).length;
     // Round holes and hexagons are polygons (OpenSCAD's $fs/$fa), a little smaller than true circles: allow 1 %.
     const solid = scoop.volume + gaps * gapArea(parameters) * 3.2;
-    solidScoop ??= solid;
-    assert.ok(Math.abs(solid - solidScoop) < 0.01 * solidScoop, `litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³ + gaps = ${solid.toFixed(0)}, expected ${solidScoop.toFixed(0)}`);
-    const entries = unzipSync(new Uint8Array(await readFile(store.artifacts.path(job.id, 'zip'))));
+    if (defaultFit(parameters)) {
+      solidScoop ??= solid;
+      assert.ok(Math.abs(solid - solidScoop) < 0.01 * solidScoop, `litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³ + gaps = ${solid.toFixed(0)}, expected ${solidScoop.toFixed(0)}`);
+    }
+  const entries = unzipSync(new Uint8Array(await readFile(store.artifacts.path(job.id, 'zip'))));
     assert.deepEqual(Object.keys(entries).sort(), ['container.stl', 'handle.stl', 'scoop.stl']);
     for (const [entryName, entryBytes] of Object.entries(entries))
       assert.ok(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength)).sha256, `litter shovel ${name} ${entryName}: expected a valid individual STL`);

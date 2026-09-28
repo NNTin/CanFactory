@@ -59,17 +59,19 @@ describe('temporary render queue', () => {
     expect(store.enqueue(plankConnector, { ...plankConnector.defaults, insertionDepth: 25 }).id).not.toBe(job.id);
   });
 
-  it('seeds the litter shovel as a three-part assembly whose sieve settings reach the cache key', () => {
+  it('seeds the litter shovel as a three-part assembly whose sieve and snap settings reach the cache key', () => {
     const detail = store.getModel(litterShovel.id)?.detail;
     expect(detail?.artifactFormat).toBe('zip');
     expect(detail?.customizable).toBe(true);
     expect(detail?.referenceUrl).toBeUndefined();
-    expect(detail?.parts?.map(part => part.id)).toEqual(['container', 'scoop', 'handle']);
-    expect(detail?.assembly?.steps.map(step => step.parts)).toEqual([['scoop'], ['handle']]);
+    expect(detail?.parts?.map(part => part.id)).toEqual(['container', 'handle', 'scoop']);
+    expect(detail?.assembly?.steps.map(step => step.parts)).toEqual([['handle'], ['scoop']]);
     const job = store.enqueue(litterShovel, litterShovel.defaults);
     expect(store.enqueue(litterShovel, { ...litterShovel.defaults }).id).toBe(job.id);
     expect(store.enqueue(litterShovel, { ...litterShovel.defaults, sievePattern: 'hex' }).id).not.toBe(job.id);
     expect(store.enqueue(litterShovel, { ...litterShovel.defaults, gapWidth: 5 }).id).not.toBe(job.id);
+    expect(store.enqueue(litterShovel, { ...litterShovel.defaults, handleSnap: 'friction' }).id).not.toBe(job.id);
+    expect(store.enqueue(litterShovel, { ...litterShovel.defaults, clearance: 0.3 }).id).not.toBe(job.id);
   });
 
   it('enqueues an assembly model with its parameters and reuses/clears both artifact extensions', () => {
