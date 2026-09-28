@@ -67,23 +67,28 @@ module grip() {
   }
 }
 
-// A blind socket opening on the boss's underside at (x, y): a lead-in, the throat and the retention recess.
+// A blind socket opening on the boss's underside at (x, y): a lead-in, the throat and the retention recess. The cones run
+// 0.01 mm into the throat and the recess starts inside the cone, so no two cutters meet on a shared edge.
 module socket(x, y) {
   r = SOCKET_D / 2; c = SOCKET_RETENTION_D / 2;
+  lead = 0.6 / 0.25;       // lead-in: 0.25 mm wider over 0.6 mm
+  flare = 0.4 / (c - r);   // retention cone: from the throat to the recess over 0.4 mm
   translate([x, y, COLLAR_H]) {
     translate([0, 0, -0.1]) cylinder(r = r, h = SOCKET_DEPTH + 0.1);
-    translate([0, 0, -E]) cylinder(r1 = r + 0.25, r2 = r, h = 0.6 + E);
-    translate([0, 0, 2.8]) cylinder(r1 = r, r2 = c, h = 0.4);
-    translate([0, 0, 3.2]) cylinder(r = c, h = SOCKET_DEPTH - 3.2);
+    translate([0, 0, -E]) cylinder(r1 = r + 0.25, r2 = r - 0.01, h = 0.6 + 0.01 * lead + E);
+    translate([0, 0, 2.8 - 0.01 * flare]) cylinder(r1 = r - 0.01, r2 = c, h = 0.4 + 0.01 * flare);
+    translate([0, 0, 3.2 - 0.05]) cylinder(r = c, h = SOCKET_DEPTH - 3.2 + 0.05);
   }
 }
 
-// The two spring fingers: a 1.2 mm stem rooted below each window, with an inward hook under the scoop's flange.
+// The two spring fingers: a 1.2 mm stem rooted below each window, with an inward hook under the scoop's flange. The stem's
+// inner face stands 0.05 mm proud of the collar's (60.45), so the two never share a face; the flange still clears it by 0.55 mm.
 module spring_catches() {
   for (sign = [-1, 1]) {
-    box(10, 1.2, 14.2, y = sign * 61.05, z = 1.5);
-    hook = [[60.45, 11.7], [61.65, 11.7], [61.65, 15.7], [59.25, 15.7], [59.25, 15.0], [60.45, 12.3]];
-    translate([-5, 0, 0]) rotate([90, 0, 90]) linear_extrude(10) polygon([for (p = hook) [sign * p[0], p[1]]]);
+    box(10, 1.25, 14.15, y = sign * 61.025, z = 1.5);
+    // The hook's outer face and ends stay 0.05 mm inside the stem's; the stem stops 0.05 mm under the hook's top.
+    hook = [[60.45, 11.7], [61.6, 11.7], [61.6, 15.7], [59.25, 15.7], [59.25, 15.0], [60.45, 12.3]];
+    translate([-4.95, 0, 0]) rotate([90, 0, 90]) linear_extrude(9.9) polygon([for (p = hook) [sign * p[0], p[1]]]);
   }
 }
 

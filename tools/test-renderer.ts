@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { unzipSync } from 'fflate';
-import { activeParts, CASE_MAGNETS, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, mossPlanter, plankConnector, svgToLogo, textWidth, validateParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, CASE_MAGNETS, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, litterShovel, mossPlanter, plankConnector, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, RENDERER_IMAGE, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, runOpenScad, type OpenScadRunner } from '../apps/worker/src/render.ts';
@@ -35,7 +35,7 @@ const wasmRunner: OpenScadRunner = async (args) => {
   await writeFile(output, (await renderScad(scad, defines)).stl);
 };
 const mode = process.env['OPENSCAD_TEST_MODE'];
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = mode === 'native' ? runOpenScad : mode === 'wasm' ? wasmRunner : dockerRunner;
 const cases: { name: string; overrides: ParameterValues; dimensions: [number, number, number] }[] = [
@@ -260,6 +260,56 @@ try {
     assert.equal(inspectStl(bytes).sha256, result.artifact.sha256);
     assert.equal(store.enqueue(plankConnector, parameters).id, job.id);
     console.log(`PASS plank connector ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+  // Litter shovel: every sieve texture, and the sieve extremes (most gaps, a single gap). Each part must be one closed solid of the
+  // fixed size (only the sieve changes), and the scoop's sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm back wall:
+  // its volume plus the gaps' volume is the same solid scoop for every sieve.
+  const shovelRuns: { name: string; overrides: Partial<LitterShovelParameters> }[] = [
+    { name: 'default (reference slots)', overrides: {} },
+    { name: 'staggered slots', overrides: { sievePattern: 'staggered' } },
+    { name: 'round holes', overrides: { sievePattern: 'round' } },
+    { name: 'hexagons', overrides: { sievePattern: 'hex' } },
+    { name: 'finest round holes', overrides: { sievePattern: 'round', gapWidth: 3, gapSpacing: 2, sieveMargin: 2 } },
+    { name: 'finest hexagons', overrides: { sievePattern: 'hex', gapWidth: 3, gapSpacing: 2, sieveMargin: 2 } },
+    { name: 'long thin staggered slots', overrides: { sievePattern: 'staggered', gapWidth: 3, gapLength: 40, gapSpacing: 2, sieveMargin: 2 } },
+    { name: 'single largest slot', overrides: { gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10 } },
+  ];
+  const shovelSizes: Record<string, [number, number, number]> = { container: [110.95, 106.8, 162.5], scoop: [87.4, 119.7, 141.8], handle: [139.8, 125.7, 74.29] };
+  const gapArea = (p: LitterShovelParameters) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
+    : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (p.gapLength - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
+  let solidScoop: number | undefined;
+  for (const { name, overrides } of only && only !== 'litter-shovel' ? [] : shovelRuns) {
+    const started = Date.now();
+    const parameters = { ...litterShovel.defaults, ...overrides } as LitterShovelParameters;
+    assert.deepEqual(validateParameters(litterShovel, parameters), [], name);
+    const queued = store.enqueue(litterShovel, parameters);
+    const job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken;
+    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true, `litter shovel ${name}`); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `litter shovel ${name}`); assert.ok(result.artifact);
+    if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for the litter shovel.');
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['container', 'scoop', 'handle'], `litter shovel ${name}: parts`);
+    for (const part of result.artifact.parts) {
+      const size = shovelSizes[part.id];
+      assert.ok(size && part.volume > 0, `litter shovel ${name} ${part.id}`);
+      for (const [axis, want] of [['x', size[0]], ['y', size[1]], ['z', size[2]]] as const)
+        assert.ok(Math.abs(part.dimensions[axis] - want) <= 0.05, `litter shovel ${name} ${part.id} ${axis}: ${part.dimensions[axis]} != ${want}`);
+    }
+    const scoop = result.artifact.parts.find(part => part.id === 'scoop');
+    assert.ok(scoop);
+    const gaps = sieveGaps(parameters).length;
+    // Round holes and hexagons are polygons (OpenSCAD's $fs/$fa), a little smaller than true circles: allow 1 %.
+    const solid = scoop.volume + gaps * gapArea(parameters) * 3.2;
+    solidScoop ??= solid;
+    assert.ok(Math.abs(solid - solidScoop) < 0.01 * solidScoop, `litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³ + gaps = ${solid.toFixed(0)}, expected ${solidScoop.toFixed(0)}`);
+    const entries = unzipSync(new Uint8Array(await readFile(store.artifacts.path(job.id, 'zip'))));
+    assert.deepEqual(Object.keys(entries).sort(), ['container.stl', 'handle.stl', 'scoop.stl']);
+    for (const [entryName, entryBytes] of Object.entries(entries))
+      assert.ok(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength)).sha256, `litter shovel ${name} ${entryName}: expected a valid individual STL`);
+    assert.equal(store.enqueue(litterShovel, parameters).id, job.id);
+    console.log(`PASS litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 } finally {
   await app.close(); store.close(); await rm(directory, { recursive: true, force: true });

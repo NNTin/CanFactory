@@ -23,8 +23,9 @@ OUTSIDE = [[0, 64.7, 97, 11], [7, 65.7, 98.1, 11.5], [106, 74.2, 106.6, 14], [13
 INSIDE = [[3.2, 60.4, 92.7, 8.9], [7, 60.9, 93.3, 9.1], [106, 69.4, 101.8, 11.6], [135, 69.7, 102, 11.6],
           [137, 68.3, 100.6, 10.9], [139, 66.1, 98.4, 9.8], [140, 67.5, 99.8, 10.5], [141.5, 69.7, 102, 11.6],
           [143, 69.7, 102, 11.6]];
-// Rear haunch from the rim up to the pad, as an XZ outline 20 mm wide (Y).
-HAUNCH = [[33, 134], [39, 134], [65, 152], [73.7, 154], [73.7, 158], [48.7, 158], [48.7, 151], [33, 141]];
+// Rear haunch from the rim up to the pad, as an XZ outline 20 mm wide (Y). Where it meets the pad (X 48.7 to 73.7, top at
+// Z 158) its faces stop 0.05 mm inside the pad's, so the two never share a face.
+HAUNCH = [[33, 134], [39, 134], [65, 152], [73.65, 154], [73.65, 157.95], [48.75, 157.95], [48.75, 151], [33, 141]];
 
 module rr2d(w, l, r) { offset(r = r) square([w - 2 * r, l - 2 * r], center = true); }
 
