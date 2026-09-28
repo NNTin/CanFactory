@@ -64,8 +64,8 @@ describe('temporary render queue', () => {
     expect(detail?.artifactFormat).toBe('zip');
     expect(detail?.customizable).toBe(true);
     expect(detail?.referenceUrl).toBeUndefined();
-    expect(detail?.parts?.map(part => part.id)).toEqual(['container', 'handle', 'scoop']);
-    expect(detail?.assembly?.steps.map(step => step.parts)).toEqual([['handle'], ['scoop']]);
+    expect(detail?.parts?.map(part => part.id)).toEqual(['container', 'scoop', 'handle']);
+    expect(detail?.assembly?.steps.map(step => step.parts)).toEqual([['scoop'], ['handle']]);
     const job = store.enqueue(litterShovel, litterShovel.defaults);
     expect(store.enqueue(litterShovel, { ...litterShovel.defaults }).id).toBe(job.id);
     expect(store.enqueue(litterShovel, { ...litterShovel.defaults, sievePattern: 'hex' }).id).not.toBe(job.id);

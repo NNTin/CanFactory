@@ -262,7 +262,7 @@ try {
     console.log(`PASS plank connector ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   // Litter shovel: every sieve texture, the sieve extremes (most gaps, a single gap), and both snap modes of both joints at the
-  // clearance extremes. Each part must be one closed solid of the expected size (only the handle's depends on the clearance), and
+  // clearance extremes. Each part must be one closed solid of the expected size (none depends on the clearance), and
   // the scoop's sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm back wall: at the default fit, its volume plus
   // the gaps' volume is the same solid scoop for every sieve.
   const shovelRuns: { name: string; overrides: Partial<LitterShovelParameters> }[] = [
@@ -278,12 +278,12 @@ try {
     { name: 'detents at 0.1 mm, least engagement', overrides: { clearance: 0.1, handleDetentEngage: 0.02, scoopDetentEngage: 0.02 } },
     { name: 'detents at 0.6 mm, most engagement', overrides: { clearance: 0.6, handleDetentEngage: 0.4, scoopDetentEngage: 0.4 } },
   ];
-  const shovelSizes = (p: LitterShovelParameters): Record<string, [number, number, number]> => ({
-    container: [136.25, 114.8, 141.5], handle: [140.65 + p.clearance, 119.6 + 2 * p.clearance, 20], scoop: [82.5, 114.8, 136],
+  const shovelSizes = (): Record<string, [number, number, number]> => ({
+    container: [111.25, 114.8, 144], scoop: [88.9, 121.2, 127], handle: [198.9, 121.2, 20],
   });
   const gapArea = (p: LitterShovelParameters) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
     : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (p.gapLength - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
-  const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'clearance', 'scoopDetentEngage'] as const).every(key => p[key] === litterShovel.defaults[key]);
+  const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'handleSnap', 'clearance', 'scoopDetentEngage', 'handleDetentEngage'] as const).every(key => p[key] === litterShovel.defaults[key]);
   let solidScoop: number | undefined;
   for (const { name, overrides } of only && only !== 'litter-shovel' ? [] : shovelRuns) {
     const started = Date.now();
@@ -297,9 +297,9 @@ try {
     finally { clearInterval(heartbeat); }
     const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `litter shovel ${name}`); assert.ok(result.artifact);
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for the litter shovel.');
-    assert.deepEqual(result.artifact.parts.map(part => part.id), ['container', 'handle', 'scoop'], `litter shovel ${name}: parts`);
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['container', 'scoop', 'handle'], `litter shovel ${name}: parts`);
     for (const part of result.artifact.parts) {
-      const size = shovelSizes(parameters)[part.id];
+      const size = shovelSizes()[part.id];
       assert.ok(size && part.volume > 0, `litter shovel ${name} ${part.id}`);
       for (const [axis, want] of [['x', size[0]], ['y', size[1]], ['z', size[2]]] as const)
         assert.ok(Math.abs(part.dimensions[axis] - want) <= 0.05, `litter shovel ${name} ${part.id} ${axis}: ${part.dimensions[axis]} != ${want}`);
