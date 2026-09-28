@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cigaretteCase, findPart, fruitFlyTrap, mossPlanter, plankConnector } from '@canfactory/contracts';
+import { cigaretteCase, findPart, fruitFlyTrap, litterShovel, mossPlanter, plankConnector } from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS } from './config.ts';
 import { Store, repositoryRoot, sourceFingerprint } from './store.ts';
 
@@ -17,7 +17,7 @@ afterEach(() => { store.close(); rmSync(directory, { recursive: true, force: tru
 
 describe('temporary render queue', () => {
   it('seeds idempotently and reuses equivalent normalized parameters', () => {
-    store.seed(); expect(store.listModels()).toHaveLength(4);
+    store.seed(); expect(store.listModels()).toHaveLength(5);
     const first = store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
     const reordered = Object.fromEntries(Object.entries(fruitFlyTrap.defaults).reverse());
     expect(store.enqueue(fruitFlyTrap, reordered).id).toBe(first.id);
@@ -57,6 +57,19 @@ describe('temporary render queue', () => {
     expect(store.enqueue(plankConnector, { ...plankConnector.defaults }).id).toBe(job.id);
     expect(store.enqueue(plankConnector, { ...plankConnector.defaults, screwHoles: 'M4' }).id).not.toBe(job.id);
     expect(store.enqueue(plankConnector, { ...plankConnector.defaults, insertionDepth: 25 }).id).not.toBe(job.id);
+  });
+
+  it('seeds the litter shovel as a three-part assembly whose sieve settings reach the cache key', () => {
+    const detail = store.getModel(litterShovel.id)?.detail;
+    expect(detail?.artifactFormat).toBe('zip');
+    expect(detail?.customizable).toBe(true);
+    expect(detail?.referenceUrl).toBeUndefined();
+    expect(detail?.parts?.map(part => part.id)).toEqual(['container', 'scoop', 'handle']);
+    expect(detail?.assembly?.steps.map(step => step.parts)).toEqual([['scoop'], ['handle']]);
+    const job = store.enqueue(litterShovel, litterShovel.defaults);
+    expect(store.enqueue(litterShovel, { ...litterShovel.defaults }).id).toBe(job.id);
+    expect(store.enqueue(litterShovel, { ...litterShovel.defaults, sievePattern: 'hex' }).id).not.toBe(job.id);
+    expect(store.enqueue(litterShovel, { ...litterShovel.defaults, gapWidth: 5 }).id).not.toBe(job.id);
   });
 
   it('enqueues an assembly model with its parameters and reuses/clears both artifact extensions', () => {
@@ -129,7 +142,7 @@ describe('temporary render queue', () => {
     time += CACHE_TTL_MS + 1; store.cleanup();
     expect(store.getJob(job.id)).toBeUndefined();
     expect(existsSync(store.artifacts.path(job.id))).toBe(false);
-    expect(store.listModels()).toHaveLength(4);
+    expect(store.listModels()).toHaveLength(5);
     expect(existsSync(join(store.artifacts.catalogDir, 'fruit-fly-trap-1.stl'))).toBe(true);
   });
 

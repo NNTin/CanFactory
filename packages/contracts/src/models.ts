@@ -941,10 +941,141 @@ export const plankConnector = {
   derived: () => ({ slotCount: null }),
 } satisfies ModelDefinition;
 
+/**
+ * Litter shovel: an original design in three parts (models/litter-shovel/, docs/litter-shovel.md). A container that a liner bag
+ * fits into, a sifting scoop that sits on its rim and a handle collar that captures the scoop's flange and clips onto four split
+ * pegs at the container's rear. The fits are fixed; the parameters only shape the sieve in the scoop's back wall.
+ */
+const SIEVE_PATTERN_VALUES = ['slots', 'staggered', 'round', 'hex'] as const;
+export type SievePattern = typeof SIEVE_PATTERN_VALUES[number];
+const SIEVE_PATTERN_TEXT: Record<SievePattern, { label: string; description: string }> = {
+  slots: { label: 'Vertical slots', description: 'Rounded slots on a straight grid, like the original scoop. Long slots sift fastest.' },
+  staggered: { label: 'Staggered slots', description: 'Rounded slots with every other row shifted by half a pitch, like brickwork: a stiffer wall for the same open area.' },
+  round: { label: 'Round holes', description: 'Circular holes, close-packed in offset rows. Holds finer clumps back.' },
+  hex: { label: 'Hexagons', description: 'A honeycomb of hexagonal holes: the most open area for a given bar width.' },
+};
+const SLOT_PATTERNS: SievePattern[] = ['slots', 'staggered'];
+
+export const LitterShovelParametersSchema = Type.Object({
+  sievePattern: Type.Enum(SIEVE_PATTERN_VALUES, { title: 'Sieve texture', description: 'The shape and arrangement of the gaps in the scoop’s back wall.', default: 'slots' }),
+  gapWidth: dimension('Gap width', 'Width of each gap in mm: the slot width, the hole diameter or the hexagon’s size across flats. Litter finer than this falls through.', 7.2, 3, 15),
+  gapLength: dimension('Slot length', 'Length of each slot along the wall, in mm (slot textures only). At least the gap width.', 25, 6, 40, 0.5),
+  gapSpacing: dimension('Bar width', 'Solid wall between neighbouring gaps, in mm. Wider bars make a stiffer sieve with less open area.', 5.6, 2, 15),
+  sieveMargin: dimension('Sieve margin', 'Solid border kept between the gaps and the wall’s edges (flange, corners and arched top), in mm.', 3.2, 2, 10),
+}, { additionalProperties: false, description: 'Litter shovel parameters. All fields are required; dimensions are in millimetres.' });
+export type LitterShovelParameters = Static<typeof LitterShovelParametersSchema>;
+
+/**
+ * The scoop's back-wall sieve zone, in the scoop's frame (mm). Mirrors the constants of models/litter-shovel/scoop.scad: the flat
+ * part of the wall between the corner radii, from the flange's top up to where the cheek curve starts to thin the wall, under an
+ * elliptical arch.
+ */
+const SIEVE_ZONE = { halfWidth: 114.4 / 2 - 12, bottom: 32, top: 128, archZ: 103, archHalfWidth: 114.4 / 2, archHeight: 38.8 };
+/** Most gaps one sieve may have; more makes the scoop slow to render and a bar-thin, fragile wall. */
+export const MAX_SIEVE_GAPS = 400;
+
+/** The centres [y, z] of the sieve's gaps, exactly as scoop.scad lays them out (its `GAPS`). */
+export function sieveGaps(p: LitterShovelParameters): [number, number][] {
+  const slot = SLOT_PATTERNS.includes(p.sievePattern);
+  const gapZ = slot ? p.gapLength : p.sievePattern === 'hex' ? p.gapWidth * 2 / Math.sqrt(3) : p.gapWidth;
+  const pitchY = p.gapWidth + p.gapSpacing;
+  const pitchZ = slot ? p.gapLength + p.gapSpacing : pitchY * Math.sqrt(3) / 2;
+  const offsetRows = p.sievePattern !== 'slots';
+  const zone = SIEVE_ZONE, margin = p.sieveMargin;
+  const rows = Math.floor((zone.top - zone.bottom) / pitchZ) + 1;
+  const columns = Math.ceil(zone.halfWidth / pitchY) + 1;
+  const insideArch = (y: number, z: number) => {
+    const a = zone.archHalfWidth - margin, b = zone.archHeight - margin;
+    return z <= zone.archZ || (y / a) ** 2 + ((z - zone.archZ) / b) ** 2 <= 1;
+  };
+  const fits = (y: number, z: number) => {
+    const y1 = Math.abs(y) + p.gapWidth / 2, z0 = z - gapZ / 2, z1 = z + gapZ / 2;
+    return y1 <= zone.halfWidth - margin + 1e-6 && z0 >= zone.bottom + margin - 1e-6 && z1 <= zone.top - margin + 1e-6 && insideArch(y1, z1);
+  };
+  const gaps: [number, number][] = [];
+  for (let row = 0; row < rows; row++) for (let column = -columns; column <= columns; column++) {
+    const y = (column + (offsetRows && row % 2 === 1 ? 0.5 : 0)) * pitchY;
+    const z = zone.bottom + margin + gapZ / 2 + row * pitchZ;
+    if (fits(y, z)) gaps.push([y, z]);
+  }
+  return gaps;
+}
+
+function validateLitterShovel(p: LitterShovelParameters): ParameterIssue[] {
+  const issues: ParameterIssue[] = [];
+  const slot = SLOT_PATTERNS.includes(p.sievePattern);
+  if (slot && p.gapLength < p.gapWidth)
+    issues.push({ field: 'gapLength', message: `A slot must be at least as long as it is wide: at least ${p.gapWidth} mm.` });
+  const count = issues.length ? 0 : sieveGaps(p).length;
+  if (!issues.length && count === 0)
+    issues.push({ field: slot ? 'gapLength' : 'gapWidth', message: 'Not a single gap fits in the back wall. Use smaller gaps or a smaller margin.' });
+  if (count > MAX_SIEVE_GAPS)
+    issues.push({ field: 'gapSpacing', message: `${count} gaps are too many (at most ${MAX_SIEVE_GAPS}). Use larger gaps or wider bars.` });
+  return issues;
+}
+
+const litterShovelControls = [
+  enumControl(LitterShovelParametersSchema, 'sievePattern', 'basic', SIEVE_PATTERN_VALUES.map(value => ({ value, ...SIEVE_PATTERN_TEXT[value] }))),
+  control(LitterShovelParametersSchema, 'gapWidth', 'basic'),
+  { ...control(LitterShovelParametersSchema, 'gapLength', 'basic'), visibleWhen: { control: 'sievePattern', values: [...SLOT_PATTERNS] } },
+  control(LitterShovelParametersSchema, 'gapSpacing', 'basic'),
+  control(LitterShovelParametersSchema, 'sieveMargin', 'advanced'),
+];
+
+const LITTER_SHOVEL_DIR = 'models/litter-shovel/';
+
+/** The parts, in assembly order. Only the scoop takes parameters: the sieve. */
+const litterShovelParts: ModelPart[] = [
+  { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: {} },
+  { id: 'scoop', title: 'Scoop', sourcePath: `${LITTER_SHOVEL_DIR}scoop.scad`,
+    scadMapping: { sievePattern: 'SIEVE_PATTERN', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN' } },
+  { id: 'handle', title: 'Handle', sourcePath: `${LITTER_SHOVEL_DIR}handle.scad`, scadMapping: {} },
+];
+
+/**
+ * Stored on the container, in the container's frame. The scoop's ledge rests on the container's rim (141.5 mm), which puts
+ * its lower edge at 126 mm. The handle's collar starts at 140 mm, so that its shoulder stops on the scoop's flange (158 mm) and its
+ * sockets meet the pegs on the pad (158 mm); handle.scad lifts the handle by its grip's depth (`DROP`, 49.5896 mm), so it is
+ * placed that much lower. None of this depends on the sieve (docs/litter-shovel.md).
+ */
+const litterShovelAssembly: Assembly = {
+  poses: {
+    container: { position: [0, 0, 0] },
+    scoop: { position: [0, 0, 126] },
+    handle: { position: [0, 0, 140 - 49.5896] },
+  },
+  steps: [
+    { title: 'Set the scoop on the container', parts: ['scoop'], from: [0, 0, 60] },
+    { title: 'Clip the handle over the scoop', parts: ['handle'], from: [0, 0, 60] },
+  ],
+  lift: 60,
+};
+
+export const litterShovel = {
+  id: 'litter-shovel' as const, version: '1' as const, title: 'Litter shovel',
+  description: 'A cat-litter sifting scoop with a container for a liner bag and a handle that clips the scoop onto the container for storage. Choose the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and the bar width, then download the three parts as a ZIP of STL files.',
+  attribution: 'CanFactory (original design)',
+  printNotes: 'Print each part as generated: container and scoop upright, handle with supports under the grip.',
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  parts: litterShovelParts,
+  assembly: litterShovelAssembly,
+  parameterSchema: LitterShovelParametersSchema,
+  controls: litterShovelControls,
+  defaults: Object.fromEntries(litterShovelControls.map(c => [c.key, c.default])),
+  scadMapping: {},
+  validate(parameters: unknown): ParameterIssue[] {
+    if (!Value.Check(LitterShovelParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
+    return validateLitterShovel(parameters);
+  },
+  derived(parameters: unknown) {
+    return { slotCount: Value.Check(LitterShovelParametersSchema, parameters) ? sieveGaps(parameters).length : null };
+  },
+} satisfies ModelDefinition;
+
 /** Add models here; shared API contracts and the generic editor consume this registry. Widened to the shared
  * interface (rather than the precise literal-typed tuple) so generic code can read optional fields uniformly;
  * `findModel`/`RenderRequestSchema` still discriminate on each model's own literal `id`/`version`. */
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector];
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 
