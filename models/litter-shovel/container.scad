@@ -28,14 +28,22 @@ SUPPORT_THICKNESS = 2; //[1.2:0.1:4]
 GRIP_END = "open"; //[open,floor]
 // How far the dam under the mouth, on the scraper side (-X), reaches in from the back wall, in mm (0 for none)
 DAM_WIDTH = 8; //[0:0.5:15]
+// Thickness of the shell's wall, in mm (three to five lines of a 0.4 mm nozzle at 1.2 to 2.0); the floor follows it
+WALL_THICKNESS = 1.6; //[1.2:0.1:3.2]
 
 $fa = 4; $fs = 0.5;
 E = 0.01;
 
-// Body: the floor's and the band's outer plan [width (X), length (Y), corner radius]; wall, floor, and the lip's top.
+// Body: the floor's and the band's outer plan [width (X), length (Y), corner radius]; wall, floor, and the lip's top. The floor
+// is a plate the litter's weight bends when the container is carried by its handle, so it stays at least 2 mm and never goes
+// past 3.2 mm.
 FLOOR = [64.7, 97, 11];
 BAND = [74.5, 106.8, 14];
-WALL = 2.4; FLOOR_T = 3.2; RIM_Z = 141.5;
+WALL = WALL_THICKNESS; FLOOR_T = min(3.2, WALL + 0.8); RIM_Z = 141.5;
+// The handle's root pad: the wall is at least ROOT_WALL thick behind the handle's sheet, which carries the whole container, so
+// a thin wall does not make its anchor weak. The pad is ROOT_PAD_W wide, spans ROOT_PAD_Z, and has 45 degree ends and
+// underside, so it needs no support.
+ROOT_WALL = 2.4; ROOT_PAD_W = 34; ROOT_PAD_Z = [124, 136];
 // Lip: how far it stands out from the band, and its thickness above the 45 degree chamfer.
 LIP_W = 4; LIP_T = 3;
 // The band is straight from 3 mm below the lip's chamfer up to the rim.
@@ -170,6 +178,24 @@ module groove(l, g) {
   }
 }
 
+// ---- The handle's root pad: on the inside of the front wall, behind the handle's sheet. ----
+// The wall's inner face at height z, at the middle of the front (it flares in below BAND_Z).
+function front_in(z) = BAND[0] / 2 - (BAND[0] - FLOOR[0]) / 2 * (1 - min(z, BAND_Z) / BAND_Z) - WALL;
+// Its section in XZ: from the inner face, d deep with 45 degree ends, 1 mm into the wall (thinner walls than ROOT_WALL only).
+module root_pad() {
+  d = ROOT_WALL - WALL;
+  z0 = ROOT_PAD_Z[0]; z1 = ROOT_PAD_Z[1];
+  if (d > 0) intersection() {
+    rotate([90, 0, 0]) linear_extrude(ROOT_PAD_W + 2 * d, center = true) polygon([
+      [front_in(z0), z0], [front_in(z0 + d) - d, z0 + d], [front_in(BAND_Z) - d, BAND_Z], [front_in(z1 - d) - d, z1 - d],
+      [front_in(z1), z1], [front_in(z1) + 1, z1], [front_in(z0) + 1, z0]]);
+    // the plan's own 45 degree ends: the pad is ROOT_PAD_W wide at its face and d wider at the inner face
+    xf = front_in(BAND_Z); w = ROOT_PAD_W / 2;
+    translate([0, 0, z0 - 1]) linear_extrude(z1 - z0 + 2) polygon([
+      [xf - d - 1, -w], [xf - d, -w], [xf + 1, -(w + d + 1)], [xf + 1, w + d + 1], [xf - d, w], [xf - d - 1, w]]);
+  }
+}
+
 // ---- The dam: on the scraper side only. ----
 // Scooping, the shovel is turned over with the scraper side (-X) down, and the clumps already in the container slide towards the
 // mouth along that side. The dam holds them back: a sheet under the mouth, as thick as the wall, that leaves the back wall at
@@ -205,4 +231,5 @@ union() {
     if (SCOOP_SNAP == "detent") translate([0, 0, DETENT_Z]) on_sides(MOUTH) groove(DETENT_L, SCOOP_DETENT_ENGAGE);
   }
   if (DAM_WIDTH > 0) dam();
+  root_pad();
 }
