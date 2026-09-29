@@ -725,7 +725,7 @@ describe('litter shovel contract', () => {
       expect(validateParameters(litterShovel, { ...defaults, ...values }), JSON.stringify(values)).not.toEqual([]);
     // At the default length every sieve stays under the complexity limit; a longer scoop can exceed it, and validation says so.
     for (const sievePattern of ['round', 'hex'] as const)
-      expect(sieveGaps({ sievePattern, sieveSizing: 'length', sieveRows: 1, gapWidth: 3, gapLength: 6, gapSpacing: 3, sieveMargin: 3, tipBevel: 5, scoopLength: 127 }).length).toBeLessThanOrEqual(MAX_SIEVE_GAPS);
+      expect(sieveGaps({ sievePattern, sieveSizing: 'length', sieveRows: 1, gapWidth: 3, gapLength: 6, gapSpacing: 3, sieveMargin: 3, tipBevel: 5, scoopLength: 127, wallThickness: 1.6 }).length).toBeLessThanOrEqual(MAX_SIEVE_GAPS);
     const finest = { sievePattern: 'round', gapWidth: 3, gapSpacing: 3, sieveMargin: 3, tipBevel: 5 } as const;
     expect(validateParameters(litterShovel, { ...defaults, ...finest, scoopLength: 180 }).map(issue => issue.field)).toEqual(['gapSpacing']);
     expect(validateParameters(litterShovel, { ...defaults, ...finest, scoopLength: 150 })).toEqual([]);
