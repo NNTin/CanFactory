@@ -1137,6 +1137,12 @@ export interface operations {
                          */
                         tipThickness: number;
                         /**
+                         * Scoop length
+                         * @description How far the scoop’s blade reaches, in mm: the height of its straight scraping edge over the cap. A longer scoop takes more litter in one go and has room for more sieve rows.
+                         * @default 127
+                         */
+                        scoopLength: number;
+                        /**
                          * Tip bevel length
                          * @description How far down from the scraping edge the scoop’s inner face is bevelled, in mm. The sieve stays below the bevel.
                          * @default 12

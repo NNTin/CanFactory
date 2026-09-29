@@ -6,7 +6,8 @@
 // flush with the skirt. Inside, a 45 degree funnel leads from the blade into the sleeve, so clumps fall into the bag and never
 // onto the rim. The blade rises from the cap. Its back wall (-X) ends in a straight, sharp edge that scrapes along the floor: the
 // outer face runs flat to it and the inner face is bevelled down to a thin tip. The side walls fall from it in a smooth curve to
-// a low front (+X), with a full round top edge. See docs/litter-shovel.md.
+// a low front (+X), with a full round top edge. SCOOP_LENGTH sets how high the tip stands over the cap; the sides fall from it
+// to the same low front, and the sieve fills the taller or shorter wall. See docs/litter-shovel.md.
 //
 // Modelled as it prints, cap down: Z up, the sleeve's and the skirt's lower edges at Z = 0. Nothing needs support: the U's
 // ceiling is a 7.4 mm bridge and the funnel is a top surface. In `detent` mode the sleeve has bumps for the grooves in the
@@ -19,6 +20,8 @@
 // the tip, to the side walls' top and to the front corners are cut, so no sliver is left. The layout is mirrored by sieveGaps()
 // in packages/contracts/src/models.ts; keep the two identical.
 
+// The scoop's length: the blade's height from the cap's lower edges to the straight scraping edge, in mm
+SCOOP_LENGTH = 127; //[90:1:180]
 // Sieve texture: vertical slots on a grid, slots with alternate rows offset (brick), round holes or hexagons
 SIEVE_PATTERN = "slots"; //[slots,staggered,round,hex]
 // Gap width: slot width, hole diameter or hexagon size across flats
@@ -66,8 +69,8 @@ RIM_H = 5;
 CAP_T = 3; BAG_GAP = 0.8; SKIRT_T = 2.4; SLEEVE_IN_OFFSET = 2.2;
 // Blade: its outer wall stands RING_T inside the skirt's outer face (room for the handle's ring); wall thickness.
 RING_T = 3.6; WALL = 3.2;
-// Blade: height of the tip, and of the front.
-HEIGHT = 127; FRONT_Z = 26;
+// Blade: height of the tip (the scoop's length), and of the front.
+HEIGHT = SCOOP_LENGTH; FRONT_Z = 26;
 // Solid root band between the cap's top and the lowest gaps: the handle's 15 mm ring and 3 mm more.
 ROOT_BAND = 18;
 // Detent bumps: on the sleeve (mid-way down it) and on the blade's base (4 mm above the cap); length along the wall.

@@ -2527,6 +2527,7 @@
                           "gapSpacing",
                           "sieveMargin",
                           "tipThickness",
+                          "scoopLength",
                           "tipBevel",
                           "gripEnd",
                           "supportCount",
@@ -2598,6 +2599,15 @@
                             "minimum": 0.4,
                             "maximum": 2,
                             "multipleOf": 0.1
+                          },
+                          "scoopLength": {
+                            "type": "number",
+                            "title": "Scoop length",
+                            "description": "How far the scoop’s blade reaches, in mm: the height of its straight scraping edge over the cap. A longer scoop takes more litter in one go and has room for more sieve rows.",
+                            "default": 127,
+                            "minimum": 90,
+                            "maximum": 180,
+                            "multipleOf": 1
                           },
                           "tipBevel": {
                             "type": "number",

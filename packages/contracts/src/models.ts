@@ -1138,6 +1138,9 @@ export const HANDLE_NUTS = [
 export const DEFAULT_HANDLE_FASTENERS = { thread: 'M3', insert: 'cnc-kitchen-m3x5-7', nut: 'iso-4032-m3', screw: 'iso-10642-m3x12' } as const;
 const HANDLE_THREAD_TEXT: Record<string, string> = { M2: 'The smallest: the lightest screws and the smallest bosses.', 'M2.5': 'Between M2 and M3.', M3: 'The usual thread of printed parts.', M4: 'The sturdiest: the largest bosses on the ring.' };
 
+/** The scoop's length (`scoopLength`, scoop.scad's SCOOP_LENGTH, its `HEIGHT`): the tip's height over the cap's lower edges. */
+export const SCOOP_LENGTH_RANGE = { minimum: 90, maximum: 180, default: 127, step: 1 } as const;
+
 export const LitterShovelParametersSchema = Type.Object({
   sievePattern: Type.Enum(SIEVE_PATTERN_VALUES, { title: 'Sieve texture', description: 'The shape and arrangement of the gaps in the scoop’s walls: across the back, round the corners and along the sides.', default: 'slots' }),
   gapWidth: dimension('Gap width', 'Width of each gap in mm: the slot width, the hole diameter or the hexagon’s size across flats. Litter finer than this falls through.', 7.2, 3, 15),
@@ -1145,6 +1148,8 @@ export const LitterShovelParametersSchema = Type.Object({
   gapSpacing: dimension('Bar width', 'Solid wall between neighbouring gaps, in mm. Wider bars make a stiffer sieve with less open area.', 5.6, 3, 15),
   sieveMargin: dimension('Sieve margin', 'Solid border kept between the gaps and the wall’s edges (the solid band above the cap, the bevel under the tip, the side walls’ top and the front corners), in mm.', 3.2, 3, 10),
   tipThickness: dimension('Tip thickness', 'Thickness of the scoop’s straight scraping edge, in mm. Thinner scrapes cleaner; thicker is sturdier.', 0.8, 0.4, 2),
+  scoopLength: dimension('Scoop length', 'How far the scoop’s blade reaches, in mm: the height of its straight scraping edge over the cap. A longer scoop takes more litter in one go and has room for more sieve rows.',
+    SCOOP_LENGTH_RANGE.default, SCOOP_LENGTH_RANGE.minimum, SCOOP_LENGTH_RANGE.maximum, SCOOP_LENGTH_RANGE.step),
   tipBevel: dimension('Tip bevel length', 'How far down from the scraping edge the scoop’s inner face is bevelled, in mm. The sieve stays below the bevel.', 12, 5, 20, 0.5),
   gripEnd: Type.Enum(GRIP_END_VALUES, { title: 'Grip end', description: 'Where the grip ends: open above the floor (the container’s grip tip needs slicer supports), or down on the floor (no supports).', default: 'open' }),
   supportCount: Type.Integer({ title: 'Grip supports', description: 'Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer.', default: 3, minimum: 1, maximum: 5 }),
@@ -1168,39 +1173,40 @@ export type LitterShovelParameters = Static<typeof LitterShovelParametersSchema>
 /**
  * The scoop's blade, in the scoop's frame (mm). Mirrors models/litter-shovel/scoop.scad. The wall's outer plan is a rounded
  * rectangle (`OUT`: 81.7 × 114, corner radius 17.6) with a 3.2 mm wall. The back wall (−X) and most of the back corners rise to
- * the straight tip (`HEIGHT`). The side walls' top falls in half a cosine from `descentStart` (8 mm into the back corners) to
+ * the straight tip (`HEIGHT`, the scoop's length `scoopLength`). The side walls' top falls in half a cosine from `descentStart` (8 mm into the back corners) to
  * `FRONT_Z` where the front corners start. The sieve zone starts above the solid root band (`CAP_TOP` + `ROOT_BAND`, which the
  * handle's ring covers) and ends under the tip's bevel.
  */
-export const SCOOP_BLADE = { backX: -40.85, flatY: 39.4, cornerRadius: 17.6, wall: 3.2, sideLength: 46.5, sieveBottom: 26, height: 127, frontZ: 26 } as const;
+export const SCOOP_BLADE = { backX: -40.85, flatY: 39.4, cornerRadius: 17.6, wall: 3.2, sideLength: 46.5, sieveBottom: 26, frontZ: 26 } as const;
 /** Most gaps one sieve may have; more makes the scoop slow to render. */
 export const MAX_SIEVE_GAPS = 600;
 
 const bladeCornerX = SCOOP_BLADE.backX + SCOOP_BLADE.cornerRadius;
 const descentStart = bladeCornerX - 8, descentEnd = -bladeCornerX;
 
-/** The height of the scoop's side walls' top at `x` (scoop.scad's `side_top`). */
-export function scoopSideTop(x: number): number {
-  const { height, frontZ } = SCOOP_BLADE;
+/** The height of the scoop's side walls' top at `x` (scoop.scad's `side_top`), for a scoop of this length (the tip's height). */
+export function scoopSideTop(x: number, height: number = SCOOP_LENGTH_RANGE.default): number {
+  const { frontZ } = SCOOP_BLADE;
   if (x <= descentStart) return height;
   if (x >= descentEnd) return frontZ;
   return frontZ + (height - frontZ) * (1 + Math.cos(Math.PI * (x - descentStart) / (descentEnd - descentStart))) / 2;
 }
 
 /** The side walls' top lowered by `d`, measured square to it (scoop.scad's `side_below`). */
-function scoopSideBelow(x: number, d: number): number {
-  const { height, frontZ } = SCOOP_BLADE;
+function scoopSideBelow(x: number, d: number, height: number): number {
+  const { frontZ } = SCOOP_BLADE;
   const slope = x <= descentStart || x >= descentEnd ? 0
     : -(height - frontZ) * Math.PI / (2 * (descentEnd - descentStart)) * Math.sin(Math.PI * (x - descentStart) / (descentEnd - descentStart));
-  return scoopSideTop(x) - d * Math.sqrt(1 + slope * slope);
+  return scoopSideTop(x, height) - d * Math.sqrt(1 + slope * slope);
 }
 
 /**
  * The centres [s, z] of the sieve's gaps, exactly as scoop.scad lays them out (its `GAPS`): `s` runs along the wall's inner face
  * from the middle of the back, round the corners and along the sides (negative towards −Y).
  */
-export function sieveGaps(p: Pick<LitterShovelParameters, 'sievePattern' | 'gapWidth' | 'gapLength' | 'gapSpacing' | 'sieveMargin' | 'tipBevel'>): [number, number][] {
-  const { backX, flatY, cornerRadius, wall, sideLength, sieveBottom, height } = SCOOP_BLADE;
+export function sieveGaps(p: Pick<LitterShovelParameters, 'sievePattern' | 'gapWidth' | 'gapLength' | 'gapSpacing' | 'sieveMargin' | 'tipBevel' | 'scoopLength'>): [number, number][] {
+  const { backX, flatY, cornerRadius, wall, sideLength, sieveBottom } = SCOOP_BLADE;
+  const height = p.scoopLength;
   const innerRadius = cornerRadius - wall, arc = Math.PI / 2 * innerRadius;
   const end = flatY + arc + sideLength, top = height - p.tipBevel;
   const slot = SLOT_PATTERNS.includes(p.sievePattern);
@@ -1217,7 +1223,7 @@ export function sieveGaps(p: Pick<LitterShovelParameters, 'sievePattern' | 'gapW
   const fits = (s: number, z: number) => {
     const a1 = Math.abs(s) + p.gapWidth / 2, z0 = z - gapZ / 2, z1 = z + gapZ / 2;
     return a1 <= end - margin + 1e-6 && z0 >= sieveBottom + margin - 1e-6
-      && z1 <= top - margin + 1e-6 && z1 <= scoopSideBelow(wallX(a1), margin) + 1e-6;
+      && z1 <= top - margin + 1e-6 && z1 <= scoopSideBelow(wallX(a1), margin, height) + 1e-6;
   };
   const gaps: [number, number][] = [];
   for (let row = 0; row < rows; row++) for (let column = -columns; column <= columns; column++) {
@@ -1264,6 +1270,7 @@ const litterShovelControls = [
   control(LitterShovelParametersSchema, 'gapWidth', 'basic'),
   { ...control(LitterShovelParametersSchema, 'gapLength', 'basic'), visibleWhen: { control: 'sievePattern', values: [...SLOT_PATTERNS] } },
   control(LitterShovelParametersSchema, 'gapSpacing', 'basic'),
+  control(LitterShovelParametersSchema, 'scoopLength', 'basic'),
   enumControl(LitterShovelParametersSchema, 'gripEnd', 'basic', GRIP_END_VALUES.map(value => ({ value, ...GRIP_END_TEXT[value] }))),
   control(LitterShovelParametersSchema, 'supportCount', 'basic', null, null),
   enumControl(LitterShovelParametersSchema, 'scoopSnap', 'basic', SHOVEL_SNAP_VALUES.map(value => ({ value, ...SCOOP_SNAP_TEXT[value] }))),
@@ -1333,7 +1340,7 @@ const SHOVEL_HANDLE_SNAP_MAPPING = { handleSnap: 'HANDLE_SNAP', handleDetentEnga
 const litterShovelParts: ModelPart[] = [
   { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', supportCount: 'SUPPORT_COUNT', supportThickness: 'SUPPORT_THICKNESS', ...SHOVEL_SCOOP_SNAP_MAPPING } },
   { id: 'scoop', title: 'Scoop', sourcePath: `${LITTER_SHOVEL_DIR}scoop.scad`,
-    scadMapping: { sievePattern: 'SIEVE_PATTERN', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', tipThickness: 'TIP_THICKNESS', tipBevel: 'TIP_BEVEL', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
+    scadMapping: { scoopLength: 'SCOOP_LENGTH', sievePattern: 'SIEVE_PATTERN', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', tipThickness: 'TIP_THICKNESS', tipBevel: 'TIP_BEVEL', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
     partDefines: SHOVEL_SCOOP_FASTENER_DEFINES },
   { id: 'handle', title: 'Handle', sourcePath: `${LITTER_SHOVEL_DIR}handle.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
     partDefines: SHOVEL_HANDLE_FASTENER_DEFINES },
