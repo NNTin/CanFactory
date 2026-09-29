@@ -48,13 +48,20 @@ Each part is modelled as it prints, Z up, in millimetres, and none needs support
   - Its 2.4 mm **skirt** hangs 5 mm around the lip, 0.8 mm clear of it for the bag.
   - The cap's top, 3 mm above the ceiling, is 88.9 × 121.2, flush with the skirt. The handle's ring sits on it.
   - Inside, a 45° funnel leads from the blade into the sleeve, so clumps fall into the bag and never onto the rim or the fold.
-- **Blade:** a 3.2 mm wall, 81.7 × 114 outside, rising from the cap 3.6 mm inside its edge, which leaves room for the ring. Two
-  limits shape it, each acting on its own walls, so they meet without a step:
-  - **Back wall (−X):** flat, full thickness up to its top edge, and carries the sieve. Its top is a circular arch over the wall's
-    flat part (|Y| ≤ 39.4), from the shoulders at Z 101 to the apex at Z 127.
-  - **Side walls:** stay at the shoulders' height over the back corners, then fall in a straight line to the front (+X), 18 mm
-    above the cap.
-  - Together they make a channel. Its depth, from the back wall's outer face, is 49 mm at Z 50, 31 mm at Z 80 and 18 mm at Z 100.
+- **Blade:** a 3.2 mm wall, 81.7 × 114 outside, rising from the cap 3.6 mm inside its edge, which leaves room for the ring.
+  - **Tip (the scraping edge):** the back wall (−X) and most of the back corners rise to a straight edge at Z 127, across the
+    whole back. This edge scrapes along the floor. The outer face runs flat right up to it. The inner face is bevelled over the
+    top `tipBevel` (12 mm by default) down to `tipThickness` (0.8 mm, two lines of a 0.4 mm nozzle), so the edge is sharp. The
+    bevel faces up and inward, so it prints without support.
+  - **Side walls:** they stay level with the tip until 8 mm into the back corners, then fall in half a cosine to the front (+X),
+    18 mm above the cap, where the front corners start. The curve leaves the tip and meets the front tangentially, so there is no
+    kink anywhere.
+  - **Top edge:** the sides, the front corners and the front have a full round top edge (1.6 mm, half the wall), so the hand
+    never meets a square edge. Round the back corners, the tip's square outer edge rounds off gradually into it (radius 0 over the
+    back and the first 15° of each corner, growing to 1.6 mm where the sides start to fall), so the sharp tip and the round sides
+    meet without a step.
+  - Together they make a channel. Its depth, from the back wall's outer face, is 46 mm at Z 50, 36 mm at Z 80, 28 mm at Z 100
+    and 22 mm at Z 115.
 
 ### Handle
 
@@ -76,7 +83,7 @@ Each part is modelled as it prints, Z up, in millimetres, and none needs support
 | --- | --- |
 | Standing on a table | Everything bears on flat faces: the container on its floor, the cap on the lip, the ring on the cap. |
 | Carrying by the grip | The fingers take the container's handle and the palm the handle part's. The container hangs on its own handle, and the stack sits on it. Squeezed together, the halves fix the container to the handle, with the cap trapped between the lip and the ring. If you hold only the palm half, `scoopSnap` holds the container on the scoop and `handleSnap` holds the scoop on the handle. |
-| Scooping and sifting | The blade's loads go through its base into the ring and the handle part's grip, then the hand. The sleeve and the skirt also locate the cap on the container. |
+| Scooping and sifting | The tip's flat outer face slides on the floor, its sharp edge first. The blade's loads go through its base into the ring and the handle part's grip, then the hand. The sleeve and the skirt also locate the cap on the container. |
 | Carrying the container alone | By its own handle, like a measuring jug. |
 | Changing the bag | Lift the handle, then the scoop, off. |
 
@@ -108,27 +115,45 @@ few millimetres of the push. The engagements are advanced settings, shown only w
 | `gapWidth` | `GAP_WIDTH` | 7.2 | Slot width, hole diameter or hexagon size across flats (3 to 15) |
 | `gapLength` | `GAP_LENGTH` | 25 | Slot length (slot textures only) |
 | `gapSpacing` | `GAP_SPACING` | 5.6 | Solid bar between neighbouring gaps (at least 3 mm: 7 lines of a 0.4 mm nozzle) |
-| `sieveMargin` | `SIEVE_MARGIN` | 3.2 | Solid border to the root band, the corners and the arch (at least 3 mm) |
+| `sieveMargin` | `SIEVE_MARGIN` | 3.2 | Solid border to the root band, the bevel under the tip, the side walls' top and the front corners (at least 3 mm) |
 
-**Where the gaps go:**
-- Across the wall: its flat part, |Y| ≤ 39.4.
-- From the bottom: they start above an 18 mm solid **root band** over the cap's top (Z 8). That is where the blade's bending
+The scraping tip has two more parameters, both advanced settings:
+
+| Parameter | SCAD | Default | Meaning |
+| --- | --- | --- | --- |
+| `tipThickness` | `TIP_THICKNESS` | 0.8 | Thickness of the straight scraping edge (0.4 to 2): one to five lines of a 0.4 mm nozzle |
+| `tipBevel` | `TIP_BEVEL` | 12 | How far down from the edge the inner face is bevelled (5 to 20). The sieve stays below it. |
+
+**Where the gaps go:** all round the blade's wall, on the back, the curved back corners and the sides.
+- Along the wall: the layout is unrolled along the wall's inner face. `s` runs from the middle of the back (s = 0) across its flat
+  part (|s| ≤ 39.4), round the corner (22.6 mm of arc at the inner face's 14.4 mm radius) and along the side (46.5 mm), up to where
+  the front corners start (|s| = 108.5). Each gap is cut square to the wall:
+  - **On the back and the sides:** straight through.
+  - **In the corners:** radially, as the gap's outline seen from the corner's centre. There it is `gapWidth` wide along the inner
+    face, and so are the bars `gapSpacing`, and both widen outward with the wall.
+  - A gap is cut by the rule of the part its centre is on. Where it reaches over a corner's edge, the cut runs on far enough to
+    go through the wall there too.
+- From the bottom: the gaps start above an 18 mm solid **root band** over the cap's top (Z 8). That is where the blade's bending
   load is highest, and it covers the handle's 15 mm ring. The zone's bottom is at Z 26.
-- At the top: they stay under the arch.
-- Every limit is shrunk by the margin.
+- At the top: the gaps stay under the tip's bevel (Z 115 by default), so they never cut the thin edge. On the sides they also stay
+  under the falling top edge.
+- Every limit is shrunk by the margin. Against the side walls' sloping top, the margin is measured square to the slope.
 
 **How they are laid out:**
-- Columns are centred on Y = 0 at a pitch of `gapWidth + gapSpacing`.
+- Columns are centred on s = 0 at a pitch of `gapWidth + gapSpacing`.
 - Rows start one margin above the root band, at a pitch of `gapLength + gapSpacing` (slots) or `pitch × √3/2` (round holes and
   hexagons).
-- Only whole gaps are cut, so there are no slivers. A gap's top outer corner is checked against the arch, which falls away from
-  the middle.
-- The defaults give 13 slots: 5 columns at Y = 0, ±12.8 and ±25.6, in three rows, the top row without its two outer slots.
+- Only whole gaps are cut, so there are no slivers. A gap's top outer corner (the end farther from the back) is checked against
+  the side walls' top, which falls away towards the front.
+- The defaults give 24 slots in two rows: 14 centred on the back's flat part and, on each side, 2 in the corner and 3 on the
+  side.
 
-`sieveGaps()` and `sieveArch()` in the contract mirror this layout. They give the editor's gap count and the validation: at least
-one gap, at most `MAX_SIEVE_GAPS` = 400, and slots at least as long as they are wide. Tests pin them to counts recorded from the
-SCAD file's `SIEVE_GAPS` echo. `npm run test:renderer` checks that, at the default fit, the scoop's volume plus the gaps' volume is
-the same solid for every texture.
+`sieveGaps()` and `scoopSideTop()` in the contract mirror this layout, with the blade's dimensions in `SCOOP_BLADE`. They give the
+editor's gap count and the validation: at least one gap, at most `MAX_SIEVE_GAPS` = 600, and slots at least as long as they are
+wide. The finest sieve (3 mm round holes, 3 mm bars and margin, a 5 mm bevel) has 439 gaps and renders in about 2 s. Tests pin
+the layout to counts recorded from the SCAD file's `SIEVE_GAPS` echo. `npm run test:renderer` checks that, at the default fit
+and tip, the scoop's volume plus the gaps' volume is the same solid for every texture. There, a gap in a corner counts
+(R + r) / 2r ≈ 1.11 times its area × wall, because it widens with the radius.
 
 ## Assembly
 
@@ -155,7 +180,7 @@ with `--snap-tolerance 15`.
 
 - **The container** stands on its floor and its handle's foot. The lip has a 45° underside, and the handle's arm a 45° gusset.
 - **The scoop** prints on its cap: the sleeve's and the skirt's edges are on the bed, the U's ceiling is a 7.4 mm bridge, and the
-  funnel is a top surface.
+  funnel is a top surface. The tip's bevel faces up and inward, and the round top edge is a top surface, so the blade needs no support either.
 - **The handle** prints upside down on its ring's top. The grip rises from it along its length, its strong direction.
 - **The gap between the two grip halves** is 0.4 mm. The fist closes it: the handle part's grip is a 70 mm cantilever and flexes
   that far easily.

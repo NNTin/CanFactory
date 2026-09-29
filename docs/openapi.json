@@ -2499,6 +2499,8 @@
                           "gapLength",
                           "gapSpacing",
                           "sieveMargin",
+                          "tipThickness",
+                          "tipBevel",
                           "scoopSnap",
                           "handleSnap",
                           "clearance",
@@ -2514,7 +2516,7 @@
                               "hex"
                             ],
                             "title": "Sieve texture",
-                            "description": "The shape and arrangement of the gaps in the scoop’s back wall.",
+                            "description": "The shape and arrangement of the gaps in the scoop’s walls: across the back, round the corners and along the sides.",
                             "default": "slots"
                           },
                           "gapWidth": {
@@ -2547,11 +2549,29 @@
                           "sieveMargin": {
                             "type": "number",
                             "title": "Sieve margin",
-                            "description": "Solid border kept between the gaps and the wall’s edges (the solid band above the cap, the corners and the arch), in mm.",
+                            "description": "Solid border kept between the gaps and the wall’s edges (the solid band above the cap, the bevel under the tip, the side walls’ top and the front corners), in mm.",
                             "default": 3.2,
                             "minimum": 3,
                             "maximum": 10,
                             "multipleOf": 0.1
+                          },
+                          "tipThickness": {
+                            "type": "number",
+                            "title": "Tip thickness",
+                            "description": "Thickness of the scoop’s straight scraping edge, in mm. Thinner scrapes cleaner; thicker is sturdier.",
+                            "default": 0.8,
+                            "minimum": 0.4,
+                            "maximum": 2,
+                            "multipleOf": 0.1
+                          },
+                          "tipBevel": {
+                            "type": "number",
+                            "title": "Tip bevel length",
+                            "description": "How far down from the scraping edge the scoop’s inner face is bevelled, in mm. The sieve stays below the bevel.",
+                            "default": 12,
+                            "minimum": 5,
+                            "maximum": 20,
+                            "multipleOf": 0.5
                           },
                           "scoopSnap": {
                             "enum": [

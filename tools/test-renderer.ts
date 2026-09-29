@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { unzipSync } from 'fflate';
-import { activeParts, CASE_MAGNETS, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, litterShovel, mossPlanter, plankConnector, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, CASE_MAGNETS, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, litterShovel, mossPlanter, plankConnector, SCOOP_BLADE, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, RENDERER_IMAGE, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, runOpenScad, type OpenScadRunner } from '../apps/worker/src/render.ts';
@@ -261,19 +261,22 @@ try {
     assert.equal(store.enqueue(plankConnector, parameters).id, job.id);
     console.log(`PASS plank connector ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
-  // Litter shovel: every sieve texture, the sieve extremes (most gaps, a single gap), and both snap modes of both joints at the
-  // clearance extremes. Each part must be one closed solid of the expected size (none depends on the clearance), and
-  // the scoop's sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm back wall: at the default fit, its volume plus
-  // the gaps' volume is the same solid scoop for every sieve.
+  // Litter shovel: every sieve texture, the sieve extremes (most gaps, fewest gaps), the scraping tip's extremes, and both snap
+  // modes of both joints at the clearance extremes. Each part must be one closed solid of the expected size (none depends on the
+  // clearance or the tip), and the scoop's sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm wall: at the default
+  // fit and tip, its volume plus the gaps' volume is the same solid scoop for every sieve.
   const shovelRuns: { name: string; overrides: Partial<LitterShovelParameters> }[] = [
     { name: 'default (slots, detents)', overrides: {} },
     { name: 'staggered slots', overrides: { sievePattern: 'staggered' } },
     { name: 'round holes', overrides: { sievePattern: 'round' } },
     { name: 'hexagons', overrides: { sievePattern: 'hex' } },
     { name: 'finest round holes', overrides: { sievePattern: 'round', gapWidth: 3, gapSpacing: 3, sieveMargin: 3 } },
+    { name: 'finest round holes, shortest bevel', overrides: { sievePattern: 'round', gapWidth: 3, gapSpacing: 3, sieveMargin: 3, tipBevel: 5 } },
     { name: 'finest hexagons', overrides: { sievePattern: 'hex', gapWidth: 3, gapSpacing: 3, sieveMargin: 3 } },
     { name: 'long thin staggered slots', overrides: { sievePattern: 'staggered', gapWidth: 3, gapLength: 40, gapSpacing: 3, sieveMargin: 3 } },
-    { name: 'single largest slot', overrides: { gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10 } },
+    { name: 'thinnest, longest tip', overrides: { tipThickness: 0.4, tipBevel: 20 } },
+    { name: 'thickest, shortest tip', overrides: { tipThickness: 2, tipBevel: 5 } },
+    { name: 'largest slots', overrides: { gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10 } },
     { name: 'friction fits at 0.1 mm', overrides: { handleSnap: 'friction', scoopSnap: 'friction', clearance: 0.1 } },
     { name: 'detents at 0.1 mm, least engagement', overrides: { clearance: 0.1, handleDetentEngage: 0.02, scoopDetentEngage: 0.02 } },
     { name: 'detents at 0.6 mm, most engagement', overrides: { clearance: 0.6, handleDetentEngage: 0.4, scoopDetentEngage: 0.4 } },
@@ -283,7 +286,7 @@ try {
   });
   const gapArea = (p: LitterShovelParameters) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
     : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (p.gapLength - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
-  const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'handleSnap', 'clearance', 'scoopDetentEngage', 'handleDetentEngage'] as const).every(key => p[key] === litterShovel.defaults[key]);
+  const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'handleSnap', 'clearance', 'scoopDetentEngage', 'handleDetentEngage', 'tipThickness', 'tipBevel'] as const).every(key => p[key] === litterShovel.defaults[key]);
   let solidScoop: number | undefined;
   for (const { name, overrides } of only && only !== 'litter-shovel' ? [] : shovelRuns) {
     const started = Date.now();
@@ -306,9 +309,13 @@ try {
     }
     const scoop = result.artifact.parts.find(part => part.id === 'scoop');
     assert.ok(scoop);
-    const gaps = sieveGaps(parameters).length;
-    // Round holes and hexagons are polygons (OpenSCAD's $fs/$fa), a little smaller than true circles: allow 1 %.
-    const solid = scoop.volume + gaps * gapArea(parameters) * 3.2;
+    const sieve = sieveGaps(parameters), gaps = sieve.length;
+    // A gap through a flat wall takes its area times the wall; one through a curved corner is cut radially, so it widens with
+    // the radius and takes (R + r) / 2r times as much. Round holes and hexagons are polygons (OpenSCAD's $fs/$fa), a little
+    // smaller than true circles, and gaps reaching over a corner's edge cut the wall a little obliquely: allow 1 %.
+    const { flatY, cornerRadius, wall } = SCOOP_BLADE, innerRadius = cornerRadius - wall;
+    const inCorner = (s: number) => Math.abs(s) > flatY && Math.abs(s) <= flatY + Math.PI / 2 * innerRadius;
+    const solid = scoop.volume + sieve.reduce((sum, [s]) => sum + gapArea(parameters) * wall * (inCorner(s) ? (cornerRadius + innerRadius) / (2 * innerRadius) : 1), 0);
     if (defaultFit(parameters)) {
       solidScoop ??= solid;
       assert.ok(Math.abs(solid - solidScoop) < 0.01 * solidScoop, `litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³ + gaps = ${solid.toFixed(0)}, expected ${solidScoop.toFixed(0)}`);

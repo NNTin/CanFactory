@@ -1094,7 +1094,7 @@ export interface operations {
                     parameters: {
                         /**
                          * Sieve texture
-                         * @description The shape and arrangement of the gaps in the scoop’s back wall.
+                         * @description The shape and arrangement of the gaps in the scoop’s walls: across the back, round the corners and along the sides.
                          * @default slots
                          * @enum {unknown}
                          */
@@ -1119,10 +1119,22 @@ export interface operations {
                         gapSpacing: number;
                         /**
                          * Sieve margin
-                         * @description Solid border kept between the gaps and the wall’s edges (the solid band above the cap, the corners and the arch), in mm.
+                         * @description Solid border kept between the gaps and the wall’s edges (the solid band above the cap, the bevel under the tip, the side walls’ top and the front corners), in mm.
                          * @default 3.2
                          */
                         sieveMargin: number;
+                        /**
+                         * Tip thickness
+                         * @description Thickness of the scoop’s straight scraping edge, in mm. Thinner scrapes cleaner; thicker is sturdier.
+                         * @default 0.8
+                         */
+                        tipThickness: number;
+                        /**
+                         * Tip bevel length
+                         * @description How far down from the scraping edge the scoop’s inner face is bevelled, in mm. The sieve stays below the bevel.
+                         * @default 12
+                         */
+                        tipBevel: number;
                         /**
                          * Scoop on the container
                          * @description How the scoop’s sleeve holds in the container’s mouth: a close fit only, or a detent.

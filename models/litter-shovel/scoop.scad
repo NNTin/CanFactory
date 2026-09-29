@@ -4,17 +4,19 @@
 // container's lip. Its flat ceiling sits on the lip's flat top (the bag folded over the lip is pinched between them), its sleeve
 // reaches 5 mm into the container's mouth and its skirt hangs 5 mm around the lip. The cap's flat top carries the handle's ring,
 // flush with the skirt. Inside, a 45 degree funnel leads from the blade into the sleeve, so clumps fall into the bag and never
-// onto the rim. The blade rises from the cap: the flat back wall (-X) carries the sieve and ends in a round arch; the side walls
-// fall in a straight line from the arch's shoulders to a low front (+X). See docs/litter-shovel.md.
+// onto the rim. The blade rises from the cap. Its back wall (-X) ends in a straight, sharp edge that scrapes along the floor: the
+// outer face runs flat to it and the inner face is bevelled down to a thin tip. The side walls fall from it in a smooth curve to
+// a low front (+X), with a full round top edge. See docs/litter-shovel.md.
 //
 // Modelled as it prints, cap down: Z up, the sleeve's and the skirt's lower edges at Z = 0. Nothing needs support: the U's
 // ceiling is a 7.4 mm bridge and the funnel is a top surface. In `detent` mode the sleeve has bumps for the grooves in the
 // container's mouth (SCOOP_SNAP), and the blade's base has bumps for the grooves in the handle's ring (HANDLE_SNAP).
 //
-// The sieve parameters only change the gaps through the back wall. They are laid out on a grid, centred across the wall,
-// starting above a solid root band (covered by the handle's ring and a little more), and only whole gaps that keep SIEVE_MARGIN
-// of solid wall to the root band, the curved corners and the arch are cut, so no sliver is left. The layout is mirrored by
-// sieveGaps() in packages/contracts/src/models.ts; keep the two identical.
+// The sieve parameters only change the gaps through the blade's wall. They are laid out on a grid unrolled along the wall's inner
+// face, centred on the back and running round the curved corners onto the sides, starting above a solid root band (covered by
+// the handle's ring and a little more). Only whole gaps that keep SIEVE_MARGIN of solid wall to the root band, to the bevel under
+// the tip, to the side walls' top and to the front corners are cut, so no sliver is left. The layout is mirrored by sieveGaps()
+// in packages/contracts/src/models.ts; keep the two identical.
 
 // Sieve texture: vertical slots on a grid, slots with alternate rows offset (brick), round holes or hexagons
 SIEVE_PATTERN = "slots"; //[slots,staggered,round,hex]
@@ -26,6 +28,10 @@ GAP_LENGTH = 25; //[6:0.5:40]
 GAP_SPACING = 5.6; //[3:0.1:15]
 // Solid border kept around the sieve
 SIEVE_MARGIN = 3.2; //[3:0.1:10]
+// Thickness of the scraping edge at the tip, in mm
+TIP_THICKNESS = 0.8; //[0.4:0.1:2]
+// How far down from the tip the inner face is bevelled, in mm
+TIP_BEVEL = 12; //[5:0.5:20]
 // How the sleeve holds in the container's mouth: a close fit only, or a detent (bumps on the sleeve, grooves in the mouth)
 SCOOP_SNAP = "detent"; //[friction,detent]
 // How the handle's ring holds on the blade's base: a close fit only, or a detent (bumps on the blade, grooves in the ring)
@@ -51,8 +57,8 @@ RIM_H = 5;
 CAP_T = 3; BAG_GAP = 0.8; SKIRT_T = 2.4; SLEEVE_IN_OFFSET = 2.2;
 // Blade: its outer wall stands RING_T inside the skirt's outer face (room for the handle's ring); wall thickness.
 RING_T = 3.6; WALL = 3.2;
-// Blade: apex of the arch, height of its shoulders (where the side walls reach it), and the front's height.
-HEIGHT = 127; SHOULDER_Z = 101; FRONT_Z = 26;
+// Blade: height of the tip, and of the front.
+HEIGHT = 127; FRONT_Z = 26;
 // Solid root band between the cap's top and the lowest gaps: the handle's 15 mm ring and 3 mm more.
 ROOT_BAND = 18;
 // Detent bumps: on the sleeve (mid-way down it) and on the blade's base (4 mm above the cap); length along the wall.
@@ -73,14 +79,22 @@ OUT_IN = grow(OUT, -WALL);                 // the blade's inner face
 FUNNEL_BOTTOM = RIM_H + 1;
 FUNNEL_TOP = FUNNEL_BOTTOM + (OUT_IN[0] - SLEEVE_IN[0]) / 2;
 
-// The back wall: its outer and inner faces (X), and the half-width of its flat part between the corners.
+// The back wall: its outer and inner faces (X), and the half-width of its flat part between the corners. The blade's corners:
+// their radius outside and inside, and the X of the back corners' centres.
 BACK_X = -OUT[0] / 2;
 BACK_IN_X = -OUT_IN[0] / 2;
 FLAT_Y = OUT[1] / 2 - OUT[2];
-// The arch over the flat part of the back wall: a circular arc from the shoulders at |y| = FLAT_Y up to the apex. Beyond the
-// shoulders it falls away, under the side walls' limit.
-ARCH_R = (FLAT_Y * FLAT_Y + (HEIGHT - SHOULDER_Z) * (HEIGHT - SHOULDER_Z)) / (2 * (HEIGHT - SHOULDER_Z));
-function arch(y) = abs(y) <= FLAT_Y ? HEIGHT - ARCH_R + sqrt(ARCH_R * ARCH_R - y * y) : SHOULDER_Z - (abs(y) - FLAT_Y);
+R_OUT = OUT[2]; R_IN = OUT_IN[2];
+CORNER_X = BACK_X + R_OUT;
+// The side walls' top, along X: level with the tip until DESCENT_START (8 mm into the back corners), then half a cosine down to
+// FRONT_Z where the front corners start, and level from there on. It leaves and meets both levels tangentially: no kink.
+DESCENT_START = CORNER_X - 8; DESCENT_END = -CORNER_X;
+function descent(x) = 180 * (x - DESCENT_START) / (DESCENT_END - DESCENT_START);
+function side_top(x) = x <= DESCENT_START ? HEIGHT : x >= DESCENT_END ? FRONT_Z : FRONT_Z + (HEIGHT - FRONT_Z) * (1 + cos(descent(x))) / 2;
+function side_slope(x) = x <= DESCENT_START || x >= DESCENT_END ? 0
+  : -(HEIGHT - FRONT_Z) * PI / (2 * (DESCENT_END - DESCENT_START)) * sin(descent(x));
+// The side walls' top lowered by d, measured square to it (exact where it runs straight).
+function side_below(x, d) = side_top(x) - d * sqrt(1 + side_slope(x) * side_slope(x));
 
 // ---- The cap: skirt, ceiling, sleeve and funnel. ----
 module cap() {
@@ -93,63 +107,154 @@ module cap() {
   }
 }
 
-// ---- The blade: its outer wall above the cap, trimmed by the side walls' line and the back wall's arch. ----
-// XZ region kept by the side walls: flat at the shoulders over the back corners, a straight line down to the front, flat again
-// over the front corners.
-module side_limit() {
-  x0 = BACK_X + OUT[2]; x1 = -x0;
-  outline = [[-60, -1], [60, -1], [60, FRONT_Z], [x1, FRONT_Z], [x0, SHOULDER_Z], [-60, SHOULDER_Z]];
+// ---- The blade: a wall rising from the cap. ----
+// Over the back wall and most of the back corners it runs up to the tip, a straight edge at HEIGHT, where the inner face is
+// bevelled down to TIP_THICKNESS: the outer face stays one flat plane to the edge, which scrapes along the floor. From there the
+// top falls along side_top(), and the whole of it (sides, front corners and front) has a full round top edge. Round the back
+// corners the tip's outer edge rounds off gradually into that round top, so there is no step where one meets the other.
+RND = WALL / 2;
+// The round top is a chain of spheres along the wall's centre line. A sphere's facets fall short of its radius, so it is grown
+// until its narrowest point still spans the wall, and then trimmed back to the wall.
+BEAD_FN = 24;
+BEAD_R = RND / (cos(180 / BEAD_FN) * cos(180 / BEAD_FN)) + 0.1;
+MID = grow(OUT, -RND);
+R_MID = R_OUT - RND;
+// The wall's centre line from the back's middle round to the front's (Y >= 0). Round the corners it is sampled at 2 + 4k
+// degrees, clear of the corners' vertices (every 5.625 degrees, and where they meet the straight walls), so that no bead edge
+// runs into one of them.
+BEAD_ANGLES = [for (a = [86 : -4 : 2]) a];
+BEAD_PATH = concat(
+  [[-MID[0] / 2, 0]],
+  [for (i = [len(BEAD_ANGLES) - 1 : -1 : 0]) let(a = BEAD_ANGLES[i]) [CORNER_X - R_MID * cos(a), FLAT_Y + R_MID * sin(a)]],
+  [for (x = [CORNER_X + 1 : 1 : -CORNER_X - 1]) [x, MID[1] / 2]],
+  [for (a = BEAD_ANGLES) [-CORNER_X + R_MID * cos(a), FLAT_Y + R_MID * sin(a)]],
+  [[MID[0] / 2, 0]]);
+
+module ring() { difference() { slab(OUT, CAP_TOP - 1, HEIGHT - CAP_TOP + 1); slab(OUT_IN, CAP_TOP - 2, HEIGHT); } }
+
+// XZ region under the side walls' top, lowered by the round's radius, across the whole blade.
+module under_round() {
+  outline = concat([[-60, 0]], [for (x = [-60 : 0.5 : 60]) [x, side_below(x, RND)]], [[60, 0]]);
   translate([0, 80, 0]) rotate([90, 0, 0]) linear_extrude(160) polygon(outline);
 }
 
-// YZ region under the arch, only over the back wall (to just inside its inner face).
-module arch_limit() {
-  outline = concat([[OUT[1] / 2 + 1, -1]], [for (i = [0 : 96]) let(y = (OUT[1] / 2 + 1) * (1 - i / 48)) [y, arch(y)]], [[-(OUT[1] / 2 + 1), -1]]);
-  translate([-60, 0, 0]) rotate([90, 0, 90]) linear_extrude(60 + BACK_IN_X + 0.5) polygon(outline);
+module bead() {
+  for (m = [0, 1]) mirror([0, m, 0]) for (i = [0 : len(BEAD_PATH) - 2]) hull()
+    for (p = [BEAD_PATH[i], BEAD_PATH[i + 1]]) translate([p[0], p[1], side_below(p[0], RND)]) sphere(r = BEAD_R, $fn = BEAD_FN);
+}
+
+// The tip's rim, from the middle of the back round the back corner to where the side walls start to fall: the top few mm of the
+// wall, with its outer top edge rounded at a radius that stays 0 over the back and the first RIM_SHARP degrees of the corner,
+// then grows to RND at DESCENT_START. It is a chain of hulls of thin cross-sections, square to the wall; the section stands a
+// little proud of the outer face and is trimmed back to it by the ring.
+RIM_DEPTH = RND + 2;
+RIM_SHARP = 15;
+RIM_END = acos((CORNER_X - DESCENT_START) / R_OUT);
+function rim_radius(a) = a <= RIM_SHARP ? 0 : RND * (1 - cos(180 * (a - RIM_SHARP) / (RIM_END - RIM_SHARP))) / 2;
+// [frame angle, point where the outer face is at local x = n, n, radius] for each cross-section.
+RIM_PATH = concat(
+  [[180, [BACK_X, 0], 0, 0], [180, [BACK_X, FLAT_Y], 0, 0]],
+  [for (a = concat([for (a = [3 : 3 : RIM_END - 1]) a], [RIM_END])) [180 - a, [CORNER_X, FLAT_Y], R_OUT, rim_radius(a)]]);
+
+module rim_section(n, r) {
+  d = 0.05;
+  outline = concat([[n - WALL - 1, HEIGHT - RIM_DEPTH], [n + d, HEIGHT - RIM_DEPTH]],
+    r <= d ? [[n + d, HEIGHT + 1]] : [for (i = [0 : 12]) [n + d - r + r * cos(90 * i / 12), HEIGHT - r + r * sin(90 * i / 12)]],
+    [[n - WALL - 1, HEIGHT + (r <= d ? 1 : 0)]]);
+  rotate([90, 0, 0]) linear_extrude(E, center = true) polygon(outline);
+}
+
+module rim() {
+  for (m = [0, 1]) mirror([0, m, 0]) for (i = [0 : len(RIM_PATH) - 2]) hull()
+    for (c = [RIM_PATH[i], RIM_PATH[i + 1]]) translate([c[1][0], c[1][1], 0]) rotate([0, 0, c[0]]) rim_section(c[2], c[3]);
+}
+
+// The bevel: it cuts the inner face from TIP_BEVEL under the tip to TIP_THICKNESS inside the outer face at the tip. It starts
+// 1 mm lower, inside the wall's inner face, so that it crosses that face instead of touching it. Its corners have 72 segments,
+// not the walls' 64, so that none of its edges runs into one of theirs.
+TIP_SLOPE = (WALL - TIP_THICKNESS) / TIP_BEVEL;
+module bevel() {
+  module layer(p, z, h) { translate([0, 0, z]) linear_extrude(h) offset(r = p[2], $fn = 72) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
+  hull() { layer(grow(OUT_IN, -TIP_SLOPE), HEIGHT - TIP_BEVEL - 1, E); layer(grow(OUT, -TIP_THICKNESS), HEIGHT, 1); }
 }
 
 module blade() {
-  intersection() {
-    difference() { slab(OUT, CAP_TOP - 1, HEIGHT - CAP_TOP + 1); slab(OUT_IN, CAP_TOP - 2, HEIGHT); }
-    union() { side_limit(); arch_limit(); }
+  difference() {
+    intersection() {
+      ring();
+      union() {
+        under_round();
+        bead();
+        rim();
+      }
+    }
+    bevel();
   }
 }
 
-// ---- Sieve layout. Every gap is [y, z] (its centre on the back wall). ----
-SIEVE_Y = FLAT_Y;
+// ---- Sieve layout. Every gap is [s, z]: s runs along the wall's inner face from the middle of the back, round the corners and
+// along the sides (negative towards -Y), z is its centre's height. ----
+ARC_IN = PI / 2 * R_IN;
+S_END = FLAT_Y + ARC_IN + (OUT[0] - 2 * R_OUT);   // where the front corners start
 SIEVE_BOTTOM = CAP_TOP + ROOT_BAND;
+SIEVE_TOP = HEIGHT - TIP_BEVEL;
 IS_SLOT = SIEVE_PATTERN == "slots" || SIEVE_PATTERN == "staggered";
-// Extent of one gap across (Y) and along (Z) the wall.
+// Extent of one gap along (s) and up (Z) the wall.
 GAP_Y = GAP_WIDTH;
 GAP_Z = IS_SLOT ? GAP_LENGTH : SIEVE_PATTERN == "hex" ? GAP_WIDTH * 2 / sqrt(3) : GAP_WIDTH;
 PITCH_Y = GAP_WIDTH + GAP_SPACING;
 // Slots stack at their length plus a bar; round holes and hexagons are close-packed (rows 60 degrees apart).
 PITCH_Z = IS_SLOT ? GAP_LENGTH + GAP_SPACING : PITCH_Y * sqrt(3) / 2;
 OFFSET_ROWS = SIEVE_PATTERN != "slots";
-ROWS = floor((HEIGHT - SIEVE_BOTTOM) / PITCH_Z) + 1;
-COLUMNS = ceil(SIEVE_Y / PITCH_Y) + 1;
+ROWS = floor((SIEVE_TOP - SIEVE_BOTTOM) / PITCH_Z) + 1;
+COLUMNS = ceil(S_END / PITCH_Y) + 1;
 
-// A gap fits when its outer edge keeps the margin to the corners, its bottom to the root band, and its top outer corner to
-// the arch (which falls away from the middle, so the outer corner is the closest).
-function fits(y, z) = let(y1 = abs(y) + GAP_Y / 2, z0 = z - GAP_Z / 2, z1 = z + GAP_Z / 2)
-  y1 <= SIEVE_Y - SIEVE_MARGIN + 1e-6 && z0 >= SIEVE_BOTTOM + SIEVE_MARGIN - 1e-6 && z1 <= arch(y1) - SIEVE_MARGIN + 1e-6;
+// The outer face's X where the inner face is at `a` (>= 0) along it.
+function wall_x(a) = a <= FLAT_Y ? BACK_X : a <= FLAT_Y + ARC_IN ? CORNER_X - R_OUT * cos((a - FLAT_Y) / R_IN * 180 / PI)
+  : CORNER_X + a - FLAT_Y - ARC_IN;
+
+// A gap fits when it keeps the margin to the front corners, to the root band, to the bevel under the tip, and (square to it)
+// to the side walls' top at its outer upper corner, where that top is lowest.
+function fits(s, z) = let(a1 = abs(s) + GAP_Y / 2, z0 = z - GAP_Z / 2, z1 = z + GAP_Z / 2)
+  a1 <= S_END - SIEVE_MARGIN + 1e-6 && z0 >= SIEVE_BOTTOM + SIEVE_MARGIN - 1e-6
+  && z1 <= SIEVE_TOP - SIEVE_MARGIN + 1e-6 && z1 <= side_below(wall_x(a1), SIEVE_MARGIN) + 1e-6;
 
 GAPS = [for (row = [0 : ROWS - 1], column = [-COLUMNS : COLUMNS])
-          let(y = (column + (OFFSET_ROWS && row % 2 == 1 ? 0.5 : 0)) * PITCH_Y,
+          let(s = (column + (OFFSET_ROWS && row % 2 == 1 ? 0.5 : 0)) * PITCH_Y,
               z = SIEVE_BOTTOM + SIEVE_MARGIN + GAP_Z / 2 + row * PITCH_Z)
-          if (fits(y, z)) [y, z]];
+          if (fits(s, z)) [s, z]];
 echo(SIEVE_GAPS = len(GAPS));
 
-// One gap, cut along X through the back wall.
-module gap() {
-  rotate([0, 90, 0]) {
-    if (IS_SLOT) hull() for (dz = [-1, 1]) translate([dz * (GAP_LENGTH - GAP_WIDTH) / 2, 0, 0]) cylinder(d = GAP_WIDTH, h = 8);
-    else if (SIEVE_PATTERN == "hex") cylinder(d = GAP_WIDTH * 2 / sqrt(3), h = 8, $fn = 6);
-    else cylinder(d = GAP_WIDTH, h = 8);
-  }
+// One gap's outline, before it is turned to face along X: its X runs down the wall, its Y along it.
+module gap_outline() {
+  if (IS_SLOT) hull() for (dz = [-1, 1]) translate([dz * (GAP_LENGTH - GAP_WIDTH) / 2, 0]) circle(d = GAP_WIDTH);
+  else if (SIEVE_PATTERN == "hex") circle(d = GAP_WIDTH * 2 / sqrt(3), $fn = 6);
+  else circle(d = GAP_WIDTH);
 }
 
-module sieve() { for (g = GAPS) translate([BACK_X - 2, g[0], g[1]]) gap(); }
+// A gap through a flat wall, in the wall's frame: X outward, Y along it, Z up. It starts 4 mm inside the inner face, so that a
+// gap reaching round into a corner still cuts through the corner's wall, which curves away from it.
+module flat_gap() { translate([-4, 0, 0]) rotate([0, 90, 0]) linear_extrude(WALL + 5) gap_outline(); }
+
+// A gap through a curved corner, in the corner's frame: X outward along the gap's middle from the corner's centre. It is the
+// outline seen from the centre, so that it takes the same angle, GAP_WIDTH / R_IN, at every depth: along the inner face it is
+// GAP_WIDTH wide and the bars between gaps are GAP_SPACING, and it widens outward like the wall. It reaches from inside the inner
+// face to well past the outer face, far enough to cut through the flat wall next to the corner too.
+CORNER_TAN = tan(GAP_Y / (2 * R_IN) * 180 / PI);
+module corner_gap() {
+  hull() for (d = [R_IN - 1, 1.2 * R_OUT + 1])
+    translate([d, 0, 0]) scale([1, d * CORNER_TAN / (GAP_Y / 2), 1]) rotate([0, 90, 0]) linear_extrude(E) gap_outline();
+}
+
+// Cuts a gap at `s` along the inner face: through the back, through a corner (radially), or through a side.
+module gap_at(s) {
+  a = abs(s); k = s < 0 ? -1 : 1;
+  if (a <= FLAT_Y) translate([BACK_IN_X, s, 0]) rotate([0, 0, 180]) flat_gap();
+  else if (a <= FLAT_Y + ARC_IN) translate([CORNER_X, k * FLAT_Y, 0]) rotate([0, 0, k * (180 - (a - FLAT_Y) / R_IN * 180 / PI)]) corner_gap();
+  else translate([CORNER_X + a - FLAT_Y - ARC_IN, k * OUT_IN[1] / 2, 0]) rotate([0, 0, k * 90]) flat_gap();
+}
+
+module sieve() { for (g = GAPS) translate([0, 0, g[1]]) gap_at(g[0]); }
 
 // ---- Detent bumps. ----
 // Places children on the middle of each straight side of plan `p`, in the wall's frame (X along the wall, Y outward).
