@@ -126,7 +126,9 @@ function side_below(x, d) = side_top(x) - d * sqrt(1 + side_slope(x) * side_slop
 // ---- The cap: skirt, ceiling, sleeve and funnel. ----
 module cap() {
   difference() {
-    union() { slab(CAP_OUT, 0, CAP_TOP); slab(OUT, 0, FUNNEL_TOP); }
+    // The funnel's solid reaches half a mm into the blade's wall, whose outer face the blade makes: the cap and the blade
+    // share no coplanar outer face.
+    union() { slab(CAP_OUT, 0, CAP_TOP); slab(grow(OUT_IN, 0.5), 0, FUNNEL_TOP); }
     difference() { slab(SKIRT_IN, -1, RIM_H + 1); slab(SLEEVE_OUT, -2, RIM_H + 3); }
     slab(SLEEVE_IN, -1, FUNNEL_TOP + 2);
     hull() { slab(SLEEVE_IN, FUNNEL_BOTTOM, E); slab(OUT_IN, FUNNEL_TOP, E); }
@@ -141,9 +143,10 @@ module cap() {
 // corners the tip's outer edge rounds off gradually into that round top, so there is no step where one meets the other.
 RND = WALL / 2;
 // The round top is a chain of spheres along the wall's centre line. A sphere's facets fall short of its radius, so it is grown
-// until its narrowest point still spans the wall, and then trimmed back to the wall.
+// until its narrowest point still spans the wall, and then trimmed back to the wall. The extra 0.13 mm was chosen by rendering every
+// wall from 1.2 to 3.2 mm (0.1 mm steps) at three scoop lengths and bevels: other values left a zero-area triangle at some walls.
 BEAD_FN = 24;
-BEAD_R = RND / (cos(180 / BEAD_FN) * cos(180 / BEAD_FN)) + 0.1;
+BEAD_R = RND / (cos(180 / BEAD_FN) * cos(180 / BEAD_FN)) + 0.13;
 MID = grow(OUT, -RND);
 R_MID = R_OUT - RND;
 // The wall's centre line from the back's middle round to the front's (Y >= 0). Round the corners it is sampled at 2 + 4k

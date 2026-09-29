@@ -386,7 +386,11 @@ outlines have 70 segments (not a multiple of 8, so that it has no vertex at 45°
 underside meets the mouth's wall never runs into one of the wall's vertices (with 64 it left a zero-area triangle in a back
 corner), and it ends 0.07 mm past where the back corners end. Every dam width from 0.5 to 15 mm, at every wall from 1.2 to 3.2 mm
 in 0.1 mm steps, passes the same test as `inspectStl` (zero-area triangles at float precision). The container's outer shell and
-its cavity are each a single convex hull, with no seam where the band starts. The root pad is a hull of two rounded plates whose 45° flanks carry on 0.5 mm into the wall; so do the screws' pads (0.3 mm). A detent ridge's flanks carry on 0.3 mm into its
+its cavity are each a single convex hull, with no seam where the band starts. The funnel's solid stops half a millimetre inside the blade's wall, so that the cap and the blade share no coplanar outer face, and the blade's
+round top edge is a chain of spheres 0.13 mm larger than their narrowest point needs (0.1 mm left a zero-area triangle at some
+walls). The wall thickness was swept in 0.1 mm steps from 1.2 to 3.2 mm, on the container (dam width, clearance, grip end) and on the
+scoop (length, bevel, tip, snap modes, clearance, reinforcement), each render checked for zero-area triangles at float precision
+(the test of `inspectStl`); `npm run test:renderer` renders the extremes. The root pad is a hull of two rounded plates whose 45° flanks carry on 0.5 mm into the wall; so do the screws' pads (0.3 mm). A detent ridge's flanks carry on 0.3 mm into its
 wall, and a groove's start 0.3 mm in front of its face, so that no edge of either lies in the face. Each grip sheet is a single
 `polyhedron()` swept along its sampled seam, with its cross-section computed per sample (flat seam face, rounded outer edges,
 the tip's quarter round), rather than built from overlapping CSG pieces whose faces would nearly coincide.
