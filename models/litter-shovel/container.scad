@@ -53,10 +53,10 @@ FIN_REACH = 12;
 // Detent grooves: height in the mouth (mid-way down the scoop's sleeve) and length along the wall.
 DETENT_Z = RIM_Z - 2.5; DETENT_L = 16;
 // Dam: the scoop's sleeve reaches SLEEVE_DEPTH into the mouth; the dam's top meets the wall DAM_GAP below it (room for the bag),
-// and it is a sheet as thick as the wall, at 45 degrees (DAM_T high).
+// and it is a sheet as thick as the wall (at most ROOT_WALL, so that it stays clear of the band's flare), at 45 degrees (DAM_T high).
 SLEEVE_DEPTH = 5; DAM_GAP = 1;
 DAM_TOP = RIM_Z - SLEEVE_DEPTH - DAM_GAP;
-DAM_T = WALL * sqrt(2);
+DAM_T = min(WALL, ROOT_WALL) * sqrt(2);
 
 module rr2d(p) { offset(r = p[2], $fn = 64) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
 module slab(p, z, h = E) { translate([0, 0, z]) linear_extrude(h) rr2d(p); }
@@ -198,7 +198,7 @@ module root_pad() {
 
 // ---- The dam: on the scraper side only. ----
 // Scooping, the shovel is turned over with the scraper side (-X) down, and the clumps already in the container slide towards the
-// mouth along that side. The dam holds them back: a sheet under the mouth, as thick as the wall, that leaves the back wall at
+// mouth along that side. The dam holds them back: a sheet under the mouth, as thick as the wall (at most ROOT_WALL), that leaves the back wall at
 // DAM_TOP and falls inward at 45 degrees, DAM_WIDTH in from it. It continues the scoop's funnel, so clumps slide off it into the
 // bag, and turned over they collect in the pocket between it and the wall. It runs along the back and round both back corners, to
 // where the side walls start. Its underside is at 45 degrees too, so it prints standing without support.
