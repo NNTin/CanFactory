@@ -87,8 +87,9 @@ FASTENER_Y = 21; FASTENER_Z = 8; SINK_PLAY = 0.2;
 // The wall under the screws' heads, whatever the blade's: a thinner blade has a pad on its inner face round each screw that
 // makes it FASTENER_WALL there, so the head, the countersink and the ring's boss stay as they are (handle.scad's FASTENER_WALL).
 // The pad is a cone with 45 degree flanks, so that it needs no support, PAD_R wide at its face: the widest countersink
-// (4.2 mm from the axis, packages/contracts HANDLE_FASTENER_SEAT.sinkRadius) and 1 mm more.
-FASTENER_WALL = 3.2; PAD_R = 5.2;
+// (4.2 mm from the axis, packages/contracts HANDLE_FASTENER_SEAT.sinkRadius) and a little more (1.05 mm, so that the
+// pad's lowest point is not tangent to the funnel at any wall on the slider's 0.1 mm grid).
+FASTENER_WALL = 3.2; PAD_R = 5.25;
 
 function grow(p, d) = [p[0] + 2 * d, p[1] + 2 * d, p[2] + d];
 module rr2d(p) { offset(r = p[2], $fn = 64) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
@@ -327,12 +328,13 @@ module fastener_holes() {
   }
 }
 
-// The pads, on the inner face of the front wall round each screw (none once the wall is FASTENER_WALL thick).
+// The pads, on the inner face of the front wall round each screw (none once the wall is FASTENER_WALL thick). Their flanks carry
+// on 0.3 mm into the wall, so that no edge of a pad lies in its face.
 module fastener_pads() {
   d = FASTENER_WALL - WALL;
   if (d > 0) for (s = [-1, 1]) translate([OUT[0] / 2 - FASTENER_WALL, s * FASTENER_Y, CAP_TOP + FASTENER_Z]) rotate([0, 90, 0]) hull() {
     cylinder(r = PAD_R, h = E, $fn = 48);
-    translate([0, 0, d]) cylinder(r = PAD_R + d, h = 1, $fn = 48);
+    translate([0, 0, d + 0.3]) cylinder(r = PAD_R + d + 0.3, h = 0.5, $fn = 48);
   }
 }
 

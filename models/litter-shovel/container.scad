@@ -41,9 +41,9 @@ FLOOR = [64.7, 97, 11];
 BAND = [74.5, 106.8, 14];
 WALL = WALL_THICKNESS; FLOOR_T = min(3.2, WALL + 0.8); RIM_Z = 141.5;
 // The handle's root pad: the wall is at least ROOT_WALL thick behind the handle's sheet, which carries the whole container, so
-// a thin wall does not make its anchor weak. The pad is ROOT_PAD_W wide, spans ROOT_PAD_Z, and has 45 degree ends and
-// underside, so it needs no support.
-ROOT_WALL = 2.4; ROOT_PAD_W = 34; ROOT_PAD_Z = [124, 136];
+// a thin wall does not make its anchor weak. The pad is ROOT_PAD_W wide at its face, spans ROOT_PAD_Z there, has corners of
+// radius ROOT_PAD_R, and its ends and underside are at 45 degrees, so it needs no support.
+ROOT_WALL = 2.4; ROOT_PAD_W = 34; ROOT_PAD_Z = [124, 136]; ROOT_PAD_R = 3;
 // Lip: how far it stands out from the band, and its thickness above the 45 degree chamfer.
 LIP_W = 4; LIP_T = 3;
 // The band is straight from 3 mm below the lip's chamfer up to the rim.
@@ -181,19 +181,16 @@ module groove(l, g) {
 // ---- The handle's root pad: on the inside of the front wall, behind the handle's sheet. ----
 // The wall's inner face at height z, at the middle of the front (it flares in below BAND_Z).
 function front_in(z) = BAND[0] / 2 - (BAND[0] - FLOOR[0]) / 2 * (1 - min(z, BAND_Z) / BAND_Z) - WALL;
-// Its section in XZ: from the inner face, d deep with 45 degree ends, 1 mm into the wall (thinner walls than ROOT_WALL only).
+// The pad (thinner walls than ROOT_WALL only): d = ROOT_WALL - WALL deep.
 module root_pad() {
   d = ROOT_WALL - WALL;
   z0 = ROOT_PAD_Z[0]; z1 = ROOT_PAD_Z[1];
-  if (d > 0) intersection() {
-    rotate([90, 0, 0]) linear_extrude(ROOT_PAD_W + 2 * d, center = true) polygon([
-      [front_in(z0), z0], [front_in(z0 + d) - d, z0 + d], [front_in(BAND_Z) - d, BAND_Z], [front_in(z1 - d) - d, z1 - d],
-      [front_in(z1), z1], [front_in(z1) + 1, z1], [front_in(z0) + 1, z0]]);
-    // the plan's own 45 degree ends: the pad is ROOT_PAD_W wide at its face and d wider at the inner face
-    xf = front_in(BAND_Z); w = ROOT_PAD_W / 2;
-    translate([0, 0, z0 - 1]) linear_extrude(z1 - z0 + 2) polygon([
-      [xf - d - 1, -w], [xf - d, -w], [xf + 1, -(w + d + 1)], [xf + 1, w + d + 1], [xf - d, w], [xf - d - 1, w]]);
-  }
+  // A hull of two rounded plates, in a frame whose Z runs along +X from the pad's face: the face's plate and, 0.5 mm into the
+  // wall past the inner face at the band, one d + 0.5 larger all round, so that the ends are at 45 degrees and no edge of the pad
+  // lies in the wall's face.
+  module plate(z, grow_by) translate([front_in(BAND_Z) - d + z, 0, (z0 + z1) / 2]) rotate([0, 90, 0]) linear_extrude(E)
+    offset(r = ROOT_PAD_R + grow_by, $fn = 48) square([z1 - z0 - 2 * d - 2 * ROOT_PAD_R + 2 * grow_by, ROOT_PAD_W - 2 * ROOT_PAD_R + 2 * grow_by], center = true);
+  if (d > 0) hull() { plate(0, 0); plate(d + 0.5, d + 0.5); }
 }
 
 // ---- The dam: on the scraper side only. ----
@@ -205,9 +202,10 @@ module root_pad() {
 // The region over a 45 degree surface through the mouth's wall at z0, falling DAM_WIDTH inward (a frustum over a column); the
 // sheet is that region for its underside less the one for its top. Its corners' radius is kept at least 2 mm, so that at the
 // corners a wide dam is steeper than 45 degrees rather than folding over.
-// Its outlines have 72 segments, not the walls' 64, so that none of its edges runs into one of the mouth's vertices.
+// Its outlines have 70 segments, not the walls' 64 (nor a multiple of 8, which would put a vertex at 45 degrees, like theirs), so
+// that none of its edges runs into one of the mouth's vertices; it ends 0.07 mm past where the mouth's corners end, for the same reason.
 function inset(p, d) = [p[0] - 2 * d, p[1] - 2 * d, max(2, p[2] - d)];
-module dam_slab(p, z, h = E) { translate([0, 0, z]) linear_extrude(h) offset(r = p[2], $fn = 72) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
+module dam_slab(p, z, h = E) { translate([0, 0, z]) linear_extrude(h) offset(r = p[2], $fn = 70) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
 module over_slope(z0) {
   up = DAM_T + 1;
   hull() { dam_slab(grow(MOUTH, up), z0 + up); dam_slab(inset(MOUTH, DAM_WIDTH), z0 - DAM_WIDTH); }
@@ -220,7 +218,7 @@ module dam() {
   intersection() {
     difference() { over_slope(DAM_TOP - DAM_T); over_slope(DAM_TOP); }
     dam_slab(grow(MOUTH, 1), low, DAM_TOP - low + 1);
-    translate([-MOUTH[0] / 2 - 2, -MOUTH[1] / 2 - 2, low]) cube([MOUTH[2] + 2, MOUTH[1] + 4, DAM_TOP - low + 1]);
+    translate([-MOUTH[0] / 2 - 2, -MOUTH[1] / 2 - 2, low]) cube([MOUTH[2] + 2 + 0.07, MOUTH[1] + 4, DAM_TOP - low + 1]);
   }
 }
 

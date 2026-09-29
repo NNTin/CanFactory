@@ -532,7 +532,7 @@ describe('litter shovel contract', () => {
     expect(damTop).toBeLessThan(constant(container, 'RIM_Z') - 2.5 - 1);
     expect(container).toMatch(/^DAM_T = min\(WALL, ROOT_WALL\) \* sqrt\(2\);$/m);
     expect(damTop - constant(container, 'ROOT_WALL') * Math.SQRT2).toBeGreaterThan(constant(container, 'RIM_Z') - constant(container, 'LIP_T') - constant(container, 'LIP_W') - 3);
-    expect(container).toMatch(/cube\(\[MOUTH\[2\] \+ 2, /);
+    expect(container).toMatch(/cube\(\[MOUTH\[2\] \+ 2 \+ 0\.07, /);
     // The root band under the sieve covers the handle's ring.
     expect(constant(scoop, 'ROOT_BAND')).toBeGreaterThan(constant(handle, 'RING_H'));
   });
@@ -849,7 +849,7 @@ describe('litter shovel handle reinforcement (parts library)', () => {
     expect(constant(handle, 'FASTENER_WALL')).toBe(seat.seatWall);
     expect(constant(scoop, 'FASTENER_WALL')).toBe(seat.seatWall);
     expect(seat.seatWall).toBe(WALL_THICKNESS_RANGE.maximum);
-    expect(constant(scoop, 'PAD_R')).toBe(seat.sinkRadius + 1);
+    expect(constant(scoop, 'PAD_R')).toBeCloseTo(seat.sinkRadius + 1.05, 9);
     expect(constant(handle, 'CAP_TOP_Z')).toBe(seat.capTop);
     const blade = /\bBLADE = \[([\d.]+),/.exec(handle)?.[1];
     const capOut = /\bCAP_OUT = \[([\d.]+),/.exec(handle)?.[1];
