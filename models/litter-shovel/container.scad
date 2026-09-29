@@ -28,7 +28,7 @@ SUPPORT_THICKNESS = 2; //[1.2:0.1:4]
 GRIP_END = "open"; //[open,floor]
 // The grip's shape: a thin sheet, the same curved out, a round tube or a rectangular bar
 HANDLE_SHAPE = "sheet"; //[sheet,curved,round,rectangular]
-// How far the curved grip bulges out towards the palm, in mm
+// How far the curved grip's run to the tip steps out, in mm
 GRIP_BULGE = 8; //[0:0.5:15]
 // The round grip's diameter, or the rectangular grip's depth, in mm
 GRIP_SIZE = 26; //[20:1:28]
@@ -92,8 +92,8 @@ module lip() {
 // The grip is two halves, one on each side of a seam, the container's on the finger side and the handle part's on the palm
 // side. Stacked, they make one bar: the same width, their seam faces flat and CLEARANCE apart, and at the open tip each outer
 // corner rounded, so that the pair ends in one half-round. HANDLE_SHAPE picks the bar: "sheet" (default) a 6 mm strip, its
-// outer long edges rounded; "curved" the same strip with the run down to the tip bulging out by GRIP_BULGE towards the palm,
-// as a sine's half wave; "round" a tube of diameter GRIP_SIZE, each half a solid half-round; "rectangular" a box bar
+// outer long edges rounded; "curved" the same strip with the run down to the tip stepping out by GRIP_BULGE, in a smooth
+// S-curve (the finger gap widens towards the tip); "round" a tube of diameter GRIP_SIZE, each half a solid half-round; "rectangular" a box bar
 // GRIP_SIZE deep and 26 mm wide, each half a solid slab. The round and rectangular bars move the seam out, so that the finger
 // gap stays as wide, and their bends grow with them; their open tip is lower, to keep the run the sheet's leaves for the fist. The seam, in the
 // container's frame (XZ), runs from the top down: at the handle part's end, up the ring's outer face; a bend of SEAM_R2 into a
@@ -122,10 +122,12 @@ R1_START = [R1_CENTRE[0] + SEAM_R1 * cos(45), R1_CENTRE[1] + SEAM_R1 * sin(45)];
 // The open tip: 30 mm up for the sheets; for the thick bars the run down from the bend that the sheet's open tip leaves.
 OPEN_RUN = 68;
 GRIP_TIP_Z = GRIP_END == "floor" ? 0 : GRIP_THICK ? max(0, R1_CENTRE[1] - OPEN_RUN) : 30;
-// The run from the bend down to z1: straight, or (curved) bulging out by GRIP_BULGE as a sine's half wave, so that it leaves
-// and reaches the vertical at x = SEAM_X.
+// The run from the bend down to z1: straight, or (curved) stepping out by GRIP_BULGE in a cosine's half wave, so that it leaves
+// the bend vertical at x = SEAM_X and reaches the tip vertical at SEAM_X + BULGE_OUT. It never leans inward on the way down, or
+// the handle, lowered straight down, would catch on the container's half.
+BULGE_OUT = HANDLE_SHAPE == "curved" ? GRIP_BULGE : 0;
 function bulge_samples(z1, n, th) = let(z0 = R1_CENTRE[1], l = z0 - z1)
-  [for (i = [1 : n]) let(t = i / n) [SEAM_X + GRIP_BULGE * pow(sin(180 * t), 2), z0 - l * t, atan2(-l, GRIP_BULGE * PI * sin(360 * t)), th]];
+  [for (i = [1 : n]) let(t = i / n) [SEAM_X + GRIP_BULGE * pow(sin(90 * t), 2), z0 - l * t, atan2(-l, GRIP_BULGE * PI / 2 * sin(180 * t)), th]];
 function run_samples(z1) = HANDLE_SHAPE == "curved" ? bulge_samples(z1, 30, SHEET_TH)
   : line_samples([SEAM_X, R1_CENTRE[1]], [SEAM_X, z1], 1, SHEET_TH);
 // From the bend down to the tip. At an open tip the last TIP_R of it rounds off in a quarter circle.
@@ -134,7 +136,7 @@ function grip_samples() = concat(
   arc_samples(R1_CENTRE, SEAM_R1, 45, 0, 15, SHEET_TH),
   GRIP_END == "floor" ? run_samples(GRIP_TIP_Z)
   : concat(run_samples(GRIP_TIP_Z + TIP_R),
-      [for (i = [1 : 10]) let(d = TIP_R * (1 - i / 10)) [SEAM_X, GRIP_TIP_Z + d, -90, max(0.4, sqrt(TIP_R * TIP_R - (TIP_R - d) * (TIP_R - d)))]]));
+      [for (i = [1 : 10]) let(d = TIP_R * (1 - i / 10)) [SEAM_X + BULGE_OUT, GRIP_TIP_Z + d, -90, max(0.4, sqrt(TIP_R * TIP_R - (TIP_R - d) * (TIP_R - d)))]]));
 
 // A half's cross-section at thickness `th`, as [u, y]: u from the seam (positive towards the palm), y across the grip. Its
 // seam face is flat. A sheet or a slab rounds its outer long edges; a round bar is a half-disc of radius CLEARANCE / 2 + th.

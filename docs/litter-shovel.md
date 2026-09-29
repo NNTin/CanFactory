@@ -125,7 +125,7 @@ tangent of the seam within 45° of vertical, so each part still prints without s
 | `handleShape` | Halves | Settings |
 | --- | --- | --- |
 | `sheet` (default) | Two 3 mm sheets, 26 mm wide, as above. Output is unchanged from before the setting existed. | `supportCount` fins |
-| `curved` | The same sheets, but the straight run from the bend to the tip becomes a sine's half wave that bulges towards the palm by `gripBulge` (0 to 15 mm, default 8) in the middle and is vertical at both ends. At 0 it is the flat sheet. Its steepest tangent is `gripBulge` × π / run, 35° at most (68 mm run). The finger gap widens by the bulge. The container and the handle grow in X by `gripBulge`. | `gripBulge`, `supportCount` fins |
+| `curved` | The same sheets, but the straight run from the bend to the tip becomes a cosine's half wave that steps out by `gripBulge` (0 to 15 mm, default 8), vertical at both ends: an S-curve that widens the finger gap towards the tip. At 0 it is the flat sheet. Its steepest tangent is `gripBulge` × π / 2 / run, 20° at most (68 mm run). It never leans inward on the way down: the handle is lowered straight down onto the container, and a belly (out, then back in) would make the halves catch on each other. The container and the handle grow in X by `gripBulge`. | `gripBulge`, `supportCount` fins |
 | `round` | A tube of diameter `gripSize` (20 to 28 mm, default 26), each half a solid half-round with a flat seam face. The tube is as wide as it is thick. | `gripSize` |
 | `rectangular` | A box bar `gripSize` deep (20 to 28 mm) and 26 mm wide, each half a solid slab `gripSize` / 2 thick, with 2.5 mm rounded long edges. | `gripSize` |
 
