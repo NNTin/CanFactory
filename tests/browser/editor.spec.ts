@@ -383,17 +383,17 @@ test('chooses the litter shovel sieve texture, gap size and snaps and downloads 
   await expect(texture).toHaveValue('slots');
   await expect(page.getByRole('spinbutton', { name: 'Gap width', exact: true })).toHaveValue('7.2');
   await expect(downloadButton).toBeEnabled({ timeout: 120_000 });
-  // slots are sized by rows by default: one row fills the sieve's height, and the slot length is hidden
+  // slots are sized by rows by default: one row fills the sieve's height (lower along the sides), and the slot length is hidden
   const sizing = page.getByLabel('Slot sizing');
   const rows = page.getByRole('spinbutton', { name: 'Slot rows', exact: true });
   const slotLength = page.getByRole('spinbutton', { name: 'Slot length', exact: true });
   await expect(sizing).toHaveValue('rows');
   await expect(rows).toHaveValue('1');
   await expect(slotLength).toHaveCount(0);
-  await expect(page.getByText('9 slots, automatically spaced.')).toBeVisible();
+  await expect(page.getByText('15 slots, automatically spaced.')).toBeVisible();
   await expect(page.getByRole('slider', { name: 'Assembly' })).toBeVisible();
   await rows.fill('2');
-  await expect(page.getByText('22 slots, automatically spaced.')).toBeVisible();
+  await expect(page.getByText('26 slots, automatically spaced.')).toBeVisible();
   // sized by length, the slot length's range ends at what the scoop's length leaves room for, and follows it
   await sizing.selectOption('length');
   await expect(rows).toHaveCount(0);

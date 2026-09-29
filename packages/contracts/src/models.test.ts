@@ -533,22 +533,37 @@ describe('litter shovel contract', () => {
     expect(constant(scoop, 'ROOT_BAND')).toBeGreaterThan(constant(handle, 'RING_H'));
   });
 
-  it('sizes the default slots by rows: one row of 82.6 mm slots filling the sieve’s height, on the back and round the corners', () => {
+  it('sizes the default slots by rows: one row filling the sieve’s height on the back, ending lower along the sides', () => {
     expect(sieveHeight(defaults)).toBeCloseTo(127 - 12 - 26 - 2 * 3.2, 9);
     expect(slotLength(defaults)).toBeCloseTo(82.6, 9);
     const gaps = sieveGaps(defaults);
-    expect(gaps).toHaveLength(9);
-    // the row starts one margin above the root band and ends one margin under the bevel
-    expect([...new Set(gaps.map(([, z]) => Math.round(z * 1e6) / 1e6))]).toEqual([26 + 3.2 + 82.6 / 2]);
-    expect(gaps.filter(([s]) => Math.abs(s) > SCOOP_BLADE.flatY)).toHaveLength(2);
-    expect(litterShovel.derived(defaults)).toEqual({ slotCount: 9 });
-    // n rows and the n − 1 bars between them fill the sieve's height exactly
-    for (const sieveRows of [2, 3, 4, 5]) {
-      const p = { ...defaults, sieveRows };
+    expect(gaps).toHaveLength(15);
+    expect(litterShovel.derived(defaults)).toEqual({ slotCount: 15 });
+    // every slot starts one margin above the root band; on the back and round the corners it ends one margin under the bevel,
+    // on the sides one margin under the falling top (square to it), at its outer upper corner
+    const bottom = SCOOP_BLADE.sieveBottom + 3.2;
+    for (const [, z, l] of gaps) expect(z - l / 2).toBeCloseTo(bottom, 9);
+    const half = gaps.filter(([s]) => s >= 0).sort(([a], [b]) => a - b);
+    expect(half.map(([s]) => Math.round(s * 10) / 10)).toEqual([0, 12.8, 25.6, 38.4, 51.2, 64, 76.8, 89.6]);
+    expect(half.map(([, , l]) => Math.round(l * 100) / 100)).toEqual([82.6, 82.6, 82.6, 82.6, 82.6, 75.79, 39.99, 7.37]);
+    for (const [s, z, l] of half.filter(([, , l]) => l < 82.6 - 1e-9)) {
+      const x = SCOOP_BLADE.backX + SCOOP_BLADE.cornerRadius + s + 3.6 - SCOOP_BLADE.flatY - Math.PI / 2 * (SCOOP_BLADE.cornerRadius - SCOOP_BLADE.wall);
+      expect(z + l / 2).toBeLessThan(scoopSideTop(x) - 3.2);
+    }
+    // a slot shorter than it is wide is not cut: the next column (s = 102.4) would reach past the front corners' margin anyway
+    expect(Math.min(...gaps.map(([, , l]) => l))).toBeGreaterThanOrEqual(defaults.gapWidth);
+    // n rows and the n − 1 bars between them fill the sieve's height exactly on the back; the rows stay level all round, so
+    // the bars between them stay the bar width, staggered or not
+    for (const sievePattern of ['slots', 'staggered'] as const) for (const sieveRows of [2, 3, 4, 5]) {
+      const p = { ...defaults, sievePattern, sieveRows };
       expect(sieveRows * slotLength(p) + (sieveRows - 1) * p.gapSpacing).toBeCloseTo(sieveHeight(p), 9);
-      const rows = [...new Set(sieveGaps(p).map(([, z]) => Math.round(z * 1e6) / 1e6))];
-      expect(rows).toHaveLength(sieveRows);
-      expect(Math.max(...rows) + slotLength(p) / 2).toBeCloseTo(127 - 12 - 3.2, 9);
+      const sieve = sieveGaps(p);
+      const starts = [...new Set(sieve.map(([, z, l]) => Math.round((z - l / 2) * 1e6) / 1e6))];
+      expect(starts).toEqual(Array.from({ length: sieveRows }, (_, row) => Math.round((bottom + row * (slotLength(p) + p.gapSpacing)) * 1e6) / 1e6));
+      for (const [, , l] of sieve) expect(l).toBeLessThanOrEqual(slotLength(p) + 1e-9);
+      const back = sieve.filter(([s]) => Math.abs(s) + p.gapWidth / 2 <= SCOOP_BLADE.flatY);
+      for (const [, , l] of back) expect(l).toBeCloseTo(slotLength(p), 9);
+      expect(Math.max(...back.map(([, z, l]) => z + l / 2))).toBeCloseTo(127 - 12 - 3.2, 9);
     }
     // the rows the height has room for, at slots as long as they are wide
     expect(sieveRowsLimit(defaults)).toBe(6);
@@ -587,10 +602,11 @@ describe('litter shovel contract', () => {
       expect(sieveGaps({ sievePattern, sieveSizing: 'length', sieveRows: 1, gapWidth, gapLength, gapSpacing, sieveMargin, tipBevel, scoopLength }), `${sievePattern} ${gapWidth}/${gapLength}/${gapSpacing}/${sieveMargin}/${tipBevel}/${scoopLength}`).toHaveLength(count);
     // Sized by rows: [texture, rows, gap width, bar width, margin, bevel, count, scoop length].
     const rowCases: [LitterShovelParameters['sievePattern'], number, number, number, number, number, number, number?][] = [
-      ['slots', 1, 7.2, 5.6, 3.2, 12, 9], ['slots', 2, 7.2, 5.6, 3.2, 12, 22], ['slots', 3, 7.2, 5.6, 3.2, 12, 33], ['slots', 5, 7.2, 5.6, 3.2, 12, 57],
-      ['staggered', 2, 7.2, 5.6, 3.2, 12, 23], ['slots', 2, 15, 15, 10, 12, 8], ['slots', 1, 1, 1, 3.2, 12, 65], ['slots', 5, 1, 1, 3.2, 12, 385],
-      ['slots', 1, 7.2, 5.6, 3.2, 12, 11, 90], ['slots', 4, 7.2, 5.6, 3.2, 12, 48, 90], ['slots', 4, 1, 1, 10, 20, 296, 90],
-      ['slots', 5, 7.2, 5.6, 3.2, 12, 57, 180], ['staggered', 3, 7.2, 5.6, 3.2, 12, 34, 180], ['staggered', 5, 1, 1, 3.2, 12, 377, 180],
+      ['slots', 1, 7.2, 5.6, 3.2, 12, 15], ['slots', 2, 7.2, 5.6, 3.2, 12, 26], ['slots', 3, 7.2, 5.6, 3.2, 12, 39], ['slots', 5, 7.2, 5.6, 3.2, 12, 59],
+      ['staggered', 2, 7.2, 5.6, 3.2, 12, 27], ['staggered', 5, 7.2, 5.6, 3.2, 12, 57], ['slots', 2, 15, 15, 10, 12, 8], ['slots', 1, 1, 1, 3.2, 12, 97], ['slots', 5, 1, 1, 3.2, 12, 415],
+      ['slots', 1, 7.2, 5.6, 3.2, 12, 13, 90], ['slots', 4, 7.2, 5.6, 3.2, 12, 48, 90], ['slots', 4, 1, 1, 10, 20, 304, 90],
+      ['slots', 1, 7.2, 5.6, 3.2, 12, 15, 180], ['slots', 1, 7.2, 5.6, 10, 12, 13, 180], ['slots', 5, 7.2, 5.6, 3.2, 12, 59, 180],
+      ['staggered', 3, 7.2, 5.6, 3.2, 12, 38, 180], ['staggered', 5, 1, 1, 3.2, 12, 411, 180],
     ];
     for (const [sievePattern, sieveRows, gapWidth, gapSpacing, sieveMargin, tipBevel, count, scoopLength = 127] of rowCases)
       expect(sieveGaps({ sievePattern, sieveSizing: 'rows', sieveRows, gapWidth, gapLength: 25, gapSpacing, sieveMargin, tipBevel, scoopLength }), `${sievePattern} ${sieveRows} rows ${gapWidth}/${gapSpacing}/${sieveMargin}/${tipBevel}/${scoopLength}`).toHaveLength(count);
@@ -683,6 +699,8 @@ describe('litter shovel contract', () => {
       const p = { ...defaults, ...values, sieveSizing: 'length' as const };
       const most = slotLengthLimit(p);
       expect(sieveGaps({ ...p, gapLength: most }).length, JSON.stringify(values)).toBeGreaterThan(0);
+      // sized by length, every slot is gapLength long
+      for (const [, , l] of sieveGaps({ ...p, gapLength: most })) expect(l).toBe(most);
       expect(sieveGaps({ ...p, gapLength: most + 0.5 }), JSON.stringify(values)).toHaveLength(0);
     }
     // a slot that fitted is rejected once the scoop is shortened; hidden (sized by rows, or holes), it no longer matters

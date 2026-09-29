@@ -1283,10 +1283,11 @@ export function sieveRowsLimit(p: SieveParameters): number {
 }
 
 /**
- * The centres [s, z] of the sieve's gaps, exactly as scoop.scad lays them out (its `GAPS`): `s` runs along the wall's inner face
- * from the middle of the back, round the corners and along the sides (negative towards −Y).
+ * The sieve's gaps [s, z, length], exactly as scoop.scad lays them out (its `GAPS`): `s` runs along the wall's inner face from the
+ * middle of the back, round the corners and along the sides (negative towards −Y), `z` is the centre's height and `length` the
+ * gap's extent up the wall (a slot's length; sized by rows, shorter where the side walls' top falls).
  */
-export function sieveGaps(p: SieveParameters): [number, number][] {
+export function sieveGaps(p: SieveParameters): [number, number, number][] {
   const { backX, flatY, cornerRadius, wall, sideLength, sieveBottom } = SCOOP_BLADE;
   const height = p.scoopLength;
   const innerRadius = cornerRadius - wall, arc = Math.PI / 2 * innerRadius;
@@ -1308,11 +1309,21 @@ export function sieveGaps(p: SieveParameters): [number, number][] {
     return a1 <= end - margin + 1e-6 && z0 >= sieveBottom + margin - 1e-6
       && z1 <= top - margin + 1e-6 && z1 <= scoopSideBelow(wallX(a1), margin, height) + 1e-6;
   };
-  const gaps: [number, number][] = [];
+  // Sized by rows, every row keeps its bottom all round, and each slot ends at its row's length or, if lower, the margin under
+  // the side walls' top at its outer upper corner (scoop.scad's `slot_top`); it is cut if still at least as long as it is wide.
+  const fitRows = slot && p.sieveSizing === 'rows';
+  const slotTop = (s: number) => Math.min(top - margin, scoopSideBelow(wallX(Math.abs(s) + p.gapWidth / 2), margin, height));
+  const gaps: [number, number, number][] = [];
   for (let row = 0; row < rows; row++) for (let column = -columns; column <= columns; column++) {
     const s = (column + (offsetRows && row % 2 === 1 ? 0.5 : 0)) * pitchY;
-    const z = sieveBottom + margin + gapZ / 2 + row * pitchZ;
-    if (fits(s, z)) gaps.push([s, z]);
+    if (fitRows) {
+      const z0 = sieveBottom + margin + row * pitchZ;
+      const l = Math.min(z0 + length, slotTop(s)) - z0;
+      if (Math.abs(s) + p.gapWidth / 2 <= end - margin + 1e-6 && l >= p.gapWidth - 1e-6) gaps.push([s, z0 + l / 2, l]);
+    } else {
+      const z = sieveBottom + margin + gapZ / 2 + row * pitchZ;
+      if (fits(s, z)) gaps.push([s, z, gapZ]);
+    }
   }
   return gaps;
 }

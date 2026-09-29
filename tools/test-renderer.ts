@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { unzipSync } from 'fflate';
-import { activeParts, CASE_MAGNETS, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, litterShovel, mossPlanter, plankConnector, SCOOP_BLADE, sieveGaps, slotLength, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, CASE_MAGNETS, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, litterShovel, mossPlanter, plankConnector, SCOOP_BLADE, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, RENDERER_IMAGE, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, runOpenScad, type OpenScadRunner } from '../apps/worker/src/render.ts';
@@ -313,8 +313,9 @@ try {
   const shovelSizes = (p: LitterShovelParameters): Record<string, [number, number, number]> => ({
     container: [41.25 + 65 - p.clearance / 2, 114.8, 141.5], scoop: [88.9, 121.2, p.scoopLength], handle: [44.45 + 68, 121.2, 159.5 - (p.gripEnd === 'floor' ? 0 : 30)],
   });
-  const gapArea = (p: LitterShovelParameters) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
-    : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (slotLength(p) - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
+  // a slot's area from its own length (sized by rows, the sides' slots are shorter)
+  const gapArea = (p: LitterShovelParameters, length: number) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
+    : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (length - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
   const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'handleSnap', 'clearance', 'scoopDetentEngage', 'handleDetentEngage', 'tipThickness', 'tipBevel', 'handleReinforcement', 'scoopLength'] as const).every(key => p[key] === litterShovel.defaults[key]);
   let solidScoop: number | undefined;
   for (const { name, overrides } of only && only !== 'litter-shovel' ? [] : shovelRuns) {
@@ -344,7 +345,7 @@ try {
     // smaller than true circles, and gaps reaching over a corner's edge cut the wall a little obliquely: allow 1 %.
     const { flatY, cornerRadius, wall } = SCOOP_BLADE, innerRadius = cornerRadius - wall;
     const inCorner = (s: number) => Math.abs(s) > flatY && Math.abs(s) <= flatY + Math.PI / 2 * innerRadius;
-    const solid = scoop.volume + sieve.reduce((sum, [s]) => sum + gapArea(parameters) * wall * (inCorner(s) ? (cornerRadius + innerRadius) / (2 * innerRadius) : 1), 0);
+    const solid = scoop.volume + sieve.reduce((sum, [s, , length]) => sum + gapArea(parameters, length) * wall * (inCorner(s) ? (cornerRadius + innerRadius) / (2 * innerRadius) : 1), 0);
     if (defaultFit(parameters)) {
       solidScoop ??= solid;
       assert.ok(Math.abs(solid - solidScoop) < 0.01 * solidScoop, `litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³ + gaps = ${solid.toFixed(0)}, expected ${solidScoop.toFixed(0)}`);

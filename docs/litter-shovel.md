@@ -238,6 +238,10 @@ The scraping tip has two more parameters, both advanced settings:
 - **By rows:** `sieveRows` rows and the bars between them fill the sieve's height exactly, so the slots are as long as it lets
   them be: `slot length = (sieveHeight − (sieveRows − 1) × gapSpacing) / sieveRows`. The bottom row starts one margin above the
   root band and, on the back, the top row ends one margin under the bevel. `gapLength` is not used (the editor hides it).
+  - **Along the sides** the top falls, so each slot's height is chosen where it is: every row keeps its bottom all round, and
+    a slot ends at the row's length or, if lower, one margin under the side walls' top (square to it) at its outer upper
+    corner. It is cut if it is still at least as long as it is wide; a row with less room than that has no slot there.
+  - The rows stay level, so the bars between them stay `gapSpacing` wide, staggered or not, and only whole slots are cut.
   The slots must still be at least as long as they are wide, which allows at most
   `floor((sieveHeight + gapSpacing) / (gapWidth + gapSpacing))` rows: 6 at the defaults, 4 on the shortest scoop. Validation
   names that number when there are more.
@@ -253,22 +257,23 @@ The scraping tip has two more parameters, both advanced settings:
   and hexagons).
 - Only whole gaps are cut, so there are no slivers. A gap's top outer corner (the end farther from the back) is checked against
   the side walls' top, which falls away towards the front.
-- The defaults give one row of 9 slots, 82.6 mm long: 7 on the back's flat part and one in each corner. The side walls' top
-  falls too soon for slots that tall; more rows give shorter slots that also reach the sides: 22 in two rows (38.5 mm), 57 in
-  five (12.04 mm).
+- The defaults give one row of 15 slots. On each side of the middle, going round from the back, they are 82.6 mm long on the
+  back's flat part and in the corner, then 75.8, 40.0 and 7.4 mm along the side, under its falling top. Two rows give 26 slots
+  (38.5 mm on the back), five give 59 (12.04 mm).
 - Sized by length at 25 mm, the defaults give 24 slots in two rows: 14 centred on the back's flat part and, on each side, 2 in
   the corner and 3 on the side. The shortest scoop (90 mm) has room for 11 of them in one row, the longest (180 mm) for 48 in
   four.
 
-`sieveGaps()` and `scoopSideTop()` in the contract mirror this layout, with the blade's dimensions in `SCOOP_BLADE` and its length
+`sieveGaps()` (each gap as `[s, z, length]`, scoop.scad's `GAPS`) and `scoopSideTop()` in the contract mirror this layout, with the blade's dimensions in `SCOOP_BLADE` and its length
 in `scoopLength`; `sieveHeight()`, `slotLength()`, `slotLengthLimit()` and `sieveRowsLimit()` mirror scoop.scad's `SIEVE_HEIGHT`
 and `SLOT_LENGTH` and the limits above. They give the editor's gap count, the slot length's range (the model's `limits`, see
 `controlRange()`) and the validation: at least one gap, at most `MAX_SIEVE_GAPS` = 600, slots at least as long as they are
 wide, and no longer than the sieve's height. Gaps and bars go down to 1 mm, so fine sieves reach the limit sooner: 1 mm round
 holes and bars would make 3822 gaps at the default length, and 1 mm slots 25 mm long 877, so validation asks for larger gaps or
-wider bars. Five rows of 1 mm slots and bars (385 gaps) render in about 3 s. At the default length 3 mm round holes with 3 mm
+wider bars. Five rows of 1 mm slots and bars (415 gaps) render in about 2 s. At the default length 3 mm round holes with 3 mm
 bars and margin and a 5 mm bevel have 439 gaps and render in about 2 s; on the longest scoop they would have 700. Tests pin the layout
-to counts recorded from the SCAD file's `SIEVE_GAPS` echo, at 90, 127 and 180 mm, sized by rows and by length. `npm run test:renderer` checks that, at the
+to counts recorded from the SCAD file's `SIEVE_GAPS` echo, at 90, 127 and 180 mm, sized by rows and by length.
+Sized by rows, the slots along the sides are shorter; the volume test counts each gap at its own length. `npm run test:renderer` checks that, at the
 default fit, tip and length, the scoop's volume plus the gaps' volume is the same solid for every texture. There, a gap in a corner counts
 (R + r) / 2r ≈ 1.11 times its area × wall, because it widens with the radius.
 

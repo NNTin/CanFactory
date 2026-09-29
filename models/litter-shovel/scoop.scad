@@ -210,8 +210,8 @@ module blade() {
   }
 }
 
-// ---- Sieve layout. Every gap is [s, z]: s runs along the wall's inner face from the middle of the back, round the corners and
-// along the sides (negative towards -Y), z is its centre's height. ----
+// ---- Sieve layout. Every gap is [s, z, l]: s runs along the wall's inner face from the middle of the back, round the corners
+// and along the sides (negative towards -Y), z is its centre's height and l its length up the wall. ----
 ARC_IN = PI / 2 * R_IN;
 S_END = FLAT_Y + ARC_IN + (OUT[0] - 2 * R_OUT);   // where the front corners start
 SIEVE_BOTTOM = CAP_TOP + ROOT_BAND;
@@ -242,42 +242,49 @@ function fits(s, z) = let(a1 = abs(s) + GAP_Y / 2, z0 = z - GAP_Z / 2, z1 = z + 
   a1 <= S_END - SIEVE_MARGIN + 1e-6 && z0 >= SIEVE_BOTTOM + SIEVE_MARGIN - 1e-6
   && z1 <= SIEVE_TOP - SIEVE_MARGIN + 1e-6 && z1 <= side_below(wall_x(a1), SIEVE_MARGIN) + 1e-6;
 
+// Slots sized by rows keep every row's bottom all round, but end lower where the side walls' top falls: each slot reaches up to
+// its row's length or, if lower, the margin under the top at its outer upper corner, and is cut if it is still at least as long
+// as it is wide. The rows stay level, so the bars between them stay GAP_SPACING, staggered or not.
+FIT_ROWS = IS_SLOT && SIEVE_SIZING == "rows";
+function slot_top(s) = min(SIEVE_TOP - SIEVE_MARGIN, side_below(wall_x(abs(s) + GAP_Y / 2), SIEVE_MARGIN));
 GAPS = [for (row = [0 : ROWS - 1], column = [-COLUMNS : COLUMNS])
           let(s = (column + (OFFSET_ROWS && row % 2 == 1 ? 0.5 : 0)) * PITCH_Y,
-              z = SIEVE_BOTTOM + SIEVE_MARGIN + GAP_Z / 2 + row * PITCH_Z)
-          if (fits(s, z)) [s, z]];
+              z0 = SIEVE_BOTTOM + SIEVE_MARGIN + row * PITCH_Z,
+              l = FIT_ROWS ? min(z0 + SLOT_LENGTH, slot_top(s)) - z0 : GAP_Z,
+              z = FIT_ROWS ? z0 + l / 2 : SIEVE_BOTTOM + SIEVE_MARGIN + GAP_Z / 2 + row * PITCH_Z)
+          if (FIT_ROWS ? abs(s) + GAP_Y / 2 <= S_END - SIEVE_MARGIN + 1e-6 && l >= GAP_Y - 1e-6 : fits(s, z)) [s, z, l]];
 echo(SIEVE_GAPS = len(GAPS));
 
-// One gap's outline, before it is turned to face along X: its X runs down the wall, its Y along it.
-module gap_outline() {
-  if (IS_SLOT) hull() for (dz = [-1, 1]) translate([dz * (SLOT_LENGTH - GAP_WIDTH) / 2, 0]) circle(d = GAP_WIDTH);
+// One gap's outline, `l` long up the wall, before it is turned to face along X: its X runs down the wall, its Y along it.
+module gap_outline(l) {
+  if (IS_SLOT) hull() for (dz = [-1, 1]) translate([dz * (l - GAP_WIDTH) / 2, 0]) circle(d = GAP_WIDTH);
   else if (SIEVE_PATTERN == "hex") circle(d = GAP_WIDTH * 2 / sqrt(3), $fn = 6);
   else circle(d = GAP_WIDTH);
 }
 
 // A gap through a flat wall, in the wall's frame: X outward, Y along it, Z up. It starts 4 mm inside the inner face, so that a
 // gap reaching round into a corner still cuts through the corner's wall, which curves away from it.
-module flat_gap() { translate([-4, 0, 0]) rotate([0, 90, 0]) linear_extrude(WALL + 5) gap_outline(); }
+module flat_gap(l) { translate([-4, 0, 0]) rotate([0, 90, 0]) linear_extrude(WALL + 5) gap_outline(l); }
 
 // A gap through a curved corner, in the corner's frame: X outward along the gap's middle from the corner's centre. It is the
 // outline seen from the centre, so that it takes the same angle, GAP_WIDTH / R_IN, at every depth: along the inner face it is
 // GAP_WIDTH wide and the bars between gaps are GAP_SPACING, and it widens outward like the wall. It reaches from inside the inner
 // face to well past the outer face, far enough to cut through the flat wall next to the corner too.
 CORNER_TAN = tan(GAP_Y / (2 * R_IN) * 180 / PI);
-module corner_gap() {
+module corner_gap(l) {
   hull() for (d = [R_IN - 1, 1.2 * R_OUT + 1])
-    translate([d, 0, 0]) scale([1, d * CORNER_TAN / (GAP_Y / 2), 1]) rotate([0, 90, 0]) linear_extrude(E) gap_outline();
+    translate([d, 0, 0]) scale([1, d * CORNER_TAN / (GAP_Y / 2), 1]) rotate([0, 90, 0]) linear_extrude(E) gap_outline(l);
 }
 
-// Cuts a gap at `s` along the inner face: through the back, through a corner (radially), or through a side.
-module gap_at(s) {
+// Cuts a gap `l` long at `s` along the inner face: through the back, through a corner (radially), or through a side.
+module gap_at(s, l) {
   a = abs(s); k = s < 0 ? -1 : 1;
-  if (a <= FLAT_Y) translate([BACK_IN_X, s, 0]) rotate([0, 0, 180]) flat_gap();
-  else if (a <= FLAT_Y + ARC_IN) translate([CORNER_X, k * FLAT_Y, 0]) rotate([0, 0, k * (180 - (a - FLAT_Y) / R_IN * 180 / PI)]) corner_gap();
-  else translate([CORNER_X + a - FLAT_Y - ARC_IN, k * OUT_IN[1] / 2, 0]) rotate([0, 0, k * 90]) flat_gap();
+  if (a <= FLAT_Y) translate([BACK_IN_X, s, 0]) rotate([0, 0, 180]) flat_gap(l);
+  else if (a <= FLAT_Y + ARC_IN) translate([CORNER_X, k * FLAT_Y, 0]) rotate([0, 0, k * (180 - (a - FLAT_Y) / R_IN * 180 / PI)]) corner_gap(l);
+  else translate([CORNER_X + a - FLAT_Y - ARC_IN, k * OUT_IN[1] / 2, 0]) rotate([0, 0, k * 90]) flat_gap(l);
 }
 
-module sieve() { for (g = GAPS) translate([0, 0, g[1]]) gap_at(g[0]); }
+module sieve() { for (g = GAPS) translate([0, 0, g[1]]) gap_at(g[0], g[2]); }
 
 // ---- Detent bumps. ----
 // Places children on the middle of each straight side of plan `p`, in the wall's frame (X along the wall, Y outward).
