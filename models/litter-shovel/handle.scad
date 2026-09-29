@@ -10,7 +10,8 @@
 // Modelled as it prints: upside down, the ring's top on the bed at Z = 0, so that the sheet rises from it, outward at 45
 // degrees along the slope, then straight up; nothing needs support. In use it is turned over (the assembly's pose), and the
 // ring's underside sits on the scoop's cap at Z = 144.5 in the container's frame. In `detent` mode grooves in the ring take the
-// bumps on the blade's base.
+// bumps on the blade's base. With a HANDLE_REINFORCEMENT, a boss either side of the grip holds a threaded insert or a nut for a
+// countersunk screw driven from inside the scoop.
 
 // How the ring holds on the blade's base: a close fit only, or a detent (bumps on the blade, grooves in the ring)
 HANDLE_SNAP = "detent"; //[friction,detent]
@@ -20,6 +21,19 @@ CLEARANCE = 0.2; //[0.1:0.01:0.6]
 HANDLE_DETENT_ENGAGE = 0.15; //[0.02:0.01:0.4]
 // Where the grip ends: open, 30 mm above the floor, or down on the floor (matching the container's handle)
 GRIP_END = "open"; //[open,floor]
+// Whether two countersunk screws, driven from inside the scoop, also fasten the ring: none, into threaded inserts or into nuts
+HANDLE_REINFORCEMENT = "none"; //[none,threaded-insert,nut-bolt]
+// The screws' clearance hole (ISO 273 medium for their thread) and length (a countersunk screw's includes its head), in mm
+SCREW_HOLE = 3.4;
+SCREW_L = 12;
+// The threaded inserts' hole diameter, least hole depth and least wall around the hole, in mm (CNC Kitchen M3 x 5.7)
+INSERT_HOLE = 4;
+INSERT_DEPTH = 6.7;
+INSERT_WALL = 1.6;
+// The nuts' greatest width across flats and height, in mm, and shape (ISO 4032 M3)
+NUT_S = 5.5;
+NUT_H = 2.4;
+NUT_SHAPE = "hex";
 
 $fa = 4; $fs = 0.5;
 E = 0.01;
@@ -33,6 +47,11 @@ CAP_TOP_Z = 144.5;
 RING_H = 15;
 // Detent grooves: 4 mm up the ring, facing the blade's bumps; their length along the wall.
 DETENT_Z = 4; DETENT_L = 16;
+// The screws: either side of the grip (+X), FASTENER_Z up the ring; the blade's wall, whose inner face their heads are flush with.
+// A nut's pocket is NUT_PLAY wider than the nut and NUT_RECESS deeper; the boss keeps NUT_WALL round it, and at least BOSS_WALL
+// round the clearance hole.
+FASTENER_Y = 21; FASTENER_Z = 8; BLADE_WALL = 3.2;
+NUT_PLAY = 0.2; NUT_RECESS = 0.2; NUT_WALL = 1.2; BOSS_WALL = 1.2;
 
 function grow(p, d) = [p[0] + 2 * d, p[1] + 2 * d, p[2] + d];
 module rr2d(p) { offset(r = p[2], $fn = 64) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
@@ -127,15 +146,51 @@ module grip() {
   translate([CAP_OUT[0] / 2 - 1, -GRIP_W / 2, CAP_TOP_Z]) cube([1 + CLEARANCE + 0.5, GRIP_W, RING_H]);
 }
 
+// ---- The reinforcement: a boss either side of the grip, holding an insert or a nut for a screw from inside the scoop. ----
+// The screw's head is flush with the blade's inner face, so its tip is SCREW_L out from it; the boss's face is there too. The
+// boss is round about the screw's axis and runs straight up to the ring's top, which is on the print bed: nothing overhangs.
+IS_SQUARE_NUT = NUT_SHAPE[0] == "s";   // "square" or "square-thin"; the others are hexagonal
+NUT_R = NUT_S / (IS_SQUARE_NUT ? sqrt(2) : sqrt(3)) + NUT_PLAY / 2;
+BOSS_R = max(SCREW_HOLE / 2 + BOSS_WALL, HANDLE_REINFORCEMENT == "threaded-insert" ? INSERT_HOLE / 2 + INSERT_WALL : NUT_R + NUT_WALL);
+BLADE_IN_X = BLADE[0] / 2 - BLADE_WALL;
+BOSS_FACE = BLADE_IN_X + SCREW_L;
+RING_OUT_X = CAP_OUT[0] / 2;
+FASTENER_ZC = CAP_TOP_Z + FASTENER_Z;
+
+// Places children on each screw's axis, turned so that their Z runs outward (+X).
+module on_fasteners() { for (s = [-1, 1]) translate([0, s * FASTENER_Y, FASTENER_ZC]) rotate([0, 90, 0]) children(); }
+
+module bosses() {
+  for (s = [-1, 1]) hull() {
+    translate([RING_OUT_X - 1, s * FASTENER_Y, FASTENER_ZC]) rotate([0, 90, 0]) cylinder(r = BOSS_R, h = BOSS_FACE - RING_OUT_X + 1, $fn = 48);
+    translate([RING_OUT_X - 1, s * FASTENER_Y - BOSS_R, FASTENER_ZC]) cube([BOSS_FACE - RING_OUT_X + 1, 2 * BOSS_R, RING_TOP_Z - FASTENER_ZC]);
+  }
+}
+
+// The clearance hole through the ring, and the insert's hole or the nut's pocket from the boss's face. A hexagonal pocket has its
+// corners at the sides and its flats top and bottom; a square one is upright. Both open outward, so the nut goes in from outside
+// and the screw's pull presses it on the pocket's floor.
+module fastener_cuts() {
+  on_fasteners() {
+    translate([0, 0, RING_IN[0] / 2 - 1]) cylinder(d = SCREW_HOLE, h = BOSS_FACE - RING_IN[0] / 2 + 2, $fn = 48);
+    if (HANDLE_REINFORCEMENT == "threaded-insert")
+      translate([0, 0, BOSS_FACE - INSERT_DEPTH]) cylinder(d = INSERT_HOLE, h = INSERT_DEPTH + 1, $fn = 48);
+    else
+      translate([0, 0, BOSS_FACE - NUT_RECESS - NUT_H]) rotate([0, 0, IS_SQUARE_NUT ? 45 : 30]) cylinder(r = NUT_R, h = NUT_H + NUT_RECESS + 1, $fn = IS_SQUARE_NUT ? 4 : 6);
+  }
+}
+
 // The handle in the container's frame, as used.
 module handle() {
   difference() {
     union() {
       slab(CAP_OUT, CAP_TOP_Z, RING_H);
       grip();
+      if (HANDLE_REINFORCEMENT != "none") bosses();
     }
     slab(RING_IN, CAP_TOP_Z - 1, RING_H + 2);
     if (HANDLE_SNAP == "detent") translate([0, 0, CAP_TOP_Z + DETENT_Z]) on_sides(RING_IN) groove(DETENT_L, HANDLE_DETENT_ENGAGE);
+    if (HANDLE_REINFORCEMENT != "none") fastener_cuts();
   }
 }
 

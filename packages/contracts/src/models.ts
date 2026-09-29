@@ -1,6 +1,6 @@
 import { Type, type Static, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
-import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type Part } from './parts/index.ts';
+import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
 
@@ -59,6 +59,11 @@ export const ControlSchema = Type.Object({
   part: Type.Union([Type.Object({
     family: Type.String({ description: 'The id of a parts-library family.' }),
     attribute: Type.Union([Type.String(), Type.Null()], { description: 'Null: each option value is the id of a part of the family. Otherwise each option value is a value of this attribute of the family (e.g. `thread` = `M3`), which stands for every part that has it.' }),
+    filter: Type.Union([Type.Object({
+      control: Type.String({ description: 'The key of an enum control of the same model.' }),
+      attribute: Type.String({ description: 'An attribute of the family, e.g. `thread`.' }),
+    }, { additionalProperties: false }), Type.Null()],
+    { description: 'For part-id options: offer only the parts whose attribute equals the current value of another (enum) control, e.g. the screws of the chosen thread. The editor lists only those, and moves the choice to the first of them when the other control changes; while the control is shown, any other part is invalid. Null to offer every option.' }),
   }, { additionalProperties: false }), Type.Null()],
   { description: 'For an enum control whose options are real-world parts: the parts-library family they link to. The editor links the selected option to the library. Null for none.' }),
 }, { additionalProperties: false });
@@ -109,7 +114,37 @@ function partControl<T extends { properties: Record<string, TSchema> }>(
     if (part?.family !== family) throw new Error(`${key}: ${id} is not a ${family} in the parts library.`);
     return { value: id, label: `${part.title} (${part.product?.sku ?? part.designation})`, description: part.description };
   });
-  return { ...enumControl(schema, key, group, options), part: { family, attribute: null } };
+  return { ...enumControl(schema, key, group, options), part: { family, attribute: null, filter: null } };
+}
+
+/** Whether a control is shown for these parameters (`Control.visibleWhen`). */
+export function controlShown(control: Control, parameters: ParameterValues): boolean {
+  return control.visibleWhen === null || control.visibleWhen.values.includes(String(parameters[control.visibleWhen.control]));
+}
+
+/** Whether a part-linked control offers this option for these parameters (`Control.part.filter`): always, unless the control
+ * filters its parts by another control's value and this option's part does not have it. */
+export function partOptionOffered(control: Control, option: string, parameters: ParameterValues): boolean {
+  const filter = control.part?.filter;
+  if (!filter) return true;
+  return findPart(option)?.attributes[filter.attribute] === String(parameters[filter.control]);
+}
+
+/** The options of a control that are offered for these parameters (see `partOptionOffered`). */
+export function offeredOptions(control: Control, parameters: ParameterValues): NonNullable<Control['options']> {
+  return (control.options ?? []).filter(option => partOptionOffered(control, option.value, parameters));
+}
+
+/** Issues of the part-linked controls whose choice is not offered for the other controls' values, while they are shown. */
+function partFilterIssues(model: ModelDefinition, parameters: ParameterValues): ParameterIssue[] {
+  return model.controls.flatMap(control => {
+    const filter = control.part?.filter;
+    const value = parameters[control.key];
+    if (!filter || !controlShown(control, parameters) || typeof value !== 'string' || partOptionOffered(control, value, parameters)) return [];
+    const other = model.controls.find(c => c.key === filter.control);
+    const wanted = String(parameters[filter.control]);
+    return [{ field: control.key, message: `${findPart(value)?.title ?? value} does not match the ${other?.label.toLowerCase() ?? filter.control} (${wanted}). Choose one with ${filter.attribute} ${wanted}.` }];
+  });
 }
 
 /** A control for a string property: a one-line text box. `maximum` carries the character limit. */
@@ -178,7 +213,26 @@ export interface ModelPart {
  * tolerance (the nominal value when the source gives no limit). A pocket takes the `max`. The worker passes the number as
  * `-D NAME=value` (`scadDefines`).
  */
-export type PartDefines = Record<string, Record<string, [dimension: string, limit: 'value' | 'min' | 'max']>>;
+export type PartDefines = Record<string, Record<string, PartDefine>>;
+/**
+ * One SCAD variable from the chosen part: a dimension's value (or the first of several dimensions the part has, e.g. a nylon-insert
+ * nut's overall height `h`, else its height `m`, since not every part of a family has every dimension), or an attribute, written as
+ * a string (e.g. a nut's `shape`).
+ */
+export type PartDefine = [dimension: string | readonly string[], limit: 'value' | 'min' | 'max'] | { attribute: string };
+
+/** The OpenSCAD literal a `PartDefine` gives for this part. Throws when the part has none of its dimensions, or not its attribute. */
+export function partDefineLiteral(part: Part, define: PartDefine): string {
+  if (!Array.isArray(define)) {
+    const value = part.attributes[define.attribute];
+    if (value === undefined) throw new Error(`${part.id} has no attribute ${define.attribute}.`);
+    return JSON.stringify(value);
+  }
+  const [dimensions, limit] = define;
+  const keys: readonly string[] = typeof dimensions === 'string' ? [dimensions] : dimensions;
+  const key = keys.find(candidate => part.dimensions[candidate]) ?? keys[0] ?? '';
+  return JSON.stringify(dimensionOf(part, key, limit));
+}
 
 /**
  * A reference object that depends on the settings, such as the magnets chosen for a snap: shown in the assembly preview like
@@ -189,6 +243,9 @@ export interface LinkedReference {
   id: string; part: string; label: string;
   pose: { position: [number, number, number]; rotation?: [number, number, number] };
   movesWith?: string;
+  /** A step of its own, after the assembly's steps (e.g. driving in screws once the parts are together): references with the same
+   * title move together, from their `from` offset, in the order the titles first appear. */
+  step?: { title: string; from: [number, number, number] };
 }
 
 const Vector = (description: string) => Type.Array(Type.Number(), { minItems: 3, maxItems: 3, description });
@@ -302,7 +359,7 @@ export function scadDefines(model: ModelDefinition, source: { scadMapping?: Reco
     const id = parameters[key];
     const part = typeof id === 'string' ? findPart(id) : undefined;
     if (!part) throw new Error(`Parameter ${key} is not a part of the library.`);
-    for (const [scadName, [dimension, limit]] of Object.entries(variables)) defines.push([name(scadName), JSON.stringify(dimensionOf(part, dimension, limit))]);
+    for (const [scadName, define] of Object.entries(variables)) defines.push([name(scadName), partDefineLiteral(part, define)]);
   }
   return defines;
 }
@@ -911,7 +968,7 @@ const plankConnectorControls = [
   control(PlankConnectorParametersSchema, 'pocketThickness', 'basic'),
   control(PlankConnectorParametersSchema, 'insertionDepth', 'basic'),
   // Each size links to the library's screws of that thread (`none` to nothing).
-  { ...enumControl(PlankConnectorParametersSchema, 'screwHoles', 'basic', SCREW_HOLE_VALUES.map(value => ({ value, ...SCREW_HOLE_TEXT[value] }))), part: { family: 'screw', attribute: 'thread' } },
+  { ...enumControl(PlankConnectorParametersSchema, 'screwHoles', 'basic', SCREW_HOLE_VALUES.map(value => ({ value, ...SCREW_HOLE_TEXT[value] }))), part: { family: 'screw', attribute: 'thread', filter: null } },
   enumControl(PlankConnectorParametersSchema, 'holeFit', 'advanced', HOLE_FIT_VALUES.map(value => ({ value, ...HOLE_FIT_TEXT[value] }))),
   control(PlankConnectorParametersSchema, 'holesPerEnd', 'advanced', null, null),
   control(PlankConnectorParametersSchema, 'wallThickness', 'advanced'),
@@ -948,8 +1005,9 @@ export const plankConnector = {
  * own handle (the finger side, open at the bottom, braced by `supportCount` thin fins) and the handle part's (the palm side),
  * which lies on it so that the two make one strip; held, it clamps the three parts. `gripEnd` ends it open above the floor or on
  * the floor. Two joints hold by a close fit or a detent (`scoopSnap`: the scoop's sleeve in the
- * container's mouth; `handleSnap`: the handle's ring on the blade's base), sized from one `clearance`. The other parameters shape
- * the sieve round the scoop's walls and its straight, sharp scraping tip.
+ * container's mouth; `handleSnap`: the handle's ring on the blade's base), sized from one `clearance`; `handleReinforcement` can also
+ * screw the handle to the scoop with parts-library hardware. The other parameters shape the sieve round the scoop's walls and its
+ * straight, sharp scraping tip.
  */
 const SIEVE_PATTERN_VALUES = ['slots', 'staggered', 'round', 'hex'] as const;
 export type SievePattern = typeof SIEVE_PATTERN_VALUES[number];
@@ -991,6 +1049,95 @@ export const SHOVEL_SNAP_TUNING = {
   handleDetentEngage: { joint: 'handleSnap', variable: 'HANDLE_DETENT_ENGAGE', default: 0.15, recommended: { minimum: 0.1, maximum: 0.25 } },
 } as const;
 
+/**
+ * The handle's reinforcement (docs/litter-shovel.md#reinforcement): on top of `handleSnap`, two screws fasten the handle's ring to
+ * the scoop's blade for good, on the grip side (+X), either side of the grip. Each is a countersunk screw, driven from inside the
+ * scoop so that its head sits flush with the blade's inner face, through the blade's wall and the ring, into a heat-set insert or a
+ * nut held in a boss on the ring's outer face. Every part is a real product or standard part from the parts library.
+ */
+const HANDLE_REINFORCEMENT_VALUES = ['none', 'threaded-insert', 'nut-bolt'] as const;
+export type HandleReinforcement = typeof HANDLE_REINFORCEMENT_VALUES[number];
+const HANDLE_REINFORCEMENT_TEXT: Record<HandleReinforcement, { label: string; description: string }> = {
+  none: { label: 'None', description: 'Only the handle’s snap setting holds the handle on the scoop; lift it off at any time.' },
+  'threaded-insert': { label: 'Threaded inserts and screws', description: 'Two brass heat-set inserts, melted into bosses on the handle’s ring beside the grip, take two countersunk screws driven from inside the scoop. The handle stays on the scoop for good, and still comes off with a screwdriver.' },
+  'nut-bolt': { label: 'Nuts and screws', description: 'Two nuts, pushed into pockets in bosses on the handle’s ring beside the grip, take two countersunk screws driven from inside the scoop. No soldering iron needed.' },
+};
+
+/**
+ * Where the fasteners sit and the room they have, in the container's frame (the SCAD files' FASTENER_* values; a test keeps them
+ * equal): `y` either side of the grip (26 mm wide) and `z` above the cap's top, in the 15 mm ring over the blade's solid root band.
+ * `innerX` is the blade's inner face on the grip side, `bladeWall` its wall and `ringOut` the blade's inner face to the ring's outer
+ * face (the wall, the clearance and the ring, which is the clearance thinner: the same at any clearance). A countersunk head leaves
+ * `underHead` of the wall and its countersink (`sinkPlay` wider than the head) stays within `sinkRadius` of the axis, clear of the
+ * funnel below. The boss on the ring ends where the screw's tip does, so it is `screw length − ringOut` deep, at most
+ * `bossDepth`; its radius (the insert's hole and wall, or the nut's pocket and `nutWall`) is at most `bossRadius`, clear of the grip
+ * and the cap. An insert's hole leaves `insertLeft` of the ring; a nut sits `nutRecess` deep in a pocket `nutPlay` wider than it,
+ * on a floor at least `nutFloor` thick.
+ */
+export const HANDLE_FASTENER_SEAT = {
+  y: 21, z: 8, capTop: 144.5, innerX: 37.65, bladeWall: 3.2, ringOut: 6.8, underHead: 0.8, sinkPlay: 0.2, sinkRadius: 4.5,
+  bossDepth: 10, bossRadius: 6.5, insertLeft: 0.4, nutPlay: 0.2, nutRecess: 0.2, nutFloor: 1.2, nutWall: 1.2,
+} as const;
+
+const nutHeight = (part: Part) => dimensionOf(part, part.dimensions['h'] ? 'h' : 'm', 'max');
+/** The radius of a nut's pocket: its hexagon's or square's corners, with the play. */
+const nutPocketRadius = (part: Part) => dimensionOf(part, 's', 'max') / (part.attributes['shape']?.startsWith('square') ? Math.SQRT2 : Math.sqrt(3)) + HANDLE_FASTENER_SEAT.nutPlay / 2;
+const screwThread = (part: Part) => part.attributes['thread'] ?? '';
+const screwLength = (part: Part) => dimensionOf(part, 'l');
+
+/** Whether a library screw can fasten the handle: a countersunk head that sits in the blade's wall and countersink, a thread with an
+ * ISO 273 clearance hole, and a length that ends in a boss no deeper than allowed. */
+export function handleScrewFits(part: Part): boolean {
+  const { bladeWall, underHead, sinkPlay, sinkRadius, ringOut, bossDepth } = HANDLE_FASTENER_SEAT;
+  if (part.family !== 'screw' || part.attributes['head'] !== 'countersunk' || !(screwThread(part) in ISO_273_CLEARANCE_HOLES)) return false;
+  const boss = screwLength(part) - ringOut;
+  return dimensionOf(part, 'k', 'max') <= bladeWall - underHead + 1e-9 && (dimensionOf(part, 'dk', 'max') + sinkPlay) / 2 <= sinkRadius + 1e-9
+    && boss >= 0 && boss <= bossDepth + 1e-9;
+}
+
+/** The shortest screw among `screws` that leaves the ring `needed` mm (from the blade's wall, at this clearance) for its insert or nut. */
+const shortestScrew = (screws: readonly string[], thread: string, needed: number, clearance: number) => screws.map(id => findPart(id))
+  .filter((part): part is Part => part !== undefined && screwThread(part) === thread && screwLength(part) - HANDLE_FASTENER_SEAT.bladeWall - clearance >= needed - 1e-9)
+  .sort((a, b) => screwLength(a) - screwLength(b))[0];
+
+/** How much of the screw's length past the blade's wall an insert needs: its hole, and the ring it must leave. */
+const insertNeeds = (part: Part) => dimensionOf(part, 'holeDepth') + HANDLE_FASTENER_SEAT.insertLeft;
+/** The same for a nut: its recessed pocket, and the floor under it. */
+const nutNeeds = (part: Part) => nutHeight(part) + HANDLE_FASTENER_SEAT.nutRecess + HANDLE_FASTENER_SEAT.nutFloor;
+
+/** Whether a library insert fits a boss on the ring and some fitting screw of its thread is long enough for it (at the least clearance). */
+export function handleInsertFits(part: Part, screws: readonly Part[]): boolean {
+  if (part.family !== 'threaded-insert') return false;
+  const radius = dimensionOf(part, 'hole') / 2 + dimensionOf(part, 'wall');
+  return radius <= HANDLE_FASTENER_SEAT.bossRadius + 1e-9 && shortestScrew(screws.map(screw => screw.id), screwThread(part), insertNeeds(part), CLEARANCE_RANGE.minimum) !== undefined;
+}
+
+/** Whether a library nut's pocket fits a boss on the ring and some fitting screw of its thread is long enough for it. */
+export function handleNutFits(part: Part, screws: readonly Part[]): boolean {
+  if (part.family !== 'nut') return false;
+  return nutPocketRadius(part) + HANDLE_FASTENER_SEAT.nutWall <= HANDLE_FASTENER_SEAT.bossRadius + 1e-9
+    && shortestScrew(screws.map(screw => screw.id), screwThread(part), nutNeeds(part), CLEARANCE_RANGE.minimum) !== undefined;
+}
+
+/**
+ * The parts the handle's reinforcement offers: every library part that fits (`handleScrewFits`, `handleInsertFits`,
+ * `handleNutFits`), in the library's order, and the threads of the fitting screws. Listed rather than computed, so that the
+ * parameters' types name them; a test keeps each list equal to the library's fitting parts.
+ */
+export const HANDLE_THREADS = ['M2', 'M2.5', 'M3', 'M4'] as const;
+export const HANDLE_SCREWS = [
+  'iso-10642-m3x8', 'iso-10642-m3x10', 'iso-10642-m3x12', 'iso-10642-m3x16', 'iso-10642-m4x8', 'iso-10642-m4x10', 'iso-10642-m4x12', 'iso-10642-m4x16', 'iso-7046-m2x8', 'iso-7046-m2x10', 'iso-7046-m2x12', 'iso-7046-m2x16', 'iso-7046-m2-5x8', 'iso-7046-m2-5x10', 'iso-7046-m2-5x12', 'iso-7046-m2-5x16', 'iso-7046-m3x8', 'iso-7046-m3x10', 'iso-7046-m3x12', 'iso-7046-m3x16', 'iso-7046-m4x8', 'iso-7046-m4x10', 'iso-7046-m4x12', 'iso-7046-m4x16',
+] as const;
+export const HANDLE_INSERTS = [
+  'cnc-kitchen-m2x3', 'cnc-kitchen-m2-5x4', 'cnc-kitchen-m3x5-7', 'cnc-kitchen-m3x3', 'cnc-kitchen-m3x5x4', 'cnc-kitchen-m4x8-1', 'cnc-kitchen-m4x4', 'ruthex-rx-m2x4', 'ruthex-rx-m3x5-7', 'ruthex-rx-m4x8-1',
+] as const;
+export const HANDLE_NUTS = [
+  'iso-4032-m2', 'iso-4032-m2-5', 'iso-4032-m3', 'iso-4032-m4', 'iso-4035-m2', 'iso-4035-m2-5', 'iso-4035-m3', 'iso-4035-m4', 'iso-10511-m3', 'iso-10511-m4', 'din-562-m2', 'din-562-m2-5', 'din-562-m3', 'din-562-m4',
+] as const;
+/** M3, the usual thread of printed parts: a CNC Kitchen M3 × 5.7 insert, or a regular hexagon nut, on an ISO 10642 M3 × 12. */
+export const DEFAULT_HANDLE_FASTENERS = { thread: 'M3', insert: 'cnc-kitchen-m3x5-7', nut: 'iso-4032-m3', screw: 'iso-10642-m3x12' } as const;
+const HANDLE_THREAD_TEXT: Record<string, string> = { M2: 'The smallest: the lightest screws and the smallest bosses.', 'M2.5': 'Between M2 and M3.', M3: 'The usual thread of printed parts.', M4: 'The sturdiest: the largest bosses on the ring.' };
+
 export const LitterShovelParametersSchema = Type.Object({
   sievePattern: Type.Enum(SIEVE_PATTERN_VALUES, { title: 'Sieve texture', description: 'The shape and arrangement of the gaps in the scoop’s walls: across the back, round the corners and along the sides.', default: 'slots' }),
   gapWidth: dimension('Gap width', 'Width of each gap in mm: the slot width, the hole diameter or the hexagon’s size across flats. Litter finer than this falls through.', 7.2, 3, 15),
@@ -1004,6 +1151,11 @@ export const LitterShovelParametersSchema = Type.Object({
   supportThickness: dimension('Support thickness', 'Thickness of each fin under the container’s handle, in mm.', 2, 1.2, 4),
   scoopSnap: Type.Enum(SHOVEL_SNAP_VALUES, { title: 'Scoop on the container', description: 'How the scoop’s sleeve holds in the container’s mouth: a close fit only, or a detent.', default: 'detent' }),
   handleSnap: Type.Enum(SHOVEL_SNAP_VALUES, { title: 'Handle on the scoop', description: 'How the handle’s ring holds on the base of the scoop’s blade: a close fit only, or a detent.', default: 'detent' }),
+  handleReinforcement: Type.Enum(HANDLE_REINFORCEMENT_VALUES, { title: 'Handle reinforcement', description: 'Whether two screws also fasten the handle to the scoop for good, beside the grip: into threaded inserts or nuts on the handle’s ring. On top of the snap setting.', default: 'none' }),
+  handleThread: Type.Enum(HANDLE_THREADS, { title: 'Screw thread', description: 'The thread of the two screws and their inserts or nuts. A larger thread holds harder and needs larger bosses on the ring.', default: DEFAULT_HANDLE_FASTENERS.thread }),
+  handleInsert: Type.Enum(HANDLE_INSERTS, { title: 'Threaded inserts', description: 'The heat-set inserts, a real product from the parts library: each boss’s hole and wall are sized from the maker’s recommendation.', default: DEFAULT_HANDLE_FASTENERS.insert }),
+  handleNut: Type.Enum(HANDLE_NUTS, { title: 'Nuts', description: 'The nuts, standard parts from the parts library: each boss’s pocket is cut to the nut’s greatest size.', default: DEFAULT_HANDLE_FASTENERS.nut }),
+  handleScrew: Type.Enum(HANDLE_SCREWS, { title: 'Screws', description: 'The countersunk screws, standard parts from the parts library, driven from inside the scoop so that their heads sit flush. The bosses on the ring end where the screws do: a longer screw makes them deeper.', default: DEFAULT_HANDLE_FASTENERS.screw }),
   clearance: dimension('Clearance', 'Gap per side between parts that fit together (the scoop’s sleeve in the container’s mouth, the handle’s ring on the scoop’s blade), in mm. Larger is looser; raise it if your printer prints parts that are too tight.',
     CLEARANCE_RANGE.default, CLEARANCE_RANGE.minimum, CLEARANCE_RANGE.maximum, CLEARANCE_RANGE.step),
   scoopDetentEngage: dimension('Detent engagement (scoop on the container)', 'How far the bumps on the scoop’s sleeve reach past the container’s mouth, in mm, on top of the clearance. More clicks harder.',
@@ -1086,8 +1238,26 @@ function validateLitterShovel(p: LitterShovelParameters): ParameterIssue[] {
     issues.push({ field: slot ? 'gapLength' : 'gapWidth', message: 'Not a single gap fits in the scoop’s walls. Use smaller gaps, a smaller margin or a shorter tip bevel.' });
   if (count > MAX_SIEVE_GAPS)
     issues.push({ field: 'gapSpacing', message: `${count} gaps are too many (at most ${MAX_SIEVE_GAPS}). Use larger gaps or wider bars.` });
+  issues.push(...handleReinforcementIssues(p));
   return issues;
 }
+
+/** The screw must be long enough for the chosen insert (its hole, and the ring it leaves) or nut (its pocket and floor), at this clearance. */
+function handleReinforcementIssues(p: LitterShovelParameters): ParameterIssue[] {
+  if (p.handleReinforcement === 'none') return [];
+  const screw = findPart(p.handleScrew);
+  const holder = findPart(p.handleReinforcement === 'threaded-insert' ? p.handleInsert : p.handleNut);
+  if (!screw || !holder) return [];
+  const needed = p.handleReinforcement === 'threaded-insert' ? insertNeeds(holder) : nutNeeds(holder);
+  const reach = screwLength(screw) - HANDLE_FASTENER_SEAT.bladeWall - p.clearance;
+  if (reach >= needed - 1e-9) return [];
+  const shortest = shortestScrew(HANDLE_SCREWS, screwThread(holder), needed, p.clearance);
+  const what = p.handleReinforcement === 'threaded-insert' ? `its ${dimensionOf(holder, 'holeDepth')} mm deep hole and ${HANDLE_FASTENER_SEAT.insertLeft} mm of the ring` : `its pocket and a ${HANDLE_FASTENER_SEAT.nutFloor} mm floor`;
+  return [{ field: 'handleScrew', message: `${screw.title} reaches only ${reach.toFixed(1)} mm past the scoop’s wall at ${p.clearance.toFixed(2)} mm clearance, but the ${holder.title} needs ${needed.toFixed(1)} mm (${what}). ${shortest ? `Use at least ${shortest.title}.` : 'No listed screw is long enough: lower the clearance.'}` }];
+}
+
+/** A part-linked control that offers only the parts of the chosen screw thread. */
+const threadFiltered = (c: Control): Control => ({ ...c, part: c.part && { ...c.part, filter: { control: 'handleThread', attribute: 'thread' } } });
 
 const litterShovelControls = [
   enumControl(LitterShovelParametersSchema, 'sievePattern', 'basic', SIEVE_PATTERN_VALUES.map(value => ({ value, ...SIEVE_PATTERN_TEXT[value] }))),
@@ -1098,6 +1268,13 @@ const litterShovelControls = [
   control(LitterShovelParametersSchema, 'supportCount', 'basic', null, null),
   enumControl(LitterShovelParametersSchema, 'scoopSnap', 'basic', SHOVEL_SNAP_VALUES.map(value => ({ value, ...SCOOP_SNAP_TEXT[value] }))),
   enumControl(LitterShovelParametersSchema, 'handleSnap', 'basic', SHOVEL_SNAP_VALUES.map(value => ({ value, ...HANDLE_SNAP_TEXT[value] }))),
+  enumControl(LitterShovelParametersSchema, 'handleReinforcement', 'basic', HANDLE_REINFORCEMENT_VALUES.map(value => ({ value, ...HANDLE_REINFORCEMENT_TEXT[value] }))),
+  // the fasteners, while the handle is reinforced: the inserts, nuts and screws offered are the library's parts of the chosen thread
+  ...[enumControl(LitterShovelParametersSchema, 'handleThread', 'basic', HANDLE_THREADS.map(value => ({ value, label: value, description: HANDLE_THREAD_TEXT[value] ?? '' }))),
+    { ...threadFiltered(partControl(LitterShovelParametersSchema, 'handleInsert', 'basic', 'threaded-insert', HANDLE_INSERTS)), visibleWhen: { control: 'handleReinforcement', values: ['threaded-insert'] } },
+    { ...threadFiltered(partControl(LitterShovelParametersSchema, 'handleNut', 'basic', 'nut', HANDLE_NUTS)), visibleWhen: { control: 'handleReinforcement', values: ['nut-bolt'] } },
+    threadFiltered(partControl(LitterShovelParametersSchema, 'handleScrew', 'basic', 'screw', HANDLE_SCREWS))]
+    .map((c): Control => ({ ...c, visibleWhen: c.visibleWhen ?? { control: 'handleReinforcement', values: ['threaded-insert', 'nut-bolt'] } })),
   control(LitterShovelParametersSchema, 'sieveMargin', 'advanced'),
   control(LitterShovelParametersSchema, 'tipThickness', 'advanced'),
   control(LitterShovelParametersSchema, 'tipBevel', 'advanced'),
@@ -1112,7 +1289,42 @@ const litterShovelControls = [
   }),
 ];
 
+/**
+ * The handle's fasteners, as reference objects where they sit (docs/litter-shovel.md#reinforcement), in the container's frame: on
+ * the grip side, either side of the grip. Each screw's head is flush with the blade's inner face and its tip at the boss's face;
+ * it lies along X, head inward (a screw's own frame has its tip at z = 0 and its head up). The inserts sit flush with the bosses'
+ * faces, the nuts `nutRecess` deep; both ride with the handle. The screws are driven in from inside the scoop, a step of their own.
+ */
+function handleFasteners(parameters: ParameterValues): LinkedReference[] {
+  const mode = parameters['handleReinforcement'];
+  const screw = typeof parameters['handleScrew'] === 'string' ? findPart(parameters['handleScrew']) : undefined;
+  const holderId = mode === 'threaded-insert' ? parameters['handleInsert'] : mode === 'nut-bolt' ? parameters['handleNut'] : undefined;
+  const holder = typeof holderId === 'string' ? findPart(holderId) : undefined;
+  if (!screw || !holder) return [];
+  const { innerX, capTop, y, z, nutRecess } = HANDLE_FASTENER_SEAT;
+  const l = screwLength(screw), face = innerX + l, height = capTop + z;
+  const holderX = mode === 'threaded-insert' ? face - dimensionOf(holder, 'l') : face - nutRecess - nutHeight(holder);
+  return [1, -1].flatMap((side): LinkedReference[] => {
+    const name = side > 0 ? 'plus-y' : 'minus-y', label = side > 0 ? '+Y side of the grip' : '−Y side of the grip';
+    return [
+      { id: `handle-${mode === 'threaded-insert' ? 'insert' : 'nut'}-${name}`, part: holder.id, label, pose: { position: [holderX, side * y, height], rotation: [0, 90, 0] }, movesWith: 'handle' },
+      { id: `handle-screw-${name}`, part: screw.id, label, pose: { position: [face, side * y, height], rotation: [0, -90, 0] },
+        step: { title: 'Drive the screws in from inside the scoop', from: [-(l + 8), 0, 0] } },
+    ];
+  });
+}
+
 const LITTER_SHOVEL_DIR = 'models/litter-shovel/';
+/** The reinforcement's setting reaches the scoop (its countersunk holes) and the handle (its bosses); the thread as its ISO 273
+ * medium clearance hole, the chosen parts as their dimensions. */
+const SHOVEL_REINFORCEMENT_MAPPING = { handleReinforcement: 'HANDLE_REINFORCEMENT', handleThread: 'SCREW_HOLE' };
+const SHOVEL_SCOOP_FASTENER_DEFINES: PartDefines = { handleScrew: { SCREW_D: ['d', 'value'], SCREW_DK: ['dk', 'max'], SCREW_K: ['k', 'max'] } };
+const SHOVEL_HANDLE_FASTENER_DEFINES: PartDefines = {
+  handleScrew: { SCREW_L: ['l', 'value'] },
+  handleInsert: { INSERT_HOLE: ['hole', 'value'], INSERT_DEPTH: ['holeDepth', 'value'], INSERT_WALL: ['wall', 'value'] },
+  // a nylon-insert nut's pocket takes its overall height; a square nut's is square
+  handleNut: { NUT_S: ['s', 'max'], NUT_H: [['h', 'm'], 'max'], NUT_SHAPE: { attribute: 'shape' } },
+};
 const SHOVEL_SCOOP_SNAP_MAPPING = { scoopSnap: 'SCOOP_SNAP', scoopDetentEngage: 'SCOOP_DETENT_ENGAGE' };
 const SHOVEL_HANDLE_SNAP_MAPPING = { handleSnap: 'HANDLE_SNAP', handleDetentEngage: 'HANDLE_DETENT_ENGAGE' };
 
@@ -1121,8 +1333,10 @@ const SHOVEL_HANDLE_SNAP_MAPPING = { handleSnap: 'HANDLE_SNAP', handleDetentEnga
 const litterShovelParts: ModelPart[] = [
   { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', supportCount: 'SUPPORT_COUNT', supportThickness: 'SUPPORT_THICKNESS', ...SHOVEL_SCOOP_SNAP_MAPPING } },
   { id: 'scoop', title: 'Scoop', sourcePath: `${LITTER_SHOVEL_DIR}scoop.scad`,
-    scadMapping: { sievePattern: 'SIEVE_PATTERN', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', tipThickness: 'TIP_THICKNESS', tipBevel: 'TIP_BEVEL', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING } },
-  { id: 'handle', title: 'Handle', sourcePath: `${LITTER_SHOVEL_DIR}handle.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', ...SHOVEL_HANDLE_SNAP_MAPPING } },
+    scadMapping: { sievePattern: 'SIEVE_PATTERN', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', tipThickness: 'TIP_THICKNESS', tipBevel: 'TIP_BEVEL', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
+    partDefines: SHOVEL_SCOOP_FASTENER_DEFINES },
+  { id: 'handle', title: 'Handle', sourcePath: `${LITTER_SHOVEL_DIR}handle.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
+    partDefines: SHOVEL_HANDLE_FASTENER_DEFINES },
 ];
 
 /**
@@ -1145,17 +1359,20 @@ const litterShovelAssembly: Assembly = {
 };
 
 export const litterShovel = {
-  id: 'litter-shovel' as const, version: '1' as const, title: 'Litter shovel',
-  description: 'A cat-litter sifting shovel in three closed-ring parts, stacked: a container for a liner bag with its own open, hook-like handle, a sifting scoop that caps its rim, with a straight, sharp edge that scrapes along the floor and a sieve round its back, corners and sides, and a handle whose ring sits on the scoop and whose grip lies on the container’s handle. Both halves of the grip are thin curved sheets that stack into one smooth strip; held in the fist, they clamp all three parts. Choose the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and bar width, the scraping edge’s thickness and bevel, where the grip ends and how many thin fins brace it, and how the parts hold (a close fit or a detent), then download the three parts as a ZIP of STL files.',
+  id: 'litter-shovel' as const, version: '2' as const, title: 'Litter shovel',
+  description: 'A cat-litter sifting shovel in three closed-ring parts, stacked: a container for a liner bag with its own open, hook-like handle, a sifting scoop that caps its rim, with a straight, sharp edge that scrapes along the floor and a sieve round its back, corners and sides, and a handle whose ring sits on the scoop and whose grip lies on the container’s handle. Both halves of the grip are thin curved sheets that stack into one smooth strip; held in the fist, they clamp all three parts. Choose the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and bar width, the scraping edge’s thickness and bevel, where the grip ends and how many thin fins brace it, how the parts hold (a close fit or a detent), and whether two screws fasten the handle to the scoop for good (into threaded inserts or nuts from the parts library), then download the three parts as a ZIP of STL files.',
   attribution: 'CanFactory (original design)',
-  printNotes: 'Print each part as generated: the container standing on its floor, the scoop on its cap, the handle upside down on its ring’s top. Only the container’s open grip tip needs slicer supports; with the grip down to the floor, nothing does.',
+  printNotes: 'Print each part as generated: the container standing on its floor, the scoop on its cap, the handle upside down on its ring’s top. Only the container’s open grip tip needs slicer supports; with the grip down to the floor, nothing does. With a handle reinforcement, melt the inserts in (or push the nuts in) from outside the bosses, then drive the countersunk screws in from inside the scoop.',
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   parts: litterShovelParts,
   assembly: litterShovelAssembly,
+  linkedReferences: handleFasteners,
   parameterSchema: LitterShovelParametersSchema,
   controls: litterShovelControls,
   defaults: Object.fromEntries(litterShovelControls.map(c => [c.key, c.default])),
   scadMapping: {},
+  // The thread reaches the SCAD files as its ISO 273 medium clearance hole.
+  scadEncode: { handleThread: thread => JSON.stringify(ISO_273_CLEARANCE_HOLES[thread as MetricThread].medium) },
   validate(parameters: unknown): ParameterIssue[] {
     if (!Value.Check(LitterShovelParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
     return validateLitterShovel(parameters);
@@ -1191,5 +1408,6 @@ export function validateParameters(model: ModelDefinition, parameters: unknown):
       field: error.instancePath.replace(/^\//, ''), message: error.message,
     }));
   }
-  return model.validate(parameters);
+  const filtered = partFilterIssues(model, parameters as ParameterValues);
+  return filtered.length > 0 ? filtered : model.validate(parameters);
 }

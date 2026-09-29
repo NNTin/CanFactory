@@ -95,7 +95,7 @@ the lip's chamfer, bends again (15 mm), and runs straight down at X 65 to the ti
 | Situation | Load path |
 | --- | --- |
 | Standing on a table | Everything bears on flat faces: the container on its floor, the cap on the lip, the ring on the cap. |
-| Carrying by the grip | The fingers take the container's handle and the palm the handle part's. The container hangs on its own handle, and the stack sits on it. Squeezed together, the halves fix the container to the handle, with the cap trapped between the lip and the ring. If you hold only the palm half, `scoopSnap` holds the container on the scoop and `handleSnap` holds the scoop on the handle. |
+| Carrying by the grip | The fingers take the container's handle and the palm the handle part's. The container hangs on its own handle, and the stack sits on it. Squeezed together, the halves fix the container to the handle, with the cap trapped between the lip and the ring. If you hold only the palm half, `scoopSnap` holds the container on the scoop, and `handleSnap` (or, with a `handleReinforcement`, its two screws) holds the scoop on the handle. |
 | Scooping and sifting | The tip's flat outer face slides on the floor, its sharp edge first. The blade's loads go through its base into the ring and the handle part's grip, then the hand. The sleeve and the skirt also locate the cap on the container. |
 | Carrying the container alone | By its own handle, like a hook: the sheet's root in the wall and its fins carry it. |
 | Changing the bag | Lift the handle, then the scoop, off. |
@@ -119,6 +119,65 @@ the lip's chamfer, bends again (15 mm), and runs straight down at X 65 to the ti
 The scoop's detent works through the bag's film, which lies in the mouth under the sleeve. Both detents rub only over the last
 few millimetres of the push. The engagements are advanced settings, shown only while their joint uses a detent. The `clearance`
 (0.1 to 0.6, default 0.2) recommends 0.10–0.25 mm for a friction fit and 0.20–0.40 mm for a detent.
+
+### Reinforcement
+
+`handleReinforcement` (default `none`) fastens the handle to the scoop for good, on top of `handleSnap`:
+
+| Value | What holds the handle |
+| --- | --- |
+| `none` | Only `handleSnap`. |
+| `threaded-insert` | Two countersunk screws into two brass heat-set inserts in the handle's ring. |
+| `nut-bolt` | Two countersunk screws into two nuts in the handle's ring. No soldering iron needed. |
+
+The bag sits between the container and the scoop, so a fastened handle still comes off with the scoop to change it. The detent
+still helps: it holds the handle in place while you drive the screws in.
+
+**Where:** both screws are on the grip side (+X), 21 mm either side of the middle, 8 mm above the cap's top (Z 152.5). That
+places them beside the 26 mm grip, in the ring and the blade's solid root band. Nothing sits under the palm, the countersinks
+stay above the funnel (Z 11 in the scoop) and below the sieve, and the bosses stay clear of the cap and the grip sheet.
+
+**How:** each screw is driven horizontally from inside the scoop. Its countersunk head sits flush with the blade's inner face, so
+clumps do not catch on it. It passes the blade's wall and the ring, into an insert or a nut in a boss on the ring's outer face.
+- **In the scoop:** a clearance hole (ISO 273 medium for the thread, e.g. 3.4 mm for M3) through the 3.2 mm wall. It is countersunk
+  from the inner face: a rim as wide as the head plus 0.2 mm, as deep as the head's cylindrical edge, then 90° down to the hole.
+- **On the handle:** the boss's face is where the screw's tip ends. The blade's inner face to the ring's outer face is always
+  6.8 mm (3.2 + c + 3.6 − c), so the boss is `screw length − 6.8` deep (1.2 mm for an 8 mm screw, 9.2 mm for a 16 mm one). It is
+  round about the screw's axis and runs straight up to the ring's top, which is on the print bed, so nothing overhangs.
+  - **Insert:** a hole of the maker's recommended diameter and depth (`hole`, `holeDepth`) from the boss's face, with the maker's
+    least wall (`wall`) round it. Melt the insert in from outside, flush with the face.
+  - **Nut:** a pocket 0.2 mm wider than the nut's greatest size and 0.2 mm deeper than its greatest height (a nylon-insert nut's
+    overall `h`). It is hexagonal (corners at the sides, flats top and bottom) or square. The nut goes in from outside, and the
+    screw's pull presses it onto the pocket's floor.
+  - Either way, the clearance hole runs on through the ring.
+
+**The parts** are real items from the parts library ([adding-parts.md](adding-parts.md)):
+- **`handleThread`:** M2, M2.5, M3 (default) or M4.
+- **`handleInsert`, `handleNut`, `handleScrew`:** each offers only parts of the chosen thread (`part.filter`), and each is linked
+  to the part's library page.
+
+The contract offers a part when it fits (`handleScrewFits`, `handleInsertFits` and `handleNutFits` in
+`packages/contracts/src/models.ts`, with the room in `HANDLE_FASTENER_SEAT`). A test keeps each list equal to the library's
+fitting parts.
+
+| Setting | Offered | Why |
+| --- | --- | --- |
+| Screws | ISO 10642 M3/M4 and ISO 7046-1 M2 to M4, 8 to 16 mm | Countersunk, with a head no higher than 2.4 mm (at least 0.8 mm of the wall under it), a countersink within 4.5 mm of the axis, and a boss 0 to 10 mm deep |
+| Inserts | CNC Kitchen and ruthex, M2 to M4 | Hole radius plus wall at most 6.5 mm, and a screw long enough exists |
+| Nuts | ISO 4032, ISO 4035, ISO 10511 (M3/M4) and DIN 562, M2 to M4 | Pocket radius plus a 1.2 mm wall at most 6.5 mm, and a screw long enough exists |
+
+ISO 10642 starts at M3, so the cross-recessed ISO 7046-1 screws cover M2 and M2.5. An M5 countersunk head is too high for the
+wall.
+
+**Validation:** the screw must reach far enough past the blade's wall and the clearance (`length − 3.2 − c`):
+- **Insert:** its hole depth plus 0.4 mm of the ring.
+- **Nut:** its height plus the 0.2 mm recess and a 1.2 mm floor.
+
+The message names the shortest screw that works. For example, a 5.7 mm insert (6.7 mm hole) needs a 12 mm screw, and a 3 mm
+insert needs an 8 mm one up to 0.4 mm clearance.
+
+**In the editor:** changing the thread moves each part to the first one of that thread that the other settings accept. The
+assembly preview shows the inserts or nuts in the handle, and a third step drives the screws in from inside the scoop.
 
 ## Sieve
 
@@ -174,6 +233,9 @@ and tip, the scoop's volume plus the gaps' volume is the same solid for every te
    ceiling onto the lip's top.
 2. **Lower the handle over the scoop.** It comes down from 200 mm above, around the blade. Its ring lands on the cap's top, and
    its sheet comes to rest on the container's, a clearance off it, all along the slope and the grip.
+3. **Drive the screws in** (with a `handleReinforcement` only). The two countersunk screws go in from inside the scoop, starting
+   their length plus 8 mm inward, through the blade's wall into the inserts or nuts. The inserts or nuts are already in the
+   handle and come down with it in step 2.
 
 `npm run check:assembly -- litter-shovel` samples every step as usual. It also sweeps each step's last 10 mm in 0.25 mm steps,
 where the detents engage, and holds those samples to a looser snap tolerance (10 mm³, `--snap-tolerance`). Results:
@@ -185,6 +247,14 @@ where the detents engage, and holds those samples to a looser snap tolerance (10
 | Detents, 0.1 mm, finest hexagons | 0.00 mm³ | 3.06 mm³ | 0.46 mm³ |
 | Detents, 0.6 mm, engagement 0.4 | 0.00 mm³ | 12.51 mm³ (over 10) | 7.40 mm³ |
 | Grip to the floor, 5 supports of 4 mm | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
+| M3 inserts or M3 nuts (default screws) | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
+| M2 square nuts, M2 × 8; M2.5 inserts, M2.5 × 10 | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
+| M4 nylon-insert nuts, M4 × 12, 0.6 mm | 0.00 mm³ | 2.88 mm³ | 0.43 mm³ |
+| M4 inserts, M4 × 16, friction, 0.1 mm | 0.00 mm³ | 3.06 mm³ | 0.00 mm³ |
+
+With a reinforcement, the screws, inserts and nuts are checked too, from the generic models in `parts/`. A screw's thread is drawn
+at its minor diameter, a nut's or insert's bore at the thread's diameter, and an insert as the hole it fills. The step that drives
+the screws in shares 0.00 mm³ in every case above.
 
 That shared volume is only the bumps passing the mating wall before they drop into their grooves. Seated, every detent clears its
 groove. The largest bumps (0.6 mm clearance with 0.4 mm engagement, a 1 mm ridge) exceed the default snap tolerance: check them
@@ -197,7 +267,8 @@ with `--snap-tolerance 15`.
   under it (they are not modelled). With `floor`, the sheet starts on the bed and nothing needs support.
 - **The scoop** prints on its cap: the sleeve's and the skirt's edges are on the bed, the U's ceiling is a 7.4 mm bridge, and the
   funnel is a top surface. The tip's bevel faces up and inward, and the round top edge is a top surface, so the blade needs no support either.
-- **The handle** prints upside down on its ring's top. The sheet rises from it along its length, its strong direction.
+- **The handle** prints upside down on its ring's top. The sheet rises from it along its length, its strong direction. The
+  reinforcement's bosses also stand on the bed; their holes and pockets are horizontal, at most 5.7 mm across.
 - **The gap between the two grip halves** is the clearance. The fist closes it: the handle part's sheet is a long, thin
   cantilever and flexes that far easily.
 - **Material:** each grip half is a 3 mm sheet instead of a solid bar, and the container's handle has no arm, gusset or foot.

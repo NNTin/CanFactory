@@ -6,9 +6,11 @@ import {
   minimumSpikeLength, mossPlanter, rauteColumns, slotCount, SNAP_CLEARANCE, SNAP_TUNING, HOLDER_SNAP_CLEARANCE, LIGHTER_SNAP_CLEARANCE, MINI_BOX_SNAP_CLEARANCE, MINI_LID_SNAP_CLEARANCE, scadLiteral, textWidth, validateParameters, type MossPlanterParameters,
   AssemblySchema, CASE_MAGNETS, CLEARANCE_RANGE, DEFAULT_CASE_MAGNET, linkedPartData, MAGNET_SEAT, magnetFits, partUsage, scadDefines,
   litterShovel, MAX_SIEVE_GAPS, SCOOP_BLADE, scoopSideTop, sieveGaps, type LitterShovelParameters,
+  DEFAULT_HANDLE_FASTENERS, HANDLE_FASTENER_SEAT, HANDLE_INSERTS, HANDLE_NUTS, HANDLE_SCREWS, HANDLE_THREADS, handleInsertFits, handleNutFits, handleScrewFits,
+  offeredOptions, partDefineLiteral,
 } from './models.ts';
 import { resolveAssembly } from './assembly.ts';
-import { dimensionOf, findPart, parts } from './parts/index.ts';
+import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, parts } from './parts/index.ts';
 import { LOGO_MAX_LENGTH, RenderRequestSchema } from './index.ts';
 
 /** A logo string: one square filling the whole grid. */
@@ -463,24 +465,26 @@ describe('litter shovel contract', () => {
     expect(findModel('litter-shovel')).toBe(litterShovel);
     expect(artifactFormat(litterShovel)).toBe('zip');
     expect(modelSourcePaths(litterShovel)).toEqual(['container', 'scoop', 'handle'].map(id => `models/litter-shovel/${id}.scad`));
-    expect(defaults).toEqual({ sievePattern: 'slots', gapWidth: 7.2, gapLength: 25, gapSpacing: 5.6, scoopSnap: 'detent', handleSnap: 'detent', sieveMargin: 3.2, tipThickness: 0.8, tipBevel: 12, gripEnd: 'open', supportCount: 3, supportThickness: 2, clearance: 0.2, scoopDetentEngage: 0.15, handleDetentEngage: 0.15 });
+    expect(defaults).toEqual({ sievePattern: 'slots', gapWidth: 7.2, gapLength: 25, gapSpacing: 5.6, scoopSnap: 'detent', handleSnap: 'detent', sieveMargin: 3.2, tipThickness: 0.8, tipBevel: 12, gripEnd: 'open', supportCount: 3, supportThickness: 2, clearance: 0.2, scoopDetentEngage: 0.15, handleDetentEngage: 0.15,
+      handleReinforcement: 'none', handleThread: 'M3', handleInsert: 'cnc-kitchen-m3x5-7', handleNut: 'iso-4032-m3', handleScrew: 'iso-10642-m3x12' });
     expect(validateParameters(litterShovel, defaults)).toEqual([]);
     const [containerPart, scoopPart, handlePart] = litterShovel.parts;
     expect(Object.keys(containerPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gripEnd', 'scoopDetentEngage', 'scoopSnap', 'supportCount', 'supportThickness']);
-    expect(Object.keys(scoopPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gapLength', 'gapSpacing', 'gapWidth', 'handleDetentEngage', 'handleSnap', 'scoopDetentEngage', 'scoopSnap', 'sieveMargin', 'sievePattern', 'tipBevel', 'tipThickness']);
-    expect(Object.keys(handlePart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gripEnd', 'handleDetentEngage', 'handleSnap']);
+    expect(Object.keys(scoopPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gapLength', 'gapSpacing', 'gapWidth', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread', 'scoopDetentEngage', 'scoopSnap', 'sieveMargin', 'sievePattern', 'tipBevel', 'tipThickness']);
+    expect(Object.keys(handlePart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gripEnd', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread']);
     expect(scadDefines(litterShovel, scoopPart ?? {}, defaults)).toContainEqual(['SIEVE_PATTERN', '"slots"']);
     expect(scadDefines(litterShovel, containerPart ?? {}, { ...defaults, scoopSnap: 'friction' })).toContainEqual(['SCOOP_SNAP', '"friction"']);
     expect(Value.Check(AssemblySchema, litterShovel.assembly)).toBe(true);
     expect(litterShovel.assembly.steps.map(step => step.parts)).toEqual([['scoop'], ['handle']]);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'litter-shovel', modelVersion: '1', parameters: defaults })).toBe(true);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'litter-shovel', modelVersion: '1', parameters: { ...defaults, extra: 1 } })).toBe(false);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'litter-shovel', modelVersion: '2', parameters: defaults })).toBe(true);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'litter-shovel', modelVersion: '2', parameters: { ...defaults, extra: 1 } })).toBe(false);
   });
 
   it('keeps every SCAD default equal to the contract default of the parameter it is mapped from', () => {
+    // ... and every value a chosen library part gives it (partDefines) equal to the default part's.
     for (const [file, part] of [[container, 0], [scoop, 1], [handle, 2]] as const)
-      for (const [key, name] of Object.entries(litterShovel.parts[part]?.scadMapping ?? {}))
-        expect(file, name).toMatch(new RegExp(`^${name} = ${JSON.stringify(defaults[key as keyof LitterShovelParameters])};`, 'm'));
+      for (const [name, literal] of scadDefines(litterShovel, litterShovel.parts[part] ?? {}, defaults))
+        expect(file, name).toMatch(new RegExp(`^${name} = ${literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')};`, 'm'));
   });
 
   it('shares the stacked, flat mating faces and the fits between the three files', () => {
@@ -579,5 +583,121 @@ describe('litter shovel contract', () => {
     // Every reachable sieve stays under the complexity limit.
     for (const sievePattern of ['round', 'hex'] as const)
       expect(sieveGaps({ sievePattern, gapWidth: 3, gapLength: 6, gapSpacing: 3, sieveMargin: 3, tipBevel: 5 }).length).toBeLessThanOrEqual(MAX_SIEVE_GAPS);
+  });
+});
+
+describe('litter shovel handle reinforcement (parts library)', () => {
+  const defaults = litterShovel.defaults as LitterShovelParameters;
+  const source = (part: string) => readFileSync(new URL(`../../../models/litter-shovel/${part}.scad`, import.meta.url), 'utf8');
+  const [scoop, handle] = ['scoop', 'handle'].map(source) as [string, string];
+  const constant = (file: string, name: string) => {
+    const match = new RegExp(`\\b${name} = ([\\d.]+);`).exec(file);
+    if (!match?.[1]) throw new Error(`${name} not found`);
+    return Number(match[1]);
+  };
+  const part = (id: string) => findPart(id) ?? (() => { throw new Error(`Missing ${id}`); })();
+  const find = (key: string) => litterShovel.controls.find(control => control.key === key);
+  const insertMode = { ...defaults, handleReinforcement: 'threaded-insert' } as const;
+  const nutMode = { ...defaults, handleReinforcement: 'nut-bolt' } as const;
+
+  it('offers every library part that fits, and only those, in every thread it offers', () => {
+    const screws = parts.filter(handleScrewFits);
+    expect(HANDLE_SCREWS).toEqual(screws.map(screw => screw.id));
+    const order = Object.keys(METRIC_THREADS);
+    expect(HANDLE_THREADS).toEqual([...new Set(screws.map(screw => screw.attributes['thread']))].sort((a, b) => order.indexOf(a ?? '') - order.indexOf(b ?? '')));
+    expect(HANDLE_THREADS).toEqual(['M2', 'M2.5', 'M3', 'M4']);
+    expect(HANDLE_INSERTS).toEqual(parts.filter(insert => handleInsertFits(insert, screws)).map(insert => insert.id));
+    expect(HANDLE_NUTS).toEqual(parts.filter(nut => handleNutFits(nut, screws)).map(nut => nut.id));
+    for (const thread of HANDLE_THREADS)
+      for (const list of [HANDLE_SCREWS, HANDLE_INSERTS, HANDLE_NUTS]) expect(list.some(id => part(id).attributes['thread'] === thread), thread).toBe(true);
+    // Countersunk only, flush in the 3.2 mm wall: ISO 10642 M3/M4 and ISO 7046-1 M2 to M4, 8 to 16 mm long.
+    expect(new Set(HANDLE_SCREWS.map(id => part(id).attributes['standard']))).toEqual(new Set(['ISO 10642', 'ISO 7046-1']));
+    for (const id of ['iso-7046-m5x10', 'iso-10642-m3x20', 'iso-10642-m5x10', 'iso-7046-m3x6', 'iso-4762-m3x10']) expect(handleScrewFits(part(id)), id).toBe(false);
+    expect(HANDLE_SCREWS).toContain(DEFAULT_HANDLE_FASTENERS.screw);
+    expect(HANDLE_INSERTS).toContain(DEFAULT_HANDLE_FASTENERS.insert);
+    expect(HANDLE_NUTS).toContain(DEFAULT_HANDLE_FASTENERS.nut);
+  });
+
+  it('shows the fasteners only while reinforced, and offers only the parts of the chosen thread', () => {
+    expect(find('handleReinforcement')?.options?.map(option => option.value)).toEqual(['none', 'threaded-insert', 'nut-bolt']);
+    expect(find('handleThread')).toMatchObject({ visibleWhen: { control: 'handleReinforcement', values: ['threaded-insert', 'nut-bolt'] }, part: null });
+    const filter = { control: 'handleThread', attribute: 'thread' };
+    expect(find('handleInsert')).toMatchObject({ visibleWhen: { control: 'handleReinforcement', values: ['threaded-insert'] }, part: { family: 'threaded-insert', attribute: null, filter } });
+    expect(find('handleNut')).toMatchObject({ visibleWhen: { control: 'handleReinforcement', values: ['nut-bolt'] }, part: { family: 'nut', attribute: null, filter } });
+    expect(find('handleScrew')).toMatchObject({ visibleWhen: { control: 'handleReinforcement', values: ['threaded-insert', 'nut-bolt'] }, part: { family: 'screw', attribute: null, filter } });
+    const screwControl = find('handleScrew');
+    if (!screwControl) throw new Error('Missing handleScrew');
+    for (const thread of HANDLE_THREADS) {
+      const offered = offeredOptions(screwControl, { ...defaults, handleThread: thread });
+      expect(offered.length).toBeGreaterThan(0);
+      for (const option of offered) expect(part(option.value).attributes['thread']).toBe(thread);
+    }
+    // A part of another thread is rejected while it is shown, and ignored while it is hidden.
+    expect(validateParameters(litterShovel, { ...insertMode, handleThread: 'M4' }).map(issue => issue.field)).toEqual(['handleInsert', 'handleScrew']);
+    expect(validateParameters(litterShovel, { ...nutMode, handleThread: 'M4', handleNut: 'iso-4032-m4', handleScrew: 'iso-10642-m4x12' })).toEqual([]);
+    expect(validateParameters(litterShovel, { ...defaults, handleThread: 'M4' })).toEqual([]);
+  });
+
+  it('asks for a screw long enough for the insert or the nut, at the clearance', () => {
+    expect(validateParameters(litterShovel, insertMode)).toEqual([]);
+    expect(validateParameters(litterShovel, nutMode)).toEqual([]);
+    // A 5.7 mm insert needs a 6.7 mm hole and 0.4 mm of the ring: 7.1 mm past the 3.2 mm wall and the clearance.
+    const short = validateParameters(litterShovel, { ...insertMode, handleScrew: 'iso-10642-m3x10' });
+    expect(short.map(issue => issue.field)).toEqual(['handleScrew']);
+    expect(short[0]?.message).toContain('Use at least Countersunk head screw M3 × 12.');
+    expect(validateParameters(litterShovel, { ...insertMode, handleInsert: 'cnc-kitchen-m3x3', handleScrew: 'iso-7046-m3x8' })).toEqual([]);
+    expect(validateParameters(litterShovel, { ...insertMode, handleInsert: 'cnc-kitchen-m3x3', handleScrew: 'iso-7046-m3x8', clearance: 0.5 }).map(issue => issue.field)).toEqual(['handleScrew']);
+    // A nylon-insert nut is sized by its overall height: 5 mm, a 0.2 mm recess and a 1.2 mm floor, 6.4 mm in all.
+    const m4 = { ...nutMode, handleThread: 'M4', handleNut: 'iso-10511-m4' } as const;
+    expect(validateParameters(litterShovel, { ...m4, handleScrew: 'iso-10642-m4x8' }).map(issue => issue.field)).toEqual(['handleScrew']);
+    expect(validateParameters(litterShovel, { ...m4, handleScrew: 'iso-10642-m4x10' })).toEqual([]);
+    // Unused while not reinforced.
+    expect(validateParameters(litterShovel, { ...defaults, handleScrew: 'iso-10642-m3x8' })).toEqual([]);
+  });
+
+  it('sizes both files from the chosen parts, and keeps their fastener seat equal to the contract', () => {
+    const [, scoopPart, handlePart] = litterShovel.parts;
+    const m4 = { ...nutMode, handleThread: 'M4', handleNut: 'din-562-m4', handleScrew: 'iso-7046-m4x16', clearance: 0.3 };
+    expect(scadDefines(litterShovel, scoopPart ?? {}, m4)).toEqual(expect.arrayContaining([['HANDLE_REINFORCEMENT', '"nut-bolt"'], ['SCREW_HOLE', '4.5'], ['SCREW_D', '4'], ['SCREW_DK', '7.5'], ['SCREW_K', '2.2']]));
+    expect(scadDefines(litterShovel, handlePart ?? {}, m4)).toEqual(expect.arrayContaining([['SCREW_HOLE', '4.5'], ['SCREW_L', '16'], ['NUT_S', '7'], ['NUT_H', '2.2'], ['NUT_SHAPE', '"square-thin"']]));
+    expect(ISO_273_CLEARANCE_HOLES.M4.medium).toBe(4.5);
+    const seat = HANDLE_FASTENER_SEAT;
+    for (const file of [scoop, handle]) expect([constant(file, 'FASTENER_Y'), constant(file, 'FASTENER_Z')]).toEqual([seat.y, seat.z]);
+    expect(constant(handle, 'BLADE_WALL')).toBe(seat.bladeWall);
+    expect(constant(scoop, 'WALL')).toBe(seat.bladeWall);
+    expect(constant(handle, 'CAP_TOP_Z')).toBe(seat.capTop);
+    const blade = /\bBLADE = \[([\d.]+),/.exec(handle)?.[1];
+    const capOut = /\bCAP_OUT = \[([\d.]+),/.exec(handle)?.[1];
+    expect(Number(blade) / 2 - seat.bladeWall).toBeCloseTo(seat.innerX, 9);
+    expect(Number(capOut) / 2 - seat.innerX).toBeCloseTo(seat.ringOut, 9);
+    expect([constant(handle, 'NUT_PLAY'), constant(handle, 'NUT_RECESS'), constant(handle, 'NUT_WALL'), constant(scoop, 'SINK_PLAY')]).toEqual([seat.nutPlay, seat.nutRecess, seat.nutWall, seat.sinkPlay]);
+    // The ring is 15 mm high: every boss fits on it, clear of the cap below; each countersink stays below the sieve.
+    expect(seat.z - seat.bossRadius).toBeGreaterThan(0);
+    expect(seat.y - seat.bossRadius).toBeGreaterThan(13);
+    expect(seat.z + seat.sinkRadius).toBeLessThan(constant(scoop, 'ROOT_BAND'));
+  });
+
+  it('reads a fallback dimension or an attribute of a chosen part', () => {
+    expect(partDefineLiteral(part('iso-10511-m4'), [['h', 'm'], 'max'])).toBe('5');
+    expect(partDefineLiteral(part('iso-4032-m4'), [['h', 'm'], 'max'])).toBe('3.2');
+    expect(partDefineLiteral(part('din-562-m3'), { attribute: 'shape' })).toBe('"square-thin"');
+    expect(() => partDefineLiteral(part('din-562-m3'), ['e', 'max'])).toThrow();
+    expect(() => partDefineLiteral(part('din-562-m3'), { attribute: 'grade' })).toThrow();
+  });
+
+  it('shows the inserts or nuts on the handle and adds a step that drives the screws in from inside the scoop', () => {
+    expect(resolveAssembly(litterShovel, litterShovel.assembly, defaults)).toBe(litterShovel.assembly);
+    const assembly = resolveAssembly(litterShovel, litterShovel.assembly, insertMode);
+    expect(assembly?.steps.map(step => step.parts)).toEqual([['scoop'], ['handle', 'handle-insert-plus-y', 'handle-insert-minus-y'], ['handle-screw-plus-y', 'handle-screw-minus-y']]);
+    expect(assembly?.steps[2]).toMatchObject({ title: 'Drive the screws in from inside the scoop', from: [-20, 0, 0] });
+    expect(assembly?.references?.map(reference => reference.part)).toEqual(['cnc-kitchen-m3x5-7', 'iso-10642-m3x12', 'cnc-kitchen-m3x5-7', 'iso-10642-m3x12']);
+    // The screw's head is flush with the blade's inner face and the insert flush with the boss's face, where the screw ends.
+    const seat = HANDLE_FASTENER_SEAT;
+    expect(assembly?.poses['handle-screw-plus-y']).toEqual({ position: [seat.innerX + 12, seat.y, seat.capTop + seat.z], rotation: [0, -90, 0] });
+    expect(assembly?.poses['handle-insert-minus-y']?.position[0]).toBeCloseTo(seat.innerX + 12 - dimensionOf(part('cnc-kitchen-m3x5-7'), 'l'), 9);
+    const nuts = resolveAssembly(litterShovel, litterShovel.assembly, nutMode);
+    expect(nuts?.poses['handle-nut-plus-y']?.position[0]).toBeCloseTo(seat.innerX + 12 - seat.nutRecess - 2.4, 9);
+    expect(partUsage(part('iso-7046-m2x8')).filter(usage => usage.modelId === 'litter-shovel')).toEqual([{ modelId: 'litter-shovel', modelTitle: litterShovel.title, via: 'Screws' }]);
+    expect(partUsage(part('iso-4762-m3x10')).filter(usage => usage.modelId === 'litter-shovel')).toEqual([]);
   });
 });

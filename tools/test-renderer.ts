@@ -265,7 +265,8 @@ try {
   // the fewest and most, thinnest and thickest grip supports, and both snap modes of both joints at the clearance extremes. Each
   // part must be one closed solid of the expected size (the grip's end sets the handle's height; the container's grip sheet
   // keeps half the clearance off the seam), and the scoop's sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm wall: at the default
-  // fit and tip, its volume plus the gaps' volume is the same solid scoop for every sieve.
+  // fit and tip, its volume plus the gaps' volume is the same solid scoop for every sieve. The handle's reinforcement adds bosses
+  // and holes within those sizes, with every thread, insert and nut kind.
   const shovelRuns: { name: string; overrides: Partial<LitterShovelParameters> }[] = [
     { name: 'default (slots, detents)', overrides: {} },
     { name: 'staggered slots', overrides: { sievePattern: 'staggered' } },
@@ -284,13 +285,21 @@ try {
     { name: 'friction fits at 0.1 mm', overrides: { handleSnap: 'friction', scoopSnap: 'friction', clearance: 0.1 } },
     { name: 'detents at 0.1 mm, least engagement', overrides: { clearance: 0.1, handleDetentEngage: 0.02, scoopDetentEngage: 0.02 } },
     { name: 'detents at 0.6 mm, most engagement', overrides: { clearance: 0.6, handleDetentEngage: 0.4, scoopDetentEngage: 0.4 } },
+    // the handle's reinforcement: the smallest and largest threads, inserts and nuts (hexagonal, square, nylon-insert), and the
+    // shortest and longest screws, whose bosses are the shallowest and deepest
+    { name: 'M3 inserts, default screws', overrides: { handleReinforcement: 'threaded-insert' } },
+    { name: 'M2 short inserts, shortest screws, 0.1 mm', overrides: { handleReinforcement: 'threaded-insert', handleThread: 'M2', handleInsert: 'cnc-kitchen-m2x3', handleScrew: 'iso-7046-m2x8', clearance: 0.1 } },
+    { name: 'M4 long inserts, longest screws', overrides: { handleReinforcement: 'threaded-insert', handleThread: 'M4', handleInsert: 'ruthex-rx-m4x8-1', handleScrew: 'iso-10642-m4x16', handleSnap: 'friction' } },
+    { name: 'M3 hexagon nuts', overrides: { handleReinforcement: 'nut-bolt' } },
+    { name: 'M2.5 square nuts', overrides: { handleReinforcement: 'nut-bolt', handleThread: 'M2.5', handleNut: 'din-562-m2-5', handleScrew: 'iso-7046-m2-5x10' } },
+    { name: 'M4 nylon-insert nuts at 0.6 mm', overrides: { handleReinforcement: 'nut-bolt', handleThread: 'M4', handleNut: 'iso-10511-m4', handleScrew: 'iso-7046-m4x12', clearance: 0.6, handleDetentEngage: 0.4, scoopDetentEngage: 0.4 } },
   ];
   const shovelSizes = (p: LitterShovelParameters): Record<string, [number, number, number]> => ({
     container: [41.25 + 65 - p.clearance / 2, 114.8, 141.5], scoop: [88.9, 121.2, 127], handle: [44.45 + 68, 121.2, 159.5 - (p.gripEnd === 'floor' ? 0 : 30)],
   });
   const gapArea = (p: LitterShovelParameters) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
     : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (p.gapLength - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
-  const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'handleSnap', 'clearance', 'scoopDetentEngage', 'handleDetentEngage', 'tipThickness', 'tipBevel'] as const).every(key => p[key] === litterShovel.defaults[key]);
+  const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'handleSnap', 'clearance', 'scoopDetentEngage', 'handleDetentEngage', 'tipThickness', 'tipBevel', 'handleReinforcement'] as const).every(key => p[key] === litterShovel.defaults[key]);
   let solidScoop: number | undefined;
   for (const { name, overrides } of only && only !== 'litter-shovel' ? [] : shovelRuns) {
     const started = Date.now();

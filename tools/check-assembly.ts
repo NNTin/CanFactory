@@ -16,7 +16,7 @@
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
-import { activeParts, assemblyOffset, dimensionOf, findPart, isAssembly, models, partAssetPath, resolveAssembly, scadDefines, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '../packages/contracts/src/index.ts';
+import { activeParts, assemblyOffset, dimensionOf, findPart, isAssembly, models, partAssetPath, resolveAssembly, scadDefines, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues, type Part } from '../packages/contracts/src/index.ts';
 import { intersectionVolume } from './stl-to-scad/compare.ts';
 import { renderScad } from './stl-to-scad/openscad.ts';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
@@ -25,8 +25,36 @@ const SAMPLES = 16;
 /** The last millimetres of each step's travel, sampled every CLOSING_STEP mm and held to the snap tolerance. */
 const CLOSING = 10;
 const CLOSING_STEP = 0.25;
-/** The generic magnet model: magnets are built from their dimensions, so they have no STL of their own. */
-const MAGNET_SCAD = 'parts/magnets/magnet.scad';
+/**
+ * The generic models of the families the preview builds from their dimensions (magnets, screws, nuts, threaded inserts), so that
+ * they have no STL of their own: each is rendered at the part's sizes. A thread is drawn so that a screw clears the nut or insert
+ * it turns into (see each SCAD file), and an insert as the hole it is melted into.
+ */
+const size = (part: Part, key: string, limit: 'value' | 'max' = 'max') => part.dimensions[key] ? String(dimensionOf(part, key, limit)) : '0';
+const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part) => Record<string, string> }> = {
+  magnet: {
+    scad: 'parts/magnets/magnet.scad',
+    defines: part => {
+      const shape = part.attributes['shape'] === 'block' ? 'block' : part.attributes['shape'] === 'ring' ? 'ring' : 'disc';
+      return { SHAPE: JSON.stringify(shape), DIAMETER: size(part, 'diameter'), HOLE: size(part, 'innerDiameter'), LENGTH: size(part, 'length'), WIDTH: size(part, 'width'), HEIGHT: size(part, 'thickness') };
+    },
+  },
+  screw: {
+    scad: 'parts/screws/screw.scad',
+    defines: part => ({
+      COUNTERSUNK: String(part.attributes['head'] === 'countersunk'), D: size(part, 'd', 'value'), PITCH: size(part, 'pitch', 'value'), L: size(part, 'l', 'value'),
+      HEAD_D: part.dimensions['dk'] ? size(part, 'dk') : size(part, 'e'), HEAD_K: size(part, 'k'),
+    }),
+  },
+  nut: {
+    scad: 'parts/nuts/nut.scad',
+    defines: part => ({ SQUARE: String(part.attributes['shape']?.startsWith('square') === true), S: size(part, 's'), H: part.dimensions['h'] ? size(part, 'h') : size(part, 'm'), D: size(part, 'd', 'value') }),
+  },
+  'threaded-insert': {
+    scad: 'parts/inserts/insert.scad',
+    defines: part => ({ HOLE: size(part, 'hole', 'value'), L: size(part, 'l', 'value'), D: part.attributes['thread']?.slice(1) ?? '0' }),
+  },
+};
 const CELL = 0.25;
 
 /** Rotates about X, then Y, then Z (degrees), then translates. */
@@ -82,11 +110,10 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
   for (const reference of assembly.references ?? []) {
     const part = findPart(reference.part);
     if (!part) throw new Error(`${model.id}: reference ${reference.id} is not in the parts library.`);
-    // A magnet (built from its dimensions in the preview) is rendered from the generic magnet model, at its greatest size.
-    if (part.family === 'magnet') {
-      const size = (key: string) => part.dimensions[key] ? String(dimensionOf(part, key, 'max')) : '0';
-      const shape = part.attributes['shape'] === 'block' ? 'block' : part.attributes['shape'] === 'ring' ? 'ring' : 'disc';
-      const render = await renderScad(resolve(MAGNET_SCAD), { SHAPE: JSON.stringify(shape), DIAMETER: size('diameter'), HOLE: size('innerDiameter'), LENGTH: size('length'), WIDTH: size('width'), HEIGHT: size('thickness') });
+    // A part the preview builds from its dimensions (a magnet, a screw, ...) is rendered from its family's generic model.
+    const generic = GENERIC_MODELS[part.family];
+    if (generic) {
+      const render = await renderScad(resolve(generic.scad), generic.defines(part));
       parts.set(reference.id, parseStl(render.stl));
       console.log(`rendered reference ${reference.id} (${part.id}, ${render.runner}, ${(render.milliseconds / 1000).toFixed(1)} s)`);
       continue;

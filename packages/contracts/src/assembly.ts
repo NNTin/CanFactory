@@ -1,4 +1,4 @@
-import type { Assembly, ModelDefinition, ParameterValues } from './models.ts';
+import type { Assembly, LinkedReference, ModelDefinition, ParameterValues } from './models.ts';
 import { findPart } from './parts/index.ts';
 
 type Vector = [number, number, number];
@@ -36,9 +36,20 @@ export function assemblyOffset(assembly: Assembly, partId: string, state: Assemb
   return offset;
 }
 
+/** The steps of their own that linked references add (`LinkedReference.step`), one per title, in the order the titles first appear;
+ * each moves every reference of that title, from the first one's offset. */
+function linkedSteps(linked: LinkedReference[]): Assembly['steps'] {
+  const titles = [...new Set(linked.flatMap(reference => reference.step ? [reference.step.title] : []))];
+  return titles.map(title => {
+    const members = linked.filter(reference => reference.step?.title === title);
+    return { title, parts: members.map(reference => reference.id), from: [...members[0]?.step?.from ?? [0, 0, 0]] };
+  });
+}
+
 /**
  * The assembly for these parameters: `assembly` (as served) with the model's `linkedReferences` for them added, e.g. the magnets
- * of a magnet snap. Each gets its pose, joins the steps that move the part it is mounted in, and is titled after its library part.
+ * of a magnet snap. Each gets its pose, joins the steps that move the part it is mounted in (or a step of its own after them), and is
+ * titled after its library part.
  */
 export function resolveAssembly(model: Pick<ModelDefinition, 'linkedReferences'> | undefined, assembly: Assembly | undefined, parameters: ParameterValues): Assembly | undefined {
   const linked = assembly ? model?.linkedReferences?.(parameters) ?? [] : [];
@@ -46,10 +57,10 @@ export function resolveAssembly(model: Pick<ModelDefinition, 'linkedReferences'>
   return {
     ...assembly,
     poses: { ...assembly.poses, ...Object.fromEntries(linked.map(reference => [reference.id, reference.pose])) },
-    steps: assembly.steps.map(step => {
+    steps: [...assembly.steps.map(step => {
       const riders = linked.filter(reference => reference.movesWith !== undefined && step.parts.includes(reference.movesWith)).map(reference => reference.id);
       return riders.length > 0 ? { ...step, parts: [...step.parts, ...riders] } : step;
-    }),
+    }), ...linkedSteps(linked)],
     references: [...assembly.references ?? [], ...linked.map(reference => ({ id: reference.id, part: reference.part, title: `${findPart(reference.part)?.title ?? reference.part} (${reference.label})` }))],
   };
 }
