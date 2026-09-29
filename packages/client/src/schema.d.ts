@@ -1148,6 +1148,12 @@ export interface operations {
                          */
                         sieveMargin: number;
                         /**
+                         * Wall thickness
+                         * @description Thickness of the shell’s walls, in mm: the container’s and the scoop’s blade (the floor follows it, and the handle’s root and the screws’ seats keep their strength). Three to five lines of a 0.4 mm nozzle are 1.2 to 2.0 mm; thicker only adds weight and print time. It also caps the tip thickness.
+                         * @default 1.6
+                         */
+                        wallThickness: number;
+                        /**
                          * Tip thickness
                          * @description Thickness of the scoop’s straight scraping edge, in mm. Thinner scrapes cleaner; thicker is sturdier.
                          * @default 0.8

@@ -2552,6 +2552,7 @@
                           "gapLength",
                           "gapSpacing",
                           "sieveMargin",
+                          "wallThickness",
                           "tipThickness",
                           "scoopLength",
                           "tipBevel",
@@ -2633,6 +2634,15 @@
                             "default": 3.2,
                             "minimum": 3,
                             "maximum": 10,
+                            "multipleOf": 0.1
+                          },
+                          "wallThickness": {
+                            "type": "number",
+                            "title": "Wall thickness",
+                            "description": "Thickness of the shell’s walls, in mm: the container’s and the scoop’s blade (the floor follows it, and the handle’s root and the screws’ seats keep their strength). Three to five lines of a 0.4 mm nozzle are 1.2 to 2.0 mm; thicker only adds weight and print time. It also caps the tip thickness.",
+                            "default": 1.6,
+                            "minimum": 1.2,
+                            "maximum": 3.2,
                             "multipleOf": 0.1
                           },
                           "tipThickness": {
