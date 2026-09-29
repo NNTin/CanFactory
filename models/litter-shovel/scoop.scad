@@ -25,11 +25,15 @@ SCOOP_LENGTH = 127; //[90:1:180]
 // Sieve texture: vertical slots on a grid, slots with alternate rows offset (brick), round holes or hexagons
 SIEVE_PATTERN = "slots"; //[slots,staggered,round,hex]
 // Gap width: slot width, hole diameter or hexagon size across flats
-GAP_WIDTH = 7.2; //[3:0.1:15]
-// Slot length along Z (slot patterns only)
-GAP_LENGTH = 25; //[6:0.5:40]
+GAP_WIDTH = 7.2; //[1:0.1:15]
+// How the slots are sized (slot patterns only): by the number of rows, which share the sieve's height, or by their length
+SIEVE_SIZING = "rows"; //[rows,length]
+// Rows of slots, one above the other (slot patterns sized by rows)
+SIEVE_ROWS = 1; //[1:1:5]
+// Slot length along Z (slot patterns sized by length); at most SIEVE_HEIGHT
+GAP_LENGTH = 25; //[6:0.5:143]
 // Solid bar between neighbouring gaps
-GAP_SPACING = 5.6; //[3:0.1:15]
+GAP_SPACING = 5.6; //[1:0.1:15]
 // Solid border kept around the sieve
 SIEVE_MARGIN = 3.2; //[3:0.1:10]
 // Thickness of the scraping edge at the tip, in mm
@@ -212,13 +216,18 @@ ARC_IN = PI / 2 * R_IN;
 S_END = FLAT_Y + ARC_IN + (OUT[0] - 2 * R_OUT);   // where the front corners start
 SIEVE_BOTTOM = CAP_TOP + ROOT_BAND;
 SIEVE_TOP = HEIGHT - TIP_BEVEL;
+// The height the gaps may take, a margin clear of the root band and of the bevel: one gap this tall just fits on the back.
+SIEVE_HEIGHT = SIEVE_TOP - SIEVE_BOTTOM - 2 * SIEVE_MARGIN;
 IS_SLOT = SIEVE_PATTERN == "slots" || SIEVE_PATTERN == "staggered";
+// The slots' length: GAP_LENGTH, or, sized by rows, the length at which SIEVE_ROWS rows and the bars between them fill
+// SIEVE_HEIGHT exactly (at least GAP_WIDTH, which the contract checks).
+SLOT_LENGTH = SIEVE_SIZING == "rows" ? (SIEVE_HEIGHT - (SIEVE_ROWS - 1) * GAP_SPACING) / SIEVE_ROWS : GAP_LENGTH;
 // Extent of one gap along (s) and up (Z) the wall.
 GAP_Y = GAP_WIDTH;
-GAP_Z = IS_SLOT ? GAP_LENGTH : SIEVE_PATTERN == "hex" ? GAP_WIDTH * 2 / sqrt(3) : GAP_WIDTH;
+GAP_Z = IS_SLOT ? SLOT_LENGTH : SIEVE_PATTERN == "hex" ? GAP_WIDTH * 2 / sqrt(3) : GAP_WIDTH;
 PITCH_Y = GAP_WIDTH + GAP_SPACING;
 // Slots stack at their length plus a bar; round holes and hexagons are close-packed (rows 60 degrees apart).
-PITCH_Z = IS_SLOT ? GAP_LENGTH + GAP_SPACING : PITCH_Y * sqrt(3) / 2;
+PITCH_Z = IS_SLOT ? SLOT_LENGTH + GAP_SPACING : PITCH_Y * sqrt(3) / 2;
 OFFSET_ROWS = SIEVE_PATTERN != "slots";
 ROWS = floor((SIEVE_TOP - SIEVE_BOTTOM) / PITCH_Z) + 1;
 COLUMNS = ceil(S_END / PITCH_Y) + 1;
@@ -241,7 +250,7 @@ echo(SIEVE_GAPS = len(GAPS));
 
 // One gap's outline, before it is turned to face along X: its X runs down the wall, its Y along it.
 module gap_outline() {
-  if (IS_SLOT) hull() for (dz = [-1, 1]) translate([dz * (GAP_LENGTH - GAP_WIDTH) / 2, 0]) circle(d = GAP_WIDTH);
+  if (IS_SLOT) hull() for (dz = [-1, 1]) translate([dz * (SLOT_LENGTH - GAP_WIDTH) / 2, 0]) circle(d = GAP_WIDTH);
   else if (SIEVE_PATTERN == "hex") circle(d = GAP_WIDTH * 2 / sqrt(3), $fn = 6);
   else circle(d = GAP_WIDTH);
 }

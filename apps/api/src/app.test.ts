@@ -144,9 +144,14 @@ describe('model and render API', () => {
     for (const handleSnap of ['friction', 'detent']) expect((await render({ handleSnap, scoopSnap: handleSnap })).statusCode, handleSnap).toBeLessThan(300);
     expect((await render({ sievePattern: 'diamond' })).statusCode).toBeGreaterThanOrEqual(400);
     expect((await render({ scoopSnap: 'clip' })).statusCode).toBeGreaterThanOrEqual(400);
-    const short = await render({ gapWidth: 10, gapLength: 8 });
+    const short = await render({ sieveSizing: 'length', gapWidth: 10, gapLength: 8 });
     expect(short.statusCode).toBeGreaterThanOrEqual(400);
     expect(short.json<{ issues: { field: string }[] }>().issues[0]?.field).toBe('gapLength');
+    // a slot longer than the scoop's length leaves room for is rejected too, and too many rows of slots
+    const long = await render({ sieveSizing: 'length', scoopLength: 90, gapLength: 50 });
+    expect(long.json<{ issues: { field: string }[] }>().issues[0]?.field).toBe('gapLength');
+    const rows = await render({ scoopLength: 90, sieveRows: 5 });
+    expect(rows.json<{ issues: { field: string }[] }>().issues[0]?.field).toBe('sieveRows');
   });
 
   it('rejects unknown models, stale versions, and invalid fields', async () => {

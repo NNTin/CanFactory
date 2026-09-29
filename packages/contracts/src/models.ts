@@ -27,6 +27,11 @@ export const FruitFlyTrapParametersSchema = Type.Object({
 
 export type FruitFlyTrapParameters = Static<typeof FruitFlyTrapParametersSchema>;
 
+const VisibleWhenSchema = Type.Object({
+  control: Type.String({ description: 'The key of an enum control of the same model.' }),
+  values: Type.Array(Type.String()),
+}, { additionalProperties: false });
+
 /** Generic, schema-derived controls understood by the shared React editor. */
 export const ControlSchema = Type.Object({
   key: Type.String(),
@@ -42,11 +47,8 @@ export const ControlSchema = Type.Object({
   maximum: Type.Union([Type.Number(), Type.Null()], { description: 'Upper bound of a number; for a text control, the most characters allowed.' }),
   step: Type.Union([Type.Number(), Type.Null()]),
   enabledWhen: Type.Union([Type.String(), Type.Null()]),
-  visibleWhen: Type.Union([Type.Object({
-    control: Type.String({ description: 'The key of an enum control of the same model.' }),
-    values: Type.Array(Type.String()),
-  }, { additionalProperties: false }), Type.Null()],
-  { description: 'Show this control only while another (enum) control has one of these values; its value still applies (it only matters in those modes). Null to always show it.' }),
+  visibleWhen: Type.Union([VisibleWhenSchema, Type.Array(VisibleWhenSchema, { minItems: 1 }), Type.Null()],
+  { description: 'Show this control only while another (enum) control has one of these values, or, given several such conditions, while all of them hold; its value still applies (it only matters in those modes). Null to always show it.' }),
   options: Type.Union([Type.Array(Type.Object({ value: Type.String(), label: Type.String(), description: Type.String() }, { additionalProperties: false })), Type.Null()],
     { description: 'The allowed values of an enum control, in display order; null for other kinds.' }),
   bands: Type.Union([Type.Array(Type.Object({ minimum: Type.Number(), maximum: Type.Number(), label: Type.String() }, { additionalProperties: false })), Type.Null()],
@@ -119,7 +121,33 @@ function partControl<T extends { properties: Record<string, TSchema> }>(
 
 /** Whether a control is shown for these parameters (`Control.visibleWhen`). */
 export function controlShown(control: Control, parameters: ParameterValues): boolean {
-  return control.visibleWhen === null || control.visibleWhen.values.includes(String(parameters[control.visibleWhen.control]));
+  const conditions = control.visibleWhen === null ? [] : Array.isArray(control.visibleWhen) ? control.visibleWhen : [control.visibleWhen];
+  return conditions.every(condition => condition.values.includes(String(parameters[condition.control])));
+}
+
+/**
+ * The range of a number control for these parameters: its own `minimum` and `maximum`, narrowed by the model's `limits` where the
+ * room for it depends on other parameters (e.g. the longest slot the scoop's length leaves room for). The editor's slider spans
+ * this range, and a shown control's value outside it is invalid (`limitIssues`).
+ */
+export function controlRange(model: ModelDefinition, control: Control, parameters: ParameterValues): { minimum: number | null; maximum: number | null } {
+  const limit = control.kind === 'number' ? model.limits?.(parameters)[control.key] : undefined;
+  const narrow = (own: number | null, other: number | undefined, pick: (a: number, b: number) => number) => other === undefined ? own : own === null ? other : pick(own, other);
+  return { minimum: narrow(control.minimum, limit?.minimum, Math.max), maximum: narrow(control.maximum, limit?.maximum, Math.min) };
+}
+
+/** Issues of the shown number controls whose value is outside the range the model's `limits` leave for these parameters. */
+function limitIssues(model: ModelDefinition, parameters: ParameterValues): ParameterIssue[] {
+  if (!model.limits) return [];
+  const limits = model.limits(parameters);
+  return model.controls.flatMap(control => {
+    const limit = limits[control.key], value = parameters[control.key];
+    if (!limit || control.kind !== 'number' || typeof value !== 'number' || !controlShown(control, parameters)) return [];
+    const unit = control.unit ? ` ${control.unit}` : '';
+    if (limit.maximum !== undefined && value > limit.maximum + 1e-9) return [{ field: control.key, message: `At most ${limit.maximum}${unit}: ${limit.reason}` }];
+    if (limit.minimum !== undefined && value < limit.minimum - 1e-9) return [{ field: control.key, message: `At least ${limit.minimum}${unit}: ${limit.reason}` }];
+    return [];
+  });
 }
 
 /** Whether a part-linked control offers this option for these parameters (`Control.part.filter`): always, unless the control
@@ -301,6 +329,9 @@ export function referencePart(id: string, partId: string): NonNullable<Assembly[
  * the parameter keys it consumes, and the same key may feed several parts. `referencePath` is optional: omit it when there is no small, permanent "original"
  * STL to preserve (e.g. when the only source was a large STL that will not stay in the repository).
  */
+/** A narrower range for a number control (`ModelDefinition.limits`); `reason` completes the issue for a value outside it. */
+export interface ControlLimit { minimum?: number; maximum?: number; reason: string }
+
 export interface ModelDefinition {
   id: string;
   version: string;
@@ -327,6 +358,9 @@ export interface ModelDefinition {
   partDefines?: PartDefines;
   /** Only for an assembly: reference objects that depend on the parameters (see `LinkedReference`, `resolveAssembly`). */
   linkedReferences?: (parameters: ParameterValues) => LinkedReference[];
+  /** For number controls whose room depends on other parameters: the narrower range they have for these (schema-valid)
+   * parameters, and why, keyed by control. See `controlRange`. */
+  limits?: (parameters: ParameterValues) => Record<string, ControlLimit>;
   validate: (parameters: unknown) => ParameterIssue[];
   derived: (parameters: unknown) => { slotCount: number | null };
 }
@@ -1019,6 +1053,13 @@ const SIEVE_PATTERN_TEXT: Record<SievePattern, { label: string; description: str
   hex: { label: 'Hexagons', description: 'A honeycomb of hexagonal holes: the most open area for a given bar width.' },
 };
 const SLOT_PATTERNS: SievePattern[] = ['slots', 'staggered'];
+/** How the slots are sized: by the number of rows, which then share the sieve zone's height, or by their length. */
+const SIEVE_SIZING_VALUES = ['rows', 'length'] as const;
+export type SieveSizing = typeof SIEVE_SIZING_VALUES[number];
+const SIEVE_SIZING_TEXT: Record<SieveSizing, { label: string; description: string }> = {
+  rows: { label: 'By rows', description: 'Choose how many rows of slots there are: they share the sieve’s height, as long as it lets them be.' },
+  length: { label: 'By slot length', description: 'Choose how long the slots are: as many rows as fit are cut.' },
+};
 
 /** Both joints of the litter shovel hold by a close fit alone or by a detent. */
 const SHOVEL_SNAP_VALUES = ['friction', 'detent'] as const;
@@ -1142,16 +1183,28 @@ const HANDLE_THREAD_TEXT: Record<string, string> = { M2: 'The smallest: the ligh
 /** The scoop's length (`scoopLength`, scoop.scad's SCOOP_LENGTH, its `HEIGHT`): the tip's height over the cap's lower edges. */
 export const SCOOP_LENGTH_RANGE = { minimum: 90, maximum: 180, default: 127, step: 1 } as const;
 
+/** The sieve margin's range (`sieveMargin`), and the tip bevel's (`tipBevel`). */
+const SIEVE_MARGIN_RANGE = { minimum: 3, maximum: 10 } as const;
+const TIP_BEVEL_RANGE = { minimum: 5, maximum: 20 } as const;
+/** The sieve zone's bottom (scoop.scad's SIEVE_BOTTOM: the cap's top and the root band over it), in the scoop's frame. */
+const SIEVE_BOTTOM = 26;
+/** The longest slot any setting leaves room for (`sieveHeight` on the longest scoop, the shortest bevel and the smallest margin):
+ * the schema's bound of `gapLength`; `slotLengthLimit` narrows it to the current settings. */
+const GAP_LENGTH_STEP = 0.5;
+const GAP_LENGTH_MAXIMUM = SCOOP_LENGTH_RANGE.maximum - TIP_BEVEL_RANGE.minimum - SIEVE_BOTTOM - 2 * SIEVE_MARGIN_RANGE.minimum;
+
 export const LitterShovelParametersSchema = Type.Object({
   sievePattern: Type.Enum(SIEVE_PATTERN_VALUES, { title: 'Sieve texture', description: 'The shape and arrangement of the gaps in the scoop’s walls: across the back, round the corners and along the sides.', default: 'slots' }),
-  gapWidth: dimension('Gap width', 'Width of each gap in mm: the slot width, the hole diameter or the hexagon’s size across flats. Litter finer than this falls through.', 7.2, 3, 15),
-  gapLength: dimension('Slot length', 'Length of each slot along the wall, in mm (slot textures only). At least the gap width.', 25, 6, 40, 0.5),
-  gapSpacing: dimension('Bar width', 'Solid wall between neighbouring gaps, in mm. Wider bars make a stiffer sieve with less open area.', 5.6, 3, 15),
-  sieveMargin: dimension('Sieve margin', 'Solid border kept between the gaps and the wall’s edges (the solid band above the cap, the bevel under the tip, the side walls’ top and the front corners), in mm.', 3.2, 3, 10),
+  gapWidth: dimension('Gap width', 'Width of each gap in mm: the slot width, the hole diameter or the hexagon’s size across flats. Litter finer than this falls through.', 7.2, 1, 15),
+  sieveSizing: Type.Enum(SIEVE_SIZING_VALUES, { title: 'Slot sizing', description: 'Size the slots by how many rows there are (they fill the sieve’s height) or by their length (slot textures only).', default: 'rows' }),
+  sieveRows: Type.Integer({ title: 'Slot rows', description: 'How many rows of slots there are, one above the other (slot textures, sized by rows). The slots share the sieve’s height, as long as it lets them be, with a bar between rows.', default: 1, minimum: 1, maximum: 5 }),
+  gapLength: dimension('Slot length', 'Length of each slot along the wall, in mm (slot textures, sized by length). At least the gap width; at most what the scoop’s length, the tip bevel and the margin leave room for.', 25, 6, GAP_LENGTH_MAXIMUM, GAP_LENGTH_STEP),
+  gapSpacing: dimension('Bar width', 'Solid wall between neighbouring gaps, in mm. Wider bars make a stiffer sieve with less open area.', 5.6, 1, 15),
+  sieveMargin: dimension('Sieve margin', 'Solid border kept between the gaps and the wall’s edges (the solid band above the cap, the bevel under the tip, the side walls’ top and the front corners), in mm.', 3.2, SIEVE_MARGIN_RANGE.minimum, SIEVE_MARGIN_RANGE.maximum),
   tipThickness: dimension('Tip thickness', 'Thickness of the scoop’s straight scraping edge, in mm. Thinner scrapes cleaner; thicker is sturdier.', 0.8, 0.4, 2),
-  scoopLength: dimension('Scoop length', 'How far the scoop’s blade reaches, in mm: the height of its straight scraping edge over the cap. A longer scoop takes more litter in one go and has room for more sieve rows.',
+  scoopLength: dimension('Scoop length', 'How far the scoop’s blade reaches, in mm: the height of its straight scraping edge over the cap. A longer scoop takes more litter in one go and has a taller sieve: longer slots, or more rows of gaps.',
     SCOOP_LENGTH_RANGE.default, SCOOP_LENGTH_RANGE.minimum, SCOOP_LENGTH_RANGE.maximum, SCOOP_LENGTH_RANGE.step),
-  tipBevel: dimension('Tip bevel length', 'How far down from the scraping edge the scoop’s inner face is bevelled, in mm. The sieve stays below the bevel.', 12, 5, 20, 0.5),
+  tipBevel: dimension('Tip bevel length', 'How far down from the scraping edge the scoop’s inner face is bevelled, in mm. The sieve stays below the bevel.', 12, TIP_BEVEL_RANGE.minimum, TIP_BEVEL_RANGE.maximum, 0.5),
   gripEnd: Type.Enum(GRIP_END_VALUES, { title: 'Grip end', description: 'Where the grip ends: open above the floor (the container’s grip tip needs slicer supports), or down on the floor (no supports).', default: 'open' }),
   supportCount: Type.Integer({ title: 'Grip supports', description: 'Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer.', default: 3, minimum: 1, maximum: 5 }),
   damWidth: dimension('Dam width', 'How far the dam under the container’s mouth, on the scraper side, reaches in from the back wall, in mm (0 for none). It falls inward at 45°: turned over to scoop, the clumps already inside collect behind it instead of falling out.', 8, 0, 15, 0.5),
@@ -1179,7 +1232,7 @@ export type LitterShovelParameters = Static<typeof LitterShovelParametersSchema>
  * `FRONT_Z` where the front corners start. The sieve zone starts above the solid root band (`CAP_TOP` + `ROOT_BAND`, which the
  * handle's ring covers) and ends under the tip's bevel.
  */
-export const SCOOP_BLADE = { backX: -40.85, flatY: 39.4, cornerRadius: 17.6, wall: 3.2, sideLength: 46.5, sieveBottom: 26, frontZ: 26 } as const;
+export const SCOOP_BLADE = { backX: -40.85, flatY: 39.4, cornerRadius: 17.6, wall: 3.2, sideLength: 46.5, sieveBottom: SIEVE_BOTTOM, frontZ: 26 } as const;
 /** Most gaps one sieve may have; more makes the scoop slow to render. */
 export const MAX_SIEVE_GAPS = 600;
 
@@ -1202,19 +1255,47 @@ function scoopSideBelow(x: number, d: number, height: number): number {
   return scoopSideTop(x, height) - d * Math.sqrt(1 + slope * slope);
 }
 
+type SieveParameters = Pick<LitterShovelParameters, 'sievePattern' | 'sieveSizing' | 'sieveRows' | 'gapWidth' | 'gapLength' | 'gapSpacing' | 'sieveMargin' | 'tipBevel' | 'scoopLength'>;
+
+/** The height the gaps may take (scoop.scad's SIEVE_HEIGHT): from one margin above the root band to one margin under the tip's
+ * bevel. On the back, whose top is the tip, one gap this tall fits exactly; on the sides the falling top leaves less. */
+export function sieveHeight(p: Pick<LitterShovelParameters, 'sieveMargin' | 'tipBevel' | 'scoopLength'>): number {
+  return p.scoopLength - p.tipBevel - SCOOP_BLADE.sieveBottom - 2 * p.sieveMargin;
+}
+
+/** The longest slot these settings leave room for (`gapLength`'s limit): the sieve's height, down to the slot length's step. */
+export function slotLengthLimit(p: Pick<LitterShovelParameters, 'sieveMargin' | 'tipBevel' | 'scoopLength'>): number {
+  return Math.floor(sieveHeight(p) / GAP_LENGTH_STEP + 1e-9) * GAP_LENGTH_STEP;
+}
+
+/**
+ * The slots' length (scoop.scad's SLOT_LENGTH). Sized by length, it is `gapLength`. Sized by rows, the rows and the bars between
+ * them fill the sieve's height exactly: sieveRows × length + (sieveRows − 1) × gapSpacing = sieveHeight, so the top row ends one
+ * margin under the bevel on the back.
+ */
+export function slotLength(p: SieveParameters): number {
+  return p.sieveSizing === 'rows' ? (sieveHeight(p) - (p.sieveRows - 1) * p.gapSpacing) / p.sieveRows : p.gapLength;
+}
+
+/** The most rows of slots at least `gapWidth` long that the sieve's height has room for. */
+export function sieveRowsLimit(p: SieveParameters): number {
+  return Math.floor((sieveHeight(p) + p.gapSpacing) / (p.gapWidth + p.gapSpacing) + 1e-9);
+}
+
 /**
  * The centres [s, z] of the sieve's gaps, exactly as scoop.scad lays them out (its `GAPS`): `s` runs along the wall's inner face
  * from the middle of the back, round the corners and along the sides (negative towards −Y).
  */
-export function sieveGaps(p: Pick<LitterShovelParameters, 'sievePattern' | 'gapWidth' | 'gapLength' | 'gapSpacing' | 'sieveMargin' | 'tipBevel' | 'scoopLength'>): [number, number][] {
+export function sieveGaps(p: SieveParameters): [number, number][] {
   const { backX, flatY, cornerRadius, wall, sideLength, sieveBottom } = SCOOP_BLADE;
   const height = p.scoopLength;
   const innerRadius = cornerRadius - wall, arc = Math.PI / 2 * innerRadius;
   const end = flatY + arc + sideLength, top = height - p.tipBevel;
   const slot = SLOT_PATTERNS.includes(p.sievePattern);
-  const gapZ = slot ? p.gapLength : p.sievePattern === 'hex' ? p.gapWidth * 2 / Math.sqrt(3) : p.gapWidth;
+  const length = slotLength(p);
+  const gapZ = slot ? length : p.sievePattern === 'hex' ? p.gapWidth * 2 / Math.sqrt(3) : p.gapWidth;
   const pitchY = p.gapWidth + p.gapSpacing;
-  const pitchZ = slot ? p.gapLength + p.gapSpacing : pitchY * Math.sqrt(3) / 2;
+  const pitchZ = slot ? length + p.gapSpacing : pitchY * Math.sqrt(3) / 2;
   const offsetRows = p.sievePattern !== 'slots';
   const margin = p.sieveMargin;
   const rows = Math.floor((top - sieveBottom) / pitchZ) + 1;
@@ -1238,12 +1319,17 @@ export function sieveGaps(p: Pick<LitterShovelParameters, 'sievePattern' | 'gapW
 
 function validateLitterShovel(p: LitterShovelParameters): ParameterIssue[] {
   const issues: ParameterIssue[] = [];
-  const slot = SLOT_PATTERNS.includes(p.sievePattern);
-  if (slot && p.gapLength < p.gapWidth)
+  const slot = SLOT_PATTERNS.includes(p.sievePattern), byRows = slot && p.sieveSizing === 'rows';
+  if (slot && !byRows && p.gapLength < p.gapWidth)
     issues.push({ field: 'gapLength', message: `A slot must be at least as long as it is wide: at least ${p.gapWidth} mm.` });
+  if (byRows && slotLength(p) < p.gapWidth - 1e-9) {
+    const most = sieveRowsLimit(p), length = slotLength(p);
+    const left = length > 0 ? `slots only ${length.toFixed(1)} mm long, shorter than they are wide (${p.gapWidth} mm)` : 'no room for slots';
+    issues.push({ field: 'sieveRows', message: `${p.sieveRows} rows leave ${left}: at most ${most} ${most === 1 ? 'row fits' : 'rows fit'}. Use fewer rows, narrower gaps or bars, or a longer scoop.` });
+  }
   const count = issues.length ? 0 : sieveGaps(p).length;
   if (!issues.length && count === 0)
-    issues.push({ field: slot ? 'gapLength' : 'gapWidth', message: 'Not a single gap fits in the scoop’s walls. Use smaller gaps, a smaller margin or a shorter tip bevel.' });
+    issues.push({ field: slot ? byRows ? 'sieveRows' : 'gapLength' : 'gapWidth', message: 'Not a single gap fits in the scoop’s walls. Use smaller gaps, a smaller margin or a shorter tip bevel.' });
   if (count > MAX_SIEVE_GAPS)
     issues.push({ field: 'gapSpacing', message: `${count} gaps are too many (at most ${MAX_SIEVE_GAPS}). Use larger gaps or wider bars.` });
   issues.push(...handleReinforcementIssues(p));
@@ -1270,7 +1356,10 @@ const threadFiltered = (c: Control): Control => ({ ...c, part: c.part && { ...c.
 const litterShovelControls = [
   enumControl(LitterShovelParametersSchema, 'sievePattern', 'basic', SIEVE_PATTERN_VALUES.map(value => ({ value, ...SIEVE_PATTERN_TEXT[value] }))),
   control(LitterShovelParametersSchema, 'gapWidth', 'basic'),
-  { ...control(LitterShovelParametersSchema, 'gapLength', 'basic'), visibleWhen: { control: 'sievePattern', values: [...SLOT_PATTERNS] } },
+  // slots are sized by rows or by length: the sizing, and the one of the two it uses, only for slot textures
+  { ...enumControl(LitterShovelParametersSchema, 'sieveSizing', 'basic', SIEVE_SIZING_VALUES.map(value => ({ value, ...SIEVE_SIZING_TEXT[value] }))), visibleWhen: { control: 'sievePattern', values: [...SLOT_PATTERNS] } },
+  { ...control(LitterShovelParametersSchema, 'sieveRows', 'basic', null, null), visibleWhen: [{ control: 'sievePattern', values: [...SLOT_PATTERNS] }, { control: 'sieveSizing', values: ['rows'] }] },
+  { ...control(LitterShovelParametersSchema, 'gapLength', 'basic'), visibleWhen: [{ control: 'sievePattern', values: [...SLOT_PATTERNS] }, { control: 'sieveSizing', values: ['length'] }] },
   control(LitterShovelParametersSchema, 'gapSpacing', 'basic'),
   control(LitterShovelParametersSchema, 'scoopLength', 'basic'),
   enumControl(LitterShovelParametersSchema, 'gripEnd', 'basic', GRIP_END_VALUES.map(value => ({ value, ...GRIP_END_TEXT[value] }))),
@@ -1343,7 +1432,7 @@ const SHOVEL_HANDLE_SNAP_MAPPING = { handleSnap: 'HANDLE_SNAP', handleDetentEnga
 const litterShovelParts: ModelPart[] = [
   { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', supportCount: 'SUPPORT_COUNT', supportThickness: 'SUPPORT_THICKNESS', damWidth: 'DAM_WIDTH', ...SHOVEL_SCOOP_SNAP_MAPPING } },
   { id: 'scoop', title: 'Scoop', sourcePath: `${LITTER_SHOVEL_DIR}scoop.scad`,
-    scadMapping: { scoopLength: 'SCOOP_LENGTH', sievePattern: 'SIEVE_PATTERN', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', tipThickness: 'TIP_THICKNESS', tipBevel: 'TIP_BEVEL', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
+    scadMapping: { scoopLength: 'SCOOP_LENGTH', sievePattern: 'SIEVE_PATTERN', sieveSizing: 'SIEVE_SIZING', sieveRows: 'SIEVE_ROWS', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', tipThickness: 'TIP_THICKNESS', tipBevel: 'TIP_BEVEL', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
     partDefines: SHOVEL_SCOOP_FASTENER_DEFINES },
   { id: 'handle', title: 'Handle', sourcePath: `${LITTER_SHOVEL_DIR}handle.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
     partDefines: SHOVEL_HANDLE_FASTENER_DEFINES },
@@ -1369,7 +1458,7 @@ const litterShovelAssembly: Assembly = {
 };
 
 export const litterShovel = {
-  id: 'litter-shovel' as const, version: '2' as const, title: 'Litter shovel',
+  id: 'litter-shovel' as const, version: '3' as const, title: 'Litter shovel',
   description: 'A cat-litter sifting shovel in three closed-ring parts, stacked: a container for a liner bag with its own open, hook-like handle, a sifting scoop that caps its rim, with a straight, sharp edge that scrapes along the floor and a sieve round its back, corners and sides, and a handle whose ring sits on the scoop and whose grip lies on the container’s handle. Both halves of the grip are thin curved sheets that stack into one smooth strip; held in the fist, they clamp all three parts. Choose the scoop’s length, the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and bar width, the scraping edge’s thickness and bevel, the dam that keeps the clumps in when you scoop again, where the grip ends and how many thin fins brace it, how the parts hold (a close fit or a detent), and whether two screws fasten the handle to the scoop for good (into threaded inserts or nuts from the parts library), then download the three parts as a ZIP of STL files.',
   attribution: 'CanFactory (original design)',
   printNotes: 'Print each part as generated: the container standing on its floor, the scoop on its cap, the handle upside down on its ring’s top. Only the container’s open grip tip needs slicer supports; with the grip down to the floor, nothing does. Fold the bag about 5 mm over the container’s lip; inside, it drapes over the dam. With a handle reinforcement, melt the inserts in (or push the nuts in) from outside the bosses, then drive the countersunk screws in from inside the scoop.',
@@ -1383,6 +1472,11 @@ export const litterShovel = {
   scadMapping: {},
   // The thread reaches the SCAD files as its ISO 273 medium clearance hole.
   scadEncode: { handleThread: thread => JSON.stringify(ISO_273_CLEARANCE_HOLES[thread as MetricThread].medium) },
+  // the longest slot the scoop's length, the tip's bevel and the margin leave room for
+  limits(parameters: ParameterValues) {
+    if (!Value.Check(LitterShovelParametersSchema, parameters)) return {};
+    return { gapLength: { maximum: slotLengthLimit(parameters), reason: `the scoop’s length (${parameters.scoopLength} mm), the tip bevel and the sieve margin leave room for no longer slot. Use a longer scoop, a shorter bevel or a smaller margin.` } };
+  },
   validate(parameters: unknown): ParameterIssue[] {
     if (!Value.Check(LitterShovelParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
     return validateLitterShovel(parameters);
@@ -1418,6 +1512,6 @@ export function validateParameters(model: ModelDefinition, parameters: unknown):
       field: error.instancePath.replace(/^\//, ''), message: error.message,
     }));
   }
-  const filtered = partFilterIssues(model, parameters as ParameterValues);
+  const filtered = [...partFilterIssues(model, parameters as ParameterValues), ...limitIssues(model, parameters as ParameterValues)];
   return filtered.length > 0 ? filtered : model.validate(parameters);
 }

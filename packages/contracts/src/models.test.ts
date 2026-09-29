@@ -5,7 +5,8 @@ import {
   activeParts, artifactFormat, cigaretteCase, CLEARANCE_HOLES, findModel, holeDiameter, plankConnector, fruitFlyTrap, FruitFlyTrapParametersSchema, isAssembly, modelSourcePaths,
   minimumSpikeLength, mossPlanter, rauteColumns, slotCount, SNAP_CLEARANCE, SNAP_TUNING, HOLDER_SNAP_CLEARANCE, LIGHTER_SNAP_CLEARANCE, MINI_BOX_SNAP_CLEARANCE, MINI_LID_SNAP_CLEARANCE, scadLiteral, textWidth, validateParameters, type MossPlanterParameters,
   AssemblySchema, CASE_MAGNETS, CLEARANCE_RANGE, DEFAULT_CASE_MAGNET, linkedPartData, MAGNET_SEAT, magnetFits, partUsage, scadDefines,
-  litterShovel, MAX_SIEVE_GAPS, SCOOP_BLADE, SCOOP_LENGTH_RANGE, scoopSideTop, sieveGaps, type LitterShovelParameters,
+  litterShovel, MAX_SIEVE_GAPS, SCOOP_BLADE, SCOOP_LENGTH_RANGE, scoopSideTop, sieveGaps, sieveHeight, sieveRowsLimit, slotLength, slotLengthLimit, type LitterShovelParameters,
+  controlRange, controlShown,
   DEFAULT_HANDLE_FASTENERS, HANDLE_FASTENER_SEAT, HANDLE_INSERTS, HANDLE_NUTS, HANDLE_SCREWS, HANDLE_THREADS, handleInsertFits, handleNutFits, handleScrewFits,
   offeredOptions, partDefineLiteral,
 } from './models.ts';
@@ -465,19 +466,19 @@ describe('litter shovel contract', () => {
     expect(findModel('litter-shovel')).toBe(litterShovel);
     expect(artifactFormat(litterShovel)).toBe('zip');
     expect(modelSourcePaths(litterShovel)).toEqual(['container', 'scoop', 'handle'].map(id => `models/litter-shovel/${id}.scad`));
-    expect(defaults).toEqual({ sievePattern: 'slots', gapWidth: 7.2, gapLength: 25, gapSpacing: 5.6, scoopLength: 127, scoopSnap: 'detent', handleSnap: 'detent', sieveMargin: 3.2, tipThickness: 0.8, tipBevel: 12, gripEnd: 'open', supportCount: 3, damWidth: 8, supportThickness: 2, clearance: 0.2, scoopDetentEngage: 0.15, handleDetentEngage: 0.15,
+    expect(defaults).toEqual({ sievePattern: 'slots', gapWidth: 7.2, sieveSizing: 'rows', sieveRows: 1, gapLength: 25, gapSpacing: 5.6, scoopLength: 127, scoopSnap: 'detent', handleSnap: 'detent', sieveMargin: 3.2, tipThickness: 0.8, tipBevel: 12, gripEnd: 'open', supportCount: 3, damWidth: 8, supportThickness: 2, clearance: 0.2, scoopDetentEngage: 0.15, handleDetentEngage: 0.15,
       handleReinforcement: 'none', handleThread: 'M3', handleInsert: 'cnc-kitchen-m3x5-7', handleNut: 'iso-4032-m3', handleScrew: 'iso-10642-m3x12' });
     expect(validateParameters(litterShovel, defaults)).toEqual([]);
     const [containerPart, scoopPart, handlePart] = litterShovel.parts;
     expect(Object.keys(containerPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'damWidth', 'gripEnd', 'scoopDetentEngage', 'scoopSnap', 'supportCount', 'supportThickness']);
-    expect(Object.keys(scoopPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gapLength', 'gapSpacing', 'gapWidth', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread', 'scoopDetentEngage', 'scoopLength', 'scoopSnap', 'sieveMargin', 'sievePattern', 'tipBevel', 'tipThickness']);
+    expect(Object.keys(scoopPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gapLength', 'gapSpacing', 'gapWidth', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread', 'scoopDetentEngage', 'scoopLength', 'scoopSnap', 'sieveMargin', 'sievePattern', 'sieveRows', 'sieveSizing', 'tipBevel', 'tipThickness']);
     expect(Object.keys(handlePart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gripEnd', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread']);
     expect(scadDefines(litterShovel, scoopPart ?? {}, defaults)).toContainEqual(['SIEVE_PATTERN', '"slots"']);
     expect(scadDefines(litterShovel, containerPart ?? {}, { ...defaults, scoopSnap: 'friction' })).toContainEqual(['SCOOP_SNAP', '"friction"']);
     expect(Value.Check(AssemblySchema, litterShovel.assembly)).toBe(true);
     expect(litterShovel.assembly.steps.map(step => step.parts)).toEqual([['scoop'], ['handle']]);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'litter-shovel', modelVersion: '2', parameters: defaults })).toBe(true);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'litter-shovel', modelVersion: '2', parameters: { ...defaults, extra: 1 } })).toBe(false);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'litter-shovel', modelVersion: '3', parameters: defaults })).toBe(true);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'litter-shovel', modelVersion: '3', parameters: { ...defaults, extra: 1 } })).toBe(false);
   });
 
   it('keeps every SCAD default equal to the contract default of the parameter it is mapped from', () => {
@@ -532,14 +533,37 @@ describe('litter shovel contract', () => {
     expect(constant(scoop, 'ROOT_BAND')).toBeGreaterThan(constant(handle, 'RING_H'));
   });
 
-  it('lays out the default sieve as 24 slots on a 12.8 mm pitch, across the back, round the corners and along the sides', () => {
+  it('sizes the default slots by rows: one row of 82.6 mm slots filling the sieve’s height, on the back and round the corners', () => {
+    expect(sieveHeight(defaults)).toBeCloseTo(127 - 12 - 26 - 2 * 3.2, 9);
+    expect(slotLength(defaults)).toBeCloseTo(82.6, 9);
     const gaps = sieveGaps(defaults);
+    expect(gaps).toHaveLength(9);
+    // the row starts one margin above the root band and ends one margin under the bevel
+    expect([...new Set(gaps.map(([, z]) => Math.round(z * 1e6) / 1e6))]).toEqual([26 + 3.2 + 82.6 / 2]);
+    expect(gaps.filter(([s]) => Math.abs(s) > SCOOP_BLADE.flatY)).toHaveLength(2);
+    expect(litterShovel.derived(defaults)).toEqual({ slotCount: 9 });
+    // n rows and the n − 1 bars between them fill the sieve's height exactly
+    for (const sieveRows of [2, 3, 4, 5]) {
+      const p = { ...defaults, sieveRows };
+      expect(sieveRows * slotLength(p) + (sieveRows - 1) * p.gapSpacing).toBeCloseTo(sieveHeight(p), 9);
+      const rows = [...new Set(sieveGaps(p).map(([, z]) => Math.round(z * 1e6) / 1e6))];
+      expect(rows).toHaveLength(sieveRows);
+      expect(Math.max(...rows) + slotLength(p) / 2).toBeCloseTo(127 - 12 - 3.2, 9);
+    }
+    // the rows the height has room for, at slots as long as they are wide
+    expect(sieveRowsLimit(defaults)).toBe(6);
+    expect(sieveRowsLimit({ ...defaults, scoopLength: 90 })).toBe(4);
+    expect(slotLength({ ...defaults, scoopLength: 90, sieveRows: 4 })).toBeCloseTo(7.2, 9);
+  });
+
+  it('lays out the sieve sized by length as 24 slots on a 12.8 mm pitch, across the back, round the corners and along the sides', () => {
+    const gaps = sieveGaps({ ...defaults, sieveSizing: 'length' });
     expect(gaps).toHaveLength(24);
     expect([...new Set(gaps.map(([s]) => Math.round(s * 10) / 10))].sort((a, b) => a - b)).toEqual([-76.8, -64, -51.2, -38.4, -25.6, -12.8, 0, 12.8, 25.6, 38.4, 51.2, 64, 76.8]);
     expect([...new Set(gaps.map(([, z]) => Math.round(z * 10) / 10))]).toEqual([41.7, 72.3]);
     // Past the back's flat part (|s| > 39.4) the gaps are in the corners and on the sides.
     expect(gaps.filter(([s]) => Math.abs(s) > SCOOP_BLADE.flatY)).toHaveLength(10);
-    expect(litterShovel.derived(defaults)).toEqual({ slotCount: 24 });
+    expect(litterShovel.derived({ ...defaults, sieveSizing: 'length' })).toEqual({ slotCount: 24 });
   });
 
   it('counts the gaps exactly as scoop.scad lays them out (its SIEVE_GAPS echo)', () => {
@@ -555,9 +579,21 @@ describe('litter shovel contract', () => {
       ['slots', 7.2, 25, 5.6, 3.2, 12, 11, 90], ['slots', 7.2, 25, 5.6, 3.2, 12, 48, 180], ['staggered', 3, 6, 3, 3, 12, 131, 90],
       ['round', 3, 6, 3, 3, 12, 681, 180], ['hex', 7.2, 25, 5.6, 3.2, 12, 142, 180], ['round', 3, 6, 3, 3, 5, 700, 180],
       ['hex', 4.5, 12, 3, 3, 12, 431, 180], ['round', 7.2, 25, 5.6, 3.2, 20, 36, 90], ['slots', 15, 40, 15, 10, 20, 0, 90],
+      // 1 mm gaps and bars, and the longest slot the defaults leave room for (and one too long)
+      ['slots', 1, 6, 1, 3.2, 12, 877], ['round', 1, 6, 1, 3.2, 12, 3822], ['hex', 1, 6, 1, 3.2, 12, 3822], ['round', 2, 6, 1.5, 3.2, 12, 1224],
+      ['slots', 7.2, 82.5, 5.6, 3.2, 12, 9], ['slots', 7.2, 83, 5.6, 3.2, 12, 0],
     ];
     for (const [sievePattern, gapWidth, gapLength, gapSpacing, sieveMargin, tipBevel, count, scoopLength = 127] of cases)
-      expect(sieveGaps({ sievePattern, gapWidth, gapLength, gapSpacing, sieveMargin, tipBevel, scoopLength }), `${sievePattern} ${gapWidth}/${gapLength}/${gapSpacing}/${sieveMargin}/${tipBevel}/${scoopLength}`).toHaveLength(count);
+      expect(sieveGaps({ sievePattern, sieveSizing: 'length', sieveRows: 1, gapWidth, gapLength, gapSpacing, sieveMargin, tipBevel, scoopLength }), `${sievePattern} ${gapWidth}/${gapLength}/${gapSpacing}/${sieveMargin}/${tipBevel}/${scoopLength}`).toHaveLength(count);
+    // Sized by rows: [texture, rows, gap width, bar width, margin, bevel, count, scoop length].
+    const rowCases: [LitterShovelParameters['sievePattern'], number, number, number, number, number, number, number?][] = [
+      ['slots', 1, 7.2, 5.6, 3.2, 12, 9], ['slots', 2, 7.2, 5.6, 3.2, 12, 22], ['slots', 3, 7.2, 5.6, 3.2, 12, 33], ['slots', 5, 7.2, 5.6, 3.2, 12, 57],
+      ['staggered', 2, 7.2, 5.6, 3.2, 12, 23], ['slots', 2, 15, 15, 10, 12, 8], ['slots', 1, 1, 1, 3.2, 12, 65], ['slots', 5, 1, 1, 3.2, 12, 385],
+      ['slots', 1, 7.2, 5.6, 3.2, 12, 11, 90], ['slots', 4, 7.2, 5.6, 3.2, 12, 48, 90], ['slots', 4, 1, 1, 10, 20, 296, 90],
+      ['slots', 5, 7.2, 5.6, 3.2, 12, 57, 180], ['staggered', 3, 7.2, 5.6, 3.2, 12, 34, 180], ['staggered', 5, 1, 1, 3.2, 12, 377, 180],
+    ];
+    for (const [sievePattern, sieveRows, gapWidth, gapSpacing, sieveMargin, tipBevel, count, scoopLength = 127] of rowCases)
+      expect(sieveGaps({ sievePattern, sieveSizing: 'rows', sieveRows, gapWidth, gapLength: 25, gapSpacing, sieveMargin, tipBevel, scoopLength }), `${sievePattern} ${sieveRows} rows ${gapWidth}/${gapSpacing}/${sieveMargin}/${tipBevel}/${scoopLength}`).toHaveLength(count);
   });
 
   it('keeps the blade and its sieve zone identical to scoop.scad', () => {
@@ -588,27 +624,75 @@ describe('litter shovel contract', () => {
     expect(scoopSideTop(-cornerX)).toBeCloseTo(SCOOP_BLADE.frontZ, 9);
   });
 
-  it('shows the slot length only for slot textures, the engagements only with detents, and rejects impossible sieves', () => {
+  it('shows the slot sizing only for slot textures, the engagements only with detents, and rejects impossible sieves', () => {
     const find = (key: string) => litterShovel.controls.find(control => control.key === key);
-    expect(find('gapLength')?.visibleWhen).toEqual({ control: 'sievePattern', values: ['slots', 'staggered'] });
+    const slots = { control: 'sievePattern', values: ['slots', 'staggered'] };
+    expect(find('sieveSizing')).toMatchObject({ kind: 'enum', default: 'rows', visibleWhen: slots });
+    expect(find('sieveSizing')?.options?.map(option => option.value)).toEqual(['rows', 'length']);
+    expect(find('sieveRows')).toMatchObject({ kind: 'number', unit: null, default: 1, minimum: 1, maximum: 5, step: 1, visibleWhen: [slots, { control: 'sieveSizing', values: ['rows'] }] });
+    expect(find('gapLength')?.visibleWhen).toEqual([slots, { control: 'sieveSizing', values: ['length'] }]);
+    const shown = (key: string, values: Partial<LitterShovelParameters>) => { const c = find(key); return c !== undefined && controlShown(c, { ...defaults, ...values }); };
+    expect([shown('sieveRows', {}), shown('gapLength', {})]).toEqual([true, false]);
+    expect([shown('sieveRows', { sieveSizing: 'length' }), shown('gapLength', { sieveSizing: 'length' })]).toEqual([false, true]);
+    for (const sievePattern of ['round', 'hex'] as const)
+      expect(['sieveSizing', 'sieveRows', 'gapLength'].map(key => shown(key, { sievePattern, sieveSizing: 'length' }))).toEqual([false, false, false]);
+    expect(find('gapWidth')).toMatchObject({ minimum: 1, maximum: 15 });
+    expect(find('gapSpacing')).toMatchObject({ minimum: 1, maximum: 15 });
     expect(find('scoopDetentEngage')?.visibleWhen).toEqual({ control: 'scoopSnap', values: ['detent'] });
     expect(find('handleDetentEngage')?.visibleWhen).toEqual({ control: 'handleSnap', values: ['detent'] });
     expect(find('scoopSnap')?.options?.map(option => option.value)).toEqual(['friction', 'detent']);
     expect(find('clearance')?.recommended?.map(entry => entry.control)).toEqual(['scoopSnap', 'handleSnap']);
-    for (const values of [{ sievePattern: 'round', gapWidth: 3, gapSpacing: 3, sieveMargin: 3 }, { sievePattern: 'hex', gapWidth: 15, gapSpacing: 15, sieveMargin: 10 }, { gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10 }, { sievePattern: 'round', gapLength: 6 }, { handleSnap: 'friction', scoopSnap: 'friction', clearance: 0.6 }, { gripEnd: 'floor', supportCount: 5, supportThickness: 4 }, { supportCount: 1, supportThickness: 1.2 }, { damWidth: 0 }, { damWidth: 15 }])
+    for (const values of [{ sievePattern: 'round', gapWidth: 3, gapSpacing: 3, sieveMargin: 3 }, { sievePattern: 'hex', gapWidth: 15, gapSpacing: 15, sieveMargin: 10 }, { gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10, sieveSizing: 'length' }, { sievePattern: 'round', gapLength: 6 }, { gapWidth: 1, gapSpacing: 1 }, { gapWidth: 1, gapSpacing: 1, sieveRows: 5 }, { sieveRows: 5 }, { sieveRows: 4, scoopLength: 90 }, { sieveSizing: 'length', gapLength: 82.5 }, { gapLength: 143 }, { gapLength: 100, sieveSizing: 'rows' }, { sievePattern: 'round', gapLength: 143, scoopLength: 90 }, { handleSnap: 'friction', scoopSnap: 'friction', clearance: 0.6 }, { gripEnd: 'floor', supportCount: 5, supportThickness: 4 }, { supportCount: 1, supportThickness: 1.2 }, { damWidth: 0 }, { damWidth: 15 }])
       expect(validateParameters(litterShovel, { ...defaults, ...values }), JSON.stringify(values)).toEqual([]);
-    expect(validateParameters(litterShovel, { ...defaults, gapWidth: 10, gapLength: 8 })[0]?.field).toBe('gapLength');
-    for (const values of [{ sievePattern: 'diamond' }, { gapWidth: 2.9 }, { gapSpacing: 2.9 }, { gapLength: 41 }, { sieveMargin: 2.9 }, { sieveMargin: 10.1 }, { gapWidth: 7.25 }, { handleSnap: 'clip' }, { clearance: 0.7 }, { tipThickness: 0.3 }, { tipThickness: 2.1 }, { tipBevel: 4.5 }, { tipBevel: 20.5 }, { tipBevel: 12.25 }, { supportCount: 0 }, { supportCount: 6 }, { supportCount: 2.5 }, { supportThickness: 1.1 }, { supportThickness: 4.1 }, { gripEnd: 'closed' }, { damWidth: -0.5 }, { damWidth: 15.5 }, { damWidth: 8.25 }])
+    expect(validateParameters(litterShovel, { ...defaults, sieveSizing: 'length', gapWidth: 10, gapLength: 8 })[0]?.field).toBe('gapLength');
+    // sized by rows, the slot length is ignored, and too many rows for the height are rejected with the most that fit
+    expect(validateParameters(litterShovel, { ...defaults, gapWidth: 10, gapLength: 8 })).toEqual([]);
+    const tooMany = validateParameters(litterShovel, { ...defaults, sieveRows: 5, scoopLength: 90 });
+    expect(tooMany.map(issue => issue.field)).toEqual(['sieveRows']);
+    expect(tooMany[0]?.message).toContain('at most 4 rows fit');
+    expect(validateParameters(litterShovel, { ...defaults, sieveRows: 5, scoopLength: 90, gapSpacing: 15 })[0]?.message).toContain('no room for slots');
+    for (const values of [{ sievePattern: 'diamond' }, { gapWidth: 0.9 }, { gapSpacing: 0.9 }, { gapLength: 143.5 }, { sieveSizing: 'columns' }, { sieveRows: 0 }, { sieveRows: 6 }, { sieveRows: 1.5 }, { sieveMargin: 2.9 }, { sieveMargin: 10.1 }, { gapWidth: 7.25 }, { handleSnap: 'clip' }, { clearance: 0.7 }, { tipThickness: 0.3 }, { tipThickness: 2.1 }, { tipBevel: 4.5 }, { tipBevel: 20.5 }, { tipBevel: 12.25 }, { supportCount: 0 }, { supportCount: 6 }, { supportCount: 2.5 }, { supportThickness: 1.1 }, { supportThickness: 4.1 }, { gripEnd: 'closed' }, { damWidth: -0.5 }, { damWidth: 15.5 }, { damWidth: 8.25 }])
       expect(validateParameters(litterShovel, { ...defaults, ...values }), JSON.stringify(values)).not.toEqual([]);
     // At the default length every sieve stays under the complexity limit; a longer scoop can exceed it, and validation says so.
     for (const sievePattern of ['round', 'hex'] as const)
-      expect(sieveGaps({ sievePattern, gapWidth: 3, gapLength: 6, gapSpacing: 3, sieveMargin: 3, tipBevel: 5, scoopLength: 127 }).length).toBeLessThanOrEqual(MAX_SIEVE_GAPS);
+      expect(sieveGaps({ sievePattern, sieveSizing: 'length', sieveRows: 1, gapWidth: 3, gapLength: 6, gapSpacing: 3, sieveMargin: 3, tipBevel: 5, scoopLength: 127 }).length).toBeLessThanOrEqual(MAX_SIEVE_GAPS);
     const finest = { sievePattern: 'round', gapWidth: 3, gapSpacing: 3, sieveMargin: 3, tipBevel: 5 } as const;
     expect(validateParameters(litterShovel, { ...defaults, ...finest, scoopLength: 180 }).map(issue => issue.field)).toEqual(['gapSpacing']);
     expect(validateParameters(litterShovel, { ...defaults, ...finest, scoopLength: 150 })).toEqual([]);
     for (const scoopLength of [90, 180]) expect(validateParameters(litterShovel, { ...defaults, scoopLength }), `${scoopLength}`).toEqual([]);
     for (const scoopLength of [89, 181, 127.5]) expect(validateParameters(litterShovel, { ...defaults, scoopLength }), `${scoopLength}`).not.toEqual([]);
-    expect(litterShovel.derived({ ...defaults, scoopLength: 180 })).toEqual({ slotCount: 48 });
+    expect(litterShovel.derived({ ...defaults, sieveSizing: 'length', scoopLength: 180 })).toEqual({ slotCount: 48 });
+    // 1 mm gaps and bars: the finer sieves pass the complexity limit sooner, and validation still says so
+    expect(validateParameters(litterShovel, { ...defaults, sievePattern: 'round', gapWidth: 1, gapSpacing: 1 }).map(issue => issue.field)).toEqual(['gapSpacing']);
+    expect(validateParameters(litterShovel, { ...defaults, sieveSizing: 'length', gapWidth: 1, gapSpacing: 1, gapLength: 6 })[0]?.message).toBe('877 gaps are too many (at most 600). Use larger gaps or wider bars.');
+  });
+
+  it('limits the slot length to what the scoop’s length, the tip bevel and the margin leave room for', () => {
+    const gapLength = litterShovel.controls.find(control => control.key === 'gapLength');
+    if (!gapLength) throw new Error('gapLength control missing');
+    // the schema's bound is the longest slot any setting leaves room for; the editor's range narrows it to the current settings
+    expect(gapLength).toMatchObject({ minimum: 6, maximum: 143, step: 0.5 });
+    expect(slotLengthLimit({ scoopLength: 180, tipBevel: 5, sieveMargin: 3 })).toBe(143);
+    expect(controlRange(litterShovel, gapLength, defaults)).toEqual({ minimum: 6, maximum: 82.5 });
+    expect(controlRange(litterShovel, gapLength, { ...defaults, scoopLength: 90, tipBevel: 20, sieveMargin: 10 })).toEqual({ minimum: 6, maximum: 24 });
+    expect(controlRange(litterShovel, gapLength, { ...defaults, scoopLength: 180, tipBevel: 5, sieveMargin: 3 })).toEqual({ minimum: 6, maximum: 143 });
+    const other = litterShovel.controls.find(control => control.key === 'gapWidth');
+    if (other) expect(controlRange(litterShovel, other, defaults)).toEqual({ minimum: 1, maximum: 15 });
+    // exactly the longest slot that still fits one row on the back
+    for (const values of [{}, { scoopLength: 90 }, { scoopLength: 180, tipBevel: 5, sieveMargin: 3 }, { scoopLength: 101, tipBevel: 7.5, sieveMargin: 4.3 }]) {
+      const p = { ...defaults, ...values, sieveSizing: 'length' as const };
+      const most = slotLengthLimit(p);
+      expect(sieveGaps({ ...p, gapLength: most }).length, JSON.stringify(values)).toBeGreaterThan(0);
+      expect(sieveGaps({ ...p, gapLength: most + 0.5 }), JSON.stringify(values)).toHaveLength(0);
+    }
+    // a slot that fitted is rejected once the scoop is shortened; hidden (sized by rows, or holes), it no longer matters
+    const long = { ...defaults, sieveSizing: 'length', gapLength: 80 } as const;
+    expect(validateParameters(litterShovel, long)).toEqual([]);
+    const shortened = validateParameters(litterShovel, { ...long, scoopLength: 120 });
+    expect(shortened.map(issue => issue.field)).toEqual(['gapLength']);
+    expect(shortened[0]?.message).toMatch(/^At most 75\.5 mm: the scoop’s length \(120 mm\)/);
+    expect(validateParameters(litterShovel, { ...long, scoopLength: 120, sieveSizing: 'rows' })).toEqual([]);
+    expect(validateParameters(litterShovel, { ...long, scoopLength: 120, sievePattern: 'round' })).toEqual([]);
   });
 });
 
