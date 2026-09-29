@@ -1187,7 +1187,7 @@ export interface operations {
                         handleShape: "sheet" | "curved" | "round" | "rectangular";
                         /**
                          * Grip bulge
-                         * @description How far the curved grip bulges out towards the palm, in mm, on its run down to the tip. 0 is as straight as the flat sheet.
+                         * @description How far the curved grip’s run down to the tip steps out from the bend, in mm, in a smooth S-curve. 0 is as straight as the flat sheet.
                          * @default 8
                          */
                         gripBulge: number;
