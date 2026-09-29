@@ -24,8 +24,14 @@ SCOOP_DETENT_ENGAGE = 0.15; //[0.02:0.01:0.4]
 SUPPORT_COUNT = 3; //[1:1:5]
 // Thickness of each fin, in mm
 SUPPORT_THICKNESS = 2; //[1.2:0.1:4]
-// Where the grip ends: open, 30 mm above the floor (the slicer supports its tip), or down on the floor (no support needed)
+// Where the grip ends: open, above the floor (the slicer supports its tip), or down on the floor (no support needed)
 GRIP_END = "open"; //[open,floor]
+// The grip's shape: a thin sheet, the same curved out, a round tube or a rectangular bar
+HANDLE_SHAPE = "sheet"; //[sheet,curved,round,rectangular]
+// How far the curved grip bulges out towards the palm, in mm
+GRIP_BULGE = 8; //[0:0.5:15]
+// The round grip's diameter, or the rectangular grip's depth, in mm
+GRIP_SIZE = 28; //[20:1:32]
 // How far the dam under the mouth, on the scraper side (-X), reaches in from the back wall, in mm (0 for none)
 DAM_WIDTH = 8; //[0:0.5:15]
 // Thickness of the shell's wall, in mm (three to five lines of a 0.4 mm nozzle at 1.2 to 2.0); the floor follows it
@@ -43,7 +49,7 @@ WALL = WALL_THICKNESS; FLOOR_T = min(3.2, WALL + 0.8); RIM_Z = 141.5;
 // The handle's root pad: the wall is at least ROOT_WALL thick behind the handle's sheet, which carries the whole container, so
 // a thin wall does not make its anchor weak. The pad is ROOT_PAD_W wide at its face, spans ROOT_PAD_Z there, has corners of
 // radius ROOT_PAD_R, and its ends and underside are at 45 degrees, so it needs no support.
-ROOT_WALL = 2.4; ROOT_PAD_W = 34; ROOT_PAD_Z = [124, 136]; ROOT_PAD_R = 3;
+ROOT_WALL = 2.4; ROOT_PAD_Z = [124, 136]; ROOT_PAD_R = 3;
 // Lip: how far it stands out from the band, and its thickness above the 45 degree chamfer.
 LIP_W = 4; LIP_T = 3;
 // The band is straight from 3 mm below the lip's chamfer up to the rim.
@@ -82,18 +88,26 @@ module lip() {
   }
 }
 
-// ---- The grip's two sheets: identical in container.scad and handle.scad. ----
-// The grip is two thin curved sheets, one on each side of a seam, the container's on the finger side and the handle part's on
-// the palm side. Stacked, they make one strip: the same width, their seam faces flat and CLEARANCE apart, their outer long
-// edges rounded, and at the open tip each outer corner rounded, so that the pair ends in one half-round. The seam, in the
+// ---- The grip's two halves: identical in container.scad and handle.scad. ----
+// The grip is two halves, one on each side of a seam, the container's on the finger side and the handle part's on the palm
+// side. Stacked, they make one bar: the same width, their seam faces flat and CLEARANCE apart, and at the open tip each outer
+// corner rounded, so that the pair ends in one half-round. HANDLE_SHAPE picks the bar: "sheet" (default) a 6 mm strip, its
+// outer long edges rounded; "curved" the same strip with the run down to the tip bulging out by GRIP_BULGE towards the palm,
+// as a sine's half wave; "round" a tube of diameter GRIP_SIZE, each half a solid half-round; "rectangular" a box bar
+// GRIP_SIZE deep and 26 mm wide, each half a solid slab. The round and rectangular bars move the seam out, so that the finger
+// gap stays as wide, and their bends grow with them; their open tip is lower, to keep the run the sheet's leaves for the fist. The seam, in the
 // container's frame (XZ), runs from the top down: at the handle part's end, up the ring's outer face; a bend of SEAM_R2 into a
 // 45 degree slope through SLOPE_POINT (2.5 mm under the lip's chamfer, on the band); a bend of SEAM_R1 into the grip, vertical
 // at x = SEAM_X, down to its tip. Each sheet runs from CLEARANCE / 2 to SHEET_T off the seam, so its outer face does not
 // depend on the clearance.
-GRIP_W = 26; SHEET_T = 3; EDGE_R = 2.5;
-SEAM_X = 65; SEAM_R1 = 15; SEAM_R2 = 10; SLOPE_POINT = [37.25, 132];
-GRIP_TIP_Z = GRIP_END == "floor" ? 0 : 30;
-SHEET_TH = SHEET_T - CLEARANCE / 2;
+SHEET_T = 3; EDGE_R = 2.5;
+GRIP_ROUND = HANDLE_SHAPE == "round"; GRIP_THICK = GRIP_ROUND || HANDLE_SHAPE == "rectangular";
+GRIP_HALF = GRIP_THICK ? GRIP_SIZE / 2 : SHEET_T;      // how far each half reaches from the seam
+GRIP_W = GRIP_ROUND ? GRIP_SIZE : 26;
+SEAM_X_BASE = 65; SEAM_X = SEAM_X_BASE + GRIP_HALF - SHEET_T;
+SEAM_R1 = max(15, GRIP_HALF + 5); SEAM_R2 = max(10, GRIP_HALF + 5);   // an inner radius of at least 5 mm round each bend
+SLOPE_POINT = [37.25, 132];
+SHEET_TH = GRIP_HALF - CLEARANCE / 2;
 function slope_z(x) = SLOPE_POINT[1] - (x - SLOPE_POINT[0]);
 
 // Path samples [x, z, heading, sheet thickness], top down. The heading is the direction of travel in XZ, in degrees; the palm
@@ -105,21 +119,33 @@ function arc_samples(c, r, a0, a1, n, th) = let(turn = a1 > a0 ? 90 : -90)
 // The bend into the grip: it leaves the slope at R1_START, round a centre on the finger side, into the vertical at x = SEAM_X.
 R1_CENTRE = [SEAM_X - SEAM_R1, slope_z(SEAM_X) - SEAM_R1 * tan(22.5)];
 R1_START = [R1_CENTRE[0] + SEAM_R1 * cos(45), R1_CENTRE[1] + SEAM_R1 * sin(45)];
+// The open tip: 30 mm up for the sheets; for the thick bars the run down from the bend that the sheet's open tip leaves.
+OPEN_RUN = 68;
+GRIP_TIP_Z = GRIP_END == "floor" ? 0 : GRIP_THICK ? max(0, R1_CENTRE[1] - OPEN_RUN) : 30;
+// The run from the bend down to z1: straight, or (curved) bulging out by GRIP_BULGE as a sine's half wave, so that it leaves
+// and reaches the vertical at x = SEAM_X.
+function bulge_samples(z1, n, th) = let(z0 = R1_CENTRE[1], l = z0 - z1)
+  [for (i = [1 : n]) let(t = i / n) [SEAM_X + GRIP_BULGE * pow(sin(180 * t), 2), z0 - l * t, atan2(-l, GRIP_BULGE * PI * sin(360 * t)), th]];
+function run_samples(z1) = HANDLE_SHAPE == "curved" ? bulge_samples(z1, 30, SHEET_TH)
+  : line_samples([SEAM_X, R1_CENTRE[1]], [SEAM_X, z1], 1, SHEET_TH);
 // From the bend down to the tip. At an open tip the last TIP_R of it rounds off in a quarter circle.
 TIP_R = SHEET_TH;
 function grip_samples() = concat(
   arc_samples(R1_CENTRE, SEAM_R1, 45, 0, 15, SHEET_TH),
-  GRIP_END == "floor" ? line_samples([SEAM_X, R1_CENTRE[1]], [SEAM_X, GRIP_TIP_Z], 1, SHEET_TH)
-  : concat(line_samples([SEAM_X, R1_CENTRE[1]], [SEAM_X, GRIP_TIP_Z + TIP_R], 1, SHEET_TH),
+  GRIP_END == "floor" ? run_samples(GRIP_TIP_Z)
+  : concat(run_samples(GRIP_TIP_Z + TIP_R),
       [for (i = [1 : 10]) let(d = TIP_R * (1 - i / 10)) [SEAM_X, GRIP_TIP_Z + d, -90, max(0.4, sqrt(TIP_R * TIP_R - (TIP_R - d) * (TIP_R - d)))]]));
 
-// A sheet's cross-section at thickness `th`, as [u, y]: u from the seam (positive towards the palm), y across the grip. Its
-// seam face is flat and its outer long edges are rounded.
-function sheet_section(th) = let(u0 = CLEARANCE / 2, u1 = u0 + th, r = min(EDGE_R, 0.8 * th), w = GRIP_W / 2)
+// A half's cross-section at thickness `th`, as [u, y]: u from the seam (positive towards the palm), y across the grip. Its
+// seam face is flat. A sheet or a slab rounds its outer long edges; a round bar is a half-disc of radius CLEARANCE / 2 + th.
+function sheet_section(th) = GRIP_ROUND ? round_section(th) : box_section(th);
+function round_section(th) = let(u0 = CLEARANCE / 2, r = u0 + th, a0 = acos(u0 / r), n = 24)
+  [for (i = [0 : n]) let(a = -a0 + 2 * a0 * i / n) [r * cos(a), r * sin(a)]];
+function box_section(th) = let(u0 = CLEARANCE / 2, u1 = u0 + th, r = min(EDGE_R, 0.8 * th), w = GRIP_W / 2)
   concat([[u0, -w]], [for (i = [0 : 6]) let(a = -90 + 15 * i) [u1 - r + r * cos(a), -w + r + r * sin(a)]],
          [for (i = [0 : 6]) let(a = 15 * i) [u1 - r + r * cos(a), w - r + r * sin(a)]], [[u0, w]]);
 
-// A sheet swept along `samples`, on the palm side (side = 1) or the finger side (side = -1) of the seam.
+// A half swept along `samples`, on the palm side (side = 1) or the finger side (side = -1) of the seam.
 module sheet(samples, side) {
   m = len(sheet_section(1));
   points = [for (s = samples, q = sheet_section(s[3])) let(u = side * q[0])
@@ -157,7 +183,7 @@ module fins() {
     translate([0, y, 0]) rotate([90, 0, 0]) linear_extrude(SUPPORT_THICKNESS, center = true) fin_profile();
 }
 
-module handle() { finger_sheet(); fins(); }
+module handle() { finger_sheet(); if (HANDLE_SHAPE == "sheet" || HANDLE_SHAPE == "curved") fins(); }
 
 // Places children on the middle of each straight side of plan `p`, in the wall's frame (X along the wall, Y outward).
 module on_sides(p) {
@@ -179,6 +205,8 @@ module groove(l, g) {
 }
 
 // ---- The handle's root pad: on the inside of the front wall, behind the handle's sheet. ----
+// The pad is the grip's width and 4 mm each side.
+ROOT_PAD_W = GRIP_W + 8;
 // The wall's inner face at height z, at the middle of the front (it flares in below BAND_Z).
 function front_in(z) = BAND[0] / 2 - (BAND[0] - FLOOR[0]) / 2 * (1 - min(z, BAND_Z) / BAND_Z) - WALL;
 // The pad (thinner walls than ROOT_WALL only): d = ROOT_WALL - WALL deep.
