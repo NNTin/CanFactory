@@ -265,8 +265,9 @@ try {
   // the shortest and longest scoop, no dam and the widest, the fewest and most, thinnest and thickest grip supports, and both snap modes of both
   // joints at the clearance extremes. Each part must be one closed solid of the expected size (the scoop's length sets its
   // height, the grip's end the handle's; the container's grip sheet keeps half the clearance off the seam), and the scoop's
-  // sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm wall: at the default fit, tip and length, its volume plus
-  // the gaps' volume is the same solid scoop for every sieve. The handle's reinforcement adds bosses
+  // sieve must remove exactly its gaps (sieveGaps) through the wall: at the default fit, tip and length, its volume plus
+  // the gaps' volume is the same solid scoop for every sieve, at each wall thickness. The thinnest and thickest walls (with the
+  // pads under the screws, and the tip at its thinnest allowed) must render as well. The handle's reinforcement adds bosses
   // and holes within those sizes, with every thread, insert and nut kind.
   const shovelRuns: { name: string; overrides: Partial<LitterShovelParameters> }[] = [
     { name: 'default (slots, detents)', overrides: {} },
@@ -285,7 +286,7 @@ try {
     { name: '1 mm slots and bars, one row', overrides: { gapWidth: 1, gapSpacing: 1 } },
     { name: 'shortest scoop, most rows', overrides: { scoopLength: 90, sieveRows: 4 } },
     { name: 'thinnest, longest tip', overrides: { tipThickness: 0.4, tipBevel: 20 } },
-    { name: 'thickest, shortest tip', overrides: { tipThickness: 2, tipBevel: 5 } },
+    { name: 'thickest, shortest tip', overrides: { tipThickness: 2, tipBevel: 5, wallThickness: 2.4 } },
     { name: 'grip down to the floor', overrides: { gripEnd: 'floor' } },
     { name: 'one thinnest support', overrides: { supportCount: 1, supportThickness: 1.2 } },
     { name: 'five thickest supports, grip to the floor', overrides: { supportCount: 5, supportThickness: 4, gripEnd: 'floor' } },
@@ -303,6 +304,15 @@ try {
     { name: 'detents at 0.6 mm, most engagement', overrides: { clearance: 0.6, handleDetentEngage: 0.4, scoopDetentEngage: 0.4 } },
     // the handle's reinforcement: the smallest and largest threads, inserts and nuts (hexagonal, square, nylon-insert), and the
     // shortest and longest screws, whose bosses are the shallowest and deepest
+    // the wall thickness: the thinnest (the tip is at most 0.4 mm less), with pads under the screws, and the thickest (no pads)
+    { name: 'thinnest wall', overrides: { wallThickness: 1.2 } },
+    { name: 'thinnest wall, finest round holes, tip at its thickest', overrides: { wallThickness: 1.2, tipThickness: 0.8, sievePattern: 'round', gapWidth: 3, gapSpacing: 3, sieveMargin: 3 } },
+    { name: 'thinnest wall, five thickest supports, widest dam', overrides: { wallThickness: 1.2, supportCount: 5, supportThickness: 4, damWidth: 15 } },
+    { name: 'thickest wall', overrides: { wallThickness: 3.2 } },
+    { name: 'thickest wall, thickest tip, hexagons', overrides: { wallThickness: 3.2, tipThickness: 2, sievePattern: 'hex' } },
+    { name: 'thinnest wall, M4 nuts, longest screws', overrides: { wallThickness: 1.2, handleReinforcement: 'nut-bolt', handleThread: 'M4', handleNut: 'iso-4032-m4', handleScrew: 'iso-10642-m4x16' } },
+    { name: 'thinnest wall, M3 inserts', overrides: { wallThickness: 1.2, handleReinforcement: 'threaded-insert' } },
+    { name: 'thickest wall, M3 inserts', overrides: { wallThickness: 3.2, handleReinforcement: 'threaded-insert' } },
     { name: 'M3 inserts, default screws', overrides: { handleReinforcement: 'threaded-insert' } },
     { name: 'M2 short inserts, shortest screws, 0.1 mm', overrides: { handleReinforcement: 'threaded-insert', handleThread: 'M2', handleInsert: 'cnc-kitchen-m2x3', handleScrew: 'iso-7046-m2x8', clearance: 0.1 } },
     { name: 'M4 long inserts, longest screws', overrides: { handleReinforcement: 'threaded-insert', handleThread: 'M4', handleInsert: 'ruthex-rx-m4x8-1', handleScrew: 'iso-10642-m4x16', handleSnap: 'friction' } },
@@ -317,7 +327,7 @@ try {
   const gapArea = (p: LitterShovelParameters, length: number) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
     : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (length - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
   const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'handleSnap', 'clearance', 'scoopDetentEngage', 'handleDetentEngage', 'tipThickness', 'tipBevel', 'handleReinforcement', 'scoopLength'] as const).every(key => p[key] === litterShovel.defaults[key]);
-  let solidScoop: number | undefined;
+  const solidScoop = new Map<number, number>();
   for (const { name, overrides } of only && only !== 'litter-shovel' ? [] : shovelRuns) {
     const started = Date.now();
     const parameters = { ...litterShovel.defaults, ...overrides } as LitterShovelParameters;
@@ -343,12 +353,12 @@ try {
     // A gap through a flat wall takes its area times the wall; one through a curved corner is cut radially, so it widens with
     // the radius and takes (R + r) / 2r times as much. Round holes and hexagons are polygons (OpenSCAD's $fs/$fa), a little
     // smaller than true circles, and gaps reaching over a corner's edge cut the wall a little obliquely: allow 1 %.
-    const { flatY, cornerRadius, wall } = SCOOP_BLADE, innerRadius = cornerRadius - wall;
+    const { flatY, cornerRadius } = SCOOP_BLADE, wall = parameters.wallThickness, innerRadius = cornerRadius - wall;
     const inCorner = (s: number) => Math.abs(s) > flatY && Math.abs(s) <= flatY + Math.PI / 2 * innerRadius;
     const solid = scoop.volume + sieve.reduce((sum, [s, , length]) => sum + gapArea(parameters, length) * wall * (inCorner(s) ? (cornerRadius + innerRadius) / (2 * innerRadius) : 1), 0);
     if (defaultFit(parameters)) {
-      solidScoop ??= solid;
-      assert.ok(Math.abs(solid - solidScoop) < 0.01 * solidScoop, `litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³ + gaps = ${solid.toFixed(0)}, expected ${solidScoop.toFixed(0)}`);
+      const expected = solidScoop.get(wall) ?? solid; solidScoop.set(wall, expected);
+      assert.ok(Math.abs(solid - expected) < 0.01 * expected, `litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³ + gaps = ${solid.toFixed(0)}, expected ${expected.toFixed(0)}`);
     }
   const entries = unzipSync(new Uint8Array(await readFile(store.artifacts.path(job.id, 'zip'))));
     assert.deepEqual(Object.keys(entries).sort(), ['container.stl', 'handle.stl', 'scoop.stl']);

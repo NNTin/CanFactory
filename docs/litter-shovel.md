@@ -28,8 +28,13 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
 
 ### Container
 
-- **Body:** a rounded-rectangle frustum with a 2.4 mm wall on a 3.2 mm floor, 64.7 × 97 at the floor. The top 13 mm is straight
+- **Body:** a rounded-rectangle frustum with a wall of `wallThickness` (1.6 mm by default, see [Wall thickness](#wall-thickness))
+  on a floor `min(3.2, wall + 0.8)` thick (2.4 mm), 64.7 × 97 at the floor. The top 13 mm is straight
   (the **band**, 74.5 × 106.8, corner radius 14).
+- **Root pad:** where the handle's sheet joins the wall, a wall thinner than 2.4 mm gets a pad on its inside. The wall is 2.4 mm
+  thick there (`ROOT_WALL`), so the anchor that carries the whole container stays as strong as before. The pad is 34 mm wide
+  (the 26 mm grip and 4 mm each side) and spans Z 124 to 136 on the front wall; its ends and underside are at 45°, and its
+  corners rounded, so it prints without support. It is 0.8 mm deep at the default wall, and absent from 2.4 mm up.
 - **Lip:** it ends the band with a closed lip, 4 mm wide and 3 mm thick, above a 45° chamfer. Its flat top, at Z 141.5 and
   6.4 mm wide from the mouth to its edge, is the container's mating face.
 - **Handle:** the finger half of the grip (see [Grip](#grip)), at the front (+X), 26 mm wide. It is a thin curved sheet, open at
@@ -42,7 +47,7 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
     free.
 - **Dam (`damWidth`):** a dam under the mouth, on the scraper side (−X) only, that keeps the clumps in when the shovel is turned
   over to scoop again. `damWidth` is 0 to 15 mm, default 8; 0 leaves it out.
-  - **Shape:** a sheet as thick as the wall (2.4 mm) that leaves the back wall at Z 135.5 and falls inward at 45°, `damWidth`
+  - **Shape:** a sheet as thick as the wall (at most 2.4 mm) that leaves the back wall at Z 135.5 and falls inward at 45°, `damWidth`
     in from the wall. Its inner edge is vertical, and it reaches 1 mm into the wall.
   - **Extent:** it runs along the back wall and round both back corners, and ends where the side walls start
     (`X = −MOUTH_X / 2 + corner radius`, −23.25). The sides and the front stay open.
@@ -64,7 +69,7 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
   - Its 2.4 mm **skirt** hangs 5 mm around the lip, 0.8 mm clear of it for the bag.
   - The cap's top, 3 mm above the ceiling, is 88.9 × 121.2, flush with the skirt. The handle's ring sits on it.
   - Inside, a 45° funnel leads from the blade into the sleeve, so clumps fall into the bag and never onto the rim or the fold.
-- **Blade:** a 3.2 mm wall, 81.7 × 114 outside, rising from the cap 3.6 mm inside its edge, which leaves room for the ring.
+- **Blade:** a wall of `wallThickness` (1.6 mm by default), 81.7 × 114 outside, rising from the cap 3.6 mm inside its edge, which leaves room for the ring.
   - **Length (`scoopLength`):** the blade's height, from the cap's lower edges to the scraping edge: 90 to 180 mm, 127 by
     default (`SCOOP_LENGTH`). A longer scoop takes more litter in one go and has a taller sieve: longer slots, or more rows of gaps. Everything above the
     root band follows it: the tip, the side walls' curve, the bevel and the sieve. The cap, the ring and the front stay as they
@@ -76,7 +81,7 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
   - **Side walls:** they stay level with the tip until 8 mm into the back corners, then fall in half a cosine to the front (+X),
     18 mm above the cap, where the front corners start. The curve leaves the tip and meets the front tangentially, so there is no
     kink anywhere.
-  - **Top edge:** the sides, the front corners and the front have a full round top edge (1.6 mm, half the wall), so the hand
+  - **Top edge:** the sides, the front corners and the front have a full round top edge (half the wall: 0.8 mm at the default), so the hand
     never meets a square edge. Round the back corners, the tip's square outer edge rounds off gradually into it (radius 0 over the
     back and the first 15° of each corner, growing to 1.6 mm where the sides start to fall), so the sharp tip and the round sides
     meet without a step.
@@ -158,10 +163,10 @@ stay above the funnel (Z 11 in the scoop) and below the sieve, and the bosses st
 
 **How:** each screw is driven horizontally from inside the scoop. Its countersunk head sits flush with the blade's inner face, so
 clumps do not catch on it. It passes the blade's wall and the ring, into an insert or a nut in a boss on the ring's outer face.
-- **In the scoop:** a clearance hole (ISO 273 medium for the thread, e.g. 3.4 mm for M3) through the 3.2 mm wall. It is countersunk
+- **In the scoop:** a clearance hole (ISO 273 medium for the thread, e.g. 3.4 mm for M3) through the wall. It is countersunk
   from the inner face: a rim as wide as the head plus 0.2 mm, as deep as the head's cylindrical edge, then 90° down to the hole.
 - **On the handle:** the boss's face is where the screw's tip ends. The blade's inner face to the ring's outer face is always
-  6.8 mm (3.2 + c + 3.6 − c), so the boss is `screw length − 6.8` deep (1.2 mm for an 8 mm screw, 9.2 mm for a 16 mm one). It is
+  6.8 mm (3.2 + c + 3.6 − c: the seat's wall, see below), so the boss is `screw length − 6.8` deep (1.2 mm for an 8 mm screw, 9.2 mm for a 16 mm one). It is
   round about the screw's axis and runs straight up to the ring's top, which is on the print bed, so nothing overhangs.
   - **Insert:** a hole of the maker's recommended diameter and depth (`hole`, `holeDepth`) from the boss's face, with the maker's
     least wall (`wall`) round it. Melt the insert in from outside, flush with the face.
@@ -181,14 +186,14 @@ fitting parts.
 
 | Setting | Offered | Why |
 | --- | --- | --- |
-| Screws | ISO 10642 M3/M4 and ISO 7046-1 M2 to M4, 8 to 16 mm | Countersunk, with a head no higher than 2.4 mm (at least 0.8 mm of the wall under it), a countersink within 4.5 mm of the axis, and a boss 0 to 10 mm deep |
+| Screws | ISO 10642 M3/M4 and ISO 7046-1 M2 to M4, 8 to 16 mm | Countersunk, with a head no higher than 2.4 mm (at least 0.8 mm of the 3.2 mm seat wall under it), a countersink within 4.2 mm of the axis, and a boss 0 to 10 mm deep |
 | Inserts | CNC Kitchen and ruthex, M2 to M4 | Hole radius plus wall at most 6.5 mm, and a screw long enough exists |
 | Nuts | ISO 4032, ISO 4035, ISO 10511 (M3/M4) and DIN 562, M2 to M4 | Pocket radius plus a 1.2 mm wall at most 6.5 mm, and a screw long enough exists |
 
 ISO 10642 starts at M3, so the cross-recessed ISO 7046-1 screws cover M2 and M2.5. An M5 countersunk head is too high for the
 wall.
 
-**Validation:** the screw must reach far enough past the blade's wall and the clearance (`length − 3.2 − c`):
+**Validation:** the screw must reach far enough past the seat's wall and the clearance (`length − 3.2 − c`):
 - **Insert:** its hole depth plus 0.4 mm of the ring.
 - **Nut:** its height plus the 0.2 mm recess and a 1.2 mm floor.
 
@@ -217,10 +222,49 @@ The scraping tip has two more parameters, both advanced settings:
 | `tipThickness` | `TIP_THICKNESS` | 0.8 | Thickness of the straight scraping edge (0.4 to 2): one to five lines of a 0.4 mm nozzle |
 | `tipBevel` | `TIP_BEVEL` | 12 | How far down from the edge the inner face is bevelled (5 to 20). The sieve stays below it. |
 
+The shell's wall is an advanced setting too, [`wallThickness`](#wall-thickness) (1.2 to 3.2, default 1.6).
+
+## Wall thickness
+
+`wallThickness` (`WALL_THICKNESS` in the container and the scoop, an advanced setting) sets the shell's wall: the container's and
+the scoop's blade's, together. It is 1.2 to 3.2 mm in 0.1 mm steps, **1.6 mm by default**. 3.2 mm was the blade's wall before it was
+a parameter (the container's was 2.4 mm), so today's shovel is the top of the range.
+
+| Band | Range | Perimeters (0.4 mm nozzle) |
+| --- | --- | --- |
+| Thin | 1.2–1.6 mm | 3 to 4 |
+| Standard | 1.6–2.4 mm | 4 to 6 |
+| Heavy | 2.4–3.2 mm | more than 6 |
+
+**Why 1.6.** A 0.4 mm nozzle prints a 0.45 mm line by default (see [Prusa's layers and perimeters guide](https://help.prusa3d.com/article/layers-and-perimeters_1748)):
+one perimeter is about 0.45 mm and two just under 0.9 mm. Three to four perimeters is the usual choice for a handled functional
+part, and strength comes mostly from perimeters, not infill ([CNC Kitchen's tests](https://www.cnckitchen.com/blog/brick-layers-make-3d-prints-stronger)),
+but each extra one adds less. The old walls were 5 to 7 perimeters thick, mostly print time and weight. The loads here are a scraped
+blade, a gripped handle and detents 0.35 mm deep. Nothing has been printed or load-tested at these walls: flex the blade's sides
+and the container's hook on a first print before trusting the default.
+
+**What follows the wall, and what does not:**
+- **Follows:** the blade's inner face (so the inner corner radius, the sieve's layout, the funnel's height, the tip's bevel slope and
+  the round top edge), the container's mouth (so the scoop's sleeve moves with it: `scoop.scad` takes the same `WALL_THICKNESS`), the
+  cavity, and the dam's thickness (at most 2.4 mm, so that it stays clear of the band's start).
+- **Floor:** `min(3.2, wall + 0.8)`, from 2 to 3.2 mm. The litter's weight bends it when the container hangs from its handle, and a
+  plate's stiffness falls with the cube of its thickness, so it does not go as thin as the wall.
+- **Root pad (container):** the hook's root is the weakest place: the whole container hangs from a sheet 26 mm wide and 3 mm thick,
+  and it levers on the wall. A thinner wall gets the pad described under the container, so it is 2.4 mm there whatever the wall.
+- **Screw pads (scoop):** a countersunk head needs the wall to be at least its height plus 0.8 mm (2.5 mm for M3). A thinner blade
+  has a pad round each screw that makes it 3.2 mm there (`FASTENER_WALL`; a cone with 45° flanks and a 5.25 mm radius at its face). The
+  screws' seat (`HANDLE_FASTENER_SEAT`: the head's plane, the ring's distance, the boss depth and the screws' reach) is therefore
+  the same at every wall, and so is the validation of the screws, inserts and nuts. The funnel's top (11.8 mm over the cap's lower
+  edges at every wall) stays under the countersinks: hence the 4.2 mm they may reach from the axis.
+- **Does not follow:** the ring, the skirt, the sleeve, the cap's ceiling and the grip's sheets (fit and feel), and the detents: the
+  container's grooves are in the lip, which is 4 mm thicker than the wall there, and the ring's are in its own wall.
+- **Tip:** the scraping edge stays at least 0.4 mm thinner than the wall (`tipThickness` at most `wallThickness − 0.4`, so 0.8 mm at
+  1.2), so that its bevel is one; the editor's slider ends there, and a value outside is rejected.
+
 **Where the gaps go:** all round the blade's wall, on the back, the curved back corners and the sides.
 - Along the wall: the layout is unrolled along the wall's inner face. `s` runs from the middle of the back (s = 0) across its flat
-  part (|s| ≤ 39.4), round the corner (22.6 mm of arc at the inner face's 14.4 mm radius) and along the side (46.5 mm), up to where
-  the front corners start (|s| = 108.5). Each gap is cut square to the wall:
+  part (|s| ≤ 39.4), round the corner (25.1 mm of arc at the inner face's radius, 17.6 mm less the wall: 16 mm at the default) and
+  along the side (46.5 mm), up to where the front corners start (|s| = 111.0 at the default wall). Each gap is cut square to the wall:
   - **On the back and the sides:** straight through.
   - **In the corners:** radially, as the gap's outline seen from the corner's centre. There it is `gapWidth` wide along the inner
     face, and so are the bars `gapSpacing`, and both widen outward with the wall.
@@ -258,10 +302,10 @@ The scraping tip has two more parameters, both advanced settings:
 - Only whole gaps are cut, so there are no slivers. A gap's top outer corner (the end farther from the back) is checked against
   the side walls' top, which falls away towards the front.
 - The defaults give one row of 15 slots. On each side of the middle, going round from the back, they are 82.6 mm long on the
-  back's flat part and in the corner, then 75.8, 40.0 and 7.4 mm along the side, under its falling top. Two rows give 26 slots
-  (38.5 mm on the back), five give 59 (12.04 mm).
+  back's flat part and in the corner, then 81.5, 47.4 and 12.6 mm along the side, under its falling top. Two rows give 26 slots
+  (38.5 mm on the back), five give 63 (12.04 mm). (Both depend on the wall: it sets the inner corner radius.)
 - Sized by length at 25 mm, the defaults give 24 slots in two rows: 14 centred on the back's flat part and, on each side, 2 in
-  the corner and 3 on the side. The shortest scoop (90 mm) has room for 11 of them in one row, the longest (180 mm) for 48 in
+  the corner and 3 on the side. The shortest scoop (90 mm) has room for 13 of them in one row, the longest (180 mm) for 48 in
   four.
 
 `sieveGaps()` (each gap as `[s, z, length]`, scoop.scad's `GAPS`) and `scoopSideTop()` in the contract mirror this layout, with the blade's dimensions in `SCOOP_BLADE` and its length
@@ -269,13 +313,13 @@ in `scoopLength`; `sieveHeight()`, `slotLength()`, `slotLengthLimit()` and `siev
 and `SLOT_LENGTH` and the limits above. They give the editor's gap count, the slot length's range (the model's `limits`, see
 `controlRange()`) and the validation: at least one gap, at most `MAX_SIEVE_GAPS` = 600, slots at least as long as they are
 wide, and no longer than the sieve's height. Gaps and bars go down to 1 mm, so fine sieves reach the limit sooner: 1 mm round
-holes and bars would make 3822 gaps at the default length, and 1 mm slots 25 mm long 877, so validation asks for larger gaps or
-wider bars. Five rows of 1 mm slots and bars (415 gaps) render in about 2 s. At the default length 3 mm round holes with 3 mm
-bars and margin and a 5 mm bevel have 439 gaps and render in about 2 s; on the longest scoop they would have 700. Tests pin the layout
-to counts recorded from the SCAD file's `SIEVE_GAPS` echo, at 90, 127 and 180 mm, sized by rows and by length.
+holes and bars would make 3938 gaps at the default length, and 1 mm slots 6 mm long 905, so validation asks for larger gaps or
+wider bars. Five rows of 1 mm slots and bars (427 gaps) render in about 2 s. At the default length 3 mm round holes with 3 mm
+bars and margin and a 5 mm bevel have 455 gaps and render in about 2 s; on the longest scoop they would have 720. Tests pin the layout
+to counts recorded from the SCAD file's `SIEVE_GAPS` echo, at 90, 127 and 180 mm, sized by rows and by length, and at several walls (the counts above are for the default 1.6 mm; the tests' tables were recorded at 3.2 mm, the blade's wall before it was a parameter). The layout itself was compared gap by gap with the echo of `GAPS` at every wall from 1.2 to 3.2 mm.
 Sized by rows, the slots along the sides are shorter; the volume test counts each gap at its own length. `npm run test:renderer` checks that, at the
 default fit, tip and length, the scoop's volume plus the gaps' volume is the same solid for every texture. There, a gap in a corner counts
-(R + r) / 2r ≈ 1.11 times its area × wall, because it widens with the radius.
+(R + r) / 2r times its area × wall (about 1.11 at the default), because it widens with the radius.
 
 ## Assembly
 
@@ -338,10 +382,15 @@ with `--snap-tolerance 15`.
 
 `inspectStl` rejects zero-area triangles and edges shared by more than two faces. The rounded rectangles are all drawn with 64
 segments (`$fn`), so that the lip's chamfer and the funnel meet the walls at matching vertices. The dam is the exception: its
-outlines have 72 segments, so that the line where its underside meets the mouth's wall never runs into one of the wall's
-vertices (with 64 it left a zero-area triangle in a back corner). Every dam width from 0.5 to 15 mm, at both clearance extremes,
-passes `inspectStl`. The container's outer shell and
-its cavity are each a single convex hull, with no seam where the band starts. A detent ridge's flanks carry on 0.3 mm into its
+outlines have 70 segments (not a multiple of 8, so that it has no vertex at 45° like the walls' 64), so that the line where its
+underside meets the mouth's wall never runs into one of the wall's vertices (with 64 it left a zero-area triangle in a back
+corner), and it ends 0.07 mm past where the back corners end. Every dam width from 0.5 to 15 mm, at every wall from 1.2 to 3.2 mm
+in 0.1 mm steps, passes the same test as `inspectStl` (zero-area triangles at float precision). The container's outer shell and
+its cavity are each a single convex hull, with no seam where the band starts. The funnel's solid stops half a millimetre inside the blade's wall, so that the cap and the blade share no coplanar outer face, and the blade's
+round top edge is a chain of spheres 0.13 mm larger than their narrowest point needs (0.1 mm left a zero-area triangle at some
+walls). The wall thickness was swept in 0.1 mm steps from 1.2 to 3.2 mm, on the container (dam width, clearance, grip end) and on the
+scoop (length, bevel, tip, snap modes, clearance, reinforcement), each render checked for zero-area triangles at float precision
+(the test of `inspectStl`); `npm run test:renderer` renders the extremes. The root pad is a hull of two rounded plates whose 45° flanks carry on 0.5 mm into the wall; so do the screws' pads (0.3 mm). A detent ridge's flanks carry on 0.3 mm into its
 wall, and a groove's start 0.3 mm in front of its face, so that no edge of either lies in the face. Each grip sheet is a single
 `polyhedron()` swept along its sampled seam, with its cross-section computed per sample (flat seam face, rounded outer edges,
 the tip's quarter round), rather than built from overlapping CSG pieces whose faces would nearly coincide.

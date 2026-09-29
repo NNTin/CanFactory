@@ -12,7 +12,8 @@
 // Modelled as it prints, cap down: Z up, the sleeve's and the skirt's lower edges at Z = 0. Nothing needs support: the U's
 // ceiling is a 7.4 mm bridge and the funnel is a top surface. In `detent` mode the sleeve has bumps for the grooves in the
 // container's mouth (SCOOP_SNAP), and the blade's base has bumps for the grooves in the handle's ring (HANDLE_SNAP). With a
-// HANDLE_REINFORCEMENT, the blade's base has two countersunk holes near the grip for the screws that fasten the handle.
+// HANDLE_REINFORCEMENT, the blade's base has two countersunk holes near the grip for the screws that fasten the handle, on pads
+// that keep the wall there thick enough for their heads however thin the blade is.
 //
 // The sieve parameters only change the gaps through the blade's wall. They are laid out on a grid unrolled along the wall's inner
 // face, centred on the back and running round the curved corners onto the sides, starting above a solid root band (covered by
@@ -36,6 +37,8 @@ GAP_LENGTH = 25; //[6:0.5:143]
 GAP_SPACING = 5.6; //[1:0.1:15]
 // Solid border kept around the sieve
 SIEVE_MARGIN = 3.2; //[3:0.1:10]
+// Thickness of the shell's walls (the blade and the container's, whose mouth the sleeve fits), in mm; the scraping edge stays thinner
+WALL_THICKNESS = 1.6; //[1.2:0.1:3.2]
 // Thickness of the scraping edge at the tip, in mm
 TIP_THICKNESS = 0.8; //[0.4:0.1:2]
 // How far down from the tip the inner face is bevelled, in mm
@@ -63,16 +66,16 @@ $fa = 4; $fs = 0.5;
 E = 0.01;
 
 // The container's band, mouth and lip (outer plan [width (X), length (Y), corner radius]); the lip's top is RIM_H above the
-// cap's lower edges.
+// cap's lower edges. The mouth is the band less the container's wall (the same WALL_THICKNESS, in container.scad).
 BAND = [74.5, 106.8, 14];
-MOUTH = [69.7, 102, 11.6];
+MOUTH = grow(BAND, -WALL_THICKNESS);
 LIP = [82.5, 114.8, 18];
 RIM_H = 5;
 // Cap: its ceiling's thickness above the lip; the bag's gap between the lip and the skirt, the skirt's wall; the sleeve's
 // inner face (fixed: the sleeve's outer face is the mouth less the clearance).
 CAP_T = 3; BAG_GAP = 0.8; SKIRT_T = 2.4; SLEEVE_IN_OFFSET = 2.2;
 // Blade: its outer wall stands RING_T inside the skirt's outer face (room for the handle's ring); wall thickness.
-RING_T = 3.6; WALL = 3.2;
+RING_T = 3.6; WALL = WALL_THICKNESS;
 // Blade: height of the tip (the scoop's length), and of the front.
 HEIGHT = SCOOP_LENGTH; FRONT_Z = 26;
 // Solid root band between the cap's top and the lowest gaps: the handle's 15 mm ring and 3 mm more.
@@ -81,6 +84,12 @@ ROOT_BAND = 18;
 SLEEVE_DETENT_Z = 2.5; BLADE_DETENT_Z = 4; DETENT_L = 16;
 // The handle's screws: either side of the grip (+X), in the root band; the countersink's diametral play around the head.
 FASTENER_Y = 21; FASTENER_Z = 8; SINK_PLAY = 0.2;
+// The wall under the screws' heads, whatever the blade's: a thinner blade has a pad on its inner face round each screw that
+// makes it FASTENER_WALL there, so the head, the countersink and the ring's boss stay as they are (handle.scad's FASTENER_WALL).
+// The pad is a cone with 45 degree flanks, so that it needs no support, PAD_R wide at its face: the widest countersink
+// (4.2 mm from the axis, packages/contracts HANDLE_FASTENER_SEAT.sinkRadius) and a little more (1.05 mm, so that the
+// pad's lowest point is not tangent to the funnel at any wall on the slider's 0.1 mm grid).
+FASTENER_WALL = 3.2; PAD_R = 5.25;
 
 function grow(p, d) = [p[0] + 2 * d, p[1] + 2 * d, p[2] + d];
 module rr2d(p) { offset(r = p[2], $fn = 64) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
@@ -117,7 +126,9 @@ function side_below(x, d) = side_top(x) - d * sqrt(1 + side_slope(x) * side_slop
 // ---- The cap: skirt, ceiling, sleeve and funnel. ----
 module cap() {
   difference() {
-    union() { slab(CAP_OUT, 0, CAP_TOP); slab(OUT, 0, FUNNEL_TOP); }
+    // The funnel's solid reaches half a mm into the blade's wall, whose outer face the blade makes: the cap and the blade
+    // share no coplanar outer face.
+    union() { slab(CAP_OUT, 0, CAP_TOP); slab(grow(OUT_IN, 0.5), 0, FUNNEL_TOP); }
     difference() { slab(SKIRT_IN, -1, RIM_H + 1); slab(SLEEVE_OUT, -2, RIM_H + 3); }
     slab(SLEEVE_IN, -1, FUNNEL_TOP + 2);
     hull() { slab(SLEEVE_IN, FUNNEL_BOTTOM, E); slab(OUT_IN, FUNNEL_TOP, E); }
@@ -132,9 +143,10 @@ module cap() {
 // corners the tip's outer edge rounds off gradually into that round top, so there is no step where one meets the other.
 RND = WALL / 2;
 // The round top is a chain of spheres along the wall's centre line. A sphere's facets fall short of its radius, so it is grown
-// until its narrowest point still spans the wall, and then trimmed back to the wall.
+// until its narrowest point still spans the wall, and then trimmed back to the wall. The extra 0.13 mm was chosen by rendering every
+// wall from 1.2 to 3.2 mm (0.1 mm steps) at three scoop lengths and bevels: other values left a zero-area triangle at some walls.
 BEAD_FN = 24;
-BEAD_R = RND / (cos(180 / BEAD_FN) * cos(180 / BEAD_FN)) + 0.1;
+BEAD_R = RND / (cos(180 / BEAD_FN) * cos(180 / BEAD_FN)) + 0.13;
 MID = grow(OUT, -RND);
 R_MID = R_OUT - RND;
 // The wall's centre line from the back's middle round to the front's (Y >= 0). Round the corners it is sampled at 2 + 4k
@@ -312,10 +324,20 @@ module ridge(l, p) {
 module fastener_holes() {
   sink = SCREW_DK + SINK_PLAY;
   rim = max(0, SCREW_K - (SCREW_DK - SCREW_D) / 2);
-  for (s = [-1, 1]) translate([-BACK_IN_X, s * FASTENER_Y, CAP_TOP + FASTENER_Z]) rotate([0, 90, 0]) {
-    translate([0, 0, -1]) cylinder(d = SCREW_HOLE, h = WALL + 2, $fn = 48);
+  for (s = [-1, 1]) translate([OUT[0] / 2 - FASTENER_WALL, s * FASTENER_Y, CAP_TOP + FASTENER_Z]) rotate([0, 90, 0]) {
+    translate([0, 0, -1]) cylinder(d = SCREW_HOLE, h = FASTENER_WALL + 2, $fn = 48);
     translate([0, 0, -1]) cylinder(d = sink, h = rim + 1, $fn = 48);
     translate([0, 0, rim]) cylinder(d1 = sink, d2 = 0, h = sink / 2, $fn = 48);
+  }
+}
+
+// The pads, on the inner face of the front wall round each screw (none once the wall is FASTENER_WALL thick). Their flanks carry
+// on 0.3 mm into the wall, so that no edge of a pad lies in its face.
+module fastener_pads() {
+  d = FASTENER_WALL - WALL;
+  if (d > 0) for (s = [-1, 1]) translate([OUT[0] / 2 - FASTENER_WALL, s * FASTENER_Y, CAP_TOP + FASTENER_Z]) rotate([0, 90, 0]) hull() {
+    cylinder(r = PAD_R, h = E, $fn = 48);
+    translate([0, 0, d + 0.3]) cylinder(r = PAD_R + d + 0.3, h = 0.5, $fn = 48);
   }
 }
 
@@ -323,6 +345,7 @@ difference() {
   union() {
     cap();
     blade();
+    if (HANDLE_REINFORCEMENT != "none") fastener_pads();
     if (SCOOP_SNAP == "detent") translate([0, 0, SLEEVE_DETENT_Z]) on_sides(SLEEVE_OUT) ridge(DETENT_L, CLEARANCE + SCOOP_DETENT_ENGAGE);
     if (HANDLE_SNAP == "detent") translate([0, 0, CAP_TOP + BLADE_DETENT_Z]) on_sides(OUT) ridge(DETENT_L, CLEARANCE + HANDLE_DETENT_ENGAGE);
   }

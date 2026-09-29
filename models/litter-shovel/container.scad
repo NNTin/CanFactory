@@ -28,14 +28,22 @@ SUPPORT_THICKNESS = 2; //[1.2:0.1:4]
 GRIP_END = "open"; //[open,floor]
 // How far the dam under the mouth, on the scraper side (-X), reaches in from the back wall, in mm (0 for none)
 DAM_WIDTH = 8; //[0:0.5:15]
+// Thickness of the shell's wall, in mm (three to five lines of a 0.4 mm nozzle at 1.2 to 2.0); the floor follows it
+WALL_THICKNESS = 1.6; //[1.2:0.1:3.2]
 
 $fa = 4; $fs = 0.5;
 E = 0.01;
 
-// Body: the floor's and the band's outer plan [width (X), length (Y), corner radius]; wall, floor, and the lip's top.
+// Body: the floor's and the band's outer plan [width (X), length (Y), corner radius]; wall, floor, and the lip's top. The floor
+// is a plate the litter's weight bends when the container is carried by its handle, so it stays at least 2 mm and never goes
+// past 3.2 mm.
 FLOOR = [64.7, 97, 11];
 BAND = [74.5, 106.8, 14];
-WALL = 2.4; FLOOR_T = 3.2; RIM_Z = 141.5;
+WALL = WALL_THICKNESS; FLOOR_T = min(3.2, WALL + 0.8); RIM_Z = 141.5;
+// The handle's root pad: the wall is at least ROOT_WALL thick behind the handle's sheet, which carries the whole container, so
+// a thin wall does not make its anchor weak. The pad is ROOT_PAD_W wide at its face, spans ROOT_PAD_Z there, has corners of
+// radius ROOT_PAD_R, and its ends and underside are at 45 degrees, so it needs no support.
+ROOT_WALL = 2.4; ROOT_PAD_W = 34; ROOT_PAD_Z = [124, 136]; ROOT_PAD_R = 3;
 // Lip: how far it stands out from the band, and its thickness above the 45 degree chamfer.
 LIP_W = 4; LIP_T = 3;
 // The band is straight from 3 mm below the lip's chamfer up to the rim.
@@ -45,10 +53,10 @@ FIN_REACH = 12;
 // Detent grooves: height in the mouth (mid-way down the scoop's sleeve) and length along the wall.
 DETENT_Z = RIM_Z - 2.5; DETENT_L = 16;
 // Dam: the scoop's sleeve reaches SLEEVE_DEPTH into the mouth; the dam's top meets the wall DAM_GAP below it (room for the bag),
-// and it is a sheet as thick as the wall, at 45 degrees (DAM_T high).
+// and it is a sheet as thick as the wall (at most ROOT_WALL, so that it stays clear of the band's flare), at 45 degrees (DAM_T high).
 SLEEVE_DEPTH = 5; DAM_GAP = 1;
 DAM_TOP = RIM_Z - SLEEVE_DEPTH - DAM_GAP;
-DAM_T = WALL * sqrt(2);
+DAM_T = min(WALL, ROOT_WALL) * sqrt(2);
 
 module rr2d(p) { offset(r = p[2], $fn = 64) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
 module slab(p, z, h = E) { translate([0, 0, z]) linear_extrude(h) rr2d(p); }
@@ -170,18 +178,34 @@ module groove(l, g) {
   }
 }
 
+// ---- The handle's root pad: on the inside of the front wall, behind the handle's sheet. ----
+// The wall's inner face at height z, at the middle of the front (it flares in below BAND_Z).
+function front_in(z) = BAND[0] / 2 - (BAND[0] - FLOOR[0]) / 2 * (1 - min(z, BAND_Z) / BAND_Z) - WALL;
+// The pad (thinner walls than ROOT_WALL only): d = ROOT_WALL - WALL deep.
+module root_pad() {
+  d = ROOT_WALL - WALL;
+  z0 = ROOT_PAD_Z[0]; z1 = ROOT_PAD_Z[1];
+  // A hull of two rounded plates, in a frame whose Z runs along +X from the pad's face: the face's plate and, 0.5 mm into the
+  // wall past the inner face at the band, one d + 0.5 larger all round, so that the ends are at 45 degrees and no edge of the pad
+  // lies in the wall's face.
+  module plate(z, grow_by) translate([front_in(BAND_Z) - d + z, 0, (z0 + z1) / 2]) rotate([0, 90, 0]) linear_extrude(E)
+    offset(r = ROOT_PAD_R + grow_by, $fn = 48) square([z1 - z0 - 2 * d - 2 * ROOT_PAD_R + 2 * grow_by, ROOT_PAD_W - 2 * ROOT_PAD_R + 2 * grow_by], center = true);
+  if (d > 0) hull() { plate(0, 0); plate(d + 0.5, d + 0.5); }
+}
+
 // ---- The dam: on the scraper side only. ----
 // Scooping, the shovel is turned over with the scraper side (-X) down, and the clumps already in the container slide towards the
-// mouth along that side. The dam holds them back: a sheet under the mouth, as thick as the wall, that leaves the back wall at
+// mouth along that side. The dam holds them back: a sheet under the mouth, as thick as the wall (at most ROOT_WALL), that leaves the back wall at
 // DAM_TOP and falls inward at 45 degrees, DAM_WIDTH in from it. It continues the scoop's funnel, so clumps slide off it into the
 // bag, and turned over they collect in the pocket between it and the wall. It runs along the back and round both back corners, to
 // where the side walls start. Its underside is at 45 degrees too, so it prints standing without support.
 // The region over a 45 degree surface through the mouth's wall at z0, falling DAM_WIDTH inward (a frustum over a column); the
 // sheet is that region for its underside less the one for its top. Its corners' radius is kept at least 2 mm, so that at the
 // corners a wide dam is steeper than 45 degrees rather than folding over.
-// Its outlines have 72 segments, not the walls' 64, so that none of its edges runs into one of the mouth's vertices.
+// Its outlines have 70 segments, not the walls' 64 (nor a multiple of 8, which would put a vertex at 45 degrees, like theirs), so
+// that none of its edges runs into one of the mouth's vertices; it ends 0.07 mm past where the mouth's corners end, for the same reason.
 function inset(p, d) = [p[0] - 2 * d, p[1] - 2 * d, max(2, p[2] - d)];
-module dam_slab(p, z, h = E) { translate([0, 0, z]) linear_extrude(h) offset(r = p[2], $fn = 72) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
+module dam_slab(p, z, h = E) { translate([0, 0, z]) linear_extrude(h) offset(r = p[2], $fn = 70) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
 module over_slope(z0) {
   up = DAM_T + 1;
   hull() { dam_slab(grow(MOUTH, up), z0 + up); dam_slab(inset(MOUTH, DAM_WIDTH), z0 - DAM_WIDTH); }
@@ -194,7 +218,7 @@ module dam() {
   intersection() {
     difference() { over_slope(DAM_TOP - DAM_T); over_slope(DAM_TOP); }
     dam_slab(grow(MOUTH, 1), low, DAM_TOP - low + 1);
-    translate([-MOUTH[0] / 2 - 2, -MOUTH[1] / 2 - 2, low]) cube([MOUTH[2] + 2, MOUTH[1] + 4, DAM_TOP - low + 1]);
+    translate([-MOUTH[0] / 2 - 2, -MOUTH[1] / 2 - 2, low]) cube([MOUTH[2] + 2 + 0.07, MOUTH[1] + 4, DAM_TOP - low + 1]);
   }
 }
 
@@ -205,4 +229,5 @@ union() {
     if (SCOOP_SNAP == "detent") translate([0, 0, DETENT_Z]) on_sides(MOUTH) groove(DETENT_L, SCOOP_DETENT_ENGAGE);
   }
   if (DAM_WIDTH > 0) dam();
+  root_pad();
 }
