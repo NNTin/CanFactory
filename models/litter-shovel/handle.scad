@@ -47,10 +47,10 @@ CAP_TOP_Z = 144.5;
 RING_H = 15;
 // Detent grooves: 4 mm up the ring, facing the blade's bumps; their length along the wall.
 DETENT_Z = 4; DETENT_L = 16;
-// The screws: either side of the grip (+X), FASTENER_Z up the ring; the blade's wall, whose inner face their heads are flush with.
+// The screws: either side of the grip (+X), FASTENER_Z up the ring; the blade's wall under the heads (a pad makes it that thick, whatever the blade's), whose inner face they are flush with.
 // A nut's pocket is NUT_PLAY wider than the nut and NUT_RECESS deeper; the boss keeps NUT_WALL round it, and at least BOSS_WALL
 // round the clearance hole.
-FASTENER_Y = 21; FASTENER_Z = 8; BLADE_WALL = 3.2;
+FASTENER_Y = 21; FASTENER_Z = 8; FASTENER_WALL = 3.2;
 NUT_PLAY = 0.2; NUT_RECESS = 0.2; NUT_WALL = 1.2; BOSS_WALL = 1.2;
 
 function grow(p, d) = [p[0] + 2 * d, p[1] + 2 * d, p[2] + d];
@@ -152,7 +152,7 @@ module grip() {
 IS_SQUARE_NUT = NUT_SHAPE[0] == "s";   // "square" or "square-thin"; the others are hexagonal
 NUT_R = NUT_S / (IS_SQUARE_NUT ? sqrt(2) : sqrt(3)) + NUT_PLAY / 2;
 BOSS_R = max(SCREW_HOLE / 2 + BOSS_WALL, HANDLE_REINFORCEMENT == "threaded-insert" ? INSERT_HOLE / 2 + INSERT_WALL : NUT_R + NUT_WALL);
-BLADE_IN_X = BLADE[0] / 2 - BLADE_WALL;
+BLADE_IN_X = BLADE[0] / 2 - FASTENER_WALL;
 BOSS_FACE = BLADE_IN_X + SCREW_L;
 RING_OUT_X = CAP_OUT[0] / 2;
 FASTENER_ZC = CAP_TOP_Z + FASTENER_Z;
