@@ -28,9 +28,14 @@ SUPPORT_THICKNESS = 2; //[1.2:0.1:4]
 GRIP_END = "open"; //[open,floor]
 // How far the dam under the mouth, on the scraper side (-X), reaches in from the back wall, in mm (0 for none)
 DAM_WIDTH = 8; //[0:0.5:15]
+// Prototype scale: the whole part is printed at this fraction of its size (1 = full size), to check the shapes and the fit quickly
+PROTOTYPE_SCALE = 1; //[0.2:0.05:1]
 
 $fa = 4; $fs = 0.5;
 E = 0.01;
+// The part is modelled at full size and scaled by PROTOTYPE_SCALE last. Its fits use FIT, the clearance divided by the scale,
+// so that a prototype's gaps are still CLEARANCE as printed.
+FIT = CLEARANCE / PROTOTYPE_SCALE;
 
 // Body: the floor's and the band's outer plan [width (X), length (Y), corner radius]; wall, floor, and the lip's top.
 FLOOR = [64.7, 97, 11];
@@ -85,7 +90,7 @@ module lip() {
 GRIP_W = 26; SHEET_T = 3; EDGE_R = 2.5;
 SEAM_X = 65; SEAM_R1 = 15; SEAM_R2 = 10; SLOPE_POINT = [37.25, 132];
 GRIP_TIP_Z = GRIP_END == "floor" ? 0 : 30;
-SHEET_TH = SHEET_T - CLEARANCE / 2;
+SHEET_TH = SHEET_T - FIT / 2;
 function slope_z(x) = SLOPE_POINT[1] - (x - SLOPE_POINT[0]);
 
 // Path samples [x, z, heading, sheet thickness], top down. The heading is the direction of travel in XZ, in degrees; the palm
@@ -107,7 +112,7 @@ function grip_samples() = concat(
 
 // A sheet's cross-section at thickness `th`, as [u, y]: u from the seam (positive towards the palm), y across the grip. Its
 // seam face is flat and its outer long edges are rounded.
-function sheet_section(th) = let(u0 = CLEARANCE / 2, u1 = u0 + th, r = min(EDGE_R, 0.8 * th), w = GRIP_W / 2)
+function sheet_section(th) = let(u0 = FIT / 2, u1 = u0 + th, r = min(EDGE_R, 0.8 * th), w = GRIP_W / 2)
   concat([[u0, -w]], [for (i = [0 : 6]) let(a = -90 + 15 * i) [u1 - r + r * cos(a), -w + r + r * sin(a)]],
          [for (i = [0 : 6]) let(a = 15 * i) [u1 - r + r * cos(a), w - r + r * sin(a)]], [[u0, w]]);
 
@@ -136,7 +141,7 @@ module finger_sheet() {
 module fin_profile() {
   mx = SLOPE_POINT[0] + FIN_REACH;
   under = slope_z(mx) - SHEET_T * sqrt(2);             // the sheet's underside where the fin meets it
-  k = (CLEARANCE / 2 + 0.5) * sqrt(2);                  // the fin's top, below the seam
+  k = (FIT / 2 + 0.5) * sqrt(2);                        // the fin's top, below the seam
   xb = mx + (SHEET_T * sqrt(2) - k) / 2;                // where the lower edge meets the top
   x0 = 30;
   polygon([[x0, under - (mx - x0)], [xb, slope_z(xb) - k], [x0, slope_z(x0) - k]]);
@@ -163,7 +168,7 @@ module on_sides(p) {
 // towards +Y, into the wall): `g` + clearance deep, clearing the bump by the clearance on every side. Its flanks start 0.3 mm
 // in front of the face, so that no edge of it lies in the face.
 module groove(l, g) {
-  c = CLEARANCE; d = g + c; w = g + c * sqrt(2); o = 0.3;
+  c = FIT; d = g + c; w = g + c * sqrt(2); o = 0.3;
   hull() {
     translate([-(l / 2 + 2 * c + o), -o, -(w + o)]) cube([l + 4 * c + 2 * o, E, 2 * (w + o)]);
     translate([-(l / 2 + 2 * c - d), d - E, -(w - d)]) cube([l + 4 * c - 2 * d, E, 2 * (w - d)]);
@@ -198,7 +203,7 @@ module dam() {
   }
 }
 
-union() {
+scale(PROTOTYPE_SCALE) union() {
   difference() {
     union() { outside(); lip(); handle(); }
     inside();

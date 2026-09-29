@@ -327,6 +327,12 @@ export interface ModelDefinition {
   partDefines?: PartDefines;
   /** Only for an assembly: reference objects that depend on the parameters (see `LinkedReference`, `resolveAssembly`). */
   linkedReferences?: (parameters: ParameterValues) => LinkedReference[];
+  /**
+   * Only for an assembly whose parts can all be printed at a fraction of their size (e.g. a prototype): that fraction for these
+   * parameters, 1 for full size. Every part must be scaled about its own origin by it; `resolveAssembly` then scales the
+   * assembly's poses, step offsets and lift (and the linked references' poses), all given at full size, to match.
+   */
+  assemblyScale?: (parameters: ParameterValues) => number;
   validate: (parameters: unknown) => ParameterIssue[];
   derived: (parameters: unknown) => { slotCount: number | null };
 }
@@ -1142,6 +1148,20 @@ const HANDLE_THREAD_TEXT: Record<string, string> = { M2: 'The smallest: the ligh
 /** The scoop's length (`scoopLength`, scoop.scad's SCOOP_LENGTH, its `HEIGHT`): the tip's height over the cap's lower edges. */
 export const SCOOP_LENGTH_RANGE = { minimum: 90, maximum: 180, default: 127, step: 1 } as const;
 
+/**
+ * The prototype scale (`prototypeScale`, each SCAD file's PROTOTYPE_SCALE): every part is printed at this fraction of its size, to
+ * check the geometry and the assembly quickly before a full-size print. Below 0.2 the 2.4 mm walls would be thinner than one
+ * 0.4 mm nozzle line. The clearance is kept at its printed size, so that the scaled parts still go together: at full size it is at
+ * most `maximumFit` (mm) of the unscaled geometry, which the walls it is taken from stay sound at, so a prototype's clearance may
+ * be at most the scale times that.
+ */
+export const PROTOTYPE_SCALE_RANGE = { minimum: 0.2, maximum: 1, default: 1, step: 0.05, maximumFit: 1 } as const;
+const PROTOTYPE_SCALE_BANDS = [
+  { minimum: 0.2, maximum: 0.5, label: 'Shape check only' },
+  { minimum: 0.5, maximum: 1, label: 'Assembly check' },
+  { minimum: 1, maximum: 1, label: 'Full size' },
+];
+
 export const LitterShovelParametersSchema = Type.Object({
   sievePattern: Type.Enum(SIEVE_PATTERN_VALUES, { title: 'Sieve texture', description: 'The shape and arrangement of the gaps in the scoop’s walls: across the back, round the corners and along the sides.', default: 'slots' }),
   gapWidth: dimension('Gap width', 'Width of each gap in mm: the slot width, the hole diameter or the hexagon’s size across flats. Litter finer than this falls through.', 7.2, 3, 15),
@@ -1169,6 +1189,8 @@ export const LitterShovelParametersSchema = Type.Object({
     SHOVEL_SNAP_TUNING.scoopDetentEngage.default, SNAP_TUNING_RANGE.minimum, SNAP_TUNING_RANGE.maximum, SNAP_TUNING_RANGE.step),
   handleDetentEngage: dimension('Detent engagement (handle on the scoop)', 'How far the bumps on the scoop’s blade reach past the handle’s ring, in mm, on top of the clearance. More clicks harder.',
     SHOVEL_SNAP_TUNING.handleDetentEngage.default, SNAP_TUNING_RANGE.minimum, SNAP_TUNING_RANGE.maximum, SNAP_TUNING_RANGE.step),
+  prototypeScale: dimension('Prototype scale', 'Prints all three parts at this fraction of their full size (1 = full size): a quick, cheap print to check the shapes and how the parts go together before you commit to a full-size print. Not a functional check: the sieve’s gaps, the thin scraping edge, the detents and the screw bosses shrink too, and well below full size they may not print or work. The clearance stays at its printed size, so the parts still fit together.',
+    PROTOTYPE_SCALE_RANGE.default, PROTOTYPE_SCALE_RANGE.minimum, PROTOTYPE_SCALE_RANGE.maximum, PROTOTYPE_SCALE_RANGE.step),
 }, { additionalProperties: false, description: 'Litter shovel parameters. All fields are required; dimensions are in millimetres.' });
 export type LitterShovelParameters = Static<typeof LitterShovelParametersSchema>;
 
@@ -1247,6 +1269,9 @@ function validateLitterShovel(p: LitterShovelParameters): ParameterIssue[] {
   if (count > MAX_SIEVE_GAPS)
     issues.push({ field: 'gapSpacing', message: `${count} gaps are too many (at most ${MAX_SIEVE_GAPS}). Use larger gaps or wider bars.` });
   issues.push(...handleReinforcementIssues(p));
+  const fit = PROTOTYPE_SCALE_RANGE.maximumFit * p.prototypeScale;
+  if (p.clearance > fit + 1e-9)
+    issues.push({ field: 'prototypeScale', message: `At ${p.prototypeScale} × full size the walls are too thin for a ${p.clearance} mm clearance: use at most ${fit.toFixed(2)} mm, or a larger scale.` });
   return issues;
 }
 
@@ -1276,6 +1301,7 @@ const litterShovelControls = [
   enumControl(LitterShovelParametersSchema, 'gripEnd', 'basic', GRIP_END_VALUES.map(value => ({ value, ...GRIP_END_TEXT[value] }))),
   control(LitterShovelParametersSchema, 'supportCount', 'basic', null, null),
   control(LitterShovelParametersSchema, 'damWidth', 'basic'),
+  { ...control(LitterShovelParametersSchema, 'prototypeScale', 'basic', null, null), bands: PROTOTYPE_SCALE_BANDS },
   enumControl(LitterShovelParametersSchema, 'scoopSnap', 'basic', SHOVEL_SNAP_VALUES.map(value => ({ value, ...SCOOP_SNAP_TEXT[value] }))),
   enumControl(LitterShovelParametersSchema, 'handleSnap', 'basic', SHOVEL_SNAP_VALUES.map(value => ({ value, ...HANDLE_SNAP_TEXT[value] }))),
   enumControl(LitterShovelParametersSchema, 'handleReinforcement', 'basic', HANDLE_REINFORCEMENT_VALUES.map(value => ({ value, ...HANDLE_REINFORCEMENT_TEXT[value] }))),
@@ -1306,6 +1332,8 @@ const litterShovelControls = [
  * faces, the nuts `nutRecess` deep; both ride with the handle. The screws are driven in from inside the scoop, a step of their own.
  */
 function handleFasteners(parameters: ParameterValues): LinkedReference[] {
+  // Real screws, inserts and nuts do not shrink with a prototype, so a scaled one shows none.
+  if (shovelScale(parameters) !== 1) return [];
   const mode = parameters['handleReinforcement'];
   const screw = typeof parameters['handleScrew'] === 'string' ? findPart(parameters['handleScrew']) : undefined;
   const holderId = mode === 'threaded-insert' ? parameters['handleInsert'] : mode === 'nut-bolt' ? parameters['handleNut'] : undefined;
@@ -1324,6 +1352,9 @@ function handleFasteners(parameters: ParameterValues): LinkedReference[] {
   });
 }
 
+/** The prototype scale of these parameters (`prototypeScale`), which every part and the assembly are scaled by. */
+const shovelScale = (parameters: ParameterValues) => typeof parameters['prototypeScale'] === 'number' ? parameters['prototypeScale'] : 1;
+
 const LITTER_SHOVEL_DIR = 'models/litter-shovel/';
 /** The reinforcement's setting reaches the scoop (its countersunk holes) and the handle (its bosses); the thread as its ISO 273
  * medium clearance hole, the chosen parts as their dimensions. */
@@ -1337,15 +1368,17 @@ const SHOVEL_HANDLE_FASTENER_DEFINES: PartDefines = {
 };
 const SHOVEL_SCOOP_SNAP_MAPPING = { scoopSnap: 'SCOOP_SNAP', scoopDetentEngage: 'SCOOP_DETENT_ENGAGE' };
 const SHOVEL_HANDLE_SNAP_MAPPING = { handleSnap: 'HANDLE_SNAP', handleDetentEngage: 'HANDLE_DETENT_ENGAGE' };
+const SHOVEL_SCALE_MAPPING = { prototypeScale: 'PROTOTYPE_SCALE' };
 
 /** The parts, in stacking order. Each joint's setting reaches the two parts of that joint, and the grip's end the two halves of
- * the grip; the sieve, the tip and the scoop's length reach only the scoop, the supports and the dam only the container. */
+ * the grip; the sieve, the tip and the scoop's length reach only the scoop, the supports and the dam only the container. The
+ * prototype scale reaches every part. */
 const litterShovelParts: ModelPart[] = [
-  { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', supportCount: 'SUPPORT_COUNT', supportThickness: 'SUPPORT_THICKNESS', damWidth: 'DAM_WIDTH', ...SHOVEL_SCOOP_SNAP_MAPPING } },
+  { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', supportCount: 'SUPPORT_COUNT', supportThickness: 'SUPPORT_THICKNESS', damWidth: 'DAM_WIDTH', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_SCALE_MAPPING } },
   { id: 'scoop', title: 'Scoop', sourcePath: `${LITTER_SHOVEL_DIR}scoop.scad`,
-    scadMapping: { scoopLength: 'SCOOP_LENGTH', sievePattern: 'SIEVE_PATTERN', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', tipThickness: 'TIP_THICKNESS', tipBevel: 'TIP_BEVEL', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
+    scadMapping: { scoopLength: 'SCOOP_LENGTH', sievePattern: 'SIEVE_PATTERN', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', tipThickness: 'TIP_THICKNESS', tipBevel: 'TIP_BEVEL', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING, ...SHOVEL_SCALE_MAPPING },
     partDefines: SHOVEL_SCOOP_FASTENER_DEFINES },
-  { id: 'handle', title: 'Handle', sourcePath: `${LITTER_SHOVEL_DIR}handle.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
+  { id: 'handle', title: 'Handle', sourcePath: `${LITTER_SHOVEL_DIR}handle.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING, ...SHOVEL_SCALE_MAPPING },
     partDefines: SHOVEL_HANDLE_FASTENER_DEFINES },
 ];
 
@@ -1353,7 +1386,8 @@ const litterShovelParts: ModelPart[] = [
  * In the container's frame. The scoop's cap sits on the container's lip (141.5 mm), with its sleeve and skirt 5 mm below it
  * (136.5 mm); the handle's ring sits on the cap's top (144.5 mm). The handle prints upside down, its ring's top (15 mm higher,
  * 159.5 mm) on the bed, so it is turned over about X. The scoop goes on first, then the handle comes down over the blade and
- * along the container's handle. None of this depends on the parameters (docs/litter-shovel.md).
+ * along the container's handle. At full size, none of this depends on the parameters (docs/litter-shovel.md); a prototype's
+ * (`prototypeScale`) is all scaled by it (`assemblyScale`).
  */
 const litterShovelAssembly: Assembly = {
   poses: {
@@ -1369,14 +1403,15 @@ const litterShovelAssembly: Assembly = {
 };
 
 export const litterShovel = {
-  id: 'litter-shovel' as const, version: '2' as const, title: 'Litter shovel',
-  description: 'A cat-litter sifting shovel in three closed-ring parts, stacked: a container for a liner bag with its own open, hook-like handle, a sifting scoop that caps its rim, with a straight, sharp edge that scrapes along the floor and a sieve round its back, corners and sides, and a handle whose ring sits on the scoop and whose grip lies on the container’s handle. Both halves of the grip are thin curved sheets that stack into one smooth strip; held in the fist, they clamp all three parts. Choose the scoop’s length, the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and bar width, the scraping edge’s thickness and bevel, the dam that keeps the clumps in when you scoop again, where the grip ends and how many thin fins brace it, how the parts hold (a close fit or a detent), and whether two screws fasten the handle to the scoop for good (into threaded inserts or nuts from the parts library), then download the three parts as a ZIP of STL files.',
+  id: 'litter-shovel' as const, version: '3' as const, title: 'Litter shovel',
+  description: 'A cat-litter sifting shovel in three closed-ring parts, stacked: a container for a liner bag with its own open, hook-like handle, a sifting scoop that caps its rim, with a straight, sharp edge that scrapes along the floor and a sieve round its back, corners and sides, and a handle whose ring sits on the scoop and whose grip lies on the container’s handle. Both halves of the grip are thin curved sheets that stack into one smooth strip; held in the fist, they clamp all three parts. Choose the scoop’s length, the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and bar width, the scraping edge’s thickness and bevel, the dam that keeps the clumps in when you scoop again, where the grip ends and how many thin fins brace it, how the parts hold (a close fit or a detent), and whether two screws fasten the handle to the scoop for good (into threaded inserts or nuts from the parts library), then download the three parts as a ZIP of STL files. A prototype scale prints them all smaller, to check the shapes and the fit quickly before a full-size print.',
   attribution: 'CanFactory (original design)',
-  printNotes: 'Print each part as generated: the container standing on its floor, the scoop on its cap, the handle upside down on its ring’s top. Only the container’s open grip tip needs slicer supports; with the grip down to the floor, nothing does. Fold the bag about 5 mm over the container’s lip; inside, it drapes over the dam. With a handle reinforcement, melt the inserts in (or push the nuts in) from outside the bosses, then drive the countersunk screws in from inside the scoop.',
+  printNotes: 'Print each part as generated: the container standing on its floor, the scoop on its cap, the handle upside down on its ring’s top. Only the container’s open grip tip needs slicer supports; with the grip down to the floor, nothing does. Fold the bag about 5 mm over the container’s lip; inside, it drapes over the dam. With a handle reinforcement, melt the inserts in (or push the nuts in) from outside the bosses, then drive the countersunk screws in from inside the scoop. A prototype (a prototype scale below 1) prints the same way; well below full size, its sieve and scraping edge may be too fine to print cleanly.',
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   parts: litterShovelParts,
   assembly: litterShovelAssembly,
   linkedReferences: handleFasteners,
+  assemblyScale: shovelScale,
   parameterSchema: LitterShovelParametersSchema,
   controls: litterShovelControls,
   defaults: Object.fromEntries(litterShovelControls.map(c => [c.key, c.default])),

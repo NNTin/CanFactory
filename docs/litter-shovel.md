@@ -18,7 +18,8 @@ The whole shovel is carried by the grip. The parts stack **container, scoop, han
 
 Each part is modelled as it prints, Z up, in millimetres. Only the container's open grip tip needs slicer supports (see
 `gripEnd` below). Sizes are at the defaults: the handle part is 30 mm taller with the grip down to the floor, and the
-container's grip keeps half the clearance off the seam, so its X shrinks by half the clearance.
+container's grip keeps half the clearance off the seam, so its X shrinks by half the clearance. Everything here is at full size;
+a [prototype](#prototype-scale) scales every size and position by its scale.
 
 | Part | File | Size (X × Y × Z) | Prints | Assembled at |
 | --- | --- | --- | --- | --- |
@@ -274,6 +275,10 @@ where the detents engage, and holds those samples to a looser snap tolerance (10
 | M2 square nuts, M2 × 8; M2.5 inserts, M2.5 × 10 | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
 | M4 nylon-insert nuts, M4 × 12, 0.6 mm | 0.00 mm³ | 2.88 mm³ | 0.43 mm³ |
 | M4 inserts, M4 × 16, friction, 0.1 mm | 0.00 mm³ | 3.06 mm³ | 0.00 mm³ |
+| Prototype 0.5 (defaults) | 0.00 mm³ | 0.02 mm³ | 0.20 mm³ |
+| Prototype 0.25 (defaults) | 0.00 mm³ | 0.02 mm³ | 0.03 mm³ |
+| Prototype 0.2, M3 nuts, grip to the floor | 0.00 mm³ | 0.00 mm³ | 0.00 mm³ |
+| Prototype 0.75, detents, 0.6 mm, engagement 0.4 | 0.00 mm³ | 3.93 mm³ | 3.41 mm³ |
 
 With a reinforcement, the screws, inserts and nuts are checked too, from the generic models in `parts/`. A screw's thread is drawn
 at its minor diameter, a nut's or insert's bore at the thread's diameter, and an insert as the hole it fills. The step that drives
@@ -302,6 +307,31 @@ with `--snap-tolerance 15`.
 - **The bag:** fold it about 5 mm over the lip, so that the skirt covers it. A longer fold hangs below the skirt, and at the
   front it lies over the root of the container's handle, under the handle part's sheet. Inside, the bag drapes over the dam. Leave it loose enough
   to fill the pocket behind the dam.
+
+## Prototype scale
+
+The shovel is large (the container alone is 141.5 mm tall) and untested, so `prototypeScale` prints all three parts smaller, from
+0.2 to 1 (full size, the default) in steps of 0.05: a quick, cheap print to check the shapes and how the parts go together
+before committing to full-size prints. It is **not a functional check**.
+
+- **What scales:** each SCAD file models its part at full size and applies `scale(PROTOTYPE_SCALE)` last, about its own origin.
+  So every size scales: the walls, the sieve's gaps and bars, the scraping edge, the detents' bumps and grooves (their
+  engagement too), the grip's sheets and fins, and the reinforcement's holes, bosses and pockets.
+- **What does not:** the clearance. Each file takes its fits from `FIT = CLEARANCE / PROTOTYPE_SCALE`, so that scaled, every
+  gap between mating parts is still the clearance as printed and the prototype's parts go together like the full-size ones.
+  This is also why the container's X shrinks by half the clearance, not half the scaled one.
+- **Its limit:** a full-size fit is taken from walls it must leave sound (the ring's 3.6 mm, the sleeve's 2.2 mm), which stay
+  sound up to 1 mm of full-size geometry. So a prototype's clearance may be at most its scale times 1 mm: 0.2 mm at 0.2, 0.5 mm
+  at 0.5. At full size the clearance's own 0.6 mm limit is lower. Below 0.2 the 2.4 mm walls would be thinner than one 0.4 mm
+  nozzle line.
+- **The assembly preview:** the poses, step offsets and lift are given at full size. The model's `assemblyScale` hands the scale
+  to `resolveAssembly`, which scales every position, offset and the lift by it; since each part is scaled about its own origin,
+  the scaled parts land exactly where the full-size ones would, scaled.
+- **Fasteners:** real screws, inserts and nuts do not shrink, so a prototype's preview shows none, and its scaled holes and
+  bosses will not take the library parts. Its screw-length validation is still the full-size one.
+- **Expect** the finest features to fail below about half size: at 0.25 the wall is 0.6 mm, the default 7.2 mm slots are
+  1.8 mm wide and the 0.8 mm scraping edge is 0.2 mm, which most printers cannot make; the detents barely click. The editor names
+  the ranges: below 0.5 a shape check only, from 0.5 an assembly check.
 
 ## Mesh hygiene
 

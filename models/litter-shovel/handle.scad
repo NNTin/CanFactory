@@ -34,9 +34,14 @@ INSERT_WALL = 1.6;
 NUT_S = 5.5;
 NUT_H = 2.4;
 NUT_SHAPE = "hex";
+// Prototype scale: the whole part is printed at this fraction of its size (1 = full size), to check the shapes and the fit quickly
+PROTOTYPE_SCALE = 1; //[0.2:0.05:1]
 
 $fa = 4; $fs = 0.5;
 E = 0.01;
+// The part is modelled at full size and scaled by PROTOTYPE_SCALE last. Its fits use FIT, the clearance divided by the scale,
+// so that a prototype's gaps are still CLEARANCE as printed.
+FIT = CLEARANCE / PROTOTYPE_SCALE;
 
 // The scoop's cap (its skirt's outer face, which the ring is flush with) and its blade's outer face (scoop.scad), as outer plans
 // [width (X), length (Y), corner radius]; the cap's top, in the container's frame.
@@ -57,7 +62,7 @@ function grow(p, d) = [p[0] + 2 * d, p[1] + 2 * d, p[2] + d];
 module rr2d(p) { offset(r = p[2], $fn = 64) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
 module slab(p, z, h) { translate([0, 0, z]) linear_extrude(h) rr2d(p); }
 
-RING_IN = grow(BLADE, CLEARANCE);
+RING_IN = grow(BLADE, FIT);
 RING_TOP_Z = CAP_TOP_Z + RING_H;
 
 // Places children on the middle of each straight side of plan `p`, in the wall's frame (X along the wall, Y outward).
@@ -72,7 +77,7 @@ module on_sides(p) {
 // towards +Y, into the wall): `g` + clearance deep, clearing the bump by the clearance on every side. Its flanks start 0.3 mm
 // in front of the face, so that no edge of it lies in the face.
 module groove(l, g) {
-  c = CLEARANCE; d = g + c; w = g + c * sqrt(2); o = 0.3;
+  c = FIT; d = g + c; w = g + c * sqrt(2); o = 0.3;
   hull() {
     translate([-(l / 2 + 2 * c + o), -o, -(w + o)]) cube([l + 4 * c + 2 * o, E, 2 * (w + o)]);
     translate([-(l / 2 + 2 * c - d), d - E, -(w - d)]) cube([l + 4 * c - 2 * d, E, 2 * (w - d)]);
@@ -90,7 +95,7 @@ module groove(l, g) {
 GRIP_W = 26; SHEET_T = 3; EDGE_R = 2.5;
 SEAM_X = 65; SEAM_R1 = 15; SEAM_R2 = 10; SLOPE_POINT = [37.25, 132];
 GRIP_TIP_Z = GRIP_END == "floor" ? 0 : 30;
-SHEET_TH = SHEET_T - CLEARANCE / 2;
+SHEET_TH = SHEET_T - FIT / 2;
 function slope_z(x) = SLOPE_POINT[1] - (x - SLOPE_POINT[0]);
 
 // Path samples [x, z, heading, sheet thickness], top down. The heading is the direction of travel in XZ, in degrees; the palm
@@ -112,7 +117,7 @@ function grip_samples() = concat(
 
 // A sheet's cross-section at thickness `th`, as [u, y]: u from the seam (positive towards the palm), y across the grip. Its
 // seam face is flat and its outer long edges are rounded.
-function sheet_section(th) = let(u0 = CLEARANCE / 2, u1 = u0 + th, r = min(EDGE_R, 0.8 * th), w = GRIP_W / 2)
+function sheet_section(th) = let(u0 = FIT / 2, u1 = u0 + th, r = min(EDGE_R, 0.8 * th), w = GRIP_W / 2)
   concat([[u0, -w]], [for (i = [0 : 6]) let(a = -90 + 15 * i) [u1 - r + r * cos(a), -w + r + r * sin(a)]],
          [for (i = [0 : 6]) let(a = 15 * i) [u1 - r + r * cos(a), w - r + r * sin(a)]], [[u0, w]]);
 
@@ -131,7 +136,7 @@ module sheet(samples, side) {
 // ---- The handle part's grip: the palm-side sheet. ----
 // Along the ring's outer face and down past the skirt, its inner face CLEARANCE clear of the skirt; then the bend of SEAM_R2
 // into the slope, whose line the container's sheet shares; then the shared bend and grip.
-SEAM_X_TOP = CAP_OUT[0] / 2 + CLEARANCE / 2;
+SEAM_X_TOP = CAP_OUT[0] / 2 + FIT / 2;
 R2_CENTRE = [SEAM_X_TOP + SEAM_R2, slope_z(SEAM_X_TOP) + SEAM_R2 * tan(22.5)];
 module palm_sheet() {
   sheet(concat([[SEAM_X_TOP, RING_TOP_Z, -90, SHEET_TH]], line_samples([SEAM_X_TOP, RING_TOP_Z], [SEAM_X_TOP, R2_CENTRE[1]], 1, SHEET_TH),
@@ -143,7 +148,7 @@ module palm_sheet() {
 // The grip: the sheet, and a root that joins it to the ring's outer face over the ring's height.
 module grip() {
   palm_sheet();
-  translate([CAP_OUT[0] / 2 - 1, -GRIP_W / 2, CAP_TOP_Z]) cube([1 + CLEARANCE + 0.5, GRIP_W, RING_H]);
+  translate([CAP_OUT[0] / 2 - 1, -GRIP_W / 2, CAP_TOP_Z]) cube([1 + FIT + 0.5, GRIP_W, RING_H]);
 }
 
 // ---- The reinforcement: a boss either side of the grip, holding an insert or a nut for a screw from inside the scoop. ----
@@ -195,4 +200,4 @@ module handle() {
 }
 
 // Turned over to print: the ring's top on the bed.
-rotate([180, 0, 0]) translate([0, 0, -RING_TOP_Z]) handle();
+scale(PROTOTYPE_SCALE) rotate([180, 0, 0]) translate([0, 0, -RING_TOP_Z]) handle();

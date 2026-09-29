@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { Value } from 'typebox/value';
-import { assemblyOffset, assemblyState, assemblyStops } from './assembly.ts';
+import { assemblyOffset, assemblyState, assemblyStops, resolveAssembly } from './assembly.ts';
 import { activeParts, AssemblySchema, isAssembly, models, type Assembly } from './models.ts';
 import { findPart, partAssetPath } from './parts/index.ts';
 
@@ -46,6 +46,20 @@ describe('assembly slider', () => {
     expect(assemblyOffset(assembly, 'base', inserted)).toEqual([0, 0, 25]);
     // Assembled: every part at its pose, on the floor.
     for (const id of Object.keys(assembly.poses)) expect(assemblyOffset(assembly, id, assemblyState(assembly, 1))).toEqual([0, 0, 0]);
+  });
+  it('scales every position, step offset and the lift by the model’s assembly scale, and leaves a full-size assembly as it is', () => {
+    const model = { assemblyScale: (parameters: Record<string, unknown>) => Number(parameters['scale']) };
+    expect(resolveAssembly(model, assembly, { scale: 1 })).toBe(assembly);
+    const small = resolveAssembly(model, assembly, { scale: 0.5 });
+    expect(small).toEqual({
+      poses: { base: { position: [0, 0, 0] }, top: { position: [0, 0, 5] }, insert: { position: [0.5, 0, 2.5] } },
+      steps: [{ title: 'Insert', parts: ['insert'], from: [0, 0, -10] }, { title: 'Close', parts: ['top', 'insert'], from: [0, 0, 15] }],
+      lift: 12.5,
+    });
+    // Every offset along the slider is scaled with it.
+    const exploded = assemblyState(assembly, 1 / 3);
+    if (!small) throw new Error('Expected an assembly');
+    expect(assemblyOffset(small, 'top', exploded)).toEqual([0, 0, 27.5]);
   });
 });
 

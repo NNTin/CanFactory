@@ -49,12 +49,14 @@ function linkedSteps(linked: LinkedReference[]): Assembly['steps'] {
 /**
  * The assembly for these parameters: `assembly` (as served) with the model's `linkedReferences` for them added, e.g. the magnets
  * of a magnet snap. Each gets its pose, joins the steps that move the part it is mounted in (or a step of its own after them), and is
- * titled after its library part.
+ * titled after its library part. With a model's `assemblyScale` other than 1 (e.g. a smaller prototype), every position, step offset
+ * and the lift are scaled by it, to match the parts it scaled.
  */
-export function resolveAssembly(model: Pick<ModelDefinition, 'linkedReferences'> | undefined, assembly: Assembly | undefined, parameters: ParameterValues): Assembly | undefined {
+export function resolveAssembly(model: Pick<ModelDefinition, 'linkedReferences' | 'assemblyScale'> | undefined, assembly: Assembly | undefined, parameters: ParameterValues): Assembly | undefined {
   const linked = assembly ? model?.linkedReferences?.(parameters) ?? [] : [];
-  if (!assembly || linked.length === 0) return assembly;
-  return {
+  const scale = assembly ? model?.assemblyScale?.(parameters) ?? 1 : 1;
+  if (!assembly || (linked.length === 0 && scale === 1)) return assembly;
+  const resolved: Assembly = linked.length === 0 ? assembly : {
     ...assembly,
     poses: { ...assembly.poses, ...Object.fromEntries(linked.map(reference => [reference.id, reference.pose])) },
     steps: [...assembly.steps.map(step => {
@@ -62,5 +64,17 @@ export function resolveAssembly(model: Pick<ModelDefinition, 'linkedReferences'>
       return riders.length > 0 ? { ...step, parts: [...step.parts, ...riders] } : step;
     }), ...linkedSteps(linked)],
     references: [...assembly.references ?? [], ...linked.map(reference => ({ id: reference.id, part: reference.part, title: `${findPart(reference.part)?.title ?? reference.part} (${reference.label})` }))],
+  };
+  return scale === 1 ? resolved : scaleAssembly(resolved, scale);
+}
+
+/** The assembly of parts scaled by `scale` about their own origins: every position, step offset and the lift scaled by it. */
+function scaleAssembly(assembly: Assembly, scale: number): Assembly {
+  const times = (vector: number[]): Vector => [(vector[0] ?? 0) * scale, (vector[1] ?? 0) * scale, (vector[2] ?? 0) * scale];
+  return {
+    ...assembly,
+    poses: Object.fromEntries(Object.entries(assembly.poses).map(([id, pose]) => [id, { ...pose, position: times(pose.position) }])),
+    steps: assembly.steps.map(step => ({ ...step, from: times(step.from) })),
+    lift: assembly.lift * scale,
   };
 }

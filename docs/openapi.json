@@ -2515,7 +2515,7 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "2"
+                          "3"
                         ]
                       },
                       "parameters": {
@@ -2542,7 +2542,8 @@
                           "handleScrew",
                           "clearance",
                           "scoopDetentEngage",
-                          "handleDetentEngage"
+                          "handleDetentEngage",
+                          "prototypeScale"
                         ],
                         "properties": {
                           "sievePattern": {
@@ -2788,6 +2789,15 @@
                             "minimum": 0.02,
                             "maximum": 0.4,
                             "multipleOf": 0.01
+                          },
+                          "prototypeScale": {
+                            "type": "number",
+                            "title": "Prototype scale",
+                            "description": "Prints all three parts at this fraction of their full size (1 = full size): a quick, cheap print to check the shapes and how the parts go together before you commit to a full-size print. Not a functional check: the sieve’s gaps, the thin scraping edge, the detents and the screw bosses shrink too, and well below full size they may not print or work. The clearance stays at its printed size, so the parts still fit together.",
+                            "default": 1,
+                            "minimum": 0.2,
+                            "maximum": 1,
+                            "multipleOf": 0.05
                           }
                         },
                         "additionalProperties": false,

@@ -466,18 +466,18 @@ describe('litter shovel contract', () => {
     expect(artifactFormat(litterShovel)).toBe('zip');
     expect(modelSourcePaths(litterShovel)).toEqual(['container', 'scoop', 'handle'].map(id => `models/litter-shovel/${id}.scad`));
     expect(defaults).toEqual({ sievePattern: 'slots', gapWidth: 7.2, gapLength: 25, gapSpacing: 5.6, scoopLength: 127, scoopSnap: 'detent', handleSnap: 'detent', sieveMargin: 3.2, tipThickness: 0.8, tipBevel: 12, gripEnd: 'open', supportCount: 3, damWidth: 8, supportThickness: 2, clearance: 0.2, scoopDetentEngage: 0.15, handleDetentEngage: 0.15,
-      handleReinforcement: 'none', handleThread: 'M3', handleInsert: 'cnc-kitchen-m3x5-7', handleNut: 'iso-4032-m3', handleScrew: 'iso-10642-m3x12' });
+      handleReinforcement: 'none', handleThread: 'M3', handleInsert: 'cnc-kitchen-m3x5-7', handleNut: 'iso-4032-m3', handleScrew: 'iso-10642-m3x12', prototypeScale: 1 });
     expect(validateParameters(litterShovel, defaults)).toEqual([]);
     const [containerPart, scoopPart, handlePart] = litterShovel.parts;
-    expect(Object.keys(containerPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'damWidth', 'gripEnd', 'scoopDetentEngage', 'scoopSnap', 'supportCount', 'supportThickness']);
-    expect(Object.keys(scoopPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gapLength', 'gapSpacing', 'gapWidth', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread', 'scoopDetentEngage', 'scoopLength', 'scoopSnap', 'sieveMargin', 'sievePattern', 'tipBevel', 'tipThickness']);
-    expect(Object.keys(handlePart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gripEnd', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread']);
+    expect(Object.keys(containerPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'damWidth', 'gripEnd', 'prototypeScale', 'scoopDetentEngage', 'scoopSnap', 'supportCount', 'supportThickness']);
+    expect(Object.keys(scoopPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gapLength', 'gapSpacing', 'gapWidth', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread', 'prototypeScale', 'scoopDetentEngage', 'scoopLength', 'scoopSnap', 'sieveMargin', 'sievePattern', 'tipBevel', 'tipThickness']);
+    expect(Object.keys(handlePart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gripEnd', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread', 'prototypeScale']);
     expect(scadDefines(litterShovel, scoopPart ?? {}, defaults)).toContainEqual(['SIEVE_PATTERN', '"slots"']);
     expect(scadDefines(litterShovel, containerPart ?? {}, { ...defaults, scoopSnap: 'friction' })).toContainEqual(['SCOOP_SNAP', '"friction"']);
     expect(Value.Check(AssemblySchema, litterShovel.assembly)).toBe(true);
     expect(litterShovel.assembly.steps.map(step => step.parts)).toEqual([['scoop'], ['handle']]);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'litter-shovel', modelVersion: '2', parameters: defaults })).toBe(true);
-    expect(Value.Check(RenderRequestSchema, { modelId: 'litter-shovel', modelVersion: '2', parameters: { ...defaults, extra: 1 } })).toBe(false);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'litter-shovel', modelVersion: '3', parameters: defaults })).toBe(true);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'litter-shovel', modelVersion: '3', parameters: { ...defaults, extra: 1 } })).toBe(false);
   });
 
   it('keeps every SCAD default equal to the contract default of the parameter it is mapped from', () => {
@@ -517,7 +517,7 @@ describe('litter shovel contract', () => {
     expect(slope[0]).toBeCloseTo(plan(container, 'BAND')[0] / 2, 9);
     expect(slope[1]).toBeLessThan(constant(container, 'RIM_Z') - constant(container, 'LIP_T') - constant(container, 'LIP_W'));
     expect(slope[1]).toBeGreaterThan(constant(container, 'RIM_Z') - constant(container, 'LIP_T') - constant(container, 'LIP_W') - constant(container, 'LIP_W'));
-    expect(handle).toMatch(/^SEAM_X_TOP = CAP_OUT\[0\] \/ 2 \+ CLEARANCE \/ 2;$/m);
+    expect(handle).toMatch(/^SEAM_X_TOP = CAP_OUT\[0\] \/ 2 \+ FIT \/ 2;$/m);
     // The grip stands clear of the lip and the skirt: its vertical is outside the scoop's cap.
     expect(constant(container, 'SEAM_X') - constant(container, 'SHEET_T')).toBeGreaterThan(capOut[0] / 2);
     // The dam, on the scraper side only, meets the mouth's wall a bag's room under the scoop's sleeve, below the detent grooves
@@ -530,6 +530,34 @@ describe('litter shovel contract', () => {
     expect(container).toMatch(/cube\(\[MOUTH\[2\] \+ 2, /);
     // The root band under the sieve covers the handle's ring.
     expect(constant(scoop, 'ROOT_BAND')).toBeGreaterThan(constant(handle, 'RING_H'));
+  });
+
+  it('scales every part and the whole assembly for a prototype, keeping the printed clearance', () => {
+    // Each file models the part at full size, takes its fits from the clearance divided by the scale, and scales the result last.
+    for (const file of [container, scoop, handle]) {
+      expect(file).toMatch(/^PROTOTYPE_SCALE = 1; \/\/\[0\.2:0\.05:1\]$/m);
+      expect(file).toMatch(/^FIT = CLEARANCE \/ PROTOTYPE_SCALE;$/m);
+      expect(file.match(/^scale\(PROTOTYPE_SCALE\) /gm)).toHaveLength(1);
+      // Only FIT reaches the geometry, never the clearance itself.
+      expect(file.split('\n').filter(line => /\bCLEARANCE\b/.test(line.split('//')[0] ?? '')).map(line => line.split(' =')[0])).toEqual(['CLEARANCE', 'FIT']);
+    }
+    const control = litterShovel.controls.find(c => c.key === 'prototypeScale');
+    expect(control).toMatchObject({ group: 'basic', unit: null, default: 1, minimum: 0.2, maximum: 1, step: 0.05 });
+    expect(control?.description).toMatch(/Not a functional check/);
+    for (const prototypeScale of [0.2, 0.25, 0.5, 0.75, 1]) expect(validateParameters(litterShovel, { ...defaults, prototypeScale }), `${prototypeScale}`).toEqual([]);
+    for (const prototypeScale of [0.15, 1.05, 0.33]) expect(validateParameters(litterShovel, { ...defaults, prototypeScale }), `${prototypeScale}`).not.toEqual([]);
+    // The clearance, kept as printed, is at most the scale times 1 mm of the full-size geometry.
+    expect(validateParameters(litterShovel, { ...defaults, prototypeScale: 0.25, clearance: 0.25 })).toEqual([]);
+    expect(validateParameters(litterShovel, { ...defaults, prototypeScale: 0.25, clearance: 0.3 }).map(issue => issue.field)).toEqual(['prototypeScale']);
+    // The assembly scales with the parts: every pose, step offset and the lift.
+    const half = resolveAssembly(litterShovel, litterShovel.assembly, { ...defaults, prototypeScale: 0.5 });
+    expect(half?.poses).toEqual({ container: { position: [0, 0, 0] }, scoop: { position: [0, 0, 68.25] }, handle: { position: [0, 0, 79.75], rotation: [180, 0, 0] } });
+    expect(half?.steps.map(step => step.from)).toEqual([[0, 0, 30], [0, 0, 100]]);
+    expect(half?.lift).toBe(30);
+    // Real fasteners do not shrink: a prototype shows none.
+    const reinforced = resolveAssembly(litterShovel, litterShovel.assembly, { ...defaults, handleReinforcement: 'threaded-insert', prototypeScale: 0.5 });
+    expect(reinforced?.references ?? []).toEqual([]);
+    expect(reinforced?.steps).toHaveLength(2);
   });
 
   it('lays out the default sieve as 24 slots on a 12.8 mm pitch, across the back, round the corners and along the sides', () => {

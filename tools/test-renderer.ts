@@ -267,7 +267,8 @@ try {
   // height, the grip's end the handle's; the container's grip sheet keeps half the clearance off the seam), and the scoop's
   // sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm wall: at the default fit, tip and length, its volume plus
   // the gaps' volume is the same solid scoop for every sieve. The handle's reinforcement adds bosses
-  // and holes within those sizes, with every thread, insert and nut kind.
+  // and holes within those sizes, with every thread, insert and nut kind. A prototype scales every part's size by its scale, less
+  // the container's grip sheet's half clearance, which is kept as printed.
   const shovelRuns: { name: string; overrides: Partial<LitterShovelParameters> }[] = [
     { name: 'default (slots, detents)', overrides: {} },
     { name: 'staggered slots', overrides: { sievePattern: 'staggered' } },
@@ -301,13 +302,20 @@ try {
     { name: 'M3 hexagon nuts', overrides: { handleReinforcement: 'nut-bolt' } },
     { name: 'M2.5 square nuts', overrides: { handleReinforcement: 'nut-bolt', handleThread: 'M2.5', handleNut: 'din-562-m2-5', handleScrew: 'iso-7046-m2-5x10' } },
     { name: 'M4 nylon-insert nuts at 0.6 mm', overrides: { handleReinforcement: 'nut-bolt', handleThread: 'M4', handleNut: 'iso-10511-m4', handleScrew: 'iso-7046-m4x12', clearance: 0.6, handleDetentEngage: 0.4, scoopDetentEngage: 0.4 } },
+    // prototypes: half size; the smallest, with every feature it can carry; and a large one at the loosest fit
+    { name: 'half-size prototype', overrides: { prototypeScale: 0.5 } },
+    { name: 'smallest prototype, nuts, grip to the floor', overrides: { prototypeScale: 0.2, handleReinforcement: 'nut-bolt', gripEnd: 'floor' } },
+    { name: '0.75 prototype at 0.6 mm, longest scoop', overrides: { prototypeScale: 0.75, clearance: 0.6, scoopLength: 180 } },
   ];
-  const shovelSizes = (p: LitterShovelParameters): Record<string, [number, number, number]> => ({
-    container: [41.25 + 65 - p.clearance / 2, 114.8, 141.5], scoop: [88.9, 121.2, p.scoopLength], handle: [44.45 + 68, 121.2, 159.5 - (p.gripEnd === 'floor' ? 0 : 30)],
-  });
+  const shovelSizes = (p: LitterShovelParameters): Record<string, [number, number, number]> => {
+    const s = p.prototypeScale;
+    return {
+      container: [s * (41.25 + 65) - p.clearance / 2, s * 114.8, s * 141.5], scoop: [s * 88.9, s * 121.2, s * p.scoopLength], handle: [s * (44.45 + 68), s * 121.2, s * (159.5 - (p.gripEnd === 'floor' ? 0 : 30))],
+    };
+  };
   const gapArea = (p: LitterShovelParameters) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
     : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (p.gapLength - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
-  const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'handleSnap', 'clearance', 'scoopDetentEngage', 'handleDetentEngage', 'tipThickness', 'tipBevel', 'handleReinforcement', 'scoopLength'] as const).every(key => p[key] === litterShovel.defaults[key]);
+  const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'handleSnap', 'clearance', 'scoopDetentEngage', 'handleDetentEngage', 'tipThickness', 'tipBevel', 'handleReinforcement', 'scoopLength', 'prototypeScale'] as const).every(key => p[key] === litterShovel.defaults[key]);
   let solidScoop: number | undefined;
   for (const { name, overrides } of only && only !== 'litter-shovel' ? [] : shovelRuns) {
     const started = Date.now();

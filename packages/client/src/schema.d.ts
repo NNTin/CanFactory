@@ -1096,7 +1096,7 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "2";
+                    modelVersion: "3";
                     /** @description Litter shovel parameters. All fields are required; dimensions are in millimetres. */
                     parameters: {
                         /**
@@ -1240,6 +1240,12 @@ export interface operations {
                          * @default 0.15
                          */
                         handleDetentEngage: number;
+                        /**
+                         * Prototype scale
+                         * @description Prints all three parts at this fraction of their full size (1 = full size): a quick, cheap print to check the shapes and how the parts go together before you commit to a full-size print. Not a functional check: the sieve’s gaps, the thin scraping edge, the detents and the screw bosses shrink too, and well below full size they may not print or work. The clearance stays at its printed size, so the parts still fit together.
+                         * @default 1
+                         */
+                        prototypeScale: number;
                     };
                 };
             };

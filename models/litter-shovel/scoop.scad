@@ -54,9 +54,14 @@ SCREW_HOLE = 3.4;
 SCREW_D = 3;
 SCREW_DK = 6;
 SCREW_K = 1.7;
+// Prototype scale: the whole part is printed at this fraction of its size (1 = full size), to check the shapes and the fit quickly
+PROTOTYPE_SCALE = 1; //[0.2:0.05:1]
 
 $fa = 4; $fs = 0.5;
 E = 0.01;
+// The part is modelled at full size and scaled by PROTOTYPE_SCALE last. Its fits use FIT, the clearance divided by the scale,
+// so that a prototype's gaps are still CLEARANCE as printed.
+FIT = CLEARANCE / PROTOTYPE_SCALE;
 
 // The container's band, mouth and lip (outer plan [width (X), length (Y), corner radius]); the lip's top is RIM_H above the
 // cap's lower edges.
@@ -85,7 +90,7 @@ module slab(p, z, h) { translate([0, 0, z]) linear_extrude(h) rr2d(p); }
 CAP_TOP = RIM_H + CAP_T;
 SKIRT_IN = grow(LIP, BAG_GAP);
 CAP_OUT = grow(SKIRT_IN, SKIRT_T);         // 88.9 x 121.2: the skirt's and the handle's ring's outer face
-SLEEVE_OUT = grow(MOUTH, -CLEARANCE);
+SLEEVE_OUT = grow(MOUTH, -FIT);
 SLEEVE_IN = grow(MOUTH, -SLEEVE_IN_OFFSET);
 OUT = grow(CAP_OUT, -RING_T);              // the blade's outer face: 81.7 x 114
 OUT_IN = grow(OUT, -WALL);                 // the blade's inner face
@@ -303,12 +308,12 @@ module fastener_holes() {
   }
 }
 
-difference() {
+scale(PROTOTYPE_SCALE) difference() {
   union() {
     cap();
     blade();
-    if (SCOOP_SNAP == "detent") translate([0, 0, SLEEVE_DETENT_Z]) on_sides(SLEEVE_OUT) ridge(DETENT_L, CLEARANCE + SCOOP_DETENT_ENGAGE);
-    if (HANDLE_SNAP == "detent") translate([0, 0, CAP_TOP + BLADE_DETENT_Z]) on_sides(OUT) ridge(DETENT_L, CLEARANCE + HANDLE_DETENT_ENGAGE);
+    if (SCOOP_SNAP == "detent") translate([0, 0, SLEEVE_DETENT_Z]) on_sides(SLEEVE_OUT) ridge(DETENT_L, FIT + SCOOP_DETENT_ENGAGE);
+    if (HANDLE_SNAP == "detent") translate([0, 0, CAP_TOP + BLADE_DETENT_Z]) on_sides(OUT) ridge(DETENT_L, FIT + HANDLE_DETENT_ENGAGE);
   }
   sieve();
   if (HANDLE_REINFORCEMENT != "none") fastener_holes();
