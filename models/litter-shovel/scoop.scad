@@ -6,11 +6,13 @@
 // flush with the skirt. Inside, a 45 degree funnel leads from the blade into the sleeve, so clumps fall into the bag and never
 // onto the rim. The blade rises from the cap. Its back wall (-X) ends in a straight, sharp edge that scrapes along the floor: the
 // outer face runs flat to it and the inner face is bevelled down to a thin tip. The side walls fall from it in a smooth curve to
-// a low front (+X), with a full round top edge. See docs/litter-shovel.md.
+// a low front (+X), with a full round top edge. SCOOP_LENGTH sets how high the tip stands over the cap; the sides fall from it
+// to the same low front, and the sieve fills the taller or shorter wall. See docs/litter-shovel.md.
 //
 // Modelled as it prints, cap down: Z up, the sleeve's and the skirt's lower edges at Z = 0. Nothing needs support: the U's
 // ceiling is a 7.4 mm bridge and the funnel is a top surface. In `detent` mode the sleeve has bumps for the grooves in the
-// container's mouth (SCOOP_SNAP), and the blade's base has bumps for the grooves in the handle's ring (HANDLE_SNAP).
+// container's mouth (SCOOP_SNAP), and the blade's base has bumps for the grooves in the handle's ring (HANDLE_SNAP). With a
+// HANDLE_REINFORCEMENT, the blade's base has two countersunk holes near the grip for the screws that fasten the handle.
 //
 // The sieve parameters only change the gaps through the blade's wall. They are laid out on a grid unrolled along the wall's inner
 // face, centred on the back and running round the curved corners onto the sides, starting above a solid root band (covered by
@@ -18,6 +20,8 @@
 // the tip, to the side walls' top and to the front corners are cut, so no sliver is left. The layout is mirrored by sieveGaps()
 // in packages/contracts/src/models.ts; keep the two identical.
 
+// The scoop's length: the blade's height from the cap's lower edges to the straight scraping edge, in mm
+SCOOP_LENGTH = 127; //[90:1:180]
 // Sieve texture: vertical slots on a grid, slots with alternate rows offset (brick), round holes or hexagons
 SIEVE_PATTERN = "slots"; //[slots,staggered,round,hex]
 // Gap width: slot width, hole diameter or hexagon size across flats
@@ -42,6 +46,14 @@ CLEARANCE = 0.2; //[0.1:0.01:0.6]
 SCOOP_DETENT_ENGAGE = 0.15; //[0.02:0.01:0.4]
 // How far the blade's bumps reach past the handle's ring, in mm, on top of the clearance
 HANDLE_DETENT_ENGAGE = 0.15; //[0.02:0.01:0.4]
+// Whether two countersunk screws also fasten the handle, near the grip: none, into threaded inserts or into nuts on the handle
+HANDLE_REINFORCEMENT = "none"; //[none,threaded-insert,nut-bolt]
+// The screws' clearance hole (ISO 273 medium for their thread), in mm
+SCREW_HOLE = 3.4;
+// The countersunk screws' thread, greatest head diameter and greatest head height, in mm (ISO 10642 M3)
+SCREW_D = 3;
+SCREW_DK = 6;
+SCREW_K = 1.7;
 
 $fa = 4; $fs = 0.5;
 E = 0.01;
@@ -57,12 +69,14 @@ RIM_H = 5;
 CAP_T = 3; BAG_GAP = 0.8; SKIRT_T = 2.4; SLEEVE_IN_OFFSET = 2.2;
 // Blade: its outer wall stands RING_T inside the skirt's outer face (room for the handle's ring); wall thickness.
 RING_T = 3.6; WALL = 3.2;
-// Blade: height of the tip, and of the front.
-HEIGHT = 127; FRONT_Z = 26;
+// Blade: height of the tip (the scoop's length), and of the front.
+HEIGHT = SCOOP_LENGTH; FRONT_Z = 26;
 // Solid root band between the cap's top and the lowest gaps: the handle's 15 mm ring and 3 mm more.
 ROOT_BAND = 18;
 // Detent bumps: on the sleeve (mid-way down it) and on the blade's base (4 mm above the cap); length along the wall.
 SLEEVE_DETENT_Z = 2.5; BLADE_DETENT_Z = 4; DETENT_L = 16;
+// The handle's screws: either side of the grip (+X), in the root band; the countersink's diametral play around the head.
+FASTENER_Y = 21; FASTENER_Z = 8; SINK_PLAY = 0.2;
 
 function grow(p, d) = [p[0] + 2 * d, p[1] + 2 * d, p[2] + d];
 module rr2d(p) { offset(r = p[2], $fn = 64) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
@@ -275,6 +289,20 @@ module ridge(l, p) {
   }
 }
 
+// ---- The handle's screws. ----
+// Two holes through the blade's wall on the grip side (+X), either side of the grip, at the height of the handle's ring. Each is
+// countersunk from the inner face, so that the screw's head sits flush with it: a rim as wide as the head (plus play) as deep as
+// the head's cylindrical edge, then 90 degrees down to the clearance hole. The screw goes on into an insert or a nut on the ring.
+module fastener_holes() {
+  sink = SCREW_DK + SINK_PLAY;
+  rim = max(0, SCREW_K - (SCREW_DK - SCREW_D) / 2);
+  for (s = [-1, 1]) translate([-BACK_IN_X, s * FASTENER_Y, CAP_TOP + FASTENER_Z]) rotate([0, 90, 0]) {
+    translate([0, 0, -1]) cylinder(d = SCREW_HOLE, h = WALL + 2, $fn = 48);
+    translate([0, 0, -1]) cylinder(d = sink, h = rim + 1, $fn = 48);
+    translate([0, 0, rim]) cylinder(d1 = sink, d2 = 0, h = sink / 2, $fn = 48);
+  }
+}
+
 difference() {
   union() {
     cap();
@@ -283,4 +311,5 @@ difference() {
     if (HANDLE_SNAP == "detent") translate([0, 0, CAP_TOP + BLADE_DETENT_Z]) on_sides(OUT) ridge(DETENT_L, CLEARANCE + HANDLE_DETENT_ENGAGE);
   }
   sieve();
+  if (HANDLE_REINFORCEMENT != "none") fastener_holes();
 }

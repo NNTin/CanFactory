@@ -307,6 +307,13 @@ export interface operations {
                                 family: string;
                                 /** @description Null: each option value is the id of a part of the family. Otherwise each option value is a value of this attribute of the family (e.g. `thread` = `M3`), which stands for every part that has it. */
                                 attribute: string | null;
+                                /** @description For part-id options: offer only the parts whose attribute equals the current value of another (enum) control, e.g. the screws of the chosen thread. The editor lists only those, and moves the choice to the first of them when the other control changes; while the control is shown, any other part is invalid. Null to offer every option. */
+                                filter: {
+                                    /** @description The key of an enum control of the same model. */
+                                    control: string;
+                                    /** @description An attribute of the family, e.g. `thread`. */
+                                    attribute: string;
+                                } | null;
                             } | null;
                         }[];
                         defaults: {
@@ -1089,7 +1096,7 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "1";
+                    modelVersion: "2";
                     /** @description Litter shovel parameters. All fields are required; dimensions are in millimetres. */
                     parameters: {
                         /**
@@ -1130,6 +1137,12 @@ export interface operations {
                          */
                         tipThickness: number;
                         /**
+                         * Scoop length
+                         * @description How far the scoop’s blade reaches, in mm: the height of its straight scraping edge over the cap. A longer scoop takes more litter in one go and has room for more sieve rows.
+                         * @default 127
+                         */
+                        scoopLength: number;
+                        /**
                          * Tip bevel length
                          * @description How far down from the scraping edge the scoop’s inner face is bevelled, in mm. The sieve stays below the bevel.
                          * @default 12
@@ -1148,6 +1161,12 @@ export interface operations {
                          * @default 3
                          */
                         supportCount: number;
+                        /**
+                         * Dam width
+                         * @description How far the dam under the container’s mouth, on the scraper side, reaches in from the back wall, in mm (0 for none). It falls inward at 45°: turned over to scoop, the clumps already inside collect behind it instead of falling out.
+                         * @default 8
+                         */
+                        damWidth: number;
                         /**
                          * Support thickness
                          * @description Thickness of each fin under the container’s handle, in mm.
@@ -1168,6 +1187,41 @@ export interface operations {
                          * @enum {unknown}
                          */
                         handleSnap: "friction" | "detent";
+                        /**
+                         * Handle reinforcement
+                         * @description Whether two screws also fasten the handle to the scoop for good, beside the grip: into threaded inserts or nuts on the handle’s ring. On top of the snap setting.
+                         * @default none
+                         * @enum {unknown}
+                         */
+                        handleReinforcement: "none" | "threaded-insert" | "nut-bolt";
+                        /**
+                         * Screw thread
+                         * @description The thread of the two screws and their inserts or nuts. A larger thread holds harder and needs larger bosses on the ring.
+                         * @default M3
+                         * @enum {unknown}
+                         */
+                        handleThread: "M2" | "M2.5" | "M3" | "M4";
+                        /**
+                         * Threaded inserts
+                         * @description The heat-set inserts, a real product from the parts library: each boss’s hole and wall are sized from the maker’s recommendation.
+                         * @default cnc-kitchen-m3x5-7
+                         * @enum {unknown}
+                         */
+                        handleInsert: "cnc-kitchen-m2x3" | "cnc-kitchen-m2-5x4" | "cnc-kitchen-m3x5-7" | "cnc-kitchen-m3x3" | "cnc-kitchen-m3x5x4" | "cnc-kitchen-m4x8-1" | "cnc-kitchen-m4x4" | "ruthex-rx-m2x4" | "ruthex-rx-m3x5-7" | "ruthex-rx-m4x8-1";
+                        /**
+                         * Nuts
+                         * @description The nuts, standard parts from the parts library: each boss’s pocket is cut to the nut’s greatest size.
+                         * @default iso-4032-m3
+                         * @enum {unknown}
+                         */
+                        handleNut: "iso-4032-m2" | "iso-4032-m2-5" | "iso-4032-m3" | "iso-4032-m4" | "iso-4035-m2" | "iso-4035-m2-5" | "iso-4035-m3" | "iso-4035-m4" | "iso-10511-m3" | "iso-10511-m4" | "din-562-m2" | "din-562-m2-5" | "din-562-m3" | "din-562-m4";
+                        /**
+                         * Screws
+                         * @description The countersunk screws, standard parts from the parts library, driven from inside the scoop so that their heads sit flush. The bosses on the ring end where the screws do: a longer screw makes them deeper.
+                         * @default iso-10642-m3x12
+                         * @enum {unknown}
+                         */
+                        handleScrew: "iso-10642-m3x8" | "iso-10642-m3x10" | "iso-10642-m3x12" | "iso-10642-m3x16" | "iso-10642-m4x8" | "iso-10642-m4x10" | "iso-10642-m4x12" | "iso-10642-m4x16" | "iso-7046-m2x8" | "iso-7046-m2x10" | "iso-7046-m2x12" | "iso-7046-m2x16" | "iso-7046-m2-5x8" | "iso-7046-m2-5x10" | "iso-7046-m2-5x12" | "iso-7046-m2-5x16" | "iso-7046-m3x8" | "iso-7046-m3x10" | "iso-7046-m3x12" | "iso-7046-m3x16" | "iso-7046-m4x8" | "iso-7046-m4x10" | "iso-7046-m4x12" | "iso-7046-m4x16";
                         /**
                          * Clearance
                          * @description Gap per side between parts that fit together (the scoop’s sleeve in the container’s mouth, the handle’s ring on the scoop’s blade), in mm. Larger is looser; raise it if your printer prints parts that are too tight.

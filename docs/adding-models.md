@@ -95,14 +95,24 @@ the library, and the library lists the model under the part's “Used by”. Tak
 from the library rather than copying them. For a setting whose values are part ids (e.g. the cigarette case's `magnet`):
 
 - **The control:** `partControl(schema, key, group, family, partIds)` names and describes each option from the library. Offer only the
-  parts the geometry can take, and prove it with a test (the case's `magnetFits`).
+  parts the geometry can take, and prove it with a test (the case's `magnetFits`, the litter shovel's `handleScrewFits`).
+- **Parts that must match another setting:** `part.filter = { control, attribute }` offers only the parts whose attribute equals
+  that (enum) control's value. The litter shovel's inserts, nuts and screws are filtered by `handleThread`. The editor lists only
+  those and, when the other control changes, moves the choice to the first part it now offers that the model accepts. While the
+  control is shown, `validateParameters` rejects any other part (`offeredOptions`, `partOptionOffered`).
 - **The geometry:** `partDefines` on the part (or the model) passes the chosen part's dimensions to the SCAD file:
   `{ magnet: { MAGNET_D: ['diameter', 'max'], MAGNET_T: ['thickness', 'max'] } }` gives `-D MAGNET_D=6.1` for a 6 ± 0.1 mm magnet.
-  Size a pocket from the `max`. The worker and `npm run check:assembly` both use `scadDefines`, and the library data behind every
+  Size a pocket from the `max`. Not every part of a family has every dimension. A list takes the first one the part has
+  (`NUT_H: [['h', 'm'], 'max']`: a nylon-insert nut's overall height, else the nut's height). `{ attribute: 'shape' }` passes an
+  attribute as a string. The worker and `npm run check:assembly` both use `scadDefines`, and the library data behind every
   selectable part is part of the cache fingerprint (`linkedPartData`).
-- **The preview:** `linkedReferences(parameters)` returns reference objects that depend on the settings (part, pose, and the part
-  they are mounted in, `movesWith`); `resolveAssembly` adds them to the assembly for the editor and the collision check. Parts
-  without an STL are built from their dimensions in the preview; the check renders magnets from `parts/magnets/magnet.scad`.
+- **The preview:** `linkedReferences(parameters)` returns reference objects that depend on the settings: the part, its pose, the part
+  it is mounted in (`movesWith`), or a `step` of its own after the assembly's steps (the litter shovel's screws, driven in once
+  the parts are together). `resolveAssembly` adds them to the assembly for the editor and the collision check. Parts without an
+  STL are built from their dimensions in the preview. The check renders magnets, screws, nuts and threaded inserts from the generic
+  models in `parts/` (`GENERIC_MODELS` in `tools/check-assembly.ts`). A screw's thread is drawn at its minor diameter and a nut's
+  or insert's bore at the thread's diameter, so a screw in its nut does not count as a collision. An insert is drawn as the hole
+  it is melted into.
 
 Generators for continuous parameters need extra care. Choose which dimensions scale with each parameter and record it in
 the SCAD header (moss-planter: tube radius, thread and end rings scale with the tower diameter; strut width and row

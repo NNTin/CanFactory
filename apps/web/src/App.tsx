@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from '@canfactory/client';
-import { decodeLogo, findModel, findPartFamily, parts, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
+import { controlShown, decodeLogo, findModel, findPartFamily, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
 import { PartsLibrary } from './PartsLibrary.tsx';
 import { referenceObjects } from './referenceObjects.ts';
 import { formatHash, parseHash, partLink, type Route } from './route.ts';
@@ -273,7 +273,7 @@ function LogoField({ control, value, disabled, issue, change }: { control: Contr
   </div>;
 }
 
-function Field({ control, value, disabled, issue, recommended, change }: { control: Control; value: number | boolean | string | undefined; disabled: boolean; issue: string | undefined; recommended?: Recommendation | undefined; change: (value: number | boolean | string) => void }) {
+function Field({ control, value, options, disabled, issue, recommended, change }: { control: Control; value: number | boolean | string | undefined; options: Control['options']; disabled: boolean; issue: string | undefined; recommended?: Recommendation | undefined; change: (value: number | boolean | string) => void }) {
   const id = `parameter-${control.key}`;
   if (control.kind === 'svg') return <LogoField control={control} value={typeof value === 'string' ? value : ''} disabled={disabled} issue={issue} change={change} />;
   if (control.kind === 'text') {
@@ -287,14 +287,14 @@ function Field({ control, value, disabled, issue, recommended, change }: { contr
     </div>;
   }
   if (control.kind === 'enum') {
-    const selected = control.options?.find(option => option.value === value);
+    const selected = options?.find(option => option.value === value);
     // A part-linked control links its choice to the parts library, when the library has it (e.g. not a “none” option).
     const link = control.part;
     const inLibrary = link && selected && parts.some(part => part.family === link.family && (link.attribute ? part.attributes[link.attribute] === selected.value : part.id === selected.value));
     return <div className={`select-field ${disabled ? 'field-disabled' : ''}`}>
       <label htmlFor={id}>{control.label}</label>
       <select id={id} value={typeof value === 'string' ? value : ''} disabled={disabled} aria-invalid={Boolean(issue)} aria-describedby={`${id}-description`} onChange={event => change(event.currentTarget.value)}>
-        {control.options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+        {options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
       <p id={`${id}-description`}>{selected?.description ?? control.description}</p>
       {inLibrary && <a className="part-link" href={partLink(link, selected.value)}><BookOpen size={12} aria-hidden="true" /> {link.attribute ? `See the ${selected.value} ${findPartFamily(link.family)?.title.toLowerCase() ?? 'parts'} in the parts library` : 'See this part in the parts library'}</a>}
@@ -382,6 +382,16 @@ function Editor({ model }: { model: ModelDetail }) {
   const change = (key: string, value: number | boolean | string) => {
     setParameters(current => {
       const next = { ...current, [key]: value };
+      // A part choice filtered by this control (Control.part.filter) moves to the first part it now offers, preferring one that the
+      // other settings accept (e.g. a screw long enough for the chosen insert).
+      for (const control of model.controls) {
+        const chosen = next[control.key];
+        if (control.part?.filter?.control !== key || (typeof chosen === 'string' && partOptionOffered(control, chosen, next))) continue;
+        const offered = offeredOptions(control, next);
+        const accepted = definition && offered.find(option => !validateParameters(definition, { ...next, [control.key]: option.value }).some(issue => issue.field === control.key));
+        const first = accepted ?? offered[0];
+        if (first) next[control.key] = first.value;
+      }
       if (value === false && definition) {
         const invalid = validateParameters(definition, next);
         for (const control of model.controls) {
@@ -413,8 +423,8 @@ function Editor({ model }: { model: ModelDetail }) {
   };
   const status = error ? 'Needs attention' : !valid ? 'Check settings' : ready ? 'Ready to print' : rendering.phase === 'queued' ? 'Waiting for renderer' : rendering.phase === 'running' ? 'Rendering your model' : rendering.ready ? 'Loading preview' : 'Updating preview';
   // Controls that only matter in some modes of another control (Control.visibleWhen) are hidden in the others.
-  const shown = (control: Control) => control.visibleWhen === null || control.visibleWhen.values.includes(String(parameters[control.visibleWhen.control]));
-  const field = (control: Control) => <Field key={control.key} control={control} value={parameters[control.key]}
+  const shown = (control: Control) => controlShown(control, parameters);
+  const field = (control: Control) => <Field key={control.key} control={control} value={parameters[control.key]} options={control.part?.filter ? offeredOptions(control, parameters) : control.options}
     disabled={control.enabledWhen !== null && parameters[control.enabledWhen] !== true}
     issue={issues.find(issue => issue.field === control.key)?.message} recommended={recommendation(control, model.controls, parameters)} change={value => change(control.key, value)} />;
 

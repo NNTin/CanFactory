@@ -23,7 +23,7 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
 | Part | File | Size (X × Y × Z) | Prints | Assembled at |
 | --- | --- | --- | --- | --- |
 | Container | `container.scad` | 106.15 × 114.8 × 141.5 | standing on its floor | Z 0 |
-| Scoop | `scoop.scad` | 88.9 × 121.2 × 127 | on its cap | Z 136.5 (the cap's ceiling on the lip at 141.5) |
+| Scoop | `scoop.scad` | 88.9 × 121.2 × 127 (the scoop's length) | on its cap | Z 136.5 (the cap's ceiling on the lip at 141.5) |
 | Handle | `handle.scad` | 112.45 × 121.2 × 129.5 | upside down, on its ring's top | Z 159.5, turned over about X (its ring on the cap's top at 144.5) |
 
 ### Container
@@ -40,6 +40,20 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
     the slope. Each is a triangle from the wall to the sheet's underside, 12 mm out along the slope, with a 45° lower edge. They
     stand side by side across the grip, inside its rounded edges; a single fin stands in the middle. The finger opening below stays
     free.
+- **Dam (`damWidth`):** a dam under the mouth, on the scraper side (−X) only, that keeps the clumps in when the shovel is turned
+  over to scoop again. `damWidth` is 0 to 15 mm, default 8; 0 leaves it out.
+  - **Shape:** a sheet as thick as the wall (2.4 mm) that leaves the back wall at Z 135.5 and falls inward at 45°, `damWidth`
+    in from the wall. Its inner edge is vertical, and it reaches 1 mm into the wall.
+  - **Extent:** it runs along the back wall and round both back corners, and ends where the side walls start
+    (`X = −MOUTH_X / 2 + corner radius`, −23.25). The sides and the front stay open.
+  - **Height:** its top is 1 mm under the scoop's sleeve (`SLEEVE_DEPTH` 5 mm, `DAM_GAP` 1 mm), which leaves room for the bag.
+    It meets the wall where the mouth is straight, above the band's start (Z 131.5) and below the detent grooves (Z 139).
+  - **How it works:** it continues the scoop's 45° funnel, so clumps slide off it into the bag. Scooping, the shovel is turned
+    over with the scraper side down, and the clumps already inside slide towards the mouth along that side. They collect in the
+    pocket between the dam and the back wall (`damWidth` deep) instead of falling back out.
+  - **Corners:** at the back corners the mouth's radius (11.6 mm) runs out for a wider dam. There, its outline keeps a 2 mm
+    radius, and the sheet is steeper than 45° rather than folding over.
+  - **Printing:** its underside is at 45° as well, so it prints standing without support.
 
 ### Scoop
 
@@ -51,8 +65,12 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
   - The cap's top, 3 mm above the ceiling, is 88.9 × 121.2, flush with the skirt. The handle's ring sits on it.
   - Inside, a 45° funnel leads from the blade into the sleeve, so clumps fall into the bag and never onto the rim or the fold.
 - **Blade:** a 3.2 mm wall, 81.7 × 114 outside, rising from the cap 3.6 mm inside its edge, which leaves room for the ring.
-  - **Tip (the scraping edge):** the back wall (−X) and most of the back corners rise to a straight edge at Z 127, across the
-    whole back. This edge scrapes along the floor. The outer face runs flat right up to it. The inner face is bevelled over the
+  - **Length (`scoopLength`):** the blade's height, from the cap's lower edges to the scraping edge: 90 to 180 mm, 127 by
+    default (`SCOOP_LENGTH`). A longer scoop takes more litter in one go and has room for more sieve rows. Everything above the
+    root band follows it: the tip, the side walls' curve, the bevel and the sieve. The cap, the ring and the front stay as they
+    are.
+  - **Tip (the scraping edge):** the back wall (−X) and most of the back corners rise to a straight edge at Z `scoopLength`
+    (127), across the whole back. This edge scrapes along the floor. The outer face runs flat right up to it. The inner face is bevelled over the
     top `tipBevel` (12 mm by default) down to `tipThickness` (0.8 mm, two lines of a 0.4 mm nozzle), so the edge is sharp. The
     bevel faces up and inward, so it prints without support.
   - **Side walls:** they stay level with the tip until 8 mm into the back corners, then fall in half a cosine to the front (+X),
@@ -62,8 +80,8 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
     never meets a square edge. Round the back corners, the tip's square outer edge rounds off gradually into it (radius 0 over the
     back and the first 15° of each corner, growing to 1.6 mm where the sides start to fall), so the sharp tip and the round sides
     meet without a step.
-  - Together they make a channel. Its depth, from the back wall's outer face, is 46 mm at Z 50, 36 mm at Z 80, 28 mm at Z 100
-    and 22 mm at Z 115.
+  - Together they make a channel. At the default length, its depth from the back wall's outer face is 46 mm at Z 50, 36 mm at
+    Z 80, 28 mm at Z 100 and 22 mm at Z 115. A longer scoop's sides fall more gently, and a shorter one's more steeply.
 
 ### Handle
 
@@ -95,9 +113,10 @@ the lip's chamfer, bends again (15 mm), and runs straight down at X 65 to the ti
 | Situation | Load path |
 | --- | --- |
 | Standing on a table | Everything bears on flat faces: the container on its floor, the cap on the lip, the ring on the cap. |
-| Carrying by the grip | The fingers take the container's handle and the palm the handle part's. The container hangs on its own handle, and the stack sits on it. Squeezed together, the halves fix the container to the handle, with the cap trapped between the lip and the ring. If you hold only the palm half, `scoopSnap` holds the container on the scoop and `handleSnap` holds the scoop on the handle. |
+| Carrying by the grip | The fingers take the container's handle and the palm the handle part's. The container hangs on its own handle, and the stack sits on it. Squeezed together, the halves fix the container to the handle, with the cap trapped between the lip and the ring. If you hold only the palm half, `scoopSnap` holds the container on the scoop, and `handleSnap` (or, with a `handleReinforcement`, its two screws) holds the scoop on the handle. |
 | Scooping and sifting | The tip's flat outer face slides on the floor, its sharp edge first. The blade's loads go through its base into the ring and the handle part's grip, then the hand. The sleeve and the skirt also locate the cap on the container. |
 | Carrying the container alone | By its own handle, like a hook: the sheet's root in the wall and its fins carry it. |
+| Scooping again with clumps inside | Turned over, the scraper side is down. The clumps already in the container slide towards the mouth along the back wall and collect behind the dam (`damWidth`), in the bag, instead of falling out through the scoop. Upright again, they fall back to the floor. |
 | Changing the bag | Lift the handle, then the scoop, off. |
 
 ### Snap settings
@@ -119,6 +138,65 @@ the lip's chamfer, bends again (15 mm), and runs straight down at X 65 to the ti
 The scoop's detent works through the bag's film, which lies in the mouth under the sleeve. Both detents rub only over the last
 few millimetres of the push. The engagements are advanced settings, shown only while their joint uses a detent. The `clearance`
 (0.1 to 0.6, default 0.2) recommends 0.10–0.25 mm for a friction fit and 0.20–0.40 mm for a detent.
+
+### Reinforcement
+
+`handleReinforcement` (default `none`) fastens the handle to the scoop for good, on top of `handleSnap`:
+
+| Value | What holds the handle |
+| --- | --- |
+| `none` | Only `handleSnap`. |
+| `threaded-insert` | Two countersunk screws into two brass heat-set inserts in the handle's ring. |
+| `nut-bolt` | Two countersunk screws into two nuts in the handle's ring. No soldering iron needed. |
+
+The bag sits between the container and the scoop, so a fastened handle still comes off with the scoop to change it. The detent
+still helps: it holds the handle in place while you drive the screws in.
+
+**Where:** both screws are on the grip side (+X), 21 mm either side of the middle, 8 mm above the cap's top (Z 152.5). That
+places them beside the 26 mm grip, in the ring and the blade's solid root band. Nothing sits under the palm, the countersinks
+stay above the funnel (Z 11 in the scoop) and below the sieve, and the bosses stay clear of the cap and the grip sheet.
+
+**How:** each screw is driven horizontally from inside the scoop. Its countersunk head sits flush with the blade's inner face, so
+clumps do not catch on it. It passes the blade's wall and the ring, into an insert or a nut in a boss on the ring's outer face.
+- **In the scoop:** a clearance hole (ISO 273 medium for the thread, e.g. 3.4 mm for M3) through the 3.2 mm wall. It is countersunk
+  from the inner face: a rim as wide as the head plus 0.2 mm, as deep as the head's cylindrical edge, then 90° down to the hole.
+- **On the handle:** the boss's face is where the screw's tip ends. The blade's inner face to the ring's outer face is always
+  6.8 mm (3.2 + c + 3.6 − c), so the boss is `screw length − 6.8` deep (1.2 mm for an 8 mm screw, 9.2 mm for a 16 mm one). It is
+  round about the screw's axis and runs straight up to the ring's top, which is on the print bed, so nothing overhangs.
+  - **Insert:** a hole of the maker's recommended diameter and depth (`hole`, `holeDepth`) from the boss's face, with the maker's
+    least wall (`wall`) round it. Melt the insert in from outside, flush with the face.
+  - **Nut:** a pocket 0.2 mm wider than the nut's greatest size and 0.2 mm deeper than its greatest height (a nylon-insert nut's
+    overall `h`). It is hexagonal (corners at the sides, flats top and bottom) or square. The nut goes in from outside, and the
+    screw's pull presses it onto the pocket's floor.
+  - Either way, the clearance hole runs on through the ring.
+
+**The parts** are real items from the parts library ([adding-parts.md](adding-parts.md)):
+- **`handleThread`:** M2, M2.5, M3 (default) or M4.
+- **`handleInsert`, `handleNut`, `handleScrew`:** each offers only parts of the chosen thread (`part.filter`), and each is linked
+  to the part's library page.
+
+The contract offers a part when it fits (`handleScrewFits`, `handleInsertFits` and `handleNutFits` in
+`packages/contracts/src/models.ts`, with the room in `HANDLE_FASTENER_SEAT`). A test keeps each list equal to the library's
+fitting parts.
+
+| Setting | Offered | Why |
+| --- | --- | --- |
+| Screws | ISO 10642 M3/M4 and ISO 7046-1 M2 to M4, 8 to 16 mm | Countersunk, with a head no higher than 2.4 mm (at least 0.8 mm of the wall under it), a countersink within 4.5 mm of the axis, and a boss 0 to 10 mm deep |
+| Inserts | CNC Kitchen and ruthex, M2 to M4 | Hole radius plus wall at most 6.5 mm, and a screw long enough exists |
+| Nuts | ISO 4032, ISO 4035, ISO 10511 (M3/M4) and DIN 562, M2 to M4 | Pocket radius plus a 1.2 mm wall at most 6.5 mm, and a screw long enough exists |
+
+ISO 10642 starts at M3, so the cross-recessed ISO 7046-1 screws cover M2 and M2.5. An M5 countersunk head is too high for the
+wall.
+
+**Validation:** the screw must reach far enough past the blade's wall and the clearance (`length − 3.2 − c`):
+- **Insert:** its hole depth plus 0.4 mm of the ring.
+- **Nut:** its height plus the 0.2 mm recess and a 1.2 mm floor.
+
+The message names the shortest screw that works. For example, a 5.7 mm insert (6.7 mm hole) needs a 12 mm screw, and a 3 mm
+insert needs an 8 mm one up to 0.4 mm clearance.
+
+**In the editor:** changing the thread moves each part to the first one of that thread that the other settings accept. The
+assembly preview shows the inserts or nuts in the handle, and a third step drives the screws in from inside the scoop.
 
 ## Sieve
 
@@ -148,7 +226,7 @@ The scraping tip has two more parameters, both advanced settings:
     go through the wall there too.
 - From the bottom: the gaps start above an 18 mm solid **root band** over the cap's top (Z 8). That is where the blade's bending
   load is highest, and it covers the handle's 15 mm ring. The zone's bottom is at Z 26.
-- At the top: the gaps stay under the tip's bevel (Z 115 by default), so they never cut the thin edge. On the sides they also stay
+- At the top: the gaps stay under the tip's bevel (Z `scoopLength − tipBevel`, 115 by default), so they never cut the thin edge. On the sides they also stay
   under the falling top edge.
 - Every limit is shrunk by the margin. Against the side walls' sloping top, the margin is measured square to the slope.
 
@@ -159,13 +237,15 @@ The scraping tip has two more parameters, both advanced settings:
 - Only whole gaps are cut, so there are no slivers. A gap's top outer corner (the end farther from the back) is checked against
   the side walls' top, which falls away towards the front.
 - The defaults give 24 slots in two rows: 14 centred on the back's flat part and, on each side, 2 in the corner and 3 on the
-  side.
+  side. The shortest scoop (90 mm) has room for 11 of them in one row, the longest (180 mm) for 48 in four.
 
-`sieveGaps()` and `scoopSideTop()` in the contract mirror this layout, with the blade's dimensions in `SCOOP_BLADE`. They give the
+`sieveGaps()` and `scoopSideTop()` in the contract mirror this layout, with the blade's dimensions in `SCOOP_BLADE` and its length
+in `scoopLength`. They give the
 editor's gap count and the validation: at least one gap, at most `MAX_SIEVE_GAPS` = 600, and slots at least as long as they are
-wide. The finest sieve (3 mm round holes, 3 mm bars and margin, a 5 mm bevel) has 439 gaps and renders in about 2 s. Tests pin
-the layout to counts recorded from the SCAD file's `SIEVE_GAPS` echo. `npm run test:renderer` checks that, at the default fit
-and tip, the scoop's volume plus the gaps' volume is the same solid for every texture. There, a gap in a corner counts
+wide. At the default length the finest sieve (3 mm round holes, 3 mm bars and margin, a 5 mm bevel) has 439 gaps and renders in
+about 2 s. On the longest scoop it would have 700, so validation asks for larger gaps or wider bars there. Tests pin the layout
+to counts recorded from the SCAD file's `SIEVE_GAPS` echo, at 90, 127 and 180 mm. `npm run test:renderer` checks that, at the
+default fit, tip and length, the scoop's volume plus the gaps' volume is the same solid for every texture. There, a gap in a corner counts
 (R + r) / 2r ≈ 1.11 times its area × wall, because it widens with the radius.
 
 ## Assembly
@@ -174,6 +254,9 @@ and tip, the scoop's volume plus the gaps' volume is the same solid for every te
    ceiling onto the lip's top.
 2. **Lower the handle over the scoop.** It comes down from 200 mm above, around the blade. Its ring lands on the cap's top, and
    its sheet comes to rest on the container's, a clearance off it, all along the slope and the grip.
+3. **Drive the screws in** (with a `handleReinforcement` only). The two countersunk screws go in from inside the scoop, starting
+   their length plus 8 mm inward, through the blade's wall into the inserts or nuts. The inserts or nuts are already in the
+   handle and come down with it in step 2.
 
 `npm run check:assembly -- litter-shovel` samples every step as usual. It also sweeps each step's last 10 mm in 0.25 mm steps,
 where the detents engage, and holds those samples to a looser snap tolerance (10 mm³, `--snap-tolerance`). Results:
@@ -185,6 +268,16 @@ where the detents engage, and holds those samples to a looser snap tolerance (10
 | Detents, 0.1 mm, finest hexagons | 0.00 mm³ | 3.06 mm³ | 0.46 mm³ |
 | Detents, 0.6 mm, engagement 0.4 | 0.00 mm³ | 12.51 mm³ (over 10) | 7.40 mm³ |
 | Grip to the floor, 5 supports of 4 mm | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
+| Longest scoop, widest dam (180 mm, 15 mm) | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
+| Shortest scoop, no dam (90 mm, 0) | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
+| M3 inserts or M3 nuts (default screws) | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
+| M2 square nuts, M2 × 8; M2.5 inserts, M2.5 × 10 | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
+| M4 nylon-insert nuts, M4 × 12, 0.6 mm | 0.00 mm³ | 2.88 mm³ | 0.43 mm³ |
+| M4 inserts, M4 × 16, friction, 0.1 mm | 0.00 mm³ | 3.06 mm³ | 0.00 mm³ |
+
+With a reinforcement, the screws, inserts and nuts are checked too, from the generic models in `parts/`. A screw's thread is drawn
+at its minor diameter, a nut's or insert's bore at the thread's diameter, and an insert as the hole it fills. The step that drives
+the screws in shares 0.00 mm³ in every case above.
 
 That shared volume is only the bumps passing the mating wall before they drop into their grooves. Seated, every detent clears its
 groove. The largest bumps (0.6 mm clearance with 0.4 mm engagement, a 1 mm ridge) exceed the default snap tolerance: check them
@@ -192,12 +285,13 @@ with `--snap-tolerance 15`.
 
 ## Printing and limits
 
-- **The container** stands on its floor. The lip has a 45° underside, the handle's slope and its fins' lower edges are at 45°,
-  and its bend is round. With the default `open` grip end, the grip's tip starts 30 mm above the bed: let the slicer add supports
+- **The container** stands on its floor. The lip has a 45° underside, the handle's slope, its fins' lower edges and the dam's
+  underside are at 45°, and the handle's bend is round. With the default `open` grip end, the grip's tip starts 30 mm above the bed: let the slicer add supports
   under it (they are not modelled). With `floor`, the sheet starts on the bed and nothing needs support.
 - **The scoop** prints on its cap: the sleeve's and the skirt's edges are on the bed, the U's ceiling is a 7.4 mm bridge, and the
   funnel is a top surface. The tip's bevel faces up and inward, and the round top edge is a top surface, so the blade needs no support either.
-- **The handle** prints upside down on its ring's top. The sheet rises from it along its length, its strong direction.
+- **The handle** prints upside down on its ring's top. The sheet rises from it along its length, its strong direction. The
+  reinforcement's bosses also stand on the bed; their holes and pockets are horizontal, at most 5.7 mm across.
 - **The gap between the two grip halves** is the clearance. The fist closes it: the handle part's sheet is a long, thin
   cantilever and flexes that far easily.
 - **Material:** each grip half is a 3 mm sheet instead of a solid bar, and the container's handle has no arm, gusset or foot.
@@ -206,12 +300,16 @@ with `--snap-tolerance 15`.
 - **Designed for PLA.** Only the bumps, the sleeve and the blade's wall flex when a detent engages, by a few tenths of a
   millimetre over long straight sides.
 - **The bag:** fold it about 5 mm over the lip, so that the skirt covers it. A longer fold hangs below the skirt, and at the
-  front it lies over the root of the container's handle, under the handle part's sheet.
+  front it lies over the root of the container's handle, under the handle part's sheet. Inside, the bag drapes over the dam. Leave it loose enough
+  to fill the pocket behind the dam.
 
 ## Mesh hygiene
 
 `inspectStl` rejects zero-area triangles and edges shared by more than two faces. The rounded rectangles are all drawn with 64
-segments (`$fn`), so that the lip's chamfer and the funnel meet the walls at matching vertices. The container's outer shell and
+segments (`$fn`), so that the lip's chamfer and the funnel meet the walls at matching vertices. The dam is the exception: its
+outlines have 72 segments, so that the line where its underside meets the mouth's wall never runs into one of the wall's
+vertices (with 64 it left a zero-area triangle in a back corner). Every dam width from 0.5 to 15 mm, at both clearance extremes,
+passes `inspectStl`. The container's outer shell and
 its cavity are each a single convex hull, with no seam where the band starts. A detent ridge's flanks carry on 0.3 mm into its
 wall, and a groove's start 0.3 mm in front of its face, so that no edge of either lies in the face. Each grip sheet is a single
 `polyhedron()` swept along its sampled seam, with its cross-section computed per sample (flat seam face, rounded outer edges,

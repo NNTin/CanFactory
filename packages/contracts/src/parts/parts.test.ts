@@ -102,7 +102,7 @@ describe('parts library', () => {
 
   it('links models to the library: the plank connector’s screw sizes and the cigarette case’s lighter', () => {
     const screwHoles = plankConnector.controls.find(control => control.key === 'screwHoles');
-    expect(screwHoles?.part).toEqual({ family: 'screw', attribute: 'thread' });
+    expect(screwHoles?.part).toEqual({ family: 'screw', attribute: 'thread', filter: null });
     // every screw size offered has screws in the library, and the clearance holes are the library's ISO 273 table
     for (const option of screwHoles?.options ?? []) if (option.value !== 'none') expect(parts.some(part => part.attributes['thread'] === option.value), option.value).toBe(true);
     expect(Object.keys(ISO_273_CLEARANCE_HOLES)).toEqual(Object.keys(METRIC_THREADS));

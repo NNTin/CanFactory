@@ -30,6 +30,8 @@ interface ScrewRow {
 interface ScrewStandard {
   source: string; reference: string; code: string; head: Head; name: string; aliases: (thread: string, l: number) => string[];
   rows: ScrewRow[]; describe: (row: ScrewRow, l: number) => string; notes: string | null;
+  /** The title before the size, when the head's own name would not tell it apart from another standard's. */
+  title?: string;
 }
 
 const HEAD_TEXT: Record<Head, string> = {
@@ -48,7 +50,7 @@ function screws(standard: ScrewStandard): Part[] {
     const size = `${row.thread} × ${l}`;
     return {
       id: `${standard.code}-${row.thread.toLowerCase().replace('.', '-')}x${l}`,
-      family: 'screw', title: `${HEAD_TEXT[standard.head]} ${size}`, designation: `${standard.name} ${size}`,
+      family: 'screw', title: `${standard.title ?? HEAD_TEXT[standard.head]} ${size}`, designation: `${standard.name} ${size}`,
       aliases: standard.aliases(row.thread, l), description: standard.describe(row, l),
       standard: standard.source, product: null,
       attributes: { thread: row.thread, head: standard.head, drive: row.drive, standard: standard.name, length: `${l} mm` },
@@ -138,4 +140,22 @@ const iso7045 = screws({
   ],
 });
 
-export const screwParts: Part[] = [...iso4762, ...iso7380, ...iso10642, ...iso4017, ...iso7045];
+// ISO 7046-1: P, b min, dk nominal = max / min (the actual head, not the theoretical sharp edge), k max, cross recess number
+// (type H). The length includes the head. fasteners.eu prints the table for ISO 7046 (parts 1 and 2 share the dimensions).
+const iso7046 = screws({
+  source: 'iso-7046-1', reference: 'fasteners-eu-iso-7046', code: 'iso-7046', head: 'countersunk', name: 'ISO 7046-1', title: 'Cross-recessed countersunk screw',
+  aliases: (thread, l) => [`DIN 965 ${thread}x${l}`],
+  describe: (row, l) => `An ${row.thread} countersunk flat head screw with a Phillips (type H) cross recess, ${row.drive.replace('cross recess ', 'size ')}, ${l} mm long including its 90° cone head of ${row.dimensions['dk']?.[0]} mm, which sits flush in a countersink (ISO 7046-1, replacing DIN 965).`,
+  notes: `The length of a countersunk screw includes the head. dk is the actual head diameter; the countersink's theoretical sharp edge is larger. Screws shorter than b are threaded to the head. ${LENGTHS_NOTE}`,
+  rows: [
+    { thread: 'M2', pitch: 0.4, lengths: [3, 4, 5, 6, 8, 10, 12, 16, 20], drive: 'cross recess PH1', dimensions: { b: [16], dk: [3.8, 3.5, 3.8], k: [1.2, null, 1.2] } },
+    { thread: 'M2.5', pitch: 0.45, lengths: [3, 4, 5, 6, 8, 10, 12, 16, 20, 25], drive: 'cross recess PH1', dimensions: { b: [18], dk: [4.7, 4.4, 4.7], k: [1.5, null, 1.5] } },
+    { thread: 'M3', pitch: 0.5, lengths: [4, 5, 6, 8, 10, 12, 16, 20, 25, 30], drive: 'cross recess PH1', dimensions: { b: [19], dk: [5.6, 5.3, 5.6], k: [1.65, null, 1.65] } },
+    { thread: 'M4', pitch: 0.7, lengths: [5, 6, 8, 10, 12, 16, 20, 25, 30, 40], drive: 'cross recess PH2', dimensions: { b: [22], dk: [7.5, 7.14, 7.5], k: [2.2, null, 2.2] } },
+    { thread: 'M5', pitch: 0.8, lengths: [6, 8, 10, 12, 16, 20, 25, 30, 40, 50], drive: 'cross recess PH2', dimensions: { b: [25], dk: [9.2, 8.84, 9.2], k: [2.5, null, 2.5] } },
+    { thread: 'M6', pitch: 1, lengths: [8, 10, 12, 16, 20, 25, 30, 40, 50], drive: 'cross recess PH3', dimensions: { b: [28], dk: [11, 10.57, 11], k: [3, null, 3] } },
+    { thread: 'M8', pitch: 1.25, lengths: [10, 12, 16, 20, 25, 30, 40, 50, 55], drive: 'cross recess PH4', dimensions: { b: [34], dk: [14.5, 14.07, 14.5], k: [4, null, 4] } },
+  ],
+});
+
+export const screwParts: Part[] = [...iso4762, ...iso7380, ...iso10642, ...iso4017, ...iso7045, ...iso7046];
