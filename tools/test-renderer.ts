@@ -262,10 +262,11 @@ try {
     console.log(`PASS plank connector ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   // Litter shovel: every sieve texture, the sieve extremes (most gaps, fewest gaps), the scraping tip's extremes, both grip ends,
-  // the fewest and most, thinnest and thickest grip supports, and both snap modes of both joints at the clearance extremes. Each
-  // part must be one closed solid of the expected size (the grip's end sets the handle's height; the container's grip sheet
-  // keeps half the clearance off the seam), and the scoop's sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm wall: at the default
-  // fit and tip, its volume plus the gaps' volume is the same solid scoop for every sieve. The handle's reinforcement adds bosses
+  // the shortest and longest scoop, the fewest and most, thinnest and thickest grip supports, and both snap modes of both
+  // joints at the clearance extremes. Each part must be one closed solid of the expected size (the scoop's length sets its
+  // height, the grip's end the handle's; the container's grip sheet keeps half the clearance off the seam), and the scoop's
+  // sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm wall: at the default fit, tip and length, its volume plus
+  // the gaps' volume is the same solid scoop for every sieve. The handle's reinforcement adds bosses
   // and holes within those sizes, with every thread, insert and nut kind.
   const shovelRuns: { name: string; overrides: Partial<LitterShovelParameters> }[] = [
     { name: 'default (slots, detents)', overrides: {} },
@@ -282,6 +283,10 @@ try {
     { name: 'one thinnest support', overrides: { supportCount: 1, supportThickness: 1.2 } },
     { name: 'five thickest supports, grip to the floor', overrides: { supportCount: 5, supportThickness: 4, gripEnd: 'floor' } },
     { name: 'largest slots', overrides: { gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10 } },
+    { name: 'shortest scoop', overrides: { scoopLength: 90 } },
+    { name: 'shortest scoop, largest round holes, longest bevel', overrides: { scoopLength: 90, sievePattern: 'round', gapWidth: 15, gapSpacing: 3, sieveMargin: 3, tipBevel: 20 } },
+    { name: 'longest scoop', overrides: { scoopLength: 180 } },
+    { name: 'longest scoop, fine hexagons', overrides: { scoopLength: 180, sievePattern: 'hex', gapWidth: 4.5, gapLength: 12, gapSpacing: 3, sieveMargin: 3 } },
     { name: 'friction fits at 0.1 mm', overrides: { handleSnap: 'friction', scoopSnap: 'friction', clearance: 0.1 } },
     { name: 'detents at 0.1 mm, least engagement', overrides: { clearance: 0.1, handleDetentEngage: 0.02, scoopDetentEngage: 0.02 } },
     { name: 'detents at 0.6 mm, most engagement', overrides: { clearance: 0.6, handleDetentEngage: 0.4, scoopDetentEngage: 0.4 } },
@@ -295,11 +300,11 @@ try {
     { name: 'M4 nylon-insert nuts at 0.6 mm', overrides: { handleReinforcement: 'nut-bolt', handleThread: 'M4', handleNut: 'iso-10511-m4', handleScrew: 'iso-7046-m4x12', clearance: 0.6, handleDetentEngage: 0.4, scoopDetentEngage: 0.4 } },
   ];
   const shovelSizes = (p: LitterShovelParameters): Record<string, [number, number, number]> => ({
-    container: [41.25 + 65 - p.clearance / 2, 114.8, 141.5], scoop: [88.9, 121.2, 127], handle: [44.45 + 68, 121.2, 159.5 - (p.gripEnd === 'floor' ? 0 : 30)],
+    container: [41.25 + 65 - p.clearance / 2, 114.8, 141.5], scoop: [88.9, 121.2, p.scoopLength], handle: [44.45 + 68, 121.2, 159.5 - (p.gripEnd === 'floor' ? 0 : 30)],
   });
   const gapArea = (p: LitterShovelParameters) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
     : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (p.gapLength - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
-  const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'handleSnap', 'clearance', 'scoopDetentEngage', 'handleDetentEngage', 'tipThickness', 'tipBevel', 'handleReinforcement'] as const).every(key => p[key] === litterShovel.defaults[key]);
+  const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'handleSnap', 'clearance', 'scoopDetentEngage', 'handleDetentEngage', 'tipThickness', 'tipBevel', 'handleReinforcement', 'scoopLength'] as const).every(key => p[key] === litterShovel.defaults[key]);
   let solidScoop: number | undefined;
   for (const { name, overrides } of only && only !== 'litter-shovel' ? [] : shovelRuns) {
     const started = Date.now();

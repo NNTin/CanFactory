@@ -23,7 +23,7 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
 | Part | File | Size (X × Y × Z) | Prints | Assembled at |
 | --- | --- | --- | --- | --- |
 | Container | `container.scad` | 106.15 × 114.8 × 141.5 | standing on its floor | Z 0 |
-| Scoop | `scoop.scad` | 88.9 × 121.2 × 127 | on its cap | Z 136.5 (the cap's ceiling on the lip at 141.5) |
+| Scoop | `scoop.scad` | 88.9 × 121.2 × 127 (the scoop's length) | on its cap | Z 136.5 (the cap's ceiling on the lip at 141.5) |
 | Handle | `handle.scad` | 112.45 × 121.2 × 129.5 | upside down, on its ring's top | Z 159.5, turned over about X (its ring on the cap's top at 144.5) |
 
 ### Container
@@ -51,8 +51,12 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
   - The cap's top, 3 mm above the ceiling, is 88.9 × 121.2, flush with the skirt. The handle's ring sits on it.
   - Inside, a 45° funnel leads from the blade into the sleeve, so clumps fall into the bag and never onto the rim or the fold.
 - **Blade:** a 3.2 mm wall, 81.7 × 114 outside, rising from the cap 3.6 mm inside its edge, which leaves room for the ring.
-  - **Tip (the scraping edge):** the back wall (−X) and most of the back corners rise to a straight edge at Z 127, across the
-    whole back. This edge scrapes along the floor. The outer face runs flat right up to it. The inner face is bevelled over the
+  - **Length (`scoopLength`):** the blade's height, from the cap's lower edges to the scraping edge: 90 to 180 mm, 127 by
+    default (`SCOOP_LENGTH`). A longer scoop takes more litter in one go and has room for more sieve rows. Everything above the
+    root band follows it: the tip, the side walls' curve, the bevel and the sieve. The cap, the ring and the front stay as they
+    are.
+  - **Tip (the scraping edge):** the back wall (−X) and most of the back corners rise to a straight edge at Z `scoopLength`
+    (127), across the whole back. This edge scrapes along the floor. The outer face runs flat right up to it. The inner face is bevelled over the
     top `tipBevel` (12 mm by default) down to `tipThickness` (0.8 mm, two lines of a 0.4 mm nozzle), so the edge is sharp. The
     bevel faces up and inward, so it prints without support.
   - **Side walls:** they stay level with the tip until 8 mm into the back corners, then fall in half a cosine to the front (+X),
@@ -62,8 +66,8 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
     never meets a square edge. Round the back corners, the tip's square outer edge rounds off gradually into it (radius 0 over the
     back and the first 15° of each corner, growing to 1.6 mm where the sides start to fall), so the sharp tip and the round sides
     meet without a step.
-  - Together they make a channel. Its depth, from the back wall's outer face, is 46 mm at Z 50, 36 mm at Z 80, 28 mm at Z 100
-    and 22 mm at Z 115.
+  - Together they make a channel. At the default length, its depth from the back wall's outer face is 46 mm at Z 50, 36 mm at
+    Z 80, 28 mm at Z 100 and 22 mm at Z 115. A longer scoop's sides fall more gently, and a shorter one's more steeply.
 
 ### Handle
 
@@ -207,7 +211,7 @@ The scraping tip has two more parameters, both advanced settings:
     go through the wall there too.
 - From the bottom: the gaps start above an 18 mm solid **root band** over the cap's top (Z 8). That is where the blade's bending
   load is highest, and it covers the handle's 15 mm ring. The zone's bottom is at Z 26.
-- At the top: the gaps stay under the tip's bevel (Z 115 by default), so they never cut the thin edge. On the sides they also stay
+- At the top: the gaps stay under the tip's bevel (Z `scoopLength − tipBevel`, 115 by default), so they never cut the thin edge. On the sides they also stay
   under the falling top edge.
 - Every limit is shrunk by the margin. Against the side walls' sloping top, the margin is measured square to the slope.
 
@@ -218,13 +222,15 @@ The scraping tip has two more parameters, both advanced settings:
 - Only whole gaps are cut, so there are no slivers. A gap's top outer corner (the end farther from the back) is checked against
   the side walls' top, which falls away towards the front.
 - The defaults give 24 slots in two rows: 14 centred on the back's flat part and, on each side, 2 in the corner and 3 on the
-  side.
+  side. The shortest scoop (90 mm) has room for 11 of them in one row, the longest (180 mm) for 48 in four.
 
-`sieveGaps()` and `scoopSideTop()` in the contract mirror this layout, with the blade's dimensions in `SCOOP_BLADE`. They give the
+`sieveGaps()` and `scoopSideTop()` in the contract mirror this layout, with the blade's dimensions in `SCOOP_BLADE` and its length
+in `scoopLength`. They give the
 editor's gap count and the validation: at least one gap, at most `MAX_SIEVE_GAPS` = 600, and slots at least as long as they are
-wide. The finest sieve (3 mm round holes, 3 mm bars and margin, a 5 mm bevel) has 439 gaps and renders in about 2 s. Tests pin
-the layout to counts recorded from the SCAD file's `SIEVE_GAPS` echo. `npm run test:renderer` checks that, at the default fit
-and tip, the scoop's volume plus the gaps' volume is the same solid for every texture. There, a gap in a corner counts
+wide. At the default length the finest sieve (3 mm round holes, 3 mm bars and margin, a 5 mm bevel) has 439 gaps and renders in
+about 2 s. On the longest scoop it would have 700, so validation asks for larger gaps or wider bars there. Tests pin the layout
+to counts recorded from the SCAD file's `SIEVE_GAPS` echo, at 90, 127 and 180 mm. `npm run test:renderer` checks that, at the
+default fit, tip and length, the scoop's volume plus the gaps' volume is the same solid for every texture. There, a gap in a corner counts
 (R + r) / 2r ≈ 1.11 times its area × wall, because it widens with the radius.
 
 ## Assembly
