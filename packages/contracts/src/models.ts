@@ -1003,7 +1003,8 @@ export const plankConnector = {
  * container, scoop, handle. The container's flat lip carries the scoop's U-shaped cap (the bag folded over the lip is pinched
  * between them); the cap's flat top carries the handle's ring, flush with it. The grip is two thin curved sheets: the container's
  * own handle (the finger side, open at the bottom, braced by `supportCount` thin fins) and the handle part's (the palm side),
- * which lies on it so that the two make one strip; held, it clamps the three parts. `gripEnd` ends it open above the floor or on
+ * which lies on it so that the two make one strip; held, it clamps the three parts. Under the container's mouth, on the scraper
+ * side, a 45° dam (`damWidth`) keeps the clumps in when the shovel is turned over to scoop again. `gripEnd` ends it open above the floor or on
  * the floor. Two joints hold by a close fit or a detent (`scoopSnap`: the scoop's sleeve in the
  * container's mouth; `handleSnap`: the handle's ring on the blade's base), sized from one `clearance`; `handleReinforcement` can also
  * screw the handle to the scoop with parts-library hardware. The other parameters shape the sieve round the scoop's walls and its
@@ -1153,6 +1154,7 @@ export const LitterShovelParametersSchema = Type.Object({
   tipBevel: dimension('Tip bevel length', 'How far down from the scraping edge the scoop’s inner face is bevelled, in mm. The sieve stays below the bevel.', 12, 5, 20, 0.5),
   gripEnd: Type.Enum(GRIP_END_VALUES, { title: 'Grip end', description: 'Where the grip ends: open above the floor (the container’s grip tip needs slicer supports), or down on the floor (no supports).', default: 'open' }),
   supportCount: Type.Integer({ title: 'Grip supports', description: 'Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer.', default: 3, minimum: 1, maximum: 5 }),
+  damWidth: dimension('Dam width', 'How far the dam under the container’s mouth, on the scraper side, reaches in from the back wall, in mm (0 for none). It falls inward at 45°: turned over to scoop, the clumps already inside collect behind it instead of falling out.', 8, 0, 15, 0.5),
   supportThickness: dimension('Support thickness', 'Thickness of each fin under the container’s handle, in mm.', 2, 1.2, 4),
   scoopSnap: Type.Enum(SHOVEL_SNAP_VALUES, { title: 'Scoop on the container', description: 'How the scoop’s sleeve holds in the container’s mouth: a close fit only, or a detent.', default: 'detent' }),
   handleSnap: Type.Enum(SHOVEL_SNAP_VALUES, { title: 'Handle on the scoop', description: 'How the handle’s ring holds on the base of the scoop’s blade: a close fit only, or a detent.', default: 'detent' }),
@@ -1273,6 +1275,7 @@ const litterShovelControls = [
   control(LitterShovelParametersSchema, 'scoopLength', 'basic'),
   enumControl(LitterShovelParametersSchema, 'gripEnd', 'basic', GRIP_END_VALUES.map(value => ({ value, ...GRIP_END_TEXT[value] }))),
   control(LitterShovelParametersSchema, 'supportCount', 'basic', null, null),
+  control(LitterShovelParametersSchema, 'damWidth', 'basic'),
   enumControl(LitterShovelParametersSchema, 'scoopSnap', 'basic', SHOVEL_SNAP_VALUES.map(value => ({ value, ...SCOOP_SNAP_TEXT[value] }))),
   enumControl(LitterShovelParametersSchema, 'handleSnap', 'basic', SHOVEL_SNAP_VALUES.map(value => ({ value, ...HANDLE_SNAP_TEXT[value] }))),
   enumControl(LitterShovelParametersSchema, 'handleReinforcement', 'basic', HANDLE_REINFORCEMENT_VALUES.map(value => ({ value, ...HANDLE_REINFORCEMENT_TEXT[value] }))),
@@ -1336,9 +1339,9 @@ const SHOVEL_SCOOP_SNAP_MAPPING = { scoopSnap: 'SCOOP_SNAP', scoopDetentEngage: 
 const SHOVEL_HANDLE_SNAP_MAPPING = { handleSnap: 'HANDLE_SNAP', handleDetentEngage: 'HANDLE_DETENT_ENGAGE' };
 
 /** The parts, in stacking order. Each joint's setting reaches the two parts of that joint, and the grip's end the two halves of
- * the grip; the sieve and the tip reach only the scoop, the supports only the container. */
+ * the grip; the sieve, the tip and the scoop's length reach only the scoop, the supports and the dam only the container. */
 const litterShovelParts: ModelPart[] = [
-  { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', supportCount: 'SUPPORT_COUNT', supportThickness: 'SUPPORT_THICKNESS', ...SHOVEL_SCOOP_SNAP_MAPPING } },
+  { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', supportCount: 'SUPPORT_COUNT', supportThickness: 'SUPPORT_THICKNESS', damWidth: 'DAM_WIDTH', ...SHOVEL_SCOOP_SNAP_MAPPING } },
   { id: 'scoop', title: 'Scoop', sourcePath: `${LITTER_SHOVEL_DIR}scoop.scad`,
     scadMapping: { scoopLength: 'SCOOP_LENGTH', sievePattern: 'SIEVE_PATTERN', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', tipThickness: 'TIP_THICKNESS', tipBevel: 'TIP_BEVEL', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
     partDefines: SHOVEL_SCOOP_FASTENER_DEFINES },
@@ -1367,9 +1370,9 @@ const litterShovelAssembly: Assembly = {
 
 export const litterShovel = {
   id: 'litter-shovel' as const, version: '2' as const, title: 'Litter shovel',
-  description: 'A cat-litter sifting shovel in three closed-ring parts, stacked: a container for a liner bag with its own open, hook-like handle, a sifting scoop that caps its rim, with a straight, sharp edge that scrapes along the floor and a sieve round its back, corners and sides, and a handle whose ring sits on the scoop and whose grip lies on the container’s handle. Both halves of the grip are thin curved sheets that stack into one smooth strip; held in the fist, they clamp all three parts. Choose the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and bar width, the scraping edge’s thickness and bevel, where the grip ends and how many thin fins brace it, how the parts hold (a close fit or a detent), and whether two screws fasten the handle to the scoop for good (into threaded inserts or nuts from the parts library), then download the three parts as a ZIP of STL files.',
+  description: 'A cat-litter sifting shovel in three closed-ring parts, stacked: a container for a liner bag with its own open, hook-like handle, a sifting scoop that caps its rim, with a straight, sharp edge that scrapes along the floor and a sieve round its back, corners and sides, and a handle whose ring sits on the scoop and whose grip lies on the container’s handle. Both halves of the grip are thin curved sheets that stack into one smooth strip; held in the fist, they clamp all three parts. Choose the scoop’s length, the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and bar width, the scraping edge’s thickness and bevel, the dam that keeps the clumps in when you scoop again, where the grip ends and how many thin fins brace it, how the parts hold (a close fit or a detent), and whether two screws fasten the handle to the scoop for good (into threaded inserts or nuts from the parts library), then download the three parts as a ZIP of STL files.',
   attribution: 'CanFactory (original design)',
-  printNotes: 'Print each part as generated: the container standing on its floor, the scoop on its cap, the handle upside down on its ring’s top. Only the container’s open grip tip needs slicer supports; with the grip down to the floor, nothing does. With a handle reinforcement, melt the inserts in (or push the nuts in) from outside the bosses, then drive the countersunk screws in from inside the scoop.',
+  printNotes: 'Print each part as generated: the container standing on its floor, the scoop on its cap, the handle upside down on its ring’s top. Only the container’s open grip tip needs slicer supports; with the grip down to the floor, nothing does. Fold the bag about 5 mm over the container’s lip; inside, it drapes over the dam. With a handle reinforcement, melt the inserts in (or push the nuts in) from outside the bosses, then drive the countersunk screws in from inside the scoop.',
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   parts: litterShovelParts,
   assembly: litterShovelAssembly,

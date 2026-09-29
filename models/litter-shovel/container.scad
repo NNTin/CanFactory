@@ -11,7 +11,8 @@
 // Modelled as it prints and stands: Z up, the floor at Z = 0, the lip's top at Z = 141.5. The lip has a 45 degree underside,
 // the sheet's slope and the fins' lower edges are at 45 degrees, and its bend is round. With GRIP_END = "open" the grip's tip
 // hangs free 30 mm above the floor, so the slicer must support it; with "floor" the sheet runs down to the bed and nothing
-// needs support. In `detent` mode grooves in the mouth, just under the lip, take the bumps on the scoop's sleeve.
+// needs support. In `detent` mode grooves in the mouth, just under the lip, take the bumps on the scoop's sleeve. Under the
+// mouth, on the scraper side, a 45 degree dam keeps the clumps in when the shovel is turned over to scoop.
 
 // How the scoop's sleeve holds in the mouth: a close fit only, or a detent (bumps on the sleeve, grooves in the mouth)
 SCOOP_SNAP = "detent"; //[friction,detent]
@@ -25,6 +26,8 @@ SUPPORT_COUNT = 3; //[1:1:5]
 SUPPORT_THICKNESS = 2; //[1.2:0.1:4]
 // Where the grip ends: open, 30 mm above the floor (the slicer supports its tip), or down on the floor (no support needed)
 GRIP_END = "open"; //[open,floor]
+// How far the dam under the mouth, on the scraper side (-X), reaches in from the back wall, in mm (0 for none)
+DAM_WIDTH = 8; //[0:0.5:15]
 
 $fa = 4; $fs = 0.5;
 E = 0.01;
@@ -41,6 +44,11 @@ BAND_Z = RIM_Z - LIP_T - LIP_W - 3;
 FIN_REACH = 12;
 // Detent grooves: height in the mouth (mid-way down the scoop's sleeve) and length along the wall.
 DETENT_Z = RIM_Z - 2.5; DETENT_L = 16;
+// Dam: the scoop's sleeve reaches SLEEVE_DEPTH into the mouth; the dam's top meets the wall DAM_GAP below it (room for the bag),
+// and it is a sheet as thick as the wall, at 45 degrees (DAM_T high).
+SLEEVE_DEPTH = 5; DAM_GAP = 1;
+DAM_TOP = RIM_Z - SLEEVE_DEPTH - DAM_GAP;
+DAM_T = WALL * sqrt(2);
 
 module rr2d(p) { offset(r = p[2], $fn = 64) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
 module slab(p, z, h = E) { translate([0, 0, z]) linear_extrude(h) rr2d(p); }
@@ -162,8 +170,37 @@ module groove(l, g) {
   }
 }
 
-difference() {
-  union() { outside(); lip(); handle(); }
-  inside();
-  if (SCOOP_SNAP == "detent") translate([0, 0, DETENT_Z]) on_sides(MOUTH) groove(DETENT_L, SCOOP_DETENT_ENGAGE);
+// ---- The dam: on the scraper side only. ----
+// Scooping, the shovel is turned over with the scraper side (-X) down, and the clumps already in the container slide towards the
+// mouth along that side. The dam holds them back: a sheet under the mouth, as thick as the wall, that leaves the back wall at
+// DAM_TOP and falls inward at 45 degrees, DAM_WIDTH in from it. It continues the scoop's funnel, so clumps slide off it into the
+// bag, and turned over they collect in the pocket between it and the wall. It runs along the back and round both back corners, to
+// where the side walls start. Its underside is at 45 degrees too, so it prints standing without support.
+// The region over a 45 degree surface through the mouth's wall at z0, falling DAM_WIDTH inward (a frustum over a column); the
+// sheet is that region for its underside less the one for its top. Its corners' radius is kept at least 2 mm, so that at the
+// corners a wide dam is steeper than 45 degrees rather than folding over.
+function inset(p, d) = [p[0] - 2 * d, p[1] - 2 * d, max(2, p[2] - d)];
+module over_slope(z0) {
+  up = DAM_T + 1;
+  hull() { slab(grow(MOUTH, up), z0 + up); slab(inset(MOUTH, DAM_WIDTH), z0 - DAM_WIDTH); }
+  low = DAM_TOP - DAM_WIDTH - 2 * DAM_T - 1;
+  slab(inset(MOUTH, DAM_WIDTH), low, z0 - DAM_WIDTH - low + E);
+}
+// It reaches 1 mm into the wall, and only on the scraper side: the back wall and the back corners, up to where the sides start.
+module dam() {
+  low = DAM_TOP - DAM_WIDTH - 2 * DAM_T - 1;
+  intersection() {
+    difference() { over_slope(DAM_TOP - DAM_T); over_slope(DAM_TOP); }
+    slab(grow(MOUTH, 1), low, DAM_TOP - low + 1);
+    translate([-MOUTH[0] / 2 - 2, -MOUTH[1] / 2 - 2, low]) cube([MOUTH[2] + 2, MOUTH[1] + 4, DAM_TOP - low + 1]);
+  }
+}
+
+union() {
+  difference() {
+    union() { outside(); lip(); handle(); }
+    inside();
+    if (SCOOP_SNAP == "detent") translate([0, 0, DETENT_Z]) on_sides(MOUTH) groove(DETENT_L, SCOOP_DETENT_ENGAGE);
+  }
+  if (DAM_WIDTH > 0) dam();
 }

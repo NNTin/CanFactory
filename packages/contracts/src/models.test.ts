@@ -465,11 +465,11 @@ describe('litter shovel contract', () => {
     expect(findModel('litter-shovel')).toBe(litterShovel);
     expect(artifactFormat(litterShovel)).toBe('zip');
     expect(modelSourcePaths(litterShovel)).toEqual(['container', 'scoop', 'handle'].map(id => `models/litter-shovel/${id}.scad`));
-    expect(defaults).toEqual({ sievePattern: 'slots', gapWidth: 7.2, gapLength: 25, gapSpacing: 5.6, scoopLength: 127, scoopSnap: 'detent', handleSnap: 'detent', sieveMargin: 3.2, tipThickness: 0.8, tipBevel: 12, gripEnd: 'open', supportCount: 3, supportThickness: 2, clearance: 0.2, scoopDetentEngage: 0.15, handleDetentEngage: 0.15,
+    expect(defaults).toEqual({ sievePattern: 'slots', gapWidth: 7.2, gapLength: 25, gapSpacing: 5.6, scoopLength: 127, scoopSnap: 'detent', handleSnap: 'detent', sieveMargin: 3.2, tipThickness: 0.8, tipBevel: 12, gripEnd: 'open', supportCount: 3, damWidth: 8, supportThickness: 2, clearance: 0.2, scoopDetentEngage: 0.15, handleDetentEngage: 0.15,
       handleReinforcement: 'none', handleThread: 'M3', handleInsert: 'cnc-kitchen-m3x5-7', handleNut: 'iso-4032-m3', handleScrew: 'iso-10642-m3x12' });
     expect(validateParameters(litterShovel, defaults)).toEqual([]);
     const [containerPart, scoopPart, handlePart] = litterShovel.parts;
-    expect(Object.keys(containerPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gripEnd', 'scoopDetentEngage', 'scoopSnap', 'supportCount', 'supportThickness']);
+    expect(Object.keys(containerPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'damWidth', 'gripEnd', 'scoopDetentEngage', 'scoopSnap', 'supportCount', 'supportThickness']);
     expect(Object.keys(scoopPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gapLength', 'gapSpacing', 'gapWidth', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread', 'scoopDetentEngage', 'scoopLength', 'scoopSnap', 'sieveMargin', 'sievePattern', 'tipBevel', 'tipThickness']);
     expect(Object.keys(handlePart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gripEnd', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread']);
     expect(scadDefines(litterShovel, scoopPart ?? {}, defaults)).toContainEqual(['SIEVE_PATTERN', '"slots"']);
@@ -520,6 +520,14 @@ describe('litter shovel contract', () => {
     expect(handle).toMatch(/^SEAM_X_TOP = CAP_OUT\[0\] \/ 2 \+ CLEARANCE \/ 2;$/m);
     // The grip stands clear of the lip and the skirt: its vertical is outside the scoop's cap.
     expect(constant(container, 'SEAM_X') - constant(container, 'SHEET_T')).toBeGreaterThan(capOut[0] / 2);
+    // The dam, on the scraper side only, meets the mouth's wall a bag's room under the scoop's sleeve, below the detent grooves
+    // and where the mouth is straight (above the band's start); it ends where the back corners do.
+    expect(constant(container, 'SLEEVE_DEPTH')).toBe(constant(scoop, 'RIM_H'));
+    expect(container).toMatch(/^DAM_TOP = RIM_Z - SLEEVE_DEPTH - DAM_GAP;$/m);
+    const damTop = constant(container, 'RIM_Z') - constant(container, 'SLEEVE_DEPTH') - constant(container, 'DAM_GAP');
+    expect(damTop).toBeLessThan(constant(container, 'RIM_Z') - 2.5 - 1);
+    expect(damTop - constant(container, 'WALL') * Math.SQRT2).toBeGreaterThan(constant(container, 'RIM_Z') - constant(container, 'LIP_T') - constant(container, 'LIP_W') - 3);
+    expect(container).toMatch(/cube\(\[MOUTH\[2\] \+ 2, /);
     // The root band under the sieve covers the handle's ring.
     expect(constant(scoop, 'ROOT_BAND')).toBeGreaterThan(constant(handle, 'RING_H'));
   });
@@ -587,10 +595,10 @@ describe('litter shovel contract', () => {
     expect(find('handleDetentEngage')?.visibleWhen).toEqual({ control: 'handleSnap', values: ['detent'] });
     expect(find('scoopSnap')?.options?.map(option => option.value)).toEqual(['friction', 'detent']);
     expect(find('clearance')?.recommended?.map(entry => entry.control)).toEqual(['scoopSnap', 'handleSnap']);
-    for (const values of [{ sievePattern: 'round', gapWidth: 3, gapSpacing: 3, sieveMargin: 3 }, { sievePattern: 'hex', gapWidth: 15, gapSpacing: 15, sieveMargin: 10 }, { gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10 }, { sievePattern: 'round', gapLength: 6 }, { handleSnap: 'friction', scoopSnap: 'friction', clearance: 0.6 }, { gripEnd: 'floor', supportCount: 5, supportThickness: 4 }, { supportCount: 1, supportThickness: 1.2 }])
+    for (const values of [{ sievePattern: 'round', gapWidth: 3, gapSpacing: 3, sieveMargin: 3 }, { sievePattern: 'hex', gapWidth: 15, gapSpacing: 15, sieveMargin: 10 }, { gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10 }, { sievePattern: 'round', gapLength: 6 }, { handleSnap: 'friction', scoopSnap: 'friction', clearance: 0.6 }, { gripEnd: 'floor', supportCount: 5, supportThickness: 4 }, { supportCount: 1, supportThickness: 1.2 }, { damWidth: 0 }, { damWidth: 15 }])
       expect(validateParameters(litterShovel, { ...defaults, ...values }), JSON.stringify(values)).toEqual([]);
     expect(validateParameters(litterShovel, { ...defaults, gapWidth: 10, gapLength: 8 })[0]?.field).toBe('gapLength');
-    for (const values of [{ sievePattern: 'diamond' }, { gapWidth: 2.9 }, { gapSpacing: 2.9 }, { gapLength: 41 }, { sieveMargin: 2.9 }, { sieveMargin: 10.1 }, { gapWidth: 7.25 }, { handleSnap: 'clip' }, { clearance: 0.7 }, { tipThickness: 0.3 }, { tipThickness: 2.1 }, { tipBevel: 4.5 }, { tipBevel: 20.5 }, { tipBevel: 12.25 }, { supportCount: 0 }, { supportCount: 6 }, { supportCount: 2.5 }, { supportThickness: 1.1 }, { supportThickness: 4.1 }, { gripEnd: 'closed' }])
+    for (const values of [{ sievePattern: 'diamond' }, { gapWidth: 2.9 }, { gapSpacing: 2.9 }, { gapLength: 41 }, { sieveMargin: 2.9 }, { sieveMargin: 10.1 }, { gapWidth: 7.25 }, { handleSnap: 'clip' }, { clearance: 0.7 }, { tipThickness: 0.3 }, { tipThickness: 2.1 }, { tipBevel: 4.5 }, { tipBevel: 20.5 }, { tipBevel: 12.25 }, { supportCount: 0 }, { supportCount: 6 }, { supportCount: 2.5 }, { supportThickness: 1.1 }, { supportThickness: 4.1 }, { gripEnd: 'closed' }, { damWidth: -0.5 }, { damWidth: 15.5 }, { damWidth: 8.25 }])
       expect(validateParameters(litterShovel, { ...defaults, ...values }), JSON.stringify(values)).not.toEqual([]);
     // At the default length every sieve stays under the complexity limit; a longer scoop can exceed it, and validation says so.
     for (const sievePattern of ['round', 'hex'] as const)

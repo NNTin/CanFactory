@@ -1162,6 +1162,12 @@ export interface operations {
                          */
                         supportCount: number;
                         /**
+                         * Dam width
+                         * @description How far the dam under the container’s mouth, on the scraper side, reaches in from the back wall, in mm (0 for none). It falls inward at 45°: turned over to scoop, the clumps already inside collect behind it instead of falling out.
+                         * @default 8
+                         */
+                        damWidth: number;
+                        /**
                          * Support thickness
                          * @description Thickness of each fin under the container’s handle, in mm.
                          * @default 2
