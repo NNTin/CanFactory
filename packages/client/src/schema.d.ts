@@ -1136,6 +1136,25 @@ export interface operations {
                          */
                         tipBevel: number;
                         /**
+                         * Grip end
+                         * @description Where the grip ends: open above the floor (the container’s grip tip needs slicer supports), or down on the floor (no supports).
+                         * @default open
+                         * @enum {unknown}
+                         */
+                        gripEnd: "open" | "floor";
+                        /**
+                         * Grip supports
+                         * @description Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer.
+                         * @default 3
+                         */
+                        supportCount: number;
+                        /**
+                         * Support thickness
+                         * @description Thickness of each fin under the container’s handle, in mm.
+                         * @default 2
+                         */
+                        supportThickness: number;
+                        /**
                          * Scoop on the container
                          * @description How the scoop’s sleeve holds in the container’s mouth: a close fit only, or a detent.
                          * @default detent

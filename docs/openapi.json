@@ -2501,6 +2501,9 @@
                           "sieveMargin",
                           "tipThickness",
                           "tipBevel",
+                          "gripEnd",
+                          "supportCount",
+                          "supportThickness",
                           "scoopSnap",
                           "handleSnap",
                           "clearance",
@@ -2572,6 +2575,32 @@
                             "minimum": 5,
                             "maximum": 20,
                             "multipleOf": 0.5
+                          },
+                          "gripEnd": {
+                            "enum": [
+                              "open",
+                              "floor"
+                            ],
+                            "title": "Grip end",
+                            "description": "Where the grip ends: open above the floor (the container’s grip tip needs slicer supports), or down on the floor (no supports).",
+                            "default": "open"
+                          },
+                          "supportCount": {
+                            "type": "integer",
+                            "title": "Grip supports",
+                            "description": "Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer.",
+                            "default": 3,
+                            "minimum": 1,
+                            "maximum": 5
+                          },
+                          "supportThickness": {
+                            "type": "number",
+                            "title": "Support thickness",
+                            "description": "Thickness of each fin under the container’s handle, in mm.",
+                            "default": 2,
+                            "minimum": 1.2,
+                            "maximum": 4,
+                            "multipleOf": 0.1
                           },
                           "scoopSnap": {
                             "enum": [

@@ -261,9 +261,10 @@ try {
     assert.equal(store.enqueue(plankConnector, parameters).id, job.id);
     console.log(`PASS plank connector ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
-  // Litter shovel: every sieve texture, the sieve extremes (most gaps, fewest gaps), the scraping tip's extremes, and both snap
-  // modes of both joints at the clearance extremes. Each part must be one closed solid of the expected size (none depends on the
-  // clearance or the tip), and the scoop's sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm wall: at the default
+  // Litter shovel: every sieve texture, the sieve extremes (most gaps, fewest gaps), the scraping tip's extremes, both grip ends,
+  // the fewest and most, thinnest and thickest grip supports, and both snap modes of both joints at the clearance extremes. Each
+  // part must be one closed solid of the expected size (the grip's end sets the handle's height; the container's grip sheet
+  // keeps half the clearance off the seam), and the scoop's sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm wall: at the default
   // fit and tip, its volume plus the gaps' volume is the same solid scoop for every sieve.
   const shovelRuns: { name: string; overrides: Partial<LitterShovelParameters> }[] = [
     { name: 'default (slots, detents)', overrides: {} },
@@ -276,13 +277,16 @@ try {
     { name: 'long thin staggered slots', overrides: { sievePattern: 'staggered', gapWidth: 3, gapLength: 40, gapSpacing: 3, sieveMargin: 3 } },
     { name: 'thinnest, longest tip', overrides: { tipThickness: 0.4, tipBevel: 20 } },
     { name: 'thickest, shortest tip', overrides: { tipThickness: 2, tipBevel: 5 } },
+    { name: 'grip down to the floor', overrides: { gripEnd: 'floor' } },
+    { name: 'one thinnest support', overrides: { supportCount: 1, supportThickness: 1.2 } },
+    { name: 'five thickest supports, grip to the floor', overrides: { supportCount: 5, supportThickness: 4, gripEnd: 'floor' } },
     { name: 'largest slots', overrides: { gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10 } },
     { name: 'friction fits at 0.1 mm', overrides: { handleSnap: 'friction', scoopSnap: 'friction', clearance: 0.1 } },
     { name: 'detents at 0.1 mm, least engagement', overrides: { clearance: 0.1, handleDetentEngage: 0.02, scoopDetentEngage: 0.02 } },
     { name: 'detents at 0.6 mm, most engagement', overrides: { clearance: 0.6, handleDetentEngage: 0.4, scoopDetentEngage: 0.4 } },
   ];
-  const shovelSizes = (): Record<string, [number, number, number]> => ({
-    container: [117.25, 114.8, 141.5], scoop: [88.9, 121.2, 127], handle: [132.85, 121.2, 99.5],
+  const shovelSizes = (p: LitterShovelParameters): Record<string, [number, number, number]> => ({
+    container: [41.25 + 65 - p.clearance / 2, 114.8, 141.5], scoop: [88.9, 121.2, 127], handle: [44.45 + 68, 121.2, 159.5 - (p.gripEnd === 'floor' ? 0 : 30)],
   });
   const gapArea = (p: LitterShovelParameters) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
     : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (p.gapLength - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
@@ -302,7 +306,7 @@ try {
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for the litter shovel.');
     assert.deepEqual(result.artifact.parts.map(part => part.id), ['container', 'scoop', 'handle'], `litter shovel ${name}: parts`);
     for (const part of result.artifact.parts) {
-      const size = shovelSizes()[part.id];
+      const size = shovelSizes(parameters)[part.id];
       assert.ok(size && part.volume > 0, `litter shovel ${name} ${part.id}`);
       for (const [axis, want] of [['x', size[0]], ['y', size[1]], ['z', size[2]]] as const)
         assert.ok(Math.abs(part.dimensions[axis] - want) <= 0.05, `litter shovel ${name} ${part.id} ${axis}: ${part.dimensions[axis]} != ${want}`);
