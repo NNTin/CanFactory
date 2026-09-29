@@ -1035,9 +1035,10 @@ export const plankConnector = {
 /**
  * Litter shovel: an original design in three parts (models/litter-shovel/, docs/litter-shovel.md), all closed rings, stacked
  * container, scoop, handle. The container's flat lip carries the scoop's U-shaped cap (the bag folded over the lip is pinched
- * between them); the cap's flat top carries the handle's ring, flush with it. The grip is two thin curved sheets: the container's
- * own handle (the finger side, open at the bottom, braced by `supportCount` thin fins) and the handle part's (the palm side),
- * which lies on it so that the two make one strip; held, it clamps the three parts. Under the container's mouth, on the scraper
+ * between them); the cap's flat top carries the handle's ring, flush with it. The grip is two halves: the container's
+ * own handle (the finger side, open at the bottom; a sheet is braced by `supportCount` thin fins) and the handle part's (the palm side),
+ * which lies on it so that the two make one bar; held, it clamps the three parts. `handleShape` makes them thin sheets (flat, or
+ * curved by `gripBulge`), or a round tube or a rectangular bar of `gripSize`. Under the container's mouth, on the scraper
  * side, a 45° dam (`damWidth`) keeps the clumps in when the shovel is turned over to scoop again. `gripEnd` ends it open above the floor or on
  * the floor. Two joints hold by a close fit or a detent (`scoopSnap`: the scoop's sleeve in the
  * container's mouth; `handleSnap`: the handle's ring on the blade's base), sized from one `clearance`; `handleReinforcement` can also
@@ -1072,11 +1073,22 @@ const HANDLE_SNAP_TEXT: Record<ShovelSnapMode, { label: string; description: str
   friction: { label: 'Friction fit', description: 'Only a close fit holds the handle’s ring on the base of the scoop’s blade.' },
   detent: { label: 'Detent', description: 'Four bumps on the base of the scoop’s blade click into grooves in the handle’s ring, so the handle stays on while you sift.' },
 };
-/** Where the grip ends: its tip hangs open 30 mm above the floor, or it runs down to the floor. */
+/** The grip's shape: a thin sheet (the default), the same sheet curved out into a bulge, a round tube or a rectangular bar. Each is two halves, one on
+ * the container and one on the handle, that stack into one bar. */
+const HANDLE_SHAPE_VALUES = ['sheet', 'curved', 'round', 'rectangular'] as const;
+export type HandleShape = typeof HANDLE_SHAPE_VALUES[number];
+const HANDLE_SHAPE_TEXT: Record<HandleShape, { label: string; description: string }> = {
+  sheet: { label: 'Flat sheet', description: 'Two thin sheets, one on the container and one on the handle, that stack into one 6 mm strip, 26 mm wide. Held in the fist, they clamp the parts together.' },
+  curved: { label: 'Curved sheet', description: 'The same thin strip, but the run down to the tip bulges out towards the palm in a smooth curve, for the hand to sit in. The bulge’s size is set below.' },
+  round: { label: 'Round tube', description: 'A round tube, each half a solid half-round that stacks with the other. Thicker and stiffer than the sheet, and the container and the handle grow to make room for it; the tip sits lower.' },
+  rectangular: { label: 'Rectangular bar', description: 'A rectangular bar 26 mm wide, each half a solid slab that stacks with the other, with softened edges. Thicker and stiffer than the sheet, and the container and the handle grow to make room for it; the tip sits lower.' },
+};
+
+/** Where the grip ends: its tip hangs open above the floor (30 mm for the sheets; lower for the round and rectangular bars, as their finger gap moves the bend down), or it runs down to the floor. */
 const GRIP_END_VALUES = ['open', 'floor'] as const;
 export type GripEnd = typeof GRIP_END_VALUES[number];
 const GRIP_END_TEXT: Record<GripEnd, { label: string; description: string }> = {
-  open: { label: 'Open, above the floor', description: 'The grip ends in a rounded tip 30 mm above the floor, open like a hook. Printed standing, the container’s grip tip starts in mid-air: let your slicer add supports under it.' },
+  open: { label: 'Open, above the floor', description: 'The grip ends in a rounded tip above the floor (30 mm for the sheets, lower for the round and rectangular bars), open like a hook. Printed standing, the container’s grip tip starts in mid-air: let your slicer add supports under it.' },
   floor: { label: 'Down to the floor', description: 'The grip runs down to the floor. The container’s grip then starts on the print bed, so nothing needs support.' },
 };
 /** The clearance range in which each mode works as designed: a friction fit must be snug to hold, a detent needs the walls to clear. */
@@ -1219,7 +1231,10 @@ export const LitterShovelParametersSchema = Type.Object({
     SCOOP_LENGTH_RANGE.default, SCOOP_LENGTH_RANGE.minimum, SCOOP_LENGTH_RANGE.maximum, SCOOP_LENGTH_RANGE.step),
   tipBevel: dimension('Tip bevel length', 'How far down from the scraping edge the scoop’s inner face is bevelled, in mm. The sieve stays below the bevel.', 12, TIP_BEVEL_RANGE.minimum, TIP_BEVEL_RANGE.maximum, 0.5),
   gripEnd: Type.Enum(GRIP_END_VALUES, { title: 'Grip end', description: 'Where the grip ends: open above the floor (the container’s grip tip needs slicer supports), or down on the floor (no supports).', default: 'open' }),
-  supportCount: Type.Integer({ title: 'Grip supports', description: 'Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer.', default: 3, minimum: 1, maximum: 5 }),
+  handleShape: Type.Enum(HANDLE_SHAPE_VALUES, { title: 'Handle shape', description: 'The grip’s shape: a flat sheet, a curved sheet, a round tube or a rectangular bar. The round and rectangular bars are thicker, so the container and the handle grow to make room for them.', default: 'sheet' }),
+  gripBulge: dimension('Grip bulge', 'How far the curved grip bulges out towards the palm, in mm, on its run down to the tip. 0 is as straight as the flat sheet.', 8, 0, 15, 0.5),
+  gripSize: dimension('Grip size', 'The round tube’s diameter, or the rectangular bar’s depth, in mm. The rectangular bar is always 26 mm wide. Larger fills the hand more; 28 mm is a common tool handle.', 28, 20, 32, 1),
+  supportCount: Type.Integer({ title: 'Grip supports', description: 'Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer. The round and rectangular bars are solid and need none.', default: 3, minimum: 1, maximum: 5 }),
   damWidth: dimension('Dam width', 'How far the dam under the container’s mouth, on the scraper side, reaches in from the back wall, in mm (0 for none). It falls inward at 45°: turned over to scoop, the clumps already inside collect behind it instead of falling out.', 8, 0, 15, 0.5),
   supportThickness: dimension('Support thickness', 'Thickness of each fin under the container’s handle, in mm.', 2, 1.2, 4),
   scoopSnap: Type.Enum(SHOVEL_SNAP_VALUES, { title: 'Scoop on the container', description: 'How the scoop’s sleeve holds in the container’s mouth: a close fit only, or a detent.', default: 'detent' }),
@@ -1387,7 +1402,10 @@ const litterShovelControls = [
   control(LitterShovelParametersSchema, 'gapSpacing', 'basic'),
   control(LitterShovelParametersSchema, 'scoopLength', 'basic'),
   enumControl(LitterShovelParametersSchema, 'gripEnd', 'basic', GRIP_END_VALUES.map(value => ({ value, ...GRIP_END_TEXT[value] }))),
-  control(LitterShovelParametersSchema, 'supportCount', 'basic', null, null),
+  enumControl(LitterShovelParametersSchema, 'handleShape', 'basic', HANDLE_SHAPE_VALUES.map(value => ({ value, ...HANDLE_SHAPE_TEXT[value] }))),
+  { ...control(LitterShovelParametersSchema, 'gripBulge', 'basic'), visibleWhen: { control: 'handleShape', values: ['curved'] } },
+  { ...control(LitterShovelParametersSchema, 'gripSize', 'basic'), visibleWhen: { control: 'handleShape', values: ['round', 'rectangular'] } },
+  { ...control(LitterShovelParametersSchema, 'supportCount', 'basic', null, null), visibleWhen: { control: 'handleShape', values: ['sheet', 'curved'] } },
   control(LitterShovelParametersSchema, 'damWidth', 'basic'),
   enumControl(LitterShovelParametersSchema, 'scoopSnap', 'basic', SHOVEL_SNAP_VALUES.map(value => ({ value, ...SCOOP_SNAP_TEXT[value] }))),
   enumControl(LitterShovelParametersSchema, 'handleSnap', 'basic', SHOVEL_SNAP_VALUES.map(value => ({ value, ...HANDLE_SNAP_TEXT[value] }))),
@@ -1449,17 +1467,18 @@ const SHOVEL_HANDLE_FASTENER_DEFINES: PartDefines = {
   // a nylon-insert nut's pocket takes its overall height; a square nut's is square
   handleNut: { NUT_S: ['s', 'max'], NUT_H: [['h', 'm'], 'max'], NUT_SHAPE: { attribute: 'shape' } },
 };
+const SHOVEL_GRIP_MAPPING = { handleShape: 'HANDLE_SHAPE', gripBulge: 'GRIP_BULGE', gripSize: 'GRIP_SIZE' };
 const SHOVEL_SCOOP_SNAP_MAPPING = { scoopSnap: 'SCOOP_SNAP', scoopDetentEngage: 'SCOOP_DETENT_ENGAGE' };
 const SHOVEL_HANDLE_SNAP_MAPPING = { handleSnap: 'HANDLE_SNAP', handleDetentEngage: 'HANDLE_DETENT_ENGAGE' };
 
 /** The parts, in stacking order. Each joint's setting reaches the two parts of that joint, and the grip's end the two halves of
  * the grip; the sieve, the tip and the scoop's length reach only the scoop, the supports and the dam only the container. */
 const litterShovelParts: ModelPart[] = [
-  { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: { wallThickness: 'WALL_THICKNESS', clearance: 'CLEARANCE', gripEnd: 'GRIP_END', supportCount: 'SUPPORT_COUNT', supportThickness: 'SUPPORT_THICKNESS', damWidth: 'DAM_WIDTH', ...SHOVEL_SCOOP_SNAP_MAPPING } },
+  { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: { wallThickness: 'WALL_THICKNESS', clearance: 'CLEARANCE', gripEnd: 'GRIP_END', ...SHOVEL_GRIP_MAPPING, supportCount: 'SUPPORT_COUNT', supportThickness: 'SUPPORT_THICKNESS', damWidth: 'DAM_WIDTH', ...SHOVEL_SCOOP_SNAP_MAPPING } },
   { id: 'scoop', title: 'Scoop', sourcePath: `${LITTER_SHOVEL_DIR}scoop.scad`,
     scadMapping: { wallThickness: 'WALL_THICKNESS', scoopLength: 'SCOOP_LENGTH', sievePattern: 'SIEVE_PATTERN', sieveSizing: 'SIEVE_SIZING', sieveRows: 'SIEVE_ROWS', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', tipThickness: 'TIP_THICKNESS', tipBevel: 'TIP_BEVEL', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
     partDefines: SHOVEL_SCOOP_FASTENER_DEFINES },
-  { id: 'handle', title: 'Handle', sourcePath: `${LITTER_SHOVEL_DIR}handle.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
+  { id: 'handle', title: 'Handle', sourcePath: `${LITTER_SHOVEL_DIR}handle.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', ...SHOVEL_GRIP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
     partDefines: SHOVEL_HANDLE_FASTENER_DEFINES },
 ];
 
@@ -1484,9 +1503,9 @@ const litterShovelAssembly: Assembly = {
 
 export const litterShovel = {
   id: 'litter-shovel' as const, version: '3' as const, title: 'Litter shovel',
-  description: 'A cat-litter sifting shovel in three closed-ring parts, stacked: a container for a liner bag with its own open, hook-like handle, a sifting scoop that caps its rim, with a straight, sharp edge that scrapes along the floor and a sieve round its back, corners and sides, and a handle whose ring sits on the scoop and whose grip lies on the container’s handle. Both halves of the grip are thin curved sheets that stack into one smooth strip; held in the fist, they clamp all three parts. Choose the scoop’s length, the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and bar width, the scraping edge’s thickness and bevel, the dam that keeps the clumps in when you scoop again, where the grip ends and how many thin fins brace it, how the parts hold (a close fit or a detent), and whether two screws fasten the handle to the scoop for good (into threaded inserts or nuts from the parts library), then download the three parts as a ZIP of STL files.',
+  description: 'A cat-litter sifting shovel in three closed-ring parts, stacked: a container for a liner bag with its own open, hook-like handle, a sifting scoop that caps its rim, with a straight, sharp edge that scrapes along the floor and a sieve round its back, corners and sides, and a handle whose ring sits on the scoop and whose grip lies on the container’s handle. Both halves of the grip stack into one smooth bar, a flat sheet by default; held in the fist, they clamp all three parts. Choose the scoop’s length, the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and bar width, the scraping edge’s thickness and bevel, the dam that keeps the clumps in when you scoop again, the grip’s shape (a flat or curved sheet, a round tube or a rectangular bar), where it ends and, for the sheets, how many thin fins brace it, how the parts hold (a close fit or a detent), and whether two screws fasten the handle to the scoop for good (into threaded inserts or nuts from the parts library), then download the three parts as a ZIP of STL files.',
   attribution: 'CanFactory (original design)',
-  printNotes: 'Print each part as generated: the container standing on its floor, the scoop on its cap, the handle upside down on its ring’s top. Only the container’s open grip tip needs slicer supports; with the grip down to the floor, nothing does. Fold the bag about 5 mm over the container’s lip; inside, it drapes over the dam. With a handle reinforcement, melt the inserts in (or push the nuts in) from outside the bosses, then drive the countersunk screws in from inside the scoop.',
+  printNotes: 'Print each part as generated: the container standing on its floor, the scoop on its cap, the handle upside down on its ring’s top. Only the container’s open grip tip needs slicer supports; with the grip down to the floor, nothing does. The round and rectangular grips are solid: print them with sparse infill. Fold the bag about 5 mm over the container’s lip; inside, it drapes over the dam. With a handle reinforcement, melt the inserts in (or push the nuts in) from outside the bosses, then drive the countersunk screws in from inside the scoop.',
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   parts: litterShovelParts,
   assembly: litterShovelAssembly,
