@@ -1179,8 +1179,27 @@ export interface operations {
                          */
                         gripEnd: "open" | "floor";
                         /**
+                         * Handle shape
+                         * @description The grip’s shape: a flat sheet, a curved sheet, a round tube or a rectangular bar. The round and rectangular bars are thicker, so the container and the handle grow to make room for them.
+                         * @default sheet
+                         * @enum {unknown}
+                         */
+                        handleShape: "sheet" | "curved" | "round" | "rectangular";
+                        /**
+                         * Grip bulge
+                         * @description How far the curved grip bulges out towards the palm, in mm, on its run down to the tip. 0 is as straight as the flat sheet.
+                         * @default 8
+                         */
+                        gripBulge: number;
+                        /**
+                         * Grip size
+                         * @description The round tube’s diameter, or the rectangular bar’s depth, in mm. The rectangular bar is always 26 mm wide. Larger fills the hand more; the round tube stops at 28 mm so that it clears the screws’ bosses.
+                         * @default 26
+                         */
+                        gripSize: number;
+                        /**
                          * Grip supports
-                         * @description Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer.
+                         * @description Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer. The round and rectangular bars are solid and need none.
                          * @default 3
                          */
                         supportCount: number;

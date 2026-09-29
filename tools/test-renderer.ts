@@ -319,9 +319,31 @@ try {
     { name: 'M3 hexagon nuts', overrides: { handleReinforcement: 'nut-bolt' } },
     { name: 'M2.5 square nuts', overrides: { handleReinforcement: 'nut-bolt', handleThread: 'M2.5', handleNut: 'din-562-m2-5', handleScrew: 'iso-7046-m2-5x10' } },
     { name: 'M4 nylon-insert nuts at 0.6 mm', overrides: { handleReinforcement: 'nut-bolt', handleThread: 'M4', handleNut: 'iso-10511-m4', handleScrew: 'iso-7046-m4x12', clearance: 0.6, handleDetentEngage: 0.4, scoopDetentEngage: 0.4 } },
+    // the grip's shapes: the curved bulge at its least and most, and the round and rectangular bars at their smallest and largest, with the grip open and down to the floor
+    { name: 'curved grip, no bulge', overrides: { handleShape: 'curved', gripBulge: 0 } },
+    { name: 'curved grip, default bulge', overrides: { handleShape: 'curved' } },
+    { name: 'curved grip, most bulge, to the floor', overrides: { handleShape: 'curved', gripBulge: 15, gripEnd: 'floor' } },
+    { name: 'round grip, smallest', overrides: { handleShape: 'round', gripSize: 20 } },
+    { name: 'round grip, default', overrides: { handleShape: 'round' } },
+    { name: 'round grip, largest, to the floor', overrides: { handleShape: 'round', gripSize: 28, gripEnd: 'floor' } },
+    { name: 'round grip, largest, M4 nuts beside it', overrides: { handleShape: 'round', gripSize: 28, handleReinforcement: 'nut-bolt', handleThread: 'M4', handleNut: 'iso-4032-m4', handleScrew: 'iso-10642-m4x16' } },
+    { name: 'rectangular grip, smallest', overrides: { handleShape: 'rectangular', gripSize: 20 } },
+    { name: 'rectangular grip, default', overrides: { handleShape: 'rectangular' } },
+    { name: 'rectangular grip, largest, to the floor, thinnest wall', overrides: { handleShape: 'rectangular', gripSize: 28, gripEnd: 'floor', wallThickness: 1.2 } },
+    { name: 'rectangular grip, 0.6 mm clearance, M3 inserts', overrides: { handleShape: 'rectangular', clearance: 0.6, handleReinforcement: 'threaded-insert' } },
   ];
+  // The grip's extent (docs/litter-shovel.md, Grip): the seam moves out with the thick bars' half-depth, and the round and rectangular
+  // bars' open tip leaves the run the sheet's does below their bend.
+  const shovelGrip = (p: LitterShovelParameters) => {
+    const thick = p.handleShape === 'round' || p.handleShape === 'rectangular';
+    const half = thick ? p.gripSize / 2 : 3, seamX = 65 + half - 3, bulge = p.handleShape === 'curved' ? p.gripBulge : 0;
+    const bendZ = 132 - (seamX - 37.25) - Math.max(15, half + 5) * Math.tan(Math.PI / 8);
+    const tipZ = p.gripEnd === 'floor' ? 0 : thick ? Math.max(0, bendZ - 68) : 30;
+    return { half, seamX, bulge, tipZ };
+  };
   const shovelSizes = (p: LitterShovelParameters): Record<string, [number, number, number]> => ({
-    container: [41.25 + 65 - p.clearance / 2, 114.8, 141.5], scoop: [88.9, 121.2, p.scoopLength], handle: [44.45 + 68, 121.2, 159.5 - (p.gripEnd === 'floor' ? 0 : 30)],
+    container: [41.25 + shovelGrip(p).seamX + shovelGrip(p).bulge - p.clearance / 2, 114.8, 141.5], scoop: [88.9, 121.2, p.scoopLength],
+    handle: [44.45 + shovelGrip(p).seamX + shovelGrip(p).bulge + shovelGrip(p).half, 121.2, 159.5 - shovelGrip(p).tipZ],
   });
   // a slot's area from its own length (sized by rows, the sides' slots are shorter)
   const gapArea = (p: LitterShovelParameters, length: number) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2

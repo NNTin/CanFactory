@@ -31,7 +31,7 @@ HANDLE_SHAPE = "sheet"; //[sheet,curved,round,rectangular]
 // How far the curved grip bulges out towards the palm, in mm
 GRIP_BULGE = 8; //[0:0.5:15]
 // The round grip's diameter, or the rectangular grip's depth, in mm
-GRIP_SIZE = 28; //[20:1:32]
+GRIP_SIZE = 26; //[20:1:28]
 // How far the dam under the mouth, on the scraper side (-X), reaches in from the back wall, in mm (0 for none)
 DAM_WIDTH = 8; //[0:0.5:15]
 // Thickness of the shell's wall, in mm (three to five lines of a 0.4 mm nozzle at 1.2 to 2.0); the floor follows it

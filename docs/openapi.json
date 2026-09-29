@@ -2557,6 +2557,9 @@
                           "scoopLength",
                           "tipBevel",
                           "gripEnd",
+                          "handleShape",
+                          "gripBulge",
+                          "gripSize",
                           "supportCount",
                           "damWidth",
                           "supportThickness",
@@ -2681,10 +2684,39 @@
                             "description": "Where the grip ends: open above the floor (the container’s grip tip needs slicer supports), or down on the floor (no supports).",
                             "default": "open"
                           },
+                          "handleShape": {
+                            "enum": [
+                              "sheet",
+                              "curved",
+                              "round",
+                              "rectangular"
+                            ],
+                            "title": "Handle shape",
+                            "description": "The grip’s shape: a flat sheet, a curved sheet, a round tube or a rectangular bar. The round and rectangular bars are thicker, so the container and the handle grow to make room for them.",
+                            "default": "sheet"
+                          },
+                          "gripBulge": {
+                            "type": "number",
+                            "title": "Grip bulge",
+                            "description": "How far the curved grip bulges out towards the palm, in mm, on its run down to the tip. 0 is as straight as the flat sheet.",
+                            "default": 8,
+                            "minimum": 0,
+                            "maximum": 15,
+                            "multipleOf": 0.5
+                          },
+                          "gripSize": {
+                            "type": "number",
+                            "title": "Grip size",
+                            "description": "The round tube’s diameter, or the rectangular bar’s depth, in mm. The rectangular bar is always 26 mm wide. Larger fills the hand more; the round tube stops at 28 mm so that it clears the screws’ bosses.",
+                            "default": 26,
+                            "minimum": 20,
+                            "maximum": 28,
+                            "multipleOf": 1
+                          },
                           "supportCount": {
                             "type": "integer",
                             "title": "Grip supports",
-                            "description": "Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer.",
+                            "description": "Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer. The round and rectangular bars are solid and need none.",
                             "default": 3,
                             "minimum": 1,
                             "maximum": 5

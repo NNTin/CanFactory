@@ -26,7 +26,7 @@ HANDLE_SHAPE = "sheet"; //[sheet,curved,round,rectangular]
 // How far the curved grip bulges out towards the palm, in mm
 GRIP_BULGE = 8; //[0:0.5:15]
 // The round grip's diameter, or the rectangular grip's depth, in mm
-GRIP_SIZE = 28; //[20:1:32]
+GRIP_SIZE = 26; //[20:1:28]
 // Whether two countersunk screws, driven from inside the scoop, also fasten the ring: none, into threaded inserts or into nuts
 HANDLE_REINFORCEMENT = "none"; //[none,threaded-insert,nut-bolt]
 // The screws' clearance hole (ISO 273 medium for their thread) and length (a countersunk screw's includes its head), in mm

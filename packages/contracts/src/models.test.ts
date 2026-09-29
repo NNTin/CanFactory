@@ -466,7 +466,7 @@ describe('litter shovel contract', () => {
     expect(findModel('litter-shovel')).toBe(litterShovel);
     expect(artifactFormat(litterShovel)).toBe('zip');
     expect(modelSourcePaths(litterShovel)).toEqual(['container', 'scoop', 'handle'].map(id => `models/litter-shovel/${id}.scad`));
-    expect(defaults).toEqual({ sievePattern: 'slots', gapWidth: 7.2, sieveSizing: 'rows', sieveRows: 1, gapLength: 25, gapSpacing: 5.6, scoopLength: 127, scoopSnap: 'detent', handleSnap: 'detent', sieveMargin: 3.2, tipThickness: 0.8, wallThickness: 1.6, tipBevel: 12, gripEnd: 'open', handleShape: 'sheet', gripBulge: 8, gripSize: 28, supportCount: 3, damWidth: 8, supportThickness: 2, clearance: 0.2, scoopDetentEngage: 0.15, handleDetentEngage: 0.15,
+    expect(defaults).toEqual({ sievePattern: 'slots', gapWidth: 7.2, sieveSizing: 'rows', sieveRows: 1, gapLength: 25, gapSpacing: 5.6, scoopLength: 127, scoopSnap: 'detent', handleSnap: 'detent', sieveMargin: 3.2, tipThickness: 0.8, wallThickness: 1.6, tipBevel: 12, gripEnd: 'open', handleShape: 'sheet', gripBulge: 8, gripSize: 26, supportCount: 3, damWidth: 8, supportThickness: 2, clearance: 0.2, scoopDetentEngage: 0.15, handleDetentEngage: 0.15,
       handleReinforcement: 'none', handleThread: 'M3', handleInsert: 'cnc-kitchen-m3x5-7', handleNut: 'iso-4032-m3', handleScrew: 'iso-10642-m3x12' });
     expect(validateParameters(litterShovel, defaults)).toEqual([]);
     const [containerPart, scoopPart, handlePart] = litterShovel.parts;
@@ -546,19 +546,19 @@ describe('litter shovel contract', () => {
       expect([shown('gripBulge', shape), shown('gripSize', shape), shown('supportCount', shape)]).toEqual(
         { sheet: [false, false, true], curved: [true, false, true], round: [false, true, false], rectangular: [false, true, false] }[shape]);
       expect(validateParameters(litterShovel, { ...defaults, handleShape: shape })).toEqual([]);
-      expect(validateParameters(litterShovel, { ...defaults, handleShape: shape, gripEnd: 'floor', gripSize: 32, gripBulge: 15 })).toEqual([]);
+      expect(validateParameters(litterShovel, { ...defaults, handleShape: shape, gripEnd: 'floor', gripSize: 28, gripBulge: 15 })).toEqual([]);
     }
     // Both grip files take the three settings, with the ranges of the controls.
     for (const file of [container, handle]) {
       expect(file).toMatch(/^HANDLE_SHAPE = "sheet"; \/\/\[sheet,curved,round,rectangular\]$/m);
       expect(file).toMatch(/^GRIP_BULGE = 8; \/\/\[0:0\.5:15\]$/m);
-      expect(file).toMatch(/^GRIP_SIZE = 28; \/\/\[20:1:32\]$/m);
+      expect(file).toMatch(/^GRIP_SIZE = 26; \/\/\[20:1:28\]$/m);
     }
-    expect([control('gripBulge'), control('gripSize')].map(c => [c?.default, c?.minimum, c?.maximum])).toEqual([[8, 0, 15], [28, 20, 32]]);
+    expect([control('gripBulge'), control('gripSize')].map(c => [c?.default, c?.minimum, c?.maximum])).toEqual([[8, 0, 15], [26, 20, 28]]);
     const [containerPart, , handlePart] = litterShovel.parts;
     for (const part of [containerPart, handlePart]) expect(part?.scadMapping).toMatchObject({ handleShape: 'HANDLE_SHAPE', gripBulge: 'GRIP_BULGE', gripSize: 'GRIP_SIZE' });
-    // The widest round grip still clears the reinforcement's bosses (21 mm from the middle, at most 4.5 mm round).
-    expect(32 / 2).toBeLessThan(constant(handle, 'FASTENER_Y') - 4.5);
+    // The widest round grip still clears the reinforcement's bosses (21 mm from the middle, at most the seat's boss radius round).
+    expect(28 / 2).toBeLessThan(constant(handle, 'FASTENER_Y') - HANDLE_FASTENER_SEAT.bossRadius);
   });
 
   it('sizes the default slots by rows: one row filling the sieve’s height on the back, ending lower along the sides', () => {
