@@ -179,19 +179,21 @@ module groove(l, g) {
 // The region over a 45 degree surface through the mouth's wall at z0, falling DAM_WIDTH inward (a frustum over a column); the
 // sheet is that region for its underside less the one for its top. Its corners' radius is kept at least 2 mm, so that at the
 // corners a wide dam is steeper than 45 degrees rather than folding over.
+// Its outlines have 72 segments, not the walls' 64, so that none of its edges runs into one of the mouth's vertices.
 function inset(p, d) = [p[0] - 2 * d, p[1] - 2 * d, max(2, p[2] - d)];
+module dam_slab(p, z, h = E) { translate([0, 0, z]) linear_extrude(h) offset(r = p[2], $fn = 72) square([p[0] - 2 * p[2], p[1] - 2 * p[2]], center = true); }
 module over_slope(z0) {
   up = DAM_T + 1;
-  hull() { slab(grow(MOUTH, up), z0 + up); slab(inset(MOUTH, DAM_WIDTH), z0 - DAM_WIDTH); }
+  hull() { dam_slab(grow(MOUTH, up), z0 + up); dam_slab(inset(MOUTH, DAM_WIDTH), z0 - DAM_WIDTH); }
   low = DAM_TOP - DAM_WIDTH - 2 * DAM_T - 1;
-  slab(inset(MOUTH, DAM_WIDTH), low, z0 - DAM_WIDTH - low + E);
+  dam_slab(inset(MOUTH, DAM_WIDTH), low, z0 - DAM_WIDTH - low + E);
 }
 // It reaches 1 mm into the wall, and only on the scraper side: the back wall and the back corners, up to where the sides start.
 module dam() {
   low = DAM_TOP - DAM_WIDTH - 2 * DAM_T - 1;
   intersection() {
     difference() { over_slope(DAM_TOP - DAM_T); over_slope(DAM_TOP); }
-    slab(grow(MOUTH, 1), low, DAM_TOP - low + 1);
+    dam_slab(grow(MOUTH, 1), low, DAM_TOP - low + 1);
     translate([-MOUTH[0] / 2 - 2, -MOUTH[1] / 2 - 2, low]) cube([MOUTH[2] + 2, MOUTH[1] + 4, DAM_TOP - low + 1]);
   }
 }

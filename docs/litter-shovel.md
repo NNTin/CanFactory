@@ -40,6 +40,20 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
     the slope. Each is a triangle from the wall to the sheet's underside, 12 mm out along the slope, with a 45° lower edge. They
     stand side by side across the grip, inside its rounded edges; a single fin stands in the middle. The finger opening below stays
     free.
+- **Dam (`damWidth`):** a dam under the mouth, on the scraper side (−X) only, that keeps the clumps in when the shovel is turned
+  over to scoop again. `damWidth` is 0 to 15 mm, default 8; 0 leaves it out.
+  - **Shape:** a sheet as thick as the wall (2.4 mm) that leaves the back wall at Z 135.5 and falls inward at 45°, `damWidth`
+    in from the wall. Its inner edge is vertical, and it reaches 1 mm into the wall.
+  - **Extent:** it runs along the back wall and round both back corners, and ends where the side walls start
+    (`X = −MOUTH_X / 2 + corner radius`, −23.25). The sides and the front stay open.
+  - **Height:** its top is 1 mm under the scoop's sleeve (`SLEEVE_DEPTH` 5 mm, `DAM_GAP` 1 mm), which leaves room for the bag.
+    It meets the wall where the mouth is straight, above the band's start (Z 131.5) and below the detent grooves (Z 139).
+  - **How it works:** it continues the scoop's 45° funnel, so clumps slide off it into the bag. Scooping, the shovel is turned
+    over with the scraper side down, and the clumps already inside slide towards the mouth along that side. They collect in the
+    pocket between the dam and the back wall (`damWidth` deep) instead of falling back out.
+  - **Corners:** at the back corners the mouth's radius (11.6 mm) runs out for a wider dam. There, its outline keeps a 2 mm
+    radius, and the sheet is steeper than 45° rather than folding over.
+  - **Printing:** its underside is at 45° as well, so it prints standing without support.
 
 ### Scoop
 
@@ -102,6 +116,7 @@ the lip's chamfer, bends again (15 mm), and runs straight down at X 65 to the ti
 | Carrying by the grip | The fingers take the container's handle and the palm the handle part's. The container hangs on its own handle, and the stack sits on it. Squeezed together, the halves fix the container to the handle, with the cap trapped between the lip and the ring. If you hold only the palm half, `scoopSnap` holds the container on the scoop, and `handleSnap` (or, with a `handleReinforcement`, its two screws) holds the scoop on the handle. |
 | Scooping and sifting | The tip's flat outer face slides on the floor, its sharp edge first. The blade's loads go through its base into the ring and the handle part's grip, then the hand. The sleeve and the skirt also locate the cap on the container. |
 | Carrying the container alone | By its own handle, like a hook: the sheet's root in the wall and its fins carry it. |
+| Scooping again with clumps inside | Turned over, the scraper side is down. The clumps already in the container slide towards the mouth along the back wall and collect behind the dam (`damWidth`), in the bag, instead of falling out through the scoop. Upright again, they fall back to the floor. |
 | Changing the bag | Lift the handle, then the scoop, off. |
 
 ### Snap settings
@@ -253,6 +268,8 @@ where the detents engage, and holds those samples to a looser snap tolerance (10
 | Detents, 0.1 mm, finest hexagons | 0.00 mm³ | 3.06 mm³ | 0.46 mm³ |
 | Detents, 0.6 mm, engagement 0.4 | 0.00 mm³ | 12.51 mm³ (over 10) | 7.40 mm³ |
 | Grip to the floor, 5 supports of 4 mm | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
+| Longest scoop, widest dam (180 mm, 15 mm) | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
+| Shortest scoop, no dam (90 mm, 0) | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
 | M3 inserts or M3 nuts (default screws) | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
 | M2 square nuts, M2 × 8; M2.5 inserts, M2.5 × 10 | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
 | M4 nylon-insert nuts, M4 × 12, 0.6 mm | 0.00 mm³ | 2.88 mm³ | 0.43 mm³ |
@@ -268,8 +285,8 @@ with `--snap-tolerance 15`.
 
 ## Printing and limits
 
-- **The container** stands on its floor. The lip has a 45° underside, the handle's slope and its fins' lower edges are at 45°,
-  and its bend is round. With the default `open` grip end, the grip's tip starts 30 mm above the bed: let the slicer add supports
+- **The container** stands on its floor. The lip has a 45° underside, the handle's slope, its fins' lower edges and the dam's
+  underside are at 45°, and the handle's bend is round. With the default `open` grip end, the grip's tip starts 30 mm above the bed: let the slicer add supports
   under it (they are not modelled). With `floor`, the sheet starts on the bed and nothing needs support.
 - **The scoop** prints on its cap: the sleeve's and the skirt's edges are on the bed, the U's ceiling is a 7.4 mm bridge, and the
   funnel is a top surface. The tip's bevel faces up and inward, and the round top edge is a top surface, so the blade needs no support either.
@@ -283,12 +300,16 @@ with `--snap-tolerance 15`.
 - **Designed for PLA.** Only the bumps, the sleeve and the blade's wall flex when a detent engages, by a few tenths of a
   millimetre over long straight sides.
 - **The bag:** fold it about 5 mm over the lip, so that the skirt covers it. A longer fold hangs below the skirt, and at the
-  front it lies over the root of the container's handle, under the handle part's sheet.
+  front it lies over the root of the container's handle, under the handle part's sheet. Inside, the bag drapes over the dam. Leave it loose enough
+  to fill the pocket behind the dam.
 
 ## Mesh hygiene
 
 `inspectStl` rejects zero-area triangles and edges shared by more than two faces. The rounded rectangles are all drawn with 64
-segments (`$fn`), so that the lip's chamfer and the funnel meet the walls at matching vertices. The container's outer shell and
+segments (`$fn`), so that the lip's chamfer and the funnel meet the walls at matching vertices. The dam is the exception: its
+outlines have 72 segments, so that the line where its underside meets the mouth's wall never runs into one of the wall's
+vertices (with 64 it left a zero-area triangle in a back corner). Every dam width from 0.5 to 15 mm, at both clearance extremes,
+passes `inspectStl`. The container's outer shell and
 its cavity are each a single convex hull, with no seam where the band starts. A detent ridge's flanks carry on 0.3 mm into its
 wall, and a groove's start 0.3 mm in front of its face, so that no edge of either lies in the face. Each grip sheet is a single
 `polyhedron()` swept along its sampled seam, with its cross-section computed per sample (flat seam face, rounded outer edges,

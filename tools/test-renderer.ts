@@ -262,7 +262,7 @@ try {
     console.log(`PASS plank connector ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   // Litter shovel: every sieve texture, the sieve extremes (most gaps, fewest gaps), the scraping tip's extremes, both grip ends,
-  // the shortest and longest scoop, the fewest and most, thinnest and thickest grip supports, and both snap modes of both
+  // the shortest and longest scoop, no dam and the widest, the fewest and most, thinnest and thickest grip supports, and both snap modes of both
   // joints at the clearance extremes. Each part must be one closed solid of the expected size (the scoop's length sets its
   // height, the grip's end the handle's; the container's grip sheet keeps half the clearance off the seam), and the scoop's
   // sieve must remove exactly its gaps (sieveGaps) through the 3.2 mm wall: at the default fit, tip and length, its volume plus
@@ -283,6 +283,9 @@ try {
     { name: 'one thinnest support', overrides: { supportCount: 1, supportThickness: 1.2 } },
     { name: 'five thickest supports, grip to the floor', overrides: { supportCount: 5, supportThickness: 4, gripEnd: 'floor' } },
     { name: 'largest slots', overrides: { gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10 } },
+    { name: 'no dam', overrides: { damWidth: 0 } },
+    { name: 'widest dam', overrides: { damWidth: 15 } },
+    { name: 'narrowest dam, grip to the floor', overrides: { damWidth: 0.5, gripEnd: 'floor' } },
     { name: 'shortest scoop', overrides: { scoopLength: 90 } },
     { name: 'shortest scoop, largest round holes, longest bevel', overrides: { scoopLength: 90, sievePattern: 'round', gapWidth: 15, gapSpacing: 3, sieveMargin: 3, tipBevel: 20 } },
     { name: 'longest scoop', overrides: { scoopLength: 180 } },
