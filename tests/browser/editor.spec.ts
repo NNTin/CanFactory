@@ -383,7 +383,7 @@ test('chooses the litter shovel sieve texture, gap size and snaps and downloads 
   await expect(texture).toHaveValue('slots');
   await expect(page.getByRole('spinbutton', { name: 'Gap width', exact: true })).toHaveValue('7.2');
   await expect(downloadButton).toBeEnabled({ timeout: 120_000 });
-  await expect(page.getByText('13 slots, automatically spaced.')).toBeVisible();
+  await expect(page.getByText('24 slots, automatically spaced.')).toBeVisible();
   await expect(page.getByRole('slider', { name: 'Assembly' })).toBeVisible();
   // a slot shorter than it is wide is rejected before rendering
   await page.getByRole('spinbutton', { name: 'Slot length', exact: true }).fill('6');
@@ -393,7 +393,7 @@ test('chooses the litter shovel sieve texture, gap size and snaps and downloads 
   await texture.selectOption('round');
   await expect(page.getByRole('spinbutton', { name: 'Slot length', exact: true })).toHaveCount(0);
   await page.getByRole('spinbutton', { name: 'Gap width', exact: true }).fill('5');
-  await expect(page.getByText('61 slots, automatically spaced.')).toBeVisible();
+  await expect(page.getByText('131 slots, automatically spaced.')).toBeVisible();
   // a friction fit has no detent to tune: its engagement goes away
   await expect(page.getByLabel('Scoop on the container', { exact: true })).toHaveValue('detent');
   await expect(page.getByLabel('Handle on the scoop', { exact: true })).toHaveValue('detent');

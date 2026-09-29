@@ -8,21 +8,23 @@ The whole shovel is carried by the grip. The parts stack **container, scoop, han
 **closed ring**, and they meet on flat faces:
 - The container's lip carries the scoop's cap, with the bag folded over the lip pinched between them.
 - The cap's top carries the handle's ring.
-- The container has its own handle, like a measuring jug's, so it can be carried on its own. The handle part's grip curves out
-  over it and runs down along it on matching faces, so the two handles become one grip: the container's is the finger side, the
-  handle part's the palm side.
+- The container has its own handle, open at the bottom like a hook, so it can be carried on its own. The handle part's grip lies
+  on it: both are thin curved sheets that stack into one smooth strip, the container's on the finger side, the handle part's on
+  the palm side.
 - Held in the fist, the two halves are pressed together. That ties the container to the handle, with the scoop's cap trapped
   between the lip and the ring, and so clamps all three parts.
 
 ## Parts
 
-Each part is modelled as it prints, Z up, in millimetres, and none needs support. No part's size depends on the parameters.
+Each part is modelled as it prints, Z up, in millimetres. Only the container's open grip tip needs slicer supports (see
+`gripEnd` below). Sizes are at the defaults: the handle part is 30 mm taller with the grip down to the floor, and the
+container's grip keeps half the clearance off the seam, so its X shrinks by half the clearance.
 
 | Part | File | Size (X × Y × Z) | Prints | Assembled at |
 | --- | --- | --- | --- | --- |
-| Container | `container.scad` | 117.25 × 114.8 × 141.5 | standing on its floor | Z 0 |
+| Container | `container.scad` | 106.15 × 114.8 × 141.5 | standing on its floor | Z 0 |
 | Scoop | `scoop.scad` | 88.9 × 121.2 × 127 | on its cap | Z 136.5 (the cap's ceiling on the lip at 141.5) |
-| Handle | `handle.scad` | 132.85 × 121.2 × 99.5 | upside down, on its ring's top | Z 159.5, turned over about X (its ring on the cap's top at 144.5) |
+| Handle | `handle.scad` | 112.45 × 121.2 × 129.5 | upside down, on its ring's top | Z 159.5, turned over about X (its ring on the cap's top at 144.5) |
 
 ### Container
 
@@ -30,14 +32,14 @@ Each part is modelled as it prints, Z up, in millimetres, and none needs support
   (the **band**, 74.5 × 106.8, corner radius 14).
 - **Lip:** it ends the band with a closed lip, 4 mm wide and 3 mm thick, above a 45° chamfer. Its flat top, at Z 141.5 and
   6.4 mm wide from the mouth to its edge, is the container's mating face.
-- **Handle:** a closed jug handle at the front (+X), 26 mm wide, so the container can be carried on its own like a measuring jug.
-  - Its **arm** leaves the wall under the lip. Its flat top at Z 131 stays under the scoop's skirt, which ends at 136.5.
-  - Its **bar** runs down from the arm to the floor, 14 mm thick (X 62 to 76), with a 25 mm finger opening to the wall. The bar's
-    finger-side edges are rounded (5 mm). Its outer face is flat and joins the arm's top in a 20 mm curve: these are the faces the
-    handle part's grip lies on.
-  - A **foot** on the floor closes the loop.
-  - The opening's top is a 45° gusset under the arm, and its corners are rounded (6 mm). Nothing overhangs, so it prints without
-    support.
+- **Handle:** the finger half of the grip (see [Grip](#grip)), at the front (+X), 26 mm wide. It is a thin curved sheet, open at
+  the bottom like a hook, so the container can be carried on its own.
+  - It leaves the wall 2.5 mm under the lip's chamfer, falls outward at 45°, bends (15 mm) and runs straight down to its tip.
+    The finger opening between it and the wall is 25 to 28 mm.
+  - **Supports:** `supportCount` thin fins (1 to 5, default 3), `supportThickness` thick (1.2 to 4 mm, default 2), brace it under
+    the slope. Each is a triangle from the wall to the sheet's underside, 12 mm out along the slope, with a 45° lower edge. They
+    stand side by side across the grip, inside its rounded edges; a single fin stands in the middle. The finger opening below stays
+    free.
 
 ### Scoop
 
@@ -48,27 +50,45 @@ Each part is modelled as it prints, Z up, in millimetres, and none needs support
   - Its 2.4 mm **skirt** hangs 5 mm around the lip, 0.8 mm clear of it for the bag.
   - The cap's top, 3 mm above the ceiling, is 88.9 × 121.2, flush with the skirt. The handle's ring sits on it.
   - Inside, a 45° funnel leads from the blade into the sleeve, so clumps fall into the bag and never onto the rim or the fold.
-- **Blade:** a 3.2 mm wall, 81.7 × 114 outside, rising from the cap 3.6 mm inside its edge, which leaves room for the ring. Two
-  limits shape it, each acting on its own walls, so they meet without a step:
-  - **Back wall (−X):** flat, full thickness up to its top edge, and carries the sieve. Its top is a circular arch over the wall's
-    flat part (|Y| ≤ 39.4), from the shoulders at Z 101 to the apex at Z 127.
-  - **Side walls:** stay at the shoulders' height over the back corners, then fall in a straight line to the front (+X), 18 mm
-    above the cap.
-  - Together they make a channel. Its depth, from the back wall's outer face, is 49 mm at Z 50, 31 mm at Z 80 and 18 mm at Z 100.
+- **Blade:** a 3.2 mm wall, 81.7 × 114 outside, rising from the cap 3.6 mm inside its edge, which leaves room for the ring.
+  - **Tip (the scraping edge):** the back wall (−X) and most of the back corners rise to a straight edge at Z 127, across the
+    whole back. This edge scrapes along the floor. The outer face runs flat right up to it. The inner face is bevelled over the
+    top `tipBevel` (12 mm by default) down to `tipThickness` (0.8 mm, two lines of a 0.4 mm nozzle), so the edge is sharp. The
+    bevel faces up and inward, so it prints without support.
+  - **Side walls:** they stay level with the tip until 8 mm into the back corners, then fall in half a cosine to the front (+X),
+    18 mm above the cap, where the front corners start. The curve leaves the tip and meets the front tangentially, so there is no
+    kink anywhere.
+  - **Top edge:** the sides, the front corners and the front have a full round top edge (1.6 mm, half the wall), so the hand
+    never meets a square edge. Round the back corners, the tip's square outer edge rounds off gradually into it (radius 0 over the
+    back and the first 15° of each corner, growing to 1.6 mm where the sides start to fall), so the sharp tip and the round sides
+    meet without a step.
+  - Together they make a channel. Its depth, from the back wall's outer face, is 46 mm at Z 50, 36 mm at Z 80, 28 mm at Z 100
+    and 22 mm at Z 115.
 
 ### Handle
 
 - **Ring:** closed, 15 mm high and 3.6 mm wide less the clearance. It comes down around the blade's base, one clearance clear of
   it, and sits flat on the cap's top, flush with the skirt.
-- **Grip:** the palm side of the shovel's grip, 26 mm wide like the container's handle.
-  - It leaves the ring's outer face over the ring's full height and comes out over the container's handle. Its outer face curves
-    (26 mm) from the ring's top into the bar.
-  - It runs down along the container's bar to Z 60, 12 mm thick, with a round lower end and rounded palm-side edges (5 mm).
-  - Its inner face is the container's handle profile (arm top, 20 mm curve, bar face) grown by 0.4 mm. Below the ring it keeps a
-    clearance outside the scoop's skirt.
-  - Together with the container's bar it makes a 26.4 × 26 mm grip from Z 60 up to the curve.
-- **Printing:** the handle prints upside down, with the ring's top and the grip's top on the bed, so that the grip rises from
-  them with nothing overhanging. The assembly turns it over (pose rotation 180° about X).
+- **Grip:** the palm half of the grip (see [Grip](#grip)). The sheet runs down the ring's outer face (a root joins it to the
+  ring over the ring's height) and past the skirt, a clearance clear of it. It bends (10 mm) into the shared 45° slope, then
+  follows the container's handle round its bend and down to the tip.
+- **Printing:** the handle prints upside down, with the ring's top and the sheet's top end on the bed. The sheet rises from
+  them, bends outward at 45°, and runs straight up, with nothing overhanging. The assembly turns it over (pose rotation 180° about X).
+
+### Grip
+
+The two halves are thin curved sheets, swept along one shared seam by the same code in both files. The seam, in the container's
+frame, starts at the ring's outer face and runs down past the skirt. It bends (10 mm) into a 45° slope through the band just under
+the lip's chamfer, bends again (15 mm), and runs straight down at X 65 to the tip.
+
+- **Sheets:** each is 26 mm wide and runs from half the clearance to 3 mm off the seam: the container's on the finger side (X 62
+  to 65 on the straight), the handle part's on the palm side (X 65 to 68). Their outer faces never move with the clearance.
+- **One surface:** the seam faces are flat and a clearance apart. Each sheet rounds only its outer long edges (2.5 mm), so the
+  stacked pair reads as one 6 mm strip with rounded edges, with no step at the seam.
+- **Tip (`gripEnd`):** `open` (default) ends the grip at Z 30, 100 mm below the lip. Each sheet's outer corner rounds off in a
+  quarter circle, so the pair ends in one half-round. `floor` runs both sheets down to Z 0 and ends them flat.
+- The container's sheet only follows the slope: past the skirt it runs straight on into the wall. The handle part's sheet bends up
+  along the skirt to the ring instead.
 
 ## How it holds together
 
@@ -76,8 +96,8 @@ Each part is modelled as it prints, Z up, in millimetres, and none needs support
 | --- | --- |
 | Standing on a table | Everything bears on flat faces: the container on its floor, the cap on the lip, the ring on the cap. |
 | Carrying by the grip | The fingers take the container's handle and the palm the handle part's. The container hangs on its own handle, and the stack sits on it. Squeezed together, the halves fix the container to the handle, with the cap trapped between the lip and the ring. If you hold only the palm half, `scoopSnap` holds the container on the scoop and `handleSnap` holds the scoop on the handle. |
-| Scooping and sifting | The blade's loads go through its base into the ring and the handle part's grip, then the hand. The sleeve and the skirt also locate the cap on the container. |
-| Carrying the container alone | By its own handle, like a measuring jug. |
+| Scooping and sifting | The tip's flat outer face slides on the floor, its sharp edge first. The blade's loads go through its base into the ring and the handle part's grip, then the hand. The sleeve and the skirt also locate the cap on the container. |
+| Carrying the container alone | By its own handle, like a hook: the sheet's root in the wall and its fins carry it. |
 | Changing the bag | Lift the handle, then the scoop, off. |
 
 ### Snap settings
@@ -108,34 +128,52 @@ few millimetres of the push. The engagements are advanced settings, shown only w
 | `gapWidth` | `GAP_WIDTH` | 7.2 | Slot width, hole diameter or hexagon size across flats (3 to 15) |
 | `gapLength` | `GAP_LENGTH` | 25 | Slot length (slot textures only) |
 | `gapSpacing` | `GAP_SPACING` | 5.6 | Solid bar between neighbouring gaps (at least 3 mm: 7 lines of a 0.4 mm nozzle) |
-| `sieveMargin` | `SIEVE_MARGIN` | 3.2 | Solid border to the root band, the corners and the arch (at least 3 mm) |
+| `sieveMargin` | `SIEVE_MARGIN` | 3.2 | Solid border to the root band, the bevel under the tip, the side walls' top and the front corners (at least 3 mm) |
 
-**Where the gaps go:**
-- Across the wall: its flat part, |Y| ≤ 39.4.
-- From the bottom: they start above an 18 mm solid **root band** over the cap's top (Z 8). That is where the blade's bending
+The scraping tip has two more parameters, both advanced settings:
+
+| Parameter | SCAD | Default | Meaning |
+| --- | --- | --- | --- |
+| `tipThickness` | `TIP_THICKNESS` | 0.8 | Thickness of the straight scraping edge (0.4 to 2): one to five lines of a 0.4 mm nozzle |
+| `tipBevel` | `TIP_BEVEL` | 12 | How far down from the edge the inner face is bevelled (5 to 20). The sieve stays below it. |
+
+**Where the gaps go:** all round the blade's wall, on the back, the curved back corners and the sides.
+- Along the wall: the layout is unrolled along the wall's inner face. `s` runs from the middle of the back (s = 0) across its flat
+  part (|s| ≤ 39.4), round the corner (22.6 mm of arc at the inner face's 14.4 mm radius) and along the side (46.5 mm), up to where
+  the front corners start (|s| = 108.5). Each gap is cut square to the wall:
+  - **On the back and the sides:** straight through.
+  - **In the corners:** radially, as the gap's outline seen from the corner's centre. There it is `gapWidth` wide along the inner
+    face, and so are the bars `gapSpacing`, and both widen outward with the wall.
+  - A gap is cut by the rule of the part its centre is on. Where it reaches over a corner's edge, the cut runs on far enough to
+    go through the wall there too.
+- From the bottom: the gaps start above an 18 mm solid **root band** over the cap's top (Z 8). That is where the blade's bending
   load is highest, and it covers the handle's 15 mm ring. The zone's bottom is at Z 26.
-- At the top: they stay under the arch.
-- Every limit is shrunk by the margin.
+- At the top: the gaps stay under the tip's bevel (Z 115 by default), so they never cut the thin edge. On the sides they also stay
+  under the falling top edge.
+- Every limit is shrunk by the margin. Against the side walls' sloping top, the margin is measured square to the slope.
 
 **How they are laid out:**
-- Columns are centred on Y = 0 at a pitch of `gapWidth + gapSpacing`.
+- Columns are centred on s = 0 at a pitch of `gapWidth + gapSpacing`.
 - Rows start one margin above the root band, at a pitch of `gapLength + gapSpacing` (slots) or `pitch × √3/2` (round holes and
   hexagons).
-- Only whole gaps are cut, so there are no slivers. A gap's top outer corner is checked against the arch, which falls away from
-  the middle.
-- The defaults give 13 slots: 5 columns at Y = 0, ±12.8 and ±25.6, in three rows, the top row without its two outer slots.
+- Only whole gaps are cut, so there are no slivers. A gap's top outer corner (the end farther from the back) is checked against
+  the side walls' top, which falls away towards the front.
+- The defaults give 24 slots in two rows: 14 centred on the back's flat part and, on each side, 2 in the corner and 3 on the
+  side.
 
-`sieveGaps()` and `sieveArch()` in the contract mirror this layout. They give the editor's gap count and the validation: at least
-one gap, at most `MAX_SIEVE_GAPS` = 400, and slots at least as long as they are wide. Tests pin them to counts recorded from the
-SCAD file's `SIEVE_GAPS` echo. `npm run test:renderer` checks that, at the default fit, the scoop's volume plus the gaps' volume is
-the same solid for every texture.
+`sieveGaps()` and `scoopSideTop()` in the contract mirror this layout, with the blade's dimensions in `SCOOP_BLADE`. They give the
+editor's gap count and the validation: at least one gap, at most `MAX_SIEVE_GAPS` = 600, and slots at least as long as they are
+wide. The finest sieve (3 mm round holes, 3 mm bars and margin, a 5 mm bevel) has 439 gaps and renders in about 2 s. Tests pin
+the layout to counts recorded from the SCAD file's `SIEVE_GAPS` echo. `npm run test:renderer` checks that, at the default fit
+and tip, the scoop's volume plus the gaps' volume is the same solid for every texture. There, a gap in a corner counts
+(R + r) / 2r ≈ 1.11 times its area × wall, because it widens with the radius.
 
 ## Assembly
 
 1. **Set the scoop on the container.** It comes down from 60 mm above: the sleeve into the mouth, the skirt around the lip, the
    ceiling onto the lip's top.
 2. **Lower the handle over the scoop.** It comes down from 200 mm above, around the blade. Its ring lands on the cap's top, and
-   its grip comes to rest 0.4 mm outside the container's handle, all along it.
+   its sheet comes to rest on the container's, a clearance off it, all along the slope and the grip.
 
 `npm run check:assembly -- litter-shovel` samples every step as usual. It also sweeps each step's last 10 mm in 0.25 mm steps,
 where the detents engage, and holds those samples to a looser snap tolerance (10 mm³, `--snap-tolerance`). Results:
@@ -146,6 +184,7 @@ where the detents engage, and holds those samples to a looser snap tolerance (10
 | Friction fits, 0.1 mm | 0.00 mm³ | 0.00 mm³ | 0.00 mm³ |
 | Detents, 0.1 mm, finest hexagons | 0.00 mm³ | 3.06 mm³ | 0.46 mm³ |
 | Detents, 0.6 mm, engagement 0.4 | 0.00 mm³ | 12.51 mm³ (over 10) | 7.40 mm³ |
+| Grip to the floor, 5 supports of 4 mm | 0.00 mm³ | 3.00 mm³ | 2.84 mm³ |
 
 That shared volume is only the bumps passing the mating wall before they drop into their grooves. Seated, every detent clears its
 groove. The largest bumps (0.6 mm clearance with 0.4 mm engagement, a 1 mm ridge) exceed the default snap tolerance: check them
@@ -153,22 +192,27 @@ with `--snap-tolerance 15`.
 
 ## Printing and limits
 
-- **The container** stands on its floor and its handle's foot. The lip has a 45° underside, and the handle's arm a 45° gusset.
+- **The container** stands on its floor. The lip has a 45° underside, the handle's slope and its fins' lower edges are at 45°,
+  and its bend is round. With the default `open` grip end, the grip's tip starts 30 mm above the bed: let the slicer add supports
+  under it (they are not modelled). With `floor`, the sheet starts on the bed and nothing needs support.
 - **The scoop** prints on its cap: the sleeve's and the skirt's edges are on the bed, the U's ceiling is a 7.4 mm bridge, and the
-  funnel is a top surface.
-- **The handle** prints upside down on its ring's top. The grip rises from it along its length, its strong direction.
-- **The gap between the two grip halves** is 0.4 mm. The fist closes it: the handle part's grip is a 70 mm cantilever and flexes
-  that far easily.
+  funnel is a top surface. The tip's bevel faces up and inward, and the round top edge is a top surface, so the blade needs no support either.
+- **The handle** prints upside down on its ring's top. The sheet rises from it along its length, its strong direction.
+- **The gap between the two grip halves** is the clearance. The fist closes it: the handle part's sheet is a long, thin
+  cantilever and flexes that far easily.
+- **Material:** each grip half is a 3 mm sheet instead of a solid bar, and the container's handle has no arm, gusset or foot.
 - **Tuning:** printed tolerances vary by machine, so adjust the clearance first, then the engagements. How firmly the detents
   click, and how the squeeze feels in the hand, still need a printed prototype.
 - **Designed for PLA.** Only the bumps, the sleeve and the blade's wall flex when a detent engages, by a few tenths of a
   millimetre over long straight sides.
 - **The bag:** fold it about 5 mm over the lip, so that the skirt covers it. A longer fold hangs below the skirt, and at the
-  front it lies on the container handle's arm, under the handle part's grip.
+  front it lies over the root of the container's handle, under the handle part's sheet.
 
 ## Mesh hygiene
 
 `inspectStl` rejects zero-area triangles and edges shared by more than two faces. The rounded rectangles are all drawn with 64
 segments (`$fn`), so that the lip's chamfer and the funnel meet the walls at matching vertices. The container's outer shell and
 its cavity are each a single convex hull, with no seam where the band starts. A detent ridge's flanks carry on 0.3 mm into its
-wall, and a groove's start 0.3 mm in front of its face, so that no edge of either lies in the face.
+wall, and a groove's start 0.3 mm in front of its face, so that no edge of either lies in the face. Each grip sheet is a single
+`polyhedron()` swept along its sampled seam, with its cross-section computed per sample (flat seam face, rounded outer edges,
+the tip's quarter round), rather than built from overlapping CSG pieces whose faces would nearly coincide.
