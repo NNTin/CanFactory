@@ -279,7 +279,7 @@ try {
     { name: 'detents at 0.6 mm, most engagement', overrides: { clearance: 0.6, handleDetentEngage: 0.4, scoopDetentEngage: 0.4 } },
   ];
   const shovelSizes = (): Record<string, [number, number, number]> => ({
-    container: [111.25, 114.8, 144], scoop: [88.9, 121.2, 127], handle: [198.9, 121.2, 20],
+    container: [117.25, 114.8, 141.5], scoop: [88.9, 121.2, 127], handle: [132.85, 121.2, 99.5],
   });
   const gapArea = (p: LitterShovelParameters) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
     : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (p.gapLength - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;

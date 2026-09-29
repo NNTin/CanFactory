@@ -4,13 +4,15 @@ An original three-part design (`models/litter-shovel/`, CC BY 4.0): a **containe
 sifting **scoop**, and a **handle** with a grip. It is registered as the `litter-shovel` assembly model
 (`packages/contracts/src/models.ts`).
 
-The whole shovel is carried by the handle. The parts stack **container, scoop, handle**, each set on from above. Every part is a
+The whole shovel is carried by the grip. The parts stack **container, scoop, handle**, each set on from above. Every part is a
 **closed ring**, and they meet on flat faces:
 - The container's lip carries the scoop's cap, with the bag folded over the lip pinched between them.
 - The cap's top carries the handle's ring.
-- The container's finger lever lies just under the handle's grip, as wide as the grip, so the two make one grip. Pulling the lever
-  up with the index finger, while the palm presses the grip down, pinches the scoop's cap between the lip and the ring. That
-  clamps all three parts.
+- The container has its own handle, like a measuring jug's, so it can be carried on its own. The handle part's grip curves out
+  over it and runs down along it on matching faces, so the two handles become one grip: the container's is the finger side, the
+  handle part's the palm side.
+- Held in the fist, the two halves are pressed together. That ties the container to the handle, with the scoop's cap trapped
+  between the lip and the ring, and so clamps all three parts.
 
 ## Parts
 
@@ -18,9 +20,9 @@ Each part is modelled as it prints, Z up, in millimetres, and none needs support
 
 | Part | File | Size (X × Y × Z) | Prints | Assembled at |
 | --- | --- | --- | --- | --- |
-| Container | `container.scad` | 111.25 × 114.8 × 144 | standing on its floor | Z 0 |
+| Container | `container.scad` | 117.25 × 114.8 × 141.5 | standing on its floor | Z 0 |
 | Scoop | `scoop.scad` | 88.9 × 121.2 × 127 | on its cap | Z 136.5 (the cap's ceiling on the lip at 141.5) |
-| Handle | `handle.scad` | 198.9 × 121.2 × 20 | on its flat underside | Z 144.5 (on the cap's top) |
+| Handle | `handle.scad` | 132.85 × 121.2 × 99.5 | upside down, on its ring's top | Z 159.5, turned over about X (its ring on the cap's top at 144.5) |
 
 ### Container
 
@@ -28,11 +30,14 @@ Each part is modelled as it prints, Z up, in millimetres, and none needs support
   (the **band**, 74.5 × 106.8, corner radius 14).
 - **Lip:** it ends the band with a closed lip, 4 mm wide and 3 mm thick, above a 45° chamfer. Its flat top, at Z 141.5 and
   6.4 mm wide from the mouth to its edge, is the container's mating face.
-- **Finger lever:** 34 mm wide, as wide as the grip, at the front (+X).
-  - Its arm runs out under the scoop's skirt, 0.5 mm clear of it.
-  - It then rises outside the skirt to an 8 mm pad from X 45 to 70, whose top is 0.5 mm under the grip's underside.
-  - Its underside rises at 45° from the wall to the pad's tip, so it prints without support and forms a deep fin, not a thin
-    cantilever.
+- **Handle:** a closed jug handle at the front (+X), 26 mm wide, so the container can be carried on its own like a measuring jug.
+  - Its **arm** leaves the wall under the lip. Its flat top at Z 131 stays under the scoop's skirt, which ends at 136.5.
+  - Its **bar** runs down from the arm to the floor, 14 mm thick (X 62 to 76), with a 25 mm finger opening to the wall. The bar's
+    finger-side edges are rounded (5 mm). Its outer face is flat and joins the arm's top in a 20 mm curve: these are the faces the
+    handle part's grip lies on.
+  - A **foot** on the floor closes the loop.
+  - The opening's top is a 45° gusset under the arm, and its corners are rounded (6 mm). Nothing overhangs, so it prints without
+    support.
 
 ### Scoop
 
@@ -55,21 +60,24 @@ Each part is modelled as it prints, Z up, in millimetres, and none needs support
 
 - **Ring:** closed, 15 mm high and 3.6 mm wide less the clearance. It comes down around the blade's base, one clearance clear of
   it, and sits flat on the cap's top, flush with the skirt.
-- **Grip:** pan-style, a closed loop pointing straight out at the front (+X), 20 mm high and 34 mm wide, with fully rounded ends,
-  to X 154.45.
-  - Its root is solid out to X 74, over the container's finger lever.
-  - A 12 mm wide finger slot runs from there to X 140.
-  - The top edges of the ring and the grip are eased by a 2 mm, 45° chamfer (0.25 mm steps).
-
-The ring and the grip stand on one flat face, so the grip's layers run along it, its strong direction.
+- **Grip:** the palm side of the shovel's grip, 26 mm wide like the container's handle.
+  - It leaves the ring's outer face over the ring's full height and comes out over the container's handle. Its outer face curves
+    (26 mm) from the ring's top into the bar.
+  - It runs down along the container's bar to Z 60, 12 mm thick, with a round lower end and rounded palm-side edges (5 mm).
+  - Its inner face is the container's handle profile (arm top, 20 mm curve, bar face) grown by 0.4 mm. Below the ring it keeps a
+    clearance outside the scoop's skirt.
+  - Together with the container's bar it makes a 26.4 × 26 mm grip from Z 60 up to the curve.
+- **Printing:** the handle prints upside down, with the ring's top and the grip's top on the bed, so that the grip rises from
+  them with nothing overhanging. The assembly turns it over (pose rotation 180° about X).
 
 ## How it holds together
 
 | Situation | Load path |
 | --- | --- |
 | Standing on a table | Everything bears on flat faces: the container on its floor, the cap on the lip, the ring on the cap. |
-| Carrying by the grip | The index finger pulls the container's lever up while the palm holds the grip. That pinches the cap between the lip and the ring, and clamps the three parts. Without the squeeze, `scoopSnap` holds the container on the scoop and `handleSnap` holds the scoop on the handle. |
-| Scooping and sifting | The blade's loads go through its base into the ring and the grip. The sleeve and the skirt also locate the cap on the container. |
+| Carrying by the grip | The fingers take the container's handle and the palm the handle part's. The container hangs on its own handle, and the stack sits on it. Squeezed together, the halves fix the container to the handle, with the cap trapped between the lip and the ring. If you hold only the palm half, `scoopSnap` holds the container on the scoop and `handleSnap` holds the scoop on the handle. |
+| Scooping and sifting | The blade's loads go through its base into the ring and the handle part's grip, then the hand. The sleeve and the skirt also locate the cap on the container. |
+| Carrying the container alone | By its own handle, like a measuring jug. |
 | Changing the bag | Lift the handle, then the scoop, off. |
 
 ### Snap settings
@@ -127,7 +135,7 @@ the same solid for every texture.
 1. **Set the scoop on the container.** It comes down from 60 mm above: the sleeve into the mouth, the skirt around the lip, the
    ceiling onto the lip's top.
 2. **Lower the handle over the scoop.** It comes down from 200 mm above, around the blade. Its ring lands on the cap's top, and
-   its grip's root comes to rest 0.5 mm above the finger lever.
+   its grip comes to rest 0.4 mm outside the container's handle, all along it.
 
 `npm run check:assembly -- litter-shovel` samples every step as usual. It also sweeps each step's last 10 mm in 0.25 mm steps,
 where the detents engage, and holds those samples to a looser snap tolerance (10 mm³, `--snap-tolerance`). Results:
@@ -145,16 +153,18 @@ with `--snap-tolerance 15`.
 
 ## Printing and limits
 
-- **The container** stands on its floor. The lip and the lever have 45° undersides.
+- **The container** stands on its floor and its handle's foot. The lip has a 45° underside, and the handle's arm a 45° gusset.
 - **The scoop** prints on its cap: the sleeve's and the skirt's edges are on the bed, the U's ceiling is a 7.4 mm bridge, and the
   funnel is a top surface.
-- **The handle** prints on its flat underside.
+- **The handle** prints upside down on its ring's top. The grip rises from it along its length, its strong direction.
+- **The gap between the two grip halves** is 0.4 mm. The fist closes it: the handle part's grip is a 70 mm cantilever and flexes
+  that far easily.
 - **Tuning:** printed tolerances vary by machine, so adjust the clearance first, then the engagements. How firmly the detents
   click, and how the squeeze feels in the hand, still need a printed prototype.
 - **Designed for PLA.** Only the bumps, the sleeve and the blade's wall flex when a detent engages, by a few tenths of a
   millimetre over long straight sides.
 - **The bag:** fold it about 5 mm over the lip, so that the skirt covers it. A longer fold hangs below the skirt, and at the
-  front it drapes over the lever's arm.
+  front it lies on the container handle's arm, under the handle part's grip.
 
 ## Mesh hygiene
 

@@ -160,8 +160,8 @@ function PlankConnectorIllustration() {
 
 /**
  * The litter shovel, drawn from behind the scoop so the sieve faces the viewer, stacked as it goes together: the terracotta
- * container with its lip, the scoop (sand) whose cap sits on the lip and whose arched, slotted back wall rises from it, and the
- * handle's ring (green) on the cap, its grip reaching out behind with the container's finger lever just under its root. On card
+ * container with its lip and its jug handle behind it, the scoop (sand) whose cap sits on the lip and whose arched, slotted back
+ * wall rises from it, and the handle's ring (green) on the cap, its grip curving down along the container's handle. On card
  * hover the handle lifts off the scoop and the scoop off the container (`.ls-*` in styles.css).
  */
 function LitterShovelIllustration() {
@@ -170,7 +170,7 @@ function LitterShovelIllustration() {
     <ellipse cx="120" cy="162" rx="62" ry="8" fill="#c8cec1" opacity=".35" />
     <path d="M93.5 160 90.5 88h59l-3 72z" fill="#d98460" />
     <path d="M100 150V98M140 150V98" stroke="#c46543" strokeWidth="1.5" opacity=".5" />
-    <path d="M150 90h22v4h-19z" fill="#c46543" />
+    <path d="M146 96h20a4 4 0 0 1 4 4v56h-24" fill="none" stroke="#c46543" strokeWidth="4" />
     <rect x="86.5" y="85" width="67" height="4" rx="1.5" fill="#c46543" />
     <g className="ls-part ls-scoop">
       <path d="M88.5 81V31H98A22 15 0 0 1 142 31H151.5V81z" fill="#e4cf9e" />
@@ -179,7 +179,7 @@ function LitterShovelIllustration() {
       <rect x="85" y="81" width="70" height="7" rx="1.5" fill="#cdb57f" />
     </g>
     <g className="ls-part ls-handle">
-      <path d="M152 76h24a5 5 0 0 1 5 5v0a5 5 0 0 1-5 5h-24" fill="none" stroke="#5f7350" strokeWidth="3.5" />
+      <path d="M154 77h14a8 8 0 0 1 8 8v42" fill="none" stroke="#5f7350" strokeWidth="4" strokeLinecap="round" />
       <rect x="85" y="73" width="70" height="8" rx="2" fill="#8fa27c" />
       <path d="M85.5 77h69" stroke="#5f7350" strokeWidth="1.2" opacity=".6" />
     </g>

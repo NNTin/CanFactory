@@ -489,25 +489,27 @@ describe('litter shovel contract', () => {
     expect(plan(scoop, 'BAND')).toEqual(band);
     expect(plan(scoop, 'MOUTH')).toEqual(grow(band, -constant(container, 'WALL')));
     expect(plan(scoop, 'LIP')).toEqual(grow(band, constant(container, 'LIP_W')));
-    // The cap: its ceiling on the lip (RIM_H above its lower edges), its top CAP_T higher; the same numbers in the container.
-    expect(constant(scoop, 'CAP_T')).toBe(constant(container, 'CAP_T'));
-    expect(constant(scoop, 'RIM_H')).toBe(constant(container, 'SKIRT_H'));
+    // The cap's ceiling sits on the lip's top; its top, CAP_T higher, carries the handle's ring.
+    expect(constant(handle, 'CAP_TOP_Z')).toBe(constant(container, 'RIM_Z') + constant(scoop, 'CAP_T'));
     // The handle's ring is flush with the skirt and fits around the blade.
     const capOut = grow(grow(plan(scoop, 'LIP'), constant(scoop, 'BAG_GAP')), constant(scoop, 'SKIRT_T'));
     expect(plan(handle, 'CAP_OUT')).toEqual(capOut);
     expect(plan(handle, 'BLADE')).toEqual(grow(capOut, -constant(scoop, 'RING_T')));
-    // Poses: the cap's ceiling on the lip's top, the ring on the cap's top.
+    // Poses: the cap's ceiling on the lip's top; the handle, printed upside down, turned over so that its ring sits on the cap.
     const rim = constant(container, 'RIM_Z');
     expect(litterShovel.assembly.poses['scoop']?.position[2]).toBe(rim - constant(scoop, 'RIM_H'));
-    expect(litterShovel.assembly.poses['handle']?.position[2]).toBe(rim + constant(scoop, 'CAP_T'));
+    expect(litterShovel.assembly.poses['handle']).toEqual({ position: [0, 0, rim + constant(scoop, 'CAP_T') + constant(handle, 'RING_H')], rotation: [180, 0, 0] });
     // Detents meet their grooves: the sleeve's bumps at the mouth's grooves, the blade's at the ring's.
     expect(container).toMatch(/^DETENT_Z = RIM_Z - 2\.5;/m);
     expect(constant(scoop, 'SLEEVE_DETENT_Z')).toBe(constant(scoop, 'RIM_H') - 2.5);
     expect(constant(scoop, 'BLADE_DETENT_Z')).toBe(constant(handle, 'DETENT_Z'));
-    // The finger lever lies under the grip's root, as wide as the grip, just outside the skirt and before the finger slot.
-    expect(constant(container, 'LEVER_W')).toBe(constant(handle, 'GRIP_W'));
-    expect(constant(container, 'LEVER_X0')).toBeGreaterThan(capOut[0] / 2);
-    expect(constant(container, 'LEVER_X1')).toBeLessThan(constant(handle, 'SLOT_X0'));
+    // The two halves of the grip: the handle part's is fitted to the container's handle (same width, bar, arm and curve), and
+    // both handles keep clear of the scoop's skirt.
+    for (const name of ['GRIP_W', 'BAR_X1', 'TOP_Z', 'CURVE_R']) expect(constant(handle, name), name).toBe(constant(container, name));
+    expect(handle).toMatch(/^module container_profile\(\) \{ offset\(r = CURVE_R\) offset\(delta = -CURVE_R\) translate\(\[-100, -100\]\) square\(\[BAR_X1 \+ 100, TOP_Z \+ 100\]\); \}$/m);
+    expect(container).toMatch(/^module grip_profile\(\) \{ offset\(r = CURVE_R\) offset\(delta = -CURVE_R\) translate\(\[-100, -100\]\) square\(\[BAR_X1 \+ 100, TOP_Z \+ 100\]\); \}$/m);
+    expect(constant(container, 'TOP_Z')).toBeLessThan(rim - constant(scoop, 'RIM_H'));
+    expect(constant(container, 'BAR_X0')).toBeGreaterThan(capOut[0] / 2);
     // The root band under the sieve covers the handle's ring.
     expect(constant(scoop, 'ROOT_BAND')).toBeGreaterThan(constant(handle, 'RING_H'));
   });

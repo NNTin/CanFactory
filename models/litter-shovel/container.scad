@@ -2,14 +2,15 @@
 //
 // A bin for a liner bag: a gently flaring rounded-rectangle frustum on a solid floor that runs straight (the band) for its
 // top 13 mm and ends in a closed lip. The lip's flat top is the container's face in the stack container, scoop, handle: the bag
-// folds over it, and the scoop's cap sits on it. At the front (+X) a finger lever comes out from under the lip and rises past
-// the scoop's cap to a pad just under the root of the handle's grip, as wide as the grip: lever and grip make one grip. The
-// index finger pulls the pad up and the palm presses the grip down, which pinches the scoop's cap between the lip and the
-// handle's ring and clamps the three parts together (docs/litter-shovel.md).
+// folds over it, and the scoop's cap sits on it. At the front (+X) the container has its own handle, like a measuring jug's: an
+// arm under the lip, a vertical bar and a foot back to the floor, so it can be carried on its own. The bar is the finger side
+// of the shovel's grip: the handle part's grip comes down over the arm and along the bar's flat outer face, and the two halves
+// make one grip. Held in the fist, they clamp the container to the handle, with the scoop's cap between the lip and the
+// handle's ring (docs/litter-shovel.md).
 //
-// Modelled as it prints and stands: Z up, the floor at Z = 0, the lip's top at Z = 141.5. Nothing needs support: the lip and
-// the lever have 45 degree undersides. In `detent` mode grooves in the mouth, just under the lip, take the bumps on the
-// scoop's sleeve.
+// Modelled as it prints and stands: Z up, the floor at Z = 0, the lip's top at Z = 141.5. Nothing needs support: the lip has a
+// 45 degree underside, the arm a 45 degree gusset, and the foot lies on the bed. In `detent` mode grooves in the mouth, just
+// under the lip, take the bumps on the scoop's sleeve.
 
 // How the scoop's sleeve holds in the mouth: a close fit only, or a detent (bumps on the sleeve, grooves in the mouth)
 SCOOP_SNAP = "detent"; //[friction,detent]
@@ -29,11 +30,13 @@ WALL = 2.4; FLOOR_T = 3.2; RIM_Z = 141.5;
 LIP_W = 4; LIP_T = 3;
 // The band is straight from 3 mm below the lip's chamfer up to the rim.
 BAND_Z = RIM_Z - LIP_T - LIP_W - 3;
-// The scoop's cap (scoop.scad): its ceiling on the lip is CAP_T thick, and its skirt hangs SKIRT_H below the lip's top.
-CAP_T = 3; SKIRT_H = 5;
-// Finger lever: width (Y, the grip's), its pad (X, from just outside the scoop's skirt to its tip) and the pad's thickness. The
-// pad's top stands LEVER_GAP under the grip's underside (the cap's top); its arm runs under the skirt, LEVER_GAP clear of it.
-LEVER_W = 34; LEVER_X0 = 45; LEVER_X1 = 70; LEVER_T = 8; LEVER_GAP = 0.5;
+// Handle: width (Y); the bar's inner (finger) and outer (mating) faces; the arm's flat top (under the scoop's skirt, which ends
+// 5 mm below the lip's top) and its thickness at the bar; the foot's height; the rounding of the bar's finger-side edges and of
+// the finger opening.
+GRIP_W = 26; BAR_X0 = 62; BAR_X1 = 76; TOP_Z = 131; ARM_T = 12; FOOT_H = 5; GRIP_R = 5; OPENING_R = 6;
+// The handle's outer corner, from the arm's top into the bar's outer face, is a curve of this radius; the handle part's grip
+// follows it.
+CURVE_R = 20;
 // Detent grooves: height in the mouth (mid-way down the scoop's sleeve) and length along the wall.
 DETENT_Z = RIM_Z - 2.5; DETENT_L = 16;
 
@@ -61,15 +64,26 @@ module lip() {
   }
 }
 
-// The finger lever, rooted in the wall (the cavity is cut out of it afterwards): an arm under the scoop's skirt, then the pad
-// outside it, up to just under the grip. Its underside rises at 45 degrees to the pad's tip.
-module lever() {
-  root = 20;
-  arm = RIM_Z - SKIRT_H - LEVER_GAP;
-  top = RIM_Z + CAP_T - LEVER_GAP;
-  outline = [[root, arm], [LEVER_X0, arm], [LEVER_X0, top], [LEVER_X1, top], [LEVER_X1, top - LEVER_T],
-             [root, top - LEVER_T - (LEVER_X1 - root)]];
-  translate([0, LEVER_W / 2, 0]) rotate([90, 0, 0]) linear_extrude(LEVER_W) polygon(outline);
+// The side profile (XZ) the handle stays inside: everything left of the bar's outer face and under the arm's top, with the
+// corner between them curved. The handle part's grip is fitted to it (handle.scad).
+module grip_profile() { offset(r = CURVE_R) offset(delta = -CURVE_R) translate([-100, -100]) square([BAR_X1 + 100, TOP_Z + 100]); }
+
+// The handle, rooted in the wall (the cavity is cut out of it afterwards). The arm and the foot are a side profile (XZ) less
+// the finger opening, whose top is a 45 degree gusset under the arm; the bar is a vertical prism whose finger-side edges are
+// rounded. Its outer face and the arm's top, joined by the curve, are the faces the handle part's grip lies on.
+module handle() { intersection() { handle_body(); translate([0, GRIP_W / 2 + 1, 0]) rotate([90, 0, 0]) linear_extrude(GRIP_W + 2) grip_profile(); } }
+
+module handle_body() {
+  root = 20; x = BAR_X0 + GRIP_R + 1;
+  opening = [[0, FOOT_H], [x, FOOT_H], [x, TOP_Z - ARM_T], [0, TOP_Z - ARM_T - x]];
+  translate([0, GRIP_W / 2, 0]) rotate([90, 0, 0]) linear_extrude(GRIP_W) difference() {
+    polygon([[root, 0], [BAR_X0 + GRIP_R, 0], [BAR_X0 + GRIP_R, TOP_Z], [root, TOP_Z]]);
+    offset(r = OPENING_R) offset(delta = -OPENING_R) polygon(opening);
+  }
+  linear_extrude(TOP_Z) union() {
+    translate([BAR_X0, -GRIP_W / 2]) offset(r = GRIP_R) offset(delta = -GRIP_R) square([BAR_X1 - BAR_X0, GRIP_W]);
+    translate([(BAR_X0 + BAR_X1) / 2, -GRIP_W / 2]) square([(BAR_X1 - BAR_X0) / 2, GRIP_W]);
+  }
 }
 
 // Places children on the middle of each straight side of plan `p`, in the wall's frame (X along the wall, Y outward).
@@ -92,7 +106,7 @@ module groove(l, g) {
 }
 
 difference() {
-  union() { outside(); lip(); lever(); }
+  union() { outside(); lip(); handle(); }
   inside();
   if (SCOOP_SNAP == "detent") translate([0, 0, DETENT_Z]) on_sides(MOUTH) groove(DETENT_L, SCOOP_DETENT_ENGAGE);
 }

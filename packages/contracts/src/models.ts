@@ -944,9 +944,9 @@ export const plankConnector = {
 /**
  * Litter shovel: an original design in three parts (models/litter-shovel/, docs/litter-shovel.md), all closed rings, stacked
  * container, scoop, handle. The container's flat lip carries the scoop's U-shaped cap (the bag folded over the lip is pinched
- * between them); the cap's flat top carries the handle's ring, flush with it; the handle's pan-style grip points out at the front,
- * with the container's finger lever just under its root. Pulling the lever up against the grip pinches the cap between the lip and
- * the ring and clamps the three parts. Two joints hold by a close fit or a detent (`scoopSnap`: the scoop's sleeve in the
+ * between them); the cap's flat top carries the handle's ring, flush with it. The container has its own jug-style handle; the
+ * handle part's grip comes down over it and along its bar, and on their matching faces the two halves make one grip, which clamps
+ * the three parts when held. Two joints hold by a close fit or a detent (`scoopSnap`: the scoop's sleeve in the
  * container's mouth; `handleSnap`: the handle's ring on the blade's base), sized from one `clearance`. The other parameters shape
  * the sieve in the scoop's back wall.
  */
@@ -964,8 +964,8 @@ const SLOT_PATTERNS: SievePattern[] = ['slots', 'staggered'];
 const SHOVEL_SNAP_VALUES = ['friction', 'detent'] as const;
 export type ShovelSnapMode = typeof SHOVEL_SNAP_VALUES[number];
 const SCOOP_SNAP_TEXT: Record<ShovelSnapMode, { label: string; description: string }> = {
-  friction: { label: 'Friction fit', description: 'Only a close fit (and the bag in between) holds the scoop’s sleeve in the container’s mouth. Squeeze the finger lever when you lift the shovel.' },
-  detent: { label: 'Detent', description: 'Four bumps on the scoop’s sleeve click into grooves just inside the container’s mouth, through the bag, so the container stays on even when you do not squeeze the lever.' },
+  friction: { label: 'Friction fit', description: 'Only a close fit (and the bag in between) holds the scoop’s sleeve in the container’s mouth. Hold both halves of the grip when you lift the shovel.' },
+  detent: { label: 'Detent', description: 'Four bumps on the scoop’s sleeve click into grooves just inside the container’s mouth, through the bag, so the container stays on even when you hold only the handle part’s grip.' },
 };
 const HANDLE_SNAP_TEXT: Record<ShovelSnapMode, { label: string; description: string }> = {
   friction: { label: 'Friction fit', description: 'Only a close fit holds the handle’s ring on the base of the scoop’s blade.' },
@@ -1084,14 +1084,15 @@ const litterShovelParts: ModelPart[] = [
 
 /**
  * In the container's frame. The scoop's cap sits on the container's lip (141.5 mm), with its sleeve and skirt 5 mm below it
- * (136.5 mm); the handle's ring sits on the cap's top, 8 mm above that (144.5 mm). The scoop goes on first, then the handle comes
- * down over the blade. None of this depends on the parameters (docs/litter-shovel.md).
+ * (136.5 mm); the handle's ring sits on the cap's top (144.5 mm). The handle prints upside down, its ring's top (15 mm higher,
+ * 159.5 mm) on the bed, so it is turned over about X. The scoop goes on first, then the handle comes down over the blade and
+ * along the container's handle. None of this depends on the parameters (docs/litter-shovel.md).
  */
 const litterShovelAssembly: Assembly = {
   poses: {
     container: { position: [0, 0, 0] },
     scoop: { position: [0, 0, 136.5] },
-    handle: { position: [0, 0, 144.5] },
+    handle: { position: [0, 0, 159.5], rotation: [180, 0, 0] },
   },
   steps: [
     { title: 'Set the scoop on the container', parts: ['scoop'], from: [0, 0, 60] },
@@ -1102,9 +1103,9 @@ const litterShovelAssembly: Assembly = {
 
 export const litterShovel = {
   id: 'litter-shovel' as const, version: '1' as const, title: 'Litter shovel',
-  description: 'A cat-litter sifting shovel in three closed-ring parts, stacked: a container for a liner bag, a sifting scoop that caps its rim, and a handle whose ring sits on the scoop. Pull the container’s finger lever up against the handle’s grip to clamp all three together. Choose the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and bar width, and how the parts hold (a close fit or a detent), then download the three parts as a ZIP of STL files.',
+  description: 'A cat-litter sifting shovel in three closed-ring parts, stacked: a container for a liner bag with its own handle, a sifting scoop that caps its rim, and a handle whose ring sits on the scoop and whose grip runs down along the container’s handle. Held together in the fist, the two handles make one grip and clamp all three parts. Choose the sieve texture (slots, staggered slots, round holes or hexagons), the gap size and bar width, and how the parts hold (a close fit or a detent), then download the three parts as a ZIP of STL files.',
   attribution: 'CanFactory (original design)',
-  printNotes: 'Print each part as generated, without supports: the container standing on its floor, the scoop on its cap, the handle on its flat underside.',
+  printNotes: 'Print each part as generated, without supports: the container standing on its floor, the scoop on its cap, the handle upside down on its ring’s top.',
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   parts: litterShovelParts,
   assembly: litterShovelAssembly,
