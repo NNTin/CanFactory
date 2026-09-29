@@ -1082,6 +1082,80 @@ export interface operations {
                          */
                         entryChamfer: number;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "litter-shovel";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Litter shovel parameters. All fields are required; dimensions are in millimetres. */
+                    parameters: {
+                        /**
+                         * Sieve texture
+                         * @description The shape and arrangement of the gaps in the scoop’s back wall.
+                         * @default slots
+                         * @enum {unknown}
+                         */
+                        sievePattern: "slots" | "staggered" | "round" | "hex";
+                        /**
+                         * Gap width
+                         * @description Width of each gap in mm: the slot width, the hole diameter or the hexagon’s size across flats. Litter finer than this falls through.
+                         * @default 7.2
+                         */
+                        gapWidth: number;
+                        /**
+                         * Slot length
+                         * @description Length of each slot along the wall, in mm (slot textures only). At least the gap width.
+                         * @default 25
+                         */
+                        gapLength: number;
+                        /**
+                         * Bar width
+                         * @description Solid wall between neighbouring gaps, in mm. Wider bars make a stiffer sieve with less open area.
+                         * @default 5.6
+                         */
+                        gapSpacing: number;
+                        /**
+                         * Sieve margin
+                         * @description Solid border kept between the gaps and the wall’s edges (the solid band above the cap, the corners and the arch), in mm.
+                         * @default 3.2
+                         */
+                        sieveMargin: number;
+                        /**
+                         * Scoop on the container
+                         * @description How the scoop’s sleeve holds in the container’s mouth: a close fit only, or a detent.
+                         * @default detent
+                         * @enum {unknown}
+                         */
+                        scoopSnap: "friction" | "detent";
+                        /**
+                         * Handle on the scoop
+                         * @description How the handle’s ring holds on the base of the scoop’s blade: a close fit only, or a detent.
+                         * @default detent
+                         * @enum {unknown}
+                         */
+                        handleSnap: "friction" | "detent";
+                        /**
+                         * Clearance
+                         * @description Gap per side between parts that fit together (the scoop’s sleeve in the container’s mouth, the handle’s ring on the scoop’s blade), in mm. Larger is looser; raise it if your printer prints parts that are too tight.
+                         * @default 0.2
+                         */
+                        clearance: number;
+                        /**
+                         * Detent engagement (scoop on the container)
+                         * @description How far the bumps on the scoop’s sleeve reach past the container’s mouth, in mm, on top of the clearance. More clicks harder.
+                         * @default 0.15
+                         */
+                        scoopDetentEngage: number;
+                        /**
+                         * Detent engagement (handle on the scoop)
+                         * @description How far the bumps on the scoop’s blade reach past the handle’s ring, in mm, on top of the clearance. More clicks harder.
+                         * @default 0.15
+                         */
+                        handleDetentEngage: number;
+                    };
                 };
             };
         };

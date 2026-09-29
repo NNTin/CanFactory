@@ -1,5 +1,5 @@
 import { Type, type Static } from 'typebox';
-import { AssemblySchema, cigaretteCase, ControlSchema, fruitFlyTrap, mossPlanter, plankConnector } from './models.ts';
+import { AssemblySchema, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector } from './models.ts';
 import { PartFamilySchema, PartSchema, PartSourceSchema } from './parts/index.ts';
 export * from './models.ts';
 export * from './assembly.ts';
@@ -56,6 +56,11 @@ export const RenderRequestSchema = Type.Union([
     modelId: Type.Literal(plankConnector.id),
     modelVersion: Type.Literal(plankConnector.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
     parameters: plankConnector.parameterSchema,
+  }, { additionalProperties: false }),
+  Type.Object({
+    modelId: Type.Literal(litterShovel.id),
+    modelVersion: Type.Literal(litterShovel.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
+    parameters: litterShovel.parameterSchema,
   }, { additionalProperties: false }),
 ], { description: 'Complete, uncoerced settings for one model version.' });
 export type RenderRequest = Static<typeof RenderRequestSchema>;

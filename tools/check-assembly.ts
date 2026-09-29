@@ -4,9 +4,12 @@
  * volume shared by parts that must not collide:
  * - the finished assembly (every pair of parts);
  * - the exploded layout (every pair), which must also stay above the print bed;
- * - each step, sampled along its path (the moving parts against all the others).
+ * - each step, sampled along its path (the moving parts against all the others);
+ * - the last CLOSING mm of each step, where snaps engage, in fine steps: a detent's bump shares volume there while it passes the
+ *   mating wall, so these samples have their own, looser tolerance (`--snap-tolerance`). A pose that collides for real still
+ *   fails it, and the assembled state is held to `--tolerance`.
  *
- *   npm run check:assembly -- [model-id] [--parameters '{"snap":"detent"}'] [--tolerance 1]
+ *   npm run check:assembly -- [model-id] [--parameters '{"snap":"detent"}'] [--tolerance 1] [--snap-tolerance 10]
  *
  * Needs an OpenSCAD runtime (see tools/stl-to-scad/openscad.ts). Exits 1 if any check fails.
  */
@@ -19,6 +22,9 @@ import { renderScad } from './stl-to-scad/openscad.ts';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
 
 const SAMPLES = 16;
+/** The last millimetres of each step's travel, sampled every CLOSING_STEP mm and held to the snap tolerance. */
+const CLOSING = 10;
+const CLOSING_STEP = 0.25;
 /** The generic magnet model: magnets are built from their dimensions, so they have no STL of their own. */
 const MAGNET_SCAD = 'parts/magnets/magnet.scad';
 const CELL = 0.25;
@@ -48,14 +54,16 @@ function layout(assembly: Assembly, parts: Map<string, Mesh>, state: AssemblySta
   return placed;
 }
 
-interface Finding { check: string; volume: number }
+interface Finding { check: string; volume: number; snap?: boolean }
 
 function pairs(check: string, placed: Map<string, Mesh>): Finding[] {
   const entries = [...placed];
   return entries.flatMap(([a, meshA], index) => entries.slice(index + 1).map(([b, meshB]) => ({ check: `${check}: ${a} × ${b}`, volume: intersectionVolume(meshA, meshB, CELL) })));
 }
 
-async function checkModel(model: ModelDefinition & { assembly: Assembly }, parameters: ParameterValues, tolerance: number): Promise<boolean> {
+interface Tolerances { parts: number; snaps: number }
+
+async function checkModel(model: ModelDefinition & { assembly: Assembly }, parameters: ParameterValues, tolerances: Tolerances): Promise<boolean> {
   if (!isAssembly(model)) throw new Error(`${model.id} has an assembly but no parts.`);
   const issues = validateParameters(model, parameters);
   if (issues.length > 0) throw new Error(`Invalid parameters for ${model.id}: ${issues.map(issue => issue.message).join(' ')}`);
@@ -106,33 +114,48 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
   findings.push(...pairs('exploded', explodedLayout));
   const floor = Math.min(...[...explodedLayout.values()].map(mesh => bounds(mesh).min[2]));
   assembly.steps.forEach((step, index) => {
-    let worst = 0;
-    for (let sample = 0; sample <= SAMPLES; sample++) {
-      const state = { arrange: 1, steps: assembly.steps.map((_, k) => k < index ? 1 : k === index ? sample / SAMPLES : 0) };
+    const shared = (progress: number) => {
+      const state = { arrange: 1, steps: assembly.steps.map((_, k) => k < index ? 1 : k === index ? progress : 0) };
       const placed = layout(assembly, parts, state);
       const moving = [...placed].filter(([id]) => step.parts.includes(id));
       const still = [...placed].filter(([id]) => !step.parts.includes(id));
-      for (const [, a] of moving) for (const [, b] of still) worst = Math.max(worst, intersectionVolume(a, b, CELL));
+      let volume = 0;
+      for (const [, a] of moving) for (const [, b] of still) volume = Math.max(volume, intersectionVolume(a, b, CELL));
+      return volume;
+    };
+    const travel = Math.hypot(...step.from);
+    const closing = Math.min(CLOSING, travel);
+    let worst = 0;
+    for (let sample = 0; sample <= SAMPLES; sample++) {
+      const left = travel * (1 - sample / SAMPLES);
+      if (left > 1e-9 && left < closing - 1e-9) continue;
+      worst = Math.max(worst, shared(sample / SAMPLES));
     }
     findings.push({ check: `step ${index + 1} “${step.title}” (worst sample)`, volume: worst });
+    let snap = 0, at = 0;
+    for (let left = closing; left > 1e-9; left -= CLOSING_STEP) {
+      const volume = shared(1 - left / travel);
+      if (volume > snap) { snap = volume; at = left; }
+    }
+    findings.push({ check: `step ${index + 1} last ${closing.toFixed(0)} mm (snaps engaging; worst ${snap > 0 ? `${at.toFixed(2)} mm before seated` : 'sample'})`, volume: snap, snap: true });
   });
 
   let ok = floor >= 0;
   console.log(`\n${model.id} ${JSON.stringify(parameters)}\nlowest point of the exploded layout: ${floor.toFixed(2)} mm ${floor >= 0 ? 'ok' : 'FAIL (below the print bed)'}`);
   for (const finding of findings) {
-    const pass = finding.volume <= tolerance;
+    const pass = finding.volume <= (finding.snap ? tolerances.snaps : tolerances.parts);
     ok &&= pass;
     console.log(`${pass ? 'ok  ' : 'FAIL'} ${finding.volume.toFixed(2).padStart(8)} mm³  ${finding.check}`);
   }
   return ok;
 }
 
-const { values, positionals } = parseArgs({ allowPositionals: true, options: { parameters: { type: 'string' }, tolerance: { type: 'string', default: '1' } } });
+const { values, positionals } = parseArgs({ allowPositionals: true, options: { parameters: { type: 'string' }, tolerance: { type: 'string', default: '1' }, 'snap-tolerance': { type: 'string', default: '10' } } });
 const selected = models.filter((model): model is ModelDefinition & { assembly: Assembly } => model.assembly !== undefined && (positionals.length === 0 || positionals.includes(model.id)));
 if (selected.length === 0) throw new Error('No model with an assembly matches.');
 let passed = true;
 for (const model of selected) {
   const parameters = { ...model.defaults, ...(values.parameters ? JSON.parse(values.parameters) as ParameterValues : {}) };
-  passed = await checkModel(model, parameters, Number(values.tolerance)) && passed;
+  passed = await checkModel(model, parameters, { parts: Number(values.tolerance), snaps: Number(values['snap-tolerance']) }) && passed;
 }
 process.exitCode = passed ? 0 : 1;

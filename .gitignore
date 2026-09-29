@@ -6,3 +6,7 @@ test-results/
 playwright-report/
 .env
 *.tsbuildinfo
+
+# Litter shovel: local reference spec and FreeCAD sources (not redistributed)
+models/litter-shovel/reference/SPEC.md
+models/litter-shovel/freecad/

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { cigaretteCase, ErrorSchema, LOGO_MAX_LENGTH, LOGO_MAX_POINTS, fruitFlyTrap, ModelDetailSchema, mossPlanter, PartDetailSchema, PartFamilyDetailSchema, PartFamilySummarySchema, partFamilies, parts, plankConnector, RenderSchema } from '@canfactory/contracts';
+import { cigaretteCase, ErrorSchema, LOGO_MAX_LENGTH, LOGO_MAX_POINTS, fruitFlyTrap, litterShovel, ModelDetailSchema, mossPlanter, PartDetailSchema, PartFamilyDetailSchema, PartFamilySummarySchema, partFamilies, parts, plankConnector, RenderSchema } from '@canfactory/contracts';
 import { CACHE_TTL_MS, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from './app.ts';
 
@@ -23,7 +23,7 @@ describe('model and render API', () => {
   it('serves the catalogue, reference STL, and OpenAPI', async () => {
     const catalogue = await app.inject('/api/v1/models');
     expect(catalogue.statusCode).toBe(200);
-    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['cigarette-case', 'fruit-fly-trap', 'moss-planter', 'plank-connector']);
+    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['cigarette-case', 'fruit-fly-trap', 'litter-shovel', 'moss-planter', 'plank-connector']);
     const detail = await app.inject('/api/v1/models/fruit-fly-trap');
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false, properties: { trapDiameter: { type: 'number', minimum: 20, maximum: 200 } } });
@@ -130,6 +130,23 @@ describe('model and render API', () => {
       expect(missing.statusCode, url).toBe(404);
       expect(Value.Check(ErrorSchema, missing.json<unknown>())).toBe(true);
     }
+  });
+
+  it('serves the litter shovel as a three-part ZIP model and validates the sieve and the snaps', async () => {
+    const detail = await app.inject('/api/v1/models/litter-shovel');
+    const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
+    expect(model.artifactFormat).toBe('zip');
+    expect(model.defaults).toEqual(litterShovel.defaults);
+    expect(model.parts?.map(part => part.id)).toEqual(['container', 'scoop', 'handle']);
+    expect(model.controls.find(control => control.key === 'sievePattern')?.options?.map(option => option.value)).toEqual(['slots', 'staggered', 'round', 'hex']);
+    const render = (parameters: Record<string, unknown>) => app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: litterShovel.id, modelVersion: litterShovel.version, parameters: { ...litterShovel.defaults, ...parameters } } });
+    for (const sievePattern of ['slots', 'staggered', 'round', 'hex']) expect((await render({ sievePattern })).statusCode, sievePattern).toBeLessThan(300);
+    for (const handleSnap of ['friction', 'detent']) expect((await render({ handleSnap, scoopSnap: handleSnap })).statusCode, handleSnap).toBeLessThan(300);
+    expect((await render({ sievePattern: 'diamond' })).statusCode).toBeGreaterThanOrEqual(400);
+    expect((await render({ scoopSnap: 'clip' })).statusCode).toBeGreaterThanOrEqual(400);
+    const short = await render({ gapWidth: 10, gapLength: 8 });
+    expect(short.statusCode).toBeGreaterThanOrEqual(400);
+    expect(short.json<{ issues: { field: string }[] }>().issues[0]?.field).toBe('gapLength');
   });
 
   it('rejects unknown models, stale versions, and invalid fields', async () => {

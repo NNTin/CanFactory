@@ -367,3 +367,55 @@ test('customizes the plank connector pocket, depth and screw holes and downloads
   expect(mesh.dimensions.z).toBeCloseTo(52, 3);
   expect(errors).toEqual([]);
 });
+
+test('chooses the litter shovel sieve texture, gap size and snaps and downloads the three parts', async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'CanFactory model library' }).click();
+  const card = page.getByRole('button', { name: /CUSTOMIZABLE · ZIP Litter shovel/ });
+  await card.hover();
+  await card.screenshot({ path: testInfo.outputPath('litter-shovel-card.png') });
+  await card.click();
+  await expect(page.getByRole('heading', { name: 'Litter shovel', exact: true })).toBeVisible();
+  const downloadButton = page.getByRole('button', { name: 'Download ZIP', exact: true });
+  const texture = page.getByLabel('Sieve texture');
+  await expect(texture).toHaveValue('slots');
+  await expect(page.getByRole('spinbutton', { name: 'Gap width', exact: true })).toHaveValue('7.2');
+  await expect(downloadButton).toBeEnabled({ timeout: 120_000 });
+  await expect(page.getByText('13 slots, automatically spaced.')).toBeVisible();
+  await expect(page.getByRole('slider', { name: 'Assembly' })).toBeVisible();
+  // a slot shorter than it is wide is rejected before rendering
+  await page.getByRole('spinbutton', { name: 'Slot length', exact: true }).fill('6');
+  await expect(page.locator('#parameter-gapLength-error')).toContainText('at least as long as it is wide');
+  await expect(downloadButton).toBeDisabled();
+  // round holes have no length: the control goes away and the error with it
+  await texture.selectOption('round');
+  await expect(page.getByRole('spinbutton', { name: 'Slot length', exact: true })).toHaveCount(0);
+  await page.getByRole('spinbutton', { name: 'Gap width', exact: true }).fill('5');
+  await expect(page.getByText('61 slots, automatically spaced.')).toBeVisible();
+  // a friction fit has no detent to tune: its engagement goes away
+  await expect(page.getByLabel('Scoop on the container', { exact: true })).toHaveValue('detent');
+  await expect(page.getByLabel('Handle on the scoop', { exact: true })).toHaveValue('detent');
+  await page.getByRole('button', { name: 'Advanced settings' }).click();
+  const scoopEngage = page.getByRole('spinbutton', { name: 'Detent engagement (scoop on the container)' });
+  await expect(scoopEngage).toHaveValue('0.15');
+  await page.getByLabel('Scoop on the container', { exact: true }).selectOption('friction');
+  await expect(scoopEngage).toHaveCount(0);
+  await expect(page.getByRole('spinbutton', { name: 'Detent engagement (handle on the scoop)' })).toHaveValue('0.15');
+  await expect(downloadButton).toBeEnabled({ timeout: 120_000 });
+  await page.screenshot({ path: testInfo.outputPath('litter-shovel.png'), fullPage: true });
+  const downloadEvent = page.waitForEvent('download');
+  await downloadButton.click();
+  const path = await (await downloadEvent).path();
+  if (!path) throw new Error('Missing download');
+  const entries = unzipSync(new Uint8Array(await readFile(path)));
+  expect(Object.keys(entries).sort()).toEqual(['container.stl', 'handle.stl', 'scoop.stl']);
+  const scoop = entries['scoop.stl'];
+  if (!scoop) throw new Error('Expected the scoop');
+  const dimensions = inspectStl(Buffer.from(scoop.buffer, scoop.byteOffset, scoop.byteLength)).dimensions;
+  expect(dimensions.x).toBeCloseTo(88.9, 2);
+  expect(dimensions.y).toBeCloseTo(121.2, 2);
+  expect(dimensions.z).toBeCloseTo(127, 2);
+  expect(errors).toEqual([]);
+});
