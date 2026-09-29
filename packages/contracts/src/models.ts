@@ -1108,16 +1108,16 @@ const HANDLE_REINFORCEMENT_TEXT: Record<HandleReinforcement, { label: string; de
 /**
  * Where the fasteners sit and the room they have, in the container's frame (the SCAD files' FASTENER_* values; a test keeps them
  * equal): `y` either side of the grip (26 mm wide) and `z` above the cap's top, in the 15 mm ring over the blade's solid root band.
- * `innerX` is the blade's inner face on the grip side, `bladeWall` its wall and `ringOut` the blade's inner face to the ring's outer
+ * `innerX` is the blade's inner face on the grip side, `seatWall` its wall there (a thinner blade has a pad round each screw that makes it so, so this does not depend on `wallThickness`) and `ringOut` the blade's inner face to the ring's outer
  * face (the wall, the clearance and the ring, which is the clearance thinner: the same at any clearance). A countersunk head leaves
  * `underHead` of the wall and its countersink (`sinkPlay` wider than the head) stays within `sinkRadius` of the axis, clear of the
- * funnel below. The boss on the ring ends where the screw's tip does, so it is `screw length − ringOut` deep, at most
+ * funnel below (whose top, at the ring's inner face, is 11.8 mm over the cap's lower edges: 16 − 11.8 = 4.2). The boss on the ring ends where the screw's tip does, so it is `screw length − ringOut` deep, at most
  * `bossDepth`; its radius (the insert's hole and wall, or the nut's pocket and `nutWall`) is at most `bossRadius`, clear of the grip
  * and the cap. An insert's hole leaves `insertLeft` of the ring; a nut sits `nutRecess` deep in a pocket `nutPlay` wider than it,
  * on a floor at least `nutFloor` thick.
  */
 export const HANDLE_FASTENER_SEAT = {
-  y: 21, z: 8, capTop: 144.5, innerX: 37.65, bladeWall: 3.2, ringOut: 6.8, underHead: 0.8, sinkPlay: 0.2, sinkRadius: 4.5,
+  y: 21, z: 8, capTop: 144.5, innerX: 37.65, seatWall: 3.2, ringOut: 6.8, underHead: 0.8, sinkPlay: 0.2, sinkRadius: 4.2,
   bossDepth: 10, bossRadius: 6.5, insertLeft: 0.4, nutPlay: 0.2, nutRecess: 0.2, nutFloor: 1.2, nutWall: 1.2,
 } as const;
 
@@ -1130,16 +1130,16 @@ const screwLength = (part: Part) => dimensionOf(part, 'l');
 /** Whether a library screw can fasten the handle: a countersunk head that sits in the blade's wall and countersink, a thread with an
  * ISO 273 clearance hole, and a length that ends in a boss no deeper than allowed. */
 export function handleScrewFits(part: Part): boolean {
-  const { bladeWall, underHead, sinkPlay, sinkRadius, ringOut, bossDepth } = HANDLE_FASTENER_SEAT;
+  const { seatWall, underHead, sinkPlay, sinkRadius, ringOut, bossDepth } = HANDLE_FASTENER_SEAT;
   if (part.family !== 'screw' || part.attributes['head'] !== 'countersunk' || !(screwThread(part) in ISO_273_CLEARANCE_HOLES)) return false;
   const boss = screwLength(part) - ringOut;
-  return dimensionOf(part, 'k', 'max') <= bladeWall - underHead + 1e-9 && (dimensionOf(part, 'dk', 'max') + sinkPlay) / 2 <= sinkRadius + 1e-9
+  return dimensionOf(part, 'k', 'max') <= seatWall - underHead + 1e-9 && (dimensionOf(part, 'dk', 'max') + sinkPlay) / 2 <= sinkRadius + 1e-9
     && boss >= 0 && boss <= bossDepth + 1e-9;
 }
 
 /** The shortest screw among `screws` that leaves the ring `needed` mm (from the blade's wall, at this clearance) for its insert or nut. */
 const shortestScrew = (screws: readonly string[], thread: string, needed: number, clearance: number) => screws.map(id => findPart(id))
-  .filter((part): part is Part => part !== undefined && screwThread(part) === thread && screwLength(part) - HANDLE_FASTENER_SEAT.bladeWall - clearance >= needed - 1e-9)
+  .filter((part): part is Part => part !== undefined && screwThread(part) === thread && screwLength(part) - HANDLE_FASTENER_SEAT.seatWall - clearance >= needed - 1e-9)
   .sort((a, b) => screwLength(a) - screwLength(b))[0];
 
 /** How much of the screw's length past the blade's wall an insert needs: its hole, and the ring it must leave. */
@@ -1183,6 +1183,18 @@ const HANDLE_THREAD_TEXT: Record<string, string> = { M2: 'The smallest: the ligh
 /** The scoop's length (`scoopLength`, scoop.scad's SCOOP_LENGTH, its `HEIGHT`): the tip's height over the cap's lower edges. */
 export const SCOOP_LENGTH_RANGE = { minimum: 90, maximum: 180, default: 127, step: 1 } as const;
 
+/**
+ * The shell's wall (`wallThickness`, the SCAD files' WALL_THICKNESS): the container's and the scoop's blade's. The default is 4 lines
+ * of a 0.4 mm nozzle; the maximum is the blade's wall before this was a parameter. The container's floor is `wall + 0.8`, at most
+ * `FLOOR_MAXIMUM`; the scraping edge stays `TIP_WALL_LEFT` thinner than the wall, so that its bevel is one.
+ */
+export const WALL_THICKNESS_RANGE = { minimum: 1.2, maximum: 3.2, default: 1.6 } as const;
+export const WALL_BANDS = [
+  { minimum: 1.2, maximum: 1.6, label: 'Thin (3 to 4 perimeters)' },
+  { minimum: 1.6, maximum: 2.4, label: 'Standard (4 to 6 perimeters)' },
+  { minimum: 2.4, maximum: 3.2, label: 'Heavy (more than 6 perimeters)' },
+];
+const TIP_WALL_LEFT = 0.4;
 /** The sieve margin's range (`sieveMargin`), and the tip bevel's (`tipBevel`). */
 const SIEVE_MARGIN_RANGE = { minimum: 3, maximum: 10 } as const;
 const TIP_BEVEL_RANGE = { minimum: 5, maximum: 20 } as const;
@@ -1201,6 +1213,7 @@ export const LitterShovelParametersSchema = Type.Object({
   gapLength: dimension('Slot length', 'Length of each slot along the wall, in mm (slot textures, sized by length). At least the gap width; at most what the scoop’s length, the tip bevel and the margin leave room for.', 25, 6, GAP_LENGTH_MAXIMUM, GAP_LENGTH_STEP),
   gapSpacing: dimension('Bar width', 'Solid wall between neighbouring gaps, in mm. Wider bars make a stiffer sieve with less open area.', 5.6, 1, 15),
   sieveMargin: dimension('Sieve margin', 'Solid border kept between the gaps and the wall’s edges (the solid band above the cap, the bevel under the tip, the side walls’ top and the front corners), in mm.', 3.2, SIEVE_MARGIN_RANGE.minimum, SIEVE_MARGIN_RANGE.maximum),
+  wallThickness: dimension('Wall thickness', 'Thickness of the shell’s walls, in mm: the container’s and the scoop’s blade (the floor follows it, and the handle’s root and the screws’ seats keep their strength). Three to five lines of a 0.4 mm nozzle are 1.2 to 2.0 mm; thicker only adds weight and print time. It also caps the tip thickness.', WALL_THICKNESS_RANGE.default, WALL_THICKNESS_RANGE.minimum, WALL_THICKNESS_RANGE.maximum),
   tipThickness: dimension('Tip thickness', 'Thickness of the scoop’s straight scraping edge, in mm. Thinner scrapes cleaner; thicker is sturdier.', 0.8, 0.4, 2),
   scoopLength: dimension('Scoop length', 'How far the scoop’s blade reaches, in mm: the height of its straight scraping edge over the cap. A longer scoop takes more litter in one go and has a taller sieve: longer slots, or more rows of gaps.',
     SCOOP_LENGTH_RANGE.default, SCOOP_LENGTH_RANGE.minimum, SCOOP_LENGTH_RANGE.maximum, SCOOP_LENGTH_RANGE.step),
@@ -1227,12 +1240,12 @@ export type LitterShovelParameters = Static<typeof LitterShovelParametersSchema>
 
 /**
  * The scoop's blade, in the scoop's frame (mm). Mirrors models/litter-shovel/scoop.scad. The wall's outer plan is a rounded
- * rectangle (`OUT`: 81.7 × 114, corner radius 17.6) with a 3.2 mm wall. The back wall (−X) and most of the back corners rise to
+ * rectangle (`OUT`: 81.7 × 114, corner radius 17.6) with a wall of `wallThickness` (so the inner corner radius is 17.6 less that). The back wall (−X) and most of the back corners rise to
  * the straight tip (`HEIGHT`, the scoop's length `scoopLength`). The side walls' top falls in half a cosine from `descentStart` (8 mm into the back corners) to
  * `FRONT_Z` where the front corners start. The sieve zone starts above the solid root band (`CAP_TOP` + `ROOT_BAND`, which the
  * handle's ring covers) and ends under the tip's bevel.
  */
-export const SCOOP_BLADE = { backX: -40.85, flatY: 39.4, cornerRadius: 17.6, wall: 3.2, sideLength: 46.5, sieveBottom: SIEVE_BOTTOM, frontZ: 26 } as const;
+export const SCOOP_BLADE = { backX: -40.85, flatY: 39.4, cornerRadius: 17.6, sideLength: 46.5, sieveBottom: SIEVE_BOTTOM, frontZ: 26 } as const;
 /** Most gaps one sieve may have; more makes the scoop slow to render. */
 export const MAX_SIEVE_GAPS = 600;
 
@@ -1255,7 +1268,7 @@ function scoopSideBelow(x: number, d: number, height: number): number {
   return scoopSideTop(x, height) - d * Math.sqrt(1 + slope * slope);
 }
 
-type SieveParameters = Pick<LitterShovelParameters, 'sievePattern' | 'sieveSizing' | 'sieveRows' | 'gapWidth' | 'gapLength' | 'gapSpacing' | 'sieveMargin' | 'tipBevel' | 'scoopLength'>;
+type SieveParameters = Pick<LitterShovelParameters, 'sievePattern' | 'sieveSizing' | 'sieveRows' | 'gapWidth' | 'gapLength' | 'gapSpacing' | 'sieveMargin' | 'tipBevel' | 'scoopLength' | 'wallThickness'>;
 
 /** The height the gaps may take (scoop.scad's SIEVE_HEIGHT): from one margin above the root band to one margin under the tip's
  * bevel. On the back, whose top is the tip, one gap this tall fits exactly; on the sides the falling top leaves less. */
@@ -1288,9 +1301,9 @@ export function sieveRowsLimit(p: SieveParameters): number {
  * gap's extent up the wall (a slot's length; sized by rows, shorter where the side walls' top falls).
  */
 export function sieveGaps(p: SieveParameters): [number, number, number][] {
-  const { backX, flatY, cornerRadius, wall, sideLength, sieveBottom } = SCOOP_BLADE;
+  const { backX, flatY, cornerRadius, sideLength, sieveBottom } = SCOOP_BLADE;
   const height = p.scoopLength;
-  const innerRadius = cornerRadius - wall, arc = Math.PI / 2 * innerRadius;
+  const innerRadius = cornerRadius - p.wallThickness, arc = Math.PI / 2 * innerRadius;
   const end = flatY + arc + sideLength, top = height - p.tipBevel;
   const slot = SLOT_PATTERNS.includes(p.sievePattern);
   const length = slotLength(p);
@@ -1354,7 +1367,7 @@ function handleReinforcementIssues(p: LitterShovelParameters): ParameterIssue[] 
   const holder = findPart(p.handleReinforcement === 'threaded-insert' ? p.handleInsert : p.handleNut);
   if (!screw || !holder) return [];
   const needed = p.handleReinforcement === 'threaded-insert' ? insertNeeds(holder) : nutNeeds(holder);
-  const reach = screwLength(screw) - HANDLE_FASTENER_SEAT.bladeWall - p.clearance;
+  const reach = screwLength(screw) - HANDLE_FASTENER_SEAT.seatWall - p.clearance;
   if (reach >= needed - 1e-9) return [];
   const shortest = shortestScrew(HANDLE_SCREWS, screwThread(holder), needed, p.clearance);
   const what = p.handleReinforcement === 'threaded-insert' ? `its ${dimensionOf(holder, 'holeDepth')} mm deep hole and ${HANDLE_FASTENER_SEAT.insertLeft} mm of the ring` : `its pocket and a ${HANDLE_FASTENER_SEAT.nutFloor} mm floor`;
@@ -1385,6 +1398,7 @@ const litterShovelControls = [
     { ...threadFiltered(partControl(LitterShovelParametersSchema, 'handleNut', 'basic', 'nut', HANDLE_NUTS)), visibleWhen: { control: 'handleReinforcement', values: ['nut-bolt'] } },
     threadFiltered(partControl(LitterShovelParametersSchema, 'handleScrew', 'basic', 'screw', HANDLE_SCREWS))]
     .map((c): Control => ({ ...c, visibleWhen: c.visibleWhen ?? { control: 'handleReinforcement', values: ['threaded-insert', 'nut-bolt'] } })),
+  { ...control(LitterShovelParametersSchema, 'wallThickness', 'advanced'), bands: WALL_BANDS },
   control(LitterShovelParametersSchema, 'sieveMargin', 'advanced'),
   control(LitterShovelParametersSchema, 'tipThickness', 'advanced'),
   control(LitterShovelParametersSchema, 'tipBevel', 'advanced'),
@@ -1441,9 +1455,9 @@ const SHOVEL_HANDLE_SNAP_MAPPING = { handleSnap: 'HANDLE_SNAP', handleDetentEnga
 /** The parts, in stacking order. Each joint's setting reaches the two parts of that joint, and the grip's end the two halves of
  * the grip; the sieve, the tip and the scoop's length reach only the scoop, the supports and the dam only the container. */
 const litterShovelParts: ModelPart[] = [
-  { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', supportCount: 'SUPPORT_COUNT', supportThickness: 'SUPPORT_THICKNESS', damWidth: 'DAM_WIDTH', ...SHOVEL_SCOOP_SNAP_MAPPING } },
+  { id: 'container', title: 'Container', sourcePath: `${LITTER_SHOVEL_DIR}container.scad`, scadMapping: { wallThickness: 'WALL_THICKNESS', clearance: 'CLEARANCE', gripEnd: 'GRIP_END', supportCount: 'SUPPORT_COUNT', supportThickness: 'SUPPORT_THICKNESS', damWidth: 'DAM_WIDTH', ...SHOVEL_SCOOP_SNAP_MAPPING } },
   { id: 'scoop', title: 'Scoop', sourcePath: `${LITTER_SHOVEL_DIR}scoop.scad`,
-    scadMapping: { scoopLength: 'SCOOP_LENGTH', sievePattern: 'SIEVE_PATTERN', sieveSizing: 'SIEVE_SIZING', sieveRows: 'SIEVE_ROWS', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', tipThickness: 'TIP_THICKNESS', tipBevel: 'TIP_BEVEL', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
+    scadMapping: { wallThickness: 'WALL_THICKNESS', scoopLength: 'SCOOP_LENGTH', sievePattern: 'SIEVE_PATTERN', sieveSizing: 'SIEVE_SIZING', sieveRows: 'SIEVE_ROWS', gapWidth: 'GAP_WIDTH', gapLength: 'GAP_LENGTH', gapSpacing: 'GAP_SPACING', sieveMargin: 'SIEVE_MARGIN', tipThickness: 'TIP_THICKNESS', tipBevel: 'TIP_BEVEL', clearance: 'CLEARANCE', ...SHOVEL_SCOOP_SNAP_MAPPING, ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
     partDefines: SHOVEL_SCOOP_FASTENER_DEFINES },
   { id: 'handle', title: 'Handle', sourcePath: `${LITTER_SHOVEL_DIR}handle.scad`, scadMapping: { clearance: 'CLEARANCE', gripEnd: 'GRIP_END', ...SHOVEL_HANDLE_SNAP_MAPPING, ...SHOVEL_REINFORCEMENT_MAPPING },
     partDefines: SHOVEL_HANDLE_FASTENER_DEFINES },
@@ -1486,7 +1500,9 @@ export const litterShovel = {
   // the longest slot the scoop's length, the tip's bevel and the margin leave room for
   limits(parameters: ParameterValues) {
     if (!Value.Check(LitterShovelParametersSchema, parameters)) return {};
-    return { gapLength: { maximum: slotLengthLimit(parameters), reason: `the scoop’s length (${parameters.scoopLength} mm), the tip bevel and the sieve margin leave room for no longer slot. Use a longer scoop, a shorter bevel or a smaller margin.` } };
+    return {
+      tipThickness: { maximum: Math.round((parameters.wallThickness - TIP_WALL_LEFT) * 10) / 10, reason: `the wall (${parameters.wallThickness} mm) leaves less than ${TIP_WALL_LEFT} mm to bevel down to the tip. Use a thicker wall or a thinner tip.` },
+      gapLength: { maximum: slotLengthLimit(parameters), reason: `the scoop’s length (${parameters.scoopLength} mm), the tip bevel and the sieve margin leave room for no longer slot. Use a longer scoop, a shorter bevel or a smaller margin.` } };
   },
   validate(parameters: unknown): ParameterIssue[] {
     if (!Value.Check(LitterShovelParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
