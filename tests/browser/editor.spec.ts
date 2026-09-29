@@ -383,15 +383,37 @@ test('chooses the litter shovel sieve texture, gap size and snaps and downloads 
   await expect(texture).toHaveValue('slots');
   await expect(page.getByRole('spinbutton', { name: 'Gap width', exact: true })).toHaveValue('7.2');
   await expect(downloadButton).toBeEnabled({ timeout: 120_000 });
-  await expect(page.getByText('24 slots, automatically spaced.')).toBeVisible();
+  // slots are sized by rows by default: one row fills the sieve's height (lower along the sides), and the slot length is hidden
+  const sizing = page.getByLabel('Slot sizing');
+  const rows = page.getByRole('spinbutton', { name: 'Slot rows', exact: true });
+  const slotLength = page.getByRole('spinbutton', { name: 'Slot length', exact: true });
+  await expect(sizing).toHaveValue('rows');
+  await expect(rows).toHaveValue('1');
+  await expect(slotLength).toHaveCount(0);
+  await expect(page.getByText('15 slots, automatically spaced.')).toBeVisible();
   await expect(page.getByRole('slider', { name: 'Assembly' })).toBeVisible();
+  await rows.fill('2');
+  await expect(page.getByText('26 slots, automatically spaced.')).toBeVisible();
+  // sized by length, the slot length's range ends at what the scoop's length leaves room for, and follows it
+  await sizing.selectOption('length');
+  await expect(rows).toHaveCount(0);
+  await expect(slotLength).toHaveValue('25');
+  await expect(slotLength).toHaveAttribute('max', '82.5');
+  await expect(page.getByText('24 slots, automatically spaced.')).toBeVisible();
+  await page.getByRole('spinbutton', { name: 'Scoop length', exact: true }).fill('90');
+  await expect(slotLength).toHaveAttribute('max', '45.5');
+  await slotLength.fill('50');
+  await expect(page.locator('#parameter-gapLength-error')).toContainText('At most 45.5 mm');
+  await expect(downloadButton).toBeDisabled();
+  await page.getByRole('spinbutton', { name: 'Scoop length', exact: true }).fill('127');
   // a slot shorter than it is wide is rejected before rendering
-  await page.getByRole('spinbutton', { name: 'Slot length', exact: true }).fill('6');
+  await slotLength.fill('6');
   await expect(page.locator('#parameter-gapLength-error')).toContainText('at least as long as it is wide');
   await expect(downloadButton).toBeDisabled();
-  // round holes have no length: the control goes away and the error with it
+  // round holes have no length: the sizing goes away and the error with it
   await texture.selectOption('round');
-  await expect(page.getByRole('spinbutton', { name: 'Slot length', exact: true })).toHaveCount(0);
+  await expect(slotLength).toHaveCount(0);
+  await expect(sizing).toHaveCount(0);
   await page.getByRole('spinbutton', { name: 'Gap width', exact: true }).fill('5');
   await expect(page.getByText('131 slots, automatically spaced.')).toBeVisible();
   // a friction fit has no detent to tune: its engagement goes away

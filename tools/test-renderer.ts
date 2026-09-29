@@ -276,19 +276,27 @@ try {
     { name: 'finest round holes', overrides: { sievePattern: 'round', gapWidth: 3, gapSpacing: 3, sieveMargin: 3 } },
     { name: 'finest round holes, shortest bevel', overrides: { sievePattern: 'round', gapWidth: 3, gapSpacing: 3, sieveMargin: 3, tipBevel: 5 } },
     { name: 'finest hexagons', overrides: { sievePattern: 'hex', gapWidth: 3, gapSpacing: 3, sieveMargin: 3 } },
-    { name: 'long thin staggered slots', overrides: { sievePattern: 'staggered', gapWidth: 3, gapLength: 40, gapSpacing: 3, sieveMargin: 3 } },
+    { name: 'long thin staggered slots', overrides: { sievePattern: 'staggered', sieveSizing: 'length', gapWidth: 3, gapLength: 40, gapSpacing: 3, sieveMargin: 3 } },
+    { name: 'slots sized by length (25 mm)', overrides: { sieveSizing: 'length' } },
+    { name: 'longest slots the defaults leave room for', overrides: { sieveSizing: 'length', gapLength: 82.5 } },
+    { name: 'two rows of slots', overrides: { sieveRows: 2 } },
+    { name: 'five rows of staggered slots', overrides: { sievePattern: 'staggered', sieveRows: 5 } },
+    { name: '1 mm slots and bars, five rows', overrides: { gapWidth: 1, gapSpacing: 1, sieveRows: 5 } },
+    { name: '1 mm slots and bars, one row', overrides: { gapWidth: 1, gapSpacing: 1 } },
+    { name: 'shortest scoop, most rows', overrides: { scoopLength: 90, sieveRows: 4 } },
     { name: 'thinnest, longest tip', overrides: { tipThickness: 0.4, tipBevel: 20 } },
     { name: 'thickest, shortest tip', overrides: { tipThickness: 2, tipBevel: 5 } },
     { name: 'grip down to the floor', overrides: { gripEnd: 'floor' } },
     { name: 'one thinnest support', overrides: { supportCount: 1, supportThickness: 1.2 } },
     { name: 'five thickest supports, grip to the floor', overrides: { supportCount: 5, supportThickness: 4, gripEnd: 'floor' } },
-    { name: 'largest slots', overrides: { gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10 } },
+    { name: 'largest slots', overrides: { sieveSizing: 'length', gapWidth: 15, gapLength: 40, gapSpacing: 15, sieveMargin: 10 } },
     { name: 'no dam', overrides: { damWidth: 0 } },
     { name: 'widest dam', overrides: { damWidth: 15 } },
     { name: 'narrowest dam, grip to the floor', overrides: { damWidth: 0.5, gripEnd: 'floor' } },
     { name: 'shortest scoop', overrides: { scoopLength: 90 } },
     { name: 'shortest scoop, largest round holes, longest bevel', overrides: { scoopLength: 90, sievePattern: 'round', gapWidth: 15, gapSpacing: 3, sieveMargin: 3, tipBevel: 20 } },
     { name: 'longest scoop', overrides: { scoopLength: 180 } },
+    { name: 'longest scoop, five rows', overrides: { scoopLength: 180, sieveRows: 5 } },
     { name: 'longest scoop, fine hexagons', overrides: { scoopLength: 180, sievePattern: 'hex', gapWidth: 4.5, gapLength: 12, gapSpacing: 3, sieveMargin: 3 } },
     { name: 'friction fits at 0.1 mm', overrides: { handleSnap: 'friction', scoopSnap: 'friction', clearance: 0.1 } },
     { name: 'detents at 0.1 mm, least engagement', overrides: { clearance: 0.1, handleDetentEngage: 0.02, scoopDetentEngage: 0.02 } },
@@ -305,8 +313,9 @@ try {
   const shovelSizes = (p: LitterShovelParameters): Record<string, [number, number, number]> => ({
     container: [41.25 + 65 - p.clearance / 2, 114.8, 141.5], scoop: [88.9, 121.2, p.scoopLength], handle: [44.45 + 68, 121.2, 159.5 - (p.gripEnd === 'floor' ? 0 : 30)],
   });
-  const gapArea = (p: LitterShovelParameters) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
-    : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (p.gapLength - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
+  // a slot's area from its own length (sized by rows, the sides' slots are shorter)
+  const gapArea = (p: LitterShovelParameters, length: number) => p.sievePattern === 'round' ? Math.PI * (p.gapWidth / 2) ** 2
+    : p.sievePattern === 'hex' ? Math.sqrt(3) / 2 * p.gapWidth ** 2 : p.gapWidth * (length - p.gapWidth) + Math.PI * (p.gapWidth / 2) ** 2;
   const defaultFit = (p: LitterShovelParameters) => (['scoopSnap', 'handleSnap', 'clearance', 'scoopDetentEngage', 'handleDetentEngage', 'tipThickness', 'tipBevel', 'handleReinforcement', 'scoopLength'] as const).every(key => p[key] === litterShovel.defaults[key]);
   let solidScoop: number | undefined;
   for (const { name, overrides } of only && only !== 'litter-shovel' ? [] : shovelRuns) {
@@ -336,7 +345,7 @@ try {
     // smaller than true circles, and gaps reaching over a corner's edge cut the wall a little obliquely: allow 1 %.
     const { flatY, cornerRadius, wall } = SCOOP_BLADE, innerRadius = cornerRadius - wall;
     const inCorner = (s: number) => Math.abs(s) > flatY && Math.abs(s) <= flatY + Math.PI / 2 * innerRadius;
-    const solid = scoop.volume + sieve.reduce((sum, [s]) => sum + gapArea(parameters) * wall * (inCorner(s) ? (cornerRadius + innerRadius) / (2 * innerRadius) : 1), 0);
+    const solid = scoop.volume + sieve.reduce((sum, [s, , length]) => sum + gapArea(parameters, length) * wall * (inCorner(s) ? (cornerRadius + innerRadius) / (2 * innerRadius) : 1), 0);
     if (defaultFit(parameters)) {
       solidScoop ??= solid;
       assert.ok(Math.abs(solid - solidScoop) < 0.01 * solidScoop, `litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³ + gaps = ${solid.toFixed(0)}, expected ${solidScoop.toFixed(0)}`);

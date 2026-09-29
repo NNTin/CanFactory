@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from '@canfactory/client';
-import { controlShown, decodeLogo, findModel, findPartFamily, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
+import { controlRange, controlShown, decodeLogo, findModel, findPartFamily, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
 import { PartsLibrary } from './PartsLibrary.tsx';
 import { referenceObjects } from './referenceObjects.ts';
 import { formatHash, parseHash, partLink, type Route } from './route.ts';
@@ -431,7 +431,8 @@ function Editor({ model }: { model: ModelDetail }) {
   const status = error ? 'Needs attention' : !valid ? 'Check settings' : ready ? 'Ready to print' : rendering.phase === 'queued' ? 'Waiting for renderer' : rendering.phase === 'running' ? 'Rendering your model' : rendering.ready ? 'Loading preview' : 'Updating preview';
   // Controls that only matter in some modes of another control (Control.visibleWhen) are hidden in the others.
   const shown = (control: Control) => controlShown(control, parameters);
-  const field = (control: Control) => <Field key={control.key} control={control} value={parameters[control.key]} options={control.part?.filter ? offeredOptions(control, parameters) : control.options}
+  // A number control whose room depends on other settings (ModelDefinition.limits) spans the range they leave it.
+  const field = (control: Control) => <Field key={control.key} control={definition ? { ...control, ...controlRange(definition, control, parameters) } : control} value={parameters[control.key]} options={control.part?.filter ? offeredOptions(control, parameters) : control.options}
     disabled={control.enabledWhen !== null && parameters[control.enabledWhen] !== true}
     issue={issues.find(issue => issue.field === control.key)?.message} recommended={recommendation(control, model.controls, parameters)} change={value => change(control.key, value)} />;
 

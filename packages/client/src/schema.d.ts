@@ -273,12 +273,16 @@ export interface operations {
                             maximum: number | null;
                             step: number | null;
                             enabledWhen: string | null;
-                            /** @description Show this control only while another (enum) control has one of these values; its value still applies (it only matters in those modes). Null to always show it. */
+                            /** @description Show this control only while another (enum) control has one of these values, or, given several such conditions, while all of them hold; its value still applies (it only matters in those modes). Null to always show it. */
                             visibleWhen: {
                                 /** @description The key of an enum control of the same model. */
                                 control: string;
                                 values: string[];
-                            } | null;
+                            } | {
+                                /** @description The key of an enum control of the same model. */
+                                control: string;
+                                values: string[];
+                            }[] | null;
                             /** @description The allowed values of an enum control, in display order; null for other kinds. */
                             options: {
                                 value: string;
@@ -1096,7 +1100,7 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "2";
+                    modelVersion: "3";
                     /** @description Litter shovel parameters. All fields are required; dimensions are in millimetres. */
                     parameters: {
                         /**
@@ -1113,8 +1117,21 @@ export interface operations {
                          */
                         gapWidth: number;
                         /**
+                         * Slot sizing
+                         * @description Size the slots by how many rows there are (they fill the sieve’s height) or by their length (slot textures only).
+                         * @default rows
+                         * @enum {unknown}
+                         */
+                        sieveSizing: "rows" | "length";
+                        /**
+                         * Slot rows
+                         * @description How many rows of slots there are, one above the other (slot textures, sized by rows). The slots share the sieve’s height, as long as it lets them be, with a bar between rows.
+                         * @default 1
+                         */
+                        sieveRows: number;
+                        /**
                          * Slot length
-                         * @description Length of each slot along the wall, in mm (slot textures only). At least the gap width.
+                         * @description Length of each slot along the wall, in mm (slot textures, sized by length). At least the gap width; at most what the scoop’s length, the tip bevel and the margin leave room for.
                          * @default 25
                          */
                         gapLength: number;
@@ -1138,7 +1155,7 @@ export interface operations {
                         tipThickness: number;
                         /**
                          * Scoop length
-                         * @description How far the scoop’s blade reaches, in mm: the height of its straight scraping edge over the cap. A longer scoop takes more litter in one go and has room for more sieve rows.
+                         * @description How far the scoop’s blade reaches, in mm: the height of its straight scraping edge over the cap. A longer scoop takes more litter in one go and has a taller sieve: longer slots, or more rows of gaps.
                          * @default 127
                          */
                         scoopLength: number;

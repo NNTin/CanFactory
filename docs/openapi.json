@@ -356,10 +356,34 @@
                                 "additionalProperties": false
                               },
                               {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "control",
+                                    "values"
+                                  ],
+                                  "properties": {
+                                    "control": {
+                                      "type": "string",
+                                      "description": "The key of an enum control of the same model."
+                                    },
+                                    "values": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "minItems": 1
+                              },
+                              {
                                 "type": "null"
                               }
                             ],
-                            "description": "Show this control only while another (enum) control has one of these values; its value still applies (it only matters in those modes). Null to always show it."
+                            "description": "Show this control only while another (enum) control has one of these values, or, given several such conditions, while all of them hold; its value still applies (it only matters in those modes). Null to always show it."
                           },
                           "options": {
                             "anyOf": [
@@ -2515,7 +2539,7 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "2"
+                          "3"
                         ]
                       },
                       "parameters": {
@@ -2523,6 +2547,8 @@
                         "required": [
                           "sievePattern",
                           "gapWidth",
+                          "sieveSizing",
+                          "sieveRows",
                           "gapLength",
                           "gapSpacing",
                           "sieveMargin",
@@ -2561,17 +2587,34 @@
                             "title": "Gap width",
                             "description": "Width of each gap in mm: the slot width, the hole diameter or the hexagon’s size across flats. Litter finer than this falls through.",
                             "default": 7.2,
-                            "minimum": 3,
+                            "minimum": 1,
                             "maximum": 15,
                             "multipleOf": 0.1
+                          },
+                          "sieveSizing": {
+                            "enum": [
+                              "rows",
+                              "length"
+                            ],
+                            "title": "Slot sizing",
+                            "description": "Size the slots by how many rows there are (they fill the sieve’s height) or by their length (slot textures only).",
+                            "default": "rows"
+                          },
+                          "sieveRows": {
+                            "type": "integer",
+                            "title": "Slot rows",
+                            "description": "How many rows of slots there are, one above the other (slot textures, sized by rows). The slots share the sieve’s height, as long as it lets them be, with a bar between rows.",
+                            "default": 1,
+                            "minimum": 1,
+                            "maximum": 5
                           },
                           "gapLength": {
                             "type": "number",
                             "title": "Slot length",
-                            "description": "Length of each slot along the wall, in mm (slot textures only). At least the gap width.",
+                            "description": "Length of each slot along the wall, in mm (slot textures, sized by length). At least the gap width; at most what the scoop’s length, the tip bevel and the margin leave room for.",
                             "default": 25,
                             "minimum": 6,
-                            "maximum": 40,
+                            "maximum": 143,
                             "multipleOf": 0.5
                           },
                           "gapSpacing": {
@@ -2579,7 +2622,7 @@
                             "title": "Bar width",
                             "description": "Solid wall between neighbouring gaps, in mm. Wider bars make a stiffer sieve with less open area.",
                             "default": 5.6,
-                            "minimum": 3,
+                            "minimum": 1,
                             "maximum": 15,
                             "multipleOf": 0.1
                           },
@@ -2604,7 +2647,7 @@
                           "scoopLength": {
                             "type": "number",
                             "title": "Scoop length",
-                            "description": "How far the scoop’s blade reaches, in mm: the height of its straight scraping edge over the cap. A longer scoop takes more litter in one go and has room for more sieve rows.",
+                            "description": "How far the scoop’s blade reaches, in mm: the height of its straight scraping edge over the cap. A longer scoop takes more litter in one go and has a taller sieve: longer slots, or more rows of gaps.",
                             "default": 127,
                             "minimum": 90,
                             "maximum": 180,

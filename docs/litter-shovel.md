@@ -66,7 +66,7 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
   - Inside, a 45° funnel leads from the blade into the sleeve, so clumps fall into the bag and never onto the rim or the fold.
 - **Blade:** a 3.2 mm wall, 81.7 × 114 outside, rising from the cap 3.6 mm inside its edge, which leaves room for the ring.
   - **Length (`scoopLength`):** the blade's height, from the cap's lower edges to the scraping edge: 90 to 180 mm, 127 by
-    default (`SCOOP_LENGTH`). A longer scoop takes more litter in one go and has room for more sieve rows. Everything above the
+    default (`SCOOP_LENGTH`). A longer scoop takes more litter in one go and has a taller sieve: longer slots, or more rows of gaps. Everything above the
     root band follows it: the tip, the side walls' curve, the bevel and the sieve. The cap, the ring and the front stay as they
     are.
   - **Tip (the scraping edge):** the back wall (−X) and most of the back corners rise to a straight edge at Z `scoopLength`
@@ -203,9 +203,11 @@ assembly preview shows the inserts or nuts in the handle, and a third step drive
 | Parameter | SCAD | Default | Meaning |
 | --- | --- | --- | --- |
 | `sievePattern` | `SIEVE_PATTERN` | `slots` | `slots` (grid), `staggered` (alternate rows offset half a pitch), `round` or `hex` (close-packed rows 60° apart) |
-| `gapWidth` | `GAP_WIDTH` | 7.2 | Slot width, hole diameter or hexagon size across flats (3 to 15) |
-| `gapLength` | `GAP_LENGTH` | 25 | Slot length (slot textures only) |
-| `gapSpacing` | `GAP_SPACING` | 5.6 | Solid bar between neighbouring gaps (at least 3 mm: 7 lines of a 0.4 mm nozzle) |
+| `gapWidth` | `GAP_WIDTH` | 7.2 | Slot width, hole diameter or hexagon size across flats (1 to 15) |
+| `sieveSizing` | `SIEVE_SIZING` | `rows` | How the slots are sized (slot textures only): `rows` (by `sieveRows`) or `length` (by `gapLength`) |
+| `sieveRows` | `SIEVE_ROWS` | 1 | Rows of slots, one above the other (1 to 5; slot textures sized by rows) |
+| `gapLength` | `GAP_LENGTH` | 25 | Slot length (6 up to the sieve's height, at most 143; slot textures sized by length) |
+| `gapSpacing` | `GAP_SPACING` | 5.6 | Solid bar between neighbouring gaps (1 to 15: at 1 mm, two to three lines of a 0.4 mm nozzle) |
 | `sieveMargin` | `SIEVE_MARGIN` | 3.2 | Solid border to the root band, the bevel under the tip, the side walls' top and the front corners (at least 3 mm) |
 
 The scraping tip has two more parameters, both advanced settings:
@@ -229,22 +231,49 @@ The scraping tip has two more parameters, both advanced settings:
 - At the top: the gaps stay under the tip's bevel (Z `scoopLength − tipBevel`, 115 by default), so they never cut the thin edge. On the sides they also stay
   under the falling top edge.
 - Every limit is shrunk by the margin. Against the side walls' sloping top, the margin is measured square to the slope.
+- What is left is the **sieve's height**, `sieveHeight = (scoopLength − tipBevel) − 26 − 2 × sieveMargin` (82.6 mm by default):
+  on the back, whose top is the tip, one gap this tall just fits.
+
+**How slots are sized:** by rows (the default) or by length.
+- **By rows:** `sieveRows` rows and the bars between them fill the sieve's height exactly, so the slots are as long as it lets
+  them be: `slot length = (sieveHeight − (sieveRows − 1) × gapSpacing) / sieveRows`. The bottom row starts one margin above the
+  root band and, on the back, the top row ends one margin under the bevel. `gapLength` is not used (the editor hides it).
+  - **Along the sides** the top falls, so each slot's height is chosen where it is: every row keeps its bottom all round, and
+    a slot ends at the row's length or, if lower, one margin under the side walls' top (square to it) at its outer upper
+    corner. It is cut if it is still at least as long as it is wide; a row with less room than that has no slot there.
+  - The rows stay level, so the bars between them stay `gapSpacing` wide, staggered or not, and only whole slots are cut.
+  The slots must still be at least as long as they are wide, which allows at most
+  `floor((sieveHeight + gapSpacing) / (gapWidth + gapSpacing))` rows: 6 at the defaults, 4 on the shortest scoop. Validation
+  names that number when there are more.
+- **By length:** the slots are `gapLength` long, and as many rows as fit are cut. A slot can be no longer than the sieve's height,
+  rounded down to the 0.5 mm step: 82.5 mm at the defaults, from 24 mm (the shortest scoop, the longest bevel and the widest
+  margin) to 143 mm (the longest scoop, the shortest bevel and the narrowest margin), which is the schema's bound. The editor's
+  slider ends at the limit for the current settings, and a slot that no longer fits once the scoop is shortened (or the bevel
+  or the margin grown) is rejected with that limit.
 
 **How they are laid out:**
 - Columns are centred on s = 0 at a pitch of `gapWidth + gapSpacing`.
-- Rows start one margin above the root band, at a pitch of `gapLength + gapSpacing` (slots) or `pitch × √3/2` (round holes and
-  hexagons).
+- Rows start one margin above the root band, at a pitch of `slot length + gapSpacing` (slots) or `pitch × √3/2` (round holes
+  and hexagons).
 - Only whole gaps are cut, so there are no slivers. A gap's top outer corner (the end farther from the back) is checked against
   the side walls' top, which falls away towards the front.
-- The defaults give 24 slots in two rows: 14 centred on the back's flat part and, on each side, 2 in the corner and 3 on the
-  side. The shortest scoop (90 mm) has room for 11 of them in one row, the longest (180 mm) for 48 in four.
+- The defaults give one row of 15 slots. On each side of the middle, going round from the back, they are 82.6 mm long on the
+  back's flat part and in the corner, then 75.8, 40.0 and 7.4 mm along the side, under its falling top. Two rows give 26 slots
+  (38.5 mm on the back), five give 59 (12.04 mm).
+- Sized by length at 25 mm, the defaults give 24 slots in two rows: 14 centred on the back's flat part and, on each side, 2 in
+  the corner and 3 on the side. The shortest scoop (90 mm) has room for 11 of them in one row, the longest (180 mm) for 48 in
+  four.
 
-`sieveGaps()` and `scoopSideTop()` in the contract mirror this layout, with the blade's dimensions in `SCOOP_BLADE` and its length
-in `scoopLength`. They give the
-editor's gap count and the validation: at least one gap, at most `MAX_SIEVE_GAPS` = 600, and slots at least as long as they are
-wide. At the default length the finest sieve (3 mm round holes, 3 mm bars and margin, a 5 mm bevel) has 439 gaps and renders in
-about 2 s. On the longest scoop it would have 700, so validation asks for larger gaps or wider bars there. Tests pin the layout
-to counts recorded from the SCAD file's `SIEVE_GAPS` echo, at 90, 127 and 180 mm. `npm run test:renderer` checks that, at the
+`sieveGaps()` (each gap as `[s, z, length]`, scoop.scad's `GAPS`) and `scoopSideTop()` in the contract mirror this layout, with the blade's dimensions in `SCOOP_BLADE` and its length
+in `scoopLength`; `sieveHeight()`, `slotLength()`, `slotLengthLimit()` and `sieveRowsLimit()` mirror scoop.scad's `SIEVE_HEIGHT`
+and `SLOT_LENGTH` and the limits above. They give the editor's gap count, the slot length's range (the model's `limits`, see
+`controlRange()`) and the validation: at least one gap, at most `MAX_SIEVE_GAPS` = 600, slots at least as long as they are
+wide, and no longer than the sieve's height. Gaps and bars go down to 1 mm, so fine sieves reach the limit sooner: 1 mm round
+holes and bars would make 3822 gaps at the default length, and 1 mm slots 25 mm long 877, so validation asks for larger gaps or
+wider bars. Five rows of 1 mm slots and bars (415 gaps) render in about 2 s. At the default length 3 mm round holes with 3 mm
+bars and margin and a 5 mm bevel have 439 gaps and render in about 2 s; on the longest scoop they would have 700. Tests pin the layout
+to counts recorded from the SCAD file's `SIEVE_GAPS` echo, at 90, 127 and 180 mm, sized by rows and by length.
+Sized by rows, the slots along the sides are shorter; the volume test counts each gap at its own length. `npm run test:renderer` checks that, at the
 default fit, tip and length, the scoop's volume plus the gaps' volume is the same solid for every texture. There, a gap in a corner counts
 (R + r) / 2r ≈ 1.11 times its area × wall, because it widens with the radius.
 
@@ -290,6 +319,8 @@ with `--snap-tolerance 15`.
   under it (they are not modelled). With `floor`, the sheet starts on the bed and nothing needs support.
 - **The scoop** prints on its cap: the sleeve's and the skirt's edges are on the bed, the U's ceiling is a 7.4 mm bridge, and the
   funnel is a top surface. The tip's bevel faces up and inward, and the round top edge is a top surface, so the blade needs no support either.
+- **Fine sieves:** gaps and bars go down to 1 mm. A 1 mm bar is only two to three lines of a 0.4 mm nozzle, and a 1 mm gap can
+  close up if the printer over-extrudes, so print a small test first; 3 mm or more is sturdier.
 - **The handle** prints upside down on its ring's top. The sheet rises from it along its length, its strong direction. The
   reinforcement's bosses also stand on the bed; their holes and pockets are horizontal, at most 5.7 mm across.
 - **The gap between the two grip halves** is the clearance. The fist closes it: the handle part's sheet is a long, thin
