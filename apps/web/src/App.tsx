@@ -351,6 +351,13 @@ function Field({ control, value, options, disabled, issue, recommended, change }
   </div>;
 }
 
+/** The commit the app was built from, short, linked to it on GitHub; `dev` when the build did not know it. */
+function BuildCommit() {
+  const sha = __COMMIT_SHA__;
+  if (!/^[0-9a-f]{7,40}$/i.test(sha)) return <span className="build-commit" title="Development build">dev</span>;
+  return <a className="build-commit" href={`https://github.com/NNTin/CanFactory/commit/${sha}`} target="_blank" rel="noreferrer" title={`Built from commit ${sha}`}>{sha.slice(0, 7)}</a>;
+}
+
 function Editor({ model }: { model: ModelDetail }) {
   const [parameters, setParameters] = useState<ParameterValues>(() => restoreSettings(model));
   const [advanced, setAdvanced] = useState(false);
@@ -541,6 +548,6 @@ export function App() {
                 <div className="coming-next"><span className="plus-shape">+</span><h2>More useful things to come.</h2><p>A growing collection for everyday making.</p></div></div></>}
       </>}
     </main>
-    <footer className="site-footer"><span>MAKE IT FIT. MAKE IT REAL.</span><span>CanFactory · Your local workshop</span></footer>
+    <footer className="site-footer"><span>MAKE IT FIT. MAKE IT REAL.</span><span>CanFactory · Your local workshop · <BuildCommit /></span></footer>
   </div>;
 }

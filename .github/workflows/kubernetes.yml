@@ -74,6 +74,7 @@ jobs:
             docker buildx build --platform linux/amd64 --target "$role" \
               --tag "ghcr.io/nntin/canfactory-$role:sha-$REVISION" \
               --label "org.opencontainers.image.revision=$REVISION" \
+              --build-arg "GIT_COMMIT_SHA=$REVISION" \
               --cache-from "type=gha,scope=canfactory-$role" \
               --cache-to "type=gha,mode=max,scope=canfactory-$role" \
               --metadata-file "release/$role.json" --provenance=mode=max --sbom=true --push .

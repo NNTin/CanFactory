@@ -13,6 +13,8 @@ COPY packages/server/package.json packages/server/package.json
 COPY packages/client/package.json packages/client/package.json
 RUN npm ci
 COPY . .
+# The commit the web app shows in its footer (the build context has no .git).
+ARG GIT_COMMIT_SHA=""
 RUN npm run build
 
 FROM node AS api
