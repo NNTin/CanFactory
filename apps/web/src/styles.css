@@ -814,6 +814,42 @@ main {
 .error-banner svg {
   flex-shrink: 0;
 }
+.error-banner-defect {
+  align-items: flex-start;
+  background: #f6ddd2;
+  border-top: 2px solid #c0613e;
+}
+.error-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.error-body details {
+  margin-top: 4px;
+}
+.error-body summary {
+  cursor: pointer;
+}
+.error-body pre {
+  margin: 6px 0;
+  padding: 8px;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #fff8ee;
+  border: 1px solid #e8bba1;
+  border-radius: 5px;
+  font-size: 10px;
+}
+.error-body .text-button {
+  margin-left: 0;
+}
+.previous-preview-stale {
+  color: #934c33;
+  background: #f8e9df;
+}
 .error-banner button {
   background: #fff8ee;
   border: 1px solid #e8bba1;

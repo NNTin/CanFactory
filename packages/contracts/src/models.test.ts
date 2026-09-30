@@ -6,7 +6,7 @@ import {
   minimumSpikeLength, mossPlanter, rauteColumns, slotCount, SNAP_CLEARANCE, SNAP_TUNING, HOLDER_SNAP_CLEARANCE, LIGHTER_SNAP_CLEARANCE, MINI_BOX_SNAP_CLEARANCE, MINI_LID_SNAP_CLEARANCE, scadLiteral, textWidth, validateParameters, type MossPlanterParameters,
   AssemblySchema, CASE_MAGNETS, CLEARANCE_RANGE, DEFAULT_CASE_MAGNET, linkedPartData, MAGNET_SEAT, magnetFits, partUsage, scadDefines,
   litterShovel, MAX_SIEVE_GAPS, SCOOP_BLADE, SCOOP_LENGTH_RANGE, WALL_BANDS, WALL_THICKNESS_RANGE, scoopSideTop, sieveGaps, sieveHeight, sieveRowsLimit, slotLength, slotLengthLimit, type LitterShovelParameters,
-  controlRange, controlShown,
+  controlRange, controlShown, type Control,
   DEFAULT_HANDLE_FASTENERS, HANDLE_FASTENER_SEAT, HANDLE_INSERTS, HANDLE_NUTS, HANDLE_SCREWS, HANDLE_THREADS, handleInsertFits, handleNutFits, handleScrewFits,
   offeredOptions, partDefineLiteral,
 } from './models.ts';
@@ -466,13 +466,13 @@ describe('litter shovel contract', () => {
     expect(findModel('litter-shovel')).toBe(litterShovel);
     expect(artifactFormat(litterShovel)).toBe('zip');
     expect(modelSourcePaths(litterShovel)).toEqual(['container', 'scoop', 'handle'].map(id => `models/litter-shovel/${id}.scad`));
-    expect(defaults).toEqual({ sievePattern: 'slots', gapWidth: 7.2, sieveSizing: 'rows', sieveRows: 1, gapLength: 25, gapSpacing: 5.6, scoopLength: 127, scoopSnap: 'detent', handleSnap: 'detent', sieveMargin: 3.2, tipThickness: 0.8, wallThickness: 1.6, tipBevel: 12, gripEnd: 'open', supportCount: 3, damWidth: 8, supportThickness: 2, clearance: 0.2, scoopDetentEngage: 0.15, handleDetentEngage: 0.15,
+    expect(defaults).toEqual({ sievePattern: 'slots', gapWidth: 7.2, sieveSizing: 'rows', sieveRows: 1, gapLength: 25, gapSpacing: 5.6, scoopLength: 127, scoopSnap: 'detent', handleSnap: 'detent', sieveMargin: 3.2, tipThickness: 0.8, wallThickness: 1.6, tipBevel: 12, gripEnd: 'open', handleShape: 'sheet', gripBulge: 3, gripSize: 14, supportCount: 3, damWidth: 8, supportThickness: 2, clearance: 0.2, scoopDetentEngage: 0.15, handleDetentEngage: 0.15,
       handleReinforcement: 'none', handleThread: 'M3', handleInsert: 'cnc-kitchen-m3x5-7', handleNut: 'iso-4032-m3', handleScrew: 'iso-10642-m3x12' });
     expect(validateParameters(litterShovel, defaults)).toEqual([]);
     const [containerPart, scoopPart, handlePart] = litterShovel.parts;
-    expect(Object.keys(containerPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'damWidth', 'gripEnd', 'scoopDetentEngage', 'scoopSnap', 'supportCount', 'supportThickness', 'wallThickness']);
+    expect(Object.keys(containerPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'damWidth', 'gripBulge', 'gripEnd', 'gripSize', 'handleShape', 'scoopDetentEngage', 'scoopSnap', 'supportCount', 'supportThickness', 'wallThickness']);
     expect(Object.keys(scoopPart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gapLength', 'gapSpacing', 'gapWidth', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread', 'scoopDetentEngage', 'scoopLength', 'scoopSnap', 'sieveMargin', 'sievePattern', 'sieveRows', 'sieveSizing', 'tipBevel', 'tipThickness', 'wallThickness']);
-    expect(Object.keys(handlePart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gripEnd', 'handleDetentEngage', 'handleReinforcement', 'handleSnap', 'handleThread']);
+    expect(Object.keys(handlePart?.scadMapping ?? {}).sort()).toEqual(['clearance', 'gripBulge', 'gripEnd', 'gripSize', 'handleDetentEngage', 'handleReinforcement', 'handleShape', 'handleSnap', 'handleThread']);
     expect(scadDefines(litterShovel, scoopPart ?? {}, defaults)).toContainEqual(['SIEVE_PATTERN', '"slots"']);
     expect(scadDefines(litterShovel, containerPart ?? {}, { ...defaults, scoopSnap: 'friction' })).toContainEqual(['SCOOP_SNAP', '"friction"']);
     expect(Value.Check(AssemblySchema, litterShovel.assembly)).toBe(true);
@@ -512,7 +512,7 @@ describe('litter shovel contract', () => {
     expect(constant(scoop, 'SLEEVE_DETENT_Z')).toBe(constant(scoop, 'RIM_H') - 2.5);
     expect(constant(scoop, 'BLADE_DETENT_Z')).toBe(constant(handle, 'DETENT_Z'));
     // The two halves of the grip are swept along the same seam by the same code, so the shared block is identical in both files.
-    const shared = (file: string) => file.slice(file.indexOf('// ---- The grip\'s two sheets'), file.indexOf('\n// ---- ', file.indexOf('// ---- The grip\'s two sheets') + 1));
+    const shared = (file: string) => file.slice(file.indexOf('// ---- The grip\'s two halves'), file.indexOf('\n// ---- ', file.indexOf('// ---- The grip\'s two halves') + 1));
     expect(shared(container).length).toBeGreaterThan(1000);
     expect(shared(handle)).toBe(shared(container));
     // The seam's slope runs just under the lip's chamfer, on the band, and far enough below the scoop's skirt; the palm sheet
@@ -523,7 +523,7 @@ describe('litter shovel contract', () => {
     expect(slope[1]).toBeGreaterThan(constant(container, 'RIM_Z') - constant(container, 'LIP_T') - constant(container, 'LIP_W') - constant(container, 'LIP_W'));
     expect(handle).toMatch(/^SEAM_X_TOP = CAP_OUT\[0\] \/ 2 \+ CLEARANCE \/ 2;$/m);
     // The grip stands clear of the lip and the skirt: its vertical is outside the scoop's cap.
-    expect(constant(container, 'SEAM_X') - constant(container, 'SHEET_T')).toBeGreaterThan(capOut[0] / 2);
+    expect(constant(container, 'SEAM_X_BASE') - constant(container, 'SHEET_T')).toBeGreaterThan(capOut[0] / 2);
     // The dam, on the scraper side only, meets the mouth's wall a bag's room under the scoop's sleeve, below the detent grooves
     // and where the mouth is straight (above the band's start); it ends where the back corners do.
     expect(constant(container, 'SLEEVE_DEPTH')).toBe(constant(scoop, 'RIM_H'));
@@ -535,6 +535,30 @@ describe('litter shovel contract', () => {
     expect(container).toMatch(/cube\(\[MOUTH\[2\] \+ 2 \+ 0\.07, /);
     // The root band under the sieve covers the handle's ring.
     expect(constant(scoop, 'ROOT_BAND')).toBeGreaterThan(constant(handle, 'RING_H'));
+  });
+
+  it('offers four handle shapes, with the bulge for the curved one and the size for the round and rectangular ones, in both grip files', () => {
+    const control = (key: string) => litterShovel.controls.find(c => c.key === key);
+    expect(control('handleShape')?.options?.map(o => o.value)).toEqual(['sheet', 'curved', 'round', 'rectangular']);
+    expect(defaults.handleShape).toBe('sheet');
+    const shown = (key: string, handleShape: string) => controlShown(control(key) as Control, { ...defaults, handleShape });
+    for (const shape of ['sheet', 'curved', 'round', 'rectangular']) {
+      expect([shown('gripBulge', shape), shown('gripSize', shape), shown('supportCount', shape)]).toEqual(
+        { sheet: [false, false, true], curved: [true, false, true], round: [false, true, false], rectangular: [false, true, false] }[shape]);
+      expect(validateParameters(litterShovel, { ...defaults, handleShape: shape })).toEqual([]);
+      expect(validateParameters(litterShovel, { ...defaults, handleShape: shape, gripEnd: 'floor', gripSize: 24, gripBulge: 6 })).toEqual([]);
+    }
+    // Both grip files take the three settings, with the ranges of the controls.
+    for (const file of [container, handle]) {
+      expect(file).toMatch(/^HANDLE_SHAPE = "sheet"; \/\/\[sheet,curved,round,rectangular\]$/m);
+      expect(file).toMatch(/^GRIP_BULGE = 3; \/\/\[0:0\.5:6\]$/m);
+      expect(file).toMatch(/^GRIP_SIZE = 14; \/\/\[10:1:24\]$/m);
+    }
+    expect([control('gripBulge'), control('gripSize')].map(c => [c?.default, c?.minimum, c?.maximum])).toEqual([[3, 0, 6], [14, 10, 24]]);
+    const [containerPart, , handlePart] = litterShovel.parts;
+    for (const part of [containerPart, handlePart]) expect(part?.scadMapping).toMatchObject({ handleShape: 'HANDLE_SHAPE', gripBulge: 'GRIP_BULGE', gripSize: 'GRIP_SIZE' });
+    // The widest round grip still clears the reinforcement's bosses (21 mm from the middle, at most the seat's boss radius round).
+    expect(24 / 2).toBeLessThan(constant(handle, 'FASTENER_Y') - HANDLE_FASTENER_SEAT.bossRadius);
   });
 
   it('sizes the default slots by rows: one row filling the sieve’s height on the back, ending lower along the sides', () => {

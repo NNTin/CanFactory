@@ -264,10 +264,21 @@ export class PostgresStorage implements Storage {
     const result = await this.pool.query<{ status: string; count: number }>(`SELECT status,count(*)::int AS count FROM render_jobs WHERE expires_at > ${CLOCK} GROUP BY status`);
     const age = (await this.pool.query<{ seconds: number }>(`SELECT COALESCE((${CLOCK}-min(created_at))/1000.0,0)::float8 AS seconds FROM render_jobs WHERE status='queued' AND expires_at > ${CLOCK}`)).rows[0]?.seconds ?? 0;
     const backlog = (await this.pool.query<{ count: number }>('SELECT count(*)::int AS count FROM object_deletions')).rows[0]?.count ?? 0;
+    const failures = (await this.pool.query<{ model: string; code: string; count: number }>(`SELECT model_id AS model,COALESCE(error->>'code','UNKNOWN') AS code,
+      count(*)::int AS count FROM render_jobs WHERE status='failed' AND expires_at > ${CLOCK} GROUP BY 1,2 ORDER BY 1,2`)).rows;
+    const repairs = (await this.pool.query<{ model: string; count: number }>(`SELECT model_id AS model,sum((artifact->>'meshRepairs')::int)::int AS count
+      FROM render_jobs WHERE status='succeeded' AND expires_at > ${CLOCK} AND artifact ? 'meshRepairs' GROUP BY 1 ORDER BY 1`)).rows;
+    const label = (value: string) => value.replace(/[\\"\n]/g, character => character === '\n' ? '\\n' : `\\${character}`);
     return ['# TYPE canfactory_jobs gauge', ...['queued', 'running', 'succeeded', 'failed'].map(status =>
       `canfactory_jobs{status="${status}"} ${result.rows.find(row => row.status === status)?.count ?? 0}`),
     '# TYPE canfactory_oldest_queued_seconds gauge', `canfactory_oldest_queued_seconds ${age}`,
-    '# TYPE canfactory_object_deletions gauge', `canfactory_object_deletions ${backlog}`, ''].join('\n');
+    '# TYPE canfactory_object_deletions gauge', `canfactory_object_deletions ${backlog}`,
+    // Failed renders by why (RenderFailure codes): a defect code here is a model or renderer bug, not a user mistake.
+    '# HELP canfactory_render_failures Unexpired failed renders by model and failure code.', '# TYPE canfactory_render_failures gauge',
+    ...failures.map(row => `canfactory_render_failures{model="${label(row.model)}",code="${label(row.code)}"} ${row.count}`),
+    // Float32 slivers the worker repaired in unexpired renders: valid output from fragile geometry, to be fixed in the model.
+    '# HELP canfactory_mesh_repairs Float32 slivers repaired in unexpired successful renders, by model.', '# TYPE canfactory_mesh_repairs gauge',
+    ...repairs.map(row => `canfactory_mesh_repairs{model="${label(row.model)}"} ${row.count}`), ''].join('\n');
   }
   async close(): Promise<void> { await this.pool.end(); this.objects.close(); }
 }

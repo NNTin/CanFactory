@@ -18,7 +18,7 @@ jobs:
   integration:
     name: Compose, browser, renderer, and recovery checks
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -51,6 +51,16 @@ jobs:
       - name: Run renderer geometry checks
         run: npm run test:renderer
 
+      # A fixed-seed sample of every model's parameter space; the nightly Geometry sweep looks much wider with a rotating seed.
+      - name: Run geometry sweep (sample)
+        run: npm run test:sweep
+        env:
+          SWEEP_SEED: '1'
+          SWEEP_SAMPLES: '2'
+          SWEEP_BOUNDARIES: '0'
+          SWEEP_CONCURRENCY: '3'
+          SWEEP_REPORT: geometry-sweep.md
+
       - name: Run STL-to-SCAD renderer tests (pinned OpenSCAD image)
         run: npx vitest run tools
         env:
@@ -69,6 +79,7 @@ jobs:
           if-no-files-found: ignore
           path: |
             compose.log
+            geometry-sweep.md
             playwright-report/
             test-results/
 

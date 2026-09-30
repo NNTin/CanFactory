@@ -385,6 +385,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };
@@ -428,6 +434,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };
@@ -603,6 +615,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };
@@ -735,6 +753,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };
@@ -1179,8 +1203,27 @@ export interface operations {
                          */
                         gripEnd: "open" | "floor";
                         /**
+                         * Handle shape
+                         * @description The grip’s shape: a flat sheet, a curved sheet, a round tube or a rectangular bar. The round and rectangular bars are thicker, so the container and the handle grow to make room for them.
+                         * @default sheet
+                         * @enum {unknown}
+                         */
+                        handleShape: "sheet" | "curved" | "round" | "rectangular";
+                        /**
+                         * Grip bulge
+                         * @description How far the curved grip’s middle bulges towards the palm past its long edges, in mm; the sheet is bowed across its width along its whole run. 0 is as flat as the flat sheet.
+                         * @default 3
+                         */
+                        gripBulge: number;
+                        /**
+                         * Grip size
+                         * @description The round tube’s diameter, or the rectangular bar’s depth, in mm. The rectangular bar is always 26 mm wide. The flat sheet is 6 mm thick; a thinner bar than the default is easier to close a hand round.
+                         * @default 14
+                         */
+                        gripSize: number;
+                        /**
                          * Grip supports
-                         * @description Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer.
+                         * @description Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer. The round and rectangular bars are solid and need none.
                          * @default 3
                          */
                         supportCount: number;
@@ -1311,7 +1354,11 @@ export interface operations {
                                 };
                                 /** @description Enclosed material volume in cubic millimetres. */
                                 volume: number;
+                                /** @description Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none. */
+                                meshRepairs?: number;
                             }[];
+                            /** @description Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none. */
+                            meshRepairs?: number;
                         } | null;
                         error: {
                             /**
@@ -1325,6 +1372,12 @@ export interface operations {
                                 field: string;
                                 message: string;
                             }[];
+                            /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                            detail?: string;
+                            /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                            reference?: string;
+                            /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                            retryable?: boolean;
                         } | null;
                     };
                 };
@@ -1372,7 +1425,11 @@ export interface operations {
                                 };
                                 /** @description Enclosed material volume in cubic millimetres. */
                                 volume: number;
+                                /** @description Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none. */
+                                meshRepairs?: number;
                             }[];
+                            /** @description Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none. */
+                            meshRepairs?: number;
                         } | null;
                         error: {
                             /**
@@ -1386,6 +1443,12 @@ export interface operations {
                                 field: string;
                                 message: string;
                             }[];
+                            /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                            detail?: string;
+                            /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                            reference?: string;
+                            /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                            retryable?: boolean;
                         } | null;
                     };
                 };
@@ -1408,6 +1471,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };
@@ -1429,6 +1498,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };
@@ -1450,6 +1525,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };
@@ -1471,6 +1552,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };
@@ -1530,7 +1617,11 @@ export interface operations {
                                 };
                                 /** @description Enclosed material volume in cubic millimetres. */
                                 volume: number;
+                                /** @description Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none. */
+                                meshRepairs?: number;
                             }[];
+                            /** @description Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none. */
+                            meshRepairs?: number;
                         } | null;
                         error: {
                             /**
@@ -1544,6 +1635,12 @@ export interface operations {
                                 field: string;
                                 message: string;
                             }[];
+                            /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                            detail?: string;
+                            /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                            reference?: string;
+                            /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                            retryable?: boolean;
                         } | null;
                     };
                 };
@@ -1566,6 +1663,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };
@@ -1611,6 +1714,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };
@@ -1632,6 +1741,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };
@@ -1677,6 +1792,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };
@@ -1698,6 +1819,12 @@ export interface operations {
                             field: string;
                             message: string;
                         }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
                     };
                 };
             };

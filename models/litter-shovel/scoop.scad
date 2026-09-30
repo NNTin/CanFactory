@@ -149,16 +149,18 @@ BEAD_FN = 24;
 BEAD_R = RND / (cos(180 / BEAD_FN) * cos(180 / BEAD_FN)) + 0.13;
 MID = grow(OUT, -RND);
 R_MID = R_OUT - RND;
-// The wall's centre line from the back's middle round to the front's (Y >= 0). Round the corners it is sampled at 2 + 4k
+// The wall's centre line round the +Y half, from the back corner to the front one. Round the corners it is sampled at 2 + 4k
 // degrees, clear of the corners' vertices (every 5.625 degrees, and where they meet the straight walls), so that no bead edge
-// runs into one of them.
+// runs into one of them. It has no point on Y = 0: the back and the front are each spanned by one straight hull.
 BEAD_ANGLES = [for (a = [86 : -4 : 2]) a];
-BEAD_PATH = concat(
-  [[-MID[0] / 2, 0]],
+BEAD_HALF = concat(
   [for (i = [len(BEAD_ANGLES) - 1 : -1 : 0]) let(a = BEAD_ANGLES[i]) [CORNER_X - R_MID * cos(a), FLAT_Y + R_MID * sin(a)]],
   [for (x = [CORNER_X + 1 : 1 : -CORNER_X - 1]) [x, MID[1] / 2]],
-  [for (a = BEAD_ANGLES) [-CORNER_X + R_MID * cos(a), FLAT_Y + R_MID * sin(a)]],
-  [[MID[0] / 2, 0]]);
+  [for (a = BEAD_ANGLES) [-CORNER_X + R_MID * cos(a), FLAT_Y + R_MID * sin(a)]]);
+// The whole centre line as one closed loop: the half, then its mirror image back. (A mirrored copy of a half path from the
+// back's middle to the front's left two chains meeting on Y = 0, whose nearly tangent surfaces crossed there: at many walls
+// the front's middle rendered a zero-area triangle, or two vertices float32 could not tell apart.)
+BEAD_LOOP = concat(BEAD_HALF, [for (i = [len(BEAD_HALF) - 1 : -1 : 0]) [BEAD_HALF[i][0], -BEAD_HALF[i][1]]]);
 
 module ring() { difference() { slab(OUT, CAP_TOP - 1, HEIGHT - CAP_TOP + 1); slab(OUT_IN, CAP_TOP - 2, HEIGHT); } }
 
@@ -169,8 +171,8 @@ module under_round() {
 }
 
 module bead() {
-  for (m = [0, 1]) mirror([0, m, 0]) for (i = [0 : len(BEAD_PATH) - 2]) hull()
-    for (p = [BEAD_PATH[i], BEAD_PATH[i + 1]]) translate([p[0], p[1], side_below(p[0], RND)]) sphere(r = BEAD_R, $fn = BEAD_FN);
+  for (i = [0 : len(BEAD_LOOP) - 1]) hull()
+    for (p = [BEAD_LOOP[i], BEAD_LOOP[(i + 1) % len(BEAD_LOOP)]]) translate([p[0], p[1], side_below(p[0], RND)]) sphere(r = BEAD_R, $fn = BEAD_FN);
 }
 
 // The tip's rim, from the middle of the back round the back corner to where the side walls start to fall: the top few mm of the
@@ -279,13 +281,23 @@ module gap_outline(l) {
 module flat_gap(l) { translate([-4, 0, 0]) rotate([0, 90, 0]) linear_extrude(WALL + 5) gap_outline(l); }
 
 // A gap through a curved corner, in the corner's frame: X outward along the gap's middle from the corner's centre. It is the
-// outline seen from the centre, so that it takes the same angle, GAP_WIDTH / R_IN, at every depth: along the inner face it is
-// GAP_WIDTH wide and the bars between gaps are GAP_SPACING, and it widens outward like the wall. It reaches from inside the inner
-// face to well past the outer face, far enough to cut through the flat wall next to the corner too.
+// outline seen from the centre, so that it takes the same angle, GAP_WIDTH / R_IN, at the inner face and at the outer face: along
+// the inner face it is GAP_WIDTH wide and the bars between gaps are GAP_SPACING, and it widens outward like the wall. It reaches
+// from inside the inner face to well past the outer face, far enough to cut through the flat wall next to the corner too.
+// It widens only inside the wall. Through each face it is a straight prism of the outline as wide as that face needs, so that
+// every face of it the wall's faces meet is flat; the widening is a hull of that outline at two depths just inside the faces.
+// (A hull all the way through widened a slot's round ends too, whose facets are not flat then: they were split along diagonals
+// that crossed the inner face wherever the depth put them, and in staggered rows one could meet the neighbouring row's side a
+// micrometre off, a sliver float32 turns into a zero-area triangle; 2.1 mm slots with 1 mm bars, for one.)
 CORNER_TAN = tan(GAP_Y / (2 * R_IN) * 180 / PI);
+CORNER_STEP = 0.2;   // how far inside each face the widening starts and ends; the prisms reach 0.1 mm into it
+function corner_scale(d) = d * CORNER_TAN / (GAP_Y / 2);
+module corner_section(d0, d1, scale, l) translate([d0, 0, 0]) scale([1, scale, 1]) rotate([0, 90, 0]) linear_extrude(d1 - d0) gap_outline(l);
 module corner_gap(l) {
-  hull() for (d = [R_IN - 1, 1.2 * R_OUT + 1])
-    translate([d, 0, 0]) scale([1, d * CORNER_TAN / (GAP_Y / 2), 1]) rotate([0, 90, 0]) linear_extrude(E) gap_outline(l);
+  corner_section(R_IN - 1, R_IN + CORNER_STEP + 0.1, corner_scale(R_IN), l);
+  hull() for (d = [R_IN + CORNER_STEP, R_OUT - CORNER_STEP])
+    translate([d, 0, 0]) scale([1, corner_scale(d), 1]) rotate([0, 90, 0]) linear_extrude(E) gap_outline(l);
+  corner_section(R_OUT - CORNER_STEP - 0.1, 1.2 * R_OUT + 1, corner_scale(R_OUT), l);
 }
 
 // Cuts a gap `l` long at `s` along the inner face: through the back, through a corner (radially), or through a side.

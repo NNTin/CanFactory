@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { combineParts, firstDegenerateTriangle, inspectStl } from './mesh.ts';
+import { combineParts, firstDegenerateTriangle, inspectStl, MAX_SLIVER_REPAIRS, MeshRepairError, repairFloat32Slivers } from './mesh.ts';
 
 type Point = [number, number, number];
 type Triangle = [Point, Point, Point];
@@ -70,5 +70,61 @@ describe('degenerate triangle diagnostics', () => {
     expect(firstDegenerateTriangle(stl(tetrahedron))).toBeUndefined();
     expect(firstDegenerateTriangle(Buffer.alloc(10))).toBeUndefined();
     expect(firstDegenerateTriangle(stl(tetrahedron).subarray(0, 100))).toBeUndefined();
+  });
+});
+
+describe('float32 sliver repair', () => {
+  it('removes the triangles on an edge that float32 collapsed to a point, leaving the closed solid around it', () => {
+    // the tetrahedron with b split into b and b' joined by an edge shorter than float32 resolves: written out, b' is b
+    const b2: Point = [...b];
+    const split: Triangle[] = [[a, c, b], [a, b2, d], [a, d, c], [b2, c, d], [b, b2, a], [b2, b, c]];
+    expect(() => inspectStl(stl(split))).toThrow('zero-area');
+    const { bytes, repaired } = repairFloat32Slivers(stl(split));
+    expect(repaired).toBe(2);
+    const info = inspectStl(bytes);
+    expect(info.triangles).toBe(4);
+    expect(info.volume).toBeCloseTo(1000 / 6);
+  });
+
+  // The tetrahedron with a vertex m on the edge a-b: the face a-b-d is split at m, and the face a-c-b meets it through a
+  // sliver (a, b, m), three collinear points, as binary STL's float32 coordinates leave a thin sliver between two cuts.
+  const m: Point = [5, 0, 0];
+  const withSliver: Triangle[] = [[a, c, b], [a, m, d], [m, b, d], [a, d, c], [b, c, d], [a, b, m]];
+
+  it('splits the sliver\'s neighbour at the middle vertex, leaving a closed solid of the same volume', () => {
+    expect(() => inspectStl(stl(withSliver))).toThrow('zero-area');
+    const { bytes, repaired } = repairFloat32Slivers(stl(withSliver));
+    expect(repaired).toBe(1);
+    const info = inspectStl(bytes);
+    expect(info.triangles).toBe(withSliver.length);
+    expect(info.volume).toBeCloseTo(1000 / 6);
+    expect(info.dimensions).toEqual({ x: 10, y: 10, z: 10 });
+    expect(bytes.subarray(0, 80)).toEqual(stl(withSliver).subarray(0, 80));
+  });
+
+  it('returns a valid mesh untouched', () => {
+    const valid = stl(tetrahedron);
+    expect(repairFloat32Slivers(valid)).toEqual({ bytes: valid, repaired: 0 });
+  });
+
+  it('refuses a collapse that opens the mesh, an open long edge, and more slivers than rounding explains', () => {
+    const last = tetrahedron[3]; if (!last) throw new Error('Expected a fourth triangle');
+    expect(() => repairFloat32Slivers(stl([...tetrahedron.slice(0, 2), [a, a, b], last]))).toThrow('leaves the edge');
+    expect(() => repairFloat32Slivers(stl(withSliver.slice(1)))).toThrow(MeshRepairError);
+    expect(() => repairFloat32Slivers(stl(withSliver.slice(1)))).toThrow('0 opposite faces');
+    // a closed chain of slivers along a-b: the face a-b-d split at many points, closed against a-c-b by a fan of slivers from a
+    const points = Array.from({ length: MAX_SLIVER_REPAIRS + 1 }, (_, i): Point => [10 * (i + 1) / (MAX_SLIVER_REPAIRS + 2), 0, 0]);
+    const chain = [a, ...points, b];
+    const split: Triangle[] = chain.slice(1).map((point, i): Triangle => [chain[i] ?? a, point, d]);
+    const slivers: Triangle[] = chain.slice(2).map((point, i): Triangle => [a, point, chain[i + 1] ?? a]);
+    const many: Triangle[] = [[a, c, b], [a, d, c], [b, c, d], ...split, ...slivers];
+    expect(slivers).toHaveLength(MAX_SLIVER_REPAIRS + 1);
+    expect(() => repairFloat32Slivers(stl(many))).toThrow(`More than ${MAX_SLIVER_REPAIRS}`);
+    // the same chain within the limit is repaired
+    const few = [a, points[0] ?? a, points[1] ?? a, b];
+    const fewMesh: Triangle[] = [[a, c, b], [a, d, c], [b, c, d], ...few.slice(1).map((point, i): Triangle => [few[i] ?? a, point, d]), ...few.slice(2).map((point, i): Triangle => [a, point, few[i + 1] ?? a])];
+    const fixed = repairFloat32Slivers(stl(fewMesh));
+    expect(fixed.repaired).toBe(4); // the first sliver's neighbour is the other sliver: its split leaves two more
+    expect(inspectStl(fixed.bytes).volume).toBeCloseTo(1000 / 6);
   });
 });

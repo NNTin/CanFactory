@@ -176,6 +176,21 @@ describe('model and render API', () => {
     expect((await app.inject(`/api/v1/renders/${job.id}/stl`)).statusCode).toBe(410);
   });
 
+  it('reports a failed render with its classification, detail, reference and retry advice, and requeues it when asked again', async () => {
+    const created = Value.Parse(RenderSchema, (await app.inject({ method: 'POST', url: '/api/v1/renders', payload })).json<unknown>());
+    const claimed = store.claim();
+    if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
+    const envelope = { code: 'GEOMETRY_INVALID', message: 'This combination of settings hits a defect in the model.', issues: [], detail: '"Scoop" (scoop): The mesh contains a zero-area triangle.', reference: created.id, retryable: false };
+    store.fail(claimed.id, claimed.leaseToken, envelope);
+    const failed = Value.Parse(RenderSchema, (await app.inject(`/api/v1/renders/${created.id}`)).json<unknown>());
+    expect(failed.status).toBe('failed');
+    expect(failed.error).toEqual(envelope);
+    expect(Value.Check(ErrorSchema, failed.error)).toBe(true);
+    const again = Value.Parse(RenderSchema, (await app.inject({ method: 'POST', url: '/api/v1/renders', payload })).json<unknown>());
+    expect(again.status).toBe('queued');
+    expect(again.error).toBeNull();
+  });
+
   const mossPayload = { modelId: mossPlanter.id, modelVersion: mossPlanter.version, parameters: mossPlanter.defaults };
 
   it('accepts a moss planter render request, deduplicates it, and points at the ZIP route', async () => {

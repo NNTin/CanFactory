@@ -11,6 +11,9 @@ export const ErrorSchema = Type.Object({
   code: Type.String({ description: 'Stable machine-readable error code.', examples: ['INVALID_PARAMETERS'] }),
   message: Type.String({ description: 'Actionable human-readable explanation.' }),
   issues: Type.Array(Type.Object({ field: Type.String(), message: Type.String() }, { additionalProperties: false })),
+  detail: Type.Optional(Type.String({ description: 'Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator\'s output).' })),
+  reference: Type.Optional(Type.String({ description: 'Identifier to quote when reporting the fault (a failed render: its job id).' })),
+  retryable: Type.Optional(Type.Boolean({ description: 'Whether the same request may succeed on another attempt. False for defects that the same settings hit again.' })),
 }, { additionalProperties: false });
 export type ApiError = Static<typeof ErrorSchema>;
 
@@ -98,6 +101,7 @@ export type Dimensions = Static<typeof DimensionsSchema>;
 export const ArtifactPartSchema = Type.Object({
   id: Type.String(), title: Type.String(), bytes: Type.Integer(), triangles: Type.Integer(),
   dimensions: DimensionsSchema, volume: Type.Number({ description: 'Enclosed material volume in cubic millimetres.' }),
+  meshRepairs: Type.Optional(Type.Integer({ minimum: 1, description: 'Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none.' })),
 }, { additionalProperties: false });
 
 export const ArtifactSchema = Type.Object({
@@ -106,6 +110,7 @@ export const ArtifactSchema = Type.Object({
   dimensions: Type.Optional(DimensionsSchema),
   volume: Type.Number({ description: 'Enclosed material volume in cubic millimetres, summed across parts for an assembly.' }),
   parts: Type.Optional(Type.Array(ArtifactPartSchema, { description: 'Present only for a multi-part assembly’s ZIP artifact, in ZIP order.' })),
+  meshRepairs: Type.Optional(Type.Integer({ minimum: 1, description: 'Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none.' })),
 }, { additionalProperties: false });
 
 /** Pending/failed renders have no downloadable artifact. expiresAt is Unix time in milliseconds. */
