@@ -9,6 +9,9 @@ for the current Docker layout, render flow, and proposed Kubernetes scaling path
 The first model is a fruit fly trap with adjustable dimensions, an optional
 ventilation pattern, and advanced wall, handle, and slot controls.
 
+The [AI rubber duck concept gallery](docs/concepts/ai-rubber-ducks/README.md)
+explores Claude, Codex, Anthropic, and OpenAI duck designs for future modeling.
+
 ## Run with Docker
 
 Requires Docker Engine/Desktop and Docker Compose.
