@@ -9,12 +9,22 @@ if (store instanceof LocalStorage) {
   await store.migrate(); await store.seed(); await store.cleanup(); await store.recover();
 }
 const app = await createApp(store, true);
+// Request errors are answered by the error handler; anything escaping it is a bug. Log it where operators look and exit non-zero,
+// so that the orchestrator replaces this process instead of leaving it in an unknown state.
+for (const [event, kind] of [['uncaughtException', 'crashed'], ['unhandledRejection', 'hit an unhandled rejection']] as const) {
+  process.on(event, (error: unknown) => {
+    app.log.fatal({ err: error }, `API ${kind}; restarting`);
+    process.exitCode = 1;
+    void app.close().finally(() => process.exit(1));
+    setTimeout(() => process.exit(1), 5000).unref();
+  });
+}
 let maintaining = false;
 const maintain = async () => {
   if (maintaining) return;
   maintaining = true;
   try { await store.recover(); await store.cleanup(); }
-  catch { app.log.error('Queue maintenance failed'); }
+  catch (error) { app.log.error({ err: error }, 'Queue maintenance failed'); }
   finally { maintaining = false; }
 };
 const maintenance = store instanceof LocalStorage ? setInterval(() => { void maintain(); }, 10_000) : undefined;

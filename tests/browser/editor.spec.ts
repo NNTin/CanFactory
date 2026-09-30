@@ -441,3 +441,32 @@ test('chooses the litter shovel sieve texture, gap size and snaps and downloads 
   expect(dimensions.z).toBeCloseTo(127, 2);
   expect(errors).toEqual([]);
 });
+
+test('states a model defect plainly, with its reference and detail and no pointless retry, and offers retry for a timeout', async ({ page }) => {
+  const failed = (id: string, error: NonNullable<Render['error']>): Render => ({
+    id, modelId: 'fruit-fly-trap', modelVersion: '1', status: 'failed', createdAt: Date.now(), expiresAt: Date.now() + 3600000, slotCount: 792, artifact: null, error,
+  });
+  const defect = { code: 'GEOMETRY_INVALID', message: 'This combination of settings hits a defect in the model, not a mistake in your settings.', issues: [],
+    detail: '"Scoop" (scoop): The mesh contains a zero-area triangle.', reference: 'job-defect', retryable: false };
+  let answer = failed('job-defect', defect);
+  const logged: string[] = [];
+  page.on('console', message => { if (message.type() === 'error') logged.push(message.text()); });
+  await page.route('**/api/v1/renders', route => route.fulfill({ status: 202, json: { ...answer, status: 'queued', error: null } }));
+  await page.route('**/api/v1/renders/job-*', route => route.fulfill({ status: 200, json: answer }));
+  await page.goto('/');
+  const alert = page.getByRole('alert');
+  await expect(alert).toContainText('This model failed to render.', { timeout: 15_000 });
+  await expect(alert).toContainText('defect in the model');
+  await expect(alert.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+  await alert.getByText('Technical details').click();
+  await expect(alert).toContainText('job-defect');
+  await expect(alert).toContainText('zero-area triangle');
+  await expect(page.getByRole('button', { name: 'Download STL', exact: true })).toBeDisabled();
+  expect(logged.some(text => text.includes('CanFactory render failed'))).toBe(true);
+
+  answer = failed('job-timeout', { code: 'RENDER_TIMEOUT', message: 'Rendering exceeded the 120-second limit. Reduce size or slot density and try again.', issues: [], detail: 'OpenSCAD was stopped after 120000 ms.', reference: 'job-timeout', retryable: true });
+  await page.getByRole('spinbutton', { name: 'Funnel height', exact: true }).fill('75');
+  await expect(alert).toContainText('The preview could not be rendered.', { timeout: 15_000 });
+  await expect(alert).toContainText('120-second limit');
+  await expect(alert.getByRole('button', { name: 'Try again' })).toBeVisible();
+});

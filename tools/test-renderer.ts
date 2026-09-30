@@ -1,17 +1,14 @@
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { unzipSync } from 'fflate';
 import { activeParts, CASE_MAGNETS, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, litterShovel, mossPlanter, plankConnector, SCOOP_BLADE, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
-import { inspectStl, RENDERER_IMAGE, repositoryRoot, Store } from '@canfactory/server';
+import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
-import { renderJob, runOpenScad, type OpenScadRunner } from '../apps/worker/src/render.ts';
-import { renderScad } from './stl-to-scad/openscad.ts';
+import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
+import { selectRunner } from './renderers.ts';
 
-const exec = promisify(execFile);
 // Two logos for the cigarette case's underside, read from SVG as the editor does.
 const RING_AND_STAR = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill-rule="evenodd" d="M50 2a48 48 0 1 0 0.01 0zM50 10a40 40 0 1 1 -0.01 0z"/><path d="M50 18 L69 76 L20 40 L80 40 L31 76 Z"/></svg>');
 const WIDE_BAR = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg"><rect width="80" height="20" rx="5"/></svg>');
@@ -19,25 +16,15 @@ const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
 store.migrate(); store.seed();
 const app = await createApp(store);
-const dockerRunner: OpenScadRunner = async (args, signal, fontPath) => {
-  const mapped = args.map(arg => arg.startsWith(directory) ? arg.replace(directory, '/data') : arg.startsWith(repositoryRoot) ? arg.replace(repositoryRoot, '/app') : arg);
-  await exec('docker', ['run', '--rm', '--init', '--network', 'none', '--cpus', '2', '--memory', '2g',
-    '--user', `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
-    '--env', `OPENSCAD_FONT_PATH=${fontPath.replace(repositoryRoot, '/app')}`, '--mount', `type=bind,src=${repositoryRoot},dst=/app,readonly`, '--mount', `type=bind,src=${directory},dst=/data`,
-    RENDERER_IMAGE, 'timeout', '120', 'openscad', ...mapped], { signal, maxBuffer: 1_048_576 });
-};
-/** OPENSCAD_TEST_MODE=wasm renders with the optional openscad-wasm-prebuilt package (`npm i --no-save openscad-wasm-prebuilt`) and the bundled fonts. */
-const wasmRunner: OpenScadRunner = async (args) => {
-  const defines: Record<string, string> = {};
-  args.forEach((arg, index) => { if (args[index - 1] === '-D') { const [name, ...value] = arg.split('='); if (name) defines[name] = value.join('='); } });
-  const scad = args.at(-1); const output = args[args.indexOf('-o') + 1];
-  if (!scad || !output) throw new Error('Expected a SCAD file and -o');
-  await writeFile(output, (await renderScad(scad, defines)).stl);
-};
-const mode = process.env['OPENSCAD_TEST_MODE'];
 /** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
-const runner = mode === 'native' ? runOpenScad : mode === 'wasm' ? wasmRunner : dockerRunner;
+const runner = selectRunner(directory);
+// The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
+// must be fixed in the SCAD source.
+const repairs: string[] = [];
+const noteRepair = (job: { modelId: string; parameters: ParameterValues }) => (repair: MeshRepair) => {
+  repairs.push(`${job.modelId} ${repair.part}: ${repair.repaired} repaired, parameters ${JSON.stringify(job.parameters)}`);
+};
 const cases: { name: string; overrides: ParameterValues; dimensions: [number, number, number] }[] = [
   { name: 'default slots', overrides: {}, dimensions: [80, 104, 60] },
   { name: 'smooth narrow opening', overrides: { slotsEnabled: false, nozzleDiameter: 1 }, dimensions: [80, 104, 60] },
@@ -55,7 +42,7 @@ try {
     const token = job.leaseToken;
     const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
     const started = Date.now();
-    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true); }
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true); }
     finally { clearInterval(heartbeat); }
     const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded'); assert.ok(result.artifact);
     if (!('dimensions' in result.artifact)) throw new Error('Expected a single-STL artifact for fruit-fly-trap.');
@@ -94,7 +81,7 @@ try {
     const job = store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
     const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
-    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true, testCase.name); }
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, testCase.name); }
     finally { clearInterval(heartbeat); }
     const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', testCase.name); assert.ok(result.artifact);
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for moss planter.');
@@ -169,7 +156,7 @@ try {
     const job = store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
     const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
-    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true, `cigarette case ${name}`); }
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `cigarette case ${name}`); }
     finally { clearInterval(heartbeat); }
     const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `cigarette case ${name}`); assert.ok(result.artifact);
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for the cigarette case.');
@@ -237,7 +224,7 @@ try {
     const job = store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
     const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
-    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true, `plank connector ${name}`); }
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `plank connector ${name}`); }
     finally { clearInterval(heartbeat); }
     const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `plank connector ${name}`); assert.ok(result.artifact);
     if (!('dimensions' in result.artifact)) throw new Error('Expected a single-STL artifact for the plank connector.');
@@ -310,6 +297,12 @@ try {
     { name: 'thinnest wall, five thickest supports, widest dam', overrides: { wallThickness: 1.2, supportCount: 5, supportThickness: 4, damWidth: 15 } },
     { name: 'thickest wall', overrides: { wallThickness: 3.2 } },
     { name: 'thickest wall, thickest tip, hexagons', overrides: { wallThickness: 3.2, tipThickness: 2, sievePattern: 'hex' } },
+    // Regressions found by the geometry sweep (tools/sweep-geometry.ts): each left a float32 sliver in the scoop. Staggered rows
+    // whose slot ends met the next row's side in a corner; the round top's seam at the front's middle (at these walls).
+    { name: 'staggered 2.1 mm slots, 1 mm bars, three rows', overrides: { sievePattern: 'staggered', gapWidth: 2.1, gapSpacing: 1, sieveRows: 3 } },
+    { name: 'staggered 2.1 mm slots, 1 mm bars, four rows', overrides: { sievePattern: 'staggered', gapWidth: 2.1, gapSpacing: 1, sieveRows: 4 } },
+    { name: 'staggered 3 mm slots, 2 mm bars, two rows', overrides: { sievePattern: 'staggered', gapWidth: 3, gapSpacing: 2, sieveRows: 2 } },
+    ...[1.3, 1.9, 2.4, 2.7, 3].map(wallThickness => ({ name: `${wallThickness} mm wall`, overrides: { wallThickness } })),
     { name: 'thinnest wall, M4 nuts, longest screws', overrides: { wallThickness: 1.2, handleReinforcement: 'nut-bolt', handleThread: 'M4', handleNut: 'iso-4032-m4', handleScrew: 'iso-10642-m4x16' } },
     { name: 'thinnest wall, M3 inserts', overrides: { wallThickness: 1.2, handleReinforcement: 'threaded-insert' } },
     { name: 'thickest wall, M3 inserts', overrides: { wallThickness: 3.2, handleReinforcement: 'threaded-insert' } },
@@ -359,7 +352,7 @@ try {
     const job = store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
     const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
-    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner), true, `litter shovel ${name}`); }
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `litter shovel ${name}`); }
     finally { clearInterval(heartbeat); }
     const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `litter shovel ${name}`); assert.ok(result.artifact);
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for the litter shovel.');
@@ -390,6 +383,7 @@ try {
     assert.equal(store.enqueue(litterShovel, parameters).id, job.id);
     console.log(`PASS litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
+  assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {
   await app.close(); store.close(); await rm(directory, { recursive: true, force: true });
 }

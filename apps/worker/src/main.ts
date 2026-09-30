@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pino } from 'pino';
 import { runtimeStorage, type RenderJob } from '@canfactory/server';
-import { renderJob } from './render.ts';
+import { processJob } from './process.ts';
 
 const store = runtimeStorage('worker');
 const log = pino();
@@ -11,6 +11,16 @@ const id = randomUUID();
 const shutdown = new AbortController();
 let current: { job: RenderJob; controller: AbortController } | undefined;
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { shutdown.abort(); current?.controller.abort(); });
+// A bug outside a job's own error handling must not leave a zombie worker holding a lease: log it with the job in hand, abort
+// that job (lease recovery requeues it once, then fails it) and exit non-zero, so that the orchestrator restarts the worker.
+const fatal = (kind: string) => (error: unknown) => {
+  log.fatal({ err: error, jobId: current?.job.id, modelId: current?.job.modelId }, `Worker ${kind}; restarting`);
+  current?.controller.abort(); shutdown.abort();
+  process.exitCode = 1;
+  setTimeout(() => process.exit(1), 1000).unref();
+};
+process.on('uncaughtException', fatal('crashed'));
+process.on('unhandledRejection', fatal('hit an unhandled rejection'));
 let beating = false;
 const isStopping = () => shutdown.signal.aborted;
 const heartbeatRunning = () => beating;
@@ -20,8 +30,8 @@ const beat = async () => {
   try {
     await store.heartbeat(id);
     if (current?.job.leaseToken && !await store.renew(current.job.id, current.job.leaseToken)) current.controller.abort();
-  } catch {
-    log.error('Worker storage heartbeat failed');
+  } catch (error) {
+    log.error({ err: error }, 'Worker storage heartbeat failed');
     current?.controller.abort();
   } finally {
     // Liveness tracks the event loop, not temporary storage availability.
@@ -35,8 +45,8 @@ try {
   while (!isStopping()) {
     let job: RenderJob | undefined;
     try { await store.recover(); job = await store.claim(); }
-    catch {
-      log.error('Queue unavailable; retrying');
+    catch (error) {
+      log.error({ err: error }, 'Queue unavailable; retrying');
       await delay(2000, undefined, { signal: shutdown.signal }).catch(() => undefined);
       continue;
     }
@@ -47,18 +57,8 @@ try {
     const controller = new AbortController();
     current = { job, controller };
     if (isStopping()) controller.abort();
-    const started = Date.now();
-    log.info({ jobId: job.id, modelId: job.modelId, attempt: job.attempts }, 'Render started');
-    try {
-      const published = await renderJob(store, job, controller.signal);
-      log.info({ jobId: job.id, durationMs: Date.now() - started, published }, 'Render finished');
-    } catch {
-      if (!controller.signal.aborted && job.leaseToken) {
-        await store.fail(job.id, job.leaseToken, { code: 'RENDER_FAILED', message: 'Rendering failed. Please try again.', issues: [] })
-          .catch(() => { log.error('Could not record render failure; lease recovery will retry'); });
-        log.error({ jobId: job.id, durationMs: Date.now() - started }, 'Render failed');
-      }
-    } finally { current = undefined; }
+    try { await processJob(store, job, controller.signal, log); }
+    finally { current = undefined; }
   }
 } finally {
   clearInterval(heartbeat);

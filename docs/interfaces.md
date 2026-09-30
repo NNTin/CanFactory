@@ -31,8 +31,9 @@ A model's `artifactFormat` (`stl` or `zip`) says which of the two render-artifac
 per part, each with its own dimensions/volume/triangle count; a single-part model's artifact has `dimensions` and
 no `parts`. `ModelDetail.parts` (id/title only) lists an assembly's parts regardless of render state.
 
-Errors have `{ code, message, issues: [{ field, message }] }`. Field values are
-parameter keys, or empty for an object-level issue. Relevant status codes:
+Errors have `{ code, message, issues: [{ field, message }] }`, and optionally `detail` (technical, for whoever
+fixes the fault), `reference` (an identifier to quote; a failed render's job id) and `retryable` (false when the
+same request will fail again). Field values are parameter keys, or empty for an object-level issue. Relevant status codes:
 
 - 404: model or endpoint is unavailable.
 - 409: model version changed, or STL requested before successful generation.
@@ -42,7 +43,26 @@ parameter keys, or empty for an object-level issue. Relevant status codes:
 - 500: unexpected server failure, with a sanitized message.
 
 Jobs transition `queued → running → succeeded | failed`. A failed render returns
-its error in the job response. Successful results include a URL, SHA-256, byte
+its error in the job response, classified by `code`:
+
+| Code | Meaning | `retryable` |
+| --- | --- | --- |
+| `RENDER_TIMEOUT` | OpenSCAD ran past the 120-second limit | yes |
+| `RENDERER_INTERNAL` | an unexpected fault in the worker | yes |
+| `OPENSCAD_FAILED` | OpenSCAD failed on these settings (a model defect; `detail` has its output) | no |
+| `GEOMETRY_INVALID` | the generated mesh is not one valid solid (a model defect; `detail` names the part and the check) | no |
+| `MODEL_CHANGED` | the model or renderer changed since the job was queued; refresh the catalogue | no |
+| `SETTINGS_INVALID` | the queued settings no longer validate | no |
+
+The worker logs every failure at error level with the job id, model, version, full settings and `detail`, and the
+internal `/metrics` endpoint counts unexpired failures as `canfactory_render_failures{model,code}`. Binary STL
+stores float32 coordinates, which can flatten a sliver thinner than float32 resolves into a zero-area triangle: the
+worker repairs exactly those (`repairFloat32Slivers`: a collapsed edge's triangles removed, a collinear sliver's
+neighbour split, no vertex moved) and still requires one valid solid. A repaired part is logged as a warning and
+reported as `meshRepairs` in the artifact metadata and `canfactory_mesh_repairs{model}`; the renderer tests and the
+geometry sweep (`npm run test:sweep`) fail on any repair, since it marks fragile geometry to fix in the SCAD source.
+
+Successful results include a URL, SHA-256, byte
 and triangle counts, axis-aligned print dimensions, and material volume. No
 artifact is exposed for pending or failed jobs. Polling and artifacts use
 `Cache-Control: no-store` so expiry remains controlled by the API.

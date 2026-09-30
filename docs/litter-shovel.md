@@ -421,9 +421,19 @@ corner), and it ends 0.07 mm past where the back corners end. Every dam width fr
 in 0.1 mm steps, passes the same test as `inspectStl` (zero-area triangles at float precision). The container's outer shell and
 its cavity are each a single convex hull, with no seam where the band starts. The funnel's solid stops half a millimetre inside the blade's wall, so that the cap and the blade share no coplanar outer face, and the blade's
 round top edge is a chain of spheres 0.13 mm larger than their narrowest point needs (0.1 mm left a zero-area triangle at some
-walls). The wall thickness was swept in 0.1 mm steps from 1.2 to 3.2 mm, on the container (dam width, clearance, grip end) and on the
+walls), hulled pairwise round one closed loop of the wall's centre line that has no point on Y = 0 (two mirrored half chains met
+there, and their nearly tangent surfaces left a zero-area triangle or float32-identical vertices at the front's middle at about
+one wall in eight). A sieve gap through a curved corner widens with the wall only inside it: through each face it is a straight
+prism, so the facets of a slot's round ends that the faces meet are flat (a hull all the way through split them along diagonals
+that could cross the inner face a micrometre off the next staggered row's side: 2.1 mm slots with 1 mm bars failed so). The wall thickness was swept in 0.1 mm steps from 1.2 to 3.2 mm, on the container (dam width, clearance, grip end) and on the
 scoop (length, bevel, tip, snap modes, clearance, reinforcement), each render checked for zero-area triangles at float precision
 (the test of `inspectStl`); `npm run test:renderer` renders the extremes. The root pad is a hull of two rounded plates whose 45° flanks carry on 0.5 mm into the wall; so do the screws' pads (0.3 mm). A detent ridge's flanks carry on 0.3 mm into its
 wall, and a groove's start 0.3 mm in front of its face, so that no edge of either lies in the face. Each grip sheet is a single
 `polyhedron()` swept along its sampled seam, with its cross-section computed per sample (flat seam face, rounded outer edges,
 the tip's quarter round), rather than built from overlapping CSG pieces whose faces would nearly coincide.
+
+Two places are still fragile, found by the geometry sweep (`npm run test:sweep`, about 1 random setting in 25): the round top
+where it turns the front corners (z ≈ 26.1, where neighbouring sphere hulls meet at a shallow angle), and large sieve gaps that
+straddle the line where the back's flat wall meets a corner. Binary STL's float32 coordinates turn the slivers there into
+zero-area triangles; the worker repairs those without moving any vertex (see docs/interfaces.md), logs a warning and counts it
+in `canfactory_mesh_repairs`, so these settings still render. The nightly sweep fails on them until they are fixed here.

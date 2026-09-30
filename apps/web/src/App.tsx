@@ -6,7 +6,7 @@ import { PartsLibrary } from './PartsLibrary.tsx';
 import { referenceObjects } from './referenceObjects.ts';
 import { formatHash, parseHash, partLink, type Route } from './route.ts';
 import { Viewer } from './Viewer.tsx';
-import { useRender } from './useRender.ts';
+import { useRender, type RenderProblem } from './useRender.ts';
 
 type ModelCard = Pick<ModelDetail, 'id' | 'version' | 'title' | 'description' | 'attribution' | 'license' | 'licenseUrl' | 'artifactFormat' | 'customizable'>;
 const settingsKey = (model: ModelDetail) => `canfactory:settings:${model.id}:${model.version}`;
@@ -358,6 +358,30 @@ function BuildCommit() {
   return <a className="build-commit" href={`https://github.com/NNTin/CanFactory/commit/${sha}`} target="_blank" rel="noreferrer" title={`Built from commit ${sha}`}>{sha.slice(0, 7)}</a>;
 }
 
+/** A failed render, stated plainly: a defect (not retryable) says so and offers its reference and technical detail to report; only a
+ * failure that may pass on another attempt offers to try again. */
+function RenderProblemBanner({ problem, retry }: { problem: RenderProblem; retry: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    const text = [`CanFactory render ${problem.reference ?? ''}`.trim(), `${problem.code}: ${problem.message}`, problem.detail].filter(Boolean).join('\n');
+    void navigator.clipboard.writeText(text).then(() => { setCopied(true); }, () => { setCopied(false); });
+  };
+  return <div className={`error-banner ${problem.retryable ? '' : 'error-banner-defect'}`} role="alert" data-code={problem.code}>
+    <CircleAlert size={17} />
+    <div className="error-body">
+      <strong>{problem.retryable ? 'The preview could not be rendered.' : 'This model failed to render.'}</strong>
+      <span>{problem.message}</span>
+      {(problem.detail || problem.reference) && <details>
+        <summary>Technical details</summary>
+        {problem.reference && <p>Reference <code>{problem.reference}</code> · {problem.code}</p>}
+        {problem.detail && <pre>{problem.detail}</pre>}
+        <button type="button" className="text-button" onClick={copy}>{copied ? 'Copied' : 'Copy for a bug report'}</button>
+      </details>}
+    </div>
+    {problem.retryable && <button type="button" onClick={retry}>Try again</button>}
+  </div>;
+}
+
 function Editor({ model }: { model: ModelDetail }) {
   const [parameters, setParameters] = useState<ParameterValues>(() => restoreSettings(model));
   const [advanced, setAdvanced] = useState(false);
@@ -460,7 +484,9 @@ function Editor({ model }: { model: ModelDetail }) {
         </span></div>
         <Viewer url={url} format={model.artifactFormat} assembly={assembly} references={references} partTitles={partTitles} onError={setViewerError} onLoaded={setLoadedUrl} />
         {!ready && url && !error && <div className="previous-preview">Showing the previous preview while your changes are prepared.</div>}
-        {(error || (!valid && issues.length > 0)) && <div className="error-banner" role="alert"><CircleAlert size={17} /><span>{error ?? issues[0]?.message}</span>{error && <button type="button" onClick={retry}>Try again</button>}</div>}
+        {!ready && url && rendering.problem && <div className="previous-preview previous-preview-stale">This is the last preview that rendered. It does not match your current settings.</div>}
+        {rendering.problem ? <RenderProblemBanner problem={rendering.problem} retry={retry} />
+          : (error || (!valid && issues.length > 0)) && <div className="error-banner" role="alert"><CircleAlert size={17} /><span>{error ?? issues[0]?.message}</span>{error && <button type="button" onClick={retry}>Try again</button>}</div>}
         <div className="model-stats">
           {artifact?.parts ? <div><span>PARTS</span><strong>{artifact.parts.length} <small>· {(artifact.volume / 1000).toFixed(1)} cm³ total</small></strong></div>
             : <div><span>PRINT DIMENSIONS</span><strong>{artifact?.dimensions ? `${artifact.dimensions.x.toFixed(1)} × ${artifact.dimensions.y.toFixed(1)} × ${artifact.dimensions.z.toFixed(1)}` : '—'} <small>mm</small></strong></div>}

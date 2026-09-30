@@ -1,26 +1,29 @@
 import { createHash } from 'node:crypto';
 import type { Dimensions } from '@canfactory/contracts';
 
-/** Validated binary STL metadata. Volume is mm³; dimensions are mm. */
-export interface MeshInfo { sha256: string; bytes: number; triangles: number; dimensions: Dimensions; volume: number }
+/** Validated binary STL metadata. Volume is mm³; dimensions are mm. `meshRepairs` counts float32 slivers repaired
+ * (`repairFloat32Slivers`); absent when there were none. */
+export interface MeshInfo { sha256: string; bytes: number; triangles: number; dimensions: Dimensions; volume: number; meshRepairs?: number }
 
 /** One part's metadata inside an assembly's ZIP artifact. */
-export interface AssemblyPart { id: string; title: string; bytes: number; triangles: number; dimensions: Dimensions; volume: number }
+export interface AssemblyPart { id: string; title: string; bytes: number; triangles: number; dimensions: Dimensions; volume: number; meshRepairs?: number }
 
 /**
  * Combined metadata for a multi-part assembly's ZIP artifact. There is deliberately no top-level `dimensions`: each
  * part is independently centred, so a bounding box across all of them is not a meaningful "printed size."
  */
-export interface AssemblyInfo { sha256: string; bytes: number; triangles: number; volume: number; parts: AssemblyPart[] }
+export interface AssemblyInfo { sha256: string; bytes: number; triangles: number; volume: number; parts: AssemblyPart[]; meshRepairs?: number }
 
 /** Aggregate validated per-part metadata (from `inspectStl`, plus id/title) into one ZIP's combined metadata. */
 export function combineParts(zipBytes: Buffer, parts: AssemblyPart[]): AssemblyInfo {
+  const meshRepairs = parts.reduce((sum, part) => sum + (part.meshRepairs ?? 0), 0);
   return {
     sha256: createHash('sha256').update(zipBytes).digest('hex'),
     bytes: zipBytes.length,
     triangles: parts.reduce((sum, part) => sum + part.triangles, 0),
     volume: parts.reduce((sum, part) => sum + part.volume, 0),
     parts,
+    ...meshRepairs ? { meshRepairs } : {},
   };
 }
 
@@ -41,6 +44,124 @@ export function firstDegenerateTriangle(bytes: Buffer): { index: number; a: [num
     if (nx * nx + ny * ny + nz * nz < 1e-20) return { index, a, b, c };
   }
   return undefined;
+}
+
+/** The most repairs `repairFloat32Slivers` makes in one mesh: a bound on the work, not on quality. Every repair is logged, counted
+ * and fails the renderer tests and the geometry sweep; this only stops a mesh that is mostly degenerate. */
+export const MAX_SLIVER_REPAIRS = 1024;
+
+/** A mesh that cannot be repaired; the render must fail with this, loudly. */
+export class MeshRepairError extends Error {
+  constructor(message: string) { super(message); this.name = 'MeshRepairError'; }
+}
+
+/**
+ * Repair the zero-area triangles that binary STL's float32 coordinates make of thin but valid slivers.
+ *
+ * OpenSCAD computes in double precision, where two cuts can leave features a micrometre apart; rounded to float32 they degenerate
+ * in one of two ways, both repaired without moving any vertex:
+ * - An edge shorter than float32 resolves collapses: its two ends become one point, and the two triangles on it have coincident
+ *   vertices. They are removed (the edge collapse the rounding already made); their other edges pair up as before.
+ * - A sliver becomes three collinear points (u, v, m), with m between u and v, on the edge u–v of exactly one neighbour (v, u, d).
+ *   Both are replaced by (v, m, d) and (m, u, d): the neighbour split at m.
+ * The surface and the volume are unchanged. Anything else (an open or over-shared long edge, a mesh left open by the collapses,
+ * more than MAX_SLIVER_REPAIRS repairs) throws a MeshRepairError instead: that is broken geometry, not rounding. `repaired`
+ * counts removed and split triangles. Returns the input unchanged (the same Buffer) when there is nothing to repair.
+ */
+export function repairFloat32Slivers(bytes: Buffer): { bytes: Buffer; repaired: number } {
+  if (!firstDegenerateTriangle(bytes)) return { bytes, repaired: 0 };
+  const count = bytes.readUInt32LE(80);
+  const points: [number, number, number][] = [];
+  const ids = new Map<string, number>();
+  const vertex = (offset: number) => {
+    const point: [number, number, number] = [bytes.readFloatLE(offset), bytes.readFloatLE(offset + 4), bytes.readFloatLE(offset + 8)];
+    const key = point.join(',');
+    let id = ids.get(key);
+    if (id === undefined) { id = points.length; ids.set(key, id); points.push(point); }
+    return id;
+  };
+  const triangles: ([number, number, number] | undefined)[] = [];
+  const normals: Buffer[] = [];
+  for (let index = 0; index < count; index++) {
+    const offset = 84 + index * 50;
+    normals.push(bytes.subarray(offset, offset + 12));
+    triangles.push([vertex(offset + 12), vertex(offset + 24), vertex(offset + 36)]);
+  }
+  // directed edge "from>to" -> the triangles that have it
+  const edges = new Map<string, Set<number>>();
+  const link = (index: number, add: boolean) => {
+    const triangle = triangles[index];
+    if (!triangle) return;
+    for (const [from, to] of [[triangle[0], triangle[1]], [triangle[1], triangle[2]], [triangle[2], triangle[0]]] as const) {
+      const key = `${from}>${to}`;
+      const owners = edges.get(key) ?? new Set<number>();
+      if (add) owners.add(index); else owners.delete(index);
+      if (owners.size) edges.set(key, owners); else edges.delete(key);
+    }
+  };
+  triangles.forEach((_, index) => { link(index, true); });
+  const degenerate = (triangle: [number, number, number]) => {
+    const [a, b, c] = triangle.map(id => points[id] ?? [0, 0, 0]) as [[number, number, number], [number, number, number], [number, number, number]];
+    const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
+    const ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+    const nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    return nx * nx + ny * ny + nz * nz < 1e-20;
+  };
+  const distance = (p: number, q: number) => {
+    const a = points[p] ?? [0, 0, 0], b = points[q] ?? [0, 0, 0];
+    return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  };
+  const describe = (triangle: [number, number, number]) => triangle.map(id => JSON.stringify(points[id])).join(' ');
+  let repaired = 0;
+  const repair = () => {
+    if (++repaired > MAX_SLIVER_REPAIRS) throw new MeshRepairError(`More than ${MAX_SLIVER_REPAIRS} zero-area triangles to repair: the geometry is broken, not rounded.`);
+  };
+  // Collapsed edges first: the triangles on them go, and the mesh must still be closed without them.
+  let collapsed = 0;
+  triangles.forEach((triangle, index) => {
+    if (!triangle || (triangle[0] !== triangle[1] && triangle[1] !== triangle[2] && triangle[2] !== triangle[0])) return;
+    repair(); collapsed++;
+    link(index, false); triangles[index] = undefined;
+  });
+  if (collapsed) for (const [key, owners] of edges) {
+    const [from, to] = key.split('>');
+    if (owners.size !== 1 || edges.get(`${to}>${from}`)?.size !== 1)
+      throw new MeshRepairError(`Removing ${collapsed} triangles with coincident vertices leaves the edge ${JSON.stringify(points[Number(from)])}-${JSON.stringify(points[Number(to)])} with ${owners.size} faces one way and ${edges.get(`${to}>${from}`)?.size ?? 0} the other: the geometry is broken, not rounded.`);
+  }
+  for (let index = 0; index < triangles.length; index++) {
+    const triangle = triangles[index];
+    if (!triangle || !degenerate(triangle)) continue;
+    repair();
+    // the long edge u->v in this triangle's winding, and the vertex m between them
+    const [a, b, c] = triangle;
+    const rotations: [number, number, number][] = [[a, b, c], [b, c, a], [c, a, b]];
+    const [u, v, m] = rotations.reduce((best, next) => distance(next[0], next[1]) > distance(best[0], best[1]) ? next : best);
+    const owners = [...(edges.get(`${v}>${u}`) ?? [])];
+    const neighbourIndex = owners[0];
+    const neighbour = neighbourIndex === undefined ? undefined : triangles[neighbourIndex];
+    if (owners.length !== 1 || neighbourIndex === undefined || !neighbour)
+      throw new MeshRepairError(`The long edge of a zero-area triangle has ${owners.length} opposite faces, not 1: ${describe(triangle)}.`);
+    const d = neighbour[(neighbour.indexOf(v) + 2) % 3];
+    if (d === undefined || d === m) throw new MeshRepairError(`A zero-area triangle folds onto its neighbour: ${describe(triangle)}.`);
+    link(index, false); link(neighbourIndex, false);
+    triangles[index] = undefined;
+    triangles[neighbourIndex] = [v, m, d];
+    triangles.push([m, u, d]);
+    normals.push(normals[neighbourIndex] ?? Buffer.alloc(12));
+    link(neighbourIndex, true); link(triangles.length - 1, true);
+    // a split can leave its own slivers (d on the line too): the loop reaches the appended triangle, and rechecks the split one
+    if (degenerate([v, m, d])) index = Math.min(index, neighbourIndex) - 1;
+  }
+  const kept = triangles.flatMap((triangle, index) => triangle ? [{ triangle, normal: normals[index] ?? Buffer.alloc(12) }] : []);
+  const output = Buffer.alloc(84 + kept.length * 50);
+  bytes.copy(output, 0, 0, 80);
+  output.writeUInt32LE(kept.length, 80);
+  kept.forEach(({ triangle, normal }, index) => {
+    const offset = 84 + index * 50;
+    normal.copy(output, offset);
+    triangle.forEach((id, corner) => (points[id] ?? [0, 0, 0]).forEach((value, axis) => output.writeFloatLE(value, offset + 12 + corner * 12 + axis * 4)));
+  });
+  return { bytes: output, repaired };
 }
 
 /** Reject incomplete, degenerate, open, inconsistently wound, or disconnected generated solids. `allowDisconnected` is for a part

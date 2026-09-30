@@ -123,6 +123,13 @@ would otherwise share, end a thread 0.01 mm short of a flush face, scale a profi
 `tools/test-renderer.ts` cases and the contract's dependent-validation rules (e.g. minimum spike length, lattice
 complexity limit) are where a failing region is excluded.
 
+`npm run test:sweep` (`tools/sweep-geometry.ts`) renders every model at each parameter's minimum, one step above it
+and its maximum, every option, and seeded random settings (`SWEEP_SAMPLES`, `SWEEP_SEED`, `TEST_ONLY`), and prints
+the settings that differ from the defaults for anything that fails. Pull requests run a small fixed-seed sample of it;
+the nightly Geometry sweep workflow runs it wide with a new seed each night. It fails not only on failed renders but
+also on float32 sliver repairs: the worker repairs those so that users still get their model, but each one marks
+geometry that is valid only by a micrometre, and the next setting over may not be.
+
 Bump the model version when parameter meanings or defaults change. Browser
 preferences are isolated by version and stale API requests receive a conflict.
 Source/schema/mapping changes also alter the cache fingerprint. The current

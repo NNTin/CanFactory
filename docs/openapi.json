@@ -756,6 +756,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
@@ -837,6 +849,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
@@ -1411,6 +1435,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
@@ -1880,6 +1916,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
@@ -3039,11 +3087,21 @@
                                   "volume": {
                                     "type": "number",
                                     "description": "Enclosed material volume in cubic millimetres."
+                                  },
+                                  "meshRepairs": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "description": "Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none."
                                   }
                                 },
                                 "additionalProperties": false
                               },
                               "description": "Present only for a multi-part assembly’s ZIP artifact, in ZIP order."
+                            },
+                            "meshRepairs": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "description": "Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none."
                             }
                           },
                           "additionalProperties": false
@@ -3092,6 +3150,18 @@
                                 },
                                 "additionalProperties": false
                               }
+                            },
+                            "detail": {
+                              "type": "string",
+                              "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                            },
+                            "reference": {
+                              "type": "string",
+                              "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                            },
+                            "retryable": {
+                              "type": "boolean",
+                              "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                             }
                           },
                           "additionalProperties": false
@@ -3257,11 +3327,21 @@
                                   "volume": {
                                     "type": "number",
                                     "description": "Enclosed material volume in cubic millimetres."
+                                  },
+                                  "meshRepairs": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "description": "Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none."
                                   }
                                 },
                                 "additionalProperties": false
                               },
                               "description": "Present only for a multi-part assembly’s ZIP artifact, in ZIP order."
+                            },
+                            "meshRepairs": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "description": "Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none."
                             }
                           },
                           "additionalProperties": false
@@ -3310,6 +3390,18 @@
                                 },
                                 "additionalProperties": false
                               }
+                            },
+                            "detail": {
+                              "type": "string",
+                              "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                            },
+                            "reference": {
+                              "type": "string",
+                              "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                            },
+                            "retryable": {
+                              "type": "boolean",
+                              "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                             }
                           },
                           "additionalProperties": false
@@ -3364,6 +3456,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
@@ -3410,6 +3514,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
@@ -3456,6 +3572,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
@@ -3502,6 +3630,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
@@ -3684,11 +3824,21 @@
                                   "volume": {
                                     "type": "number",
                                     "description": "Enclosed material volume in cubic millimetres."
+                                  },
+                                  "meshRepairs": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "description": "Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none."
                                   }
                                 },
                                 "additionalProperties": false
                               },
                               "description": "Present only for a multi-part assembly’s ZIP artifact, in ZIP order."
+                            },
+                            "meshRepairs": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "description": "Zero-area slivers (float32 rounding of the STL) the renderer split; absent when there were none."
                             }
                           },
                           "additionalProperties": false
@@ -3737,6 +3887,18 @@
                                 },
                                 "additionalProperties": false
                               }
+                            },
+                            "detail": {
+                              "type": "string",
+                              "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                            },
+                            "reference": {
+                              "type": "string",
+                              "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                            },
+                            "retryable": {
+                              "type": "boolean",
+                              "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                             }
                           },
                           "additionalProperties": false
@@ -3791,6 +3953,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
@@ -3884,6 +4058,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
@@ -3930,6 +4116,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
@@ -4023,6 +4221,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
@@ -4069,6 +4279,18 @@
                         },
                         "additionalProperties": false
                       }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
                     }
                   },
                   "additionalProperties": false
