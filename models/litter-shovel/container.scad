@@ -28,10 +28,10 @@ SUPPORT_THICKNESS = 2; //[1.2:0.1:4]
 GRIP_END = "open"; //[open,floor]
 // The grip's shape: a thin sheet, the same curved out, a round tube or a rectangular bar
 HANDLE_SHAPE = "sheet"; //[sheet,curved,round,rectangular]
-// How far the curved grip's run to the tip steps out, in mm
-GRIP_BULGE = 8; //[0:0.5:15]
+// How far the curved grip's middle bulges towards the palm past its edges, in mm
+GRIP_BULGE = 3; //[0:0.5:6]
 // The round grip's diameter, or the rectangular grip's depth, in mm
-GRIP_SIZE = 26; //[20:1:28]
+GRIP_SIZE = 14; //[10:1:24]
 // How far the dam under the mouth, on the scraper side (-X), reaches in from the back wall, in mm (0 for none)
 DAM_WIDTH = 8; //[0:0.5:15]
 // Thickness of the shell's wall, in mm (three to five lines of a 0.4 mm nozzle at 1.2 to 2.0); the floor follows it
@@ -90,11 +90,11 @@ module lip() {
 
 // ---- The grip's two halves: identical in container.scad and handle.scad. ----
 // The grip is two halves, one on each side of a seam, the container's on the finger side and the handle part's on the palm
-// side. Stacked, they make one bar: the same width, their seam faces flat and CLEARANCE apart, and at the open tip each outer
+// side. Stacked, they make one bar: the same width, their seam faces CLEARANCE apart, and at the open tip each outer
 // corner rounded, so that the pair ends in one half-round. HANDLE_SHAPE picks the bar: "sheet" (default) a 6 mm strip, its
-// outer long edges rounded; "curved" the same strip with the run down to the tip stepping out by GRIP_BULGE, in a smooth
-// S-curve (the finger gap widens towards the tip); "round" a tube of diameter GRIP_SIZE, each half a solid half-round; "rectangular" a box bar
-// GRIP_SIZE deep and 26 mm wide, each half a solid slab. The round and rectangular bars move the seam out, so that the finger
+// outer long edges rounded; "curved" the same strip bowed across its width, its middle GRIP_BULGE towards the palm past its
+// edges (both halves are arcs about one axis along the run, so the gap stays CLEARANCE all over); "round" a tube of diameter
+// GRIP_SIZE, each half a solid half-round; "rectangular" a box bar GRIP_SIZE deep and 26 mm wide, each half a solid slab. The round and rectangular bars move the seam out, so that the finger
 // gap stays as wide, and their bends grow with them; their open tip is lower, to keep the run the sheet's leaves for the fist. The seam, in the
 // container's frame (XZ), runs from the top down: at the handle part's end, up the ring's outer face; a bend of SEAM_R2 into a
 // 45 degree slope through SLOPE_POINT (2.5 mm under the lip's chamfer, on the band); a bend of SEAM_R1 into the grip, vertical
@@ -104,8 +104,14 @@ SHEET_T = 3; EDGE_R = 2.5;
 GRIP_ROUND = HANDLE_SHAPE == "round"; GRIP_THICK = GRIP_ROUND || HANDLE_SHAPE == "rectangular";
 GRIP_HALF = GRIP_THICK ? GRIP_SIZE / 2 : SHEET_T;      // how far each half reaches from the seam
 GRIP_W = GRIP_ROUND ? GRIP_SIZE : 26;
+// The curved grip's bow: the seam's cross-section is an arc of radius BOW_R about an axis along the run, whose middle stands BOW
+// past its edges, towards the palm. bow_u(y) is how far the seam stands off its edges at y.
+BOW = HANDLE_SHAPE == "curved" ? GRIP_BULGE : 0;
+BOW_R = BOW > 0 ? (pow(GRIP_W / 2, 2) + BOW * BOW) / (2 * BOW) : 0;
+function bow_u(y) = BOW > 0 ? sqrt(BOW_R * BOW_R - y * y) - (BOW_R - BOW) : 0;
 SEAM_X_BASE = 65; SEAM_X = SEAM_X_BASE + GRIP_HALF - SHEET_T;
-SEAM_R1 = max(15, GRIP_HALF + 5); SEAM_R2 = max(10, GRIP_HALF + 5);   // an inner radius of at least 5 mm round each bend
+// An inner radius of at least 5 mm round each bend. SEAM_R1's centre is on the finger side; SEAM_R2's on the palm side, which the bow reaches.
+SEAM_R1 = max(15, GRIP_HALF + 5); SEAM_R2 = max(10, GRIP_HALF + BOW + 5);
 SLOPE_POINT = [37.25, 132];
 SHEET_TH = GRIP_HALF - CLEARANCE / 2;
 function slope_z(x) = SLOPE_POINT[1] - (x - SLOPE_POINT[0]);
@@ -122,36 +128,48 @@ R1_START = [R1_CENTRE[0] + SEAM_R1 * cos(45), R1_CENTRE[1] + SEAM_R1 * sin(45)];
 // The open tip: 30 mm up for the sheets; for the thick bars the run down from the bend that the sheet's open tip leaves.
 OPEN_RUN = 68;
 GRIP_TIP_Z = GRIP_END == "floor" ? 0 : GRIP_THICK ? max(0, R1_CENTRE[1] - OPEN_RUN) : 30;
-// The run from the bend down to z1: straight, or (curved) stepping out by GRIP_BULGE in a cosine's half wave, so that it leaves
-// the bend vertical at x = SEAM_X and reaches the tip vertical at SEAM_X + BULGE_OUT. It never leans inward on the way down, or
-// the handle, lowered straight down, would catch on the container's half.
-BULGE_OUT = HANDLE_SHAPE == "curved" ? GRIP_BULGE : 0;
-function bulge_samples(z1, n, th) = let(z0 = R1_CENTRE[1], l = z0 - z1)
-  [for (i = [1 : n]) let(t = i / n) [SEAM_X + GRIP_BULGE * pow(sin(90 * t), 2), z0 - l * t, atan2(-l, GRIP_BULGE * PI / 2 * sin(180 * t)), th]];
-function run_samples(z1) = HANDLE_SHAPE == "curved" ? bulge_samples(z1, 30, SHEET_TH)
-  : line_samples([SEAM_X, R1_CENTRE[1]], [SEAM_X, z1], 1, SHEET_TH);
 // From the bend down to the tip. At an open tip the last TIP_R of it rounds off in a quarter circle.
 TIP_R = SHEET_TH;
 function grip_samples() = concat(
   arc_samples(R1_CENTRE, SEAM_R1, 45, 0, 15, SHEET_TH),
-  GRIP_END == "floor" ? run_samples(GRIP_TIP_Z)
-  : concat(run_samples(GRIP_TIP_Z + TIP_R),
-      [for (i = [1 : 10]) let(d = TIP_R * (1 - i / 10)) [SEAM_X + BULGE_OUT, GRIP_TIP_Z + d, -90, max(0.4, sqrt(TIP_R * TIP_R - (TIP_R - d) * (TIP_R - d)))]]));
+  GRIP_END == "floor" ? line_samples([SEAM_X, R1_CENTRE[1]], [SEAM_X, GRIP_TIP_Z], 1, SHEET_TH)
+  : concat(line_samples([SEAM_X, R1_CENTRE[1]], [SEAM_X, GRIP_TIP_Z + TIP_R], 1, SHEET_TH),
+      [for (i = [1 : 10]) let(d = TIP_R * (1 - i / 10)) [SEAM_X, GRIP_TIP_Z + d, -90, max(0.4, sqrt(TIP_R * TIP_R - (TIP_R - d) * (TIP_R - d)))]]));
 
-// A half's cross-section at thickness `th`, as [u, y]: u from the seam (positive towards the palm), y across the grip. Its
-// seam face is flat. A sheet or a slab rounds its outer long edges; a round bar is a half-disc of radius CLEARANCE / 2 + th.
-function sheet_section(th) = GRIP_ROUND ? round_section(th) : box_section(th);
-function round_section(th) = let(u0 = CLEARANCE / 2, r = u0 + th, a0 = acos(u0 / r), n = 24)
-  [for (i = [0 : n]) let(a = -a0 + 2 * a0 * i / n) [r * cos(a), r * sin(a)]];
-function box_section(th) = let(u0 = CLEARANCE / 2, u1 = u0 + th, r = min(EDGE_R, 0.8 * th), w = GRIP_W / 2)
-  concat([[u0, -w]], [for (i = [0 : 6]) let(a = -90 + 15 * i) [u1 - r + r * cos(a), -w + r + r * sin(a)]],
-         [for (i = [0 : 6]) let(a = 15 * i) [u1 - r + r * cos(a), w - r + r * sin(a)]], [[u0, w]]);
+// A half's cross-section at thickness `th`, as [u, y]: u from the seam's edges (positive towards the palm), y across the grip, for
+// the palm side (side = 1) or the finger side (side = -1). A sheet or a slab has a flat seam face and rounds its outer long edges;
+// a round bar is a half-disc of radius CLEARANCE / 2 + th; a bowed sheet is a sector of an annulus about the bow's axis, its
+// long edges rounded too.
+function sheet_section(th, side) = BOW > 0 ? bow_section(th, side) : GRIP_ROUND ? round_section(th, side) : box_section(th, side);
+function round_section(th, side) = let(u0 = CLEARANCE / 2, r = u0 + th, a0 = acos(u0 / r), n = 24)
+  [for (i = [0 : n]) let(a = -a0 + 2 * a0 * i / n) [side * r * cos(a), side * r * sin(a)]];
+function box_section(th, side) = let(u0 = CLEARANCE / 2, u1 = u0 + th, r = min(EDGE_R, 0.8 * th), w = GRIP_W / 2)
+  [for (q = concat([[u0, -w]], [for (i = [0 : 6]) let(a = -90 + 15 * i) [u1 - r + r * cos(a), -w + r + r * sin(a)]],
+         [for (i = [0 : 6]) let(a = 15 * i) [u1 - r + r * cos(a), w - r + r * sin(a)]], [[u0, w]])) [side * q[0], side * q[1]]];
+// The bowed section: an annular sector about the bow's axis, cut by radial planes at +-BOW_END (where the seam is GRIP_W wide),
+// so that its ends are square to the sheet and the two halves' ends are flush; its outer long edges rounded. bow_pt gives the
+// point at radius r and angle a about the axis; bow_corner a rounded corner of radius re about c from angle a0 to a1 (the
+// short way); bow_seam the seam face's point at y.
+BOW_END = BOW > 0 ? asin(GRIP_W / 2 / BOW_R) : 0;
+function bow_pt(r, a) = [r * cos(a) - (BOW_R - BOW), r * sin(a)];
+function bow_corner(c, re, a0, a1, n) = let(d = ((a1 - a0 + 540) % 360) - 180) [for (i = [0 : n]) [c[0] + re * cos(a0 + d * i / n), c[1] + re * sin(a0 + d * i / n)]];
+function bow_seam(rs, y) = [sqrt(rs * rs - y * y) - (BOW_R - BOW), y];
+function bow_section(th, side) = let(
+    c = CLEARANCE / 2, re = min(EDGE_R, 0.8 * th),
+    rs = BOW_R + side * c, ro = rs + side * th,   // the seam face's and the outer face's radius
+    rc = ro - side * re, tc = BOW_END - asin(re / rc),   // the corners' centres' radius, and their angle from the middle
+    cm = bow_pt(rc, -tc), cp = bow_pt(rc, tc), nc = 5, no = 12, ns = 8)
+  side > 0
+  ? concat([bow_pt(rs, -BOW_END)], bow_corner(cm, re, -BOW_END - 90, -tc, nc), [for (i = [1 : no - 1]) bow_pt(ro, -tc + 2 * tc * i / no)],
+           bow_corner(cp, re, tc, BOW_END + 90, nc), [bow_pt(rs, BOW_END)], [for (i = [1 : ns - 1]) bow_pt(rs, BOW_END - 2 * BOW_END * i / ns)])
+  : concat([bow_pt(rs, BOW_END)], bow_corner(cp, re, BOW_END + 90, tc + 180, nc), [for (i = [1 : no - 1]) bow_pt(ro, tc - 2 * tc * i / no)],
+           bow_corner(cm, re, 180 - tc, 270 - BOW_END, nc), [bow_pt(rs, -BOW_END)], [for (i = [1 : ns - 1]) bow_pt(rs, -BOW_END + 2 * BOW_END * i / ns)]);
 
 // A half swept along `samples`, on the palm side (side = 1) or the finger side (side = -1) of the seam.
 module sheet(samples, side) {
-  m = len(sheet_section(1));
-  points = [for (s = samples, q = sheet_section(s[3])) let(u = side * q[0])
-    [s[0] - u * sin(s[2]), side * q[1], s[1] + u * cos(s[2])]];
+  m = len(sheet_section(1, side));
+  points = [for (s = samples, q = sheet_section(s[3], side))
+    [s[0] - q[0] * sin(s[2]), q[1], s[1] + q[0] * cos(s[2])]];
   n = len(samples);
   faces = concat(
     [for (i = [0 : n - 2], j = [0 : m - 1]) let(a = i * m, b = (i + 1) * m, k = (j + 1) % m) [a + j, a + k, b + k, b + j]],
@@ -164,7 +182,11 @@ module sheet(samples, side) {
 // round the bend and down the grip.
 FINGER_START = [30, slope_z(30)];
 module finger_sheet() {
-  sheet(concat([[FINGER_START[0], FINGER_START[1], -45, SHEET_TH]], line_samples(FINGER_START, R1_START, 1, SHEET_TH), grip_samples()), -1);
+  // A bowed sheet's middle stands out from the seam, so its start would rise past the lip's top: cut it there.
+  intersection() {
+    sheet(concat([[FINGER_START[0], FINGER_START[1], -45, SHEET_TH]], line_samples(FINGER_START, R1_START, 1, SHEET_TH), grip_samples()), -1);
+    if (BOW > 0) translate([0, -100, -1]) cube([200, 200, RIM_Z + 1]);
+  }
 }
 
 // A fin in XZ: its lower edge rises at 45 degrees from inside the wall to meet the sheet's underside FIN_REACH out from the
@@ -182,7 +204,7 @@ module fin_profile() {
 module fins() {
   span = GRIP_W / 2 - EDGE_R - SUPPORT_THICKNESS / 2;
   for (i = [0 : SUPPORT_COUNT - 1]) let(y = SUPPORT_COUNT == 1 ? 0 : -span + 2 * span * i / (SUPPORT_COUNT - 1))
-    translate([0, y, 0]) rotate([90, 0, 0]) linear_extrude(SUPPORT_THICKNESS, center = true) fin_profile();
+    translate([bow_u(y) * sqrt(0.5), y, bow_u(y) * sqrt(0.5)]) rotate([90, 0, 0]) linear_extrude(SUPPORT_THICKNESS, center = true) fin_profile();
 }
 
 module handle() { finger_sheet(); if (HANDLE_SHAPE == "sheet" || HANDLE_SHAPE == "curved") fins(); }

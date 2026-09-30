@@ -102,7 +102,7 @@ container's grip keeps half the clearance off the seam, so its X shrinks by half
 ### Grip
 
 The two halves are swept along one shared seam by the same code in both files. `handleShape` sets what is swept: a thin sheet
-(`sheet`, the default, described first), the same sheet with a bulge (`curved`), or a solid round or rectangular bar (see
+(`sheet`, the default, described first), the same sheet bowed across its width (`curved`), or a solid round or rectangular bar (see
 [Handle shapes](#handle-shapes)). The seam, in the container's
 frame, starts at the ring's outer face and runs down past the skirt. It bends (10 mm) into a 45° slope through the band just under
 the lip's chamfer, bends again (15 mm), and runs straight down at X 65 to the tip.
@@ -125,23 +125,24 @@ tangent of the seam within 45° of vertical, so each part still prints without s
 | `handleShape` | Halves | Settings |
 | --- | --- | --- |
 | `sheet` (default) | Two 3 mm sheets, 26 mm wide, as above. Output is unchanged from before the setting existed. | `supportCount` fins |
-| `curved` | The same sheets, but the straight run from the bend to the tip becomes a cosine's half wave that steps out by `gripBulge` (0 to 15 mm, default 8), vertical at both ends: an S-curve that widens the finger gap towards the tip. At 0 it is the flat sheet. Its steepest tangent is `gripBulge` × π / 2 / run, 20° at most (68 mm run). It never leans inward on the way down: the handle is lowered straight down onto the container, and a belly (out, then back in) would make the halves catch on each other. The container and the handle grow in X by `gripBulge`. | `gripBulge`, `supportCount` fins |
-| `round` | A tube of diameter `gripSize` (20 to 28 mm, default 26), each half a solid half-round with a flat seam face. The tube is as wide as it is thick. | `gripSize` |
-| `rectangular` | A box bar `gripSize` deep (20 to 28 mm) and 26 mm wide, each half a solid slab `gripSize` / 2 thick, with 2.5 mm rounded long edges. | `gripSize` |
+| `curved` | The same sheets, bowed across their width: the seam's cross-section is an arc about an axis along the run, its middle `gripBulge` (0 to 6 mm, default 3) towards the palm past its edges (at 3 mm a 23 mm radius, at 6 mm 17 mm). Both halves are concentric arcs, so the gap stays the clearance all over, and the sheets keep their 3 mm thickness, 26 mm width and rounded long edges. At 0 it is the flat sheet. The path (slope, bends, run) is the sheet's, so the parts grow only by `gripBulge` in X, at the middle. The handle's ring is joined to the sheet's middle by a solid fill behind it, and the fins follow the bow. | `gripBulge`, `supportCount` fins |
+| `round` | A tube of diameter `gripSize` (10 to 24 mm, default 14), each half a solid half-round with a flat seam face. The tube is as wide as it is thick. | `gripSize` |
+| `rectangular` | A box bar `gripSize` deep (10 to 24 mm, default 14) and 26 mm wide, each half a solid slab `gripSize` / 2 thick, with 2.5 mm rounded long edges. | `gripSize` |
 
 - **Round and rectangular bars:** the finger half's face stays where the sheet's is (X 61.9 at the default clearance), so the
   finger gap stays 25 mm. The seam therefore moves out by `gripSize` / 2 − 3 mm, and the palm half reaches `gripSize` / 2 past
-  it: the handle grows by `gripSize` − 6 mm in X (20 mm at the default 26) and the container's handle by `gripSize` / 2 − 3 mm (10 mm).
-  The bends grow to `gripSize` / 2 + 5 mm where that is more than their 15 and 10 mm, so each half's inner face keeps a radius of at
+  it: the handle grows by `gripSize` − 6 mm in X (8 mm at the default 14) and the container's handle by `gripSize` / 2 − 3 mm (4 mm).
+  The bends grow to `gripSize` / 2 + 5 mm where that is more than their 15 and 10 mm (only above 20 mm for the first bend), so each half's inner face keeps a radius of at
   least 5 mm. A lower bend leaves less vertical run, so with `gripEnd` `open` their tip is lower, to keep the run the sheet has
-  (68 mm from the bend): Z 18.8 at the default 26 mm, 17.4 at 28 and 23 at 20. `floor` still ends them on the bed.
+  (68 mm from the bend): Z 26.0 at the default 14 mm, 28.0 at 10 and 20.2 at 24. `floor` still ends them on the bed.
 - **Tip:** the round bar ends in a hemisphere at an open tip; the rectangular bar, like the sheet, in a half-round seen from the
   side. Both are flat cut at the floor.
 - **Root:** the root pad on the container and the root block on the handle are as wide as the grip (plus 4 mm each side for the
-  pad). At 28 mm the round tube's edge is 0.5 mm from the widest boss a `handleReinforcement` can have (6.5 mm round the screw, 21 mm from the middle), which is why `gripSize` ends at 28.
+  pad). The widest round tube (24 mm) still clears the widest boss a `handleReinforcement` can have (6.5 mm round the screw,
+  21 mm from the middle) by 2.5 mm.
 - **Solid halves:** print them with sparse infill, so that the slicer's walls carry the load and the bulk stays light. A tube or
   bar is far stiffer than the sheets, so the fist does not close the clearance. The parts are held by the detents (and screws); the squeeze only adds friction.
-- **Untested:** nothing has been printed. Whether a 26 mm tube or bar feels right in the hand, and how long the vertical run must be,
+- **Untested:** nothing has been printed. Whether a 14 mm tube or bar feels right in the hand, and how long the vertical run must be,
   need a print. The shapes' curves are geometry only: they have no ergonomic study behind them.
 
 ## How it holds together
@@ -391,7 +392,7 @@ with `--snap-tolerance 15`.
 
 - **The container** stands on its floor. The lip has a 45° underside, the handle's slope, its fins' lower edges and the dam's
   underside are at 45°, and the handle's bend is round. A round or rectangular handle's slope is a solid slab with a 45° underside
-  (a round one's normals are all at least 45° from straight down), and a curved handle keeps every tangent within 45° of vertical. With the default `open` grip end, the grip's tip starts 30 mm above the bed (18.8 mm for a round or rectangular one of 26 mm): let the slicer add supports
+  (a round one's normals are all at least 45° from straight down), and a curved handle keeps every tangent within 45° of vertical. With the default `open` grip end, the grip's tip starts 30 mm above the bed (26 mm for a round or rectangular one of 14 mm): let the slicer add supports
   under it (they are not modelled). With `floor`, the sheet starts on the bed and nothing needs support.
 - **The scoop** prints on its cap: the sleeve's and the skirt's edges are on the bed, the U's ceiling is a 7.4 mm bridge, and the
   funnel is a top surface. The tip's bevel faces up and inward, and the round top edge is a top surface, so the blade needs no support either.

@@ -1079,9 +1079,9 @@ const HANDLE_SHAPE_VALUES = ['sheet', 'curved', 'round', 'rectangular'] as const
 export type HandleShape = typeof HANDLE_SHAPE_VALUES[number];
 const HANDLE_SHAPE_TEXT: Record<HandleShape, { label: string; description: string }> = {
   sheet: { label: 'Flat sheet', description: 'Two thin sheets, one on the container and one on the handle, that stack into one 6 mm strip, 26 mm wide. Held in the fist, they clamp the parts together.' },
-  curved: { label: 'Curved sheet', description: 'The same thin strip, but the run down to the tip steps out in a smooth S-curve, which widens the finger gap towards the tip. The step’s size is set below.' },
-  round: { label: 'Round tube', description: 'A round tube, each half a solid half-round that stacks with the other. Thicker and stiffer than the sheet, and the container and the handle grow to make room for it; the tip sits lower.' },
-  rectangular: { label: 'Rectangular bar', description: 'A rectangular bar 26 mm wide, each half a solid slab that stacks with the other, with softened edges. Thicker and stiffer than the sheet, and the container and the handle grow to make room for it; the tip sits lower.' },
+  curved: { label: 'Curved sheet', description: 'The same thin strip, bowed across its width: the middle bulges towards the palm past the edges, so the hand rests in a shallow curve. The bulge’s size is set below.' },
+  round: { label: 'Round tube', description: 'A round tube, each half a solid half-round that stacks with the other. Thicker and stiffer than the sheet, and the container and the handle grow to make room for it; the tip sits a little lower.' },
+  rectangular: { label: 'Rectangular bar', description: 'A rectangular bar 26 mm wide, each half a solid slab that stacks with the other, with softened edges. Thicker and stiffer than the sheet, and the container and the handle grow to make room for it; the tip sits a little lower.' },
 };
 
 /** Where the grip ends: its tip hangs open above the floor (30 mm for the sheets; lower for the round and rectangular bars, as their finger gap moves the bend down), or it runs down to the floor. */
@@ -1232,8 +1232,8 @@ export const LitterShovelParametersSchema = Type.Object({
   tipBevel: dimension('Tip bevel length', 'How far down from the scraping edge the scoop’s inner face is bevelled, in mm. The sieve stays below the bevel.', 12, TIP_BEVEL_RANGE.minimum, TIP_BEVEL_RANGE.maximum, 0.5),
   gripEnd: Type.Enum(GRIP_END_VALUES, { title: 'Grip end', description: 'Where the grip ends: open above the floor (the container’s grip tip needs slicer supports), or down on the floor (no supports).', default: 'open' }),
   handleShape: Type.Enum(HANDLE_SHAPE_VALUES, { title: 'Handle shape', description: 'The grip’s shape: a flat sheet, a curved sheet, a round tube or a rectangular bar. The round and rectangular bars are thicker, so the container and the handle grow to make room for them.', default: 'sheet' }),
-  gripBulge: dimension('Grip bulge', 'How far the curved grip’s run down to the tip steps out from the bend, in mm, in a smooth S-curve. 0 is as straight as the flat sheet.', 8, 0, 15, 0.5),
-  gripSize: dimension('Grip size', 'The round tube’s diameter, or the rectangular bar’s depth, in mm. The rectangular bar is always 26 mm wide. Larger fills the hand more; the round tube stops at 28 mm so that it clears the screws’ bosses.', 26, 20, 28, 1),
+  gripBulge: dimension('Grip bulge', 'How far the curved grip’s middle bulges towards the palm past its long edges, in mm; the sheet is bowed across its width along its whole run. 0 is as flat as the flat sheet.', 3, 0, 6, 0.5),
+  gripSize: dimension('Grip size', 'The round tube’s diameter, or the rectangular bar’s depth, in mm. The rectangular bar is always 26 mm wide. The flat sheet is 6 mm thick; a thinner bar than the default is easier to close a hand round.', 14, 10, 24, 1),
   supportCount: Type.Integer({ title: 'Grip supports', description: 'Thin fins that brace the container’s handle under its slope, side by side across the grip. More fins make it stiffer. The round and rectangular bars are solid and need none.', default: 3, minimum: 1, maximum: 5 }),
   damWidth: dimension('Dam width', 'How far the dam under the container’s mouth, on the scraper side, reaches in from the back wall, in mm (0 for none). It falls inward at 45°: turned over to scoop, the clumps already inside collect behind it instead of falling out.', 8, 0, 15, 0.5),
   supportThickness: dimension('Support thickness', 'Thickness of each fin under the container’s handle, in mm.', 2, 1.2, 4),

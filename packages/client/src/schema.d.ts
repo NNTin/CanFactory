@@ -1187,14 +1187,14 @@ export interface operations {
                         handleShape: "sheet" | "curved" | "round" | "rectangular";
                         /**
                          * Grip bulge
-                         * @description How far the curved grip’s run down to the tip steps out from the bend, in mm, in a smooth S-curve. 0 is as straight as the flat sheet.
-                         * @default 8
+                         * @description How far the curved grip’s middle bulges towards the palm past its long edges, in mm; the sheet is bowed across its width along its whole run. 0 is as flat as the flat sheet.
+                         * @default 3
                          */
                         gripBulge: number;
                         /**
                          * Grip size
-                         * @description The round tube’s diameter, or the rectangular bar’s depth, in mm. The rectangular bar is always 26 mm wide. Larger fills the hand more; the round tube stops at 28 mm so that it clears the screws’ bosses.
-                         * @default 26
+                         * @description The round tube’s diameter, or the rectangular bar’s depth, in mm. The rectangular bar is always 26 mm wide. The flat sheet is 6 mm thick; a thinner bar than the default is easier to close a hand round.
+                         * @default 14
                          */
                         gripSize: number;
                         /**

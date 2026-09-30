@@ -322,14 +322,15 @@ try {
     // the grip's shapes: the curved bulge at its least and most, and the round and rectangular bars at their smallest and largest, with the grip open and down to the floor
     { name: 'curved grip, no bulge', overrides: { handleShape: 'curved', gripBulge: 0 } },
     { name: 'curved grip, default bulge', overrides: { handleShape: 'curved' } },
-    { name: 'curved grip, most bulge, to the floor', overrides: { handleShape: 'curved', gripBulge: 15, gripEnd: 'floor' } },
-    { name: 'round grip, smallest', overrides: { handleShape: 'round', gripSize: 20 } },
+    { name: 'curved grip, most bulge, to the floor', overrides: { handleShape: 'curved', gripBulge: 6, gripEnd: 'floor' } },
+    { name: 'curved grip, most bulge, 0.6 mm clearance, M3 nuts', overrides: { handleShape: 'curved', gripBulge: 6, clearance: 0.6, handleReinforcement: 'nut-bolt' } },
+    { name: 'round grip, smallest', overrides: { handleShape: 'round', gripSize: 10 } },
     { name: 'round grip, default', overrides: { handleShape: 'round' } },
-    { name: 'round grip, largest, to the floor', overrides: { handleShape: 'round', gripSize: 28, gripEnd: 'floor' } },
-    { name: 'round grip, largest, M4 nuts beside it', overrides: { handleShape: 'round', gripSize: 28, handleReinforcement: 'nut-bolt', handleThread: 'M4', handleNut: 'iso-4032-m4', handleScrew: 'iso-10642-m4x16' } },
-    { name: 'rectangular grip, smallest', overrides: { handleShape: 'rectangular', gripSize: 20 } },
+    { name: 'round grip, largest, to the floor', overrides: { handleShape: 'round', gripSize: 24, gripEnd: 'floor' } },
+    { name: 'round grip, largest, M4 nuts beside it', overrides: { handleShape: 'round', gripSize: 24, handleReinforcement: 'nut-bolt', handleThread: 'M4', handleNut: 'iso-4032-m4', handleScrew: 'iso-10642-m4x16' } },
+    { name: 'rectangular grip, smallest', overrides: { handleShape: 'rectangular', gripSize: 10 } },
     { name: 'rectangular grip, default', overrides: { handleShape: 'rectangular' } },
-    { name: 'rectangular grip, largest, to the floor, thinnest wall', overrides: { handleShape: 'rectangular', gripSize: 28, gripEnd: 'floor', wallThickness: 1.2 } },
+    { name: 'rectangular grip, largest, to the floor, thinnest wall', overrides: { handleShape: 'rectangular', gripSize: 24, gripEnd: 'floor', wallThickness: 1.2 } },
     { name: 'rectangular grip, 0.6 mm clearance, M3 inserts', overrides: { handleShape: 'rectangular', clearance: 0.6, handleReinforcement: 'threaded-insert' } },
   ];
   // The grip's extent (docs/litter-shovel.md, Grip): the seam moves out with the thick bars' half-depth, and the round and rectangular
