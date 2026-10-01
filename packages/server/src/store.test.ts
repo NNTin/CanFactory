@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cigaretteCase, findPart, fruitFlyTrap, litterShovel, mossPlanter, plankConnector } from '@canfactory/contracts';
+import { aiRubberDuck, cigaretteCase, findPart, fruitFlyTrap, litterShovel, mossPlanter, plankConnector } from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS } from './config.ts';
 import { Store, repositoryRoot, sourceFingerprint } from './store.ts';
 
@@ -17,10 +17,18 @@ afterEach(() => { store.close(); rmSync(directory, { recursive: true, force: tru
 
 describe('temporary render queue', () => {
   it('seeds idempotently and reuses equivalent normalized parameters', () => {
-    store.seed(); expect(store.listModels()).toHaveLength(5);
+    store.seed(); expect(store.listModels()).toHaveLength(6);
     const first = store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
     const reordered = Object.fromEntries(Object.entries(fruitFlyTrap.defaults).reverse());
     expect(store.enqueue(fruitFlyTrap, reordered).id).toBe(first.id);
+  });
+
+  it('separates duck variants, sizes, fits and trusted part constants in the render cache', () => {
+    const original = store.enqueue(aiRubberDuck, aiRubberDuck.defaults);
+    for (const change of [{ variant: 'codex-v1-round' }, { bodyLength: 70 }, { clearance: 0.1 }])
+      expect(store.enqueue(aiRubberDuck, { ...aiRubberDuck.defaults, ...change }).id).not.toBe(original.id);
+    expect(sourceFingerprint(repositoryRoot, { ...aiRubberDuck, parts: aiRubberDuck.parts.map(part => ({ ...part, scadConstants: { PART: 'other' } })) }))
+      .not.toBe(sourceFingerprint(repositoryRoot, aiRubberDuck));
   });
 
   it('seeds an assembly model with no reference file and a ZIP artifact format', () => {
@@ -144,7 +152,7 @@ describe('temporary render queue', () => {
     time += CACHE_TTL_MS + 1; store.cleanup();
     expect(store.getJob(job.id)).toBeUndefined();
     expect(existsSync(store.artifacts.path(job.id))).toBe(false);
-    expect(store.listModels()).toHaveLength(5);
+    expect(store.listModels()).toHaveLength(6);
     expect(existsSync(join(store.artifacts.catalogDir, 'fruit-fly-trap-1.stl'))).toBe(true);
   });
 

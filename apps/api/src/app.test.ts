@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { cigaretteCase, ErrorSchema, LOGO_MAX_LENGTH, LOGO_MAX_POINTS, fruitFlyTrap, litterShovel, ModelDetailSchema, mossPlanter, PartDetailSchema, PartFamilyDetailSchema, PartFamilySummarySchema, partFamilies, parts, plankConnector, RenderSchema } from '@canfactory/contracts';
+import { aiRubberDuck, AI_DUCK_VARIANTS, cigaretteCase, ErrorSchema, LOGO_MAX_LENGTH, LOGO_MAX_POINTS, fruitFlyTrap, litterShovel, ModelDetailSchema, mossPlanter, PartDetailSchema, PartFamilyDetailSchema, PartFamilySummarySchema, partFamilies, parts, plankConnector, RenderSchema } from '@canfactory/contracts';
 import { CACHE_TTL_MS, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from './app.ts';
 
@@ -23,7 +23,7 @@ describe('model and render API', () => {
   it('serves the catalogue, reference STL, and OpenAPI', async () => {
     const catalogue = await app.inject('/api/v1/models');
     expect(catalogue.statusCode).toBe(200);
-    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['cigarette-case', 'fruit-fly-trap', 'litter-shovel', 'moss-planter', 'plank-connector']);
+    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['ai-rubber-duck', 'cigarette-case', 'fruit-fly-trap', 'litter-shovel', 'moss-planter', 'plank-connector']);
     const detail = await app.inject('/api/v1/models/fruit-fly-trap');
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false, properties: { trapDiameter: { type: 'number', minimum: 20, maximum: 200 } } });
@@ -32,6 +32,22 @@ describe('model and render API', () => {
     expect((await app.inject('/api/v1/models/fruit-fly-trap/reference.stl')).rawPayload.length).toBeGreaterThan(100000);
     expect((await app.inject('/api/openapi.json')).body).toContain('createRender');
     expect((await app.inject('/api/v1/models/missing')).statusCode).toBe(404);
+  });
+
+  it('serves the eight duck choices, their default colors and accepts only the public controls', async () => {
+    const response = await app.inject('/api/v1/models/ai-rubber-duck');
+    expect(response.statusCode).toBe(200);
+    const model = Value.Parse(ModelDetailSchema, response.json<unknown>());
+    expect(model.artifactFormat).toBe('zip');
+    expect(model.controls.map(control => control.key)).toEqual(['variant', 'bodyLength', 'clearance']);
+    expect(model.controls[0]?.options?.map(option => option.value)).toEqual([...AI_DUCK_VARIANTS]);
+    expect(model.assembly?.partColors).toEqual({ body: '#ffda4a', face: '#d7774b' });
+    const post = (change: Record<string, unknown>) => app.inject({ method: 'POST', url: '/api/v1/renders', payload: {
+      modelId: aiRubberDuck.id, modelVersion: '1', parameters: { ...aiRubberDuck.defaults, ...change },
+    } });
+    for (const variant of AI_DUCK_VARIANTS) expect((await post({ variant })).statusCode).toBeLessThan(300);
+    for (const change of [{ variant: 'other' }, { bodyLength: 69 }, { clearance: 0.26 }, { PART: 'bar' }, { RIBS: false }])
+      expect((await post(change)).statusCode).toBeGreaterThanOrEqual(400);
   });
 
   it('serves the moss planter as a customizable, five-part, ZIP-formatted assembly model', async () => {

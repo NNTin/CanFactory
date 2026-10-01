@@ -56,7 +56,7 @@ function stampAttribution(bytes: Buffer, model: ModelDefinition): void {
 
 /** `-D NAME=value` overrides for one SCAD file (`scadDefines`): the parameters its scadMapping consumes and the dimensions of the
  * chosen parts its partDefines names; only mapped, validated values reach the command. */
-function mappedDefines(model: ModelDefinition, source: Pick<ModelPart, 'scadMapping' | 'partDefines'>, parameters: ParameterValues): string[] {
+function mappedDefines(model: ModelDefinition, source: Pick<ModelPart, 'scadMapping' | 'partDefines' | 'scadConstants'>, parameters: ParameterValues): string[] {
   return scadDefines(model, source, parameters).flatMap(([name, literal]) => ['-D', `${name}=${literal}`]);
 }
 

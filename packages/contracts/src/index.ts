@@ -1,5 +1,5 @@
 import { Type, type Static } from 'typebox';
-import { AssemblySchema, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector } from './models.ts';
+import { aiRubberDuck, AssemblySchema, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector } from './models.ts';
 import { PartFamilySchema, PartSchema, PartSourceSchema } from './parts/index.ts';
 export * from './models.ts';
 export * from './assembly.ts';
@@ -40,6 +40,11 @@ export type ModelDetail = Static<typeof ModelDetailSchema>;
 
 /** Register a typed branch for each provided model; preserve the tuple for precise inference. */
 export const RenderRequestSchema = Type.Union([
+  Type.Object({
+    modelId: Type.Literal(aiRubberDuck.id),
+    modelVersion: Type.Literal(aiRubberDuck.version),
+    parameters: aiRubberDuck.parameterSchema,
+  }, { additionalProperties: false }),
   Type.Object({
     modelId: Type.Literal(fruitFlyTrap.id),
     modelVersion: Type.Literal(fruitFlyTrap.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),

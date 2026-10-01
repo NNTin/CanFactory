@@ -13,7 +13,7 @@ const problemOf = (error: ApiError): RenderProblem => ({ code: error.code, messa
   ...error.detail === undefined ? {} : { detail: error.detail }, ...error.reference === undefined ? {} : { reference: error.reference } });
 
 interface DesiredRender { key: string; request: RenderRequest }
-interface CompletedRender { key: string; render: Render }
+interface CompletedRender { key: string; render: Render; parameters: ParameterValues }
 const pause = (milliseconds: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
   const abort = () => { clearTimeout(timer); reject(new Error('Request cancelled.')); };
   const timer = setTimeout(() => { signal.removeEventListener('abort', abort); resolve(); }, milliseconds);
@@ -55,7 +55,7 @@ export function useRender(model: ModelDetail, parameters: ParameterValues, valid
       if (result.status === 'failed')
         throw new ProblemError(result.error ? problemOf(result.error) : { code: 'RENDER_FAILED', message: 'Rendering failed. Please try again.', reference: result.id, retryable: true });
       if (isCurrent(wanted.key)) {
-        setCompleted({ key: wanted.key, render: result });
+        setCompleted({ key: wanted.key, render: result, parameters: { ...wanted.request.parameters } });
         setProblem(null);
       }
     } catch (caught) {

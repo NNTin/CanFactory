@@ -186,7 +186,18 @@ function LitterShovelIllustration() {
   </svg>;
 }
 
+function AiDuckIllustration() {
+  return <svg viewBox="0 0 240 190" aria-hidden="true">
+    <ellipse cx="124" cy="157" rx="84" ry="12" fill="#c8cec1" opacity=".35" />
+    <path d="M45 124c0-30 31-42 66-35 44 10 72 1 88-20 11 51-9 86-66 90-49 3-88-5-88-35Z" fill="#f2cc43" />
+    <ellipse cx="86" cy="72" rx="37" ry="40" fill="#ffda4a" />
+    <path d="M120 114c21 3 40-1 57-13-2 29-19 41-43 34" fill="#dfb532" />
+    {Array.from({ length: 12 }, (_, i) => <path key={i} d="M82 72v-24" transform={`rotate(${i * 30} 82 72)`} stroke="#d7774b" strokeWidth="7" strokeLinecap="round" />)}
+  </svg>;
+}
+
 const ILLUSTRATIONS: Record<string, () => ReactElement> = {
+  'ai-rubber-duck': AiDuckIllustration,
   'cigarette-case': CigaretteCaseIllustration,
   'fruit-fly-trap': FunnelIllustration,
   'moss-planter': MossPlanterIllustration,
@@ -393,8 +404,9 @@ function Editor({ model }: { model: ModelDetail }) {
   const issues = useMemo(() => definition ? validateParameters(definition, parameters) : [{ field: '', message: 'Reload the page to use this model’s current editor.' }], [definition, parameters]);
   const valid = issues.length === 0;
   const rendering = useRender(model, parameters, valid);
-  // The assembly for the current settings: with the reference objects they add, such as the chosen magnets of a magnet snap.
-  const assembly = useMemo(() => resolveAssembly(definition, model.assembly, parameters), [definition, model, parameters]);
+  // Keep poses and colors with the displayed geometry while newer settings render.
+  const displayedParameters = rendering.completed?.parameters ?? model.defaults;
+  const assembly = useMemo(() => resolveAssembly(definition, model.assembly, displayedParameters), [definition, model, displayedParameters]);
   const references = useMemo(() => referenceObjects(assembly), [assembly]);
   const partTitles = useMemo(() => Object.fromEntries([...(model.parts ?? []), ...(assembly?.references ?? [])].map(part => [part.id, part.title])), [model, assembly]);
   const render = rendering.completed?.render;
