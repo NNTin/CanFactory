@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { partGeometry } from './partGeometry.ts';
 import { partStlUrl } from './referenceObjects.ts';
-import { createStage } from './stage.ts';
+import { createStage, smoothNormals } from './stage.ts';
 
 /** At most this many parts are shown at once; the page asks to filter for more. */
 export const VIEWER_LIMIT = 48;
@@ -30,9 +30,7 @@ async function load(part: Part, signal: AbortSignal): Promise<THREE.BufferGeomet
   if (!url) return null;
   const response = await fetch(url, { signal });
   if (!response.ok) return null;
-  const geometry = new STLLoader().parse(await response.arrayBuffer());
-  geometry.computeVertexNormals();
-  return geometry;
+  return smoothNormals(new STLLoader().parse(await response.arrayBuffer()));
 }
 
 /**

@@ -58,7 +58,7 @@ describe('registered assemblies', () => {
       const references = (data.references ?? []).map(reference => reference.id);
       const ids = [...model.parts.map(part => part.id), ...references];
       expect(new Set(ids).size).toBe(ids.length);
-      expect(ids.filter(id => !(id in data.poses))).toEqual([]);
+      expect([...activeParts(model, model.defaults).map(part => part.id), ...references].filter(id => !(id in data.poses))).toEqual([]);
       for (const id of [...Object.keys(data.poses), ...data.steps.flatMap(step => step.parts)]) expect(ids).toContain(id);
       expect(data.steps.length).toBeGreaterThan(0);
       expect(data.lift).toBeGreaterThanOrEqual(0);

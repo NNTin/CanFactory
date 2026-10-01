@@ -335,6 +335,10 @@ export interface operations {
                             title: string;
                         }[];
                         assembly?: {
+                            /** @description Suggested filament colors by printed part id; also used in the preview. */
+                            partColors?: {
+                                [key: string]: string;
+                            };
                             /** @description Assembled pose per part id. */
                             poses: {
                                 [key: string]: {
@@ -775,6 +779,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @enum {string} */
+                    modelId: "ai-rubber-duck";
+                    /** @enum {string} */
+                    modelVersion: "1";
+                    parameters: {
+                        /**
+                         * Version
+                         * @description Choose the brand face and round or sculpted head from the concept gallery.
+                         * @default claude-v1-round
+                         * @enum {unknown}
+                         */
+                        variant: "claude-v1-round" | "claude-v2-sculpted" | "codex-v1-round" | "codex-v2-sculpted" | "anthropic-v1-round" | "anthropic-v2-sculpted" | "openai-v1-round" | "openai-v2-sculpted";
+                        /**
+                         * Body length
+                         * @description Length from breast to tail in mm. All pieces are generated to fit at this size.
+                         * @default 90
+                         */
+                        bodyLength: number;
+                        /**
+                         * Joint clearance
+                         * @description Gap per side around the peg core in mm. Smaller values grip more tightly; the small crush ribs hold the pieces together.
+                         * @default 0.2
+                         */
+                        clearance: number;
+                    };
+                } | {
                     /** @enum {string} */
                     modelId: "fruit-fly-trap";
                     /**

@@ -91,7 +91,7 @@ function pairs(check: string, placed: Map<string, Mesh>): Finding[] {
 
 interface Tolerances { parts: number; snaps: number }
 
-async function checkModel(model: ModelDefinition & { assembly: Assembly }, parameters: ParameterValues, tolerances: Tolerances): Promise<boolean> {
+async function checkModel(model: ModelDefinition & { assembly: Assembly }, parameters: ParameterValues, tolerances: Tolerances, overrides: Record<string, string>): Promise<boolean> {
   if (!isAssembly(model)) throw new Error(`${model.id} has an assembly but no parts.`);
   const issues = validateParameters(model, parameters);
   if (issues.length > 0) throw new Error(`Invalid parameters for ${model.id}: ${issues.map(issue => issue.message).join(' ')}`);
@@ -100,7 +100,7 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
   const parts = new Map<string, Mesh>();
   for (const part of activeParts(model, parameters)) {
     // As apps/worker/src/render.ts: each part gets only its own mapped parameters and chosen parts' dimensions.
-    const defines = Object.fromEntries(scadDefines(model, part, parameters));
+    const defines = { ...Object.fromEntries(scadDefines(model, part, parameters)), ...overrides };
     const render = await renderScad(resolve(part.sourcePath), defines);
     parts.set(part.id, parseStl(render.stl));
     console.log(`rendered ${part.id} (${render.runner}, ${(render.milliseconds / 1000).toFixed(1)} s)`);
@@ -177,12 +177,22 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
   return ok;
 }
 
-const { values, positionals } = parseArgs({ allowPositionals: true, options: { parameters: { type: 'string' }, tolerance: { type: 'string', default: '1' }, 'snap-tolerance': { type: 'string', default: '10' } } });
+const { values, positionals } = parseArgs({ allowPositionals: true, options: { parameters: { type: 'string' }, tolerance: { type: 'string', default: '1' }, 'snap-tolerance': { type: 'string', default: '10' }, defines: { type: 'string' } } });
+// Local diagnostic overrides, never used by the worker/API. E.g. --defines '{"RIBS":false}'
+// proves that only the duck's intentional crush ribs interfere; all core surfaces must clear.
+const raw: unknown = values.defines ? JSON.parse(values.defines) : {};
+if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('--defines must be a JSON object of literal values.');
+const overrides = Object.fromEntries(Object.entries(raw).map(([key, value]) => {
+  if (!/^[A-Z_]+$/.test(key) || !['number', 'string', 'boolean'].includes(typeof value) || (typeof value === 'number' && !Number.isFinite(value)))
+    throw new Error('--defines accepts uppercase names and finite literal values only.');
+  return [key, JSON.stringify(value)];
+}));
+if (values.defines) console.log(`Diagnostic SCAD overrides: ${JSON.stringify(overrides)}`);
 const selected = models.filter((model): model is ModelDefinition & { assembly: Assembly } => model.assembly !== undefined && (positionals.length === 0 || positionals.includes(model.id)));
 if (selected.length === 0) throw new Error('No model with an assembly matches.');
 let passed = true;
 for (const model of selected) {
   const parameters = { ...model.defaults, ...(values.parameters ? JSON.parse(values.parameters) as ParameterValues : {}) };
-  passed = await checkModel(model, parameters, { parts: Number(values.tolerance), snaps: Number(values['snap-tolerance']) }) && passed;
+  passed = await checkModel(model, parameters, { parts: Number(values.tolerance), snaps: Number(values['snap-tolerance']) }, overrides) && passed;
 }
 process.exitCode = passed ? 0 : 1;

@@ -59,6 +59,13 @@ model with no adjustable parameters simply leaves every mapping empty (empty `pa
 mappings are part of the cache fingerprint, as are all part sources. Because a part receives no other `-D`, its own
 constants (`ROUNDNESS` etc.) apply exactly as written.
 
+A shared generator can select a physical piece with `ModelPart.scadConstants`
+(e.g. the AI duck's `{ PART: 'face' }`). These are trusted number, boolean or
+string literals, not editable parameters. `scadDefines` validates their
+uppercase names and rejects collisions with mapped variables. Constants are
+included in the cache fingerprint, and both the worker and assembly checker
+pass them to OpenSCAD.
+
 **Values that are not plain literals.** The worker writes each mapped value after `-D NAME=` with `scadLiteral`: JSON for
 numbers, booleans and strings (which OpenSCAD reads as they are), unless the model's `scadEncode` has a function for that key.
 The cigarette case's `logo` uses one: the parameter is a validated logo string, and `logoScad` writes it as a vector of numbers.
@@ -78,6 +85,16 @@ the assembled state, in the exploded layout and along each step's path (see [cig
 Under the slider, a parts list names every part and reference object (their `title`s). All of them are shown by default, and each
 button hides or shows its part, at any point of the slider, so that the parts inside can be seen. Nothing needs to be added to the
 model for this. Models without `assembly` keep the plain grid.
+
+For dimensions or optional pieces that change the layout,
+`assemblyForParameters(parameters)` returns the matching poses and steps;
+keep `assembly` as the default catalogue layout. `resolveAssembly` applies
+this function before adding linked reference objects. Poses need only name
+the active pieces for these parameters. Optional `assembly.partColors` maps
+part ids to suggested `#RRGGBB` filament colors. The viewer uses these colors
+for the meshes and part-list swatches; they are not encoded in STL. The editor
+keeps assembly metadata with the completed render while newer settings are
+being rendered or downloaded. See [AI rubber ducks](ai-rubber-duck.md).
 
 **Reference objects (optional).** `assembly.references` lists real-world objects the assembly holds, such as the lighter that
 the cigarette case's round bay is sized for. They get poses and steps like parts, so the preview shows how they fit, but they are

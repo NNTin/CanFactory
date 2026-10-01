@@ -5,7 +5,7 @@ import { unzipSync } from 'fflate';
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import type { ReferenceObject } from './referenceObjects.ts';
-import { createStage } from './stage.ts';
+import { createStage, smoothNormals } from './stage.ts';
 
 /**
  * One mesh to show: STL `bytes`, or a `geometry` built from a library part's dimensions (e.g. a magnet). `reference` marks a
@@ -79,6 +79,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
   const [unsupported, setUnsupported] = useState(false);
   const [progress, setProgress] = useState(0);
   const [loadedParts, setLoadedParts] = useState<LoadedPart[]>([]);
+  const [shownAssembly, setShownAssembly] = useState<Assembly>();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
   const assemblyRef = useRef(assembly); assemblyRef.current = assembly;
   const referencesRef = useRef(references); referencesRef.current = references;
@@ -93,6 +94,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     const { group } = stage;
     const material = new THREE.MeshStandardMaterial({ color: 0xc76743, metalness: 0.06, roughness: 0.58, side: THREE.DoubleSide });
     const referenceMaterial = new THREE.MeshStandardMaterial({ color: 0x3f6ea6, metalness: 0.2, roughness: 0.45, side: THREE.DoubleSide });
+    let coloredMaterials: THREE.MeshStandardMaterial[] = [];
+    let isWireframe = false;
     let placements: Placement[] = []; let currentAssembly: Assembly | undefined; let sliderValue = 0;
     let hiddenIds: ReadonlySet<string> = new Set();
     // The visible parts, also on the container (`data-visible-parts`), so the page's tests can see what the scene shows.
@@ -109,14 +112,19 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     let geometries: THREE.BufferGeometry[] = [];
     scene.current = {
       reset: stage.reset,
-      wireframe(enabled) { material.wireframe = enabled; referenceMaterial.wireframe = enabled; },
+      wireframe(enabled) {
+        isWireframe = enabled;
+        for (const current of [material, referenceMaterial, ...coloredMaterials]) current.wireframe = enabled;
+      },
       setParts(parts, assembly) {
         group.clear();
         for (const geometry of geometries) geometry.dispose();
         geometries = [];
+        for (const current of coloredMaterials) current.dispose();
+        coloredMaterials = [];
         const prepared = parts.map(part => {
-          const geometry = 'geometry' in part ? part.geometry : new STLLoader().parse(part.bytes);
-          geometry.computeVertexNormals(); geometry.computeBoundingBox();
+          const geometry = smoothNormals('geometry' in part ? part.geometry : new STLLoader().parse(part.bytes));
+          geometry.computeBoundingBox();
           const bounds = geometry.boundingBox;
           if (!bounds) { geometry.dispose(); return null; }
           return { id: part.name.replace(/\.stl$/i, ''), reference: part.reference === true, geometry, bounds, size: bounds.getSize(new THREE.Vector3()) };
@@ -131,7 +139,13 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         const footprintX = columns * cell; const footprintY = rows * cell;
         placements = prepared.map((part, index) => {
           const column = index % columns; const row = Math.floor(index / columns);
-          const partMesh = new THREE.Mesh(part.geometry, part.reference ? referenceMaterial : material); partMesh.castShadow = true;
+          const color = assembly?.partColors?.[part.id];
+          let partMaterial = part.reference ? referenceMaterial : material;
+          if (!part.reference && color) {
+            partMaterial = material.clone(); partMaterial.color.set(color); partMaterial.wireframe = isWireframe;
+            coloredMaterials.push(partMaterial);
+          }
+          const partMesh = new THREE.Mesh(part.geometry, partMaterial); partMesh.castShadow = true;
           const grid = new THREE.Vector3(
             (column + 0.5) * cell - footprintX / 2 - (part.bounds.min.x + part.bounds.max.x) / 2,
             footprintY / 2 - (row + 0.5) * cell - (part.bounds.min.y + part.bounds.max.y) / 2,
@@ -158,6 +172,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     return () => {
       scene.current = null;
       for (const geometry of geometries) geometry.dispose();
+      for (const current of coloredMaterials) current.dispose();
       material.dispose(); referenceMaterial.dispose(); stage.dispose();
     };
   }, []);
@@ -165,6 +180,9 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
   useEffect(() => {
     if (!url) return;
     const abort = new AbortController();
+    // Capture metadata with this URL: settings can change during the fetch.
+    const loadedAssembly = assemblyRef.current;
+    const loadedReferences = referencesRef.current;
     // Reference objects are static files, or built from their part's dimensions: one that cannot be loaded is left out rather
     // than failing the preview.
     const loadReference = async (reference: ReferenceObject): Promise<Part[]> => {
@@ -172,15 +190,18 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
       const response = await fetch(reference.url, { signal: abort.signal });
       return response.ok ? [{ name: `${reference.id}.stl`, bytes: await response.arrayBuffer(), reference: true }] : [];
     };
-    const loadReferences = format === 'zip' && assemblyRef.current
-      ? Promise.all(referencesRef.current.map(reference => loadReference(reference).catch((): Part[] => []))).then(loaded => loaded.flat()) : Promise.resolve([]);
+    const loadReferences = format === 'zip' && loadedAssembly
+      ? Promise.all(loadedReferences.map(reference => loadReference(reference).catch((): Part[] => []))).then(loaded => loaded.flat()) : Promise.resolve([]);
     void fetch(url, { signal: abort.signal }).then(async response => {
       if (!response.ok) throw new Error('The preview file is unavailable. Generate it again.');
       const bytes = await response.arrayBuffer();
       const extra = await loadReferences;
       if (abort.signal.aborted) return;
-      const loaded = scene.current?.setParts(format === 'zip' ? [...partsFromZip(bytes), ...extra] : [{ name: 'model', bytes }], format === 'zip' ? assemblyRef.current : undefined);
-      if (loaded) setLoadedParts(format === 'zip' ? loaded : []);
+      const loaded = scene.current?.setParts(format === 'zip' ? [...partsFromZip(bytes), ...extra] : [{ name: 'model', bytes }], format === 'zip' ? loadedAssembly : undefined);
+      if (loaded) {
+        setLoadedParts(format === 'zip' ? loaded : []);
+        setShownAssembly(format === 'zip' ? loadedAssembly : undefined);
+      }
       if (scene.current) onLoadedRef.current(url);
     }).catch((error: unknown) => {
       if (!abort.signal.aborted) onErrorRef.current(error instanceof Error ? error.message : 'Could not load the preview.');
@@ -195,7 +216,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     if (!next.delete(id)) next.add(id);
     return next;
   });
-  const stops = assembly ? assemblyStops(assembly) - 1 : 1;
+  const displayedAssembly = shownAssembly ?? assembly;
+  const stops = displayedAssembly ? assemblyStops(displayedAssembly) - 1 : 1;
   // Arrow keys and Page Up/Down jump between the stops; Home and End keep their native meaning.
   const stepSlider = (event: KeyboardEvent<HTMLInputElement>) => {
     const direction = { ArrowRight: 1, ArrowUp: 1, PageUp: 1, ArrowLeft: -1, ArrowDown: -1, PageDown: -1 }[event.key];
@@ -217,15 +239,15 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
       <div className="viewer-instructions"><span>Drag to orbit</span><i /><span>Scroll to zoom</span><i /><span>Right-drag to pan</span></div>
       <div className="axis-label"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
     </div>
-    {assembly && format === 'zip' && url && <div className="assembly-bar">
-      <div className="assembly-caption"><span>ASSEMBLY</span><strong aria-hidden="true">{assemblyCaption(assembly, progress)}</strong></div>
+    {displayedAssembly && format === 'zip' && url && <div className="assembly-bar">
+      <div className="assembly-caption"><span>ASSEMBLY</span><strong aria-hidden="true">{assemblyCaption(displayedAssembly, progress)}</strong></div>
       <div className="assembly-track">
-        <input type="range" min={0} max={1} step={0.001} value={progress} aria-label="Assembly" aria-valuetext={assemblyCaption(assembly, progress)}
+        <input type="range" min={0} max={1} step={0.001} value={progress} aria-label="Assembly" aria-valuetext={assemblyCaption(displayedAssembly, progress)}
           onChange={event => setProgress(Number(event.currentTarget.value))} onKeyDown={stepSlider} />
         <div className="assembly-stops" aria-hidden="true">{Array.from({ length: stops + 1 }, (_, index) => <i key={index} className={progress * stops >= index - 1e-6 ? 'reached' : ''} />)}</div>
       </div>
     </div>}
-    {assembly && format === 'zip' && url && loadedParts.length > 0 && <div className="assembly-parts" role="group" aria-label="Visible parts">
+    {displayedAssembly && format === 'zip' && url && loadedParts.length > 0 && <div className="assembly-parts" role="group" aria-label="Visible parts">
       <span>PARTS</span>
       <div>{loadedParts.map(part => {
         const visible = !hidden.has(part.id);
@@ -233,6 +255,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         return <button key={part.id} type="button" className={part.reference ? 'reference' : undefined} aria-pressed={visible}
           title={`${visible ? 'Hide' : 'Show'} ${title}`} onClick={() => toggle(part.id)}>
           {visible ? <Eye size={13} aria-hidden="true" /> : <EyeOff size={13} aria-hidden="true" />}{title}
+          {displayedAssembly.partColors?.[part.id] && <span className="part-color" style={{ backgroundColor: displayedAssembly.partColors[part.id] }} title={`Suggested filament: ${displayedAssembly.partColors[part.id]}`} aria-hidden="true" />}
         </button>;
       })}</div>
     </div>}
