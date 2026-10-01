@@ -4,6 +4,7 @@
  * `#/parts/<family>` and `#/parts/<family>/<part>`, each optionally with filters as a query, e.g. `#/parts/screw?thread=M3`.
  */
 export type Route =
+  | { view: 'concepts'; concept: 'catio' }
   | { view: 'models'; model: string | null }
   | { view: 'parts'; family: string | null; part: string | null; filters: Record<string, string> };
 
@@ -13,6 +14,7 @@ const segment = (value: string | undefined): string | null => value ? decodeURIC
 export function parseHash(hash: string): Route | null {
   const [path = '', query = ''] = hash.replace(/^#\/?/, '').split('?');
   const [view, first, second] = path.split('/');
+  if (view === 'concepts' && first === 'catio' && !second) return { view: 'concepts', concept: 'catio' };
   if (view === 'models') return { view: 'models', model: segment(first) };
   if (view === 'parts') {
     const filters = Object.fromEntries([...new URLSearchParams(query)].filter(([, value]) => value !== ''));
@@ -22,6 +24,7 @@ export function parseHash(hash: string): Route | null {
 }
 
 export function formatHash(route: Route): string {
+  if (route.view === 'concepts') return '#/concepts/catio';
   if (route.view === 'models') return route.model ? `#/models/${encodeURIComponent(route.model)}` : '#/models';
   const family = route.family ? `/${encodeURIComponent(route.family)}` : '';
   const path = `#/parts${family}${family && route.part ? `/${encodeURIComponent(route.part)}` : ''}`;

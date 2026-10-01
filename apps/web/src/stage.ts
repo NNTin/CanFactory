@@ -27,11 +27,14 @@ export interface Stage {
    */
   frame: (extent: number, height: number, focus: THREE.Vector3) => void;
   reset: () => void;
+  /** Camera and target in the model's Z-up coordinates. */
+  lookAt: (position: THREE.Vector3, target: THREE.Vector3) => void;
   dispose: () => void;
 }
 
 /** Sets up the stage in `element` and keeps it sized to it; null when WebGL is unavailable. */
-export function createStage(element: HTMLElement, label: string): Stage | null {
+export function createStage(element: HTMLElement, label: string, options: { scale?: number; workshopFloor?: boolean } = {}): Stage | null {
+  const scale = options.scale ?? 1;
   let renderer: THREE.WebGLRenderer;
   try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
   catch { return null; }
@@ -43,24 +46,25 @@ export function createStage(element: HTMLElement, label: string): Stage | null {
   renderer.domElement.setAttribute('role', 'img');
   element.appendChild(renderer.domElement);
   const world = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 10000);
+  const camera = new THREE.PerspectiveCamera(34, 1, 0.1 * scale, 10000 * scale);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.075;
-  controls.minDistance = 10; controls.maxDistance = 2000;
+  controls.minDistance = 10 * scale; controls.maxDistance = 2000 * scale;
   const ambient = new THREE.HemisphereLight(0xffffff, 0xa1a797, 2.3); world.add(ambient);
   const light = new THREE.DirectionalLight(0xfff7ec, 3.5);
-  light.position.set(-120, 200, 100); light.castShadow = true;
+  light.position.set(-120 * scale, 200 * scale, 100 * scale); light.castShadow = true;
   light.shadow.mapSize.set(2048, 2048);
-  light.shadow.camera.left = -250; light.shadow.camera.right = 250;
-  light.shadow.camera.top = 250; light.shadow.camera.bottom = -250;
-  light.shadow.camera.far = 1000; light.shadow.bias = -0.0005;
+  light.shadow.camera.left = -250 * scale; light.shadow.camera.right = 250 * scale;
+  light.shadow.camera.top = 250 * scale; light.shadow.camera.bottom = -250 * scale;
+  light.shadow.camera.far = 1000 * scale; light.shadow.bias = -0.0005;
   world.add(light);
-  const fill = new THREE.DirectionalLight(0xffffff, 1.5); fill.position.set(120, 40, -100); world.add(fill);
+  const fill = new THREE.DirectionalLight(0xffffff, 1.5); fill.position.set(120 * scale, 40 * scale, -100 * scale); world.add(fill);
   const group = new THREE.Group(); group.rotation.x = -Math.PI / 2; world.add(group);
   const floorMaterial = new THREE.ShadowMaterial({ opacity: 0.1 });
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), floorMaterial);
   floor.rotation.x = -Math.PI / 2; floor.position.y = -0.06; floor.receiveShadow = true; world.add(floor);
   const grid = new THREE.GridHelper(600, 60, 0xd1d4c9, 0xe1e2d9); grid.position.y = -0.1; world.add(grid);
+  floor.visible = grid.visible = options.workshopFloor !== false;
   let extent = 100; let height = 60; let first = true; const focus = new THREE.Vector3();
   const reset = () => {
     camera.position.set(focus.x + extent * 1.55, extent * 1.18, focus.z + extent * 1.85);
@@ -78,6 +82,11 @@ export function createStage(element: HTMLElement, label: string): Stage | null {
   loop();
   return {
     renderer, camera, group, reset,
+    lookAt(position, target) {
+      camera.position.copy(group.localToWorld(position.clone()));
+      controls.target.copy(group.localToWorld(target.clone()));
+      controls.update();
+    },
     frame(nextExtent, nextHeight, nextFocus) {
       const oldExtent = extent; extent = nextExtent; height = nextHeight; focus.copy(nextFocus);
       if (first || extent > oldExtent * 1.5 || extent < oldExtent / 2) reset();

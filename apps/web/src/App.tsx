@@ -7,6 +7,7 @@ import { referenceObjects } from './referenceObjects.ts';
 import { formatHash, parseHash, partLink, type Route } from './route.ts';
 import { Viewer } from './Viewer.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
+import { CatioConcept } from './CatioConcept.tsx';
 
 type ModelCard = Pick<ModelDetail, 'id' | 'version' | 'title' | 'description' | 'attribution' | 'license' | 'licenseUrl' | 'artifactFormat' | 'customizable'>;
 const settingsKey = (model: ModelDetail) => `canfactory:settings:${model.id}:${model.version}`;
@@ -567,10 +568,11 @@ export function App() {
       <span className="header-tagline">A little factory for useful things.</span><div className="header-right">
         <button type="button" className="library-link" aria-current={route?.view === 'models' ? 'page' : undefined} onClick={openLibrary}>Model library <span>{models.length.toString().padStart(2, '0')}</span></button>
         <button type="button" className="library-link" aria-current={partsRoute ? 'page' : undefined} onClick={openParts}>Parts library <span>{partCount.toString().padStart(2, '0')}</span></button>
+        <button type="button" className="library-link" aria-current={route?.view === 'concepts' ? 'page' : undefined} onClick={() => navigate({ view: 'concepts', concept: 'catio' })}>Catio concept</button>
         <span className="local-badge"><i /> Local workspace</span></div>
     </header>
     <main>
-      {partsRoute ? <>
+      {route?.view === 'concepts' ? <><div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button><span>/</span><span>Catio concept</span></div><CatioConcept /></> : partsRoute ? <>
         <div className="breadcrumb"><button type="button" onClick={openParts}><ArrowLeft size={13} /> Parts library</button>
           {partsRoute.family && <><span>/</span>{partsRoute.part
             ? <button type="button" onClick={() => navigate({ ...partsRoute, part: null })}>{family?.title ?? partsRoute.family}</button>
@@ -584,6 +586,7 @@ export function App() {
           : model ? <><div className="page-heading"><div><div className="eyebrow">THE MODEL WORKSHOP</div><h1>{model.title}</h1><p>{model.description}</p></div><span className="model-tag"><span /> {model.customizable ? 'PARAMETRIC MODEL' : 'ASSEMBLY PREVIEW'}</span></div><Editor key={`${model.id}:${model.version}`} model={model} /></>
             : <><div className="page-heading library-heading"><div><div className="eyebrow">THE MODEL LIBRARY</div><h1>Useful things. Made to fit.</h1><p>Start with a model. Make a few changes. Make it yours.</p></div></div>
               <div className="model-library">{models.map(item => <button type="button" className="model-card" key={item.id} onClick={() => navigate({ view: 'models', model: item.id })}><div className="card-art">{(() => { const Illustration = ILLUSTRATIONS[item.id]; return Illustration ? <Illustration /> : <Box size={60} strokeWidth={1} />; })()}</div><div className="card-copy"><span className="eyebrow">{item.customizable ? 'CUSTOMIZABLE' : 'PREVIEW'} · {item.artifactFormat.toUpperCase()}</span><h2>{item.title}</h2><p>{item.description}</p><span className="card-action">{item.customizable ? 'Customize model' : 'View model'} <ArrowRight size={17} /></span></div></button>)}
+                <button type="button" className="model-card" onClick={() => navigate({ view: 'concepts', concept: 'catio' })}><div className="card-art catio-card-art"><Box size={70} strokeWidth={1} /></div><div className="card-copy"><span className="eyebrow">CONCEPT · LIVE ASSEMBLY</span><h2>Window catio</h2><p>A timber enclosure, a removable window connection, and grass under their paws.</p><span className="card-action">Explore the concept <ArrowRight size={17} /></span></div></button>
                 <div className="coming-next"><span className="plus-shape">+</span><h2>More useful things to come.</h2><p>A growing collection for everyday making.</p></div></div></>}
       </>}
     </main>
