@@ -33,9 +33,9 @@ export type CatioLayer = 'timber' | 'mesh' | 'hardware' | 'environment';
 export type CatioView = 'Exterior' | 'Interior' | 'Front' | 'Side' | 'Top' | 'Mounting';
 export const CATIO_VIEWS: Record<CatioView, { position: [number, number, number]; target: [number, number, number] }> = {
   Exterior: { position: [2300, 3100, 2100], target: [0, 300, 560] },
-  Interior: { position: [-1850, -2700, 1600], target: [0, -70, 600] },
+  Interior: { position: [1850, -2700, 1600], target: [0, -70, 600] },
   Front: { position: [0, 3700, 650], target: [0, 200, 650] },
   Side: { position: [3500, 450, 630], target: [0, 450, 630] },
   Top: { position: [0, 450, 3700], target: [0, 451, 0] },
-  Mounting: { position: [-950, -1200, 1100], target: [-280, -55, 700] },
+  Mounting: { position: [700, -1400, 1100], target: [-180, -55, 680] },
 };

@@ -29,11 +29,13 @@ export interface Stage {
   reset: () => void;
   /** Camera and target in the model's Z-up coordinates. */
   lookAt: (position: THREE.Vector3, target: THREE.Vector3) => void;
+  /** Notify the stage after changing procedural geometry or visibility. */
+  invalidate: () => void;
   dispose: () => void;
 }
 
 /** Sets up the stage in `element` and keeps it sized to it; null when WebGL is unavailable. */
-export function createStage(element: HTMLElement, label: string, options: { scale?: number; workshopFloor?: boolean } = {}): Stage | null {
+export function createStage(element: HTMLElement, label: string, options: { scale?: number; workshopFloor?: boolean; renderOnDemand?: boolean } = {}): Stage | null {
   const scale = options.scale ?? 1;
   let renderer: THREE.WebGLRenderer;
   try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
@@ -48,6 +50,9 @@ export function createStage(element: HTMLElement, label: string, options: { scal
   const world = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1 * scale, 10000 * scale);
   const controls = new OrbitControls(camera, renderer.domElement);
+  let dirty = true;
+  const invalidate = () => { dirty = true; };
+  controls.addEventListener('change', invalidate);
   controls.enableDamping = true; controls.dampingFactor = 0.075;
   controls.minDistance = 10 * scale; controls.maxDistance = 2000 * scale;
   const ambient = new THREE.HemisphereLight(0xffffff, 0xa1a797, 2.3); world.add(ambient);
@@ -75,13 +80,17 @@ export function createStage(element: HTMLElement, label: string, options: { scal
     const width = element.clientWidth; const clientHeight = element.clientHeight;
     if (!width || !clientHeight) return;
     renderer.setSize(width, clientHeight); camera.aspect = width / clientHeight; camera.updateProjectionMatrix();
+    invalidate();
   });
   resize.observe(element);
   let animation = 0;
-  const loop = () => { animation = requestAnimationFrame(loop); controls.update(); renderer.render(world, camera); };
+  const loop = () => {
+    animation = requestAnimationFrame(loop); controls.update();
+    if (dirty || !options.renderOnDemand) { renderer.render(world, camera); dirty = false; }
+  };
   loop();
   return {
-    renderer, camera, group, reset,
+    renderer, camera, group, reset, invalidate,
     lookAt(position, target) {
       camera.position.copy(group.localToWorld(position.clone()));
       controls.target.copy(group.localToWorld(target.clone()));

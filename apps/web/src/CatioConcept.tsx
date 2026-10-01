@@ -40,7 +40,7 @@ export function CatioConcept() {
   };
   useEffect(() => {
     const element = container.current; if (!element) return;
-    const stage = createStage(element, 'Interactive catio concept. Drag to orbit, scroll to zoom, right-drag to pan.', { scale: 12, workshopFloor: false });
+    const stage = createStage(element, 'Interactive catio concept. Drag to orbit, scroll to zoom, right-drag to pan.', { scale: 12, workshopFloor: false, renderOnDemand: true });
     if (!stage) { setUnsupported(true); return; }
     const model = createCatioScene(); stage.group.add(model.root);
     controller.current = { stage, model }; model.update(stateRef.current);
@@ -51,6 +51,7 @@ export function CatioConcept() {
   }, []);
   useEffect(() => {
     controller.current?.model.update({ progress, exploded, windowOpen, cutaway, hidden });
+    controller.current?.stage.invalidate();
     if (container.current) container.current.dataset['visibleParts'] = controller.current?.model.components.filter(part => part.group.visible).map(part => part.id).join(' ') ?? '';
   }, [progress, exploded, windowOpen, cutaway, hidden]);
   const selectView = (name: CatioView) => {
