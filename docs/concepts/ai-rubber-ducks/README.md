@@ -2,7 +2,9 @@
 
 Rubber duck debugging meets AI pair programming: the familiar duck body with a
 Claude, Codex, Anthropic, or OpenAI face. These PNG sheets explore the design
-before creating an OpenSCAD model.
+before creating an OpenSCAD model. All eight are now available in the
+[AI rubber duck model](../../ai-rubber-duck.md), with separate printable pieces,
+assembly instructions and views rendered from the actual STL files.
 
 Each brand has two versions, each shown from the front, left side, rear, and
 front three-quarter angle:
@@ -27,13 +29,12 @@ interpretations, not production brand assets.
 Open a PNG for the full-resolution 1536 × 1024 sheet. Each sheet contains four
 views of one concept, giving eight versions and 32 views across the collection.
 
-## Later OpenSCAD work
+## OpenSCAD interpretation
 
-Use these as visual references for choosing a design. Generated views can have
-small geometric differences and are not dimensioned engineering drawings.
-Overall dimensions, wall thickness, head attachment, symbol detail, and print
-orientation remain to be defined when modeling. The flat belly, thick neck,
-rounded wings, and connected head forms establish the intended direction.
+These remain the visual references. Generated views can have small geometric
+differences and are not dimensioned engineering drawings. The implementation
+adds flat print surfaces, keyed push-fit pegs and mounting feet while retaining
+the flat belly, rounded wings, head silhouettes and color-separated pieces.
 
 ## Generation
 

@@ -225,6 +225,8 @@ const controls = [
 /** One independently rendered, self-contained SCAD file that is part of a multi-part assembly model. */
 export interface ModelPart {
   id: string; title: string; sourcePath: string;
+  /** Trusted constants selecting a part of a shared generator; never supplied by API callers. */
+  scadConstants?: Record<string, number | boolean | string>;
   /** Parameter key -> SCAD variable, for the parameters this part consumes (a subset of the model's; may be shared). */
   scadMapping?: Record<string, string>;
   /** Absent means always present. When set, the part is rendered (and appears in the ZIP) only for parameters it accepts. */
@@ -290,6 +292,7 @@ const Vector = (description: string) => Type.Array(Type.Number(), { minItems: 3,
  * (see `referencePart`).
  */
 export const AssemblySchema = Type.Object({
+  partColors: Type.Optional(Type.Record(Type.String(), Type.String({ pattern: '^#[0-9a-fA-F]{6}$' }), { description: 'Suggested filament colors by printed part id; also used in the preview.' })),
   poses: Type.Record(Type.String(), Type.Object({
     position: Vector('Translation in mm, applied after the rotation.'),
     rotation: Type.Optional(Vector('Rotation in degrees about the part’s own origin, applied about X, then Y, then Z.')),
@@ -346,6 +349,8 @@ export interface ModelDefinition {
   parts?: ModelPart[];
   /** Only for an assembly: how its parts go together (the preview's assembly slider). */
   assembly?: Assembly;
+  /** Geometry-derived poses, steps and colors for these settings; assembly remains the catalogue default. */
+  assemblyForParameters?: (parameters: ParameterValues) => Assembly;
   /** Other files whose content changes the geometry (e.g. fonts), so that they are part of the cache fingerprint. */
   assetPaths?: string[];
   parameterSchema: TSchema;
@@ -381,7 +386,7 @@ export function scadLiteral(model: ModelDefinition, key: string, value: number |
  * `scadLiteral` writes them) and the dimensions of the parts its `partDefines` names. Only mapped, validated values reach
  * OpenSCAD. Shared by the worker and `npm run check:assembly`, so that both render the same thing.
  */
-export function scadDefines(model: ModelDefinition, source: { scadMapping?: Record<string, string>; partDefines?: PartDefines }, parameters: ParameterValues): [string, string][] {
+export function scadDefines(model: ModelDefinition, source: { scadMapping?: Record<string, string>; partDefines?: PartDefines; scadConstants?: ModelPart['scadConstants'] }, parameters: ParameterValues): [string, string][] {
   const defines: [string, string][] = [];
   const name = (scadName: string) => { if (!/^[A-Z_]+$/.test(scadName)) throw new Error('Invalid generator parameter mapping.'); return scadName; };
   for (const [key, scadName] of Object.entries(source.scadMapping ?? {})) {
@@ -394,6 +399,11 @@ export function scadDefines(model: ModelDefinition, source: { scadMapping?: Reco
     const part = typeof id === 'string' ? findPart(id) : undefined;
     if (!part) throw new Error(`Parameter ${key} is not a part of the library.`);
     for (const [scadName, define] of Object.entries(variables)) defines.push([name(scadName), partDefineLiteral(part, define)]);
+  }
+  for (const [scadName, value] of Object.entries(source.scadConstants ?? {})) {
+    if (defines.some(([existing]) => existing === scadName) || (typeof value === 'number' && !Number.isFinite(value)))
+      throw new Error('Invalid generator constant.');
+    defines.push([name(scadName), JSON.stringify(value)]);
   }
   return defines;
 }
@@ -1532,10 +1542,76 @@ export const litterShovel = {
   },
 } satisfies ModelDefinition;
 
+/** The eight approved image concepts, in gallery order. */
+export const AI_DUCK_VARIANTS = [
+  'claude-v1-round', 'claude-v2-sculpted', 'codex-v1-round', 'codex-v2-sculpted',
+  'anthropic-v1-round', 'anthropic-v2-sculpted', 'openai-v1-round', 'openai-v2-sculpted',
+] as const;
+export const AiRubberDuckParametersSchema = Type.Object({
+  variant: Type.Enum(AI_DUCK_VARIANTS, { title: 'Version', description: 'Choose the brand face and round or sculpted head from the concept gallery.', default: 'claude-v1-round' }),
+  bodyLength: dimension('Body length', 'Length from breast to tail in mm. All pieces are generated to fit at this size.', 90, 70, 120, 1),
+  clearance: dimension('Joint clearance', 'Gap per side around the peg core in mm. Smaller values grip more tightly; the small crush ribs hold the pieces together.', 0.2, 0.1, 0.25, 0.01),
+}, { additionalProperties: false });
+export type AiRubberDuckParameters = Static<typeof AiRubberDuckParametersSchema>;
+
+const duckControls = [
+  enumControl(AiRubberDuckParametersSchema, 'variant', 'basic', AI_DUCK_VARIANTS.map(value => {
+    const brand = value.startsWith('openai') ? 'OpenAI' : value.startsWith('anthropic') ? 'Anthropic' : value.startsWith('codex') ? 'Codex' : 'Claude';
+    return { value, label: `${brand} · ${value.endsWith('round') ? 'Round' : 'Sculpted'}`,
+      description: value.endsWith('round') ? 'Yellow duck with a rounded head and raised symbol face.' : 'Cream duck with a sculpted symbol or terminal head.' };
+  })),
+  control(AiRubberDuckParametersSchema, 'bodyLength', 'basic'),
+  control(AiRubberDuckParametersSchema, 'clearance', 'advanced'),
+];
+const duckDefaults: AiRubberDuckParameters = { variant: 'claude-v1-round', bodyLength: 90, clearance: 0.2 };
+
+/** Same face frame as generator.scad: across=-Y, up=Z, out=-X. STLs print face down;
+ * undo that turn, then place them in this frame. Dimensions are checked against rendered meshes. */
+export function aiDuckAssembly(parameters: ParameterValues): Assembly {
+  const variant = String(parameters['variant']);
+  const s = Number(parameters['bodyLength']) / 90;
+  const round = variant.endsWith('round'), codex = variant.startsWith('codex'), anthropic = variant.startsWith('anthropic');
+  const thickness = round ? (codex ? 7 : 3) * s : codex ? 26 * s : Math.max(8, 8 * s);
+  const x = (round ? -35 : codex ? -14 : -24) * s, z = (round ? 53 : 70) * s;
+  const pose = (out: number): Assembly['poses'][string] => ({ position: [x - out, 0, z], rotation: [-90, 0, -90] });
+  const poses: Assembly['poses'] = { body: { position: [0, 0, 0] }, face: pose(thickness) };
+  const partColors: Record<string, string> = { body: round ? '#ffda4a' : '#f2e3c3', face: variant.startsWith('claude') ? '#d7774b' : '#292b2e' };
+  const moving = ['face'];
+  const steps: Assembly['steps'] = [];
+  if (codex) {
+    for (const id of ['chevron', 'bar']) {
+      poses[id] = pose(thickness + 2.2 * s); partColors[id] = '#f5f2ea'; moving.push(id);
+    }
+    steps.push({ title: 'Push the white inserts into the terminal face', parts: ['chevron', 'bar'], from: [-15 * s, 0, 0] });
+  } else if (anthropic && round) {
+    poses['bar'] = pose(thickness); partColors['bar'] = '#292b2e'; moving.push('bar');
+  }
+  steps.push({ title: round ? 'Push the symbol face onto the duck' : 'Push the sculpted head onto the neck', parts: moving, from: round ? [-28 * s, 0, 0] : [0, 0, 32 * s] });
+  return { poses, partColors, steps, lift: 35 * s };
+}
+
+const duckParts: ModelPart[] = [
+  { id: 'body', title: 'Duck body' },
+  { id: 'face', title: 'Face / head' },
+  { id: 'chevron', title: 'Chevron insert', includedWhen: (p: ParameterValues) => String(p['variant']).startsWith('codex') },
+  { id: 'bar', title: 'Bar insert', includedWhen: (p: ParameterValues) => String(p['variant']).startsWith('codex') || p['variant'] === 'anthropic-v1-round' },
+].map(part => ({ ...part, sourcePath: 'models/ai-rubber-duck/generator.scad', scadConstants: { PART: part.id }, scadMapping: { variant: 'VARIANT', bodyLength: 'BODY_LENGTH', clearance: 'CLEARANCE' } }));
+
+export const aiRubberDuck = {
+  id: 'ai-rubber-duck' as const, version: '1' as const, title: 'AI rubber duck',
+  description: 'Rubber duck debugging meets AI pair programming. Choose one of eight Claude, Codex, Anthropic and OpenAI designs, adjust its size and fit, then print the colored pieces separately and push them together.',
+  attribution: 'CanFactory; brand marks belong to their respective owners',
+  license: 'CC BY 4.0 (model geometry)', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  printNotes: 'Use the suggested filament colors beside each part. Print the body upright and the face/head and inserts face down as supplied; use local supports for the curved body, neck pegs and sculpted heads. Start with PLA, a 0.4 mm nozzle, 0.2 mm layers and 3 perimeters. Remove support from mating surfaces. Fit the white Codex inserts first, then push the face or head onto the keyed pegs. Match body length and clearance across all pieces. Lower clearance grips more tightly. Physical fit needs a test print.',
+  parameterSchema: AiRubberDuckParametersSchema, controls: duckControls, defaults: duckDefaults,
+  parts: duckParts, assembly: aiDuckAssembly(duckDefaults), assemblyForParameters: aiDuckAssembly,
+  scadMapping: {}, validate: () => [], derived: () => ({ slotCount: null }),
+} satisfies ModelDefinition;
+
 /** Add models here; shared API contracts and the generic editor consume this registry. Widened to the shared
  * interface (rather than the precise literal-typed tuple) so generic code can read optional fields uniformly;
  * `findModel`/`RenderRequestSchema` still discriminate on each model's own literal `id`/`version`. */
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel];
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

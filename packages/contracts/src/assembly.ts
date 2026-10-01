@@ -51,7 +51,8 @@ function linkedSteps(linked: LinkedReference[]): Assembly['steps'] {
  * of a magnet snap. Each gets its pose, joins the steps that move the part it is mounted in (or a step of its own after them), and is
  * titled after its library part.
  */
-export function resolveAssembly(model: Pick<ModelDefinition, 'linkedReferences'> | undefined, assembly: Assembly | undefined, parameters: ParameterValues): Assembly | undefined {
+export function resolveAssembly(model: Pick<ModelDefinition, 'linkedReferences' | 'assemblyForParameters'> | undefined, assembly: Assembly | undefined, parameters: ParameterValues): Assembly | undefined {
+  assembly = model?.assemblyForParameters?.(parameters) ?? assembly;
   const linked = assembly ? model?.linkedReferences?.(parameters) ?? [] : [];
   if (!assembly || linked.length === 0) return assembly;
   return {

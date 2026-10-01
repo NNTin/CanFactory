@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { activeParts, CASE_MAGNETS, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, litterShovel, mossPlanter, plankConnector, SCOOP_BLADE, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, litterShovel, mossPlanter, plankConnector, SCOOP_BLADE, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
@@ -16,7 +16,7 @@ const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
 store.migrate(); store.seed();
 const app = await createApp(store);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = selectRunner(directory);
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -382,6 +382,38 @@ try {
       assert.ok(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength)).sha256, `litter shovel ${name} ${entryName}: expected a valid individual STL`);
     assert.equal(store.enqueue(litterShovel, parameters).id, job.id);
     console.log(`PASS litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+  // Eight concepts at default and the size/clearance corners: independent closed pieces, one ZIP.
+  for (const variant of only && only !== 'ai-rubber-duck' ? [] : AI_DUCK_VARIANTS) {
+    for (const [bodyLength, clearance] of [[90, 0.2], [70, 0.1], [70, 0.25], [120, 0.1], [120, 0.25]] as const) {
+      const parameters = { ...aiRubberDuck.defaults, variant, bodyLength, clearance };
+      assert.deepEqual(validateParameters(aiRubberDuck, parameters), []);
+      const queued = store.enqueue(aiRubberDuck, parameters), job = store.claim();
+      assert.ok(job?.leaseToken);
+      const token = job.leaseToken, heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+      try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true); }
+      finally { clearInterval(heartbeat); }
+      const result = store.getJob(queued.id);
+      assert.equal(result?.status, 'succeeded');
+      assert.ok(result.artifact && 'parts' in result.artifact);
+      const expected = activeParts(aiRubberDuck, parameters).map(part => part.id);
+      assert.deepEqual(result.artifact.parts.map(part => part.id), expected);
+      const bytes = await readFile(store.artifacts.path(job.id, 'zip'));
+      const entries = unzipSync(new Uint8Array(bytes));
+      assert.deepEqual(Object.keys(entries), expected.map(id => `${id}.stl`));
+      for (const [name, entry] of Object.entries(entries)) {
+        const mesh = inspectStl(Buffer.from(entry));
+        assert.ok(mesh.volume > 0, name);
+        assert.ok(mesh.triangles < 100_000, `${name}: excessive complexity`);
+        if (name === 'body.stl') assert.ok(Math.abs(mesh.dimensions.x - bodyLength) < 0.1, `${variant}: wrong body length`);
+      }
+      const preview = await app.inject(`/api/v1/renders/${job.id}/zip`);
+      const download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
+      assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
+      assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
+      assert.equal(store.enqueue(aiRubberDuck, parameters).id, queued.id);
+      console.log(`PASS AI duck ${variant}: ${bodyLength} mm, clearance ${clearance}, ${expected.length} pieces`);
+    }
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

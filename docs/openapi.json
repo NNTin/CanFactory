@@ -612,6 +612,14 @@
                         "lift"
                       ],
                       "properties": {
+                        "partColors": {
+                          "type": "object",
+                          "description": "Suggested filament colors by printed part id; also used in the preview.",
+                          "additionalProperties": {
+                            "type": "string",
+                            "pattern": "^#[0-9a-fA-F]{6}$"
+                          }
+                        },
                         "poses": {
                           "type": "object",
                           "description": "Assembled pose per part id.",
@@ -1952,6 +1960,73 @@
             "application/json": {
               "schema": {
                 "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "modelId",
+                      "modelVersion",
+                      "parameters"
+                    ],
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "enum": [
+                          "ai-rubber-duck"
+                        ]
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "enum": [
+                          "1"
+                        ]
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "required": [
+                          "variant",
+                          "bodyLength",
+                          "clearance"
+                        ],
+                        "properties": {
+                          "variant": {
+                            "enum": [
+                              "claude-v1-round",
+                              "claude-v2-sculpted",
+                              "codex-v1-round",
+                              "codex-v2-sculpted",
+                              "anthropic-v1-round",
+                              "anthropic-v2-sculpted",
+                              "openai-v1-round",
+                              "openai-v2-sculpted"
+                            ],
+                            "title": "Version",
+                            "description": "Choose the brand face and round or sculpted head from the concept gallery.",
+                            "default": "claude-v1-round"
+                          },
+                          "bodyLength": {
+                            "type": "number",
+                            "title": "Body length",
+                            "description": "Length from breast to tail in mm. All pieces are generated to fit at this size.",
+                            "default": 90,
+                            "minimum": 70,
+                            "maximum": 120,
+                            "multipleOf": 1
+                          },
+                          "clearance": {
+                            "type": "number",
+                            "title": "Joint clearance",
+                            "description": "Gap per side around the peg core in mm. Smaller values grip more tightly; the small crush ribs hold the pieces together.",
+                            "default": 0.2,
+                            "minimum": 0.1,
+                            "maximum": 0.25,
+                            "multipleOf": 0.01
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
                   {
                     "type": "object",
                     "required": [
