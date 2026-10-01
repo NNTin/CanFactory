@@ -6,6 +6,14 @@ Open **AI rubber duck** in the model library (`/#/models/ai-rubber-duck`).
 with a round head, or a cream duck with a sculpted symbol/terminal head, for
 Claude, Codex, Anthropic and OpenAI. These are rigid printed desk models.
 
+The shared body follows proportions measured from the concept sheets' side and
+front views: an upright, plump body about as tall as it is long, a 24 mm
+(at 90 mm) round head set high over the breast, a rump that rises into a short,
+upturned tail, and low-relief wings with three feather tips. Its parts are
+joined by convex hulls, so they blend like a moulded duck rather than meeting
+at creases. Claude · Round is the first face reworked to match its concept;
+the other faces follow.
+
 **Body length** measures breast to tail: 70–120 mm, default 90 mm. The head,
 body and insert positions scale together. **Joint clearance**, under Advanced
 settings, is the radial gap around each peg core: 0.10–0.25 mm per side,
@@ -21,7 +29,7 @@ buttons. STL files themselves do not store color.
 
 | Version | `body.stl` | `face.stl` | Extra pieces |
 | --- | --- | --- | --- |
-| Claude · Round | Yellow | Terracotta starburst | None |
+| Claude · Round | Yellow | Terracotta starburst inlay | None |
 | Claude · Sculpted | Cream | Terracotta starburst head | None |
 | Codex · Round | Yellow | Charcoal terminal face | White `chevron.stl`, white `bar.stl` |
 | Codex · Sculpted | Cream | Charcoal terminal head | White `chevron.stl`, white `bar.stl` |
@@ -30,6 +38,8 @@ buttons. STL files themselves do not store color.
 | OpenAI · Round | Yellow | Charcoal knot | None |
 | OpenAI · Sculpted | Cream | Charcoal knot head | None |
 
+The Claude round starburst is an inlay: it sits in a star-shaped pocket in the
+head, and its pillowed top follows the head's curve, so no seat shows round it.
 The Anthropic round A and I are separate pieces even though they share a color.
 The sculpted AI has a joining foot so it prints as one piece. The sculpted
 starburst and knot also have a small mounting foot; the knot keeps its openings.
@@ -39,7 +49,8 @@ to printable parts.
 ## Printing and assembly
 
 Start with PLA, a 0.4 mm nozzle, 0.2 mm layers and three perimeters. The body
-exports upright on a flat base. Faces, heads and inserts export face down.
+exports upright on a flat base. Faces, heads and inserts export face down,
+except the Claude round inlay, which exports on its flat back.
 Use local slicer supports under curved body overhangs and the sculpted heads'
 sideways neck pegs. Inspect the slice before printing; clear support and any
 elephant's foot from mating surfaces.
@@ -48,6 +59,8 @@ elephant's foot from mating surfaces.
    terminal face. Each insert has two locating pegs.
 2. For round ducks, align the pegs on the back of the symbol with the holes
    in the yellow head and press straight back. Fit the Anthropic I separately.
+   For Claude, the pegs stand in the head's star-shaped pocket instead: drop
+   the inlay into the pocket over them and press it home.
 3. For sculpted ducks, align the downward pegs with the neck holes and press
    the head straight down. Support the part close to the joint while pressing.
 

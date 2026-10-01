@@ -5,7 +5,7 @@ import { unzipSync } from 'fflate';
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import type { ReferenceObject } from './referenceObjects.ts';
-import { createStage } from './stage.ts';
+import { createStage, smoothNormals } from './stage.ts';
 
 /**
  * One mesh to show: STL `bytes`, or a `geometry` built from a library part's dimensions (e.g. a magnet). `reference` marks a
@@ -123,8 +123,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         for (const current of coloredMaterials) current.dispose();
         coloredMaterials = [];
         const prepared = parts.map(part => {
-          const geometry = 'geometry' in part ? part.geometry : new STLLoader().parse(part.bytes);
-          geometry.computeVertexNormals(); geometry.computeBoundingBox();
+          const geometry = smoothNormals('geometry' in part ? part.geometry : new STLLoader().parse(part.bytes));
+          geometry.computeBoundingBox();
           const bounds = geometry.boundingBox;
           if (!bounds) { geometry.dispose(); return null; }
           return { id: part.name.replace(/\.stl$/i, ''), reference: part.reference === true, geometry, bounds, size: bounds.getSize(new THREE.Vector3()) };

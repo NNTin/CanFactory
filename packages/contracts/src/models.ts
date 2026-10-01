@@ -1571,10 +1571,14 @@ export function aiDuckAssembly(parameters: ParameterValues): Assembly {
   const variant = String(parameters['variant']);
   const s = Number(parameters['bodyLength']) / 90;
   const round = variant.endsWith('round'), codex = variant.startsWith('codex'), anthropic = variant.startsWith('anthropic');
+  // Claude v1's star is an inlay printed on its flat back, which sits 10.5 mm inside the head's front (FACE_X).
+  const inlay = variant === 'claude-v1-round';
   const thickness = round ? (codex ? 7 : 3) * s : codex ? 26 * s : Math.max(8, 8 * s);
-  const x = (round ? -35 : codex ? -14 : -24) * s, z = (round ? 53 : 70) * s;
+  const x = (inlay ? -43 : round ? -34 : codex ? -14 : -24) * s, z = (round ? 61 : 70) * s;
   const pose = (out: number): Assembly['poses'][string] => ({ position: [x - out, 0, z], rotation: [-90, 0, -90] });
-  const poses: Assembly['poses'] = { body: { position: [0, 0, 0] }, face: pose(thickness) };
+  const poses: Assembly['poses'] = {
+    body: { position: [0, 0, 0] }, face: inlay ? { position: [x + 10.5 * s, 0, z], rotation: [90, 0, -90] } : pose(thickness),
+  };
   const partColors: Record<string, string> = { body: round ? '#ffda4a' : '#f2e3c3', face: variant.startsWith('claude') ? '#d7774b' : '#292b2e' };
   const moving = ['face'];
   const steps: Assembly['steps'] = [];

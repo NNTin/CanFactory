@@ -35,6 +35,9 @@ These remain the visual references. Generated views can have small geometric
 differences and are not dimensioned engineering drawings. The implementation
 adds flat print surfaces, keyed push-fit pegs and mounting feet while retaining
 the flat belly, rounded wings, head silhouettes and color-separated pieces.
+The shared body's proportions were measured from the Claude · 01 side and front
+views (scaled to a 90 mm body length), and Claude · 01's starburst is modeled as
+a pillowed inlay that follows the head's curve.
 
 ## Generation
 

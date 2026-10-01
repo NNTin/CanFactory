@@ -1,5 +1,19 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/** Faces meeting at more than this angle keep a hard edge; gentler ones shade as one smooth surface. */
+const CREASE_ANGLE = THREE.MathUtils.degToRad(30);
+
+/**
+ * Smooth normals for a mesh, so that curved surfaces don't show every facet, while CAD edges stay crisp. Returns the geometry to
+ * use: a new one when `geometry` was indexed, in which case `geometry` is disposed.
+ */
+export function smoothNormals(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
+  const smoothed = toCreasedNormals(geometry, CREASE_ANGLE);
+  if (smoothed !== geometry) geometry.dispose();
+  return smoothed;
+}
 
 /** The 3D scene both previews share: lights, the floor with its grid, an orbit camera, and `group`, which holds the meshes. */
 export interface Stage {

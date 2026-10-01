@@ -46,6 +46,14 @@ describe('AI rubber duck', () => {
     }
   });
 
+  it('seats the Claude round inlay, printed on its flat back, inside the head at every size', () => {
+    for (const bodyLength of [70, 90, 120]) {
+      const s = bodyLength / 90, face = aiDuckAssembly({ ...aiRubberDuck.defaults, variant: 'claude-v1-round', bodyLength }).poses['face'];
+      expect(face?.rotation).toEqual([90, 0, -90]);
+      [-32.5 * s, 0, 61 * s].forEach((coordinate, axis) => expect(face?.position[axis]).toBeCloseTo(coordinate));
+    }
+  });
+
   it('keeps minimum sculpted-head depth when shrinking and rejects conflicting generator constants', () => {
     const assembly = aiDuckAssembly({ ...aiRubberDuck.defaults, variant: 'claude-v2-sculpted', bodyLength: 70 });
     expect(assembly.poses['face']?.position[0]).toBeCloseTo(-24 * 70 / 90 - 8);

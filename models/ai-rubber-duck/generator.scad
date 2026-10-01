@@ -18,9 +18,19 @@ CLAUDE = VARIANT == "claude-v1-round" || VARIANT == "claude-v2-sculpted";
 CODEX = VARIANT == "codex-v1-round" || VARIANT == "codex-v2-sculpted";
 ANTHROPIC = VARIANT == "anthropic-v1-round" || VARIANT == "anthropic-v2-sculpted";
 OPENAI = VARIANT == "openai-v1-round" || VARIANT == "openai-v2-sculpted";
+// Round heads (proportions read off the concept sheets, see docs/concepts/ai-rubber-ducks/):
+// a 24 mm sphere whose top is 85 mm up, centred 26 mm behind the breast.
+HEAD_X = -19 * S;
+HEAD_Z = 61 * S;
+HEAD_R = 24 * S;
+// Claude v1 is a flat-backed inlay: its pillowed top follows the head sphere, so no flat seat
+// shows round the symbol. The pocket floor sits below the head surface at the star's tips.
+INLAY = CLAUDE && ROUND;
+INLAY_H = 3.5 * S;
+INLAY_FLOOR = -10.5 * S;
 T = ROUND ? (CODEX ? 7 : 3)*S : CODEX ? 26*S : max(8,8*S);
-FACE_X = (ROUND ? -35 : CODEX ? -14 : -24) * S;
-FACE_Z = (ROUND ? 53 : 70) * S;
+FACE_X = INLAY ? HEAD_X - HEAD_R : ROUND ? -34 * S : (CODEX ? -14 : -24) * S;
+FACE_Z = (ROUND ? 61 : 70) * S;
 GLYPH_T = 2.8 * S;
 GLYPH_Z = T - 0.6 * S;
 
@@ -30,7 +40,7 @@ assert(CLEARANCE >= 0.1 && CLEARANCE <= 0.25, "Clearance must be 0.10-0.25 mm pe
 assert(PART == "body" || PART == "face" || PART == "chevron" || PART == "bar", "Unknown part");
 
 // [face X, face Y, radius]. Unequal peg diameters key the orientation.
-FACE_PINS = ANTHROPIC ? [[-10*S,-8*S,1.5],[4*S,-8*S,1.8]] : OPENAI ? [[-9.5*S,2*S,1],[3.5*S,12.5*S,1.15]] : [[-5*S,0,1.5],[5*S,0,1.8]];
+FACE_PINS = INLAY ? [[0,-4.5*S,1.5],[0,4.5*S,1.8]] : ANTHROPIC ? [[-10*S,-8*S,1.5],[4*S,-8*S,1.8]] : OPENAI ? [[-9.5*S,2*S,1],[3.5*S,12.5*S,1.15]] : [[-5*S,0,1.5],[5*S,0,1.8]];
 BAR_PINS = CODEX ? [[5*S,-7*S,1],[10*S,-7*S,1.15]] : [[14*S,-4*S,1],[14*S,4*S,1.15]];
 CHEVRON_PINS = [[-8*S,6*S,1],[-8*S,-4*S,1.15]];
 NECK_PINS = [[-5*S,2.2],[5*S,2.6]];
@@ -75,24 +85,48 @@ module neck_connections(holes=false) {
         if (holes) socket(p[1],5); else peg(p[1],5);
 }
 
+// Torso surface half-width at nominal (x, z): wing pieces sit on it rather than float.
+function torso_y(x,z) = 33*sqrt(max(0,1-pow(x/45,2)-pow((z-20)/26,2)));
+// An ellipsoid of nominal radii r standing `proud` mm off the torso surface at nominal (x, z).
+module on_torso(sign,x,z,r,proud) ellipsoid([x*S,sign*(torso_y(x,z)+proud-r[1])*S,z*S],r*S);
+// One low-relief wing, as on the concept: a rounded shoulder and three stacked feather bands
+// pointing back, the top one longest. Shallow grooves form where the bands round off.
+module wing(sign) {
+    // [mid x, mid z, tip x, tip z, tip radius]
+    for (b=[[6,29.5,22,32,4],[6,22.5,20.5,23.5,3.8],[3,15,15,16,3.4]]) hull() {
+        on_torso(sign,-9,20,[13,6,12.5],3.8);
+        on_torso(sign,b[0],b[1],[8,6,4.5],3.6);
+        on_torso(sign,b[2],b[3],[b[4],5,b[4]],3);
+    }
+}
+
+// Body proportions were measured from the silhouettes of the LEFT SIDE and FRONT views in
+// docs/concepts/ai-rubber-ducks/claude-v1-round.png, scaled so breast to tail is 90 mm:
+// 85 mm tall, back 42-46 mm and tail tip 50 mm high, belly flat from 10 to 70 mm behind
+// the breast, 66 mm wide (82 mm across the wings).
+// Breast-to-back body, flattened by the bed into a stable belly.
+module torso() ellipsoid([0,0,20*S],[45*S,33*S,26*S]);
+
 module body() {
     difference() {
         intersection() {
             union() {
-                ellipsoid([-3*S,0,20*S],[42*S,31*S,23*S]);
+                torso();
+                // The rump rises into a short, upturned tail. Hulling it with the rear of the
+                // body keeps one smooth surface instead of a separate bulb.
                 hull() {
-                    ellipsoid([29*S,0,27*S],[12*S,15*S,10*S]);
-                    ellipsoid([40*S,0,40*S],[5*S,8*S,8*S]);
+                    intersection() { torso(); translate([28*S,-50*S,0]) cube([50*S,100*S,100*S]); }
+                    ellipsoid([39*S,0,46*S],[6*S,9*S,5*S]);
                 }
-                for (sign=[-1,1]) {
-                    ellipsoid([-3*S,sign*28*S,24*S],[19*S,7*S,11*S]);
-                    for (i=[0:2]) ellipsoid([(-2-i*2)*S,sign*31*S,(18+i*5)*S],[(16-i)*S,4.6*S,4.2*S]);
-                }
+                for (sign=[-1,1]) wing(sign);
                 if (ROUND) difference() {
-                    // The head flows directly into the breast. Flatten only the head's
-                    // face seat, leaving the curved breast below the symbol intact.
-                    ellipsoid([-22*S,0,53*S],[21*S,21*S,21*S]);
-                    translate([-100*S,-50*S,0]) cube([65*S,100*S,100*S]);
+                    // A thick, short neck flows into the round head.
+                    hull() {
+                        ellipsoid([HEAD_X,0,HEAD_Z],[HEAD_R,HEAD_R,HEAD_R],$fn=96);
+                        ellipsoid([HEAD_X+2*S,0,42*S],[14*S,17*S,7*S]);
+                    }
+                    // Faces other than the inlay sit on a flat seat.
+                    if (!INLAY) translate([-100*S,-50*S,0]) cube([100*S+FACE_X,100*S,100*S]);
                 } else intersection() {
                     ellipsoid([-27*S,0,38*S],[14*S,15*S,19*S]);
                     translate([-60*S,-30*S,0]) cube([70*S,60*S,48*S]);
@@ -100,20 +134,32 @@ module body() {
             }
             translate([-100*S,-100*S,0]) cube([200*S,200*S,150*S]);
         }
-        if (ROUND) {
+        if (INLAY) face_frame() inlay_pocket();
+        else if (ROUND) {
             face_frame() {
                 pins(FACE_PINS,4,true);
                 if (ANTHROPIC) pins(BAR_PINS,3,true);
             }
         } else face_frame() neck_connections(true);
     }
+    if (INLAY) face_frame() translate([0,0,INLAY_FLOOR]) mirror([0,0,1]) pins(FACE_PINS,4);
 }
 
 module star() {
-    lengths=[18,15.8,17.8,16.2,18.1,15.7,17.3,16.1,18,16.3,17.6,16];
-    circle(7);
-    for (i=[0:11]) let(a=-90+i*30, l=lengths[i]-2.4)
-        stroke([[0,0],[l*cos(a),l*sin(a)]],2.4);
+    if (INLAY) {
+        // Ten thick, tapering rays with rounded tips round a broad hub.
+        lengths=[18.8,16.4,18.2,16.8,18.6,16.2,18.4,16.6,18.0,16.5];
+        circle(7);
+        for (i=[0:9]) let(a=-90+i*36, l=lengths[i]-2.3) hull() {
+            translate([4*cos(a),4*sin(a)]) circle(3.2);
+            translate([l*cos(a),l*sin(a)]) circle(2.3);
+        }
+    } else {
+        lengths=[18,15.8,17.8,16.2,18.1,15.7,17.3,16.1,18,16.3,17.6,16];
+        circle(7);
+        for (i=[0:11]) let(a=-90+i*30, l=lengths[i]-2.4)
+            stroke([[0,0],[l*cos(a),l*sin(a)]],2.4);
+    }
 }
 module letter_a() {
     difference() {
@@ -158,6 +204,22 @@ module bar_outline() {
 }
 module glyph_shape(which) { if (which == "chevron") chevron_outline(); else bar_outline(); }
 
+// Face frame, with the head sphere centred at Z = -HEAD_R. The inlay's top is the head
+// surface raised by INLAY_H, its edges rounded by stacking insets under smaller spheres.
+module inlay() {
+    re = 1.6*S;
+    difference() {
+        union() for (i=[0:6]) let(a=i*15) intersection() {
+            translate([0,0,INLAY_FLOOR]) linear_extrude(INLAY_H-INLAY_FLOOR+E) offset(delta=-re*(1-cos(a))) face_outline();
+            translate([0,0,-HEAD_R]) sphere(HEAD_R+INLAY_H-re+re*sin(a),$fn=128);
+        }
+        translate([0,0,INLAY_FLOOR]) mirror([0,0,1]) pins(FACE_PINS,4,true);
+    }
+}
+module inlay_pocket() {
+    translate([0,0,INLAY_FLOOR]) linear_extrude(-INLAY_FLOOR+INLAY_H+2*S) offset(delta=CLEARANCE) face_outline();
+}
+
 module face() {
     difference() {
         union() {
@@ -185,7 +247,11 @@ module glyph(which) {
 }
 
 if (PART == "body") body();
-else if (PART == "face") translate([0,0,T]) rotate([180,0,0]) face();
+else if (PART == "face") {
+    // The inlay prints on its flat back; the others print face down.
+    if (INLAY) translate([0,0,-INLAY_FLOOR]) inlay();
+    else translate([0,0,T]) rotate([180,0,0]) face();
+}
 else {
     assert(CODEX || (ANTHROPIC && ROUND && PART == "bar"), "This version has no such insert");
     translate([0,0,CODEX ? GLYPH_T : T]) rotate([180,0,0]) glyph(PART);
