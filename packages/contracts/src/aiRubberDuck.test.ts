@@ -46,17 +46,28 @@ describe('AI rubber duck', () => {
     }
   });
 
-  it('seats the Claude round inlay, printed on its flat back, inside the head at every size', () => {
-    for (const bodyLength of [70, 90, 120]) {
-      const s = bodyLength / 90, face = aiDuckAssembly({ ...aiRubberDuck.defaults, variant: 'claude-v1-round', bodyLength }).poses['face'];
-      expect(face?.rotation).toEqual([90, 0, -90]);
-      [-32.5 * s, 0, 61 * s].forEach((coordinate, axis) => expect(face?.position[axis]).toBeCloseTo(coordinate));
+  it('seats every face where the generator puts it, scaling with the body', () => {
+    const expected: Record<string, { position: number[]; rotation: number[] }> = {
+      'claude-v1-round': { position: [-32.5, 0, 61], rotation: [90, 0, -90] },
+      'codex-v1-round': { position: [-31.4, 0, 61], rotation: [90, 0, -90] },
+      'anthropic-v1-round': { position: [-32.6, 0, 61], rotation: [90, 0, -90] },
+      'openai-v1-round': { position: [-31.8, 0, 61], rotation: [90, 0, -90] },
+      'claude-v2-sculpted': { position: [-14, 0, 62], rotation: [90, 0, -90] },
+      'codex-v2-sculpted': { position: [-44, 0, 60], rotation: [-90, 0, -90] },
+      'anthropic-v2-sculpted': { position: [-14, 0, 58], rotation: [90, 0, -90] },
+      'openai-v2-sculpted': { position: [-12, 0, 63], rotation: [90, 0, -90] },
+    };
+    for (const variant of AI_DUCK_VARIANTS) for (const bodyLength of [70, 90, 120]) {
+      const s = bodyLength / 90, face = aiDuckAssembly({ ...aiRubberDuck.defaults, variant, bodyLength }).poses['face'];
+      expect(face?.rotation).toEqual(expected[variant]?.rotation);
+      expected[variant]?.position.forEach((coordinate, axis) => expect(face?.position[axis]).toBeCloseTo(coordinate * s));
     }
+    const glyphs = aiDuckAssembly({ ...aiRubberDuck.defaults, variant: 'codex-v1-round' }).poses;
+    expect(glyphs['chevron']).toEqual({ position: [-37.2, 0, 61], rotation: [90, 0, -90] });
+    expect(glyphs['bar']).toEqual(glyphs['chevron']);
   });
 
-  it('keeps minimum sculpted-head depth when shrinking and rejects conflicting generator constants', () => {
-    const assembly = aiDuckAssembly({ ...aiRubberDuck.defaults, variant: 'claude-v2-sculpted', bodyLength: 70 });
-    expect(assembly.poses['face']?.position[0]).toBeCloseTo(-24 * 70 / 90 - 8);
+  it('rejects conflicting generator constants', () => {
     const part = aiRubberDuck.parts[0];
     if (!part) throw new Error('Missing body');
     expect(() => scadDefines(aiRubberDuck, { ...part, scadConstants: { BODY_LENGTH: 1 } }, aiRubberDuck.defaults)).toThrow('Invalid generator constant');

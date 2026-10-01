@@ -33,11 +33,12 @@ views of one concept, giving eight versions and 32 views across the collection.
 
 These remain the visual references. Generated views can have small geometric
 differences and are not dimensioned engineering drawings. The implementation
-adds flat print surfaces, keyed push-fit pegs and mounting feet while retaining
+adds flat print surfaces, keyed push-fit pegs and flat seats while retaining
 the flat belly, rounded wings, head silhouettes and color-separated pieces.
 The shared body's proportions were measured from the Claude · 01 side and front
-views (scaled to a 90 mm body length), and Claude · 01's starburst is modeled as
-a pillowed inlay that follows the head's curve.
+views (scaled to a 90 mm body length). Round faces are modeled as rounded inlays
+that follow the head's curve; sculpted heads are sized from their sheets and
+rest directly on the shoulders.
 
 ## Generation
 

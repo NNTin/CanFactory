@@ -1571,26 +1571,31 @@ export function aiDuckAssembly(parameters: ParameterValues): Assembly {
   const variant = String(parameters['variant']);
   const s = Number(parameters['bodyLength']) / 90;
   const round = variant.endsWith('round'), codex = variant.startsWith('codex'), anthropic = variant.startsWith('anthropic');
-  // Claude v1's star is an inlay printed on its flat back, which sits 10.5 mm inside the head's front (FACE_X).
-  const inlay = variant === 'claude-v1-round';
-  const thickness = round ? (codex ? 7 : 3) * s : codex ? 26 * s : Math.max(8, 8 * s);
-  const x = (inlay ? -43 : round ? -34 : codex ? -14 : -24) * s, z = (round ? 61 : 70) * s;
-  const pose = (out: number): Assembly['poses'][string] => ({ position: [x - out, 0, z], rotation: [-90, 0, -90] });
-  const poses: Assembly['poses'] = {
-    body: { position: [0, 0, 0] }, face: inlay ? { position: [x + 10.5 * s, 0, z], rotation: [90, 0, -90] } : pose(thickness),
-  };
-  const partColors: Record<string, string> = { body: round ? '#ffda4a' : '#f2e3c3', face: variant.startsWith('claude') ? '#d7774b' : '#292b2e' };
+  const brand = variant.split('-')[0] ?? '';
+  // Mirrors generator.scad (nominal mm at 90 mm, scaled by s). Round faces are inlays printed on their flat backs, which sit
+  // INLAY floor mm inside the head's front at x = -43; Codex v1's glyphs inlay into its visor the same way. Sculpted heads
+  // print on their flat backs at HEAD2's back X, except the Codex terminal, which prints face down (depth 34).
+  const inlayFloor: Record<string, number> = { claude: 10.5, codex: 11.6, anthropic: 10.4, openai: 11.2 };
+  const head2: Record<string, [number, number]> = { claude: [-14, 62], codex: [-10, 60], anthropic: [-14, 58], openai: [-12, 63] };
+  const [backX, headZ] = head2[brand] ?? [0, 0];
+  const flatBack = (x: number, z: number): Assembly['poses'][string] => ({ position: [x, 0, z], rotation: [90, 0, -90] });
+  const faceDown = (x: number): Assembly['poses'][string] => ({ position: [x, 0, headZ * s], rotation: [-90, 0, -90] });
+  const depth = 34 * s;
+  const face = round ? flatBack((-43 + (inlayFloor[brand] ?? 0)) * s, 61 * s) : codex ? faceDown(backX * s - depth) : flatBack(backX * s, headZ * s);
+  const poses: Assembly['poses'] = { body: { position: [0, 0, 0] }, face };
+  const partColors: Record<string, string> = { body: round ? '#ffda4a' : '#f2e3c3', face: brand === 'claude' ? '#d7774b' : '#292b2e' };
   const moving = ['face'];
   const steps: Assembly['steps'] = [];
   if (codex) {
     for (const id of ['chevron', 'bar']) {
-      poses[id] = pose(thickness + 2.2 * s); partColors[id] = '#f5f2ea'; moving.push(id);
+      poses[id] = round ? flatBack((-43 + 5.8) * s, 61 * s) : faceDown(backX * s - depth - 2.2 * s);
+      partColors[id] = '#f5f2ea'; moving.push(id);
     }
     steps.push({ title: 'Push the white inserts into the terminal face', parts: ['chevron', 'bar'], from: [-15 * s, 0, 0] });
   } else if (anthropic && round) {
-    poses['bar'] = pose(thickness); partColors['bar'] = '#292b2e'; moving.push('bar');
+    poses['bar'] = face; partColors['bar'] = '#292b2e'; moving.push('bar');
   }
-  steps.push({ title: round ? 'Push the symbol face onto the duck' : 'Push the sculpted head onto the neck', parts: moving, from: round ? [-28 * s, 0, 0] : [0, 0, 32 * s] });
+  steps.push({ title: round ? 'Push the symbol face onto the duck' : 'Seat the sculpted head on the shoulders', parts: moving, from: round ? [-28 * s, 0, 0] : [0, 0, 32 * s] });
   return { poses, partColors, steps, lift: 35 * s };
 }
 
@@ -1606,7 +1611,7 @@ export const aiRubberDuck = {
   description: 'Rubber duck debugging meets AI pair programming. Choose one of eight Claude, Codex, Anthropic and OpenAI designs, adjust its size and fit, then print the colored pieces separately and push them together.',
   attribution: 'CanFactory; brand marks belong to their respective owners',
   license: 'CC BY 4.0 (model geometry)', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
-  printNotes: 'Use the suggested filament colors beside each part. Print the body upright and the face/head and inserts face down as supplied; use local supports for the curved body, neck pegs and sculpted heads. Start with PLA, a 0.4 mm nozzle, 0.2 mm layers and 3 perimeters. Remove support from mating surfaces. Fit the white Codex inserts first, then push the face or head onto the keyed pegs. Match body length and clearance across all pieces. Lower clearance grips more tightly. Physical fit needs a test print.',
+  printNotes: 'Use the suggested filament colors beside each part. Print every piece as supplied: the body upright, inlays and sculpted heads on their flat backs, the Codex terminal head and its inserts face down; use local supports for the curved body and the pegs in the round head pockets. Start with PLA, a 0.4 mm nozzle, 0.2 mm layers and 3 perimeters. Remove support from mating surfaces. Fit the white Codex inserts first, then push the face or head onto the keyed pegs. Match body length and clearance across all pieces. Lower clearance grips more tightly. Physical fit needs a test print.',
   parameterSchema: AiRubberDuckParametersSchema, controls: duckControls, defaults: duckDefaults,
   parts: duckParts, assembly: aiDuckAssembly(duckDefaults), assemblyForParameters: aiDuckAssembly,
   scadMapping: {}, validate: () => [], derived: () => ({ slotCount: null }),

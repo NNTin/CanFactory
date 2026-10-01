@@ -11,8 +11,9 @@ front views: an upright, plump body about as tall as it is long, a 24 mm
 (at 90 mm) round head set high over the breast, a rump that rises into a short,
 upturned tail, and low-relief wings with three feather tips. Its parts are
 joined by convex hulls, so they blend like a moulded duck rather than meeting
-at creases. Claude · Round is the first face reworked to match its concept;
-the other faces follow.
+at creases. The faces follow their concepts too: round ducks wear the symbol as
+a relief that hugs the head, and on sculpted ducks the chunky, rounded symbol
+is the head, resting directly on the shoulders.
 
 **Body length** measures breast to tail: 70–120 mm, default 90 mm. The head,
 body and insert positions scale together. **Joint clearance**, under Advanced
@@ -31,38 +32,43 @@ buttons. STL files themselves do not store color.
 | --- | --- | --- | --- |
 | Claude · Round | Yellow | Terracotta starburst inlay | None |
 | Claude · Sculpted | Cream | Terracotta starburst head | None |
-| Codex · Round | Yellow | Charcoal terminal face | White `chevron.stl`, white `bar.stl` |
+| Codex · Round | Yellow | Charcoal terminal visor | White `chevron.stl`, white `bar.stl` |
 | Codex · Sculpted | Cream | Charcoal terminal head | White `chevron.stl`, white `bar.stl` |
-| Anthropic · Round | Yellow | Charcoal A | Charcoal `bar.stl` (I) |
-| Anthropic · Sculpted | Cream | Charcoal connected AI head | None |
-| OpenAI · Round | Yellow | Charcoal knot | None |
+| Anthropic · Round | Yellow | Charcoal A inlay | Charcoal `bar.stl` (I inlay) |
+| Anthropic · Sculpted | Cream | Charcoal AI head | None |
+| OpenAI · Round | Yellow | Charcoal knot inlay | None |
 | OpenAI · Sculpted | Cream | Charcoal knot head | None |
 
-The Claude round starburst is an inlay: it sits in a star-shaped pocket in the
-head, and its pillowed top follows the head's curve, so no seat shows round it.
-The Anthropic round A and I are separate pieces even though they share a color.
-The sculpted AI has a joining foot so it prints as one piece. The sculpted
-starburst and knot also have a small mounting foot; the knot keeps its openings.
-These feet, flat seating surfaces and beveled edges adapt the illustrations
-to printable parts.
+Every round face is an inlay: it sits in a pocket of its own shape in the
+head, and its rounded top follows the head's curve, so no seat shows round it.
+The Codex glyphs inlay into the visor the same way. The Anthropic round A and I
+are separate inlays even though they share a color; the knot's openings show
+the yellow head through them.
+
+Sculpted heads sit in a shallow cavity sunk into the shoulders, cut flat at
+the bottom so that the head rests on its floor. The Claude rays, the A and I,
+the knot strands and the terminal are rounded on both sides. A low link along
+the baseline joins the A to the I, which overhangs the shoulder as in the
+concept, so the head prints as one piece. Flat backs (and the terminal's flat
+front) and the cut seats adapt the illustrations to printable parts.
 
 ## Printing and assembly
 
 Start with PLA, a 0.4 mm nozzle, 0.2 mm layers and three perimeters. The body
-exports upright on a flat base. Faces, heads and inserts export face down,
-except the Claude round inlay, which exports on its flat back.
-Use local slicer supports under curved body overhangs and the sculpted heads'
-sideways neck pegs. Inspect the slice before printing; clear support and any
-elephant's foot from mating surfaces.
+exports upright on a flat base. Inlays and sculpted heads export on their flat
+backs; the Codex terminal head and its white inserts export face down.
+Use local slicer supports under curved body overhangs and the pegs that stand
+sideways in the round heads' pockets. Inspect the slice before printing; clear
+support and any elephant's foot from mating surfaces.
 
-1. For Codex, push the white chevron and bar into the shallow recesses in the
-   terminal face. Each insert has two locating pegs.
-2. For round ducks, align the pegs on the back of the symbol with the holes
-   in the yellow head and press straight back. Fit the Anthropic I separately.
-   For Claude, the pegs stand in the head's star-shaped pocket instead: drop
-   the inlay into the pocket over them and press it home.
-3. For sculpted ducks, align the downward pegs with the neck holes and press
-   the head straight down. Support the part close to the joint while pressing.
+1. For Codex, push the white chevron and bar into their recesses in the visor
+   or terminal. Each insert has two locating pegs: on the round visor they
+   stand in the recess, on the sculpted terminal they are on the insert.
+2. For round ducks, two pegs stand in the head's pocket. Drop the inlay into
+   the pocket over them and press it home. Fit the Anthropic I separately.
+3. For sculpted ducks, two pegs stand on the floor of the shoulder cavity.
+   Lower the head straight down onto them and press. Support the part close to
+   the joint while pressing.
 
 The paired pegs have different diameters to key their orientation. Chamfered
 tips and socket mouths guide insertion, and sockets have 0.5 mm extra depth.
