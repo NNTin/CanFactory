@@ -1976,6 +1976,7 @@ main {
 .catio-instructions li strong { color: #49563e; font-weight: 500; }
 .catio-instructions li p { color: #7d8672; font-size: 12px; line-height: 1.8; }
 .catio-card-art { color: #7f946b; background: linear-gradient(150deg, #eee8dc, #dae4cf); }
+.catio-card-art img { width: 100%; height: 100%; object-fit: cover; }
 @media (max-width: 1000px) {
   .catio-layout { grid-template-columns: 230px minmax(0, 1fr); gap: 20px; }
   .catio-canvas { height: 440px; }
@@ -1998,4 +1999,9 @@ main {
   .catio-section-heading { align-items: start; flex-direction: column; gap: 5px; }
   .catio-instructions ol { grid-template-columns: 1fr; gap: 12px; }
   .catio-heading .model-tag { display: none; }
+}
+@media (max-width: 520px) {
+  .site-header { flex-wrap: wrap; height: auto; min-height: 73px; padding-top: 14px; padding-bottom: 14px; row-gap: 12px; }
+  .header-right { flex-wrap: wrap; justify-content: flex-end; }
+  .local-badge { display: none; }
 }

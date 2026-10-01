@@ -36,7 +36,10 @@ export function CatioConcept() {
 
   const camera = (name: CatioView) => {
     const preset = CATIO_VIEWS[name];
-    controller.current?.stage.lookAt(new THREE.Vector3(...preset.position), new THREE.Vector3(...preset.target));
+    const target = new THREE.Vector3(...preset.target);
+    const position = new THREE.Vector3(...preset.position);
+    if (stateRef.current.exploded) position.sub(target).multiplyScalar(1.3).add(target);
+    controller.current?.stage.lookAt(position, target);
   };
   useEffect(() => {
     const element = container.current; if (!element) return;
@@ -54,6 +57,7 @@ export function CatioConcept() {
     controller.current?.stage.invalidate();
     if (container.current) container.current.dataset['visibleParts'] = controller.current?.model.components.filter(part => part.group.visible).map(part => part.id).join(' ') ?? '';
   }, [progress, exploded, windowOpen, cutaway, hidden]);
+  useEffect(() => { camera(view); }, [exploded, view]);
   const selectView = (name: CatioView) => {
     setView(name); camera(name);
     setCutaway(name === 'Interior' || name === 'Mounting');

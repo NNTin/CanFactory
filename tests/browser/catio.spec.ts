@@ -44,6 +44,10 @@ test('explores the catio and its assembly without a catalogue or render service'
     await expect(img).toHaveJSProperty('complete', true);
     expect(await img.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(1000);
   }
+  const downloads = gallery.getByRole('link', { name: 'Download PNG' });
+  await expect(downloads).toHaveCount(6);
+  const [download] = await Promise.all([page.waitForEvent('download'), downloads.first().click()]);
+  expect(download.suggestedFilename()).toBe('01-overview.png');
   await page.screenshot({ path: testInfo.outputPath('catio-desktop.png'), fullPage: true });
   await page.getByRole('button', { name: 'Model library', exact: false }).first().click();
   await expect(page).toHaveURL(/#\/models$/);

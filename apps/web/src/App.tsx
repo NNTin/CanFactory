@@ -8,6 +8,7 @@ import { formatHash, parseHash, partLink, type Route } from './route.ts';
 import { Viewer } from './Viewer.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { CatioConcept } from './CatioConcept.tsx';
+import catioThumbnail from '../../../docs/concepts/catio/01-overview.png';
 
 type ModelCard = Pick<ModelDetail, 'id' | 'version' | 'title' | 'description' | 'attribution' | 'license' | 'licenseUrl' | 'artifactFormat' | 'customizable'>;
 const settingsKey = (model: ModelDetail) => `canfactory:settings:${model.id}:${model.version}`;
@@ -586,7 +587,7 @@ export function App() {
           : model ? <><div className="page-heading"><div><div className="eyebrow">THE MODEL WORKSHOP</div><h1>{model.title}</h1><p>{model.description}</p></div><span className="model-tag"><span /> {model.customizable ? 'PARAMETRIC MODEL' : 'ASSEMBLY PREVIEW'}</span></div><Editor key={`${model.id}:${model.version}`} model={model} /></>
             : <><div className="page-heading library-heading"><div><div className="eyebrow">THE MODEL LIBRARY</div><h1>Useful things. Made to fit.</h1><p>Start with a model. Make a few changes. Make it yours.</p></div></div>
               <div className="model-library">{models.map(item => <button type="button" className="model-card" key={item.id} onClick={() => navigate({ view: 'models', model: item.id })}><div className="card-art">{(() => { const Illustration = ILLUSTRATIONS[item.id]; return Illustration ? <Illustration /> : <Box size={60} strokeWidth={1} />; })()}</div><div className="card-copy"><span className="eyebrow">{item.customizable ? 'CUSTOMIZABLE' : 'PREVIEW'} · {item.artifactFormat.toUpperCase()}</span><h2>{item.title}</h2><p>{item.description}</p><span className="card-action">{item.customizable ? 'Customize model' : 'View model'} <ArrowRight size={17} /></span></div></button>)}
-                <button type="button" className="model-card" onClick={() => navigate({ view: 'concepts', concept: 'catio' })}><div className="card-art catio-card-art"><Box size={70} strokeWidth={1} /></div><div className="card-copy"><span className="eyebrow">CONCEPT · LIVE ASSEMBLY</span><h2>Window catio</h2><p>A timber enclosure, a removable window connection, and grass under their paws.</p><span className="card-action">Explore the concept <ArrowRight size={17} /></span></div></button>
+                <button type="button" className="model-card" onClick={() => navigate({ view: 'concepts', concept: 'catio' })}><div className="card-art catio-card-art"><img src={catioThumbnail} alt="" loading="lazy" /></div><div className="card-copy"><span className="eyebrow">CONCEPT · LIVE ASSEMBLY</span><h2>Window catio</h2><p>A timber enclosure, a removable window connection, and grass under their paws.</p><span className="card-action">Explore the concept <ArrowRight size={17} /></span></div></button>
                 <div className="coming-next"><span className="plus-shape">+</span><h2>More useful things to come.</h2><p>A growing collection for everyday making.</p></div></div></>}
       </>}
     </main>
