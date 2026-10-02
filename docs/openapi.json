@@ -1380,18 +1380,37 @@
                           "required": [
                             "modelId",
                             "modelTitle",
-                            "via"
+                            "via",
+                            "kind"
                           ],
                           "properties": {
                             "modelId": {
-                              "type": "string"
+                              "type": "string",
+                              "description": "The model’s id, or for a concept its page under `#/concepts/`, e.g. `catio/window-insert`."
                             },
                             "modelTitle": {
                               "type": "string"
                             },
                             "via": {
                               "type": "string",
-                              "description": "The model’s setting that links to the part, or “Assembly preview” for a reference object."
+                              "description": "The model’s setting that links to the part, “Assembly preview” for a reference object, or the concept’s use of it."
+                            },
+                            "kind": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "model"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "concept"
+                                  ]
+                                }
+                              ],
+                              "description": "`model`: a model in the library; `concept`: a concept page."
                             }
                           },
                           "additionalProperties": false
@@ -1862,18 +1881,37 @@
                         "required": [
                           "modelId",
                           "modelTitle",
-                          "via"
+                          "via",
+                          "kind"
                         ],
                         "properties": {
                           "modelId": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "The model’s id, or for a concept its page under `#/concepts/`, e.g. `catio/window-insert`."
                           },
                           "modelTitle": {
                             "type": "string"
                           },
                           "via": {
                             "type": "string",
-                            "description": "The model’s setting that links to the part, or “Assembly preview” for a reference object."
+                            "description": "The model’s setting that links to the part, “Assembly preview” for a reference object, or the concept’s use of it."
+                          },
+                          "kind": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "model"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "concept"
+                                ]
+                              }
+                            ],
+                            "description": "`model`: a model in the library; `concept`: a concept page."
                           }
                         },
                         "additionalProperties": false

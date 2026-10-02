@@ -1,4 +1,4 @@
-import type { Part } from '@canfactory/contracts';
+import { METRIC_THREADS, type MetricThread, type Part } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -164,7 +164,61 @@ function magnet(part: Part): Piece[] {
   return [revolve([[0, 0], [r - c, 0], [r, c], [r, t - c], [r - c, t], [0, t]], NICKEL)];
 }
 
-const BUILDERS: Record<string, (part: Part) => Piece[]> = { screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet };
+function insertNut(part: Part): Piece[] {
+  // a steel sleeve: the coarse wood thread as rings between its core and outer diameter, with the metric bore inside
+  const l = value(part, 'l'); const outer = value(part, 'd') / 2; const core = value(part, 'core') / 2;
+  const bore = Number(part.attributes['thread']?.slice(1) ?? 8) / 2; const pitch = l / 6;
+  const outline: [number, number][] = [[bore, 0], [core, 0]];
+  for (let z = pitch / 2; z < l - pitch / 2; z += pitch) outline.push([outer, z], [core, Math.min(z + pitch / 2, l)]);
+  outline.push([core, l], [bore, l]);
+  return [ring(outline, STEEL, 32)];
+}
+
+function woodScrew(part: Part): Piece[] {
+  // the countersunk head is part of the length; the shank tapers to a point over its last 1.5 d
+  const d = value(part, 'd'); const l = value(part, 'l'); const dk = value(part, 'dk'); const k = value(part, 'k');
+  const pitch = d * 0.45; const tip = d * 1.5; const top = l - k;
+  const outline: [number, number][] = [[0, 0]];
+  for (let z = pitch / 2; z < top; z += pitch) {
+    const scale = Math.min(1, z / tip);
+    outline.push([d / 2 * scale, z], [d * 0.33 * scale, Math.min(z + pitch / 2, top)]);
+  }
+  outline.push([d * 0.33, top], [dk / 2, l], [0, l]);
+  const recess = (width: number, depth: number) => { const box = new THREE.BoxGeometry(width, depth, 0.04); box.translate(0, 0, l); return paint(box, DARK); };
+  return [revolve(outline, STEEL, 32), recess(dk * 0.45, dk * 0.1), recess(dk * 0.1, dk * 0.45)];
+}
+
+function staple(part: Part): Piece[] {
+  // two pointed legs joined by a round crown; the width across the legs is illustrative (no source gives it)
+  const d = value(part, 'd'); const l = value(part, 'l'); const r = l * 0.22;
+  // the crown's centre line peaks at l - d/2, so that the wire's top is at l
+  const base = l - d / 2 - r; const control = base + r * 4 / 3;
+  const path = new THREE.CurvePath<THREE.Vector3>();
+  path.add(new THREE.LineCurve3(new THREE.Vector3(-r, 0, d * 1.5), new THREE.Vector3(-r, 0, base)));
+  path.add(new THREE.CubicBezierCurve3(new THREE.Vector3(-r, 0, base), new THREE.Vector3(-r, 0, control), new THREE.Vector3(r, 0, control), new THREE.Vector3(r, 0, base)));
+  path.add(new THREE.LineCurve3(new THREE.Vector3(r, 0, base), new THREE.Vector3(r, 0, d * 1.5)));
+  const wire = paint(new THREE.TubeGeometry(path, 48, d / 2, 12, false), STEEL);
+  const point = (x: number) => { const cone = new THREE.ConeGeometry(d / 2, d * 1.5, 12); cone.rotateX(-Math.PI / 2); cone.translate(x, 0, d * 0.75); return paint(cone, STEEL); };
+  return [wire, point(-r), point(r)];
+}
+
+function levellingFoot(part: Part): Piece[] {
+  // elastomer cap, foot plate, ball cup, the hexagon on the ball, and the stud with its nut
+  const d1 = value(part, 'd1') / 2; const d = value(part, 'd'); const l1 = value(part, 'l1'); const l2 = value(part, 'l2');
+  const l3 = value(part, 'l3', l2); const l4 = value(part, 'l4'); const s = value(part, 's');
+  const cap = l3 - l2; const plate = cap + l4; const hex = s * 0.45; const top = l3;
+  return [
+    revolve([[0, 0], [d1 - 0.5, 0], [d1, 0.5], [d1, cap], [0, cap]], DARK),
+    revolve([[0, cap], [d1, cap], [d1, plate], [d1 * 0.62, plate + (top - hex - plate) * 0.55], [s * 0.45, top - hex], [0, top - hex]], STEEL),
+    prism(polygon(6, hexAcrossFlats(s)), top - hex, hex, STEEL),
+    shaft(d, (part.attributes['thread'] ?? '') in METRIC_THREADS ? METRIC_THREADS[part.attributes['thread'] as MetricThread] : d * 0.15, top, top + l1, l1, STEEL),
+    (() => { const nutShape = polygon(6, hexAcrossFlats(d * 1.6)); nutShape.holes.push(circle(d / 2)); return prism(nutShape, top + l1 * 0.45, d * 0.8, STEEL); })(),
+  ];
+}
+
+const BUILDERS: Record<string, (part: Part) => Piece[]> = {
+  screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot,
+};
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */
 export function partGeometry(part: Part): THREE.BufferGeometry | null {

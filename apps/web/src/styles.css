@@ -2027,3 +2027,32 @@ main {
 .catio-door-controls label { display: flex; align-items: center; gap: 6px; }
 .catio-door-controls small { color: #868c7d; }
 @media (min-width: 721px) { .catio-preview { position: sticky; top: 16px; } }
+.catio-subassemblies { display: grid; gap: 8px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.catio-subassemblies a { display: flex; gap: 8px; align-items: center; font-size: 12px; color: #687955; }
+.subassembly-parameters fieldset { display: grid; gap: 12px; }
+.catio-field.subassembly-field { display: grid; gap: 5px; }
+.catio-field.subassembly-field select { width: 100%; font: inherit; font-size: 12px; padding: 6px 8px; border: 1px solid #d3d9c8; border-radius: 5px; background: #fff; color: #44513a; max-width: 100%; }
+.subassembly-field small { font-size: 10.5px; line-height: 1.55; color: #8a917e; }
+.subassembly-parts { padding-top: 60px; }
+.subassembly-parts h2, .subassembly-decisions h2 { font-size: 28px; margin: 10px 0 8px; letter-spacing: -.6px; }
+.subassembly-parts > p { font-size: 12px; color: #808875; margin: 0 0 18px; }
+.subassembly-parts table { width: 100%; border-collapse: collapse; margin-bottom: 26px; font-size: 12px; background: #fafbf6; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.subassembly-parts caption { text-align: left; font-size: 13px; font-weight: 500; color: #49563e; padding: 0 0 8px; }
+.subassembly-parts th { text-align: left; font-weight: 500; font-size: 10px; letter-spacing: .4px; text-transform: uppercase; color: #858b7b; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.subassembly-parts td { padding: 9px 12px; border-bottom: 1px solid #eceee6; vertical-align: top; color: #59654d; line-height: 1.5; }
+.subassembly-parts td:first-child { width: 40px; font-variant-numeric: tabular-nums; }
+.subassembly-parts td a { color: #4d6b38; }
+.subassembly-decisions { padding: 40px 0 20px; }
+.subassembly-decisions > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 22px; }
+.subassembly-decisions article { background: #fafbf6; border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+.subassembly-decisions h3 { font-size: 17px; font-weight: 500; margin: 0 0 6px; }
+.subassembly-decisions p { font-size: 12px; line-height: 1.7; color: #6f7964; }
+@media (max-width: 760px) {
+  .subassembly-parts table, .subassembly-parts tbody, .subassembly-parts tr, .subassembly-parts td { display: block; }
+  .subassembly-parts thead { display: none; }
+  .subassembly-parts tr { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .subassembly-parts td { border: 0; padding: 3px 12px; }
+  .subassembly-decisions > div { grid-template-columns: minmax(0, 1fr); }
+}
+.catio-assembly p.subassembly-action { margin-top: 8px; color: #4f6440; min-height: 1.7em; }
+.subassembly-action strong { font-weight: 600; }

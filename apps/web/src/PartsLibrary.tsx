@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, BookOpen, Bolt, CircleAlert, CircleDot, Cog, Disc, ExternalLink, Flame, Hexagon, LoaderCircle, Magnet, Pin, Search, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BookOpen, Bolt, CircleAlert, CircleDot, Cog, Disc, ExternalLink, Flame, Hexagon, LoaderCircle, Magnet, Pin, Search, Footprints, Paperclip, Drill, type LucideIcon } from 'lucide-react';
 import { api } from '@canfactory/client';
 import type { Part, PartFamilyDetail, PartFamilySummary, PartSource } from '@canfactory/contracts';
 import { PartsViewer, VIEWER_LIMIT } from './PartsViewer.tsx';
@@ -9,6 +9,7 @@ type PartsRoute = Extract<Route, { view: 'parts' }>;
 
 const FAMILY_ICONS: Record<string, LucideIcon> = {
   magnet: Magnet, screw: Bolt, nut: Hexagon, washer: Disc, 'threaded-insert': CircleDot, bearing: Cog, pin: Pin, 'everyday-object': Flame,
+  'wood-screw': Drill, nail: Paperclip, 'insert-nut': CircleDot, 'levelling-foot': Footprints,
 };
 const BASIS_TEXT: Record<string, string> = { standard: 'Standard', manufacturer: 'Manufacturer', estimated: 'Estimated' };
 /** Search text is kept with the filters, under this key. */
@@ -72,7 +73,7 @@ function PartDetails({ detail, part }: { detail: PartFamilyDetail; part: Part })
       <li key={source.id}><span className={`source-kind source-${source.kind}`}>{source.kind}</span>{source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : source.title}
         <small> · {source.publisher} · read {source.accessed}</small></li>)}</ul>
     <h3>Used by</h3>
-    {usage.length > 0 ? <ul className="part-usage">{usage.map(use => <li key={`${use.modelId}:${use.via}`}><a href={formatHash({ view: 'models', model: use.modelId })}>{use.modelTitle}</a> <small>· {use.via}</small></li>)}</ul>
+    {usage.length > 0 ? <ul className="part-usage">{usage.map(use => <li key={`${use.modelId}:${use.via}`}><a href={use.kind === 'concept' ? `#/concepts/${use.modelId}` : formatHash({ view: 'models', model: use.modelId })}>{use.modelTitle}</a> <small>· {use.via}</small></li>)}</ul>
       : <p className="part-unused">No model links to this part yet.</p>}
   </article>;
 }

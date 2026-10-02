@@ -5,6 +5,7 @@ export * from './models.ts';
 export * from './assembly.ts';
 export * from './svgLogo.ts';
 export * from './parts/index.ts';
+export * from './concepts.ts';
 
 /** Stable error envelope; clients may branch on code and highlight field issues. */
 export const ErrorSchema = Type.Object({
@@ -74,8 +75,9 @@ export const RenderRequestSchema = Type.Union([
 export type RenderRequest = Static<typeof RenderRequestSchema>;
 
 export const PartUsageSchema = Type.Object({
-  modelId: Type.String(), modelTitle: Type.String(),
-  via: Type.String({ description: 'The model’s setting that links to the part, or “Assembly preview” for a reference object.' }),
+  modelId: Type.String({ description: 'The model’s id, or for a concept its page under `#/concepts/`, e.g. `catio/window-insert`.' }), modelTitle: Type.String(),
+  via: Type.String({ description: 'The model’s setting that links to the part, “Assembly preview” for a reference object, or the concept’s use of it.' }),
+  kind: Type.Union([Type.Literal('model'), Type.Literal('concept')], { description: '`model`: a model in the library; `concept`: a concept page.' }),
 }, { additionalProperties: false });
 
 export const PartFamilySummarySchema = Type.Object({

@@ -8,6 +8,8 @@ import { createModularCatio, type CatioDoor } from './catioModularScene.ts';
 import { MODULAR_DEFAULT, MODULAR_STEPS, modularCamera, modularLayout, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { CATIO_STORAGE_KEY, loadCatioSettings, type CatioViewing, type CatioMode } from './catioSettings.ts';
 import { CATIO_STEPS, CATIO_VIEWS, type CatioLayer, type CatioView } from './catioDesign.ts';
+import { CATIO_SUBASSEMBLY_TITLES } from './catioSubassemblies.ts';
+import { CATIO_SUBASSEMBLIES, formatHash } from './route.ts';
 
 const assets = import.meta.glob<string>('../../../docs/concepts/catio/*.png', { eager: true, query: '?url', import: 'default' });
 const sheets = [
@@ -111,6 +113,8 @@ export function CatioConcept() {
           <p>Fixed frame: 100 × 100 cm. Wall: 30 cm thick. Exterior recess: 15 cm deep. Timber: 45 mm square. Mesh openings: nominally 20 mm. Ramp: 30 cm wide, 70 cm horizontal run. Hinges are on the left viewed from indoors.</p>
           <p>These are concept assumptions, pending measurement. Hardware fit and structural sizing belong to the detailed design. Modular mode lets you adjust window, enclosure and tunnel dimensions. The 20 cm sill-to-grass drop is an assumption to confirm.</p>
         </details>
+        <nav className="catio-subassemblies" aria-label="Catio sub-assemblies"><span className="eyebrow">SUB-ASSEMBLIES</span>
+          {CATIO_SUBASSEMBLIES.map(id => <a key={id} href={formatHash({ view: 'concepts', concept: 'catio', subassembly: id })}>{CATIO_SUBASSEMBLY_TITLES[id]}: pieces, joints and parts list <ArrowRight size={14} /></a>)}</nav>
         <a className="catio-gallery-link" href="#catio-sheets" onClick={event => { event.preventDefault(); document.getElementById('catio-sheets')?.scrollIntoView({ behavior: 'smooth' }); }}>Explore the design sheets <ArrowDownToLine size={15} /></a>
       </aside>
       <section className="catio-preview" aria-label="Live catio concept">

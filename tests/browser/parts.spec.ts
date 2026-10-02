@@ -29,7 +29,8 @@ test('browses the parts library: families, filters in the link, a hovered part n
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/#/parts');
   await expect(page.getByRole('heading', { name: 'Real parts. Exact sizes.' })).toBeVisible();
-  await page.getByRole('button', { name: /Screws/ }).click();
+  // "Wood screws" is a family too: match the metric screws' card only.
+  await page.getByRole('button', { name: /PARTS Screws Metric/ }).click();
   await expect(page).toHaveURL(/#\/parts\/screw$/);
   await page.getByLabel('Thread').selectOption('M3');
   await page.getByLabel('Head').selectOption('socket-cap');
@@ -63,6 +64,19 @@ test('browses the parts library: families, filters in the link, a hovered part n
   await page.goto('/#/parts/everyday-object/bic-j25-mini-lighter');
   expect(await shownParts(page)).toEqual(['bic-j25-mini-lighter']);
   await expect(page.getByRole('article', { name: 'BIC Mini lighter (J25) details' }).getByText('Estimated').first()).toBeVisible();
+
+  // The window catio's hardware families build their previews from their own dimensions.
+  for (const [family, first] of [['levelling-foot?thread=M8', 'ganter-gn-343-2-25-m8-40-kr'], ['insert-nut', 'din-7965-m6x15'], ['nail', 'din-1159-2-5x25'], ['wood-screw?diameter=4+mm', 'din-7997-4x20']] as const) {
+    await page.goto(`/#/parts/${family}`);
+    expect(await shownParts(page)).toContain(first);
+  }
+  // A part the window insert uses links back to that concept page, and the link opens it.
+  await page.goto('/#/parts/wood-screw/din-7997-4x50');
+  const used = page.getByRole('article', { name: 'Countersunk wood screw 4 × 50 details' }).getByRole('link', { name: 'Window catio: window insert' });
+  await expect(used).toHaveAttribute('href', '#/concepts/catio/window-insert');
+  await used.click();
+  await expect(page).toHaveURL(/#\/concepts\/catio\/window-insert$/);
+  await expect(page.getByRole('table', { name: 'Hardware parts' }).getByRole('link', { name: 'Countersunk wood screw 4 × 50' })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

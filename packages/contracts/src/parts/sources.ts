@@ -2,6 +2,7 @@ import type { Dimension, PartSource } from './schema.ts';
 
 /** The day the web sources below were read. Re-read a source and update its `accessed` date when correcting a value from it. */
 const ACCESSED = '2026-09-27';
+const CATIO_ACCESSED = '2026-10-02';
 
 const iso = (number: string, title: string): PartSource => ({
   id: `iso-${number.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, title: `ISO ${number}: ${title}`, publisher: 'ISO',
@@ -59,6 +60,14 @@ export const PART_SOURCES: readonly PartSource[] = [
   { id: 'supermagnete', title: 'supermagnete product data sheets (technical data of each article)', publisher: 'supermagnete (Webcraft GmbH)', url: 'https://www.supermagnete.de/eng/', kind: 'manufacturer', accessed: ACCESSED },
   { id: 'cnc-kitchen-inserts', title: 'CNC Kitchen heat set inserts: Dimensions & Design Guidelines, metric size inserts', publisher: 'CNC Kitchen', url: 'https://cnckitchen.store/products/heat-set-insert-m3-x-5-7-100-pieces', kind: 'manufacturer', accessed: ACCESSED },
   { id: 'ruthex-inserts', title: 'ruthex threaded inserts: dimension drawing on each product’s packaging image', publisher: 'ruthex', url: 'https://www.ruthex.de/en/collections/gewindeeinsatze', kind: 'manufacturer', accessed: ACCESSED },
+  // Window catio hardware (the window insert's joints and clamps), read 2026-10-02.
+  { ...din('7997', 'Cross recessed countersunk (flat) head wood screws'), accessed: CATIO_ACCESSED },
+  { id: 'fasteners-eu-din-7997', title: 'DIN 7997 dimension table', publisher: 'fasteners.eu', url: 'https://www.fasteners.eu/standards/DIN/7997/', kind: 'reference', accessed: CATIO_ACCESSED },
+  { ...din('7965', 'Screwed inserts (insert nuts) for wood'), accessed: CATIO_ACCESSED },
+  { id: 'fasteners-eu-din-7965', title: 'DIN 7965 dimension table and drawing', publisher: 'fasteners.eu', url: 'https://www.fasteners.eu/standards/DIN/7965/', kind: 'reference', accessed: CATIO_ACCESSED },
+  { ...din('1159', 'Staples (U-shaped wire nails, “Schlaufen/Krampen”)'), accessed: CATIO_ACCESSED },
+  { id: 'kk-din-1159', title: 'DIN 1159, Schlaufen (Krampen): sizes d × l', publisher: 'Keller & Kalmbach', url: 'https://www.kk-shop.com/shop/kataloge/de_DE/52/articles/din-1159-schlaufen-krampen-/1759/1759.php', kind: 'reference', accessed: CATIO_ACCESSED },
+  { id: 'ganter-gn-343-2', title: 'GN 343.2 Leveling Feet, Steel, with Threaded Stud: table, technical drawing and specification', publisher: 'Otto Ganter GmbH & Co. KG', url: 'https://www.ganternorm.com/en/products/3.4-Installing-lifting-dampening-with-levelling-feet-lifting-gear-and-rubber-elements/Levelling-feet/GN-343.2-Leveling-Feet-Steel-with-Threaded-Stud', kind: 'manufacturer', accessed: CATIO_ACCESSED },
   { id: 'bic-graphic-j25', title: 'BIC J25 lighter (product 3460002360): 62 × 22 × 11 mm', publisher: 'BIC Graphic', url: 'https://www.bicgraphic.com/gb/bic-j25-lighter-3460002360.html', kind: 'manufacturer', accessed: '2026-09-25' },
   { id: '4imprint-j25', title: 'BIC J25 Standard Lighter: 22 × 62 × 11 mm', publisher: '4imprint UK', url: 'https://www.4imprint.co.uk/product/502972/BIC-J25-Standard-Lighter', kind: 'reference', accessed: '2026-09-25' },
   { id: 'wemag-j25', title: 'BIC Mini lighter J25: 22 × 62 × 11 mm', publisher: 'WE MAG', url: 'https://wemag.gr/en/product/bic-mini-lighter-j25-2360/', kind: 'reference', accessed: '2026-09-25' },

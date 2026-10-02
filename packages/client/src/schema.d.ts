@@ -592,10 +592,13 @@ export interface operations {
                         /** @description Models that link to a part, by part id; parts no model links to are left out. */
                         usage: {
                             [key: string]: {
+                                /** @description The model’s id, or for a concept its page under `#/concepts/`, e.g. `catio/window-insert`. */
                                 modelId: string;
                                 modelTitle: string;
-                                /** @description The model’s setting that links to the part, or “Assembly preview” for a reference object. */
+                                /** @description The model’s setting that links to the part, “Assembly preview” for a reference object, or the concept’s use of it. */
                                 via: string;
+                                /** @description `model`: a model in the library; `concept`: a concept page. */
+                                kind: "model" | "concept";
                             }[];
                         };
                     };
@@ -731,10 +734,13 @@ export interface operations {
                             accessed: string;
                         }[];
                         usage: {
+                            /** @description The model’s id, or for a concept its page under `#/concepts/`, e.g. `catio/window-insert`. */
                             modelId: string;
                             modelTitle: string;
-                            /** @description The model’s setting that links to the part, or “Assembly preview” for a reference object. */
+                            /** @description The model’s setting that links to the part, “Assembly preview” for a reference object, or the concept’s use of it. */
                             via: string;
+                            /** @description `model`: a model in the library; `concept`: a concept page. */
+                            kind: "model" | "concept";
                         }[];
                     };
                 };
