@@ -88,6 +88,11 @@ describe('parts library', () => {
         expect(dimension(part, 'l3'), message).toBeGreaterThan(dimension(part, 'l2'));
         expect(dimension(part, 'l5'), message).toBeGreaterThan(dimension(part, 'l4'));
       }
+      if (part.family === 'toggle-latch') {
+        expect(dimension(part, 'b1'), message).toBeGreaterThan(2 * d);
+        expect(dimension(part, 'l1'), message).toBeGreaterThan(dimension(part, 'b3') + dimension(part, 'b4'));
+        expect(dimension(part, 'l1'), message).toBeGreaterThan(dimension(part, 'l2'));
+      }
       if (part.family === 'bearing') expect(dimension(part, 'D'), message).toBeGreaterThan(d);
       if (part.family === 'magnet' && part.attributes['shape'] !== 'block') expect(dimension(part, 'diameter'), message).toBeGreaterThan(dimension(part, 'innerDiameter') || 0);
     }
