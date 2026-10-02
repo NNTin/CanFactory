@@ -29,13 +29,13 @@ export interface Stage {
   reset: () => void;
   /** Camera and target in the model's Z-up coordinates. */
   lookAt: (position: THREE.Vector3, target: THREE.Vector3) => void;
-  /** Notify the stage after changing procedural geometry or visibility. */
+  /** Draws the next frame. The stage only renders when something changed: call this after changing the scene. */
   invalidate: () => void;
   dispose: () => void;
 }
 
 /** Sets up the stage in `element` and keeps it sized to it; null when WebGL is unavailable. */
-export function createStage(element: HTMLElement, label: string, options: { scale?: number; workshopFloor?: boolean; renderOnDemand?: boolean } = {}): Stage | null {
+export function createStage(element: HTMLElement, label: string, options: { scale?: number; workshopFloor?: boolean } = {}): Stage | null {
   const scale = options.scale ?? 1;
   let renderer: THREE.WebGLRenderer;
   try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
@@ -84,9 +84,11 @@ export function createStage(element: HTMLElement, label: string, options: { scal
   });
   resize.observe(element);
   let animation = 0;
+  // Rendering every frame keeps a software (SwiftShader) GPU busy and starves other pages, so the camera's `change` events,
+  // resizes and `invalidate()` decide when to draw.
   const loop = () => {
     animation = requestAnimationFrame(loop); controls.update();
-    if (dirty || !options.renderOnDemand) { renderer.render(world, camera); dirty = false; }
+    if (dirty) { renderer.render(world, camera); dirty = false; }
   };
   loop();
   return {

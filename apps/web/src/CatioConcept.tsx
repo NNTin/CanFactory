@@ -43,7 +43,7 @@ export function CatioConcept() {
   };
   useEffect(() => {
     const element = container.current; if (!element) return;
-    const stage = createStage(element, 'Interactive catio concept. Drag to orbit, scroll to zoom, right-drag to pan.', { scale: 12, workshopFloor: false, renderOnDemand: true });
+    const stage = createStage(element, 'Interactive catio concept. Drag to orbit, scroll to zoom, right-drag to pan.', { scale: 12, workshopFloor: false });
     if (!stage) { setUnsupported(true); return; }
     const model = createCatioScene(); stage.group.add(model.root);
     controller.current = { stage, model }; model.update(stateRef.current);

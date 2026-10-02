@@ -57,7 +57,7 @@ export function PartsViewer({ parts, hovered, selected, onHover, onSelect }: {
     const raycaster = new THREE.Raycaster();
     const clear = () => {
       for (const mesh of meshes) { mesh.geometry.dispose(); mesh.material.dispose(); }
-      stage.group.clear(); meshes = [];
+      stage.group.clear(); meshes = []; stage.invalidate();
     };
     scene.current = {
       reset: stage.reset,
@@ -92,6 +92,7 @@ export function PartsViewer({ parts, hovered, selected, onHover, onSelect }: {
         // A little further back than the model preview: a single tall part (a lighter) must fit under the heading.
         stage.frame(Math.max(size.x, size.y, size.z * 1.3, 12), Math.max(frame.max.y, 4), new THREE.Vector3());
         element.dataset['parts'] = meshes.map(mesh => mesh.name).join(' ');
+        stage.invalidate();
       },
       highlight(hoveredId, selectedId) {
         for (const mesh of meshes) {
@@ -99,6 +100,7 @@ export function PartsViewer({ parts, hovered, selected, onHover, onSelect }: {
           mesh.material.emissive.copy(color ?? new THREE.Color(0)); mesh.material.emissiveIntensity = intensity;
         }
         element.dataset['highlighted'] = hoveredId ?? '';
+        stage.invalidate();
       },
       pick(x, y) {
         const rect = stage.renderer.domElement.getBoundingClientRect();
