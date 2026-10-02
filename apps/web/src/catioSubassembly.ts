@@ -48,6 +48,10 @@ export interface SubassemblyModel {
   components: SubassemblyComponent[];
   update: (state: CatioState) => void;
   dispose: () => void;
+  /** What is being fitted at the last `update`, and how, for the caption under the stage; null between moves. */
+  caption?: () => string | null;
+  /** Where the sub-assembly is, relative to where it is installed (e.g. out on a bench), for the cameras to follow. */
+  focusOffset?: () => V3;
 }
 export interface CameraPreset { position: V3; target: V3 }
 

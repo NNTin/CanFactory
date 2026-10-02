@@ -66,6 +66,24 @@ tunnel clear size saved on the catio concept page (recess = sash + 9 cm, as the 
 5. **Tighten from inside** in opposite pairs until the pads bear (or drive the wedges).
 6. **Docking brackets** (direct) or **gate tracks, gate and latch** (with tunnel); open and close the window to check.
 
+### How the animation shows it
+
+Every piece moves on its own, along the direction it is really fitted, in the order above; a caption under the stage names
+the piece and how it goes in ("Now: …"):
+
+- Half-laps close across the timber's depth: the rails come from the room side (laps facing outdoors), the stiles from
+  outdoors onto them. Butt joints: the stiles stand first, then the rails slide in between them from outdoors.
+- Every screw and staple comes in along its own driving axis, point first, and screws turn as they go: corner screws from
+  the outdoor face (half-lap) or through the stiles (butt), threshold screws down from above, port jamb screws up from
+  under the sill rail, batten screws from the outdoor face.
+- At each clamp: the insert nut is screwed into the collar's outer face, then the foot's stud through it from outside; on a
+  spreader, the foot's own nut and then a second nut are run onto the stud's inner end from inside.
+- Stage 5 turns each spreader stud so the foot moves out to the reveal (or drives the inner wedges along the member).
+- With tunnel, the gate tracks come from the room side and the gate is lowered into them from above.
+
+Stages 1–3 happen on a bench in the garden, and the cameras follow the insert there. The exploded view is the same
+assembly frozen: each piece waits on its own way in, with the insert on the bench, clear of the wall.
+
 ## Parts library additions
 
 All with the source of every value (see [adding-parts.md](../../adding-parts.md)):

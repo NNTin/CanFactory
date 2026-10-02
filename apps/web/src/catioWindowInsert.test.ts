@@ -93,13 +93,60 @@ describe('window insert', () => {
       scene.update({ ...installed, progress, exploded: progress % 2 === 0 });
       expect(context.map(part => part.group.position.toArray())).toEqual(positions);
       for (const part of scene.components) expect(part.group.visible, `${part.id} at ${progress}`).toBe(part.step <= progress);
-      expect(scene.insert.position.y).toBe(progress <= 3 ? BENCH_OFFSET : 0);
+      // exploded, the insert is shown on the bench, clear of the wall
+      expect(scene.insert.position.y).toBe(progress <= 3 || progress % 2 === 0 ? BENCH_OFFSET : 0);
+      expect(scene.focusOffset?.()).toEqual([0, scene.insert.position.y, 0]);
     }
     expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['collar-head', 'collar-left', 'corner-screws', 'insert-nuts', 'spreader-clamps', 'bearing-feet', 'port-frame', 'infill-top', 'staples', 'cover-battens', 'cat-gate']));
     scene.update({ ...installed, cutaway: true, hidden: new Set(['mesh']) });
     expect(component(scene, 'wall').visible).toBe(false);
     expect(scene.components.filter(part => part.layer === 'mesh').every(part => !part.group.visible)).toBe(true);
     scene.dispose();
+  });
+
+  it('fits each clamp’s hardware in order: insert nut and stud from outside, then the two nuts from inside', () => {
+    for (const variant of variants) {
+      const scene = createWindowInsertScene(variant, WINDOW_INSERT_DEFAULT); scene.update(installed);
+      for (const clamp of scene.layout.clamps) {
+        const of = (role: string) => scene.motions.find(motion => motion.of === clamp.id && motion.role === role);
+        const chain = (clamp.kind === 'spreader' ? ['insert-nut', 'foot', 'own-nut', 'second-nut'] : ['insert-nut', 'foot']).map(role => {
+          const motion = of(role); if (!motion) throw new Error(`${clamp.id} ${role}`); return motion;
+        });
+        for (const [before, after] of chain.slice(1).map((motion, i) => [chain[i], motion] as const)) expect(before?.window[1], `${clamp.id}: ${before?.role} before ${after.role}`).toBeLessThanOrEqual(after.window[0] + 1e-9);
+        // the clamp frame's +Y is the outward normal: nut and foot come from outside, the stud's nuts from inside
+        const normal = new THREE.Vector3(...clamp.normal);
+        for (const motion of chain) {
+          const world = motion.approach.clone().applyQuaternion(motion.object.parent?.getWorldQuaternion(new THREE.Quaternion()) ?? new THREE.Quaternion()).normalize();
+          expect(world.dot(normal), `${clamp.id} ${motion.role}`).toBeCloseTo(motion.role === 'insert-nut' || motion.role === 'foot' ? 1 : -1, 6);
+          expect(motion.axis?.toArray(), `${clamp.id} ${motion.role} turns on the stud axis`).toEqual([0, 1, 0]);
+        }
+      }
+      scene.dispose();
+    }
+  });
+
+  it('drives every screw and staple along its own axis, point first, and shows each piece at rest once its stage is done', () => {
+    for (const variant of variants) for (const config of configs) {
+      const scene = createWindowInsertScene(variant, config);
+      const fasteners = scene.motions.filter(motion => motion.role === 'screw' || motion.role === 'staple');
+      expect(fasteners).toHaveLength(scene.layout.fasteners.length);
+      for (const motion of fasteners) {
+        const drive = new THREE.Vector3(...(motion.drive ?? [0, 0, 0]));
+        expect(motion.approach.clone().normalize().dot(drive), motion.action).toBeCloseTo(-1, 6);
+        if (motion.role === 'screw') expect(motion.axis?.dot(drive), motion.action).toBeCloseTo(1, 6);
+      }
+      for (let stage = 1; stage <= 6; stage++) {
+        scene.update({ ...installed, progress: stage });
+        for (const motion of scene.motions.filter(m => m.stage <= stage)) expect(motion.object.visible, motion.action).toBe(true);
+        for (const motion of scene.motions.filter(m => m.stage === stage)) {
+          scene.update({ ...installed, progress: stage - 1 + (motion.window[0] + motion.window[1]) / 2 });
+          expect(scene.caption?.(), `caption mid ${motion.action}`).not.toBeNull();
+        }
+      }
+      scene.update({ ...installed, exploded: true });
+      for (const motion of scene.motions) expect(motion.object.position.length(), motion.action).toBeGreaterThan(0);
+      scene.dispose();
+    }
   });
 
   it('lists every piece with real library parts, and changes the cut list with the joint', () => {

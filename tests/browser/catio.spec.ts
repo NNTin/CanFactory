@@ -181,6 +181,10 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await slider.press('Home');
   await expect(viewer).toHaveAttribute('data-step', '0');
   await expect(viewer).not.toHaveAttribute('data-visible-parts', /collar-head/);
+  // mid-stage, the caption names the piece moving and how it goes in
+  await slider.fill('0.8');
+  await expect(page.getByTestId('assembly-action')).toContainText(/Countersunk wood screw 5 × 70: driven from the (left|right), through the stile/);
+  await slider.press('Home');
   for (let stage = 1; stage <= 6; stage++) {
     await page.getByRole('button', { name: 'Next assembly stage' }).click();
     await expect(viewer).toHaveAttribute('data-step', String(stage));

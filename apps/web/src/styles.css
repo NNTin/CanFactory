@@ -2054,3 +2054,5 @@ main {
   .subassembly-parts td { border: 0; padding: 3px 12px; }
   .subassembly-decisions > div { grid-template-columns: minmax(0, 1fr); }
 }
+.catio-assembly p.subassembly-action { margin-top: 8px; color: #4f6440; min-height: 1.7em; }
+.subassembly-action strong { font-weight: 600; }

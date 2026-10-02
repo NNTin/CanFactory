@@ -261,17 +261,19 @@ export function validateWindowInsert(variant: CatioMode, config: WindowInsertCon
 
 /** Stage 0 is the window as it is; stages 1–3 happen on a bench outside, 4–6 at the window. */
 export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig): readonly AssemblyStep[] {
-  const joint = config.cornerJoint === 'half-lap' ? 'Glue and screw the four half-lapped corners from the outdoor face' : 'Screw the rails between the stiles, two screws through each stile';
+  const joint = config.cornerJoint === 'half-lap'
+    ? 'Lay the sill and head rails, laps facing outdoors. Glue the laps and press the stiles onto them from the outdoor side. Then drive two 4 × 50 screws into each corner from the outdoor face, one corner after another'
+    : 'Stand the two stiles. Slide the head and sill rails in between them from the outdoor side. Then drive two 5 × 70 screws through each stile into the end grain of the rail';
   const clamp = config.attachment === 'spreader-feet'
-    ? 'Screw an M8 insert nut into each clamp hole. Turn a rubber-padded levelling foot into each: short studs under the sill rail (they carry the insert), long studs in the stiles and head with two nuts jammed on the inner end.'
-    : 'Cut the folding wedge pairs. Tape each pair loosely to its position so none can fall when the insert is lifted in.';
-  const mesh = config.meshFixing === 'staples' ? 'staple its edges' : config.meshFixing === 'battens' ? 'screw cover battens over its edges' : 'staple its edges and screw cover battens over them';
+    ? 'In this order, at every clamp: (1) screw an M8 insert nut into the outer face of the collar; (2) screw the levelling foot’s stud through it from outside until the foot’s hexagon touches the collar. Short studs go under the sill rail, long ones in the stiles and head. (3) On each long stud’s inner end, run on the foot’s own nut from inside, then (4) a second M8 nut, and jam the two together.'
+    : 'At every clamp, set the inner wedge against the collar from outside, then lay the outer wedge loosely on it, thin end to thick end. Tape each pair so none can fall when the insert is lifted in.';
+  const mesh = config.meshFixing === 'staples' ? 'staple its edges' : config.meshFixing === 'battens' ? 'press the cover battens over its edges and screw them on from the outdoor face' : 'staple its edges, then press the cover battens over them and screw them on from the outdoor face';
   const fill = variant === 'direct'
-    ? `Screw the threshold onto the sill rail. Bend the passage sleeve mesh and ${mesh}.`
-    : `Screw the threshold onto the sill rail, then the port transom and jambs. Fit the infill and throat mesh and ${mesh}.`;
+    ? `Lower the threshold onto the sill rail and screw it down from above. Slide the passage sleeve mesh on from outdoors and ${mesh}.`
+    : `Lower the threshold onto the sill rail and screw it down from above. Slide the transom into its stile housings from outdoors, then each jamb up into the transom. Screw the transom through the stiles and the jambs up from under the sill rail. Offer the infill and throat mesh from outdoors and ${mesh}.`;
   const tighten = config.attachment === 'spreader-feet'
-    ? 'From inside, through the open window: turn each spreader stud with a 13 mm spanner on its jammed nuts until the pads bear on the reveals, opposite pairs in turn. No drilling; the pads only press.'
-    : 'Drive each wedge pair together from outside until the collar is tight in the recess, opposite pairs in turn. No drilling; the wedges only press.';
+    ? 'From inside, through the open window: put a 13 mm spanner on each spreader’s jammed nuts and turn the stud, so the foot moves out until its pad bears on the reveal. Tighten opposite pairs in turn. No drilling; the pads only press.'
+    : 'From outside, drive each inner wedge along the member until the pair fills the gap. Drive opposite pairs in turn. No drilling; the wedges only press.';
   return [
     { title: 'Existing window', detail: 'The sash opens inward. The insert is built outside and sits only in the exterior recess.' },
     { title: 'Join the collar', detail: `${joint}. Check the diagonals are equal.` },
@@ -280,8 +282,8 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
     { title: 'Set it into the recess', detail: 'Carry the insert to the window from the garden and stand it on the recess floor, clear of the closed sash.' },
     { title: config.attachment === 'spreader-feet' ? 'Tighten from inside' : 'Drive the wedges', detail: tighten },
     { title: variant === 'direct' ? 'Brackets and check' : 'Gate and check', detail: variant === 'direct'
-      ? 'Fit the removable docking brackets for the enclosure’s rear portal. Open and close the window: it clears the insert.'
-      : 'Fit the gate tracks, sliding cat gate and latch; keep the gate shut until a tunnel is coupled. Open and close the window: it clears the insert.' },
+      ? 'Offer the removable docking brackets to the collar face from outdoors, ready for the enclosure’s rear portal. Open and close the window: it clears the insert.'
+      : 'Fix the gate tracks on the room side of the port. Lower the sliding cat gate into them from above, then fit the latch. Keep the gate shut until a tunnel is coupled. Open and close the window: it clears the insert.' },
   ];
 }
 

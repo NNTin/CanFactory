@@ -28,6 +28,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   const controller = useRef<{ stage: Stage; model: SubassemblyModel } | null>(null);
   const [settings, setSettings] = useState(() => loadSubassemblySettings(definition));
   const [unsupported, setUnsupported] = useState(false);
+  const [action, setAction] = useState<string | null>(null);
   const { variant, config } = settings;
   const viewing = settings.views[variant];
   const { progress, exploded, windowOpen, cutaway, view } = viewing;
@@ -41,9 +42,11 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   const controls = definition.controls.filter(control => !control.variants || control.variants.includes(variant));
   const groups = [...new Set(controls.map(control => control.group))];
   const editView = (patch: Partial<SubassemblyViewing>) => setSettings(current => ({ ...current, views: { ...current.views, [current.variant]: { ...current.views[current.variant], ...patch } } }));
+  const focus = useRef('');
   const camera = (name: CatioView) => {
     const preset = definition.views(variant, config)[name];
-    const target = new THREE.Vector3(...preset.target); const position = new THREE.Vector3(...preset.position);
+    const offset = new THREE.Vector3(...(controller.current?.model.focusOffset?.() ?? [0, 0, 0])); focus.current = offset.toArray().join();
+    const target = new THREE.Vector3(...preset.target).add(offset); const position = new THREE.Vector3(...preset.position).add(offset);
     if (stateRef.current.exploded) position.sub(target).multiplyScalar(1.45).add(target);
     controller.current?.stage.lookAt(position, target);
   };
@@ -58,13 +61,16 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
     setUnsupported(false);
     const model = definition.build(variant, config);
     stage.group.add(model.root); controller.current = { stage, model };
-    model.update(stateRef.current); camera(stateRef.current.view); stage.invalidate();
+    model.update(stateRef.current); camera(stateRef.current.view); stage.invalidate(); setAction(model.caption?.() ?? null);
     element.dataset['ready'] = 'true'; element.dataset['visibleParts'] = visibleParts();
     return () => { delete element.dataset['ready']; model.dispose(); stage.dispose(); controller.current = null; };
     // camera and visibleParts read the current refs; the scene is rebuilt only for a new design
   }, [definition, variant, config]);
   useEffect(() => {
     controller.current?.model.update(stateRef.current); controller.current?.stage.invalidate();
+    setAction(controller.current?.model.caption?.() ?? null);
+    // the cameras follow the sub-assembly when it moves somewhere else, e.g. between the bench and the window
+    if ((controller.current?.model.focusOffset?.() ?? [0, 0, 0]).join() !== focus.current) camera(stateRef.current.view);
     if (container.current) container.current.dataset['visibleParts'] = visibleParts();
   }, [viewing]);
   useEffect(() => { camera(view); }, [exploded, view]);
@@ -118,6 +124,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
             <input type="range" min="0" max={last} step="0.01" value={progress} aria-label={`${definition.title} assembly`} aria-valuetext={`${index} of ${last} · ${step?.title ?? ''}`} onChange={event => editView({ progress: Number(event.target.value) })} />
             <button type="button" aria-label="Next assembly stage" disabled={progress === last} onClick={() => editView({ progress: Math.min(last, Math.floor(progress) + 1) })}><ArrowRight size={16} /></button></div>
           <p>{step?.detail}</p>
+          <p className="subassembly-action" data-testid="assembly-action" aria-live="polite">{action ? <><strong>Now: </strong>{action}</> : '\u00a0'}</p>
         </div>
         <div className="catio-layers" role="group" aria-label="Visible components">{LAYERS.map(layer => <button key={layer.id} type="button" aria-pressed={!hidden.has(layer.id)} disabled={unsupported} onClick={() => toggleLayer(layer.id)}>{layer.title}</button>)}</div>
       </section>
