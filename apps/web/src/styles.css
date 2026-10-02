@@ -2005,3 +2005,25 @@ main {
   .header-right { flex-wrap: wrap; justify-content: flex-end; }
   .local-badge { display: none; }
 }
+
+.catio-modes { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+.catio-modes button, .catio-reset { border: 1px solid #cbd5c0; border-radius: 7px; padding: 10px 14px; font: inherit; font-size: 12px; color: #536348; background: #fafbf5; cursor: pointer; }
+.catio-modes button[aria-pressed=true] { color: #fff; background: #53684a; border-color: #53684a; }
+.catio-modes button:focus-visible, .catio-parameters input:focus-visible, .catio-parameters select:focus-visible { outline: 2px solid #53684a; outline-offset: 3px; }
+.catio-parameters fieldset { border: 1px solid var(--line); margin: 16px 0; padding: 12px; min-width: 0; border-radius: 7px; }
+.catio-parameters legend { font-size: 12px; color: #536348; padding: 0 6px; }
+.catio-field { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 8px 0; font-size: 11px; }
+.catio-field span { flex: 1; }
+.catio-field small { color: #7d8672; }
+.catio-field input, .catio-field select { width: 82px; min-width: 0; padding: 7px 5px; border: 1px solid #cbd5c0; border-radius: 4px; color: #415537; background: #fff; }
+.catio-field select { width: 112px; }
+.catio-second { display: flex; gap: 8px; align-items: center; font-size: 12px; }
+.catio-errors { font-size: 12px; line-height: 1.6; color: #8b391e; background: #fff1df; border-radius: 6px; padding: 12px; margin: 16px 0; }
+.catio-errors ul { padding-left: 16px; }
+.catio-reset { margin-top: 15px; }
+.catio-door-controls { padding: 14px 20px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 10px 18px; font-size: 11px; color: #536348; }
+.catio-door-controls strong, .catio-door-controls p { width: 100%; margin: 0; }
+.catio-door-controls p { color: #777f6d; line-height: 1.6; }
+.catio-door-controls label { display: flex; align-items: center; gap: 6px; }
+.catio-door-controls small { color: #868c7d; }
+@media (min-width: 721px) { .catio-preview { position: sticky; top: 16px; } }
