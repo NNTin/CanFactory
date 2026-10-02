@@ -150,3 +150,58 @@ test('configures modular routes, gates and independent enclosures, retaining val
   expect(download.suggestedFilename()).toBe('07-modular-overview.png');
   expect(errors).toEqual([]); expect(jobs).toEqual([]);
 });
+
+test('opens the window insert, adjusts its joints and clamps, and stages its assembly with a parts list', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
+  await page.goto('/#/concepts/catio');
+  await page.getByRole('navigation', { name: 'Catio sub-assemblies' }).getByRole('link', { name: /Window insert/ }).click();
+  await expect(page).toHaveURL(/#\/concepts\/catio\/window-insert$/);
+  const viewer = page.getByTestId('subassembly-viewer');
+  await expect(viewer).toHaveAttribute('data-ready', 'true');
+  await expect(viewer).toHaveAttribute('data-variant', 'direct');
+  await expect(viewer).toHaveAttribute('data-visible-parts', /spreader-clamps/);
+  const hardware = page.getByRole('table', { name: 'Hardware parts' });
+  await expect(hardware.getByRole('link', { name: 'Levelling foot 32 mm, M8 × 63, rubber pad' })).toHaveAttribute('href', '#/parts/levelling-foot/ganter-gn-343-2-32-m8-63-kr');
+  await expect(hardware.getByRole('link', { name: 'Insert nut for wood M8 × 18' })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Collar corners' }).selectOption('butt-screwed');
+  await expect(viewer).toHaveAttribute('data-config', /"cornerJoint":"butt-screwed"/);
+  await expect(hardware.getByRole('link', { name: 'Countersunk wood screw 5 × 70' })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Held in the recess by' }).selectOption('folding-wedges');
+  await expect(viewer).toHaveAttribute('data-visible-parts', /folding-wedges/);
+  await expect(page.getByRole('combobox', { name: 'Foot diameter' })).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Window open' }).uncheck();
+  await expect(viewer).toHaveAttribute('data-window', 'closed');
+  await page.getByRole('button', { name: 'Mounting', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Wall cutaway' })).toBeChecked();
+  await expect(viewer).not.toHaveAttribute('data-visible-parts', /\bwall\b/);
+  const slider = page.getByRole('slider', { name: 'Window insert assembly' });
+  await slider.press('Home');
+  await expect(viewer).toHaveAttribute('data-step', '0');
+  await expect(viewer).not.toHaveAttribute('data-visible-parts', /collar-head/);
+  for (let stage = 1; stage <= 6; stage++) {
+    await page.getByRole('button', { name: 'Next assembly stage' }).click();
+    await expect(viewer).toHaveAttribute('data-step', String(stage));
+  }
+  await expect(viewer).toHaveAttribute('data-visible-parts', /docking-brackets/);
+  await page.getByRole('button', { name: 'Modular · with tunnel', exact: true }).click();
+  await expect(viewer).toHaveAttribute('data-variant', 'modular');
+  await expect(viewer).toHaveAttribute('data-visible-parts', /cat-gate/);
+  await expect(page.getByRole('combobox', { name: 'Port transom & jambs' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Mesh parts' }).getByRole('row')).toHaveCount(7);
+  await page.getByRole('checkbox', { name: 'Exploded view' }).check();
+  await expect(viewer).toHaveAttribute('data-exploded', 'true');
+  await page.screenshot({ path: testInfo.outputPath('window-insert-modular.png'), fullPage: true });
+  await page.reload();
+  await expect(viewer).toHaveAttribute('data-ready', 'true');
+  await expect(viewer).toHaveAttribute('data-variant', 'modular');
+  await page.getByRole('button', { name: 'Direct · original design', exact: true }).click();
+  await expect(viewer).toHaveAttribute('data-config', /"attachment":"folding-wedges"/);
+  await page.getByRole('button', { name: 'Reset to the recommended defaults' }).click();
+  await expect(viewer).toHaveAttribute('data-config', /"attachment":"spreader-feet"/);
+  await page.getByRole('button', { name: 'Catio concept', exact: true }).first().click();
+  await expect(page).toHaveURL(/#\/concepts\/catio$/);
+  expect(errors).toEqual([]);
+});

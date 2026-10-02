@@ -31,6 +31,11 @@ Then open <http://127.0.0.1:5181/#/concepts/catio>. This page works without an A
 
 The preview provides six camera presets, orbit/pan/zoom, a window open/closed toggle, wall cutaway, exploded view, component visibility, and a six-stage assembly slider. The gallery and written assembly instructions remain available when WebGL is unavailable. Images can be opened or downloaded individually.
 
+## Window insert
+
+The window insert has its own live page, `#/concepts/catio/window-insert`: its pieces, parametrised timber joints, mesh fixing
+and the no-drilling clamps, a staged assembly and a parts list, for both designs. See [window-insert.md](window-insert.md).
+
 ## Dimensions and assumptions
 
 | Item | Value | Basis |

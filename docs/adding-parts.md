@@ -1,7 +1,8 @@
 # The parts library
 
 The parts library is a catalogue of real-world parts that models are made to fit: screws, nuts, washers, magnets, threaded
-inserts, bearings, pins, and everyday objects such as the BIC Mini lighter the cigarette case holds. Every entry is one real
+inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, and everyday objects such as the BIC
+Mini lighter the cigarette case holds. Every entry is one real
 item, a size of a standard part (ISO 4762 M3 × 10) or a named product (supermagnete S-06-02-N), with its dimensions, their
 tolerances where the source gives them, and the source of every value.
 
