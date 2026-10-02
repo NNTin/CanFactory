@@ -144,11 +144,11 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
 
   // Stage 3: the first section (built on the tunnel page) arrives raised; its latch bodies, screws and floor lip are fitted.
   if (first) {
-    const timber = group('first-section', 3, 'timber'); const mesh = group('first-section-mesh', 3, 'mesh');
+    const timber = piece(group('first-section', 3, 'timber')); const mesh = piece(group('first-section-mesh', 3, 'mesh'));
     for (const mem of tl.members.filter(q => q.piece === first.id)) hexahedron(timber, corners(mem.from, mem.fromOffset, mem.to, mem.toOffset, mem.rect), mem.kind === 'flange' ? m.endgrain : m.timber, [0, 0, 0]);
     for (const q of tl.panels.filter(q => q.piece === first.id)) meshQuad(mesh, q.corners);
-    move(timber, 3, [0, 0], [0, 0, 0], 'The first section, framed and meshed on the tunnel page', { role: 'timber', carried: true });
-    move(mesh, 3, [0, 0], [0, 0, 0], 'The first section, framed and meshed on the tunnel page', { role: 'timber', carried: true });
+    // it is already built: it arrives whole at the start of the stage and only travels with the lift
+    for (const g of [timber, mesh]) move(g, 3, [0, 0], [0, 0, 0], 'The first section, framed and meshed on the tunnel page', { role: 'timber', carried: true });
   }
   const levers: THREE.Group[] = [];
   for (const q of layout.latches) {

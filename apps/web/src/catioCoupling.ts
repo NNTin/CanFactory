@@ -253,5 +253,5 @@ export const COUPLING_DECISIONS: DesignDecision[] = [
     why: 'The old foam strip pressed against the wall round the flange, but the flange stands in front of the open recess, where there is no wall: the seal now sits between two faces that are there. A hollow profile squashes with little force, so the latches need not pull hard and the insert is not dragged out of its recess. The lip closes the floor gap to claws and draughts and bends out of the way when the joint opens.' },
   { title: 'The short latch, because of the depth',
     choice: 'GN 831 identification no. 2: 54 mm closed (61 mm for type S), set at the middle of its hook’s range.',
-    why: 'From the flange’s face to the back of the docking frame the joint is 68 mm deep. The long type needs 67 to 79 mm, so its catch bracket would hang off the frame; the short one leaves its whole range on the frame, and the page checks it.' },
+    why: 'From the flange’s face to the back of the docking frame the joint is 68 mm deep. The long type is 67 mm closed (74 for type S) before its hook is set at all, so its catch bracket would hang off the back of the frame; the short one sits on the frame with its hook at the middle of its range, and the page checks it.' },
 ];
