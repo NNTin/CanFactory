@@ -82,6 +82,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   const selectView = (name: CatioView) => { camera(name); editView({ view: name, cutaway: name === 'Interior' || name === 'Mounting' }); };
   const toggleLayer = (id: CatioLayer) => editView({ hidden: hidden.has(id) ? viewing.hidden.filter(layer => layer !== id) : [...viewing.hidden, id] });
   const change = (key: keyof C & string, value: C[keyof C]) => setSettings(current => ({ ...current, config: { ...current.config, [key]: value } }));
+  const activePreset = [{ id: 'recommended', config: () => definition.defaults }, ...(definition.presets ?? [])].find(preset => JSON.stringify(preset.config()) === JSON.stringify(config))?.id ?? null;
   const reset = () => setSettings(current => ({ ...current, config: structuredClone(defaultSubassemblySettings(definition).config) }));
 
   return <>
@@ -94,6 +95,12 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
         <span className="eyebrow">{definition.briefLabel}</span>
         <dl className="catio-dimensions">{definition.facts(variant, config).map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>
         <div className="catio-parameters subassembly-parameters">
+          {definition.presets && <div className="subassembly-presets" role="group" aria-label="Presets"><span className="eyebrow">PRESETS</span>
+            <div>{[{ id: 'recommended', label: 'Recommended', description: 'The recommended defaults.', config: () => structuredClone(definition.defaults) }, ...definition.presets].map(preset => {
+              return <button type="button" key={preset.id} title={preset.description} aria-pressed={activePreset === preset.id}
+                onClick={() => setSettings(current => ({ ...current, config: preset.config() }))}>{preset.label}</button>;
+            })}</div>
+            <small>{[{ id: 'recommended', description: 'The recommended defaults.' }, ...definition.presets].find(preset => preset.id === activePreset)?.description ?? 'Your own design: start again from a preset or the recommended defaults.'}</small></div>}
           {groups.map(group => <fieldset key={group}><legend>{group}</legend>{controls.filter(control => control.group === group).map(control => {
             const current = config[control.key];
             if (control.range) return <NumberField key={control.key} label={control.label} help={control.help} range={control.range} value={Number(current)}

@@ -3,7 +3,7 @@ import type { SubassemblyDefinition } from './catioSubassembly.ts';
 import { createWindowInsertScene } from './catioWindowInsertScene.ts';
 import { createTunnelScene } from './catioTunnelScene.ts';
 import {
-  parseTunnel, TUNNEL_CONTROLS, TUNNEL_DECISIONS, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelSteps, tunnelViews, validateTunnel, type TunnelConfig,
+  parseTunnel, TUNNEL_CONTROLS, TUNNEL_PRESETS, TUNNEL_DECISIONS, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelSteps, tunnelViews, validateTunnel, type TunnelConfig,
 } from './catioTunnel.ts';
 import {
   parseWindowInsert, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DECISIONS, WINDOW_INSERT_DEFAULT, windowInsertBom, windowInsertFacts,
@@ -27,7 +27,7 @@ export const tunnelDefinition: SubassemblyDefinition<TunnelConfig> = {
   variants: ['modular'], briefLabel: 'THE TUNNEL', assemblyHeading: 'From the slabs to the enclosure.', stageScale: 20,
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the climb', Top: 'Top · the turns', Mounting: 'Support detail' },
   toggles: { cutaway: 'Wall cutaway' }, layerLabels: { hardware: 'Bolts, feet & fixings', environment: 'Ground, wall & slabs' },
-  defaults: TUNNEL_DEFAULT, controls: TUNNEL_CONTROLS, parse: parseTunnel,
+  defaults: TUNNEL_DEFAULT, presets: TUNNEL_PRESETS, controls: TUNNEL_CONTROLS, parse: parseTunnel,
   validate: (variant, config) => validateTunnel(variant, config),
   steps: tunnelSteps, build: createTunnelScene, bom: (variant, config) => tunnelBom(variant, config),
   views: tunnelViews, facts: tunnelFacts, decisions: TUNNEL_DECISIONS,

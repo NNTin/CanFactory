@@ -5,7 +5,7 @@ import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { tunnelDefinition } from './catioSubassemblies.ts';
 import {
-  facePoint, groundAt, jointSetback, TUNNEL, TUNNEL_CONTROLS, TUNNEL_DEFAULT, tunnelBom, tunnelLayout, tunnelSite, tunnelSteps, validateTunnel, vec, type TunnelConfig,
+  facePoint, groundAt, jointSetback, TUNNEL, TUNNEL_CONTROLS, TUNNEL_DEFAULT, TUNNEL_PRESETS, tunnelFacts, tunnelBom, tunnelLayout, tunnelSite, tunnelSteps, validateTunnel, vec, type TunnelConfig,
 } from './catioTunnel.ts';
 import { createTunnelScene, LIFT } from './catioTunnelScene.ts';
 import type { V3 } from './catioSubassembly.ts';
@@ -299,6 +299,43 @@ describe('tunnel scene', () => {
   });
 });
 
+describe('tunnel presets', () => {
+  const preset = (id: string) => { const found = TUNNEL_PRESETS.find(p => p.id === id); if (!found) throw new Error(id); return found.config(); };
+
+  it('builds every preset, each one a valid saved design', () => {
+    for (const p of TUNNEL_PRESETS) {
+      const config = p.config();
+      expect(tunnelLayout(config, site).errors, p.id).toEqual([]);
+      expect(parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config })).config, p.id).toEqual(config);
+    }
+  });
+
+  it('runs straight and level with square sections only', () => {
+    const l = tunnelLayout(preset('straight'), site);
+    expect(l.joints).toEqual([]); expect(l.slope).toBeNull();
+    expect(l.pieces.every(p => p.kind === 'section' && p.pitch === 0 && vec.dot(p.start.n, p.frame.y) === 1 && vec.dot(p.end.n, p.frame.y) === 1)).toBe(true);
+    expect(tunnelFacts('modular', preset('straight')).find(f => f.label.startsWith('Rise'))?.value).toBe('level');
+  });
+
+  it('turns once, 90° to the right, and stays level', () => {
+    for (const angleJoint of ['angle-collar', 'mitred-ends'] as const) {
+      const l = tunnelLayout({ ...preset('right-angle'), angleJoint }, site);
+      expect(l.errors).toEqual([]);
+      expect(l.joints.map(j => j.kind)).toEqual(['turn']);
+      expect(l.joints[0]?.angle).toBeCloseTo(90, 9);
+      expect(l.slope).toBeNull();
+      close(l.pieces.at(-1)?.end.n ?? [0, 0, 0], [1, 0, 0], 12);
+    }
+  });
+
+  it('rises to a higher door without turning', () => {
+    const l = tunnelLayout(preset('rising'), site);
+    expect(l.joints.map(j => j.kind)).toEqual(['bend', 'bend']);
+    expect(l.rise).toBeGreaterThan(600);
+    expect(l.pieces.at(-1)?.end.at[2]).toBeCloseTo(900, 9);
+  });
+});
+
 describe('tunnel page settings', () => {
   it('offers only the modular variant and restores valid saved settings', () => {
     expect(defaultSubassemblySettings(tunnelDefinition).variant).toBe('modular');
@@ -310,6 +347,6 @@ describe('tunnel page settings', () => {
     expect(settings.config.angleJoint).toBe('angle-collar');
     expect(settings.views.modular).toMatchObject({ progress: 2, view: 'Top' });
     // off a step is not accepted either
-    expect(parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, portHeight: 657 } })).config.portHeight).toBe(TUNNEL_DEFAULT.portHeight);
+    expect(parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, portHeight: 657.3 } })).config.portHeight).toBe(TUNNEL_DEFAULT.portHeight);
   });
 });

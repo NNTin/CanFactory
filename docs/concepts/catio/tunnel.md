@@ -4,7 +4,7 @@ The tunnel is the enclosed, supported walkway of the modular catio. It runs from
 enclosure's rear cat port. Its route is **solved between the two ports**, so it can turn at any angle and climb or fall to a
 door at a different height. Its **supports stand on levelling feet**, because nothing on the site is assumed to be level.
 
-Live page: `#/concepts/catio/tunnel`, also linked from the catio concept page under **Sub-assemblies**. For local
+Live page: `#/concepts/catio/tunnel`, also linked from the catio concept page's heading under **Sub-assemblies**. For local
 development, run `npm run dev --workspace @canfactory/web -- --port 5181`, then open
 <http://127.0.0.1:5181/#/concepts/catio/tunnel>. It needs no API.
 
@@ -32,6 +32,20 @@ control.
   the wall, its distance out, the way it faces and its floor height. The tunnel's last flange bolts to a matching 30 mm flange
   with the same bolt pattern. **That flange is the one requirement the tunnel places on the enclosure page.**
 
+## Presets
+
+Above the parameters, one click sets a whole design; the active one is highlighted, and any edit makes it your own:
+
+| Preset | What it shows |
+| --- | --- |
+| Recommended | The defaults: two 37.04° turns and a 25.45 cm climb at 20° (the same as **Reset to the recommended defaults**) |
+| Straight | Straight out 2.5 m to a port at the window floor's height: no turns, no bends, square sections only |
+| 90° turn right | 1 m out from the wall, one 90° turn to the right, 1.2 m along the wall to a level port |
+| Rising | Straight out 4 m to a door 90 cm above the grass: a 65.45 cm climb at 20° in the middle run |
+
+The level presets take the window port's floor height from the window insert as it is set, so they stay level whatever its
+clamps make it. The port floor height therefore steps in 0.5 mm (shown as 0.05 cm).
+
 ## Parameters
 
 | Parameter | Default | Options | Group |
@@ -39,7 +53,7 @@ control.
 | Port along the wall | 120 cm | −400 to 400 cm | Enclosure port |
 | Port out from the wall | 300 cm | 80 to 800 cm | Enclosure port |
 | Port faces | 0° | −120° to 120° (+ to the right) | Enclosure port |
-| Port floor height | 50 cm | 15 to 140 cm | Enclosure port |
+| Port floor height | 50 cm | 15 to 140 cm, in 0.05 cm steps | Enclosure port |
 | Straight out from the wall | 70 cm | 30 to 500 cm | Route |
 | Straight into the port | 70 cm | 30 to 500 cm | Route |
 | Climb in | The middle run | Run out from the wall; middle run; run into the port | Route |
@@ -176,7 +190,7 @@ Custom lines (not library parts): the timber cut list, mesh panels, the foam str
 - [Tunnel scene](../../../apps/web/src/catioTunnelScene.ts): the window context (without its flat ground), uneven
   terrain, the window insert and the enclosure's port flange as fixed context
 - [Sub-assembly contract](../../../apps/web/src/catioSubassembly.ts) and [page](../../../apps/web/src/CatioSubassemblyPage.tsx).
-  New for the tunnel: numeric controls (`range`), single-variant pages, per-page view, layer and toggle labels, the brief
+  New for the tunnel: numeric controls (`range`), presets (`presets`), single-variant pages, per-page view, layer and toggle labels, the brief
   and assembly headings, a stage scale, and a Groundwork group in the parts list. The window insert page is unchanged.
 - [Tests](../../../apps/web/src/catioTunnel.test.ts) check:
   - both ends square to their ports across left, right, odd-angle, climbing, falling and 90° routes, in both joint types
@@ -188,6 +202,8 @@ Custom lines (not library parts): the timber cut list, mesh panels, the foam str
     on the uneven ground
   - parts-list counts against the layout, and the parts-library cross-links
   - staging and fastener directions, and restoring saved settings
+  - the presets: each is valid and restorable; straight has no joints, the 90° preset turns once by exactly 90° in both joint
+    types, and the rising preset reaches its door
 
   Browser coverage is in [catio.spec.ts](../../../tests/browser/catio.spec.ts).
 

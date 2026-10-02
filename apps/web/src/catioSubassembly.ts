@@ -54,6 +54,8 @@ export interface BomLine {
   partId?: string;
 }
 
+export interface SubassemblyPreset<C> { id: string; label: string; description: string; config: () => C }
+
 /** A documented design call: what was chosen and why, so the owner can redirect it. */
 export interface DesignDecision { title: string; choice: string; why: string; parameter?: string }
 
@@ -92,6 +94,8 @@ export interface SubassemblyDefinition<C extends object> {
   /** The stage's scale (scene units per stage unit): larger for a sub-assembly that spans the garden. */
   stageScale?: number;
   defaults: C;
+  /** Ready-made designs besides the defaults, applied with one click; each is built when picked (it may follow other pages' settings). */
+  presets?: SubassemblyPreset<C>[];
   controls: SubassemblyControl<C>[];
   /** A config from untrusted storage, or null when it is not a valid one. */
   parse: (raw: unknown) => C | null;
