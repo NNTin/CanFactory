@@ -108,4 +108,30 @@ export const tunnelConcept: ConceptPage = {
   ],
 };
 
-export const conceptPages: readonly ConceptPage[] = [windowInsertConcept, tunnelConcept];
+/**
+ * The catio's insert–tunnel coupling: the docking frame screwed to the window insert's cat port, and the toggle latches that join
+ * the tunnel's first flange to it without tools. GN 831 latches of the short type (identification no. 2) fit the depth of the
+ * joint; any of its types and both materials can be chosen.
+ */
+export const COUPLING_HARDWARE = {
+  frameScrew: 'din-7997-5x60',
+  latchScrew: 'din-7997-4x25',
+  lipScrew: 'din-7997-4x25',
+} as const;
+export const COUPLING_LATCH = { types: ['S', 'A', 'SV'], materials: ['NI', 'ST'], identification: 2 } as const;
+/** The GN 831 toggle latch of this type and material, short type: the one that fits between the flange and the docking frame. */
+export function couplingLatch(type: typeof COUPLING_LATCH.types[number], material: typeof COUPLING_LATCH.materials[number]): Part {
+  return libraryPart(`ganter-gn-831-100-${type.toLowerCase()}-${material.toLowerCase()}-${COUPLING_LATCH.identification}`);
+}
+
+const c = COUPLING_HARDWARE;
+export const insertTunnelCouplingConcept: ConceptPage = {
+  id: 'catio/insert-tunnel-coupling', title: 'Window catio: insert–tunnel coupling',
+  parts: [
+    { partId: c.frameScrew, via: 'Docking frame to the port jambs and transom' },
+    { partId: c.latchScrew, via: 'Latches and catch brackets; floor lip' },
+    ...COUPLING_LATCH.types.flatMap(type => COUPLING_LATCH.materials.map(material => ({ partId: couplingLatch(type, material).id, via: `Toggle latches (type ${type}, ${material === 'NI' ? 'stainless' : 'steel'})` }))),
+  ],
+};
+
+export const conceptPages: readonly ConceptPage[] = [windowInsertConcept, tunnelConcept, insertTunnelCouplingConcept];

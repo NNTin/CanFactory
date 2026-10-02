@@ -6,7 +6,7 @@ import { createStage, type Stage } from './stage.ts';
 import type { CatioLayer, CatioView } from './catioDesign.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { BOM_GROUPS, inRange, loadSubassemblySettings, subassemblyStorageKey, defaultSubassemblySettings, type BomLine, type NumberRange, type SubassemblyDefinition, type SubassemblyModel, type SubassemblyViewing } from './catioSubassembly.ts';
-import { tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
+import { CATIO_SUBASSEMBLY_TITLES, couplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
 import { formatHash, type CatioSubassembly } from './route.ts';
 
 const VIEWS: CatioView[] = ['Exterior', 'Interior', 'Front', 'Side', 'Top', 'Mounting'];
@@ -20,6 +20,7 @@ export function CatioSubassemblyRoute({ id }: { id: CatioSubassembly }) {
   // The enclosure becomes a case here.
   const pages: Record<CatioSubassembly, () => React.JSX.Element> = {
     'window-insert': () => <CatioSubassemblyPage definition={windowInsertDefinition} />,
+    'insert-tunnel-coupling': () => <CatioSubassemblyPage definition={couplingDefinition} />,
     tunnel: () => <CatioSubassemblyPage definition={tunnelDefinition} />,
   };
   return pages[id]();
@@ -116,7 +117,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
           <button type="button" className="catio-reset" onClick={reset}>Reset to the recommended defaults</button>
         </div>
         {variant === 'modular' && <p>The window and cat port sizes follow the modular design on the <a href={formatHash({ view: 'concepts', concept: 'catio', subassembly: null })}>catio concept</a> page.</p>}
-        {definition.id !== 'window-insert' && <p>The window end fits the <a href={formatHash({ view: 'concepts', concept: 'catio', subassembly: 'window-insert' })}>window insert</a> as it is set on its page.</p>}
+        {definition.id !== 'window-insert' && <p>It fits {(definition.follows ?? ['window-insert']).map((id, i, all) => <span key={id}>{i > 0 ? (i === all.length - 1 ? ' and ' : ', ') : ''}the <a href={formatHash({ view: 'concepts', concept: 'catio', subassembly: id })}>{CATIO_SUBASSEMBLY_TITLES[id].toLowerCase()}</a></span>)} as {(definition.follows ?? []).length > 1 ? 'they are' : 'it is'} set on {(definition.follows ?? []).length > 1 ? 'their pages' : 'its page'}.</p>}
       </aside>
       <section className="catio-preview" aria-label={`Live ${definition.title.toLowerCase()} concept`}>
         <div className="catio-preview-title"><span className="eyebrow"><Box size={14} /> LIVE ASSEMBLY</span><span>Dimensions in millimetres</span></div>

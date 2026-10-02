@@ -5,7 +5,7 @@ import type { CatioMode } from './catioSettings.ts';
 import type { CatioSubassembly } from './route.ts';
 
 /**
- * A sub-assembly of the catio (the window insert and the tunnel now; the enclosure later) with its own live page
+ * A sub-assembly of the catio (the window insert, the tunnel and the coupling between them now; the enclosure later) with its own live page
  * (`#/concepts/catio/<id>`): the same two variants as the whole catio, design choices as parameters, its pieces staged
  * into an assembly, and a parts list. `CatioSubassemblyPage` renders any definition; a new sub-assembly is one more
  * definition in `CATIO_SUBASSEMBLY_DEFINITIONS`.
@@ -108,6 +108,10 @@ export interface SubassemblyDefinition<C extends object> {
   /** Short facts for the brief, e.g. the collar size that follows from the chosen clamps. */
   facts: (variant: CatioMode, config: C) => { label: string; value: string }[];
   decisions: DesignDecision[];
+  /** The other sub-assembly pages whose settings this one follows, linked from the brief; the window insert when absent. */
+  follows?: CatioSubassembly[];
+  /** Viewing defaults besides the shared ones, e.g. a toggle that starts off. */
+  defaultViewing?: Partial<Pick<SubassemblyViewing, 'windowOpen' | 'cutaway' | 'view'>>;
 }
 
 export interface SubassemblyViewing { progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: CatioLayer[]; view: CatioView }
@@ -117,7 +121,7 @@ export const subassemblyStorageKey = (id: CatioSubassembly) => `canfactory.catio
 
 export function defaultSubassemblySettings<C extends object>(definition: SubassemblyDefinition<C>): SubassemblySettings<C> {
   const view = (variant: CatioMode): SubassemblyViewing => ({
-    progress: definition.steps(variant, definition.defaults).length - 1, exploded: false, windowOpen: true, cutaway: false, hidden: [], view: 'Exterior',
+    progress: definition.steps(variant, definition.defaults).length - 1, exploded: false, windowOpen: true, cutaway: false, hidden: [], view: 'Exterior', ...definition.defaultViewing,
   });
   return { version: 1, variant: definition.variants?.[0] ?? 'direct', config: structuredClone(definition.defaults), views: { direct: view('direct'), modular: view('modular') } };
 }
