@@ -212,11 +212,13 @@ export function couplingFacts(_variant: CatioMode, config: CouplingConfig) {
 export function couplingViews(_variant: CatioMode, config: CouplingConfig): Record<CatioView, CameraPreset> {
   const l = couplingLayout(config);
   const cz = l.floor + l.h / 2; const span = l.w + 2 * TUNNEL.flange.width;
+  // far enough out to see the whole recess and the first section raised over its support
+  const room = Math.max(l.site.window.openingWidth, l.site.window.openingHeight);
   const latch = l.latches.find(q => q.side > 0) ?? l.latches[0];
   const focus: V3 = latch ? [latch.faceX, (latch.catchY + latch.hingeY) / 2, latch.z] : [span / 2, 0, cz];
   return {
-    Exterior: { position: [span * 2.1, span * 3.2, cz + span * 1.4], target: [0, 120, cz] },
-    Interior: { position: [span * 1.1, -span * 3.4, cz + span * 0.9], target: [0, -40, cz] },
+    Exterior: { position: [room * 1.3, room * 2, cz + room * 1.1], target: [0, 150, cz + 100] },
+    Interior: { position: [room * 0.6, -room * 1.9, cz + room * 0.5], target: [0, -40, cz] },
     Front: { position: [0, span * 4.2, cz], target: [0, 0, cz] },
     Side: { position: [span * 3.2, 0, cz + 60], target: [0, 0, cz] },
     Top: { position: [0, 0, cz + span * 3.6], target: [0, 1, cz] },
