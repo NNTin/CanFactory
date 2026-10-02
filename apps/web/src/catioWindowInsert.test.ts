@@ -135,6 +135,13 @@ describe('window insert', () => {
         expect(motion.approach.clone().normalize().dot(drive), motion.action).toBeCloseTo(-1, 6);
         if (motion.role === 'screw') expect(motion.axis?.dot(drive), motion.action).toBeCloseTo(1, 6);
       }
+      // pieces of one kind move together: one caption, one window
+      const windows = new Map<string, string>();
+      for (const motion of scene.motions) {
+        const key = `${motion.stage}:${motion.action}`; const window = motion.window.join();
+        expect(windows.get(key) ?? window, `${variant} ${motion.action}`).toBe(window); windows.set(key, window);
+      }
+      expect(new Set(fasteners.map(motion => `${motion.stage}:${motion.action}`)).size).toBeLessThanOrEqual(new Set(scene.layout.fasteners.map(f => `${f.component}:${f.partId}`)).size);
       for (let stage = 1; stage <= 6; stage++) {
         scene.update({ ...installed, progress: stage });
         for (const motion of scene.motions.filter(m => m.stage <= stage)) expect(motion.object.visible, motion.action).toBe(true);

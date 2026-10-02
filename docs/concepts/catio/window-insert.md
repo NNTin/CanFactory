@@ -68,8 +68,9 @@ tunnel clear size saved on the catio concept page (recess = sash + 9 cm, as the 
 
 ### How the animation shows it
 
-Every piece moves on its own, along the direction it is really fitted, in the order above; a caption under the stage names
-the piece and how it goes in ("Now: …"):
+Every piece moves along the direction it is really fitted, in the order above. Pieces of one kind move together (all
+corner screws at once, then all insert nuts, and so on), each along its own axis; a caption under the stage names the
+group and how it goes in ("Now: 8 × Countersunk wood screw 4 × 50: driven from the outdoor face"):
 
 - Half-laps close across the timber's depth: the rails come from the room side (laps facing outdoors), the stiles from
   outdoors onto them. Butt joints: the stiles stand first, then the rails slide in between them from outdoors.
