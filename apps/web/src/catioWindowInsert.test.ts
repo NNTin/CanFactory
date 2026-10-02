@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { dimensionOf, findPart } from '@canfactory/contracts';
+import { dimensionOf, findPart, partUsage, WINDOW_INSERT_FOOT, windowInsertConcept } from '@canfactory/contracts';
 import type { CatioState } from './catioScene.ts';
 import { parseSubassemblySettings, defaultSubassemblySettings } from './catioSubassembly.ts';
 import { windowInsertDefinition } from './catioSubassemblies.ts';
@@ -127,6 +127,17 @@ describe('window insert', () => {
     expect(butt.timber.find(piece => piece.id === 'collar-head')?.length).toBe(butt.W - 2 * INSERT.member);
     expect(lap.fasteners.filter(f => f.component === 'corner-screws').every(f => f.partId === 'din-7997-4x50')).toBe(true);
     expect(butt.fasteners.filter(f => f.component === 'corner-screws').every(f => f.partId === 'din-7997-5x70')).toBe(true);
+  });
+
+  it('links every library part it can use back to this page in the parts library', () => {
+    expect(INSERT.member).toBe(WINDOW_INSERT_FOOT.member);
+    expect(WINDOW_INSERT_CONTROLS.find(control => control.key === 'footDiameter')?.options.map(option => option.value)).toEqual([...WINDOW_INSERT_FOOT.diameters]);
+    const used = new Set(variants.flatMap(variant => configs.flatMap(config => windowInsertBom(variant, config).flatMap(line => line.partId ? [line.partId] : []))));
+    expect([...used].sort()).toEqual([...new Set(windowInsertConcept.parts.map(link => link.partId))].sort());
+    for (const id of used) {
+      const part = findPart(id); if (!part) throw new Error(id);
+      expect(partUsage(part).filter(use => use.kind === 'concept').map(use => use.modelId), id).toContain('catio/window-insert');
+    }
   });
 
   it('gives the modular port the tunnel’s clear size between real timber edges', () => {

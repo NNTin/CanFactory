@@ -1,4 +1,4 @@
-import { dimensionOf, findPart, parts, type Part } from '@canfactory/contracts';
+import { dimensionOf, findPart, WINDOW_INSERT_FOOT, WINDOW_INSERT_HARDWARE as HW, windowInsertFeet, type Part } from '@canfactory/contracts';
 import { CATIO, CATIO_DERIVED, type CatioView } from './catioDesign.ts';
 import { loadCatioSettings, type CatioMode } from './catioSettings.ts';
 import { fastenersAlong, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type V3 } from './catioSubassembly.ts';
@@ -37,14 +37,13 @@ export const INSERT = {
   portMember: 40, batten: { width: 40, thickness: 15 },
   threshold: 18,
   /** How far each spreader foot is turned out from the collar to bear on the reveal. */
-  travel: 8,
+  travel: WINDOW_INSERT_FOOT.travel,
   /** Gap all round for folding wedges, and the wedges: length, width and thick end. The pair is driven 2 mm proud. */
   wedgeGap: 16, wedge: { length: 150, width: 40, thickness: 14 },
   /** Direct: how far the passage sleeve runs out from the collar towards the enclosure's rear portal. */
   sleeve: 90,
   /** Depth of the housings the transom and jambs sit in. */
   housing: 10,
-  thread: 'M8',
   mesh: { opening: CATIO.meshOpening, wire: CATIO.wire, overlap: 30 },
 } as const;
 
@@ -79,16 +78,6 @@ function part(id: string): Part {
   return found;
 }
 const dim = (p: Part, key: string) => dimensionOf(p, key);
-const screw = (d: number, l: number) => part(`din-7997-${String(d).replace('.', '-')}x${l}`);
-
-/** The shortest stud of a Ganter GN 343.2 KR foot of this diameter and thread at least `least` mm long. */
-export function footWithStud(d1: number, least: number): Part {
-  const candidates = parts.filter(p => p.family === 'levelling-foot' && dim(p, 'd1') === d1 && p.attributes['thread'] === INSERT.thread)
-    .sort((a, b) => dim(a, 'l1') - dim(b, 'l1'));
-  const found = candidates.find(p => dim(p, 'l1') >= least) ?? candidates.at(-1);
-  if (!found) throw new Error(`No ${d1} mm levelling foot.`);
-  return found;
-}
 
 export type Side = 'left' | 'right' | 'head' | 'sill';
 export interface Box { size: V3; center: V3 }
@@ -106,10 +95,9 @@ export interface Fastener {
 export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant)) {
   const { member: m, depth: D, y: yc } = INSERT;
   const spreader = config.attachment === 'spreader-feet';
-  const nut = part('iso-4032-m8');
-  // A spreader stud runs through the member, the travel and the two jammed nuts on its inner end.
-  const spreaderFoot = footWithStud(config.footDiameter, m + INSERT.travel + 2 * dim(nut, 'm') + 1);
-  const bearingFoot = footWithStud(config.footDiameter, 0);
+  const nut = part(HW.jamNut);
+  // A spreader stud runs through the member, the travel and the two jammed nuts on its inner end (windowInsertFeet).
+  const { spreader: spreaderFoot, bearing: bearingFoot } = windowInsertFeet(config.footDiameter);
   const gap = spreader ? dim(spreaderFoot, 'l3') + INSERT.travel : INSERT.wedgeGap;
   const W = window.openingWidth - 2 * gap; const H = window.openingHeight - 2 * gap;
   const z0 = window.recessFloor + gap; const x0 = -W / 2;
@@ -139,11 +127,11 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     const corner = sx < 0 ? (z < z0 + H / 2 ? 'bottom left' : 'top left') : (z < z0 + H / 2 ? 'bottom right' : 'top right');
     if (lap) {
       // two screws on the diagonal, from the outdoor face through both laps
-      const s = screw(4, 50);
+      const s = part(HW.halfLapScrew);
       for (const k of [-1, 1]) fasteners.push({ partId: s.id, component: 'corner-screws', at: [sx * (W / 2 - m / 2) + k * 9, yOut, z + k * 9], direction: [0, -1, 0], use: `Half-lap, ${corner} corner` });
     } else {
       // two screws through the stile into the end grain of the rail
-      const s = screw(5, 70);
+      const s = part(HW.buttScrew);
       for (const k of [-1, 1]) fasteners.push({ partId: s.id, component: 'corner-screws', at: [sx * W / 2, yc + k * 15, z], direction: [-sx, 0, 0], use: `Butt joint, ${corner} corner` });
     }
   }
@@ -152,7 +140,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
   const thresholdEnd = variant === 'direct' ? yOut + INSERT.sleeve : 0;
   timber.push({ id: 'threshold', component: 'threshold', name: 'Threshold board', section: 'Exterior board', length: Wi, cut: `${Wi} × ${thresholdEnd - yIn} × ${INSERT.threshold}`, use: 'On the sill rail, between the stiles',
     boxes: [box([Wi, thresholdEnd - yIn, INSERT.threshold], [0, (yIn + thresholdEnd) / 2, z0 + m + INSERT.threshold / 2])] });
-  for (const x of spaced(Wi - 80, 3)) fasteners.push({ partId: screw(4, 35).id, component: 'threshold-screws', at: [x, yc, floor], direction: [0, 0, -1], use: 'Threshold into the sill rail' });
+  for (const x of spaced(Wi - 80, 3)) fasteners.push({ partId: HW.thresholdScrew, component: 'threshold-screws', at: [x, yc, floor], direction: [0, 0, -1], use: 'Threshold into the sill rail' });
 
   const o = INSERT.mesh.overlap; const faceY = yOut + INSERT.mesh.wire / 2;
   const edge = (from: V3, to: V3, face: boolean, use: string): FixedEdge => ({ from, to, face, use });
@@ -179,10 +167,10 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     for (const side of [-1, 1]) timber.push({ id: `port-jamb-${side < 0 ? 'left' : 'right'}`, component: 'port-frame', name: `Port jamb, ${side < 0 ? 'left' : 'right'}`, section: `${pm} × ${pm}`,
       length: h + (housed ? hd : 0), cut: housed ? `${h + hd} long, top into a ${hd} mm housing in the transom` : `${h} long, square ends`, use: 'Beside the cat port, on the threshold',
       boxes: [box([pm, pm, h + (housed ? hd : 0)], [side * (w / 2 + pm / 2), py, floor + (h + (housed ? hd : 0)) / 2])] });
-    const endScrew = screw(5, 70);
+    const endScrew = part(HW.transomScrew);
     for (const side of [-1, 1]) for (const k of housed ? [0] : [-1, 1]) fasteners.push({ partId: endScrew.id, component: 'port-screws', at: [side * W / 2, py + k * 10, transomZ + pm / 2], direction: [-side, 0, 0], use: housed ? 'Transom, housed into the stile' : 'Transom, butt jointed to the stile' });
     // The jambs are screwed from below through the sill rail and threshold into their end grain.
-    const jambScrew = screw(6, 90);
+    const jambScrew = part(HW.jambScrew);
     for (const side of [-1, 1]) for (const k of [-1, 1]) fasteners.push({ partId: jambScrew.id, component: 'port-screws', at: [side * (w / 2 + pm / 2) + k * 9, py, z0], direction: [0, 0, 1], use: 'Port jamb, from under the sill rail' });
     // Infill mesh on the outdoor face: left and right of the port up to the transom, and one panel above it.
     const left = x0 + m - o; const portLeft = -w / 2 - pm + o;
@@ -211,7 +199,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
       timber.push({ id: 'batten-transom', component: 'cover-battens', name: 'Cover batten, transom', section: `${pm} × ${bt}`, length: Wi, cut: `${Wi} long`, use: 'Over the mesh edges on the transom', boxes: [box([Wi, bt, pm], [0, by, transomZ + pm / 2])] });
       for (const side of [-1, 1]) timber.push({ id: `batten-jamb-${side < 0 ? 'left' : 'right'}`, component: 'cover-battens', name: `Cover batten, port jamb, ${side < 0 ? 'left' : 'right'}`, section: `${pm} × ${bt}`, length: transomZ - floor, cut: `${transomZ - floor} long`, use: 'Over the mesh edges on the port jamb', boxes: [box([pm, bt, transomZ - floor], [side * (w / 2 + pm / 2), by, (floor + transomZ) / 2])] });
     }
-    const battenScrew = screw(4, 35);
+    const battenScrew = part(HW.battenScrew);
     for (const piece of timber.filter(t => t.component === 'cover-battens')) {
       const [b] = piece.boxes; if (!b) continue;
       const along = b.size[0] > b.size[2] ? 0 : 2; const length = b.size[along];
@@ -222,7 +210,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     }
   }
   // Staples on the face edges in the staple options, and on every edge without a face for a batten in all options.
-  const staple = part('din-1159-2-5x25');
+  const staple = part(HW.staple);
   for (const panel of panels) for (const e of panel.edges) if (!e.face || config.meshFixing !== 'battens') {
     const length = Math.hypot(e.to[0] - e.from[0], e.to[1] - e.from[1], e.to[2] - e.from[2]);
     const count = fastenersAlong(length, config.fixingPitch);
@@ -246,7 +234,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
 
   return {
     variant, config, window, gap, W, H, Wi, Hi, x0, z0, yIn, yOut, floor, port, timber, panels, fasteners, clamps,
-    spreaderFoot, bearingFoot, nut, insertNut: part('din-7965-m8x18'),
+    spreaderFoot, bearingFoot, nut, insertNut: part(HW.insertNut),
   };
 }
 export type WindowInsertLayout = ReturnType<typeof windowInsertLayout>;

@@ -136,10 +136,13 @@ describe('model and render API', () => {
     const served = new Set(screws.sources.map(source => source.id));
     for (const part of screws.parts) for (const id of [...part.sources, ...Object.values(part.dimensions).map(value => value.source)]) expect(served.has(id), `${part.id}: ${id}`).toBe(true);
     // the plank connector links every M3 screw through its screw-hole sizes
-    expect(screws.usage['iso-4762-m3x10']).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes' }]);
+    expect(screws.usage['iso-4762-m3x10']).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes', kind: 'model' }]);
+    // a concept page that uses a part is listed too, as a concept
+    const foot = Value.Parse(PartDetailSchema, (await app.inject('/api/v1/parts/ganter-gn-343-2-32-m8-63-kr')).json());
+    expect(foot.usage).toEqual([{ modelId: 'catio/window-insert', modelTitle: 'Window catio: window insert', via: 'Spreader feet (32 mm)', kind: 'concept' }]);
     const lighter = Value.Parse(PartDetailSchema, (await app.inject('/api/v1/parts/bic-j25-mini-lighter')).json<unknown>());
     expect(lighter.family.id).toBe('everyday-object');
-    expect(lighter.usage).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview' }]);
+    expect(lighter.usage).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview', kind: 'model' }]);
     expect(lighter.sources.map(source => source.kind)).toContain('manufacturer');
     for (const url of ['/api/v1/part-families/missing', '/api/v1/parts/missing']) {
       const missing = await app.inject(url);

@@ -424,7 +424,7 @@ describe('cigarette case magnets (parts library)', () => {
     expect(() => defines(caseBox, 'no-such-magnet')).toThrow();
     // the library data behind them is part of the cache fingerprint
     expect(linkedPartData(cigaretteCase).map(part => part.id)).toEqual([...CASE_MAGNETS]);
-    expect(partUsage(magnet('supermagnete-s-08-02-n'))).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Magnets' }]);
+    expect(partUsage(magnet('supermagnete-s-08-02-n'))).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Magnets', kind: 'model' }]);
   });
 
   it('shows the four magnets in the assembly only in magnet mode, the lid’s moving with the lid', () => {
@@ -906,7 +906,7 @@ describe('litter shovel handle reinforcement (parts library)', () => {
     expect(assembly?.poses['handle-insert-minus-y']?.position[0]).toBeCloseTo(seat.innerX + 12 - dimensionOf(part('cnc-kitchen-m3x5-7'), 'l'), 9);
     const nuts = resolveAssembly(litterShovel, litterShovel.assembly, nutMode);
     expect(nuts?.poses['handle-nut-plus-y']?.position[0]).toBeCloseTo(seat.innerX + 12 - seat.nutRecess - 2.4, 9);
-    expect(partUsage(part('iso-7046-m2x8')).filter(usage => usage.modelId === 'litter-shovel')).toEqual([{ modelId: 'litter-shovel', modelTitle: litterShovel.title, via: 'Screws' }]);
+    expect(partUsage(part('iso-7046-m2x8')).filter(usage => usage.modelId === 'litter-shovel')).toEqual([{ modelId: 'litter-shovel', modelTitle: litterShovel.title, via: 'Screws', kind: 'model' }]);
     expect(partUsage(part('iso-4762-m3x10')).filter(usage => usage.modelId === 'litter-shovel')).toEqual([]);
   });
 });

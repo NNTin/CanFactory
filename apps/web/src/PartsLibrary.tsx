@@ -73,7 +73,7 @@ function PartDetails({ detail, part }: { detail: PartFamilyDetail; part: Part })
       <li key={source.id}><span className={`source-kind source-${source.kind}`}>{source.kind}</span>{source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : source.title}
         <small> · {source.publisher} · read {source.accessed}</small></li>)}</ul>
     <h3>Used by</h3>
-    {usage.length > 0 ? <ul className="part-usage">{usage.map(use => <li key={`${use.modelId}:${use.via}`}><a href={formatHash({ view: 'models', model: use.modelId })}>{use.modelTitle}</a> <small>· {use.via}</small></li>)}</ul>
+    {usage.length > 0 ? <ul className="part-usage">{usage.map(use => <li key={`${use.modelId}:${use.via}`}><a href={use.kind === 'concept' ? `#/concepts/${use.modelId}` : formatHash({ view: 'models', model: use.modelId })}>{use.modelTitle}</a> <small>· {use.via}</small></li>)}</ul>
       : <p className="part-unused">No model links to this part yet.</p>}
   </article>;
 }

@@ -1,3 +1,4 @@
+import { conceptPages } from './concepts.ts';
 import { Type, type Static, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
@@ -1624,16 +1625,22 @@ export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, ci
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 
-/** A model that links to a part: through an option of a part-linked control, or as a reference object of its assembly. */
-export interface PartUsage { modelId: string; modelTitle: string; via: string }
+/**
+ * A model or concept page that links to a part: a model through an option of a part-linked control or as a reference object
+ * of its assembly; a concept page (`kind: 'concept'`, `modelId` is its page, e.g. `catio/window-insert`) through its parts list.
+ */
+export interface PartUsage { modelId: string; modelTitle: string; via: string; kind: 'model' | 'concept' }
 
-/** Every model that links to this part (the parts library's “Used by”). */
+/** Every model and concept page that links to this part (the parts library's “Used by”). */
 export function partUsage(part: Part): PartUsage[] {
-  return models.flatMap(model => [
-    ...model.controls.filter(control => control.part?.family === part.family && control.options?.some(option =>
-      option.value === (control.part?.attribute ? part.attributes[control.part.attribute] : part.id))).map(control => ({ modelId: model.id, modelTitle: model.title, via: control.label })),
-    ...(model.assembly?.references ?? []).filter(reference => reference.part === part.id).map(() => ({ modelId: model.id, modelTitle: model.title, via: 'Assembly preview' })),
-  ]);
+  return [
+    ...models.flatMap(model => [
+      ...model.controls.filter(control => control.part?.family === part.family && control.options?.some(option =>
+        option.value === (control.part?.attribute ? part.attributes[control.part.attribute] : part.id))).map(control => ({ modelId: model.id, modelTitle: model.title, via: control.label, kind: 'model' as const })),
+      ...(model.assembly?.references ?? []).filter(reference => reference.part === part.id).map(() => ({ modelId: model.id, modelTitle: model.title, via: 'Assembly preview', kind: 'model' as const })),
+    ]),
+    ...conceptPages.flatMap(page => page.parts.filter(link => link.partId === part.id).map(link => ({ modelId: page.id, modelTitle: page.title, via: link.via, kind: 'concept' as const }))),
+  ];
 }
 
 /** Validates unknown browser/API input, including cross-field rules, without coercion. */

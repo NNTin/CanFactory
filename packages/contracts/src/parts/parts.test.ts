@@ -119,10 +119,10 @@ describe('parts library', () => {
     expect(Object.keys(ISO_273_CLEARANCE_HOLES)).toEqual(Object.keys(METRIC_THREADS));
     const m3 = findPart('iso-4762-m3x10');
     if (!m3) throw new Error('Expected ISO 4762 M3 × 10');
-    expect(partUsage(m3)).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes' }]);
+    expect(partUsage(m3)).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes', kind: 'model' }]);
     const lighter = findPart('bic-j25-mini-lighter');
     if (!lighter) throw new Error('Expected the lighter');
-    expect(partUsage(lighter)).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview' }]);
+    expect(partUsage(lighter)).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview', kind: 'model' }]);
     const bearing = findPart('bearing-608');
     if (!bearing) throw new Error('Expected the 608 bearing');
     expect(partUsage(bearing)).toEqual([]);

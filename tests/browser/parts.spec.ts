@@ -70,6 +70,13 @@ test('browses the parts library: families, filters in the link, a hovered part n
     await page.goto(`/#/parts/${family}`);
     expect(await shownParts(page)).toContain(first);
   }
+  // A part the window insert uses links back to that concept page, and the link opens it.
+  await page.goto('/#/parts/wood-screw/din-7997-4x50');
+  const used = page.getByRole('article', { name: 'Countersunk wood screw 4 × 50 details' }).getByRole('link', { name: 'Window catio: window insert' });
+  await expect(used).toHaveAttribute('href', '#/concepts/catio/window-insert');
+  await used.click();
+  await expect(page).toHaveURL(/#\/concepts\/catio\/window-insert$/);
+  await expect(page.getByRole('table', { name: 'Hardware parts' }).getByRole('link', { name: 'Countersunk wood screw 4 × 50' })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

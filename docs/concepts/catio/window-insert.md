@@ -77,6 +77,11 @@ All with the source of every value (see [adding-parts.md](../../adding-parts.md)
 | Insert nuts for wood (`insert-nut`) | DIN 7965 M6 × 15, M8 × 18, M10 × 25 | fasteners.eu DIN 7965 table |
 | Levelling feet and pressure pads (`levelling-foot`) | Ganter GN 343.2 KR, d1 25/32/40, M8/M10, all listed studs | Ganter's table, drawing and specification |
 
+The parts the insert can use (every option) are listed once in
+[packages/contracts/src/concepts.ts](../../../packages/contracts/src/concepts.ts). The page's layout takes its hardware from
+there, and the parts library lists the page under each part's “Used by” (`partUsage`, `kind: 'concept'`); a test keeps the
+page's parts list and that list identical.
+
 Known gaps, stated in each part's notes: DIN 1159 gives no width across the legs (the preview draws one for illustration
 only); the DIN 7965 reference does not label its d5 column, read as the hole size (it lies between the wood thread's core
 and outer diameter).

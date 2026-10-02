@@ -78,3 +78,5 @@ for a reference object, `npm run check:assembly` fails until you do.
   does with the lighter; or, when it depends on the settings, return it from `linkedReferences`, as the case does with its magnets.
 
 Either way the library lists the model under the part's “Used by” (`partUsage`).
+- **A concept page** (not a model, e.g. the catio window insert, `#/concepts/catio/window-insert`): list the parts it uses in
+  `packages/contracts/src/concepts.ts`; the library lists the page under “Used by” with `kind: 'concept'`.
