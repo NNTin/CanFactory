@@ -4,7 +4,7 @@
  * `#/parts/<family>` and `#/parts/<family>/<part>`, each optionally with filters as a query, e.g. `#/parts/screw?thread=M3`.
  * `#/concepts/catio` is the whole catio concept and `#/concepts/catio/<sub-assembly>` one of its sub-assemblies' own pages.
  */
-export const CATIO_SUBASSEMBLIES = ['window-insert'] as const;
+export const CATIO_SUBASSEMBLIES = ['window-insert', 'tunnel'] as const;
 export type CatioSubassembly = typeof CATIO_SUBASSEMBLIES[number];
 const isSubassembly = (value: string | undefined): value is CatioSubassembly => CATIO_SUBASSEMBLIES.includes(value as CatioSubassembly);
 

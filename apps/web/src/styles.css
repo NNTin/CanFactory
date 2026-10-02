@@ -2027,11 +2027,24 @@ main {
 .catio-door-controls label { display: flex; align-items: center; gap: 6px; }
 .catio-door-controls small { color: #868c7d; }
 @media (min-width: 721px) { .catio-preview { position: sticky; top: 16px; } }
-.catio-subassemblies { display: grid; gap: 8px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
-.catio-subassemblies a { display: flex; gap: 8px; align-items: center; font-size: 12px; color: #687955; }
+.catio-subassemblies { display: grid; gap: 10px; margin-top: 22px; }
+.catio-subassemblies > div { display: flex; flex-wrap: wrap; gap: 12px; }
+.catio-subassemblies a { display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; column-gap: 14px; align-items: center; padding: 12px 16px; border: 1px solid #b9c7a9; border-radius: 9px; background: #f1f5e8; color: #415537; text-decoration: none; box-shadow: 0 1px 2px rgba(60, 80, 40, 0.08); }
+.catio-subassemblies a:hover, .catio-subassemblies a:focus-visible { background: #e5edd6; border-color: #7f9a66; }
+.catio-subassemblies a strong { font-size: 15px; font-weight: 600; }
+.catio-subassemblies a span { grid-row: 2; font-size: 11.5px; color: #6f7d62; }
+.catio-subassemblies a svg { grid-column: 2; grid-row: 1 / span 2; }
+.subassembly-presets { display: grid; gap: 8px; margin-bottom: 16px; }
+.subassembly-presets > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.subassembly-presets button { border: 1px solid #cbd5c0; border-radius: 7px; padding: 8px 11px; font: inherit; font-size: 12px; color: #536348; background: #fafbf5; cursor: pointer; }
+.subassembly-presets button[aria-pressed="true"] { background: #4f6b3c; border-color: #4f6b3c; color: #fff; }
+.subassembly-presets small { font-size: 10.5px; line-height: 1.55; color: #8a917e; }
 .subassembly-parameters fieldset { display: grid; gap: 12px; }
 .catio-field.subassembly-field { display: grid; gap: 5px; }
 .catio-field.subassembly-field select { width: 100%; font: inherit; font-size: 12px; padding: 6px 8px; border: 1px solid #d3d9c8; border-radius: 5px; background: #fff; color: #44513a; max-width: 100%; }
+.catio-field.subassembly-field input { width: 100%; font: inherit; font-size: 12px; padding: 6px 8px; border: 1px solid #d3d9c8; border-radius: 5px; }
+.catio-field.subassembly-field input[aria-invalid="true"] { border-color: #c4704f; }
+.subassembly-unit { font-style: normal; color: #8a917e; }
 .subassembly-field small { font-size: 10.5px; line-height: 1.55; color: #8a917e; }
 .subassembly-parts { padding-top: 60px; }
 .subassembly-parts h2, .subassembly-decisions h2 { font-size: 28px; margin: 10px 0 8px; letter-spacing: -.6px; }

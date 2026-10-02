@@ -209,3 +209,76 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await expect(page).toHaveURL(/#\/concepts\/catio$/);
   expect(errors).toEqual([]);
 });
+
+test('opens the tunnel, solves its route to the enclosure port, switches its joints and stages its supports', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
+  await page.goto('/#/concepts/catio');
+  await page.getByRole('navigation', { name: 'Catio sub-assemblies' }).getByRole('link', { name: /Tunnel/ }).click();
+  await expect(page).toHaveURL(/#\/concepts\/catio\/tunnel$/);
+  const viewer = page.getByTestId('subassembly-viewer');
+  await expect(viewer).toHaveAttribute('data-ready', 'true');
+  await expect(viewer).toHaveAttribute('data-variant', 'modular');
+  await expect(page.getByRole('button', { name: 'Direct · original design', exact: true })).toHaveCount(0);
+  await expect(viewer).toHaveAttribute('data-visible-parts', /levelling-feet/);
+  const hardware = page.getByRole('table', { name: 'Hardware parts' });
+  await expect(hardware.getByRole('link', { name: 'Levelling foot 40 mm, M8 × 80, rubber pad' })).toHaveAttribute('href', '#/parts/levelling-foot/ganter-gn-343-2-40-m8-80-kr');
+  await expect(hardware.getByRole('link', { name: 'Hexagon head screw M8 × 80' })).toBeVisible();
+  const timber = page.getByRole('table', { name: 'Timber parts' });
+  await expect(timber.getByRole('cell', { name: 'Collar floor' }).first()).toBeVisible();
+  // the enclosure's door higher up: the tunnel climbs more, steeper
+  await page.getByRole('spinbutton', { name: 'Port floor height' }).fill('75');
+  await expect(viewer).toHaveAttribute('data-config', /"portHeight":750/);
+  await expect(page.getByText(/\+50\.5 cm at 20°/)).toBeVisible();
+  await page.getByRole('combobox', { name: 'Turns and bends' }).selectOption('mitred-ends');
+  await expect(viewer).toHaveAttribute('data-config', /"angleJoint":"mitred-ends"/);
+  await expect(timber.getByRole('cell', { name: 'Collar floor' })).toHaveCount(0);
+  await expect(timber.getByText(/mitre face/).first()).toBeVisible();
+  // a turn too sharp for a mitre is explained
+  await page.getByRole('spinbutton', { name: 'Port out from the wall' }).fill('90');
+  await page.getByRole('spinbutton', { name: 'Port along the wall' }).fill('260');
+  await page.getByRole('spinbutton', { name: 'Port faces' }).fill('60');
+  await expect(page.getByRole('alert')).toContainText('mitred ends go to 90°');
+  await page.getByRole('button', { name: 'Reset to the recommended defaults' }).click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  const presets = page.getByRole('group', { name: 'Presets' });
+  await expect(presets.getByRole('button', { name: 'Recommended' })).toHaveAttribute('aria-pressed', 'true');
+  await presets.getByRole('button', { name: 'Straight' }).click();
+  await expect(presets.getByRole('button', { name: 'Straight' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('level', { exact: true })).toBeVisible();
+  await expect(timber.getByRole('cell', { name: 'Collar floor' })).toHaveCount(0);
+  await presets.getByRole('button', { name: '90° turn right' }).click();
+  await expect(viewer).toHaveAttribute('data-config', /"portFacing":90/);
+  await expect(page.getByText('90° right', { exact: true })).toBeVisible();
+  await presets.getByRole('button', { name: 'Rising' }).click();
+  await expect(viewer).toHaveAttribute('data-config', /"portHeight":900/);
+  await page.getByRole('spinbutton', { name: 'Port floor height' }).fill('85');
+  await expect(presets.getByRole('button', { name: 'Rising' })).toHaveAttribute('aria-pressed', 'false');
+  await presets.getByRole('button', { name: 'Recommended' }).click();
+  await page.getByRole('button', { name: 'Top · the turns', exact: true }).click();
+  await page.getByRole('button', { name: 'Support detail', exact: true }).click();
+  const slider = page.getByRole('slider', { name: 'Tunnel assembly' });
+  await slider.press('Home');
+  await expect(viewer).toHaveAttribute('data-step', '0');
+  await expect(viewer).not.toHaveAttribute('data-visible-parts', /flanges/);
+  await slider.fill('0.5');
+  await expect(page.getByTestId('assembly-action')).toContainText('Levelling foot 40 mm, M8 × 80, rubber pad: stud screwed up into the insert nut');
+  await slider.fill('1.5');
+  await expect(page.getByTestId('assembly-action')).toContainText('Each foot is turned on its stud');
+  await slider.press('Home');
+  for (let stage = 1; stage <= 6; stage++) {
+    await page.getByRole('button', { name: 'Next assembly stage' }).click();
+    await expect(viewer).toHaveAttribute('data-step', String(stage));
+  }
+  await expect(viewer).toHaveAttribute('data-visible-parts', /port-bolts/);
+  await page.getByRole('checkbox', { name: 'Exploded view' }).check();
+  await expect(viewer).toHaveAttribute('data-exploded', 'true');
+  await page.getByRole('button', { name: 'Exterior', exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath('tunnel.png'), fullPage: true });
+  await page.reload();
+  await expect(viewer).toHaveAttribute('data-ready', 'true');
+  await expect(viewer).toHaveAttribute('data-exploded', 'true');
+  expect(errors).toEqual([]);
+});

@@ -33,8 +33,17 @@ The preview provides six camera presets, orbit/pan/zoom, a window open/closed to
 
 ## Window insert
 
-The window insert has its own live page, `#/concepts/catio/window-insert`: its pieces, parametrised timber joints, mesh fixing
+The window insert has its own live page, `#/concepts/catio/window-insert`, linked from the page heading: its pieces, parametrised timber joints, mesh fixing
 and the no-drilling clamps, a staged assembly and a parts list, for both designs. See [window-insert.md](window-insert.md).
+
+## Tunnel
+
+The tunnel has its own live page, `#/concepts/catio/tunnel`: the route solved from the window insert's cat port to the
+enclosure's port at any position, facing and floor height, turns and climbs at any angle through parametrised angle joints,
+and supports on levelling feet for uneven ground, with a staged assembly, a parts list and presets (straight, 90° turn right,
+rising). See [tunnel.md](tunnel.md). The
+modular whole-catio scene keeps its schematic straight and 90° modules on level feet until the tunnel page's design is adopted
+there.
 
 ## Dimensions and assumptions
 

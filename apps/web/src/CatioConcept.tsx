@@ -96,7 +96,9 @@ export function CatioConcept() {
 
   return <>
     <div className="page-heading catio-heading"><div><div className="eyebrow">CONCEPT STUDY · 01</div><h1>A little closer to the grass.</h1>
-      <p>A removable window catio for a souterrain apartment. Timber, metal mesh, and a gentle route outside.</p></div><span className="model-tag"><span /> CATIO CONCEPT</span></div>
+      <p>A removable window catio for a souterrain apartment. Timber, metal mesh, and a gentle route outside.</p>
+      <nav className="catio-subassemblies" aria-label="Catio sub-assemblies"><span className="eyebrow">SUB-ASSEMBLIES · PIECES, JOINTS AND PARTS LISTS</span>
+        <div>{CATIO_SUBASSEMBLIES.map(id => <a key={id} href={formatHash({ view: 'concepts', concept: 'catio', subassembly: id })}><strong>{CATIO_SUBASSEMBLY_TITLES[id]}</strong><span>pieces, joints and parts list</span><ArrowRight size={16} /></a>)}</div></nav></div><span className="model-tag"><span /> CATIO CONCEPT</span></div>
     <div className="catio-modes" role="group" aria-label="Catio design mode">{(['direct', 'modular'] as CatioMode[]).map(option => <button type="button" key={option} aria-pressed={mode === option} onClick={() => setSettings(current => ({ ...current, mode: option }))}>{option === 'direct' ? 'Direct · original design' : 'Modular · with tunnel'}</button>)}</div>
     <div className="catio-layout">
       <aside className="catio-brief" aria-label="Catio design dimensions">
@@ -113,8 +115,6 @@ export function CatioConcept() {
           <p>Fixed frame: 100 × 100 cm. Wall: 30 cm thick. Exterior recess: 15 cm deep. Timber: 45 mm square. Mesh openings: nominally 20 mm. Ramp: 30 cm wide, 70 cm horizontal run. Hinges are on the left viewed from indoors.</p>
           <p>These are concept assumptions, pending measurement. Hardware fit and structural sizing belong to the detailed design. Modular mode lets you adjust window, enclosure and tunnel dimensions. The 20 cm sill-to-grass drop is an assumption to confirm.</p>
         </details>
-        <nav className="catio-subassemblies" aria-label="Catio sub-assemblies"><span className="eyebrow">SUB-ASSEMBLIES</span>
-          {CATIO_SUBASSEMBLIES.map(id => <a key={id} href={formatHash({ view: 'concepts', concept: 'catio', subassembly: id })}>{CATIO_SUBASSEMBLY_TITLES[id]}: pieces, joints and parts list <ArrowRight size={14} /></a>)}</nav>
         <a className="catio-gallery-link" href="#catio-sheets" onClick={event => { event.preventDefault(); document.getElementById('catio-sheets')?.scrollIntoView({ behavior: 'smooth' }); }}>Explore the design sheets <ArrowDownToLine size={15} /></a>
       </aside>
       <section className="catio-preview" aria-label="Live catio concept">
