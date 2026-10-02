@@ -4,6 +4,7 @@ import { formatHash, parseHash, partLink, type Route } from './route.ts';
 describe('hash routes', () => {
   it('round-trips every page through the hash', () => {
     const routes: Route[] = [
+      { view: 'concepts', concept: 'catio' },
       { view: 'models', model: null }, { view: 'models', model: 'plank-connector' },
       { view: 'parts', family: null, part: null, filters: {} }, { view: 'parts', family: 'screw', part: null, filters: { thread: 'M3', q: 'din 912' } },
       { view: 'parts', family: 'magnet', part: 'supermagnete-s-06-02-n', filters: {} },

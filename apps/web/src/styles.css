@@ -1922,3 +1922,86 @@ main {
     max-width: 130px;
   }
 }
+.catio-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 28px; align-items: start; }
+.catio-brief { padding: 20px 4px; }
+.catio-brief h2 { font-size: 28px; line-height: 1.2; margin: 16px 0 25px; letter-spacing: -.7px; }
+.catio-brief p { color: #777f6d; font-size: 12px; line-height: 1.8; }
+.catio-dimensions { margin: 0 0 25px; }
+.catio-dimensions > div { padding: 13px 0; border-bottom: 1px solid var(--line); }
+.catio-dimensions dt { font-size: 10px; color: #858b7b; margin-bottom: 7px; }
+.catio-dimensions dd { margin: 0; font-size: 20px; letter-spacing: -.4px; }
+.catio-dimensions small { font-size: 12px; color: #858b7b; }
+.catio-assumptions { border-top: 1px solid var(--line); padding-top: 15px; margin-top: 18px; }
+.catio-assumptions summary { cursor: pointer; font-size: 12px; color: #566449; }
+.catio-gallery-link { display: flex; gap: 12px; align-items: center; font-size: 12px; color: #687955; margin-top: 24px; }
+.catio-preview { border: 1px solid #dfe2d7; background: #f0f0e9; border-radius: 14px; overflow: hidden; min-width: 0; }
+.catio-preview-title { display: flex; justify-content: space-between; align-items: center; padding: 20px 22px 14px; gap: 12px; }
+.catio-preview-title .eyebrow { display: flex; align-items: center; gap: 7px; }
+.catio-preview-title > span:last-child { font-size: 10px; color: #8a917e; }
+.catio-cameras { display: flex; padding: 0 20px 8px; flex-wrap: wrap; gap: 5px; }
+.catio-cameras button, .catio-layers button { border: 1px solid #dce1d3; border-radius: 5px; background: #fafbf5; font: inherit; font-size: 11px; padding: 7px 10px; color: #748169; cursor: pointer; }
+.catio-cameras button[aria-pressed=true], .catio-layers button[aria-pressed=true] { background: #e0e7d7; border-color: #aebea0; color: #415537; }
+.catio-cameras button:focus-visible, .catio-layers button:focus-visible, .catio-slider button:focus-visible { outline: 2px solid #687e51; outline-offset: 2px; }
+.catio-canvas { height: 530px; width: 100%; position: relative; }
+.catio-canvas canvas { display: block; touch-action: none; }
+.catio-options { display: flex; flex-wrap: wrap; gap: 15px; padding: 12px 20px; font-size: 11px; color: #6e7a61; border-top: 1px solid #e1e5da; }
+.catio-options label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.catio-options input { accent-color: #697f54; }
+.catio-options > span { margin-left: auto; align-self: center; font-size: 9px; color: #8c9582; }
+.catio-assembly { padding: 18px 22px; background: #f8f9f3; border-top: 1px solid var(--line); }
+.catio-step-title { display: flex; align-items: center; gap: 16px; }
+.catio-step-title strong { font-size: 13px; font-weight: 500; }
+.catio-slider { display: flex; align-items: center; gap: 15px; margin-top: 15px; }
+.catio-slider input { flex: 1; min-width: 0; accent-color: #6e825c; }
+.catio-slider button { display: grid; place-items: center; width: 30px; height: 28px; border: 1px solid var(--line); border-radius: 5px; color: #687958; background: #fff; cursor: pointer; }
+.catio-slider button:disabled { opacity: .35; cursor: default; }
+.catio-assembly p { font-size: 11px; line-height: 1.7; color: #7a836f; margin: 13px 0 0; }
+.catio-layers { display: flex; flex-wrap: wrap; gap: 7px; padding: 12px 20px; border-top: 1px solid var(--line); }
+.catio-fallback { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 30px; color: #78856a; gap: 15px; }
+.catio-fallback p { font-size: 13px; max-width: 300px; }
+.catio-sheets { padding-top: 65px; scroll-margin-top: 25px; }
+.catio-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 25px; }
+.catio-section-heading h2, .catio-instructions h2 { font-size: 28px; margin: 10px 0 0; letter-spacing: -.6px; }
+.catio-section-heading p { font-size: 12px; color: #858d79; max-width: 250px; line-height: 1.6; }
+.catio-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.catio-gallery figure { margin: 0; overflow: hidden; background: #fafbf6; border: 1px solid var(--line); border-radius: 12px; }
+.catio-gallery img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: contain; background: #eeeae2; }
+.catio-gallery figcaption { padding: 22px; }
+.catio-gallery h3 { font-size: 18px; margin: 9px 0; font-weight: 500; }
+.catio-gallery p { font-size: 12px; line-height: 1.6; color: #808875; margin: 0 0 15px; }
+.catio-gallery figcaption a { display: inline-flex; gap: 8px; align-items: center; font-size: 11px; color: #617c4b; }
+.catio-instructions { padding: 60px 0 20px; }
+.catio-instructions ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 25px 38px; padding-left: 24px; margin-top: 30px; }
+.catio-instructions li { padding-left: 5px; color: #6b7d59; font-size: 13px; }
+.catio-instructions li strong { color: #49563e; font-weight: 500; }
+.catio-instructions li p { color: #7d8672; font-size: 12px; line-height: 1.8; }
+.catio-card-art { color: #7f946b; background: linear-gradient(150deg, #eee8dc, #dae4cf); }
+.catio-card-art img { width: 100%; height: 100%; object-fit: cover; }
+@media (max-width: 1000px) {
+  .catio-layout { grid-template-columns: 230px minmax(0, 1fr); gap: 20px; }
+  .catio-canvas { height: 440px; }
+  .catio-options > span { display: none; }
+}
+@media (max-width: 720px) {
+  .catio-layout { display: flex; flex-direction: column; }
+  .catio-brief { width: 100%; padding: 0; }
+  .catio-brief h2 { font-size: 24px; }
+  .catio-dimensions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
+  .catio-dimensions dd { font-size: 17px; }
+  .catio-preview { width: 100%; }
+  .catio-canvas { height: 400px; }
+  .catio-cameras { padding: 0 12px 8px; }
+  .catio-options { padding: 12px; gap: 11px; font-size: 10px; }
+  .catio-preview-title { padding: 16px 12px; }
+  .catio-preview-title > span:last-child { font-size: 9px; }
+  .catio-step-title { align-items: start; flex-direction: column; gap: 6px; }
+  .catio-gallery { grid-template-columns: 1fr; }
+  .catio-section-heading { align-items: start; flex-direction: column; gap: 5px; }
+  .catio-instructions ol { grid-template-columns: 1fr; gap: 12px; }
+  .catio-heading .model-tag { display: none; }
+}
+@media (max-width: 520px) {
+  .site-header { flex-wrap: wrap; height: auto; min-height: 73px; padding-top: 14px; padding-bottom: 14px; row-gap: 12px; }
+  .header-right { flex-wrap: wrap; justify-content: flex-end; }
+  .local-badge { display: none; }
+}

@@ -102,12 +102,14 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     const showParts = () => {
       for (const placement of placements) placement.mesh.visible = !hiddenIds.has(placement.id);
       element.dataset['visibleParts'] = placements.filter(placement => placement.mesh.visible).map(placement => placement.id).join(' ');
+      stage.invalidate();
     };
     const place = (t: number) => {
       sliderValue = t;
       if (!currentAssembly) return;
       const state = assemblyState(currentAssembly, t);
       for (const placement of placements) placement.apply(currentAssembly, state);
+      stage.invalidate();
     };
     let geometries: THREE.BufferGeometry[] = [];
     scene.current = {
@@ -115,6 +117,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
       wireframe(enabled) {
         isWireframe = enabled;
         for (const current of [material, referenceMaterial, ...coloredMaterials]) current.wireframe = enabled;
+        stage.invalidate();
       },
       setParts(parts, assembly) {
         group.clear();
