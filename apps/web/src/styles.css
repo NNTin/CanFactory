@@ -2032,6 +2032,9 @@ main {
 .subassembly-parameters fieldset { display: grid; gap: 12px; }
 .catio-field.subassembly-field { display: grid; gap: 5px; }
 .catio-field.subassembly-field select { width: 100%; font: inherit; font-size: 12px; padding: 6px 8px; border: 1px solid #d3d9c8; border-radius: 5px; background: #fff; color: #44513a; max-width: 100%; }
+.catio-field.subassembly-field input { width: 100%; font: inherit; font-size: 12px; padding: 6px 8px; border: 1px solid #d3d9c8; border-radius: 5px; }
+.catio-field.subassembly-field input[aria-invalid="true"] { border-color: #c4704f; }
+.subassembly-unit { font-style: normal; color: #8a917e; }
 .subassembly-field small { font-size: 10.5px; line-height: 1.55; color: #8a917e; }
 .subassembly-parts { padding-top: 60px; }
 .subassembly-parts h2, .subassembly-decisions h2 { font-size: 28px; margin: 10px 0 8px; letter-spacing: -.6px; }

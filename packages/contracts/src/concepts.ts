@@ -64,4 +64,48 @@ export const windowInsertConcept: ConceptPage = {
   ].filter((link, index, all) => all.findIndex(other => other.partId === link.partId && other.via === link.via) === index),
 };
 
-export const conceptPages: readonly ConceptPage[] = [windowInsertConcept];
+/**
+ * The catio tunnel: the fixed hardware of its couplings, sections and supports, by role. Couplings are bolted flange to flange
+ * with M8 hexagon screws through two 30 mm flanges; each support leg (or a low bearer) stands on a levelling foot screwed into an
+ * insert nut in its end grain, locked by the nut supplied on the foot's stud.
+ */
+export const TUNNEL_HARDWARE = {
+  couplingBolt: 'iso-4017-m8x80',
+  couplingWasher: 'iso-7093-m8',
+  couplingNut: 'iso-4032-m8',
+  footInsertNut: 'din-7965-m8x18',
+  railScrew: 'din-7997-5x70',
+  floorScrew: 'din-7997-4x40',
+  cleatScrew: 'din-7997-4x35',
+  bearerScrew: 'din-7997-6x100',
+  braceScrew: 'din-7997-5x50',
+  staple: 'din-1159-2-5x25',
+} as const;
+
+/** The tunnel's support feet: Ganter GN 343.2 KR on an M8 stud, in these diameters, each with its longest stud (the most travel). */
+export const TUNNEL_FOOT = { thread: 'M8', diameters: [25, 32, 40] } as const;
+
+/** The levelling foot of this diameter with the longest M8 stud: the stud's travel is what takes up uneven ground. */
+export function tunnelFoot(d1: number): Part {
+  return footWithStud(d1, Number.POSITIVE_INFINITY);
+}
+
+const t = TUNNEL_HARDWARE;
+export const tunnelConcept: ConceptPage = {
+  id: 'catio/tunnel', title: 'Window catio: tunnel',
+  parts: [
+    { partId: t.couplingBolt, via: 'Flange couplings' },
+    { partId: t.couplingWasher, via: 'Flange couplings (both sides)' },
+    { partId: t.couplingNut, via: 'Flange couplings' },
+    { partId: t.footInsertNut, via: 'Foot threads in the supports' },
+    { partId: t.railScrew, via: 'Rails into the flanges' },
+    { partId: t.floorScrew, via: 'Floor boards onto the bottom rails' },
+    { partId: t.cleatScrew, via: 'Floor cleats on sloped sections' },
+    { partId: t.bearerScrew, via: 'Bearers to legs and flanges' },
+    { partId: t.braceScrew, via: 'Support braces' },
+    { partId: t.staple, via: 'Mesh to timber' },
+    ...TUNNEL_FOOT.diameters.map(d1 => ({ partId: tunnelFoot(d1).id, via: `Support feet (${d1} mm)` })),
+  ],
+};
+
+export const conceptPages: readonly ConceptPage[] = [windowInsertConcept, tunnelConcept];

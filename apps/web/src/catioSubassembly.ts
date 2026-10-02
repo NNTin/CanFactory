@@ -5,7 +5,7 @@ import type { CatioMode } from './catioSettings.ts';
 import type { CatioSubassembly } from './route.ts';
 
 /**
- * A sub-assembly of the catio (the window insert now; the tunnel and the enclosure later) with its own live page
+ * A sub-assembly of the catio (the window insert and the tunnel now; the enclosure later) with its own live page
  * (`#/concepts/catio/<id>`): the same two variants as the whole catio, design choices as parameters, its pieces staged
  * into an assembly, and a parts list. `CatioSubassemblyPage` renders any definition; a new sub-assembly is one more
  * definition in `CATIO_SUBASSEMBLY_DEFINITIONS`.
@@ -20,15 +20,31 @@ export interface SubassemblyControl<C> {
   group: string;
   /** Why the choice matters, shown under the control. */
   help: string;
+  /** The values to choose from; empty for a free number (`range`). */
   options: { value: C[keyof C]; label: string }[];
+  /**
+   * A free number instead of options: stored in the config's unit (mm, degrees), shown divided by `scale` (e.g. 10 for cm).
+   * `min`, `max` and `step` are in the config's unit.
+   */
+  range?: NumberRange;
   /** The variants it applies to; all when absent. */
   variants?: CatioMode[];
 }
+export interface NumberRange { min: number; max: number; step: number; unit: string; scale?: number }
 
+/** A number from storage or an input that its range accepts: inside the limits and on a step. */
+export function inRange(range: NumberRange, value: unknown): value is number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < range.min || value > range.max) return false;
+  const steps = (value - range.min) / range.step;
+  return Math.abs(steps - Math.round(steps)) < 1e-6;
+}
+
+export const BOM_GROUPS = ['Timber', 'Mesh', 'Hardware', 'Groundwork'] as const;
+export type BomGroup = typeof BOM_GROUPS[number];
 /** One line of the parts list. A library part links to the parts library; other lines are cut or made for the catio. */
 export interface BomLine {
   id: string;
-  group: 'Timber' | 'Mesh' | 'Hardware';
+  group: BomGroup;
   name: string;
   quantity: number;
   /** Size, e.g. a cut length and section, or a part's key dimensions, in millimetres. */
@@ -61,6 +77,20 @@ export interface SubassemblyDefinition<C extends object> {
   eyebrow: string;
   heading: string;
   summary: string;
+  /** The variants the page offers, the first being the default; both when absent. */
+  variants?: CatioMode[];
+  /** Over the facts and parameters, e.g. "THE INSERT". */
+  briefLabel: string;
+  /** The heading of the written assembly instructions. */
+  assemblyHeading: string;
+  /** Labels for the camera presets, where a sub-assembly means something else by one (e.g. Mounting as a support detail). */
+  viewLabels?: Partial<Record<CatioView, string>>;
+  /** The viewing toggles the page offers besides the exploded view, with their labels; both, as for the window, when absent. */
+  toggles?: Partial<Record<'windowOpen' | 'cutaway', string>>;
+  /** Labels for the layer buttons, where a sub-assembly's layers hold something else (e.g. feet rather than clamps). */
+  layerLabels?: Partial<Record<CatioLayer, string>>;
+  /** The stage's scale (scene units per stage unit): larger for a sub-assembly that spans the garden. */
+  stageScale?: number;
   defaults: C;
   controls: SubassemblyControl<C>[];
   /** A config from untrusted storage, or null when it is not a valid one. */
@@ -85,7 +115,7 @@ export function defaultSubassemblySettings<C extends object>(definition: Subasse
   const view = (variant: CatioMode): SubassemblyViewing => ({
     progress: definition.steps(variant, definition.defaults).length - 1, exploded: false, windowOpen: true, cutaway: false, hidden: [], view: 'Exterior',
   });
-  return { version: 1, variant: 'direct', config: structuredClone(definition.defaults), views: { direct: view('direct'), modular: view('modular') } };
+  return { version: 1, variant: definition.variants?.[0] ?? 'direct', config: structuredClone(definition.defaults), views: { direct: view('direct'), modular: view('modular') } };
 }
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -100,7 +130,8 @@ export function parseSubassemblySettings<C extends object>(definition: Subassemb
     if (!record(value) || value['version'] !== 1) return settings;
     const config = definition.parse(value['config']);
     if (config) settings.config = config;
-    if (value['variant'] === 'modular') settings.variant = 'modular';
+    const variant = value['variant'];
+    if ((variant === 'direct' || variant === 'modular') && (definition.variants ?? ['direct', 'modular']).includes(variant)) settings.variant = variant;
     const views = value['views'];
     if (record(views)) for (const variant of ['direct', 'modular'] as const) {
       const saved = views[variant]; if (!record(saved)) continue;
@@ -129,7 +160,7 @@ export function parseControlled<C extends object>(defaults: C, controls: Subasse
   const config = structuredClone(defaults);
   for (const control of controls) {
     const value = raw[control.key];
-    if (control.options.some(option => option.value === value)) (config as Record<string, unknown>)[control.key] = value;
+    if (control.range ? inRange(control.range, value) : control.options.some(option => option.value === value)) (config as Record<string, unknown>)[control.key] = value;
   }
   return config;
 }
