@@ -580,6 +580,11 @@ export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: Tunne
     const same = lines.find(line => line.group === 'Mesh' && line.name === kind && line.size === size);
     if (same) same.quantity++; else lines.push({ id: `mesh-${lines.length}`, group: 'Mesh', name: kind, quantity: 1, size, use: kind === 'Roof mesh' ? 'Over the top rails, ends turned onto the flanges' : 'Down each side, rail to rail' });
   }
+  // the cut list by kind of member, then longest first
+  const kinds = ['Flange stile', 'Flange head or sill', 'Section rail', 'Collar rail', 'Floor board', 'Collar floor', 'Floor cleat', 'Bearer', 'Low bearer', 'Leg', 'Brace'];
+  const length = (line: BomLine) => Number(/· (\d+)/.exec(line.size)?.[1] ?? 0);
+  const cut = lines.filter(line => line.group === 'Timber').sort((x, y) => kinds.indexOf(x.name) - kinds.indexOf(y.name) || length(y) - length(x));
+  lines.splice(0, lines.length, ...cut, ...lines.filter(line => line.group !== 'Timber'));
   const counts = new Map<string, { quantity: number; uses: Set<string> }>();
   const addPart = (partId: string, use: string, quantity = 1) => {
     const entry = counts.get(partId) ?? { quantity: 0, uses: new Set<string>() };
