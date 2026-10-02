@@ -139,7 +139,10 @@ describe('model and render API', () => {
     expect(screws.usage['iso-4762-m3x10']).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes', kind: 'model' }]);
     // a concept page that uses a part is listed too, as a concept
     const foot = Value.Parse(PartDetailSchema, (await app.inject('/api/v1/parts/ganter-gn-343-2-32-m8-63-kr')).json());
-    expect(foot.usage).toEqual([{ modelId: 'catio/window-insert', modelTitle: 'Window catio: window insert', via: 'Spreader feet (32 mm)', kind: 'concept' }]);
+    expect(foot.usage).toEqual([
+      { modelId: 'catio/window-insert', modelTitle: 'Window catio: window insert', via: 'Spreader feet (32 mm)', kind: 'concept' },
+      { modelId: 'catio/tunnel', modelTitle: 'Window catio: tunnel', via: 'Support feet (32 mm)', kind: 'concept' },
+    ]);
     const lighter = Value.Parse(PartDetailSchema, (await app.inject('/api/v1/parts/bic-j25-mini-lighter')).json<unknown>());
     expect(lighter.family.id).toBe('everyday-object');
     expect(lighter.usage).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview', kind: 'model' }]);

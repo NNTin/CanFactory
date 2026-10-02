@@ -111,10 +111,10 @@ export function frameAlong(y: V3): Frame { const x = unit(cross(y, UP)); return 
  * the floor) is mapped from `frame`, along the frame's axis. A square end has `n` = the axis; a mitred end the bisector.
  */
 export interface Face { at: V3; n: V3; frame: Frame }
-/** The profile point (u, v) on a face, or on the parallel plane `offset` along its normal. */
+/** The profile point (u, v) on a face, or on the parallel plane `offset` along its normal: the frame's line through (u, v) meets it there. */
 export function facePoint(face: Face, u: number, v: number, offset = 0): V3 {
   const { x, y, z } = face.frame; const across = add(mul(x, u), mul(z, v));
-  return add(add(add(face.at, mul(face.n, offset)), across), mul(y, -dot(face.n, across) / dot(face.n, y)));
+  return add(add(face.at, across), mul(y, (offset - dot(face.n, across)) / dot(face.n, y)));
 }
 
 export interface Joint {
@@ -158,15 +158,16 @@ export interface Member { id: string; piece: string; name: string; section: stri
 const F = TUNNEL.flange.width; const T = TUNNEL.flange.thickness;
 
 /**
- * How far each run stops short of the joint's vertex, so that the two square end faces of the runs (or of an angle collar's
- * flanges, `thickness` apart at the inside edge) just meet at the inside of the joint. For a joint turning the axis by `theta`
- * with the profile's inside edge `inside` from the centre line: e = thickness / (2 cos θ/2) + inside · tan θ/2. Mitred ends
- * meet on the bisector plane through the vertex: no setback.
+ * How far each run stops short of the joint's vertex, so that the backs of the two flanges either side of the joint (the
+ * runs' own square end flanges, or an angle collar's two flanges) meet exactly on the bisector plane at the profile's inside
+ * edge, and open into a wedge towards the outside. For a joint turning the axis by θ, with the profile's inside edge `inside`
+ * from the floor's centre line and flanges `thickness` thick: e = thickness + inside · tan θ/2. (The back of the first flange
+ * is the plane a·(X − J) = −(e − thickness); it meets the bisector plane at (e − thickness) / sin θ/2 inwards of the vertex,
+ * which is the inside edge, inside / cos θ/2 there.) Mitred ends meet on the bisector plane through the vertex: no setback.
  */
 export function jointSetback(theta: number, inside: number, type: TunnelConfig['angleJoint']): number {
   if (type === 'mitred-ends') return 0;
-  const half = Math.abs(theta) / 2;
-  return 2 * T / (2 * Math.cos(half)) + inside * Math.tan(half);
+  return T + inside * Math.tan(Math.abs(theta) / 2);
 }
 
 /** The ground: falling away from the wall, with bumps no larger than the tolerance (the same at every reload). */
@@ -627,7 +628,7 @@ export function tunnelViews(_variant: CatioMode, config: TunnelConfig): Record<C
   const center: V3 = [(b.minX + b.maxX) / 2, b.maxY / 2, b.maxZ / 3];
   const extent = Math.max(b.maxX - b.minX, b.maxY, b.maxZ);
   const along = l.pieces[1]?.start.at ?? l.E;
-  const support = [...l.supports].sort((a, c) => Math.max(...c.feet.map(f => f.leg)) - Math.max(...a.feet.map(f => f.leg)))[0];
+  const support = [...l.supports].filter(s => s.id !== 'support-port' && s.id !== 'support-wall').sort((a, c) => Math.max(...c.feet.map(f => f.leg)) - Math.max(...a.feet.map(f => f.leg)))[0] ?? l.supports[0];
   const focus: V3 = support?.feet[1]?.at ?? [0, 500, 0];
   const out = support ? add(mul(support.across, 520), mul(support.along, 420)) : [500, 400, 0] as V3;
   return {
@@ -674,7 +675,7 @@ export const TUNNEL_DECISIONS: DesignDecision[] = [
     why: 'A joint that turns and climbs at once is a compound mitre: the two sections would meet with one rolled against the other and the floor tilted sideways. Kept apart, every joint is a plain mitre about one axis, every floor stays level across, and the angles are exact. The slope is the steepest allowed (20° by default) so the climb is short; a small climb gets a shallower slope over a 15 cm run.' },
   { title: 'Angle collars at every turn and bend', parameter: 'Turns and bends',
     choice: 'A short wedge-shaped collar between two square flange rings, cut to the joint’s angle (any angle up to 135°), bolted to the sections either side like any coupling.',
-    why: 'All sections stay plain boxes with square flanges, so a section can move to another place in the route, and only the small collars are cut to angles. The collar’s flanges touch at the inside of the joint; each run stops short of the vertex by 60 / (2 cos θ/2) + r · tan θ/2, r being the profile’s inside edge from the floor’s centre line. Mitred ends (up to 90°) save the collars but cut the two sections at each joint to the angle.' },
+    why: 'All sections stay plain boxes with square flanges, so a section can move to another place in the route, and only the small collars are cut to angles. The collar’s two flanges meet at the inside of the joint; each run stops short of the vertex by 30 + r · tan θ/2, r being the profile’s inside edge from the floor’s centre line. Mitred ends (up to 90°) save the collars but cut the two sections at each joint to the angle.' },
   { title: 'Bolted flanges, not clamps', parameter: 'Bolts per coupling',
     choice: 'Every section ends in a 30 × 70 flange ring that stands 30 mm proud of the mesh; neighbours are bolted through both rings with ISO 4017 M8 × 80 bolts, ISO 7093 large washers and ISO 4032 nuts (6 per coupling by default).',
     why: 'Bolts outside the mesh are reached with a 13 mm spanner from outside, take the tunnel apart again, and are all library parts. 80 mm grips 2 × 30 mm of flange, two washers and the nut with the thread through. The window end is not fixed: the insert only presses on the recess and must not carry the tunnel, so the first flange stands 10 mm off the wall on a foam strip and its own support. The port end bolts to a matching flange on the enclosure, the one requirement the tunnel places on it.' },
