@@ -4,7 +4,7 @@ import { dimensionOf, findPart, partUsage, WINDOW_INSERT_FOOT, windowInsertConce
 import type { CatioState } from './catioScene.ts';
 import { parseSubassemblySettings, defaultSubassemblySettings } from './catioSubassembly.ts';
 import { windowInsertDefinition } from './catioSubassemblies.ts';
-import { INSERT, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from './catioWindowInsert.ts';
+import { INSERT, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from './catioWindowInsert.ts';
 import { BENCH_OFFSET, createWindowInsertScene } from './catioWindowInsertScene.ts';
 
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
@@ -171,10 +171,11 @@ describe('window insert', () => {
         expect(count('din-7965-m8x18')).toBe(4 * config.clampsPerSide);
         expect(count('iso-4032-m8')).toBe(3 * config.clampsPerSide);
       } else expect(lines.find(line => line.id === 'folding-wedges')?.quantity).toBe(8 * config.clampsPerSide);
-      expect(count('din-1159-2-5x25') > 0).toBe(true); // threshold edges are always stapled
+      // the direct sleeve's threshold edges are always stapled; the modular port's mesh lies only on faces a batten can cover
+      expect(count('din-1159-2-5x25') > 0).toBe(variant === 'direct' || config.meshFixing !== 'battens');
       expect(count('din-7997-4x35') > 0).toBe(true);
       expect(lines.some(line => line.name.startsWith('Cover batten'))).toBe(config.meshFixing !== 'staples');
-      expect(lines.filter(line => line.group === 'Mesh')).toHaveLength(variant === 'direct' ? 3 : 6);
+      expect(lines.filter(line => line.group === 'Mesh')).toHaveLength(3);
     }
     const lap = windowInsertLayout('direct', WINDOW_INSERT_DEFAULT); const butt = windowInsertLayout('direct', { ...WINDOW_INSERT_DEFAULT, cornerJoint: 'butt-screwed' });
     expect(lap.timber.find(piece => piece.id === 'collar-head')?.length).toBe(lap.W);
@@ -198,6 +199,12 @@ describe('window insert', () => {
     const l = windowInsertLayout('modular', WINDOW_INSERT_DEFAULT);
     expect(l.port).toMatchObject({ width: 300, height: 300 });
     for (const panel of l.panels) expect(panel.edges.length, panel.id).toBeGreaterThan(0);
+    // only infill on the port frame's face: the passage beyond it is the tunnel coupling's docking frame, not insert mesh
+    expect(l.panels.map(panel => panel.id)).toEqual(['infill-left', 'infill-right', 'infill-top']);
+    // the floor the tunnel and the coupling start from, shown here where the clamps set it
+    expect(windowInsertFacts('modular', WINDOW_INSERT_DEFAULT).find(f => f.label === 'Cat port floor · above the grass')?.value).toBe(`${Number((l.floor / 10).toFixed(1))} cm`);
+    expect(windowInsertFacts('direct', WINDOW_INSERT_DEFAULT).some(f => f.label.startsWith('Cat port floor'))).toBe(false);
+    for (const panel of l.panels) expect(panel.plane, panel.id).toBe('xz');
     const tight = { ...windowFor('modular'), tunnel: { width: 450, height: 450 }, sashWidth: 600, sashHeight: 600, openingWidth: 690, openingHeight: 690 };
     expect(validateWindowInsert('modular', WINDOW_INSERT_DEFAULT, tight).length).toBeGreaterThan(0);
   });

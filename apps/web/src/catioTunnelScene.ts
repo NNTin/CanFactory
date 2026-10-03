@@ -6,6 +6,9 @@ import type { CatioMode } from './catioSettings.ts';
 import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
 import { buildWindowContext } from './catioWindowContext.ts';
 import { windowInsertLayout } from './catioWindowInsert.ts';
+import { buildInsertContext } from './catioWindowInsertScene.ts';
+import { couplingLayout, savedCoupling } from './catioCoupling.ts';
+import { buildCouplingPieces } from './catioCouplingScene.ts';
 import { facePoint, groundAt, tunnelBounds, tunnelLayout, tunnelSite, TUNNEL, vec, type Face, type Rect, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
 
 /** Stages 3–4 frame and mesh the sections this far above their line; stage 5 lowers them onto the supports. */
@@ -96,7 +99,8 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     const created = component(id, step, layer, [0, 0, 0]); groups.set(id, created); return created;
   };
 
-  // Stage 0: the site. Uneven ground, the window insert as set on its page, and the enclosure's port flange.
+  // Stage 0: the site. Uneven ground, the window insert as set on its page with the coupling's docking frame on its port, and the
+  // enclosure's port flange.
   const terrain = component('terrain', 0, 'environment');
   const depth = b.maxY + 900;
   const ground = new THREE.PlaneGeometry(groundWidth, depth, 90, 90); geometries.push(ground);
@@ -107,9 +111,15 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
   }
   ground.computeVertexNormals();
   const turf = new THREE.Mesh(ground, m.grass); turf.receiveShadow = true; terrain.add(turf);
-  const insertLayout = windowInsertLayout('modular', site.insert, site.window);
-  const insert = component('window-insert', 0, undefined);
-  for (const t of insertLayout.timber) for (const bx of t.boxes) box(insert, bx.size, bx.center, m.timber);
+  buildInsertContext(p, windowInsertLayout('modular', site.insert, site.window));
+  // the coupling as set on its page, docked to this tunnel: its frame, seal and catches are on the insert from the start; the
+  // latch bodies and lip come with the first section and are closed in the last stage (the coupling page shows how)
+  const couplingConfig = savedCoupling();
+  const joint = buildCouplingPieces(p, couplingLayout(couplingConfig, { tunnel: config, site }), couplingConfig.latchType);
+  const dockingFrame = component('docking-frame', 0, undefined);
+  for (const g of [...joint.frame.map(f => f.group), joint.seal, ...joint.catches.map(c => c.group)]) dockingFrame.add(g);
+  const latches = component('coupling-latches', 6, 'hardware', [0, 160, 0]);
+  for (const g of [...joint.latches.map(q => q.group), ...(joint.lip ? [joint.lip] : [])]) latches.add(g);
   const port = component('enclosure-port', 0, undefined);
   const last = layout.pieces.at(-1);
   if (last) {

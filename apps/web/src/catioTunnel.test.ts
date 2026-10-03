@@ -5,10 +5,11 @@ import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { tunnelDefinition } from './catioSubassemblies.ts';
 import {
-  facePoint, groundAt, jointSetback, TUNNEL, TUNNEL_CONTROLS, TUNNEL_DEFAULT, TUNNEL_PRESETS, tunnelFacts, tunnelBom, tunnelLayout, tunnelSite, tunnelSteps, validateTunnel, vec, type TunnelConfig,
+  facePoint, groundAt, jointSetback, portFloor, TUNNEL, TUNNEL_CONTROLS, TUNNEL_DEFAULT, TUNNEL_PRESETS, tunnelFacts, tunnelBom, tunnelLayout, tunnelSite, tunnelSteps, validateTunnel, vec, type TunnelConfig,
 } from './catioTunnel.ts';
 import { createTunnelScene, LIFT } from './catioTunnelScene.ts';
 import type { V3 } from './catioSubassembly.ts';
+import { WINDOW_INSERT_DEFAULT, windowInsertLayout, type WindowInsertConfig } from './catioWindowInsert.ts';
 
 const site = tunnelSite();
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: true, cutaway: false, hidden: new Set() };
@@ -233,7 +234,7 @@ describe('tunnel scene', () => {
       expect(context.map(part => part.group.position.toArray())).toEqual(positions);
       for (const part of scene.components) expect(part.group.visible, `${part.id} at ${progress}`).toBe(part.step <= progress);
     }
-    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['terrain', 'window-insert', 'enclosure-port', 'slabs', 'legs', 'levelling-feet', 'bearers', 'flanges', 'rails', 'mesh', 'staples', 'coupling-bolts', 'port-bolts', 'flange-screws']));
+    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['terrain', 'window-insert', 'enclosure-port', 'slabs', 'legs', 'levelling-feet', 'bearers', 'flanges', 'rails', 'mesh', 'staples', 'coupling-bolts', 'port-bolts', 'flange-screws', 'docking-frame', 'coupling-latches']));
     scene.update({ ...installed, cutaway: true, hidden: new Set(['mesh']) });
     expect(scene.components.find(part => part.id === 'wall')?.group.visible).toBe(false);
     expect(scene.components.filter(part => part.layer === 'mesh').every(part => !part.group.visible)).toBe(true);
@@ -314,7 +315,7 @@ describe('tunnel presets', () => {
     const l = tunnelLayout(preset('straight'), site);
     expect(l.joints).toEqual([]); expect(l.slope).toBeNull();
     expect(l.pieces.every(p => p.kind === 'section' && p.pitch === 0 && vec.dot(p.start.n, p.frame.y) === 1 && vec.dot(p.end.n, p.frame.y) === 1)).toBe(true);
-    expect(tunnelFacts('modular', preset('straight')).find(f => f.label.startsWith('Rise'))?.value).toBe('level');
+    expect(tunnelFacts('modular', preset('straight'), site).find(f => f.label.startsWith('Rise'))?.value).toBe('level');
   });
 
   it('turns once, 90° to the right, and stays level', () => {
@@ -326,6 +327,35 @@ describe('tunnel presets', () => {
       expect(l.slope).toBeNull();
       close(l.pieces.at(-1)?.end.n ?? [0, 0, 0], [1, 0, 0], 12);
     }
+  });
+
+  it('stays level with the window port wherever the window insert’s clamps put its floor', () => {
+    const inserts: WindowInsertConfig[] = [WINDOW_INSERT_DEFAULT, { ...WINDOW_INSERT_DEFAULT, attachment: 'folding-wedges' }, { ...WINDOW_INSERT_DEFAULT, footDiameter: 25 }, { ...WINDOW_INSERT_DEFAULT, footDiameter: 40 }];
+    const floors = new Set<number>();
+    for (const insert of inserts) {
+      const moved = { ...site, insert, floorZ: windowInsertLayout('modular', insert, site.window).floor }; floors.add(moved.floorZ);
+      for (const id of ['straight', 'right-angle']) {
+        const l = tunnelLayout(preset(id), moved);
+        expect(l.rise, `${id} ${JSON.stringify(insert)}`).toBe(0); expect(l.slope).toBeNull();
+        expect(portFloor(preset(id), moved)).toBe(moved.floorZ);
+      }
+    }
+    expect(floors.size).toBe(inserts.length);
+    // the preset itself does not depend on the insert, so it still reads as picked after the insert changes
+    expect(preset('straight')).toEqual(preset('straight'));
+    expect(preset('straight').portLevel).toBe('window');
+    // its own height is only asked for when it has one
+    const height = TUNNEL_CONTROLS.find(c => c.key === 'portHeight');
+    expect(height?.when?.({ ...TUNNEL_DEFAULT, portLevel: 'window' })).toBe(false);
+    expect(height?.when?.({ ...TUNNEL_DEFAULT, portLevel: 'own' })).toBe(true);
+  });
+
+  it('names the window port’s floor and where it is set, and points out a climb of a few millimetres', () => {
+    const facts = tunnelFacts('modular', TUNNEL_DEFAULT, site);
+    expect(facts.find(f => f.label.startsWith('Window port floor'))).toMatchObject({ value: `${Number((site.floorZ / 10).toFixed(1))} cm`, from: { page: 'window-insert', settings: ['attachment', 'footDiameter'] } });
+    const nearly = tunnelFacts('modular', { ...preset('straight'), portLevel: 'own', portHeight: site.floorZ + 16.5 }, site).find(f => f.label.startsWith('Rise'));
+    expect(nearly?.value).toMatch(/nearly level: set the port floor level with the window port/);
+    expect(tunnelFacts('modular', TUNNEL_DEFAULT, site).find(f => f.label.startsWith('Rise'))?.value).not.toMatch(/nearly level/);
   });
 
   it('rises to a higher door without turning', () => {

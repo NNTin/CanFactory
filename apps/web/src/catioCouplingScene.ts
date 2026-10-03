@@ -5,7 +5,8 @@ import type { CatioState } from './catioScene.ts';
 import type { CatioMode } from './catioSettings.ts';
 import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
 import { buildWindowContext } from './catioWindowContext.ts';
-import { COUPLING, couplingLayout, couplingSite, type CouplingConfig, type CouplingSite } from './catioCoupling.ts';
+import { COUPLING, couplingLayout, couplingSite, type CouplingConfig, type CouplingLayout, type CouplingSite } from './catioCoupling.ts';
+import { buildInsertContext } from './catioWindowInsertScene.ts';
 import { facePoint, TUNNEL, vec, type Face, type Rect } from './catioTunnel.ts';
 
 /** Stage 3 fits the latches to the first section this far above its place; stage 4 lowers it onto its wall support. */
@@ -24,6 +25,46 @@ export interface PieceMotion {
 }
 
 /**
+ * The coupling's pieces, each in its own group placed where it is installed (latch levers closed), not yet added to a scene: the
+ * coupling page stages them, other pages show them as they are.
+ */
+export function buildCouplingPieces(p: ReturnType<typeof createCatioParts>, layout: CouplingLayout, latchType: CouplingConfig['latchType']) {
+  const { box, rod, materials: m } = p;
+  const at = (origin: V3 = [0, 0, 0]) => { const g = new THREE.Group(); g.position.set(...origin); return g; };
+  const frame = layout.frame.map(member => { const group = at(); for (const b of member.boxes) box(group, b.size, b.center, m.timber); return { member, group }; });
+  const seal = at(); const sw = COUPLING.seal.width / 2; const { y0, y1 } = layout.seal;
+  layout.seal.path.slice(1).forEach(([x, z], i) => {
+    const [px, pz] = layout.seal.path[i] ?? [x, z];
+    box(seal, [Math.abs(x - px) + 2 * sw, y1 - y0, Math.abs(z - pz) + (i === 1 ? 2 * sw : 0)], [(x + px) / 2, (y0 + y1) / 2, (z + pz) / 2], m.rubber);
+  });
+  const [b1, b2, b3, b4, h1, h2] = (['b1', 'b2', 'b3', 'b4', 'h1', 'h2'] as const).map(key => dimensionOf(layout.latchPart, key)) as [number, number, number, number, number, number];
+  const catches = layout.latches.map(q => {
+    const group = at([q.faceX, q.catchY + b4 / 2, q.z]);
+    box(group, [1.5, b4, b2], [q.side * 0.75, 0, 0], m.hardware);
+    box(group, [h2, 2, b2 * 0.6], [q.side * h2 / 2, -b4 / 2 + 3, 0], m.hardware);
+    return { latch: q, group };
+  });
+  const latches = layout.latches.map(q => {
+    const group = at([q.faceX, q.hingeY, q.z]);
+    box(group, [1.5, b3, b1], [q.side * 0.75, -b3 / 2, 0], m.hardware);
+    box(group, [h1 * 0.75, b3 * 0.5, b1 * 0.8], [q.side * h1 * 0.375, -b3 * 0.3, 0], m.hardware);
+    // the lever pivots on the body; closed, it lies along the joint with its hook over the catch
+    const lever = new THREE.Group(); lever.name = `${q.id}-lever`; lever.position.set(q.side * h1 * 0.75, -b3 * 0.3, 0); group.add(lever);
+    const reach = q.hingeY - b3 * 0.3 - (q.catchY + 3);
+    box(lever, [1.5, reach, b1 * 0.9], [q.side * (h1 * 0.25 - 0.75), -reach / 2, 0], m.hardware);
+    rod(lever, [q.side * h1 * 0.25, -reach, 0], [q.side * (-h1 * 0.75 + h2), -reach, 0], 1.6);
+    if (latchType !== 'A') box(lever, [6, 4, latchType === 'SV' ? 3 : b1 * 0.5], [q.side * (h1 * 0.25 + 3), -reach * 0.45, 0], m.rubber);
+    return { latch: q, group, lever };
+  });
+  let lip: THREE.Group | null = null;
+  if (layout.lip) {
+    const { x0, x1, y0: ly0, y1: ly1, z } = layout.lip;
+    lip = at(); box(lip, [x1 - x0, ly1 - ly0, COUPLING.lip.thickness], [(x0 + x1) / 2, (ly0 + ly1) / 2, z + COUPLING.lip.thickness / 2], m.rubber);
+  }
+  return { frame, seal, catches, latches, lip };
+}
+
+/**
  * The coupling at the window: the insert in its recess and the tunnel's wall support as fixed context, the docking frame, seal and
  * catches fitted to the insert, the first section with its latches lowered onto its support, and the latches closed. The page's
  * open/closed toggle shows the joint released: every lever open and its hook off the catch.
@@ -33,7 +74,7 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
 } {
   const layout = couplingLayout(config, site);
   const { insert, tl, first } = layout;
-  const p = createCatioParts(); const { component, box, rod, panel, materials: m } = p;
+  const p = createCatioParts(); const { component, box, rod, materials: m } = p;
   const { hinge } = buildWindowContext(p, site.site.window);
   const start = p.components.length;
   const geometries: THREE.BufferGeometry[] = [];
@@ -89,9 +130,7 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
   };
 
   // Stage 0: the insert in its recess (timber and mesh) and the tunnel's wall support, levelled.
-  const insertGroup = component('window-insert', 0, undefined);
-  for (const t of insert.timber) for (const b of t.boxes) box(insertGroup, b.size, b.center, t.component === 'threshold' || t.component === 'cover-battens' ? m.endgrain : m.timber);
-  for (const q of insert.panels) panel(`insert-${q.id}`, 0, q.width, q.height, q.center, q.plane, [0, 0, 0]);
+  buildInsertContext(p, insert);
   const supportGroup = component('wall-support', 0, undefined);
   const s = layout.wallSupport;
   if (s) {
@@ -108,9 +147,9 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
   }
 
   // Stage 1: the docking frame, stiles then head, from outdoors; then its screws.
-  for (const member of layout.frame) {
-    const g = piece(group('docking-frame', 1, 'timber'));
-    for (const b of member.boxes) box(g, b.size, b.center, m.timber);
+  const pieces = buildCouplingPieces(p, layout, config.latchType);
+  for (const { member, group: g } of pieces.frame) {
+    group('docking-frame', 1, 'timber').add(g);
     const head = member.id === 'frame-head';
     move(g, 1, head ? [0.3, 0.55] : [0, 0.3], [0, 260, head ? 120 : 0], head ? 'Docking frame head: laid across the stiles onto the transom' : `2 × Docking frame stile: offered to the port jambs${layout.battenFace > layout.meshFace ? ', rebate over the cover batten' : ''}`, { role: 'timber', of: member.id });
   }
@@ -125,19 +164,11 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
   for (const f of layout.fasteners.filter(f => f.component === 'frame-screws')) screw('frame-screws', 1, [0.6, 1], f, `${count('frame-screws')} × Countersunk wood screw 5 × 60: through the frame into the jambs and transom`);
 
   // Stage 2: the seal round the frame's face, then the catch brackets on its sides and their screws.
-  const sealGroup = piece(group('seal', 2, 'hardware'));
-  const sw = COUPLING.seal.width / 2; const { y0, y1 } = layout.seal;
-  layout.seal.path.slice(1).forEach(([x, z], i) => {
-    const [px, pz] = layout.seal.path[i] ?? [x, z];
-    box(sealGroup, [Math.abs(x - px) + 2 * sw, y1 - y0, Math.abs(z - pz) + (i === 1 ? 2 * sw : 0)], [(x + px) / 2, (y0 + y1) / 2, (z + pz) / 2], m.rubber);
-  });
+  const sealGroup = pieces.seal; group('seal', 2, 'hardware').add(sealGroup);
   move(sealGroup, 2, [0, 0.35], [0, 200, 0], 'D-profile seal: stuck round the middle of the frame’s face', { role: 'seal' });
   const latch = layout.latchPart;
-  const [b1, b2, b3, b4, h1, h2] = (['b1', 'b2', 'b3', 'b4', 'h1', 'h2'] as const).map(key => dimensionOf(latch, key)) as [number, number, number, number, number, number];
-  for (const q of layout.latches) {
-    const g = piece(group('catches', 2, 'hardware'), [q.faceX, q.catchY + b4 / 2, q.z]);
-    box(g, [1.5, b4, b2], [q.side * 0.75, 0, 0], m.hardware);
-    box(g, [h2, 2, b2 * 0.6], [q.side * h2 / 2, -b4 / 2 + 3, 0], m.hardware);
+  for (const { latch: q, group: g } of pieces.catches) {
+    group('catches', 2, 'hardware').add(g);
     move(g, 2, [0.45, 0.7], [q.side * 160, 0, 0], `${layout.latches.length} × Catch bracket: onto the docking frame’s outer side`, { role: 'catch', of: q.id });
   }
   for (const f of layout.fasteners.filter(f => f.component === 'catch-screws')) screw('catch-screws', 2, [0.7, 1], f, `${count('catch-screws')} × Countersunk wood screw 4 × 25: catch brackets onto the frame`);
@@ -151,24 +182,14 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
     for (const g of [timber, mesh]) move(g, 3, [0, 0], [0, 0, 0], 'The first section, framed and meshed on the tunnel page', { role: 'timber', carried: true });
   }
   const levers: THREE.Group[] = [];
-  for (const q of layout.latches) {
-    const g = piece(group('latches', 3, 'hardware'), [q.faceX, q.hingeY, q.z]);
-    box(g, [1.5, b3, b1], [q.side * 0.75, -b3 / 2, 0], m.hardware);
-    box(g, [h1 * 0.75, b3 * 0.5, b1 * 0.8], [q.side * h1 * 0.375, -b3 * 0.3, 0], m.hardware);
-    // the lever pivots on the body; closed, it lies along the joint with its hook over the catch
-    const lever = new THREE.Group(); lever.name = `${q.id}-lever`; lever.position.set(q.side * h1 * 0.75, -b3 * 0.3, 0); g.add(lever);
-    const reach = q.hingeY - b3 * 0.3 - (q.catchY + 3);
-    box(lever, [1.5, reach, b1 * 0.9], [q.side * (h1 * 0.25 - 0.75), -reach / 2, 0], m.hardware);
-    rod(lever, [q.side * h1 * 0.25, -reach, 0], [q.side * (-h1 * 0.75 + h2), -reach, 0], 1.6);
-    if (config.latchType !== 'A') box(lever, [6, 4, config.latchType === 'SV' ? 3 : b1 * 0.5], [q.side * (h1 * 0.25 + 3), -reach * 0.45, 0], m.rubber);
+  for (const { latch: q, group: g, lever } of pieces.latches) {
+    group('latches', 3, 'hardware').add(g);
     levers.push(lever);
     move(g, 3, [0.05, 0.4], [q.side * 160, 0, 0], `${layout.latches.length} × ${latch.title}: body onto the first flange’s outer side`, { role: 'latch', of: q.id, carried: true });
   }
   for (const f of layout.fasteners.filter(f => f.component === 'latch-screws')) screw('latch-screws', 3, [0.4, 0.7], f, `${count('latch-screws')} × Countersunk wood screw 4 × 25: latch bodies onto the flange`, true);
-  if (layout.lip) {
-    const { x0, x1, y0: ly0, y1: ly1, z } = layout.lip;
-    const g = piece(group('floor-lip', 3, 'hardware'));
-    box(g, [x1 - x0, ly1 - ly0, COUPLING.lip.thickness], [(x0 + x1) / 2, (ly0 + ly1) / 2, z + COUPLING.lip.thickness / 2], m.rubber);
+  if (pieces.lip) {
+    const g = pieces.lip; group('floor-lip', 3, 'hardware').add(g);
     move(g, 3, [0.7, 0.85], [0, 0, 120], 'EPDM floor lip: laid on the flange’s sill, reaching past its back', { role: 'lip', carried: true });
     for (const f of layout.fasteners.filter(f => f.component === 'lip-screws')) screw('lip-screws', 3, [0.85, 1], f, `${count('lip-screws')} × Countersunk wood screw 4 × 25: the lip onto the sill`, true);
   }
