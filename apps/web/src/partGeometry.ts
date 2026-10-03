@@ -216,8 +216,28 @@ function levellingFoot(part: Part): Piece[] {
   ];
 }
 
+function toggleLatch(part: Part): Piece[] {
+  // closed, along +X: the base plate with its pivot block, the lever over to the hook, and the separate catch bracket at the far
+  // end; a safety catch (h3) or padlock eye (h4) stands on the lever
+  const b1 = value(part, 'b1'); const b2 = value(part, 'b2'); const b3 = value(part, 'b3'); const b4 = value(part, 'b4');
+  const h1 = value(part, 'h1'); const h2 = value(part, 'h2'); const l1 = value(part, 'l1'); const sheet = 1.5;
+  const block = (size: [number, number, number], at: [number, number, number], color = STEEL) => {
+    const geometry = new THREE.BoxGeometry(...size); geometry.translate(at[0] + size[0] / 2, at[1], at[2] + size[2] / 2); return paint(geometry, color);
+  };
+  const pieces = [
+    block([b3, b1, sheet], [0, 0, 0]),
+    block([b3 * 0.55, b1 * 0.8, h1 * 0.75], [b3 * 0.2, 0, sheet]),
+    block([l1 - b4 * 0.6 - b3 * 0.25, b1 * 0.9, sheet], [b3 * 0.25, 0, h1 - sheet]),
+    block([b4, b2, sheet], [l1 - b4, 0, 0]),
+    block([sheet * 2, b2 * 0.6, h2], [l1 - b4, 0, sheet], DARK),
+  ];
+  const guard = value(part, 'h3') || value(part, 'h4');
+  if (guard) pieces.push(block([3, 4, guard - h1 + sheet], [l1 * 0.45, 0, h1 - sheet], DARK));
+  return pieces;
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
-  screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot,
+  screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */

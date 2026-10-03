@@ -25,9 +25,10 @@ control.
 
 - **Window end.** The window insert as it is set on its own page (or its defaults), in the window saved on the catio concept
   page. The port's clear size is the tunnel's (30 × 30 cm by default). Its floor is the insert's threshold: 24.55 cm above
-  the grass by default. The tunnel starts square to the wall, 10 mm off it. **Nothing is fixed to the wall or to the insert.**
-  The insert is held only by pressure and must not carry the tunnel, so a foam strip fills the gap and the first flange has
-  its own support.
+  the grass by default. The tunnel starts square to the wall, 10 mm off it. **Nothing of the tunnel rests on the wall or on
+  the insert.** The insert is held only by pressure and must not carry the tunnel, so the first flange has its own support.
+  It is joined to a docking frame on the insert by tool-free toggle latches across a sealed 6 mm gap: see the
+  [insert–tunnel coupling](window-insert-tunnel-coupling.md), which replaced the foam strip this page used to list.
 - **Enclosure end.** The enclosure is out of scope. Only its rear cat port is used, set by four values: its position along
   the wall, its distance out, the way it faces and its floor height. The tunnel's last flange bolts to a matching 30 mm flange
   with the same bolt pattern. **That flange is the one requirement the tunnel places on the enclosure page.**
@@ -154,7 +155,7 @@ scene, the parts list and the tests.
 5. **Lay and couple.** Lower the pieces onto the supports one by one from the window end, then bolt every coupling.
 6. **Fix down and dock.**
    - Screw up through the bearers into the flanges.
-   - Fit the foam strip at the wall.
+   - Close the latches between the first flange and the insert's docking frame (the coupling page).
    - Bolt the last flange to the enclosure's port flange.
    - Open the gates.
 
@@ -182,7 +183,8 @@ They are listed once, by role, in [concepts.ts](../../../packages/contracts/src/
 `tunnelConcept`). The parts library lists the page under each part's “Used by”, and a test keeps the page's parts list and
 that list identical.
 
-Custom lines (not library parts): the timber cut list, mesh panels, the foam strip and the paving slabs.
+Custom lines (not library parts): the timber cut list, mesh panels and the paving slabs. The window end's seal and
+latches are listed on the coupling page.
 
 ## Implementation
 

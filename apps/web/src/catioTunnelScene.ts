@@ -260,15 +260,6 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
       }
     }
   }
-  // Stage 6: the foam strip between the first flange and the wall.
-  const firstPiece = layout.pieces[0];
-  if (firstPiece) {
-    const seal = piece(group('wall-seal', 6, 'hardware'), firstPiece.start.at);
-    const ring: Rect[] = [[-w / 2 - 70, -w / 2, -70, h + 70], [w / 2, w / 2 + 70, -70, h + 70], [-w / 2, w / 2, h, h + 70], [-w / 2, w / 2, -70, 0]];
-    for (const rect of ring) hexahedron(seal, corners(firstPiece.start, -TUNNEL.wallGap, firstPiece.start, 0, rect), m.rubber, firstPiece.start.at);
-    move(seal, 6, [0.35, 0.5], [0, 0, 300], 'Foam strip: pressed between the first flange and the wall', { role: 'timber' });
-  }
-
   for (const c of p.components.slice(first)) p.root.add(c.group);
   const bases = motions.map(motion => motion.object.position.clone());
   const baseQuaternions = motions.map(motion => motion.object.quaternion.clone());

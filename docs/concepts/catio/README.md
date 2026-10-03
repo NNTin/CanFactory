@@ -36,6 +36,13 @@ The preview provides six camera presets, orbit/pan/zoom, a window open/closed to
 The window insert has its own live page, `#/concepts/catio/window-insert`, linked from the page heading: its pieces, parametrised timber joints, mesh fixing
 and the no-drilling clamps, a staged assembly and a parts list, for both designs. See [window-insert.md](window-insert.md).
 
+## Insert–tunnel coupling
+
+The joint between the window insert's cat port and the tunnel's first flange has its own live page,
+`#/concepts/catio/insert-tunnel-coupling`: a docking frame screwed to the insert, a squashed seal and a floor lip, and Ganter
+GN 831 toggle latches that dock and undock the tunnel without tools. The tunnel's wall support still carries all of its
+weight. See [window-insert-tunnel-coupling.md](window-insert-tunnel-coupling.md).
+
 ## Tunnel
 
 The tunnel has its own live page, `#/concepts/catio/tunnel`: the route solved from the window insert's cat port to the

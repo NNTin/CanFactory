@@ -9,6 +9,7 @@ import { nutFamily, nutParts } from './nuts.ts';
 import { pinFamily, pinParts } from './pins.ts';
 import type { Part, PartFamily } from './schema.ts';
 import { screwFamily, screwParts } from './screws.ts';
+import { toggleLatchFamily, toggleLatchParts } from './toggle-latches.ts';
 import { washerFamily, washerParts } from './washers.ts';
 import { woodScrewFamily, woodScrewParts } from './wood-screws.ts';
 
@@ -24,12 +25,12 @@ export { PART_SOURCES, findPartSource } from './sources.ts';
  */
 export const partFamilies: readonly PartFamily[] = [
   magnetFamily, screwFamily, nutFamily, washerFamily, insertFamily, bearingFamily, pinFamily, everydayObjectFamily,
-  woodScrewFamily, nailFamily, insertNutFamily, levellingFootFamily,
+  woodScrewFamily, nailFamily, insertNutFamily, levellingFootFamily, toggleLatchFamily,
 ];
 
 export const parts: readonly Part[] = [
   ...magnetParts, ...screwParts, ...nutParts, ...washerParts, ...insertParts, ...bearingParts, ...pinParts, ...everydayObjectParts,
-  ...woodScrewParts, ...nailParts, ...insertNutParts, ...levellingFootParts,
+  ...woodScrewParts, ...nailParts, ...insertNutParts, ...levellingFootParts, ...toggleLatchParts,
 ];
 
 export function findPart(id: string): Part | undefined { return parts.find(part => part.id === id); }

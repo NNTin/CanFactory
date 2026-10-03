@@ -25,7 +25,9 @@ a parts list with every piece's dimensions, and the design decisions below. Choi
 | Foot diameter | 32 mm | 25, 32, 40 mm | Spreader feet |
 
 The direct variant uses the original fixed window (100 × 100 cm recess, 91 cm sash). With tunnel follows the window and
-tunnel clear size saved on the catio concept page (recess = sash + 9 cm, as the modular scene assumes).
+tunnel clear size saved on the catio concept page (recess = sash + 9 cm, as the modular scene assumes). How a tunnel docks to the
+cat port (a docking frame on the port, a seal and toggle latches) is on the
+[insert–tunnel coupling](window-insert-tunnel-coupling.md) page; the insert itself is unchanged by it.
 
 ## Design decisions (defaults to redirect)
 

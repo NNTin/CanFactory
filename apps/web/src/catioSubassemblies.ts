@@ -2,6 +2,10 @@ import type { CatioSubassembly } from './route.ts';
 import type { SubassemblyDefinition } from './catioSubassembly.ts';
 import { createWindowInsertScene } from './catioWindowInsertScene.ts';
 import { createTunnelScene } from './catioTunnelScene.ts';
+import { createCouplingScene } from './catioCouplingScene.ts';
+import {
+  COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, couplingBom, couplingFacts, couplingSteps, couplingViews, parseCoupling, validateCoupling, type CouplingConfig,
+} from './catioCoupling.ts';
 import {
   parseTunnel, TUNNEL_CONTROLS, TUNNEL_PRESETS, TUNNEL_DECISIONS, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelSteps, tunnelViews, validateTunnel, type TunnelConfig,
 } from './catioTunnel.ts';
@@ -33,5 +37,21 @@ export const tunnelDefinition: SubassemblyDefinition<TunnelConfig> = {
   views: tunnelViews, facts: tunnelFacts, decisions: TUNNEL_DECISIONS,
 };
 
+export const couplingDefinition: SubassemblyDefinition<CouplingConfig> = {
+  id: 'insert-tunnel-coupling', title: 'Insert–tunnel coupling', eyebrow: 'CATIO SUB-ASSEMBLY · INSERT–TUNNEL COUPLING',
+  heading: 'Two levers to dock, two to let go.',
+  summary: 'The joint between the window insert’s cat port and the tunnel’s first flange: a docking frame on the insert, a squashed seal, and toggle latches that join the two without tools, while the tunnel’s own support keeps carrying its weight.',
+  variants: ['modular'], briefLabel: 'THE JOINT', assemblyHeading: 'From the port to a docked tunnel.', follows: ['window-insert', 'tunnel'],
+  viewLabels: { Side: 'Side · the joint', Mounting: 'Latch detail' },
+  toggles: { windowOpen: 'Released · latches open', cutaway: 'Wall cutaway' }, defaultViewing: { windowOpen: false },
+  layerLabels: { hardware: 'Latches, seal & screws', environment: 'Wall & grass' },
+  defaults: COUPLING_DEFAULT, controls: COUPLING_CONTROLS, parse: parseCoupling,
+  validate: (variant, config) => validateCoupling(variant, config),
+  steps: couplingSteps, build: createCouplingScene, bom: (variant, config) => couplingBom(variant, config),
+  views: couplingViews, facts: couplingFacts, decisions: COUPLING_DECISIONS,
+};
+
 /** Every sub-assembly page, for links and breadcrumbs. The enclosure is next; `CatioSubassemblyRoute` picks the definition. */
-export const CATIO_SUBASSEMBLY_TITLES: Record<CatioSubassembly, string> = { 'window-insert': windowInsertDefinition.title, tunnel: tunnelDefinition.title };
+export const CATIO_SUBASSEMBLY_TITLES: Record<CatioSubassembly, string> = {
+  'window-insert': windowInsertDefinition.title, 'insert-tunnel-coupling': couplingDefinition.title, tunnel: tunnelDefinition.title,
+};
