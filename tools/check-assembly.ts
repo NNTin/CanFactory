@@ -7,7 +7,8 @@
  * - each step, sampled along its path (the moving parts against all the others);
  * - the last CLOSING mm of each step, where snaps engage, in fine steps: a detent's bump shares volume there while it passes the
  *   mating wall, so these samples have their own, looser tolerance (`--snap-tolerance`). A pose that collides for real still
- *   fails it, and the assembled state is held to `--tolerance`.
+ *   fails it, and the assembled state is held to `--tolerance`;
+ * - every frame of each movement (`Assembly.motion`, e.g. a latch opening and closing), every pair, held to `--tolerance`.
  *
  *   npm run check:assembly -- [model-id] [--parameters '{"snap":"detent"}'] [--tolerance 1] [--snap-tolerance 10]
  *
@@ -16,7 +17,7 @@
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
-import { activeParts, assemblyOffset, dimensionOf, findPart, isAssembly, models, partAssetPath, resolveAssembly, scadDefines, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues, type Part } from '../packages/contracts/src/index.ts';
+import { activeParts, assemblyOffset, dimensionOf, motionFrames, findPart, isAssembly, models, partAssetPath, resolveAssembly, scadDefines, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues, type Part } from '../packages/contracts/src/index.ts';
 import { intersectionVolume } from './stl-to-scad/compare.ts';
 import { renderScad } from './stl-to-scad/openscad.ts';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
@@ -165,6 +166,19 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
       if (volume > snap) { snap = volume; at = left; }
     }
     findings.push({ check: `step ${index + 1} last ${closing.toFixed(0)} mm (snaps engaging; worst ${snap > 0 ? `${at.toFixed(2)} mm before seated` : 'sample'})`, volume: snap, snap: true });
+  });
+
+  motionFrames(assembly).forEach((frames, index) => {
+    let worst: Finding = { check: '', volume: 0 };
+    frames.slice(1).forEach((poses, frame) => {
+      const placed = new Map<string, Mesh>();
+      for (const [id, mesh] of parts) {
+        const pose = poses[id];
+        if (pose) placed.set(id, place(mesh, pose.rotation ?? [0, 0, 0], pose.position));
+      }
+      for (const finding of pairs('', placed)) if (finding.volume > worst.volume) worst = { check: `${finding.check.slice(2)}, frame ${frame + 1} of ${frames.length - 1}`, volume: finding.volume };
+    });
+    findings.push({ check: `movement ${index + 1} “${assembly.motion?.[index]?.title ?? ''}” (worst frame: ${worst.check || 'none'})`, volume: worst.volume });
   });
 
   let ok = floor >= 0;

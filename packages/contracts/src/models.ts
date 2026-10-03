@@ -4,6 +4,7 @@ import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
+import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, type LatchMovement } from './toggleLatchMechanism.ts';
 
 /** A field-level, user-readable validation failure. Paths are parameter names. */
 export interface ParameterIssue { field: string; message: string }
@@ -281,6 +282,12 @@ export interface LinkedReference {
 
 const Vector = (description: string) => Type.Array(Type.Number(), { minItems: 3, maxItems: 3, description });
 
+/** A part's pose: its STL, exactly as rendered, turned and then moved. */
+const PoseSchema = Type.Object({
+  position: Vector('Translation in mm, applied after the rotation.'),
+  rotation: Type.Optional(Vector('Rotation in degrees about the part’s own origin, applied about X, then Y, then Z.')),
+}, { additionalProperties: false });
+
 /**
  * How an assembly's parts go together, for the preview's assembly slider. Millimetres and degrees, in the parts' own SCAD
  * frame (Z up). Each part's pose places its STL, exactly as rendered, at its assembled position. The exploded layout is
@@ -290,14 +297,12 @@ const Vector = (description: string) => Type.Array(Type.Number(), { minItems: 3,
  * finished assembly stands on the floor. Parts without a pose stay on the print bed. `references` are real-world objects the
  * assembly holds (e.g. the lighter a bay is sized for), shown and moved like parts so that their fit can be seen; they are
  * parts-library entries with an STL preview, never printed, so the worker does not render them and they are not in the ZIP
- * (see `referencePart`).
+ * (see `referencePart`). `motion` then moves the finished assembly (e.g. a latch opening and closing), one slider stop per
+ * movement: rigid poses sampled densely enough that interpolating between frames keeps the parts' joints together.
  */
 export const AssemblySchema = Type.Object({
   partColors: Type.Optional(Type.Record(Type.String(), Type.String({ pattern: '^#[0-9a-fA-F]{6}$' }), { description: 'Suggested filament colors by printed part id; also used in the preview.' })),
-  poses: Type.Record(Type.String(), Type.Object({
-    position: Vector('Translation in mm, applied after the rotation.'),
-    rotation: Type.Optional(Vector('Rotation in degrees about the part’s own origin, applied about X, then Y, then Z.')),
-  }, { additionalProperties: false }), { description: 'Assembled pose per part id.' }),
+  poses: Type.Record(Type.String(), PoseSchema, { description: 'Assembled pose per part id.' }),
   steps: Type.Array(Type.Object({
     title: Type.String({ description: 'Short caption, e.g. “Close the mini box”.' }),
     parts: Type.Array(Type.String(), { description: 'The part ids that move together in this step.' }),
@@ -309,6 +314,10 @@ export const AssemblySchema = Type.Object({
     part: Type.String({ description: 'The id of the parts-library entry it is.' }),
     title: Type.String({ description: 'What it is: the part’s title, e.g. “BIC Mini lighter (J25)”.' }),
   }, { additionalProperties: false }), { description: 'Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. They are parts-library entries. Not printed and not in the ZIP.' })),
+  motion: Type.Optional(Type.Array(Type.Object({
+    title: Type.String({ description: 'Short caption, e.g. “Close the lever”.' }),
+    frames: Type.Array(Type.Record(Type.String(), PoseSchema), { minItems: 1, description: 'The poses of the parts it moves, evenly spaced in time; parts a frame leaves out keep their pose.' }),
+  }, { additionalProperties: false }), { description: 'Movements of the finished assembly, played after the steps (e.g. a latch opening and closing): each plays from the poses the previous one ends in (the assembled poses for the first) through its frames.' })),
 }, { additionalProperties: false });
 export type Assembly = Static<typeof AssemblySchema>;
 
@@ -1763,6 +1772,39 @@ const toggleLatchParts: ModelPart[] = [
   { id: 'catch', title: 'Catch', sourcePath: `${TOGGLE_LATCH_DIR}catch.scad`, scadMapping: LATCH_SCREW_MAPPING, partDefines: LATCH_SCREW_DEFINES },
 ];
 
+/** Lever and link swings are sampled every `LATCH_FRAME_STEP` degrees: between two frames a joint strays by under 0.01 mm. */
+const LATCH_FRAME_STEP = 3;
+
+/**
+ * The toggle latch as mounted, its plates' backs on the floor (z = 0), the pull along y, from the shared mechanism
+ * (`toggleLatchMechanism.ts`, docs/toggle-latch.md): assembled with the lever open and the link swung up off the hook (released),
+ * then hooked, closed over centre to its lock, opened back over centre and closed again. The lever and the link snap onto their
+ * pins (their side plates spread over the pins' ends). None of it depends on the parameters: the screw holes do not touch the
+ * mechanism, and the loose-pivot lever's body is the standard lever's.
+ */
+export function toggleLatchAssembly(): Assembly {
+  const poses = latchPoses(latchState(LATCH_OPEN, LATCH_SWING));
+  const frames = (movement: LatchMovement) => {
+    const count = Math.max(1, Math.ceil(Math.max(Math.abs(movement.angle[1] - movement.angle[0]), Math.abs(movement.swing[1] - movement.swing[0])) / LATCH_FRAME_STEP));
+    return Array.from({ length: count }, (_, i) => {
+      const f = (i + 1) / count;
+      const { lever, link, catch: plate } = latchPoses(latchState(movement.angle[0] + (movement.angle[1] - movement.angle[0]) * f, movement.swing[0] + (movement.swing[1] - movement.swing[0]) * f));
+      return { lever, link, catch: plate };
+    });
+  };
+  return {
+    partColors: { base: '#5f7350', catch: '#5f7350', lever: '#d98460', link: '#3f6ea6' },
+    poses,
+    steps: [
+      { title: 'Snap the lever onto the base’s pivot pins', parts: ['lever'], from: [0, 0, 16] },
+      { title: 'Snap the link onto the lever’s pins', parts: ['link'], from: [0, 0, 34] },
+      { title: 'Screw the catch on across the gap', parts: ['catch'], from: [0, -24, 0] },
+    ],
+    lift: 12,
+    motion: TOGGLE_LATCH_MOVEMENTS.map(movement => ({ title: movement.title, frames: frames(movement) })),
+  };
+}
+
 export const toggleLatch = {
   id: 'toggle-latch' as const, version: '1' as const, title: 'Toggle latch',
   description: 'A printed over-centre toggle latch, 12 mm wide: a base with the lever’s knuckle, the lever, a link and a catch. Pull the link over the catch’s hook and press the lever down to draw the two sides together. Choose the screws the base and the catch are fastened with, countersunk wood screws or any machine screw from the parts library, and the holes are sized for them; download the four parts as a ZIP of STL files.',
@@ -1771,6 +1813,7 @@ export const toggleLatch = {
   // Kept short: stamped into each STL's 80-byte header together with `attribution` (see mossPlanter).
   license: 'CC BY-NC 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
   parts: toggleLatchParts,
+  assembly: toggleLatchAssembly(),
   parameterSchema: ToggleLatchParametersSchema,
   controls: toggleLatchControls,
   defaults: Object.fromEntries(toggleLatchControls.map(c => [c.key, c.default])),

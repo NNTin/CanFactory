@@ -715,6 +715,59 @@
                             "additionalProperties": false
                           },
                           "description": "Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. They are parts-library entries. Not printed and not in the ZIP."
+                        },
+                        "motion": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "title",
+                              "frames"
+                            ],
+                            "properties": {
+                              "title": {
+                                "type": "string",
+                                "description": "Short caption, e.g. “Close the lever”."
+                              },
+                              "frames": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "object",
+                                    "required": [
+                                      "position"
+                                    ],
+                                    "properties": {
+                                      "position": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "number"
+                                        },
+                                        "minItems": 3,
+                                        "maxItems": 3,
+                                        "description": "Translation in mm, applied after the rotation."
+                                      },
+                                      "rotation": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "number"
+                                        },
+                                        "minItems": 3,
+                                        "maxItems": 3,
+                                        "description": "Rotation in degrees about the part’s own origin, applied about X, then Y, then Z."
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "minItems": 1,
+                                "description": "The poses of the parts it moves, evenly spaced in time; parts a frame leaves out keep their pose."
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Movements of the finished assembly, played after the steps (e.g. a latch opening and closing): each plays from the poses the previous one ends in (the assembled poses for the first) through its frames."
                         }
                       },
                       "additionalProperties": false

@@ -367,6 +367,20 @@ export interface operations {
                                 /** @description What it is: the part’s title, e.g. “BIC Mini lighter (J25)”. */
                                 title: string;
                             }[];
+                            /** @description Movements of the finished assembly, played after the steps (e.g. a latch opening and closing): each plays from the poses the previous one ends in (the assembled poses for the first) through its frames. */
+                            motion?: {
+                                /** @description Short caption, e.g. “Close the lever”. */
+                                title: string;
+                                /** @description The poses of the parts it moves, evenly spaced in time; parts a frame leaves out keep their pose. */
+                                frames: {
+                                    [key: string]: {
+                                        /** @description Translation in mm, applied after the rotation. */
+                                        position: number[];
+                                        /** @description Rotation in degrees about the part’s own origin, applied about X, then Y, then Z. */
+                                        rotation?: number[];
+                                    };
+                                }[];
+                            }[];
                         };
                     };
                 };

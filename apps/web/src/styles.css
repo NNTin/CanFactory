@@ -641,6 +641,23 @@ main {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.assembly-play {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fffefa;
+  color: var(--accent);
+  cursor: pointer;
+}
+.assembly-play:hover { border-color: var(--accent); }
+.assembly-play:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .assembly-track {
   position: relative;
   flex: 1;
@@ -1046,16 +1063,6 @@ main {
 }
 .moss-planter-illustration {
   overflow: visible;
-}
-.tl-part {
-  transition: transform 0.35s ease-out;
-}
-.tl-lever { transform-origin: 62px 91px; }
-.tl-link { transform-origin: 104px 84px; }
-.model-card:hover .tl-lever { transform: rotate(-24deg); }
-.model-card:hover .tl-link { transform: translate(-14px, -24px) rotate(-14deg); }
-@media (prefers-reduced-motion: reduce) {
-  .tl-part { transition: none; }
 }
 .mp-part {
   transition: transform 0.35s ease-out;
