@@ -6,6 +6,8 @@ export * from './assembly.ts';
 export * from './svgLogo.ts';
 export * from './parts/index.ts';
 export * from './concepts.ts';
+/** The toggle latch's mechanism, shared by the catalogue card's side view and the assembly preview. */
+export * as toggleLatchMechanism from './toggleLatchMechanism.ts';
 
 /** Stable error envelope; clients may branch on code and highlight field issues. */
 export const ErrorSchema = Type.Object({
