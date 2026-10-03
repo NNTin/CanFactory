@@ -61,7 +61,9 @@ the scene, the parts list and the tests.
    the transom.
    - **Section:** 32 × 70. 70 is the flange's width, so the frame's outline above the floor is the flange's. 32 is the depth
      from the mesh face to 6 mm short of the flange.
-   - **Rebate:** where a cover batten lies under it, the frame's back is rebated 15 × 40 over the batten.
+   - **Rebate:** where a cover batten lies under it, the frame's back is rebated 15 × 40 over the batten. Whether there are
+     battens is the window insert's **Mesh to timber** setting, changed on that page; the coupling page's brief states it
+     (**Cover battens · set on the window insert page**), and with staples only the frame sits flat on the mesh, unrebated.
    - **Fixing:** DIN 7997 5 × 60 screws from its face, every 15 cm or less. Each reaches 26 mm into the jamb or transom,
      whichever mesh fixing the insert has.
    - **No sill.** Its inner faces are the port's edges, so the cat's clear size is unchanged.
@@ -166,6 +168,7 @@ part behind them. Their sizes are this design's, not a product's.
   - the frame sits on the insert's own faces (battens or mesh, for every mesh fixing), keeps the port's clear size and has
     the flange's outline
   - the frame screws' 26 mm bite
+  - the brief names whether the insert has cover battens and that the window insert page sets it
   - the load path: the wall support's bearer under the flange, a real gap filled only by the seal, and the lip lying on the
     threshold
   - every latch body and catch on its face, with the hook at mid-range, and the long type not fitting

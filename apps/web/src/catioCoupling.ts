@@ -3,7 +3,7 @@ import type { CatioView } from './catioDesign.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { fastenersAlong, parseControlled, subassemblyStorageKey, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type V3 } from './catioSubassembly.ts';
 import { parseTunnel, TUNNEL, TUNNEL_DEFAULT, tunnelLayout, tunnelSite, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
-import { INSERT, windowInsertLayout } from './catioWindowInsert.ts';
+import { INSERT, WINDOW_INSERT_CONTROLS, windowInsertLayout } from './catioWindowInsert.ts';
 
 /**
  * The insert–tunnel coupling: the joint between the window insert's cat port and the tunnel's first flange. Millimetres; X along
@@ -197,8 +197,17 @@ export function couplingBom(_variant: CatioMode, config: CouplingConfig, site?: 
   return lines;
 }
 
-export function couplingFacts(_variant: CatioMode, config: CouplingConfig) {
-  const l = couplingLayout(config);
+/** Whether the insert's port frame carries cover battens: set by the window insert page's "Mesh to timber", not here. */
+function insertBattensFact(l: CouplingLayout) {
+  const control = WINDOW_INSERT_CONTROLS.find(c => c.key === 'meshFixing');
+  return {
+    label: `Cover battens · set on the window insert page (${control?.label ?? 'Mesh to timber'})`,
+    value: l.battenFace > l.meshFace ? `Yes · frame rebated ${INSERT.batten.thickness} mm over them` : 'None · frame flat on the mesh',
+  };
+}
+
+export function couplingFacts(_variant: CatioMode, config: CouplingConfig, site?: CouplingSite) {
+  const l = couplingLayout(config, site);
   const cm = (mm: number) => `${Number((mm / 10).toFixed(1))}`;
   return [
     { label: 'Docking frame · outside', value: `${cm(l.w + 2 * TUNNEL.flange.width)} × ${cm(l.transomZ + TUNNEL.flange.width - l.floor)} cm, ${Math.round(l.thickness)} mm deep` },
@@ -206,6 +215,7 @@ export function couplingFacts(_variant: CatioMode, config: CouplingConfig) {
     { label: 'Latches · holding', value: `${l.latches.length} × ${l.latchPart.designation} · ${l.latchPart.attributes['holdingForce'] ?? ''} each` },
     { label: 'Hook takes up', value: `±${l.tolerance} mm of the gap` },
     { label: 'Dock or undock', value: `${l.latches.length} levers, no tools` },
+    insertBattensFact(l),
   ];
 }
 
@@ -247,8 +257,8 @@ export const COUPLING_DECISIONS: DesignDecision[] = [
   { title: 'The insert carries nothing', parameter: 'Latches per side',
     choice: 'The tunnel’s wall support carries the first flange, as on the tunnel page. The joint touches the insert only through the soft seal and the latches, which pull along the tunnel; the docking frame has no sill, and nothing of the tunnel rests on the threshold except the rubber lip.',
     why: 'The insert is held in its recess only by pressure, so it must not take the tunnel’s weight. Locating pins or a spigot would hand that weight to it as soon as the support settled, so there are none: the support’s levelling feet set the height. If a latch has to lift or push the flange to close, re-level the wall support, not the latch.' },
-  { title: 'A docking frame on the insert',
-    choice: 'Two 32 × 70 stiles on the port jambs and a head on the transom, screwed through into them with DIN 7997 5 × 60 screws, rebated over the cover battens. Its face is the flange’s outline above the floor, 6 mm short of the flange.',
+  { title: 'A docking frame on the insert', parameter: 'Mesh to timber (Window insert page)',
+    choice: 'Two 32 × 70 stiles on the port jambs and a head on the transom, screwed through into them with DIN 7997 5 × 60 screws, rebated 15 mm over the cover battens where the insert has them. Its face is the flange’s outline above the floor, 6 mm short of the flange. Whether there are battens is the window insert’s “Mesh to timber” setting, changed on that page: with staples only the frame sits flat on the mesh, unrebated.',
     why: 'The port frame’s face lies 28 mm inside the recess and is broken up by battens, while the flange stands 10 mm off the wall: the frame brings a flat, matching face to the joint, and gives the catch brackets a side in line with the flange’s side. 32 mm is the depth from the mesh to the gap, so the screws reach 26 mm into the jambs whichever mesh fixing the insert has. It stays on the insert when the insert is lifted out.' },
   { title: 'A squashed seal and a floor lip', parameter: 'Floor gap',
     choice: 'A self-adhesive hollow EPDM D-profile, about 10 mm high, round the frame’s face, squashed to the 6 mm gap; a 3 mm EPDM lip screwed to the flange’s sill, lying 25 mm onto the threshold.',

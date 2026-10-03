@@ -4,7 +4,7 @@ import { COUPLING_LATCH, dimensionOf, findPart, insertTunnelCouplingConcept, par
 import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { couplingDefinition } from './catioSubassemblies.ts';
-import { COUPLING, COUPLING_CONTROLS, COUPLING_DEFAULT, couplingBom, couplingLayout, couplingSteps, validateCoupling, type CouplingConfig, type CouplingSite } from './catioCoupling.ts';
+import { COUPLING, COUPLING_CONTROLS, COUPLING_DEFAULT, couplingBom, couplingFacts, couplingLayout, couplingSteps, validateCoupling, type CouplingConfig, type CouplingSite } from './catioCoupling.ts';
 import { createCouplingScene, LIFT, OPEN } from './catioCouplingScene.ts';
 import { TUNNEL, TUNNEL_DEFAULT, tunnelBom, tunnelSite } from './catioTunnel.ts';
 import { INSERT, WINDOW_INSERT_DEFAULT } from './catioWindowInsert.ts';
@@ -53,6 +53,15 @@ describe('insert–tunnel coupling', () => {
         expect(f.direction).toEqual([0, -1, 0]);
         expect(length - (f.at[1] - l.insert.yOut), `${f.use} bite`).toBeCloseTo(26, 9);
       }
+    }
+  });
+
+  it('shows on its own page whether the insert has cover battens, and that the window insert page sets it', () => {
+    for (const s of sites) {
+      const fact = couplingFacts('modular', COUPLING_DEFAULT, s).find(f => f.label.startsWith('Cover battens'));
+      const battens = s.site.insert.meshFixing !== 'staples';
+      expect(fact?.value, s.site.insert.meshFixing).toBe(battens ? `Yes · frame rebated ${INSERT.batten.thickness} mm over them` : 'None · frame flat on the mesh');
+      expect(fact?.label).toBe('Cover battens · set on the window insert page (Mesh to timber)');
     }
   });
 
