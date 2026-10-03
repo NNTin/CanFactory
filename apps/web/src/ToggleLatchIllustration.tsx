@@ -38,7 +38,8 @@ const x = (u: number) => ORIGIN_X - SCALE * u, y = (v: number) => ORIGIN_Y - SCA
  */
 export function ToggleLatchIllustration() {
   const svg = useRef<SVGSVGElement>(null);
-  const [t, setT] = useState(0);
+  // null at rest: the latch locked
+  const [t, setT] = useState<number | null>(null);
   useEffect(() => {
     const card = svg.current?.closest('.model-card');
     if (!card || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -48,14 +49,14 @@ export function ToggleLatchIllustration() {
       setT(((now - start) / 1000 / CYCLE_SECONDS) % 1);
       frame = requestAnimationFrame(tick);
     };
-    const play = () => { if (active) return; active = true; start = 0; frame = requestAnimationFrame(tick); };
-    const stop = () => { active = false; cancelAnimationFrame(frame); setT(0); };
+    const play = () => { if (active) return; active = true; start = 0; setT(0); frame = requestAnimationFrame(tick); };
+    const stop = () => { active = false; cancelAnimationFrame(frame); setT(null); };
     const events: [string, () => void][] = [['pointerenter', play], ['pointerleave', stop], ['focusin', play], ['focusout', stop]];
     for (const [name, handler] of events) card.addEventListener(name, handler);
     return () => { cancelAnimationFrame(frame); for (const [name, handler] of events) card.removeEventListener(name, handler); };
   }, []);
 
-  const state = M.latchCycleState(t);
+  const state = t === null ? { ...M.latchState(M.CLOSED), title: 'Locked' } : M.latchCycleState(t);
   const nose = M.placePoint(state.link, G.link.nose.centre);
   const along: M.Vec2 = [state.pin[0] - nose[0], state.pin[1] - nose[1]];
   const reach = 1.25;

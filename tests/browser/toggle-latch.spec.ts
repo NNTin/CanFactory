@@ -11,7 +11,11 @@ test('the card shows the latch opening and closing; the preview assembles it and
   const card = page.locator('.model-card', { hasText: toggleLatch.title });
   const art = card.locator('svg.toggle-latch-illustration');
   await expect(art).toHaveAttribute('data-latch-state', 'Locked');
+  // it answers the hover at once, as the other cards' transitions do: the lever is already moving within 300 ms
+  const lever = art.locator('.tl-lever');
+  const resting = await lever.getAttribute('transform');
   await card.hover();
+  await expect.poll(() => lever.getAttribute('transform'), { timeout: 300, intervals: [30] }).not.toBe(resting);
   const seen = new Set<string>();
   await expect.poll(async () => { seen.add(await art.getAttribute('data-latch-state') ?? ''); return seen.size; }, { timeout: 20_000, intervals: [100] })
     .toBeGreaterThanOrEqual(toggleLatchMechanism.TOGGLE_LATCH_CYCLE.length);

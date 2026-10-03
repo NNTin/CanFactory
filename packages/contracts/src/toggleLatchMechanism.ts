@@ -385,24 +385,29 @@ export const TOGGLE_LATCH_MOVEMENTS: LatchMovement[] = [
   { title: 'Open: back over centre, the catch is released', angle: [CLOSED, OPEN], swing: [0, 0] },
   { title: 'Close again: over centre and locked', angle: [OPEN, CLOSED], swing: [0, 0] },
 ];
-/** The card's loop, from locked: open (back over centre, releasing the catch), unhook, hook, close (over centre), each with its share of time. */
+/**
+ * The card's loop, from locked: open (back over centre, releasing the catch), unhook, hook, close (over centre), then a pause
+ * locked, each with its share of time. It starts moving at once, so that the card answers a hover straight away.
+ */
 export const TOGGLE_LATCH_CYCLE: (LatchMovement & { time: number })[] = [
-  { title: 'Locked', angle: [CLOSED, CLOSED], swing: [0, 0], time: 0.12 },
   { title: 'Open', angle: [CLOSED, OPEN], swing: [0, 0], time: 0.22 },
   { title: 'Unhook', angle: [OPEN, OPEN], swing: [0, SWING], time: 0.12 },
   { title: 'Released', angle: [OPEN, OPEN], swing: [SWING, SWING], time: 0.06 },
   { title: 'Hook', angle: [OPEN, OPEN], swing: [SWING, 0], time: 0.12 },
   { title: 'Close', angle: [OPEN, CLOSED], swing: [0, 0], time: 0.36 },
+  { title: 'Locked', angle: [CLOSED, CLOSED], swing: [0, 0], time: 0.12 },
 ];
 
 const smooth = (x: number) => x * x * (3 - 2 * x);
-/** The latch `t` (0..1) of the way through `TOGGLE_LATCH_CYCLE`, each movement eased. */
+const easeOut = (x: number) => 1 - (1 - x) ** 3;
+/** The latch `t` (0..1) of the way through `TOGGLE_LATCH_CYCLE`, each movement eased: in and out, but the first only out, so that it
+ * moves from the first frame, as a hover transition does. */
 export function latchCycleState(t: number): LatchState & { title: string } {
   const total = TOGGLE_LATCH_CYCLE.reduce((sum, movement) => sum + movement.time, 0);
   let at = (((t % 1) + 1) % 1) * total;
   for (const movement of TOGGLE_LATCH_CYCLE) {
     if (at <= movement.time || movement === TOGGLE_LATCH_CYCLE.at(-1)) {
-      const f = smooth(Math.min(1, at / movement.time));
+      const f = (movement === TOGGLE_LATCH_CYCLE[0] ? easeOut : smooth)(Math.min(1, at / movement.time));
       return { ...latchState(movement.angle[0] + (movement.angle[1] - movement.angle[0]) * f, movement.swing[0] + (movement.swing[1] - movement.swing[0]) * f), title: movement.title };
     }
     at -= movement.time;
