@@ -51,18 +51,22 @@ cat port (a docking frame on the port, a seal and toggle latches) is on the
    with two DIN 7997 4 × 50 screws carries that on long grain and timber shoulders. A butt joint (two DIN 7997 5 × 70 screws
    through the stile into the rail's end grain) remains selectable.
 5. **Mesh clamped under battens.** DIN 1159 2.5 × 25 staples locate the tensioned mesh every 15 cm; 40 × 15 cover battens,
-   screwed through the mesh with DIN 7997 4 × 35 screws, clamp the whole edge and cover the cut wire ends. Where mesh meets
-   a threshold edge there is no face for a batten, so it is stapled in every option.
+   screwed through the mesh with DIN 7997 4 × 35 screws, clamp the whole edge and cover the cut wire ends. Where the direct
+   variant's passage sleeve meets a threshold edge there is no face for a batten, so it is stapled in every option; the
+   modular insert's mesh lies only on faces, so "battens only" needs no staples there.
 6. **The modular cat port.** A full-width transom over the port and two jambs give every infill mesh panel timber on all
    four edges. They sit in 10 mm housings (or butt joints), the jambs screwed from under the sill rail with DIN 7997 6 × 90.
-   The sliding gate runs in tracks on the room side of the port.
+   The sliding gate runs in tracks on the room side of the port. Nothing of the insert continues the port out to the wall
+   face: the port frame's face is the end of the insert, and a tunnel's docking frame fits over the jambs and transom there
+   and carries the passage on (see the [coupling](window-insert-tunnel-coupling.md)). An earlier mesh "throat" from the port
+   to the wall face was dropped, as it duplicated (and clashed with) that frame.
 
 ## Assembly
 
 1. **Join the collar** on a bench outside: half-laps glued and screwed (or butt joints screwed); check the diagonals.
 2. **Fit the clamp hardware**: insert nuts, then short-stud bearing feet under the sill rail and long-stud spreaders with
    their jammed nuts in the stiles and head (or prepare the wedges).
-3. **Threshold and mesh**: threshold on the sill rail; the passage sleeve (direct) or transom, jambs, infill and throat mesh
+3. **Threshold and mesh**: threshold on the sill rail; the passage sleeve (direct) or transom, jambs and infill mesh
    (with tunnel); staples and battens.
 4. **Set it into the recess** from the garden, standing on the bearing feet, clear of the closed sash.
 5. **Tighten from inside** in opposite pairs until the pads bear (or drive the wedges).

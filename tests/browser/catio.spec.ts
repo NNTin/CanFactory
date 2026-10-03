@@ -194,7 +194,7 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await expect(viewer).toHaveAttribute('data-variant', 'modular');
   await expect(viewer).toHaveAttribute('data-visible-parts', /cat-gate/);
   await expect(page.getByRole('combobox', { name: 'Port transom & jambs' })).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Mesh parts' }).getByRole('row')).toHaveCount(7);
+  await expect(page.getByRole('table', { name: 'Mesh parts' }).getByRole('row')).toHaveCount(4);
   await page.getByRole('checkbox', { name: 'Exploded view' }).check();
   await expect(viewer).toHaveAttribute('data-exploded', 'true');
   await page.screenshot({ path: testInfo.outputPath('window-insert-modular.png'), fullPage: true });

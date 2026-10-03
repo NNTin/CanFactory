@@ -182,10 +182,8 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     }
     panels.push({ id: 'infill-top', name: 'Infill mesh above the port', width: Wi + 2 * o, height: top - upper, center: [0, faceY, (upper + top) / 2], plane: 'xz',
       edges: frameEdges(-Wi / 2 - o, Wi / 2 + o, upper, top, 'Over the collar and transom') });
-    // A short mesh throat continues the port to the wall face, where a tunnel couples.
-    for (const side of [-1, 1]) panels.push({ id: `throat-${side < 0 ? 'left' : 'right'}`, name: `Port throat, ${side < 0 ? 'left' : 'right'} side`, width: -yOut, height: h, center: [side * w / 2, yOut / 2, floor + h / 2], plane: 'yz',
-      edges: [edge([side * w / 2, faceY, floor], [side * w / 2, faceY, transomZ], true, 'Turned onto the port jamb'), edge([side * w / 2, yOut, floor], [side * w / 2, 0, floor], false, 'Along the threshold edge')] });
-    panels.push({ id: 'throat-roof', name: 'Port throat, roof', width: w, height: -yOut, center: [0, yOut / 2, transomZ], plane: 'xy', edges: [edge([-w / 2, faceY, transomZ], [w / 2, faceY, transomZ], true, 'Turned onto the transom')] });
+    // Nothing continues the port to the wall face: a tunnel's docking frame (catioCoupling.ts) fits over the jambs and transom
+    // and carries the passage on from there.
   }
 
   // Cover battens over the face edges: a frame round the collar, plus the transom and port jambs.
@@ -270,7 +268,7 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
   const mesh = config.meshFixing === 'staples' ? 'staple its edges' : config.meshFixing === 'battens' ? 'press the cover battens over its edges and screw them on from the outdoor face' : 'staple its edges, then press the cover battens over them and screw them on from the outdoor face';
   const fill = variant === 'direct'
     ? `Lower the threshold onto the sill rail and screw it down from above. Slide the passage sleeve mesh on from outdoors and ${mesh}.`
-    : `Lower the threshold onto the sill rail and screw it down from above. Slide the transom into its stile housings from outdoors, then each jamb up into the transom. Screw the transom through the stiles and the jambs up from under the sill rail. Offer the infill and throat mesh from outdoors and ${mesh}.`;
+    : `Lower the threshold onto the sill rail and screw it down from above. Slide the transom into its stile housings from outdoors, then each jamb up into the transom. Screw the transom through the stiles and the jambs up from under the sill rail. Offer the infill mesh from outdoors and ${mesh}.`;
   const tighten = config.attachment === 'spreader-feet'
     ? 'From inside, through the open window: put a 13 mm spanner on each spreader’s jammed nuts and turn the stud, so the foot moves out until its pad bears on the reveal. Tighten opposite pairs in turn. No drilling; the pads only press.'
     : 'From outside, drive each inner wedge along the member until the pair fills the gap. Drive opposite pairs in turn. No drilling; the wedges only press.';
@@ -372,7 +370,7 @@ export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = 
     options: [{ value: 'half-lap', label: 'Half-lap, glued + 2 screws' }, { value: 'butt-screwed', label: 'Butt joint + 2 screws' }] },
   { key: 'junctionJoint', label: 'Port transom & jambs', group: 'Timber joints', variants: ['modular'], help: 'Housings carry the transom and jambs on timber; butt joints rely on the screws alone.',
     options: [{ value: 'housed', label: 'Housed 10 mm + screw' }, { value: 'butt-screwed', label: 'Butt joint + screws' }] },
-  { key: 'meshFixing', label: 'Mesh to timber', group: 'Mesh', help: 'Staples hold the wire; battens clamp it along the whole edge and cover the cut ends. Where mesh meets the threshold edge it is always stapled.',
+  { key: 'meshFixing', label: 'Mesh to timber', group: 'Mesh', help: 'Staples hold the wire; battens clamp it along the whole edge and cover the cut ends. Where the passage sleeve meets the threshold edge (direct) it is always stapled.',
     options: [{ value: 'staples-and-battens', label: 'Staples under cover battens' }, { value: 'staples', label: 'Staples only' }, { value: 'battens', label: 'Cover battens only' }] },
   { key: 'fixingPitch', label: 'Fixing spacing', group: 'Mesh', help: 'The greatest distance between staples, and between batten screws, along an edge.',
     options: [{ value: 100, label: '10 cm' }, { value: 150, label: '15 cm' }, { value: 200, label: '20 cm' }] },

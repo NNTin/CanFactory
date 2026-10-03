@@ -192,7 +192,7 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
     movers.push({ slide, kind: clamp.kind });
   });
 
-  // Stage 3: mesh, each panel pressed on from outdoors (the sleeve and throat slid along the passage).
+  // Stage 3: mesh, each panel pressed on from outdoors (the direct variant's sleeve slid along the passage).
   layout.panels.forEach(mp => {
     const parent = panel(mp.id, 3, mp.width, mp.height, mp.center, mp.plane, [0, 0, 0]);
     for (const child of parent.children.slice()) move(child, 3, stage3Windows['mesh'] ?? [0, 1], [0, 320, 0], `${layout.panels.length} × Mesh panel: offered up from outdoors`);
