@@ -52,6 +52,27 @@ rising). See [tunnel.md](tunnel.md). The
 modular whole-catio scene keeps its schematic straight and 90° modules on level feet until the tunnel page's design is adopted
 there.
 
+## How the sub-assembly pages fit each other
+
+The tunnel and the coupling are fitted to the window insert, and the coupling also shows the tunnel. Each page reads the
+others' saved settings. One declaration on the dependent page, `follows` in
+[catioSubassemblies.ts](../../../apps/web/src/catioSubassemblies.ts), lists the settings of the other page that change it,
+and everything else is derived from it ([CatioCrossPage.tsx](../../../apps/web/src/CatioCrossPage.tsx)):
+
+- Both briefs link the two pages: "It fits the …" on the dependent page, and "The … are fitted to this one" on the other.
+- Under every followed setting, the other page says what else it changes ("Also changes the tunnel and the insert–tunnel
+  coupling.").
+- When saved settings on one page break a page fitted to it, the page being edited lists that page's errors with a link.
+  The catio concept page does the same for all sub-assemblies, since they take the window and cat port sizes from it.
+- A fact or a design decision can name the other page's settings it comes from (`from`). The page then shows "Set on the …
+  page: …" under it, e.g. the coupling's cover battens and the tunnel's window port floor.
+
+A test changes every window insert setting in turn and checks that exactly the declared ones change each dependent page.
+
+Geometry that one page owns and another shows is drawn by one builder: `buildInsertContext` (the installed insert) and
+`buildCouplingPieces` (the docking frame, seal, catches, latches and lip). Fasteners added on top of another page's are
+placed with `clearOf` and checked with `fastenerClashes` ([catioSubassembly.ts](../../../apps/web/src/catioSubassembly.ts)).
+
 ## Dimensions and assumptions
 
 | Item | Value | Basis |

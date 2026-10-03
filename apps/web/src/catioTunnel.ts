@@ -1,7 +1,7 @@
 import { dimensionOf, findPart, TUNNEL_FOOT, TUNNEL_HARDWARE as HW, tunnelFoot, type Part } from '@canfactory/contracts';
 import { CATIO, type CatioView } from './catioDesign.ts';
 import type { CatioMode } from './catioSettings.ts';
-import { fastenersAlong, parseControlled, subassemblyStorageKey, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyPreset, type V3 } from './catioSubassembly.ts';
+import { fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type SubassemblyPreset, type V3 } from './catioSubassembly.ts';
 import { parseWindowInsert, WINDOW_INSERT_DEFAULT, windowFor, windowInsertLayout, type WindowInsertConfig, type WindowSpec } from './catioWindowInsert.ts';
 
 /**
@@ -22,7 +22,9 @@ export interface TunnelConfig {
   portY: number;
   /** Which way the tunnel runs into the port, in degrees from straight out of the wall (+ turned to the right). */
   portFacing: number;
-  /** The port's floor (its threshold) above the grass at the wall. */
+  /** Whether the port's floor is level with the window port's (wherever the window insert puts that) or at `portHeight`. */
+  portLevel: 'window' | 'own';
+  /** The port's floor (its threshold) above the grass at the wall, when it has its own height. */
   portHeight: number;
   /** The straight run out from the wall before the first turn. */
   approach: number;
@@ -47,7 +49,7 @@ export interface TunnelConfig {
 }
 
 export const TUNNEL_DEFAULT: TunnelConfig = {
-  portX: 1200, portY: 3000, portFacing: 0, portHeight: 500, approach: 700, final: 700, slopeLeg: 'middle', maxSlope: 20,
+  portX: 1200, portY: 3000, portFacing: 0, portLevel: 'own', portHeight: 500, approach: 700, final: 700, slopeLeg: 'middle', maxSlope: 20,
   angleJoint: 'angle-collar', sectionLength: 750, couplingBolts: 6, footDiameter: 40, groundFall: 2, groundTolerance: 15,
 };
 
@@ -80,8 +82,7 @@ export interface TunnelSite { w: number; h: number; floorZ: number; window: Wind
 /** The window insert as saved on its own page (or its defaults), in the modular window saved on the catio concept page. */
 export function tunnelSite(): TunnelSite {
   const window = windowFor('modular');
-  let insert = WINDOW_INSERT_DEFAULT;
-  try { insert = parseWindowInsert((JSON.parse(localStorage.getItem(subassemblyStorageKey('window-insert')) ?? 'null') as { config?: unknown } | null)?.config) ?? insert; } catch { /* defaults */ }
+  const insert = loadSubassemblyConfig('window-insert', parseWindowInsert, WINDOW_INSERT_DEFAULT);
   const tunnel = window.tunnel ?? { width: 300, height: 300 };
   return { w: tunnel.width, h: tunnel.height, floorZ: windowInsertLayout('modular', insert, window).floor, window, insert };
 }
@@ -185,13 +186,18 @@ function part(id: string): Part {
 type Run = { kind: 'run'; dir: V3; length: number; psi: number; pitch: number; leg: number };
 type JointItem = { kind: 'joint'; joint: Omit<Joint, 'vertex' | 'collar' | 'id'> };
 
+/** The enclosure port's floor above the grass: the window port's when level with it, else its own. */
+export const portFloor = (config: TunnelConfig, site: TunnelSite) => config.portLevel === 'window' ? site.floorZ : config.portHeight;
+/** A climb this small is likely meant to be level: the window port's floor moved since the height was set. */
+export const NEARLY_LEVEL = 30;
+
 /** Everything the tunnel is, placed and installed. */
 export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite()) {
   const { w, h, floorZ } = site;
   const errors: string[] = [];
   const type = config.angleJoint;
   const S: V3 = [0, TUNNEL.wallGap, floorZ];
-  const E: V3 = [config.portX, config.portY, config.portHeight];
+  const E: V3 = [config.portX, config.portY, portFloor(config, site)];
   const psiE = rad(config.portFacing);
   const dE = heading(psiE);
   // The centre line in plan: out from the wall, across, and square into the port.
@@ -502,7 +508,7 @@ export function tunnelSteps(_variant: CatioMode, config: TunnelConfig): readonly
   const collar = config.angleJoint === 'angle-collar';
   const legs = l.supports.filter(s => s.kind === 'trestle').length; const blocks = l.supports.length - legs;
   return [
-    { title: 'The site as it is', detail: `The window insert is fitted with its cat gate shut; the enclosure stands with its rear port ${fmt(l.E[2] / 10)} cm above the grass. The ground between falls ${config.groundFall}% away from the wall and is uneven by up to ±${config.groundTolerance} mm.` },
+    { title: 'The site as it is', detail: `The window insert is fitted with its cat gate shut and the insert–tunnel coupling’s docking frame on its port; the enclosure stands with its rear port ${fmt(l.E[2] / 10)} cm above the grass. The ground between falls ${config.groundFall}% away from the wall and is uneven by up to ±${config.groundTolerance} mm.` },
     { title: 'Bed the slabs, build the supports', detail: `Bed a 30 × 30 cm paving slab in the grass under every foot position (${l.supports.length * 2}). For each support: screw an M8 insert nut into each leg’s foot end (or into the underside of a low bearer), screw the levelling foot’s stud into it, screw the bearer down onto the legs and, on tall ones, the diagonal brace across. ${legs} trestles, ${blocks} low bearers.` },
     { title: 'Level the supports', detail: 'Stretch a string line (or use a laser) at each bearer’s design height from the window floor. Turn each foot on its stud until the bearer top meets the line, then jam the foot’s nut up against the timber. The feet, not the ground, set the heights.' },
     { title: collar ? 'Frame the sections and collars' : 'Frame the sections', detail: `On trestles beside the line (shown raised over it): screw the four rails between each section’s two flange rings, then screw the floor board down onto the bottom rails. ${collar ? 'Each angle collar is built the same way between two flanges set at its angle.' : 'Sections at a joint have their flanges on the mitre: cut the rails and floor to the mitre angle.'} Sloped sections get cleats across the floor.` },
@@ -605,14 +611,15 @@ export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: Tunne
   return lines;
 }
 
-export function tunnelFacts(_variant: CatioMode, config: TunnelConfig) {
-  const l = tunnelLayout(config);
+export function tunnelFacts(_variant: CatioMode, config: TunnelConfig, site: TunnelSite = tunnelSite()): SubassemblyFact[] {
+  const l = tunnelLayout(config, site);
   const cm = (mm: number) => fmt(mm / 10);
   const turns = l.joints.filter(j => j.kind === 'turn');
   const tallest = Math.max(0, ...l.supports.flatMap(s => s.feet.map(f => f.leg)));
   return [
+    { label: 'Window port floor · above the grass', value: `${cm(l.S[2])} cm`, from: { page: 'window-insert', settings: ['attachment', 'footDiameter'] } },
     { label: 'Window port → enclosure port', value: `${cm(l.totalLength)} cm of tunnel` },
-    { label: 'Rise · floor to floor', value: l.slope ? `${l.rise >= 0 ? '+' : '−'}${cm(Math.abs(l.rise))} cm at ${fmt(Math.abs(l.slope.pitch))}°` : 'level' },
+    { label: 'Rise · floor to floor', value: l.slope ? `${l.rise >= 0 ? '+' : '−'}${cm(Math.abs(l.rise))} cm at ${fmt(Math.abs(l.slope.pitch))}°${Math.abs(l.rise) < NEARLY_LEVEL ? ' · nearly level: set the port floor level with the window port' : ''}` : 'level' },
     { label: 'Turns', value: turns.length ? turns.map(j => `${fmt(Math.abs(j.angle))}° ${side(j.angle)}`).join(', ') : 'straight' },
     { label: 'Sections · supports', value: `${l.pieces.filter(p => p.kind === 'section').length} · ${l.supports.length} (${tallest > 0 ? `longest leg ${cm(tallest)} cm` : 'low bearers, no legs'})` },
     { label: 'Foot travel · ground taken up', value: `${fmt(l.travel.max - l.travel.min, 0)} mm · ±${config.groundTolerance} mm` },
@@ -650,7 +657,9 @@ export const TUNNEL_CONTROLS: SubassemblyControl<TunnelConfig>[] = [
   { key: 'portX', label: 'Port along the wall', group: 'Enclosure port (fixed interface)', help: 'Its centre from the window’s centre; + is to the right, seen from the garden.', options: [], range: { min: -4000, max: 4000, step: 10, ...mm('cm') } },
   { key: 'portY', label: 'Port out from the wall', group: 'Enclosure port (fixed interface)', help: 'From the wall face to the port’s face, where the last flange bolts on.', options: [], range: { min: 800, max: 8000, step: 10, ...mm('cm') } },
   { key: 'portFacing', label: 'Port faces', group: 'Enclosure port (fixed interface)', help: 'The way the tunnel runs into it, from straight out of the wall; + turned to the right. The turns follow.', options: [], range: { min: -120, max: 120, step: 1, ...mm('°') } },
-  { key: 'portHeight', label: 'Port floor height', group: 'Enclosure port (fixed interface)', help: 'The enclosure’s threshold above the grass at the wall. The window port’s floor is fixed by the window insert; the same height gives a level tunnel.', options: [], range: { min: 150, max: 1400, step: 0.5, ...mm('cm') } },
+  { key: 'portLevel', label: 'Port floor', group: 'Enclosure port (fixed interface)', help: 'Level with the window port follows the window insert wherever its clamps put the port’s floor, so the tunnel stays level when the insert changes.',
+    options: [{ value: 'window', label: 'Level with the window port' }, { value: 'own', label: 'At its own height' }] },
+  { key: 'portHeight', label: 'Port floor height', group: 'Enclosure port (fixed interface)', help: 'The enclosure’s threshold above the grass at the wall. The window port’s floor is set by the window insert; the tunnel climbs or falls the difference.', options: [], range: { min: 150, max: 1400, step: 0.5, ...mm('cm') }, when: c => c.portLevel === 'own' },
   { key: 'approach', label: 'Straight out from the wall', group: 'Route', help: 'Before the first turn, measured from the wall to where the centre lines meet.', options: [], range: { min: 300, max: 5000, step: 10, ...mm('cm') } },
   { key: 'final', label: 'Straight into the port', group: 'Route', help: 'After the last turn, square to the port.', options: [], range: { min: 300, max: 5000, step: 10, ...mm('cm') } },
   { key: 'slopeLeg', label: 'Climb in', group: 'Route', help: 'The leg that climbs (or falls) to the port’s height, between two bends, with level runs either side.',
@@ -671,15 +680,12 @@ export const TUNNEL_CONTROLS: SubassemblyControl<TunnelConfig>[] = [
     options: [10, 15, 20, 25].map(v => ({ value: v as TunnelConfig['groundTolerance'], label: `±${v} mm` })) },
 ];
 
-/**
- * Ready-made routes besides the defaults. Level ones take the window port's floor height from the window insert as it is set,
- * so they stay level whatever the insert's clamps make it.
- */
+/** Ready-made routes besides the defaults. Level ones keep the port level with the window port, whatever the insert's clamps make it. */
 export const TUNNEL_PRESETS: SubassemblyPreset<TunnelConfig>[] = [
   { id: 'straight', label: 'Straight', description: 'Straight out from the window to a port at the same height: no turns, no bends, square sections only.',
-    config: () => ({ ...TUNNEL_DEFAULT, portX: 0, portY: 2500, portFacing: 0, portHeight: tunnelSite().floorZ }) },
+    config: () => ({ ...TUNNEL_DEFAULT, portX: 0, portY: 2500, portFacing: 0, portLevel: 'window' }) },
   { id: 'right-angle', label: '90° turn right', description: 'Out from the wall, one 90° turn to the right, then along the wall to a port at the same height.',
-    config: () => ({ ...TUNNEL_DEFAULT, portX: 2200, portY: TUNNEL.wallGap + 1000, portFacing: 90, portHeight: tunnelSite().floorZ, approach: 1000, final: 1000 }) },
+    config: () => ({ ...TUNNEL_DEFAULT, portX: 2200, portY: TUNNEL.wallGap + 1000, portFacing: 90, portLevel: 'window', approach: 1000, final: 1000 }) },
   { id: 'rising', label: 'Rising', description: 'Straight out to a door 90 cm above the grass: a climb at 20° in the middle run, level either side.',
     config: () => ({ ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portHeight: 900, slopeLeg: 'middle' }) },
 ];
@@ -701,5 +707,5 @@ export const TUNNEL_DECISIONS: DesignDecision[] = [
     why: 'Nothing is assumed level. The stud may run from the supplied nut’s height (6.8 mm) out to the stud length less the insert nut (62 mm), so each foot takes up ±27 mm of slab height; the page checks every foot against the chosen tolerance, and its scene sets each foot to the uneven ground it stands on. Slabs stop the feet sinking into grass. Where the tunnel is too low for legs, the feet screw straight into a bearer ripped to depth.' },
   { title: 'The enclosure is a fixed interface', parameter: 'Port floor height',
     choice: 'The enclosure is not designed here: only its rear port is, by where it is, which way it faces, its floor height and a 30 mm flange with the same bolt pattern.',
-    why: 'The tunnel is solved from both ports: the window port’s floor follows the window insert as set on its page, the enclosure’s from these values. Its door can be higher or lower than the window; the tunnel climbs or falls the difference.' },
+    why: 'The tunnel is solved from both ports: the window port’s floor follows the window insert as set on its page, the enclosure’s from these values. Its door can be higher or lower than the window; the tunnel climbs or falls the difference. “Level with the window port” keeps the two floors equal when the insert’s clamps move the window port’s floor, instead of leaving a few millimetres to climb.' },
 ];

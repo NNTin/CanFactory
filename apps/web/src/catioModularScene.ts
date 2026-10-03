@@ -94,10 +94,12 @@ export function createModularCatio(c: ModularConfig) {
   }
   perforated('window-infill', 1, c.sashWidth - 10, 200, c.sashHeight + 190, -60);
   placed(0, -60, Math.PI, () => port('window-cat', 'Window cat gate', 1, true));
-  const throat = component('window-threshold', 1, 'timber', [0, -220, 120]);
-  box(throat, [w, 90, 18], [0, -45, 191], m.endgrain);
-  for (const side of [-1, 1]) mesh(`window-throat-${side}`, 1, 90, h, [side * w / 2, -45, 200 + h / 2], 'yz');
-  mesh('window-throat-roof', 1, w, 90, [0, -45, 200 + h], 'xy');
+  const threshold = component('window-threshold', 1, 'timber', [0, -220, 120]);
+  box(threshold, [w, 90, 18], [0, -45, 191], m.endgrain);
+  // The insert–tunnel coupling's docking frame (schematic): stiles and a head, the flange's outline, from the port to the wall face.
+  const dockingFrame = component('window-docking-frame', 1, 'timber', [0, -220, 120]);
+  for (const side of [-1, 1]) box(dockingFrame, [70, 90, h + 70], [side * (w / 2 + 35), -45, 200 + (h + 70) / 2]);
+  box(dockingFrame, [w, 90, 70], [0, -45, 200 + h + 35]);
 
   for (const e of layout.enclosures) placed(e.centerX, e.rearY, 0, () => {
     const { width: ew, depth: ed, height: eh } = e.size; const half = ew / 2; const id = e.id;

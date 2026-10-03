@@ -9,6 +9,7 @@ import { MODULAR_DEFAULT, MODULAR_STEPS, modularCamera, modularLayout, validateM
 import { CATIO_STORAGE_KEY, loadCatioSettings, type CatioViewing, type CatioMode } from './catioSettings.ts';
 import { CATIO_STEPS, CATIO_VIEWS, type CatioLayer, type CatioView } from './catioDesign.ts';
 import { CATIO_SUBASSEMBLY_TITLES } from './catioSubassemblies.ts';
+import { OtherPageIssues, useOtherPageIssues } from './CatioCrossPage.tsx';
 import { CATIO_SUBASSEMBLIES, formatHash } from './route.ts';
 
 const assets = import.meta.glob<string>('../../../docs/concepts/catio/*.png', { eager: true, query: '?url', import: 'default' });
@@ -63,6 +64,8 @@ export function CatioConcept() {
   useEffect(() => {
     try { localStorage.setItem(CATIO_STORAGE_KEY, JSON.stringify(settings)); } catch { /* The scene remains usable when storage is unavailable. */ }
   }, [settings]);
+  // after the save above: the sub-assembly pages take the window and cat port sizes from it
+  const otherIssues = useOtherPageIssues(CATIO_SUBASSEMBLIES, JSON.stringify(settings.config));
   useEffect(() => {
     const element = container.current; if (!element) return;
     const bounds = modularLayout(config).bounds;
@@ -109,6 +112,7 @@ export function CatioConcept() {
           <div><dt>Opening sash · measured</dt><dd>91 × 91 <small>cm</small></dd></div>
           <div><dt>Sill above grass · assumed</dt><dd>20 <small>cm</small></dd></div>
         </dl> : <CatioParameters draft={draft} change={changeConfig} reset={() => changeConfig(structuredClone(MODULAR_DEFAULT))} />}
+        {mode === 'modular' && <OtherPageIssues issues={otherIssues}>These sizes do not fit a sub-assembly.</OtherPageIssues>}
         <p>The collar is tightened from inside the open window. The enclosure stands on four feet; its mesh floor rests at grass level.</p>
         <p>The window can close with the attachment installed. A latched front door gives access for maintenance.</p>
         <details className="catio-assumptions"><summary>Illustrative dimensions</summary>

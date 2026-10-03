@@ -194,7 +194,14 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await expect(viewer).toHaveAttribute('data-variant', 'modular');
   await expect(viewer).toHaveAttribute('data-visible-parts', /cat-gate/);
   await expect(page.getByRole('combobox', { name: 'Port transom & jambs' })).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Mesh parts' }).getByRole('row')).toHaveCount(7);
+  await expect(page.getByRole('table', { name: 'Mesh parts' }).getByRole('row')).toHaveCount(4);
+  // the pages fitted to the insert, and the settings that change them
+  const brief = page.getByRole('complementary', { name: 'Window insert parameters' });
+  await expect(brief.getByText(/is fitted to this one|are fitted to this one/)).toContainText('The tunnel and the insert–tunnel coupling are fitted to this one');
+  await expect(brief.locator('label', { has: page.getByRole('combobox', { name: 'Foot diameter' }) }).locator('.subassembly-affects')).toHaveText('Also changes the tunnel and the insert–tunnel coupling.');
+  await expect(brief.locator('label', { has: page.getByRole('combobox', { name: 'Mesh to timber' }) }).locator('.subassembly-affects')).toHaveText('Also changes the insert–tunnel coupling.');
+  await expect(brief.locator('label', { has: page.getByRole('combobox', { name: 'Clamps per side' }) }).locator('.subassembly-affects')).toHaveCount(0);
+  await expect(brief.getByText('Cat port floor · above the grass')).toBeVisible();
   await page.getByRole('checkbox', { name: 'Exploded view' }).check();
   await expect(viewer).toHaveAttribute('data-exploded', 'true');
   await page.screenshot({ path: testInfo.outputPath('window-insert-modular.png'), fullPage: true });
@@ -248,6 +255,11 @@ test('opens the tunnel, solves its route to the enclosure port, switches its joi
   await presets.getByRole('button', { name: 'Straight' }).click();
   await expect(presets.getByRole('button', { name: 'Straight' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('level', { exact: true })).toBeVisible();
+  // level with the window port: no height of its own to set
+  await expect(page.getByRole('combobox', { name: 'Port floor', exact: true })).toHaveValue('window');
+  await expect(page.getByRole('spinbutton', { name: 'Port floor height' })).toHaveCount(0);
+  await expect(page.getByText('Window port floor · above the grass')).toBeVisible();
+  await expect(page.locator('.catio-dimensions .subassembly-source').first()).toHaveText('Set on the window insert page: Held in the recess by, Foot diameter');
   await expect(timber.getByRole('cell', { name: 'Collar floor' })).toHaveCount(0);
   await presets.getByRole('button', { name: '90° turn right' }).click();
   await expect(viewer).toHaveAttribute('data-config', /"portFacing":90/);
@@ -300,6 +312,18 @@ test('opens the insert–tunnel coupling, switches its latches, stages the docki
   await expect(hardware.getByRole('link', { name: 'Toggle latch GN 831, short, with safety catch, stainless' })).toHaveAttribute('href', '#/parts/toggle-latch/ganter-gn-831-100-s-ni-2');
   await expect(hardware.getByRole('link', { name: 'Countersunk wood screw 5 × 60' })).toBeVisible();
   await expect(page.getByRole('table', { name: 'Timber parts' }).getByRole('cell', { name: 'Docking frame stile' })).toBeVisible();
+  // the window insert's setting behind the frame's fit, linked to where it is changed
+  const battens = page.locator('.catio-dimensions > div', { hasText: 'Cover battens at the port' });
+  await expect(battens.locator('dd')).toHaveText('Yes · frame rebated 15 mm over them');
+  await expect(battens.locator('.subassembly-source')).toHaveText('Set on the window insert page: Mesh to timber');
+  await expect(battens.getByRole('link', { name: 'window insert' })).toHaveAttribute('href', '#/concepts/catio/window-insert');
+  // the joint lies in the recess: looking from above or the side cuts the wall away
+  for (const view of ['Top', 'Side · the joint']) {
+    await page.getByRole('button', { name: view, exact: true }).click();
+    await expect(page.getByRole('checkbox', { name: 'Wall cutaway' })).toBeChecked();
+  }
+  await page.getByRole('button', { name: 'Exterior', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Wall cutaway' })).not.toBeChecked();
   await page.getByRole('combobox', { name: 'Latch', exact: true }).selectOption('SV');
   await page.getByRole('combobox', { name: 'Latches per side' }).selectOption('2');
   await expect(viewer).toHaveAttribute('data-config', /"latchType":"SV","latchMaterial":"NI","latchesPerSide":2/);

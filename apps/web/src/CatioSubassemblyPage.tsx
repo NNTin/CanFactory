@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, Box, RotateCcw } from 'lucide-react';
 import * as THREE from 'three';
 import { findPart } from '@canfactory/contracts';
@@ -6,7 +6,8 @@ import { createStage, type Stage } from './stage.ts';
 import type { CatioLayer, CatioView } from './catioDesign.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { BOM_GROUPS, inRange, loadSubassemblySettings, subassemblyStorageKey, defaultSubassemblySettings, type BomLine, type NumberRange, type SubassemblyDefinition, type SubassemblyModel, type SubassemblyViewing } from './catioSubassembly.ts';
-import { CATIO_SUBASSEMBLY_TITLES, couplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
+import { couplingDefinition, dependentsOf, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
+import { ChangesNote, OtherPageIssues, PageRelations, SettingSource, useOtherPageIssues } from './CatioCrossPage.tsx';
 import { formatHash, type CatioSubassembly } from './route.ts';
 
 const VIEWS: CatioView[] = ['Exterior', 'Interior', 'Front', 'Side', 'Top', 'Mounting'];
@@ -45,7 +46,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   const index = Math.ceil(progress); const step = steps[index] ?? steps[last];
   const errors = definition.validate(variant, config);
   const bom = definition.bom(variant, config);
-  const controls = definition.controls.filter(control => !control.variants || control.variants.includes(variant));
+  const controls = definition.controls.filter(control => (!control.variants || control.variants.includes(variant)) && (!control.when || control.when(config)));
   const groups = [...new Set(controls.map(control => control.group))];
   const editView = (patch: Partial<SubassemblyViewing>) => setSettings(current => ({ ...current, views: { ...current.views, [current.variant]: { ...current.views[current.variant], ...patch } } }));
   const focus = useRef('');
@@ -60,6 +61,8 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   useEffect(() => {
     try { localStorage.setItem(subassemblyStorageKey(definition.id), JSON.stringify(settings)); } catch { /* The page works without storage. */ }
   }, [settings, definition.id]);
+  // after the save above, so the pages fitted to this one read the new settings
+  const otherIssues = useOtherPageIssues(dependentsOf(definition.id).map(d => d.page), JSON.stringify(config));
   useEffect(() => {
     const element = container.current; if (!element) return;
     const stage = createStage(element, `Interactive ${definition.title.toLowerCase()} concept. Drag to orbit, scroll to zoom, right-drag to pan.`, { scale: definition.stageScale ?? 10, workshopFloor: false });
@@ -80,7 +83,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
     if (container.current) container.current.dataset['visibleParts'] = visibleParts();
   }, [viewing]);
   useEffect(() => { camera(view); }, [exploded, view]);
-  const selectView = (name: CatioView) => { camera(name); editView({ view: name, cutaway: name === 'Interior' || name === 'Mounting' }); };
+  const selectView = (name: CatioView) => { camera(name); editView({ view: name, cutaway: (definition.cutawayViews ?? ['Interior', 'Mounting']).includes(name) }); };
   const toggleLayer = (id: CatioLayer) => editView({ hidden: hidden.has(id) ? viewing.hidden.filter(layer => layer !== id) : [...viewing.hidden, id] });
   const change = (key: keyof C & string, value: C[keyof C]) => setSettings(current => ({ ...current, config: { ...current.config, [key]: value } }));
   const activePreset = [{ id: 'recommended', config: () => definition.defaults }, ...(definition.presets ?? [])].find(preset => JSON.stringify(preset.config()) === JSON.stringify(config))?.id ?? null;
@@ -94,7 +97,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
     <div className="catio-layout">
       <aside className="catio-brief" aria-label={`${definition.title} parameters`}>
         <span className="eyebrow">{definition.briefLabel}</span>
-        <dl className="catio-dimensions">{definition.facts(variant, config).map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>
+        <dl className="catio-dimensions">{definition.facts(variant, config).map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd>{fact.from && <SettingSource from={fact.from} />}</div>)}</dl>
         <div className="catio-parameters subassembly-parameters">
           {definition.presets && <div className="subassembly-presets" role="group" aria-label="Presets"><span className="eyebrow">PRESETS</span>
             <div>{[{ id: 'recommended', label: 'Recommended', description: 'The recommended defaults.', config: () => structuredClone(definition.defaults) }, ...definition.presets].map(preset => {
@@ -104,20 +107,22 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
             <small>{[{ id: 'recommended', description: 'The recommended defaults.' }, ...definition.presets].find(preset => preset.id === activePreset)?.description ?? 'Your own design: start again from a preset or the recommended defaults.'}</small></div>}
           {groups.map(group => <fieldset key={group}><legend>{group}</legend>{controls.filter(control => control.group === group).map(control => {
             const current = config[control.key];
+            const note = <ChangesNote page={definition.id} setting={control.key} />;
             if (control.range) return <NumberField key={control.key} label={control.label} help={control.help} range={control.range} value={Number(current)}
-              onCommit={value => change(control.key, value as C[keyof C])} />;
+              onCommit={value => change(control.key, value as C[keyof C])} note={note} />;
             return <label className="catio-field subassembly-field" key={control.key}><span>{control.label}</span>
               <select aria-label={control.label} value={String(current)} onChange={event => {
                 const option = control.options.find(candidate => String(candidate.value) === event.target.value);
                 if (option) change(control.key, option.value);
               }}>{control.options.map(option => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}</select>
-              <small>{control.help}</small></label>;
+              <small>{control.help}</small>{note}</label>;
           })}</fieldset>)}
           {errors.length > 0 && <div role="alert" className="catio-errors"><strong>This combination does not fit.</strong><ul>{errors.map(error => <li key={error}>{error}</li>)}</ul></div>}
+          <OtherPageIssues issues={otherIssues}>These settings do not fit another page.</OtherPageIssues>
           <button type="button" className="catio-reset" onClick={reset}>Reset to the recommended defaults</button>
         </div>
         {variant === 'modular' && <p>The window and cat port sizes follow the modular design on the <a href={formatHash({ view: 'concepts', concept: 'catio', subassembly: null })}>catio concept</a> page.</p>}
-        {definition.id !== 'window-insert' && <p>It fits {(definition.follows ?? ['window-insert']).map((id, i, all) => <span key={id}>{i > 0 ? (i === all.length - 1 ? ' and ' : ', ') : ''}the <a href={formatHash({ view: 'concepts', concept: 'catio', subassembly: id })}>{CATIO_SUBASSEMBLY_TITLES[id].toLowerCase()}</a></span>)} as {(definition.follows ?? []).length > 1 ? 'they are' : 'it is'} set on {(definition.follows ?? []).length > 1 ? 'their pages' : 'its page'}.</p>}
+        <PageRelations page={definition.id} follows={definition.follows ?? []} />
       </aside>
       <section className="catio-preview" aria-label={`Live ${definition.title.toLowerCase()} concept`}>
         <div className="catio-preview-title"><span className="eyebrow"><Box size={14} /> LIVE ASSEMBLY</span><span>Dimensions in millimetres</span></div>
@@ -149,12 +154,12 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
     <section className="catio-instructions" aria-label="Assembly instructions"><span className="eyebrow">THE ASSEMBLY</span><h2>{definition.assemblyHeading}</h2>
       <ol>{steps.slice(1).map(info => <li key={info.title}><strong>{info.title}</strong><p>{info.detail}</p></li>)}</ol></section>
     <section className="subassembly-decisions" aria-label="Design decisions"><span className="eyebrow">THE DEFAULTS, AND WHY</span><h2>Choices to redirect.</h2>
-      <div>{definition.decisions.map(decision => <article key={decision.title}><h3>{decision.title}</h3>{decision.parameter && <span className="eyebrow">PARAMETER · {decision.parameter.toUpperCase()}</span>}<p><strong>Chosen: </strong>{decision.choice}</p><p>{decision.why}</p></article>)}</div></section>
+      <div>{definition.decisions.map(decision => <article key={decision.title}><h3>{decision.title}</h3>{decision.parameter && <span className="eyebrow">PARAMETER · {decision.parameter.toUpperCase()}</span>}{decision.from && <SettingSource from={decision.from} />}<p><strong>Chosen: </strong>{decision.choice}</p><p>{decision.why}</p></article>)}</div></section>
   </>;
 }
 
 /** A free number: typed in its display unit, kept while it is being typed, and stored once its range accepts it. */
-function NumberField({ label, help, range, value, onCommit }: { label: string; help: string; range: NumberRange; value: number; onCommit: (value: number) => void }) {
+function NumberField({ label, help, range, value, onCommit, note }: { label: string; help: string; range: NumberRange; value: number; onCommit: (value: number) => void; note?: ReactNode }) {
   const scale = range.scale ?? 1;
   const shown = (stored: number) => String(Number((stored / scale).toFixed(3)));
   const [text, setText] = useState(() => shown(value));
@@ -171,7 +176,7 @@ function NumberField({ label, help, range, value, onCommit }: { label: string; h
         const next = parse(event.target.value); if (next !== null) onCommit(next);
       }}
       onBlur={() => setText(shown(value))} />
-    <small>{help} {`${shown(range.min)}–${shown(range.max)} ${range.unit}.`}</small></label>;
+    <small>{help} {`${shown(range.min)}–${shown(range.max)} ${range.unit}.`}</small>{note}</label>;
 }
 
 function PartsList({ lines }: { lines: BomLine[] }) {

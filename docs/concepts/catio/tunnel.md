@@ -24,7 +24,8 @@ control.
 ## Interfaces (fixed)
 
 - **Window end.** The window insert as it is set on its own page (or its defaults), in the window saved on the catio concept
-  page. The port's clear size is the tunnel's (30 × 30 cm by default). Its floor is the insert's threshold: 24.55 cm above
+  page. The scene draws it with its mesh and the coupling's docking frame, seal and catches from the start. The latch bodies
+  and floor lip appear, closed, in the last stage (as set on the coupling page). The port's clear size is the tunnel's (30 × 30 cm by default). Its floor is the insert's threshold: 24.55 cm above
   the grass by default. The tunnel starts square to the wall, 10 mm off it. **Nothing of the tunnel rests on the wall or on
   the insert.** The insert is held only by pressure and must not carry the tunnel, so the first flange has its own support.
   It is joined to a docking frame on the insert by tool-free toggle latches across a sealed 6 mm gap: see the
@@ -44,8 +45,14 @@ Above the parameters, one click sets a whole design; the active one is highlight
 | 90° turn right | 1 m out from the wall, one 90° turn to the right, 1.2 m along the wall to a level port |
 | Rising | Straight out 4 m to a door 90 cm above the grass: a 65.45 cm climb at 20° in the middle run |
 
-The level presets take the window port's floor height from the window insert as it is set, so they stay level whatever its
-clamps make it. The port floor height therefore steps in 0.5 mm (shown as 0.05 cm).
+The level presets set **Port floor** to *Level with the window port*. The enclosure port's floor then follows the window
+port's floor, wherever the window insert's clamps put it (229–248.5 mm). So a straight tunnel stays straight when the
+insert changes, and the preset still shows as picked. An earlier version copied the floor height into **Port floor
+height** when the preset was clicked. Changing the insert afterwards then quietly gave the tunnel two 4.19° bends.
+
+The brief shows the **window port floor** with a link to the window insert settings that set it (**Held in the recess
+by**, **Foot diameter**). With an own height less than 3 cm off the window port's floor, the rise says it is nearly
+level and suggests the level setting.
 
 ## Parameters
 
@@ -54,7 +61,8 @@ clamps make it. The port floor height therefore steps in 0.5 mm (shown as 0.05 c
 | Port along the wall | 120 cm | −400 to 400 cm | Enclosure port |
 | Port out from the wall | 300 cm | 80 to 800 cm | Enclosure port |
 | Port faces | 0° | −120° to 120° (+ to the right) | Enclosure port |
-| Port floor height | 50 cm | 15 to 140 cm, in 0.05 cm steps | Enclosure port |
+| Port floor | At its own height | Level with the window port; at its own height | Enclosure port |
+| Port floor height | 50 cm | 15 to 140 cm, in 0.05 cm steps (only at its own height) | Enclosure port |
 | Straight out from the wall | 70 cm | 30 to 500 cm | Route |
 | Straight into the port | 70 cm | 30 to 500 cm | Route |
 | Climb in | The middle run | Run out from the wall; middle run; run into the port | Route |
@@ -190,7 +198,8 @@ latches are listed on the coupling page.
 
 - [Tunnel design: parameters, solved layout, joint geometry, supports, parts list, steps, decisions](../../../apps/web/src/catioTunnel.ts)
 - [Tunnel scene](../../../apps/web/src/catioTunnelScene.ts): the window context (without its flat ground), uneven
-  terrain, the window insert and the enclosure's port flange as fixed context
+  terrain, the window insert (`buildInsertContext`) with the coupling's docking frame (`buildCouplingPieces`), and the
+  enclosure's port flange as fixed context
 - [Sub-assembly contract](../../../apps/web/src/catioSubassembly.ts) and [page](../../../apps/web/src/CatioSubassemblyPage.tsx).
   New for the tunnel: numeric controls (`range`), presets (`presets`), single-variant pages, per-page view, layer and toggle labels, the brief
   and assembly headings, a stage scale, and a Groundwork group in the parts list. The window insert page is unchanged.

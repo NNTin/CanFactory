@@ -4,10 +4,11 @@ import { COUPLING_LATCH, dimensionOf, findPart, insertTunnelCouplingConcept, par
 import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { couplingDefinition } from './catioSubassemblies.ts';
-import { COUPLING, COUPLING_CONTROLS, COUPLING_DEFAULT, couplingBom, couplingLayout, couplingSteps, validateCoupling, type CouplingConfig, type CouplingSite } from './catioCoupling.ts';
+import { COUPLING, COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, couplingBom, couplingFacts, couplingLayout, couplingSteps, validateCoupling, type CouplingConfig, type CouplingSite } from './catioCoupling.ts';
 import { createCouplingScene, LIFT, OPEN } from './catioCouplingScene.ts';
 import { TUNNEL, TUNNEL_DEFAULT, tunnelBom, tunnelSite } from './catioTunnel.ts';
-import { INSERT, WINDOW_INSERT_DEFAULT } from './catioWindowInsert.ts';
+import { INSERT, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT } from './catioWindowInsert.ts';
+import { fastenerClashes } from './catioSubassembly.ts';
 import { partGeometry } from './partGeometry.ts';
 
 const base = tunnelSite();
@@ -54,6 +55,41 @@ describe('insert–tunnel coupling', () => {
         expect(length - (f.at[1] - l.insert.yOut), `${f.use} bite`).toBeCloseTo(26, 9);
       }
     }
+  });
+
+  it('shows on its own page whether the insert has cover battens, and that the window insert page sets it', () => {
+    for (const s of sites) {
+      const fact = couplingFacts('modular', COUPLING_DEFAULT, s).find(f => f.label === 'Cover battens at the port');
+      const battens = s.site.insert.meshFixing !== 'staples';
+      expect(fact?.value, s.site.insert.meshFixing).toBe(battens ? `Yes · frame rebated ${INSERT.batten.thickness} mm over them` : 'None · frame flat on the mesh');
+      expect(fact?.from).toEqual({ page: 'window-insert', settings: ['meshFixing'] });
+    }
+  });
+
+  it('keeps every docking frame screw clear of the insert’s batten screws and staples, for every way the insert is set', () => {
+    const insertConfigs = [WINDOW_INSERT_DEFAULT, ...WINDOW_INSERT_CONTROLS.flatMap(control => control.options.map(option => ({ ...WINDOW_INSERT_DEFAULT, [control.key]: option.value })))];
+    for (const insert of insertConfigs) for (const meshFixing of ['staples-and-battens', 'staples', 'battens'] as const) {
+      const s: CouplingSite = { tunnel: TUNNEL_DEFAULT, site: { ...base, insert: { ...insert, meshFixing } } };
+      const l = couplingLayout(COUPLING_DEFAULT, s);
+      const frame = l.fasteners.filter(f => f.component === 'frame-screws');
+      const face = l.insert.fasteners.filter(f => f.component === 'batten-screws' || f.component === 'staples');
+      expect(fastenerClashes(frame, face, COUPLING.screwClearance), JSON.stringify(s.site.insert)).toEqual([]);
+      expect(l.errors).toEqual([]);
+      // still into the jambs and transom, not off their ends
+      for (const f of frame) if (f.use.includes('stiles')) expect(f.at[2] > l.floor && f.at[2] < l.transomZ).toBe(true);
+    }
+    // the defaults put a batten screw on a stile's middle: that frame screw is moved off it
+    const l = couplingLayout(COUPLING_DEFAULT, site);
+    expect(l.fasteners.filter(f => f.component === 'frame-screws')).toHaveLength(10);
+  });
+
+  it('builds its decisions from the sizes it uses', () => {
+    const l = couplingLayout(COUPLING_DEFAULT, site);
+    const text = COUPLING_DECISIONS.map(d => `${d.choice} ${d.why}`).join(' ');
+    expect(text).toContain(`${Math.round(l.thickness)} × ${TUNNEL.flange.width} stiles`);
+    expect(text).toContain(`the joint is ${Math.round(l.flangeFront - l.meshFace)} mm deep`);
+    expect(text).toContain(`lies ${Math.round(-l.meshFace)} mm inside the recess`);
+    expect(COUPLING_DECISIONS.find(d => d.title === 'A docking frame on the insert')?.from).toEqual({ page: 'window-insert', settings: ['meshFixing', 'fixingPitch'] });
   });
 
   it('carries nothing of the tunnel on the insert: the wall support holds the flange, only the seal and the latches cross the gap', () => {

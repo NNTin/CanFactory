@@ -27,7 +27,14 @@ a parts list with every piece's dimensions, and the design decisions below. Choi
 The direct variant uses the original fixed window (100 × 100 cm recess, 91 cm sash). With tunnel follows the window and
 tunnel clear size saved on the catio concept page (recess = sash + 9 cm, as the modular scene assumes). How a tunnel docks to the
 cat port (a docking frame on the port, a seal and toggle latches) is on the
-[insert–tunnel coupling](window-insert-tunnel-coupling.md) page; the insert itself is unchanged by it.
+[insert–tunnel coupling](window-insert-tunnel-coupling.md) page.
+
+The tunnel and the coupling are fitted to this page, and the brief says so. **Held in the recess by** and **Foot diameter**
+set the clamp gap, and with it the cat port's floor (24.6 cm above the grass by default, shown in the brief). The tunnel
+starts from that floor, and the coupling's frame stands on it. **Mesh to timber** and **Fixing spacing** decide the
+coupling frame's rebate and where its screws go. Each of these controls says what else it changes. If the current
+settings break the tunnel or the coupling as they are saved, their errors are listed here, linked to their pages (see
+[How the sub-assembly pages fit each other](README.md#how-the-sub-assembly-pages-fit-each-other)).
 
 ## Design decisions (defaults to redirect)
 
@@ -51,18 +58,25 @@ cat port (a docking frame on the port, a seal and toggle latches) is on the
    with two DIN 7997 4 × 50 screws carries that on long grain and timber shoulders. A butt joint (two DIN 7997 5 × 70 screws
    through the stile into the rail's end grain) remains selectable.
 5. **Mesh clamped under battens.** DIN 1159 2.5 × 25 staples locate the tensioned mesh every 15 cm; 40 × 15 cover battens,
-   screwed through the mesh with DIN 7997 4 × 35 screws, clamp the whole edge and cover the cut wire ends. Where mesh meets
-   a threshold edge there is no face for a batten, so it is stapled in every option.
+   screwed through the mesh with DIN 7997 4 × 35 screws, clamp the whole edge and cover the cut wire ends. Where the direct
+   variant's passage sleeve meets a threshold edge there is no face for a batten, so it is stapled in every option; the
+   modular insert's mesh lies only on faces, so "battens only" needs no staples there.
 6. **The modular cat port.** A full-width transom over the port and two jambs give every infill mesh panel timber on all
    four edges. They sit in 10 mm housings (or butt joints), the jambs screwed from under the sill rail with DIN 7997 6 × 90.
    The sliding gate runs in tracks on the room side of the port.
+7. **The cat port ends at its frame.** Nothing of the insert continues the port out to the wall face. The
+   [insert–tunnel coupling](window-insert-tunnel-coupling.md) screws a docking frame onto the jambs and transom, which
+   carries the passage on to the tunnel. The frame **stays on the insert from then on**, also when it is lifted out. Its
+   parts are on the coupling's parts list. Its screws are placed between this page's batten screws and staples, so
+   **Mesh to timber** and **Fixing spacing** change it. An earlier mesh "throat" from the port to the wall face was
+   dropped, as it duplicated (and clashed with) that frame.
 
 ## Assembly
 
 1. **Join the collar** on a bench outside: half-laps glued and screwed (or butt joints screwed); check the diagonals.
 2. **Fit the clamp hardware**: insert nuts, then short-stud bearing feet under the sill rail and long-stud spreaders with
    their jammed nuts in the stiles and head (or prepare the wedges).
-3. **Threshold and mesh**: threshold on the sill rail; the passage sleeve (direct) or transom, jambs, infill and throat mesh
+3. **Threshold and mesh**: threshold on the sill rail; the passage sleeve (direct) or transom, jambs and infill mesh
    (with tunnel); staples and battens.
 4. **Set it into the recess** from the garden, standing on the bearing feet, clear of the closed sash.
 5. **Tighten from inside** in opposite pairs until the pads bear (or drive the wedges).
