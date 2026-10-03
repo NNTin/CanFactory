@@ -9,7 +9,7 @@ import {
   controlRange, controlShown, type Control,
   DEFAULT_HANDLE_FASTENERS, HANDLE_FASTENER_SEAT, HANDLE_INSERTS, HANDLE_NUTS, HANDLE_SCREWS, HANDLE_THREADS, handleInsertFits, handleNutFits, handleScrewFits,
   offeredOptions, partDefineLiteral,
-  DEFAULT_LATCH_SCREWS, LATCH_MACHINE_SCREWS, LATCH_MACHINE_THREADS, LATCH_WOOD_DIAMETERS, LATCH_WOOD_SCREWS, latchScrewFits, latchScrewHoles, TOGGLE_LATCH_SEAT, toggleLatch,
+  DEFAULT_LATCH_SCREWS, LATCH_MACHINE_SCREWS, LATCH_MACHINE_THREADS, LATCH_WOOD_DIAMETERS, LATCH_WOOD_SCREWS, latchScrewFits, latchScrewHoles, models, TOGGLE_LATCH_SEAT, toggleLatch,
 } from './models.ts';
 import { resolveAssembly } from './assembly.ts';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, parts } from './parts/index.ts';
@@ -935,6 +935,19 @@ describe('toggle latch contract', () => {
       .toEqual(expect.arrayContaining([['SCREW_KIND', '"machine"'], ['MACHINE_HOLES', '[3.2,3.4,3.6]'], ['MACHINE_HEAD', '"pan"'], ['MACHINE_DK', String(dimensionOf(part('iso-7045-m3x10'), 'dk', 'max'))]]));
     // a hexagon head has no dk: its width across corners keeps it clear
     expect(scadDefines(toggleLatch, base ?? {}, { ...defaults, screwKind: 'machine', screwThread: 'M4', machineScrew: 'iso-4017-m4x12' })).toContainEqual(['MACHINE_DK', '7.66']);
+  });
+
+  it('links the original and the remix it credits, with the pages ATTRIBUTION.md names', () => {
+    expect(toggleLatch.attributionLinks.map(link => link.url)).toEqual(['https://www.thingiverse.com/thing:5993215', 'https://makerworld.com/de/models/625647-toggle-latch']);
+    for (const link of toggleLatch.attributionLinks) expect(source('ATTRIBUTION.md')).toContain(link.url);
+    // every model's linked phrases appear in its attribution, in order, so that the footer can link them
+    for (const model of models) {
+      let rest = model.attribution;
+      for (const link of model.attributionLinks ?? []) {
+        expect(rest, `${model.id}: ${link.text}`).toContain(link.text);
+        rest = rest.slice(rest.indexOf(link.text) + link.text.length);
+      }
+    }
   });
 
   it('keeps every SCAD default equal to the contract default of the parameter (or library part) it is mapped from', () => {

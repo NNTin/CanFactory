@@ -215,6 +215,13 @@ export interface operations {
                         title: string;
                         description: string;
                         attribution: string;
+                        /** @description Phrases of the attribution that link to where they were published. */
+                        attributionLinks?: {
+                            /** @description A phrase of `attribution`, verbatim. */
+                            text: string;
+                            /** @description The page it links to, e.g. the original design. */
+                            url: string;
+                        }[];
                         license: string;
                         licenseUrl: string;
                         /** @description Model-specific orientation or printing guidance. */
@@ -251,6 +258,13 @@ export interface operations {
                         title: string;
                         description: string;
                         attribution: string;
+                        /** @description Phrases of the attribution that link to where they were published. */
+                        attributionLinks?: {
+                            /** @description A phrase of `attribution`, verbatim. */
+                            text: string;
+                            /** @description The page it links to, e.g. the original design. */
+                            url: string;
+                        }[];
                         license: string;
                         licenseUrl: string;
                         /** @description Model-specific orientation or printing guidance. */

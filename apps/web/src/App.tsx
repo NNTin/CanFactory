@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from '@canfactory/client';
 import { controlRange, controlShown, decodeLogo, findModel, findPartFamily, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
@@ -13,7 +13,20 @@ import { CatioSubassemblyRoute } from './CatioSubassemblyPage.tsx';
 import { CATIO_SUBASSEMBLY_TITLES } from './catioSubassemblies.ts';
 import catioThumbnail from '../../../docs/concepts/catio/01-overview.png';
 
-type ModelCard = Pick<ModelDetail, 'id' | 'version' | 'title' | 'description' | 'attribution' | 'license' | 'licenseUrl' | 'artifactFormat' | 'customizable'>;
+type ModelCard = Pick<ModelDetail, 'id' | 'version' | 'title' | 'description' | 'attribution' | 'attributionLinks' | 'license' | 'licenseUrl' | 'artifactFormat' | 'customizable'>;
+
+/** A model's attribution, its `attributionLinks` phrases linked to their pages. */
+function Attribution({ text, links = [] }: { text: string; links?: ModelDetail['attributionLinks'] }) {
+  const parts: ReactNode[] = [];
+  let rest = text;
+  for (const link of links) {
+    const at = rest.indexOf(link.text);
+    if (at < 0) continue;
+    parts.push(rest.slice(0, at), <a key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.text}</a>);
+    rest = rest.slice(at + link.text.length);
+  }
+  return <>{parts}{rest}</>;
+}
 const settingsKey = (model: ModelDetail) => `canfactory:settings:${model.id}:${model.version}`;
 
 function restoreSettings(model: ModelDetail): ParameterValues {
@@ -517,7 +530,7 @@ function Editor({ model }: { model: ModelDetail }) {
         </div>
       </section>
     </div>
-    <div className="model-footer"><span>Designed by {model.attribution}. <a href={model.licenseUrl} target="_blank" rel="noreferrer">{model.license}</a></span><span>All dimensions in millimetres · {model.printNotes}</span></div>
+    <div className="model-footer"><span>Designed by <Attribution text={model.attribution} links={model.attributionLinks} />. <a href={model.licenseUrl} target="_blank" rel="noreferrer">{model.license}</a></span><span>All dimensions in millimetres · {model.printNotes}</span></div>
   </>;
 }
 

@@ -24,7 +24,12 @@ export const ModelPartSummarySchema = Type.Object({ id: Type.String(), title: Ty
 
 export const ModelSummarySchema = Type.Object({
   id: Type.String(), version: Type.String(), title: Type.String(), description: Type.String(),
-  attribution: Type.String(), license: Type.String(), licenseUrl: Type.String(),
+  attribution: Type.String(),
+  attributionLinks: Type.Optional(Type.Array(Type.Object({
+    text: Type.String({ description: 'A phrase of `attribution`, verbatim.' }),
+    url: Type.String({ description: 'The page it links to, e.g. the original design.' }),
+  }, { additionalProperties: false }), { description: 'Phrases of the attribution that link to where they were published.' })),
+  license: Type.String(), licenseUrl: Type.String(),
   printNotes: Type.String({ description: 'Model-specific orientation or printing guidance.' }),
   artifactFormat: Type.Union([Type.Literal('stl'), Type.Literal('zip')], { description: 'The shape of the generated file: one STL, or a ZIP of one STL per part.' }),
   customizable: Type.Boolean({ description: 'Whether this model exposes adjustable parameters yet.' }),

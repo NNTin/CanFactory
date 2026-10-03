@@ -345,12 +345,17 @@ export function referencePart(id: string, partId: string): NonNullable<Assembly[
 /** A narrower range for a number control (`ModelDefinition.limits`); `reason` completes the issue for a value outside it. */
 export interface ControlLimit { minimum?: number; maximum?: number; reason: string }
 
+/** A phrase of a model's attribution (verbatim) and the page it links to. */
+export interface AttributionLink { text: string; url: string }
+
 export interface ModelDefinition {
   id: string;
   version: string;
   title: string;
   description: string;
   attribution: string;
+  /** Phrases of `attribution` that link to where they were published, e.g. the original design's page. */
+  attributionLinks?: AttributionLink[];
   printNotes: string;
   license: string;
   licenseUrl: string;
@@ -1809,6 +1814,10 @@ export const toggleLatch = {
   id: 'toggle-latch' as const, version: '1' as const, title: 'Toggle latch',
   description: 'A printed over-centre toggle latch, 12 mm wide: a base with the lever’s knuckle, the lever, a link and a catch. Pull the link over the catch’s hook and press the lever down to draw the two sides together. Choose the screws the base and the catch are fastened with, countersunk wood screws or any machine screw from the parts library, and the holes are sized for them; download the four parts as a ZIP of STL files.',
   attribution: 'Hacky97 (Thingiverse), remixed on MakerWorld',
+  attributionLinks: [
+    { text: 'Hacky97 (Thingiverse)', url: 'https://www.thingiverse.com/thing:5993215' },
+    { text: 'MakerWorld', url: 'https://makerworld.com/de/models/625647-toggle-latch' },
+  ],
   printNotes: 'Print each part as generated, no supports. Snap the lever onto the base’s pins and the link onto the lever’s.',
   // Kept short: stamped into each STL's 80-byte header together with `attribution` (see mossPlanter).
   license: 'CC BY-NC 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',

@@ -86,6 +86,7 @@ export class Store implements RenderQueue {
       const detail: ModelDetail = {
         id: model.id, version: model.version, title: model.title, description: model.description,
         attribution: model.attribution, license: model.license, licenseUrl: model.licenseUrl,
+        ...(model.attributionLinks ? { attributionLinks: model.attributionLinks } : {}),
         printNotes: model.printNotes,
         controls: model.controls, defaults: model.defaults, parameterSchema: { ...model.parameterSchema },
         artifactFormat: artifactFormat(model), customizable: model.controls.length > 0,

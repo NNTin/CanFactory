@@ -53,6 +53,28 @@
                       "attribution": {
                         "type": "string"
                       },
+                      "attributionLinks": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "text",
+                            "url"
+                          ],
+                          "properties": {
+                            "text": {
+                              "type": "string",
+                              "description": "A phrase of `attribution`, verbatim."
+                            },
+                            "url": {
+                              "type": "string",
+                              "description": "The page it links to, e.g. the original design."
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "description": "Phrases of the attribution that link to where they were published."
+                      },
                       "license": {
                         "type": "string"
                       },
@@ -151,6 +173,28 @@
                     },
                     "attribution": {
                       "type": "string"
+                    },
+                    "attributionLinks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "text",
+                          "url"
+                        ],
+                        "properties": {
+                          "text": {
+                            "type": "string",
+                            "description": "A phrase of `attribution`, verbatim."
+                          },
+                          "url": {
+                            "type": "string",
+                            "description": "The page it links to, e.g. the original design."
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "description": "Phrases of the attribution that link to where they were published."
                     },
                     "license": {
                       "type": "string"
