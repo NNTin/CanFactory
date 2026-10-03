@@ -10,7 +10,8 @@ Live page: `#/concepts/catio/insert-tunnel-coupling`, also linked from the catio
 
 The page shows only the modular variant, because the direct design has no tunnel. It reuses the sub-assembly page:
 
-- the six camera presets, two of them renamed: **Side · the joint** and **Latch detail**
+- the six camera presets, two of them renamed: **Side · the joint** and **Latch detail**. The joint lies in the recess,
+  so **Side**, **Top** and **Latch detail** open with the wall cut away (`cutawayViews` on the definition), as **Interior** does
 - **Wall cutaway** and **Exploded view**
 - **Released · latches open**: every lever opens and its hook leaves the catch, showing the undocked joint. The page starts
   docked. (This is the page's open/closed toggle; a new `defaultViewing` on the definition makes it start off.)
@@ -48,7 +49,8 @@ Neither side is redesigned. Both are read as their own pages set them (or from t
 | Latches per side | 1 (2 in all) | 1, 2 | Latches |
 | Floor gap | EPDM lip over it | EPDM lip; left open | Seal |
 
-With the defaults, the docking frame is 44 × 37 cm outside and 32 mm deep. Ten 5 × 60 screws fix it to the port frame. Two
+With the defaults (a 30 × 30 cm cat port, set on the catio concept page), the docking frame is 44 × 37 cm outside and 32
+mm deep. Ten 5 × 60 screws fix it to the port frame. Two
 GN 831-100-S-NI-2 latches each hold 1000 N, and their hooks take up ±4 mm of the 6 mm gap. A 1.04 m seal and a 296 × 65 mm
 lip close the joint.
 
@@ -62,10 +64,14 @@ the scene, the parts list and the tests.
    - **Section:** 32 × 70. 70 is the flange's width, so the frame's outline above the floor is the flange's. 32 is the depth
      from the mesh face to 6 mm short of the flange.
    - **Rebate:** where a cover batten lies under it, the frame's back is rebated 15 × 40 over the batten. Whether there are
-     battens is the window insert's **Mesh to timber** setting, changed on that page; the coupling page's brief states it
-     (**Cover battens · set on the window insert page**), and with staples only the frame sits flat on the mesh, unrebated.
+     battens is the window insert's **Mesh to timber** setting, changed on that page. The coupling page's brief states it
+     (**Cover battens at the port**, "Set on the window insert page: Mesh to timber"). With staples only, the frame sits flat
+     on the mesh, unrebated.
    - **Fixing:** DIN 7997 5 × 60 screws from its face, every 15 cm or less. Each reaches 26 mm into the jamb or transom,
-     whichever mesh fixing the insert has.
+     whichever mesh fixing the insert has. The insert's batten screws and staples lie on the same centre lines. With the
+     defaults, one batten screw sat exactly where the middle stile screw went. So each frame screw is moved to the nearest
+     spot at least 12 mm from all of them (`clearOf`), and the page reports a clash if none is found (`fastenerClashes`).
+     The window insert's **Fixing spacing** therefore moves these screws too.
    - **No sill.** Its inner faces are the port's edges, so the cat's clear size is unchanged.
    - It stays on the insert, also when the insert is lifted out.
 2. **Seal.** A self-adhesive hollow EPDM D-profile, about 12 × 10 mm, runs along the middle of the frame's face: down both
@@ -169,6 +175,8 @@ part behind them. Their sizes are this design's, not a product's.
     the flange's outline
   - the frame screws' 26 mm bite
   - the brief names whether the insert has cover battens and that the window insert page sets it
+  - no frame screw within 12 mm of a batten screw or staple, for every window insert setting and mesh fixing
+  - the design decisions quote the sizes the layout uses
   - the load path: the wall support's bearer under the flange, a real gap filled only by the seal, and the lip lying on the
     threshold
   - every latch body and catch on its face, with the hook at mid-range, and the long type not fitting

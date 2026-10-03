@@ -2046,6 +2046,10 @@ main {
 .catio-field.subassembly-field input[aria-invalid="true"] { border-color: #c4704f; }
 .subassembly-unit { font-style: normal; color: #8a917e; }
 .subassembly-field small { font-size: 10.5px; line-height: 1.55; color: #8a917e; }
+/* Where a fact or decision is set when it is another page, and what else a setting changes (CatioCrossPage.tsx). */
+.catio-dimensions .subassembly-source, .subassembly-decisions .subassembly-source { display: block; margin-top: 6px; font-size: 11px; line-height: 1.5; color: #858b7b; }
+.subassembly-field .subassembly-affects { display: block; margin-top: 4px; color: #6f6a3c; }
+.subassembly-source a, .subassembly-affects a, .subassembly-other-errors a { color: inherit; }
 .subassembly-parts { padding-top: 60px; }
 .subassembly-parts h2, .subassembly-decisions h2 { font-size: 28px; margin: 10px 0 8px; letter-spacing: -.6px; }
 .subassembly-parts > p { font-size: 12px; color: #808875; margin: 0 0 18px; }

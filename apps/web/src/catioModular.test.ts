@@ -57,6 +57,16 @@ describe('modular scene geometry', () => {
     }
     scene.dispose();
   });
+  it('docks the tunnel to the window port with a docking frame, as the coupling page does, not a mesh throat', () => {
+    const scene = createModularCatio(defaults);
+    const ids = scene.components.map(p => p.id);
+    expect(ids.filter(id => id.includes('throat'))).toEqual([]);
+    expect(ids).toEqual(expect.arrayContaining(['window-threshold', 'window-docking-frame']));
+    // the frame surrounds the port: its opening is the tunnel's clear size
+    const frame = bounds(part(scene, 'window-docking-frame'));
+    expect(frame.max.x - frame.min.x).toBeCloseTo(defaults.tunnelWidth + 140, 6);
+  });
+
   it('keeps all cat apertures free of fixed mesh and each small gate independently closable', () => {
     const scene = createModularCatio({ ...defaults, secondEnabled: true }); scene.update(assembled);
     for (const door of scene.doors.filter(d => d.kind === 'cat')) {

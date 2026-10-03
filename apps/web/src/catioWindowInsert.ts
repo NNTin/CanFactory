@@ -281,7 +281,7 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
     { title: config.attachment === 'spreader-feet' ? 'Tighten from inside' : 'Drive the wedges', detail: tighten },
     { title: variant === 'direct' ? 'Brackets and check' : 'Gate and check', detail: variant === 'direct'
       ? 'Offer the removable docking brackets to the collar face from outdoors, ready for the enclosure’s rear portal. Open and close the window: it clears the insert.'
-      : 'Fix the gate tracks on the room side of the port. Lower the sliding cat gate into them from above, then fit the latch. Keep the gate shut until a tunnel is coupled. Open and close the window: it clears the insert.' },
+      : 'Fix the gate tracks on the room side of the port. Lower the sliding cat gate into them from above, then fit the latch. Keep the gate shut until a tunnel is docked: the insert–tunnel coupling page screws a docking frame onto the port’s face, which then stays on the insert. Open and close the window: it clears the insert.' },
   ];
 }
 
@@ -346,6 +346,8 @@ export function windowInsertFacts(variant: CatioMode, config: WindowInsertConfig
     { label: 'Collar · outside', value: `${cm(l.W)} × ${cm(l.H)} cm` },
     { label: config.attachment === 'spreader-feet' ? 'Clamp gap · each side' : 'Wedge gap · each side', value: `${cm(l.gap)} cm` },
     { label: variant === 'direct' ? 'Passage · clear' : 'Cat port · clear', value: l.port ? `${cm(l.port.width)} × ${cm(l.port.height)} cm` : `${cm(l.Wi)} × ${cm(l.z0 + l.H - INSERT.member - l.floor)} cm` },
+    // the clamp gap sets it, and the tunnel starts from it
+    ...(l.port ? [{ label: 'Cat port floor · above the grass', value: `${cm(l.floor)} cm` }] : []),
   ];
 }
 
@@ -397,6 +399,9 @@ export const WINDOW_INSERT_DECISIONS: DesignDecision[] = [
   { title: 'Mesh clamped under battens', parameter: 'Mesh to timber',
     choice: 'DIN 1159 2.5 × 25 staples over the wire every 15 cm, then 40 × 15 cover battens screwed through the mesh with DIN 7997 4 × 35 screws.',
     why: 'Staples locate the mesh while it is tensioned; the battens clamp the whole edge so a pulling claw cannot work single wires free, and they cover the sharp cut ends. Staples only or battens only remain selectable.' },
+  { title: 'The cat port ends at its frame', parameter: 'Port transom & jambs',
+    choice: 'With tunnel, the port is a full-width transom and two jambs with the infill mesh round them. Nothing of the insert runs on to the wall face: the insert–tunnel coupling screws a docking frame onto the jambs and transom, and the frame stays on the insert from then on, also when it is lifted out.',
+    why: 'The docking frame carries the passage from the port to the tunnel’s first flange and gives the latches their catch, so a mesh throat there would only be in its way. Its parts are on the coupling’s parts list; its screws are placed between this page’s batten screws and staples, so the mesh fixing and its spacing change it.' },
   { title: 'Collar sized from the clamps', parameter: 'Foot diameter',
     choice: 'The collar is the recess size less the clamp gap on each side: the foot’s height with its cap plus 8 mm of thread travel (32.5 mm for the default 32 mm foot).',
     why: 'The original concept left 10 mm round its 98 cm collar, too little for any real clamp. Here the gap follows from the chosen part, so the collar (93.5 cm by default) and its cut list change with it. The whole-catio scenes keep their schematic 98 cm collar until this is adopted there.' },

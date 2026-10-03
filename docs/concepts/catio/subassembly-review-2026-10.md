@@ -2,13 +2,14 @@
 
 A review of the window insert, tunnel and insert–tunnel coupling pages for settings that do not reach, or are not shown on,
 the pages that depend on them, for geometry that clashes or repeats across page boundaries, and for missing context.
-These are findings only. None is fixed yet; the owner picks what to fix next.
+All ten findings are now fixed (see [Resolutions](#resolutions)). Most share a few mechanisms instead of separate fixes,
+described in [How the sub-assembly pages fit each other](README.md#how-the-sub-assembly-pages-fit-each-other).
 
 Fixed on this branch before the review: the modular insert's mesh "throat" from the port to the wall face, which repeated
 the coupling's docking frame (A), and the coupling page now states whether the insert has cover battens and which window
 insert setting decides that (B).
 
-Line numbers are on this branch.
+Line numbers in the findings are from the review commit, 5103e57.
 
 ## Geometry that clashes across pages
 
@@ -101,3 +102,18 @@ Line numbers are on this branch.
   lands on it.
 - Transom-end and jamb screws (`catioWindowInsert.ts:171-174`) are clear of the frame screws. Only the batten screws clash
   (finding 1).
+
+## Resolutions
+
+| # | Finding | Fix | Shared mechanism |
+| --- | --- | --- | --- |
+| 1 | Frame screws on the batten screws | Each frame screw is moved to the nearest spot at least 12 mm from the insert's batten screws and staples; the coupling reports a clash if none is found. Tested for every insert setting. | `clearOf`, `fastenerClashes` |
+| 2 | No joint on the tunnel page | The tunnel scene draws the insert with its mesh and the docking frame, seal and catches; the latches and lip, closed, in its last stage. | `buildInsertContext`, `buildCouplingPieces` (also used by the coupling scene) |
+| 3 | Throat in the whole-catio scene | A schematic docking frame replaces the throat mesh. | — |
+| 4 | Window port floor shown nowhere | The insert's brief shows the cat port floor. The tunnel's brief shows the window port floor, linked to the insert settings that set it. | fact `from`, `follows` |
+| 5 | Level preset goes sloped | New **Port floor** setting: *Level with the window port* follows the insert, and the level presets use it. The height field shows only at an own height. A climb under 3 cm is called nearly level. | control `when` |
+| 6 | Insert page silent about its dependents | The brief says which pages are fitted to it. Each followed control says what else it changes. The gate step names the coupling. | `follows` → `dependentsOf`, `ChangesNote`, `PageRelations` |
+| 7 | Errors only on the dependent page | Every sub-assembly page lists the errors its saved settings cause on the pages fitted to it; the concept page does so for all of them. | `useOtherPageIssues`, `OtherPageIssues` |
+| 8 | Docking frame ownership | New insert decision "The cat port ends at its frame", and the gate step and the brief link to the coupling. | `PageRelations` |
+| 9 | Joint hidden behind the wall | **Side**, **Top** and **Latch detail** open with the wall cut away on the coupling page. | `cutawayViews` |
+| 10 | Fixed numbers | The coupling's decisions and floor-lip help are built from its constants. The docking-frame decision links to the insert settings that redirect it. The doc states which port size its numbers are for. | decision `from` |

@@ -1,9 +1,9 @@
 import { COUPLING_HARDWARE as HW, COUPLING_LATCH, couplingLatch, dimensionOf, findPart, type Part } from '@canfactory/contracts';
 import type { CatioView } from './catioDesign.ts';
 import type { CatioMode } from './catioSettings.ts';
-import { fastenersAlong, parseControlled, subassemblyStorageKey, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type V3 } from './catioSubassembly.ts';
+import { clearOf, fastenerClashes, fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
 import { parseTunnel, TUNNEL, TUNNEL_DEFAULT, tunnelLayout, tunnelSite, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
-import { INSERT, WINDOW_INSERT_CONTROLS, windowInsertLayout } from './catioWindowInsert.ts';
+import { INSERT, windowInsertLayout } from './catioWindowInsert.ts';
 
 /**
  * The insert–tunnel coupling: the joint between the window insert's cat port and the tunnel's first flange. Millimetres; X along
@@ -38,15 +38,25 @@ export const COUPLING = {
   lip: { thickness: 3, overlap: 25 },
   /** Docking frame screw spacing, and the latch body's distance in from the flange's face. */
   screwPitch: 150, latchInset: 2,
+  /** The least distance from a docking frame screw to a batten screw or staple already in the insert's port frame. */
+  screwClearance: 12,
 } as const;
+
+/** The docking frame's depth: from the insert's mesh face to the seal gap in front of the tunnel's first flange. */
+const FRAME_DEPTH = TUNNEL.wallGap - COUPLING.gap - (INSERT.y + INSERT.depth / 2 + INSERT.mesh.wire);
+/** How far the joint runs, from the first flange's face back to the insert's mesh face. */
+const JOINT_DEPTH = TUNNEL.wallGap + TUNNEL.flange.thickness - (INSERT.y + INSERT.depth / 2 + INSERT.mesh.wire);
+const FRAME_SCREW_LENGTH = dimensionOf(part(HW.frameScrew), 'l');
+/** How far behind the wall face the insert's port frame lies. */
+const PORT_FACE_DEPTH = -(INSERT.y + INSERT.depth / 2 + INSERT.mesh.wire);
 
 /** The fixed interfaces: the window insert and the tunnel as their pages set them (or their defaults). */
 export interface CouplingSite { tunnel: TunnelConfig; site: TunnelSite }
 export function couplingSite(): CouplingSite {
-  let tunnel = TUNNEL_DEFAULT;
-  try { tunnel = parseTunnel((JSON.parse(localStorage.getItem(subassemblyStorageKey('tunnel')) ?? 'null') as { config?: unknown } | null)?.config) ?? tunnel; } catch { /* defaults */ }
-  return { tunnel, site: tunnelSite() };
+  return { tunnel: loadSubassemblyConfig('tunnel', parseTunnel, TUNNEL_DEFAULT), site: tunnelSite() };
 }
+/** The coupling as saved on its page (or its defaults), for the pages that show it. */
+export const savedCoupling = () => loadSubassemblyConfig('insert-tunnel-coupling', parseCoupling, COUPLING_DEFAULT);
 
 function part(id: string): Part {
   const found = findPart(id); if (!found) throw new Error(`The parts library has no ${id}.`); return found;
@@ -115,16 +125,26 @@ export function couplingLayout(config: CouplingConfig, { tunnel, site }: Couplin
   if (catchY < meshFace || catchY + b4 > front) errors.push(`The ${latchPart.designation} catch bracket would not sit on the docking frame’s side: it needs ${Math.ceil(l + w2 / 2 + COUPLING.latchInset)} mm from the flange’s face, the joint is ${Math.round(flangeFront - meshFace)} mm deep.`);
   for (const latch of latches) if (latch.z - b1 / 2 < floor || latch.z + b1 / 2 > transomZ + F) errors.push('A latch does not fit on the docking frame’s side.');
 
-  // Fasteners: frame screws through the frame (and batten) into the jambs and transom; two screws in each latch body and catch.
+  // Fasteners: frame screws through the frame (and batten) into the jambs and transom, kept clear of the batten screws and
+  // staples already on those centre lines; two screws in each latch body and catch.
   const fasteners: Fastener[] = [];
   const frameScrew = part(HW.frameScrew); const latchScrew = part(HW.latchScrew);
   const spaced = (from: number, to: number, count: number) => Array.from({ length: count }, (_, i) => count === 1 ? (from + to) / 2 : from + i * (to - from) / (count - 1));
-  for (const s of [-1, 1]) for (const z of spaced(floor + 30, transomZ - 30, fastenersAlong(stileHeight - 60, COUPLING.screwPitch))) {
-    fasteners.push({ partId: frameScrew.id, component: 'frame-screws', at: [s * (w / 2 + pm / 2), front, z], direction: [0, -1, 0], use: 'Docking frame stiles into the port jambs' });
+  const gap = COUPLING.screwClearance;
+  const faceFasteners = insert.fasteners.filter(f => f.component === 'batten-screws' || f.component === 'staples');
+  /** Along a frame member's screw line: the insert fasteners within `gap` of it, as positions along it. */
+  const near = (index: 0 | 2, at: number, along: 0 | 2) => faceFasteners.filter(f => Math.abs(f.at[index] - at) < gap).map(f => f.at[along]);
+  for (const s of [-1, 1]) {
+    const x = s * (w / 2 + pm / 2);
+    for (const z of clearOf(spaced(floor + 30, transomZ - 30, fastenersAlong(stileHeight - 60, COUPLING.screwPitch)), near(0, x, 2), gap, floor + 15, transomZ - 15)) {
+      fasteners.push({ partId: frameScrew.id, component: 'frame-screws', at: [x, front, z], direction: [0, -1, 0], use: 'Docking frame stiles into the port jambs' });
+    }
   }
-  for (const x of spaced(-w / 2 - pm / 2, w / 2 + pm / 2, fastenersAlong(w + pm, COUPLING.screwPitch))) {
-    fasteners.push({ partId: frameScrew.id, component: 'frame-screws', at: [x, front, transomZ + pm / 2], direction: [0, -1, 0], use: 'Docking frame head into the transom' });
+  const headZ = transomZ + pm / 2;
+  for (const x of clearOf(spaced(-w / 2 - pm / 2, w / 2 + pm / 2, fastenersAlong(w + pm, COUPLING.screwPitch)), near(2, headZ, 0), gap, -w / 2 - pm + 10, w / 2 + pm - 10)) {
+    fasteners.push({ partId: frameScrew.id, component: 'frame-screws', at: [x, front, headZ], direction: [0, -1, 0], use: 'Docking frame head into the transom' });
   }
+  if (fastenerClashes(fasteners, faceFasteners, gap).length > 0) errors.push(`A docking frame screw would come within ${gap} mm of a batten screw or staple in the port frame: change the window insert’s fixing spacing.`);
   const m1 = dimensionOf(latchPart, 'm1'); const m2 = dimensionOf(latchPart, 'm2'); const m4 = dimensionOf(latchPart, 'm4');
   for (const latch of latches) for (const k of [-1, 1]) {
     fasteners.push({ partId: latchScrew.id, component: 'latch-screws', at: [latch.faceX, hingeY - m2, latch.z + k * m1 / 2], direction: [-latch.side, 0, 0], use: 'Latch bodies onto the first flange’s sides', of: latch.id });
@@ -197,16 +217,7 @@ export function couplingBom(_variant: CatioMode, config: CouplingConfig, site?: 
   return lines;
 }
 
-/** Whether the insert's port frame carries cover battens: set by the window insert page's "Mesh to timber", not here. */
-function insertBattensFact(l: CouplingLayout) {
-  const control = WINDOW_INSERT_CONTROLS.find(c => c.key === 'meshFixing');
-  return {
-    label: `Cover battens · set on the window insert page (${control?.label ?? 'Mesh to timber'})`,
-    value: l.battenFace > l.meshFace ? `Yes · frame rebated ${INSERT.batten.thickness} mm over them` : 'None · frame flat on the mesh',
-  };
-}
-
-export function couplingFacts(_variant: CatioMode, config: CouplingConfig, site?: CouplingSite) {
+export function couplingFacts(_variant: CatioMode, config: CouplingConfig, site?: CouplingSite): SubassemblyFact[] {
   const l = couplingLayout(config, site);
   const cm = (mm: number) => `${Number((mm / 10).toFixed(1))}`;
   return [
@@ -215,7 +226,7 @@ export function couplingFacts(_variant: CatioMode, config: CouplingConfig, site?
     { label: 'Latches · holding', value: `${l.latches.length} × ${l.latchPart.designation} · ${l.latchPart.attributes['holdingForce'] ?? ''} each` },
     { label: 'Hook takes up', value: `±${l.tolerance} mm of the gap` },
     { label: 'Dock or undock', value: `${l.latches.length} levers, no tools` },
-    insertBattensFact(l),
+    { label: 'Cover battens at the port', value: l.battenFace > l.meshFace ? `Yes · frame rebated ${INSERT.batten.thickness} mm over them` : 'None · frame flat on the mesh', from: { page: 'window-insert', settings: ['meshFixing'] } },
   ];
 }
 
@@ -244,7 +255,7 @@ export const COUPLING_CONTROLS: SubassemblyControl<CouplingConfig>[] = [
     options: [{ value: 'NI', label: 'Stainless steel' }, { value: 'ST', label: 'Steel, zinc plated' }] },
   { key: 'latchesPerSide', label: 'Latches per side', group: 'Latches', help: 'One each side, at half height, holds the joint; two pull the seal on evenly over its whole height.',
     options: [{ value: 1, label: '1 (2 in all)' }, { value: 2, label: '2 (4 in all)' }] },
-  { key: 'floorLip', label: 'Floor gap', group: 'Seal', help: 'Between the threshold’s end and the flange there is a 10 mm gap across the floor. A rubber lip bridges it; it only lies on the threshold.',
+  { key: 'floorLip', label: 'Floor gap', group: 'Seal', help: `Between the threshold’s end and the flange there is a ${TUNNEL.wallGap} mm gap across the floor. A rubber lip bridges it; it only lies on the threshold.`,
     options: [{ value: 'rubber-lip', label: 'EPDM lip over it' }, { value: 'none', label: 'Left open' }] },
 ];
 
@@ -257,13 +268,13 @@ export const COUPLING_DECISIONS: DesignDecision[] = [
   { title: 'The insert carries nothing', parameter: 'Latches per side',
     choice: 'The tunnel’s wall support carries the first flange, as on the tunnel page. The joint touches the insert only through the soft seal and the latches, which pull along the tunnel; the docking frame has no sill, and nothing of the tunnel rests on the threshold except the rubber lip.',
     why: 'The insert is held in its recess only by pressure, so it must not take the tunnel’s weight. Locating pins or a spigot would hand that weight to it as soon as the support settled, so there are none: the support’s levelling feet set the height. If a latch has to lift or push the flange to close, re-level the wall support, not the latch.' },
-  { title: 'A docking frame on the insert', parameter: 'Mesh to timber (Window insert page)',
-    choice: 'Two 32 × 70 stiles on the port jambs and a head on the transom, screwed through into them with DIN 7997 5 × 60 screws, rebated 15 mm over the cover battens where the insert has them. Its face is the flange’s outline above the floor, 6 mm short of the flange. Whether there are battens is the window insert’s “Mesh to timber” setting, changed on that page: with staples only the frame sits flat on the mesh, unrebated.',
-    why: 'The port frame’s face lies 28 mm inside the recess and is broken up by battens, while the flange stands 10 mm off the wall: the frame brings a flat, matching face to the joint, and gives the catch brackets a side in line with the flange’s side. 32 mm is the depth from the mesh to the gap, so the screws reach 26 mm into the jambs whichever mesh fixing the insert has. It stays on the insert when the insert is lifted out.' },
+  { title: 'A docking frame on the insert', from: { page: 'window-insert', settings: ['meshFixing', 'fixingPitch'] },
+    choice: `Two ${FRAME_DEPTH} × ${TUNNEL.flange.width} stiles on the port jambs and a head on the transom, screwed through into them with DIN 7997 5 × ${FRAME_SCREW_LENGTH} screws, rebated ${INSERT.batten.thickness} mm over the cover battens where the insert has them. Its face is the flange’s outline above the floor, ${COUPLING.gap} mm short of the flange. The screws sit between the insert’s batten screws and staples, at least ${COUPLING.screwClearance} mm from each. Whether there are battens, and where their screws are, is set by the window insert’s mesh fixing: with staples only the frame sits flat on the mesh, unrebated.`,
+    why: `The port frame’s face lies ${PORT_FACE_DEPTH} mm inside the recess and is broken up by battens, while the flange stands ${TUNNEL.wallGap} mm off the wall: the frame brings a flat, matching face to the joint, and gives the catch brackets a side in line with the flange’s side. ${FRAME_DEPTH} mm is the depth from the mesh to the gap, so the screws reach ${FRAME_SCREW_LENGTH - FRAME_DEPTH - INSERT.mesh.wire} mm into the jambs whichever mesh fixing the insert has. A screw on a batten screw’s centre line would run into its hole or split the 40 mm jamb, so they are moved clear. It stays on the insert when the insert is lifted out.` },
   { title: 'A squashed seal and a floor lip', parameter: 'Floor gap',
-    choice: 'A self-adhesive hollow EPDM D-profile, about 10 mm high, round the frame’s face, squashed to the 6 mm gap; a 3 mm EPDM lip screwed to the flange’s sill, lying 25 mm onto the threshold.',
+    choice: `A self-adhesive hollow EPDM D-profile, about ${COUPLING.seal.height} mm high, round the frame’s face, squashed to the ${COUPLING.gap} mm gap; a ${COUPLING.lip.thickness} mm EPDM lip screwed to the flange’s sill, lying ${COUPLING.lip.overlap} mm onto the threshold.`,
     why: 'The old foam strip pressed against the wall round the flange, but the flange stands in front of the open recess, where there is no wall: the seal now sits between two faces that are there. A hollow profile squashes with little force, so the latches need not pull hard and the insert is not dragged out of its recess. The lip closes the floor gap to claws and draughts and bends out of the way when the joint opens.' },
   { title: 'The short latch, because of the depth',
     choice: 'GN 831 identification no. 2: 54 mm closed (61 mm for type S), set at the middle of its hook’s range.',
-    why: 'From the flange’s face to the back of the docking frame the joint is 68 mm deep. The long type is 67 mm closed (74 for type S) before its hook is set at all, so its catch bracket would hang off the back of the frame; the short one sits on the frame with its hook at the middle of its range, and the page checks it.' },
+    why: `From the flange’s face to the back of the docking frame the joint is ${JOINT_DEPTH} mm deep. The long type is 67 mm closed (74 for type S) before its hook is set at all, so its catch bracket would hang off the back of the frame; the short one sits on the frame with its hook at the middle of its range, and the page checks it.` },
 ];

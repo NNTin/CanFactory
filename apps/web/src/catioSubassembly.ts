@@ -29,7 +29,18 @@ export interface SubassemblyControl<C> {
   range?: NumberRange;
   /** The variants it applies to; all when absent. */
   variants?: CatioMode[];
+  /** Shown only while this holds, e.g. a height that only matters in one mode. */
+  when?: (config: C) => boolean;
 }
+
+/**
+ * Settings of another page that a page reads: control keys of another sub-assembly page, or setting labels on the catio concept
+ * page. A sub-assembly's `follows` lists them; a fact names the ones it comes from.
+ */
+export interface Follow { page: CatioSubassembly; settings: string[] }
+export type SettingRef = Follow | { page: 'concept'; settings: string[] };
+/** A short fact for the brief, and where it is set when that is another page. */
+export interface SubassemblyFact { label: string; value: string; from?: SettingRef }
 export interface NumberRange { min: number; max: number; step: number; unit: string; scale?: number }
 
 /** A number from storage or an input that its range accepts: inside the limits and on a step. */
@@ -57,7 +68,13 @@ export interface BomLine {
 export interface SubassemblyPreset<C> { id: string; label: string; description: string; config: () => C }
 
 /** A documented design call: what was chosen and why, so the owner can redirect it. */
-export interface DesignDecision { title: string; choice: string; why: string; parameter?: string }
+export interface DesignDecision {
+  title: string; choice: string; why: string;
+  /** The control on this page that redirects it. */
+  parameter?: string;
+  /** The settings on another page that redirect it, instead. */
+  from?: SettingRef;
+}
 
 export interface SubassemblyComponent { id: string; group: THREE.Group; step: number; layer?: CatioLayer }
 export interface SubassemblyModel {
@@ -106,10 +123,15 @@ export interface SubassemblyDefinition<C extends object> {
   bom: (variant: CatioMode, config: C) => BomLine[];
   views: (variant: CatioMode, config: C) => Record<CatioView, CameraPreset>;
   /** Short facts for the brief, e.g. the collar size that follows from the chosen clamps. */
-  facts: (variant: CatioMode, config: C) => { label: string; value: string }[];
+  facts: (variant: CatioMode, config: C) => SubassemblyFact[];
   decisions: DesignDecision[];
-  /** The other sub-assembly pages whose settings this one follows, linked from the brief; the window insert when absent. */
-  follows?: CatioSubassembly[];
+  /**
+   * The other sub-assembly pages this one is fitted to, and which of their settings change it (an empty list when it only shows
+   * them). Linked from both briefs; the other page notes it under each listed setting and warns when its settings break this page.
+   */
+  follows?: Follow[];
+  /** The views that open with the wall cut away; Interior and Mounting when absent. */
+  cutawayViews?: CatioView[];
   /** Viewing defaults besides the shared ones, e.g. a toggle that starts off. */
   defaultViewing?: Partial<Pick<SubassemblyViewing, 'windowOpen' | 'cutaway' | 'view'>>;
 }
@@ -157,6 +179,35 @@ export function parseSubassemblySettings<C extends object>(definition: Subassemb
 export function loadSubassemblySettings<C extends object>(definition: SubassemblyDefinition<C>): SubassemblySettings<C> {
   try { return parseSubassemblySettings(definition, localStorage.getItem(subassemblyStorageKey(definition.id))); }
   catch { return defaultSubassemblySettings(definition); }
+}
+
+/** Another page's saved config (checked by its `parse`), or `defaults` when there is none or storage is unavailable. */
+export function loadSubassemblyConfig<C>(id: CatioSubassembly, parse: (raw: unknown) => C | null, defaults: C): C {
+  try { return parse((JSON.parse(localStorage.getItem(subassemblyStorageKey(id)) ?? 'null') as { config?: unknown } | null)?.config) ?? defaults; } catch { return defaults; }
+}
+
+/**
+ * Positions along a line kept at least `gap` from every position in `avoid` (fasteners already there, e.g. another page's
+ * screws): a position too close is moved to the nearest clear spot within `min`–`max`, or left where it is when there is none.
+ */
+export function clearOf(positions: number[], avoid: number[], gap: number, min: number, max: number): number[] {
+  const clear = (p: number) => avoid.every(a => Math.abs(p - a) >= gap - 1e-9) && p >= min - 1e-9 && p <= max + 1e-9;
+  return positions.map(p => {
+    if (clear(p)) return p;
+    const candidates = avoid.flatMap(a => [a - gap, a + gap]).filter(clear).sort((a, b) => Math.abs(a - p) - Math.abs(b - p));
+    return candidates[0] ?? p;
+  });
+}
+
+/** Pairs of fasteners closer than `gap` across the first one's driving direction, e.g. a screw driven into another's hole. */
+export function fastenerClashes<A extends { at: V3; direction: V3 }, B extends { at: V3 }>(a: A[], b: B[], gap: number): [A, B][] {
+  const clashes: [A, B][] = [];
+  for (const f of a) for (const g of b) {
+    const d: V3 = [g.at[0] - f.at[0], g.at[1] - f.at[1], g.at[2] - f.at[2]];
+    const n = Math.hypot(...f.direction); const along = (d[0] * f.direction[0] + d[1] * f.direction[1] + d[2] * f.direction[2]) / n;
+    if (Math.sqrt(Math.max(0, d[0] ** 2 + d[1] ** 2 + d[2] ** 2 - along ** 2)) < gap) clashes.push([f, g]);
+  }
+  return clashes;
 }
 
 /** Fasteners along a fixed edge: one at each end and none further apart than `pitch`. */

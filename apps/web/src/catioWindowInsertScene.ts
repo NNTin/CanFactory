@@ -5,7 +5,7 @@ import type { CatioState } from './catioScene.ts';
 import type { CatioMode } from './catioSettings.ts';
 import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
 import { buildWindowContext } from './catioWindowContext.ts';
-import { INSERT, windowFor, windowInsertLayout, type Clamp, type WindowInsertConfig, type WindowSpec } from './catioWindowInsert.ts';
+import { INSERT, windowFor, windowInsertLayout, type Clamp, type WindowInsertConfig, type WindowInsertLayout, type WindowSpec } from './catioWindowInsert.ts';
 
 /** Stages 1–3 are built on a bench this far out in the garden; stage 4 carries the insert into the recess. */
 export const BENCH_OFFSET = 900;
@@ -24,6 +24,14 @@ export interface PieceMotion {
   object: THREE.Object3D; stage: number; window: [number, number]; approach: THREE.Vector3; axis?: THREE.Vector3; turns?: number; action: string;
   /** What the piece is, and the clamp or fastener it belongs to, for checking the order. Pieces of one kind move together. */
   role?: 'insert-nut' | 'foot' | 'own-nut' | 'second-nut' | 'screw' | 'staple'; of?: string; drive?: V3;
+}
+
+/** The installed insert as fixed context on another page: its timber, and its mesh panels on the mesh layer. */
+export function buildInsertContext(p: ReturnType<typeof createCatioParts>, layout: WindowInsertLayout) {
+  const insert = p.component('window-insert', 0, undefined);
+  for (const t of layout.timber) for (const b of t.boxes) p.box(insert, b.size, b.center, t.component === 'threshold' || t.component === 'cover-battens' ? p.materials.endgrain : p.materials.timber);
+  for (const q of layout.panels) p.panel(`insert-${q.id}`, 0, q.width, q.height, q.center, q.plane, [0, 0, 0]);
+  return insert;
 }
 
 /** The window insert in its window: every piece of `windowInsertLayout`, staged as `windowInsertSteps` describes. */
