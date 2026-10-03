@@ -200,6 +200,25 @@ function AiDuckIllustration() {
   </svg>;
 }
 
+/**
+ * The toggle latch, drawn from the side: the base (left) and the catch (right) screwed to two boards, the lever lying over the base's
+ * knuckle and the link drawn over the catch's hook. On card hover the lever lifts and the link swings off the hook (`.tl-*` in styles.css).
+ */
+function ToggleLatchIllustration() {
+  return <svg viewBox="0 0 240 190" aria-hidden="true" className="toggle-latch-illustration">
+    <ellipse cx="120" cy="150" rx="104" ry="11" fill="#c8cec1" opacity=".35" />
+    <rect x="16" y="112" width="102" height="30" rx="3" fill="#b9946b" />
+    <rect x="122" y="112" width="102" height="30" rx="3" fill="#a9845d" />
+    <rect x="28" y="102" width="70" height="10" rx="3" fill="#d98460" />
+    <rect x="142" y="102" width="70" height="10" rx="3" fill="#d98460" />
+    {[38, 88, 152, 202].map(cx => <path key={cx} d={`M${cx - 5} 102l5 6 5-6`} fill="#753e2d" opacity=".7" />)}
+    <path d="M52 102v-12a10 10 0 0 1 20 0v12z" fill="#c46543" />
+    <path d="M164 102v-10h22c6 0 8 4 8 8v2h-8a6 6 0 0 0-12 0h-10z" fill="#c46543" />
+    <g className="tl-part tl-link"><path d="M104 84l78 12" stroke="#5f7350" strokeWidth="7" strokeLinecap="round" /><circle cx="180" cy="98" r="6" fill="#5f7350" /></g>
+    <g className="tl-part tl-lever"><path d="M56 88l70-16c8-2 10 6 4 9l-68 18z" fill="#8fa27c" /><circle cx="62" cy="91" r="6" fill="#7b8e6b" /><circle cx="104" cy="84" r="3.5" fill="#f4f1e6" /></g>
+  </svg>;
+}
+
 const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'ai-rubber-duck': AiDuckIllustration,
   'cigarette-case': CigaretteCaseIllustration,
@@ -207,6 +226,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'moss-planter': MossPlanterIllustration,
   'plank-connector': PlankConnectorIllustration,
   'litter-shovel': LitterShovelIllustration,
+  'toggle-latch': ToggleLatchIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names

@@ -1039,12 +1039,23 @@ main {
 .moss-planter-illustration,
 .cigarette-case-illustration,
 .plank-connector-illustration,
-.litter-shovel-illustration {
+.litter-shovel-illustration,
+.toggle-latch-illustration {
   width: 250px;
   height: 210px;
 }
 .moss-planter-illustration {
   overflow: visible;
+}
+.tl-part {
+  transition: transform 0.35s ease-out;
+}
+.tl-lever { transform-origin: 62px 91px; }
+.tl-link { transform-origin: 104px 84px; }
+.model-card:hover .tl-lever { transform: rotate(-24deg); }
+.model-card:hover .tl-link { transform: translate(-14px, -24px) rotate(-14deg); }
+@media (prefers-reduced-motion: reduce) {
+  .tl-part { transition: none; }
 }
 .mp-part {
   transition: transform 0.35s ease-out;
