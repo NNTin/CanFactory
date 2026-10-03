@@ -124,7 +124,9 @@ describe('parts library', () => {
     expect(Object.keys(ISO_273_CLEARANCE_HOLES)).toEqual(Object.keys(METRIC_THREADS));
     const m3 = findPart('iso-4762-m3x10');
     if (!m3) throw new Error('Expected ISO 4762 M3 × 10');
-    expect(partUsage(m3)).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes', kind: 'model' }]);
+    expect(partUsage(m3)).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes', kind: 'model' },
+      // the toggle latch links it by its thread and as a machine screw it offers
+      { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Thread', kind: 'model' }, { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Machine screw', kind: 'model' }]);
     const lighter = findPart('bic-j25-mini-lighter');
     if (!lighter) throw new Error('Expected the lighter');
     expect(partUsage(lighter)).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview', kind: 'model' }]);

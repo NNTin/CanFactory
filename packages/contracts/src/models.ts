@@ -4,6 +4,7 @@ import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
+import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, type LatchMovement } from './toggleLatchMechanism.ts';
 
 /** A field-level, user-readable validation failure. Paths are parameter names. */
 export interface ParameterIssue { field: string; message: string }
@@ -281,6 +282,12 @@ export interface LinkedReference {
 
 const Vector = (description: string) => Type.Array(Type.Number(), { minItems: 3, maxItems: 3, description });
 
+/** A part's pose: its STL, exactly as rendered, turned and then moved. */
+const PoseSchema = Type.Object({
+  position: Vector('Translation in mm, applied after the rotation.'),
+  rotation: Type.Optional(Vector('Rotation in degrees about the part’s own origin, applied about X, then Y, then Z.')),
+}, { additionalProperties: false });
+
 /**
  * How an assembly's parts go together, for the preview's assembly slider. Millimetres and degrees, in the parts' own SCAD
  * frame (Z up). Each part's pose places its STL, exactly as rendered, at its assembled position. The exploded layout is
@@ -290,14 +297,12 @@ const Vector = (description: string) => Type.Array(Type.Number(), { minItems: 3,
  * finished assembly stands on the floor. Parts without a pose stay on the print bed. `references` are real-world objects the
  * assembly holds (e.g. the lighter a bay is sized for), shown and moved like parts so that their fit can be seen; they are
  * parts-library entries with an STL preview, never printed, so the worker does not render them and they are not in the ZIP
- * (see `referencePart`).
+ * (see `referencePart`). `motion` then moves the finished assembly (e.g. a latch opening and closing), one slider stop per
+ * movement: rigid poses sampled densely enough that interpolating between frames keeps the parts' joints together.
  */
 export const AssemblySchema = Type.Object({
   partColors: Type.Optional(Type.Record(Type.String(), Type.String({ pattern: '^#[0-9a-fA-F]{6}$' }), { description: 'Suggested filament colors by printed part id; also used in the preview.' })),
-  poses: Type.Record(Type.String(), Type.Object({
-    position: Vector('Translation in mm, applied after the rotation.'),
-    rotation: Type.Optional(Vector('Rotation in degrees about the part’s own origin, applied about X, then Y, then Z.')),
-  }, { additionalProperties: false }), { description: 'Assembled pose per part id.' }),
+  poses: Type.Record(Type.String(), PoseSchema, { description: 'Assembled pose per part id.' }),
   steps: Type.Array(Type.Object({
     title: Type.String({ description: 'Short caption, e.g. “Close the mini box”.' }),
     parts: Type.Array(Type.String(), { description: 'The part ids that move together in this step.' }),
@@ -309,6 +314,10 @@ export const AssemblySchema = Type.Object({
     part: Type.String({ description: 'The id of the parts-library entry it is.' }),
     title: Type.String({ description: 'What it is: the part’s title, e.g. “BIC Mini lighter (J25)”.' }),
   }, { additionalProperties: false }), { description: 'Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. They are parts-library entries. Not printed and not in the ZIP.' })),
+  motion: Type.Optional(Type.Array(Type.Object({
+    title: Type.String({ description: 'Short caption, e.g. “Close the lever”.' }),
+    frames: Type.Array(Type.Record(Type.String(), PoseSchema), { minItems: 1, description: 'The poses of the parts it moves, evenly spaced in time; parts a frame leaves out keep their pose.' }),
+  }, { additionalProperties: false }), { description: 'Movements of the finished assembly, played after the steps (e.g. a latch opening and closing): each plays from the poses the previous one ends in (the assembled poses for the first) through its frames.' })),
 }, { additionalProperties: false });
 export type Assembly = Static<typeof AssemblySchema>;
 
@@ -336,12 +345,17 @@ export function referencePart(id: string, partId: string): NonNullable<Assembly[
 /** A narrower range for a number control (`ModelDefinition.limits`); `reason` completes the issue for a value outside it. */
 export interface ControlLimit { minimum?: number; maximum?: number; reason: string }
 
+/** A phrase of a model's attribution (verbatim) and the page it links to. */
+export interface AttributionLink { text: string; url: string }
+
 export interface ModelDefinition {
   id: string;
   version: string;
   title: string;
   description: string;
   attribution: string;
+  /** Phrases of `attribution` that link to where they were published, e.g. the original design's page. */
+  attributionLinks?: AttributionLink[];
   printNotes: string;
   license: string;
   licenseUrl: string;
@@ -1621,7 +1635,207 @@ export const aiRubberDuck = {
 /** Add models here; shared API contracts and the generic editor consume this registry. Widened to the shared
  * interface (rather than the precise literal-typed tuple) so generic code can read optional fields uniformly;
  * `findModel`/`RenderRequestSchema` still discriminate on each model's own literal `id`/`version`. */
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck];
+/**
+ * Toggle latch (models/toggle-latch/, after "Toggle Latch" on MakerWorld, a remix of Hacky97's "M3 toggle corner latch"): four
+ * printed parts, a base whose knuckle carries the lever, the lever, the link that the lever swings over the catch, and the catch.
+ * The base and the catch are each screwed on with two screws through a 4 mm plate; their holes are sized for a screw chosen from
+ * the parts library, a countersunk wood screw (DIN 7997) or a machine screw. A countersunk head sits flush in a countersink as deep
+ * as the head is high; any other head sits on the plate's front face, beside the lever and the link. The lever comes in the
+ * original's two pivot fits.
+ */
+export const TOGGLE_LATCH_SEAT = {
+  /** The plates' thickness and height (catch.scad, base.scad: PLATE_BACK - PLATE_FRONT, PLATE_HEIGHT). */
+  plate: 4, plateHeight: 12,
+  /** The holes' distance from the plates' ends (HOLE_X) and from the latch's middle, where the link's 17.4 mm wide side bars pass. */
+  holeFromEnd: 5.77, holeFromMiddle: 13.21, linkHalfWidth: 8.7,
+  /** Diametral play of a countersink over the head (SINK_PLAY), the widest countersink the plate's ends and edges leave 0.5 mm
+   * around, and the straight hole a countersunk head must leave under it. */
+  sinkPlay: 0.4, maxSink: 11, minStraight: 1,
+  /** Material a hole leaves above and below it, and the least a screw must reach past the plate's back. */
+  holeWall: 1.5, minReach: 4,
+} as const;
+/** Clearance-hole allowances over a wood screw's diameter, by fit: DIN EN 20273's for M4 and M5 (which it does not give for wood screws). */
+export const WOOD_SCREW_PLAY = { fine: 0.3, medium: 0.5, coarse: 0.8 } as const;
+
+/** The three clearance holes (fine, medium, coarse) for a library screw: DIN EN 20273 for a metric thread, the allowances above for a wood screw. */
+export function latchScrewHoles(part: Part): [number, number, number] {
+  if (part.family === 'wood-screw') {
+    const d = dimensionOf(part, 'd');
+    return [WOOD_SCREW_PLAY.fine, WOOD_SCREW_PLAY.medium, WOOD_SCREW_PLAY.coarse].map(play => Math.round((d + play) * 100) / 100) as [number, number, number];
+  }
+  const thread = String(part.attributes['thread']);
+  if (!(thread in ISO_273_CLEARANCE_HOLES)) throw new Error(`${part.id} has no DIN EN 20273 clearance hole.`);
+  const holes = ISO_273_CLEARANCE_HOLES[thread as MetricThread];
+  return [holes.fine, holes.medium, holes.coarse];
+}
+
+/** Whether a library screw can fasten the latch's plates: its coarse hole leaves `holeWall` above and below; a countersunk head's
+ * countersink fits the plate and leaves `minStraight` of hole; any other head stays clear of the link's side bars; and it reaches
+ * `minReach` past the plate's back (a countersunk screw's length includes its head). */
+export function latchScrewFits(part: Part): boolean {
+  const s = TOGGLE_LATCH_SEAT;
+  if (part.family === 'wood-screw' ? part.attributes['head'] !== 'countersunk' : part.family !== 'screw' || !(String(part.attributes['thread']) in ISO_273_CLEARANCE_HOLES)) return false;
+  if (latchScrewHoles(part)[2] + 2 * s.holeWall > s.plateHeight + 1e-9) return false;
+  const head = dimensionOf(part, part.dimensions['dk'] ? 'dk' : 'e', 'max');
+  const countersunk = part.attributes['head'] === 'countersunk';
+  const seated = countersunk ? head + s.sinkPlay <= s.maxSink + 1e-9 && dimensionOf(part, 'k', 'max') <= s.plate - s.minStraight + 1e-9
+    : head / 2 <= s.holeFromMiddle - s.linkHalfWidth - 0.5 + 1e-9;
+  return seated && dimensionOf(part, 'l') >= s.plate + s.minReach - 1e-9;
+}
+
+/**
+ * The screws the latch offers: every library screw that fits (`latchScrewFits`), in the library's order, and their sizes, wood screws
+ * by diameter and machine screws by thread. Listed rather than computed, so that the parameters' types name them; a test keeps each
+ * list equal to the library's fitting parts.
+ */
+export const LATCH_WOOD_DIAMETERS = ['3 mm', '3.5 mm', '4 mm', '4.5 mm', '5 mm'] as const;
+export const LATCH_WOOD_SCREWS = [
+  'din-7997-3x12', 'din-7997-3x16', 'din-7997-3x20', 'din-7997-3x25', 'din-7997-3x30', 'din-7997-3-5x16', 'din-7997-3-5x20',
+  'din-7997-3-5x25', 'din-7997-3-5x30', 'din-7997-3-5x35', 'din-7997-3-5x40', 'din-7997-4x20', 'din-7997-4x25', 'din-7997-4x30',
+  'din-7997-4x35', 'din-7997-4x40', 'din-7997-4x45', 'din-7997-4x50', 'din-7997-4-5x25', 'din-7997-4-5x30', 'din-7997-4-5x35',
+  'din-7997-4-5x40', 'din-7997-4-5x45', 'din-7997-4-5x50', 'din-7997-4-5x60', 'din-7997-5x30', 'din-7997-5x35', 'din-7997-5x40',
+  'din-7997-5x50', 'din-7997-5x60', 'din-7997-5x70', 'din-7997-5x80',
+] as const;
+export const LATCH_MACHINE_THREADS = ['M2', 'M2.5', 'M3', 'M4', 'M5'] as const;
+export const LATCH_MACHINE_SCREWS = [
+  'iso-4762-m2x8', 'iso-4762-m2x10', 'iso-4762-m2x12', 'iso-4762-m2x16', 'iso-4762-m2x20', 'iso-4762-m2-5x8', 'iso-4762-m2-5x10',
+  'iso-4762-m2-5x12', 'iso-4762-m2-5x16', 'iso-4762-m2-5x20', 'iso-4762-m2-5x25', 'iso-4762-m3x8', 'iso-4762-m3x10',
+  'iso-4762-m3x12', 'iso-4762-m3x14', 'iso-4762-m3x16', 'iso-4762-m3x20', 'iso-4762-m3x25', 'iso-4762-m3x30', 'iso-4762-m4x8',
+  'iso-4762-m4x10', 'iso-4762-m4x12', 'iso-4762-m4x16', 'iso-4762-m4x20', 'iso-4762-m4x25', 'iso-4762-m4x30', 'iso-4762-m4x35',
+  'iso-4762-m4x40', 'iso-7380-m3x8', 'iso-7380-m3x10', 'iso-7380-m3x12', 'iso-7380-m3x16', 'iso-7380-m4x8', 'iso-7380-m4x10',
+  'iso-7380-m4x12', 'iso-7380-m4x16', 'iso-7380-m4x20', 'iso-10642-m3x8', 'iso-10642-m3x10', 'iso-10642-m3x12', 'iso-10642-m3x16',
+  'iso-10642-m3x20', 'iso-10642-m3x25', 'iso-10642-m3x30', 'iso-10642-m4x8', 'iso-10642-m4x10', 'iso-10642-m4x12',
+  'iso-10642-m4x16', 'iso-10642-m4x20', 'iso-10642-m4x25', 'iso-10642-m4x30', 'iso-10642-m4x40', 'iso-10642-m5x8',
+  'iso-10642-m5x10', 'iso-10642-m5x12', 'iso-10642-m5x16', 'iso-10642-m5x20', 'iso-10642-m5x25', 'iso-10642-m5x30',
+  'iso-10642-m5x40', 'iso-10642-m5x50', 'iso-4017-m2x8', 'iso-4017-m2x10', 'iso-4017-m2x12', 'iso-4017-m2-5x8', 'iso-4017-m2-5x10',
+  'iso-4017-m2-5x12', 'iso-4017-m2-5x16', 'iso-4017-m3x8', 'iso-4017-m3x10', 'iso-4017-m3x12', 'iso-4017-m3x16', 'iso-4017-m3x20',
+  'iso-4017-m3x25', 'iso-4017-m3x30', 'iso-4017-m4x8', 'iso-4017-m4x10', 'iso-4017-m4x12', 'iso-4017-m4x16', 'iso-4017-m4x20',
+  'iso-4017-m4x25', 'iso-4017-m4x30', 'iso-4017-m4x40', 'iso-7045-m2x8', 'iso-7045-m2x10', 'iso-7045-m2x12', 'iso-7045-m2x16',
+  'iso-7045-m2-5x8', 'iso-7045-m2-5x10', 'iso-7045-m2-5x12', 'iso-7045-m2-5x16', 'iso-7045-m2-5x20', 'iso-7045-m3x8',
+  'iso-7045-m3x10', 'iso-7045-m3x12', 'iso-7045-m3x16', 'iso-7045-m3x20', 'iso-7045-m3x25', 'iso-7045-m3x30', 'iso-7045-m4x8',
+  'iso-7045-m4x10', 'iso-7045-m4x12', 'iso-7045-m4x16', 'iso-7045-m4x20', 'iso-7045-m4x25', 'iso-7045-m4x30', 'iso-7045-m4x40',
+  'iso-7046-m2x8', 'iso-7046-m2x10', 'iso-7046-m2x12', 'iso-7046-m2x16', 'iso-7046-m2x20', 'iso-7046-m2-5x8', 'iso-7046-m2-5x10',
+  'iso-7046-m2-5x12', 'iso-7046-m2-5x16', 'iso-7046-m2-5x20', 'iso-7046-m2-5x25', 'iso-7046-m3x8', 'iso-7046-m3x10',
+  'iso-7046-m3x12', 'iso-7046-m3x16', 'iso-7046-m3x20', 'iso-7046-m3x25', 'iso-7046-m3x30', 'iso-7046-m4x8', 'iso-7046-m4x10',
+  'iso-7046-m4x12', 'iso-7046-m4x16', 'iso-7046-m4x20', 'iso-7046-m4x25', 'iso-7046-m4x30', 'iso-7046-m4x40', 'iso-7046-m5x8',
+  'iso-7046-m5x10', 'iso-7046-m5x12', 'iso-7046-m5x16', 'iso-7046-m5x20', 'iso-7046-m5x25', 'iso-7046-m5x30', 'iso-7046-m5x40',
+  'iso-7046-m5x50',
+] as const;
+/** 4 × 25 wood screws, as the catio's latches use; or an ISO 10642 M4 × 12 through a panel. */
+export const DEFAULT_LATCH_SCREWS = { woodDiameter: '4 mm', wood: 'din-7997-4x25', thread: 'M4', machine: 'iso-10642-m4x12' } as const;
+
+const SCREW_KIND_VALUES = ['wood', 'machine'] as const;
+const SCREW_KIND_TEXT: Record<typeof SCREW_KIND_VALUES[number], { label: string; description: string }> = {
+  wood: { label: 'Wood screws', description: 'Countersunk wood screws (DIN 7997) straight into timber: the heads sit flush in countersinks.' },
+  machine: { label: 'Machine screws', description: 'Metric machine screws, e.g. through a panel into nuts or threaded inserts. A countersunk head sits flush; any other head (pan, button, socket cap, hexagon) sits on the plate.' },
+};
+
+export const ToggleLatchParametersSchema = Type.Object({
+  screwKind: Type.Enum(SCREW_KIND_VALUES, { title: 'Screws', description: 'What the base and the catch are screwed on with: two screws each.', default: 'wood' }),
+  woodScrewDiameter: Type.Enum(LATCH_WOOD_DIAMETERS, { title: 'Wood screw diameter', description: 'The wood screws’ diameter; the screws below are those of this diameter.', default: DEFAULT_LATCH_SCREWS.woodDiameter }),
+  woodScrew: Type.Enum(LATCH_WOOD_SCREWS, { title: 'Wood screw', description: 'The wood screw the holes and countersinks are sized for. Its length does not change the latch; choose one that bites far enough into the timber.', default: DEFAULT_LATCH_SCREWS.wood }),
+  screwThread: Type.Enum(LATCH_MACHINE_THREADS, { title: 'Thread', description: 'The machine screws’ thread; the screws below are those of this thread.', default: DEFAULT_LATCH_SCREWS.thread }),
+  machineScrew: Type.Enum(LATCH_MACHINE_SCREWS, { title: 'Machine screw', description: 'The machine screw the holes are sized for: a countersunk head gets a countersink, any other head sits on the plate. Its length does not change the latch.', default: DEFAULT_LATCH_SCREWS.machine }),
+  holeFit: Type.Enum(HOLE_FIT_VALUES, { title: 'Hole fit', description: 'How much play the screws have in their holes: the DIN EN 20273 series for machine screws, and the same allowances (0.3 / 0.5 / 0.8 mm) over a wood screw’s diameter.', default: 'medium' }),
+  highTolerance: Type.Boolean({ title: 'Loose pivots', description: 'Print the original’s high-tolerance lever: a 5.14 mm pivot hole instead of 4.99 mm on the base’s 4.4 mm pins, and 4.41 mm link pins instead of 4.64 mm in the link’s 5 mm holes. For printers whose holes come out tight.', default: false }),
+}, { additionalProperties: false, description: 'Toggle latch parameters. All fields are required; the screw fields are parts-library ids or attribute values.' });
+export type ToggleLatchParameters = Static<typeof ToggleLatchParametersSchema>;
+
+const toggleLatchControls = [
+  enumControl(ToggleLatchParametersSchema, 'screwKind', 'basic', SCREW_KIND_VALUES.map(value => ({ value, ...SCREW_KIND_TEXT[value] }))),
+  // each size links to the library's screws of that size; the screw lists offer only the parts of the chosen size
+  { ...enumControl(ToggleLatchParametersSchema, 'woodScrewDiameter', 'basic', LATCH_WOOD_DIAMETERS.map(value => ({ value, label: value, description: `DIN 7997 countersunk wood screws, ${value} in diameter.` }))),
+    part: { family: 'wood-screw', attribute: 'diameter', filter: null }, visibleWhen: { control: 'screwKind', values: ['wood'] } },
+  { ...partControl(ToggleLatchParametersSchema, 'woodScrew', 'basic', 'wood-screw', LATCH_WOOD_SCREWS), visibleWhen: { control: 'screwKind', values: ['wood'] },
+    part: { family: 'wood-screw', attribute: null, filter: { control: 'woodScrewDiameter', attribute: 'diameter' } } },
+  { ...enumControl(ToggleLatchParametersSchema, 'screwThread', 'basic', LATCH_MACHINE_THREADS.map(value => ({ value, label: value, description: `Metric ${value} machine screws.` }))),
+    part: { family: 'screw', attribute: 'thread', filter: null }, visibleWhen: { control: 'screwKind', values: ['machine'] } },
+  { ...partControl(ToggleLatchParametersSchema, 'machineScrew', 'basic', 'screw', LATCH_MACHINE_SCREWS), visibleWhen: { control: 'screwKind', values: ['machine'] },
+    part: { family: 'screw', attribute: null, filter: { control: 'screwThread', attribute: 'thread' } } },
+  enumControl(ToggleLatchParametersSchema, 'holeFit', 'advanced', HOLE_FIT_VALUES.map(value => ({ value, ...HOLE_FIT_TEXT[value] }))),
+  control(ToggleLatchParametersSchema, 'highTolerance', 'advanced'),
+];
+
+const TOGGLE_LATCH_DIR = 'models/toggle-latch/';
+/** Both plates take the same screws: the kind and fit as strings, each screw's clearance holes as a vector (`scadEncode`), its head from the library. */
+const LATCH_SCREW_MAPPING = { screwKind: 'SCREW_KIND', holeFit: 'HOLE_FIT', woodScrew: 'WOOD_HOLES', machineScrew: 'MACHINE_HOLES' };
+const LATCH_SCREW_DEFINES: PartDefines = {
+  woodScrew: { WOOD_D: ['d', 'value'], WOOD_DK: ['dk', 'max'], WOOD_K: ['k', 'max'] },
+  machineScrew: { MACHINE_D: ['d', 'value'], MACHINE_DK: [['dk', 'e'], 'max'], MACHINE_K: ['k', 'max'], MACHINE_HEAD: { attribute: 'head' } },
+};
+const latchHolesScad = (id: string) => {
+  const part = findPart(id);
+  if (!part) throw new Error(`${id} is not a part of the library.`);
+  return JSON.stringify(latchScrewHoles(part));
+};
+
+/** In print order: the two plates (sized for the screws), the lever (reconstruction, either fit) and the link (reconstruction). */
+const toggleLatchParts: ModelPart[] = [
+  { id: 'base', title: 'Base', sourcePath: `${TOGGLE_LATCH_DIR}base.scad`, scadMapping: LATCH_SCREW_MAPPING, partDefines: LATCH_SCREW_DEFINES },
+  { id: 'lever', title: 'Lever', sourcePath: `${TOGGLE_LATCH_DIR}reference/Latch 12mm 3.scad`, scadMapping: { highTolerance: 'HITOL' } },
+  { id: 'link', title: 'Link', sourcePath: `${TOGGLE_LATCH_DIR}reference/Latch 12mm 4.scad` },
+  { id: 'catch', title: 'Catch', sourcePath: `${TOGGLE_LATCH_DIR}catch.scad`, scadMapping: LATCH_SCREW_MAPPING, partDefines: LATCH_SCREW_DEFINES },
+];
+
+/** Lever and link swings are sampled every `LATCH_FRAME_STEP` degrees: between two frames a joint strays by under 0.01 mm. */
+const LATCH_FRAME_STEP = 3;
+
+/**
+ * The toggle latch as mounted, its plates' backs on the floor (z = 0), the pull along y, from the shared mechanism
+ * (`toggleLatchMechanism.ts`, docs/toggle-latch.md): assembled with the lever open and the link swung up off the hook (released),
+ * then hooked, closed over centre to its lock, opened back over centre and closed again. The lever and the link snap onto their
+ * pins (their side plates spread over the pins' ends). None of it depends on the parameters: the screw holes do not touch the
+ * mechanism, and the loose-pivot lever's body is the standard lever's.
+ */
+export function toggleLatchAssembly(): Assembly {
+  const poses = latchPoses(latchState(LATCH_OPEN, LATCH_SWING));
+  const frames = (movement: LatchMovement) => {
+    const count = Math.max(1, Math.ceil(Math.max(Math.abs(movement.angle[1] - movement.angle[0]), Math.abs(movement.swing[1] - movement.swing[0])) / LATCH_FRAME_STEP));
+    return Array.from({ length: count }, (_, i) => {
+      const f = (i + 1) / count;
+      const { lever, link, catch: plate } = latchPoses(latchState(movement.angle[0] + (movement.angle[1] - movement.angle[0]) * f, movement.swing[0] + (movement.swing[1] - movement.swing[0]) * f));
+      return { lever, link, catch: plate };
+    });
+  };
+  return {
+    partColors: { base: '#5f7350', catch: '#5f7350', lever: '#d98460', link: '#3f6ea6' },
+    poses,
+    steps: [
+      { title: 'Snap the lever onto the base’s pivot pins', parts: ['lever'], from: [0, 0, 16] },
+      { title: 'Snap the link onto the lever’s pins', parts: ['link'], from: [0, 0, 34] },
+      { title: 'Screw the catch on across the gap', parts: ['catch'], from: [0, -24, 0] },
+    ],
+    lift: 12,
+    motion: TOGGLE_LATCH_MOVEMENTS.map(movement => ({ title: movement.title, frames: frames(movement) })),
+  };
+}
+
+export const toggleLatch = {
+  id: 'toggle-latch' as const, version: '1' as const, title: 'Toggle latch',
+  description: 'A printed over-centre toggle latch, 12 mm wide: a base with the lever’s knuckle, the lever, a link and a catch. Pull the link over the catch’s hook and press the lever down to draw the two sides together. Choose the screws the base and the catch are fastened with, countersunk wood screws or any machine screw from the parts library, and the holes are sized for them; download the four parts as a ZIP of STL files.',
+  attribution: 'Hacky97 (Thingiverse), remixed on MakerWorld',
+  attributionLinks: [
+    { text: 'Hacky97 (Thingiverse)', url: 'https://www.thingiverse.com/thing:5993215' },
+    { text: 'MakerWorld', url: 'https://makerworld.com/de/models/625647-toggle-latch' },
+  ],
+  printNotes: 'Print each part as generated, no supports. Snap the lever onto the base’s pins and the link onto the lever’s.',
+  // Kept short: stamped into each STL's 80-byte header together with `attribution` (see mossPlanter).
+  license: 'CC BY-NC 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
+  parts: toggleLatchParts,
+  assembly: toggleLatchAssembly(),
+  parameterSchema: ToggleLatchParametersSchema,
+  controls: toggleLatchControls,
+  defaults: Object.fromEntries(toggleLatchControls.map(c => [c.key, c.default])),
+  scadMapping: {},
+  scadEncode: { woodScrew: latchHolesScad, machineScrew: latchHolesScad },
+  validate(parameters: unknown): ParameterIssue[] {
+    if (!Value.Check(ToggleLatchParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
+    return [];
+  },
+  derived: () => ({ slotCount: null }),
+} satisfies ModelDefinition;
+
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { Value } from 'typebox/value';
-import { assemblyOffset, assemblyState, assemblyStops } from './assembly.ts';
+import { assemblyOffset, assemblyState, assemblyStops, motionFrames, motionPose } from './assembly.ts';
 import { activeParts, AssemblySchema, isAssembly, models, type Assembly } from './models.ts';
 import { findPart, partAssetPath } from './parts/index.ts';
 
@@ -46,6 +46,36 @@ describe('assembly slider', () => {
     expect(assemblyOffset(assembly, 'base', inserted)).toEqual([0, 0, 25]);
     // Assembled: every part at its pose, on the floor.
     for (const id of Object.keys(assembly.poses)) expect(assemblyOffset(assembly, id, assemblyState(assembly, 1))).toEqual([0, 0, 0]);
+  });
+});
+
+describe('assembly movements', () => {
+  const moving: Assembly = {
+    ...assembly,
+    motion: [
+      { title: 'Open the lid', frames: [{ top: { position: [0, 0, 15] } }, { top: { position: [0, 0, 20], rotation: [90, 0, 0] } }] },
+      { title: 'Slide out the insert', frames: [{ insert: { position: [1, 10, 5] } }] },
+    ],
+  };
+
+  it('adds a stop per movement after the steps, leaving assemblies without movements as they were', () => {
+    expect(assemblyStops(moving)).toBe(6);
+    expect(assemblyState(moving, 3 / 5)).toEqual({ arrange: 1, steps: [1, 1], motion: [0, 0] });
+    expect(assemblyState(moving, 4 / 5)).toEqual({ arrange: 1, steps: [1, 1], motion: [1, 0] });
+    expect(assemblyState(moving, 1)).toEqual({ arrange: 1, steps: [1, 1], motion: [1, 1] });
+    expect(assemblyState(assembly, 1)).not.toHaveProperty('motion');
+  });
+
+  it('plays each movement from where the last one left every part, through its frames', () => {
+    const frames = motionFrames(moving);
+    expect(frames.map(movement => movement.length)).toEqual([3, 2]);
+    expect(frames[0]?.[0]).toEqual(moving.poses);
+    expect(frames[1]?.[0]?.['top']).toEqual({ position: [0, 0, 20], rotation: [90, 0, 0] });
+    expect(frames[1]?.[1]?.['insert']).toEqual({ position: [1, 10, 5] });
+    // before any movement the steps place the parts; halfway through the first, the lid is between its first two frames
+    expect(motionPose(frames, 'top', assemblyState(moving, 3 / 5))).toBeUndefined();
+    expect(motionPose(frames, 'top', assemblyState(moving, 3.5 / 5))).toEqual({ from: frames[0]?.[1]?.['top'], to: frames[0]?.[2]?.['top'], f: 0 });
+    expect(motionPose(frames, 'insert', assemblyState(moving, 1))).toEqual({ from: { position: [1, 0, 5] }, to: { position: [1, 10, 5] }, f: 1 });
   });
 });
 

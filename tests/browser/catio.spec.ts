@@ -330,6 +330,17 @@ test('opens the insert–tunnel coupling, switches its latches, stages the docki
   await expect(hardware.getByRole('row', { name: /Toggle latch GN 831, short, with padlock eye, stainless/ }).getByRole('cell').first()).toHaveText('4');
   await page.getByRole('combobox', { name: 'Floor gap' }).selectOption('none');
   await expect(hardware.getByRole('cell', { name: 'EPDM sheet floor lip (custom)' })).toHaveCount(0);
+  // the printed toggle latch instead: linked to its model, the GN 831's own settings gone, the frame closer with a thinner seal
+  await page.getByRole('combobox', { name: 'Latches', exact: true }).selectOption('printed');
+  await expect(viewer).toHaveAttribute('data-config', /"latch":"printed"/);
+  await expect(page.getByRole('combobox', { name: 'Latch', exact: true })).toHaveCount(0);
+  await expect(hardware.getByRole('link', { name: 'Toggle latch, printed' })).toHaveAttribute('href', '#/models/toggle-latch');
+  await expect(hardware.getByRole('row', { name: /Toggle latch, printed/ }).getByRole('cell').first()).toHaveText('4');
+  await expect(hardware.getByRole('cell', { name: 'EPDM E-profile seal, self-adhesive (custom)' })).toBeVisible();
+  await expect(hardware.getByRole('link', { name: /GN 831/ })).toHaveCount(0);
+  await expect(page.locator('.catio-dimensions > div', { hasText: 'Gap · seal' }).locator('dd')).toHaveText('3 mm · squashed from 4 mm');
+  await page.getByRole('slider', { name: 'Insert–tunnel coupling assembly' }).fill('2.2');
+  await expect(page.getByTestId('assembly-action')).toContainText('Printed toggle latch');
   await page.getByRole('button', { name: 'Reset to the recommended defaults' }).click();
   const slider = page.getByRole('slider', { name: 'Insert–tunnel coupling assembly' });
   await slider.press('Home');

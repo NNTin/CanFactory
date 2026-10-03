@@ -1,0 +1,41 @@
+{
+  "title": "Toggle latch: STL to SCAD verification",
+  "tolerance": {
+    "size": 0.1,
+    "volume": 0.02,
+    "iou": 0.96
+  },
+  "cellSize": 0.2,
+  "notes": [
+    "## Parts",
+    "",
+    "| STL | Part |",
+    "|---|---|",
+    "| Latch 12mm 1 | Catch: mounting plate and the hook the link closes over |",
+    "| Latch 12mm 2 | Base: mounting plate and the knuckle with the lever's pivot pins |",
+    "| Latch 12mm 3 | Lever, standard tolerance |",
+    "| Latch 12mm 3 HiTol | Lever, high tolerance: a 5.14 mm pivot hole (instead of 4.99) and 4.41 mm link pins (instead of 4.64) |",
+    "| Latch 12mm 4 | Link: the loop that hooks over the catch |",
+    "",
+    "None of the five is a scaled copy of another. The two levers share one SCAD that differs only in `HITOL`.",
+    "",
+    "## Method and limits",
+    "",
+    "Every part is a few measured side profiles extruded along one axis: the catch's hook and the base's knuckle along",
+    "X, the lever's and the link's side plates and bridges along Y. The plates are hulls of r = 1 mm spheres (rounded",
+    "front edges), the holes are cylinders with a 90 degree countersink, the pins cylinders. The 45 degree chamfers on",
+    "the outer faces of the lever and the link are three 0.2 mm offset steps, and the catch's 1 mm hook-end chamfer one",
+    "step; the small fillets at the bottom of the catch's plate are left out, which is most of its -1.5 % volume.",
+    "Volume, bounding box and manifoldness are computed exactly from the meshes; IoU is sampled on a 0.2 mm grid of",
+    "vertical rays (rotated 13.7 degrees against the axes) and is exact along Z.",
+    "",
+    "Reproduce with `npm run stl-scad -- verify --manifest models/toggle-latch/reference/manifest.json --report models/toggle-latch/reference/VERIFICATION.md` (needs the source STLs and an OpenSCAD runtime; see `.claude/skills/stl-to-scad/SKILL.md`)."
+  ],
+  "parts": [
+    { "name": "Latch 12mm 1", "scad": "Latch 12mm 1.scad", "stl": "Latch 12mm 1.stl", "note": "Catch" },
+    { "name": "Latch 12mm 2", "scad": "Latch 12mm 2.scad", "stl": "Latch 12mm 2.stl", "note": "Base" },
+    { "name": "Latch 12mm 3", "scad": "Latch 12mm 3.scad", "stl": "Latch 12mm 3.stl", "note": "Lever (HITOL = false)" },
+    { "name": "Latch 12mm 3 HiTol", "scad": "Latch 12mm 3 HiTol.scad", "stl": "Latch 12mm 3 HiTol.stl", "note": "Lever, high tolerance (HITOL = true)" },
+    { "name": "Latch 12mm 4", "scad": "Latch 12mm 4.scad", "stl": "Latch 12mm 4.stl", "note": "Link" }
+  ]
+}

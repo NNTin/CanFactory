@@ -9,6 +9,7 @@ import {
   controlRange, controlShown, type Control,
   DEFAULT_HANDLE_FASTENERS, HANDLE_FASTENER_SEAT, HANDLE_INSERTS, HANDLE_NUTS, HANDLE_SCREWS, HANDLE_THREADS, handleInsertFits, handleNutFits, handleScrewFits,
   offeredOptions, partDefineLiteral,
+  DEFAULT_LATCH_SCREWS, LATCH_MACHINE_SCREWS, LATCH_MACHINE_THREADS, LATCH_WOOD_DIAMETERS, LATCH_WOOD_SCREWS, latchScrewFits, latchScrewHoles, models, TOGGLE_LATCH_SEAT, toggleLatch,
 } from './models.ts';
 import { resolveAssembly } from './assembly.ts';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, parts } from './parts/index.ts';
@@ -908,5 +909,90 @@ describe('litter shovel handle reinforcement (parts library)', () => {
     expect(nuts?.poses['handle-nut-plus-y']?.position[0]).toBeCloseTo(seat.innerX + 12 - seat.nutRecess - 2.4, 9);
     expect(partUsage(part('iso-7046-m2x8')).filter(usage => usage.modelId === 'litter-shovel')).toEqual([{ modelId: 'litter-shovel', modelTitle: litterShovel.title, via: 'Screws', kind: 'model' }]);
     expect(partUsage(part('iso-4762-m3x10')).filter(usage => usage.modelId === 'litter-shovel')).toEqual([]);
+  });
+});
+
+describe('toggle latch contract', () => {
+  const defaults = toggleLatch.defaults;
+  const source = (path: string) => readFileSync(new URL(`../../../models/toggle-latch/${path}`, import.meta.url), 'utf8');
+  const part = (id: string) => findPart(id) ?? (() => { throw new Error(`Missing ${id}`); })();
+  const find = (key: string) => toggleLatch.controls.find(control => control.key === key);
+
+  it('is a registered four-part assembly whose screw settings reach both plates', () => {
+    expect(findModel('toggle-latch')).toBe(toggleLatch);
+    expect(artifactFormat(toggleLatch)).toBe('zip');
+    expect(modelSourcePaths(toggleLatch)).toEqual(['base.scad', 'reference/Latch 12mm 3.scad', 'reference/Latch 12mm 4.scad', 'catch.scad'].map(path => `models/toggle-latch/${path}`));
+    expect(defaults).toEqual({ screwKind: 'wood', woodScrewDiameter: '4 mm', woodScrew: 'din-7997-4x25', screwThread: 'M4', machineScrew: 'iso-10642-m4x12', holeFit: 'medium', highTolerance: false });
+    expect(validateParameters(toggleLatch, defaults)).toEqual([]);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'toggle-latch', modelVersion: '1', parameters: defaults })).toBe(true);
+    expect(Value.Check(RenderRequestSchema, { modelId: 'toggle-latch', modelVersion: '1', parameters: { ...defaults, extra: 1 } })).toBe(false);
+    const [base, lever, link, plate] = toggleLatch.parts;
+    expect(base?.scadMapping).toEqual(plate?.scadMapping);
+    expect(base?.partDefines).toEqual(plate?.partDefines);
+    expect(lever?.scadMapping).toEqual({ highTolerance: 'HITOL' });
+    expect(link?.scadMapping).toBeUndefined();
+    expect(scadDefines(toggleLatch, base ?? {}, { ...defaults, screwKind: 'machine', screwThread: 'M3', machineScrew: 'iso-7045-m3x10' }))
+      .toEqual(expect.arrayContaining([['SCREW_KIND', '"machine"'], ['MACHINE_HOLES', '[3.2,3.4,3.6]'], ['MACHINE_HEAD', '"pan"'], ['MACHINE_DK', String(dimensionOf(part('iso-7045-m3x10'), 'dk', 'max'))]]));
+    // a hexagon head has no dk: its width across corners keeps it clear
+    expect(scadDefines(toggleLatch, base ?? {}, { ...defaults, screwKind: 'machine', screwThread: 'M4', machineScrew: 'iso-4017-m4x12' })).toContainEqual(['MACHINE_DK', '7.66']);
+  });
+
+  it('links the original and the remix it credits, with the pages ATTRIBUTION.md names', () => {
+    expect(toggleLatch.attributionLinks.map(link => link.url)).toEqual(['https://www.thingiverse.com/thing:5993215', 'https://makerworld.com/de/models/625647-toggle-latch']);
+    for (const link of toggleLatch.attributionLinks) expect(source('ATTRIBUTION.md')).toContain(link.url);
+    // every model's linked phrases appear in its attribution, in order, so that the footer can link them
+    for (const model of models) {
+      let rest = model.attribution;
+      for (const link of model.attributionLinks ?? []) {
+        expect(rest, `${model.id}: ${link.text}`).toContain(link.text);
+        rest = rest.slice(rest.indexOf(link.text) + link.text.length);
+      }
+    }
+  });
+
+  it('keeps every SCAD default equal to the contract default of the parameter (or library part) it is mapped from', () => {
+    const files = ['base.scad', 'reference/Latch 12mm 3.scad', 'reference/Latch 12mm 4.scad', 'catch.scad'].map(source);
+    toggleLatch.parts.forEach((p, index) => {
+      for (const [name, literal] of scadDefines(toggleLatch, p, defaults))
+        expect(files[index], name).toMatch(new RegExp(`^${name} = ${literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')};`, 'm'));
+    });
+    // the two plates size their holes with the same block
+    const block = (file: string) => file.slice(file.indexOf('// Screws (from the parts library'), file.indexOf('SINK_RIM'));
+    expect(block(source('catch.scad')).length).toBeGreaterThan(500);
+    expect(block(source('base.scad'))).toBe(block(source('catch.scad')));
+  });
+
+  it('offers every library screw that fits the plates, and only those', () => {
+    expect(LATCH_WOOD_SCREWS).toEqual(parts.filter(p => p.family === 'wood-screw' && latchScrewFits(p)).map(p => p.id));
+    expect(LATCH_MACHINE_SCREWS).toEqual(parts.filter(p => p.family === 'screw' && latchScrewFits(p)).map(p => p.id));
+    expect(LATCH_WOOD_DIAMETERS).toEqual([...new Set(LATCH_WOOD_SCREWS.map(id => part(id).attributes['diameter']))]);
+    expect(LATCH_MACHINE_THREADS).toEqual([...new Set(LATCH_MACHINE_SCREWS.map(id => part(id).attributes['thread']))].sort());
+    expect(LATCH_WOOD_DIAMETERS).toEqual(['3 mm', '3.5 mm', '4 mm', '4.5 mm', '5 mm']);
+    expect(LATCH_MACHINE_THREADS).toEqual(['M2', 'M2.5', 'M3', 'M4', 'M5']);
+    // 6 mm wood screws and M6 need a wider countersink than the 12 mm plate allows; M5 pan or socket heads would touch the link
+    for (const id of ['din-7997-6x40', 'iso-10642-m6x16', 'iso-7045-m5x10', 'iso-4762-m5x10', 'iso-4762-m2x6']) expect(latchScrewFits(part(id)), id).toBe(false);
+    for (const id of ['din-7997-4x25', 'din-7997-5x30', 'iso-10642-m5x12', 'iso-7045-m4x8', 'iso-4017-m4x8', 'iso-4762-m4x8']) expect(latchScrewFits(part(id)), id).toBe(true);
+    for (const id of LATCH_MACHINE_SCREWS) expect(dimensionOf(part(id), 'l')).toBeGreaterThanOrEqual(TOGGLE_LATCH_SEAT.plate + TOGGLE_LATCH_SEAT.minReach);
+    expect(LATCH_WOOD_SCREWS).toContain(DEFAULT_LATCH_SCREWS.wood);
+    expect(LATCH_MACHINE_SCREWS).toContain(DEFAULT_LATCH_SCREWS.machine);
+    expect(latchScrewHoles(part('din-7997-4x25'))).toEqual([4.3, 4.5, 4.8]);
+    expect(latchScrewHoles(part('din-7997-3-5x16'))).toEqual([3.8, 4, 4.3]);
+    expect(latchScrewHoles(part('iso-10642-m4x12'))).toEqual(Object.values(ISO_273_CLEARANCE_HOLES.M4));
+  });
+
+  it('shows the screws of the chosen kind and size only, linked to the library', () => {
+    expect(find('woodScrewDiameter')).toMatchObject({ visibleWhen: { control: 'screwKind', values: ['wood'] }, part: { family: 'wood-screw', attribute: 'diameter', filter: null } });
+    expect(find('woodScrew')).toMatchObject({ visibleWhen: { control: 'screwKind', values: ['wood'] }, part: { family: 'wood-screw', attribute: null, filter: { control: 'woodScrewDiameter', attribute: 'diameter' } } });
+    expect(find('machineScrew')).toMatchObject({ visibleWhen: { control: 'screwKind', values: ['machine'] }, part: { family: 'screw', attribute: null, filter: { control: 'screwThread', attribute: 'thread' } } });
+    const machine = { ...defaults, screwKind: 'machine' };
+    expect(offeredOptions(find('machineScrew') as Control, { ...machine, screwThread: 'M3' }).every(option => part(option.value).attributes['thread'] === 'M3')).toBe(true);
+    expect(validateParameters(toggleLatch, { ...machine, screwThread: 'M3' })).toContainEqual(expect.objectContaining({ field: 'machineScrew' }));
+    expect(validateParameters(toggleLatch, { ...machine, screwThread: 'M3', machineScrew: 'iso-7045-m3x10' })).toEqual([]);
+    // a hidden control's choice is not checked against its filter
+    expect(validateParameters(toggleLatch, { ...defaults, screwThread: 'M3' })).toEqual([]);
+    expect(validateParameters(toggleLatch, { ...defaults, woodScrewDiameter: '3 mm' })).toContainEqual(expect.objectContaining({ field: 'woodScrew' }));
+    expect(validateParameters(toggleLatch, { ...defaults, woodScrew: 'din-7997-6x40' })).not.toEqual([]);
+    expect(partUsage(part('din-7997-4x25')).filter(usage => usage.modelId === 'toggle-latch').map(usage => usage.via)).toEqual(expect.arrayContaining(['Wood screw']));
+    expect(linkedPartData(toggleLatch).map(entry => entry.id)).toEqual([...LATCH_WOOD_SCREWS, ...LATCH_MACHINE_SCREWS]);
   });
 });

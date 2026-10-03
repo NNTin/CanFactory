@@ -86,6 +86,14 @@ Under the slider, a parts list names every part and reference object (their `tit
 button hides or shows its part, at any point of the slider, so that the parts inside can be seen. Nothing needs to be added to the
 model for this. Models without `assembly` keep the plain grid.
 
+**Movements (optional).** An assembly that moves once it is put together (a latch opening and closing, a lid on a hinge) adds
+`motion`: a list of movements, each a `title` and `frames` of rigid poses for the parts it moves, evenly spaced in time. The
+slider plays them after the steps, one stop per movement, each from the poses the previous one ended in (`motionFrames`,
+`motionPose`); between two frames the viewer moves each part rigidly (position linearly, rotation along the shorter arc), so
+sample densely enough that a joint does not stray (the toggle latch samples every 3°: under 0.01 mm). Compute the frames from
+one kinematic model of the real joints, never by eye; `npm run check:assembly` checks every frame for collisions. The Play button
+beside the slider runs the whole story, steps and movements, from the start. See [toggle-latch.md](toggle-latch.md#mechanism).
+
 For dimensions or optional pieces that change the layout,
 `assemblyForParameters(parameters)` returns the matching poses and steps;
 keep `assembly` as the default catalogue layout. `resolveAssembly` applies

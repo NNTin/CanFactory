@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { activeParts, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, SNAP_TUNING, fruitFlyTrap, holeDiameter, litterShovel, mossPlanter, plankConnector, SCOOP_BLADE, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, SCOOP_BLADE, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
@@ -16,7 +16,7 @@ const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
 store.migrate(); store.seed();
 const app = await createApp(store);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = selectRunner(directory);
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -414,6 +414,37 @@ try {
       assert.equal(store.enqueue(aiRubberDuck, parameters).id, queued.id);
       console.log(`PASS AI duck ${variant}: ${bodyLength} mm, clearance ${clearance}, ${expected.length} pieces`);
     }
+  }
+  // Toggle latch: the plates' holes for one screw of every wood-screw diameter and of every machine thread and head (the head's
+  // size, not the screw's length, shapes the hole), at every fit, and the loose-pivot lever. Every part stays one closed solid of the
+  // original's size: the holes never reach the plates' outline.
+  const firstOfEach = (ids: readonly string[], key: (part: NonNullable<ReturnType<typeof findPart>>) => string) =>
+    [...new Map(ids.map(id => findPart(id)).filter(part => part !== undefined).reverse().map(part => [key(part), part.id])).values()];
+  const latchRuns: { name: string; overrides: ParameterValues }[] = [
+    ...firstOfEach(LATCH_WOOD_SCREWS, part => String(part.attributes['diameter'])).map(id => ({ name: `wood ${id}`, overrides: { screwKind: 'wood', woodScrewDiameter: String(findPart(id)?.attributes['diameter']), woodScrew: id } })),
+    ...firstOfEach(LATCH_MACHINE_SCREWS, part => `${part.attributes['thread']} ${part.attributes['head']}`).map(id => ({ name: `machine ${id}`, overrides: { screwKind: 'machine', screwThread: String(findPart(id)?.attributes['thread']), machineScrew: id } })),
+    ...['fine', 'coarse'].flatMap(holeFit => [{ name: `wood ${holeFit}`, overrides: { holeFit } }, { name: `machine ${holeFit}`, overrides: { screwKind: 'machine', holeFit } }]),
+    { name: 'loose pivots', overrides: { highTolerance: true } },
+  ];
+  const latchSizes: Record<string, [number, number, number]> = { base: [38, 15.372, 11.998], lever: [31.624, 18.4, 13.898], link: [34.146, 17.402, 10.026], catch: [37.996, 14.4, 11.998] };
+  for (const { name, overrides } of only && only !== 'toggle-latch' ? [] : latchRuns) {
+    const started = Date.now();
+    const parameters = { ...toggleLatch.defaults, ...overrides };
+    assert.deepEqual(validateParameters(toggleLatch, parameters), [], `toggle latch ${name}`);
+    const queued = store.enqueue(toggleLatch, parameters);
+    const job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken;
+    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `toggle latch ${name}`); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `toggle latch ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['base', 'lever', 'link', 'catch']);
+    for (const part of result.artifact.parts) {
+      const expected = latchSizes[part.id]; assert.ok(expected);
+      for (const [index, value] of [part.dimensions.x, part.dimensions.y, part.dimensions.z].entries())
+        assert.ok(Math.abs(value - (expected[index] ?? NaN)) < 0.01, `toggle latch ${name} ${part.id}: ${value} != ${expected[index]}`);
+    }
+    console.log(`PASS toggle latch ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

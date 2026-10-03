@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { COUPLING_LATCH, dimensionOf, findPart, insertTunnelCouplingConcept, partUsage, parts } from '@canfactory/contracts';
+import { COUPLING_LATCH, dimensionOf, findPart, insertTunnelCouplingConcept, partUsage, parts, toggleLatchMechanism as TL } from '@canfactory/contracts';
 import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { couplingDefinition } from './catioSubassemblies.ts';
-import { COUPLING, COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, couplingBom, couplingFacts, couplingLayout, couplingSteps, validateCoupling, type CouplingConfig, type CouplingSite } from './catioCoupling.ts';
+import { COUPLING, COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, PRINTED_LATCH, couplingBom, couplingFacts, couplingLayout, couplingSteps, validateCoupling, type CouplingConfig, type CouplingSite } from './catioCoupling.ts';
 import { createCouplingScene, LIFT, OPEN } from './catioCouplingScene.ts';
 import { TUNNEL, TUNNEL_DEFAULT, tunnelBom, tunnelSite } from './catioTunnel.ts';
 import { INSERT, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT } from './catioWindowInsert.ts';
@@ -30,7 +30,7 @@ describe('insert–tunnel coupling', () => {
       // on the threshold, round the clear opening, its face flat at 6 mm short of the flange, its back on the battens or the mesh
       expect(Math.min(...boxes.map(b => b.min[2] ?? 0))).toBeCloseTo(l.floor, 9);
       for (const b of boxes) {
-        expect(b.max[1], b.member).toBeCloseTo(TUNNEL.wallGap - COUPLING.gap, 9);
+        expect(b.max[1], b.member).toBeCloseTo(TUNNEL.wallGap - (config.latch === 'printed' ? COUPLING.printed.gap : COUPLING.gap), 9);
         expect([l.meshFace, l.meshFace + (battens ? INSERT.batten.thickness : 0)].some(y => Math.abs((b.min[1] ?? 0) - y) < 1e-9), b.member).toBe(true);
         const inside = (b.min[0] ?? 0) >= l.w / 2 - 1e-9 || (b.max[0] ?? 0) <= -l.w / 2 + 1e-9 || (b.min[2] ?? 0) >= l.transomZ - 1e-9;
         expect(inside, `${b.member} keeps out of the port`).toBe(true);
@@ -101,8 +101,9 @@ describe('insert–tunnel coupling', () => {
       expect(s.top).toBeCloseTo(l.floor - TUNNEL.flange.width, 6);
       expect(s.at[1] - TUNNEL.bearer.width / 2).toBeCloseTo(TUNNEL.wallGap, 6);
       // a real gap between the frame and the flange, filled by the seal squashed from its free height
-      expect(l.flangeBack - l.front).toBe(COUPLING.gap);
-      expect(COUPLING.seal.height).toBeGreaterThan(COUPLING.gap);
+      expect(l.flangeBack - l.front).toBe(l.gap);
+      expect(l.gap).toBe(config.latch === 'printed' ? COUPLING.printed.gap : COUPLING.gap);
+      expect(l.seal.height).toBeGreaterThan(l.gap);
       expect([l.seal.y0, l.seal.y1]).toEqual([l.front, l.flangeBack]);
       // the floor lip only lies on the threshold, which ends at the wall face
       if (l.lip) { expect(l.lip.z).toBe(l.floor); expect(l.lip.y0).toBeLessThan(0); expect(l.lip.y1).toBe(l.flangeFront); }
@@ -112,8 +113,8 @@ describe('insert–tunnel coupling', () => {
 
   it('puts every latch body on the flange’s side and its catch on the docking frame’s, within the hook’s range', () => {
     for (const type of COUPLING_LATCH.types) for (const latchesPerSide of [1, 2] as const) {
-      const l = couplingLayout({ ...COUPLING_DEFAULT, latchType: type, latchesPerSide }, site);
-      const p = l.latchPart;
+      const l = couplingLayout({ ...COUPLING_DEFAULT, latch: 'gn-831', latchType: type, latchesPerSide }, site);
+      const p = l.latchPart; if (!p) throw new Error('GN 831');
       expect(p.attributes['length']).toBe('Short (2)');
       expect(l.latches).toHaveLength(2 * latchesPerSide);
       const [b3, b4, length, w2] = (['b3', 'b4', 'l1', 'w2'] as const).map(key => dimensionOf(p, key)) as [number, number, number, number];
@@ -131,6 +132,40 @@ describe('insert–tunnel coupling', () => {
     const long = findPart('ganter-gn-831-100-a-ni-1'); if (!long) throw new Error('long latch');
     const l = couplingLayout(COUPLING_DEFAULT, site);
     expect(l.flangeFront - COUPLING.latchInset - dimensionOf(long, 'l1') - dimensionOf(long, 'w2') / 2).toBeLessThan(l.meshFace);
+  });
+
+  it('can close the joint with the printed toggle latch instead: base plate on the flange, catch plate on the frame, at its lock’s spacing', () => {
+    for (const s of sites) for (const latchesPerSide of [1, 2] as const) {
+      const l = couplingLayout({ ...COUPLING_DEFAULT, latch: 'printed', latchesPerSide }, s);
+      expect(l.errors).toEqual([]);
+      expect(l.latchPart).toBeNull();
+      // the frame comes to 3 mm of the flange, sealed with the thin E-profile
+      expect(l.gap).toBe(3); expect(l.front).toBe(l.flangeBack - 3);
+      expect(l.seal).toMatchObject({ profile: 'E-profile', height: 4 });
+      // locked, the plates stand as far apart as the mechanism's over-centre lock sets them; each reaches as far into the gap
+      expect(PRINTED_LATCH.locked).toBeCloseTo(-TL.tautLink(TL.CLOSED).offset, 9);
+      expect(PRINTED_LATCH.locked).toBeCloseTo(1.311, 3);
+      expect(l.latches).toHaveLength(2 * latchesPerSide);
+      for (const q of l.latches) {
+        const seam = q.printed?.seam ?? NaN;
+        expect(l.flangeBack - seam).toBeCloseTo(PRINTED_LATCH.overhang, 9);
+        expect(seam - PRINTED_LATCH.locked - l.front).toBeCloseTo(PRINTED_LATCH.overhang, 9);
+        expect(q.baseY).toBeLessThanOrEqual(l.flangeFront); expect(q.catchY).toBeGreaterThanOrEqual(l.meshFace);
+        expect(q.z - PRINTED_LATCH.length / 2).toBeGreaterThanOrEqual(l.floor); expect(q.z + PRINTED_LATCH.length / 2).toBeLessThanOrEqual(l.transomZ + TUNNEL.flange.width);
+      }
+      // two screws through each plate, heads on the plate, into the flange or the frame at least 5 mm in from its edge
+      const screws = l.fasteners.filter(f => f.component === 'latch-screws' || f.component === 'catch-screws');
+      expect(screws).toHaveLength(4 * l.latches.length);
+      for (const f of screws) {
+        const q = l.latches.find(latch => latch.id === f.of); if (!q) throw new Error(f.of);
+        expect(f.partId).toBe('din-7997-4x25');
+        expect(f.at[0]).toBeCloseTo(q.faceX + q.side * PRINTED_LATCH.plate, 9); expect(f.direction).toEqual([-q.side, 0, 0]);
+        const inside = f.component === 'latch-screws' ? f.at[1] - l.flangeBack : l.front - f.at[1];
+        expect(inside, f.use).toBeGreaterThan(5);
+        expect(Math.abs(Math.abs(f.at[2] - q.z) - 13.2)).toBeLessThan(0.05);
+      }
+      expect(l.tolerance).toBeGreaterThan(1.5);
+    }
   });
 
   it('explains what cannot be built', () => {
@@ -151,14 +186,23 @@ describe('insert–tunnel coupling parts list', () => {
         expect(line.quantity, line.id).toBeGreaterThan(0);
         if (line.partId) expect(findPart(line.partId), line.partId).toBeDefined();
       }
-      expect(count(l.latchPart.id)).toBe(2 * config.latchesPerSide);
-      expect(l.latchPart.id).toBe(`ganter-gn-831-100-${config.latchType.toLowerCase()}-${config.latchMaterial.toLowerCase()}-2`);
+      if (l.latchPart) {
+        expect(count(l.latchPart.id)).toBe(2 * config.latchesPerSide);
+        expect(l.latchPart.id).toBe(`ganter-gn-831-100-${config.latchType.toLowerCase()}-${config.latchMaterial.toLowerCase()}-2`);
+      } else {
+        // the printed latch links to its model, not to the parts library
+        const printed = lines.find(line => line.modelId === 'toggle-latch');
+        expect(printed).toMatchObject({ quantity: 2 * config.latchesPerSide, name: 'Toggle latch, printed' });
+        expect(printed?.partId).toBeUndefined();
+        expect(lines.some(line => line.partId?.startsWith('ganter-gn-831'))).toBe(false);
+        expect(lines.find(line => line.id === 'seal')?.name).toMatch(/E-profile/);
+      }
       expect(count('din-7997-5x60')).toBe(l.fasteners.filter(f => f.component === 'frame-screws').length);
       // two screws in each latch body and each catch, and three through the lip
       expect(count('din-7997-4x25')).toBe(4 * l.latches.length + (l.lip ? 3 : 0));
       expect(lines.find(line => line.id === 'frame-stile')?.quantity).toBe(2);
       expect(lines.find(line => line.id === 'frame-head')?.quantity).toBe(1);
-      expect(lines.find(line => line.id === 'frame-stile')?.size).toMatch(/^32 × 70 · 300 long/);
+      expect(lines.find(line => line.id === 'frame-stile')?.size).toMatch(config.latch === 'printed' ? /^35 × 70 · 300 long/ : /^32 × 70 · 300 long/);
       expect(lines.some(line => line.id === 'floor-lip')).toBe(config.floorLip === 'rubber-lip');
       expect(lines.find(line => line.id === 'seal')?.size).toContain(`${Math.ceil(l.seal.length / 10) * 10} long`);
     }
@@ -229,6 +273,32 @@ describe('insert–tunnel coupling scene', () => {
       const end = new THREE.Vector3(0, -50, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), lever.rotation.z);
       expect(Math.sign(end.x)).toBe(q.side);
     });
+    scene.dispose();
+  });
+
+  it('opens and closes the printed latches with the shared mechanism, each part on its pins', () => {
+    const scene = createCouplingScene('modular', { ...COUPLING_DEFAULT, latch: 'printed', latchesPerSide: 2 }, site);
+    const G = TL.TOGGLE_LATCH_GEOMETRY;
+    const world = (object: THREE.Object3D, point: [number, number, number]) => new THREE.Vector3(...point).applyMatrix4(object.matrixWorld);
+    const named = (lever: THREE.Object3D, name: string) => lever.parent?.children.find(child => child.name === name);
+    for (const state of [installed, { ...installed, progress: 4.5 }, { ...installed, windowOpen: true }]) {
+      scene.update(state);
+      for (const lever of scene.levers) {
+        const base = named(lever, 'toggle-latch-base'), link = named(lever, 'toggle-latch-link'); if (!base || !link) throw new Error('latch parts');
+        // the lever's pivot hole on the base's pins, the link's hole on the lever's pins (both at the latch's middle)
+        expect(world(lever, [G.lever.pivot[0], G.lever.middle, G.lever.pivot[1]]).distanceTo(world(base, [G.base.middle, G.base.pivot[0], G.base.pivot[1]]))).toBeLessThan(1e-3);
+        expect(world(link, [G.link.hole[0], G.link.middle, G.link.hole[1]]).distanceTo(world(lever, [G.lever.pin[0], G.lever.middle, G.lever.pin[1]]))).toBeLessThan(1e-3);
+      }
+    }
+    // locked, the lever lies over its base plate; released, it stands open and the link is off the hook
+    scene.update(installed);
+    const lever = scene.levers[0]; if (!lever) throw new Error('lever');
+    const tip = () => world(lever, [30, G.lever.middle, 1.5]);
+    const q = scene.layout.latches[0]; if (!q) throw new Error('latch');
+    const closed = Math.abs(tip().x - q.faceX);
+    scene.update({ ...installed, windowOpen: true });
+    expect(Math.abs(tip().x - q.faceX)).toBeGreaterThan(closed + 15);
+    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['catches', 'latches', 'catch-screws', 'latch-screws']));
     scene.dispose();
   });
 

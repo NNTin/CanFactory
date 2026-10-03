@@ -23,7 +23,7 @@ describe('model and render API', () => {
   it('serves the catalogue, reference STL, and OpenAPI', async () => {
     const catalogue = await app.inject('/api/v1/models');
     expect(catalogue.statusCode).toBe(200);
-    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['ai-rubber-duck', 'cigarette-case', 'fruit-fly-trap', 'litter-shovel', 'moss-planter', 'plank-connector']);
+    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['ai-rubber-duck', 'cigarette-case', 'fruit-fly-trap', 'litter-shovel', 'moss-planter', 'plank-connector', 'toggle-latch']);
     const detail = await app.inject('/api/v1/models/fruit-fly-trap');
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false, properties: { trapDiameter: { type: 'number', minimum: 20, maximum: 200 } } });
@@ -136,7 +136,9 @@ describe('model and render API', () => {
     const served = new Set(screws.sources.map(source => source.id));
     for (const part of screws.parts) for (const id of [...part.sources, ...Object.values(part.dimensions).map(value => value.source)]) expect(served.has(id), `${part.id}: ${id}`).toBe(true);
     // the plank connector links every M3 screw through its screw-hole sizes
-    expect(screws.usage['iso-4762-m3x10']).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes', kind: 'model' }]);
+    expect(screws.usage['iso-4762-m3x10']).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes', kind: 'model' },
+      // the toggle latch links it by its thread and as a machine screw it offers
+      { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Thread', kind: 'model' }, { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Machine screw', kind: 'model' }]);
     // a concept page that uses a part is listed too, as a concept
     const foot = Value.Parse(PartDetailSchema, (await app.inject('/api/v1/parts/ganter-gn-343-2-32-m8-63-kr')).json());
     expect(foot.usage).toEqual([

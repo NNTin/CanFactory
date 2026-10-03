@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Box, Eye, EyeOff, Grid2X2, RotateCcw } from 'lucide-react';
-import { assemblyOffset, assemblyState, assemblyStops, type Assembly, type AssemblyState } from '@canfactory/contracts';
+import { Box, Eye, EyeOff, Grid2X2, Pause, Play, RotateCcw } from 'lucide-react';
+import { assemblyOffset, assemblyState, assemblyStops, motionFrames, motionPose, type Assembly, type AssemblyState } from '@canfactory/contracts';
 import { unzipSync } from 'fflate';
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
@@ -32,18 +32,34 @@ interface LoadedPart { id: string; reference: boolean }
 
 const GRID_ROTATION = new THREE.Quaternion();
 
+type Pose = Assembly['poses'][string];
+const poseRotation = (pose: Pose, target: THREE.Quaternion) => {
+  const [rx, ry, rz] = (pose.rotation ?? [0, 0, 0]).map(THREE.MathUtils.degToRad) as [number, number, number];
+  return target.setFromEuler(new THREE.Euler(rx, ry, rz, 'ZYX'));
+};
+
 /** One part's mesh: where it lies on the print bed, and how the assembly slider moves it from there. */
 class Placement {
   private readonly rotation = new THREE.Quaternion();
   private readonly position = new THREE.Vector3();
+  private readonly next = new THREE.Quaternion();
   constructor(readonly id: string, readonly mesh: THREE.Mesh, private readonly grid: THREE.Vector3) {}
 
-  /** Blends from the print bed to the part's (offset) assembled pose while the parts are lifted, then follows the steps. */
-  apply(assembly: Assembly, state: AssemblyState) {
+  /**
+   * Blends from the print bed to the part's (offset) assembled pose while the parts are lifted, then follows the steps, then the
+   * movements (`frames`, from `motionFrames`): between two frames, rigidly, its rotation along the shorter arc.
+   */
+  apply(assembly: Assembly, state: AssemblyState, frames: ReturnType<typeof motionFrames>) {
+    const moving = motionPose(frames, this.id, state);
+    if (moving) {
+      poseRotation(moving.from, this.rotation); poseRotation(moving.to, this.next);
+      this.mesh.quaternion.slerpQuaternions(this.rotation, this.next, moving.f);
+      this.mesh.position.lerpVectors(this.position.fromArray(moving.from.position), new THREE.Vector3().fromArray(moving.to.position), moving.f);
+      return;
+    }
     const pose = assembly.poses[this.id];
     if (!pose) { this.mesh.position.copy(this.grid); this.mesh.quaternion.identity(); return; }
-    const [rx, ry, rz] = (pose.rotation ?? [0, 0, 0]).map(THREE.MathUtils.degToRad) as [number, number, number];
-    this.rotation.setFromEuler(new THREE.Euler(rx, ry, rz, 'ZYX'));
+    poseRotation(pose, this.rotation);
     this.position.fromArray(pose.position).add(new THREE.Vector3().fromArray(assemblyOffset(assembly, this.id, state)));
     this.mesh.quaternion.slerpQuaternions(GRID_ROTATION, this.rotation, state.arrange);
     this.mesh.position.lerpVectors(this.grid, this.position, state.arrange);
@@ -60,12 +76,18 @@ function partsFromZip(bytes: ArrayBuffer): Part[] {
 
 /** The caption for slider value `t`: the movement that is playing, or that has just finished at a stop. */
 function assemblyCaption(assembly: Assembly, t: number): string {
+  const motion = assembly.motion ?? [];
   if (t <= 0) return 'Parts as printed';
-  if (t >= 1) return 'Assembled';
-  const segment = Math.ceil(t * (assembly.steps.length + 1) - 1e-6);
+  if (t >= 1) return motion.length > 0 ? `Movement ${motion.length} of ${motion.length} · ${motion.at(-1)?.title ?? ''}` : 'Assembled';
+  const segment = Math.ceil(t * (assembly.steps.length + 1 + motion.length) - 1e-6);
   const step = assembly.steps[segment - 2];
-  return step ? `Step ${segment - 1} of ${assembly.steps.length} · ${step.title}` : 'Lift and lay out the parts';
+  if (step) return `Step ${segment - 1} of ${assembly.steps.length} · ${step.title}`;
+  const movement = motion[segment - 2 - assembly.steps.length];
+  return movement ? `Movement ${segment - 1 - assembly.steps.length} of ${motion.length} · ${movement.title}` : 'Lift and lay out the parts';
 }
+
+/** Seconds the play button spends on each of the slider's segments. */
+const PLAY_SECONDS = 2.4;
 
 /**
  * Displays the actual downloadable file(s). Camera controls do not change model dimensions. With an assembly, a slider takes the
@@ -81,6 +103,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
   const [loadedParts, setLoadedParts] = useState<LoadedPart[]>([]);
   const [shownAssembly, setShownAssembly] = useState<Assembly>();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
+  const [playing, setPlaying] = useState(false);
   const assemblyRef = useRef(assembly); assemblyRef.current = assembly;
   const referencesRef = useRef(references); referencesRef.current = references;
   const onErrorRef = useRef(onError); onErrorRef.current = onError;
@@ -97,6 +120,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     let coloredMaterials: THREE.MeshStandardMaterial[] = [];
     let isWireframe = false;
     let placements: Placement[] = []; let currentAssembly: Assembly | undefined; let sliderValue = 0;
+    let frames: ReturnType<typeof motionFrames> = [];
     let hiddenIds: ReadonlySet<string> = new Set();
     // The visible parts, also on the container (`data-visible-parts`), so the page's tests can see what the scene shows.
     const showParts = () => {
@@ -108,7 +132,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
       sliderValue = t;
       if (!currentAssembly) return;
       const state = assemblyState(currentAssembly, t);
-      for (const placement of placements) placement.apply(currentAssembly, state);
+      for (const placement of placements) placement.apply(currentAssembly, state, frames);
       stage.invalidate();
     };
     let geometries: THREE.BufferGeometry[] = [];
@@ -158,9 +182,11 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
           return new Placement(part.id, partMesh, grid);
         });
         currentAssembly = assembly;
+        frames = assembly ? motionFrames(assembly) : [];
         // Frame every layout the slider passes through, so that no part leaves the view while scrubbing.
         const frame = new THREE.Box3();
-        for (const t of assembly ? [0, 1 / (assemblyStops(assembly) - 1), 1] : [0]) { place(t); group.updateMatrixWorld(true); frame.union(new THREE.Box3().setFromObject(group)); }
+        const stops = assembly ? assemblyStops(assembly) - 1 : 0;
+        for (const t of assembly ? Array.from({ length: stops * 4 + 1 }, (_, i) => i / (stops * 4)) : [0]) { place(t); group.updateMatrixWorld(true); frame.union(new THREE.Box3().setFromObject(group)); }
         place(sliderValue);
         const frameSize = frame.getSize(new THREE.Vector3());
         const focus = new THREE.Vector3();
@@ -221,12 +247,33 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
   });
   const displayedAssembly = shownAssembly ?? assembly;
   const stops = displayedAssembly ? assemblyStops(displayedAssembly) - 1 : 1;
+  // Play: the slider runs to the end at PLAY_SECONDS a segment (from the start if it is at the end); any other input stops it.
+  useEffect(() => {
+    if (!playing) return;
+    let frame = 0, last = performance.now();
+    const tick = (now: number) => {
+      const step = (now - last) / 1000 / (PLAY_SECONDS * stops); last = now;
+      setProgress(value => {
+        const next = Math.min(1, value + step);
+        if (next >= 1) setPlaying(false);
+        return next;
+      });
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing, stops]);
+  const togglePlay = () => {
+    if (!playing && progress >= 1) setProgress(0);
+    setPlaying(value => !value);
+  };
   // Arrow keys and Page Up/Down jump between the stops; Home and End keep their native meaning.
   const stepSlider = (event: KeyboardEvent<HTMLInputElement>) => {
     const direction = { ArrowRight: 1, ArrowUp: 1, PageUp: 1, ArrowLeft: -1, ArrowDown: -1, PageDown: -1 }[event.key];
     if (!direction) return;
     event.preventDefault();
     const stop = direction > 0 ? Math.floor(progress * stops + 1e-6) + 1 : Math.ceil(progress * stops - 1e-6) - 1;
+    setPlaying(false);
     setProgress(Math.min(stops, Math.max(0, stop)) / stops);
   };
 
@@ -244,9 +291,12 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     </div>
     {displayedAssembly && format === 'zip' && url && <div className="assembly-bar">
       <div className="assembly-caption"><span>ASSEMBLY</span><strong aria-hidden="true">{assemblyCaption(displayedAssembly, progress)}</strong></div>
+      <button type="button" className="assembly-play" aria-label={playing ? 'Pause assembly' : 'Play assembly'} aria-pressed={playing} title={playing ? 'Pause' : 'Play the assembly'} onClick={togglePlay}>
+        {playing ? <Pause size={15} aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
+      </button>
       <div className="assembly-track">
         <input type="range" min={0} max={1} step={0.001} value={progress} aria-label="Assembly" aria-valuetext={assemblyCaption(displayedAssembly, progress)}
-          onChange={event => setProgress(Number(event.currentTarget.value))} onKeyDown={stepSlider} />
+          onChange={event => { setPlaying(false); setProgress(Number(event.currentTarget.value)); }} onKeyDown={stepSlider} />
         <div className="assembly-stops" aria-hidden="true">{Array.from({ length: stops + 1 }, (_, index) => <i key={index} className={progress * stops >= index - 1e-6 ? 'reached' : ''} />)}</div>
       </div>
     </div>}
