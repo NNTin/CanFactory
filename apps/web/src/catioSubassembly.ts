@@ -63,6 +63,8 @@ export interface BomLine {
   /** Where it goes. */
   use: string;
   partId?: string;
+  /** A part printed from a model of the library (e.g. `toggle-latch`): links to the model. */
+  modelId?: string;
 }
 
 export interface SubassemblyPreset<C> { id: string; label: string; description: string; config: () => C }

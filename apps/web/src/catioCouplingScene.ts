@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { dimensionOf, findPart } from '@canfactory/contracts';
+import { dimensionOf, findPart, toggleLatchMechanism as TL } from '@canfactory/contracts';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
 import type { CatioMode } from './catioSettings.ts';
@@ -8,6 +8,7 @@ import { buildWindowContext } from './catioWindowContext.ts';
 import { COUPLING, couplingLayout, couplingSite, type CouplingConfig, type CouplingLayout, type CouplingSite } from './catioCoupling.ts';
 import { buildInsertContext } from './catioWindowInsertScene.ts';
 import { facePoint, TUNNEL, vec, type Face, type Rect } from './catioTunnel.ts';
+import { buildToggleLatchMeshes, placeLatchPart } from './toggleLatchMeshes.ts';
 
 /** Stage 3 fits the latches to the first section this far above its place; stage 4 lowers it onto its wall support. */
 export const LIFT = 450;
@@ -25,8 +26,25 @@ export interface PieceMotion {
 }
 
 /**
- * The coupling's pieces, each in its own group placed where it is installed (latch levers closed), not yet added to a scene: the
- * coupling page stages them, other pages show them as they are.
+ * The printed latch's own frame (`latchPoses`: x across it, y along the pull, z off the face) on a side of the joint: z out of the
+ * side face (±X), y along the joint (Y), x up it (Z), turned over on the left so that it stays a rotation.
+ */
+function latchFrame(side: -1 | 1) {
+  const frame = new THREE.Group(); frame.matrixAutoUpdate = false;
+  frame.matrix.set(0, 0, side, 0, 0, 1, 0, 0, -side, 0, 0, 0, 0, 0, 0, 1);
+  return frame;
+}
+/** How far open (0 locked, 1 released) puts the printed latch: the lever back over centre to open, then the link swung off the hook. */
+function printedLatchState(open: number) {
+  const turn = THREE.MathUtils.clamp(open / 0.7, 0, 1), swing = THREE.MathUtils.clamp((open - 0.7) / 0.3, 0, 1);
+  return TL.latchState(TL.CLOSED + (TL.OPEN - TL.CLOSED) * turn, TL.SWING * swing);
+}
+
+/**
+ * The coupling's pieces, each in its own group placed where it is installed (latches closed), not yet added to a scene: the
+ * coupling page stages them, other pages show them as they are. Each latch's `setOpen` opens it (0 locked, 1 released). The printed
+ * latch is built from its parts' real profiles and moved by the shared mechanism (toggleLatchMechanism.ts); its catch stays where
+ * the lock holds it. `dispose` frees what the printed latch adds.
  */
 export function buildCouplingPieces(p: ReturnType<typeof createCatioParts>, layout: CouplingLayout, latchType: CouplingConfig['latchType']) {
   const { box, rod, materials: m } = p;
@@ -37,31 +55,54 @@ export function buildCouplingPieces(p: ReturnType<typeof createCatioParts>, layo
     const [px, pz] = layout.seal.path[i] ?? [x, z];
     box(seal, [Math.abs(x - px) + 2 * sw, y1 - y0, Math.abs(z - pz) + (i === 1 ? 2 * sw : 0)], [(x + px) / 2, (y0 + y1) / 2, (z + pz) / 2], m.rubber);
   });
-  const [b1, b2, b3, b4, h1, h2] = (['b1', 'b2', 'b3', 'b4', 'h1', 'h2'] as const).map(key => dimensionOf(layout.latchPart, key)) as [number, number, number, number, number, number];
-  const catches = layout.latches.map(q => {
-    const group = at([q.faceX, q.catchY + b4 / 2, q.z]);
-    box(group, [1.5, b4, b2], [q.side * 0.75, 0, 0], m.hardware);
-    box(group, [h2, 2, b2 * 0.6], [q.side * h2 / 2, -b4 / 2 + 3, 0], m.hardware);
-    return { latch: q, group };
-  });
-  const latches = layout.latches.map(q => {
-    const group = at([q.faceX, q.hingeY, q.z]);
-    box(group, [1.5, b3, b1], [q.side * 0.75, -b3 / 2, 0], m.hardware);
-    box(group, [h1 * 0.75, b3 * 0.5, b1 * 0.8], [q.side * h1 * 0.375, -b3 * 0.3, 0], m.hardware);
-    // the lever pivots on the body; closed, it lies along the joint with its hook over the catch
-    const lever = new THREE.Group(); lever.name = `${q.id}-lever`; lever.position.set(q.side * h1 * 0.75, -b3 * 0.3, 0); group.add(lever);
-    const reach = q.hingeY - b3 * 0.3 - (q.catchY + 3);
-    box(lever, [1.5, reach, b1 * 0.9], [q.side * (h1 * 0.25 - 0.75), -reach / 2, 0], m.hardware);
-    rod(lever, [q.side * h1 * 0.25, -reach, 0], [q.side * (-h1 * 0.75 + h2), -reach, 0], 1.6);
-    if (latchType !== 'A') box(lever, [6, 4, latchType === 'SV' ? 3 : b1 * 0.5], [q.side * (h1 * 0.25 + 3), -reach * 0.45, 0], m.rubber);
-    return { latch: q, group, lever };
-  });
+  const gn = layout.latchPart;
+  const printed = gn ? null : buildToggleLatchMeshes();
+  const locked = TL.latchPoses(TL.latchState(TL.CLOSED));
+  let catches: { latch: CouplingLayout['latches'][number]; group: THREE.Group }[];
+  let latches: { latch: CouplingLayout['latches'][number]; group: THREE.Group; lever: THREE.Group; setOpen: (open: number) => void }[];
+  if (gn) {
+    const [b1, b2, b3, b4, h1, h2] = (['b1', 'b2', 'b3', 'b4', 'h1', 'h2'] as const).map(key => dimensionOf(gn, key)) as [number, number, number, number, number, number];
+    catches = layout.latches.map(q => {
+      const group = at([q.faceX, q.catchY + b4 / 2, q.z]);
+      box(group, [1.5, b4, b2], [q.side * 0.75, 0, 0], m.hardware);
+      box(group, [h2, 2, b2 * 0.6], [q.side * h2 / 2, -b4 / 2 + 3, 0], m.hardware);
+      return { latch: q, group };
+    });
+    latches = layout.latches.map(q => {
+      const group = at([q.faceX, q.hingeY, q.z]);
+      box(group, [1.5, b3, b1], [q.side * 0.75, -b3 / 2, 0], m.hardware);
+      box(group, [h1 * 0.75, b3 * 0.5, b1 * 0.8], [q.side * h1 * 0.375, -b3 * 0.3, 0], m.hardware);
+      // the lever pivots on the body; closed, it lies along the joint with its hook over the catch
+      const lever = new THREE.Group(); lever.name = `${q.id}-lever`; lever.position.set(q.side * h1 * 0.75, -b3 * 0.3, 0); group.add(lever);
+      const reach = q.hingeY - b3 * 0.3 - (q.catchY + 3);
+      box(lever, [1.5, reach, b1 * 0.9], [q.side * (h1 * 0.25 - 0.75), -reach / 2, 0], m.hardware);
+      rod(lever, [q.side * h1 * 0.25, -reach, 0], [q.side * (-h1 * 0.75 + h2), -reach, 0], 1.6);
+      if (latchType !== 'A') box(lever, [6, 4, latchType === 'SV' ? 3 : b1 * 0.5], [q.side * (h1 * 0.25 + 3), -reach * 0.45, 0], m.rubber);
+      return { latch: q, group, lever, setOpen: (open: number) => lever.rotation.set(0, 0, q.side * THREE.MathUtils.degToRad(OPEN) * open) };
+    });
+  } else {
+    const meshes = printed ?? buildToggleLatchMeshes();
+    const part = (frame: THREE.Group, id: 'base' | 'lever' | 'link' | 'catch') => { const object = meshes[id].clone(); frame.add(object); return object; };
+    catches = layout.latches.map(q => {
+      const group = at([q.faceX, q.printed?.seam ?? q.hingeY, q.z]); const frame = latchFrame(q.side); group.add(frame);
+      placeLatchPart(part(frame, 'catch'), locked.catch);
+      return { latch: q, group };
+    });
+    latches = layout.latches.map(q => {
+      const group = at([q.faceX, q.printed?.seam ?? q.hingeY, q.z]); const frame = latchFrame(q.side); group.add(frame);
+      placeLatchPart(part(frame, 'base'), locked.base);
+      const lever = part(frame, 'lever'); lever.name = `${q.id}-lever`; const link = part(frame, 'link');
+      const setOpen = (open: number) => { const poses = TL.latchPoses(printedLatchState(open)); placeLatchPart(lever, poses.lever); placeLatchPart(link, poses.link); };
+      setOpen(0);
+      return { latch: q, group, lever, setOpen };
+    });
+  }
   let lip: THREE.Group | null = null;
   if (layout.lip) {
     const { x0, x1, y0: ly0, y1: ly1, z } = layout.lip;
     lip = at(); box(lip, [x1 - x0, ly1 - ly0, COUPLING.lip.thickness], [(x0 + x1) / 2, (ly0 + ly1) / 2, z + COUPLING.lip.thickness / 2], m.rubber);
   }
-  return { frame, seal, catches, latches, lip };
+  return { frame, seal, catches, latches, lip, dispose: () => printed?.dispose() };
 }
 
 /**
@@ -165,13 +206,14 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
 
   // Stage 2: the seal round the frame's face, then the catch brackets on its sides and their screws.
   const sealGroup = pieces.seal; group('seal', 2, 'hardware').add(sealGroup);
-  move(sealGroup, 2, [0, 0.35], [0, 200, 0], 'D-profile seal: stuck round the middle of the frame’s face', { role: 'seal' });
-  const latch = layout.latchPart;
+  move(sealGroup, 2, [0, 0.35], [0, 200, 0], `${layout.seal.profile} seal: stuck round the middle of the frame’s face`, { role: 'seal' });
+  const latchTitle = layout.latchPart?.title ?? 'Printed toggle latch';
+  const catchName = layout.latchPart ? 'Catch bracket' : 'Catch plate of the printed latch';
   for (const { latch: q, group: g } of pieces.catches) {
     group('catches', 2, 'hardware').add(g);
-    move(g, 2, [0.45, 0.7], [q.side * 160, 0, 0], `${layout.latches.length} × Catch bracket: onto the docking frame’s outer side`, { role: 'catch', of: q.id });
+    move(g, 2, [0.45, 0.7], [q.side * 160, 0, 0], `${layout.latches.length} × ${catchName}: onto the docking frame’s outer side`, { role: 'catch', of: q.id });
   }
-  for (const f of layout.fasteners.filter(f => f.component === 'catch-screws')) screw('catch-screws', 2, [0.7, 1], f, `${count('catch-screws')} × Countersunk wood screw 4 × 25: catch brackets onto the frame`);
+  for (const f of layout.fasteners.filter(f => f.component === 'catch-screws')) screw('catch-screws', 2, [0.7, 1], f, `${count('catch-screws')} × Countersunk wood screw 4 × 25: ${layout.latchPart ? 'catch brackets' : 'catch plates'} onto the frame`);
 
   // Stage 3: the first section (built on the tunnel page) arrives raised; its latch bodies, screws and floor lip are fitted.
   if (first) {
@@ -185,9 +227,9 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
   for (const { latch: q, group: g, lever } of pieces.latches) {
     group('latches', 3, 'hardware').add(g);
     levers.push(lever);
-    move(g, 3, [0.05, 0.4], [q.side * 160, 0, 0], `${layout.latches.length} × ${latch.title}: body onto the first flange’s outer side`, { role: 'latch', of: q.id, carried: true });
+    move(g, 3, [0.05, 0.4], [q.side * 160, 0, 0], `${layout.latches.length} × ${latchTitle}: ${layout.latchPart ? 'body' : 'base plate, lever and link on it,'} onto the first flange’s outer side`, { role: 'latch', of: q.id, carried: true });
   }
-  for (const f of layout.fasteners.filter(f => f.component === 'latch-screws')) screw('latch-screws', 3, [0.4, 0.7], f, `${count('latch-screws')} × Countersunk wood screw 4 × 25: latch bodies onto the flange`, true);
+  for (const f of layout.fasteners.filter(f => f.component === 'latch-screws')) screw('latch-screws', 3, [0.4, 0.7], f, `${count('latch-screws')} × Countersunk wood screw 4 × 25: ${layout.latchPart ? 'latch bodies' : 'base plates'} onto the flange`, true);
   if (pieces.lip) {
     const g = pieces.lip; group('floor-lip', 3, 'hardware').add(g);
     move(g, 3, [0.7, 0.85], [0, 0, 120], 'EPDM floor lip: laid on the flange’s sill, reaching past its back', { role: 'lip', carried: true });
@@ -221,15 +263,15 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
     // the levers close in the first half of stage 5; released (the page's toggle), they stand open again
     const closing = state.exploded ? 0 : ease(THREE.MathUtils.clamp(along(state.progress, 5) / 0.6, 0, 1));
     const closed = state.windowOpen ? 0 : closing;
-    layout.latches.forEach((q, i) => { levers[i]?.rotation.set(0, 0, q.side * THREE.MathUtils.degToRad(OPEN) * (1 - closed)); });
+    for (const latch of pieces.latches) latch.setOpen(1 - closed);
     let action: string | null = active.size > 0 ? [...active].join('; ') : null;
     if (!action && state.progress > 3 && state.progress < 4 && !state.exploded) action = 'Lowering the first section onto its wall support, square to the port, onto the seal';
-    if (!action && state.progress > 4 && closing > 0 && closing < 1) action = `${layout.latches.length} × ${latch.title}: hooked over its catch, lever pressed down over centre`;
+    if (!action && state.progress > 4 && closing > 0 && closing < 1) action = `${layout.latches.length} × ${latchTitle}: hooked over its catch, lever pressed down over centre`;
     currentAction = action;
     // the window stays open: the cat goes through it into the port
     hinge.rotation.z = -Math.PI / 2;
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); for (const g of geometries) g.dispose(); }
+  function dispose() { p.dispose(); pieces.dispose(); for (const g of geometries) g.dispose(); }
   return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers, lift: () => currentLift, caption: () => currentAction };
 }

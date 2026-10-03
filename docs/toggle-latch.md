@@ -98,8 +98,8 @@ layout, the steps and every frame of the five movements: none shares any volume.
 last 3 mm. Each is one part's side plates passing over pin ends: the lever's plates spread over the base's pins, the link's over
 the lever's, as the print notes say.
 
-## Not yet
+## In the catio
 
-The catio's insert–tunnel coupling still uses the Ganter GN 831. Using this latch there needs the latch's dimensions as a library
-part or a linked model. The model now gives them: hole spacing 26.4 mm, a closed gap of 1.31 mm between the plates, and the
-catch's 1.57 mm of draw from `RELEASED`.
+The window catio's insert–tunnel coupling page can close its joint with this latch: **Latches: Printed toggle latch**. See
+[window-insert-tunnel-coupling.md](concepts/catio/window-insert-tunnel-coupling.md#the-printed-toggle-latch). It places the four
+parts with the same mechanism and links its parts list here.

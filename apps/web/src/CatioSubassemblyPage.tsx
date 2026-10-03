@@ -181,13 +181,14 @@ function NumberField({ label, help, range, value, onCommit, note }: { label: str
 
 function PartsList({ lines }: { lines: BomLine[] }) {
   return <section className="subassembly-parts" aria-label="Parts list"><span className="eyebrow">THE PARTS</span><h2>Everything it takes.</h2>
-    <p>Timber is cut for this design; hardware links to the parts library, with its standard or maker’s dimensions. Sizes in millimetres.</p>
+    <p>Timber is cut for this design; hardware links to the parts library, with its standard or maker’s dimensions, and printed parts to their model. Sizes in millimetres.</p>
     {BOM_GROUPS.map(group => {
       const rows = lines.filter(line => line.group === group);
       return rows.length > 0 && <table key={group} aria-label={`${group} parts`}><caption>{group}</caption>
         <thead><tr><th scope="col">Qty</th><th scope="col">Part</th><th scope="col">Dimensions</th><th scope="col">Where</th></tr></thead>
         <tbody>{rows.map(line => <tr key={line.id}><td>{line.quantity}</td>
-          <td>{line.partId ? <a href={formatHash({ view: 'parts', family: findPart(line.partId)?.family ?? null, part: line.partId, filters: {} })}>{line.name}</a> : line.name}</td>
+          <td>{line.partId ? <a href={formatHash({ view: 'parts', family: findPart(line.partId)?.family ?? null, part: line.partId, filters: {} })}>{line.name}</a>
+            : line.modelId ? <a href={formatHash({ view: 'models', model: line.modelId })}>{line.name}</a> : line.name}</td>
           <td>{line.size}</td><td>{line.use}</td></tr>)}</tbody></table>;
     })}</section>;
 }

@@ -44,8 +44,9 @@ Neither side is redesigned. Both are read as their own pages set them (or from t
 
 | Parameter | Default | Options | Group |
 | --- | --- | --- | --- |
-| Latch | With safety catch (S) | S; plain lever (A); with padlock eye (SV) | Latches |
-| Material | Stainless steel | Stainless steel (NI); steel, zinc plated (ST) | Latches |
+| Latches | Ganter GN 831 (steel) | Ganter GN 831; printed toggle latch (the `toggle-latch` model) | Latches |
+| Latch | With safety catch (S) | S; plain lever (A); with padlock eye (SV); GN 831 only | Latches |
+| Material | Stainless steel | Stainless steel (NI); steel, zinc plated (ST); GN 831 only | Latches |
 | Latches per side | 1 (2 in all) | 1, 2 | Latches |
 | Floor gap | EPDM lip over it | EPDM lip; left open | Seal |
 
@@ -53,6 +54,28 @@ With the defaults (a 30 × 30 cm cat port, set on the catio concept page), the d
 mm deep. Ten 5 × 60 screws fix it to the port frame. Two
 GN 831-100-S-NI-2 latches each hold 1000 N, and their hooks take up ±4 mm of the 6 mm gap. A 1.04 m seal and a 296 × 65 mm
 lip close the joint.
+
+### The printed toggle latch
+
+**Latches: Printed toggle latch** puts the library's [toggle latch](../../toggle-latch.md) on the joint instead. Its base plate goes
+on the flange's outer side and its catch plate on the docking frame's, lever and link snapped on. The coupling places it with the
+latch's shared mechanism (`packages/contracts/src/toggleLatchMechanism.ts`), the same one its model page and card use.
+
+- **Locked spacing:** locked, the plates stand 1.31 mm apart (its over-centre lock). It has no adjustable hook and is short
+  (25.3 mm over both plates), so a 6 mm gap would leave its screws next to the timber's edges.
+- **Gap and seal:** the docking frame comes to 3 mm of the flange instead, 3 mm deeper (35 mm). A self-adhesive EPDM
+  E-profile (9 × 4, made for 2–3.5 mm gaps) replaces the D-profile.
+- **Plates and screws:** each plate stands 0.84 mm proud of its face into the gap. Its two DIN 7997 4 × 25 screws (the
+  model's default) sit 5.1 mm in from the frame's face and the flange's back: pre-drill them.
+- **Draw:** hooked on with the joint up to about 1.7 mm further open, the lever draws it in.
+- **Limits:** it has no safety catch or padlock eye, and its holding force is not rated, so the GN 831 stays the default.
+- **Parts list:** the latch line links to the model (`#/models/toggle-latch`), not the parts library.
+- **Live assembly:**
+  - Its four parts are built from their real profiles.
+  - Stage 2 screws the catch plates on and stage 3 the base plates, with the lever and link on them.
+  - Stage 5 closes each lever over centre with the mechanism.
+  - **Released** turns the lever back over centre and swings the link off the hook.
+  - Its catch stays where the lock holds it: near the dead centre, the 0.32 mm over-centre draw squashes the seal instead.
 
 ## The pieces and how they fit
 
@@ -180,6 +203,9 @@ part behind them. Their sizes are this design's, not a product's.
   - the load path: the wall support's bearer under the flange, a real gap filled only by the seal, and the lip lying on the
     threshold
   - every latch body and catch on its face, with the hook at mid-range, and the long type not fitting
+  - the printed latch: its plates at its lock's spacing, as far into the 3 mm gap each, screws 5 mm or more inside the
+    timber, the parts list linking its model, and in the scene the lever on the base's pins and the link on the lever's
+    while it opens and closes
   - the error messages
   - parts-list counts and the parts-library cross-links, and that the tunnel no longer lists a foam strip
   - staging, the lowering, the levers closing and opening outwards, fastener directions, and restoring saved settings

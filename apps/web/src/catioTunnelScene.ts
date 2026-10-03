@@ -315,6 +315,6 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     hinge.rotation.z = state.windowOpen ? -Math.PI / 2 : 0;
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); for (const g of geometries) g.dispose(); }
+  function dispose() { p.dispose(); joint.dispose(); for (const g of geometries) g.dispose(); }
   return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, carriers, drops, caption: () => currentAction };
 }

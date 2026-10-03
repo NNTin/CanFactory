@@ -81,15 +81,22 @@ export const TOGGLE_LATCH_PROFILES = {
  * the latch's middle plane lies). The catch's dip and the link's nose are circles fitted to CATCH_HOOK's and LINK_BAR's points.
  */
 export const TOGGLE_LATCH_GEOMETRY = {
-  // base.scad: PLATE_FRONT, PLATE_BACK, PLATE_HEIGHT, EDGE_RADIUS, PIN_CENTRE (y, z), KNUCKLE_X's middle
-  base: { front: 11.376, back: 15.372, height: 11.998, edgeRadius: 1, pivot: [5.115, 4.891] as Vec2, middle: 18.999 },
-  // catch.scad: PLATE_FRONT, PLATE_BACK, PLATE_HEIGHT, HOOK_X's middle; the dip under the hook (y, z)
-  catch: { front: 10.4, back: 14.4, height: 11.998, edgeRadius: 1, middle: 18.992, dip: { centre: [5.745, 5.455] as Vec2, radius: 1.99 } },
-  // Latch 12mm 3.scad: PIVOT_CENTRE and PIN_CENTRE (x, z) of the standard lever, WIDTH / 2. The high-tolerance lever's body is the
-  // same; its larger pivot hole and thinner pins keep the faces that bear the pull where the standard lever's are.
-  lever: { pivot: [4.999, 8.89] as Vec2, pin: [14.655, 5.705] as Vec2, middle: 9.2 },
-  // Latch 12mm 4.scad: HOLE_CENTRE (x, z), WIDTH / 2; the nose at the end of the bar (x, z)
-  link: { hole: [29.15, 4.996] as Vec2, middle: 8.701, nose: { centre: [7.99, 3.997] as Vec2, radius: 1.408 } },
+  // base.scad: PLATE_FRONT, PLATE_BACK, PLATE_HEIGHT, PLATE_LENGTH, EDGE_RADIUS, HOLE_X, HOLE_Z, PIN_CENTRE (y, z), KNUCKLE_X's and PIN_X
+  base: {
+    front: 11.376, back: 15.372, height: 11.998, length: 38, edgeRadius: 1, holeX: [5.769, 32.184] as Vec2, holeZ: 5.932,
+    pivot: [5.115, 4.891] as Vec2, pinDiameter: 4.41, knuckle: [14.7, 23.298] as Vec2, pins: [12.5, 25.498] as Vec2, middle: 18.999,
+  },
+  // catch.scad: PLATE_FRONT, PLATE_BACK, PLATE_HEIGHT, PLATE_LENGTH, EDGE_RADIUS, HOLE_X, HOLE_Z, HOOK_X; the dip under the hook (y, z)
+  catch: {
+    front: 10.4, back: 14.4, height: 11.998, length: 37.996, edgeRadius: 1, holeX: [5.766, 32.18] as Vec2, holeZ: 5.93,
+    hook: [12.492, 25.492] as Vec2, middle: 18.992, dip: { centre: [5.745, 5.455] as Vec2, radius: 1.99 },
+  },
+  // Latch 12mm 3.scad: PIVOT_CENTRE, PIVOT_D, PIN_CENTRE (x, z) and PIN_D of the standard lever, PIN_LENGTH, SIDE, WIDTH and
+  // WIDTH / 2. The high-tolerance lever's body is the same; its larger pivot hole and thinner pins keep the faces that bear the pull
+  // where the standard lever's are.
+  lever: { pivot: [4.999, 8.89] as Vec2, pivotDiameter: 4.99, pin: [14.655, 5.705] as Vec2, pinDiameter: 4.642, pinLength: 2.7, side: 2, width: 18.4, middle: 9.2 },
+  // Latch 12mm 4.scad: HOLE_CENTRE (x, z), HOLE_D, SIDE, WIDTH, WIDTH / 2; the nose at the end of the bar (x, z)
+  link: { hole: [29.15, 4.996] as Vec2, holeDiameter: 5, side: 2, width: 17.402, middle: 8.701, nose: { centre: [7.99, 3.997] as Vec2, radius: 1.408 } },
 } as const;
 
 const G = TOGGLE_LATCH_GEOMETRY;

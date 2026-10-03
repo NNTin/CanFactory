@@ -31,6 +31,18 @@ describe('toggle latch mechanism', () => {
     expect([G.base.front, G.base.back, G.base.height, G.base.edgeRadius]).toEqual(['PLATE_FRONT', 'PLATE_BACK', 'PLATE_HEIGHT', 'EDGE_RADIUS'].map(name => numbers(BASE, name)[0]));
     expect([G.catch.front, G.catch.back, G.catch.height, G.catch.edgeRadius]).toEqual(['PLATE_FRONT', 'PLATE_BACK', 'PLATE_HEIGHT', 'EDGE_RADIUS'].map(name => numbers(CATCH, name)[0]));
     expect(G.base.pivot).toEqual(numbers(BASE, 'PIN_CENTRE'));
+    for (const [g, file] of [[G.base, BASE], [G.catch, CATCH]] as const) {
+      expect(g.length).toBe(numbers(file, 'PLATE_LENGTH')[0]);
+      expect(g.holeX).toEqual(numbers(file, 'HOLE_X'));
+      expect(g.holeZ).toBe(numbers(file, 'HOLE_Z')[0]);
+    }
+    expect(G.base.pinDiameter).toBe(numbers(BASE, 'PIN_D')[0]);
+    expect(G.base.knuckle).toEqual(numbers(BASE, 'KNUCKLE_X'));
+    expect(G.base.pins).toEqual(numbers(BASE, 'PIN_X'));
+    expect(G.catch.hook).toEqual(numbers(CATCH, 'HOOK_X'));
+    expect([G.lever.pivotDiameter, G.lever.pinDiameter]).toEqual([numbers(LEVER, 'PIVOT_D')[1], numbers(LEVER, 'PIN_D')[1]]);
+    expect([G.lever.pinLength, G.lever.side, G.lever.width]).toEqual(['PIN_LENGTH', 'SIDE', 'WIDTH'].map(name => numbers(LEVER, name)[0]));
+    expect([G.link.holeDiameter, G.link.side, G.link.width]).toEqual(['HOLE_D', 'SIDE', 'WIDTH'].map(name => numbers(LINK, name)[0]));
     const [k0 = 0, k1 = 0] = numbers(BASE, 'KNUCKLE_X'), [h0 = 0, h1 = 0] = numbers(CATCH, 'HOOK_X');
     expect(G.base.middle).toBeCloseTo((k0 + k1) / 2, 9);
     expect(G.catch.middle).toBeCloseTo((h0 + h1) / 2, 9);
