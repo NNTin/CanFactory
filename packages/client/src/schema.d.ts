@@ -1443,7 +1443,7 @@ export interface operations {
                         /**
                          * Pad
                          * @description What the pad holds: a nut that turns freely in it (a thrust pad for a clamp) or a screw head locked in it (a foot).
-                         * @default thrust
+                         * @default foot
                          * @enum {unknown}
                          */
                         padType: "thrust" | "foot";
@@ -1473,6 +1473,18 @@ export interface operations {
                          */
                         relief: number;
                         /**
+                         * Extenders
+                         * @description Printed sleeves that make the leg longer than one screw: each joins two screws end to end, a nut locked in one end and the next screw’s head in the other. 0 for the pad alone.
+                         * @default 1
+                         */
+                        extenders: number;
+                        /**
+                         * Extender length
+                         * @description Each extender’s length, end to end, in mm. The leg grows by it and by the screw between.
+                         * @default 40
+                         */
+                        extenderLength: number;
+                        /**
                          * Thread
                          * @description The screw’s thread; the nuts and screws below are those of this thread.
                          * @default M8
@@ -1481,14 +1493,14 @@ export interface operations {
                         thread: "M4" | "M5" | "M6" | "M8";
                         /**
                          * Nut
-                         * @description The nut the thrust pad’s chamber is sized for, run onto the screw’s tip.
+                         * @description The nut the thrust pad’s chamber is sized for, run onto the screw’s tip; and the nut locked in each extender.
                          * @default iso-10511-m8
                          * @enum {unknown}
                          */
                         nut: "iso-10511-m4" | "iso-10511-m5" | "iso-10511-m6" | "iso-10511-m8" | "iso-4032-m4" | "iso-4032-m5" | "iso-4032-m6" | "iso-4032-m8";
                         /**
                          * Screw
-                         * @description The hexagon head screw the foot’s pocket is sized for. Its length does not change the pad.
+                         * @description The hexagon head screw the foot’s and the extenders’ head pockets are sized for. Its length does not change the printed parts; it sets the leg’s length in the assembly.
                          * @default iso-4017-m8x30
                          * @enum {unknown}
                          */

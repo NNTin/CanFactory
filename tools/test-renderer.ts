@@ -249,18 +249,19 @@ try {
     console.log(`PASS plank connector ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 
-  // Pressure pad: both kinds, every sole, the lowest pad each nut or head allows, the narrowest and the largest. Each must be one
-  // closed solid exactly as wide as its diameter and as high as its height, and less than the full cylinder.
+  // Pressure pad: both kinds, every sole, the lowest pad each nut or head allows, the narrowest and the largest, and the
+  // extenders, shortest and longest. Each part must be one closed solid: the pad exactly as wide as its diameter and as high as
+  // its height, each extender as wide and as long as set.
   const padRuns: { name: string; overrides: ParameterValues }[] = [
-    { name: 'default thrust pad', overrides: {} },
-    { name: 'default foot', overrides: { padType: 'foot' } },
-    { name: 'thrust, flat, lowest', overrides: { surface: 'flat', height: 16.5 } },
-    { name: 'thrust, domed 3 mm, lowest', overrides: { surface: 'domed', relief: 3, height: 19.5 } },
-    { name: 'foot, grooved 0.4 mm, lowest', overrides: { padType: 'foot', relief: 0.4, height: 12.5 } },
-    { name: 'foot, domed, M6 × 60', overrides: { padType: 'foot', surface: 'domed', thread: 'M6', screw: 'iso-4017-m6x60', diameter: 25, height: 14 } },
-    { name: 'thrust, ISO 4032 M5, narrowest', overrides: { thread: 'M5', nut: 'iso-4032-m5', diameter: 17.5, height: 16, fit: 0.1 } },
-    { name: 'thrust, M4 lock nut, smallest', overrides: { thread: 'M4', nut: 'iso-10511-m4', surface: 'flat', diameter: 16, height: 13.5, fit: 0.1 } },
-    { name: 'largest, grooved 3 mm, loose fit', overrides: { padType: 'foot', diameter: 80, height: 80, relief: 3, fit: 0.8 } },
+    { name: 'default foot and extender', overrides: {} },
+    { name: 'thrust pad alone', overrides: { padType: 'thrust', extenders: 0 } },
+    { name: 'thrust, flat, lowest', overrides: { padType: 'thrust', surface: 'flat', height: 16.5, extenders: 0 } },
+    { name: 'thrust, domed 3 mm, lowest', overrides: { padType: 'thrust', surface: 'domed', relief: 3, height: 19.5, extenders: 0 } },
+    { name: 'foot, grooved 0.4 mm, lowest', overrides: { relief: 0.4, height: 12.5, extenders: 0 } },
+    { name: 'foot, domed, M6 × 60, two extenders', overrides: { surface: 'domed', thread: 'M6', nut: 'iso-10511-m6', screw: 'iso-4017-m6x60', diameter: 25, height: 14, extenders: 2 } },
+    { name: 'thrust, ISO 4032 M5, narrowest, shortest extender', overrides: { padType: 'thrust', thread: 'M5', nut: 'iso-4032-m5', screw: 'iso-4017-m5x20', diameter: 17.5, height: 16, fit: 0.1, extenderLength: 20 } },
+    { name: 'thrust, M4 lock nut, smallest', overrides: { padType: 'thrust', thread: 'M4', nut: 'iso-10511-m4', screw: 'iso-4017-m4x20', surface: 'flat', diameter: 16, height: 13.5, fit: 0.1, extenders: 0 } },
+    { name: 'largest, grooved 3 mm, loose fit, three longest extenders', overrides: { diameter: 80, height: 80, relief: 3, fit: 0.8, extenders: 3, extenderLength: 150 } },
   ];
   for (const { name, overrides } of only && only !== 'pressure-pad' ? [] : padRuns) {
     const started = Date.now();
@@ -272,15 +273,15 @@ try {
     const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `pressure pad ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `pressure pad ${name}`); assert.ok(result.artifact);
-    if (!('dimensions' in result.artifact)) throw new Error('Expected a single-STL artifact for the pressure pad.');
-    const [diameter, height] = [parameters['diameter'], parameters['height']].map(Number) as [number, number];
-    const want = { x: diameter, y: diameter, z: height };
-    for (const axis of ['x', 'y', 'z'] as const)
-      assert.ok(Math.abs(result.artifact.dimensions[axis] - want[axis]) < 0.01, `pressure pad ${name} ${axis}: ${result.artifact.dimensions[axis]} != ${want[axis]}`);
-    const volume = result.artifact.volume;
-    assert.ok(volume > 0.4 * Math.PI * (diameter / 2) ** 2 * height && volume < Math.PI * (diameter / 2) ** 2 * height, `pressure pad ${name}: volume ${volume}`);
-    console.log(`PASS pressure pad ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `pressure pad ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const [diameter, height, extenders, length] = [parameters['diameter'], parameters['height'], parameters['extenders'], parameters['extenderLength']].map(Number) as [number, number, number, number];
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['pad', ...Array.from({ length: extenders }, (_, i) => `extender-${i + 1}`)], `pressure pad ${name}`);
+    for (const part of result.artifact.parts) {
+      const want = [diameter, diameter, part.id === 'pad' ? height : length];
+      for (const [index, value] of [part.dimensions.x, part.dimensions.y, part.dimensions.z].entries())
+        assert.ok(Math.abs(value - (want[index] ?? NaN)) < 0.01, `pressure pad ${name} ${part.id}: ${value} != ${want[index]}`);
+    }
+    console.log(`PASS pressure pad ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   // Litter shovel: every sieve texture, the sieve extremes (most gaps, fewest gaps), the scraping tip's extremes, both grip ends,
   // the shortest and longest scoop, no dam and the widest, the fewest and most, thinnest and thickest grip supports, and both snap modes of both

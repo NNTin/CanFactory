@@ -3445,6 +3445,8 @@
                           "height",
                           "surface",
                           "relief",
+                          "extenders",
+                          "extenderLength",
                           "thread",
                           "nut",
                           "screw",
@@ -3458,7 +3460,7 @@
                             ],
                             "title": "Pad",
                             "description": "What the pad holds: a nut that turns freely in it (a thrust pad for a clamp) or a screw head locked in it (a foot).",
-                            "default": "thrust"
+                            "default": "foot"
                           },
                           "diameter": {
                             "type": "number",
@@ -3497,6 +3499,23 @@
                             "maximum": 3,
                             "multipleOf": 0.1
                           },
+                          "extenders": {
+                            "type": "integer",
+                            "title": "Extenders",
+                            "description": "Printed sleeves that make the leg longer than one screw: each joins two screws end to end, a nut locked in one end and the next screw’s head in the other. 0 for the pad alone.",
+                            "default": 1,
+                            "minimum": 0,
+                            "maximum": 3
+                          },
+                          "extenderLength": {
+                            "type": "number",
+                            "title": "Extender length",
+                            "description": "Each extender’s length, end to end, in mm. The leg grows by it and by the screw between.",
+                            "default": 40,
+                            "minimum": 20,
+                            "maximum": 150,
+                            "multipleOf": 0.5
+                          },
                           "thread": {
                             "enum": [
                               "M4",
@@ -3520,7 +3539,7 @@
                               "iso-4032-m8"
                             ],
                             "title": "Nut",
-                            "description": "The nut the thrust pad’s chamber is sized for, run onto the screw’s tip.",
+                            "description": "The nut the thrust pad’s chamber is sized for, run onto the screw’s tip; and the nut locked in each extender.",
                             "default": "iso-10511-m8"
                           },
                           "screw": {
@@ -3559,7 +3578,7 @@
                               "iso-4017-m8x80"
                             ],
                             "title": "Screw",
-                            "description": "The hexagon head screw the foot’s pocket is sized for. Its length does not change the pad.",
+                            "description": "The hexagon head screw the foot’s and the extenders’ head pockets are sized for. Its length does not change the printed parts; it sets the leg’s length in the assembly.",
                             "default": "iso-4017-m8x30"
                           },
                           "fit": {

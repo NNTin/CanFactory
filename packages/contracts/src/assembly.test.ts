@@ -86,7 +86,9 @@ describe('registered assemblies', () => {
       if (!data || !isAssembly(model)) throw new Error('Expected an assembly model');
       expect(Value.Check(AssemblySchema, data)).toBe(true);
       const references = (data.references ?? []).map(reference => reference.id);
-      const ids = [...model.parts.map(part => part.id), ...references];
+      // steps may also move the reference objects the model links for its defaults (e.g. the pressure pad's screws and nuts)
+      const linked = (model.linkedReferences?.(model.defaults) ?? []).map(reference => reference.id);
+      const ids = [...model.parts.map(part => part.id), ...references, ...linked];
       expect(new Set(ids).size).toBe(ids.length);
       expect([...activeParts(model, model.defaults).map(part => part.id), ...references].filter(id => !(id in data.poses))).toEqual([]);
       for (const id of [...Object.keys(data.poses), ...data.steps.flatMap(step => step.parts)]) expect(ids).toContain(id);

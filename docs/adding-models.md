@@ -133,7 +133,9 @@ from the library rather than copying them. For a setting whose values are part i
   selectable part is part of the cache fingerprint (`linkedPartData`).
 - **The preview:** `linkedReferences(parameters)` returns reference objects that depend on the settings: the part, its pose, the part
   it is mounted in (`movesWith`), or a `step` of its own after the assembly's steps (the litter shovel's screws, driven in once
-  the parts are together). `resolveAssembly` adds them to the assembly for the editor and the collision check. Parts without an
+  the parts are together). `resolveAssembly` adds them to the assembly for the editor and the collision check. An assembly's own steps may also
+  name a linked reference by its id, to move it in among the printed parts: the pressure pad's screws and nuts go in between
+  its extenders this way (`pressurePadAssembly`). Parts without an
   STL are built from their dimensions in the preview. The check renders magnets, screws, nuts and threaded inserts from the generic
   models in `parts/` (`GENERIC_MODELS` in `tools/check-assembly.ts`). A screw's thread is drawn at its minor diameter and a nut's
   or insert's bore at the thread's diameter, so a screw in its nut does not count as a collision. An insert is drawn as the hole
