@@ -1057,7 +1057,8 @@ main {
 .cigarette-case-illustration,
 .plank-connector-illustration,
 .litter-shovel-illustration,
-.toggle-latch-illustration {
+.toggle-latch-illustration,
+.pressure-pad-illustration {
   width: 250px;
   height: 210px;
 }
@@ -1186,6 +1187,37 @@ main {
 }
 @media (prefers-reduced-motion: reduce) {
   .ls-part {
+    transition: none;
+  }
+}
+/* The pressure pad: on hover the extender runs up and down the screw below, setting the leg's height. */
+.pp-guide {
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+.model-card:hover .pp-upper,
+.model-card:focus-visible .pp-upper {
+  animation: pp-adjust 2.4s ease-in-out infinite;
+}
+.model-card:hover .pp-guide,
+.model-card:focus-visible .pp-guide {
+  opacity: 0.6;
+}
+@keyframes pp-adjust {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-16px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .model-card:hover .pp-upper,
+  .model-card:focus-visible .pp-upper {
+    animation: none;
+  }
+  .pp-guide {
     transition: none;
   }
 }
