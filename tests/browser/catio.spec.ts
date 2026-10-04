@@ -330,7 +330,11 @@ test('opens the insert–tunnel coupling, switches its latches, stages the docki
   await expect(viewer).toHaveAttribute('data-window', 'closed');
   await expect(viewer).toHaveAttribute('data-visible-parts', /docking-frame/);
   const hardware = page.getByRole('table', { name: 'Hardware parts' });
-  await expect(hardware.getByRole('link', { name: 'Toggle latch GN 831, short, with safety catch, stainless' })).toHaveAttribute('href', '#/parts/toggle-latch/ganter-gn-831-100-s-ni-2');
+  // the printed toggle latch by default: linked to its model, the frame close to the flange with a thin seal
+  await expect(hardware.getByRole('link', { name: 'Toggle latch, printed' })).toHaveAttribute('href', '#/models/toggle-latch');
+  await expect(hardware.getByRole('cell', { name: 'EPDM E-profile seal, self-adhesive (custom)' })).toBeVisible();
+  await expect(hardware.getByRole('link', { name: /GN 831/ })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Latch', exact: true })).toHaveCount(0);
   await expect(hardware.getByRole('link', { name: 'Countersunk wood screw 5 × 60' })).toBeVisible();
   await expect(page.getByRole('table', { name: 'Timber parts' }).getByRole('cell', { name: 'Docking frame stile' })).toBeVisible();
   // the window insert's setting behind the frame's fit, linked to where it is changed
@@ -345,13 +349,17 @@ test('opens the insert–tunnel coupling, switches its latches, stages the docki
   }
   await page.getByRole('button', { name: 'Exterior', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Wall cutaway' })).not.toBeChecked();
+  // the Ganter GN 831 instead, with its own settings
+  await page.getByRole('combobox', { name: 'Latches', exact: true }).selectOption('gn-831');
+  await expect(hardware.getByRole('link', { name: 'Toggle latch GN 831, short, with safety catch, stainless' })).toHaveAttribute('href', '#/parts/toggle-latch/ganter-gn-831-100-s-ni-2');
+  await expect(hardware.getByRole('link', { name: 'Toggle latch, printed' })).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Latch', exact: true }).selectOption('SV');
   await page.getByRole('combobox', { name: 'Latches per side' }).selectOption('2');
   await expect(viewer).toHaveAttribute('data-config', /"latchType":"SV","latchMaterial":"NI","latchesPerSide":2/);
   await expect(hardware.getByRole('row', { name: /Toggle latch GN 831, short, with padlock eye, stainless/ }).getByRole('cell').first()).toHaveText('4');
   await page.getByRole('combobox', { name: 'Floor gap' }).selectOption('none');
   await expect(hardware.getByRole('cell', { name: 'EPDM sheet floor lip (custom)' })).toHaveCount(0);
-  // the printed toggle latch instead: linked to its model, the GN 831's own settings gone, the frame closer with a thinner seal
+  // back to the printed toggle latch: the GN 831's own settings gone, the frame closer with a thinner seal
   await page.getByRole('combobox', { name: 'Latches', exact: true }).selectOption('printed');
   await expect(viewer).toHaveAttribute('data-config', /"latch":"printed"/);
   await expect(page.getByRole('combobox', { name: 'Latch', exact: true })).toHaveCount(0);
@@ -367,7 +375,7 @@ test('opens the insert–tunnel coupling, switches its latches, stages the docki
   await slider.press('Home');
   await expect(viewer).not.toHaveAttribute('data-visible-parts', /docking-frame/);
   await slider.fill('2.2');
-  await expect(page.getByTestId('assembly-action')).toContainText('Toggle latch GN 831');
+  await expect(page.getByTestId('assembly-action')).toContainText('Printed toggle latch');
   await slider.fill('3.5');
   await expect(page.getByTestId('assembly-action')).toContainText('Lowering the first section');
   await slider.press('End');

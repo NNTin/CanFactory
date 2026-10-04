@@ -44,31 +44,33 @@ Neither side is redesigned. Both are read as their own pages set them (or from t
 
 | Parameter | Default | Options | Group |
 | --- | --- | --- | --- |
-| Latches | Ganter GN 831 (steel) | Ganter GN 831; printed toggle latch (the `toggle-latch` model) | Latches |
+| Latches | Printed toggle latch | Printed toggle latch (the `toggle-latch` model); Ganter GN 831 (steel) | Latches |
 | Latch | With safety catch (S) | S; plain lever (A); with padlock eye (SV); GN 831 only | Latches |
 | Material | Stainless steel | Stainless steel (NI); steel, zinc plated (ST); GN 831 only | Latches |
 | Latches per side | 1 (2 in all) | 1, 2 | Latches |
 | Floor gap | EPDM lip over it | EPDM lip; left open | Seal |
 
-With the defaults (a 30 × 30 cm cat port, set on the catio concept page), the docking frame is 44 × 37 cm outside and 32
-mm deep. Ten 5 × 60 screws fix it to the port frame. Two
-GN 831-100-S-NI-2 latches each hold 1000 N, and their hooks take up ±4 mm of the 6 mm gap. A 1.04 m seal and a 296 × 65 mm
-lip close the joint.
+With the defaults (a 30 × 30 cm cat port, set on the catio concept page), the docking frame is 44 × 37 cm outside and 35
+mm deep. Ten 5 × 60 screws fix it to the port frame. Two printed toggle latches close the 3 mm gap. A 1.04 m E-profile
+seal and a 296 × 65 mm lip close the joint. With **Latches: Ganter GN 831**, the frame is 32 mm deep and the gap 6 mm. The
+two GN 831-100-S-NI-2 latches each hold 1000 N, and their hooks take up ±4 mm of the gap.
 
 ### The printed toggle latch
 
-**Latches: Printed toggle latch** puts the library's [toggle latch](../../toggle-latch.md) on the joint instead. Its base plate goes
+**Latches: Printed toggle latch**, the default, puts the library's [toggle latch](../../toggle-latch.md) on the joint. Its base plate goes
 on the flange's outer side and its catch plate on the docking frame's, lever and link snapped on. The coupling places it with the
 latch's shared mechanism (`packages/contracts/src/toggleLatchMechanism.ts`), the same one its model page and card use.
 
 - **Locked spacing:** locked, the plates stand 1.31 mm apart (its over-centre lock). It has no adjustable hook and is short
   (25.3 mm over both plates), so a 6 mm gap would leave its screws next to the timber's edges.
-- **Gap and seal:** the docking frame comes to 3 mm of the flange instead, 3 mm deeper (35 mm). A self-adhesive EPDM
-  E-profile (9 × 4, made for 2–3.5 mm gaps) replaces the D-profile.
+- **Gap and seal:** the docking frame comes to 3 mm of the flange, 3 mm deeper (35 mm) than with GN 831 latches. A
+  self-adhesive EPDM E-profile (9 × 4, made for 2–3.5 mm gaps) takes the place of the GN 831's D-profile. The frame screws
+  then reach 23 mm into the jambs (26 mm with GN 831 latches).
 - **Plates and screws:** each plate stands 0.84 mm proud of its face into the gap. Its two DIN 7997 4 × 25 screws (the
   model's default) sit 5.1 mm in from the frame's face and the flange's back: pre-drill them.
 - **Draw:** hooked on with the joint up to about 1.7 mm further open, the lever draws it in.
-- **Limits:** it has no safety catch or padlock eye, and its holding force is not rated, so the GN 831 stays the default.
+- **Limits:** it has no safety catch or padlock eye, and its holding force is not rated. Choose the GN 831 for a joint
+  that must hold a rated load, or must be locked.
 - **Parts list:** the latch line links to the model (`#/models/toggle-latch`), not the parts library.
 - **Live assembly:**
   - Its four parts are built from their real profiles.
@@ -84,24 +86,26 @@ the scene, the parts list and the tests.
 
 1. **Docking frame (on the insert).** Two stiles stand on the threshold, over the port jambs. A head lies across them, on
    the transom.
-   - **Section:** 32 × 70. 70 is the flange's width, so the frame's outline above the floor is the flange's. 32 is the depth
-     from the mesh face to 6 mm short of the flange.
+   - **Section:** 35 × 70 (32 × 70 with GN 831 latches). 70 is the flange's width, so the frame's outline above the floor
+     is the flange's. 35 is the depth from the mesh face to 3 mm short of the flange (6 mm with GN 831 latches).
    - **Rebate:** where a cover batten lies under it, the frame's back is rebated 15 × 40 over the batten. Whether there are
      battens is the window insert's **Mesh to timber** setting, changed on that page. The coupling page's brief states it
      (**Cover battens at the port**, "Set on the window insert page: Mesh to timber"). With staples only, the frame sits flat
      on the mesh, unrebated.
-   - **Fixing:** DIN 7997 5 × 60 screws from its face, every 15 cm or less. Each reaches 26 mm into the jamb or transom,
-     whichever mesh fixing the insert has. The insert's batten screws and staples lie on the same centre lines. With the
+   - **Fixing:** DIN 7997 5 × 60 screws from its face, every 15 cm or less. Each reaches 23 mm into the jamb or transom
+     (26 mm with GN 831 latches), whichever mesh fixing the insert has. The insert's batten screws and staples lie on the same centre lines. With the
      defaults, one batten screw sat exactly where the middle stile screw went. So each frame screw is moved to the nearest
      spot at least 12 mm from all of them (`clearOf`), and the page reports a clash if none is found (`fastenerClashes`).
      The window insert's **Fixing spacing** therefore moves these screws too.
    - **No sill.** Its inner faces are the port's edges, so the cat's clear size is unchanged.
    - It stays on the insert, also when the insert is lifted out.
-2. **Seal.** A self-adhesive hollow EPDM D-profile, about 12 × 10 mm, runs along the middle of the frame's face: down both
-   stiles and across the head. It is squashed to the **6 mm gap** between the frame and the flange.
+2. **Seal.** A self-adhesive EPDM E-profile, 9 × 4 mm, runs along the middle of the frame's face: down both stiles and
+   across the head. It is squashed to the **3 mm gap** between the frame and the flange. With GN 831 latches it is a hollow
+   EPDM D-profile, about 12 × 10 mm, in a 6 mm gap.
 3. **Floor lip.** A 3 mm EPDM sheet is screwed to the first flange's sill (three 4 × 25 screws). It reaches 25 mm past the
    flange's back and lies on the threshold over the 10 mm floor gap.
-4. **Toggle latches.** Ganter GN 831, size 100, **short type** (identification no. 2):
+4. **Toggle latches.** The printed toggle latch by default (above). Or Ganter GN 831, size 100, **short type**
+   (identification no. 2):
    - **Body:** on the first flange's outer side, its pivot end 2 mm in from the flange's face.
    - **Catch bracket:** on the docking frame's outer side, in line with it, where the hook falls when set to the middle of
      its adjustable range.
@@ -116,9 +120,11 @@ the scene, the parts list and the tests.
 
 ## Design decisions (defaults to redirect)
 
-1. **Toggle latches, not bolts.** *Open call: the mechanism.*
-   - **Why:** docking and undocking are one movement per lever, without tools, and nothing loose can be lost. Each latch
-     holds 1000 N and draws 5.5 mm as it closes. Its hook can be set over 8 mm (12 mm for types A and SV), which takes up
+1. **Toggle latches, not bolts.** *Open call: the mechanism.* The printed toggle latch by default; Ganter GN 831
+   selectable.
+   - **Why:** docking and undocking are one movement per lever, without tools, and nothing loose can be lost. The printed
+     latch is cheap and to hand, but has a fixed spacing and no rated hold. A GN 831 holds 1000 N and draws 5.5 mm as it
+     closes. Its hook can be set over 8 mm (12 mm for types A and SV), which takes up
      how far the two sides end up from the design gap.
    - **Rejected:**
      - M8 bolts like the section couplings: a spanner and six nuts every time.
@@ -139,7 +145,7 @@ the scene, the parts list and the tests.
 4. **A squashed seal and a floor lip.** A hollow profile squashes with little force, so the latches need not pull hard and
    the insert is not dragged out of its recess. The lip closes the floor gap to claws and draughts, and bends out of the
    way when the joint opens.
-5. **The short latch.** The long type is 67 mm closed (74 mm for type S) before its hook is set at all, so its catch
+5. **With GN 831 latches, the short type.** The long type is 67 mm closed (74 mm for type S) before its hook is set at all, so its catch
    bracket would hang off the back of the frame. The short type is 54 mm closed (61 mm for S), so it fits with its hook at
    mid-range. The page checks this.
 
@@ -150,16 +156,17 @@ the scene, the parts list and the tests.
    - Screw the frame on with 5 × 60 screws.
 2. **Seal and catch brackets.**
    - Stick the seal round the frame's face.
-   - Screw the catch brackets onto the stiles' outer sides.
+   - Screw the catch plates of the printed latches (or GN 831 catch brackets) onto the stiles' outer sides.
 3. **Latches on the first section.** Where it was framed (the tunnel page, stages 3–4):
-   - Screw the latch bodies onto the first flange's outer sides.
+   - Screw the latches' base plates, lever and link snapped on (or GN 831 bodies), onto the first flange's outer sides.
    - Screw the floor lip onto its sill.
 4. **Lay the first section.**
-   - Lower it onto its wall support, square to the port. Its flange stands 6 mm off the frame and squashes the seal, and
+   - Lower it onto its wall support, square to the port. Its flange stands 3 mm off the frame (6 mm with GN 831 latches)
+     and squashes the seal, and
      the lip lies on the threshold.
    - Fix it down and couple the rest of the tunnel as the tunnel page describes.
-5. **Dock.** Hook each latch over its catch and press the lever down over centre. Type S's safety catch clicks over the
-   lever; type SV takes a padlock. Then open the cat gate.
+5. **Dock.** Hook each latch over its catch and press the lever down over centre. With GN 831 latches, type S's safety
+   catch clicks over the lever; type SV takes a padlock. Then open the cat gate.
 
 **To undock:** lift the levers and unhook them. The insert can come out of its recess and the tunnel stays on its supports.
 No tools either way.
@@ -196,7 +203,7 @@ part behind them. Their sizes are this design's, not a product's.
 - [Tests](../../../apps/web/src/catioCoupling.test.ts) check:
   - the frame sits on the insert's own faces (battens or mesh, for every mesh fixing), keeps the port's clear size and has
     the flange's outline
-  - the frame screws' 26 mm bite
+  - the frame screws' 23 mm bite (26 mm with GN 831 latches)
   - the brief names whether the insert has cover battens and that the window insert page sets it
   - no frame screw within 12 mm of a batten screw or staple, for every window insert setting and mesh fixing
   - the design decisions quote the sizes the layout uses
