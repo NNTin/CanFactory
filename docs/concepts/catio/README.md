@@ -52,10 +52,19 @@ rising). See [tunnel.md](tunnel.md). The
 modular whole-catio scene keeps its schematic straight and 90° modules on level feet until the tunnel page's design is adopted
 there.
 
+## Tunnel–tunnel coupling
+
+How two of the tunnel's sections are joined has its own live page, `#/concepts/catio/tunnel-tunnel-coupling`: one section
+built and laid on the support under the joint, its joint readied, then a second, identical section coming in along the
+tunnel's axis and coupled to it. Printed toggle latches across a sealed 3 mm gap by default, M8 bolts through both flanges as
+an option. The tunnel page couples every section and angle collar this way; mitred joints and the enclosure end stay
+bolted. See [tunnel-tunnel-coupling.md](tunnel-tunnel-coupling.md).
+
 ## How the sub-assembly pages fit each other
 
-The tunnel and the coupling are fitted to the window insert, and the coupling also shows the tunnel. Each page reads the
-others' saved settings. One declaration on the dependent page, `follows` in
+The tunnel and the insert–tunnel coupling are fitted to the window insert, and the coupling also shows the tunnel. The tunnel
+follows the tunnel–tunnel coupling's mechanism at every coupling, and that page is built from the tunnel's sections, support
+and feet in turn. Each page reads the others' saved settings. One declaration on the dependent page, `follows` in
 [catioSubassemblies.ts](../../../apps/web/src/catioSubassemblies.ts), lists the settings of the other page that change it,
 and everything else is derived from it ([CatioCrossPage.tsx](../../../apps/web/src/CatioCrossPage.tsx)):
 
@@ -67,10 +76,14 @@ and everything else is derived from it ([CatioCrossPage.tsx](../../../apps/web/s
 - A fact or a design decision can name the other page's settings it comes from (`from`). The page then shows "Set on the …
   page: …" under it, e.g. the coupling's cover battens and the tunnel's window port floor.
 
-A test changes every window insert setting in turn and checks that exactly the declared ones change each dependent page.
+A test changes every window insert setting in turn and checks that exactly the declared ones change each dependent page; it
+does the same between the tunnel and the tunnel–tunnel coupling, in both directions.
 
-Geometry that one page owns and another shows is drawn by one builder: `buildInsertContext` (the installed insert) and
-`buildCouplingPieces` (the docking frame, seal, catches, latches and lip). Fasteners added on top of another page's are
+Geometry that one page owns and another shows is drawn by one builder: `buildInsertContext` (the installed insert),
+`buildCouplingPieces` (the docking frame, seal, catches, latches and lip), `buildSectionPieces`, `buildSupportPieces` and
+`buildCouplingJoint` (the tunnel's sections, supports and flange couplings, in
+[catioTunnelPieces.ts](../../../apps/web/src/catioTunnelPieces.ts)), and `buildPrintedLatches` (the printed toggle latch, on
+both coupling pages and the tunnel, placed by [catioPrintedLatch.ts](../../../apps/web/src/catioPrintedLatch.ts)). Fasteners added on top of another page's are
 placed with `clearOf` and checked with `fastenerClashes` ([catioSubassembly.ts](../../../apps/web/src/catioSubassembly.ts)).
 
 ## Dimensions and assumptions

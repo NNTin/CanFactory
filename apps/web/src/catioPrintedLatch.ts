@@ -65,7 +65,7 @@ const round1 = (mm: number) => Number(mm.toFixed(1));
 export function printedLatchLine(quantity: number, use: string): BomLine {
   return {
     id: toggleLatch.id, group: 'Hardware', name: `${toggleLatch.title}, printed`, quantity, modelId: toggleLatch.id,
-    size: `4 printed parts each: base, lever, link and catch · ${PRINTED_LATCH.length} × ${round1(PRINTED_LATCH.along)} × ${PRINTED_LATCH.plate} plates · holes for DIN 7997 4 × 25 (the model’s default)`, use,
+    size: `4 printed parts each: base, lever, link and catch · ${PRINTED_LATCH.length} × ${round1(PRINTED_LATCH.along)} × ${round1(PRINTED_LATCH.plate)} plates · holes for DIN 7997 4 × 25 (the model’s default)`, use,
   };
 }
 /** The E-profile seal's name in the parts lists. */

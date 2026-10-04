@@ -3,7 +3,9 @@
 The tunnel is the enclosed, supported walkway of the modular catio. It runs from the window insert's cat port to the
 enclosure's rear cat port. Its route is **solved between the two ports**, so it can turn at any angle and climb or fall to a
 door at a different height. Its **supports stand on levelling feet** (printed [pressure pads](../../pressure-pad.md) on M8
-screws by default), because nothing on the site is assumed to be level.
+screws by default), because nothing on the site is assumed to be level. Its sections are coupled as the
+[tunnel–tunnel coupling](tunnel-tunnel-coupling.md) page sets: **printed toggle latches** across a sealed 3 mm gap by
+default, or bolted flanges.
 
 Live page: `#/concepts/catio/tunnel`, also linked from the catio concept page's heading under **Sub-assemblies**. For local
 development, run `npm run dev --workspace @canfactory/web -- --port 5181`, then open
@@ -33,7 +35,8 @@ control.
   [insert–tunnel coupling](window-insert-tunnel-coupling.md), which replaced the foam strip this page used to list.
 - **Enclosure end.** The enclosure is out of scope. Only its rear cat port is used, set by four values: its position along
   the wall, its distance out, the way it faces and its floor height. The tunnel's last flange bolts to a matching 30 mm flange
-  with the same bolt pattern. **That flange is the one requirement the tunnel places on the enclosure page.**
+  with the same bolt pattern. **That flange is the one requirement the tunnel places on the enclosure page.** It stays
+  bolted whatever the couplings between sections are.
 
 ## Presets
 
@@ -68,8 +71,7 @@ level and suggests the level setting.
 | Straight into the port | 70 cm | 30 to 500 cm | Route |
 | Climb in | The middle run | Run out from the wall; middle run; run into the port | Route |
 | Steepest slope | 20° | 10°, 15°, 20°, 25° | Route |
-| Turns and bends | Angle collar, bolted | Angle collar; mitred ends | Joints |
-| Bolts per coupling | 6 | 4, 6, 8 | Joints |
+| Turns and bends | Angle collar | Angle collar; mitred ends, bolted | Joints |
 | Longest section | 75 cm | 50, 75, 100 cm | Sections |
 | Feet | Printed feet on M8 × 80 screws | Printed feet; Ganter GN 343.2 levelling feet | Supports |
 | Foot height | 27.5 mm | 13 to 40 mm, in 0.5 mm steps (printed feet) | Supports |
@@ -78,8 +80,14 @@ level and suggests the level setting.
 | Ground falls away | 2% | 0, 1, 2, 4% | Supports |
 | Uneven by up to | ±15 mm | ±10, 15, 20, 25 mm | Supports |
 
-With the defaults, the tunnel is 3.41 m long. It turns 37.04° right, climbs 25.45 cm at 20°, then turns 37.04° left into
-the port. That is five sections, four angle collars and six supports: two low bearers near the wall and four trestles.
+How the sections are coupled is not set here: **Coupling**, **Latches per side**, **Bolts per coupling** and **Seal** are on
+the [tunnel–tunnel coupling](tunnel-tunnel-coupling.md) page, which this page follows. (**Bolts per coupling** used to be
+here; settings saved before simply drop it.)
+
+With the defaults, the tunnel's pieces are 3.39 m long, with eight 3 mm gaps between them (3.41 m of pieces when bolted). It
+turns 37.04° right, climbs 25.45 cm at 20°, then turns 37.04° left into the port. That is five sections, four angle
+collars and six supports: two low bearers near the wall and four trestles. Its eight couplings are latched, 32 printed
+latches in all; the port end is bolted.
 
 ## The geometry
 
@@ -106,25 +114,32 @@ scene, the parts list and the tests.
    With this setback, the backs of the two 30 mm flanges either side meet exactly on the bisector plane at the inside edge,
    and open into a wedge towards the outside. For mitred ends there is no setback: both sections end on the bisector plane
    through the vertex. The tests check both, and check that every coupling's outline is the same on both sides.
-4. **Sections.** Each straight run is divided into equal sections no longer than the chosen length. A section is two
+   - **Latched couplings leave a gap.** With the printed latch, the flanges of every square coupling stand 3 mm apart. A run
+     stops a gap further short of an angle collar (`Joint.stop` = e + 3; the collar's ends stay at e), and holds its
+     sections and the gaps between them, so the route still ends exactly at the port. Mitred joints are bolted, face to
+     face, with no gap.
+4. **Sections.** Each straight run is divided into equal sections no longer than the chosen length, less the gaps between
+   them when they are latched. A section is two
    30 × 70 flange rings around the clear opening, four 40 × 40 corner rails, an 18 mm exterior plywood floor on the bottom
    rails, mesh down both sides and over the roof, and 20 × 20 cleats across sloped floors.
 
 ## Design decisions (defaults to redirect)
 
 1. **Angle collars at every turn and bend.**
-   - **What:** a short wedge between two square flange rings, cut to the joint's exact angle (up to 135°) and bolted to the
+   - **What:** a short wedge between two square flange rings, cut to the joint's exact angle (up to 135°) and coupled to the
      sections either side like any coupling.
    - **Why:** every section stays a plain, square box that can move to another place in the route; only the small collars
      are cut to angles.
    - **Alternative (an option):** mitred ends, up to 90°. These need no collar, but cut the two sections at each joint, with
      their flange rings, rails, floor and mesh, to the mitre. The cut list then gives each piece's mitre angle.
-2. **Bolted flanges.**
-   - **What:** neighbours are bolted through both flange rings, 30 mm outside the mesh where a 13 mm spanner reaches. Six
-     ISO 4017 M8 × 80 bolts per coupling, each with two ISO 7093 M8 large washers and an ISO 4032 M8 nut.
-   - **Why:** 80 mm grips 2 × 30 mm of flange, two washers and the nut with thread to spare. Bolts can be undone to take the
-     tunnel apart or re-route it. All are library parts.
-   - **Rejected:** proprietary toggle clamps, which the library does not yet have.
+2. **Flange couplings: latched, or bolted** (set on the [tunnel–tunnel coupling](tunnel-tunnel-coupling.md) page).
+   - **What:** by default, every section-to-section and section-to-collar coupling is joined by printed toggle latches on
+     the flange rings' outer sides (two each side), across a 3 mm gap with an EPDM E-profile seal. Or neighbours are
+     bolted through both flange rings, 30 mm outside the mesh where a 13 mm spanner reaches: six ISO 4017 M8 × 80 bolts per
+     coupling, each with two ISO 7093 M8 large washers and an ISO 4032 M8 nut.
+   - **Why:** latches close by hand and leave nothing loose in the grass. Bolts have a rated hold and are all library parts;
+     80 mm grips 2 × 30 mm of flange, two washers and the nut with thread to spare.
+   - **Always bolted:** mitred joints (their side faces do not line up for a latch) and the enclosure end.
 3. **A support at both ends, at every straight coupling and under every joint.**
    - **Trestles:** a 45 × 70 bearer, sitting just under the flanges, carries the tunnel on two 45 × 45 legs. The bearer is
      bevelled to the slope under sloped couplings and screwed up into the flanges with DIN 7997 6 × 100 screws.
@@ -171,7 +186,9 @@ scene, the parts list and the tests.
    - cleats on sloped floors (DIN 7997 4 × 35)
 4. **Mesh the sections.** Fit side and roof mesh, stapled to the rails and turned onto the flanges with DIN 1159 2.5 × 25
    staples every 15 cm.
-5. **Lay and couple.** Lower the pieces onto the supports one by one from the window end, then bolt every coupling.
+5. **Lay and couple.** Lower the pieces onto the supports one by one from the window end, sticking the seal round each
+   flange's face before the next piece goes down. Then close every latch over centre (or bolt every coupling) as the
+   coupling page sets. The latches' plates were screwed onto the flanges' sides while framing (stage 3).
 6. **Fix down and dock.**
    - Screw up through the bearers into the flanges.
    - Close the latches between the first flange and the insert's docking frame (the coupling page).
@@ -193,7 +210,7 @@ No new families were needed. The tunnel uses existing parts:
 - **ISO 7093-1** M8
 - **ISO 4032** M8
 - **DIN 7965** M8 × 18
-- **DIN 7997**: 4 × 35, 4 × 40, 5 × 50, 5 × 70, 6 × 100
+- **DIN 7997**: 4 × 25 (the printed latches' plates), 4 × 35, 4 × 40, 5 × 50, 5 × 70, 6 × 100
 - **DIN 1159** 2.5 × 25
 - **GN 343.2 KR** with M8 studs: 25 and 32 mm with 63 mm studs, 40 mm with 80 mm (the longest stud of each diameter,
   `tunnelFoot`)
@@ -205,22 +222,27 @@ They are listed once, by role, in [concepts.ts](../../../packages/contracts/src/
 `tunnelConcept`). The parts library lists the page under each part's “Used by”, and a test keeps the page's parts list and
 that list identical.
 
-Custom lines (not library parts): the timber cut list, mesh panels and the paving slabs. The window end's seal and
-latches are listed on the coupling page.
+Custom lines (not library parts): the timber cut list, mesh panels, the couplings' E-profile seals and the paving slabs.
+The printed latches link to their model (`#/models/toggle-latch`). The window end's seal and latches are listed on the
+insert–tunnel coupling page.
 
 ## Implementation
 
 - [Tunnel design: parameters, solved layout, joint geometry, supports, parts list, steps, decisions](../../../apps/web/src/catioTunnel.ts)
 - [Tunnel scene](../../../apps/web/src/catioTunnelScene.ts): the window context (without its flat ground), uneven
   terrain, the window insert (`buildInsertContext`) with the coupling's docking frame (`buildCouplingPieces`), and the
-  enclosure's port flange as fixed context
+  enclosure's port flange as fixed context. Its sections, supports and couplings are drawn by the builders it shares with
+  the tunnel–tunnel coupling page ([catioTunnelPieces.ts](../../../apps/web/src/catioTunnelPieces.ts)).
 - [Sub-assembly contract](../../../apps/web/src/catioSubassembly.ts) and [page](../../../apps/web/src/CatioSubassemblyPage.tsx).
   New for the tunnel: numeric controls (`range`), presets (`presets`), single-variant pages, per-page view, layer and toggle labels, the brief
   and assembly headings, a stage scale, and a Groundwork group in the parts list. The window insert page is unchanged.
 - [Tests](../../../apps/web/src/catioTunnel.test.ts) check:
   - both ends square to their ports across left, right, odd-angle, climbing, falling and 90° routes, in both joint types
   - no roll anywhere, and turns only on the level
-  - coupling outlines identical on both sides
+  - coupling outlines identical on both sides, 3 mm apart where latched, and the route ending exactly at the port with
+    either coupling mechanism
+  - latches at every square coupling (bolts at mitres and at the port), their screws in the timber and clear of the
+    bearer's and rails' screws, and closing over centre in the scene
   - collar flanges meeting at the inside edge, and mitres on the bisector
   - the exact rise
   - supports at every coupling and joint, bearers touching but not cutting the underside, and every foot within its travel
