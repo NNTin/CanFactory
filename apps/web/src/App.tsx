@@ -214,6 +214,59 @@ function AiDuckIllustration() {
   </svg>;
 }
 
+/** A hexagon nut or screw head, front-on: three faces, the middle one lit. */
+function Hexagon({ x, y, width, height }: { x: number; y: number; width: number; height: number }) {
+  const side = width / 4;
+  return <>
+    <rect x={x} y={y} width={side} height={height} fill="#2f5486" />
+    <rect x={x + side} y={y} width={width - 2 * side} height={height} fill="#5b86bd" />
+    <rect x={x + width - side} y={y} width={side} height={height} fill="#2f5486" />
+  </>;
+}
+
+/** A screw's threaded shank, front-on, from `top` down to `bottom`. */
+function Shank({ top, bottom }: { top: number; bottom: number }) {
+  return <>
+    <rect x="116.5" y={top} width="7" height={bottom - top} fill="#3f6ea6" />
+    <path d={Array.from({ length: Math.floor((bottom - top) / 4) }, (_, i) => `M116.5 ${top + 2 + i * 4}l7-1.5`).join('')} stroke="#a9c2e2" strokeWidth="1" />
+  </>;
+}
+
+/**
+ * The pressure pad as a leg, front-on: the green foot with its grooved sole on the floor, a screw up from it, a lock nut, the
+ * terracotta extender with its slotted pockets, and the next screw on top. On card hover the extender and the screw it carries
+ * run up and down the screw below, the height the hollow extender sets, while a height guide shows (`.pp-*` in styles.css).
+ */
+function PressurePadIllustration() {
+  return <svg viewBox="0 0 240 190" aria-hidden="true" className="pressure-pad-illustration">
+    <ellipse cx="120" cy="168" rx="58" ry="8" fill="#c8cec1" opacity=".35" />
+    <g className="pp-guide">
+      <path d="M70 160V30" stroke="#7b8e6b" strokeWidth="1.5" strokeDasharray="3 4" />
+      <path d="M64 37l6-9 6 9M64 153l6 9 6-9" fill="none" stroke="#7b8e6b" strokeWidth="1.5" strokeLinejoin="round" />
+    </g>
+    {/* the screw from the foot: long enough to stay behind the extender at its highest */}
+    <Shank top={62} bottom={140} />
+    {/* the foot: grooved sole, the slot of its head pocket on the right */}
+    <path d="M90 140v20a30 6 0 0 0 60 0v-20z" fill="#5f7350" />
+    <ellipse cx="120" cy="140" rx="30" ry="6" fill="#8fa27c" />
+    <path d="M90 155a30 6 0 0 0 60 0M90 150a30 6 0 0 0 60 0" fill="none" stroke="#4b5c3f" strokeWidth="1.2" opacity=".7" />
+    <rect x="142" y="143" width="8" height="5" fill="#3d4b33" opacity=".75" />
+    {/* the lock nut, jammed up under the extender */}
+    <Hexagon x={108} y={113} width={24} height={8} />
+    <g className="pp-part pp-upper">
+      {/* the next screw, its head in the extender's top pocket */}
+      <Shank top={14} bottom={58} />
+      {/* the extender: its two pockets' slots open on the right */}
+      <path d="M96 58v52a24 5 0 0 0 48 0V58z" fill="#d98460" />
+      <path d="M96 58v52a24 5 0 0 0 10 4.6V62.6A24 5 0 0 1 96 58z" fill="#c46543" opacity=".6" />
+      <ellipse cx="120" cy="58" rx="24" ry="5" fill="#e8ab87" />
+      <ellipse cx="120" cy="58" rx="4" ry="1.4" fill="#753e2d" opacity=".8" />
+      <rect x="137" y="64" width="7" height="8" fill="#753e2d" opacity=".55" />
+      <rect x="137" y="98" width="7" height="10" fill="#753e2d" opacity=".55" />
+    </g>
+  </svg>;
+}
+
 const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'ai-rubber-duck': AiDuckIllustration,
   'cigarette-case': CigaretteCaseIllustration,
@@ -222,6 +275,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'plank-connector': PlankConnectorIllustration,
   'litter-shovel': LitterShovelIllustration,
   'toggle-latch': ToggleLatchIllustration,
+  'pressure-pad': PressurePadIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names

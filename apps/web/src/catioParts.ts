@@ -16,6 +16,8 @@ export function createCatioParts() {
     mesh: new THREE.MeshStandardMaterial({ color: '#535e58', metalness: 0.48, roughness: 0.7 }),
     hardware: new THREE.MeshStandardMaterial({ color: '#66716f', metalness: 0.65, roughness: 0.42 }),
     rubber: new THREE.MeshStandardMaterial({ color: '#363f3b', roughness: 1 }),
+    /** Printed parts (PETG), in the parts' green of the model library's drawings. */
+    printed: new THREE.MeshStandardMaterial({ color: '#5f7350', roughness: 0.55 }),
     window: new THREE.MeshStandardMaterial({ color: '#f4f1e7', roughness: 0.5 }),
     glass: new THREE.MeshStandardMaterial({ color: '#b8d9df', transparent: true, opacity: 0.24, roughness: 0.15, depthWrite: false }),
     wall: new THREE.MeshStandardMaterial({ color: '#d5d0c4', roughness: 1 }),

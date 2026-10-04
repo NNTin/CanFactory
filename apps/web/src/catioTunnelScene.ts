@@ -135,8 +135,8 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
 
   // Stage 1: slabs, then each support: legs (or a low bearer), insert nuts and feet from below, the bearer, its screws, the brace.
   const drops = new Map<string, number>();
-  const { foot, insertNut, travel } = layout;
-  const l1 = dimensionOf(foot, 'l1'); const l3 = dimensionOf(foot, 'l3'); const d1 = dimensionOf(foot, 'd1') / 2; const af = dimensionOf(foot, 's');
+  const { foot, pad, insertNut, travel, footHeight: l3, stud: l1 } = layout;
+  const d1 = (pad ? pad.diameter : dimensionOf(foot, 'd1')) / 2;
   const trestles = layout.supports.filter(s => s.kind === 'trestle');
   const blocks = layout.supports.filter(s => s.kind === 'block');
   const feetCount = layout.supports.reduce((n, s) => n + s.feet.length, 0);
@@ -155,12 +155,20 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
       const nut = piece(group('foot-insert-nuts', 1, 'hardware'), [f.at[0], f.at[1], bottom]);
       cylinder(nut, [0, 0, 0], [0, 0, dimensionOf(insertNut, 'l')], dimensionOf(insertNut, 'd') / 2, m.hardware);
       move(nut, 1, [0.26, 0.4], [0, 0, -70], `${feetCount} × ${insertNut.title}: screwed up into the foot end of each ${blocks.length ? 'leg or low bearer' : 'leg'}`, { role: 'insert-nut', support: s.id, of: f.id, axis: new THREE.Vector3(0, 0, 1), turns: 3 });
-      // the foot: pad on the slab, hexagon, and the stud up into the insert nut (it stays on the slab while it is turned)
+      // the foot: pad on the slab, hexagon, and the stud up into the insert nut (it stays on the slab while it is turned); a printed
+      // foot holds the screw's head under its lip, and the shank runs on up
       const footPiece = piece(group('levelling-feet', 1, 'hardware'), [f.at[0], f.at[1], f.slabTop]);
-      cylinder(footPiece, [0, 0, 0], [0, 0, l3 - 7], d1, m.rubber);
-      cylinder(footPiece, [0, 0, l3 - 7], [0, 0, l3], af / Math.sqrt(3), m.hardware, true);
-      cylinder(footPiece, [0, 0, l3], [0, 0, l3 + l1], dimensionOf(foot, 'd') / 2, m.hardware);
-      move(footPiece, 1, [0.4, 0.56], [0, 0, -0.01], `${feetCount} × ${foot.title}: stud screwed up into the insert nut`, { role: 'foot', of: f.id, axis: new THREE.Vector3(0, 0, 1), turns: 5 });
+      if (pad) {
+        cylinder(footPiece, [0, 0, 0], [0, 0, l3], d1, m.printed);
+        cylinder(footPiece, [0, 0, l3], [0, 0, l3 + l1], dimensionOf(foot, 'd') / 2, m.hardware);
+        move(footPiece, 1, [0.4, 0.56], [0, 0, -0.01], `${feetCount} × Printed foot on an ${foot.designation}: screwed up into the insert nut by turning the foot`, { role: 'foot', of: f.id, axis: new THREE.Vector3(0, 0, 1), turns: 5 });
+      } else {
+        const af = dimensionOf(foot, 's');
+        cylinder(footPiece, [0, 0, 0], [0, 0, l3 - 7], d1, m.rubber);
+        cylinder(footPiece, [0, 0, l3 - 7], [0, 0, l3], af / Math.sqrt(3), m.hardware, true);
+        cylinder(footPiece, [0, 0, l3], [0, 0, l3 + l1], dimensionOf(foot, 'd') / 2, m.hardware);
+        move(footPiece, 1, [0.4, 0.56], [0, 0, -0.01], `${feetCount} × ${foot.title}: stud screwed up into the insert nut`, { role: 'foot', of: f.id, axis: new THREE.Vector3(0, 0, 1), turns: 5 });
+      }
       if (s.kind === 'trestle') for (const k of [-1, 1]) {
         const at = vec.add([f.at[0], f.at[1], s.top], vec.mul(s.along, k * 11));
         const screw = piece(group('bearer-screws', 1, 'hardware'), at);

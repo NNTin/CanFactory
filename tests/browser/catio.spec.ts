@@ -164,8 +164,24 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await expect(viewer).toHaveAttribute('data-variant', 'direct');
   await expect(viewer).toHaveAttribute('data-visible-parts', /spreader-clamps/);
   const hardware = page.getByRole('table', { name: 'Hardware parts' });
-  await expect(hardware.getByRole('link', { name: 'Levelling foot 32 mm, M8 × 63, rubber pad' })).toHaveAttribute('href', '#/parts/levelling-foot/ganter-gn-343-2-32-m8-63-kr');
+  // printed pads on library screws by default; the Ganter feet stay selectable
+  await expect(hardware.getByRole('link', { name: 'Pressure pad, thrust pad' })).toHaveAttribute('href', '#/models/pressure-pad');
+  await expect(hardware.getByRole('link', { name: 'Pressure pad, foot' })).toHaveAttribute('href', '#/models/pressure-pad');
+  await expect(hardware.getByRole('link', { name: 'Hexagon head screw M8 × 80' })).toBeVisible();
+  await expect(hardware.getByRole('link', { name: 'Nylon-insert lock nut M8' })).toBeVisible();
   await expect(hardware.getByRole('link', { name: 'Insert nut for wood M8 × 18' })).toBeVisible();
+  await page.getByRole('spinbutton', { name: 'Pad height' }).fill('30');
+  await expect(viewer).toHaveAttribute('data-config', /"padHeight":30/);
+  await expect(hardware.getByText('Ø 32 × 30 mm · grooved sole · PETG · for an ISO 10511 M8 nut')).toBeVisible();
+  await page.getByRole('combobox', { name: 'Pad sole' }).selectOption('domed');
+  await expect(viewer).toHaveAttribute('data-config', /"padSurface":"domed"/);
+  // the feet and the pads' height set the clamp gap, and with it the port's floor the tunnel and the coupling start from
+  const parameters = page.getByRole('complementary', { name: 'Window insert parameters' });
+  for (const name of ['Spreader feet', 'Pad height']) await expect(parameters.locator('label', { has: page.getByRole(name === 'Pad height' ? 'spinbutton' : 'combobox', { name }) }).locator('.subassembly-affects')).toHaveText('Also changes the tunnel and the insert–tunnel coupling.');
+  await page.getByRole('combobox', { name: 'Spreader feet' }).selectOption('ganter');
+  await expect(hardware.getByRole('link', { name: 'Levelling foot 32 mm, M8 × 63, rubber pad' })).toHaveAttribute('href', '#/parts/levelling-foot/ganter-gn-343-2-32-m8-63-kr');
+  await expect(hardware.getByRole('link', { name: 'Pressure pad, thrust pad' })).toHaveCount(0);
+  await expect(page.getByRole('spinbutton', { name: 'Pad height' })).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Collar corners' }).selectOption('butt-screwed');
   await expect(viewer).toHaveAttribute('data-config', /"cornerJoint":"butt-screwed"/);
   await expect(hardware.getByRole('link', { name: 'Countersunk wood screw 5 × 70' })).toBeVisible();
@@ -231,8 +247,13 @@ test('opens the tunnel, solves its route to the enclosure port, switches its joi
   await expect(page.getByRole('button', { name: 'Direct · original design', exact: true })).toHaveCount(0);
   await expect(viewer).toHaveAttribute('data-visible-parts', /levelling-feet/);
   const hardware = page.getByRole('table', { name: 'Hardware parts' });
-  await expect(hardware.getByRole('link', { name: 'Levelling foot 40 mm, M8 × 80, rubber pad' })).toHaveAttribute('href', '#/parts/levelling-foot/ganter-gn-343-2-40-m8-80-kr');
+  // printed feet on the coupling bolts' M8 × 80 by default; the Ganter feet stay selectable
+  await expect(hardware.getByRole('link', { name: 'Pressure pad, foot' })).toHaveAttribute('href', '#/models/pressure-pad');
   await expect(hardware.getByRole('link', { name: 'Hexagon head screw M8 × 80' })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Feet', exact: true }).selectOption('ganter');
+  await expect(hardware.getByRole('link', { name: 'Levelling foot 40 mm, M8 × 80, rubber pad' })).toHaveAttribute('href', '#/parts/levelling-foot/ganter-gn-343-2-40-m8-80-kr');
+  await expect(hardware.getByRole('link', { name: 'Pressure pad, foot' })).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'Feet', exact: true }).selectOption('printed');
   const timber = page.getByRole('table', { name: 'Timber parts' });
   await expect(timber.getByRole('cell', { name: 'Collar floor' }).first()).toBeVisible();
   // the enclosure's door higher up: the tunnel climbs more, steeper
@@ -259,7 +280,7 @@ test('opens the tunnel, solves its route to the enclosure port, switches its joi
   await expect(page.getByRole('combobox', { name: 'Port floor', exact: true })).toHaveValue('window');
   await expect(page.getByRole('spinbutton', { name: 'Port floor height' })).toHaveCount(0);
   await expect(page.getByText('Window port floor · above the grass')).toBeVisible();
-  await expect(page.locator('.catio-dimensions .subassembly-source').first()).toHaveText('Set on the window insert page: Held in the recess by, Foot diameter');
+  await expect(page.locator('.catio-dimensions .subassembly-source').first()).toHaveText('Set on the window insert page: Held in the recess by, Spreader feet, Pad height, Foot diameter');
   await expect(timber.getByRole('cell', { name: 'Collar floor' })).toHaveCount(0);
   await presets.getByRole('button', { name: '90° turn right' }).click();
   await expect(viewer).toHaveAttribute('data-config', /"portFacing":90/);
@@ -276,7 +297,7 @@ test('opens the tunnel, solves its route to the enclosure port, switches its joi
   await expect(viewer).toHaveAttribute('data-step', '0');
   await expect(viewer).not.toHaveAttribute('data-visible-parts', /flanges/);
   await slider.fill('0.5');
-  await expect(page.getByTestId('assembly-action')).toContainText('Levelling foot 40 mm, M8 × 80, rubber pad: stud screwed up into the insert nut');
+  await expect(page.getByTestId('assembly-action')).toContainText('Printed foot on an ISO 4017 M8 × 80: screwed up into the insert nut by turning the foot');
   await slider.fill('1.5');
   await expect(page.getByTestId('assembly-action')).toContainText('Each foot is turned on its stud');
   await slider.press('Home');
@@ -309,7 +330,11 @@ test('opens the insert–tunnel coupling, switches its latches, stages the docki
   await expect(viewer).toHaveAttribute('data-window', 'closed');
   await expect(viewer).toHaveAttribute('data-visible-parts', /docking-frame/);
   const hardware = page.getByRole('table', { name: 'Hardware parts' });
-  await expect(hardware.getByRole('link', { name: 'Toggle latch GN 831, short, with safety catch, stainless' })).toHaveAttribute('href', '#/parts/toggle-latch/ganter-gn-831-100-s-ni-2');
+  // the printed toggle latch by default: linked to its model, the frame close to the flange with a thin seal
+  await expect(hardware.getByRole('link', { name: 'Toggle latch, printed' })).toHaveAttribute('href', '#/models/toggle-latch');
+  await expect(hardware.getByRole('cell', { name: 'EPDM E-profile seal, self-adhesive (custom)' })).toBeVisible();
+  await expect(hardware.getByRole('link', { name: /GN 831/ })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Latch', exact: true })).toHaveCount(0);
   await expect(hardware.getByRole('link', { name: 'Countersunk wood screw 5 × 60' })).toBeVisible();
   await expect(page.getByRole('table', { name: 'Timber parts' }).getByRole('cell', { name: 'Docking frame stile' })).toBeVisible();
   // the window insert's setting behind the frame's fit, linked to where it is changed
@@ -324,13 +349,17 @@ test('opens the insert–tunnel coupling, switches its latches, stages the docki
   }
   await page.getByRole('button', { name: 'Exterior', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Wall cutaway' })).not.toBeChecked();
+  // the Ganter GN 831 instead, with its own settings
+  await page.getByRole('combobox', { name: 'Latches', exact: true }).selectOption('gn-831');
+  await expect(hardware.getByRole('link', { name: 'Toggle latch GN 831, short, with safety catch, stainless' })).toHaveAttribute('href', '#/parts/toggle-latch/ganter-gn-831-100-s-ni-2');
+  await expect(hardware.getByRole('link', { name: 'Toggle latch, printed' })).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Latch', exact: true }).selectOption('SV');
   await page.getByRole('combobox', { name: 'Latches per side' }).selectOption('2');
   await expect(viewer).toHaveAttribute('data-config', /"latchType":"SV","latchMaterial":"NI","latchesPerSide":2/);
   await expect(hardware.getByRole('row', { name: /Toggle latch GN 831, short, with padlock eye, stainless/ }).getByRole('cell').first()).toHaveText('4');
   await page.getByRole('combobox', { name: 'Floor gap' }).selectOption('none');
   await expect(hardware.getByRole('cell', { name: 'EPDM sheet floor lip (custom)' })).toHaveCount(0);
-  // the printed toggle latch instead: linked to its model, the GN 831's own settings gone, the frame closer with a thinner seal
+  // back to the printed toggle latch: the GN 831's own settings gone, the frame closer with a thinner seal
   await page.getByRole('combobox', { name: 'Latches', exact: true }).selectOption('printed');
   await expect(viewer).toHaveAttribute('data-config', /"latch":"printed"/);
   await expect(page.getByRole('combobox', { name: 'Latch', exact: true })).toHaveCount(0);
@@ -346,7 +375,7 @@ test('opens the insert–tunnel coupling, switches its latches, stages the docki
   await slider.press('Home');
   await expect(viewer).not.toHaveAttribute('data-visible-parts', /docking-frame/);
   await slider.fill('2.2');
-  await expect(page.getByTestId('assembly-action')).toContainText('Toggle latch GN 831');
+  await expect(page.getByTestId('assembly-action')).toContainText('Printed toggle latch');
   await slider.fill('3.5');
   await expect(page.getByTestId('assembly-action')).toContainText('Lowering the first section');
   await slider.press('End');

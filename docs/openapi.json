@@ -3415,6 +3415,187 @@
                       }
                     },
                     "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "modelId",
+                      "modelVersion",
+                      "parameters"
+                    ],
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "enum": [
+                          "pressure-pad"
+                        ]
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
+                        "enum": [
+                          "1"
+                        ]
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "required": [
+                          "padType",
+                          "diameter",
+                          "height",
+                          "surface",
+                          "relief",
+                          "extenders",
+                          "extenderLength",
+                          "thread",
+                          "nut",
+                          "screw",
+                          "fit"
+                        ],
+                        "properties": {
+                          "padType": {
+                            "enum": [
+                              "thrust",
+                              "foot"
+                            ],
+                            "title": "Pad",
+                            "description": "What the pad holds: a nut that turns freely in it (a thrust pad for a clamp) or a screw head locked in it (a foot).",
+                            "default": "foot"
+                          },
+                          "diameter": {
+                            "type": "number",
+                            "title": "Diameter",
+                            "description": "Outside diameter of the pad in mm. A larger pad presses more gently.",
+                            "default": 32,
+                            "minimum": 16,
+                            "maximum": 80,
+                            "multipleOf": 0.5
+                          },
+                          "height": {
+                            "type": "number",
+                            "title": "Height",
+                            "description": "From the pad’s back, against the insert nut or the timber, to its sole, in mm.",
+                            "default": 24.5,
+                            "minimum": 8,
+                            "maximum": 80,
+                            "multipleOf": 0.5
+                          },
+                          "surface": {
+                            "enum": [
+                              "flat",
+                              "grooved",
+                              "domed"
+                            ],
+                            "title": "Sole",
+                            "description": "The pad’s pressing face.",
+                            "default": "grooved"
+                          },
+                          "relief": {
+                            "type": "number",
+                            "title": "Relief",
+                            "description": "Depth of the grooves, or height of the dome, in mm.",
+                            "default": 1,
+                            "minimum": 0.4,
+                            "maximum": 3,
+                            "multipleOf": 0.1
+                          },
+                          "extenders": {
+                            "type": "integer",
+                            "title": "Extenders",
+                            "description": "Printed sleeves that make the leg longer than one screw: each joins two screws end to end, a nut locked in one end and the next screw’s head in the other. Hollow between them, so the screw below runs on into it as far as the height needs, then a lock nut holds it. 0 for the pad alone.",
+                            "default": 1,
+                            "minimum": 0,
+                            "maximum": 3
+                          },
+                          "extenderLength": {
+                            "type": "number",
+                            "title": "Extender length",
+                            "description": "Each extender’s length, end to end, in mm. The longer, the more the height can be set at each joint.",
+                            "default": 40,
+                            "minimum": 20,
+                            "maximum": 150,
+                            "multipleOf": 0.5
+                          },
+                          "thread": {
+                            "enum": [
+                              "M4",
+                              "M5",
+                              "M6",
+                              "M8"
+                            ],
+                            "title": "Thread",
+                            "description": "The screw’s thread; the nuts and screws below are those of this thread.",
+                            "default": "M8"
+                          },
+                          "nut": {
+                            "enum": [
+                              "iso-10511-m4",
+                              "iso-10511-m5",
+                              "iso-10511-m6",
+                              "iso-10511-m8",
+                              "iso-4032-m4",
+                              "iso-4032-m5",
+                              "iso-4032-m6",
+                              "iso-4032-m8"
+                            ],
+                            "title": "Nut",
+                            "description": "The nut the thrust pad’s chamber is sized for, run onto the screw’s tip; the nut locked in each extender, and the lock nut jammed against it.",
+                            "default": "iso-10511-m8"
+                          },
+                          "screw": {
+                            "enum": [
+                              "iso-4017-m4x8",
+                              "iso-4017-m4x10",
+                              "iso-4017-m4x12",
+                              "iso-4017-m4x16",
+                              "iso-4017-m4x20",
+                              "iso-4017-m4x25",
+                              "iso-4017-m4x30",
+                              "iso-4017-m4x40",
+                              "iso-4017-m5x10",
+                              "iso-4017-m5x12",
+                              "iso-4017-m5x16",
+                              "iso-4017-m5x20",
+                              "iso-4017-m5x25",
+                              "iso-4017-m5x30",
+                              "iso-4017-m5x40",
+                              "iso-4017-m5x50",
+                              "iso-4017-m6x12",
+                              "iso-4017-m6x16",
+                              "iso-4017-m6x20",
+                              "iso-4017-m6x25",
+                              "iso-4017-m6x30",
+                              "iso-4017-m6x40",
+                              "iso-4017-m6x50",
+                              "iso-4017-m6x60",
+                              "iso-4017-m8x16",
+                              "iso-4017-m8x20",
+                              "iso-4017-m8x25",
+                              "iso-4017-m8x30",
+                              "iso-4017-m8x40",
+                              "iso-4017-m8x50",
+                              "iso-4017-m8x60",
+                              "iso-4017-m8x80"
+                            ],
+                            "title": "Screw",
+                            "description": "The hexagon head screw the foot’s and the extenders’ head pockets are sized for. Its length does not change the printed parts; it sets the leg’s length in the assembly.",
+                            "default": "iso-4017-m8x50"
+                          },
+                          "fit": {
+                            "type": "number",
+                            "title": "Fit",
+                            "description": "Play round the nut or head, and round the screw’s shank, on each side, in mm.",
+                            "default": 0.4,
+                            "minimum": 0.1,
+                            "maximum": 0.8,
+                            "multipleOf": 0.05
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Pressure pad parameters. All fields are required; dimensions are in millimetres; the nut and screw are parts-library ids."
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 ],
                 "description": "Complete, uncoerced settings for one model version."

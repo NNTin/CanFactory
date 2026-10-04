@@ -10,7 +10,7 @@ import {
   parseTunnel, TUNNEL_CONTROLS, TUNNEL_PRESETS, TUNNEL_DECISIONS, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelSteps, tunnelViews, validateTunnel, type TunnelConfig,
 } from './catioTunnel.ts';
 import {
-  parseWindowInsert, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DECISIONS, WINDOW_INSERT_DEFAULT, windowInsertBom, windowInsertFacts,
+  parseWindowInsert, validateWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DECISIONS, WINDOW_INSERT_DEFAULT, windowInsertBom, windowInsertFacts,
   windowInsertSteps, windowInsertViews, type WindowInsertConfig,
 } from './catioWindowInsert.ts';
 
@@ -30,7 +30,7 @@ export const tunnelDefinition: SubassemblyDefinition<TunnelConfig> = {
   summary: 'The enclosed walkway from the window insert’s cat port to the enclosure’s: solved between the two ports, turning and climbing at any angle through parametrised angle joints, on supports whose levelling feet take up ground that is not level.',
   variants: ['modular'], briefLabel: 'THE TUNNEL', assemblyHeading: 'From the slabs to the enclosure.', stageScale: 20,
   // the window port's floor, which the tunnel starts from, follows the insert's clamp gap
-  follows: [{ page: 'window-insert', settings: ['attachment', 'footDiameter'] }],
+  follows: [{ page: 'window-insert', settings: WINDOW_FLOOR_SETTINGS }],
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the climb', Top: 'Top · the turns', Mounting: 'Support detail' },
   toggles: { cutaway: 'Wall cutaway' }, layerLabels: { hardware: 'Bolts, feet & fixings', environment: 'Ground, wall & slabs' },
   defaults: TUNNEL_DEFAULT, presets: TUNNEL_PRESETS, controls: TUNNEL_CONTROLS, parse: parseTunnel,
@@ -46,7 +46,7 @@ export const couplingDefinition: SubassemblyDefinition<CouplingConfig> = {
   variants: ['modular'], briefLabel: 'THE JOINT', assemblyHeading: 'From the port to a docked tunnel.', 
   // the docking frame fits the insert's port face (battens or not, its floor, its screws); the tunnel's first section and wall
   // support are only shown
-  follows: [{ page: 'window-insert', settings: ['meshFixing', 'fixingPitch', 'attachment', 'footDiameter'] }, { page: 'tunnel', settings: [] }],
+  follows: [{ page: 'window-insert', settings: ['meshFixing', 'fixingPitch', ...WINDOW_FLOOR_SETTINGS] }, { page: 'tunnel', settings: [] }],
   cutawayViews: ['Interior', 'Side', 'Top', 'Mounting'],
   viewLabels: { Side: 'Side · the joint', Mounting: 'Latch detail' },
   toggles: { windowOpen: 'Released · latches open', cutaway: 'Wall cutaway' }, defaultViewing: { windowOpen: false },

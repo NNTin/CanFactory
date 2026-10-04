@@ -43,16 +43,16 @@ describe('insert–tunnel coupling', () => {
     }
   });
 
-  it('screws the docking frame 26 mm into the jambs and transom, whatever the mesh fixing', () => {
-    for (const s of sites) {
-      const l = couplingLayout(COUPLING_DEFAULT, s);
+  it('screws the docking frame 23 mm into the jambs and transom (26 mm with GN 831 latches), whatever the mesh fixing', () => {
+    for (const s of sites) for (const latch of ['printed', 'gn-831'] as const) {
+      const l = couplingLayout({ ...COUPLING_DEFAULT, latch }, s);
       const screws = l.fasteners.filter(f => f.component === 'frame-screws');
       expect(screws.length).toBeGreaterThan(4);
       for (const f of screws) {
         const screw = findPart(f.partId); if (!screw) throw new Error(f.partId);
         const length = dimensionOf(screw, 'l');
         expect(f.direction).toEqual([0, -1, 0]);
-        expect(length - (f.at[1] - l.insert.yOut), `${f.use} bite`).toBeCloseTo(26, 9);
+        expect(length - (f.at[1] - l.insert.yOut), `${f.use} bite`).toBeCloseTo(latch === 'printed' ? 23 : 26, 9);
       }
     }
   });
@@ -255,13 +255,13 @@ describe('insert–tunnel coupling scene', () => {
     scene.update({ ...installed, progress: 4 }); expect(scene.lift()).toBe(0);
     // the flange's back stands at the wall gap, clear of the docking frame
     const frame = scene.components.find(part => part.id === 'docking-frame')?.group; if (!frame) throw new Error('frame');
-    expect(bounds(frame).max.y).toBeCloseTo(TUNNEL.wallGap - COUPLING.gap, 6);
+    expect(bounds(frame).max.y).toBeCloseTo(TUNNEL.wallGap - COUPLING.printed.gap, 6);
     expect(bounds(timber).min.y).toBeCloseTo(TUNNEL.wallGap, 6);
     scene.dispose();
   });
 
   it('closes every lever over centre in the last stage, and opens them all when released', () => {
-    const scene = createCouplingScene('modular', { ...COUPLING_DEFAULT, latchesPerSide: 2 }, site);
+    const scene = createCouplingScene('modular', { ...COUPLING_DEFAULT, latch: 'gn-831', latchesPerSide: 2 }, site);
     expect(scene.levers).toHaveLength(4);
     const angles = () => scene.levers.map(lever => Math.abs(THREE.MathUtils.radToDeg(lever.rotation.z)));
     scene.update({ ...installed, progress: 4 }); for (const a of angles()) expect(a).toBeCloseTo(OPEN, 6);

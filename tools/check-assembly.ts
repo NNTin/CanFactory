@@ -45,6 +45,7 @@ const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part) => Re
     defines: part => ({
       COUNTERSUNK: String(part.attributes['head'] === 'countersunk'), D: size(part, 'd', 'value'), PITCH: size(part, 'pitch', 'value'), L: size(part, 'l', 'value'),
       HEAD_D: part.dimensions['dk'] ? size(part, 'dk') : size(part, 'e'), HEAD_K: size(part, 'k'),
+      HEX: String(part.attributes['head'] === 'hex'), HEAD_S: part.attributes['head'] === 'hex' ? size(part, 's') : '0',
     }),
   },
   nut: {

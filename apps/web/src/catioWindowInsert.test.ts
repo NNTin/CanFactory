@@ -4,27 +4,46 @@ import { dimensionOf, findPart, partUsage, WINDOW_INSERT_FOOT, windowInsertConce
 import type { CatioState } from './catioScene.ts';
 import { parseSubassemblySettings, defaultSubassemblySettings } from './catioSubassembly.ts';
 import { windowInsertDefinition } from './catioSubassemblies.ts';
-import { INSERT, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from './catioWindowInsert.ts';
+import { INSERT, PAD_HEIGHT, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from './catioWindowInsert.ts';
 import { BENCH_OFFSET, createWindowInsertScene } from './catioWindowInsertScene.ts';
 
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
 const bounds = (object: THREE.Object3D) => new THREE.Box3().setFromObject(object, true);
 const variants = ['direct', 'modular'] as const;
 /** Every value of every control, one at a time, from the defaults. */
-const configs: WindowInsertConfig[] = [WINDOW_INSERT_DEFAULT, ...WINDOW_INSERT_CONTROLS.flatMap(control => control.options.map(option => ({ ...WINDOW_INSERT_DEFAULT, [control.key]: option.value })))];
+const ganter: WindowInsertConfig = { ...WINDOW_INSERT_DEFAULT, clampPad: 'ganter' };
+const configs: WindowInsertConfig[] = [WINDOW_INSERT_DEFAULT, ...WINDOW_INSERT_CONTROLS.flatMap(control => control.options.map(option => ({ ...WINDOW_INSERT_DEFAULT, [control.key]: option.value }))),
+  // the Ganter feet in every size, and the printed pads at their lowest and highest
+  ...WINDOW_INSERT_FOOT.diameters.map(footDiameter => ({ ...ganter, footDiameter })), { ...WINDOW_INSERT_DEFAULT, padHeight: PAD_HEIGHT.min }, { ...WINDOW_INSERT_DEFAULT, padHeight: PAD_HEIGHT.max, footDiameter: 25 }];
 const component = (scene: ReturnType<typeof createWindowInsertScene>, id: string) => {
   const found = scene.components.find(part => part.id === id); if (!found) throw new Error(`missing ${id}`); return found.group;
 };
 
 describe('window insert', () => {
-  it('sizes the collar from the recess and the chosen clamp', () => {
+  it('sizes the collar from the printed pads’ height', () => {
     const l = windowInsertLayout('direct', WINDOW_INSERT_DEFAULT);
+    expect(l.pad).toMatchObject({ height: 24.5, diameter: 32, surface: 'grooved' });
+    expect(l.gap).toBe(24.5 + INSERT.travel);
+    expect(windowInsertLayout('direct', { ...WINDOW_INSERT_DEFAULT, padHeight: 30 }).W).toBe(1000 - 2 * (30 + INSERT.travel));
+    // a spreader screw passes the thrust pad's lip and lock nut, the travel, the member and its own lock nut; a bearing screw fills the insert nut
+    expect(l.pad?.spreaderScrew.id).toBe('iso-4017-m8x80');
+    expect(dimensionOf(l.pad?.spreaderScrew ?? l.nut, 'l')).toBeGreaterThanOrEqual(3 + 8 + INSERT.travel + INSERT.member + 6.8);
+    expect(l.pad?.bearingScrew.id).toBe('iso-4017-m8x30');
+    expect(l.pad?.thrustNut.id).toBe('iso-10511-m8');
+    expect(windowInsertLayout('direct', { ...WINDOW_INSERT_DEFAULT, attachment: 'folding-wedges' }).pad).toBeNull();
+    // too low a pad cannot hold its lock nut; too narrow cannot hold it with a wall round it
+    expect(validateWindowInsert('direct', { ...WINDOW_INSERT_DEFAULT, padHeight: 17 })).toEqual([expect.stringContaining('at least 17.5 mm high')]);
+  });
+
+  it('sizes the collar from the recess and the chosen Ganter foot', () => {
+    const l = windowInsertLayout('direct', ganter);
+    expect(l.pad).toBeNull();
     const foot = findPart('ganter-gn-343-2-32-m8-63-kr'); if (!foot) throw new Error('foot');
     expect(l.spreaderFoot.id).toBe(foot.id);
     expect(l.bearingFoot.id).toBe('ganter-gn-343-2-32-m8-40-kr');
     expect(l.gap).toBe(dimensionOf(foot, 'l3') + INSERT.travel);
     expect([l.W, l.H]).toEqual([1000 - 2 * l.gap, 1000 - 2 * l.gap]);
-    expect(windowInsertLayout('direct', { ...WINDOW_INSERT_DEFAULT, attachment: 'folding-wedges' }).W).toBe(1000 - 2 * INSERT.wedgeGap);
+    expect(windowInsertLayout('direct', { ...ganter, attachment: 'folding-wedges' }).W).toBe(1000 - 2 * INSERT.wedgeGap);
     // the spreader stud passes the member, its travel and two nuts
     const nut = findPart('iso-4032-m8'); if (!nut) throw new Error('nut');
     expect(dimensionOf(l.spreaderFoot, 'l1')).toBeGreaterThanOrEqual(INSERT.member + INSERT.travel + 2 * dimensionOf(nut, 'm'));
@@ -54,8 +73,8 @@ describe('window insert', () => {
   });
 
   it('presses every spreader pad onto the reveal only once tightened, with the sill feet on the recess floor', () => {
-    for (const variant of variants) {
-      const scene = createWindowInsertScene(variant, WINDOW_INSERT_DEFAULT); const w = windowFor(variant);
+    for (const variant of variants) for (const config of [WINDOW_INSERT_DEFAULT, ganter]) {
+      const scene = createWindowInsertScene(variant, config); const w = windowFor(variant);
       scene.update(installed);
       const feet = bounds(component(scene, 'spreader-clamps'));
       expect(feet.min.x).toBeCloseTo(-w.openingWidth / 2, 6);
@@ -104,12 +123,16 @@ describe('window insert', () => {
     scene.dispose();
   });
 
-  it('fits each clamp’s hardware in order: insert nut and stud from outside, then the two nuts from inside', () => {
-    for (const variant of variants) {
-      const scene = createWindowInsertScene(variant, WINDOW_INSERT_DEFAULT); scene.update(installed);
+  it('fits each clamp’s hardware in order: Ganter, insert nut and stud from outside, then the two nuts from inside; printed, the screw from inside, its nut and pad from outside', () => {
+    // which way each piece comes in, along the clamp's outward normal: +1 from outside, -1 from inside, 0 sideways
+    const way: Record<string, number> = { 'insert-nut': 1, foot: 1, 'own-nut': -1, 'second-nut': -1, 'pad-screw': -1, 'pad-nut': 1, pad: 0 };
+    for (const variant of variants) for (const config of [WINDOW_INSERT_DEFAULT, ganter]) {
+      const scene = createWindowInsertScene(variant, config); scene.update(installed);
+      const printed = config.clampPad === 'printed';
       for (const clamp of scene.layout.clamps) {
         const of = (role: string) => scene.motions.find(motion => motion.of === clamp.id && motion.role === role);
-        const chain = (clamp.kind === 'spreader' ? ['insert-nut', 'foot', 'own-nut', 'second-nut'] : ['insert-nut', 'foot']).map(role => {
+        const spreader = printed ? ['insert-nut', 'pad-screw', 'pad-nut', 'pad'] : ['insert-nut', 'foot', 'own-nut', 'second-nut'];
+        const chain = (clamp.kind === 'spreader' ? spreader : ['insert-nut', 'foot']).map(role => {
           const motion = of(role); if (!motion) throw new Error(`${clamp.id} ${role}`); return motion;
         });
         for (const [before, after] of chain.slice(1).map((motion, i) => [chain[i], motion] as const)) expect(before?.window[1], `${clamp.id}: ${before?.role} before ${after.role}`).toBeLessThanOrEqual(after.window[0] + 1e-9);
@@ -117,8 +140,10 @@ describe('window insert', () => {
         const normal = new THREE.Vector3(...clamp.normal);
         for (const motion of chain) {
           const world = motion.approach.clone().applyQuaternion(motion.object.parent?.getWorldQuaternion(new THREE.Quaternion()) ?? new THREE.Quaternion()).normalize();
-          expect(world.dot(normal), `${clamp.id} ${motion.role}`).toBeCloseTo(motion.role === 'insert-nut' || motion.role === 'foot' ? 1 : -1, 6);
-          expect(motion.axis?.toArray(), `${clamp.id} ${motion.role} turns on the stud axis`).toEqual([0, 1, 0]);
+          expect(world.dot(normal), `${clamp.id} ${motion.role}`).toBeCloseTo(way[motion.role ?? ''] ?? NaN, 6);
+          // a thrust pad slides on sideways and never turns; everything else turns on the stud's or screw's axis
+          if (motion.role === 'pad') expect(motion.axis).toBeUndefined();
+          else expect(motion.axis?.toArray(), `${clamp.id} ${motion.role} turns on the stud axis`).toEqual([0, 1, 0]);
         }
       }
       scene.dispose();
@@ -165,7 +190,18 @@ describe('window insert', () => {
       }
       const l = windowInsertLayout(variant, config);
       const count = (id: string) => lines.find(line => line.partId === id)?.quantity ?? 0;
-      if (config.attachment === 'spreader-feet') {
+      const printed = lines.filter(line => line.modelId === 'pressure-pad');
+      if (config.attachment === 'spreader-feet' && l.pad) {
+        expect(printed.map(line => [line.id, line.quantity])).toEqual([['thrust-pads', 3 * config.clampsPerSide], ['foot-pads', config.clampsPerSide]]);
+        expect(count(l.pad.spreaderScrew.id)).toBe(3 * config.clampsPerSide);
+        expect(count(l.pad.bearingScrew.id)).toBe(config.clampsPerSide);
+        expect(count('iso-10511-m8')).toBe(3 * config.clampsPerSide);
+        expect(count('iso-4032-m8')).toBe(3 * config.clampsPerSide);
+        expect(count('din-7965-m8x18')).toBe(4 * config.clampsPerSide);
+        expect(lines.some(line => line.partId?.startsWith('ganter'))).toBe(false);
+        expect(printed[0]?.size).toBe(`Ø ${config.footDiameter} × ${config.padHeight} mm · ${config.padSurface} sole · PETG · for an ISO 10511 M8 nut`);
+      } else if (config.attachment === 'spreader-feet') {
+        expect(printed).toEqual([]);
         expect(count(l.spreaderFoot.id)).toBe(3 * config.clampsPerSide);
         expect(count(l.bearingFoot.id)).toBe(config.clampsPerSide);
         expect(count('din-7965-m8x18')).toBe(4 * config.clampsPerSide);
