@@ -79,8 +79,8 @@ level and suggests the level setting.
 | Foot diameter | 40 mm | 25, 32, 40 mm | Supports |
 | Ground falls away | 2% | 0, 1, 2, 4% | Supports |
 | Uneven by up to | ±15 mm | ±10, 15, 20, 25 mm | Supports |
-| Held on the supports by | Screwed up through the bearer | Screws; rubber strap; dowels; printed cradles; vertical printed toggle latches; turn buttons; gravity only | Supports |
-| Supports stand | Held up by the tunnel (trestles) | Trestles; on their own (a sole under each leg) | Supports |
+| Held on the supports by | Screwed up through the bearer | Screws; rubber strap; dowels; turn buttons; gravity only | Supports |
+| Supports stand | Held up by the tunnel (trestles) | Trestles; on their own (legs on soles, or a wide low bearer) | Supports |
 
 How the sections are coupled is not set here: **Coupling**, **Latches per side**, **Bolts per coupling** and **Seal** are on
 the [tunnel–tunnel coupling](tunnel-tunnel-coupling.md) page, which this page follows. (**Bolts per coupling** used to be
@@ -175,25 +175,34 @@ scene, the parts list and the tests.
    | **Screws** (default) | Yes | Yes | DIN 7997 6 × 100 up through each bearer, two into each flange or collar rail |
    | **Rubber strap** | Friction only | Yes | One EPDM tarp strap per support, over the flanges (or a collar's roof), hooked under a 20 × 20 × 60 cleat on each bearer end (two 4 × 40 screws). Stretched 25 % when hooked; the parts list gives its unstretched length |
    | **Dowels** | Yes | No | Two ISO 2338 8 × 40 parallel pins under each flange or collar rail, half in the bearer; the sections lift straight off |
-   | **Printed cradles** | Yes | No | A PETG cradle on each bearer end: a 4 mm base under the tunnel (the bearer is set 4 mm lower), 20 mm lips round the flanges, or beside a collar's rails |
-   | **Vertical latches** | Yes | Yes | The printed toggle latch upright: catch plate on the bearer's end, base plate across the two flanges' sides over a 3 mm EPDM pad (the bearer is set 3 mm lower) |
    | **Turn buttons** | Yes | Yes | A printed button on each flange's side, turned down so its foot hooks under a hardwood keeper on the bearer's end |
    | **Gravity only** | No | No | Nothing: the tunnel rests on self-standing supports, held in line by its couplings |
 
-   - **Where they fit.** The latch's plates are 38 mm wide with screws 26.4 mm apart, wider than one 30 mm flange, so a
-     vertical latch spans the two flanges of a joint, one screw in each; it fits only where two flanges meet over a bearer
-     flush with their sides (straight section-to-section couplings). To lift a section off, open its latches and take out
-     the one screw in its flange. Turn buttons fit under any flanges flush with the bearer's ends (not under angle
-     collars or at mitred turns). The tunnel has no face facing up near its bearers, so a button hooks under a keeper on
-     the bearer rather than over the tunnel.
+   - **Where they fit.** Turn buttons fit under any flanges flush with the bearer's ends (not under angle collars or at
+     mitred turns). The tunnel has no face facing up near its bearers, so a button hooks under a keeper on the bearer
+     rather than over the tunnel. Each part belongs to one section or one support, so any section lifts off on its own.
+   - **Rejected:** a printed cradle on the bearer (it locates no better than dowels, holds nothing down and is hard to
+     print), and an upright printed toggle latch (its 38 mm plate is wider than one 30 mm flange, so it would span two
+     sections and tie them together, breaking the modular system).
    - **Standing up.** Along the tunnel a trestle is only 45 mm wide, one foot per leg: it stands because it is fixed to
      the tunnel. Where a fixing does not fit, and with gravity only, the page reports the supports left loose and asks for
      self-standing ones.
-6. **Self-standing supports (an option).** Each leg (or a low bearer's end) stands on a 22 × 95 × 300 sole along the
-   tunnel, screwed up into it with two DIN 7997 5 × 50 screws, with an insert nut and a foot 40 mm in from each of its
-   ends, both on the one slab. The support then stands on its own: supports can be set out and levelled first, and
-   sections lifted on and off. A sole costs 22 mm of height (a support too low for it is reported) and two more feet per
-   support. A 45 mm sole would not fit under the low bearers near the wall on the default route; 22 mm does.
+6. **Self-standing supports (an option).** The support then stands on its own: supports can be set out and levelled
+   first, and sections lifted on and off. Two more feet per support, on the same two slabs.
+   - **Trestles:** each leg stands on a 45 × 70 sole set on edge, 300 long, along the tunnel, with an insert nut and a
+     foot 40 mm in from each of its ends. Two DIN 7997 6 × 100 screws go up through the sole into the leg, inside its
+     45 × 45 (across it, clear of the bearer's screws down into the leg). Where there is room for the sole but not for a
+     leg, the bearer sits straight on its soles and is screwed down into them.
+   - **Low bearers:** a support too low for soles becomes a low bearer 195 mm wide along the tunnel (ripped to depth),
+     on a foot near each corner, its feet's screws straight into it. At the wall end it reaches out from the first
+     flange, not into the wall gap.
+   - **The feet's screws stay in the timber.** A foot's insert nut and screw are in the sole, not in a leg above it, so
+     the sole is 70 mm deep: the screw's tip stays inside it over the whole travel the ground needs. A printed foot takes
+     the shortest library ISO 4017 M8 that gives that travel: M8 × 60 for ±10 mm, M8 × 80 for ±15 and ±20 mm (the
+     library has no 65 or 70). An earlier 22 mm sole let the M8 × 80 come out of its top, and the sole's screws missed
+     the leg; both are fixed, and the page now checks every foot: a screw or stud that would come out of the top of a
+     sole or a low bearer is reported. (That check also catches shallow low bearers on trestle routes, which went
+     unnoticed before.)
 7. **20° steepest slope, climbed in the middle run.** Cats manage 25° on cleats, but a gentler slope is kinder to old cats.
    The leg that climbs, and the limit, are both parameters. The page explains how much length a climb needs when a leg is
    too short.
@@ -220,10 +229,9 @@ scene, the parts list and the tests.
    flange's face before the next piece goes down. Then close every latch over centre (or bolt every coupling) as the
    coupling page sets. The latches' plates were screwed onto the flanges' sides while framing (stage 3).
 6. **Fix down and dock.**
-   - Hold the tunnel on its supports as chosen: screw up through the bearers (the default), hook the straps over, close
-     the vertical latches or turn the buttons down. With dowels, cradles or gravity only there is nothing to do: the
-     dowels and the cradles' parts went onto the levelled supports in stage 2, and the turn buttons onto the flanges while
-     framing.
+   - Hold the tunnel on its supports as chosen: screw up through the bearers (the default), hook the straps over, or turn
+     the buttons down. With dowels or gravity only there is nothing to do: the dowels went onto the levelled supports in
+     stage 2, and the turn buttons onto the flanges while framing.
    - Close the latches between the first flange and the insert's docking frame (the coupling page).
    - Bolt the last flange to the enclosure's port flange.
    - Open the gates.
@@ -243,8 +251,9 @@ No new families were needed. The tunnel uses existing parts:
 - **ISO 7093-1** M8
 - **ISO 4032** M8
 - **DIN 7965** M8 × 18
-- **DIN 7997**: 4 × 25 (the printed latches' plates, the support cradles), 4 × 35, 4 × 40 (also strap cleats and keepers),
-  5 × 50 (also soles and turn buttons' pivots), 5 × 70, 6 × 100
+- **DIN 7997**: 4 × 25 (the printed latches' plates), 4 × 35, 4 × 40 (also strap cleats and keepers), 5 × 50 (also turn
+  buttons' pivots), 5 × 70, 6 × 100 (also soles into legs)
+- **ISO 4017** M8 × 60 (printed feet, for ±10 mm of uneven ground)
 - **ISO 2338** 8 × 40 parallel pins (dowels in the bearers)
 - **DIN 1159** 2.5 × 25
 - **GN 343.2 KR** with M8 studs: 25 and 32 mm with 63 mm studs, 40 mm with 80 mm (the longest stud of each diameter,
@@ -258,7 +267,7 @@ They are listed once, by role, in [concepts.ts](../../../packages/contracts/src/
 that list identical.
 
 Custom lines (not library parts): the timber cut list (with soles, strap cleats and keepers), mesh panels, the couplings'
-E-profile seals, the straps, support cradles, latch pads and turn buttons, and the paving slabs.
+E-profile seals, the straps and turn buttons, and the paving slabs.
 The printed latches link to their model (`#/models/toggle-latch`). The window end's seal and latches are listed on the
 insert–tunnel coupling page.
 
@@ -277,10 +286,12 @@ insert–tunnel coupling page.
   - no roll anywhere, and turns only on the level
   - coupling outlines identical on both sides, 3 mm apart where latched, and the route ending exactly at the port with
     either coupling mechanism
-  - every way of holding the tunnel on its supports: the screws by default; dowels half in the bearer; cradles lowering the
-    bearer by their base; the strap over the tunnel and under its cleats; vertical latches only where two flanges meet
-    flush over a bearer, one screw into each; turn buttons under flush flanges; gravity only, and the loose trestles
-    each reports; self-standing soles with two feet on one slab; and each one staged in the scene
+  - every way of holding the tunnel on its supports: the screws by default; dowels half in the bearer; the strap over the
+    tunnel and under its cleats; turn buttons under flush flanges; gravity only, and the loose trestles it reports;
+    self-standing legs on soles and wide low bearers, two feet along the tunnel on one slab at each end; and each one
+    staged in the scene
+  - every self-standing foot's screw inside its sole or low bearer over the travel the ground needs (M8 × 60 for ±10 mm),
+    the soles' screws inside the legs, and a screw that would come out of a shallow low bearer reported
   - latches at every square coupling (bolts at mitres and at the port), their screws in the timber and clear of the
     bearer's and rails' screws, and closing over centre in the scene
   - collar flanges meeting at the inside edge, and mitres on the bisector

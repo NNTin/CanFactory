@@ -1,4 +1,4 @@
-import { dimensionOf, findPart, PRESSURE_PAD, PRESSURE_PAD_SURFACES, pressurePadMinDiameter, pressurePadMinHeight, TUNNEL_FOOT, TUNNEL_HARDWARE as HW, TUNNEL_PAD, tunnelFoot, tunnelPadScrew, type Part, type PressurePadSurface } from '@canfactory/contracts';
+import { dimensionOf, findPart, hexScrew, PRESSURE_PAD, PRESSURE_PAD_SURFACES, pressurePadMinDiameter, pressurePadMinHeight, TUNNEL_FOOT, TUNNEL_HARDWARE as HW, TUNNEL_PAD, tunnelFoot, type Part, type PressurePadSurface } from '@canfactory/contracts';
 import { toggleLatchMechanism as TL } from '@canfactory/contracts';
 import { CATIO, type CatioView } from './catioDesign.ts';
 import { E_PROFILE_SEAL, latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine, printedLatchScrews, type LatchMount } from './catioPrintedLatch.ts';
@@ -91,18 +91,16 @@ export const TUNNEL = {
   maxTurn: { 'angle-collar': 135, 'mitred-ends': 90 },
   staplePitch: 150, floorScrewPitch: 200,
   mesh: { opening: CATIO.meshOpening, wire: CATIO.wire },
-  /** A self-standing support's sole: along the tunnel under each leg (or each end of a low bearer), a foot near each of its ends. */
+  /** A self-standing support's sole: along the tunnel under each leg, a foot near each of its ends. */
   sole: SUPPORT_SOLE,
+  /** A self-standing low bearer: this wide along the tunnel, on a foot near each of its four corners. */
+  wideBlock: { width: 195, footInset: 25 },
   /** How the tunnel is held on its supports (`supportFixing`); sizes of this design, not of products. */
   fixing: {
     /** ISO 2338 parallel pins, two under each flange (or collar rail), half in the bearer. */
     dowel: { partId: HW.dowel, into: 20 },
-    /** A printed cradle on each bearer end: a base the tunnel sits on, and lips round it. */
-    cradle: { seat: 4, wall: 5, lip: 20, clearance: 0.5, reach: 75 },
     /** A rubber tarp strap over each support, hooked under a timber cleat on each bearer end; stretched by this much when hooked. */
     strap: { width: 25, stretch: 1.25, cleat: { size: 20, length: 60 } },
-    /** The EPDM pad between bearer and flanges that the vertical latch squashes (its over-centre give), as thick as the coupling's gap. */
-    latchPad: 3,
     /** A hardwood keeper on each flange's side just above the bearer, and a printed turn button on the bearer's end that laps over it. */
     keeper: { out: 20, high: 20, above: 15 }, button: { thickness: 15, width: 24 },
   },
@@ -203,12 +201,8 @@ export interface SupportHold {
   /** Whether the support is held to the tunnel at all: a trestle cannot stand on its own along the tunnel. */
   attached: boolean;
   dowels: V3[];
-  /** The cradles' parts: each base and its lips. */
-  cradles: { side: -1 | 1; boxes: SupportBox[] }[];
   /** The strap's path from hook to hook over the tunnel, its stretched length, and the cleats it hooks under. */
   strap: { path: V3[]; length: number; cleats: SupportBox[] } | null;
-  /** Vertical latches: base plate on the flanges' side above, catch on the bearer's end below. */
-  latches: LatchMount[];
   /** Turn buttons: pivot on the bearer's end, and the keepers on the flanges' sides they lap over. */
   buttons: { side: -1 | 1; pivot: V3; keepers: SupportBox[]; arm: SupportBox[]; piece: string }[];
 }
@@ -222,17 +216,19 @@ export interface Support {
   flanges: 0 | 1 | 2; flush: boolean;
   /** The flanges' extent along the tunnel from the support's centre (none under a collar). */
   footprint: [number, number] | null;
-  /** What lies between the bearer's top and the tunnel: a cradle's base or the latch's pad. */
-  seat: number;
   /** A self-standing support's soles, one under each leg. */
   soles: SupportBox[];
+  /** The bearer's width along the tunnel: wide for a self-standing low bearer. */
+  width: number;
+  /** Whether it stands on its own: on soles, or a wide low bearer on four feet. */
+  stands: boolean;
   hold: SupportHold;
 }
 export interface MeshPanel { id: string; piece: string; name: string; corners: [V3, V3, V3, V3]; edges: { from: V3; to: V3; drive: V3; use: string }[] }
 export interface Fastener {
   partId: string;
   component: 'rail-screws' | 'floor-screws' | 'cleat-screws' | 'staples' | 'bearer-screws' | 'brace-screws' | 'flange-screws' | 'latch-screws' | 'catch-screws' | 'sole-screws'
-    | 'dowels' | 'cradle-screws' | 'strap-cleat-screws' | 'support-latch-screws' | 'support-catch-screws' | 'keeper-screws' | 'button-screws';
+    | 'dowels' | 'strap-cleat-screws' | 'keeper-screws' | 'button-screws';
   at: V3; direction: V3; use: string; across?: V3;
   /** The piece it fixes into (for those built into one), the latch it holds, and the support it holds the tunnel on. */
   piece?: string; of?: string; support?: string;
@@ -535,12 +531,21 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
 
   // Supports: one under the wall end, the port end, every straight coupling, and every joint (under its collar or mitre).
   // A Ganter foot, or a printed pad with the screw's head locked in it: its height (`l3`) and the stud out of it.
-  const pad = config.footPad === 'printed' ? { height: config.padHeight, diameter: config.footDiameter, surface: config.padSurface, screw: tunnelPadScrew() } : null;
-  const foot = pad ? pad.screw : tunnelFoot(config.footDiameter); const insertNut = part(HW.footInsertNut); const lockNut = part(HW.couplingNut);
+  const insertNut = part(HW.footInsertNut); const lockNut = part(HW.couplingNut);
+  /**
+   * A foot's screw (or stud) runs up into a leg, a low bearer or a self-standing support's sole, and must stay inside it: a printed
+   * foot takes the shortest library screw that still gives the travel the ground's tolerance needs. In a sole the tip's room limits
+   * the travel too.
+   */
+  const soleDepth = config.supportBase === 'self-standing' ? TUNNEL.sole.thickness - 1 : Infinity;
+  const needed = 2 * config.groundTolerance + TUNNEL.legRound + dimensionOf(insertNut, 'l') + dimensionOf(lockNut, 'm');
+  const padScrew = hexScrew(TUNNEL_PAD.thread, needed + PRESSURE_PAD.lip);
+  const pad = config.footPad === 'printed' ? { height: config.padHeight, diameter: config.footDiameter, surface: config.padSurface, screw: padScrew } : null;
+  const foot = pad ? pad.screw : tunnelFoot(config.footDiameter);
   const l3 = pad ? pad.height : dimensionOf(foot, 'l3');
   const stud = pad ? dimensionOf(pad.screw, 'l') - PRESSURE_PAD.lip : dimensionOf(foot, 'l1');
-  /** A foot's stud: at least the lock nut out of the timber, and the insert nut's length still in it. */
-  const travel = { min: dimensionOf(lockNut, 'm'), max: stud - dimensionOf(insertNut, 'l') };
+  /** A foot's stud: at least the lock nut out of the timber, the insert nut's length still in it, and (in a sole) its tip inside. */
+  const travel = { min: Math.max(dimensionOf(lockNut, 'm'), stud - soleDepth), max: stud - dimensionOf(insertNut, 'l') };
   const middleSetting = (travel.min + travel.max) / 2;
   const minLeg = dimensionOf(insertNut, 'l') + 5;
   const underside = (q: [number, number]) => {
@@ -560,43 +565,65 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   const supports: Support[] = [];
   const FX = TUNNEL.fixing; const sole = config.supportBase === 'self-standing' ? TUNNEL.sole : null;
   const method = config.supportFixing;
-  /** Where the vertical latch fits: two flanges over the bearer (one latch spans both), the bearer's ends flush with their sides. */
-  const latchFits = (flanges: number, flush: boolean) => flanges === 2 && flush;
-  const station = (id: string, centre: V3, along: V3, width: number, fixings: V3[], flanges: 0 | 1 | 2, footprint: [number, number] | null, over: string[]) => {
+  /**
+   * A support at `place(half)` (its centre, for a bearer `2 · half` wide along the tunnel), `width` across it. Self-standing, a
+   * trestle's legs stand on soles; a support too low for legs on soles becomes a wide low bearer on four feet of its own.
+   */
+  const station = (id: string, place: (half: number) => V3, along: V3, width: number, fixings: V3[], flanges: 0 | 1 | 2, footprintAt: ((half: number) => [number, number]) | null, over: string[]) => {
     const a = unit([along[0], along[1], 0]); const across = unit(cross(a, UP));
-    const half = TUNNEL.bearer.width / 2;
     const flush = flanges > 0 && Math.abs(width / 2 - lateral) < 1e-6;
-    const seat = method === 'cradle' ? FX.cradle.seat : method === 'latch' && latchFits(flanges, flush) ? FX.latchPad : 0;
-    let top = Infinity; let slopeAt = 0;
-    for (const s of [-1, 0, 1]) for (const t of [-1, 0, 1]) {
-      const q = add(add(centre, mul(a, s * half)), mul(across, t * (width / 2 - 1)));
-      const found = underside([q[0], q[1]]); if (found && found.z < top) { top = found.z; if (s === 0 && t === 0) slopeAt = found.slope; }
-      if (found && s === 0 && t === 0) slopeAt = found.slope;
+    const topAt = (half: number) => {
+      const centre = place(half);
+      let top = Infinity; let slopeAt = 0;
+      for (const s of [-1, -0.5, 0, 0.5, 1]) for (const t of [-1, 0, 1]) {
+        const q = add(add(centre, mul(a, s * half)), mul(across, t * (width / 2 - 1)));
+        const found = underside([q[0], q[1]]); if (found && found.z < top) top = found.z;
+        if (found && s === 0 && t === 0) slopeAt = found.slope;
+      }
+      return { centre, top: Number.isFinite(top) ? top : centre[2] - F, slopeAt };
+    };
+    /** On soles the insert nuts are in the soles, so a leg may be as short as nothing: the bearer straight on its soles. */
+    const fit = (centre: V3, top: number, soleThickness: number, leastLeg = minLeg) => {
+      const legAt = (side: number) => add([centre[0], centre[1], 0], mul(across, side * (width / 2 - TUNNEL.leg / 2)));
+      const ends = [-1, 1].map(side => {
+        const q = legAt(side); const design = groundAt(config, q[0], q[1], false);
+        return { q, design, actual: groundAt(config, q[0], q[1]), room: top - (design + TUNNEL.slab.thickness) - (l3 + middleSetting) - soleThickness };
+      });
+      const room = Math.min(...ends.map(e => e.room));
+      const trestle = room >= TUNNEL.bearer.depth + leastLeg;
+      const depth = trestle ? TUNNEL.bearer.depth : Math.round(ends.reduce((sum, e) => sum + e.room, 0) / ends.length);
+      return { ends, room, trestle, depth };
+    };
+    let half = TUNNEL.bearer.width / 2; let at = topAt(half);
+    let stance: 'leg' | 'sole' | 'wide' = 'leg'; let chosen = fit(at.centre, at.top, 0);
+    if (sole) {
+      const onSoles = fit(at.centre, at.top, sole.thickness, 0);
+      if (onSoles.trestle) { stance = 'sole'; chosen = onSoles; }
+      else {
+        // too low for a bearer on soles: a wide low bearer, ripped to depth, its feet straight into it
+        stance = 'wide'; half = TUNNEL.wideBlock.width / 2; at = topAt(half);
+        const plain = fit(at.centre, at.top, 0);
+        chosen = { ...plain, trestle: false, depth: Math.round(plain.ends.reduce((sum, e) => sum + e.room, 0) / plain.ends.length) };
+      }
     }
-    if (!Number.isFinite(top)) top = centre[2] - F;
-    top -= seat;
-    const legAt = (side: number) => add([centre[0], centre[1], 0], mul(across, side * (width / 2 - TUNNEL.leg / 2)));
-    const soleThickness = sole ? sole.thickness : 0;
-    const ends = [-1, 1].map(side => {
-      const q = legAt(side); const design = groundAt(config, q[0], q[1], false);
-      return { q, design, actual: groundAt(config, q[0], q[1]), room: top - (design + TUNNEL.slab.thickness) - (l3 + middleSetting) - soleThickness };
-    });
-    const room = Math.min(...ends.map(e => e.room));
-    const trestle = room >= TUNNEL.bearer.depth + minLeg;
-    const depth = trestle ? TUNNEL.bearer.depth : Math.round(ends.reduce((sum, e) => sum + e.room, 0) / ends.length);
-    if (!trestle && depth < TUNNEL.minBlock) errors.push(`At the ${id.replace('-', ' ')} the tunnel is too close to the ground for a support: ${Math.round(room + l3 + middleSetting + soleThickness)} mm under it, at least ${Math.ceil(TUNNEL.minBlock + l3 + middleSetting + soleThickness + TUNNEL.slab.thickness)} mm needed. Raise the port or slope the approach${sole ? ', or use trestles without soles' : ''}.`);
-    // each leg (or low bearer end) on one foot, or on a sole along the tunnel with a foot near each of its ends; one slab under each
-    const offsets = sole ? [-(sole.length / 2 - sole.footInset), sole.length / 2 - sole.footInset] : [0];
+    const { centre, top, slopeAt } = at; const { ends, room, trestle, depth } = chosen;
+    const ownSole = stance === 'sole' ? sole : null; const soleThickness = ownSole ? ownSole.thickness : 0;
+    const footprint = footprintAt ? footprintAt(half) : null;
+    if (!trestle && depth < TUNNEL.minBlock) errors.push(`At the ${id.replace('-', ' ')} the tunnel is too close to the ground for a support: ${Math.round(room + l3 + middleSetting)} mm under it, at least ${Math.ceil(TUNNEL.minBlock + l3 + middleSetting + TUNNEL.slab.thickness)} mm needed. Raise the port or slope the approach.`);
+    // each leg (or low bearer end) on one foot; self-standing, on a sole along the tunnel or under a wide low bearer, a foot near each
+    // end along the tunnel; one slab under each end
+    const spread = ownSole ? ownSole.length / 2 - ownSole.footInset : stance === 'wide' ? TUNNEL.wideBlock.width / 2 - TUNNEL.wideBlock.footInset : 0;
+    const offsets = spread ? [-spread, spread] : [0];
     const soles: SupportBox[] = [];
     const feet: Foot[] = ends.flatMap((e, i) => {
-      const leg = trestle ? Math.round((e.room - TUNNEL.bearer.depth) / TUNNEL.legRound) * TUNNEL.legRound : 0;
+      const leg = trestle ? Math.max(0, Math.round((e.room - TUNNEL.bearer.depth) / TUNNEL.legRound) * TUNNEL.legRound) : 0;
       const slabTop = e.actual + TUNNEL.slab.thickness; const slabDesign = e.design + TUNNEL.slab.thickness;
       const bottom = top - depth - leg - soleThickness;
-      if (sole) soles.push({ center: [e.q[0], e.q[1], bottom + sole.thickness / 2], size: [sole.width, sole.length, sole.thickness] });
+      if (ownSole) soles.push({ center: [e.q[0], e.q[1], bottom + ownSole.thickness / 2], size: [ownSole.width, ownSole.length, ownSole.thickness] });
       return offsets.map((o, k): Foot => {
         const at = add(e.q, mul(a, o));
         return {
-          id: `${id}-foot-${i === 0 ? 'left' : 'right'}${sole ? `-${k}` : ''}`, at: [at[0], at[1], slabTop], designGround: e.design, actualGround: e.actual, slabTop,
+          id: `${id}-foot-${i === 0 ? 'left' : 'right'}${spread ? `-${k}` : ''}`, at: [at[0], at[1], slabTop], designGround: e.design, actualGround: e.actual, slabTop,
           setting: bottom - slabDesign - l3, actualSetting: bottom - slabTop - l3, leg, end: i === 0 ? 0 : 1, primary: k === 0, legAt: [e.q[0], e.q[1], slabTop], slabAt: [e.q[0], e.q[1], e.actual],
         };
       });
@@ -609,7 +636,7 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
       ? { from: [left.legAt[0], left.legAt[1], legBottom(left) + 40] as V3, to: [right.legAt[0], right.legAt[1], top - depth - 40] as V3 } : null;
     const support: Support = {
       id, at: [centre[0], centre[1], top], along: a, across, length: width, top, kind: trestle ? 'trestle' : 'block', depth, slope: slopeAt, feet, brace, fixings,
-      flanges, flush, footprint, seat, soles, hold: { attached: false, dowels: [], cradles: [], strap: null, latches: [], buttons: [] },
+      flanges, flush, footprint, soles, width: 2 * half, stands: stance !== 'leg', hold: { attached: false, dowels: [], strap: null, buttons: [] },
     };
     supportOver.set(id, over);
     supports.push(support);
@@ -618,32 +645,31 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   const supportOver = new Map<string, string[]>();
   /** Up into a flange's middle, either side of the floor: at `offsets` along the face's normal (a flange before a gap is behind it). */
   const flangeFixings = (face: Face, offsets: number[]) => offsets.flatMap(o => [-1, 1].map(k => facePoint(face, k * (w / 2 + r / 2), -F, o)));
-  const bw = TUNNEL.bearer.width / 2;
-  if (first) station('support-wall', add(first.start.at, mul(heading(0), bw)), heading(0), w + 2 * F, flangeFixings(first.start, [T / 2]), 1, [-bw, T - bw], [first.id]);
+  if (first) station('support-wall', half => add(first.start.at, mul(heading(0), half)), heading(0), w + 2 * F, flangeFixings(first.start, [T / 2]), 1, half => [-half, T - half], [first.id]);
   for (const i of interfaces.filter(i => i.kind === 'coupling')) {
     const before = pieces.find(p => p.id === i.before); const after = pieces.find(p => p.id === i.after);
     if (before?.kind === 'collar' || after?.kind === 'collar') continue;
     const joint = joints.find(j => j.collar === null && len(sub(j.vertex, i.face.at)) < 1e-6);
     const width = joint?.kind === 'turn' ? (w + 2 * F) / Math.cos(rad(joint.angle) / 2) : w + 2 * F;
     // the bearer under the middle of the gap, into both flanges
-    station(joint ? `support-${joint.id}` : `support-${i.id}`, sub(i.face.at, mul(i.face.n, i.gap / 2)), i.face.n, width, flangeFixings(i.face, [-(i.gap + T / 2), T / 2]), 2,
-      [-(i.gap / 2 + T), i.gap / 2 + T], [i.before ?? '', i.after ?? '']);
+    station(joint ? `support-${joint.id}` : `support-${i.id}`, () => sub(i.face.at, mul(i.face.n, i.gap / 2)), i.face.n, width, flangeFixings(i.face, [-(i.gap + T / 2), T / 2]), 2,
+      () => [-(i.gap / 2 + T), i.gap / 2 + T], [i.before ?? '', i.after ?? '']);
   }
   for (const j of joints.filter(j => j.collar)) {
     const c = pieces.find(p => p.id === j.collar); if (!c) continue;
     const centre = mul(add(c.start.at, c.end.at), 0.5);
     const width = j.kind === 'turn' ? (w + 2 * F) / Math.cos(rad(j.angle) / 2) : w + 2 * F;
     const fixings = [-1, 1].map(k => add(add(centre, mul(c.frame.x, k * (w / 2 + r / 2))), mul(c.frame.z, -F)));
-    station(`support-${j.id}`, centre, c.frame.y, width, fixings.map(p => [p[0], p[1], p[2]] as V3), 0, null, [c.id]);
+    station(`support-${j.id}`, () => centre, c.frame.y, width, fixings.map(p => [p[0], p[1], p[2]] as V3), 0, null, [c.id]);
   }
-  if (last) station('support-port', sub(last.end.at, mul(dE, bw)), dE, w + 2 * F, flangeFixings(last.end, [-T / 2]), 1, [bw - T, bw], [last.id]);
+  if (last) station('support-port', half => sub(last.end.at, mul(dE, half)), dE, w + 2 * F, flangeFixings(last.end, [-T / 2]), 1, half => [half - T, half], [last.id]);
   // Fixing points take their height from the bearer they go up through.
   for (const s of supports) s.fixings = s.fixings.map(p => [p[0], p[1], s.top]);
 
   // How the tunnel is held on each support (`supportFixing`), placed in the support's frame: across it, along the tunnel, up.
   for (const s of supports) {
     const over = supportOver.get(s.id) ?? [];
-    const halfLength = s.length / 2; const top = s.top; const under = top + s.seat;
+    const halfLength = s.length / 2; const top = s.top; const under = top;
     const point = (u: number, al: number, z: number): V3 => { const q = add(add([s.at[0], s.at[1], 0], mul(s.across, u)), mul(s.along, al)); return [q[0], q[1], z]; };
     const box = (u0: number, u1: number, a0: number, a1: number, z0: number, z1: number): SupportBox => ({ center: point((u0 + u1) / 2, (a0 + a1) / 2, (z0 + z1) / 2), size: [Math.abs(u1 - u0), Math.abs(a1 - a0), Math.abs(z1 - z0)] });
     const hold = s.hold;
@@ -658,19 +684,6 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
         const at: V3 = [p[0], p[1], top - FX.dowel.into]; hold.dowels.push(at);
         fasteners.push({ partId: FX.dowel.partId, component: 'dowels', support: s.id, at, direction: [0, 0, 1], use: 'Dowels in the bearers’ tops, into the flanges above' });
       }
-    } else if (method === 'cradle') {
-      hold.attached = true;
-      const { wall, lip, clearance, reach } = FX.cradle;
-      const [a0, a1] = s.footprint ? [s.footprint[0] - clearance - wall, s.footprint[1] + clearance + wall] : [-bw, bw];
-      for (const side of [-1, 1] as const) {
-        // the end lip just outside the flanges' sides (beyond the bearer's end), or the collar's rails (on the bearer)
-        const inner = side * (halfLength - reach); const end = side * (outer + clearance);
-        const endOut = end + side * wall; const base = [inner, s.flanges > 0 ? endOut : side * halfLength].sort((x, y) => x - y) as [number, number];
-        const boxes = [box(base[0], base[1], a0, a1, top, under), box(end, endOut, a0, a1, top, under + lip)];
-        if (s.footprint) for (const [l0, l1] of [[a0, a0 + wall], [a1 - wall, a1]] as const) boxes.push(box(base[0], base[1], l0, l1, top, under + lip));
-        hold.cradles.push({ side, boxes });
-        for (const k of [-1, 1]) fasteners.push({ partId: HW.latchScrew, component: 'cradle-screws', support: s.id, at: point(side * (halfLength - reach / 2), k * 10, under), direction: [0, 0, -1], use: 'Cradles onto the bearers’ ends' });
-      }
     } else if (method === 'strap') {
       hold.attached = true;
       const { size, length } = FX.strap.cleat;
@@ -680,16 +693,6 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
       const path: V3[] = [point(-(halfLength + size / 2), 0, hookZ), point(-outer, 0, crown), point(outer, 0, crown), point(halfLength + size / 2, 0, hookZ)];
       hold.strap = { path, length: path.slice(1).reduce((n, q, i) => n + len(sub(q, path[i] ?? q)), 0), cleats };
       for (const side of [-1, 1] as const) for (const k of [-1, 1]) fasteners.push({ partId: HW.floorScrew, component: 'strap-cleat-screws', support: s.id, at: point(side * (halfLength + size), k * 18, hookZ + size / 2), direction: mul(s.across, -side), use: 'Strap cleats onto the bearers’ ends' });
-    } else if (method === 'latch' && latchFits(s.flanges, s.flush)) {
-      hold.attached = true;
-      for (const side of [-1, 1] as const) {
-        // the base plate spans both flanges' sides above the pad, the catch the bearer's end below: the lever pulls the flanges down
-        const mount: LatchMount = { id: `${s.id}-latch-${side < 0 ? 'left' : 'right'}`, side, at: point(side * halfLength, 0, under - PRINTED_LATCH.overhang), out: mul(s.across, side), pull: [0, 0, 1] };
-        hold.latches.push(mount);
-        const screws = printedLatchScrews(mount);
-        for (const f of screws.base) fasteners.push({ partId: HW.latchScrew, component: 'support-latch-screws', support: s.id, ...f, use: 'Vertical latch base plates onto the flanges’ sides', of: mount.id, piece: pieceAt(dot(sub(f.at, s.at), s.along)) ?? '' });
-        for (const f of screws.catch) fasteners.push({ partId: HW.latchScrew, component: 'support-catch-screws', support: s.id, ...f, use: 'Vertical latch catch plates onto the bearers’ ends', of: mount.id });
-      }
     } else if (method === 'turn-buttons' && s.flanges > 0 && s.flush) {
       hold.attached = true;
       const { out, high } = FX.keeper; const thick = FX.button.thickness;
@@ -708,12 +711,21 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
       }
     }
   }
-  const loose = supports.filter(s => !s.hold.attached);
-  if (loose.length && config.supportBase === 'trestle') {
+  // a support with nothing holding it to the tunnel must stand on its soles
+  const loose = supports.filter(s => !s.hold.attached && !s.stands);
+  if (loose.length) {
+    const names = loose.map(s => s.id.replace('support-', '').replace('-', ' ')).join(', ');
     const why = method === 'gravity' ? 'With gravity only, nothing holds a support to the tunnel'
-      : method === 'latch' ? `A vertical latch fits only where two flanges meet over a bearer flush with their sides, so ${loose.length} of the supports have nothing holding them to the tunnel`
-        : `Turn buttons fit only under flanges flush with the bearer’s ends, so ${loose.length} of the supports have nothing holding them to the tunnel`;
-    errors.push(`${why}, and a trestle cannot stand on its own along the tunnel (${loose.map(s => s.id.replace('support-', '').replace('-', ' ')).join(', ')}). Choose self-standing supports, or another fixing.`);
+      : `Turn buttons fit only under flanges flush with the bearer’s ends, so ${loose.length} of the supports have nothing holding them to the tunnel`;
+    errors.push(config.supportBase === 'trestle'
+      ? `${why}, and a trestle cannot stand on its own along the tunnel (${names}). Choose self-standing supports, or another fixing.`
+      : `${why}, and ${loose.length === 1 ? 'a support is' : `${loose.length} supports are`} too low for soles to stand on (${names}). Choose another fixing, or raise the tunnel there.`);
+  }
+  // a foot's screw (or stud) runs up into a sole or a low bearer: its tip must stay inside it however far the foot is turned
+  for (const s of supports) {
+    const housing = s.soles.length ? TUNNEL.sole.thickness : s.kind === 'block' ? s.depth : Infinity;
+    const deepest = Math.max(...s.feet.map(f => stud - (f.setting - config.groundTolerance)));
+    if (deepest > housing - 1 + 1e-6) errors.push(`At the ${s.id.replace('support-', '').replace('-', ' ')} a foot’s ${pad ? 'screw' : 'stud'} would come out of the top of the ${s.soles.length ? 'sole' : 'low bearer'} (${Math.round(deepest)} mm up into ${Math.round(housing)} mm). ${pad ? 'Choose a smaller tolerance (a shorter screw)' : 'Choose the printed feet'}, or raise the tunnel there.`);
   }
   const short = supports.find(s => s.feet.some(f => f.setting - config.groundTolerance < travel.min - 1e-6 || f.setting + config.groundTolerance > travel.max + 1e-6));
   if (pad) {
@@ -724,11 +736,12 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   }
   if (short) errors.push(`A ${config.footDiameter} mm ${pad ? 'printed foot' : 'foot'} (${stud} mm stud) cannot take up ±${config.groundTolerance} mm of uneven ground at the ${short.id.replace('support-', '').replace('-', ' ')}: its stud travels ${Math.round(travel.min)}–${Math.round(travel.max)} mm. ${pad ? 'Choose a smaller tolerance, or the Ganter feet.' : 'Choose a 40 mm foot or a smaller tolerance.'}`);
   for (const s of supports) {
-    if (s.kind === 'trestle') for (const f of s.feet.filter(q => q.primary)) for (const k of [-1, 1]) fasteners.push({ partId: HW.bearerScrew, component: 'bearer-screws', at: add([f.legAt[0], f.legAt[1], s.top], mul(s.along, k * 11)), direction: [0, 0, -1], use: 'Down through the bearer into the legs' });
+    if (s.kind === 'trestle') for (const f of s.feet.filter(q => q.primary)) for (const k of [-1, 1]) fasteners.push({ partId: HW.bearerScrew, component: 'bearer-screws', at: add([f.legAt[0], f.legAt[1], s.top], mul(s.along, k * 11)), direction: [0, 0, -1], use: s.soles.length && s.feet.some(f => f.leg === 0) ? 'Down through the bearer into the legs or soles' : 'Down through the bearer into the legs' });
     // a sole is screwed up into its leg (or the low bearer's end)
-    for (const f of s.feet.filter(q => q.primary && s.soles.length)) for (const k of [-1, 1]) {
+    // (across the leg, clear of the bearer's screws down into it; a bearer straight on its soles is screwed down into them instead)
+    for (const f of s.feet.filter(q => q.primary && s.soles.length && q.leg > 0)) for (const k of [-1, 1]) {
       const bottom = f.slabTop + l3 + f.actualSetting;
-      fasteners.push({ partId: HW.braceScrew, component: 'sole-screws', at: add([f.legAt[0], f.legAt[1], bottom], mul(s.along, k * 60)), direction: [0, 0, 1], use: 'Up through the soles into the legs or low bearers' });
+      fasteners.push({ partId: HW.bearerScrew, component: 'sole-screws', at: add([f.legAt[0], f.legAt[1], bottom], mul(s.across, k * 11)), direction: [0, 0, 1], use: 'Up through the soles into the legs' });
     }
     if (s.brace) for (const end of [s.brace.from, s.brace.to]) for (const k of [-1, 1]) fasteners.push({ partId: HW.braceScrew, component: 'brace-screws', at: add(add(end, mul(s.along, -(TUNNEL.leg / 2 + TUNNEL.brace.thickness))), [0, 0, k * 15]), direction: s.along, use: 'Brace onto the legs' });
   }
@@ -773,24 +786,21 @@ export function describeJoint(j: Pick<Joint, 'kind' | 'angle'>): string {
 export function supportFixingSteps(l: TunnelLayout, scope: 'all' | 'one' = 'all') {
   const FX = TUNNEL.fixing; const each = scope === 'all' ? 'each' : 'the';
   const held = l.supports.filter(s => s.hold.attached);
-  const latched = held.filter(s => s.hold.latches.length); const buttoned = held.filter(s => s.hold.buttons.length);
+  const buttoned = held.filter(s => s.hold.buttons.length);
   const loose = l.supports.length - held.length;
   const rest = loose && l.config.supportFixing !== 'gravity' ? ` The ${loose === 1 ? 'support' : `${loose} supports`} where they do not fit only carr${loose === 1 ? 'ies' : 'y'} the tunnel, standing on ${loose === 1 ? 'its' : 'their'} soles.` : '';
+  const low = l.config.supportBase === 'self-standing' ? l.supports.filter(s => !s.soles.length).length : 0;
+  const lowNote = low ? ` (${low === 1 ? 'The one support' : `The ${low} supports`} too low for soles stand${low === 1 ? 's' : ''} on ${low === 1 ? 'its' : 'their'} feet alone and must be held by the tunnel.)` : '';
   switch (l.config.supportFixing) {
-    case 'screws': return { support: '', pieces: '', lay: '', hold: `Screw up through ${each} bearer into the flanges above (countersunk 6 × 100, two into each flange or collar rail).` };
+    case 'screws': return { support: '', pieces: '', lay: '', hold: `Screw up through ${each} bearer into the flanges above (countersunk 6 × 100, two into each flange or collar rail).${lowNote}` };
     case 'dowels': return { support: `Drill two 8 mm holes ${FX.dowel.into} mm deep in ${each} bearer’s top under each flange (or collar rail) and tap an 8 × 40 parallel pin into each, half of it standing proud.`,
       pieces: 'Drill matching 8 mm holes in the flanges’ (and collar rails’) undersides, 21 mm deep.', lay: ' over its dowels', hold: 'Nothing to fix: the sections rest on their dowels and lift straight off.' };
-    case 'cradle': return { support: `Screw a printed cradle onto ${each} end of ${each} bearer, two 4 × 25 screws through its base.`, pieces: '', lay: ' into its cradles',
-      hold: `Nothing to fix: the cradles’ ${FX.cradle.lip} mm lips hold the flanges (and collar rails) in place, and they lift straight out.` };
     case 'strap': return { support: `Screw a 20 × 20 timber cleat onto both ends of ${each} bearer, two 4 × 40 screws each.`, pieces: '', lay: '',
       hold: `Hook a rubber tarp strap under the cleat at one end of ${each} bearer, stretch it over the tunnel (over the flanges, or over a collar’s roof) and hook it under the other: about ${Math.round((FX.strap.stretch - 1) * 100)} % stretched, it holds the tunnel down on its support.` };
-    case 'latch': return { support: latched.length ? `Stick a ${FX.latchPad} mm EPDM pad along the top of ${scope === 'all' ? 'each bearer that two flanges meet over' : 'the bearer'}, and screw a vertical latch’s catch plate onto both of its ends, hook upwards.` : '',
-      pieces: '', lay: '',
-      hold: latched.length ? `Once both sections are down, screw each vertical latch’s base plate (lever and link snapped on) across the two flanges’ outer sides over the bearer, one 4 × 25 screw into each flange, hook its link over the catch on the bearer’s end and press the lever down over centre: it draws the flanges down onto the pad. To lift a section off, open its latches and take out the one screw in its flange.${rest}` : `No support has two flanges meeting over it, so no latch fits.${rest}` };
     case 'turn-buttons': return { support: buttoned.length ? `Screw a hardwood keeper onto both ends of ${scope === 'all' ? 'each bearer under flanges' : 'the bearer'}, under each flange, one 4 × 40 screw each.` : '',
       pieces: buttoned.length ? 'Screw a printed turn button onto each flange’s outer side where it will sit on a bearer, loosely on a 5 × 50 screw so it turns.' : '', lay: buttoned.length ? ', every turn button turned up out of the way' : '',
       hold: buttoned.length ? `Turn each button down so its foot hooks under the keeper on the bearer’s end.${rest}` : `No support has flanges flush with its ends, so no turn button fits.${rest}` };
-    case 'gravity': return { support: '', pieces: '', lay: '', hold: 'Nothing to fix: the tunnel rests on its self-standing supports by its own weight, held in line by its couplings.' };
+    case 'gravity': return { support: '', pieces: '', lay: '', hold: `Nothing to fix: the tunnel rests on its self-standing supports by its own weight, held in line by its couplings.${lowNote}` };
   }
 }
 
@@ -811,7 +821,7 @@ export function tunnelSteps(_variant: CatioMode, config: TunnelConfig): readonly
     ? `slide the head of an ${l.pad.screw.designation} into a printed foot, run an M8 nut up its shank and screw it into the insert nut by turning the foot`
     : 'screw the levelling foot’s stud into it';
   const fixing = supportFixingSteps(l);
-  const sole = config.supportBase === 'self-standing' ? ' Each leg (or low bearer end) stands on a 22 × 95 sole along the tunnel, screwed up into it with two 5 × 50 screws, with an insert nut and a foot near each of the sole’s ends, so the support stands on its own.' : '';
+  const sole = config.supportBase === 'self-standing' ? ` Each leg (or low bearer end) stands on a ${TUNNEL.sole.width} × ${TUNNEL.sole.thickness} sole on edge along the tunnel, two 6 × 100 screws up through it into the leg, with an insert nut and a foot near each of the sole’s ends (${l.pad ? `on ${l.pad.screw.designation} screws, short enough to stay inside the sole` : 'their studs inside the sole'}), so the support stands on its own.` : '';
   const level = l.pad
     ? 'Turn each printed foot by hand until the bearer top meets the line, then jam its nut up against the timber.'
     : 'Turn each foot on its stud until the bearer top meets the line, then jam the foot’s nut up against the timber.';
@@ -886,9 +896,10 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
   if (supports) for (const s of l.supports) {
     const bevel = Math.abs(s.slope) > 0.05 ? `, top bevelled ${fmt(Math.abs(s.slope))}°` : '';
     if (s.kind === 'trestle') timber('bearer', 'Bearer', `${TUNNEL.bearer.width} × ${TUNNEL.bearer.depth} · ${Math.round(s.length)} long${bevel}`, 'Across the top of each trestle, under the flanges');
+    else if (s.stands) timber('block', 'Low bearer, wide', `${Math.round(s.width)} × ${s.depth} (ripped to depth from a 200 wide beam) · ${Math.round(s.length)} long${bevel}`, 'Where the tunnel is too low for legs: wide along the tunnel, a foot near each corner, so it stands on its own');
     else timber('block', 'Low bearer', `${TUNNEL.bearer.width} × ${s.depth} (ripped from 45 × 95) · ${Math.round(s.length)} long${bevel}`, 'Where the tunnel is too low for legs: the feet go straight into it');
     for (const f of s.feet.filter(q => q.primary)) if (f.leg > 0) timber('leg', 'Leg', `${TUNNEL.leg} × ${TUNNEL.leg} · ${f.leg} long`, s.soles.length ? 'Under the bearer ends, on a sole' : 'Under the bearer ends; a foot in the bottom of each');
-    if (s.soles.length) timber('sole', 'Sole', `${TUNNEL.sole.thickness} × ${TUNNEL.sole.width} · ${TUNNEL.sole.length} long`, 'Along the tunnel under each leg (or low bearer end), a foot near each end: the support stands on its own', s.soles.length);
+    if (s.soles.length) timber('sole', 'Sole', `${TUNNEL.sole.width} × ${TUNNEL.sole.thickness} on edge · ${TUNNEL.sole.length} long`, 'Along the tunnel under each leg (or low bearer end), a foot near each end: the support stands on its own', s.soles.length);
     if (s.hold.strap) timber('strap-cleat', 'Strap cleat', `${TUNNEL.fixing.strap.cleat.size} × ${TUNNEL.fixing.strap.cleat.size} · ${TUNNEL.fixing.strap.cleat.length} long`, 'On both ends of each bearer: the strap hooks under it', 2);
     const keepers = s.hold.buttons.length;
     if (keepers) timber('keeper', 'Keeper', `hardwood ${TUNNEL.fixing.keeper.out} × ${TUNNEL.fixing.keeper.high} · 12 long`, 'On the bearer’s ends under each flange: the turn button hooks under it', keepers);
@@ -903,7 +914,7 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
     if (same) same.quantity++; else lines.push({ id: `mesh-${lines.length}`, group: 'Mesh', name: kind, quantity: 1, size, use: kind === 'Roof mesh' ? 'Over the top rails, ends turned onto the flanges' : 'Down each side, rail to rail' });
   }
   // the cut list by kind of member, then longest first
-  const kinds = ['Flange stile', 'Flange head or sill', 'Section rail', 'Collar rail', 'Floor board', 'Collar floor', 'Floor cleat', 'Bearer', 'Low bearer', 'Leg', 'Sole', 'Brace', 'Strap cleat', 'Keeper'];
+  const kinds = ['Flange stile', 'Flange head or sill', 'Section rail', 'Collar rail', 'Floor board', 'Collar floor', 'Floor cleat', 'Bearer', 'Low bearer', 'Low bearer, wide', 'Leg', 'Sole', 'Brace', 'Strap cleat', 'Keeper'];
   const length = (line: BomLine) => Number(/· (\d+)/.exec(line.size)?.[1] ?? 0);
   const cut = lines.filter(line => line.group === 'Timber').sort((x, y) => kinds.indexOf(x.name) - kinds.indexOf(y.name) || length(y) - length(x));
   return [...cut, ...lines.filter(line => line.group !== 'Timber')];
@@ -935,12 +946,7 @@ export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: Tunne
   }
   const latched = l.couplings.filter(c => c.kind === 'latched');
   const couplingLatches = latched.reduce((n, c) => n + c.latches.length, 0);
-  const supportLatches = l.supports.reduce((n, s) => n + s.hold.latches.length, 0);
-  const latchUses = [
-    couplingLatches ? `${l.joint.latchesPerSide === 1 ? 'One' : l.joint.latchesPerSide === 2 ? 'Two' : 'Three'} on each side of every square coupling: base plate on the flange before it, catch plate on the one after` : '',
-    supportLatches ? `${supportLatches} upright on the supports: base plate across the flanges’ sides, catch plate on the bearer’s end` : '',
-  ].filter(Boolean);
-  if (couplingLatches + supportLatches) lines.push(printedLatchLine(couplingLatches + supportLatches, latchUses.join('; ')));
+  if (couplingLatches) lines.push(printedLatchLine(couplingLatches, `${l.joint.latchesPerSide === 1 ? 'One' : l.joint.latchesPerSide === 2 ? 'Two' : 'Three'} on each side of every square coupling: base plate on the flange before it, catch plate on the one after`));
   const sealed = latched.filter(c => c.seal);
   const sealLength = sealed[0]?.seal?.length ?? 0;
   if (sealed.length) lines.push({ id: 'coupling-seal', group: 'Hardware', name: E_PROFILE_SEAL, quantity: sealed.length, size: `about ${PRINTED_LATCH_JOINT.seal.width} × ${PRINTED_LATCH_JOINT.seal.height} · ${Math.ceil(sealLength / 10) * 10} long each`, use: `Round each latched coupling’s flange face; squashed to the ${l.gap} mm gap` });
@@ -950,8 +956,6 @@ export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: Tunne
   const straps = new Map<number, number>();
   for (const s of l.supports) if (s.hold.strap) { const length = Math.ceil(s.hold.strap.length / FX.strap.stretch / 50) * 50; straps.set(length, (straps.get(length) ?? 0) + 1); }
   for (const [length, quantity] of [...straps].sort((x, y) => x[0] - y[0])) custom(`strap-${length}`, 'EPDM tarp strap with S-hooks (custom)', quantity, `${FX.strap.width} mm wide · about ${length} mm unstretched, ${Math.round((FX.strap.stretch - 1) * 100)} % stretched when hooked`, 'Over the tunnel at a support, hooked under the cleats on the bearer’s ends');
-  custom('support-cradles', 'Support cradle, printed (custom)', l.supports.reduce((n, s) => n + s.hold.cradles.length, 0), `PETG · ${FX.cradle.seat} mm base, ${FX.cradle.lip} mm lips, ${FX.cradle.wall} mm walls, ${FX.cradle.reach} mm onto the bearer · shaped to the flanges or collar rails over it`, 'On both ends of every bearer, the tunnel set into them');
-  custom('latch-pads', `EPDM pad strip, ${FX.latchPad} mm (custom)`, l.supports.filter(s => s.hold.latches.length).length, `${FX.latchPad} × ${TUNNEL.bearer.width} · ${Math.round(l.w + 2 * F)} long`, 'Along the bearer’s top under the flanges: the vertical latches squash it as they lock');
   custom('turn-buttons', 'Turn button, printed (custom)', l.supports.reduce((n, s) => n + s.hold.buttons.length, 0), `PETG · ${FX.button.thickness} thick · an arm down past the bearer’s top and a foot under its keeper`, 'On each flange’s side over a bearer, turned on a 5 × 50 screw');
   if (l.pad) lines.push({ id: 'foot-pads', group: 'Hardware', name: 'Pressure pad, foot', quantity: l.supports.reduce((n, s) => n + s.feet.length, 0), modelId: 'pressure-pad',
     size: `Ø ${l.pad.diameter} × ${l.pad.height} mm · ${l.pad.surface} sole · PETG · for an ${l.pad.screw.designation} head`, use: 'Under every leg or low bearer, on a slab: turned by hand to level' });
@@ -1062,11 +1066,11 @@ export const TUNNEL_DECISIONS: DesignDecision[] = [
     choice: 'A support under the wall end, the port end, every coupling and every joint. Each stands on two printed feet (the pressure-pad model, 40 mm, PETG) on ISO 4017 M8 × 80 screws, in DIN 7965 insert nuts, on paving slabs; Ganter GN 343.2 levelling feet remain selectable. Legs are cut to the designed fall of the ground; the feet are set to mid-travel there.',
     why: 'Nothing is assumed level. A printed foot’s screw may run from the lock nut’s height (6.8 mm) out to its length less the foot’s 3 mm lip and the insert nut (59 mm), so each foot takes up about ±26 mm of slab height (a 40 mm Ganter foot’s stud ±27 mm); the page checks every foot against the chosen tolerance, and its scene sets each foot to the uneven ground it stands on. Slabs stop the feet sinking into grass. Where the tunnel is too low for legs, the feet screw straight into a bearer ripped to depth.' },
   { title: 'Held on the supports, but not for good', parameter: 'Held on the supports by',
-    choice: `Seven ways, the screws by default: 6 × 100 screws up through each bearer into the flanges (the original); a rubber tarp strap over each support, hooked under a cleat on each bearer end; two ${TUNNEL.fixing.dowel.into * 2} mm parallel pins under each flange, half in the bearer; printed cradles on the bearer ends whose ${TUNNEL.fixing.cradle.lip} mm lips hold the flanges; vertical printed toggle latches from the flanges’ sides to the bearer’s ends, over a ${TUNNEL.fixing.latchPad} mm pad; turn buttons on the flanges hooked under keepers on the bearer; or gravity only.`,
-    why: 'Screws bind the sections to the supports: every move means unscrewing from below, and re-driven screws hold less. Dowels and cradles let a section lift straight off and keep a trestle upright, but hold nothing down; the strap, the latches and the buttons also hold the tunnel down, without tools. The latch fits only where two flanges meet over a bearer (its 38 mm plate is wider than one 30 mm flange), the buttons only under flanges flush with the bearer’s ends; the tunnel has no face facing up near its bearers, so a button hooks under a keeper on the bearer instead of over the tunnel. Where a fixing does not fit, and with gravity only, the support must stand on its own: the page says which.' },
+    choice: `Five ways, the screws by default: 6 × 100 screws up through each bearer into the flanges (the original); a rubber tarp strap over each support, hooked under a cleat on each bearer end; two ${TUNNEL.fixing.dowel.into * 2} mm parallel pins under each flange, half in the bearer; turn buttons on the flanges hooked under keepers on the bearer; or gravity only.`,
+    why: 'Screws bind the sections to the supports: every move means unscrewing from below, and re-driven screws hold less. Dowels let a section lift straight off and keep a trestle upright, but hold nothing down; the strap and the buttons also hold the tunnel down, without tools, and each belongs to one section or one support, so any section lifts off on its own. The buttons fit only under flanges flush with the bearer’s ends; the tunnel has no face facing up near its bearers, so a button hooks under a keeper on the bearer instead of over the tunnel. Rejected: a printed cradle on the bearer (it locates no better than dowels and is hard to print in one piece) and an upright printed toggle latch (its plate is wider than one flange, so it would span two sections and tie them together). Where a fixing does not fit, and with gravity only, the support must stand on its own: the page says which.' },
   { title: 'Trestles, or supports that stand on their own', parameter: 'Supports stand',
-    choice: `By default each support is a trestle: a bearer on two legs across the tunnel, each leg on one foot. Self-standing: each leg (or a low bearer’s end) stands on a ${TUNNEL.sole.thickness} × ${TUNNEL.sole.width} × ${TUNNEL.sole.length} sole along the tunnel with a foot near each end, on the one slab.`,
-    why: `Along the tunnel a trestle is only ${TUNNEL.bearer.width} mm wide on one foot per leg: it stands because it is fixed to the tunnel. With soles it stands on its own, so supports can be set out and levelled first and sections lifted on and off freely; a sole costs ${TUNNEL.sole.thickness} mm of height (a support too low for it is reported) and two more feet per support.` },
+    choice: `By default each support is a trestle: a bearer on two legs across the tunnel, each leg on one foot. Self-standing: each leg (or a low bearer’s end) stands on a ${TUNNEL.sole.width} × ${TUNNEL.sole.thickness} sole on edge, ${TUNNEL.sole.length} long, along the tunnel, screwed up into it, with a foot near each end, both on the one slab.`,
+    why: `Along the tunnel a trestle is only ${TUNNEL.bearer.width} mm wide on one foot per leg: it stands because it is fixed to the tunnel. With soles it stands on its own, so supports can be set out and levelled first and sections lifted on and off freely. Each foot’s insert nut and screw sit in the sole, not in a leg above it, so the sole is deep enough (${TUNNEL.sole.thickness} mm) to keep the screw’s tip inside it over its whole travel, and a printed foot takes the shortest library screw that gives the travel the ground needs (M8 × 60 for ±10 mm; M8 × 80, its tip held inside, for ±15 and ±20). A sole costs ${TUNNEL.sole.thickness} mm of height: a support too low for it, such as the low bearers near the wall, is reported.` },
   { title: 'The enclosure is a fixed interface', parameter: 'Port floor height',
     choice: 'The enclosure is not designed here: only its rear port is, by where it is, which way it faces, its floor height and a 30 mm flange with the same bolt pattern.',
     why: 'The tunnel is solved from both ports: the window port’s floor follows the window insert as set on its page, the enclosure’s from these values. Its door can be higher or lower than the window; the tunnel climbs or falls the difference. “Level with the window port” keeps the two floors equal when the insert’s clamps move the window port’s floor, instead of leaving a few millimetres to climb.' },

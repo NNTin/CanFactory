@@ -155,7 +155,7 @@ export function buildSupportPieces(p: ReturnType<typeof createCatioParts>, draw:
   });
   const centre: V3 = [s.at[0], s.at[1], s.top - s.depth / 2];
   const bearer = draw.group(centre);
-  draw.beam(bearer, vec.add(centre, vec.mul(s.across, -s.length / 2)), vec.add(centre, vec.mul(s.across, s.length / 2)), TUNNEL.bearer.width, s.depth, s.kind === 'block' ? m.endgrain : m.timber, centre);
+  draw.beam(bearer, vec.add(centre, vec.mul(s.across, -s.length / 2)), vec.add(centre, vec.mul(s.across, s.length / 2)), s.width, s.depth, s.kind === 'block' ? m.endgrain : m.timber, centre);
   let brace: THREE.Group | null = null;
   if (s.brace) {
     const offset = vec.mul(s.along, -(TUNNEL.leg / 2 + TUNNEL.brace.thickness / 2));
@@ -215,32 +215,19 @@ export function buildCouplingJoint(p: ReturnType<typeof createCatioParts>, draw:
 }
 
 /**
- * How the tunnel is held on a support (`Support.hold`), drawn: on the support before the tunnel goes on (dowels, cradles, strap
- * cleats, the latches' pad and catches, the buttons' keepers), on the flanges (the latches' base plates, the turn buttons, each
- * with `setOpen`/`setTurn`), the strap that goes over last, and the screws of each.
+ * How the tunnel is held on a support (`Support.hold`), drawn: on the support before the tunnel goes on (dowels, strap cleats, the
+ * buttons' keepers), on the flanges (the turn buttons, each with `setTurn`), the strap that goes over last, and the screws of each.
  */
 export function buildSupportHold(p: ReturnType<typeof createCatioParts>, draw: TunnelDrawing, layout: TunnelLayout, s: Support) {
   const { materials: m } = p; const hold = s.hold; const FX = TUNNEL.fixing;
-  const onSupport: { kind: 'dowel' | 'cradle' | 'cleat' | 'pad' | 'catch' | 'keeper'; group: THREE.Group; out: V3 }[] = [];
+  const onSupport: { kind: 'dowel' | 'cleat' | 'keeper'; group: THREE.Group; out: V3 }[] = [];
   const screwsOf = (components: Fastener['component'][]) => layout.fasteners.filter(f => components.includes(f.component) && f.support === s.id)
     .flatMap(f => { const drawn = draw.fastener(f); return drawn ? [{ fastener: f, ...drawn }] : []; });
   for (const { group } of screwsOf(['dowels'])) onSupport.push({ kind: 'dowel', group, out: [0, 0, 1] });
-  for (const c of hold.cradles) {
-    const centre = c.boxes[0]?.center ?? s.at; const g = draw.group(centre);
-    for (const b of c.boxes) draw.supportBox(g, b, s, m.printed, centre);
-    onSupport.push({ kind: 'cradle', group: g, out: [0, 0, 1] });
-  }
   if (hold.strap) for (const [i, b] of hold.strap.cleats.entries()) {
     const g = draw.group(b.center); draw.supportBox(g, b, s, m.endgrain, b.center);
     onSupport.push({ kind: 'cleat', group: g, out: vec.mul(s.across, i === 0 ? -1 : 1) });
   }
-  if (hold.latches.length) {
-    const padBox: SupportBox = { center: [s.at[0], s.at[1], s.top + s.seat / 2], size: [s.length, TUNNEL.bearer.width, s.seat] };
-    const g = draw.group(padBox.center); draw.supportBox(g, padBox, s, m.rubber, padBox.center);
-    onSupport.push({ kind: 'pad', group: g, out: [0, 0, 1] });
-  }
-  const printed = hold.latches.length ? buildPrintedLatches(hold.latches) : null;
-  for (const { mount, group } of printed?.catches ?? []) onSupport.push({ kind: 'catch', group, out: mount.out });
   for (const b of hold.buttons) for (const k of b.keepers) {
     const g = draw.group(k.center); draw.supportBox(g, k, s, m.endgrain, k.center);
     onSupport.push({ kind: 'keeper', group: g, out: vec.mul(s.across, b.side) });
@@ -261,7 +248,7 @@ export function buildSupportHold(p: ReturnType<typeof createCatioParts>, draw: T
       mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(draw.vector(x), draw.vector(dir), draw.vector(z)));
     });
   }
-  const supportScrews = screwsOf(['cradle-screws', 'strap-cleat-screws', 'support-catch-screws', 'keeper-screws']);
-  const pieceScrews = screwsOf(['support-latch-screws', 'button-screws']);
-  return { support: s, onSupport, latches: printed?.latches ?? [], buttons, strap, supportScrews, pieceScrews, dispose: () => printed?.dispose() };
+  const supportScrews = screwsOf(['strap-cleat-screws', 'keeper-screws']);
+  const pieceScrews = screwsOf(['button-screws']);
+  return { support: s, onSupport, buttons, strap, supportScrews, pieceScrews };
 }

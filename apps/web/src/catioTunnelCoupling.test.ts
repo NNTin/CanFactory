@@ -42,7 +42,7 @@ describe('tunnel–tunnel coupling', () => {
       expect(vec.len(vec.sub(l.after.start.at, l.before.end.at))).toBeCloseTo(gap, 9);
       // the bearer is under the middle of the gap and carries both flanges, two screws up into each
       expect(l.support.at[1]).toBeCloseTo(l.coupling.face.at[1] - gap / 2, 9);
-      expect(l.support.top + l.support.seat).toBeCloseTo(TUNNEL_COUPLING.floor - TUNNEL.flange.width, 6);
+      expect(l.support.top).toBeCloseTo(TUNNEL_COUPLING.floor - TUNNEL.flange.width, 6);
       expect(l.fixings).toHaveLength(config.supportFixing === 'screws' ? 4 : 0);
       for (const f of l.fixings) {
         const into = f.at[1] < l.coupling.face.at[1] ? l.before.end.at[1] - TUNNEL.flange.thickness / 2 : l.after.start.at[1] + TUNNEL.flange.thickness / 2;
@@ -315,7 +315,7 @@ describe('tunnel–tunnel coupling on its support, as the tunnel page holds it',
       if (fixing === 'gravity') expect(validateTunnelCoupling('modular', holding('gravity', 'trestle', config), site).join()).toMatch(/choose self-standing supports/);
       expect(l.fixings.length).toBe(fixing === 'screws' ? 4 : 0);
       const steps = tunnelCouplingSteps('modular', held, site);
-      expect(steps.at(-1)?.detail, fixing).toMatch({ screws: /6 × 100/, strap: /strap/, dowels: /dowels/, cradle: /cradles/, latch: /vertical latch/, 'turn-buttons': /button/, gravity: /own weight/ }[fixing]);
+      expect(steps.at(-1)?.detail, fixing).toMatch({ screws: /6 × 100/, strap: /strap/, dowels: /dowels/, 'turn-buttons': /button/, gravity: /own weight/ }[fixing]);
       const scene = createTunnelCouplingScene('modular', held, site);
       // every fitting moves in along its own way, and is captioned while it does
       for (const motion of scene.motions.filter(m => m.role === 'screw')) expect(motion.approach.clone().normalize().dot(new THREE.Vector3(...(motion.drive ?? [0, 0, 0]))), motion.action).toBeCloseTo(-1, 6);
@@ -327,30 +327,21 @@ describe('tunnel–tunnel coupling on its support, as the tunnel page holds it',
     }
   });
 
-  it('lifts the second section over dowels or cradle lips and sets it down onto the same bearer', () => {
-    for (const fixing of ['dowels', 'cradle'] as const) {
+  it('lifts the second section over the dowels and sets it down onto the same bearer', () => {
+    for (const fixing of ['dowels'] as const) {
       const scene = createTunnelCouplingScene('modular', holding(fixing), site);
       const second = scene.components.find(part => part.id === 'second-section')?.group; if (!second) throw new Error('second section');
       scene.update({ ...installed, progress: 3 }); const placed = bounds(second);
-      expect(placed.min.z).toBeCloseTo(scene.layout.support.top + scene.layout.support.seat, 3);
+      expect(placed.min.z).toBeCloseTo(scene.layout.support.top, 3);
       scene.update({ ...installed, progress: 2.5 }); const coming = bounds(second);
-      const lip = fixing === 'dowels' ? TUNNEL.fixing.dowel.into : TUNNEL.fixing.cradle.lip;
+      const lip = TUNNEL.fixing.dowel.into;
       expect(coming.min.z - placed.min.z).toBeGreaterThan(lip);
       scene.update({ ...installed, progress: 2.9 }); expect(scene.caption?.()).toMatch(/Setting the second section down/);
       scene.dispose();
     }
   });
 
-  it('closes the vertical latches and turns the buttons down in the last stage, and lets go when released', () => {
-    const latched = createTunnelCouplingScene('modular', holding('latch'), site);
-    expect(latched.hold.latches).toHaveLength(2);
-    const G = TL.TOGGLE_LATCH_GEOMETRY;
-    const world = (object: THREE.Object3D, point: [number, number, number]) => new THREE.Vector3(...point).applyMatrix4(object.matrixWorld);
-    const tip = () => latched.hold.latches.map(q => world(q.lever, [30, G.lever.middle, 1.5]).distanceTo(new THREE.Vector3(...q.mount.at)));
-    latched.update({ ...installed, progress: 4.2 }); const open = tip();
-    latched.update(installed); tip().forEach((d, i) => expect(d).toBeLessThan(open[i] ?? 0));
-    latched.update({ ...installed, windowOpen: true }); tip().forEach((d, i) => expect(d).toBeCloseTo(open[i] ?? 0, 6));
-    latched.dispose();
+  it('turns the buttons down under their keepers in the last stage, and up again when released', () => {
     const buttons = createTunnelCouplingScene('modular', holding('turn-buttons'), site);
     expect(buttons.hold.buttons).toHaveLength(4);
     const arm = (b: (typeof buttons.hold.buttons)[number]) => b.group.children[0]?.quaternion.clone() ?? new THREE.Quaternion();
@@ -395,12 +386,12 @@ describe('tunnel–tunnel coupling page settings', () => {
       store.set(subassemblyStorageKey('tunnel-tunnel-coupling'), JSON.stringify({ version: 1, config: { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'strap', mechanism: 'bolts' } }));
       expect(loadSubassemblySettings(tunnelCouplingDefinition).config).toEqual({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', supportFixing: 'dowels' });
       // set here: written back to the tunnel page, its other settings kept
-      saveShared<TunnelCouplingConfig>(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'cradle', supportBase: 'self-standing' });
-      expect(loadSubassemblySettings(tunnelDefinition).config).toEqual({ ...TUNNEL_DEFAULT, supportFixing: 'cradle', supportBase: 'self-standing', portHeight: 655 });
+      saveShared<TunnelCouplingConfig>(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'turn-buttons', supportBase: 'self-standing' });
+      expect(loadSubassemblySettings(tunnelDefinition).config).toEqual({ ...TUNNEL_DEFAULT, supportFixing: 'turn-buttons', supportBase: 'self-standing', portHeight: 655 });
       // with nothing saved on the tunnel page yet, it is started with just these
       store.clear();
-      saveShared<TunnelCouplingConfig>(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'latch' });
-      expect(loadSubassemblySettings(tunnelDefinition).config).toEqual({ ...TUNNEL_DEFAULT, supportFixing: 'latch' });
+      saveShared<TunnelCouplingConfig>(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'strap' });
+      expect(loadSubassemblySettings(tunnelDefinition).config).toEqual({ ...TUNNEL_DEFAULT, supportFixing: 'strap' });
       // an invalid value saved on the tunnel page is not taken
       store.set(subassemblyStorageKey('tunnel'), JSON.stringify({ version: 1, config: { supportFixing: 'glue' } }));
       expect(loadSubassemblySettings(tunnelCouplingDefinition).config.supportFixing).toBe('screws');

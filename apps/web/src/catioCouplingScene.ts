@@ -112,7 +112,7 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
   const s = layout.wallSupport;
   if (s) {
     const centre: V3 = [s.at[0], s.at[1], s.top - s.depth / 2];
-    const bearer = box(supportGroup, [s.length, TUNNEL.bearer.width, s.depth], centre, s.kind === 'block' ? m.endgrain : m.timber);
+    const bearer = box(supportGroup, [s.length, s.width, s.depth], centre, s.kind === 'block' ? m.endgrain : m.timber);
     bearer.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.atan2(s.across[1], s.across[0]));
     const foot = tl.foot; const l3 = tl.footHeight;
     for (const f of s.feet) {

@@ -3,30 +3,32 @@ import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 
 /**
  * How the tunnel is held on its supports: screwed up through the bearers (the original), strapped over each support with a rubber
- * strap, dropped over dowels in the bearer top, dropped into printed cradles on the bearer, latched down with vertical printed
- * toggle latches, held by turn buttons over keepers on the flanges, or resting by its own weight. The tunnel page owns it; the
+ * strap, dropped over dowels in the bearer top, held by turn buttons hooked under keepers on the bearer, or resting by its own weight. The tunnel page owns it; the
  * tunnel–tunnel coupling page shares it.
  */
-export const SUPPORT_FIXINGS = ['screws', 'strap', 'dowels', 'cradle', 'latch', 'turn-buttons', 'gravity'] as const;
+export const SUPPORT_FIXINGS = ['screws', 'strap', 'dowels', 'turn-buttons', 'gravity'] as const;
 export type SupportFixing = typeof SUPPORT_FIXINGS[number];
 export type SupportBase = 'trestle' | 'self-standing';
 export const SUPPORT_FIXING_LABELS: Record<SupportFixing, string> = {
-  screws: 'Screwed up through the bearer', strap: 'Rubber strap over the support', dowels: 'Dowels in the bearer top', cradle: 'Printed cradles on the bearer',
-  latch: 'Vertical printed toggle latches', 'turn-buttons': 'Turn buttons over keepers', gravity: 'Gravity only',
+  screws: 'Screwed up through the bearer', strap: 'Rubber strap over the support', dowels: 'Dowels in the bearer top', 'turn-buttons': 'Turn buttons over keepers', gravity: 'Gravity only',
 };
 
-/** A self-standing support's sole: along the tunnel under each leg (or each end of a low bearer), a foot near each of its ends. */
-export const SUPPORT_SOLE = { thickness: 22, width: 95, length: 300, footInset: 40 } as const;
+/**
+ * A self-standing support's sole: a 45 × 70 set on edge along the tunnel under each leg (or each end of a low bearer), a foot near
+ * each of its ends. It is deep enough to hold each foot's insert nut and its screw over the whole of its travel, so no screw comes
+ * out of its top.
+ */
+export const SUPPORT_SOLE = { thickness: 70, width: 45, length: 300, footInset: 40 } as const;
 
 /** The two settings of how the tunnel is held on its supports, for each page that sets them. */
 export function supportControls<C extends { supportFixing: SupportFixing; supportBase: SupportBase }>(group: string): SubassemblyControl<C>[] {
   const sole = SUPPORT_SOLE;
   return [
     { key: 'supportFixing', label: 'Held on the supports by', group,
-      help: 'Screws bind the tunnel to its supports for good; the others let a section lift off to be moved. Dowels and cradles locate it and keep the supports upright; a strap, vertical latches or turn buttons also hold it down; gravity only needs supports that stand on their own.',
+      help: 'Screws bind the tunnel to its supports for good; the others let a section lift off to be moved. Dowels locate it and keep the supports upright; a strap or turn buttons also hold it down; gravity only needs supports that stand on their own.',
       options: SUPPORT_FIXINGS.map(value => ({ value: value as C[keyof C], label: SUPPORT_FIXING_LABELS[value] })) },
     { key: 'supportBase', label: 'Supports stand', group,
-      help: `A trestle is one bearer on two legs across the tunnel: along it, it stands only when fixed to the tunnel. A ${sole.thickness} × ${sole.width} sole along the tunnel under each leg, with a foot near each end, lets every support stand on its own.`,
+      help: `A trestle is one bearer on two legs across the tunnel: along it, it stands only when fixed to the tunnel. A ${sole.width} × ${sole.thickness} sole on edge along the tunnel under each leg, with a foot near each end, lets it stand on its own; a support too low for that becomes a low bearer 195 mm wide along the tunnel, on a foot near each corner.`,
       options: [{ value: 'trestle' as C[keyof C], label: 'Held up by the tunnel (trestles)' }, { value: 'self-standing' as C[keyof C], label: 'On their own (a sole under each leg)' }] },
   ];
 }

@@ -138,25 +138,24 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
   for (const f of soleScrews) {
     const drawn = draw.fastener(f); if (!drawn) continue; const s = supportOf(layout, f);
     group('sole-screws', 1, 'hardware').add(drawn.group);
-    move(drawn.group, 1, W.soleScrews, vec.mul(f.direction, -100), `${soleScrews.length} × Countersunk wood screw 5 × 50: up through the soles into the legs`, { role: 'screw', drive: f.direction, axis: vector(f.direction), turns: 4, ...(s ? { support: s.id } : {}) });
+    move(drawn.group, 1, W.soleScrews, vec.mul(f.direction, -100), `${soleScrews.length} × Countersunk wood screw 6 × 100: up through the soles into the legs`, { role: 'screw', drive: f.direction, axis: vector(f.direction), turns: 4, ...(s ? { support: s.id } : {}) });
   }
   // How the tunnel will be held on its supports: what goes on each support once it is level (stage 2), on the flanges while framing
   // (stage 3), and what holds the tunnel down at the end (stage 6).
   const holds = layout.supports.map(s => buildSupportHold(p, draw, layout, s));
   const onSupportCount = (kind: string) => holds.reduce((n, h) => n + h.onSupport.filter(o => o.kind === kind).length, 0);
   const holdCaption: Record<string, string> = {
-    dowel: `${onSupportCount('dowel')} × Parallel pin 8 × 40: tapped into the bearers’ tops, half standing proud`, cradle: `${onSupportCount('cradle')} × Printed cradle: set on each end of every bearer`,
-    cleat: `${onSupportCount('cleat')} × Strap cleat: onto both ends of every bearer`, pad: `${onSupportCount('pad')} × EPDM pad: stuck along the bearer’s top`,
-    catch: `${onSupportCount('catch')} × Catch plate of a vertical latch: onto the bearer’s end, hook upwards`, keeper: `${onSupportCount('keeper')} × Keeper: onto the bearer’s end under each flange`,
+    dowel: `${onSupportCount('dowel')} × Parallel pin 8 × 40: tapped into the bearers’ tops, half standing proud`,
+    cleat: `${onSupportCount('cleat')} × Strap cleat: onto both ends of every bearer`, keeper: `${onSupportCount('keeper')} × Keeper: onto the bearer’s end under each flange`,
   };
   const supportScrewCount = holds.reduce((n, h) => n + h.supportScrews.length, 0);
   const buttonCount = holds.reduce((n, h) => n + h.buttons.length, 0);
-  const holdLatches = holds.flatMap(h => h.latches); const holdButtons = holds.flatMap(h => h.buttons);
+  const holdButtons = holds.flatMap(h => h.buttons);
   const straps = holds.filter(h => h.strap).length;
   for (const h of holds) {
     for (const o of h.onSupport) {
       group('support-fixings', 2, 'hardware').add(o.group);
-      move(o.group, 2, o.kind === 'pad' ? [0.68, 0.76] : [0.76, 0.88], vec.mul(o.out, 150), holdCaption[o.kind] ?? o.kind, { role: o.kind === 'dowel' ? 'dowel' : 'fitting', support: h.support.id });
+      move(o.group, 2, [0.76, 0.88], vec.mul(o.out, 150), holdCaption[o.kind] ?? o.kind, { role: o.kind === 'dowel' ? 'dowel' : 'fitting', support: h.support.id });
     }
     for (const { fastener: f, group: g, part } of h.supportScrews) {
       group('support-fixings', 2, 'hardware').add(g);
@@ -169,14 +168,6 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     for (const { fastener: f, group: g } of h.pieceScrews.filter(q => q.fastener.component === 'button-screws')) {
       group('turn-buttons', 3, 'hardware').add(g);
       move(g, 3, [0.9, 1], vec.mul(f.direction, -90), `${buttonCount} × Countersunk wood screw 5 × 50: each turn button’s pivot`, { role: 'screw', drive: f.direction, axis: vector(f.direction), turns: 4, ...(f.piece ? { carrier: f.piece } : {}) });
-    }
-    for (const latch of h.latches) {
-      group('support-latches', 6, 'hardware').add(latch.group);
-      move(latch.group, 6, [0, 0.2], vec.mul(latch.mount.out, 160), `${holdLatches.length} × Vertical printed toggle latch: base plate across both flanges’ sides, over its catch`, { role: 'latch', of: latch.mount.id });
-    }
-    for (const { fastener: f, group: g } of h.pieceScrews.filter(q => q.fastener.component === 'support-latch-screws')) {
-      group('support-latches', 6, 'hardware').add(g);
-      move(g, 6, [0.2, 0.35], vec.mul(f.direction, -65), `${2 * holdLatches.length} × Countersunk wood screw 4 × 25: one into each flange`, { role: 'screw', drive: f.direction, axis: vector(f.direction), turns: 4, ...(f.of ? { of: f.of } : {}) });
     }
     if (h.strap) {
       group('straps', 6, 'hardware').add(h.strap);
@@ -306,13 +297,10 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     // the printed latches close over centre in the last part of stage 5, once every piece is down
     const closing = state.exploded ? 0 : ease(THREE.MathUtils.clamp((lower - 0.6) / 0.35, 0, 1));
     for (const latch of levers) latch.setOpen(1 - closing);
-    // stage 6: the vertical latches close and the turn buttons turn down under their keepers
-    const fastening = state.exploded ? 0 : ease(THREE.MathUtils.clamp((along(state.progress, 6) - 0.4) / 0.3, 0, 1));
+    // stage 6: the turn buttons turn down under their keepers
     const turning = state.exploded ? 0 : ease(THREE.MathUtils.clamp(along(state.progress, 6) / 0.3, 0, 1));
-    for (const latch of holdLatches) latch.setOpen(state.windowOpen ? 1 : 1 - fastening);
     for (const b of holdButtons) b.setTurn(1 - turning);
     let action: string | null = active.size > 0 ? [...active].join('; ') : null;
-    if (!action && state.progress > 5 && fastening > 0 && fastening < 1 && holdLatches.length) action = `${holdLatches.length} × Vertical printed toggle latch: hooked over its catch, lever pressed down over centre`;
     if (!action && state.progress > 5 && turning > 0 && turning < 1 && holdButtons.length) action = `${holdButtons.length} × Turn button: turned down, its foot under the keeper`;
     if (!action && state.progress > 4 && closing > 0 && closing < 1) action = `${latchCount} × Printed toggle latch: hooked over its catch, lever pressed down over centre`;
     if (!action && state.progress > 1 && state.progress < 2) action = 'Each foot is turned on its stud, from below the bearer, until the bearer top meets the string line; then its nut is jammed up against the timber';
@@ -324,6 +312,6 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     hinge.rotation.z = state.windowOpen ? -Math.PI / 2 : 0;
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); dock.dispose(); draw.dispose(); for (const j of joints) j.dispose(); for (const h of holds) h.dispose(); for (const g of geometries) g.dispose(); }
+  function dispose() { p.dispose(); dock.dispose(); draw.dispose(); for (const j of joints) j.dispose(); for (const g of geometries) g.dispose(); }
   return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, carriers, drops, levers, holds, caption: () => currentAction };
 }

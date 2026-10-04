@@ -41,8 +41,8 @@ are exactly the tunnel page's.
 | Latches per side | 2 (4 per coupling) | 1, 2, 3; printed latch only | Coupling |
 | Bolts per coupling | 6 · three each side | 4, 6, 8 | Coupling |
 | Seal | EPDM E-profile in the gap | EPDM E-profile; none (gap left open); printed latch only | Coupling |
-| Held on the supports by | Screwed up through the bearer | Screws; rubber strap; dowels; printed cradles; vertical printed toggle latches; turn buttons; gravity only | On the support (shared with the tunnel page) |
-| Supports stand | Held up by the tunnel (trestles) | Trestles; on their own (a sole under each leg) | On the support (shared with the tunnel page) |
+| Held on the supports by | Screwed up through the bearer | Screws; rubber strap; dowels; turn buttons; gravity only | On the support (shared with the tunnel page) |
+| Supports stand | Held up by the tunnel (trestles) | Trestles; on their own (legs on soles, or a wide low bearer) | On the support (shared with the tunnel page) |
 
 **Held on the supports by** and **Supports stand** are the tunnel page's settings, shown and set here too (`shares` on the
 definition). The tunnel page's saved settings hold them: this page reads them from there when it opens and writes them back
@@ -153,13 +153,12 @@ The slider shows, in order:
    a washer, then washers and nuts run on from the far side, turning as they go.
 5. **Hold it on the support**, as **Held on the supports by** sets it (here or on the tunnel page) (see [tunnel.md](tunnel.md),
    "Held on the supports, but not for good"): four 6 × 100 screws up through the bearer (the default); a rubber strap
-   hooked over both flanges; the vertical latches' base plates screwed across the two flanges and closed over centre; or
-   the turn buttons turned down under their keepers. With dowels, cradles or gravity only there is nothing left to do.
-   - The support's fittings (dowels, cradles, strap cleats, the latches' pad and catches, the keepers) are on it from
-     stage 0; the turn buttons go on each section's flange with it.
-   - Over dowels or cradle lips, the second section comes in along the axis lifted clear of them and is set down at the
-     end of stage 3.
-   - With self-standing supports, the support stands on its soles.
+   hooked over both flanges; or the turn buttons turned down under their keepers. With dowels or gravity only there is
+   nothing left to do.
+   - The support's fittings (dowels, strap cleats, the keepers) are on it from stage 0; the turn buttons go on each
+     section's flange with it.
+   - Over dowels, the second section comes in along the axis lifted clear of them and is set down at the end of stage 3.
+   - With self-standing supports, the support's legs stand on 45 × 70 soles (or it is a wide low bearer).
 
 Screws come in point first along their own axis. The exploded view freezes the same assembly: the first section raised,
 the second waiting beyond it, every piece on its way in and the latches open.

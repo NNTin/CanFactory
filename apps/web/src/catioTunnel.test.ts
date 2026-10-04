@@ -9,7 +9,7 @@ import {
 } from './catioTunnel.ts';
 import { createTunnelScene, LIFT } from './catioTunnelScene.ts';
 import { TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
-import { PRINTED_LATCH, PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
+import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 import type { V3 } from './catioSubassembly.ts';
 import { WINDOW_INSERT_DEFAULT, windowInsertLayout, type WindowInsertConfig } from './catioWindowInsert.ts';
 
@@ -19,7 +19,9 @@ const installed: CatioState = { progress: 6, exploded: false, windowOpen: true, 
 const optionConfigs: TunnelConfig[] = [TUNNEL_DEFAULT, ...TUNNEL_CONTROLS.filter(c => !c.range).flatMap(control => control.options.map(option => ({ ...TUNNEL_DEFAULT, [control.key]: option.value }))),
   // the Ganter feet in every size, and the printed feet at their lowest and highest
   ...TUNNEL_FOOT.diameters.map(footDiameter => ({ ...TUNNEL_DEFAULT, footPad: 'ganter' as const, footDiameter })),
-  { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.min }, { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.max, footDiameter: 25 }];
+  { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.min }, { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.max, footDiameter: 25 },
+  // self-standing on uneven ground of ±10 mm: the shorter screw in the feet
+  { ...TUNNEL_DEFAULT, supportBase: 'self-standing', groundTolerance: 10 }];
 /** Routes that turn either way, at odd angles, climb and fall, with both joint types. */
 const routes: TunnelConfig[] = ([
   TUNNEL_DEFAULT,
@@ -254,7 +256,7 @@ describe('tunnel held on its supports', () => {
     const l = held('screws');
     expect(TUNNEL_DEFAULT.supportFixing).toBe('screws'); expect(TUNNEL_DEFAULT.supportBase).toBe('trestle');
     expect(l.fasteners.filter(f => f.component === 'flange-screws')).toHaveLength(l.supports.reduce((n, s) => n + s.fixings.length, 0));
-    expect(l.supports.every(s => s.hold.attached && s.seat === 0)).toBe(true);
+    expect(l.supports.every(s => s.hold.attached)).toBe(true);
   });
 
   it('stands each dowel half in the bearer under a flange or collar rail, and drops the tunnel over them', () => {
@@ -272,19 +274,6 @@ describe('tunnel held on its supports', () => {
     }
   });
 
-  it('sets the tunnel into a printed cradle on each bearer end, its lips round the flanges, the bearer lowered by the cradle’s base', () => {
-    const l = held('cradle'); const screwed = held('screws');
-    for (const s of l.supports) {
-      expect(s.seat).toBe(TUNNEL.fixing.cradle.seat);
-      expect(s.top).toBeCloseTo((screwed.supports.find(t => t.id === s.id)?.top ?? NaN) - TUNNEL.fixing.cradle.seat, 9);
-      expect(s.hold.cradles).toHaveLength(2);
-      // lips along the tunnel only where flanges sit on the bearer: a collar's rails run on through
-      for (const c of s.hold.cradles) expect(c.boxes).toHaveLength(s.footprint ? 4 : 2);
-      for (const c of s.hold.cradles) for (const b of c.boxes.slice(1)) expect(b.center[2] + b.size[2] / 2).toBeCloseTo(s.top + s.seat + TUNNEL.fixing.cradle.lip, 9);
-    }
-    expect(tunnelBom('modular', { ...TUNNEL_DEFAULT, supportFixing: 'cradle' }, site).find(line => line.id === 'support-cradles')?.quantity).toBe(2 * l.supports.length);
-  });
-
   it('straps each support over the tunnel, hooked under cleats on the bearer’s ends', () => {
     const l = held('strap');
     for (const s of l.supports) {
@@ -293,37 +282,12 @@ describe('tunnel held on its supports', () => {
       // from below the bearer's top, over the tunnel's top (flanges, or a collar's roof), down to the other end
       const [a, b, c, d] = strap.path; if (!a || !b || !c || !d) throw new Error('path');
       expect(a[2]).toBeLessThan(s.top); expect(d[2]).toBeLessThan(s.top);
-      expect(b[2]).toBeCloseTo(s.top + s.seat + l.h + 2 * TUNNEL.flange.width - (s.flanges ? 0 : TUNNEL.flange.width - TUNNEL.rail), 6);
+      expect(b[2]).toBeCloseTo(s.top + l.h + 2 * TUNNEL.flange.width - (s.flanges ? 0 : TUNNEL.flange.width - TUNNEL.rail), 6);
       expect(strap.length).toBeGreaterThan(2 * (b[2] - a[2]) + l.w);
     }
     const lines = tunnelBom('modular', { ...TUNNEL_DEFAULT, supportFixing: 'strap' }, site);
     expect(lines.filter(line => line.name.startsWith('EPDM tarp strap')).reduce((n, line) => n + line.quantity, 0)).toBe(l.supports.length);
     expect(lines.find(line => line.name === 'Strap cleat')?.quantity).toBe(2 * l.supports.length);
-  });
-
-  it('latches the flanges down to the bearer only where two meet over it, flush with its ends, over a pad', () => {
-    const l = held('latch', 'self-standing', straight);
-    expect(l.errors).toEqual([]);
-    for (const s of l.supports) {
-      const fits = s.flanges === 2 && s.flush;
-      expect(s.hold.latches).toHaveLength(fits ? 2 : 0); expect(s.hold.attached).toBe(fits);
-      expect(s.seat).toBe(fits ? TUNNEL.fixing.latchPad : 0);
-      for (const q of s.hold.latches) {
-        expect(q.pull).toEqual([0, 0, 1]);
-        // the plates across the pad: base on the flanges above, catch on the bearer's end below, each overhang proud of its face
-        expect(q.at[2] - (s.top + s.seat)).toBeCloseTo(-PRINTED_LATCH.overhang, 9);
-        const screws = l.fasteners.filter(f => f.of === q.id);
-        const base = screws.filter(f => f.component === 'support-latch-screws'); const catches = screws.filter(f => f.component === 'support-catch-screws');
-        expect(base).toHaveLength(2); expect(catches).toHaveLength(2);
-        // one screw into each flange, at least 5 mm above its bottom; the catch's into the bearer
-        expect(new Set(base.map(f => f.piece)).size).toBe(2);
-        for (const f of base) expect(f.at[2] - (s.top + s.seat)).toBeGreaterThan(5);
-        for (const f of catches) expect(s.top - f.at[2]).toBeGreaterThan(5);
-      }
-    }
-    expect(l.supports.filter(s => s.hold.latches.length).length).toBeGreaterThan(2);
-    // where it does not fit, a trestle has nothing holding it up
-    expect(held('latch').errors.join()).toMatch(/A vertical latch fits only where two flanges meet over a bearer.*Choose self-standing supports/);
   });
 
   it('hooks a turn button on each flange under a keeper on the bearer’s end, under flanges flush with its ends', () => {
@@ -346,16 +310,62 @@ describe('tunnel held on its supports', () => {
     expect(held('gravity').errors.join()).toMatch(/With gravity only, nothing holds a support to the tunnel.*Choose self-standing supports/);
     const l = held('gravity', 'self-standing');
     expect(l.errors).toEqual([]);
-    expect(l.supports.every(s => !s.hold.attached && s.soles.length === 2 && s.feet.length === 4)).toBe(true);
-    // a sole under each leg, its two feet along the tunnel, both on the one slab
-    for (const s of l.supports) for (const end of [0, 1]) {
-      const feet = s.feet.filter(f => f.end === end); const [a, b] = feet; if (!a || !b) throw new Error(s.id);
-      expect(Math.abs(vec.dot(vec.sub(a.at, b.at), s.along))).toBeCloseTo(TUNNEL.sole.length - 2 * TUNNEL.sole.footInset, 6);
-      expect(a.slabAt).toEqual(b.slabAt);
+    expect(l.supports.every(s => !s.hold.attached && s.stands && s.feet.length === 4)).toBe(true);
+    // a trestle's legs on soles, a low bearer wide along the tunnel: two feet along the tunnel under each end, both on the one slab
+    const trestles = l.supports.filter(s => s.kind === 'trestle'); const blocks = l.supports.filter(s => s.kind === 'block');
+    expect(trestles.length).toBeGreaterThan(0); expect(blocks.length).toBeGreaterThan(0);
+    for (const s of l.supports) {
+      expect(s.soles).toHaveLength(s.kind === 'trestle' ? 2 : 0);
+      expect(s.width).toBe(s.kind === 'trestle' ? TUNNEL.bearer.width : TUNNEL.wideBlock.width);
+      for (const end of [0, 1]) {
+        const feet = s.feet.filter(f => f.end === end); const [a, b] = feet; if (!a || !b) throw new Error(s.id);
+        expect(Math.abs(vec.dot(vec.sub(a.at, b.at), s.along))).toBeCloseTo(s.kind === 'trestle' ? TUNNEL.sole.length - 2 * TUNNEL.sole.footInset : TUNNEL.wideBlock.width - 2 * TUNNEL.wideBlock.footInset, 6);
+        expect(a.slabAt).toEqual(b.slabAt);
+      }
     }
+    // the wall end's low bearer stays clear of the wall
+    const wall = l.supports.find(s => s.id === 'support-wall'); if (!wall) throw new Error('wall');
+    expect(wall.at[1] - wall.width / 2).toBeGreaterThanOrEqual(TUNNEL.wallGap - 1e-6);
     const lines = tunnelBom('modular', { ...TUNNEL_DEFAULT, supportFixing: 'gravity', supportBase: 'self-standing' }, site);
-    expect(lines.find(line => line.name === 'Sole')?.quantity).toBe(2 * l.supports.length);
+    expect(lines.find(line => line.name === 'Sole')?.quantity).toBe(2 * trestles.length);
+    expect(lines.filter(line => line.name === 'Low bearer, wide').reduce((n, line) => n + line.quantity, 0)).toBe(blocks.length);
+    expect(lines.find(line => line.name === 'Sole')?.size).toBe(`${TUNNEL.sole.width} × ${TUNNEL.sole.thickness} on edge · ${TUNNEL.sole.length} long`);
     expect(lines.find(line => line.id === 'slabs')?.quantity).toBe(2 * l.supports.length);
+  });
+
+  it('keeps every screw of a self-standing support inside its timber: the feet’s in the sole, the sole’s in the leg or low bearer', () => {
+    for (const groundTolerance of [10, 15, 20] as const) for (const footPad of ['printed', 'ganter'] as const) {
+      const l = held('gravity', 'self-standing', { ...straight, groundTolerance, footPad });
+      if (footPad === 'printed') {
+        // the shortest library screw with the travel the ground needs: M8 × 60 for ±10 mm, M8 × 80 beyond
+        expect(l.pad?.screw.id).toBe(groundTolerance === 10 ? 'iso-4017-m8x60' : 'iso-4017-m8x80');
+        expect(l.errors).toEqual([]);
+      }
+      for (const s of l.supports) for (const f of s.feet) {
+        const soleBottom = f.slabTop + l.footHeight + f.actualSetting; const soleTop = soleBottom + TUNNEL.sole.thickness;
+        // the stud's tip, however far the foot is turned within the travel the ground needs, stays inside the sole
+        for (const setting of [f.setting - groundTolerance, f.setting + groundTolerance, f.actualSetting]) {
+          if (setting < l.travel.min - 1e-6 || setting > l.travel.max + 1e-6) continue;
+          expect(f.slabTop + l.footHeight + l.stud - (setting - f.actualSetting), f.id).toBeLessThan(soleTop);
+        }
+        expect(l.travel.max - l.travel.min).toBeGreaterThanOrEqual(0);
+      }
+      for (const f of l.fasteners.filter(q => q.component === 'sole-screws')) {
+        const s = l.supports.find(q => q.id === f.support) ?? l.supports.find(q => q.feet.some(g => Math.hypot(g.legAt[0] - f.at[0], g.legAt[1] - f.at[1]) < 50)); if (!s) throw new Error('support');
+        // up through the sole into the leg (or low bearer) above it: within its 45 × 45 (or its width along the tunnel)
+        const end = s.feet.find(g => g.primary && Math.hypot(g.legAt[0] - f.at[0], g.legAt[1] - f.at[1]) < 50); if (!end) throw new Error('end');
+        expect(Math.abs(vec.dot(vec.sub(f.at, end.legAt), s.along))).toBeLessThan(TUNNEL.leg / 2);
+        expect(Math.abs(vec.dot(vec.sub(f.at, end.legAt), s.across))).toBeLessThan(TUNNEL.leg / 2 - 5);
+        expect(end.leg).toBeGreaterThan(0);
+        expect(f.direction).toEqual([0, 0, 1]);
+        expect(100 - TUNNEL.sole.thickness).toBeGreaterThan(20);
+      }
+    }
+    // a screw or stud that would come out of the top of a shallow low bearer is reported, and the shorter screw of a smaller
+    // tolerance fits there
+    const shallow: TunnelConfig = { ...TUNNEL_DEFAULT, portHeight: 200, slopeLeg: 'approach', approach: 1500, final: 1500 };
+    expect(tunnelLayout(shallow, site).errors.join()).toMatch(/At the joint 2 a foot’s screw would come out of the top of the low bearer \(59 mm up into 48 mm\)/);
+    expect(tunnelLayout({ ...shallow, footPad: 'ganter' }, site).errors.join()).toMatch(/a foot’s stud would come out of the top of the low bearer/);
   });
 
   it('stages every fixing: fittings on the levelled supports, buttons on the flanges, the hold-down last, each along its own way', () => {
@@ -369,12 +379,11 @@ describe('tunnel held on its supports', () => {
         expect(scene.caption?.(), `${fixing}: caption mid ${action}`).not.toBeNull();
       }
       const ids = scene.components.map(part => part.id);
-      expect(ids.includes('support-fixings'), fixing).toBe(['dowels', 'cradle', 'strap', 'latch', 'turn-buttons'].includes(fixing));
+      expect(ids.includes('support-fixings'), fixing).toBe(['dowels', 'strap', 'turn-buttons'].includes(fixing));
       expect(ids.includes('flange-screws'), fixing).toBe(fixing === 'screws');
       expect(ids.includes('straps'), fixing).toBe(fixing === 'strap');
-      expect(ids.includes('support-latches'), fixing).toBe(fixing === 'latch');
       expect(ids.includes('turn-buttons'), fixing).toBe(fixing === 'turn-buttons');
-      expect(ids).toContain('soles');
+      expect(scene.layout.supports.every(s => s.stands)).toBe(true);
       scene.dispose();
     }
   });
@@ -402,10 +411,11 @@ describe('tunnel parts list', () => {
       // a printed foot's screw and lock nut are the coupling's M8 × 80 and nut
       const feet = l.supports.reduce((n, s) => n + s.feet.length, 0);
       expect(feet).toBe((config.supportBase === 'self-standing' ? 4 : 2) * l.supports.length);
-      expect(count('iso-4017-m8x80')).toBe(bolts + (l.pad ? feet : 0));
+      // (a self-standing support's printed feet may take a shorter screw)
+      expect(count('iso-4017-m8x80') + (l.pad && l.pad.screw.id !== 'iso-4017-m8x80' ? count(l.pad.screw.id) : 0)).toBe(bolts + (l.pad ? feet : 0));
       expect(count('iso-7093-m8')).toBe(2 * bolts);
       expect(count('iso-4032-m8')).toBe(bolts + (l.pad ? feet : 0));
-      if (l.pad) expect(lines.find(line => line.modelId === 'pressure-pad')).toMatchObject({ id: 'foot-pads', quantity: feet, size: `Ø ${config.footDiameter} × ${config.padHeight} mm · ${config.padSurface} sole · PETG · for an ISO 4017 M8 × 80 head` });
+      if (l.pad) expect(lines.find(line => line.modelId === 'pressure-pad')).toMatchObject({ id: 'foot-pads', quantity: feet, size: `Ø ${config.footDiameter} × ${config.padHeight} mm · ${config.padSurface} sole · PETG · for an ${l.pad.screw.designation} head` });
       else { expect(count(l.foot.id)).toBe(feet); expect(lines.some(line => line.modelId === 'pressure-pad')).toBe(false); }
       expect(count('din-7965-m8x18')).toBe(feet);
       expect(lines.find(line => line.id === 'slabs')?.quantity).toBe(2 * l.supports.length);

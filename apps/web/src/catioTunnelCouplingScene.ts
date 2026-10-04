@@ -148,15 +148,6 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     const { approach, ...meta } = screwMotion(f, 50);
     move(g, 1, [0.72, 0.76], approach, `${hold.buttons.length / 2} × Countersunk wood screw 5 × 50: the turn button’s pivot`, { ...meta, lifted: true });
   }
-  for (const latch of hold.latches) {
-    group('fixings', 5, 'hardware').add(latch.group);
-    move(latch.group, 5, [0, 0.2], vec.mul(latch.mount.out, 160), `${hold.latches.length} × Vertical printed toggle latch: base plate across both flanges’ sides, over its catch`, { role: 'latch', of: latch.mount.id });
-  }
-  for (const { fastener: f, group: g } of hold.pieceScrews.filter(q => q.fastener.component === 'support-latch-screws')) {
-    group('fixings', 5, 'hardware').add(g);
-    const { approach, ...meta } = screwMotion(f, 25);
-    move(g, 5, [0.2, 0.35], approach, `${2 * hold.latches.length} × Countersunk wood screw 4 × 25: one into each flange`, { ...meta, ...(f.of ? { of: f.of } : {}) });
-  }
   if (hold.strap) { group('fixings', 5, 'hardware').add(hold.strap); move(hold.strap, 5, [0, 0.5], [0, 0, 400], 'Rubber strap: over both flanges, hooked under the cleats on the bearer’s ends', { role: 'fitting' }); }
   for (const f of layout.fixings) {
     const drawn = draw.fastener(f); if (!drawn) continue;
@@ -164,8 +155,8 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     const { approach, ...meta } = screwMotion(f, 100);
     move(drawn.group, 5, [0, 0.6], approach, `${layout.fixings.length} × Countersunk wood screw 6 × 100: up through the bearer into both flanges`, meta);
   }
-  /** Over dowels or cradle lips the second section comes in this much higher and is set down at the end. */
-  const clearance = tl.config.supportFixing === 'dowels' ? TUNNEL.fixing.dowel.into + 5 : tl.config.supportFixing === 'cradle' ? TUNNEL.fixing.cradle.lip + 5 : 0;
+  /** Over dowels the second section comes in this much higher and is set down at the end. */
+  const clearance = tl.config.supportFixing === 'dowels' ? TUNNEL.fixing.dowel.into + 5 : 0;
 
   const bases = motions.map(motion => motion.object.position.clone());
   const baseQuaternions = motions.map(motion => motion.object.quaternion.clone());
@@ -206,14 +197,11 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
       for (const latch of jointPieces.latches) { if (latchState) latch.setState(latchState); else latch.setOpen(1); }
       if (n && closing > 0 && closing < 1 && !state.windowOpen) latchAction = `${n} × Printed toggle latch: ${movement.title.charAt(0).toLowerCase()}${movement.title.slice(1)}`;
     }
-    // stage 5: the vertical latches close, the turn buttons turn down under their keepers
-    const holding = state.exploded ? 0 : ease(THREE.MathUtils.clamp((at(state.progress, 5) - 0.4) / 0.3, 0, 1));
+    // stage 5: the turn buttons turn down under their keepers
     const turning = state.exploded ? 0 : ease(THREE.MathUtils.clamp(at(state.progress, 5) / 0.3, 0, 1));
-    for (const latch of hold.latches) latch.setOpen(state.windowOpen ? 1 : 1 - holding);
     for (const b of hold.buttons) b.setTurn(state.windowOpen ? 1 : 1 - turning);
-    if (!latchAction && hold.latches.length && holding > 0 && holding < 1) latchAction = `${hold.latches.length} × Vertical printed toggle latch: hooked over its catch, lever pressed down over centre`;
     if (!latchAction && hold.buttons.length && turning > 0 && turning < 1) latchAction = `${hold.buttons.length} × Turn button: turned down, its foot under the keeper`;
-    if (!latchAction && clearance && state.progress > 2.8 && state.progress < 3) latchAction = `Setting the second section down ${tl.config.supportFixing === 'dowels' ? 'over its dowels' : 'into the cradles'}`;
+    if (!latchAction && clearance && state.progress > 2.8 && state.progress < 3) latchAction = 'Setting the second section down over its dowels';
     let action: string | null = active.size > 0 ? [...active].join('; ') : latchAction;
     if (!action && !state.exploded && state.progress > 0.76 && state.progress < 1) action = 'Laying the first section on the support, its outgoing flange over the bearer';
     currentAction = action;
@@ -221,7 +209,7 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     focus = state.progress > 2 && state.progress < 3 && !state.exploded ? vec.mul(coupling.face.n, 0.5 * L) : [0, 0, 0];
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); draw.dispose(); jointPieces.dispose(); hold.dispose(); for (const g of geometries) g.dispose(); }
+  function dispose() { p.dispose(); draw.dispose(); jointPieces.dispose(); for (const g of geometries) g.dispose(); }
   return {
     root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers: jointPieces.latches, hold,
     lift: () => currentLift, entry: () => currentEntry, caption: () => currentAction, focusOffset: () => focus,
