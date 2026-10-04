@@ -239,7 +239,7 @@ test('opens the tunnel, solves its route to the enclosure port, switches its joi
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
   await page.goto('/#/concepts/catio');
-  await page.getByRole('navigation', { name: 'Catio sub-assemblies' }).getByRole('link', { name: /Tunnel/ }).click();
+  await page.getByRole('navigation', { name: 'Catio sub-assemblies' }).getByRole('link', { name: /^Tunnel pieces/ }).click();
   await expect(page).toHaveURL(/#\/concepts\/catio\/tunnel$/);
   const viewer = page.getByTestId('subassembly-viewer');
   await expect(viewer).toHaveAttribute('data-ready', 'true');
@@ -387,5 +387,84 @@ test('opens the insert–tunnel coupling, switches its latches, stages the docki
   await page.reload();
   await expect(viewer).toHaveAttribute('data-ready', 'true');
   await expect(viewer).toHaveAttribute('data-window', 'open');
+  expect(errors).toEqual([]);
+});
+
+test('opens the tunnel–tunnel coupling, brings the second section in, switches to bolts and releases the latches', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
+  await page.goto('/#/concepts/catio');
+  await page.getByRole('navigation', { name: 'Catio sub-assemblies' }).getByRole('link', { name: /Tunnel–tunnel coupling/ }).click();
+  await expect(page).toHaveURL(/#\/concepts\/catio\/tunnel-tunnel-coupling$/);
+  const viewer = page.getByTestId('subassembly-viewer');
+  await expect(viewer).toHaveAttribute('data-ready', 'true');
+  await expect(viewer).toHaveAttribute('data-variant', 'modular');
+  await expect(viewer).toHaveAttribute('data-window', 'closed');
+  const hardware = page.getByRole('table', { name: 'Hardware parts' });
+  // the printed toggle latch by default, linked to its model, with its library screws and the seal
+  await expect(hardware.getByRole('link', { name: 'Toggle latch, printed' })).toHaveAttribute('href', '#/models/toggle-latch');
+  await expect(hardware.getByRole('row', { name: /Toggle latch, printed/ }).getByRole('cell').first()).toHaveText('4');
+  await expect(hardware.getByRole('link', { name: 'Countersunk wood screw 4 × 25' })).toBeVisible();
+  await expect(hardware.getByRole('cell', { name: 'EPDM E-profile seal, self-adhesive (custom)' })).toBeVisible();
+  await expect(hardware.getByRole('link', { name: 'Hexagon head screw M8 × 80' })).toHaveCount(0);
+  await expect(page.getByRole('table', { name: 'Timber parts' }).getByRole('cell', { name: 'Floor board' })).toBeVisible();
+  await expect(page.locator('.catio-dimensions > div', { hasText: 'Gap · seal' }).locator('dd')).toHaveText('3 mm · squashed from 4 mm');
+  // the section length comes from the tunnel page, which follows this page's coupling
+  const length = page.locator('.catio-dimensions > div', { hasText: 'Section length' });
+  await expect(length.locator('.subassembly-source')).toHaveText('Set on the tunnel page: Longest section');
+  const brief = page.getByRole('complementary', { name: 'Tunnel–tunnel coupling parameters' });
+  await expect(brief.locator('label', { has: page.getByRole('combobox', { name: 'Coupling', exact: true }) }).locator('.subassembly-affects')).toHaveText('Also changes the tunnel.');
+  // the staged assembly: the site, one section, its joint readied, the second section coming in, coupled, fixed down
+  const slider = page.getByRole('slider', { name: 'Tunnel–tunnel coupling assembly' });
+  await slider.press('Home');
+  await expect(viewer).toHaveAttribute('data-step', '0');
+  await expect(viewer).toHaveAttribute('data-visible-parts', /\bsupport\b/);
+  await expect(viewer).not.toHaveAttribute('data-visible-parts', /first-section/);
+  await slider.fill('0.9');
+  await expect(page.getByTestId('assembly-action')).toContainText('Laying the first section on the support');
+  await slider.fill('1.5');
+  await expect(page.getByTestId('assembly-action')).toContainText('Printed toggle latch: base plate, lever and link on it');
+  await expect(viewer).not.toHaveAttribute('data-visible-parts', /second-section/);
+  await slider.fill('2.4');
+  await expect(viewer).toHaveAttribute('data-visible-parts', /second-section/);
+  await expect(page.getByTestId('assembly-action')).toContainText('The second section, identical');
+  await slider.fill('3.15');
+  await expect(page.getByTestId('assembly-action')).toContainText('hook the link over the catch');
+  await slider.press('Home');
+  for (let stage = 1; stage <= 5; stage++) {
+    await page.getByRole('button', { name: 'Next assembly stage' }).click();
+    await expect(viewer).toHaveAttribute('data-step', String(stage));
+  }
+  await expect(viewer).toHaveAttribute('data-visible-parts', /\bfixings\b/);
+  await page.getByRole('button', { name: 'Latch detail', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Released · latches open' }).check();
+  await expect(viewer).toHaveAttribute('data-window', 'open');
+  await page.getByRole('checkbox', { name: 'Released · latches open' }).uncheck();
+  // bolts instead: the latches' own settings gone, the bolt pattern, its parts and steps
+  await page.getByRole('combobox', { name: 'Coupling', exact: true }).selectOption('bolts');
+  await expect(viewer).toHaveAttribute('data-config', /"mechanism":"bolts"/);
+  await expect(page.getByRole('combobox', { name: 'Latches per side' })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Seal' })).toHaveCount(0);
+  await expect(hardware.getByRole('link', { name: 'Toggle latch, printed' })).toHaveCount(0);
+  await expect(hardware.getByRole('row', { name: /Hexagon head screw M8 × 80/ }).getByRole('cell').first()).toHaveText('6');
+  await expect(hardware.getByRole('row', { name: /Large washer/ }).getByRole('cell').first()).toHaveText('12');
+  await page.getByRole('combobox', { name: 'Bolts per coupling' }).selectOption('8');
+  await expect(hardware.getByRole('row', { name: /Hexagon head screw M8 × 80/ }).getByRole('cell').first()).toHaveText('8');
+  await expect(viewer).toHaveAttribute('data-visible-parts', /\bbolts\b/);
+  await expect(page.getByText('Push 8 M8 × 80 bolts through both flanges')).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Exploded view' }).check();
+  await expect(viewer).toHaveAttribute('data-exploded', 'true');
+  await page.screenshot({ path: testInfo.outputPath('tunnel-tunnel-coupling.png'), fullPage: true });
+  // the tunnel page follows: bolted at every coupling now
+  await page.goto('/#/concepts/catio/tunnel');
+  await expect(page.getByTestId('subassembly-viewer')).toHaveAttribute('data-ready', 'true');
+  await expect(page.getByRole('table', { name: 'Hardware parts' }).getByRole('link', { name: 'Toggle latch, printed' })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Bolts per coupling' })).toHaveCount(0);
+  await page.goBack();
+  await expect(page).toHaveURL(/#\/concepts\/catio\/tunnel-tunnel-coupling$/);
+  await page.getByRole('button', { name: 'Reset to the recommended defaults' }).click();
+  await expect(viewer).toHaveAttribute('data-config', /"mechanism":"printed-latch"/);
   expect(errors).toEqual([]);
 });
