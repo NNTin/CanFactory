@@ -2,7 +2,8 @@
 
 The tunnel is the enclosed, supported walkway of the modular catio. It runs from the window insert's cat port to the
 enclosure's rear cat port. Its route is **solved between the two ports**, so it can turn at any angle and climb or fall to a
-door at a different height. Its **supports stand on levelling feet**, because nothing on the site is assumed to be level.
+door at a different height. Its **supports stand on levelling feet** (printed [pressure pads](../../pressure-pad.md) on M8
+screws by default), because nothing on the site is assumed to be level.
 
 Live page: `#/concepts/catio/tunnel`, also linked from the catio concept page's heading under **Sub-assemblies**. For local
 development, run `npm run dev --workspace @canfactory/web -- --port 5181`, then open
@@ -46,12 +47,12 @@ Above the parameters, one click sets a whole design; the active one is highlight
 | Rising | Straight out 4 m to a door 90 cm above the grass: a 65.45 cm climb at 20° in the middle run |
 
 The level presets set **Port floor** to *Level with the window port*. The enclosure port's floor then follows the window
-port's floor, wherever the window insert's clamps put it (229–248.5 mm). So a straight tunnel stays straight when the
+port's floor, wherever the window insert's clamps put it (229–261 mm). So a straight tunnel stays straight when the
 insert changes, and the preset still shows as picked. An earlier version copied the floor height into **Port floor
 height** when the preset was clicked. Changing the insert afterwards then quietly gave the tunnel two 4.19° bends.
 
 The brief shows the **window port floor** with a link to the window insert settings that set it (**Held in the recess
-by**, **Foot diameter**). With an own height less than 3 cm off the window port's floor, the rise says it is nearly
+by**, **Spreader feet**, **Pad height**, **Foot diameter**). With an own height less than 3 cm off the window port's floor, the rise says it is nearly
 level and suggests the level setting.
 
 ## Parameters
@@ -70,6 +71,9 @@ level and suggests the level setting.
 | Turns and bends | Angle collar, bolted | Angle collar; mitred ends | Joints |
 | Bolts per coupling | 6 | 4, 6, 8 | Joints |
 | Longest section | 75 cm | 50, 75, 100 cm | Sections |
+| Feet | Printed feet on M8 × 80 screws | Printed feet; Ganter GN 343.2 levelling feet | Supports |
+| Foot height | 27.5 mm | 13 to 40 mm, in 0.5 mm steps (printed feet) | Supports |
+| Foot sole | Grooved | Flat; grooved; domed (printed feet) | Supports |
 | Foot diameter | 40 mm | 25, 32, 40 mm | Supports |
 | Ground falls away | 2% | 0, 1, 2, 4% | Supports |
 | Uneven by up to | ±15 mm | ±10, 15, 20, 25 mm | Supports |
@@ -128,15 +132,22 @@ scene, the parts list and the tests.
    - **Low bearers:** where the tunnel is too low for legs (near the wall by default), the feet screw straight into a bearer
      ripped to depth from 45 × 95.
 4. **Levelling feet take up the ground.**
-   - **Feet:** every leg or low bearer stands on a Ganter GN 343.2 KR levelling foot (40 mm pad, M8 × 80 stud, 3 kN). The
-     foot is screwed into a DIN 7965 M8 × 18 insert nut in the end grain and locked by the nut supplied on its stud.
+   - **Feet:** every leg or low bearer stands on a printed foot, the [pressure-pad](../../pressure-pad.md) model in PETG
+     (40 mm, 27.5 mm high, grooved sole by default).
+     - Its pocket holds the head of an ISO 4017 M8 × 80, the library's longest M8 hexagon head screw and the same part as
+       the coupling bolts.
+     - The screw goes up into a DIN 7965 M8 × 18 insert nut in the end grain. It is screwed in by turning the foot by hand
+       and locked by an ISO 4032 nut jammed against the timber.
+     - **Feet** = *Ganter GN 343.2 levelling feet* uses a Ganter GN 343.2 KR levelling foot instead (40 mm pad, M8 × 80
+       stud, 3 kN), locked by the nut supplied on its stud.
    - **Slabs:** each foot stands on a 30 × 30 cm paving slab bedded in the grass, so it cannot sink.
    - **Leg lengths:** legs are cut, in 5 mm steps, to the measured fall of the ground (2% away from the wall by default),
      with the foot at mid-travel.
-   - **Travel:** the stud can come out from the supplied nut's height (6.8 mm) to its length less the insert nut (62 mm).
-     That takes up ±27 mm at each foot, against the ±15 mm tolerance. The page checks every foot.
-   - **Smaller feet:** the 25 and 32 mm feet (63 mm studs) take up ±19 mm, and the page reports them as too short for
-     ±20 mm or more.
+   - **Travel:** the screw can come out from the lock nut's height (6.8 mm) to its length less the foot's 3 mm lip and the
+     insert nut (59 mm). That takes up about ±26 mm at each foot, against the ±15 mm tolerance; less half a 5 mm leg step,
+     it is too short for ±25 mm. The page checks every foot.
+   - **Ganter feet:** the 40 mm foot's stud comes out to its length less the insert nut (62 mm), ±27 mm. The 25 and 32 mm
+     feet (63 mm studs) take up ±19 mm, and the page reports them as too short for ±20 mm or more.
    - **In the scene:** the ground is uneven within the tolerance, and each foot is set to the ground it actually stands on.
 5. **20° steepest slope, climbed in the middle run.** Cats manage 25° on cleats, but a gentler slope is kinder to old cats.
    The leg that climbs, and the limit, are both parameters. The page explains how much length a climb needs when a leg is
@@ -186,6 +197,9 @@ No new families were needed. The tunnel uses existing parts:
 - **DIN 1159** 2.5 × 25
 - **GN 343.2 KR** with M8 studs: 25 and 32 mm with 63 mm studs, 40 mm with 80 mm (the longest stud of each diameter,
   `tunnelFoot`)
+
+The printed feet use the ISO 4017 M8 × 80 and ISO 4032 M8 above (`tunnelPadScrew`); the feet themselves are the
+[pressure-pad](../../pressure-pad.md) model, linked from the parts list with their size and sole.
 
 They are listed once, by role, in [concepts.ts](../../../packages/contracts/src/concepts.ts) (`TUNNEL_HARDWARE`,
 `tunnelConcept`). The parts library lists the page under each part's “Used by”, and a test keeps the page's parts list and

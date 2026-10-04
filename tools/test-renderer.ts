@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { activeParts, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, SCOOP_BLADE, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
@@ -16,7 +16,7 @@ const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
 store.migrate(); store.seed();
 const app = await createApp(store);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = selectRunner(directory);
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -247,6 +247,40 @@ try {
     assert.equal(inspectStl(bytes).sha256, result.artifact.sha256);
     assert.equal(store.enqueue(plankConnector, parameters).id, job.id);
     console.log(`PASS plank connector ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+
+  // Pressure pad: both kinds, every sole, the lowest pad each nut or head allows, the narrowest and the largest. Each must be one
+  // closed solid exactly as wide as its diameter and as high as its height, and less than the full cylinder.
+  const padRuns: { name: string; overrides: ParameterValues }[] = [
+    { name: 'default thrust pad', overrides: {} },
+    { name: 'default foot', overrides: { padType: 'foot' } },
+    { name: 'thrust, flat, lowest', overrides: { surface: 'flat', height: 16.5 } },
+    { name: 'thrust, domed 3 mm, lowest', overrides: { surface: 'domed', relief: 3, height: 19.5 } },
+    { name: 'foot, grooved 0.4 mm, lowest', overrides: { padType: 'foot', relief: 0.4, height: 12.5 } },
+    { name: 'foot, domed, M6 × 60', overrides: { padType: 'foot', surface: 'domed', thread: 'M6', screw: 'iso-4017-m6x60', diameter: 25, height: 14 } },
+    { name: 'thrust, ISO 4032 M5, narrowest', overrides: { thread: 'M5', nut: 'iso-4032-m5', diameter: 17.5, height: 16, fit: 0.1 } },
+    { name: 'thrust, M4 lock nut, smallest', overrides: { thread: 'M4', nut: 'iso-10511-m4', surface: 'flat', diameter: 16, height: 13.5, fit: 0.1 } },
+    { name: 'largest, grooved 3 mm, loose fit', overrides: { padType: 'foot', diameter: 80, height: 80, relief: 3, fit: 0.8 } },
+  ];
+  for (const { name, overrides } of only && only !== 'pressure-pad' ? [] : padRuns) {
+    const started = Date.now();
+    const parameters = { ...pressurePad.defaults, ...overrides };
+    assert.deepEqual(validateParameters(pressurePad, parameters), [], name);
+    const queued = store.enqueue(pressurePad, parameters);
+    const job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken;
+    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `pressure pad ${name}`); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `pressure pad ${name}`); assert.ok(result.artifact);
+    if (!('dimensions' in result.artifact)) throw new Error('Expected a single-STL artifact for the pressure pad.');
+    const [diameter, height] = [parameters['diameter'], parameters['height']].map(Number) as [number, number];
+    const want = { x: diameter, y: diameter, z: height };
+    for (const axis of ['x', 'y', 'z'] as const)
+      assert.ok(Math.abs(result.artifact.dimensions[axis] - want[axis]) < 0.01, `pressure pad ${name} ${axis}: ${result.artifact.dimensions[axis]} != ${want[axis]}`);
+    const volume = result.artifact.volume;
+    assert.ok(volume > 0.4 * Math.PI * (diameter / 2) ** 2 * height && volume < Math.PI * (diameter / 2) ** 2 * height, `pressure pad ${name}: volume ${volume}`);
+    console.log(`PASS pressure pad ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   // Litter shovel: every sieve texture, the sieve extremes (most gaps, fewest gaps), the scraping tip's extremes, both grip ends,
   // the shortest and longest scoop, no dam and the widest, the fewest and most, thinnest and thickest grip supports, and both snap modes of both

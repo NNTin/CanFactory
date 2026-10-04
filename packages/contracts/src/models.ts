@@ -4,6 +4,7 @@ import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
+import { PRESSURE_PAD, PRESSURE_PAD_SURFACES, PRESSURE_PAD_TYPES, pressurePadMinDiameter, pressurePadMinHeight, type PressurePadSurface, type PressurePadType } from './pressurePad.ts';
 import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, type LatchMovement } from './toggleLatchMechanism.ts';
 
 /** A field-level, user-readable validation failure. Paths are parameter names. */
@@ -1835,7 +1836,99 @@ export const toggleLatch = {
   derived: () => ({ slotCount: null }),
 } satisfies ModelDefinition;
 
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch];
+/**
+ * Pressure pad: an original design (models/pressure-pad/generator.scad, docs/pressure-pad.md). A round printed pad for the end of a
+ * library screw, in place of a bought levelling foot: a thrust pad holds a nut run onto the screw's tip, turning freely, so that it
+ * presses without turning; a foot locks the screw's hexagon head, so that turning the pad turns the screw. Its sole is flat,
+ * grooved or domed. The window catio's insert and tunnel use it for their clamps and feet.
+ */
+export const PRESSURE_PAD_THREADS = ['M4', 'M5', 'M6', 'M8'] as const;
+/** The nuts a thrust pad takes: nylon-insert lock nuts (the default, they stay put on the tip) and regular hexagon nuts. */
+export const PRESSURE_PAD_NUTS = ['iso-10511-m4', 'iso-10511-m5', 'iso-10511-m6', 'iso-10511-m8', 'iso-4032-m4', 'iso-4032-m5', 'iso-4032-m6', 'iso-4032-m8'] as const;
+/** The screws a foot takes: ISO 4017 hexagon head screws, whose head locks in the pad's hexagon pocket. */
+export const PRESSURE_PAD_SCREWS = [
+  'iso-4017-m4x8', 'iso-4017-m4x10', 'iso-4017-m4x12', 'iso-4017-m4x16', 'iso-4017-m4x20', 'iso-4017-m4x25', 'iso-4017-m4x30', 'iso-4017-m4x40', 'iso-4017-m5x10', 'iso-4017-m5x12', 'iso-4017-m5x16', 'iso-4017-m5x20', 'iso-4017-m5x25', 'iso-4017-m5x30', 'iso-4017-m5x40', 'iso-4017-m5x50', 'iso-4017-m6x12', 'iso-4017-m6x16', 'iso-4017-m6x20', 'iso-4017-m6x25', 'iso-4017-m6x30', 'iso-4017-m6x40', 'iso-4017-m6x50', 'iso-4017-m6x60', 'iso-4017-m8x16', 'iso-4017-m8x20', 'iso-4017-m8x25', 'iso-4017-m8x30', 'iso-4017-m8x40', 'iso-4017-m8x50', 'iso-4017-m8x60', 'iso-4017-m8x80',
+] as const;
+/** M8, as the catio's insert nuts: an ISO 10511 lock nut on a thrust pad, an ISO 4017 M8 × 30 in a foot. */
+export const DEFAULT_PRESSURE_PAD = { padType: 'thrust', diameter: 32, height: 24.5, surface: 'grooved', relief: 1, thread: 'M8', nut: 'iso-10511-m8', screw: 'iso-4017-m8x30', fit: 0.4 } as const;
+
+const PAD_TYPE_TEXT: Record<PressurePadType, { label: string; description: string }> = {
+  thrust: { label: 'Thrust pad (nut)', description: 'A nut run onto the screw’s tip turns freely in the pad: turned from its other end, the screw pushes the pad out without turning it, so the sole does not scrub what it presses on. For clamps.' },
+  foot: { label: 'Foot (screw head)', description: 'The screw’s hexagon head locks in the pad: turning the pad turns the screw, like a levelling foot or thumbwheel.' },
+};
+const PAD_SURFACE_TEXT: Record<PressurePadSurface, { label: string; description: string }> = {
+  flat: { label: 'Flat', description: 'The whole sole bears: best on a smooth, even surface.' },
+  grooved: { label: 'Grooved', description: 'Concentric grooves bite into a rough surface such as render, and four channels drain them.' },
+  domed: { label: 'Domed', description: 'A low dome that bears in the middle first and rocks to follow a surface that is not square to the screw.' },
+};
+
+export const PressurePadParametersSchema = Type.Object({
+  padType: Type.Enum(PRESSURE_PAD_TYPES, { title: 'Pad', description: 'What the pad holds: a nut that turns freely in it (a thrust pad for a clamp) or a screw head locked in it (a foot).', default: DEFAULT_PRESSURE_PAD.padType }),
+  diameter: dimension('Diameter', 'Outside diameter of the pad in mm. A larger pad presses more gently.', DEFAULT_PRESSURE_PAD.diameter, 16, 80, 0.5),
+  height: dimension('Height', 'From the pad’s back, against the insert nut or the timber, to its sole, in mm.', DEFAULT_PRESSURE_PAD.height, 8, 80, 0.5),
+  surface: Type.Enum(PRESSURE_PAD_SURFACES, { title: 'Sole', description: 'The pad’s pressing face.', default: DEFAULT_PRESSURE_PAD.surface }),
+  relief: dimension('Relief', 'Depth of the grooves, or height of the dome, in mm.', DEFAULT_PRESSURE_PAD.relief, 0.4, 3, 0.1),
+  thread: Type.Enum(PRESSURE_PAD_THREADS, { title: 'Thread', description: 'The screw’s thread; the nuts and screws below are those of this thread.', default: DEFAULT_PRESSURE_PAD.thread }),
+  nut: Type.Enum(PRESSURE_PAD_NUTS, { title: 'Nut', description: 'The nut the thrust pad’s chamber is sized for, run onto the screw’s tip.', default: DEFAULT_PRESSURE_PAD.nut }),
+  screw: Type.Enum(PRESSURE_PAD_SCREWS, { title: 'Screw', description: 'The hexagon head screw the foot’s pocket is sized for. Its length does not change the pad.', default: DEFAULT_PRESSURE_PAD.screw }),
+  fit: dimension('Fit', 'Play round the nut or head, and round the screw’s shank, on each side, in mm.', DEFAULT_PRESSURE_PAD.fit, 0.1, 0.8, 0.05),
+}, { additionalProperties: false, description: 'Pressure pad parameters. All fields are required; dimensions are in millimetres; the nut and screw are parts-library ids.' });
+export type PressurePadParameters = Static<typeof PressurePadParametersSchema>;
+
+/** The nut or screw the pad holds, for these parameters. */
+export function pressurePadPart(p: Pick<PressurePadParameters, 'padType' | 'nut' | 'screw'>): Part {
+  const id = p.padType === 'thrust' ? p.nut : p.screw;
+  const part = findPart(id);
+  if (!part) throw new Error(`${id} is not a part of the library.`);
+  return part;
+}
+
+function validatePressurePad(p: PressurePadParameters): ParameterIssue[] {
+  const issues: ParameterIssue[] = [];
+  const part = pressurePadPart(p);
+  const height = pressurePadMinHeight(p, part); const diameter = pressurePadMinDiameter(p, part);
+  const what = p.padType === 'thrust' ? `an ${part.designation} nut` : `the head of an ${part.designation}`;
+  if (p.height < height - 1e-9) issues.push({ field: 'height', message: `The pad must be at least ${Math.ceil(height * 2) / 2} mm high to hold ${what} over a solid floor${p.surface === 'flat' ? '' : ' and its sole’s relief'}.` });
+  if (p.diameter < diameter - 1e-9) issues.push({ field: 'diameter', message: `The pad must be at least ${Math.ceil(diameter * 2) / 2} mm across to hold ${what} with a ${PRESSURE_PAD.wall} mm wall.` });
+  return issues;
+}
+
+const padThreadFiltered = (c: Control): Control => ({ ...c, part: c.part && { ...c.part, filter: { control: 'thread', attribute: 'thread' } } });
+const pressurePadControls = [
+  enumControl(PressurePadParametersSchema, 'padType', 'basic', PRESSURE_PAD_TYPES.map(value => ({ value, ...PAD_TYPE_TEXT[value] }))),
+  control(PressurePadParametersSchema, 'diameter', 'basic'),
+  control(PressurePadParametersSchema, 'height', 'basic'),
+  enumControl(PressurePadParametersSchema, 'surface', 'basic', PRESSURE_PAD_SURFACES.map(value => ({ value, ...PAD_SURFACE_TEXT[value] }))),
+  { ...control(PressurePadParametersSchema, 'relief', 'basic'), visibleWhen: { control: 'surface', values: ['grooved', 'domed'] } },
+  enumControl(PressurePadParametersSchema, 'thread', 'basic', PRESSURE_PAD_THREADS.map(value => ({ value, label: value, description: `Metric ${value} nuts and screws.` }))),
+  { ...padThreadFiltered(partControl(PressurePadParametersSchema, 'nut', 'basic', 'nut', PRESSURE_PAD_NUTS)), visibleWhen: { control: 'padType', values: ['thrust'] } },
+  { ...padThreadFiltered(partControl(PressurePadParametersSchema, 'screw', 'basic', 'screw', PRESSURE_PAD_SCREWS)), visibleWhen: { control: 'padType', values: ['foot'] } },
+  control(PressurePadParametersSchema, 'fit', 'advanced'),
+];
+
+export const pressurePad = {
+  id: 'pressure-pad' as const, version: '1' as const, title: 'Pressure pad',
+  description: 'A printed pad for the end of a screw, in place of a bought levelling foot: a thrust pad holds a nut on the screw’s tip and presses without turning, a foot holds the screw’s hexagon head and turns it like a levelling foot. Choose the nut or screw from the parts library, the pad’s size and its sole: flat, grooved or domed.',
+  attribution: 'CanFactory (original design)',
+  printNotes: 'Print in PETG as generated, its slotted back on the bed; no supports. Run the nut onto the screw’s tip until the tip is flush with it (or offer the screw’s head), slide it into the slot and press it past the two bumps at the mouth.',
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  sourcePath: 'models/pressure-pad/generator.scad',
+  parameterSchema: PressurePadParametersSchema,
+  controls: pressurePadControls,
+  defaults: Object.fromEntries(pressurePadControls.map(c => [c.key, c.default])),
+  scadMapping: { padType: 'PAD_TYPE', diameter: 'DIAMETER', height: 'HEIGHT', surface: 'SURFACE', relief: 'RELIEF', fit: 'FIT' },
+  partDefines: {
+    nut: { NUT_D: ['d', 'value'], NUT_S: ['s', 'max'], NUT_H: [['h', 'm'], 'max'] },
+    screw: { SCREW_D: ['d', 'value'], SCREW_S: ['s', 'max'], SCREW_K: ['k', 'max'] },
+  },
+  validate(parameters: unknown): ParameterIssue[] {
+    if (!Value.Check(PressurePadParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
+    return validatePressurePad(parameters);
+  },
+  derived: () => ({ slotCount: null }),
+} satisfies ModelDefinition;
+
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

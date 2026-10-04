@@ -1,8 +1,8 @@
-import { dimensionOf, findPart, TUNNEL_FOOT, TUNNEL_HARDWARE as HW, tunnelFoot, type Part } from '@canfactory/contracts';
+import { dimensionOf, findPart, PRESSURE_PAD, PRESSURE_PAD_SURFACES, pressurePadMinDiameter, pressurePadMinHeight, TUNNEL_FOOT, TUNNEL_HARDWARE as HW, TUNNEL_PAD, tunnelFoot, tunnelPadScrew, type Part, type PressurePadSurface } from '@canfactory/contracts';
 import { CATIO, type CatioView } from './catioDesign.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type SubassemblyPreset, type V3 } from './catioSubassembly.ts';
-import { parseWindowInsert, WINDOW_INSERT_DEFAULT, windowFor, windowInsertLayout, type WindowInsertConfig, type WindowSpec } from './catioWindowInsert.ts';
+import { parseWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertLayout, type WindowInsertConfig, type WindowSpec } from './catioWindowInsert.ts';
 
 /**
  * The tunnel: the enclosed, supported walkway from the window insert's cat port to the enclosure's rear cat port. Millimetres;
@@ -40,7 +40,13 @@ export interface TunnelConfig {
   sectionLength: 500 | 750 | 1000;
   /** M8 bolts through each pair of flanges. */
   couplingBolts: 4 | 6 | 8;
-  /** Foot diameter of the levelling feet. */
+  /** The feet: printed pressure pads on library screws, or Ganter levelling feet. */
+  footPad: 'printed' | 'ganter';
+  /** Printed feet: from the pad's back to its sole, in mm. */
+  padHeight: number;
+  /** Printed feet: the sole that stands on the slab. */
+  padSurface: PressurePadSurface;
+  /** Foot diameter of the levelling feet (or printed pads). */
   footDiameter: 25 | 32 | 40;
   /** How much the ground falls away from the wall, in per cent. */
   groundFall: 0 | 1 | 2 | 4;
@@ -50,8 +56,11 @@ export interface TunnelConfig {
 
 export const TUNNEL_DEFAULT: TunnelConfig = {
   portX: 1200, portY: 3000, portFacing: 0, portLevel: 'own', portHeight: 500, approach: 700, final: 700, slopeLeg: 'middle', maxSlope: 20,
-  angleJoint: 'angle-collar', sectionLength: 750, couplingBolts: 6, footDiameter: 40, groundFall: 2, groundTolerance: 15,
+  angleJoint: 'angle-collar', sectionLength: 750, couplingBolts: 6, footPad: 'printed', padHeight: 27.5, padSurface: 'grooved', footDiameter: 40, groundFall: 2, groundTolerance: 15,
 };
+
+/** The printed feet's heights offered, in mm: at least what holds the screw's head over the floor and grooves. */
+export const TUNNEL_PAD_HEIGHT = { min: 13, max: 40, step: 0.5 } as const;
 
 /** Fixed sizes of the tunnel. */
 export const TUNNEL = {
@@ -398,10 +407,13 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   }
 
   // Supports: one under the wall end, the port end, every straight coupling, and every joint (under its collar or mitre).
-  const foot = tunnelFoot(config.footDiameter); const insertNut = part(HW.footInsertNut); const lockNut = part(HW.couplingNut);
-  const l3 = dimensionOf(foot, 'l3');
-  /** A foot's stud: at least the supplied nut out of the timber, and the insert nut's length still in it. */
-  const travel = { min: dimensionOf(lockNut, 'm'), max: dimensionOf(foot, 'l1') - dimensionOf(insertNut, 'l') };
+  // A Ganter foot, or a printed pad with the screw's head locked in it: its height (`l3`) and the stud out of it.
+  const pad = config.footPad === 'printed' ? { height: config.padHeight, diameter: config.footDiameter, surface: config.padSurface, screw: tunnelPadScrew() } : null;
+  const foot = pad ? pad.screw : tunnelFoot(config.footDiameter); const insertNut = part(HW.footInsertNut); const lockNut = part(HW.couplingNut);
+  const l3 = pad ? pad.height : dimensionOf(foot, 'l3');
+  const stud = pad ? dimensionOf(pad.screw, 'l') - PRESSURE_PAD.lip : dimensionOf(foot, 'l1');
+  /** A foot's stud: at least the lock nut out of the timber, and the insert nut's length still in it. */
+  const travel = { min: dimensionOf(lockNut, 'm'), max: stud - dimensionOf(insertNut, 'l') };
   const middleSetting = (travel.min + travel.max) / 2;
   const minLeg = dimensionOf(insertNut, 'l') + 5;
   const underside = (q: [number, number]) => {
@@ -471,7 +483,13 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   // Fixing points take their height from the bearer they go up through.
   for (const s of supports) s.fixings = s.fixings.map(p => [p[0], p[1], s.top]);
   const short = supports.find(s => s.feet.some(f => f.setting - config.groundTolerance < travel.min - 1e-6 || f.setting + config.groundTolerance > travel.max + 1e-6));
-  if (short) errors.push(`A ${config.footDiameter} mm foot (${dimensionOf(foot, 'l1')} mm stud) cannot take up ±${config.groundTolerance} mm of uneven ground at the ${short.id.replace('support-', '').replace('-', ' ')}: its stud travels ${Math.round(travel.min)}–${Math.round(travel.max)} mm. Choose a 40 mm foot or a smaller tolerance.`);
+  if (pad) {
+    const shape = { padType: 'foot' as const, surface: pad.surface, relief: TUNNEL_PAD.relief, fit: TUNNEL_PAD.fit };
+    const least = pressurePadMinHeight(shape, pad.screw);
+    if (pad.height < least - 1e-9) errors.push(`A printed foot must be at least ${Math.ceil(least * 2) / 2} mm high to hold its screw’s head.`);
+    if (pad.diameter < pressurePadMinDiameter(shape, pad.screw) - 1e-9) errors.push('A printed foot this narrow cannot hold its screw’s head.');
+  }
+  if (short) errors.push(`A ${config.footDiameter} mm ${pad ? 'printed foot' : 'foot'} (${stud} mm stud) cannot take up ±${config.groundTolerance} mm of uneven ground at the ${short.id.replace('support-', '').replace('-', ' ')}: its stud travels ${Math.round(travel.min)}–${Math.round(travel.max)} mm. ${pad ? 'Choose a smaller tolerance, or the Ganter feet.' : 'Choose a 40 mm foot or a smaller tolerance.'}`);
   for (const s of supports) {
     for (const p of s.fixings) fasteners.push({ partId: HW.bearerScrew, component: 'flange-screws', at: [p[0], p[1], p[2] - s.depth], direction: [0, 0, 1], use: 'Up through the bearer into the flanges above' });
     if (s.kind === 'trestle') for (const f of s.feet) for (const k of [-1, 1]) fasteners.push({ partId: HW.bearerScrew, component: 'bearer-screws', at: add([f.at[0], f.at[1], s.top], mul(s.along, k * 11)), direction: [0, 0, -1], use: 'Down through the bearer into the legs' });
@@ -485,7 +503,7 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   const totalLength = pieces.reduce((sum, p) => sum + p.length, 0);
   return {
     config, site, w, h, S, E, dE, V1, V2, turns: turns.map(deg), rise, slope: slope ? { pitch: deg(slope.pitch), run: slope.run, footprint: slope.footprint } : null,
-    pieces, joints, interfaces, couplings, members, panels, cleats, fasteners, supports, foot, insertNut, lockNut, travel, errors, totalLength,
+    pieces, joints, interfaces, couplings, members, panels, cleats, fasteners, supports, foot, pad, footHeight: l3, stud, insertNut, lockNut, travel, errors, totalLength,
   };
 }
 export type TunnelLayout = ReturnType<typeof tunnelLayout>;
@@ -507,10 +525,16 @@ export function tunnelSteps(_variant: CatioMode, config: TunnelConfig): readonly
   const joints = l.joints.length ? l.joints.map(describeJoint).join(', ') : 'no angle joints';
   const collar = config.angleJoint === 'angle-collar';
   const legs = l.supports.filter(s => s.kind === 'trestle').length; const blocks = l.supports.length - legs;
+  const foot = l.pad
+    ? `slide the head of an ${l.pad.screw.designation} into a printed foot, run an M8 nut up its shank and screw it into the insert nut by turning the foot`
+    : 'screw the levelling foot’s stud into it';
+  const level = l.pad
+    ? 'Turn each printed foot by hand until the bearer top meets the line, then jam its nut up against the timber.'
+    : 'Turn each foot on its stud until the bearer top meets the line, then jam the foot’s nut up against the timber.';
   return [
     { title: 'The site as it is', detail: `The window insert is fitted with its cat gate shut and the insert–tunnel coupling’s docking frame on its port; the enclosure stands with its rear port ${fmt(l.E[2] / 10)} cm above the grass. The ground between falls ${config.groundFall}% away from the wall and is uneven by up to ±${config.groundTolerance} mm.` },
-    { title: 'Bed the slabs, build the supports', detail: `Bed a 30 × 30 cm paving slab in the grass under every foot position (${l.supports.length * 2}). For each support: screw an M8 insert nut into each leg’s foot end (or into the underside of a low bearer), screw the levelling foot’s stud into it, screw the bearer down onto the legs and, on tall ones, the diagonal brace across. ${legs} trestles, ${blocks} low bearers.` },
-    { title: 'Level the supports', detail: 'Stretch a string line (or use a laser) at each bearer’s design height from the window floor. Turn each foot on its stud until the bearer top meets the line, then jam the foot’s nut up against the timber. The feet, not the ground, set the heights.' },
+    { title: 'Bed the slabs, build the supports', detail: `Bed a 30 × 30 cm paving slab in the grass under every foot position (${l.supports.length * 2}). For each support: screw an M8 insert nut into each leg’s foot end (or into the underside of a low bearer), ${foot}, screw the bearer down onto the legs and, on tall ones, the diagonal brace across. ${legs} trestles, ${blocks} low bearers.` },
+    { title: 'Level the supports', detail: `Stretch a string line (or use a laser) at each bearer’s design height from the window floor. ${level} The feet, not the ground, set the heights.` },
     { title: collar ? 'Frame the sections and collars' : 'Frame the sections', detail: `On trestles beside the line (shown raised over it): screw the four rails between each section’s two flange rings, then screw the floor board down onto the bottom rails. ${collar ? 'Each angle collar is built the same way between two flanges set at its angle.' : 'Sections at a joint have their flanges on the mitre: cut the rails and floor to the mitre angle.'} Sloped sections get cleats across the floor.` },
     { title: 'Mesh the sections', detail: 'Staple the side and roof mesh to the rails and turn its ends onto the flanges, stapling every 15 cm.' },
     { title: 'Lay and couple', detail: `Lay the pieces onto the supports from the window end: ${joints}. At every coupling push ${config.couplingBolts} M8 × 80 bolts through both flanges with a large washer each side and tighten the nuts.` },
@@ -602,11 +626,17 @@ export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: Tunne
     addPart(HW.couplingNut, 'On every coupling bolt', c.bolts.length);
   }
   for (const f of l.fasteners) addPart(f.partId, f.use.replace(/^Mesh: .*/, 'Mesh to rails and flanges'));
-  for (const s of l.supports) for (let i = 0; i < s.feet.length; i++) { addPart(l.foot.id, 'Under every leg or low bearer, on a slab; its own nut locks it'); addPart(l.insertNut.id, 'In the foot end of each leg or low bearer'); }
+  for (const s of l.supports) for (let i = 0; i < s.feet.length; i++) {
+    if (l.pad) { addPart(l.foot.id, 'Its head locked in a printed foot under every leg or low bearer'); addPart(l.lockNut.id, 'Jammed up against the timber on every foot’s screw'); }
+    else addPart(l.foot.id, 'Under every leg or low bearer, on a slab; its own nut locks it');
+    addPart(l.insertNut.id, 'In the foot end of each leg or low bearer');
+  }
   for (const [partId, entry] of counts) {
     const p = part(partId);
     lines.push({ id: partId, group: 'Hardware', name: p.title, quantity: entry.quantity, size: `${p.designation} · ${partSize(p)}`, use: [...entry.uses].join('; '), partId });
   }
+  if (l.pad) lines.push({ id: 'foot-pads', group: 'Hardware', name: 'Pressure pad, foot', quantity: l.supports.length * 2, modelId: 'pressure-pad',
+    size: `Ø ${l.pad.diameter} × ${l.pad.height} mm · ${l.pad.surface} sole · PETG · for an ${l.pad.screw.designation} head`, use: 'Under every leg or low bearer, on a slab: turned by hand to level' });
   lines.push({ id: 'slabs', group: 'Groundwork', name: 'Paving slab', quantity: l.supports.length * 2, size: `${TUNNEL.slab.size} × ${TUNNEL.slab.size} × ${TUNNEL.slab.thickness} concrete`, use: 'Bedded in the grass under every foot, so it cannot sink' });
   return lines;
 }
@@ -617,7 +647,7 @@ export function tunnelFacts(_variant: CatioMode, config: TunnelConfig, site: Tun
   const turns = l.joints.filter(j => j.kind === 'turn');
   const tallest = Math.max(0, ...l.supports.flatMap(s => s.feet.map(f => f.leg)));
   return [
-    { label: 'Window port floor · above the grass', value: `${cm(l.S[2])} cm`, from: { page: 'window-insert', settings: ['attachment', 'footDiameter'] } },
+    { label: 'Window port floor · above the grass', value: `${cm(l.S[2])} cm`, from: { page: 'window-insert', settings: WINDOW_FLOOR_SETTINGS } },
     { label: 'Window port → enclosure port', value: `${cm(l.totalLength)} cm of tunnel` },
     { label: 'Rise · floor to floor', value: l.slope ? `${l.rise >= 0 ? '+' : '−'}${cm(Math.abs(l.rise))} cm at ${fmt(Math.abs(l.slope.pitch))}°${Math.abs(l.rise) < NEARLY_LEVEL ? ' · nearly level: set the port floor level with the window port' : ''}` : 'level' },
     { label: 'Turns', value: turns.length ? turns.map(j => `${fmt(Math.abs(j.angle))}° ${side(j.angle)}`).join(', ') : 'straight' },
@@ -672,7 +702,15 @@ export const TUNNEL_CONTROLS: SubassemblyControl<TunnelConfig>[] = [
     options: [{ value: 4, label: '4 · two each side' }, { value: 6, label: '6 · three each side' }, { value: 8, label: '8 · three each side, two on top' }] },
   { key: 'sectionLength', label: 'Longest section', group: 'Sections', help: 'Each straight run is split into equal sections no longer than this: shorter ones are lighter to carry and need more supports.',
     options: [500, 750, 1000].map(v => ({ value: v as TunnelConfig['sectionLength'], label: `${v / 10} cm` })) },
-  { key: 'footDiameter', label: 'Foot diameter', group: 'Supports', help: 'The 40 mm foot has an 80 mm stud: the most travel. The smaller feet have 63 mm studs.',
+  { key: 'footPad', label: 'Feet', group: 'Supports',
+    help: 'Printed feet (the pressure-pad model, in PETG) on the library’s longest M8 hexagon head screw, turned by hand; or bought Ganter levelling feet.',
+    options: [{ value: 'printed', label: 'Printed feet on M8 × 80 screws' }, { value: 'ganter', label: 'Ganter GN 343.2 levelling feet' }] },
+  { key: 'padHeight', label: 'Foot height', group: 'Supports', when: c => c.footPad === 'printed', options: [], range: { ...TUNNEL_PAD_HEIGHT, unit: 'mm' },
+    help: 'From the foot’s back to its sole. The legs are cut shorter for a taller foot; the travel stays the screw’s.' },
+  { key: 'padSurface', label: 'Foot sole', group: 'Supports', when: c => c.footPad === 'printed',
+    help: 'Grooves grip a slab and drain; a flat sole bears all over; a dome rocks to stand square on a slab that is not level.',
+    options: PRESSURE_PAD_SURFACES.map(value => ({ value, label: value.charAt(0).toUpperCase() + value.slice(1) })) },
+  { key: 'footDiameter', label: 'Foot diameter', group: 'Supports', help: 'Of the printed feet or the Ganter feet. The 40 mm Ganter foot has an 80 mm stud, the most travel; the smaller ones have 63 mm studs. Every printed foot has the 80 mm screw.',
     options: TUNNEL_FOOT.diameters.map(v => ({ value: v, label: `${v} mm` })) },
   { key: 'groundFall', label: 'Ground falls away', group: 'Supports', help: 'The measured fall of the ground from the wall; the legs are cut to it.',
     options: [0, 1, 2, 4].map(v => ({ value: v as TunnelConfig['groundFall'], label: `${v}%` })) },
@@ -703,8 +741,8 @@ export const TUNNEL_DECISIONS: DesignDecision[] = [
     choice: 'Every section ends in a 30 × 70 flange ring that stands 30 mm proud of the mesh; neighbours are bolted through both rings with ISO 4017 M8 × 80 bolts, ISO 7093 large washers and ISO 4032 nuts (6 per coupling by default).',
     why: 'Bolts outside the mesh are reached with a 13 mm spanner from outside, take the tunnel apart again, and are all library parts. 80 mm grips 2 × 30 mm of flange, two washers and the nut with the thread through. The window end is not bolted: the insert only presses on the recess and must not carry the tunnel, so the first flange stands 10 mm off the wall on its own support and is latched, without tools, to a docking frame on the insert (the insert–tunnel coupling page). The port end bolts to a matching flange on the enclosure, the one requirement the tunnel places on it.' },
   { title: 'Levelling feet on every support', parameter: 'Uneven by up to',
-    choice: 'A support under the wall end, the port end, every coupling and every joint. Each stands on two Ganter GN 343.2 levelling feet (40 mm, M8 × 80 stud) in DIN 7965 insert nuts, on paving slabs. Legs are cut to the designed fall of the ground; the feet are set to mid-travel there.',
-    why: 'Nothing is assumed level. The stud may run from the supplied nut’s height (6.8 mm) out to the stud length less the insert nut (62 mm), so each foot takes up ±27 mm of slab height; the page checks every foot against the chosen tolerance, and its scene sets each foot to the uneven ground it stands on. Slabs stop the feet sinking into grass. Where the tunnel is too low for legs, the feet screw straight into a bearer ripped to depth.' },
+    choice: 'A support under the wall end, the port end, every coupling and every joint. Each stands on two printed feet (the pressure-pad model, 40 mm, PETG) on ISO 4017 M8 × 80 screws, in DIN 7965 insert nuts, on paving slabs; Ganter GN 343.2 levelling feet remain selectable. Legs are cut to the designed fall of the ground; the feet are set to mid-travel there.',
+    why: 'Nothing is assumed level. A printed foot’s screw may run from the lock nut’s height (6.8 mm) out to its length less the foot’s 3 mm lip and the insert nut (59 mm), so each foot takes up about ±26 mm of slab height (a 40 mm Ganter foot’s stud ±27 mm); the page checks every foot against the chosen tolerance, and its scene sets each foot to the uneven ground it stands on. Slabs stop the feet sinking into grass. Where the tunnel is too low for legs, the feet screw straight into a bearer ripped to depth.' },
   { title: 'The enclosure is a fixed interface', parameter: 'Port floor height',
     choice: 'The enclosure is not designed here: only its rear port is, by where it is, which way it faces, its floor height and a 30 mm flange with the same bolt pattern.',
     why: 'The tunnel is solved from both ports: the window port’s floor follows the window insert as set on its page, the enclosure’s from these values. Its door can be higher or lower than the window; the tunnel climbs or falls the difference. “Level with the window port” keeps the two floors equal when the insert’s clamps move the window port’s floor, instead of leaving a few millimetres to climb.' },

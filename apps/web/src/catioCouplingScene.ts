@@ -178,10 +178,10 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
     const centre: V3 = [s.at[0], s.at[1], s.top - s.depth / 2];
     const bearer = box(supportGroup, [s.length, TUNNEL.bearer.width, s.depth], centre, s.kind === 'block' ? m.endgrain : m.timber);
     bearer.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.atan2(s.across[1], s.across[0]));
-    const foot = tl.foot; const l3 = dimensionOf(foot, 'l3');
+    const foot = tl.foot; const l3 = tl.footHeight;
     for (const f of s.feet) {
       box(supportGroup, [TUNNEL.slab.size, TUNNEL.slab.size, TUNNEL.slab.thickness], [f.at[0], f.at[1], f.slabTop - TUNNEL.slab.thickness / 2], m.floor);
-      cylinder(supportGroup, f.at, vec.add(f.at, [0, 0, l3]), dimensionOf(foot, 'd1') / 2, m.rubber);
+      cylinder(supportGroup, f.at, vec.add(f.at, [0, 0, l3]), (tl.pad ? tl.pad.diameter : dimensionOf(foot, 'd1')) / 2, tl.pad ? m.printed : m.rubber);
       cylinder(supportGroup, vec.add(f.at, [0, 0, l3]), vec.add(f.at, [0, 0, l3 + f.actualSetting]), dimensionOf(foot, 'd') / 2, m.hardware);
       if (f.leg > 0) box(supportGroup, [TUNNEL.leg, TUNNEL.leg, f.leg], [f.at[0], f.at[1], s.top - s.depth - f.leg / 2], m.timber);
     }

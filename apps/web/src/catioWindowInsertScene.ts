@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { dimensionOf, findPart } from '@canfactory/contracts';
+import { dimensionOf, findPart, PRESSURE_PAD, pressurePadSeat, type Part } from '@canfactory/contracts';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
 import type { CatioMode } from './catioSettings.ts';
@@ -23,7 +23,7 @@ const EXPLODE = 1.8;
 export interface PieceMotion {
   object: THREE.Object3D; stage: number; window: [number, number]; approach: THREE.Vector3; axis?: THREE.Vector3; turns?: number; action: string;
   /** What the piece is, and the clamp or fastener it belongs to, for checking the order. Pieces of one kind move together. */
-  role?: 'insert-nut' | 'foot' | 'own-nut' | 'second-nut' | 'screw' | 'staple'; of?: string; drive?: V3;
+  role?: 'insert-nut' | 'foot' | 'own-nut' | 'second-nut' | 'pad-screw' | 'pad-nut' | 'pad' | 'screw' | 'staple'; of?: string; drive?: V3;
 }
 
 /** The installed insert as fixed context on another page: its timber, and its mesh panels on the mesh layer. */
@@ -139,8 +139,8 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
   // Stage 2: the clamps, each in its own frame: +X along the member, +Y outwards to the reveal, the stud's axis.
   // Order: every insert nut is screwed into the outer face; every foot's stud is screwed through it from outside; then on each
   // spreader's inner end the foot's own nut and a second nut are run on from inside, one after the other.
-  const movers: { slide: THREE.Group; kind: Clamp['kind'] }[] = [];
-  const { spreaderFoot, bearingFoot, insertNut, nut, gap } = layout;
+  const movers: { slide: THREE.Group; kind: Clamp['kind']; turns?: boolean }[] = [];
+  const { spreaderFoot, bearingFoot, insertNut, nut, gap, pad } = layout;
   const wedge = INSERT.wedge; const drive = wedge.length * (gap - wedge.thickness) / wedge.thickness;
   const prism = (points: [number, number][], width: number, material: THREE.Material) => {
     const shape = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)));
@@ -150,6 +150,7 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
   const clamps = layout.clamps; const spreaders = clamps.filter(c => c.kind === 'spreader');
   // one kind at a time, at every clamp together
   const bearings = clamps.length - spreaders.length;
+  const padCaption = `${bearings} × Printed foot: a hexagon head screw’s head slid into it, then screwed up into the sill rail’s insert nut by turning the foot`;
   const feetCaption = bearings > 0
     ? `${clamps.length} × Levelling foot: studs screwed in from outside, ${bearings} short under the sill rail, ${spreaders.length} long in the stiles and head`
     : `${clamps.length} × Levelling foot: studs screwed in from outside`;
@@ -172,13 +173,50 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
       movers.push({ slide, kind: 'wedge' });
       return;
     }
-    const foot = clamp.kind === 'bearing' ? bearingFoot : spreaderFoot;
-    const d1 = dimensionOf(foot, 'd1') / 2; const l1 = dimensionOf(foot, 'l1'); const l2 = dimensionOf(foot, 'l2'); const l3 = dimensionOf(foot, 'l3');
-    const l5 = dimensionOf(foot, 'l5'); const s = dimensionOf(foot, 's'); const hex = s * 0.45;
     const nuts = frame(group('insert-nuts', 2, 'hardware'));
     const sleeve = piece(nuts);
     cylinder(sleeve, [0, 0.5, 0], [0, -dimensionOf(insertNut, 'l'), 0], dimensionOf(insertNut, 'd') / 2, m.hardware);
     move(sleeve, 2, [0, 0.3], [0, 90, 0], `${clamps.length} × ${insertNut.title}: screwed into the collar’s outer face`, { axis: [0, 1, 0], turns: 3 }, { role: 'insert-nut', of: clamp.id });
+    if (pad) {
+      // Printed pads, in the clamp frame (+Y outwards): installed, the pad's back stands the travel off the collar face, its sole on
+      // the reveal. A hexagon head screw: its head in a foot under the sill rail; in a spreader, turned from inside, its tip in a lock
+      // nut that turns freely in the thrust pad.
+      const g = frame(group(clamp.kind === 'bearing' ? 'bearing-feet' : 'spreader-clamps', 2, 'hardware'));
+      const slide = new THREE.Group(); g.add(slide);
+      const r = pad.diameter / 2; const back = INSERT.travel; const lip = PRESSURE_PAD.lip;
+      const screw = clamp.kind === 'bearing' ? pad.bearingScrew : pad.spreaderScrew;
+      const l = dimensionOf(screw, 'l'); const k = dimensionOf(screw, 'k'); const head = dimensionOf(screw, 's') / Math.sqrt(3);
+      const padBody = (parent: THREE.Object3D) => cylinder(parent, [0, back, 0], [0, gap, 0], r, m.printed);
+      if (clamp.kind === 'bearing') {
+        // the screw's head bears on the foot's lip; its shank runs up into the insert nut
+        const footPiece = piece(slide); padBody(footPiece);
+        rod(footPiece, [0, back + lip, 0], [0, back + lip - l, 0], dimensionOf(screw, 'd') / 2);
+        move(footPiece, 2, [0.3, 0.65], [0, l + 60, 0], padCaption, { axis: [0, 1, 0], turns: 5 }, { role: 'foot', of: clamp.id });
+        movers.push({ slide, kind: clamp.kind });
+        return;
+      }
+      const tip = back + pressurePadSeat('thrust', pad.thrustNut); const lock = dimensionOf(nut, 'm');
+      const across = (p: Part) => dimensionOf(p, 's') / Math.sqrt(3);
+      // the screw with its lock nut (on the member's inner face once tightened), from inside
+      const screwPiece = piece(slide);
+      rod(screwPiece, [0, tip, 0], [0, tip - l, 0], dimensionOf(screw, 'd') / 2);
+      cylinder(screwPiece, [0, tip - l, 0], [0, tip - l - k, 0], head, m.hardware, true);
+      cylinder(screwPiece, [0, -INSERT.member, 0], [0, -INSERT.member - lock, 0], across(nut), m.hardware, true);
+      move(screwPiece, 2, [0.3, 0.55], [0, -(l + 60), 0], `${spreaders.length} × ${screw.title}: a lock nut run on, then screwed through the member from inside, out through the insert nut`, { axis: [0, 1, 0], turns: 5 }, { role: 'pad-screw', of: clamp.id });
+      // the lock nut on its tip, flush with it, from outside
+      const nutPiece = piece(slide);
+      cylinder(nutPiece, [0, tip - dimensionOf(pad.thrustNut, 'h'), 0], [0, tip, 0], across(pad.thrustNut), m.hardware, true);
+      move(nutPiece, 2, [0.55, 0.75], [0, 70, 0], `${spreaders.length} × ${pad.thrustNut.title}: run onto each spreader screw’s tip from outside, flush with it`, { axis: [0, 1, 0], turns: 3 }, { role: 'pad-nut', of: clamp.id });
+      // the thrust pad, slid on sideways over the nut; it moves out with the screw but does not turn
+      const padSlide = new THREE.Group(); g.add(padSlide);
+      const padPiece = piece(padSlide); padBody(padPiece);
+      move(padPiece, 2, [0.75, 1], [-(r + 40), 0, 0], `${spreaders.length} × Printed thrust pad: slid sideways onto the nut and pressed past its bumps`, undefined, { role: 'pad', of: clamp.id });
+      movers.push({ slide, kind: clamp.kind, turns: true }, { slide: padSlide, kind: clamp.kind, turns: false });
+      return;
+    }
+    const foot = clamp.kind === 'bearing' ? bearingFoot : spreaderFoot;
+    const d1 = dimensionOf(foot, 'd1') / 2; const l1 = dimensionOf(foot, 'l1'); const l2 = dimensionOf(foot, 'l2'); const l3 = dimensionOf(foot, 'l3');
+    const l5 = dimensionOf(foot, 'l5'); const s = dimensionOf(foot, 's'); const hex = s * 0.45;
     const g = frame(group(clamp.kind === 'bearing' ? 'bearing-feet' : 'spreader-clamps', 2, 'hardware'));
     const slide = new THREE.Group(); g.add(slide);
     const footPiece = piece(slide);
@@ -197,7 +235,7 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
       move(own, 2, [0.65, 0.82], [0, -70, 0], `${spreaders.length} × The foot’s own nut: run onto the inner end of each long stud from inside`, { axis: [0, 1, 0], turns: 3 }, { role: 'own-nut', of: clamp.id });
       move(second, 2, [0.82, 1], [0, -70, 0], `${spreaders.length} × ${nut.title}: run on behind it from inside and jammed`, { axis: [0, 1, 0], turns: 3 }, { role: 'second-nut', of: clamp.id });
     }
-    movers.push({ slide, kind: clamp.kind });
+    movers.push({ slide, kind: clamp.kind, turns: true });
   });
 
   // Stage 3: mesh, each panel pressed on from outdoors (the direct variant's sleeve slid along the passage).
@@ -256,13 +294,15 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
       else if (mover.kind === 'spreader') {
         // the spreader turns out of its insert nut towards the reveal
         mover.slide.position.y = -INSERT.travel * (1 - tight);
-        mover.slide.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), tight * Math.PI * 2 * INSERT.travel / 1.25);
+        if (mover.turns) mover.slide.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), tight * Math.PI * 2 * INSERT.travel / 1.25);
       }
     }
     let action: string | null = active.size > 0 ? [...active].join('; ') : null;
     const stage = Math.ceil(state.progress);
     if (!action && state.progress > 3 && state.progress < 4) action = 'The finished insert is carried from the bench to the window';
-    if (!action && stage === 5 && state.progress < 5) action = config.attachment === 'spreader-feet'
+    if (!action && stage === 5 && state.progress < 5) action = pad
+      ? 'Each spreader screw is turned by its head from inside: the thrust pad moves out, without turning, until it bears on the reveal; then the lock nut is run up to the collar'
+      : config.attachment === 'spreader-feet'
       ? 'Each spreader stud is turned by its jammed nuts from inside: the foot moves out until its pad bears on the reveal'
       : 'Each inner wedge is driven along the member until the pair fills the gap';
     currentAction = action;

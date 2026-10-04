@@ -1430,6 +1430,76 @@ export interface operations {
                          */
                         highTolerance: boolean;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "pressure-pad";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Pressure pad parameters. All fields are required; dimensions are in millimetres; the nut and screw are parts-library ids. */
+                    parameters: {
+                        /**
+                         * Pad
+                         * @description What the pad holds: a nut that turns freely in it (a thrust pad for a clamp) or a screw head locked in it (a foot).
+                         * @default thrust
+                         * @enum {unknown}
+                         */
+                        padType: "thrust" | "foot";
+                        /**
+                         * Diameter
+                         * @description Outside diameter of the pad in mm. A larger pad presses more gently.
+                         * @default 32
+                         */
+                        diameter: number;
+                        /**
+                         * Height
+                         * @description From the pad’s back, against the insert nut or the timber, to its sole, in mm.
+                         * @default 24.5
+                         */
+                        height: number;
+                        /**
+                         * Sole
+                         * @description The pad’s pressing face.
+                         * @default grooved
+                         * @enum {unknown}
+                         */
+                        surface: "flat" | "grooved" | "domed";
+                        /**
+                         * Relief
+                         * @description Depth of the grooves, or height of the dome, in mm.
+                         * @default 1
+                         */
+                        relief: number;
+                        /**
+                         * Thread
+                         * @description The screw’s thread; the nuts and screws below are those of this thread.
+                         * @default M8
+                         * @enum {unknown}
+                         */
+                        thread: "M4" | "M5" | "M6" | "M8";
+                        /**
+                         * Nut
+                         * @description The nut the thrust pad’s chamber is sized for, run onto the screw’s tip.
+                         * @default iso-10511-m8
+                         * @enum {unknown}
+                         */
+                        nut: "iso-10511-m4" | "iso-10511-m5" | "iso-10511-m6" | "iso-10511-m8" | "iso-4032-m4" | "iso-4032-m5" | "iso-4032-m6" | "iso-4032-m8";
+                        /**
+                         * Screw
+                         * @description The hexagon head screw the foot’s pocket is sized for. Its length does not change the pad.
+                         * @default iso-4017-m8x30
+                         * @enum {unknown}
+                         */
+                        screw: "iso-4017-m4x8" | "iso-4017-m4x10" | "iso-4017-m4x12" | "iso-4017-m4x16" | "iso-4017-m4x20" | "iso-4017-m4x25" | "iso-4017-m4x30" | "iso-4017-m4x40" | "iso-4017-m5x10" | "iso-4017-m5x12" | "iso-4017-m5x16" | "iso-4017-m5x20" | "iso-4017-m5x25" | "iso-4017-m5x30" | "iso-4017-m5x40" | "iso-4017-m5x50" | "iso-4017-m6x12" | "iso-4017-m6x16" | "iso-4017-m6x20" | "iso-4017-m6x25" | "iso-4017-m6x30" | "iso-4017-m6x40" | "iso-4017-m6x50" | "iso-4017-m6x60" | "iso-4017-m8x16" | "iso-4017-m8x20" | "iso-4017-m8x25" | "iso-4017-m8x30" | "iso-4017-m8x40" | "iso-4017-m8x50" | "iso-4017-m8x60" | "iso-4017-m8x80";
+                        /**
+                         * Fit
+                         * @description Play round the nut or head, and round the screw’s shank, on each side, in mm.
+                         * @default 0.4
+                         */
+                        fit: number;
+                    };
                 };
             };
         };

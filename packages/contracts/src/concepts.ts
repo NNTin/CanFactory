@@ -1,4 +1,5 @@
 import { dimensionOf, findPart, parts, type Part } from './parts/index.ts';
+import { hexScrew, PRESSURE_PAD, pressurePadSeat } from './pressurePad.ts';
 
 /**
  * Concept pages that use parts of the library, so that the library's “Used by” lists them beside the models. A concept is
@@ -45,6 +46,26 @@ export function windowInsertFeet(d1: number): { spreader: Part; bearing: Part } 
   return { spreader: footWithStud(d1, WINDOW_INSERT_FOOT.member + WINDOW_INSERT_FOOT.travel + 2 * dimensionOf(nut, 'm') + 1), bearing: footWithStud(d1, 0) };
 }
 
+/**
+ * The window insert's printed pressure pads (the `pressure-pad` model), the default clamps: a thrust pad on an ISO 10511 lock nut at
+ * the tip of each spreader screw, and a foot on the screw's head under the sill rail. The pads' height and sole are the page's to
+ * choose; their nut, fit and relief are the model's defaults.
+ */
+export const WINDOW_INSERT_PAD = { thread: 'M8', thrustNut: 'iso-10511-m8', fit: 0.4, relief: 1 } as const;
+
+/**
+ * The screws the printed pads go on, both ISO 4017 M8 from the library. A spreader screw is turned from inside: from its tip in the
+ * thrust pad's nut it passes the travel, the collar member, and the lock nut on the member's inner face, 1 mm clear of its head. A
+ * bearing screw's head sits in its foot under the sill rail: it passes the travel and fills the insert nut.
+ */
+export function windowInsertPadScrews(): { spreader: Part; bearing: Part } {
+  const nut = libraryPart(WINDOW_INSERT_PAD.thrustNut); const jam = libraryPart(WINDOW_INSERT_HARDWARE.jamNut); const insert = libraryPart(WINDOW_INSERT_HARDWARE.insertNut);
+  return {
+    spreader: hexScrew(WINDOW_INSERT_PAD.thread, pressurePadSeat('thrust', nut) + WINDOW_INSERT_FOOT.travel + WINDOW_INSERT_FOOT.member + dimensionOf(jam, 'm') + 1),
+    bearing: hexScrew(WINDOW_INSERT_PAD.thread, PRESSURE_PAD.lip + WINDOW_INSERT_FOOT.travel + dimensionOf(insert, 'l')),
+  };
+}
+
 const h = WINDOW_INSERT_HARDWARE;
 export const windowInsertConcept: ConceptPage = {
   id: 'catio/window-insert', title: 'Window catio: window insert',
@@ -57,6 +78,10 @@ export const windowInsertConcept: ConceptPage = {
     { partId: h.staple, via: 'Mesh to timber' },
     { partId: h.insertNut, via: 'Clamp threads in the collar' },
     { partId: h.jamNut, via: 'Spreader studs (jammed nuts)' },
+    { partId: h.jamNut, via: 'Printed pads (lock nut on each spreader screw)' },
+    { partId: windowInsertPadScrews().spreader.id, via: 'Printed pads (spreader screws, turned from inside)' },
+    { partId: windowInsertPadScrews().bearing.id, via: 'Printed pads (in the feet under the sill)' },
+    { partId: WINDOW_INSERT_PAD.thrustNut, via: 'Printed pads (on each spreader screw’s tip)' },
     ...WINDOW_INSERT_FOOT.diameters.flatMap(d1 => {
       const { spreader, bearing } = windowInsertFeet(d1);
       return [{ partId: spreader.id, via: `Spreader feet (${d1} mm)` }, { partId: bearing.id, via: `Bearing feet under the sill (${d1} mm)` }];
@@ -90,6 +115,15 @@ export function tunnelFoot(d1: number): Part {
   return footWithStud(d1, Number.POSITIVE_INFINITY);
 }
 
+/**
+ * The tunnel's printed support feet (the `pressure-pad` model as a foot), the default: the head of the longest ISO 4017 M8 screw in
+ * the library locked in the pad, its shank up into the leg's insert nut, an ISO 4032 nut jammed up against the timber.
+ */
+export const TUNNEL_PAD = { thread: 'M8', fit: 0.4, relief: 1 } as const;
+export function tunnelPadScrew(): Part {
+  return hexScrew(TUNNEL_PAD.thread, Number.POSITIVE_INFINITY);
+}
+
 const t = TUNNEL_HARDWARE;
 export const tunnelConcept: ConceptPage = {
   id: 'catio/tunnel', title: 'Window catio: tunnel',
@@ -105,6 +139,8 @@ export const tunnelConcept: ConceptPage = {
     { partId: t.braceScrew, via: 'Support braces' },
     { partId: t.staple, via: 'Mesh to timber' },
     ...TUNNEL_FOOT.diameters.map(d1 => ({ partId: tunnelFoot(d1).id, via: `Support feet (${d1} mm)` })),
+    { partId: tunnelPadScrew().id, via: 'Printed support feet (screw locked in each foot)' },
+    { partId: t.couplingNut, via: 'Printed support feet (nut jammed against the leg)' },
   ],
 };
 

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { dimensionOf, findPart, partUsage, TUNNEL_FOOT, tunnelConcept } from '@canfactory/contracts';
+import { findPart, partUsage, TUNNEL_FOOT, tunnelConcept } from '@canfactory/contracts';
 import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { tunnelDefinition } from './catioSubassemblies.ts';
 import {
-  facePoint, groundAt, jointSetback, portFloor, TUNNEL, TUNNEL_CONTROLS, TUNNEL_DEFAULT, TUNNEL_PRESETS, tunnelFacts, tunnelBom, tunnelLayout, tunnelSite, tunnelSteps, validateTunnel, vec, type TunnelConfig,
+  facePoint, groundAt, jointSetback, portFloor, TUNNEL, TUNNEL_CONTROLS, TUNNEL_DEFAULT, TUNNEL_PAD_HEIGHT, TUNNEL_PRESETS, tunnelFacts, tunnelBom, tunnelLayout, tunnelSite, tunnelSteps, validateTunnel, vec, type TunnelConfig,
 } from './catioTunnel.ts';
 import { createTunnelScene, LIFT } from './catioTunnelScene.ts';
 import type { V3 } from './catioSubassembly.ts';
@@ -14,7 +14,10 @@ import { WINDOW_INSERT_DEFAULT, windowInsertLayout, type WindowInsertConfig } fr
 const site = tunnelSite();
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: true, cutaway: false, hidden: new Set() };
 /** Every option of every select control, one at a time, from the defaults. */
-const optionConfigs: TunnelConfig[] = [TUNNEL_DEFAULT, ...TUNNEL_CONTROLS.filter(c => !c.range).flatMap(control => control.options.map(option => ({ ...TUNNEL_DEFAULT, [control.key]: option.value })))];
+const optionConfigs: TunnelConfig[] = [TUNNEL_DEFAULT, ...TUNNEL_CONTROLS.filter(c => !c.range).flatMap(control => control.options.map(option => ({ ...TUNNEL_DEFAULT, [control.key]: option.value }))),
+  // the Ganter feet in every size, and the printed feet at their lowest and highest
+  ...TUNNEL_FOOT.diameters.map(footDiameter => ({ ...TUNNEL_DEFAULT, footPad: 'ganter' as const, footDiameter })),
+  { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.min }, { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.max, footDiameter: 25 }];
 /** Routes that turn either way, at odd angles, climb and fall, with both joint types. */
 const routes: TunnelConfig[] = ([
   TUNNEL_DEFAULT,
@@ -161,7 +164,9 @@ describe('tunnel supports', () => {
     for (const config of [...routes, ...optionConfigs]) {
       const l = tunnelLayout(config, site);
       const tooShort = l.errors.some(e => e.includes('cannot take up'));
-      expect(tooShort, JSON.stringify(config)).toBe(config.footDiameter !== 40 && config.groundTolerance > (dimensionOf(l.foot, 'l1') - 18 - 6.8) / 2 - TUNNEL.legRound / 2);
+      // half the stud's travel, less half a leg rounding: a Ganter foot under 40 mm (63 mm stud) and a printed foot (77 mm out of it)
+      // reach ±25 mm no more; the 40 mm Ganter foot (80 mm stud) does
+      expect(tooShort, JSON.stringify(config)).toBe(config.groundTolerance > (l.stud - 18 - 6.8) / 2 - TUNNEL.legRound / 2);
       if (tooShort) continue;
       // the only other limit an option can hit from the defaults: a leg too short for the climb
       expect(l.errors.filter(e => !/too short to climb/.test(e)), JSON.stringify(config)).toEqual([]);
@@ -171,7 +176,7 @@ describe('tunnel supports', () => {
         expect(f.slabTop - TUNNEL.slab.thickness).toBeCloseTo(groundAt(config, f.at[0], f.at[1]), 9);
         expect(f.leg % TUNNEL.legRound).toBe(0);
         // the stack from the slab to the bearer top is exact
-        expect(f.slabTop + dimensionOf(l.foot, 'l3') + f.actualSetting + f.leg + s.depth).toBeCloseTo(s.top, 6);
+        expect(f.slabTop + l.footHeight + f.actualSetting + f.leg + s.depth).toBeCloseTo(s.top, 6);
       }
     }
   });
@@ -189,10 +194,13 @@ describe('tunnel parts list', () => {
       }
       const bolts = l.couplings.reduce((n, c) => n + c.bolts.length, 0);
       expect(bolts).toBe((l.pieces.length) * config.couplingBolts);
-      expect(count('iso-4017-m8x80')).toBe(bolts);
+      // a printed foot's screw and lock nut are the coupling's M8 × 80 and nut
+      const feet = 2 * l.supports.length;
+      expect(count('iso-4017-m8x80')).toBe(bolts + (l.pad ? feet : 0));
       expect(count('iso-7093-m8')).toBe(2 * bolts);
-      expect(count('iso-4032-m8')).toBe(bolts);
-      expect(count(l.foot.id)).toBe(2 * l.supports.length);
+      expect(count('iso-4032-m8')).toBe(bolts + (l.pad ? feet : 0));
+      if (l.pad) expect(lines.find(line => line.modelId === 'pressure-pad')).toMatchObject({ id: 'foot-pads', quantity: feet, size: `Ø ${config.footDiameter} × ${config.padHeight} mm · ${config.padSurface} sole · PETG · for an ISO 4017 M8 × 80 head` });
+      else { expect(count(l.foot.id)).toBe(feet); expect(lines.some(line => line.modelId)).toBe(false); }
       expect(count('din-7965-m8x18')).toBe(2 * l.supports.length);
       expect(lines.find(line => line.id === 'slabs')?.quantity).toBe(2 * l.supports.length);
       expect(lines.filter(line => line.name === 'Leg').reduce((n, line) => n + line.quantity, 0)).toBe(l.supports.filter(s => s.kind === 'trestle').length * 2);
@@ -330,7 +338,7 @@ describe('tunnel presets', () => {
   });
 
   it('stays level with the window port wherever the window insert’s clamps put its floor', () => {
-    const inserts: WindowInsertConfig[] = [WINDOW_INSERT_DEFAULT, { ...WINDOW_INSERT_DEFAULT, attachment: 'folding-wedges' }, { ...WINDOW_INSERT_DEFAULT, footDiameter: 25 }, { ...WINDOW_INSERT_DEFAULT, footDiameter: 40 }];
+    const inserts: WindowInsertConfig[] = [WINDOW_INSERT_DEFAULT, { ...WINDOW_INSERT_DEFAULT, attachment: 'folding-wedges' }, { ...WINDOW_INSERT_DEFAULT, padHeight: 20 }, { ...WINDOW_INSERT_DEFAULT, clampPad: 'ganter', footDiameter: 25 }, { ...WINDOW_INSERT_DEFAULT, clampPad: 'ganter', footDiameter: 40 }];
     const floors = new Set<number>();
     for (const insert of inserts) {
       const moved = { ...site, insert, floorZ: windowInsertLayout('modular', insert, site.window).floor }; floors.add(moved.floorZ);
@@ -352,7 +360,7 @@ describe('tunnel presets', () => {
 
   it('names the window port’s floor and where it is set, and points out a climb of a few millimetres', () => {
     const facts = tunnelFacts('modular', TUNNEL_DEFAULT, site);
-    expect(facts.find(f => f.label.startsWith('Window port floor'))).toMatchObject({ value: `${Number((site.floorZ / 10).toFixed(1))} cm`, from: { page: 'window-insert', settings: ['attachment', 'footDiameter'] } });
+    expect(facts.find(f => f.label.startsWith('Window port floor'))).toMatchObject({ value: `${Number((site.floorZ / 10).toFixed(1))} cm`, from: { page: 'window-insert', settings: ['attachment', 'clampPad', 'padHeight', 'footDiameter'] } });
     const nearly = tunnelFacts('modular', { ...preset('straight'), portLevel: 'own', portHeight: site.floorZ + 16.5 }, site).find(f => f.label.startsWith('Rise'));
     expect(nearly?.value).toMatch(/nearly level: set the port floor level with the window port/);
     expect(tunnelFacts('modular', TUNNEL_DEFAULT, site).find(f => f.label.startsWith('Rise'))?.value).not.toMatch(/nearly level/);

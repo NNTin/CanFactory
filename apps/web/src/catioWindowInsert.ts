@@ -1,4 +1,4 @@
-import { dimensionOf, findPart, WINDOW_INSERT_FOOT, WINDOW_INSERT_HARDWARE as HW, windowInsertFeet, type Part } from '@canfactory/contracts';
+import { dimensionOf, findPart, PRESSURE_PAD_SURFACES, pressurePadMinDiameter, pressurePadMinHeight, WINDOW_INSERT_FOOT, WINDOW_INSERT_HARDWARE as HW, WINDOW_INSERT_PAD, windowInsertFeet, windowInsertPadScrews, type Part, type PressurePadSurface } from '@canfactory/contracts';
 import { CATIO, CATIO_DERIVED, type CatioView } from './catioDesign.ts';
 import { loadCatioSettings, type CatioMode } from './catioSettings.ts';
 import { fastenersAlong, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type V3 } from './catioSubassembly.ts';
@@ -21,14 +21,26 @@ export interface WindowInsertConfig {
   attachment: 'spreader-feet' | 'folding-wedges';
   /** Clamps (or wedge pairs) along each side of the collar. */
   clampsPerSide: 2 | 3;
-  /** Foot diameter of the spreader and bearing feet. */
+  /** Spreader feet: printed pressure pads on library screws, or Ganter levelling feet. */
+  clampPad: 'printed' | 'ganter';
+  /** Printed pads: from the pad's back to its sole, in mm. It sets the clamp gap. */
+  padHeight: number;
+  /** Printed pads: the sole that presses on the reveal. */
+  padSurface: PressurePadSurface;
+  /** Foot diameter of the spreader and bearing feet (or pads). */
   footDiameter: 25 | 32 | 40;
 }
 
 export const WINDOW_INSERT_DEFAULT: WindowInsertConfig = {
   cornerJoint: 'half-lap', junctionJoint: 'housed', meshFixing: 'staples-and-battens', fixingPitch: 150,
-  attachment: 'spreader-feet', clampsPerSide: 2, footDiameter: 32,
+  attachment: 'spreader-feet', clampsPerSide: 2, clampPad: 'printed', padHeight: 24.5, padSurface: 'grooved', footDiameter: 32,
 };
+
+/** The settings that move the cat port's floor (the clamp gap sets it), which the tunnel and the coupling start from. */
+export const WINDOW_FLOOR_SETTINGS: (keyof WindowInsertConfig)[] = ['attachment', 'clampPad', 'padHeight', 'footDiameter'];
+
+/** The pad heights offered, in mm: at least what holds the thrust pad's lock nut over its floor and grooves. */
+export const PAD_HEIGHT = { min: 18, max: 40, step: 0.5 } as const;
 
 /** Fixed sizes of the insert. The collar section is the concept's (catioDesign.ts); the rest are this design's defaults. */
 export const INSERT = {
@@ -98,7 +110,13 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
   const nut = part(HW.jamNut);
   // A spreader stud runs through the member, the travel and the two jammed nuts on its inner end (windowInsertFeet).
   const { spreader: spreaderFoot, bearing: bearingFoot } = windowInsertFeet(config.footDiameter);
-  const gap = spreader ? dim(spreaderFoot, 'l3') + INSERT.travel : INSERT.wedgeGap;
+  // Printed pads: a thrust pad on a lock nut at the tip of each spreader screw, a foot on each bearing screw's head.
+  const screws = windowInsertPadScrews();
+  const pad = spreader && config.clampPad === 'printed' ? {
+    height: config.padHeight, diameter: config.footDiameter, surface: config.padSurface,
+    thrustNut: part(WINDOW_INSERT_PAD.thrustNut), spreaderScrew: screws.spreader, bearingScrew: screws.bearing,
+  } : null;
+  const gap = spreader ? (pad ? pad.height : dim(spreaderFoot, 'l3')) + INSERT.travel : INSERT.wedgeGap;
   const W = window.openingWidth - 2 * gap; const H = window.openingHeight - 2 * gap;
   const z0 = window.recessFloor + gap; const x0 = -W / 2;
   const Wi = W - 2 * m; const Hi = H - 2 * m;
@@ -232,7 +250,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
 
   return {
     variant, config, window, gap, W, H, Wi, Hi, x0, z0, yIn, yOut, floor, port, timber, panels, fasteners, clamps,
-    spreaderFoot, bearingFoot, nut, insertNut: part(HW.insertNut),
+    spreaderFoot, bearingFoot, pad, nut, insertNut: part(HW.insertNut),
   };
 }
 export type WindowInsertLayout = ReturnType<typeof windowInsertLayout>;
@@ -253,7 +271,14 @@ export function validateWindowInsert(variant: CatioMode, config: WindowInsertCon
     if (l.floor + 2 * h + 50 > l.z0 + l.H - INSERT.member - 40) errors.push('The sliding gate needs room above the port for its full travel inside the collar.');
   }
   const stud = dimensionOf(l.spreaderFoot, 'l1');
-  if (config.attachment === 'spreader-feet' && stud < INSERT.member + INSERT.travel + 2 * dimensionOf(l.nut, 'm')) errors.push('No stud of this foot is long enough to pass the collar and take two nuts.');
+  if (config.attachment === 'spreader-feet' && !l.pad && stud < INSERT.member + INSERT.travel + 2 * dimensionOf(l.nut, 'm')) errors.push('No stud of this foot is long enough to pass the collar and take two nuts.');
+  if (l.pad) {
+    const shape = { surface: l.pad.surface, relief: WINDOW_INSERT_PAD.relief, fit: WINDOW_INSERT_PAD.fit };
+    const least = Math.max(pressurePadMinHeight({ ...shape, padType: 'thrust' }, l.pad.thrustNut), pressurePadMinHeight({ ...shape, padType: 'foot' }, l.pad.bearingScrew));
+    if (l.pad.height < least - 1e-9) errors.push(`A printed pad must be at least ${Math.ceil(least * 2) / 2} mm high to hold its nut or screw head.`);
+    const narrowest = Math.max(pressurePadMinDiameter({ ...shape, padType: 'thrust' }, l.pad.thrustNut), pressurePadMinDiameter({ ...shape, padType: 'foot' }, l.pad.bearingScrew));
+    if (l.pad.diameter < narrowest - 1e-9) errors.push(`A printed pad must be at least ${Math.ceil(narrowest)} mm across to hold its nut or screw head.`);
+  }
   return errors;
 }
 
@@ -262,14 +287,19 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
   const joint = config.cornerJoint === 'half-lap'
     ? 'Lay the sill and head rails, laps facing outdoors. Glue the laps and press the stiles onto them from the outdoor side. Then drive two 4 × 50 screws into each corner from the outdoor face, one corner after another'
     : 'Stand the two stiles. Slide the head and sill rails in between them from the outdoor side. Then drive two 5 × 70 screws through each stile into the end grain of the rail';
-  const clamp = config.attachment === 'spreader-feet'
+  const printed = config.attachment === 'spreader-feet' && config.clampPad === 'printed';
+  const clamp = printed
+    ? 'In this order, at every clamp: (1) screw an M8 insert nut into the outer face of the collar. Under the sill rail: (2) slide a hexagon head screw’s head into a printed foot and screw it up into the insert nut by turning the foot. In the stiles and head: (2) run a lock nut onto a long hexagon head screw and screw it through the member from inside, out through the insert nut; (3) run a nylon-insert lock nut onto its tip from outside until the tip is flush with it; (4) slide a printed thrust pad onto that nut from the side and press it past the bumps at the slot’s mouth.'
+    : config.attachment === 'spreader-feet'
     ? 'In this order, at every clamp: (1) screw an M8 insert nut into the outer face of the collar; (2) screw the levelling foot’s stud through it from outside until the foot’s hexagon touches the collar. Short studs go under the sill rail, long ones in the stiles and head. (3) On each long stud’s inner end, run on the foot’s own nut from inside, then (4) a second M8 nut, and jam the two together.'
     : 'At every clamp, set the inner wedge against the collar from outside, then lay the outer wedge loosely on it, thin end to thick end. Tape each pair so none can fall when the insert is lifted in.';
   const mesh = config.meshFixing === 'staples' ? 'staple its edges' : config.meshFixing === 'battens' ? 'press the cover battens over its edges and screw them on from the outdoor face' : 'staple its edges, then press the cover battens over them and screw them on from the outdoor face';
   const fill = variant === 'direct'
     ? `Lower the threshold onto the sill rail and screw it down from above. Slide the passage sleeve mesh on from outdoors and ${mesh}.`
     : `Lower the threshold onto the sill rail and screw it down from above. Slide the transom into its stile housings from outdoors, then each jamb up into the transom. Screw the transom through the stiles and the jambs up from under the sill rail. Offer the infill mesh from outdoors and ${mesh}.`;
-  const tighten = config.attachment === 'spreader-feet'
+  const tighten = printed
+    ? 'From inside, through the open window: put a 13 mm spanner on each spreader screw’s head and turn it, so the pad moves out, without turning, until it bears on the reveal. Tighten opposite pairs in turn, then run each lock nut up against the collar. No drilling; the pads only press.'
+    : config.attachment === 'spreader-feet'
     ? 'From inside, through the open window: put a 13 mm spanner on each spreader’s jammed nuts and turn the stud, so the foot moves out until its pad bears on the reveal. Tighten opposite pairs in turn. No drilling; the pads only press.'
     : 'From outside, drive each inner wedge along the member until the pair fills the gap. Drive opposite pairs in turn. No drilling; the wedges only press.';
   return [
@@ -293,7 +323,8 @@ const partSize = (p: Part) => {
     case 'nail': return [d('d'), d('l')].join(' · ');
     case 'insert-nut': return [d('d'), d('l'), d('hole')].join(' · ');
     case 'levelling-foot': return [d('d1'), d('l1'), d('l3'), `A/F ${p.dimensions['s']?.value ?? ''}`].join(' · ');
-    case 'nut': return [d('s'), d('m')].join(' · ');
+    case 'nut': return [d('s'), p.dimensions['h'] ? d('h') : d('m')].join(' · ');
+    case 'screw': return [d('d'), d('l'), `A/F ${p.dimensions['s']?.value ?? ''}`].join(' · ');
     default: return '';
   }
 };
@@ -324,12 +355,25 @@ export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, 
   for (const c of l.clamps) {
     if (c.kind === 'wedge') continue;
     add(l.insertNut.id, `In the ${sideName[c.side]}`);
-    if (c.kind === 'bearing') add(l.bearingFoot.id, 'Under the sill rail: carries the insert on the recess floor');
+    if (l.pad) {
+      if (c.kind === 'bearing') add(l.pad.bearingScrew.id, 'Under the sill rail: its head in a printed foot, up into the insert nut');
+      else {
+        add(l.pad.spreaderScrew.id, 'In the stiles and head rail: turned from inside, pushes a printed thrust pad onto the reveal');
+        add(l.nut.id, 'Locks each spreader screw against the collar’s inner face');
+        add(l.pad.thrustNut.id, 'On the tip of each spreader screw, inside its thrust pad');
+      }
+    } else if (c.kind === 'bearing') add(l.bearingFoot.id, 'Under the sill rail: carries the insert on the recess floor');
     else { add(l.spreaderFoot.id, 'In the stiles and head rail: presses on the reveal'); add(l.nut.id, 'Jammed against the foot’s own nut on the inner end of each spreader stud'); }
   }
   for (const [partId, entry] of counts) {
     const p = part(partId);
     lines.push({ id: partId, group: 'Hardware', name: p.title, quantity: entry.quantity, size: `${p.designation} · ${partSize(p)}`, use: [...entry.uses].join('; '), partId });
+  }
+  if (l.pad) {
+    const sole = `${l.pad.surface} sole`; const size = `Ø ${l.pad.diameter} × ${l.pad.height} mm · ${sole} · PETG`;
+    const spreaders = l.clamps.filter(c => c.kind === 'spreader').length;
+    lines.push({ id: 'thrust-pads', group: 'Hardware', name: 'Pressure pad, thrust pad', quantity: spreaders, modelId: 'pressure-pad', size: `${size} · for an ${l.pad.thrustNut.designation} nut`, use: 'On each spreader screw’s tip: presses on the reveal without turning' });
+    lines.push({ id: 'foot-pads', group: 'Hardware', name: 'Pressure pad, foot', quantity: l.clamps.length - spreaders, modelId: 'pressure-pad', size: `${size} · for an ${l.pad.bearingScrew.designation} head`, use: 'Under the sill rail: stands on the recess floor; turned by hand to set the height' });
   }
   if (variant === 'modular' && l.port) {
     lines.push({ id: 'gate-tracks', group: 'Hardware', name: 'Gate track (custom)', quantity: 2, size: `12 × 12 × ${2 * l.port.height + 45} channel`, use: 'Room side of the port, screwed to the threshold and transom' });
@@ -367,6 +411,8 @@ export function windowInsertViews(variant: CatioMode, config: WindowInsertConfig
   };
 }
 
+const PAD_SOLE: Record<PressurePadSurface, string> = { flat: 'Flat', grooved: 'Grooved', domed: 'Domed' };
+
 export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = [
   { key: 'cornerJoint', label: 'Collar corners', group: 'Timber joints', help: 'Half-laps lock the corners against the spreaders’ outward push; butt joints are quicker but hold only by screws in end grain.',
     options: [{ value: 'half-lap', label: 'Half-lap, glued + 2 screws' }, { value: 'butt-screwed', label: 'Butt joint + 2 screws' }] },
@@ -378,9 +424,18 @@ export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = 
     options: [{ value: 100, label: '10 cm' }, { value: 150, label: '15 cm' }, { value: 200, label: '20 cm' }] },
   { key: 'attachment', label: 'Held in the recess by', group: 'Window attachment', help: 'Both only press on the recess: no drilling. Spreader feet are tightened and released from inside; wedges are cheaper but driven from outside.',
     options: [{ value: 'spreader-feet', label: 'Padded spreader feet' }, { value: 'folding-wedges', label: 'Folding timber wedges' }] },
+  { key: 'clampPad', label: 'Spreader feet', group: 'Window attachment', when: c => c.attachment === 'spreader-feet',
+    help: 'Printed pressure pads (the pressure-pad model, in PETG) on M8 hexagon head screws and nuts from the parts library; or bought Ganter levelling feet. Both are turned from inside.',
+    options: [{ value: 'printed', label: 'Printed pads on M8 screws' }, { value: 'ganter', label: 'Ganter GN 343.2 levelling feet' }] },
+  { key: 'padHeight', label: 'Pad height', group: 'Window attachment', when: c => c.attachment === 'spreader-feet' && c.clampPad === 'printed', options: [],
+    help: 'From the pad’s back to its sole. With the 8 mm of travel it is the clamp gap round the collar, so it sets the collar’s size and the cat port’s floor. 24.5 mm keeps the gap of the 32 mm Ganter foot.',
+    range: { ...PAD_HEIGHT, unit: 'mm' } },
+  { key: 'padSurface', label: 'Pad sole', group: 'Window attachment', when: c => c.attachment === 'spreader-feet' && c.clampPad === 'printed',
+    help: 'Grooves bite into rough render and drain; a flat sole bears all over on a smooth reveal; a dome rocks to follow a reveal that is not square to the screw.',
+    options: PRESSURE_PAD_SURFACES.map(value => ({ value, label: PAD_SOLE[value] })) },
   { key: 'clampsPerSide', label: 'Clamps per side', group: 'Window attachment', help: 'On each of the four sides. Three spread the load on a soft or uneven reveal.',
     options: [{ value: 2, label: '2 (8 in all)' }, { value: 3, label: '3 (12 in all)' }] },
-  { key: 'footDiameter', label: 'Foot diameter', group: 'Window attachment', help: 'A larger pad presses more gently on render; it also widens the gap round the collar.',
+  { key: 'footDiameter', label: 'Foot diameter', group: 'Window attachment', help: 'Of the printed pads or the Ganter feet. A larger pad presses more gently on render; a larger Ganter foot is also taller, which widens the gap round the collar.',
     options: [{ value: 25, label: '25 mm' }, { value: 32, label: '32 mm' }, { value: 40, label: '40 mm' }] },
 ];
 
@@ -388,8 +443,11 @@ export const parseWindowInsert = (raw: unknown) => parseControlled(WINDOW_INSERT
 
 export const WINDOW_INSERT_DECISIONS: DesignDecision[] = [
   { title: 'Held by pressure, not fixings', parameter: 'Held in the recess by',
-    choice: 'Rubber-padded swivelling levelling feet (Ganter GN 343.2, type KR) turned out of M8 insert nuts in the collar: two or three on each stile and the head press on the reveals; those under the sill rail stand on the recess floor and carry the weight.',
-    why: 'This formalises the concept’s “padded clamps against the solid exterior recess”. Nothing is drilled or glued to the building; releasing the studs frees the insert. The 15° swivel and elastomer pads follow an uneven render reveal; tightening from inside the open window keeps the original concept’s reach-through adjustment. Folding wedges are offered as the low-cost alternative, but they are driven and loosened from outside. Rejected: a bar across the inside of the frame (stops the sash closing), tension straps through the open sash (same), and adhesive or suction mounts (unreliable outdoors).' },
+    choice: 'Spreaders turned out of M8 insert nuts in the collar: two or three on each stile and the head press on the reveals; those under the sill rail stand on the recess floor and carry the weight.',
+    why: 'This formalises the concept’s “padded clamps against the solid exterior recess”. Nothing is drilled or glued to the building; releasing the studs frees the insert. The pads’ grooved or domed soles (or the Ganter feet’s 15° swivel and elastomer caps) follow an uneven render reveal; tightening from inside the open window keeps the original concept’s reach-through adjustment. Folding wedges are offered as the low-cost alternative, but they are driven and loosened from outside. Rejected: a bar across the inside of the frame (stops the sash closing), tension straps through the open sash (same), and adhesive or suction mounts (unreliable outdoors).' },
+  { title: 'Printed pads on library screws', parameter: 'Spreader feet',
+    choice: 'Each spreader is an ISO 4017 M8 × 80 hexagon head screw turned from inside through the insert nut, locked by an ISO 4032 nut on the collar’s inner face. An ISO 10511 lock nut on its tip turns freely in a printed thrust pad (the pressure-pad model, PETG). Under the sill rail, an M8 × 30’s head sits in a printed foot, turned by hand. Ganter GN 343.2 levelling feet remain selectable.',
+    why: 'Screws and nuts are cheap and to hand; bought levelling feet are not. The screw’s own head is the drive, so one nut locks it instead of two jammed on a stud. The thrust pad does not turn with the screw, so it does not scrub the render, as the Ganter foot’s ball does not. A printed pad does not swivel: the domed sole follows a reveal that is not square to the screw. PETG creeps under a constant load in summer sun, so check the clamps again after the first warm season.' },
   { title: 'Spreaders on all four sides', parameter: 'Clamps per side',
     choice: 'The clamps act in opposed pairs (left–right, head–sill), so their forces cancel in the collar instead of pushing it out of the recess.',
     why: 'Weight goes straight down through the sill feet onto the exterior sill; the side and head pairs give the friction that resists a cat pushing on the mesh. The feet sit at the room-side half of the collar, behind the mesh, where the hand reaches.' },
@@ -402,7 +460,7 @@ export const WINDOW_INSERT_DECISIONS: DesignDecision[] = [
   { title: 'The cat port ends at its frame', parameter: 'Port transom & jambs',
     choice: 'With tunnel, the port is a full-width transom and two jambs with the infill mesh round them. Nothing of the insert runs on to the wall face: the insert–tunnel coupling screws a docking frame onto the jambs and transom, and the frame stays on the insert from then on, also when it is lifted out.',
     why: 'The docking frame carries the passage from the port to the tunnel’s first flange and gives the latches their catch, so a mesh throat there would only be in its way. Its parts are on the coupling’s parts list; its screws are placed between this page’s batten screws and staples, so the mesh fixing and its spacing change it.' },
-  { title: 'Collar sized from the clamps', parameter: 'Foot diameter',
-    choice: 'The collar is the recess size less the clamp gap on each side: the foot’s height with its cap plus 8 mm of thread travel (32.5 mm for the default 32 mm foot).',
+  { title: 'Collar sized from the clamps', parameter: 'Pad height',
+    choice: 'The collar is the recess size less the clamp gap on each side: the printed pad’s height, or the Ganter foot’s height with its cap, plus 8 mm of thread travel (32.5 mm for the default 24.5 mm pad, as for the 32 mm foot).',
     why: 'The original concept left 10 mm round its 98 cm collar, too little for any real clamp. Here the gap follows from the chosen part, so the collar (93.5 cm by default) and its cut list change with it. The whole-catio scenes keep their schematic 98 cm collar until this is adopted there.' },
 ];

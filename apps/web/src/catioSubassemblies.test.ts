@@ -20,9 +20,14 @@ describe('catio pages that follow each other', () => {
   it('declares exactly the window insert settings that change each page fitted to it', () => {
     const follows = (page: 'tunnel' | 'insert-tunnel-coupling') => CATIO_SUBASSEMBLY_ENTRIES[page].follows.find(f => f.page === 'window-insert')?.settings ?? [];
     for (const [page, build] of [['tunnel', builds.tunnel], ['insert-tunnel-coupling', (s: TunnelSite) => builds.coupling(s)]] as const) {
-      const reference = build(withInsert(WINDOW_INSERT_DEFAULT));
+      // the default printed pad keeps the 32 mm Ganter foot's gap, so the choice of feet shows only with another pad height; the
+      // diameter changes the gap only with the Ganter feet, whose height grows with it
       for (const control of WINDOW_INSERT_CONTROLS) {
-        const changes = control.options.some(option => build(withInsert({ ...WINDOW_INSERT_DEFAULT, [control.key]: option.value })) !== reference);
+        const values = control.range ? [control.range.min, control.range.max] : control.options.map(option => option.value);
+        const changes = [WINDOW_INSERT_DEFAULT, { ...WINDOW_INSERT_DEFAULT, padHeight: 30 }, { ...WINDOW_INSERT_DEFAULT, clampPad: 'ganter' as const }].some(base => {
+          const reference = build(withInsert(base));
+          return values.some(value => build(withInsert({ ...base, [control.key]: value })) !== reference);
+        });
         expect(changes, `${page} · ${control.key}`).toBe(follows(page).includes(control.key));
       }
     }
@@ -38,8 +43,8 @@ describe('catio pages that follow each other', () => {
 
   it('finds the pages fitted to each page, with the settings they follow', () => {
     expect(dependentsOf('window-insert')).toEqual([
-      { page: 'tunnel', settings: ['attachment', 'footDiameter'] },
-      { page: 'insert-tunnel-coupling', settings: ['meshFixing', 'fixingPitch', 'attachment', 'footDiameter'] },
+      { page: 'tunnel', settings: ['attachment', 'clampPad', 'padHeight', 'footDiameter'] },
+      { page: 'insert-tunnel-coupling', settings: ['meshFixing', 'fixingPitch', 'attachment', 'clampPad', 'padHeight', 'footDiameter'] },
     ]);
     expect(dependentsOf('tunnel')).toEqual([{ page: 'insert-tunnel-coupling', settings: [] }]);
     expect(dependentsOf('insert-tunnel-coupling')).toEqual([]);

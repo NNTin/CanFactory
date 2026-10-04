@@ -1,11 +1,12 @@
 import { Type, type Static } from 'typebox';
-import { aiRubberDuck, AssemblySchema, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector, toggleLatch } from './models.ts';
+import { aiRubberDuck, AssemblySchema, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector, pressurePad, toggleLatch } from './models.ts';
 import { PartFamilySchema, PartSchema, PartSourceSchema } from './parts/index.ts';
 export * from './models.ts';
 export * from './assembly.ts';
 export * from './svgLogo.ts';
 export * from './parts/index.ts';
 export * from './concepts.ts';
+export * from './pressurePad.ts';
 /** The toggle latch's mechanism, shared by the catalogue card's side view and the assembly preview. */
 export * as toggleLatchMechanism from './toggleLatchMechanism.ts';
 
@@ -82,6 +83,11 @@ export const RenderRequestSchema = Type.Union([
     modelId: Type.Literal(toggleLatch.id),
     modelVersion: Type.Literal(toggleLatch.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
     parameters: toggleLatch.parameterSchema,
+  }, { additionalProperties: false }),
+  Type.Object({
+    modelId: Type.Literal(pressurePad.id),
+    modelVersion: Type.Literal(pressurePad.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
+    parameters: pressurePad.parameterSchema,
   }, { additionalProperties: false }),
 ], { description: 'Complete, uncoerced settings for one model version.' });
 export type RenderRequest = Static<typeof RenderRequestSchema>;
