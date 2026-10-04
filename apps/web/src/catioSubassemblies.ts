@@ -5,7 +5,7 @@ import { createTunnelScene } from './catioTunnelScene.ts';
 import { createCouplingScene } from './catioCouplingScene.ts';
 import { createTunnelCouplingScene } from './catioTunnelCouplingScene.ts';
 import {
-  parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, TUNNEL_SETTINGS_FOLLOWED, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingSteps,
+  parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, TUNNEL_SETTINGS_FOLLOWED, TUNNEL_SETTINGS_SHARED, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingSteps,
   tunnelCouplingViews, validateTunnelCoupling, type TunnelCouplingConfig,
 } from './catioTunnelCoupling.ts';
 import {
@@ -70,6 +70,8 @@ export const tunnelCouplingDefinition: SubassemblyDefinition<TunnelCouplingConfi
   variants: ['modular'], briefLabel: 'THE JOINT', assemblyHeading: 'From one section to two, coupled.',
   // its two sections are the tunnel's, at its longest section, on one of its supports with its feet, on its ground
   follows: [{ page: 'tunnel', settings: TUNNEL_SETTINGS_FOLLOWED }],
+  // how the tunnel is held on its supports: the tunnel page's settings, set here too
+  shares: [{ page: 'tunnel', settings: TUNNEL_SETTINGS_SHARED }],
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the joint', Mounting: 'Latch detail' },
   toggles: { windowOpen: 'Released · latches open' }, defaultViewing: { windowOpen: false },
   layerLabels: { hardware: 'Latches, bolts, feet & screws', environment: 'Grass & slabs' },
@@ -88,14 +90,14 @@ export const CATIO_SUBASSEMBLY_TITLES: Record<CatioSubassembly, string> = {
 
 /** What other pages need of a sub-assembly page without knowing its config type. */
 export interface SubassemblyEntry {
-  id: CatioSubassembly; title: string; follows: Follow[];
+  id: CatioSubassembly; title: string; follows: Follow[]; shares: Follow[];
   /** A control's label, by its key. */
   label: (key: string) => string;
   /** Its errors with its saved settings, which read the other pages' saved settings in turn. */
   savedErrors: () => string[];
 }
 const entry = <C extends object>(d: SubassemblyDefinition<C>): SubassemblyEntry => ({
-  id: d.id, title: d.title, follows: d.follows ?? [],
+  id: d.id, title: d.title, follows: d.follows ?? [], shares: d.shares ?? [],
   label: key => d.controls.find(control => control.key === key)?.label ?? key,
   savedErrors: () => { const saved = loadSubassemblySettings(d); return d.validate(saved.variant, saved.config); },
 });
@@ -104,7 +106,10 @@ export const CATIO_SUBASSEMBLY_ENTRIES: Record<CatioSubassembly, SubassemblyEntr
   'tunnel-tunnel-coupling': entry(tunnelCouplingDefinition),
 };
 
-/** The pages that follow `id`, each with the settings of `id` that change it. */
+/** The pages that follow `id` or share its settings, each with the settings of `id` that change it. */
 export function dependentsOf(id: CatioSubassembly): Follow[] {
-  return Object.values(CATIO_SUBASSEMBLY_ENTRIES).flatMap(e => e.follows.filter(f => f.page === id).map(f => ({ page: e.id, settings: f.settings })));
+  return Object.values(CATIO_SUBASSEMBLY_ENTRIES).flatMap(e => {
+    const settings = [...e.follows, ...e.shares].filter(f => f.page === id).flatMap(f => f.settings);
+    return settings.length || e.follows.some(f => f.page === id) ? [{ page: e.id, settings: [...new Set(settings)] }] : [];
+  });
 }

@@ -42,7 +42,9 @@ function part(id: string): Part {
 }
 
 /** The coupling, placed: the two sections either side of it, the support under it, and its latches or bolts. */
-export function tunnelCouplingLayout(config: TunnelCouplingConfig, { tunnel, site }: TunnelCouplingSite = tunnelCouplingSite()) {
+export function tunnelCouplingLayout(config: TunnelCouplingConfig, { tunnel: saved, site }: TunnelCouplingSite = tunnelCouplingSite()) {
+  // how the tunnel is held on its supports is shared with the tunnel page, and set on this page too (`shares`)
+  const tunnel: TunnelConfig = { ...saved, supportFixing: config.supportFixing, supportBase: config.supportBase };
   const straight = straightTunnel(tunnel, config);
   const tl = tunnelLayout(straight, { ...site, floorZ: TUNNEL_COUPLING.floor }, config);
   // the tunnel's checks, but only this support's for how it is held (the straight tunnel's other supports are not shown)
@@ -51,7 +53,7 @@ export function tunnelCouplingLayout(config: TunnelCouplingConfig, { tunnel, sit
   const before = tl.pieces.find(p => p.id === coupling?.before); const after = tl.pieces.find(p => p.id === coupling?.after);
   const support = tl.supports.find(s => s.id === 'support-coupling-1');
   if (!coupling || !before || !after || !support) throw new Error('The straight tunnel has no first coupling on a support.');
-  if (!support.hold.attached && tunnel.supportBase === 'trestle') errors.push(`${tunnel.supportFixing === 'gravity' ? 'With gravity only nothing holds' : 'Nothing holds'} the support to the tunnel, and a trestle cannot stand on its own along the tunnel: choose self-standing supports on the tunnel page, or another fixing.`);
+  if (!support.hold.attached && tunnel.supportBase === 'trestle') errors.push(`${tunnel.supportFixing === 'gravity' ? 'With gravity only nothing holds' : 'Nothing holds'} the support to the tunnel, and a trestle cannot stand on its own along the tunnel: choose self-standing supports, or another fixing.`);
   const pieces = [before.id, after.id];
   const latchScrews = tl.fasteners.filter(f => (f.component === 'latch-screws' || f.component === 'catch-screws') && coupling.latches.some(q => q.id === f.of));
   // how the joint is held on its support (the tunnel page's `supportFixing`): the screws up through the bearer, when it is screwed
@@ -130,7 +132,7 @@ export function tunnelCouplingFacts(_variant: CatioMode, config: TunnelCouplingC
       : { label: 'Bolts per coupling', value: `${l.bolts.length} × ISO 4017 M8 × 80 · two large washers and a nut each` },
     { label: 'Enclosure end · mitred joints', value: `Bolted, ${config.boltsPerCoupling} per coupling` },
     { label: 'Section length', value: `${cm(l.sectionLength)} cm · the longest section`, from: { page: 'tunnel', settings: ['sectionLength'] } },
-    { label: 'On the support', value: `${SUPPORT_FIXING_LABELS[l.tunnel.supportFixing]}${l.support.hold.attached || l.tunnel.supportFixing === 'gravity' ? '' : ' · does not fit here'} · ${l.support.soles.length ? 'self-standing' : 'a trestle'}`, from: { page: 'tunnel', settings: ['supportFixing', 'supportBase'] } },
+    { label: 'On the support', value: `${SUPPORT_FIXING_LABELS[l.tunnel.supportFixing]}${l.support.hold.attached || l.tunnel.supportFixing === 'gravity' ? '' : ' · does not fit here'} · ${l.support.soles.length ? 'self-standing' : 'a trestle'}` },
   ];
 }
 
@@ -173,8 +175,10 @@ export const TUNNEL_COUPLING_DECISIONS: DesignDecision[] = [
     why: 'The enclosure’s 30 mm port flange with the same bolt pattern is the one requirement the tunnel places on the enclosure: a fixed interface that does not change with the couplings between sections. The window end is not bolted either way: it is the insert–tunnel coupling page’s docking frame and latches.' },
 ];
 
-/** The cross-page settings of the tunnel this page is built from: its sections’ length, the support's feet and ground, and how the tunnel is held on it. */
-export const TUNNEL_SETTINGS_FOLLOWED = ['sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance', 'supportFixing', 'supportBase'];
+/** The cross-page settings of the tunnel this page is built from: its sections’ length, and the support's feet and ground. */
+export const TUNNEL_SETTINGS_FOLLOWED = ['sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
+/** The tunnel's settings this page shows and sets too: how the tunnel is held on its supports. */
+export const TUNNEL_SETTINGS_SHARED = ['supportFixing', 'supportBase'];
 
 /** Where the second section waits before it comes in, beyond the first, along the tunnel. */
 export const ENTRY = (l: TunnelCouplingLayout): V3 => vec.mul(l.coupling.face.n, 1.4 * l.sectionLength);

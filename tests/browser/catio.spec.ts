@@ -476,8 +476,26 @@ test('opens the tunnel–tunnel coupling, brings the second section in, switches
   await expect(page.getByTestId('subassembly-viewer')).toHaveAttribute('data-ready', 'true');
   await expect(page.getByRole('table', { name: 'Hardware parts' }).getByRole('link', { name: 'Toggle latch, printed' })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: 'Bolts per coupling' })).toHaveCount(0);
+  // how the tunnel is held on its supports is shared with the tunnel page: set it there, it shows here, and the other way round
+  await page.getByRole('combobox', { name: 'Held on the supports by' }).selectOption('strap');
   await page.goBack();
   await expect(page).toHaveURL(/#\/concepts\/catio\/tunnel-tunnel-coupling$/);
+  const holding = page.getByRole('combobox', { name: 'Held on the supports by' });
+  await expect(holding).toHaveValue('strap');
+  await expect(page.locator('label', { has: holding }).locator('.subassembly-affects')).toHaveText('Shared with the tunnel page: set it here or there.');
+  await expect(viewer).toHaveAttribute('data-visible-parts', /support-fittings/);
+  await holding.selectOption('dowels');
+  await page.getByRole('combobox', { name: 'Supports stand' }).selectOption('self-standing');
+  await expect(page.getByText(/Over dowels|over its dowels|lifted over the dowels/).first()).toBeVisible();
+  await page.goto('/#/concepts/catio/tunnel');
+  await expect(page.getByTestId('subassembly-viewer')).toHaveAttribute('data-ready', 'true');
+  await expect(page.getByRole('combobox', { name: 'Held on the supports by' })).toHaveValue('dowels');
+  await expect(page.getByRole('combobox', { name: 'Supports stand' })).toHaveValue('self-standing');
+  await expect(page.locator('label', { has: page.getByRole('combobox', { name: 'Held on the supports by' }) }).locator('.subassembly-affects')).toHaveText('Also changes the tunnel–tunnel coupling.');
+  await page.getByRole('button', { name: 'Reset to the recommended defaults' }).click();
+  await page.goto('/#/concepts/catio/tunnel-tunnel-coupling');
+  await expect(viewer).toHaveAttribute('data-ready', 'true');
+  await expect(holding).toHaveValue('screws');
   await page.getByRole('button', { name: 'Reset to the recommended defaults' }).click();
   await expect(viewer).toHaveAttribute('data-config', /"mechanism":"printed-latch"/);
   expect(errors).toEqual([]);

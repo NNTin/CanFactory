@@ -3,7 +3,7 @@ import { toggleLatchMechanism as TL } from '@canfactory/contracts';
 import { CATIO, type CatioView } from './catioDesign.ts';
 import { E_PROFILE_SEAL, latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine, printedLatchScrews, type LatchMount } from './catioPrintedLatch.ts';
 import type { CatioMode } from './catioSettings.ts';
-import { couplingGap, savedTunnelCoupling, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
+import { couplingGap, savedTunnelCoupling, SUPPORT_FIXING_LABELS, SUPPORT_SOLE, supportControls, type SupportBase, type SupportFixing, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { fastenerClashes, fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type SubassemblyPreset, type V3 } from './catioSubassembly.ts';
 import { parseWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertLayout, type WindowInsertConfig, type WindowSpec } from './catioWindowInsert.ts';
 
@@ -56,20 +56,10 @@ export interface TunnelConfig {
   /** How the tunnel is held on its supports. */
   supportFixing: SupportFixing;
   /** Trestles that stand only when fixed to the tunnel, or supports that stand on their own (a sole along the tunnel under each leg). */
-  supportBase: 'trestle' | 'self-standing';
+  supportBase: SupportBase;
 }
 
-/**
- * How the tunnel is held on its supports: screwed up through the bearers (the original), strapped over each support with a rubber
- * strap, dropped over dowels in the bearer top, dropped into printed cradles on the bearer, latched down with vertical printed
- * toggle latches, held by turn buttons over keepers on the flanges, or resting by its own weight.
- */
-export const SUPPORT_FIXINGS = ['screws', 'strap', 'dowels', 'cradle', 'latch', 'turn-buttons', 'gravity'] as const;
-export type SupportFixing = typeof SUPPORT_FIXINGS[number];
-export const SUPPORT_FIXING_LABELS: Record<SupportFixing, string> = {
-  screws: 'Screwed up through the bearer', strap: 'Rubber strap over the support', dowels: 'Dowels in the bearer top', cradle: 'Printed cradles on the bearer',
-  latch: 'Vertical printed toggle latches', 'turn-buttons': 'Turn buttons over keepers', gravity: 'Gravity only',
-};
+export { SUPPORT_FIXINGS, SUPPORT_FIXING_LABELS, type SupportFixing } from './catioTunnelJoint.ts';
 
 export const TUNNEL_DEFAULT: TunnelConfig = {
   portX: 1200, portY: 3000, portFacing: 0, portLevel: 'own', portHeight: 500, approach: 700, final: 700, slopeLeg: 'middle', maxSlope: 20,
@@ -102,7 +92,7 @@ export const TUNNEL = {
   staplePitch: 150, floorScrewPitch: 200,
   mesh: { opening: CATIO.meshOpening, wire: CATIO.wire },
   /** A self-standing support's sole: along the tunnel under each leg (or each end of a low bearer), a foot near each of its ends. */
-  sole: { thickness: 22, width: 95, length: 300, footInset: 40 },
+  sole: SUPPORT_SOLE,
   /** How the tunnel is held on its supports (`supportFixing`); sizes of this design, not of products. */
   fixing: {
     /** ISO 2338 parallel pins, two under each flange (or collar rail), half in the bearer. */
@@ -1043,12 +1033,7 @@ export const TUNNEL_CONTROLS: SubassemblyControl<TunnelConfig>[] = [
     options: [0, 1, 2, 4].map(v => ({ value: v as TunnelConfig['groundFall'], label: `${v}%` })) },
   { key: 'groundTolerance', label: 'Uneven by up to', group: 'Supports', help: 'How far the slab under any foot may sit above or below that fall. The feet take it up; the legs are not recut.',
     options: [10, 15, 20, 25].map(v => ({ value: v as TunnelConfig['groundTolerance'], label: `±${v} mm` })) },
-  { key: 'supportFixing', label: 'Held on the supports by', group: 'Supports',
-    help: 'Screws bind the tunnel to its supports for good; the others let a section lift off to be moved. Dowels and cradles locate it and keep the supports upright; a strap, vertical latches or turn buttons also hold it down; gravity only needs supports that stand on their own.',
-    options: SUPPORT_FIXINGS.map(value => ({ value, label: SUPPORT_FIXING_LABELS[value] })) },
-  { key: 'supportBase', label: 'Supports stand', group: 'Supports',
-    help: `A trestle is one bearer on two legs across the tunnel: along it, it stands only when fixed to the tunnel. A ${TUNNEL.sole.thickness} × ${TUNNEL.sole.width} sole along the tunnel under each leg, with a foot near each end, lets every support stand on its own.`,
-    options: [{ value: 'trestle', label: 'Held up by the tunnel (trestles)' }, { value: 'self-standing', label: 'On their own (a sole under each leg)' }] },
+  ...supportControls<TunnelConfig>('Supports'),
 ];
 
 /** Ready-made routes besides the defaults. Level ones keep the port level with the window port, whatever the insert's clamps make it. */

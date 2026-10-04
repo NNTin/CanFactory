@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { clearOf, fastenerClashes } from './catioSubassembly.ts';
-import { CATIO_SUBASSEMBLY_ENTRIES, dependentsOf } from './catioSubassemblies.ts';
+import { clearOf, fastenerClashes, withShared } from './catioSubassembly.ts';
+import { CATIO_SUBASSEMBLY_ENTRIES, dependentsOf, tunnelCouplingDefinition } from './catioSubassemblies.ts';
 import { COUPLING_DEFAULT, couplingBom, couplingLayout } from './catioCoupling.ts';
 import { TUNNEL_CONTROLS, TUNNEL_DEFAULT, tunnelBom, tunnelLayout, tunnelSite, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
 import { TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, tunnelCouplingBom, tunnelCouplingLayout, type TunnelCouplingConfig } from './catioTunnelCoupling.ts';
@@ -14,7 +14,9 @@ const builds = {
     const l = tunnelLayout(TUNNEL_DEFAULT, site, joint);
     return JSON.stringify([l.S, l.pieces, l.couplings, l.supports, tunnelBom('modular', TUNNEL_DEFAULT, site, joint), l.errors]);
   },
-  tunnelCoupling: (tunnel: TunnelConfig, site: TunnelSite = base, config: TunnelCouplingConfig = TUNNEL_COUPLING_DEFAULT) => {
+  tunnelCoupling: (tunnel: TunnelConfig, site: TunnelSite = base, own: TunnelCouplingConfig = TUNNEL_COUPLING_DEFAULT) => {
+    // the settings it shares with the tunnel page come from there, as the page loads them
+    const config = withShared(tunnelCouplingDefinition, own, page => page === 'tunnel' ? tunnel : undefined);
     const l = tunnelCouplingLayout(config, { tunnel, site });
     return JSON.stringify([l.before, l.after, l.coupling, l.support, l.tl.pad, l.tl.members.filter(m => l.pieces.includes(m.piece)), tunnelCouplingBom('modular', config, { tunnel, site }), l.errors]);
   },
@@ -58,7 +60,8 @@ describe('catio pages that follow each other', () => {
       expect(changes, `tunnel · ${control.key}`).toBe(followed.includes(control.key));
     }
     // the coupling page is built from the tunnel's sections, one of its supports and its feet and ground
-    const follows = CATIO_SUBASSEMBLY_ENTRIES['tunnel-tunnel-coupling'].follows.find(f => f.page === 'tunnel')?.settings ?? [];
+    const entry = CATIO_SUBASSEMBLY_ENTRIES['tunnel-tunnel-coupling'];
+    const follows = [...entry.follows, ...entry.shares].filter(f => f.page === 'tunnel').flatMap(f => f.settings);
     for (const mechanism of ['printed-latch', 'bolts'] as const) {
       const config = { ...TUNNEL_COUPLING_DEFAULT, mechanism };
       const own = builds.tunnelCoupling(TUNNEL_DEFAULT, base, config);

@@ -41,6 +41,13 @@ are exactly the tunnel page's.
 | Latches per side | 2 (4 per coupling) | 1, 2, 3; printed latch only | Coupling |
 | Bolts per coupling | 6 · three each side | 4, 6, 8 | Coupling |
 | Seal | EPDM E-profile in the gap | EPDM E-profile; none (gap left open); printed latch only | Coupling |
+| Held on the supports by | Screwed up through the bearer | Screws; rubber strap; dowels; printed cradles; vertical printed toggle latches; turn buttons; gravity only | On the support (shared with the tunnel page) |
+| Supports stand | Held up by the tunnel (trestles) | Trestles; on their own (a sole under each leg) | On the support (shared with the tunnel page) |
+
+**Held on the supports by** and **Supports stand** are the tunnel page's settings, shown and set here too (`shares` on the
+definition). The tunnel page's saved settings hold them: this page reads them from there when it opens and writes them back
+when they change here, so they can be set on either page. Under each, the page says "Shared with the tunnel page: set it here
+or there."; on the tunnel page they say "Also changes the tunnel–tunnel coupling."
 
 **Bolts per coupling** stays visible with the printed latch. The enclosure end and any mitred joint are bolted whatever the
 couplings are, with this many bolts. It moved here from the tunnel page's **Bolts per coupling** (`couplingBolts`), so the
@@ -144,7 +151,7 @@ The slider shows, in order:
 4. **Couple.** Printed latch: each link is hooked over its catch and each lever closed over centre, with the shared
    mechanism's movements (`TOGGLE_LATCH_MOVEMENTS`), as the model page plays them. Bolted: bolts through both flanges with
    a washer, then washers and nuts run on from the far side, turning as they go.
-5. **Hold it on the support**, as the tunnel page's **Held on the supports by** sets it (see [tunnel.md](tunnel.md),
+5. **Hold it on the support**, as **Held on the supports by** sets it (here or on the tunnel page) (see [tunnel.md](tunnel.md),
    "Held on the supports, but not for good"): four 6 × 100 screws up through the bearer (the default); a rubber strap
    hooked over both flanges; the vertical latches' base plates screwed across the two flanges and closed over centre; or
    the turn buttons turned down under their keepers. With dowels, cradles or gravity only there is nothing left to do.
@@ -184,8 +191,8 @@ and the printed latches, which link to their model (`#/models/toggle-latch`).
 - **Cross-page wiring** (`follows` in [catioSubassemblies.ts](../../../apps/web/src/catioSubassemblies.ts)): the tunnel
   follows this page's **Coupling**, **Latches per side**, **Bolts per coupling** and **Seal**; this page follows the
   tunnel's **Longest section**, its feet and ground (**Feet**, **Foot height**, **Foot sole**, **Foot diameter**,
-  **Ground falls away**, **Uneven by up to**), and how the tunnel is held on its supports (**Held on the supports by**,
-  **Supports stand**).
+  **Ground falls away**, **Uneven by up to**). It shares the tunnel's **Held on the supports by** and **Supports stand**
+  (`shares`), set on either page.
 - [Tests](../../../apps/web/src/catioTunnelCoupling.test.ts) check:
   - two identical sections at the tunnel's length, the gap between them (3 mm latched, none bolted), and the bearer under
     the middle of the gap screwed into both flanges, for every option, section length, feet and clear size

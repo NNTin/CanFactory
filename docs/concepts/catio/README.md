@@ -73,6 +73,9 @@ and everything else is derived from it ([CatioCrossPage.tsx](../../../apps/web/s
   coupling.").
 - When saved settings on one page break a page fitted to it, the page being edited lists that page's errors with a link.
   The catio concept page does the same for all sub-assemblies, since they take the window and cat port sizes from it.
+- A page can also show and set another page's settings itself (`shares`): the owning page's saved settings hold them, the
+  sharing page reads them from there when it opens and writes them back when they change, and both pages say so. The
+  tunnel–tunnel coupling page shares the tunnel's **Held on the supports by** and **Supports stand** this way.
 - A fact or a design decision can name the other page's settings it comes from (`from`). The page then shows "Set on the …
   page: …" under it, e.g. the coupling's cover battens and the tunnel's window port floor.
 
