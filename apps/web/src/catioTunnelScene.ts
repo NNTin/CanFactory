@@ -146,7 +146,7 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
   const onSupportCount = (kind: string) => holds.reduce((n, h) => n + h.onSupport.filter(o => o.kind === kind).length, 0);
   const holdCaption: Record<string, string> = {
     dowel: `${onSupportCount('dowel')} × Parallel pin 8 × 40: tapped into the bearers’ tops, half standing proud`,
-    cleat: `${onSupportCount('cleat')} × Strap cleat: onto both ends of every bearer`, keeper: `${onSupportCount('keeper')} × Keeper: onto the bearer’s end under each flange`,
+    cleat: `${onSupportCount('cleat')} × Strap cleat: onto both ends of every bearer`, post: `${onSupportCount('post')} × Turn button’s post: onto the bearer’s end beside each flange`,
   };
   const supportScrewCount = holds.reduce((n, h) => n + h.supportScrews.length, 0);
   const buttonCount = holds.reduce((n, h) => n + h.buttons.length, 0);
@@ -161,13 +161,18 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
       group('support-fixings', 2, 'hardware').add(g);
       move(g, 2, [0.88, 1], vec.mul(f.direction, -(dimensionOf(part, 'l') + 40)), `${supportScrewCount} × Countersunk wood screw: the fittings onto the bearers`, { role: 'screw', drive: f.direction, axis: vector(f.direction), turns: 4, support: h.support.id });
     }
+    // each button on its post, pointing out, with the post's other fittings
     for (const b of h.buttons) {
-      group('turn-buttons', 3, 'hardware').add(b.group);
-      move(b.group, 3, [0.82, 0.9], vec.mul(h.support.across, b.button.side * 160), `${buttonCount} × Turn button: onto each flange’s side where it will sit on a bearer, turned up`, { role: 'fitting', carrier: b.button.piece });
+      group('support-fixings', 2, 'hardware').add(b.group);
+      move(b.group, 2, [0.76, 0.88], [0, 0, 120], `${buttonCount} × Turn button: set on its post, pointing straight out`, { role: 'fitting', support: h.support.id });
     }
-    for (const { fastener: f, group: g } of h.pieceScrews.filter(q => q.fastener.component === 'button-screws')) {
+    for (const k of h.keepers) {
+      group('turn-buttons', 3, 'hardware').add(k.group);
+      move(k.group, 3, [0.82, 0.9], vec.mul(k.out, 160), `${buttonCount} × Keeper: onto each flange’s side where it will sit on a bearer`, { role: 'fitting', carrier: k.button.piece });
+    }
+    for (const { fastener: f, group: g } of h.pieceScrews.filter(q => q.fastener.component === 'keeper-screws')) {
       group('turn-buttons', 3, 'hardware').add(g);
-      move(g, 3, [0.9, 1], vec.mul(f.direction, -90), `${buttonCount} × Countersunk wood screw 5 × 50: each turn button’s pivot`, { role: 'screw', drive: f.direction, axis: vector(f.direction), turns: 4, ...(f.piece ? { carrier: f.piece } : {}) });
+      move(g, 3, [0.9, 1], vec.mul(f.direction, -80), `${buttonCount} × Countersunk wood screw 4 × 40: the keepers onto the flanges`, { role: 'screw', drive: f.direction, axis: vector(f.direction), turns: 4, ...(f.piece ? { carrier: f.piece } : {}) });
     }
     if (h.strap) {
       group('straps', 6, 'hardware').add(h.strap);
@@ -297,11 +302,11 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     // the printed latches close over centre in the last part of stage 5, once every piece is down
     const closing = state.exploded ? 0 : ease(THREE.MathUtils.clamp((lower - 0.6) / 0.35, 0, 1));
     for (const latch of levers) latch.setOpen(1 - closing);
-    // stage 6: the turn buttons turn down under their keepers
+    // stage 6: the turn buttons turn flat over their keepers
     const turning = state.exploded ? 0 : ease(THREE.MathUtils.clamp(along(state.progress, 6) / 0.3, 0, 1));
     for (const b of holdButtons) b.setTurn(1 - turning);
     let action: string | null = active.size > 0 ? [...active].join('; ') : null;
-    if (!action && state.progress > 5 && turning > 0 && turning < 1 && holdButtons.length) action = `${holdButtons.length} × Turn button: turned down, its foot under the keeper`;
+    if (!action && state.progress > 5 && turning > 0 && turning < 1 && holdButtons.length) action = `${holdButtons.length} × Turn button: turned flat over the keeper on the flange`;
     if (!action && state.progress > 4 && closing > 0 && closing < 1) action = `${latchCount} × Printed toggle latch: hooked over its catch, lever pressed down over centre`;
     if (!action && state.progress > 1 && state.progress < 2) action = 'Each foot is turned on its stud, from below the bearer, until the bearer top meets the string line; then its nut is jammed up against the timber';
     if (!action && state.progress > 4 && state.progress <= 5 && lower < 0.5) {

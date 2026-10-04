@@ -137,16 +137,18 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
   const hold = buildSupportHold(p, draw, tl, support);
   for (const o of hold.onSupport) group('support-fittings', 0, 'hardware').add(o.group);
   for (const { group: g } of hold.supportScrews) group('support-fittings', 0, 'hardware').add(g);
-  for (const b of hold.buttons) {
-    if (b.button.piece === after.id) { group('second-section-fixings', 3, 'hardware').add(b.group); move(b.group, 3, [0, 0.8], entry, entering, { role: 'section' }); continue; }
-    group('first-section-fixings', 1, 'hardware').add(b.group);
-    move(b.group, 1, [0.72, 0.76], vec.mul(support.across, b.button.side * 160), `${hold.buttons.length / 2} × Turn button: onto the outgoing flange’s side, turned up`, { role: 'fitting', lifted: true });
+  // the turn buttons are on the support, pointing out; each section brings its keepers on its flange
+  for (const b of hold.buttons) group('support-fittings', 0, 'hardware').add(b.group);
+  for (const k of hold.keepers) {
+    if (k.button.piece === after.id) { group('second-section-fixings', 3, 'hardware').add(k.group); move(k.group, 3, [0, 0.8], entry, entering, { role: 'section' }); continue; }
+    group('first-section-fixings', 1, 'hardware').add(k.group);
+    move(k.group, 1, [0.72, 0.76], vec.mul(k.out, 160), `${hold.keepers.length / 2} × Keeper: onto the outgoing flange’s side, just above the bearer`, { role: 'fitting', lifted: true });
   }
-  for (const { fastener: f, group: g } of hold.pieceScrews.filter(q => q.fastener.component === 'button-screws')) {
+  for (const { fastener: f, group: g } of hold.pieceScrews.filter(q => q.fastener.component === 'keeper-screws')) {
     if (f.piece === after.id) { group('second-section-fixings', 3, 'hardware').add(g); move(g, 3, [0, 0.8], entry, entering, { role: 'section' }); continue; }
     group('first-section-fixings', 1, 'hardware').add(g);
-    const { approach, ...meta } = screwMotion(f, 50);
-    move(g, 1, [0.72, 0.76], approach, `${hold.buttons.length / 2} × Countersunk wood screw 5 × 50: the turn button’s pivot`, { ...meta, lifted: true });
+    const { approach, ...meta } = screwMotion(f, 40);
+    move(g, 1, [0.76, 0.8], approach, `${hold.keepers.length / 2} × Countersunk wood screw 4 × 40: the keeper onto the flange`, { ...meta, lifted: true });
   }
   if (hold.strap) { group('fixings', 5, 'hardware').add(hold.strap); move(hold.strap, 5, [0, 0.5], [0, 0, 400], 'Rubber strap: over both flanges, hooked under the cleats on the bearer’s ends', { role: 'fitting' }); }
   for (const f of layout.fixings) {
@@ -197,10 +199,10 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
       for (const latch of jointPieces.latches) { if (latchState) latch.setState(latchState); else latch.setOpen(1); }
       if (n && closing > 0 && closing < 1 && !state.windowOpen) latchAction = `${n} × Printed toggle latch: ${movement.title.charAt(0).toLowerCase()}${movement.title.slice(1)}`;
     }
-    // stage 5: the turn buttons turn down under their keepers
+    // stage 5: the turn buttons turn flat over their keepers
     const turning = state.exploded ? 0 : ease(THREE.MathUtils.clamp(at(state.progress, 5) / 0.3, 0, 1));
     for (const b of hold.buttons) b.setTurn(state.windowOpen ? 1 : 1 - turning);
-    if (!latchAction && hold.buttons.length && turning > 0 && turning < 1) latchAction = `${hold.buttons.length} × Turn button: turned down, its foot under the keeper`;
+    if (!latchAction && hold.buttons.length && turning > 0 && turning < 1) latchAction = `${hold.buttons.length} × Turn button: turned flat over the keeper on the flange`;
     if (!latchAction && clearance && state.progress > 2.8 && state.progress < 3) latchAction = 'Setting the second section down over its dowels';
     let action: string | null = active.size > 0 ? [...active].join('; ') : latchAction;
     if (!action && !state.exploded && state.progress > 0.76 && state.progress < 1) action = 'Laying the first section on the support, its outgoing flange over the bearer';

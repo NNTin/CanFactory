@@ -341,13 +341,51 @@ describe('tunnel–tunnel coupling on its support, as the tunnel page holds it',
     }
   });
 
-  it('turns the buttons down under their keepers in the last stage, and up again when released', () => {
-    const buttons = createTunnelCouplingScene('modular', holding('turn-buttons'), site);
-    expect(buttons.hold.buttons).toHaveLength(4);
-    const arm = (b: (typeof buttons.hold.buttons)[number]) => b.group.children[0]?.quaternion.clone() ?? new THREE.Quaternion();
-    buttons.update({ ...installed, progress: 3.9 }); const up = buttons.hold.buttons.map(arm);
-    buttons.update(installed); buttons.hold.buttons.forEach((b, i) => expect(arm(b).angleTo(up[i] ?? new THREE.Quaternion())).toBeCloseTo(Math.PI / 2, 6));
-    buttons.dispose();
+  it('turns each button flat over its keeper in the last stage, out again when released, never through anything', () => {
+    const scene = createTunnelCouplingScene('modular', holding('turn-buttons'), site);
+    const { buttons, keepers } = scene.hold; const s = scene.layout.support;
+    expect(buttons).toHaveLength(4); expect(keepers).toHaveLength(4);
+    const corners = [-0.5, 0.5].flatMap(x => [-0.5, 0, 0.5].flatMap(y => [-0.5, 0.5].map(z => new THREE.Vector3(x, y, z))));
+    /** Points of a button: its box's corners and edges' middles, and round its rounded end. */
+    const points = (b: (typeof buttons)[number]) => {
+      const [box, disc] = b.arm.children; if (!box || !disc) throw new Error('button');
+      const round = Array.from({ length: 16 }, (_, i) => [-0.5, 0.5].map(y => new THREE.Vector3(Math.cos(i * Math.PI / 8), y, Math.sin(i * Math.PI / 8)).applyMatrix4(disc.matrixWorld))).flat();
+      return [...corners.map(c => c.clone().applyMatrix4(box.matrixWorld)), ...round];
+    };
+    /** Whether a world point is inside a box mesh (its unit cube, shrunk by 0.05 mm). */
+    const inside = (mesh: THREE.Object3D, q: THREE.Vector3) => {
+      const local = q.clone().applyMatrix4(mesh.matrixWorld.clone().invert()); const scale = mesh.getWorldScale(new THREE.Vector3());
+      const half = [scale.x / 2, scale.y / 2, scale.z / 2];
+      return [local.x * scale.x, local.y * scale.y, local.z * scale.z].every((v, i) => Math.abs(v) < (half[i] ?? 0) - 0.05);
+    };
+    const keeperMesh = (k: (typeof keepers)[number]) => k.group.children[0] as THREE.Object3D;
+    const buttonMesh = (b: (typeof buttons)[number]) => b.arm.children[0] as THREE.Object3D;
+    for (let progress = 4; progress <= 5.0001; progress += 0.02) {
+      scene.update({ ...installed, progress });
+      for (const b of buttons) for (const q of points(b)) {
+        // never into the flange (or the bearer): always out from the flush face
+        expect(vec.dot(vec.sub(q.toArray(), s.at), vec.mul(s.across, b.button.side)) - s.length / 2, `${progress}`).toBeGreaterThan(-1e-6);
+        for (const k of keepers) expect(inside(keeperMesh(k), q), `button into a keeper at ${progress.toFixed(2)}`).toBe(false);
+        for (const other of buttons) if (other !== b) expect(inside(buttonMesh(other), q), `button into a button at ${progress.toFixed(2)}`).toBe(false);
+      }
+    }
+    // closed it lies over its keeper; open (and released) it points straight out, clear of it in plan
+    const plan = (b: (typeof buttons)[number]) => { const box = new THREE.Box3().setFromObject(buttonMesh(b)); return box; };
+    const [k0] = keepers; if (!k0) throw new Error('keeper');
+    scene.update(installed);
+    for (const [i, b] of buttons.entries()) {
+      const k = new THREE.Box3().setFromObject(keeperMesh(keepers[i] ?? k0));
+      const p = plan(b); expect(p.min.z).toBeGreaterThan(k.max.z); expect(p.intersectsBox(k.clone().expandByVector(new THREE.Vector3(0, 0, 10)))).toBe(true);
+    }
+    scene.update({ ...installed, progress: 4.15 }); expect(scene.caption?.()).toMatch(/Turn button: turned flat over the keeper/);
+    scene.update({ ...installed, windowOpen: true });
+    for (const [i, b] of buttons.entries()) {
+      const k = new THREE.Box3().setFromObject(keeperMesh(keepers[i] ?? k0)).expandByVector(new THREE.Vector3(0, 0, 10));
+      expect(plan(b).intersectsBox(k)).toBe(false);
+      // pointing out: its far end well beyond the flush face
+      expect(Math.max(...points(b).map(q => vec.dot(vec.sub(q.toArray(), s.at), vec.mul(s.across, b.button.side)) - s.length / 2))).toBeGreaterThan(20);
+    }
+    scene.dispose();
   });
 });
 

@@ -216,11 +216,12 @@ export function buildCouplingJoint(p: ReturnType<typeof createCatioParts>, draw:
 
 /**
  * How the tunnel is held on a support (`Support.hold`), drawn: on the support before the tunnel goes on (dowels, strap cleats, the
- * buttons' keepers), on the flanges (the turn buttons, each with `setTurn`), the strap that goes over last, and the screws of each.
+ * turn buttons' posts, and the buttons, each with `setTurn`), on the flanges (the buttons' keepers), the strap that goes over last,
+ * and the screws of each.
  */
 export function buildSupportHold(p: ReturnType<typeof createCatioParts>, draw: TunnelDrawing, layout: TunnelLayout, s: Support) {
   const { materials: m } = p; const hold = s.hold; const FX = TUNNEL.fixing;
-  const onSupport: { kind: 'dowel' | 'cleat' | 'keeper'; group: THREE.Group; out: V3 }[] = [];
+  const onSupport: { kind: 'dowel' | 'cleat' | 'post'; group: THREE.Group; out: V3 }[] = [];
   const screwsOf = (components: Fastener['component'][]) => layout.fasteners.filter(f => components.includes(f.component) && f.support === s.id)
     .flatMap(f => { const drawn = draw.fastener(f); return drawn ? [{ fastener: f, ...drawn }] : []; });
   for (const { group } of screwsOf(['dowels'])) onSupport.push({ kind: 'dowel', group, out: [0, 0, 1] });
@@ -228,16 +229,24 @@ export function buildSupportHold(p: ReturnType<typeof createCatioParts>, draw: T
     const g = draw.group(b.center); draw.supportBox(g, b, s, m.endgrain, b.center);
     onSupport.push({ kind: 'cleat', group: g, out: vec.mul(s.across, i === 0 ? -1 : 1) });
   }
-  for (const b of hold.buttons) for (const k of b.keepers) {
-    const g = draw.group(k.center); draw.supportBox(g, k, s, m.endgrain, k.center);
-    onSupport.push({ kind: 'keeper', group: g, out: vec.mul(s.across, b.side) });
+  // the turn buttons: a post on the bearer's end with the button on it, turning flat about its vertical screw; and the keeper on
+  // the flange's side it lies over (it goes on with the section)
+  for (const b of hold.buttons) {
+    const g = draw.group(b.post.center); draw.supportBox(g, b.post, s, m.printed, b.post.center);
+    onSupport.push({ kind: 'post', group: g, out: vec.mul(s.across, b.side) });
   }
-  // the turn buttons: each turns on its pivot about the axis across the tunnel, a quarter turn from hooked under its keeper to clear
+  const keepers = hold.buttons.map(b => {
+    const g = draw.group(b.keeper.center); draw.supportBox(g, b.keeper, s, m.endgrain, b.keeper.center);
+    return { button: b, group: g, out: vec.mul(s.across, b.side) };
+  });
+  // open, a button points straight out from the tunnel: a quarter turn about the vertical, its far end away from the flange
   const buttons = hold.buttons.map(b => {
     const pivot = draw.group(b.pivot); const arm = new THREE.Group(); pivot.add(arm);
-    for (const a of b.arm) draw.supportBox(arm, a, s, m.printed, b.pivot);
-    const axis = draw.vector(vec.mul(s.across, b.side));
-    return { button: b, group: pivot, setTurn: (open: number) => arm.quaternion.setFromAxisAngle(axis, -open * Math.PI / 2) };
+    draw.supportBox(arm, b.button, s, m.printed, b.pivot);
+    // its end round the pivot is rounded
+    draw.cylinder(arm, [0, 0, 0], [0, 0, -TUNNEL.fixing.button.thickness], TUNNEL.fixing.button.width / 2, m.printed);
+    const up = new THREE.Vector3(0, 0, 1); const turn = b.turn * Math.PI / 2;
+    return { button: b, group: pivot, arm, setTurn: (open: number) => arm.quaternion.setFromAxisAngle(up, open * turn) };
   });
   let strap: THREE.Group | null = null;
   if (hold.strap) {
@@ -248,7 +257,7 @@ export function buildSupportHold(p: ReturnType<typeof createCatioParts>, draw: T
       mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(draw.vector(x), draw.vector(dir), draw.vector(z)));
     });
   }
-  const supportScrews = screwsOf(['strap-cleat-screws', 'keeper-screws']);
-  const pieceScrews = screwsOf(['button-screws']);
-  return { support: s, onSupport, buttons, strap, supportScrews, pieceScrews };
+  const supportScrews = screwsOf(['strap-cleat-screws', 'post-screws', 'button-screws']);
+  const pieceScrews = screwsOf(['keeper-screws']);
+  return { support: s, onSupport, keepers, buttons, strap, supportScrews, pieceScrews };
 }

@@ -153,10 +153,12 @@ The slider shows, in order:
    a washer, then washers and nuts run on from the far side, turning as they go.
 5. **Hold it on the support**, as **Held on the supports by** sets it (here or on the tunnel page) (see [tunnel.md](tunnel.md),
    "Held on the supports, but not for good"): four 6 × 100 screws up through the bearer (the default); a rubber strap
-   hooked over both flanges; or the turn buttons turned down under their keepers. With dowels or gravity only there is
-   nothing left to do.
-   - The support's fittings (dowels, strap cleats, the keepers) are on it from stage 0; the turn buttons go on each
-     section's flange with it.
+   hooked over both flanges; or the turn buttons turned flat over the keepers on the flanges. With dowels or gravity only
+   there is nothing left to do.
+   - The support's fittings (dowels, strap cleats, the turn buttons on their posts, pointing out) are on it from stage 0;
+     each section brings its keepers on its flange.
+   - A test turns every button through its quarter turn and checks that no point of it ever enters a keeper, another
+     button or the flange.
    - Over dowels, the second section comes in along the axis lifted clear of them and is set down at the end of stage 3.
    - With self-standing supports, the support's legs stand on 45 × 70 soles (or it is a wide low bearer).
 

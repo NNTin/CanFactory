@@ -175,12 +175,17 @@ scene, the parts list and the tests.
    | **Screws** (default) | Yes | Yes | DIN 7997 6 × 100 up through each bearer, two into each flange or collar rail |
    | **Rubber strap** | Friction only | Yes | One EPDM tarp strap per support, over the flanges (or a collar's roof), hooked under a 20 × 20 × 60 cleat on each bearer end (two 4 × 40 screws). Stretched 25 % when hooked; the parts list gives its unstretched length |
    | **Dowels** | Yes | No | Two ISO 2338 8 × 40 parallel pins under each flange or collar rail, half in the bearer; the sections lift straight off |
-   | **Turn buttons** | Yes | Yes | A printed button on each flange's side, turned down so its foot hooks under a hardwood keeper on the bearer's end |
+   | **Turn buttons** | Yes | Yes | A hardwood keeper (15 × 12 × 15) on each flange's side just above the bearer; beside it, a printed post on the bearer's end rising to the keeper's top, with a printed button on a vertical 4 × 25 screw that turns flat over the keeper, 0.5 mm above it. Open, the button points straight out from the tunnel |
    | **Gravity only** | No | No | Nothing: the tunnel rests on self-standing supports, held in line by its couplings |
 
    - **Where they fit.** Turn buttons fit under any flanges flush with the bearer's ends (not under angle collars or at
-     mitred turns). The tunnel has no face facing up near its bearers, so a button hooks under a keeper on the bearer
-     rather than over the tunnel. Each part belongs to one section or one support, so any section lifts off on its own.
+     mitred turns). Each post stands at the end of its flange nearer the bearer's middle, so it is screwed to the bearer
+     (the page checks it), and its keeper at the flange's other end. The keeper belongs to the section and the post and
+     button to the support, so any section lifts off on its own.
+   - **Why it turns flat.** A button turns about a vertical screw, at right angles to the load it holds, so it slides
+     over its keeper and never swings into it. Its end is rounded about the pivot so it never swings into the flange's
+     side either. An earlier button on the flange's side turned in the plane of its keeper, so its foot swept through the
+     keeper as it closed, and stood open across the joint.
    - **Rejected:** a printed cradle on the bearer (it locates no better than dowels, holds nothing down and is hard to
      print), and an upright printed toggle latch (its 38 mm plate is wider than one 30 mm flange, so it would span two
      sections and tie them together, breaking the modular system).
@@ -230,8 +235,8 @@ scene, the parts list and the tests.
    coupling page sets. The latches' plates were screwed onto the flanges' sides while framing (stage 3).
 6. **Fix down and dock.**
    - Hold the tunnel on its supports as chosen: screw up through the bearers (the default), hook the straps over, or turn
-     the buttons down. With dowels or gravity only there is nothing to do: the dowels went onto the levelled supports in
-     stage 2, and the turn buttons onto the flanges while framing.
+     the buttons flat over their keepers. With dowels or gravity only there is nothing to do. The dowels, and the turn
+     buttons on their posts, went onto the levelled supports in stage 2; the keepers onto the flanges while framing.
    - Close the latches between the first flange and the insert's docking frame (the coupling page).
    - Bolt the last flange to the enclosure's port flange.
    - Open the gates.
@@ -251,8 +256,8 @@ No new families were needed. The tunnel uses existing parts:
 - **ISO 7093-1** M8
 - **ISO 4032** M8
 - **DIN 7965** M8 × 18
-- **DIN 7997**: 4 × 25 (the printed latches' plates), 4 × 35, 4 × 40 (also strap cleats and keepers), 5 × 50 (also turn
-  buttons' pivots), 5 × 70, 6 × 100 (also soles into legs)
+- **DIN 7997**: 4 × 25 (the printed latches' plates, the turn buttons' pivots), 4 × 35, 4 × 40 (also strap cleats,
+  keepers and turn buttons' posts), 5 × 50, 5 × 70, 6 × 100 (also soles into legs)
 - **ISO 4017** M8 × 60 (printed feet, for ±10 mm of uneven ground)
 - **ISO 2338** 8 × 40 parallel pins (dowels in the bearers)
 - **DIN 1159** 2.5 × 25
@@ -267,7 +272,7 @@ They are listed once, by role, in [concepts.ts](../../../packages/contracts/src/
 that list identical.
 
 Custom lines (not library parts): the timber cut list (with soles, strap cleats and keepers), mesh panels, the couplings'
-E-profile seals, the straps and turn buttons, and the paving slabs.
+E-profile seals, the straps, the turn buttons with their posts, and the paving slabs.
 The printed latches link to their model (`#/models/toggle-latch`). The window end's seal and latches are listed on the
 insert–tunnel coupling page.
 

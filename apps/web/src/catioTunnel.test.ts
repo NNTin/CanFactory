@@ -290,19 +290,32 @@ describe('tunnel held on its supports', () => {
     expect(lines.find(line => line.name === 'Strap cleat')?.quantity).toBe(2 * l.supports.length);
   });
 
-  it('hooks a turn button on each flange under a keeper on the bearer’s end, under flanges flush with its ends', () => {
+  it('turns a button flat on a post on the bearer’s end over a keeper on each flange’s side, under flanges flush with its ends', () => {
     const l = held('turn-buttons', 'trestle', straight);
     expect(l.errors).toEqual([]);
+    const { keeper, button } = TUNNEL.fixing;
     for (const s of l.supports) {
       expect(s.hold.buttons).toHaveLength(2 * s.flanges);
       for (const b of s.hold.buttons) {
-        const [keeper] = b.keepers; if (!keeper) throw new Error('keeper');
-        // the keeper on the bearer's end, below its top; the button's pivot on the flange's side above
-        expect(keeper.center[2] + keeper.size[2] / 2).toBeLessThan(s.top);
-        expect(b.pivot[2]).toBeGreaterThan(s.top);
+        const out = (q: V3) => vec.dot(vec.sub(q, s.at), vec.mul(s.across, b.side)) - s.length / 2;
+        const z = (box: { center: V3; size: V3 }) => [box.center[2] - box.size[2] / 2, box.center[2] + box.size[2] / 2];
+        // the keeper on the flange's side, above the bearer and proud of the flush face; the post on the bearer's end below it
+        expect(z(b.keeper)[0]).toBeCloseTo(s.top + keeper.above, 9); expect(out(b.keeper.center)).toBeCloseTo(keeper.out / 2, 9);
+        expect(z(b.post)[0]).toBeLessThan(s.top); expect(out(b.post.center)).toBeGreaterThan(0);
+        // the button lies on its post, just clear of the keeper's top, and reaches over it
+        expect(z(b.button)[0]).toBeCloseTo((z(b.keeper)[1] ?? 0) + button.clearance, 9);
+        expect(z(b.post)[1]).toBeCloseTo(z(b.button)[0] ?? 0, 9);
+        const along = (q: V3) => vec.dot(vec.sub(q, s.at), s.along);
+        expect(along(b.button.center) + b.button.size[1] / 2).toBeGreaterThanOrEqual(along(b.keeper.center) + b.keeper.size[1] / 2 - 1e-9);
+        // its pivot screw goes down into the post; the keeper belongs to the section, the button to the support
+        expect(b.pivot[2]).toBeCloseTo((z(b.button)[1] ?? 0), 9);
         expect(b.piece).not.toBe('');
       }
     }
+    const screws = (component: string) => l.fasteners.filter(f => f.component === component);
+    const buttons = l.supports.reduce((n, s) => n + s.hold.buttons.length, 0);
+    expect(screws('keeper-screws')).toHaveLength(buttons); expect(screws('post-screws')).toHaveLength(2 * buttons); expect(screws('button-screws')).toHaveLength(buttons);
+    expect(screws('button-screws').every(f => f.direction[2] === -1)).toBe(true);
     expect(held('turn-buttons').errors.join()).toMatch(/Turn buttons fit only under flanges flush/);
   });
 
