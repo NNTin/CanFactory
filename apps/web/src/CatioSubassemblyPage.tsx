@@ -6,7 +6,7 @@ import { createStage, type Stage } from './stage.ts';
 import type { CatioLayer, CatioView } from './catioDesign.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { BOM_GROUPS, inRange, loadSubassemblySettings, subassemblyStorageKey, defaultSubassemblySettings, type BomLine, type NumberRange, type SubassemblyDefinition, type SubassemblyModel, type SubassemblyViewing } from './catioSubassembly.ts';
-import { couplingDefinition, dependentsOf, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
+import { couplingDefinition, dependentsOf, tunnelCouplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
 import { ChangesNote, OtherPageIssues, PageRelations, SettingSource, useOtherPageIssues } from './CatioCrossPage.tsx';
 import { formatHash, type CatioSubassembly } from './route.ts';
 
@@ -23,6 +23,7 @@ export function CatioSubassemblyRoute({ id }: { id: CatioSubassembly }) {
     'window-insert': () => <CatioSubassemblyPage definition={windowInsertDefinition} />,
     'insert-tunnel-coupling': () => <CatioSubassemblyPage definition={couplingDefinition} />,
     tunnel: () => <CatioSubassemblyPage definition={tunnelDefinition} />,
+    'tunnel-tunnel-coupling': () => <CatioSubassemblyPage definition={tunnelCouplingDefinition} />,
   };
   return pages[id]();
 }

@@ -1,6 +1,6 @@
-import { COUPLING_HARDWARE as HW, COUPLING_LATCH, couplingLatch, dimensionOf, findPart, toggleLatch, toggleLatchMechanism as TL, type Part } from '@canfactory/contracts';
+import { COUPLING_HARDWARE as HW, COUPLING_LATCH, couplingLatch, dimensionOf, findPart, toggleLatchMechanism as TL, type Part } from '@canfactory/contracts';
 import type { CatioView } from './catioDesign.ts';
-import { latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchScrews, type LatchMount } from './catioPrintedLatch.ts';
+import { E_PROFILE_SEAL, latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine, printedLatchScrews, type LatchMount } from './catioPrintedLatch.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { clearOf, fastenerClashes, fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
 import { parseTunnel, TUNNEL, TUNNEL_DEFAULT, tunnelLayout, tunnelSite, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
@@ -51,7 +51,7 @@ export const COUPLING = {
 /** The seal gap and the seal for this latch: a short printed latch needs the frame closer to the flange (`PRINTED_LATCH`). */
 export function couplingJoint(config: Pick<CouplingConfig, 'latch'>) {
   return config.latch === 'printed'
-    ? { gap: COUPLING.printed.gap, seal: { ...COUPLING.printed.seal, name: 'EPDM E-profile seal, self-adhesive (custom)', profile: 'E-profile' } }
+    ? { gap: COUPLING.printed.gap, seal: { ...COUPLING.printed.seal, name: E_PROFILE_SEAL, profile: 'E-profile' } }
     : { gap: COUPLING.gap, seal: { ...COUPLING.seal, name: 'EPDM D-profile seal, self-adhesive (custom)', profile: 'D-profile' } };
 }
 
@@ -259,9 +259,7 @@ export function couplingBom(_variant: CatioMode, config: CouplingConfig, site?: 
   if (head) lines.push({ id: 'frame-head', group: 'Timber', name: 'Docking frame head', quantity: 1, size: `${section} · ${head.cut}`, use: 'Across the stiles, on the transom' });
   const each = config.latchesPerSide === 1 ? 'One' : 'Two';
   if (l.latchPart) lines.push({ id: l.latchPart.id, group: 'Hardware', name: l.latchPart.title, quantity: l.latches.length, size: `${l.latchPart.designation} · ${partSize(l.latchPart)}`, use: `${each} on each side of the joint: body on the flange, catch bracket on the docking frame`, partId: l.latchPart.id });
-  else lines.push({ id: toggleLatch.id, group: 'Hardware', name: `${toggleLatch.title}, printed`, quantity: l.latches.length, modelId: toggleLatch.id,
-    size: `4 printed parts each: base, lever, link and catch · ${PRINTED_LATCH.length} × ${round1(PRINTED_LATCH.along)} × ${PRINTED_LATCH.plate} plates · holes for DIN 7997 4 × 25 (the model’s default)`,
-    use: `${each} on each side of the joint: base plate on the flange, catch plate on the docking frame` });
+  else lines.push(printedLatchLine(l.latches.length, `${each} on each side of the joint: base plate on the flange, catch plate on the docking frame`));
   const counts = new Map<string, { quantity: number; uses: Set<string> }>();
   for (const f of l.fasteners) {
     const entry = counts.get(f.partId) ?? { quantity: 0, uses: new Set<string>() };

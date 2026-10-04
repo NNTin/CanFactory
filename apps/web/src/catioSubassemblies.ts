@@ -3,6 +3,11 @@ import { loadSubassemblySettings, type Follow, type SubassemblyDefinition } from
 import { createWindowInsertScene } from './catioWindowInsertScene.ts';
 import { createTunnelScene } from './catioTunnelScene.ts';
 import { createCouplingScene } from './catioCouplingScene.ts';
+import { createTunnelCouplingScene } from './catioTunnelCouplingScene.ts';
+import {
+  parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, TUNNEL_SETTINGS_FOLLOWED, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingSteps,
+  tunnelCouplingViews, validateTunnelCoupling, type TunnelCouplingConfig,
+} from './catioTunnelCoupling.ts';
 import {
   COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, couplingBom, couplingFacts, couplingSteps, couplingViews, parseCoupling, validateCoupling, type CouplingConfig,
 } from './catioCoupling.ts';
@@ -29,8 +34,9 @@ export const tunnelDefinition: SubassemblyDefinition<TunnelConfig> = {
   heading: 'Any angle, any height, on any ground.',
   summary: 'The enclosed walkway from the window insert’s cat port to the enclosure’s: solved between the two ports, turning and climbing at any angle through parametrised angle joints, on supports whose levelling feet take up ground that is not level.',
   variants: ['modular'], briefLabel: 'THE TUNNEL', assemblyHeading: 'From the slabs to the enclosure.', stageScale: 20,
-  // the window port's floor, which the tunnel starts from, follows the insert's clamp gap
-  follows: [{ page: 'window-insert', settings: WINDOW_FLOOR_SETTINGS }],
+  // the window port's floor, which the tunnel starts from, follows the insert's clamp gap; every section and collar coupling is the
+  // tunnel–tunnel coupling page's (latched across a gap, or bolted)
+  follows: [{ page: 'window-insert', settings: WINDOW_FLOOR_SETTINGS }, { page: 'tunnel-tunnel-coupling', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal'] }],
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the climb', Top: 'Top · the turns', Mounting: 'Support detail' },
   toggles: { cutaway: 'Wall cutaway' }, layerLabels: { hardware: 'Bolts, feet & fixings', environment: 'Ground, wall & slabs' },
   defaults: TUNNEL_DEFAULT, presets: TUNNEL_PRESETS, controls: TUNNEL_CONTROLS, parse: parseTunnel,
@@ -57,9 +63,27 @@ export const couplingDefinition: SubassemblyDefinition<CouplingConfig> = {
   views: couplingViews, facts: couplingFacts, decisions: COUPLING_DECISIONS,
 };
 
+export const tunnelCouplingDefinition: SubassemblyDefinition<TunnelCouplingConfig> = {
+  id: 'tunnel-tunnel-coupling', title: 'Tunnel–tunnel coupling', eyebrow: 'CATIO SUB-ASSEMBLY · TUNNEL–TUNNEL COUPLING',
+  heading: 'One section, then the next.',
+  summary: 'How two of the tunnel’s sections are joined, flange to flange, on the support under the joint: printed toggle latches across a sealed gap that close by hand, or M8 bolts through both flanges. The tunnel page couples every section this way.',
+  variants: ['modular'], briefLabel: 'THE JOINT', assemblyHeading: 'From one section to two, coupled.',
+  // its two sections are the tunnel's, at its longest section, on one of its supports with its feet, on its ground
+  follows: [{ page: 'tunnel', settings: TUNNEL_SETTINGS_FOLLOWED }],
+  viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the joint', Mounting: 'Latch detail' },
+  toggles: { windowOpen: 'Released · latches open' }, defaultViewing: { windowOpen: false },
+  layerLabels: { hardware: 'Latches, bolts, feet & screws', environment: 'Grass & slabs' },
+  defaults: TUNNEL_COUPLING_DEFAULT, controls: TUNNEL_COUPLING_CONTROLS, parse: parseTunnelCoupling,
+  validate: (variant, config) => validateTunnelCoupling(variant, config),
+  steps: (variant, config) => tunnelCouplingSteps(variant, config), build: (variant, config) => createTunnelCouplingScene(variant, config),
+  bom: (variant, config) => tunnelCouplingBom(variant, config),
+  views: tunnelCouplingViews, facts: (variant, config) => tunnelCouplingFacts(variant, config), decisions: TUNNEL_COUPLING_DECISIONS,
+};
+
 /** Every sub-assembly page, for links and breadcrumbs. The enclosure is next; `CatioSubassemblyRoute` picks the definition. */
 export const CATIO_SUBASSEMBLY_TITLES: Record<CatioSubassembly, string> = {
   'window-insert': windowInsertDefinition.title, 'insert-tunnel-coupling': couplingDefinition.title, tunnel: tunnelDefinition.title,
+  'tunnel-tunnel-coupling': tunnelCouplingDefinition.title,
 };
 
 /** What other pages need of a sub-assembly page without knowing its config type. */
@@ -77,6 +101,7 @@ const entry = <C extends object>(d: SubassemblyDefinition<C>): SubassemblyEntry 
 });
 export const CATIO_SUBASSEMBLY_ENTRIES: Record<CatioSubassembly, SubassemblyEntry> = {
   'window-insert': entry(windowInsertDefinition), tunnel: entry(tunnelDefinition), 'insert-tunnel-coupling': entry(couplingDefinition),
+  'tunnel-tunnel-coupling': entry(tunnelCouplingDefinition),
 };
 
 /** The pages that follow `id`, each with the settings of `id` that change it. */

@@ -105,6 +105,8 @@ export const TUNNEL_HARDWARE = {
   bearerScrew: 'din-7997-6x100',
   braceScrew: 'din-7997-5x50',
   staple: 'din-1159-2-5x25',
+  /** Through the printed toggle latches' plates at latched couplings: the latch model's default screw. */
+  latchScrew: 'din-7997-4x25',
 } as const;
 
 /** The tunnel's support feet: Ganter GN 343.2 KR on an M8 stud, in these diameters, each with its longest stud (the most travel). */
@@ -141,6 +143,7 @@ export const tunnelConcept: ConceptPage = {
     ...TUNNEL_FOOT.diameters.map(d1 => ({ partId: tunnelFoot(d1).id, via: `Support feet (${d1} mm)` })),
     { partId: tunnelPadScrew().id, via: 'Printed support feet (screw locked in each foot)' },
     { partId: t.couplingNut, via: 'Printed support feet (nut jammed against the leg)' },
+    { partId: t.latchScrew, via: 'Printed toggle latches at the couplings' },
   ],
 };
 
@@ -170,4 +173,18 @@ export const insertTunnelCouplingConcept: ConceptPage = {
   ],
 };
 
-export const conceptPages: readonly ConceptPage[] = [windowInsertConcept, tunnelConcept, insertTunnelCouplingConcept];
+/**
+ * The catio's tunnel–tunnel coupling: how two sections' flanges are joined, by printed toggle latches (the `toggle-latch` model,
+ * screwed on with its default screws) or by M8 bolts through both flanges with a large washer each side.
+ */
+export const tunnelTunnelCouplingConcept: ConceptPage = {
+  id: 'catio/tunnel-tunnel-coupling', title: 'Window catio: tunnel–tunnel coupling',
+  parts: [
+    { partId: t.latchScrew, via: 'Printed toggle latches (base and catch plates)' },
+    { partId: t.couplingBolt, via: 'Bolted couplings' },
+    { partId: t.couplingWasher, via: 'Bolted couplings (both sides)' },
+    { partId: t.couplingNut, via: 'Bolted couplings' },
+  ],
+};
+
+export const conceptPages: readonly ConceptPage[] = [windowInsertConcept, tunnelConcept, insertTunnelCouplingConcept, tunnelTunnelCouplingConcept];

@@ -35,9 +35,11 @@ export function buildPrintedLatches<M extends LatchMount>(mounts: M[]) {
     const { group, frame } = at(mount);
     placeLatchPart(part(frame, 'base'), locked.base);
     const lever = part(frame, 'lever'); lever.name = `${mount.id}-lever`; const link = part(frame, 'link');
-    const setOpen = (open: number) => { const poses = TL.latchPoses(printedLatchState(open)); placeLatchPart(lever, poses.lever); placeLatchPart(link, poses.link); };
+    /** Puts the lever and the link where the mechanism has them in `state`; the base and catch stay put. */
+    const setState = (state: TL.LatchState) => { const poses = TL.latchPoses(state); placeLatchPart(lever, poses.lever); placeLatchPart(link, poses.link); };
+    const setOpen = (open: number) => setState(printedLatchState(open));
     setOpen(0);
-    return { mount, group, lever, setOpen };
+    return { mount, group, lever, setOpen, setState };
   });
   return { catches, latches, dispose: () => meshes.dispose() };
 }
