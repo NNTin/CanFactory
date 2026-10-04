@@ -395,11 +395,11 @@ describe('tunnel–tunnel coupling page settings', () => {
       store.set(subassemblyStorageKey('tunnel-tunnel-coupling'), JSON.stringify({ version: 1, config: { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'strap', mechanism: 'bolts' } }));
       expect(loadSubassemblySettings(tunnelCouplingDefinition).config).toEqual({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', supportFixing: 'dowels' });
       // set here: written back to the tunnel page, its other settings kept
-      saveShared(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'cradle', supportBase: 'self-standing' });
+      saveShared<TunnelCouplingConfig>(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'cradle', supportBase: 'self-standing' });
       expect(loadSubassemblySettings(tunnelDefinition).config).toEqual({ ...TUNNEL_DEFAULT, supportFixing: 'cradle', supportBase: 'self-standing', portHeight: 655 });
       // with nothing saved on the tunnel page yet, it is started with just these
       store.clear();
-      saveShared(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'latch' });
+      saveShared<TunnelCouplingConfig>(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'latch' });
       expect(loadSubassemblySettings(tunnelDefinition).config).toEqual({ ...TUNNEL_DEFAULT, supportFixing: 'latch' });
       // an invalid value saved on the tunnel page is not taken
       store.set(subassemblyStorageKey('tunnel'), JSON.stringify({ version: 1, config: { supportFixing: 'glue' } }));
