@@ -366,7 +366,8 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
     ...[-1, 1].flatMap(s => sideHeights.map(f => [s * (w / 2 + 40 + (F - 40) / 2), f * h] as [number, number])),
     ...(joint.boltsPerCoupling === 8 ? [[-w / 4, h + 40 + (F - 40) / 2], [w / 4, h + 40 + (F - 40) / 2]] as [number, number][] : []),
   ];
-  const latchAt = latchHeights(joint.latchesPerSide).map(f => -F + f * (h + 2 * F));
+  // up the clear opening's height beside the mesh, as the bolts are: clear of the rails' screws at its top and bottom corners
+  const latchAt = latchHeights(joint.latchesPerSide).map(f => f * h);
   const fasteners: Fastener[] = [];
   const couplings: Coupling[] = interfaces.filter(i => i.kind !== 'wall').map(i => {
     const square = dot(i.face.n, i.face.frame.y) > 1 - 1e-9;

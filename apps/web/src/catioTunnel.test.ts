@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { findPart, partUsage, TUNNEL_FOOT, tunnelConcept } from '@canfactory/contracts';
+import { findPart, partUsage, toggleLatchMechanism as TL, TUNNEL_FOOT, tunnelConcept } from '@canfactory/contracts';
 import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { tunnelDefinition } from './catioSubassemblies.ts';
@@ -340,6 +340,26 @@ describe('tunnel scene', () => {
     const lifts = order.map(id => scene.carriers.get(id) ?? 0);
     expect(lifts[0]).toBe(0); expect(lifts.at(-1)).toBe(LIFT);
     for (const [i, lift] of lifts.entries()) if (i > 0) expect(lift).toBeGreaterThanOrEqual(lifts[i - 1] ?? 0);
+    scene.dispose();
+  });
+
+  it('latches every square coupling with the shared printed latch, closed over centre once the pieces are down, each part on its pins', () => {
+    const scene = createTunnelScene('modular', TUNNEL_DEFAULT, site, TUNNEL_COUPLING_DEFAULT);
+    const latched = scene.layout.couplings.filter(c => c.kind === 'latched');
+    expect(scene.levers).toHaveLength(latched.length * 2 * TUNNEL_COUPLING_DEFAULT.latchesPerSide);
+    const G = TL.TOGGLE_LATCH_GEOMETRY;
+    const world = (object: THREE.Object3D, point: [number, number, number]) => new THREE.Vector3(...point).applyMatrix4(object.matrixWorld);
+    const named = (lever: THREE.Object3D, name: string) => lever.parent?.children.find(child => child.name === name);
+    const tip = (lever: THREE.Object3D) => world(lever, [30, G.lever.middle, 1.5]);
+    scene.update({ ...installed, progress: 4.5 }); const open = scene.levers.map(q => tip(q.lever).distanceTo(new THREE.Vector3(...q.mount.at)));
+    scene.update(installed);
+    scene.levers.forEach((q, i) => {
+      const base = named(q.lever, 'toggle-latch-base'), link = named(q.lever, 'toggle-latch-link'); if (!base || !link) throw new Error('latch parts');
+      expect(world(q.lever, [G.lever.pivot[0], G.lever.middle, G.lever.pivot[1]]).distanceTo(world(base, [G.base.middle, G.base.pivot[0], G.base.pivot[1]]))).toBeLessThan(1e-3);
+      expect(world(link, [G.link.hole[0], G.link.middle, G.link.hole[1]]).distanceTo(world(q.lever, [G.lever.pin[0], G.lever.middle, G.lever.pin[1]]))).toBeLessThan(1e-3);
+      // closed, the lever lies along the joint, much nearer the plates than it stood open
+      expect(tip(q.lever).distanceTo(new THREE.Vector3(...q.mount.at))).toBeLessThan(open[i] ?? 0);
+    });
     scene.dispose();
   });
 

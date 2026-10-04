@@ -29,12 +29,9 @@ export const PRINTED_LATCH = (() => {
   };
 })();
 
-/**
- * Where the latches stand up a side face, as fractions of its height: one at half height, two at 20 and 80 %, three at 20, 50 and
- * 80 % (at 85 % a tunnel flange's top latch screw would come within 7 mm of the top rail's screws).
- */
+/** Where the latches stand up a joint, as fractions of its height: one at half height, two at 20 and 80 %, three at 15, 50 and 85 %. */
 export function latchHeights(count: 1 | 2 | 3): number[] {
-  return count === 1 ? [0.5] : count === 2 ? [0.2, 0.8] : [0.2, 0.5, 0.8];
+  return count === 1 ? [0.5] : count === 2 ? [0.2, 0.8] : [0.15, 0.5, 0.85];
 }
 
 /**
