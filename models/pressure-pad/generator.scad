@@ -13,8 +13,9 @@
 // An extender (PART = "extender") makes the leg longer than the longest screw:
 // a printed sleeve that joins two screws end to end. A nut is locked in a
 // hexagon pocket at one end and the next screw's hexagon head in a pocket at
-// the other; the first screw is turned into the nut until its tip bears on the
-// solid between the pockets, which locks the joint. Extenders stack.
+// the other. The sleeve is hollow between them: the screw below runs on through
+// the nut up the bore, as far as the leg's height needs, and a lock nut on it is
+// jammed against the extender's end. Extenders stack.
 //
 // The screw's shank leaves through a slot in the pad's back (the lip), which
 // holds the nut or head in. Two small bumps narrow the chamber's mouth to just
@@ -64,7 +65,7 @@ ROUNDNESS = 96; //[48,96,144]
 
 // Fixed design sizes (mirrored by PRESSURE_PAD in pressurePad.ts).
 LIP     = 3;    // the back over the nut or head
-FLOOR   = 3;    // solid between the chamber (or tip recess) and the sole's relief
+FLOOR   = 3;    // solid between the chamber (or tip recess) and the sole's relief; an extender's least bore
 TIP     = 2;    // recess under a thrust pad's nut for the screw's tip
 WALL    = 3;    // least wall round the chamber
 SNAP    = 0.15; // each bump narrows the chamber's mouth this much below the flats
@@ -87,7 +88,7 @@ R_RELIEF = SURFACE == "flat" ? 0 : RELIEF;
 
 MIN_HEIGHT   = LIP + POCKET_H + RECESS + FLOOR + R_RELIEF;
 MIN_DIAMETER = CHAMBER_D + 2*WALL;
-// An extender: the nut's hexagon pocket, a solid floor, the head's hexagon pocket, a lip at each end.
+// An extender: the nut's hexagon pocket, a hollow bore at least FLOOR long, the head's hexagon pocket, a lip at each end.
 NUT_POCKET  = NUT_H + FIT;
 HEAD_POCKET = SCREW_K + FIT;
 MIN_EXT_LENGTH   = LIP + NUT_POCKET + FLOOR + HEAD_POCKET + LIP;
@@ -167,6 +168,8 @@ module extender() {
         rotate_extrude() polygon([[0, 0], [R - CHAMFER, 0], [R, CHAMFER], [R, L - CHAMFER], [R - CHAMFER, L], [0, L]]);
         translate([0, 0, -1]) linear_extrude(LIP + 1.01) shank_plan(NUT_D);
         translate([0, 0, LIP]) linear_extrude(NUT_POCKET) pocket_plan(NUT_S, false);
+        // the hollow middle: the screw below runs on up it, through the nut
+        translate([0, 0, LIP + NUT_POCKET - 0.01]) cylinder(d = NUT_D + 2*FIT, h = L - 2*LIP - NUT_POCKET - HEAD_POCKET + 0.02);
         translate([0, 0, L - LIP - HEAD_POCKET]) linear_extrude(HEAD_POCKET) pocket_plan(SCREW_S, false);
         translate([0, 0, L - LIP - 0.01]) linear_extrude(LIP + 1.01) shank_plan(SCREW_D);
     }

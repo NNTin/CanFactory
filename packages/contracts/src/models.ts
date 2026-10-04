@@ -4,7 +4,7 @@ import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
-import { PRESSURE_PAD, PRESSURE_PAD_SURFACES, PRESSURE_PAD_TYPES, pressurePadLeg, pressurePadMinDiameter, pressurePadMinExtenderDiameter, pressurePadMinExtenderLength, pressurePadMinHeight, type PressurePadSurface, type PressurePadType } from './pressurePad.ts';
+import { PRESSURE_PAD, PRESSURE_PAD_SURFACES, PRESSURE_PAD_TYPES, pressurePadExtenderTravel, pressurePadLeg, pressurePadMinDiameter, pressurePadMinExtenderDiameter, pressurePadMinExtenderLength, pressurePadMinHeight, type PressurePadSurface, type PressurePadType } from './pressurePad.ts';
 import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, type LatchMovement } from './toggleLatchMechanism.ts';
 
 /** A field-level, user-readable validation failure. Paths are parameter names. */
@@ -1849,8 +1849,8 @@ export const PRESSURE_PAD_NUTS = ['iso-10511-m4', 'iso-10511-m5', 'iso-10511-m6'
 export const PRESSURE_PAD_SCREWS = [
   'iso-4017-m4x8', 'iso-4017-m4x10', 'iso-4017-m4x12', 'iso-4017-m4x16', 'iso-4017-m4x20', 'iso-4017-m4x25', 'iso-4017-m4x30', 'iso-4017-m4x40', 'iso-4017-m5x10', 'iso-4017-m5x12', 'iso-4017-m5x16', 'iso-4017-m5x20', 'iso-4017-m5x25', 'iso-4017-m5x30', 'iso-4017-m5x40', 'iso-4017-m5x50', 'iso-4017-m6x12', 'iso-4017-m6x16', 'iso-4017-m6x20', 'iso-4017-m6x25', 'iso-4017-m6x30', 'iso-4017-m6x40', 'iso-4017-m6x50', 'iso-4017-m6x60', 'iso-4017-m8x16', 'iso-4017-m8x20', 'iso-4017-m8x25', 'iso-4017-m8x30', 'iso-4017-m8x40', 'iso-4017-m8x50', 'iso-4017-m8x60', 'iso-4017-m8x80',
 ] as const;
-/** M8, as the catio's insert nuts: a foot on ISO 4017 M8 × 30 screws, one 40 mm extender with an ISO 10511 lock nut. */
-export const DEFAULT_PRESSURE_PAD = { padType: 'foot', diameter: 32, height: 24.5, surface: 'grooved', relief: 1, extenders: 1, extenderLength: 40, thread: 'M8', nut: 'iso-10511-m8', screw: 'iso-4017-m8x30', fit: 0.4 } as const;
+/** M8, as the catio's insert nuts: a foot on ISO 4017 M8 × 50 screws, one 40 mm extender with ISO 10511 lock nuts. */
+export const DEFAULT_PRESSURE_PAD = { padType: 'foot', diameter: 32, height: 24.5, surface: 'grooved', relief: 1, extenders: 1, extenderLength: 40, thread: 'M8', nut: 'iso-10511-m8', screw: 'iso-4017-m8x50', fit: 0.4 } as const;
 /** The most extenders one leg takes. */
 export const PRESSURE_PAD_MAX_EXTENDERS = 3;
 
@@ -1870,10 +1870,10 @@ export const PressurePadParametersSchema = Type.Object({
   height: dimension('Height', 'From the pad’s back, against the insert nut or the timber, to its sole, in mm.', DEFAULT_PRESSURE_PAD.height, 8, 80, 0.5),
   surface: Type.Enum(PRESSURE_PAD_SURFACES, { title: 'Sole', description: 'The pad’s pressing face.', default: DEFAULT_PRESSURE_PAD.surface }),
   relief: dimension('Relief', 'Depth of the grooves, or height of the dome, in mm.', DEFAULT_PRESSURE_PAD.relief, 0.4, 3, 0.1),
-  extenders: Type.Integer({ title: 'Extenders', description: 'Printed sleeves that make the leg longer than one screw: each joins two screws end to end, a nut locked in one end and the next screw’s head in the other. 0 for the pad alone.', default: DEFAULT_PRESSURE_PAD.extenders, minimum: 0, maximum: PRESSURE_PAD_MAX_EXTENDERS }),
-  extenderLength: dimension('Extender length', 'Each extender’s length, end to end, in mm. The leg grows by it and by the screw between.', DEFAULT_PRESSURE_PAD.extenderLength, 20, 150, 0.5),
+  extenders: Type.Integer({ title: 'Extenders', description: 'Printed sleeves that make the leg longer than one screw: each joins two screws end to end, a nut locked in one end and the next screw’s head in the other. Hollow between them, so the screw below runs on into it as far as the height needs, then a lock nut holds it. 0 for the pad alone.', default: DEFAULT_PRESSURE_PAD.extenders, minimum: 0, maximum: PRESSURE_PAD_MAX_EXTENDERS }),
+  extenderLength: dimension('Extender length', 'Each extender’s length, end to end, in mm. The longer, the more the height can be set at each joint.', DEFAULT_PRESSURE_PAD.extenderLength, 20, 150, 0.5),
   thread: Type.Enum(PRESSURE_PAD_THREADS, { title: 'Thread', description: 'The screw’s thread; the nuts and screws below are those of this thread.', default: DEFAULT_PRESSURE_PAD.thread }),
-  nut: Type.Enum(PRESSURE_PAD_NUTS, { title: 'Nut', description: 'The nut the thrust pad’s chamber is sized for, run onto the screw’s tip; and the nut locked in each extender.', default: DEFAULT_PRESSURE_PAD.nut }),
+  nut: Type.Enum(PRESSURE_PAD_NUTS, { title: 'Nut', description: 'The nut the thrust pad’s chamber is sized for, run onto the screw’s tip; the nut locked in each extender, and the lock nut jammed against it.', default: DEFAULT_PRESSURE_PAD.nut }),
   screw: Type.Enum(PRESSURE_PAD_SCREWS, { title: 'Screw', description: 'The hexagon head screw the foot’s and the extenders’ head pockets are sized for. Its length does not change the printed parts; it sets the leg’s length in the assembly.', default: DEFAULT_PRESSURE_PAD.screw }),
   fit: dimension('Fit', 'Play round the nut or head, and round the screw’s shank, on each side, in mm.', DEFAULT_PRESSURE_PAD.fit, 0.1, 0.8, 0.05),
 }, { additionalProperties: false, description: 'Pressure pad parameters. All fields are required; dimensions are in millimetres; the nut and screw are parts-library ids.' });
@@ -1900,6 +1900,8 @@ function validatePressurePad(p: PressurePadParameters): ParameterIssue[] {
     const length = pressurePadMinExtenderLength(nut, screw, p.fit); const across = pressurePadMinExtenderDiameter(nut, screw, p.fit);
     const both = `an ${nut.designation} nut and the head of an ${screw.designation}`;
     if (p.extenderLength < length - 1e-9) issues.push({ field: 'extenderLength', message: `An extender must be at least ${Math.ceil(length * 2) / 2} mm long to hold ${both} with a floor between them.` });
+    const { max } = pressurePadExtenderTravel(p, nut, screw);
+    if (max < 0) issues.push({ field: 'screw', message: `An ${screw.designation} is too short to pass an extender’s lip, its nut and a lock nut: choose one at least ${dimensionOf(screw, 'l') - max} mm long.` });
     if (p.diameter < across - 1e-9 && across > diameter + 1e-9) issues.push({ field: 'diameter', message: `With extenders the pad must be at least ${Math.ceil(across * 2) / 2} mm across: each extender holds ${both} with a ${PRESSURE_PAD.wall} mm wall.` });
   }
   return issues;
@@ -1922,8 +1924,8 @@ export function pressurePadAssembly(parameters: ParameterValues): Assembly {
   if (p.padType === 'foot') {
     step('Slide the screw’s head into the foot from the side', ['screw-0'], [side, 0, 0]);
     for (let i = 1; i <= p.extenders; i++) {
-      step(`Extender ${i}: run a nut down onto the screw’s end`, [`nut-${i}`], [0, 0, 25]);
-      step(`Extender ${i}: slide it over the nut from the side, then turn the foot until the screw’s tip bears on it`, [`extender-${i}`], [-side, 0, 0]);
+      step(`Extender ${i}: run a lock nut, then a nut, down the screw`, [`locknut-${i}`, `nut-${i}`], [0, 0, 30]);
+      step(`Extender ${i}: slide it over the nut from the side (then turn it to the height and jam the lock nut up against it)`, [`extender-${i}`], [-side, 0, 0]);
       step(`Extender ${i}: slide the next screw’s head into its top pocket`, [`screw-${i}`], [side, 0, 0]);
     }
   } else {
@@ -1931,14 +1933,26 @@ export function pressurePadAssembly(parameters: ParameterValues): Assembly {
     for (let i = 1; i <= p.extenders; i++) {
       step(`Extender ${i}: slide it over the screw’s head from the side`, [`extender-${i}`], [-side, 0, 0]);
       step(`Extender ${i}: slide a nut into its top pocket`, [`nut-${i}`], [side, 0, 0]);
-      step(`Extender ${i}: turn the next screw down into the nut until its tip bears`, [`screw-${i}`], [0, 0, 30]);
+      step(`Extender ${i}: turn the next screw, a lock nut on it, down through the nut (to the height, then jam the lock nut down on the extender)`, [`screw-${i}`, `locknut-${i}`], [0, 0, 30]);
     }
   }
+  // Each extender's height, set: from the longest leg (as it was slid on) its screw runs on into the hollow bore to the shortest,
+  // then back. Everything the joint carries moves with it, sampled every half millimetre.
+  const { max } = pressurePadExtenderTravel(p, nut, screw);
+  const motion: NonNullable<Assembly['motion']> = max > 0 ? Array.from({ length: p.extenders }, (_, index) => {
+    const count = Math.max(2, Math.ceil(max / 0.5));
+    const path = [...Array.from({ length: count }, (_, k) => (k + 1) / count), ...Array.from({ length: count }, (_, k) => 1 - (k + 1) / count)];
+    return {
+      title: `Set the height at extender ${index + 1}: ${Math.round(max * 10) / 10} mm of travel`,
+      frames: path.map(setting => Object.fromEntries(pressurePadLeg(p, nut, screw, Array.from({ length: p.extenders }, (_, k) => k === index ? setting : 0))
+        .map(piece => [piece.id, { position: piece.position, rotation: piece.rotation }]))),
+    };
+  }) : [];
   // the printed parts' poses; the screws and nuts are linked references (`pressurePadFasteners`), named in the steps
   return {
     partColors: { pad: '#5f7350', ...Object.fromEntries(Array.from({ length: PRESSURE_PAD_MAX_EXTENDERS }, (_, i) => [`extender-${i + 1}`, '#d98460'])) },
     poses: Object.fromEntries(leg.filter(piece => piece.kind === 'pad' || piece.kind === 'extender').map(piece => [piece.id, { position: piece.position, rotation: piece.rotation }])),
-    steps, lift: 10,
+    steps, lift: 10, ...(motion.length > 0 ? { motion } : {}),
   };
 }
 
@@ -1949,7 +1963,8 @@ function pressurePadFasteners(parameters: ParameterValues): LinkedReference[] {
   if (!nut || !screw) return [];
   return pressurePadLeg(p, nut, screw).filter(piece => piece.kind === 'nut' || piece.kind === 'screw').map(piece => ({
     id: piece.id, part: (piece.kind === 'nut' ? nut : screw).id,
-    label: piece.id.endsWith('-0') ? (p.padType === 'foot' ? 'in the foot' : 'in the pad') : `extender ${piece.id.split('-')[1] ?? ''}`,
+    label: piece.id.endsWith('-0') ? (p.padType === 'foot' ? 'in the foot' : 'in the pad')
+      : `${piece.id.startsWith('locknut') ? 'lock nut at ' : ''}extender ${piece.id.split('-')[1] ?? ''}`,
     pose: { position: piece.position, rotation: piece.rotation },
   }));
 }

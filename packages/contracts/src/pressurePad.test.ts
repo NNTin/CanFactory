@@ -9,7 +9,7 @@ import { resolveAssembly } from './assembly.ts';
 import { dimensionOf, findPart, parts } from './parts/index.ts';
 import { RenderRequestSchema } from './index.ts';
 import {
-  hexScrew, PRESSURE_PAD, pressurePadLeg, pressurePadMinDiameter, pressurePadMinExtenderDiameter, pressurePadMinExtenderLength, pressurePadMinHeight, pressurePadPocket,
+  hexScrew, PRESSURE_PAD, pressurePadExtenderTravel, pressurePadLeg, pressurePadMinDiameter, pressurePadMinExtenderDiameter, pressurePadMinExtenderLength, pressurePadMinHeight, pressurePadPocket,
   pressurePadSeat,
 } from './pressurePad.ts';
 
@@ -74,7 +74,7 @@ describe('pressure pad contract', () => {
     expect(pressurePadMinHeight(foot, part('iso-4017-m8x30'))).toBeCloseTo(12.85, 9);
     expect(validateParameters(pressurePad, { ...foot, height: 13 })).toEqual([]);
     expect(validateParameters(pressurePad, { ...foot, height: 12.5 })).toContainEqual(expect.objectContaining({ field: 'height' }));
-    expect(pressurePadPart(foot).id).toBe('iso-4017-m8x30');
+    expect(pressurePadPart(foot).id).toBe('iso-4017-m8x50');
   });
 
   it('holds the screw where the catio pages expect it, and picks hexagon screws by length', () => {
@@ -100,40 +100,59 @@ describe('pressure pad contract', () => {
     expect(validateParameters(pressurePad, { ...defaults, diameter: 21.5 })).toEqual([expect.objectContaining({ field: 'diameter' })]);
   });
 
-  it('stacks the leg: each screw bears where its pocket holds it, each extender on the screw below', () => {
-    const nut = part('iso-10511-m8'); const screw = part('iso-4017-m8x30'); const h = 8; const l = 30; const k = 5.45;
+  it('stacks the leg: each screw held where its pocket holds it, each extender on the screw below, set anywhere in its travel', () => {
+    const nut = part('iso-10511-m8'); const screw = part('iso-4017-m8x50'); const h = 8; const l = 50; const k = 5.45;
     const at = (pieces: ReturnType<typeof pressurePadLeg>, id: string) => pieces.find(piece => piece.id === id) ?? (() => { throw new Error(id); })();
-    for (const extenders of [0, 1, 3]) {
-      const foot = pressurePadLeg({ ...DEFAULT_PRESSURE_PAD, padType: 'foot', extenders }, nut, screw);
-      expect(foot.map(piece => piece.id)).toEqual(['pad', 'screw-0', ...Array.from({ length: extenders }, (_, i) => [`nut-${i + 1}`, `extender-${i + 1}`, `screw-${i + 1}`]).flat()]);
+    const shape = { ...DEFAULT_PRESSURE_PAD, extenderLength: 40 };
+    // up the 40 mm extender's bore: 40 − 2 × 3 lips − the nut 8 − the next head 5.45 − 0.4 of play
+    const travel = pressurePadExtenderTravel({ ...shape, padType: 'foot' }, nut, screw);
+    expect(travel.travel).toBeCloseTo(20.15, 9); expect(travel.max).toBeCloseTo(20.15, 9);
+    // a short screw leaves less, for the lock nut: 30 − 2 × 3 − 2 × 8 (foot), 30 − 3 − 2 × 8 (thrust pad)
+    expect(pressurePadExtenderTravel({ ...shape, padType: 'foot' }, nut, part('iso-4017-m8x30')).max).toBeCloseTo(8, 9);
+    expect(pressurePadExtenderTravel({ ...shape, padType: 'thrust' }, nut, part('iso-4017-m8x30')).max).toBeCloseTo(11, 9);
+    expect(pressurePadExtenderTravel({ ...shape, padType: 'foot' }, nut, part('iso-4017-m8x20')).max).toBeLessThan(0);
+    for (const extenders of [0, 1, 3]) for (const setting of [0, 0.5, 1]) {
+      const settings = Array.from({ length: extenders }, () => setting);
+      const run = 20.15 * setting;
+      const foot = pressurePadLeg({ ...shape, padType: 'foot', extenders }, nut, screw, settings);
+      expect(foot.map(piece => piece.id)).toEqual(['pad', 'screw-0', ...Array.from({ length: extenders }, (_, i) => [`locknut-${i + 1}`, `nut-${i + 1}`, `extender-${i + 1}`, `screw-${i + 1}`]).flat()]);
       // the first head bears on the pad's lip, inside the pad
       expect(at(foot, 'screw-0').bottom).toBeCloseTo(24.5 - 3 - k, 9);
       for (let i = 1; i <= extenders; i++) {
-        const e = at(foot, `extender-${i}`); const below = at(foot, `screw-${i - 1}`); const n = at(foot, `nut-${i}`); const next = at(foot, `screw-${i}`);
-        // the nut stands on the extender's bottom lip; the screw below passes through it and bears on the floor over its pocket
+        const e = at(foot, `extender-${i}`); const below = at(foot, `screw-${i - 1}`); const n = at(foot, `nut-${i}`); const lock = at(foot, `locknut-${i}`); const next = at(foot, `screw-${i}`);
+        // the nut stands on the extender's bottom lip; the screw below runs on through it into the bore, by the setting
         expect(n.bottom).toBeCloseTo(e.bottom + 3, 9);
-        expect(below.top).toBeCloseTo(e.bottom + 3 + h + 0.4, 9);
+        expect(below.top).toBeCloseTo(n.top + run, 9);
+        // never further than the next head's pocket
+        expect(below.top).toBeLessThanOrEqual(e.top - 3 - k - 0.4 + 1e-9);
+        // the lock nut jammed up against the extender, clear of the pad or extender below
+        expect(lock.top).toBeCloseTo(e.bottom, 9);
+        expect(lock.bottom).toBeGreaterThanOrEqual((i === 1 ? 24.5 : at(foot, `extender-${i - 1}`).top) - 1e-9);
         // the next screw's head sits under the extender's top lip, its shank out of the top
         expect(next.bottom + k).toBeCloseTo(e.top - 3, 9);
         expect(next.top).toBeCloseTo(e.top - 3 + l, 9);
       }
-      const thrust = pressurePadLeg({ ...DEFAULT_PRESSURE_PAD, padType: 'thrust', extenders }, nut, screw);
+      const thrust = pressurePadLeg({ ...shape, padType: 'thrust', extenders }, nut, screw, settings);
       // the nut bears on the pad's chamber floor, the screw's tip flush with it, the head up
       expect(at(thrust, 'nut-0').bottom).toBeCloseTo(24.5 - 3 - h - 0.4, 9);
       expect(at(thrust, 'screw-0').bottom).toBeCloseTo(at(thrust, 'nut-0').bottom, 9);
       for (let i = 1; i <= extenders; i++) {
-        const e = at(thrust, `extender-${i}`); const below = at(thrust, `screw-${i - 1}`); const n = at(thrust, `nut-${i}`); const next = at(thrust, `screw-${i}`);
+        const e = at(thrust, `extender-${i}`); const below = at(thrust, `screw-${i - 1}`); const n = at(thrust, `nut-${i}`); const lock = at(thrust, `locknut-${i}`); const next = at(thrust, `screw-${i}`);
         expect(e.rotation[0]).toBe(180);
-        // turned over: the screw below's head under the bottom lip... its underside on that lip
+        // turned over: the screw below's head inside, its underside on the bottom lip
         expect(below.bottom + l).toBeCloseTo(e.bottom + 3, 9);
-        // the nut against the top lip, the next screw's tip through it onto the floor
+        // the nut against the top lip, the next screw's tip through it into the bore by the setting, not into the head's pocket
         expect(n.top).toBeCloseTo(e.top - 3, 9);
-        expect(next.bottom).toBeCloseTo(n.bottom - 0.4, 9);
+        expect(next.bottom).toBeCloseTo(n.bottom - run, 9);
+        expect(next.bottom).toBeGreaterThanOrEqual(e.bottom + 3 + k + 0.4 - 1e-9);
+        // the lock nut on the extender's top, under the next screw's head
+        expect(lock.bottom).toBeCloseTo(e.top, 9);
+        expect(lock.top).toBeLessThanOrEqual(next.bottom + l + 1e-9);
       }
     }
   });
 
-  it('animates the leg going together, every screw and nut from where it really goes in', () => {
+  it('animates the leg going together, every screw and nut from where it really goes in, then each joint’s height', () => {
     for (const padType of ['foot', 'thrust'] as const) for (const extenders of [0, 2]) {
       const parameters: ParameterValues = { ...defaults, padType, extenders };
       const assembly = resolveAssembly(pressurePad, pressurePad.assembly, parameters);
@@ -146,11 +165,26 @@ describe('pressure pad contract', () => {
       expect(assembly.steps).toHaveLength(1 + 3 * extenders);
       // sideways slides along the slots' +X (the pieces into the slots) or −X (an extender over them); a nut or screw turned on along Z
       for (const step of assembly.steps) expect(step.from[1]).toBe(0);
-      expect((assembly.references ?? []).map(r => r.title)).toContain(`Hexagon head screw M8 × 30 (${padType === 'foot' ? 'in the foot' : 'in the pad'})`);
+      expect((assembly.references ?? []).map(r => r.title)).toContain(`Hexagon head screw M8 × 50 (${padType === 'foot' ? 'in the foot' : 'in the pad'})`);
+      expect((assembly.references ?? []).filter(r => r.id.startsWith('locknut')).map(r => r.title)).toEqual(Array.from({ length: extenders }, (_, i) => `Nylon-insert lock nut M8 (lock nut at extender ${i + 1})`));
+      // one movement per extender: from the longest leg in to the shortest and back, the joint's screw only ever running along its axis
+      expect(assembly.motion ?? []).toHaveLength(extenders);
+      for (const [index, movement] of (assembly.motion ?? []).entries()) {
+        expect(movement.title).toBe(`Set the height at extender ${index + 1}: 20.2 mm of travel`);
+        // the leg's top screw rises and falls by the travel (a foot's extender moves on the screw below; a thrust pad's screw in it)
+        const top = `screw-${extenders}`;
+        const heights = movement.frames.map(frame => frame[top]?.position[2] ?? NaN);
+        expect(Math.max(...heights) - Math.min(...heights)).toBeCloseTo(20.15, 9);
+        expect(heights.at(-1)).toBeCloseTo(assembly.poses[top]?.position[2] ?? NaN, 9);
+        for (const frame of movement.frames) for (const pose of Object.values(frame)) expect([pose.position[0], pose.position[1]]).toEqual([0, 0]);
+      }
     }
     expect(pressurePadAssembly(defaults).steps.map(step => step.title)).toEqual([
-      'Slide the screw’s head into the foot from the side', 'Extender 1: run a nut down onto the screw’s end',
-      'Extender 1: slide it over the nut from the side, then turn the foot until the screw’s tip bears on it', 'Extender 1: slide the next screw’s head into its top pocket',
+      'Slide the screw’s head into the foot from the side', 'Extender 1: run a lock nut, then a nut, down the screw',
+      'Extender 1: slide it over the nut from the side (then turn it to the height and jam the lock nut up against it)', 'Extender 1: slide the next screw’s head into its top pocket',
     ]);
+    const short = validateParameters(pressurePad, { ...defaults, screw: 'iso-4017-m8x20' });
+    expect(short.map(issue => issue.field)).toEqual(['screw']);
+    expect(short[0]?.message).toContain('at least 22 mm long');
   });
 });

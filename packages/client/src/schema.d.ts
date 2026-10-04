@@ -1474,13 +1474,13 @@ export interface operations {
                         relief: number;
                         /**
                          * Extenders
-                         * @description Printed sleeves that make the leg longer than one screw: each joins two screws end to end, a nut locked in one end and the next screw’s head in the other. 0 for the pad alone.
+                         * @description Printed sleeves that make the leg longer than one screw: each joins two screws end to end, a nut locked in one end and the next screw’s head in the other. Hollow between them, so the screw below runs on into it as far as the height needs, then a lock nut holds it. 0 for the pad alone.
                          * @default 1
                          */
                         extenders: number;
                         /**
                          * Extender length
-                         * @description Each extender’s length, end to end, in mm. The leg grows by it and by the screw between.
+                         * @description Each extender’s length, end to end, in mm. The longer, the more the height can be set at each joint.
                          * @default 40
                          */
                         extenderLength: number;
@@ -1493,7 +1493,7 @@ export interface operations {
                         thread: "M4" | "M5" | "M6" | "M8";
                         /**
                          * Nut
-                         * @description The nut the thrust pad’s chamber is sized for, run onto the screw’s tip; and the nut locked in each extender.
+                         * @description The nut the thrust pad’s chamber is sized for, run onto the screw’s tip; the nut locked in each extender, and the lock nut jammed against it.
                          * @default iso-10511-m8
                          * @enum {unknown}
                          */
@@ -1501,7 +1501,7 @@ export interface operations {
                         /**
                          * Screw
                          * @description The hexagon head screw the foot’s and the extenders’ head pockets are sized for. Its length does not change the printed parts; it sets the leg’s length in the assembly.
-                         * @default iso-4017-m8x30
+                         * @default iso-4017-m8x50
                          * @enum {unknown}
                          */
                         screw: "iso-4017-m4x8" | "iso-4017-m4x10" | "iso-4017-m4x12" | "iso-4017-m4x16" | "iso-4017-m4x20" | "iso-4017-m4x25" | "iso-4017-m4x30" | "iso-4017-m4x40" | "iso-4017-m5x10" | "iso-4017-m5x12" | "iso-4017-m5x16" | "iso-4017-m5x20" | "iso-4017-m5x25" | "iso-4017-m5x30" | "iso-4017-m5x40" | "iso-4017-m5x50" | "iso-4017-m6x12" | "iso-4017-m6x16" | "iso-4017-m6x20" | "iso-4017-m6x25" | "iso-4017-m6x30" | "iso-4017-m6x40" | "iso-4017-m6x50" | "iso-4017-m6x60" | "iso-4017-m8x16" | "iso-4017-m8x20" | "iso-4017-m8x25" | "iso-4017-m8x30" | "iso-4017-m8x40" | "iso-4017-m8x50" | "iso-4017-m8x60" | "iso-4017-m8x80";

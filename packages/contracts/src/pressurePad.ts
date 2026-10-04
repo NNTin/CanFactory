@@ -77,8 +77,8 @@ export function hexScrew(thread: string, least: number): Part {
 const nutHeight = (nut: Part) => dimensionOf(nut, nut.dimensions['h'] ? 'h' : 'm', 'max');
 
 /**
- * The shortest extender that holds the nut and the screw's head in their hexagon pockets: a lip at each end, the nut's pocket,
- * a solid floor between them (the first screw's tip is turned onto it, which locks the joint) and the head's pocket.
+ * The shortest extender: a lip at each end, the nut's hexagon pocket, at least `floor` of hollow bore between them (the screw
+ * below runs on up it through the nut, as far as the leg's height needs) and the next screw's head pocket.
  */
 export function pressurePadMinExtenderLength(nut: Part, screw: Part, fit: number): number {
   return 2 * PRESSURE_PAD.lip + nutHeight(nut) + fit + PRESSURE_PAD.floor + dimensionOf(screw, 'k', 'max') + fit;
@@ -87,6 +87,22 @@ export function pressurePadMinExtenderLength(nut: Part, screw: Part, fit: number
 /** The narrowest extender that leaves `wall` round the larger of its two hexagon pockets. */
 export function pressurePadMinExtenderDiameter(nut: Part, screw: Part, fit: number): number {
   return (Math.max(dimensionOf(nut, 's', 'max'), dimensionOf(screw, 's', 'max')) + 2 * fit) * 2 / Math.sqrt(3) + 2 * PRESSURE_PAD.wall;
+}
+
+type LegShape = { padType: PressurePadType; height: number; fit: number; extenders: number; extenderLength: number };
+
+/**
+ * How far a screw may run on through an extender's nut into its hollow bore, past the nut's far face, which sets the leg's height
+ * at that joint: `travel` up the bore to the next head's pocket, and `max`, less when the screw is too short to leave room for the
+ * lock nut jammed against the extender's end as well (negative when it cannot take the lock nut at all).
+ */
+export function pressurePadExtenderTravel(p: LegShape, nut: Part, screw: Part): { travel: number; max: number } {
+  const { lip } = PRESSURE_PAD; const nutH = nutHeight(nut); const l = dimensionOf(screw, 'l');
+  const travel = p.extenderLength - 2 * lip - nutH - dimensionOf(screw, 'k', 'max') - p.fit;
+  // foot: the screw leaves the pad's (or the extender's) lip below, passes the lock nut and the extender's lip into the nut;
+  // thrust pad: the screw comes down past its lock nut and the extender's top lip into the nut
+  const room = p.padType === 'foot' ? l - 2 * lip - nutH - nutH : l - lip - nutH - nutH;
+  return { travel, max: Math.min(travel, room) };
 }
 
 /** A piece of a pressure pad's leg, placed: a printed part (`pad`, `extender-<n>`) or a library nut or screw. */
@@ -102,17 +118,21 @@ export interface PressurePadPiece {
 /**
  * The leg as it stands, its sole on the floor (z = 0) and its axis along Z; every pocket's slot opens along +X. A library nut or
  * hexagon head is turned 30° about Z, so that its flats lie along the slot (the parts' own frames have their corners on Y).
+ * `settings` gives, per extender, how far (0 to 1 of `pressurePadExtenderTravel`'s `max`) its screw has run on into its bore:
+ * 0, the screw's tip flush with the nut's far face, is the longest leg and how an extender is slid on (the bore has no slot); the
+ * default.
  *
  * - Foot: the pad (printed back up) holds the first screw's head, shank up. Each extender stands on the screw below it: a nut,
- *   locked in its bottom pocket, is run onto that screw until the screw's tip bears on the floor above the nut; the next screw's
- *   head sits in its top pocket.
+ *   locked in its bottom pocket, is run onto that screw, which runs on up the hollow bore; a lock nut on the screw is jammed up
+ *   against the extender's bottom. The next screw's head sits in its top pocket.
  * - Thrust pad: a nut on the first screw's tip, flush with it, bears on the pad's chamber floor; the screw's head is up. Each
- *   extender is turned over, its head pocket down over the screw's head and its nut pocket up: the next screw comes down into
- *   that nut until its tip bears on the floor below.
+ *   extender is turned over, its head pocket down over the screw's head and its nut pocket up: the next screw, a lock nut on it,
+ *   comes down through that nut into the bore, and the lock nut is jammed down on the extender's top.
  */
-export function pressurePadLeg(p: { padType: PressurePadType; height: number; fit: number; extenders: number; extenderLength: number }, nut: Part, screw: Part): PressurePadPiece[] {
+export function pressurePadLeg(p: LegShape, nut: Part, screw: Part, settings: readonly number[] = []): PressurePadPiece[] {
   const { lip } = PRESSURE_PAD; const { fit, height: H, extenderLength: L } = p;
   const nutH = nutHeight(nut); const l = dimensionOf(screw, 'l'); const k = dimensionOf(screw, 'k', 'max');
+  const run = (i: number) => Math.max(0, pressurePadExtenderTravel(p, nut, screw).max) * (settings[i - 1] ?? 0);
   const pieces: PressurePadPiece[] = [{ id: 'pad', kind: 'pad', position: [0, 0, H], rotation: [180, 0, 0], bottom: 0, top: H }];
   const screwUp = (id: string, tip: number): PressurePadPiece => ({ id, kind: 'screw', position: [0, 0, tip], rotation: [0, 0, 30], bottom: tip, top: tip + l + k });
   const screwDown = (id: string, bearing: number): PressurePadPiece => ({ id, kind: 'screw', position: [0, 0, bearing + l], rotation: [180, 0, 30], bottom: bearing - k, top: bearing + l });
@@ -122,13 +142,12 @@ export function pressurePadLeg(p: { padType: PressurePadType; height: number; fi
     ({ id: `extender-${index}`, kind: 'extender', position: [0, 0, turned ? bottom + L : bottom], rotation: [turned ? 180 : 0, 0, 0], bottom, top: bottom + L });
   if (p.padType === 'foot') {
     // the head bears on the pad's lip: the screw leaves the pad's back
-    let top = screwDown('screw-0', H - lip).top;
-    pieces.push(screwDown('screw-0', H - lip));
+    let below = screwDown('screw-0', H - lip); pieces.push(below);
     for (let i = 1; i <= p.extenders; i++) {
-      const bottom = top - lip - nutH - fit;
-      pieces.push(nutAt(`nut-${i}`, bottom + lip, false), extender(i, bottom, false));
-      const next = screwDown(`screw-${i}`, bottom + L - lip);
-      pieces.push(next); top = next.top;
+      // the screw's tip has run `run(i)` past the nut, which stands on the extender's bottom lip
+      const bottom = below.top - run(i) - nutH - lip;
+      pieces.push(nutAt(`locknut-${i}`, bottom - nutH, false), nutAt(`nut-${i}`, bottom + lip, false), extender(i, bottom, false));
+      below = screwDown(`screw-${i}`, bottom + L - lip); pieces.push(below);
     }
   } else {
     // the nut bears on the chamber's floor (towards the sole), the screw's tip flush with it
@@ -136,11 +155,11 @@ export function pressurePadLeg(p: { padType: PressurePadType; height: number; fi
     pieces.push(nutAt('nut-0', seat, true));
     let below = screwUp('screw-0', seat); pieces.push(below);
     for (let i = 1; i <= p.extenders; i++) {
-      // turned over: the head pocket down, its lip under the screw's head; the nut pocket up, its lip over the nut
+      // turned over: the head pocket down, its lip under the screw's head; the nut pocket up, the nut against its top lip
       const bottom = below.bottom + l - lip;
-      const tip = bottom + L - lip - nutH - fit;
-      pieces.push(extender(i, bottom, true), nutAt(`nut-${i}`, tip + fit, true));
-      below = screwUp(`screw-${i}`, tip); pieces.push(below);
+      const nutBottom = bottom + L - lip - nutH;
+      pieces.push(extender(i, bottom, true), nutAt(`nut-${i}`, nutBottom, true), nutAt(`locknut-${i}`, bottom + L, true));
+      below = screwUp(`screw-${i}`, nutBottom - run(i)); pieces.push(below);
     }
   }
   return pieces;
