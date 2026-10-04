@@ -7,7 +7,8 @@ import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
 import { buildWindowContext } from './catioWindowContext.ts';
 import { COUPLING, couplingLayout, couplingSite, type CouplingConfig, type CouplingLayout, type CouplingSite } from './catioCoupling.ts';
 import { buildInsertContext } from './catioWindowInsertScene.ts';
-import { facePoint, TUNNEL, vec, type Face, type Rect } from './catioTunnel.ts';
+import { TUNNEL, vec } from './catioTunnel.ts';
+import { buildSectionPieces, tunnelDrawing } from './catioTunnelPieces.ts';
 import { buildPrintedLatches } from './catioPrintedLatchScene.ts';
 
 /** Stage 3 fits the latches to the first section this far above its place; stage 4 lowers it onto its wall support. */
@@ -92,46 +93,7 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
   const p = createCatioParts(); const { component, box, rod, materials: m } = p;
   const { hinge } = buildWindowContext(p, site.site.window);
   const start = p.components.length;
-  const geometries: THREE.BufferGeometry[] = [];
-  const discGeometry = new THREE.CylinderGeometry(1, 1, 1, 20); geometries.push(discGeometry);
-  const vector = (v: V3) => new THREE.Vector3(...v);
-  const cylinder = (parent: THREE.Object3D, from: V3, to: V3, radius: number, material: THREE.Material) => {
-    const a = vector(from); const c = vector(to); const v = c.clone().sub(a);
-    const mesh = new THREE.Mesh(discGeometry, material);
-    mesh.position.copy(a.add(c).multiplyScalar(0.5)); mesh.scale.set(radius, v.length(), radius);
-    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize()); mesh.castShadow = true; parent.add(mesh); return mesh;
-  };
-  /** A solid between two quadrilaterals, relative to `origin` (as in the tunnel scene). */
-  const hexahedron = (parent: THREE.Object3D, corners: V3[], material: THREE.Material, origin: V3) => {
-    const c = corners.map(q => vec.sub(q, origin));
-    const quads = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]];
-    const positions: number[] = [];
-    for (const [a, b, c2, d] of quads) for (const i of [a, b, c2, a, c2, d]) positions.push(...(c[i ?? 0] ?? [0, 0, 0]));
-    const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); geometry.computeVertexNormals();
-    geometries.push(geometry);
-    const mesh = new THREE.Mesh(geometry, material); mesh.castShadow = true; mesh.receiveShadow = true;
-    (material as THREE.MeshStandardMaterial).side = THREE.DoubleSide; parent.add(mesh); return mesh;
-  };
-  const corners = (from: Face, fromOffset: number, to: Face, toOffset: number, [u0, u1, v0, v1]: Rect): V3[] => [
-    ...([[u0, v0], [u1, v0], [u1, v1], [u0, v1]] as const).map(([u, v]) => facePoint(from, u, v, fromOffset)),
-    ...([[u0, v0], [u1, v0], [u1, v1], [u0, v1]] as const).map(([u, v]) => facePoint(to, u, v, toOffset)),
-  ];
-  const wire = new THREE.BoxGeometry(1, 1, 1); geometries.push(wire);
-  const meshQuad = (parent: THREE.Object3D, c: [V3, V3, V3, V3]) => {
-    const pitch = TUNNEL.mesh.opening + TUNNEL.mesh.wire; const lines: [V3, V3][] = [];
-    const lerp = (a: V3, b: V3, t: number) => vec.add(a, vec.mul(vec.sub(b, a), t));
-    const [c0, c1, c2, c3] = c;
-    const n1 = Math.max(1, Math.round(vec.len(vec.sub(c1, c0)) / pitch)); const n2 = Math.max(1, Math.round(vec.len(vec.sub(c3, c0)) / pitch));
-    for (let i = 0; i <= n1; i++) lines.push([lerp(c0, c1, i / n1), lerp(c3, c2, i / n1)]);
-    for (let i = 0; i <= n2; i++) lines.push([lerp(c0, c3, i / n2), lerp(c1, c2, i / n2)]);
-    const wires = new THREE.InstancedMesh(wire, m.mesh, lines.length); const pose = new THREE.Object3D();
-    lines.forEach(([a, b], i) => {
-      pose.position.copy(vector(vec.mul(vec.add(a, b), 0.5)));
-      pose.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vector(vec.unit(vec.sub(b, a))));
-      pose.scale.set(TUNNEL.mesh.wire, vec.len(vec.sub(b, a)) + TUNNEL.mesh.wire, TUNNEL.mesh.wire); pose.updateMatrix(); wires.setMatrixAt(i, pose.matrix);
-    });
-    parent.add(wires); return wires;
-  };
+  const draw = tunnelDrawing(p); const { vector, cylinder } = draw;
 
   const motions: PieceMotion[] = [];
   const move = (object: THREE.Object3D, stage: number, window: [number, number], approach: V3, action: string, meta: Partial<Omit<PieceMotion, 'object' | 'stage' | 'window' | 'approach' | 'action'>> = {}) => {
@@ -191,9 +153,11 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
 
   // Stage 3: the first section (built on the tunnel page) arrives raised; its latch bodies, screws and floor lip are fitted.
   if (first) {
+    // drawn by the tunnel's own builder: its rings, rails, floor and mesh
     const timber = piece(group('first-section', 3, 'timber')); const mesh = piece(group('first-section-mesh', 3, 'mesh'));
-    for (const mem of tl.members.filter(q => q.piece === first.id)) hexahedron(timber, corners(mem.from, mem.fromOffset, mem.to, mem.toOffset, mem.rect), mem.kind === 'flange' ? m.endgrain : m.timber, [0, 0, 0]);
-    for (const q of tl.panels.filter(q => q.piece === first.id)) meshQuad(mesh, q.corners);
+    const section = buildSectionPieces(p, draw, tl, [first.id]);
+    for (const { group: g } of [...section.members, ...section.cleats]) timber.add(g);
+    for (const { group: g } of section.panels) mesh.add(g);
     // it is already built: it arrives whole at the start of the stage and only travels with the lift
     for (const g of [timber, mesh]) move(g, 3, [0, 0], [0, 0, 0], 'The first section, framed and meshed on the tunnel page', { role: 'timber', carried: true });
   }
@@ -246,6 +210,6 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
     hinge.rotation.z = -Math.PI / 2;
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); pieces.dispose(); for (const g of geometries) g.dispose(); }
+  function dispose() { p.dispose(); pieces.dispose(); draw.dispose(); }
   return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers, lift: () => currentLift, caption: () => currentAction };
 }
