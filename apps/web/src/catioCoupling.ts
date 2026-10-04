@@ -1,5 +1,6 @@
 import { COUPLING_HARDWARE as HW, COUPLING_LATCH, couplingLatch, dimensionOf, findPart, toggleLatch, toggleLatchMechanism as TL, type Part } from '@canfactory/contracts';
 import type { CatioView } from './catioDesign.ts';
+import { latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchScrews, type LatchMount } from './catioPrintedLatch.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { clearOf, fastenerClashes, fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
 import { parseTunnel, TUNNEL, TUNNEL_DEFAULT, tunnelLayout, tunnelSite, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
@@ -38,7 +39,7 @@ export const COUPLING = {
   /** Self-adhesive hollow EPDM D-profile seal: its free height and width. */
   seal: { height: 10, width: 12 },
   /** With the printed latch: its 3 mm gap, and the self-adhesive EPDM E-profile seal (9 × 4, made for 2–3.5 mm gaps) squashed in it. */
-  printed: { gap: 3, seal: { height: 4, width: 9 } },
+  printed: PRINTED_LATCH_JOINT,
   /** 3 mm EPDM sheet over the floor gap: how far it laps onto the threshold. */
   lip: { thickness: 3, overlap: 25 },
   /** Docking frame screw spacing, and the latch body's distance in from the flange's face. */
@@ -55,20 +56,8 @@ export function couplingJoint(config: Pick<CouplingConfig, 'latch'>) {
 }
 
 const TG = TL.TOGGLE_LATCH_GEOMETRY;
-/**
- * The printed toggle latch on the joint (the shared mechanism, toggleLatchMechanism.ts): its base on the flange's outer side, its
- * catch on the docking frame's, each plate 12 mm along the joint and 38 mm up it. Locked, the plates stand `locked` apart (the
- * over-centre lock). It has no adjustable hook, so the gap is set for it, 3 mm, and each plate reaches `overhang` past its face
- * edge into the gap. Its screw lines are 6 mm in from the plates' edges; the frame and flange are 4 mm thicker than the plate.
- * Hooked on with the plates up to `hooked` apart (as far as the mechanism is tabulated), the lever draws them in to `locked`.
- */
-export const PRINTED_LATCH = (() => {
-  const locked = -TL.tautLink(TL.CLOSED).offset;
-  return {
-    locked, hooked: -TL.tautLink(TL.HOOK_RANGE[1]).offset, overhang: (COUPLING.printed.gap - locked) / 2,
-    plate: TG.base.back - TG.base.front, along: TG.base.height, length: TG.base.length,
-  };
-})();
+/** The printed toggle latch's sizes on a joint: shared with the tunnel–tunnel coupling (catioPrintedLatch.ts). */
+export { PRINTED_LATCH };
 
 /** The docking frame's depth with GN 831 latches: from the insert's mesh face to the seal gap in front of the tunnel's first flange. */
 const FRAME_DEPTH = TUNNEL.wallGap - COUPLING.gap - (INSERT.y + INSERT.depth / 2 + INSERT.mesh.wire);
@@ -97,8 +86,8 @@ export interface FrameMember { id: string; name: string; boxes: Box[]; length: n
 export interface Latch {
   id: string; side: -1 | 1; z: number;
   /** The printed latch: where its base plate's edge faces the catch across the gap (along Y); the catch plate's edge is `locked`
-   * nearer the insert. Its base runs from `hingeY` (that edge) to `baseY`, its catch from `catchY` to the gap. */
-  printed?: { seam: number };
+   * nearer the insert. Its base runs from `hingeY` (that edge) to `baseY`, its catch from `catchY` to the gap. `mount` places it. */
+  printed?: { seam: number; mount: LatchMount };
   /** The latch body on the flange's outer side: from `baseY` (its end under the lever) to `hingeY` (the pivot end). */
   baseY: number; hingeY: number;
   /** The catch bracket on the docking frame's outer side, from `catchY` (its far end) to `catchY + b4`. */
@@ -149,7 +138,7 @@ export function couplingLayout(config: CouplingConfig, { tunnel, site }: Couplin
   // The latches. A GN 831: body on the flange's outer side, its pivot end just inside the flange's face, the lever across the gap,
   // and the catch bracket on the docking frame's outer side where the hook falls with it set to the middle of its range. The printed
   // latch: base plate on the flange's side and catch plate on the frame's, across the gap, at the spacing its lock sets.
-  const heights = config.latchesPerSide === 1 ? [0.5] : [0.2, 0.8];
+  const heights = latchHeights(config.latchesPerSide);
   const placeLatches = (place: (side: -1 | 1) => Omit<Latch, 'id' | 'side' | 'z' | 'faceX'>) => ([-1, 1] as const).flatMap(side => heights.map((f, i) => ({
     id: `latch-${side < 0 ? 'left' : 'right'}-${i}`, side, z: floor + f * (h + F), faceX: side * (w / 2 + F), ...place(side),
   })));
@@ -165,7 +154,8 @@ export function couplingLayout(config: CouplingConfig, { tunnel, site }: Couplin
   } else {
     const { locked, overhang, along: a } = PRINTED_LATCH; latchName = 'printed toggle latch';
     const seam = flangeBack - overhang;
-    latches = placeLatches(() => ({ baseY: seam + a, hingeY: seam, catchY: seam - locked - a, printed: { seam } }));
+    latches = placeLatches(() => ({ baseY: seam + a, hingeY: seam, catchY: seam - locked - a }))
+      .map(q => ({ ...q, printed: { seam, mount: { id: q.id, side: q.side, at: [q.faceX, seam, q.z], out: [q.side, 0, 0], pull: [0, 1, 0] } } }));
     if (seam + a > flangeFront) errors.push(`The printed latch’s base plate (${a} mm) is longer than the flange is thick.`);
     if (seam - locked - a < meshFace) errors.push('The printed latch’s catch plate would not sit on the docking frame’s side.');
     tolerance = PRINTED_LATCH.hooked - locked; latchSpan = PRINTED_LATCH.length;
@@ -199,12 +189,11 @@ export function couplingLayout(config: CouplingConfig, { tunnel, site }: Couplin
       fasteners.push({ partId: latchScrew.id, component: 'catch-screws', at: [latch.faceX, latch.catchY + b4 / 2, latch.z + k * m4 / 2], direction: [-latch.side, 0, 0], use: 'Catch brackets onto the docking frame’s sides', of: latch.id });
     }
   } else {
-    // through the plates' holes: their heads on the plates' fronts; the latch's width runs up the side, its x from the plate's end
-    const { plate, locked } = PRINTED_LATCH;
-    for (const latch of latches) {
-      const seam = latch.printed?.seam ?? latch.hingeY; const x = latch.faceX + latch.side * plate;
-      for (const hx of TG.base.holeX) fasteners.push({ partId: latchScrew.id, component: 'latch-screws', at: [x, seam + TG.base.holeZ, latch.z - latch.side * (hx - TG.base.middle)], direction: [-latch.side, 0, 0], use: 'Latch base plates onto the first flange’s sides', of: latch.id });
-      for (const hx of TG.catch.holeX) fasteners.push({ partId: latchScrew.id, component: 'catch-screws', at: [x, seam - locked - TG.catch.holeZ, latch.z - latch.side * (hx - TG.catch.middle)], direction: [-latch.side, 0, 0], use: 'Catch plates onto the docking frame’s sides', of: latch.id });
+    // through the plates' holes: their heads on the plates' fronts (the shared placement)
+    for (const latch of latches) if (latch.printed) {
+      const screws = printedLatchScrews(latch.printed.mount);
+      for (const f of screws.base) fasteners.push({ partId: latchScrew.id, component: 'latch-screws', ...f, use: 'Latch base plates onto the first flange’s sides', of: latch.id });
+      for (const f of screws.catch) fasteners.push({ partId: latchScrew.id, component: 'catch-screws', ...f, use: 'Catch plates onto the docking frame’s sides', of: latch.id });
     }
   }
   if (lip) for (const x of spaced(-w / 2 + 40, w / 2 - 40, 3)) {

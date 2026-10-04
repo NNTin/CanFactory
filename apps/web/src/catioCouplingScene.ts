@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { dimensionOf, findPart, toggleLatchMechanism as TL } from '@canfactory/contracts';
+import { dimensionOf, findPart } from '@canfactory/contracts';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
 import type { CatioMode } from './catioSettings.ts';
@@ -8,7 +8,7 @@ import { buildWindowContext } from './catioWindowContext.ts';
 import { COUPLING, couplingLayout, couplingSite, type CouplingConfig, type CouplingLayout, type CouplingSite } from './catioCoupling.ts';
 import { buildInsertContext } from './catioWindowInsertScene.ts';
 import { facePoint, TUNNEL, vec, type Face, type Rect } from './catioTunnel.ts';
-import { buildToggleLatchMeshes, placeLatchPart } from './toggleLatchMeshes.ts';
+import { buildPrintedLatches } from './catioPrintedLatchScene.ts';
 
 /** Stage 3 fits the latches to the first section this far above its place; stage 4 lowers it onto its wall support. */
 export const LIFT = 450;
@@ -23,21 +23,6 @@ export interface PieceMotion {
   role?: 'timber' | 'seal' | 'catch' | 'latch' | 'lip' | 'screw'; of?: string; drive?: V3;
   /** Pieces fitted to the first section travel with it while it is lowered. */
   carried?: boolean;
-}
-
-/**
- * The printed latch's own frame (`latchPoses`: x across it, y along the pull, z off the face) on a side of the joint: z out of the
- * side face (±X), y along the joint (Y), x up it (Z), turned over on the left so that it stays a rotation.
- */
-function latchFrame(side: -1 | 1) {
-  const frame = new THREE.Group(); frame.matrixAutoUpdate = false;
-  frame.matrix.set(0, 0, side, 0, 0, 1, 0, 0, -side, 0, 0, 0, 0, 0, 0, 1);
-  return frame;
-}
-/** How far open (0 locked, 1 released) puts the printed latch: the lever back over centre to open, then the link swung off the hook. */
-function printedLatchState(open: number) {
-  const turn = THREE.MathUtils.clamp(open / 0.7, 0, 1), swing = THREE.MathUtils.clamp((open - 0.7) / 0.3, 0, 1);
-  return TL.latchState(TL.CLOSED + (TL.OPEN - TL.CLOSED) * turn, TL.SWING * swing);
 }
 
 /**
@@ -56,8 +41,7 @@ export function buildCouplingPieces(p: ReturnType<typeof createCatioParts>, layo
     box(seal, [Math.abs(x - px) + 2 * sw, y1 - y0, Math.abs(z - pz) + (i === 1 ? 2 * sw : 0)], [(x + px) / 2, (y0 + y1) / 2, (z + pz) / 2], m.rubber);
   });
   const gn = layout.latchPart;
-  const printed = gn ? null : buildToggleLatchMeshes();
-  const locked = TL.latchPoses(TL.latchState(TL.CLOSED));
+  let dispose = () => {};
   let catches: { latch: CouplingLayout['latches'][number]; group: THREE.Group }[];
   let latches: { latch: CouplingLayout['latches'][number]; group: THREE.Group; lever: THREE.Group; setOpen: (open: number) => void }[];
   if (gn) {
@@ -81,28 +65,18 @@ export function buildCouplingPieces(p: ReturnType<typeof createCatioParts>, layo
       return { latch: q, group, lever, setOpen: (open: number) => lever.rotation.set(0, 0, q.side * THREE.MathUtils.degToRad(OPEN) * open) };
     });
   } else {
-    const meshes = printed ?? buildToggleLatchMeshes();
-    const part = (frame: THREE.Group, id: 'base' | 'lever' | 'link' | 'catch') => { const object = meshes[id].clone(); frame.add(object); return object; };
-    catches = layout.latches.map(q => {
-      const group = at([q.faceX, q.printed?.seam ?? q.hingeY, q.z]); const frame = latchFrame(q.side); group.add(frame);
-      placeLatchPart(part(frame, 'catch'), locked.catch);
-      return { latch: q, group };
-    });
-    latches = layout.latches.map(q => {
-      const group = at([q.faceX, q.printed?.seam ?? q.hingeY, q.z]); const frame = latchFrame(q.side); group.add(frame);
-      placeLatchPart(part(frame, 'base'), locked.base);
-      const lever = part(frame, 'lever'); lever.name = `${q.id}-lever`; const link = part(frame, 'link');
-      const setOpen = (open: number) => { const poses = TL.latchPoses(printedLatchState(open)); placeLatchPart(lever, poses.lever); placeLatchPart(link, poses.link); };
-      setOpen(0);
-      return { latch: q, group, lever, setOpen };
-    });
+    // the shared printed latch, at the mounts the layout placed
+    const placed = layout.latches.flatMap(q => q.printed ? [{ ...q.printed.mount, latch: q }] : []);
+    const printed = buildPrintedLatches(placed); dispose = printed.dispose;
+    catches = printed.catches.map(({ mount, group }) => ({ latch: mount.latch, group }));
+    latches = printed.latches.map(({ mount, group, lever, setOpen }) => ({ latch: mount.latch, group, lever, setOpen }));
   }
   let lip: THREE.Group | null = null;
   if (layout.lip) {
     const { x0, x1, y0: ly0, y1: ly1, z } = layout.lip;
     lip = at(); box(lip, [x1 - x0, ly1 - ly0, COUPLING.lip.thickness], [(x0 + x1) / 2, (ly0 + ly1) / 2, z + COUPLING.lip.thickness / 2], m.rubber);
   }
-  return { frame, seal, catches, latches, lip, dispose: () => printed?.dispose() };
+  return { frame, seal, catches, latches, lip, dispose };
 }
 
 /**
