@@ -4,9 +4,9 @@ import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
 import type { CatioMode } from './catioSettings.ts';
 import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
-import { groundAt, vec } from './catioTunnel.ts';
+import { groundAt, TUNNEL, vec } from './catioTunnel.ts';
 import { ENTRY, tunnelCouplingLayout, tunnelCouplingSite, type TunnelCouplingConfig, type TunnelCouplingLayout, type TunnelCouplingSite } from './catioTunnelCoupling.ts';
-import { buildCouplingJoint, buildSectionPieces, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
+import { buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
 import { memberApproach } from './catioTunnelScene.ts';
 
 /** Stage 1 frames the first section this far above its place, then lays it on the support. */
@@ -18,7 +18,7 @@ const CLOSING = TL.TOGGLE_LATCH_MOVEMENTS.slice(0, 3);
 
 export interface PieceMotion {
   object: THREE.Object3D; stage: number; window: [number, number]; approach: THREE.Vector3; axis?: THREE.Vector3; turns?: number; action: string;
-  role?: 'timber' | 'mesh' | 'screw' | 'staple' | 'seal' | 'latch' | 'catch' | 'bolt' | 'nut' | 'section';
+  role?: 'timber' | 'mesh' | 'screw' | 'staple' | 'seal' | 'latch' | 'catch' | 'bolt' | 'nut' | 'section' | 'fitting';
   of?: string; drive?: V3;
   /** Built raised over its place with the first section, and laid with it at the end of stage 1. */
   lifted?: boolean;
@@ -31,7 +31,7 @@ export interface PieceMotion {
  * Every piece is drawn by the tunnel's own builders (catioTunnelPieces.ts), so it is the tunnel page's joint.
  */
 export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCouplingConfig, site: TunnelCouplingSite = tunnelCouplingSite()): SubassemblyModel & {
-  layout: TunnelCouplingLayout; motions: PieceMotion[]; levers: ReturnType<typeof buildCouplingJoint>['latches']; lift: () => number; entry: () => number;
+  layout: TunnelCouplingLayout; motions: PieceMotion[]; levers: ReturnType<typeof buildCouplingJoint>['latches']; hold: ReturnType<typeof buildSupportHold>; lift: () => number; entry: () => number;
 } {
   const layout = tunnelCouplingLayout(config, site);
   const { tl, coupling, support, before, after } = layout;
@@ -63,13 +63,14 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
   const turf = new THREE.Mesh(ground, m.grass); turf.receiveShadow = true; component('terrain', 0, 'environment').add(turf);
   const built = buildSupportPieces(p, draw, tl, support);
   for (const f of built.feet) {
-    group('slabs', 0, 'environment').add(f.slab);
+    if (f.slab) group('slabs', 0, 'environment').add(f.slab);
     if (f.leg) group('support', 0, 'timber').add(f.leg);
+    if (f.sole) group('support', 0, 'timber').add(f.sole);
     for (const g of [f.nut, f.footPiece, ...f.screws]) group('support-feet', 0, 'hardware').add(g);
   }
   group('support', 0, 'timber').add(built.bearer);
   if (built.brace) group('support', 0, 'timber').add(built.brace);
-  for (const f of tl.fasteners.filter(q => q.component === 'brace-screws' && supportOf(tl, q)?.id === support.id)) {
+  for (const f of tl.fasteners.filter(q => (q.component === 'brace-screws' || q.component === 'sole-screws') && supportOf(tl, q)?.id === support.id)) {
     const drawn = draw.fastener(f); if (drawn) group('support-feet', 0, 'hardware').add(drawn.group);
   }
 
@@ -131,17 +132,45 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     move(g, 4, [0, 0.5], vec.mul(bolt.n, -140), `${bolts} × Hexagon head screw M8 × 80: through both flanges, with a large washer`, { role: 'bolt', of: id, drive: bolt.n });
     move(nut, 4, [0.5, 1], vec.mul(bolt.n, 90), `${bolts} × Hexagon nut M8: run on from the far side over a large washer`, { role: 'nut', of: id, axis: vector(bolt.n), turns: 4 });
   }
+  // How the joint is held on the support (the tunnel page's choice): what is on the support already, what the sections carry, and
+  // what holds them down at the end.
+  const hold = buildSupportHold(p, draw, tl, support);
+  for (const o of hold.onSupport) group('support-fittings', 0, 'hardware').add(o.group);
+  for (const { group: g } of hold.supportScrews) group('support-fittings', 0, 'hardware').add(g);
+  for (const b of hold.buttons) {
+    if (b.button.piece === after.id) { group('second-section-fixings', 3, 'hardware').add(b.group); move(b.group, 3, [0, 0.8], entry, entering, { role: 'section' }); continue; }
+    group('first-section-fixings', 1, 'hardware').add(b.group);
+    move(b.group, 1, [0.72, 0.76], vec.mul(support.across, b.button.side * 160), `${hold.buttons.length / 2} × Turn button: onto the outgoing flange’s side, turned up`, { role: 'fitting', lifted: true });
+  }
+  for (const { fastener: f, group: g } of hold.pieceScrews.filter(q => q.fastener.component === 'button-screws')) {
+    if (f.piece === after.id) { group('second-section-fixings', 3, 'hardware').add(g); move(g, 3, [0, 0.8], entry, entering, { role: 'section' }); continue; }
+    group('first-section-fixings', 1, 'hardware').add(g);
+    const { approach, ...meta } = screwMotion(f, 50);
+    move(g, 1, [0.72, 0.76], approach, `${hold.buttons.length / 2} × Countersunk wood screw 5 × 50: the turn button’s pivot`, { ...meta, lifted: true });
+  }
+  for (const latch of hold.latches) {
+    group('fixings', 5, 'hardware').add(latch.group);
+    move(latch.group, 5, [0, 0.2], vec.mul(latch.mount.out, 160), `${hold.latches.length} × Vertical printed toggle latch: base plate across both flanges’ sides, over its catch`, { role: 'latch', of: latch.mount.id });
+  }
+  for (const { fastener: f, group: g } of hold.pieceScrews.filter(q => q.fastener.component === 'support-latch-screws')) {
+    group('fixings', 5, 'hardware').add(g);
+    const { approach, ...meta } = screwMotion(f, 25);
+    move(g, 5, [0.2, 0.35], approach, `${2 * hold.latches.length} × Countersunk wood screw 4 × 25: one into each flange`, { ...meta, ...(f.of ? { of: f.of } : {}) });
+  }
+  if (hold.strap) { group('fixings', 5, 'hardware').add(hold.strap); move(hold.strap, 5, [0, 0.5], [0, 0, 400], 'Rubber strap: over both flanges, hooked under the cleats on the bearer’s ends', { role: 'fitting' }); }
   for (const f of layout.fixings) {
     const drawn = draw.fastener(f); if (!drawn) continue;
     group('fixings', 5, 'hardware').add(drawn.group);
     const { approach, ...meta } = screwMotion(f, 100);
     move(drawn.group, 5, [0, 0.6], approach, `${layout.fixings.length} × Countersunk wood screw 6 × 100: up through the bearer into both flanges`, meta);
   }
+  /** Over dowels or cradle lips the second section comes in this much higher and is set down at the end. */
+  const clearance = tl.config.supportFixing === 'dowels' ? TUNNEL.fixing.dowel.into + 5 : tl.config.supportFixing === 'cradle' ? TUNNEL.fixing.cradle.lip + 5 : 0;
 
   const bases = motions.map(motion => motion.object.position.clone());
   const baseQuaternions = motions.map(motion => motion.object.quaternion.clone());
   const spin = new THREE.Quaternion();
-  let currentAction: string | null = null; let currentLift = 0; let currentEntry = 0; let focus: V3 = [0, 0, 0];
+  let currentAction: string | null = null; let currentLift = 0; let currentEntry = 0; let currentDrop = 0; let focus: V3 = [0, 0, 0];
   const at = (progress: number, stage: number) => THREE.MathUtils.clamp(progress - stage + 1, 0, 1);
 
   function update(state: CatioState) {
@@ -149,6 +178,7 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     // the first section is laid in the last part of stage 1; the second comes in through stage 3
     currentLift = state.exploded ? LIFT : LIFT * (1 - ease(THREE.MathUtils.clamp((at(state.progress, 1) - 0.76) / 0.24, 0, 1)));
     currentEntry = state.exploded ? 1 : 1 - ease(THREE.MathUtils.clamp(at(state.progress, 3) / 0.8, 0, 1));
+    currentDrop = state.exploded ? clearance : clearance * (1 - ease(THREE.MathUtils.clamp((at(state.progress, 3) - 0.8) / 0.2, 0, 1)));
     const active = new Set<string>();
     for (const [i, motion] of motions.entries()) {
       const base = bases[i]; const quaternion = baseQuaternions[i]; if (!base || !quaternion) continue;
@@ -160,6 +190,7 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
       motion.object.visible = stageT > 0 && (stageT >= 1 || t > 0 || state.exploded || motion.role === 'section');
       motion.object.position.copy(base).addScaledVector(motion.approach, motion.role === 'section' ? currentEntry : away);
       if (motion.lifted) motion.object.position.z += currentLift;
+      if (motion.role === 'section') motion.object.position.z += currentDrop;
       motion.object.quaternion.copy(quaternion);
       if (motion.axis && motion.turns) motion.object.quaternion.multiply(spin.setFromAxisAngle(motion.axis.clone().normalize(), -away * motion.turns * Math.PI * 2));
     }
@@ -175,6 +206,14 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
       for (const latch of jointPieces.latches) { if (latchState) latch.setState(latchState); else latch.setOpen(1); }
       if (n && closing > 0 && closing < 1 && !state.windowOpen) latchAction = `${n} × Printed toggle latch: ${movement.title.charAt(0).toLowerCase()}${movement.title.slice(1)}`;
     }
+    // stage 5: the vertical latches close, the turn buttons turn down under their keepers
+    const holding = state.exploded ? 0 : ease(THREE.MathUtils.clamp((at(state.progress, 5) - 0.4) / 0.3, 0, 1));
+    const turning = state.exploded ? 0 : ease(THREE.MathUtils.clamp(at(state.progress, 5) / 0.3, 0, 1));
+    for (const latch of hold.latches) latch.setOpen(state.windowOpen ? 1 : 1 - holding);
+    for (const b of hold.buttons) b.setTurn(state.windowOpen ? 1 : 1 - turning);
+    if (!latchAction && hold.latches.length && holding > 0 && holding < 1) latchAction = `${hold.latches.length} × Vertical printed toggle latch: hooked over its catch, lever pressed down over centre`;
+    if (!latchAction && hold.buttons.length && turning > 0 && turning < 1) latchAction = `${hold.buttons.length} × Turn button: turned down, its foot under the keeper`;
+    if (!latchAction && clearance && state.progress > 2.8 && state.progress < 3) latchAction = `Setting the second section down ${tl.config.supportFixing === 'dowels' ? 'over its dowels' : 'into the cradles'}`;
     let action: string | null = active.size > 0 ? [...active].join('; ') : latchAction;
     if (!action && !state.exploded && state.progress > 0.76 && state.progress < 1) action = 'Laying the first section on the support, its outgoing flange over the bearer';
     currentAction = action;
@@ -182,9 +221,9 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     focus = state.progress > 2 && state.progress < 3 && !state.exploded ? vec.mul(coupling.face.n, 0.5 * L) : [0, 0, 0];
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); draw.dispose(); jointPieces.dispose(); for (const g of geometries) g.dispose(); }
+  function dispose() { p.dispose(); draw.dispose(); jointPieces.dispose(); hold.dispose(); for (const g of geometries) g.dispose(); }
   return {
-    root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers: jointPieces.latches,
+    root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers: jointPieces.latches, hold,
     lift: () => currentLift, entry: () => currentEntry, caption: () => currentAction, focusOffset: () => focus,
   };
 }

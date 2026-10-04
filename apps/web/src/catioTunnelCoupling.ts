@@ -3,7 +3,7 @@ import type { CatioView } from './catioDesign.ts';
 import { E_PROFILE_SEAL, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine } from './catioPrintedLatch.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { loadSubassemblyConfig, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
-import { LATCH_SCREW_EDGE, parseTunnel, TUNNEL, TUNNEL_DEFAULT, tunnelCutList, tunnelLayout, tunnelSite, vec, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
+import { LATCH_SCREW_EDGE, parseTunnel, SUPPORT_FIXING_LABELS, supportFixingSteps, TUNNEL, TUNNEL_DEFAULT, tunnelCutList, tunnelLayout, tunnelSite, vec, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
 import { couplingGap, parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 
 export { parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig };
@@ -45,14 +45,17 @@ function part(id: string): Part {
 export function tunnelCouplingLayout(config: TunnelCouplingConfig, { tunnel, site }: TunnelCouplingSite = tunnelCouplingSite()) {
   const straight = straightTunnel(tunnel, config);
   const tl = tunnelLayout(straight, { ...site, floorZ: TUNNEL_COUPLING.floor }, config);
-  const errors = [...tl.errors];
+  // the tunnel's checks, but only this support's for how it is held (the straight tunnel's other supports are not shown)
+  const errors = tl.errors.filter(e => !/a trestle cannot stand on its own/.test(e));
   const coupling = tl.couplings.find(c => c.id === 'coupling-1');
   const before = tl.pieces.find(p => p.id === coupling?.before); const after = tl.pieces.find(p => p.id === coupling?.after);
   const support = tl.supports.find(s => s.id === 'support-coupling-1');
   if (!coupling || !before || !after || !support) throw new Error('The straight tunnel has no first coupling on a support.');
+  if (!support.hold.attached && tunnel.supportBase === 'trestle') errors.push(`${tunnel.supportFixing === 'gravity' ? 'With gravity only nothing holds' : 'Nothing holds'} the support to the tunnel, and a trestle cannot stand on its own along the tunnel: choose self-standing supports on the tunnel page, or another fixing.`);
   const pieces = [before.id, after.id];
   const latchScrews = tl.fasteners.filter(f => (f.component === 'latch-screws' || f.component === 'catch-screws') && coupling.latches.some(q => q.id === f.of));
-  const fixings = tl.fasteners.filter(f => f.component === 'flange-screws' && support.fixings.some(q => Math.hypot(q[0] - f.at[0], q[1] - f.at[1]) < 1e-6));
+  // how the joint is held on its support (the tunnel page's `supportFixing`): the screws up through the bearer, when it is screwed
+  const fixings = tl.fasteners.filter(f => f.component === 'flange-screws' && f.support === support.id);
   return {
     config, tunnel, site, tl, straight, coupling, before, after, pieces, support, latchScrews, fixings, errors,
     gap: coupling.gap, latches: coupling.latches, bolts: coupling.bolts, seal: coupling.seal,
@@ -73,17 +76,18 @@ export function tunnelCouplingSteps(_variant: CatioMode, config: TunnelCouplingC
   const l = tunnelCouplingLayout(config, site);
   const printed = l.coupling.kind === 'latched'; const n = l.latches.length; const bolts = l.bolts.length;
   const length = `${cm(l.sectionLength)} cm`;
+  const fixing = supportFixingSteps(l.tl, 'one');
   return [
-    { title: 'The site', detail: `Grass, and the support that will carry the joint: a bearer ${l.support.kind === 'trestle' ? 'on two legs' : 'ripped to depth'}, on ${l.tl.pad ? 'printed feet' : 'levelling feet'} on paving slabs, levelled to its line (the tunnel page, stages 1–2). No tunnel yet.` },
-    { title: 'Build one section', detail: `Stand two flange rings, screw the four rails between them and the floor board onto the bottom rails, then staple the side and roof mesh on (the tunnel page, stages 3–4). Lay the section, ${length} long, on its supports so that its outgoing flange sits over the bearer.` },
+    { title: 'The site', detail: `Grass, and the support that will carry the joint: a bearer ${l.support.kind === 'trestle' ? 'on two legs' : 'ripped to depth'}${l.support.soles.length ? ' on soles along the tunnel' : ''}, on ${l.tl.pad ? 'printed feet' : 'levelling feet'} on paving slabs, levelled to its line (the tunnel page, stages 1–2). ${fixing.support ? `${fixing.support} ` : ''}No tunnel yet.` },
+    { title: 'Build one section', detail: `Stand two flange rings, screw the four rails between them and the floor board onto the bottom rails, then staple the side and roof mesh on (the tunnel page, stages 3–4).${fixing.pieces ? ` ${fixing.pieces}` : ''} Lay the section, ${length} long, on its supports${fixing.lay} so that its outgoing flange sits over the bearer.` },
     { title: 'Ready its joint', detail: printed
       ? `${l.seal ? 'Stick the EPDM E-profile seal round the middle of the outgoing flange’s face. ' : ''}Screw ${n / 2} base ${n / 2 === 1 ? 'plate' : 'plates'} of the printed toggle latch, lever and link already snapped on, onto each of the flange’s outer sides, ${round1(PRINTED_LATCH.overhang)} mm proud of its face, two 4 × 25 screws each (pre-drill them).`
       : `Nothing to fit yet: the bolts go through both flanges once the next section is down. Have ${bolts} M8 × 80 bolts, ${2 * bolts} large washers and ${bolts} nuts to hand.` },
-    { title: 'The second section comes in', detail: `An identical section, also ${length} long${printed ? `, with the latches’ catch plates already screwed onto its incoming flange’s sides` : ''}, comes in along the tunnel’s axis from beyond the first, onto the same bearer, and stops ${printed ? `${l.gap} mm short of the first one’s flange, on the seal` : 'flange to flange against the first'}. The bearer, not the joint, sets where it lies.` },
+    { title: 'The second section comes in', detail: `An identical section, also ${length} long${printed ? `, with the latches’ catch plates already screwed onto its incoming flange’s sides` : ''}, comes in along the tunnel’s axis from beyond the first, onto the same bearer${fixing.lay ? ` (lifted over the ${l.tunnel.supportFixing === 'dowels' ? 'dowels' : 'cradles’ lips'} and set down${fixing.lay})` : ''}, and stops ${printed ? `${l.gap} mm short of the first one’s flange, on the seal` : 'flange to flange against the first'}. The bearer, not the joint, sets where it lies.` },
     { title: 'Couple', detail: printed
       ? `Hook each latch’s link over its catch and press the lever down until it snaps over centre: the link draws the flanges in to the ${l.gap} mm gap${l.seal ? ', squashing the seal' : ''}, the plates ${round1(PRINTED_LATCH.locked)} mm apart. ${n} levers, no tools. To part the sections, lift the levers and unhook.`
       : `Push ${bolts} M8 × 80 bolts through both flanges with a large washer under each head, then run a large washer and a nut on from the far side and tighten them with a 13 mm spanner.` },
-    { title: 'Fix down', detail: `Screw up through the bearer into both flanges: ${l.fixings.length} countersunk 6 × 100 screws, two into each flange. The joint is done; the next section couples on the same way.` },
+    { title: 'Hold it on the support', detail: `${fixing.hold} The joint is done; the next section couples on the same way.` },
   ];
 }
 
@@ -126,6 +130,7 @@ export function tunnelCouplingFacts(_variant: CatioMode, config: TunnelCouplingC
       : { label: 'Bolts per coupling', value: `${l.bolts.length} × ISO 4017 M8 × 80 · two large washers and a nut each` },
     { label: 'Enclosure end · mitred joints', value: `Bolted, ${config.boltsPerCoupling} per coupling` },
     { label: 'Section length', value: `${cm(l.sectionLength)} cm · the longest section`, from: { page: 'tunnel', settings: ['sectionLength'] } },
+    { label: 'On the support', value: `${SUPPORT_FIXING_LABELS[l.tunnel.supportFixing]}${l.support.hold.attached || l.tunnel.supportFixing === 'gravity' ? '' : ' · does not fit here'} · ${l.support.soles.length ? 'self-standing' : 'a trestle'}`, from: { page: 'tunnel', settings: ['supportFixing', 'supportBase'] } },
   ];
 }
 
@@ -167,8 +172,8 @@ export const TUNNEL_COUPLING_DECISIONS: DesignDecision[] = [
     why: 'The enclosure’s 30 mm port flange with the same bolt pattern is the one requirement the tunnel places on the enclosure: a fixed interface that does not change with the couplings between sections. The window end is not bolted either way: it is the insert–tunnel coupling page’s docking frame and latches.' },
 ];
 
-/** The cross-page settings of the tunnel this page is built from: its sections’ length and the support’s feet and ground. */
-export const TUNNEL_SETTINGS_FOLLOWED = ['sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
+/** The cross-page settings of the tunnel this page is built from: its sections’ length, the support's feet and ground, and how the tunnel is held on it. */
+export const TUNNEL_SETTINGS_FOLLOWED = ['sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance', 'supportFixing', 'supportBase'];
 
 /** Where the second section waits before it comes in, beyond the first, along the tunnel. */
 export const ENTRY = (l: TunnelCouplingLayout): V3 => vec.mul(l.coupling.face.n, 1.4 * l.sectionLength);

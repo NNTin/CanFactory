@@ -3,7 +3,7 @@ import { dimensionOf, findPart, type Part } from '@canfactory/contracts';
 import type { createCatioParts } from './catioParts.ts';
 import { buildPrintedLatches } from './catioPrintedLatchScene.ts';
 import type { V3 } from './catioSubassembly.ts';
-import { facePoint, TUNNEL, vec, type Coupling, type Face, type Fastener, type Member, type MeshPanel, type Rect, type Support, type TunnelLayout } from './catioTunnel.ts';
+import { facePoint, TUNNEL, vec, type Coupling, type Face, type Fastener, type Member, type MeshPanel, type Rect, type Support, type SupportBox, type TunnelLayout } from './catioTunnel.ts';
 
 /**
  * The tunnel's pieces as 3D groups, drawn once for every page that shows them: the tunnel page stages all of them, the tunnel–tunnel
@@ -71,10 +71,16 @@ export function tunnelDrawing(p: ReturnType<typeof createCatioParts>) {
     const part = findPart(f.partId); if (!part) return null;
     const g = group(f.at);
     if (part.family === 'nail') { const across = f.across ?? [1, 0, 0]; rod(g, vec.mul(across, -5), vec.mul(across, 5), 1.25); }
+    else if (part.family === 'pin') rod(g, [0, 0, 0], vec.mul(f.direction, dimensionOf(part, 'l')), dimensionOf(part, 'd') / 2);
     else { cylinder(g, [0, 0, 0], vec.mul(f.direction, 1.5), dimensionOf(part, 'dk') / 2, m.hardware); rod(g, [0, 0, 0], vec.mul(f.direction, dimensionOf(part, 'l')), dimensionOf(part, 'd') / 2.4); }
     return { group: g, part };
   };
-  return { vector, group, cylinder, hexahedron, corners, centroid, beam, meshQuad, fastener, dispose: () => { for (const g of geometries) g.dispose(); } };
+  /** A box in a support's frame (across, along the tunnel, up), relative to `origin`. */
+  const supportBox = (parent: THREE.Object3D, b: SupportBox, s: Pick<Support, 'across' | 'along'>, material: THREE.Material, origin: V3) => {
+    const mesh = box(parent as THREE.Group, b.size, vec.sub(b.center, origin), material);
+    mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(vector(s.across), vector(s.along), new THREE.Vector3(0, 0, 1))); return mesh;
+  };
+  return { vector, group, cylinder, hexahedron, corners, centroid, beam, meshQuad, fastener, supportBox, dispose: () => { for (const g of geometries) g.dispose(); } };
 }
 export type TunnelDrawing = ReturnType<typeof tunnelDrawing>;
 
@@ -116,12 +122,17 @@ export function buildSupportPieces(p: ReturnType<typeof createCatioParts>, draw:
   const { box, rod, materials: m } = p;
   const { foot, pad, insertNut, footHeight: l3, stud: l1 } = layout;
   const d1 = (pad ? pad.diameter : dimensionOf(foot, 'd1')) / 2;
+  const soleThickness = s.soles.length ? TUNNEL.sole.thickness : 0;
   const feet = s.feet.map(f => {
-    const slab = draw.group([f.at[0], f.at[1], f.slabTop - TUNNEL.slab.thickness / 2]);
-    box(slab, [TUNNEL.slab.size, TUNNEL.slab.size, TUNNEL.slab.thickness], [0, 0, 0], m.floor).quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.atan2(s.along[0], s.along[1]));
+    // one slab, leg and sole for each end (its first foot); an insert nut and a foot at every foot
+    const slab = f.primary ? draw.group([f.slabAt[0], f.slabAt[1], f.slabTop - TUNNEL.slab.thickness / 2]) : null;
+    if (slab) box(slab, [TUNNEL.slab.size, TUNNEL.slab.size, TUNNEL.slab.thickness], [0, 0, 0], m.floor).quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.atan2(s.along[0], s.along[1]));
     const bottom = f.slabTop + l3 + f.actualSetting;
     let leg: THREE.Group | null = null;
-    if (f.leg > 0) { leg = draw.group([f.at[0], f.at[1], bottom + f.leg / 2]); box(leg, [TUNNEL.leg, TUNNEL.leg, f.leg], [0, 0, 0]); }
+    if (f.primary && f.leg > 0) { leg = draw.group([f.legAt[0], f.legAt[1], bottom + soleThickness + f.leg / 2]); box(leg, [TUNNEL.leg, TUNNEL.leg, f.leg], [0, 0, 0]); }
+    const soleBox = f.primary ? s.soles[f.end] : undefined;
+    const sole = soleBox ? draw.group(soleBox.center) : null;
+    if (sole && soleBox) draw.supportBox(sole, soleBox, s, m.timber, soleBox.center);
     const nut = draw.group([f.at[0], f.at[1], bottom]);
     draw.cylinder(nut, [0, 0, 0], [0, 0, dimensionOf(insertNut, 'l')], dimensionOf(insertNut, 'd') / 2, m.hardware);
     // the foot: pad on the slab, hexagon, and the stud up into the insert nut; a printed foot holds the screw's head under its lip
@@ -135,12 +146,12 @@ export function buildSupportPieces(p: ReturnType<typeof createCatioParts>, draw:
       draw.cylinder(footPiece, [0, 0, l3 - 7], [0, 0, l3], af / Math.sqrt(3), m.hardware, true);
       draw.cylinder(footPiece, [0, 0, l3], [0, 0, l3 + l1], dimensionOf(foot, 'd') / 2, m.hardware);
     }
-    const screws = s.kind === 'trestle' ? [-1, 1].map(k => {
-      const screw = draw.group(vec.add([f.at[0], f.at[1], s.top], vec.mul(s.along, k * 11)));
+    const screws = s.kind === 'trestle' && f.primary ? [-1, 1].map(k => {
+      const screw = draw.group(vec.add([f.legAt[0], f.legAt[1], s.top], vec.mul(s.along, k * 11)));
       draw.cylinder(screw, [0, 0, 0], [0, 0, -2], 5.5, m.hardware); rod(screw, [0, 0, 0], [0, 0, -100], 2.5);
       return screw;
     }) : [];
-    return { foot: f, slab, leg, nut, footPiece, screws };
+    return { foot: f, slab, leg, sole, nut, footPiece, screws };
   });
   const centre: V3 = [s.at[0], s.at[1], s.top - s.depth / 2];
   const bearer = draw.group(centre);
@@ -156,8 +167,9 @@ export function buildSupportPieces(p: ReturnType<typeof createCatioParts>, draw:
 
 /** Whether a fastener is one of this support's: a brace screw at its brace, or a screw up through its bearer. */
 export function supportOf(layout: TunnelLayout, f: Fastener): Support | undefined {
+  if (f.support) return layout.supports.find(s => s.id === f.support);
   if (f.component === 'brace-screws') return layout.supports.find(t => t.brace && Math.min(vec.len(vec.sub(t.brace.from, [f.at[0], f.at[1], t.brace.from[2]])), vec.len(vec.sub(t.brace.to, [f.at[0], f.at[1], t.brace.to[2]]))) < 200);
-  if (f.component === 'flange-screws') return layout.supports.find(s => s.fixings.some(q => Math.hypot(q[0] - f.at[0], q[1] - f.at[1]) < 1e-6));
+  if (f.component === 'sole-screws') return layout.supports.find(s => s.feet.some(q => Math.hypot(q.legAt[0] - f.at[0], q.legAt[1] - f.at[1]) < 100));
   return undefined;
 }
 
@@ -200,4 +212,56 @@ export function buildCouplingJoint(p: ReturnType<typeof createCatioParts>, draw:
     });
   }
   return { coupling: c, bolts, catches: printed?.catches ?? [], latches: printed?.latches ?? [], screws, seal, dispose: () => printed?.dispose() };
+}
+
+/**
+ * How the tunnel is held on a support (`Support.hold`), drawn: on the support before the tunnel goes on (dowels, cradles, strap
+ * cleats, the latches' pad and catches, the buttons' keepers), on the flanges (the latches' base plates, the turn buttons, each
+ * with `setOpen`/`setTurn`), the strap that goes over last, and the screws of each.
+ */
+export function buildSupportHold(p: ReturnType<typeof createCatioParts>, draw: TunnelDrawing, layout: TunnelLayout, s: Support) {
+  const { materials: m } = p; const hold = s.hold; const FX = TUNNEL.fixing;
+  const onSupport: { kind: 'dowel' | 'cradle' | 'cleat' | 'pad' | 'catch' | 'keeper'; group: THREE.Group; out: V3 }[] = [];
+  const screwsOf = (components: Fastener['component'][]) => layout.fasteners.filter(f => components.includes(f.component) && f.support === s.id)
+    .flatMap(f => { const drawn = draw.fastener(f); return drawn ? [{ fastener: f, ...drawn }] : []; });
+  for (const { group } of screwsOf(['dowels'])) onSupport.push({ kind: 'dowel', group, out: [0, 0, 1] });
+  for (const c of hold.cradles) {
+    const centre = c.boxes[0]?.center ?? s.at; const g = draw.group(centre);
+    for (const b of c.boxes) draw.supportBox(g, b, s, m.printed, centre);
+    onSupport.push({ kind: 'cradle', group: g, out: [0, 0, 1] });
+  }
+  if (hold.strap) for (const [i, b] of hold.strap.cleats.entries()) {
+    const g = draw.group(b.center); draw.supportBox(g, b, s, m.endgrain, b.center);
+    onSupport.push({ kind: 'cleat', group: g, out: vec.mul(s.across, i === 0 ? -1 : 1) });
+  }
+  if (hold.latches.length) {
+    const padBox: SupportBox = { center: [s.at[0], s.at[1], s.top + s.seat / 2], size: [s.length, TUNNEL.bearer.width, s.seat] };
+    const g = draw.group(padBox.center); draw.supportBox(g, padBox, s, m.rubber, padBox.center);
+    onSupport.push({ kind: 'pad', group: g, out: [0, 0, 1] });
+  }
+  const printed = hold.latches.length ? buildPrintedLatches(hold.latches) : null;
+  for (const { mount, group } of printed?.catches ?? []) onSupport.push({ kind: 'catch', group, out: mount.out });
+  for (const b of hold.buttons) for (const k of b.keepers) {
+    const g = draw.group(k.center); draw.supportBox(g, k, s, m.endgrain, k.center);
+    onSupport.push({ kind: 'keeper', group: g, out: vec.mul(s.across, b.side) });
+  }
+  // the turn buttons: each turns on its pivot about the axis across the tunnel, a quarter turn from hooked under its keeper to clear
+  const buttons = hold.buttons.map(b => {
+    const pivot = draw.group(b.pivot); const arm = new THREE.Group(); pivot.add(arm);
+    for (const a of b.arm) draw.supportBox(arm, a, s, m.printed, b.pivot);
+    const axis = draw.vector(vec.mul(s.across, b.side));
+    return { button: b, group: pivot, setTurn: (open: number) => arm.quaternion.setFromAxisAngle(axis, -open * Math.PI / 2) };
+  });
+  let strap: THREE.Group | null = null;
+  if (hold.strap) {
+    const path = hold.strap.path; const centre = draw.centroid(path); strap = draw.group(centre);
+    path.slice(1).forEach((q, i) => {
+      const a = path[i] ?? q; const dir = vec.unit(vec.sub(q, a)); const x = s.along; const z = vec.cross(x, dir);
+      const mesh = p.box(strap as THREE.Group, [FX.strap.width, vec.len(vec.sub(q, a)), 3], vec.sub(draw.centroid([a, q]), centre), m.rubber);
+      mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(draw.vector(x), draw.vector(dir), draw.vector(z)));
+    });
+  }
+  const supportScrews = screwsOf(['cradle-screws', 'strap-cleat-screws', 'support-catch-screws', 'keeper-screws']);
+  const pieceScrews = screwsOf(['support-latch-screws', 'button-screws']);
+  return { support: s, onSupport, latches: printed?.latches ?? [], buttons, strap, supportScrews, pieceScrews, dispose: () => printed?.dispose() };
 }

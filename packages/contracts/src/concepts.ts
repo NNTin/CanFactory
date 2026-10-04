@@ -107,6 +107,8 @@ export const TUNNEL_HARDWARE = {
   staple: 'din-1159-2-5x25',
   /** Through the printed toggle latches' plates at latched couplings: the latch model's default screw. */
   latchScrew: 'din-7997-4x25',
+  /** Dowels in the bearers' tops, when the tunnel is held on its supports by them. */
+  dowel: 'iso-2338-8x40',
 } as const;
 
 /** The tunnel's support feet: Ganter GN 343.2 KR on an M8 stud, in these diameters, each with its longest stud (the most travel). */
@@ -143,7 +145,10 @@ export const tunnelConcept: ConceptPage = {
     ...TUNNEL_FOOT.diameters.map(d1 => ({ partId: tunnelFoot(d1).id, via: `Support feet (${d1} mm)` })),
     { partId: tunnelPadScrew().id, via: 'Printed support feet (screw locked in each foot)' },
     { partId: t.couplingNut, via: 'Printed support feet (nut jammed against the leg)' },
-    { partId: t.latchScrew, via: 'Printed toggle latches at the couplings' },
+    { partId: t.latchScrew, via: 'Printed toggle latches at the couplings and on the supports; support cradles' },
+    { partId: t.dowel, via: 'Dowels in the bearers’ tops' },
+    { partId: t.floorScrew, via: 'Strap cleats and turn-button keepers on the bearers’ ends' },
+    { partId: t.braceScrew, via: 'Turn buttons’ pivots on the flanges' },
   ],
 };
 

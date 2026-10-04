@@ -5,9 +5,9 @@ import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, fastenerClashes, parseSubassemblySettings } from './catioSubassembly.ts';
 import { tunnelCouplingDefinition, tunnelDefinition } from './catioSubassemblies.ts';
 import { PRINTED_LATCH, PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
-import { LATCH_SCREW_CLEARANCE, TUNNEL, TUNNEL_DEFAULT, tunnelSite, vec, type TunnelConfig } from './catioTunnel.ts';
+import { LATCH_SCREW_CLEARANCE, SUPPORT_FIXINGS, TUNNEL, TUNNEL_DEFAULT, tunnelSite, vec, type SupportFixing, type TunnelConfig } from './catioTunnel.ts';
 import {
-  TUNNEL_COUPLING, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingLayout, tunnelCouplingSteps,
+  TUNNEL_COUPLING, TUNNEL_COUPLING_CONTROLS, validateTunnelCoupling, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingLayout, tunnelCouplingSteps,
   type TunnelCouplingConfig, type TunnelCouplingSite,
 } from './catioTunnelCoupling.ts';
 import { createTunnelCouplingScene, LIFT } from './catioTunnelCouplingScene.ts';
@@ -157,7 +157,7 @@ describe('tunnel–tunnel coupling scene', () => {
       const scene = createTunnelCouplingScene('modular', config, site);
       const steps = tunnelCouplingSteps('modular', config, site);
       expect(steps).toHaveLength(6);
-      expect(steps.map(s => s.title)).toEqual(['The site', 'Build one section', 'Ready its joint', 'The second section comes in', 'Couple', 'Fix down']);
+      expect(steps.map(s => s.title)).toEqual(['The site', 'Build one section', 'Ready its joint', 'The second section comes in', 'Couple', 'Hold it on the support']);
       scene.update({ ...installed, progress: 0 });
       const context = scene.components.filter(part => part.step === 0);
       expect(context.map(part => part.id)).toEqual(expect.arrayContaining(['terrain', 'slabs', 'support', 'support-feet']));
@@ -297,6 +297,63 @@ describe('tunnel–tunnel coupling scene', () => {
     scene.update({ ...installed, windowOpen: true }); expect(pose()).toEqual(open);
     scene.update(installed); expect(pose()).not.toEqual(open);
     scene.dispose();
+  });
+});
+
+describe('tunnel–tunnel coupling on its support, as the tunnel page holds it', () => {
+  const holding = (supportFixing: SupportFixing, supportBase: TunnelConfig['supportBase'] = 'trestle'): TunnelCouplingSite => ({ tunnel: { ...TUNNEL_DEFAULT, supportFixing, supportBase }, site: base });
+
+  it('holds the joint on its support with every fixing, and stages it', () => {
+    for (const fixing of SUPPORT_FIXINGS) for (const config of [TUNNEL_COUPLING_DEFAULT, { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' as const }]) {
+      const s = holding(fixing, fixing === 'gravity' ? 'self-standing' : 'trestle');
+      const l = tunnelCouplingLayout(config, s);
+      expect(l.errors, `${fixing} ${config.mechanism}`).toEqual([]);
+      expect(l.support.hold.attached).toBe(fixing !== 'gravity');
+      if (fixing === 'gravity') expect(validateTunnelCoupling('modular', config, holding('gravity')).join()).toMatch(/choose self-standing supports on the tunnel page/);
+      expect(l.fixings.length).toBe(fixing === 'screws' ? 4 : 0);
+      const steps = tunnelCouplingSteps('modular', config, s);
+      expect(steps.at(-1)?.detail, fixing).toMatch({ screws: /6 × 100/, strap: /strap/, dowels: /dowels/, cradle: /cradles/, latch: /vertical latch/, 'turn-buttons': /button/, gravity: /own weight/ }[fixing]);
+      const scene = createTunnelCouplingScene('modular', config, s);
+      // every fitting moves in along its own way, and is captioned while it does
+      for (const motion of scene.motions.filter(m => m.role === 'screw')) expect(motion.approach.clone().normalize().dot(new THREE.Vector3(...(motion.drive ?? [0, 0, 0]))), motion.action).toBeCloseTo(-1, 6);
+      for (const motion of scene.motions.filter(m => m.window[1] > m.window[0])) {
+        scene.update({ ...installed, progress: motion.stage - 1 + (motion.window[0] + motion.window[1]) / 2 });
+        expect(scene.caption?.(), `${fixing}: caption mid ${motion.action}`).not.toBeNull();
+      }
+      scene.dispose();
+    }
+  });
+
+  it('lifts the second section over dowels or cradle lips and sets it down onto the same bearer', () => {
+    for (const fixing of ['dowels', 'cradle'] as const) {
+      const scene = createTunnelCouplingScene('modular', TUNNEL_COUPLING_DEFAULT, holding(fixing));
+      const second = scene.components.find(part => part.id === 'second-section')?.group; if (!second) throw new Error('second section');
+      scene.update({ ...installed, progress: 3 }); const placed = bounds(second);
+      expect(placed.min.z).toBeCloseTo(scene.layout.support.top + scene.layout.support.seat, 3);
+      scene.update({ ...installed, progress: 2.5 }); const coming = bounds(second);
+      const lip = fixing === 'dowels' ? TUNNEL.fixing.dowel.into : TUNNEL.fixing.cradle.lip;
+      expect(coming.min.z - placed.min.z).toBeGreaterThan(lip);
+      scene.update({ ...installed, progress: 2.9 }); expect(scene.caption?.()).toMatch(/Setting the second section down/);
+      scene.dispose();
+    }
+  });
+
+  it('closes the vertical latches and turns the buttons down in the last stage, and lets go when released', () => {
+    const latched = createTunnelCouplingScene('modular', TUNNEL_COUPLING_DEFAULT, holding('latch'));
+    expect(latched.hold.latches).toHaveLength(2);
+    const G = TL.TOGGLE_LATCH_GEOMETRY;
+    const world = (object: THREE.Object3D, point: [number, number, number]) => new THREE.Vector3(...point).applyMatrix4(object.matrixWorld);
+    const tip = () => latched.hold.latches.map(q => world(q.lever, [30, G.lever.middle, 1.5]).distanceTo(new THREE.Vector3(...q.mount.at)));
+    latched.update({ ...installed, progress: 4.2 }); const open = tip();
+    latched.update(installed); tip().forEach((d, i) => expect(d).toBeLessThan(open[i] ?? 0));
+    latched.update({ ...installed, windowOpen: true }); tip().forEach((d, i) => expect(d).toBeCloseTo(open[i] ?? 0, 6));
+    latched.dispose();
+    const buttons = createTunnelCouplingScene('modular', TUNNEL_COUPLING_DEFAULT, holding('turn-buttons'));
+    expect(buttons.hold.buttons).toHaveLength(4);
+    const arm = (b: (typeof buttons.hold.buttons)[number]) => b.group.children[0]?.quaternion.clone() ?? new THREE.Quaternion();
+    buttons.update({ ...installed, progress: 3.9 }); const up = buttons.hold.buttons.map(arm);
+    buttons.update(installed); buttons.hold.buttons.forEach((b, i) => expect(arm(b).angleTo(up[i] ?? new THREE.Quaternion())).toBeCloseTo(Math.PI / 2, 6));
+    buttons.dispose();
   });
 });
 

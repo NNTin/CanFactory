@@ -12,7 +12,7 @@ import { buildCouplingPieces } from './catioCouplingScene.ts';
 import type { LatchMount } from './catioPrintedLatch.ts';
 import { groundAt, tunnelBounds, tunnelLayout, tunnelSite, TUNNEL, vec, type Member, type Piece, type Rect, type TunnelConfig, type TunnelLayout, type TunnelSite } from './catioTunnel.ts';
 import { savedTunnelCoupling, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
-import { buildCouplingJoint, buildSectionPieces, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
+import { buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
 
 /** Stages 3–4 frame and mesh the sections this far above their line; stage 5 lowers them onto the supports. */
 export const LIFT = 650;
@@ -22,7 +22,7 @@ const ease = (t: number) => t * t * (3 - 2 * t);
 
 export interface PieceMotion {
   object: THREE.Object3D; stage: number; window: [number, number]; approach: THREE.Vector3; axis?: THREE.Vector3; turns?: number; action: string;
-  role?: 'slab' | 'leg' | 'insert-nut' | 'foot' | 'bearer' | 'screw' | 'staple' | 'bolt' | 'nut' | 'timber' | 'mesh' | 'latch' | 'seal';
+  role?: 'slab' | 'leg' | 'insert-nut' | 'foot' | 'bearer' | 'screw' | 'staple' | 'bolt' | 'nut' | 'timber' | 'mesh' | 'latch' | 'seal' | 'dowel' | 'fitting';
   /** The tunnel piece (section or collar) it travels with when the pieces are lowered, or the support it rises with when levelled. */
   carrier?: string; support?: string; of?: string; drive?: V3;
 }
@@ -43,6 +43,7 @@ export function memberCaption(layout: TunnelLayout, mem: Member, collars: boolea
 export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, site: TunnelSite = tunnelSite(), joint: TunnelCouplingConfig = savedTunnelCoupling()): SubassemblyModel & {
   layout: ReturnType<typeof tunnelLayout>; motions: PieceMotion[]; carriers: Map<string, number>; drops: Map<string, number>;
   levers: { mount: LatchMount; lever: THREE.Group; setOpen: (open: number) => void }[];
+  holds: ReturnType<typeof buildSupportHold>[];
 } {
   const layout = tunnelLayout(config, site, joint);
   const { w, h } = layout;
@@ -104,28 +105,82 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
   const trestles = layout.supports.filter(s => s.kind === 'trestle');
   const blocks = layout.supports.filter(s => s.kind === 'block');
   const feetCount = layout.supports.reduce((n, s) => n + s.feet.length, 0);
+  const slabs = layout.supports.length * 2; const soles = config.supportBase === 'self-standing';
+  /** Stage 1's order: slabs, (soles,) legs or low bearers, insert nuts and feet from below, then the bearers. */
+  const W: Record<'slab' | 'sole' | 'leg' | 'nut' | 'foot' | 'soleScrews', [number, number]> = soles
+    ? { slab: [0, 0.08], sole: [0.08, 0.14], leg: [0.14, 0.24], soleScrews: [0.24, 0.3], nut: [0.3, 0.4], foot: [0.4, 0.56] }
+    : { slab: [0, 0.12], sole: [0.12, 0.12], leg: [0.12, 0.26], soleScrews: [0.26, 0.26], nut: [0.26, 0.4], foot: [0.4, 0.56] };
   for (const s of layout.supports) {
     drops.set(s.id, Math.min(...s.feet.map(f => f.actualSetting)) - travel.min);
     const built = buildSupportPieces(p, draw, layout, s);
-    for (const { foot: f, slab, leg, nut, footPiece, screws } of built.feet) {
-      group('slabs', 1, 'environment').add(slab);
-      move(slab, 1, [0, 0.12], [0, 0, 260], `${feetCount} × Paving slab: bedded in the grass under every foot`, { role: 'slab', of: f.id });
-      if (leg) { group('legs', 1, 'timber').add(leg); move(leg, 1, [0.12, 0.26], [0, 0, 300], `${trestles.length * 2} × Leg: stood over its slab`, { role: 'leg', support: s.id, of: f.id }); }
+    for (const { foot: f, slab, leg, sole, nut, footPiece, screws } of built.feet) {
+      if (slab) { group('slabs', 1, 'environment').add(slab); move(slab, 1, W.slab, [0, 0, 260], `${slabs} × Paving slab: bedded in the grass under every ${soles ? 'sole' : 'foot'}`, { role: 'slab', of: f.id }); }
+      if (sole) { group('soles', 1, 'timber').add(sole); move(sole, 1, W.sole, [0, 0, 280], `${slabs} × Sole: laid along the tunnel over its slab`, { role: 'timber', support: s.id, of: f.id }); }
+      if (leg) { group('legs', 1, 'timber').add(leg); move(leg, 1, W.leg, [0, 0, 300], `${trestles.length * 2} × Leg: stood ${soles ? 'on its sole' : 'over its slab'}`, { role: 'leg', support: s.id, of: f.id }); }
       group('foot-insert-nuts', 1, 'hardware').add(nut);
-      move(nut, 1, [0.26, 0.4], [0, 0, -70], `${feetCount} × ${insertNut.title}: screwed up into the foot end of each ${blocks.length ? 'leg or low bearer' : 'leg'}`, { role: 'insert-nut', support: s.id, of: f.id, axis: new THREE.Vector3(0, 0, 1), turns: 3 });
+      move(nut, 1, W.nut, [0, 0, -70], `${feetCount} × ${insertNut.title}: screwed up into the foot end of each ${blocks.length ? 'leg or low bearer' : 'leg'}`, { role: 'insert-nut', support: s.id, of: f.id, axis: new THREE.Vector3(0, 0, 1), turns: 3 });
       // the foot stays on the slab while it is turned
       group('levelling-feet', 1, 'hardware').add(footPiece);
-      move(footPiece, 1, [0.4, 0.56], [0, 0, -0.01], pad ? `${feetCount} × Printed foot on an ${foot.designation}: screwed up into the insert nut by turning the foot` : `${feetCount} × ${foot.title}: stud screwed up into the insert nut`, { role: 'foot', of: f.id, axis: new THREE.Vector3(0, 0, 1), turns: 5 });
+      move(footPiece, 1, W.foot, [0, 0, -0.01], pad ? `${feetCount} × Printed foot on an ${foot.designation}: screwed up into the insert nut by turning the foot` : `${feetCount} × ${foot.title}: stud screwed up into the insert nut`, { role: 'foot', of: f.id, axis: new THREE.Vector3(0, 0, 1), turns: 5 });
       for (const screw of screws) {
         group('bearer-screws', 1, 'hardware').add(screw);
         move(screw, 1, [0.72, 0.84], [0, 0, 150], `${trestles.length * 4} × Countersunk wood screw 6 × 100: down through the bearer into the legs`, { role: 'screw', support: s.id, drive: [0, 0, -1], axis: new THREE.Vector3(0, 0, 1), turns: 4 });
       }
     }
     group('bearers', 1, 'timber').add(built.bearer);
-    move(built.bearer, 1, s.kind === 'block' ? [0.12, 0.26] : [0.56, 0.72], [0, 0, 300], s.kind === 'block' ? `${blocks.length} × Low bearer: laid over its slabs` : `${trestles.length} × Bearer: laid onto its legs`, { role: 'bearer', support: s.id });
+    move(built.bearer, 1, s.kind === 'block' ? W.leg : [0.56, 0.72], [0, 0, 300], s.kind === 'block' ? `${blocks.length} × Low bearer: laid over its slabs` : `${trestles.length} × Bearer: laid onto its legs`, { role: 'bearer', support: s.id });
     if (built.brace) {
       group('braces', 1, 'timber').add(built.brace);
       move(built.brace, 1, [0.84, 0.92], vec.mul(s.along, -200), `${layout.supports.filter(t => t.brace).length} × Brace: across the tall trestles`, { role: 'timber', support: s.id });
+    }
+  }
+  const soleScrews = layout.fasteners.filter(f => f.component === 'sole-screws');
+  for (const f of soleScrews) {
+    const drawn = draw.fastener(f); if (!drawn) continue; const s = supportOf(layout, f);
+    group('sole-screws', 1, 'hardware').add(drawn.group);
+    move(drawn.group, 1, W.soleScrews, vec.mul(f.direction, -100), `${soleScrews.length} × Countersunk wood screw 5 × 50: up through the soles into the legs`, { role: 'screw', drive: f.direction, axis: vector(f.direction), turns: 4, ...(s ? { support: s.id } : {}) });
+  }
+  // How the tunnel will be held on its supports: what goes on each support once it is level (stage 2), on the flanges while framing
+  // (stage 3), and what holds the tunnel down at the end (stage 6).
+  const holds = layout.supports.map(s => buildSupportHold(p, draw, layout, s));
+  const onSupportCount = (kind: string) => holds.reduce((n, h) => n + h.onSupport.filter(o => o.kind === kind).length, 0);
+  const holdCaption: Record<string, string> = {
+    dowel: `${onSupportCount('dowel')} × Parallel pin 8 × 40: tapped into the bearers’ tops, half standing proud`, cradle: `${onSupportCount('cradle')} × Printed cradle: set on each end of every bearer`,
+    cleat: `${onSupportCount('cleat')} × Strap cleat: onto both ends of every bearer`, pad: `${onSupportCount('pad')} × EPDM pad: stuck along the bearer’s top`,
+    catch: `${onSupportCount('catch')} × Catch plate of a vertical latch: onto the bearer’s end, hook upwards`, keeper: `${onSupportCount('keeper')} × Keeper: onto the bearer’s end under each flange`,
+  };
+  const supportScrewCount = holds.reduce((n, h) => n + h.supportScrews.length, 0);
+  const buttonCount = holds.reduce((n, h) => n + h.buttons.length, 0);
+  const holdLatches = holds.flatMap(h => h.latches); const holdButtons = holds.flatMap(h => h.buttons);
+  const straps = holds.filter(h => h.strap).length;
+  for (const h of holds) {
+    for (const o of h.onSupport) {
+      group('support-fixings', 2, 'hardware').add(o.group);
+      move(o.group, 2, o.kind === 'pad' ? [0.68, 0.76] : [0.76, 0.88], vec.mul(o.out, 150), holdCaption[o.kind] ?? o.kind, { role: o.kind === 'dowel' ? 'dowel' : 'fitting', support: h.support.id });
+    }
+    for (const { fastener: f, group: g, part } of h.supportScrews) {
+      group('support-fixings', 2, 'hardware').add(g);
+      move(g, 2, [0.88, 1], vec.mul(f.direction, -(dimensionOf(part, 'l') + 40)), `${supportScrewCount} × Countersunk wood screw: the fittings onto the bearers`, { role: 'screw', drive: f.direction, axis: vector(f.direction), turns: 4, support: h.support.id });
+    }
+    for (const b of h.buttons) {
+      group('turn-buttons', 3, 'hardware').add(b.group);
+      move(b.group, 3, [0.82, 0.9], vec.mul(h.support.across, b.button.side * 160), `${buttonCount} × Turn button: onto each flange’s side where it will sit on a bearer, turned up`, { role: 'fitting', carrier: b.button.piece });
+    }
+    for (const { fastener: f, group: g } of h.pieceScrews.filter(q => q.fastener.component === 'button-screws')) {
+      group('turn-buttons', 3, 'hardware').add(g);
+      move(g, 3, [0.9, 1], vec.mul(f.direction, -90), `${buttonCount} × Countersunk wood screw 5 × 50: each turn button’s pivot`, { role: 'screw', drive: f.direction, axis: vector(f.direction), turns: 4, ...(f.piece ? { carrier: f.piece } : {}) });
+    }
+    for (const latch of h.latches) {
+      group('support-latches', 6, 'hardware').add(latch.group);
+      move(latch.group, 6, [0, 0.2], vec.mul(latch.mount.out, 160), `${holdLatches.length} × Vertical printed toggle latch: base plate across both flanges’ sides, over its catch`, { role: 'latch', of: latch.mount.id });
+    }
+    for (const { fastener: f, group: g } of h.pieceScrews.filter(q => q.fastener.component === 'support-latch-screws')) {
+      group('support-latches', 6, 'hardware').add(g);
+      move(g, 6, [0.2, 0.35], vec.mul(f.direction, -65), `${2 * holdLatches.length} × Countersunk wood screw 4 × 25: one into each flange`, { role: 'screw', drive: f.direction, axis: vector(f.direction), turns: 4, ...(f.of ? { of: f.of } : {}) });
+    }
+    if (h.strap) {
+      group('straps', 6, 'hardware').add(h.strap);
+      move(h.strap, 6, [0, 0.4], [0, 0, 400], `${straps} × Rubber strap: over the tunnel at every support, hooked under the cleats`, { role: 'fitting' });
     }
   }
   const braceScrews = layout.fasteners.filter(f => f.component === 'brace-screws');
@@ -251,7 +306,14 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     // the printed latches close over centre in the last part of stage 5, once every piece is down
     const closing = state.exploded ? 0 : ease(THREE.MathUtils.clamp((lower - 0.6) / 0.35, 0, 1));
     for (const latch of levers) latch.setOpen(1 - closing);
+    // stage 6: the vertical latches close and the turn buttons turn down under their keepers
+    const fastening = state.exploded ? 0 : ease(THREE.MathUtils.clamp((along(state.progress, 6) - 0.4) / 0.3, 0, 1));
+    const turning = state.exploded ? 0 : ease(THREE.MathUtils.clamp(along(state.progress, 6) / 0.3, 0, 1));
+    for (const latch of holdLatches) latch.setOpen(state.windowOpen ? 1 : 1 - fastening);
+    for (const b of holdButtons) b.setTurn(1 - turning);
     let action: string | null = active.size > 0 ? [...active].join('; ') : null;
+    if (!action && state.progress > 5 && fastening > 0 && fastening < 1 && holdLatches.length) action = `${holdLatches.length} × Vertical printed toggle latch: hooked over its catch, lever pressed down over centre`;
+    if (!action && state.progress > 5 && turning > 0 && turning < 1 && holdButtons.length) action = `${holdButtons.length} × Turn button: turned down, its foot under the keeper`;
     if (!action && state.progress > 4 && closing > 0 && closing < 1) action = `${latchCount} × Printed toggle latch: hooked over its catch, lever pressed down over centre`;
     if (!action && state.progress > 1 && state.progress < 2) action = 'Each foot is turned on its stud, from below the bearer, until the bearer top meets the string line; then its nut is jammed up against the timber';
     if (!action && state.progress > 4 && state.progress <= 5 && lower < 0.5) {
@@ -262,6 +324,6 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     hinge.rotation.z = state.windowOpen ? -Math.PI / 2 : 0;
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); dock.dispose(); draw.dispose(); for (const j of joints) j.dispose(); for (const g of geometries) g.dispose(); }
-  return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, carriers, drops, levers, caption: () => currentAction };
+  function dispose() { p.dispose(); dock.dispose(); draw.dispose(); for (const j of joints) j.dispose(); for (const h of holds) h.dispose(); for (const g of geometries) g.dispose(); }
+  return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, carriers, drops, levers, holds, caption: () => currentAction };
 }
