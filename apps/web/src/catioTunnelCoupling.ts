@@ -145,8 +145,9 @@ export function tunnelCouplingViews(_variant: CatioMode, config: TunnelCouplingC
     Front: { position: [0, joint[1] + L * 2.6, cz], target: [0, joint[1], cz] },
     Side: { position: [L * 2.4, joint[1], cz + 60], target: [0, joint[1], cz - 60] },
     Top: { position: [0, joint[1], cz + L * 2.4], target: [0, joint[1] + 1, cz] },
-    // beside the joint, outside the right-hand flanges: the latch (or the bolts) across the gap
-    Mounting: { position: [focus[0] + 300, focus[1] - 200, focus[2] + 160], target: focus },
+    // beside the joint, outside the right-hand flanges: the latch (or the bolts) across the gap, and below it the bearer's end with
+    // whatever holds the tunnel on it
+    Mounting: { position: [focus[0] + 420, focus[1] - 300, focus[2] + 120], target: [focus[0], focus[1], (focus[2] + l.support.top) / 2] },
   };
 }
 

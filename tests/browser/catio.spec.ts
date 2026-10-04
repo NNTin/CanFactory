@@ -254,6 +254,20 @@ test('opens the tunnel, solves its route to the enclosure port, switches its joi
   await expect(hardware.getByRole('link', { name: 'Levelling foot 40 mm, M8 × 80, rubber pad' })).toHaveAttribute('href', '#/parts/levelling-foot/ganter-gn-343-2-40-m8-80-kr');
   await expect(hardware.getByRole('link', { name: 'Pressure pad, foot' })).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Feet', exact: true }).selectOption('printed');
+  // how the tunnel is held on its supports: screws by default, dowels instead, and gravity only on self-standing supports
+  await expect(page.getByRole('combobox', { name: 'Held on the supports by' })).toHaveValue('screws');
+  await page.getByRole('combobox', { name: 'Held on the supports by' }).selectOption('dowels');
+  await expect(hardware.getByRole('link', { name: 'Parallel pin 8 × 40' })).toHaveAttribute('href', '#/parts/pin/iso-2338-8x40');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'Held on the supports by' }).selectOption('gravity');
+  await expect(page.getByRole('alert')).toContainText('Choose self-standing supports');
+  await page.getByRole('combobox', { name: 'Supports stand' }).selectOption('self-standing');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByRole('table', { name: 'Timber parts' }).getByRole('cell', { name: 'Sole', exact: true })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Held on the supports by' }).selectOption('strap');
+  await expect(hardware.getByRole('cell', { name: 'EPDM tarp strap with S-hooks (custom)' }).first()).toBeVisible();
+  await page.getByRole('combobox', { name: 'Held on the supports by' }).selectOption('screws');
+  await page.getByRole('combobox', { name: 'Supports stand' }).selectOption('trestle');
   const timber = page.getByRole('table', { name: 'Timber parts' });
   await expect(timber.getByRole('cell', { name: 'Collar floor' }).first()).toBeVisible();
   // the enclosure's door higher up: the tunnel climbs more, steeper

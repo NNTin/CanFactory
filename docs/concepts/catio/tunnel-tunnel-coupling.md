@@ -144,7 +144,15 @@ The slider shows, in order:
 4. **Couple.** Printed latch: each link is hooked over its catch and each lever closed over centre, with the shared
    mechanism's movements (`TOGGLE_LATCH_MOVEMENTS`), as the model page plays them. Bolted: bolts through both flanges with
    a washer, then washers and nuts run on from the far side, turning as they go.
-5. **Fix down.** Four 6 × 100 screws up through the bearer, two into each flange.
+5. **Hold it on the support**, as the tunnel page's **Held on the supports by** sets it (see [tunnel.md](tunnel.md),
+   "Held on the supports, but not for good"): four 6 × 100 screws up through the bearer (the default); a rubber strap
+   hooked over both flanges; the vertical latches' base plates screwed across the two flanges and closed over centre; or
+   the turn buttons turned down under their keepers. With dowels, cradles or gravity only there is nothing left to do.
+   - The support's fittings (dowels, cradles, strap cleats, the latches' pad and catches, the keepers) are on it from
+     stage 0; the turn buttons go on each section's flange with it.
+   - Over dowels or cradle lips, the second section comes in along the axis lifted clear of them and is set down at the
+     end of stage 3.
+   - With self-standing supports, the support stands on its soles.
 
 Screws come in point first along their own axis. The exploded view freezes the same assembly: the first section raised,
 the second waiting beyond it, every piece on its way in and the latches open.
@@ -175,8 +183,9 @@ and the printed latches, which link to their model (`#/models/toggle-latch`).
   tunnel page
 - **Cross-page wiring** (`follows` in [catioSubassemblies.ts](../../../apps/web/src/catioSubassemblies.ts)): the tunnel
   follows this page's **Coupling**, **Latches per side**, **Bolts per coupling** and **Seal**; this page follows the
-  tunnel's **Longest section** and its feet and ground (**Feet**, **Foot height**, **Foot sole**, **Foot diameter**,
-  **Ground falls away**, **Uneven by up to**).
+  tunnel's **Longest section**, its feet and ground (**Feet**, **Foot height**, **Foot sole**, **Foot diameter**,
+  **Ground falls away**, **Uneven by up to**), and how the tunnel is held on its supports (**Held on the supports by**,
+  **Supports stand**).
 - [Tests](../../../apps/web/src/catioTunnelCoupling.test.ts) check:
   - two identical sections at the tunnel's length, the gap between them (3 mm latched, none bolted), and the bearer under
     the middle of the gap screwed into both flanges, for every option, section length, feet and clear size
