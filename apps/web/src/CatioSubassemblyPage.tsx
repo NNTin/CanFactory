@@ -5,9 +5,9 @@ import { findPart } from '@canfactory/contracts';
 import { createStage, type Stage } from './stage.ts';
 import type { CatioLayer, CatioView } from './catioDesign.ts';
 import type { CatioMode } from './catioSettings.ts';
-import { BOM_GROUPS, inRange, loadSubassemblySettings, subassemblyStorageKey, defaultSubassemblySettings, type BomLine, type NumberRange, type SubassemblyDefinition, type SubassemblyModel, type SubassemblyViewing } from './catioSubassembly.ts';
-import { couplingDefinition, dependentsOf, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
-import { ChangesNote, OtherPageIssues, PageRelations, SettingSource, useOtherPageIssues } from './CatioCrossPage.tsx';
+import { BOM_GROUPS, inRange, loadSubassemblySettings, saveShared, subassemblyStorageKey, defaultSubassemblySettings, type BomLine, type NumberRange, type SubassemblyDefinition, type SubassemblyModel, type SubassemblyViewing } from './catioSubassembly.ts';
+import { couplingDefinition, dependentsOf, tunnelCouplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
+import { ChangesNote, OtherPageIssues, PageRelations, SettingSource, SharedNote, useOtherPageIssues } from './CatioCrossPage.tsx';
 import { formatHash, type CatioSubassembly } from './route.ts';
 
 const VIEWS: CatioView[] = ['Exterior', 'Interior', 'Front', 'Side', 'Top', 'Mounting'];
@@ -23,6 +23,7 @@ export function CatioSubassemblyRoute({ id }: { id: CatioSubassembly }) {
     'window-insert': () => <CatioSubassemblyPage definition={windowInsertDefinition} />,
     'insert-tunnel-coupling': () => <CatioSubassemblyPage definition={couplingDefinition} />,
     tunnel: () => <CatioSubassemblyPage definition={tunnelDefinition} />,
+    'tunnel-tunnel-coupling': () => <CatioSubassemblyPage definition={tunnelCouplingDefinition} />,
   };
   return pages[id]();
 }
@@ -60,6 +61,8 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   const visibleParts = () => controller.current?.model.components.filter(part => part.group.visible).map(part => part.id).join(' ') ?? '';
   useEffect(() => {
     try { localStorage.setItem(subassemblyStorageKey(definition.id), JSON.stringify(settings)); } catch { /* The page works without storage. */ }
+    // settings shared with the page that owns them are kept there too
+    saveShared(definition, settings.config);
   }, [settings, definition.id]);
   // after the save above, so the pages fitted to this one read the new settings
   const otherIssues = useOtherPageIssues(dependentsOf(definition.id).map(d => d.page), JSON.stringify(config));
@@ -107,7 +110,8 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
             <small>{[{ id: 'recommended', description: 'The recommended defaults.' }, ...definition.presets].find(preset => preset.id === activePreset)?.description ?? 'Your own design: start again from a preset or the recommended defaults.'}</small></div>}
           {groups.map(group => <fieldset key={group}><legend>{group}</legend>{controls.filter(control => control.group === group).map(control => {
             const current = config[control.key];
-            const note = <ChangesNote page={definition.id} setting={control.key} />;
+            const shared = definition.shares?.find(share => share.settings.includes(control.key));
+            const note = shared ? <SharedNote page={shared.page} /> : <ChangesNote page={definition.id} setting={control.key} />;
             if (control.range) return <NumberField key={control.key} label={control.label} help={control.help} range={control.range} value={Number(current)}
               onCommit={value => change(control.key, value as C[keyof C])} note={note} />;
             return <label className="catio-field subassembly-field" key={control.key}><span>{control.label}</span>

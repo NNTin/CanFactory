@@ -132,6 +132,12 @@ export interface SubassemblyDefinition<C extends object> {
    * them). Linked from both briefs; the other page notes it under each listed setting and warns when its settings break this page.
    */
   follows?: Follow[];
+  /**
+   * Settings another page owns that this page also shows and edits, under the same key and with the same choices (e.g. how the
+   * tunnel is held on its supports, on the tunnel–tunnel coupling page). The owner's saved settings hold them: this page reads
+   * them from there when it loads and writes them back when they change here, so either page sets them.
+   */
+  shares?: Follow[];
   /** The views that open with the wall cut away; Interior and Mounting when absent. */
   cutawayViews?: CatioView[];
   /** Viewing defaults besides the shared ones, e.g. a toggle that starts off. */
@@ -179,8 +185,42 @@ export function parseSubassemblySettings<C extends object>(definition: Subassemb
 }
 
 export function loadSubassemblySettings<C extends object>(definition: SubassemblyDefinition<C>): SubassemblySettings<C> {
-  try { return parseSubassemblySettings(definition, localStorage.getItem(subassemblyStorageKey(definition.id))); }
+  let settings: SubassemblySettings<C>;
+  try { settings = parseSubassemblySettings(definition, localStorage.getItem(subassemblyStorageKey(definition.id))); }
   catch { return defaultSubassemblySettings(definition); }
+  settings.config = withShared(definition, settings.config, page => {
+    try { return (JSON.parse(localStorage.getItem(subassemblyStorageKey(page)) ?? 'null') as { config?: unknown } | null)?.config; } catch { return undefined; }
+  });
+  return settings;
+}
+
+/** A setting's value from untrusted storage, if its control offers it. */
+const accepts = <C>(control: SubassemblyControl<C> | undefined, value: unknown) => !!control && (control.range ? inRange(control.range, value) : control.options.some(option => option.value === value));
+
+/** `config` with its shared settings (`shares`) as the owning pages have them (`owner` gives a page's saved config), where valid. */
+export function withShared<C extends object>(definition: SubassemblyDefinition<C>, config: C, owner: (page: CatioSubassembly) => unknown): C {
+  const shared = structuredClone(config);
+  for (const share of definition.shares ?? []) {
+    const saved = owner(share.page); if (!record(saved)) continue;
+    for (const key of share.settings) if (accepts(definition.controls.find(c => c.key === key), saved[key])) (shared as Record<string, unknown>)[key] = saved[key];
+  }
+  return shared;
+}
+
+/** Writes this page's shared settings into the owning pages' saved settings, keeping everything else they hold. */
+export function saveShared<C extends object>(definition: SubassemblyDefinition<C>, config: C) {
+  for (const share of definition.shares ?? []) {
+    try {
+      const key = subassemblyStorageKey(share.page);
+      const saved: unknown = JSON.parse(localStorage.getItem(key) ?? 'null');
+      const next = record(saved) && saved['version'] === 1 ? saved : { version: 1 };
+      const owned = record(next['config']) ? next['config'] : {};
+      const changed = share.settings.some(setting => owned[setting] !== (config as Record<string, unknown>)[setting]);
+      if (!changed) continue;
+      for (const setting of share.settings) owned[setting] = (config as Record<string, unknown>)[setting];
+      localStorage.setItem(key, JSON.stringify({ ...next, config: owned }));
+    } catch { /* The page works without storage. */ }
+  }
 }
 
 /** Another page's saved config (checked by its `parse`), or `defaults` when there is none or storage is unavailable. */
