@@ -39,3 +39,25 @@ test('the preview splits the guard into segments and plays its assembly; a talle
   await expect(slider).toHaveAttribute('aria-valuetext', `Step ${taller.length - 1} of ${taller.length} · ${taller.at(-2)?.title ?? ''}`);
   expect(errors).toEqual([]);
 });
+
+test('the card shows the guard in a tilted window and, on hover, its assembly: tilt, left panel, right panel, top strip', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/#/models');
+  const card = page.locator('.model-card', { hasText: windowCatGuard.title });
+  const art = card.locator('svg.window-cat-guard-illustration');
+  await expect(art).toHaveAttribute('data-guard-stage', 'Guarded');
+  // at rest: three segments per side panel and five in the strip, all in place
+  await expect(art.locator('.wcg-segment')).toHaveCount(11);
+  await card.hover();
+  const seen: string[] = [];
+  await expect.poll(async () => {
+    const stage = await art.getAttribute('data-guard-stage') ?? '';
+    if (seen.at(-1) !== stage) seen.push(stage);
+    return seen.includes('Close the window');
+  }, { timeout: 15_000, intervals: [100] }).toBe(true);
+  expect(seen.slice(0, 5)).toEqual(['Tilt the window', 'Left panel', 'Right panel', 'Top strip', 'Guarded']);
+  await page.mouse.move(0, 0);
+  await expect(art).toHaveAttribute('data-guard-stage', 'Guarded');
+  expect(errors).toEqual([]);
+});

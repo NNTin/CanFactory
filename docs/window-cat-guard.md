@@ -119,6 +119,15 @@ assembled and exploded layouts and along every step: 0 mm³ throughout. With neg
 (`--defines '{"FIT":-0.3}'`), every dovetail pair and both pin-in-boss corners collide, which proves that the poses really
 put each tab in its notch and each pin in its boss.
 
+## Library card
+
+The model library's card (`apps/web/src/WindowCatGuardIllustration.tsx`) shows the guard standing in a tilted window, from
+the room. On hover or focus it loops through the assembly: the sash tilts open, the left side panel goes in segment by segment
+from the top, then the right one, then the top strip lands segment by segment from its right end; then the guard comes out
+and the window closes. It draws the default guard's own layout (`windowCatGuardLayout`: three segments per side panel, five in
+the strip), with the gap drawn 2.6 times deeper than to scale so that the side panels read at card size. With reduced motion
+it stays at rest. `data-guard-stage` names the current stage for the browser test.
+
 ## Printing and fitting
 
 - Print every segment flat, as generated, in PETG; no supports. PLA softens behind a sunny window.
