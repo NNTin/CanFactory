@@ -555,6 +555,7 @@ function Editor({ model }: { model: ModelDetail }) {
           <p className="panel-intro">A few adjustments. A perfect fit.</p>
           <div className="basic-controls">{model.controls.filter(control => control.group === 'basic' && shown(control)).map(field)}</div>
           {derived?.slotCount !== undefined && derived.slotCount !== null && <div className="slot-note"><Sparkles size={14} /><span>{derived.slotCount === 0 ? 'One opening. A smooth funnel.' : `${derived.slotCount.toLocaleString()} slots, automatically spaced.`}</span></div>}
+          {valid && derived?.notes?.map(note => <div key={note} className="slot-note derived-note"><Sparkles size={14} /><span>{note}</span></div>)}
           {model.controls.some(control => control.group === 'advanced') && <button className="advanced-button" type="button" aria-expanded={advanced} aria-controls="advanced-controls" onClick={() => setAdvanced(value => !value)}>
             Advanced settings <ChevronDown size={16} className={advanced ? 'rotated' : ''} />
           </button>}

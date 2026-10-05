@@ -1595,6 +1595,117 @@ export interface operations {
                          */
                         fit: number;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "qr-magnet-tag";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Magnetic QR code tag parameters. All fields are required; dimensions are in millimetres. */
+                    parameters: {
+                        /**
+                         * QR code text
+                         * @description What the code holds, e.g. a web address: up to 200 characters of printable ASCII (letters, digits, spaces and punctuation, no accents). The longer it is, the smaller the modules.
+                         * @default https://example.com
+                         */
+                        qrText: string;
+                        /**
+                         * Error correction
+                         * @description How much of the code may be damaged or covered and still scan. Higher makes a larger code (smaller modules). A logo needs Q or H.
+                         * @default H
+                         * @enum {unknown}
+                         */
+                        errorCorrection: "L" | "M" | "Q" | "H";
+                        /**
+                         * Shape
+                         * @description The outline of the tile.
+                         * @default square
+                         * @enum {unknown}
+                         */
+                        shape: "square" | "round";
+                        /**
+                         * Size
+                         * @description The tile’s outer width (square) or diameter (round), in mm.
+                         * @default 60
+                         */
+                        size: number;
+                        /**
+                         * Corner radius
+                         * @description Radius of the square tile’s outer corners, in mm. The seat’s corners follow it, less the border.
+                         * @default 4
+                         */
+                        cornerRadius: number;
+                        /**
+                         * Border width
+                         * @description The visible ring between the code’s centre piece and the tile’s outer edge, in mm.
+                         * @default 6
+                         */
+                        borderWidth: number;
+                        /**
+                         * Quiet zone
+                         * @description The light margin round the code on the centre piece, in modules. Scanners need at least one; four is the standard.
+                         * @default 2
+                         */
+                        quietZone: number;
+                        /**
+                         * Logo
+                         * @description An SVG file whose filled shapes stand in the middle of the code, raised in the dark filament on a light pad of whole modules. Strokes, text, pictures and style sheets in the file are left out. The file itself is never uploaded, only its outline.
+                         * @default
+                         */
+                        logo: string;
+                        /**
+                         * Logo size (%)
+                         * @description The logo’s width as a share of the code’s width, in %. Its pad may cost the code at most 60 % of the damage its error correction can repair (and cover at most 15 % of it at Q, 25 % at H), and never the corner patterns: the editor says how large it may be.
+                         * @default 20
+                         */
+                        logoSize: number;
+                        /**
+                         * Base thickness
+                         * @description The light base of the centre piece, in mm. Change to the dark filament at its top (rounded up to a layer).
+                         * @default 1.6
+                         */
+                        baseThickness: number;
+                        /**
+                         * Relief height
+                         * @description How high the dark modules and the logo stand on the base, in mm.
+                         * @default 0.6
+                         */
+                        reliefHeight: number;
+                        /**
+                         * Layer height
+                         * @description Your slicer’s layer height, in mm. Only used to work out the filament-change height and to check the relief has at least two dark layers.
+                         * @default 0.2
+                         */
+                        layerHeight: number;
+                        /**
+                         * Joint
+                         * @description How the centre is held in the border.
+                         * @default crush-ribs
+                         * @enum {unknown}
+                         */
+                        joint: "crush-ribs" | "detent" | "twist-lock" | "magnets";
+                        /**
+                         * Fit
+                         * @description Gap per side between the centre and the border’s seat, in mm. Larger is looser; raise it if your printer prints parts too tight.
+                         * @default 0.2
+                         */
+                        fit: number;
+                        /**
+                         * Magnets
+                         * @description The round magnets in the back of the border (and, with the magnet joint, in the seat and the centre). Each is a real product from the parts library; its pockets are cut to its greatest size.
+                         * @default supermagnete-s-08-02-n
+                         * @enum {unknown}
+                         */
+                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-02-n" | "supermagnete-s-08-03-n" | "supermagnete-s-10-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
+                        /**
+                         * Magnets in the back
+                         * @description How many magnets the back holds: two on one diagonal, or four in the corners. The magnet joint uses as many again, twice.
+                         * @default 4
+                         */
+                        magnetCount: number;
+                    };
                 };
             };
         };

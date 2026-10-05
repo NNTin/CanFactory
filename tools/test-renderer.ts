@@ -3,20 +3,51 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { activeParts, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, type WindowCatGuardParameters, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
 import { selectRunner } from './renderers.ts';
+import jsQR from 'jsqr';
+import { parseStl, type Mesh } from './stl-to-scad/stl.ts';
 
 // Two logos for the cigarette case's underside, read from SVG as the editor does.
 const RING_AND_STAR = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill-rule="evenodd" d="M50 2a48 48 0 1 0 0.01 0zM50 10a40 40 0 1 1 -0.01 0z"/><path d="M50 18 L69 76 L20 40 L80 40 L31 76 Z"/></svg>');
+// A leaf with a vein cut out (an even-odd hole), the QR tag's logo.
+const QR_LEAF = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill-rule="evenodd" d="M50 4 C82 18 96 58 50 96 C4 58 18 18 50 4Z M47 30 L53 30 L53 82 L47 82Z"/></svg>');
+/**
+ * A part seen from straight above, as a scanner sees the printed QR tag's centre: each pixel (0.125 mm) is dark where the mesh's
+ * top surface stands above `threshold`, light elsewhere, and the border's blue beyond `half` mm; decoded with jsQR.
+ */
+function decodeTop(mesh: Mesh, threshold: number, half: number): string | undefined {
+  const scale = 8, side = Math.ceil(2 * half * scale);
+  const top = new Float32Array(side * side).fill(-Infinity);
+  const t = mesh.tris;
+  for (let i = 0; i < t.length; i += 9) {
+    const [ax, ay, az, bx, by, bz, cx, cy, cz] = Array.from({ length: 9 }, (_, k) => t[i + k] ?? 0) as [number, number, number, number, number, number, number, number, number];
+    const area = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay);
+    if (Math.abs(area) < 1e-9) continue;
+    const px = (x: number) => (x + half) * scale - 0.5, py = (y: number) => (half - y) * scale - 0.5;
+    const x0 = Math.max(0, Math.ceil(Math.min(px(ax), px(bx), px(cx)))), x1 = Math.min(side - 1, Math.floor(Math.max(px(ax), px(bx), px(cx))));
+    const y0 = Math.max(0, Math.ceil(Math.min(py(ay), py(by), py(cy)))), y1 = Math.min(side - 1, Math.floor(Math.max(py(ay), py(by), py(cy))));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const wx = (x + 0.5) / scale - half, wy = half - (y + 0.5) / scale;
+      const u = ((bx - wx) * (cy - wy) - (cx - wx) * (by - wy)) / area, v = ((cx - wx) * (ay - wy) - (ax - wx) * (cy - wy)) / area, w = 1 - u - v;
+      if (u < -1e-9 || v < -1e-9 || w < -1e-9) continue;
+      const z = u * az + v * bz + w * cz;
+      if (z > (top[y * side + x] ?? -Infinity)) top[y * side + x] = z;
+    }
+  }
+  const data = new Uint8ClampedArray(side * side * 4);
+  top.forEach((z, index) => data.set(z === -Infinity ? [47, 111, 214, 255] : z > threshold ? [20, 20, 24, 255] : [238, 239, 241, 255], index * 4));
+  return jsQR(data, side, side, { inversionAttempts: 'dontInvert' })?.data;
+}
 const WIDE_BAR = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg"><rect width="80" height="20" rx="5"/></svg>');
 const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
 store.migrate(); store.seed();
 const app = await createApp(store);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = selectRunner(directory);
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -320,6 +351,57 @@ try {
       if (part.id.startsWith('strip')) assert.ok(Math.abs(part.dimensions.y - p.gap) < 0.01, `window cat guard ${name} ${part.id}: ${part.dimensions.y} deep, not ${p.gap}`);
     }
     console.log(`PASS window cat guard ${name}: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+  // Magnetic QR code tag: every joint on both shapes; the smallest and the largest tile; the longest text at the lowest error
+  // correction; a logo at H and the largest logo at Q; the extremes of the fit for every joint; the thinnest and thickest centre.
+  // Each part must be one closed solid of the expected size, and the centre's top, seen from above as a scanner sees the printed
+  // tag (the relief dark, the base light), must decode to the text.
+  const tagRuns: { name: string; overrides: ParameterValues }[] = [
+    ...QR_TAG_SHAPES.flatMap(shape => QR_TAG_JOINTS.map(joint => ({ name: `${shape} ${joint}`, overrides: { shape, joint } }))),
+    { name: 'smallest tile', overrides: { size: 30, borderWidth: 3, quietZone: 1, qrText: 'hi', errorCorrection: 'L', cornerRadius: 0 } },
+    { name: 'smallest round tile, 2 small magnets', overrides: { shape: 'round', size: 30, borderWidth: 3, quietZone: 1, qrText: 'hi', errorCorrection: 'L', magnet: 'supermagnete-s-04-02-n', magnetCount: 2 } },
+    { name: 'largest tile, largest magnets', overrides: { size: 120, borderWidth: 20, cornerRadius: 20, magnet: 'supermagnete-s-12-02-n', quietZone: 4 } },
+    { name: 'longest text at L', overrides: { size: 120, qrText: 'The quick brown fox jumps over the lazy dog! 0123456789 '.repeat(4).slice(0, 200), errorCorrection: 'L' } },
+    { name: 'logo at H', overrides: { logo: QR_LEAF.logo } },
+    { name: 'largest logo at Q, round twist lock', overrides: { shape: 'round', size: 80, joint: 'twist-lock', qrText: 'https://github.com/NNTin/CanFactory', errorCorrection: 'Q', logo: QR_LEAF.logo, logoSize: 0 } },
+    ...QR_TAG_JOINTS.flatMap(joint => [
+      { name: `${joint} tightest`, overrides: { joint, fit: 0.05 } },
+      { name: `${joint} loosest`, overrides: { joint, fit: joint === 'detent' ? 0.4 : 0.6 } },
+    ]),
+    { name: 'thinnest centre, fine layers, magnets in a thin base', overrides: { baseThickness: 0.8, reliefHeight: 0.4, layerHeight: 0.08, joint: 'magnets', magnet: 'supermagnete-s-06-03-n' } },
+    { name: 'thickest centre', overrides: { baseThickness: 3, reliefHeight: 2, joint: 'detent', fit: 0.6 } },
+  ];
+  for (const { name, overrides } of only && only !== 'qr-magnet-tag' ? [] : tagRuns) {
+    const started = Date.now();
+    const parameters = { ...qrMagnetTag.defaults, ...overrides };
+    // logoSize 0 stands for the largest the code allows
+    if (parameters['logoSize'] === 0) parameters['logoSize'] = Math.min(40, maxLogoSize(qrTagCode({ ...parameters, logo: '' } as never).symbol.size, parameters['errorCorrection'] as 'Q'));
+    assert.deepEqual(validateParameters(qrMagnetTag, parameters), [], `QR tag ${name}`);
+    const queued = store.enqueue(qrMagnetTag, parameters);
+    const job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken;
+    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `QR tag ${name}`); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `QR tag ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['border', 'centre']);
+    const p = parameters as unknown as QrMagnetTagParameters;
+    const layout = qrTagLayout(qrTagSettings(parameters));
+    const near = (actual: number | undefined, expected: number, what: string) => assert.ok(Math.abs((actual ?? NaN) - expected) < 0.02, `QR tag ${name} ${what}: ${actual} != ${expected}`);
+    const [border, centre] = result.artifact.parts;
+    near(border?.dimensions.x, p.size, 'border width'); near(border?.dimensions.y, p.size, 'border depth'); near(border?.dimensions.z, layout.height, 'border height');
+    near(centre?.dimensions.z, p.baseThickness + p.reliefHeight, 'centre height');
+    const across = p.joint === 'detent' ? layout.seatWidth + 2 * QR_TAG.detentEngage : layout.centreWidth;
+    // a twist lock's lugs stand at 90°, 210° and 330°, each 12° wide: the ones at the sides reach out to 24° off the X axis
+    const r = layout.centreWidth / 2, lugX = (r + QR_TAG.lugDepth) * Math.cos((90 - 60 - QR_TAG.lugAngle / 2) * Math.PI / 180);
+    near(centre?.dimensions.x, p.joint === 'twist-lock' ? 2 * Math.max(r, lugX) : across, 'centre width');
+    near(centre?.dimensions.y, p.joint === 'twist-lock' ? layout.centreWidth + QR_TAG.lugDepth : across, 'centre depth');
+    // the centre seen from above: whatever stands above the middle of the relief is dark
+    const entries = unzipSync(new Uint8Array(await readFile(store.artifacts.path(job.id, 'zip'))));
+    const stl = entries['centre.stl']; assert.ok(stl, 'centre.stl');
+    const decoded = decodeTop(parseStl(Buffer.from(stl.buffer, stl.byteOffset, stl.byteLength)), p.baseThickness + p.reliefHeight / 2, layout.centreWidth / 2 + 3);
+    assert.equal(decoded, p.qrText, `QR tag ${name}: the rendered centre decodes to ${JSON.stringify(decoded)}`);
+    console.log(`PASS QR tag ${name}: ${result.artifact.triangles} triangles, decodes, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   // Litter shovel: every sieve texture, the sieve extremes (most gaps, fewest gaps), the scraping tip's extremes, both grip ends,
   // the shortest and longest scoop, no dam and the widest, the fewest and most, thinnest and thickest grip supports, and both snap modes of both
