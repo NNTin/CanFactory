@@ -5,6 +5,7 @@ import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type Met
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
 import { PRESSURE_PAD, PRESSURE_PAD_SURFACES, PRESSURE_PAD_TYPES, pressurePadExtenderTravel, pressurePadLeg, pressurePadMinDiameter, pressurePadMinExtenderDiameter, pressurePadMinExtenderLength, pressurePadMinHeight, type PressurePadSurface, type PressurePadType } from './pressurePad.ts';
+import { leastRibSpacing, sideJointWidth, sideWidth, WINDOW_CAT_GUARD_MAX_SEGMENTS, windowCatGuardLayout, windowCatGuardPieces } from './windowCatGuard.ts';
 import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, type LatchMovement } from './toggleLatchMechanism.ts';
 
 /** A field-level, user-readable validation failure. Paths are parameter names. */
@@ -2020,7 +2021,139 @@ export const pressurePad = {
   derived: () => ({ slotCount: null }),
 } satisfies ModelDefinition;
 
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad];
+/**
+ * Window cat guard (models/window-cat-guard/generator.scad, docs/window-cat-guard.md): honeycomb panels that close the gaps of a
+ * tilted window, built the way the reference parts in models/window-cat-guard/references/ are: flat honeycomb plates, split into
+ * segments that join with an in-plane dovetail under a spine or rib that laps onto the next segment, and a top strip whose pins
+ * plug into bosses on the side panels. Every panel longer than `maxPartLength` is split into equal segments, one part each.
+ */
+export const DEFAULT_WINDOW_CAT_GUARD = {
+  height: 550, gap: 105, tipWidth: 10, width: 900, maxPartLength: 210, topStrip: true,
+  thickness: 4, ribHeight: 5, cell: 30, web: 4, border: 6, fit: 0.25,
+} as const;
+
+export const WindowCatGuardParametersSchema = Type.Object({
+  height: dimension('Height', 'Height of the side panels: how high the side gap is that they close, from the panel’s tip at the bottom to the window’s top, in mm. Above the longest part they are split into segments.', DEFAULT_WINDOW_CAT_GUARD.height, 150, 1500, 1),
+  gap: dimension('Gap at the top', 'Width of the side gap at the top of the tilted window, frame to sash, in mm: the side panels’ top width and the top strip’s depth.', DEFAULT_WINDOW_CAT_GUARD.gap, 60, 200, 0.5),
+  tipWidth: dimension('Width at the bottom', 'Width of the side panels at their bottom, in mm. The gap tapers to nothing at the hinge; the panel stops where it is this wide.', DEFAULT_WINDOW_CAT_GUARD.tipWidth, 4, 60, 0.5),
+  width: dimension('Window width', 'Width of the window opening, in mm: from the left side panel’s outer face to the right one’s. The top strip spans it between the side panels’ bosses.', DEFAULT_WINDOW_CAT_GUARD.width, 300, 1600, 1),
+  maxPartLength: dimension('Longest part', 'A side panel or the top strip longer than this is split into equal segments that dovetail together, so that every part fits your print bed, in mm.', DEFAULT_WINDOW_CAT_GUARD.maxPartLength, 120, 300, 1),
+  topStrip: Type.Boolean({ title: 'Top strip', description: 'A strip across the gap at the top of the window, its pins plugged into bosses on the side panels: the guard becomes one frame that stands in the window. Off: two side panels on their own, without bosses.', default: DEFAULT_WINDOW_CAT_GUARD.topStrip }),
+  thickness: dimension('Plate thickness', 'Thickness of the honeycomb plates, in mm.', DEFAULT_WINDOW_CAT_GUARD.thickness, 2.4, 6, 0.1),
+  ribHeight: dimension('Rib height', 'How high the side panels’ spine and the strip’s ribs stand on the plate, in mm. They stiffen the panels and hold the joints flush.', DEFAULT_WINDOW_CAT_GUARD.ribHeight, 2, 12, 0.5),
+  cell: dimension('Honeycomb holes', 'Size of the hexagonal holes, corner to corner, in mm (across flats: 0.87 ×). At most 40 mm, which a paw does not get through; 0 for solid plates.', DEFAULT_WINDOW_CAT_GUARD.cell, 0, 40, 0.5),
+  web: dimension('Web', 'Width of the bars between the holes, in mm.', DEFAULT_WINDOW_CAT_GUARD.web, 2, 10, 0.1),
+  border: dimension('Border', 'Solid border round every plate, in mm.', DEFAULT_WINDOW_CAT_GUARD.border, 3, 15, 0.5),
+  fit: dimension('Fit', 'Play in the dovetails, round the pins and between segments, on each side, in mm.', DEFAULT_WINDOW_CAT_GUARD.fit, 0.05, 0.6, 0.05),
+}, { additionalProperties: false, description: 'Window cat guard parameters. All fields are required; dimensions are in millimetres.' });
+export type WindowCatGuardParameters = Static<typeof WindowCatGuardParametersSchema>;
+
+function validateWindowCatGuard(p: WindowCatGuardParameters): ParameterIssue[] {
+  const issues: ParameterIssue[] = [];
+  const layout = windowCatGuardLayout(p);
+  const max = WINDOW_CAT_GUARD_MAX_SEGMENTS;
+  if (layout.sideSegments > max) issues.push({ field: 'maxPartLength', message: `The side panels would need ${layout.sideSegments} segments each; at most ${max}: allow parts of at least ${Math.ceil(p.height / max)} mm.` });
+  if (p.topStrip && layout.stripSegments > max) issues.push({ field: 'maxPartLength', message: `The top strip would need ${layout.stripSegments} segments; at most ${max}: allow parts of at least ${Math.ceil(layout.stripLength / max)} mm.` });
+  if (p.tipWidth >= p.gap) issues.push({ field: 'tipWidth', message: 'The side panels must be narrower at the bottom than the gap at the top.' });
+  const joint = sideJointWidth(p);
+  if (layout.sideSegments > 1 && layout.sideSegments <= max && sideWidth(p, layout.sideLength) < joint - 1e-9)
+    issues.push({ field: 'tipWidth', message: `The side panels’ lowest joint is only ${Math.floor(sideWidth(p, layout.sideLength) * 10) / 10} mm wide; its dovetail needs ${Math.ceil(joint * 10) / 10} mm. Widen the bottom, or allow longer parts so that the joint sits higher.` });
+  if (p.topStrip && layout.spacing < leastRibSpacing() - 1e-9)
+    issues.push({ field: 'gap', message: `With a top strip the gap must be at least ${Math.ceil((p.gap - layout.spacing + leastRibSpacing()) * 2) / 2} mm, for the bosses either side of the spine (or narrow the border).` });
+  if (p.cell > 0 && p.cell < 2 * p.web) issues.push({ field: 'cell', message: `Holes smaller than twice the web (${2 * p.web} mm) are not worth printing: use 0 for solid plates.` });
+  return issues;
+}
+
+/**
+ * The guard put together (docs/window-cat-guard.md#assembly): each side panel is joined from the top down, every segment's
+ * dovetail dropped into the one above from the spine's side (its spine laps onto the plate above); the strip is joined from its
+ * right end, each segment laid in from above, then plugged into the left panel's bosses, and the right panel is pushed onto the
+ * strip's other pins.
+ */
+export function windowCatGuardAssembly(parameters: ParameterValues): Assembly {
+  const p = { ...DEFAULT_WINDOW_CAT_GUARD, ...parameters } as WindowCatGuardParameters;
+  const layout = windowCatGuardLayout(p);
+  const pieces = windowCatGuardPieces(p);
+  const of = (kind: string) => pieces.filter(piece => piece.kind === kind);
+  const steps: Assembly['steps'] = [];
+  const reach = 60;
+  // each step brings the rest of the panel along, so that the exploded layout shows every segment apart (a staircase)
+  const from = (kind: string, first: number, last: number) => Array.from({ length: last - first + 1 }, (_, i) => `${kind}-${first + i}`);
+  for (let k = 2; k <= layout.sideSegments; k++)
+    steps.push({ title: `Left panel: drop segment ${k}’s dovetail into segment ${k - 1}`, parts: from('left', k, layout.sideSegments), from: [reach, 0, 0] });
+  for (let k = 2; k <= layout.sideSegments; k++)
+    steps.push({ title: `Right panel: drop segment ${k}’s dovetail into segment ${k - 1}`, parts: from('right', k, layout.sideSegments), from: [-reach, 0, 0] });
+  if (layout.stripSegments > 0) {
+    for (let k = layout.stripSegments - 1; k >= 1; k--)
+      steps.push({ title: `Top strip: lay segment ${k}’s dovetails into segment ${k + 1}`, parts: from('strip', 1, k), from: [0, 0, 40] });
+    steps.push({ title: 'Plug the top strip’s pins into the left panel’s bosses', parts: of('strip').map(piece => piece.id), from: [2 * reach, 0, 0] });
+    steps.push({ title: 'Push the right panel’s bosses onto the strip’s other pins; stand the guard in the window', parts: of('right').map(piece => piece.id), from: [4 * reach, 0, 0] });
+  }
+  return {
+    partColors: Object.fromEntries(pieces.map(piece => [piece.id, piece.kind === 'strip' ? '#d9a441' : piece.segment % 2 === 1 ? '#4f7f9c' : '#6f9bb5'])),
+    poses: Object.fromEntries(pieces.map(piece => [piece.id, { position: piece.position, rotation: piece.rotation }])),
+    steps, lift: 20,
+  };
+}
+
+const windowCatGuardControls = [
+  control(WindowCatGuardParametersSchema, 'height', 'basic'),
+  control(WindowCatGuardParametersSchema, 'gap', 'basic'),
+  control(WindowCatGuardParametersSchema, 'width', 'basic'),
+  control(WindowCatGuardParametersSchema, 'topStrip', 'basic'),
+  control(WindowCatGuardParametersSchema, 'maxPartLength', 'basic'),
+  control(WindowCatGuardParametersSchema, 'tipWidth', 'advanced'),
+  control(WindowCatGuardParametersSchema, 'thickness', 'advanced'),
+  control(WindowCatGuardParametersSchema, 'ribHeight', 'advanced'),
+  control(WindowCatGuardParametersSchema, 'cell', 'advanced'),
+  control(WindowCatGuardParametersSchema, 'web', 'advanced'),
+  control(WindowCatGuardParametersSchema, 'border', 'advanced'),
+  control(WindowCatGuardParametersSchema, 'fit', 'advanced'),
+];
+
+const WINDOW_CAT_GUARD_SOURCE = 'models/window-cat-guard/generator.scad';
+const WINDOW_CAT_GUARD_SHARED = { thickness: 'THICKNESS', ribHeight: 'RIB_HEIGHT', cell: 'CELL', web: 'WEB', border: 'BORDER', fit: 'FIT', gap: 'GAP', maxPartLength: 'MAX_LENGTH' };
+const WINDOW_CAT_GUARD_SIDE_MAPPING = { ...WINDOW_CAT_GUARD_SHARED, height: 'HEIGHT', tipWidth: 'TIP', topStrip: 'STRIP' };
+const WINDOW_CAT_GUARD_STRIP_MAPPING = { ...WINDOW_CAT_GUARD_SHARED, width: 'WIDTH' };
+const guardLayout = (parameters: ParameterValues) => windowCatGuardLayout({ ...DEFAULT_WINDOW_CAT_GUARD, ...parameters });
+const segmentTitle = (k: number, first: string) => `segment ${k}${k === 1 ? ` (${first})` : ''}`;
+/** Up to eight segments per side panel (1 = the top) and for the strip (1 = its left end), each present while the layout has it. */
+const windowCatGuardParts: ModelPart[] = [
+  ...(['left', 'right'] as const).flatMap(side => Array.from({ length: WINDOW_CAT_GUARD_MAX_SEGMENTS }, (_, i): ModelPart => ({
+    id: `${side}-${i + 1}`, title: `${side === 'left' ? 'Left' : 'Right'} panel, ${segmentTitle(i + 1, 'top')}`, sourcePath: WINDOW_CAT_GUARD_SOURCE,
+    scadConstants: { PART: 'side', SIDE: side, SEGMENT: i + 1 }, scadMapping: WINDOW_CAT_GUARD_SIDE_MAPPING,
+    includedWhen: parameters => guardLayout(parameters).sideSegments > i,
+  }))),
+  ...Array.from({ length: WINDOW_CAT_GUARD_MAX_SEGMENTS }, (_, i): ModelPart => ({
+    id: `strip-${i + 1}`, title: `Top strip, ${segmentTitle(i + 1, 'left end')}`, sourcePath: WINDOW_CAT_GUARD_SOURCE,
+    scadConstants: { PART: 'strip', SEGMENT: i + 1 }, scadMapping: WINDOW_CAT_GUARD_STRIP_MAPPING,
+    includedWhen: parameters => guardLayout(parameters).stripSegments > i,
+  })),
+];
+
+export const windowCatGuard = {
+  id: 'window-cat-guard' as const, version: '1' as const, title: 'Window cat guard',
+  description: 'Honeycomb panels that close the gaps of a tilted window, so that a cat cannot slip into the wedge at the side: two side panels and a strip across the top, plugged together into one frame that stands in the window. Set the window’s height and width and the gap at the top; every panel longer than your print bed allows is split into segments that dovetail together.',
+  attribution: 'After “Tilted window cat protection” on MakerWorld',
+  attributionLinks: [{ text: '“Tilted window cat protection” on MakerWorld', url: 'https://makerworld.com/de/models/3234292-tilted-window-cat-protection' }],
+  printNotes: 'Print every segment flat as generated, in PETG, no supports. Join each panel’s segments by dropping each dovetail into the next segment from the spine’s side, so that the spine laps onto it; plug the strip’s pins into the side panels’ bosses, then stand the guard in the tilted window.',
+  // ShareAlike: an adaptation of a CC BY-NC-SA 4.0 design (models/window-cat-guard/ATTRIBUTION.md)
+  license: 'CC BY-NC-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+  parts: windowCatGuardParts,
+  assembly: windowCatGuardAssembly(DEFAULT_WINDOW_CAT_GUARD),
+  assemblyForParameters: windowCatGuardAssembly,
+  parameterSchema: WindowCatGuardParametersSchema,
+  controls: windowCatGuardControls,
+  defaults: Object.fromEntries(windowCatGuardControls.map(c => [c.key, c.default])),
+  scadMapping: {},
+  validate(parameters: unknown): ParameterIssue[] {
+    if (!Value.Check(WindowCatGuardParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
+    return validateWindowCatGuard(parameters);
+  },
+  derived: () => ({ slotCount: null }),
+} satisfies ModelDefinition;
+
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

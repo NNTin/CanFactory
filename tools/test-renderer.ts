@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { activeParts, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
@@ -16,7 +16,7 @@ const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
 store.migrate(); store.seed();
 const app = await createApp(store);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = selectRunner(directory);
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -282,6 +282,44 @@ try {
         assert.ok(Math.abs(value - (want[index] ?? NaN)) < 0.01, `pressure pad ${name} ${part.id}: ${value} != ${want[index]}`);
     }
     console.log(`PASS pressure pad ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+  // Window cat guard: the defaults; side panels alone with solid plates; the smallest window; the most segments (eight per panel);
+  // the finest and thinnest honeycomb at the least play; the coarsest and thickest at the most play and the widest gap; the
+  // tallest and widest window in the longest parts. Each segment must be one closed solid, as many as the layout has, as high as
+  // its plate and spine (a side panel's top segment: its bosses; the strip's ends: their pins), and the strip as deep as the gap.
+  const guardRuns: { name: string; overrides: ParameterValues }[] = [
+    { name: 'default', overrides: {} },
+    { name: 'side panels alone, solid plates', overrides: { topStrip: false, cell: 0 } },
+    { name: 'smallest window', overrides: { height: 150, width: 300, gap: 60, tipWidth: 20 } },
+    { name: 'eight segments per panel', overrides: { height: 1500, width: 1500, maxPartLength: 188, tipWidth: 25 } },
+    { name: 'finest, thinnest, least play', overrides: { cell: 8, web: 4, thickness: 2.4, ribHeight: 2, border: 3, fit: 0.05 } },
+    { name: 'coarsest, thickest, most play, widest gap', overrides: { cell: 40, web: 2, thickness: 6, ribHeight: 12, border: 15, fit: 0.6, gap: 200, tipWidth: 60 } },
+    { name: 'tallest and widest in the longest parts', overrides: { height: 1500, width: 1600, maxPartLength: 300, tipWidth: 20 } },
+  ];
+  for (const { name, overrides } of only && only !== 'window-cat-guard' ? [] : guardRuns) {
+    const started = Date.now();
+    const parameters = { ...windowCatGuard.defaults, ...overrides };
+    assert.deepEqual(validateParameters(windowCatGuard, parameters), [], name);
+    const queued = store.enqueue(windowCatGuard, parameters);
+    const job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken;
+    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `window cat guard ${name}`); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `window cat guard ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const p = parameters as unknown as WindowCatGuardParameters;
+    const layout = windowCatGuardLayout(p);
+    const segments = (kind: string, count: number) => Array.from({ length: count }, (_, i) => `${kind}-${i + 1}`);
+    assert.deepEqual(result.artifact.parts.map(part => part.id), [...segments('left', layout.sideSegments), ...segments('right', layout.sideSegments), ...segments('strip', layout.stripSegments)], `window cat guard ${name}`);
+    const pinTop = layout.pinZ + WINDOW_CAT_GUARD.pinDiameter / 2;
+    for (const part of result.artifact.parts) {
+      const end = part.id === 'strip-1' || part.id === `strip-${layout.stripSegments}`;
+      const height = part.id.endsWith('-1') && part.id !== 'strip-1' && p.topStrip ? p.thickness + Math.max(p.ribHeight, WINDOW_CAT_GUARD.bossHeight)
+        : Math.max(p.thickness + p.ribHeight, end ? pinTop : 0);
+      assert.ok(Math.abs(part.dimensions.z - height) < 0.01, `window cat guard ${name} ${part.id}: ${part.dimensions.z} high, not ${height}`);
+      if (part.id.startsWith('strip')) assert.ok(Math.abs(part.dimensions.y - p.gap) < 0.01, `window cat guard ${name} ${part.id}: ${part.dimensions.y} deep, not ${p.gap}`);
+    }
+    console.log(`PASS window cat guard ${name}: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   // Litter shovel: every sieve texture, the sieve extremes (most gaps, fewest gaps), the scraping tip's extremes, both grip ends,
   // the shortest and longest scoop, no dam and the widest, the fewest and most, thinnest and thickest grip supports, and both snap modes of both

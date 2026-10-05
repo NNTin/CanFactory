@@ -1512,6 +1512,89 @@ export interface operations {
                          */
                         fit: number;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "window-cat-guard";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Window cat guard parameters. All fields are required; dimensions are in millimetres. */
+                    parameters: {
+                        /**
+                         * Height
+                         * @description Height of the side panels: how high the side gap is that they close, from the panel’s tip at the bottom to the window’s top, in mm. Above the longest part they are split into segments.
+                         * @default 550
+                         */
+                        height: number;
+                        /**
+                         * Gap at the top
+                         * @description Width of the side gap at the top of the tilted window, frame to sash, in mm: the side panels’ top width and the top strip’s depth.
+                         * @default 105
+                         */
+                        gap: number;
+                        /**
+                         * Width at the bottom
+                         * @description Width of the side panels at their bottom, in mm. The gap tapers to nothing at the hinge; the panel stops where it is this wide.
+                         * @default 10
+                         */
+                        tipWidth: number;
+                        /**
+                         * Window width
+                         * @description Width of the window opening, in mm: from the left side panel’s outer face to the right one’s. The top strip spans it between the side panels’ bosses.
+                         * @default 900
+                         */
+                        width: number;
+                        /**
+                         * Longest part
+                         * @description A side panel or the top strip longer than this is split into equal segments that dovetail together, so that every part fits your print bed, in mm.
+                         * @default 210
+                         */
+                        maxPartLength: number;
+                        /**
+                         * Top strip
+                         * @description A strip across the gap at the top of the window, its pins plugged into bosses on the side panels: the guard becomes one frame that stands in the window. Off: two side panels on their own, without bosses.
+                         * @default true
+                         */
+                        topStrip: boolean;
+                        /**
+                         * Plate thickness
+                         * @description Thickness of the honeycomb plates, in mm.
+                         * @default 4
+                         */
+                        thickness: number;
+                        /**
+                         * Rib height
+                         * @description How high the side panels’ spine and the strip’s ribs stand on the plate, in mm. They stiffen the panels and hold the joints flush.
+                         * @default 5
+                         */
+                        ribHeight: number;
+                        /**
+                         * Honeycomb holes
+                         * @description Size of the hexagonal holes, corner to corner, in mm (across flats: 0.87 ×). At most 40 mm, which a paw does not get through; 0 for solid plates.
+                         * @default 30
+                         */
+                        cell: number;
+                        /**
+                         * Web
+                         * @description Width of the bars between the holes, in mm.
+                         * @default 4
+                         */
+                        web: number;
+                        /**
+                         * Border
+                         * @description Solid border round every plate, in mm.
+                         * @default 6
+                         */
+                        border: number;
+                        /**
+                         * Fit
+                         * @description Play in the dovetails, round the pins and between segments, on each side, in mm.
+                         * @default 0.25
+                         */
+                        fit: number;
+                    };
                 };
             };
         };

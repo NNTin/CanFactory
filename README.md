@@ -19,6 +19,10 @@ The [AI rubber ducks](docs/ai-rubber-duck.md) turn the
 Claude, Codex, Anthropic, and OpenAI designs. Print their colored pieces
 separately, then assemble them with keyed push-fit joints.
 
+The [window cat guard](docs/window-cat-guard.md) closes the gaps of a tilted window with
+honeycomb side panels and a top strip, sized to the window's height and width. Panels longer
+than the print bed split into dovetailed segments, and the preview animates the assembly.
+
 ## Run with Docker
 
 Requires Docker Engine/Desktop and Docker Compose.
