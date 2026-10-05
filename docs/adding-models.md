@@ -71,6 +71,12 @@ numbers, booleans and strings (which OpenSCAD reads as they are), unless the mod
 The cigarette case's `logo` uses one: the parameter is a validated logo string, and `logoScad` writes it as a vector of numbers.
 Its control is of kind `svg`: the editor reads an SVG file the user picks into that string, in the browser
 (`packages/contracts/src/svgLogo.ts`, see [cigarette-case-text.md](cigarette-case-text.md)), so a file never reaches the server.
+An encoder gets all the (validated) parameters too, for a value that depends on others: the QR tag's `qrText` becomes the
+code's module rectangles at the chosen error correction, with the logo's knockout cleared (`qrScad`, see
+[qr-magnet-tag.md](qr-magnet-tag.md)); the text itself never reaches OpenSCAD.
+
+**Derived notes (optional).** `derived(parameters)` may return `notes`: short facts worked out from valid settings, which the
+editor shows under the basic settings, e.g. the QR tag's filament-change height and its code's size.
 
 **Assembly slider (optional).** An assembly may also set `ModelDefinition.assembly` (`AssemblySchema` in
 `packages/contracts/src/models.ts`): the assembled `poses` of its parts (position in mm and optional rotation in degrees,

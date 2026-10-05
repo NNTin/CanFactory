@@ -2364,8 +2364,8 @@ const QR_TAG_SOURCE = 'models/qr-magnet-tag/generator.scad';
 const QR_TAG_SHARED = { shape: 'SHAPE', size: 'SIZE', cornerRadius: 'CORNER_RADIUS', borderWidth: 'BORDER_WIDTH', baseThickness: 'BASE', reliefHeight: 'RELIEF', joint: 'JOINT', fit: 'FIT', magnetCount: 'MAGNET_COUNT' };
 const QR_TAG_MAGNET_DEFINES: PartDefines = { magnet: { MAGNET_D: ['diameter', 'max'], MAGNET_T: ['thickness', 'max'] } };
 const qrMagnetTagParts: ModelPart[] = [
-  { id: 'border', title: 'Border (prints back down; magnets in its back)', sourcePath: QR_TAG_SOURCE, scadConstants: { PART: 'border' }, scadMapping: QR_TAG_SHARED, partDefines: QR_TAG_MAGNET_DEFINES },
-  { id: 'centre', title: 'Centre with the QR code (two colours, one filament change)', sourcePath: QR_TAG_SOURCE, scadConstants: { PART: 'centre' },
+  { id: 'border', title: 'Border', sourcePath: QR_TAG_SOURCE, scadConstants: { PART: 'border' }, scadMapping: QR_TAG_SHARED, partDefines: QR_TAG_MAGNET_DEFINES },
+  { id: 'centre', title: 'Centre with the QR code', sourcePath: QR_TAG_SOURCE, scadConstants: { PART: 'centre' },
     scadMapping: { ...QR_TAG_SHARED, qrText: 'QR', quietZone: 'QUIET_ZONE', logo: 'LOGO', logoSize: 'LOGO_SIZE' }, partDefines: QR_TAG_MAGNET_DEFINES },
 ];
 

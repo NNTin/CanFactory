@@ -8,6 +8,7 @@ import { formatHash, parseHash, partLink, type Route } from './route.ts';
 import { Viewer } from './Viewer.tsx';
 import { ToggleLatchIllustration } from './ToggleLatchIllustration.tsx';
 import { WindowCatGuardIllustration } from './WindowCatGuardIllustration.tsx';
+import { QrMagnetTagIllustration } from './QrMagnetTagIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { CatioConcept } from './CatioConcept.tsx';
 import { CatioSubassemblyRoute } from './CatioSubassemblyPage.tsx';
@@ -278,6 +279,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'toggle-latch': ToggleLatchIllustration,
   'pressure-pad': PressurePadIllustration,
   'window-cat-guard': WindowCatGuardIllustration,
+  'qr-magnet-tag': QrMagnetTagIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names

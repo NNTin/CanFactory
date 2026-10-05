@@ -23,6 +23,10 @@ The [window cat guard](docs/window-cat-guard.md) closes the gaps of a tilted win
 honeycomb side panels and a top strip, sized to the window's height and width. Panels longer
 than the print bed split into dovetailed segments, and the preview animates the assembly.
 
+The [magnetic QR code tag](docs/qr-magnet-tag.md) sticks to a fridge or whiteboard: a border
+with magnets in its back, and a centre with a QR code of your text and an optional SVG logo,
+printed in two colours with one filament change. The centre clicks, twists or snaps into the border.
+
 ## Run with Docker
 
 Requires Docker Engine/Desktop and Docker Compose.
