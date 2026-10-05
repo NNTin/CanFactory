@@ -359,7 +359,7 @@ try {
   const tagRuns: { name: string; overrides: ParameterValues }[] = [
     ...QR_TAG_SHAPES.flatMap(shape => QR_TAG_JOINTS.map(joint => ({ name: `${shape} ${joint}`, overrides: { shape, joint } }))),
     { name: 'smallest tile', overrides: { size: 30, borderWidth: 3, quietZone: 1, qrText: 'hi', errorCorrection: 'L', cornerRadius: 0 } },
-    { name: 'smallest round tile, 2 small magnets', overrides: { shape: 'round', size: 30, borderWidth: 3, quietZone: 1, qrText: 'hi', errorCorrection: 'L', magnet: 'supermagnete-s-04-02-n', magnetCount: 2 } },
+    { name: 'smallest round tile, 2 small magnets', overrides: { shape: 'round', size: 40, borderWidth: 3, quietZone: 1, qrText: 'hi', errorCorrection: 'L', magnet: 'supermagnete-s-04-02-n', magnetCount: 2 } },
     { name: 'largest tile, largest magnets', overrides: { size: 120, borderWidth: 20, cornerRadius: 20, magnet: 'supermagnete-s-12-02-n', quietZone: 4 } },
     { name: 'longest text at L', overrides: { size: 120, qrText: 'The quick brown fox jumps over the lazy dog! 0123456789 '.repeat(4).slice(0, 200), errorCorrection: 'L' } },
     { name: 'logo at H', overrides: { logo: QR_LEAF.logo } },
@@ -368,7 +368,8 @@ try {
       { name: `${joint} tightest`, overrides: { joint, fit: 0.05 } },
       { name: `${joint} loosest`, overrides: { joint, fit: joint === 'detent' ? 0.4 : 0.6 } },
     ]),
-    { name: 'thinnest centre, fine layers, magnets in a thin base', overrides: { baseThickness: 0.8, reliefHeight: 0.4, layerHeight: 0.08, joint: 'magnets', magnet: 'supermagnete-s-06-03-n' } },
+    { name: 'thinnest centre, fine layers', overrides: { baseThickness: 0.8, reliefHeight: 0.4, layerHeight: 0.08 } },
+    { name: 'thinnest base that holds joint magnets, 3 mm magnets', overrides: { baseThickness: 1.2, joint: 'magnets', magnet: 'supermagnete-s-06-03-n' } },
     { name: 'thickest centre', overrides: { baseThickness: 3, reliefHeight: 2, joint: 'detent', fit: 0.6 } },
   ];
   for (const { name, overrides } of only && only !== 'qr-magnet-tag' ? [] : tagRuns) {

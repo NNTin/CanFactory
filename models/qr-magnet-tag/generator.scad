@@ -71,7 +71,7 @@ MAGNET_GAP = 0.2;       // between the two magnets of a joint pair
 PUSH_HOLE = 5;          // the push-out hole through the floor
 SEAT_RADIUS = 1;        // the least corner radius of a square seat
 LUG_DEPTH = 1.5;        // twist lock: the lugs' radial depth,
-LUG_ANGLE = 12;         //   angular width,
+LUG_ANGLE = 11;         //   angular width (its sides never on the disc's vertices, which are at whole fractions of 90°),
 LUG_HEIGHT = 0.8;       //   height at the centre's foot,
 LUGS = 3;               //   and count;
 LOCK_ANGLE = 30;        //   the turn that locks them,
@@ -120,16 +120,19 @@ $fs = 0.25;
 // Outlines
 
 // The seat's outline offset by d (the centre's is d = -FIT): a rounded square, or a circle for a round seat. Every outline that
-// must stay parallel to it (centre, groove, bumps) is built from these same points, so offsets are exact, never re-sampled.
-ARC = min(45, max(3, ceil(SEAT_R * 3)));
-function ring(d) = SEAT_W / 2 - SEAT_R <= 0
-  ? [for (i = [0 : 4 * ARC - 1]) let(a = 90 * i / ARC) (SEAT_R + d) * [cos(a), sin(a)]]
-  : [for (q = [0 : 3], i = [0 : ARC]) let(c = SEAT_W / 2 - SEAT_R, a = 90 * q + 90 * i / ARC)
-      c * [[1, 1], [-1, 1], [-1, -1], [1, -1]][q] + (SEAT_R + d) * [cos(a), sin(a)]];
+// must stay parallel to it (the centre, the twist lock's revolved cut) is built at these same angles, so offsets are exact, never
+// re-sampled. With `half`, the points sit halfway between those angles, as far out as makes each edge touch the true arc: the
+// straight sides stay exact, and a feature that cuts across the outline (a groove, a bump) never puts a vertex on one of its edges.
+ARC = min(45, max(12, ceil(SEAT_R * 6)));
+function ring(d, half = false) = let(h = half ? 0.5 : 0, r = (SEAT_R + d) / (half ? cos(45 / ARC) : 1)) SEAT_W / 2 - SEAT_R <= 0
+  ? [for (i = [0 : 4 * ARC - 1]) let(a = 90 * (i + h) / ARC) r * [cos(a), sin(a)]]
+  : [for (q = [0 : 3], i = [0 : half ? ARC - 1 : ARC]) let(c = SEAT_W / 2 - SEAT_R, a = 90 * q + 90 * (i + h) / ARC)
+      c * [[1, 1], [-1, 1], [-1, -1], [1, -1]][q] + r * [cos(a), sin(a)]];
 
-// A band round the outline: the outline offset by d0 at z0, by d1 at z1 and by d2 at z2 (a groove's or a bump's 45° profile).
+// A band round the outline, at the half-step angles: the outline offset by d0 at z0, by d1 at z1 and by d2 at z2 (a groove's or
+// a bump's 45° profile).
 module band(z0, d0, z1, d1, z2, d2) {
-  r0 = ring(d0); r1 = ring(d1); r2 = ring(d2);
+  r0 = ring(d0, true); r1 = ring(d1, true); r2 = ring(d2, true);
   n = len(r0);
   polyhedron(
     points = concat([for (p = r0) [p[0], p[1], z0]], [for (p = r1) [p[0], p[1], z1]], [for (p = r2) [p[0], p[1], z2]]),
@@ -164,18 +167,21 @@ module sector(angle, width, r0, r1, z0, z1) {
 module border() {
   difference() {
     linear_extrude(height = HEIGHT) outline();
-    translate([0, 0, FLOOR]) linear_extrude(height = SEAT_DEPTH + 1) polygon(ring(0));
+    if (JOINT == "twist-lock")
+      // the seat and, under its lip, the channel that the lugs turn in: one revolved cut (its vertices at the angles of ring()),
+      // so that the channel's floor is the seat's floor, not a second face in the same plane
+      rotate_extrude($fn = 4 * ARC) polygon([[0, FLOOR], [CHANNEL_R, FLOOR], [CHANNEL_R, FLOOR + LUG_HEIGHT + FIT], [SEAT_W / 2, FLOOR + LUG_HEIGHT + FIT], [SEAT_W / 2, HEIGHT + 1], [0, HEIGHT + 1]]);
+    else translate([0, 0, FLOOR]) linear_extrude(height = SEAT_DEPTH + 1) polygon(ring(0));
     for (p = BACK_POCKETS) translate([p[0], p[1], -1]) cylinder(d = POCKET_D, h = POCKET_DEPTH + 1, $fn = 48);
     translate([0, 0, -1]) cylinder(d = PUSH_HOLE, h = FLOOR + 2, $fn = 32);
     if (JOINT == "magnets") for (p = JOINT_POCKETS) translate([p[0], p[1], FLOOR - JOINT_POCKET]) cylinder(d = POCKET_D, h = JOINT_POCKET + 1, $fn = 48);
     if (JOINT == "detent") {
       // a groove round the seat wall, DETENT_ENGAGE + FIT deep, at the height of the bumps on the centre's edge
       g = DETENT_ENGAGE + FIT;
-      band(FLOOR + BASE / 2 - g - 0.01, -0.01, FLOOR + BASE / 2, g, FLOOR + BASE / 2 + g + 0.01, -0.01);
+      band(FLOOR + BASE / 2 - g - 0.05, -0.05, FLOOR + BASE / 2, g, FLOOR + BASE / 2 + g + 0.05, -0.05);
     }
     if (JOINT == "twist-lock") {
-      // the channel under the lip that the lugs turn in, and the notches they drop through
-      rotate_extrude() polygon([[SEAT_W / 2 - 1, FLOOR], [CHANNEL_R, FLOOR], [CHANNEL_R, FLOOR + LUG_HEIGHT + FIT], [SEAT_W / 2 - 1, FLOOR + LUG_HEIGHT + FIT]]);
+      // the notches the lugs drop through
       for (k = [0 : LUGS - 1]) sector(lug_angle(k), LUG_ANGLE + 2 * FIT_ANGLE, SEAT_W / 2 - 1, CHANNEL_R - 0.05, FLOOR + 0.1, HEIGHT + 1);
     }
   }
@@ -230,11 +236,12 @@ module centre() {
   difference() {
     union() {
       linear_extrude(height = BASE) polygon(ring(-FIT));
-      if (JOINT == "twist-lock") for (k = [0 : LUGS - 1]) sector(lug_angle(k), LUG_ANGLE, CENTRE_W / 2 - 0.05, CENTRE_W / 2 + LUG_DEPTH, 0, LUG_HEIGHT);
+      // the lugs, 0.05 mm clear of the bed so that they share no face with the disc's underside
+      if (JOINT == "twist-lock") for (k = [0 : LUGS - 1]) sector(lug_angle(k), LUG_ANGLE, CENTRE_W / 2 - 0.05, CENTRE_W / 2 + LUG_DEPTH, 0.05, LUG_HEIGHT);
       if (JOINT == "detent") intersection() {
         // bumps on the middle of each edge (or at four places round a disc), reaching DETENT_ENGAGE past the seat wall
-        e = FIT + DETENT_ENGAGE + 0.01;
-        band(BASE / 2 - e, -FIT - 0.01, BASE / 2, DETENT_ENGAGE, BASE / 2 + e, -FIT - 0.01);
+        e = FIT + DETENT_ENGAGE + 0.05;
+        band(BASE / 2 - e, -FIT - 0.05, BASE / 2, DETENT_ENGAGE, BASE / 2 + e, -FIT - 0.05);
         span = DETENT_SPAN * (ROUND_SEAT ? CENTRE_W / sqrt(2) : CENTRE_W - 2 * CENTRE_R);
         for (a = [0, 90]) rotate([0, 0, a]) translate([-SIZE, -span / 2, -1]) cube([2 * SIZE, span, BASE + 2]);
       }

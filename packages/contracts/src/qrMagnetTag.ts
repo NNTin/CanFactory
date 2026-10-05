@@ -215,7 +215,7 @@ export const QR_TAG = {
   seatRadius: 1,
   /** Twist lock: the lugs' radial depth, angular width (degrees), height and count; the turn that locks them; the least lip over
    * them; the detent ridge's interference and angular width; the stop's angular width. */
-  lugDepth: 1.5, lugAngle: 12, lugHeight: 0.8, lugs: 3, lockAngle: 30, lipMin: 0.6, twistEngage: 0.15, ridgeAngle: 2, stopAngle: 6,
+  lugDepth: 1.5, lugAngle: 11, lugHeight: 0.8, lugs: 3, lockAngle: 30, lipMin: 0.6, twistEngage: 0.15, ridgeAngle: 2, stopAngle: 6,
   /** Crush ribs: radius, how much the centre squeezes them on top of the fit, and how many per side (square) or round a circle. */
   ribRadius: 1, ribSqueeze: 0.15, ribsPerSide: 2, ribsRound: 8,
   /** Detent: how far the bumps reach past the seat wall, on top of the fit, and how much of each side they span. */
