@@ -6,8 +6,9 @@ fill the triangular side gaps, and a **top strip** across the gap at the top, wh
 that the guard is one U-shaped frame that stands in the window.
 
 Set the window's **height** and **width** and the **gap at the top**. Every panel longer than the **longest part** (your
-print bed) is split into equal segments that dovetail together, up to eight per panel. The editor's live preview plays the
-assembly: every joint, then the strip onto the left panel and the right panel onto the strip.
+print bed) is split into equal segments that dovetail together, up to eight per panel, and a **splice bar** is screwed over
+every joint so that the segments stay together (see [Splice bars](#splice-bars)). The editor's live preview plays the assembly:
+every joint, the splice bars, then the strip onto the left panel and the right panel onto the strip.
 
 The generator is [`models/window-cat-guard/generator.scad`](../models/window-cat-guard/generator.scad); the contract
 (parameters, validation, layout, assembly) is `windowCatGuard` in `packages/contracts/src/models.ts` and
@@ -71,8 +72,37 @@ left end), so all segments of a panel share one assembly pose; the slicer centre
   next segment's notch is the tab grown by `fit`; the plates' ends are `fit` apart. The spine or rib runs on over the tab and
   laps 3 mm onto the next segment's plate, which keeps both flush (the lap is a 3 mm cantilever, as in the reference).
 - **Honeycomb.** `cell` corner to corner, `web` apart, laid out from the panel's top so that rows line up across segments. The
-  holes are clipped to the open area (inside the `border`, off the spine and ribs, round the dovetails and bosses); a hole whose
-  centre falls outside that area is left out, so clipping never leaves a sliver. `cell = 0` gives solid plates.
+  holes are clipped to the open area (inside the `border`, off the spine and ribs, round the dovetails, bosses and splice bars);
+  a hole whose centre falls outside that area is left out, so clipping never leaves a sliver. `cell = 0` gives solid plates.
+
+### Splice bars
+
+The dovetail holds two segments side by side in the plate's plane, and the lap stops them folding one way, but the tab goes into
+its notch perpendicular to the plate and comes out the same way. Nothing in the reference holds it there. A printed side
+panel came apart in real use: carried to the window, or pushed by a cat from the spine's side, a segment lifts out of the one
+above. So, unlike the reference, `segmentJoints` screws a **splice bar** over every joint by default:
+
+- **The bar** (`PART = "bar"`) is 12 × 28 × 4 mm (as wide as the spine), with rounded corners, printed flat with its
+  countersinks up. All bars are the same part, so the worker renders one and copies it. It lies on the two segments' spines (or
+  ribs) across the joint, along the spine.
+- **Two countersunk screws** go down through it, one into each segment: 2 mm past the joint into the segment with the tab (in
+  the tab), and 18 mm past it into the segment with the notch (past the lap). Their heads sit flush in countersinks: as wide as
+  the head plus 0.2 mm, as deep as the head's cylindrical edge, then 90°, as on the litter shovel's scoop.
+- **`nut-bolt`** (default): a clearance hole (ISO 273, medium) through the spine and plate, and a nut pocket from the plate's
+  back, 0.2 mm wider than the nut, corners along the spine. The nut sits on the screw's tip, at least 0.2 mm inside the back,
+  with at least 1.2 mm of spine over it. The pocket is open at the bed and its ceiling is a short bridge, so it prints without
+  supports.
+- **`threaded-insert`**: a hole of the maker's diameter from the spine's top, as deep as the maker asks, or deeper (to 0.5 mm
+  past the screw's tip, through the plate if need be). Melt the insert in flush with the spine's top.
+- **The top strip** has a bar on each rib at every joint (4 screws per joint). Under a bar, the 4 mm rib widens to the bar's
+  12 mm, and the honeycomb keeps a `web` clear of it.
+- **`glue`** leaves the dovetails as in the reference, with no bars and no holes (the geometry is unchanged from before
+  splice bars). Glue each joint: epoxy or gel superglue for PETG (the 0.25 mm play is too wide for thin superglue).
+
+The fasteners come from the parts library. Screws are countersunk (ISO 10642, ISO 7046-1) with a head that leaves 0.8 mm of the
+bar under it and fits within 5.5 mm of the axis. Nuts (ISO 4032, ISO 4035, ISO 10511, DIN 562) and inserts (CNC Kitchen, ruthex)
+fit when their pocket or hole plus wall stays within 5.5 mm of the axis: inside the spine, and inside the strip's tab. That
+offers M2 to M4. The default is an ISO 4032 M3 nut on an ISO 10642 M3 × 10.
 
 ## Parameters
 
@@ -90,6 +120,10 @@ left end), so all segments of a panel share one assembly pose; the slicer centre
 | `web` | 4 | 2–10 | Bars between the holes. |
 | `border` | 6 | 3–15 | Solid border round every plate. |
 | `fit` | 0.25 | 0.05–0.6 | Play in the dovetails, round the pins and between the segments, per side. |
+| `segmentJoints` | `nut-bolt` | `nut-bolt`, `threaded-insert`, `glue` | What holds the segments together: a splice bar over every joint, screwed into nuts or heat-set inserts; or the dovetails alone, glued. |
+| `jointThread` | M3 | M2–M4 | The screws' thread; the lists below offer only parts of it. |
+| `jointNut` / `jointInsert` | ISO 4032 M3 / CNC Kitchen M3 × 5.7 | library parts that fit | The nut or the insert in each segment. |
+| `jointScrew` | ISO 10642 M3 × 10 | countersunk, library | The two screws per splice bar. |
 
 The settings are refused when:
 
@@ -98,7 +132,11 @@ The settings are refused when:
 - the lowest joint of a side panel is narrower than its dovetail needs: `2 × (6 + 1 + 3 + fit + border)`, 32.5 mm by default.
   Widen the bottom, or allow longer parts so that the joint sits higher;
 - with a top strip, the bosses do not fit either side of the spine across the gap (the ribs at least 25 mm apart);
-- the holes are smaller than twice the web.
+- the holes are smaller than twice the web;
+- with splice bars, the screw does not hold in its nut or insert through `thickness + ribHeight` of plate and spine. Into an insert,
+  it must reach past the bar at least as far as the insert is long, and no further than the plate's back. Into a nut, its tip
+  must stay inside the back, and the nut round it must leave 1.2 mm of spine. The message names the shortest screw that works:
+  e.g. with the thinnest plate and ribs (4.4 mm) the default M3 × 10 is too long, and the M3 × 8 fits.
 
 ## Assembly
 
@@ -106,14 +144,19 @@ The assembly preview (`windowCatGuardAssembly`) places every segment with `windo
 the window's side planes (x = 0 and x = `width`), their spines facing in; the strip lies across the top with its pins' axes
 on the bosses' axes. A test checks that the poses map each panel's print frame onto the window and each pin onto its boss.
 
+0. Push the nuts into their pockets in the plates' backs (or melt the inserts into the spines).
 1. **Left panel**, top down: drop each segment's dovetail into the segment above, from the spine's side, so that its spine laps
-   onto the plate above.
+   onto the plate above. Then lay a splice bar over every joint and drive its two screws.
 2. **Right panel**, the same.
-3. **Top strip**, from its right end: lay each segment's dovetails into the next one from above.
+3. **Top strip**, from its right end: lay each segment's dovetails into the next one from above, then screw a splice bar on
+   each rib over every joint.
 4. Plug the strip's pins into the left panel's bosses.
 5. Push the right panel's bosses onto the strip's other pins, and stand the guard in the window.
 
-Each step brings the rest of its panel along, so that the exploded layout shows every segment apart.
+Each step brings the rest of its panel along, so that the exploded layout shows every segment apart; a splice bar rides with
+the segment it is screwed into through the tab. The screws and the nuts or inserts are shown as parts-library references
+(`windowCatGuardBolts`): each screw rides with its bar, each nut or insert with its segment. A test checks that every bar's
+holes lie on its two screws' axes, which the contract computes from the same spine line as the SCAD file's holes.
 `npm run check:assembly -- window-cat-guard` renders every part and measures the volume shared by any two of them in the
 assembled and exploded layouts and along every step: 0 mm³ throughout. With negative play
 (`--defines '{"FIT":-0.3}'`), every dovetail pair and both pin-in-boss corners collide, which proves that the poses really
@@ -130,20 +173,23 @@ it stays at rest. `data-guard-stage` names the current stage for the browser tes
 
 ## Printing and fitting
 
-- Print every segment flat, as generated, in PETG; no supports. PLA softens behind a sunny window.
+- Print every segment and splice bar flat, as generated, in PETG; no supports. PLA softens behind a sunny window. The splice
+  bars are all alike.
 - Measure the gap at the top with the window tilted, and the height from where the gap is about `tipWidth` wide up to the
   top. Measure the width between the frame's side faces.
-- Join the segments as above. The dovetails are a slip fit at the default 0.25 mm; a drop of glue makes a panel permanent.
+- Join the segments as above. The dovetails are a slip fit at the default 0.25 mm; the splice bars hold them. With
+  `segmentJoints = glue`, glue each joint instead.
 - The guard is held by the window: the side panels stand in the side gaps against the frame and the strip lies in the top
   gap. Close the window only after taking the guard out.
 
 ## Checks
 
-- `npx vitest run packages/contracts/src/windowCatGuard.test.ts`: the contract (segment counts, validation, SCAD defaults
-  and fixed sizes equal to the contract, poses, steps).
-- `TEST_ONLY=window-cat-guard npm run test:renderer`: real renders of seven settings (defaults, solid side panels alone, the
-  smallest window, eight segments per panel, the finest and the coarsest honeycomb, the largest window). Each part must be one
-  closed solid of the expected height, with no float32 sliver repairs.
+- `npx vitest run packages/contracts/src/windowCatGuard.test.ts`: the contract (segment counts, splice bars, validation, the
+  fastener lists equal to the library's fitting parts, SCAD defaults and fixed sizes equal to the contract, poses, the bars' holes
+  on the screws' axes, steps).
+- `TEST_ONLY=window-cat-guard npm run test:renderer`: real renders of ten settings (defaults, solid glued side panels alone,
+  the smallest window, eight segments per panel, the finest and the coarsest honeycomb, inserts, M4 nylon-insert nuts, M2 square
+  nuts, the largest window). Each part must be one closed solid of the expected size, with no float32 sliver repairs.
 - `TEST_ONLY=window-cat-guard npm run test:sweep`: boundaries and random settings.
 - `npm run test:browser -- window-cat-guard`: the editor's preview, its slider steps, and the segments following the height.
 

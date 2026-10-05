@@ -24,12 +24,18 @@
 //   segment drops into a notch in the next, perpendicular to the plate;
 // - the spine (or rib) runs on over the tab and laps LAP mm onto the next
 //   segment's plate, so the joint cannot fold and the segments stay flush;
+// - the dovetail only goes together, and comes apart, perpendicular to the
+//   plate. So that the joint holds (JOINTS = "nut-bolt" or "threaded-insert";
+//   not in the reference), a splice bar (PART = "bar") lies on the two spines
+//   (or ribs) across every joint, with one countersunk screw down into each
+//   segment: into a nut in a pocket from the plate's back, or into a heat-set
+//   insert in the spine. JOINTS = "glue" leaves the dovetails as they are;
 // - the top strip's two end segments carry pins along the strip, which plug
 //   into bosses on the side panels' top segments: the guard is one U-shaped
 //   frame that stands in the window.
 //
 // Every part prints flat as modelled: the plate on the bed (z = 0), spine,
-// ribs and bosses on top, no supports. The pins lie along the bed with a
+// ribs and bosses on top, no supports; a splice bar lies flat, its countersinks up. The pins lie along the bed with a
 // flat underside. A segment keeps the panel's own coordinates (a side panel:
 // x across the gap from its straight edge, y up from its tip; the strip: x
 // along it from its left end, y across the gap), so the assembly places every
@@ -40,8 +46,8 @@
 
 // ---------------------------------------------------------------
 
-// Which piece to make: a side panel segment or a top strip segment
-PART = "side"; //[side,strip]
+// Which piece to make: a side panel segment, a top strip segment or a splice bar (all bars are alike)
+PART = "side"; //[side,strip,bar]
 // Which side panel: the right one is the left one mirrored
 SIDE = "left"; //[left,right]
 // Which segment (1 = the side panel's top / the strip's left end)
@@ -71,6 +77,21 @@ WEB = 4; //[2:0.1:10]
 BORDER = 6; //[3:0.5:15]
 // Play in every joint, on each side
 FIT = 0.25; //[0.05:0.05:0.6]
+// How the segments hold together: a splice bar over every joint, screwed into nuts or heat-set inserts; or the dovetails alone (glued)
+JOINTS = "nut-bolt"; //[nut-bolt,threaded-insert,glue]
+
+// The splice bars' fasteners, from the parts library: the screw's clearance hole (ISO 273, medium) and the countersunk screw
+// (its length includes its head), the insert's hole and the depth its maker asks for, and the nut (across flats, height, shape).
+SCREW_HOLE = 3.4;
+SCREW_D = 3;
+SCREW_DK = 6;
+SCREW_K = 1.7;
+SCREW_L = 10;
+INSERT_HOLE = 4;
+INSERT_DEPTH = 6.7;
+NUT_S = 5.5;
+NUT_H = 2.4;
+NUT_SHAPE = "hex";
 
 // ---------------------------------------------------------------
 // Joint sizes (fixed; mirrored by WINDOW_CAT_GUARD in windowCatGuard.ts)
@@ -88,6 +109,15 @@ BOSS_D = 11;       // the side panels' bosses
 BOSS_H = 7;        // the bosses stand this high on the plate
 BOSS_INSET = 7;    // a boss's centre this far below the side panel's top
 END_GAP = 0.5;     // between the strip's end and a boss
+SPLICE_W = 12;     // splice bar: width (the spine's; the strip's ribs widen to it under a bar)
+SPLICE_T = 4;      // splice bar: thickness
+SPLICE_NEAR = 2;   // splice bar: its screw into the segment with the tab, this far past the joint (in the tab)
+SPLICE_FAR = 18;   // splice bar: its screw into the segment with the notch, this far past the joint (past the lap)
+SPLICE_END = 6;    // splice bar: from each screw's axis to the bar's end
+SINK_PLAY = 0.2;   // a countersink is this much wider than the screw's head
+NUT_PLAY = 0.2;    // a nut's pocket is this much wider than the nut
+NUT_RECESS = 0.2;  // a nut sits at least this far inside the plate's back
+NUT_ROOF = 1.2;    // the least spine (or rib) left over a nut's pocket
 
 $fn = 48;
 ROOT = 1;          // a tab starts this far inside its own plate, so that the two fuse without slivers
@@ -109,6 +139,48 @@ STRIP_LENGTH = WIDTH - 2 * STRIP_START;
 STRIP_SEGMENTS = max(1, ceil(STRIP_LENGTH / MAX_LENGTH - 1e-9));
 STRIP_PIECE = STRIP_LENGTH / STRIP_SEGMENTS;
 
+// The splice bars (mirrored by WINDOW_CAT_GUARD.splice and windowCatGuardFasteners in windowCatGuard.ts). A bar lies on the
+// spines (or ribs) of two segments across their joint, from SPLICE_NEAR - SPLICE_END to SPLICE_FAR + SPLICE_END past it.
+SPLICED = JOINTS != "glue";
+STACK = THICKNESS + RIB_HEIGHT;                       // a spine's or rib's top over the plate's back
+SPLICE_L = SPLICE_FAR - SPLICE_NEAR + 2 * SPLICE_END;
+// a countersunk screw's head is flush with the bar's top, so its tip is SCREW_L below it
+SCREW_TIP = STACK + SPLICE_T - SCREW_L;
+// a nut sits on the screw's tip (or NUT_RECESS inside the back, if the tip is nearer it), drawn against its pocket's ceiling
+NUT_TOP = max(SCREW_TIP, NUT_RECESS) + NUT_H;
+IS_SQUARE_NUT = NUT_SHAPE[0] == "s";                  // "square" or "square-thin"; the others are hexagonal
+NUT_R = NUT_S / (IS_SQUARE_NUT ? sqrt(2) : sqrt(3)) + NUT_PLAY / 2;
+// an insert's hole: as deep as its maker asks, or deeper, so that the screw's tip stays in it; through the plate if need be
+INSERT_HOLE_DEPTH = min(STACK + 1, max(INSERT_DEPTH, SCREW_L - SPLICE_T + 0.5));
+
+// The cut for one of a bar's screws at `at` on the plate, the spine running at angle `a`: an insert's hole from the spine's top,
+// or a clearance hole through and a nut's pocket from the plate's back, a nut's corners along the spine.
+module fastener_cut(at, a) {
+  translate([at[0], at[1], 0]) rotate(a) {
+    if (JOINTS == "threaded-insert") {
+      translate([0, 0, STACK - INSERT_HOLE_DEPTH]) cylinder(d = INSERT_HOLE, h = INSERT_HOLE_DEPTH + 1);
+    } else if (JOINTS == "nut-bolt") {
+      translate([0, 0, -1]) cylinder(d = SCREW_HOLE, h = STACK + 2);
+      translate([0, 0, -1]) rotate(IS_SQUARE_NUT ? 45 : 0) cylinder(r = NUT_R, h = NUT_TOP + 1, $fn = IS_SQUARE_NUT ? 4 : 6);
+    }
+  }
+}
+
+// A splice bar, in its own frame: centred, along x, its back on the bed, a countersunk hole for each screw. Each countersink is
+// as wide as the head (plus play) and as deep as the head's cylindrical edge, then 90 degrees down to the clearance hole.
+module splice_bar() {
+  sink = SCREW_DK + SINK_PLAY;
+  rim = max(0, SCREW_K - (SCREW_DK - SCREW_D) / 2);
+  difference() {
+    linear_extrude(SPLICE_T) offset(r = 1) square([SPLICE_L - 2, SPLICE_W - 2], center = true);
+    for (x = [-1, 1] * (SPLICE_FAR - SPLICE_NEAR) / 2) translate([x, 0, 0]) {
+      translate([0, 0, -1]) cylinder(d = SCREW_HOLE, h = SPLICE_T + 2);
+      translate([0, 0, SPLICE_T - rim]) cylinder(d = sink, h = rim + 1);
+      translate([0, 0, SPLICE_T - rim - sink / 2]) cylinder(d1 = 0, d2 = sink, h = sink / 2);
+    }
+  }
+}
+
 // ---------------------------------------------------------------
 // Side panel (left, in its own coordinates: x across, y up from the tip)
 
@@ -124,6 +196,10 @@ module side_tab(y, grow = 0) {
   y0 = y - FIT - ROOT; y1 = y + TAB_DEPTH + grow;
   polygon([[spine_x(y0) - root, y0], [spine_x(y0) + root, y0], [spine_x(y1) + tip, y1], [spine_x(y1) - tip, y1]]);
 }
+
+// the spine's direction (as an angle), and the point s along the spine past its point at height y
+SPINE_A = atan2(1, (GAP - TIP) / (2 * HEIGHT));
+function side_at(y, s) = [spine_x(y), y] + s * [cos(SPINE_A), sin(SPINE_A)];
 
 // the band along the spine from height y0 to y1
 module side_spine_band(y0, y1, half) {
@@ -195,6 +271,9 @@ module side_segment(k) {
       if (k == 1) translate([0, 0, plate - 0.5]) linear_extrude(BOSS_H + 0.5) side_bosses();
     }
     if (k == 1 && STRIP) for (x = RIBS) translate([x, HEIGHT - BOSS_INSET, -1]) cylinder(d = PIN_D + 2 * FIT, h = plate + BOSS_H + 2);
+    // the splice bars' screws: in the tab at the top, past the lap at the bottom
+    if (SPLICED && k > 1) fastener_cut(side_at(side_top(k), SPLICE_NEAR), SPINE_A);
+    if (SPLICED && k < SIDE_SEGMENTS) fastener_cut(side_at(side_bottom(k), SPLICE_FAR), SPINE_A);
   }
 }
 
@@ -222,16 +301,30 @@ module strip_plate(k) {
   }
 }
 
+// the joints a strip segment has: at its right end (its tab) and its left end (its notch)
+function strip_joints(k) = [if (k < STRIP_SEGMENTS) strip_end(k), if (k > 1) strip_start(k)];
+
+// a splice bar's footprint over the joint at x, on the rib at y, grown by `grow`
+module strip_bar_footprint(x, y, grow = 0) {
+  translate([x + SPLICE_NEAR - SPLICE_END - grow, y - SPLICE_W / 2 - grow]) square([SPLICE_L + 2 * grow, SPLICE_W + 2 * grow]);
+}
+
 module strip_ribs(k) {
   x0 = strip_start(k) + (k > 1 ? TAB_DEPTH + LAP + FIT : 0);
   x1 = strip_end(k) + (k < STRIP_SEGMENTS ? TAB_DEPTH + LAP : 0);
   for (y = RIBS) translate([x0, y - RIB_W / 2]) square([x1 - x0, RIB_W]);
+  // under a splice bar, the rib is as wide as the bar
+  if (SPLICED) for (y = RIBS) intersection() {
+    translate([x0, y - SPLICE_W / 2]) square([x1 - x0, SPLICE_W]);
+    union() for (x = strip_joints(k)) strip_bar_footprint(x, y);
+  }
 }
 
 module strip_solid(k) {
   for (y = RIBS) translate([-1, y - RIB_W / 2 - WEB]) square([STRIP_LENGTH + 2, RIB_W + 2 * WEB]);
   if (k < STRIP_SEGMENTS) for (y = RIBS) offset(delta = BORDER) strip_tab(strip_end(k), y);
   if (k > 1) for (y = RIBS) offset(delta = BORDER) strip_tab(strip_start(k), y, FIT);
+  if (SPLICED) for (x = strip_joints(k), y = RIBS) strip_bar_footprint(x, y, WEB);
 }
 
 module strip_holes(k) {
@@ -253,12 +346,19 @@ module strip_pin(x, y, direction) {
 
 module strip_segment(k) {
   plate = THICKNESS; top = THICKNESS + RIB_HEIGHT;
-  union() {
-    linear_extrude(plate) difference() { strip_plate(k); if (CELL > 0) strip_holes(k); }
-    translate([0, 0, plate]) linear_extrude(top - plate) strip_ribs(k);
-    translate([0, 0, plate - 0.5]) linear_extrude(1) offset(delta = -0.2) intersection() { strip_ribs(k); strip_plate(k); }
-    if (k == 1) for (y = RIBS) strip_pin(0, y, -1);
-    if (k == STRIP_SEGMENTS) for (y = RIBS) strip_pin(STRIP_LENGTH, y, 1);
+  difference() {
+    union() {
+      linear_extrude(plate) difference() { strip_plate(k); if (CELL > 0) strip_holes(k); }
+      translate([0, 0, plate]) linear_extrude(top - plate) strip_ribs(k);
+      translate([0, 0, plate - 0.5]) linear_extrude(1) offset(delta = -0.2) intersection() { strip_ribs(k); strip_plate(k); }
+      if (k == 1) for (y = RIBS) strip_pin(0, y, -1);
+      if (k == STRIP_SEGMENTS) for (y = RIBS) strip_pin(STRIP_LENGTH, y, 1);
+    }
+    // the splice bars' screws: in the tab at the right end, past the lap at the left end
+    if (SPLICED) for (y = RIBS) {
+      if (k < STRIP_SEGMENTS) fastener_cut([strip_end(k) + SPLICE_NEAR, y], 0);
+      if (k > 1) fastener_cut([strip_start(k) + SPLICE_FAR, y], 0);
+    }
   }
 }
 
@@ -308,6 +408,8 @@ module honeycomb_along(x0, x1) {
 
 if (PART == "side") {
   if (SIDE == "right") mirror([1, 0, 0]) side_segment(SEGMENT); else side_segment(SEGMENT);
-} else {
+} else if (PART == "strip") {
   strip_segment(SEGMENT);
+} else {
+  splice_bar();
 }

@@ -1520,7 +1520,7 @@ export interface operations {
                      * @enum {string}
                      */
                     modelVersion: "1";
-                    /** @description Window cat guard parameters. All fields are required; dimensions are in millimetres. */
+                    /** @description Window cat guard parameters. All fields are required; dimensions are in millimetres; the joint fields are parts-library ids or attribute values. */
                     parameters: {
                         /**
                          * Height
@@ -1558,6 +1558,41 @@ export interface operations {
                          * @default true
                          */
                         topStrip: boolean;
+                        /**
+                         * Segment joints
+                         * @description What holds the segments of a panel together. The dovetails keep them side by side but lift out the way they went in; a splice bar screwed over every joint holds them for good.
+                         * @default nut-bolt
+                         * @enum {unknown}
+                         */
+                        segmentJoints: "nut-bolt" | "threaded-insert" | "glue";
+                        /**
+                         * Screw thread
+                         * @description The thread of the splice bars’ screws and their nuts or inserts.
+                         * @default M3
+                         * @enum {unknown}
+                         */
+                        jointThread: "M2" | "M2.5" | "M3" | "M4";
+                        /**
+                         * Threaded inserts
+                         * @description The heat-set inserts, a real product from the parts library: each hole is sized from the maker’s recommendation, from the spine’s top.
+                         * @default cnc-kitchen-m3x5-7
+                         * @enum {unknown}
+                         */
+                        jointInsert: "cnc-kitchen-m2x3" | "cnc-kitchen-m2-5x4" | "cnc-kitchen-m3x5-7" | "cnc-kitchen-m3x3" | "cnc-kitchen-m3x5x4" | "cnc-kitchen-m4x8-1" | "cnc-kitchen-m4x4" | "ruthex-rx-m2x4" | "ruthex-rx-m3x5-7" | "ruthex-rx-m4x8-1";
+                        /**
+                         * Nuts
+                         * @description The nuts, standard parts from the parts library: each pocket, from the plate’s back, is cut to the nut’s greatest size and sits where the screw ends.
+                         * @default iso-4032-m3
+                         * @enum {unknown}
+                         */
+                        jointNut: "iso-4032-m2" | "iso-4032-m2-5" | "iso-4032-m3" | "iso-4032-m4" | "iso-4035-m2" | "iso-4035-m2-5" | "iso-4035-m3" | "iso-4035-m4" | "iso-10511-m3" | "iso-10511-m4" | "din-562-m2" | "din-562-m2-5" | "din-562-m3";
+                        /**
+                         * Screws
+                         * @description The countersunk screws, standard parts from the parts library, two per splice bar: their heads sit flush in the bar. A screw must reach through its nut, or as deep as its insert, without coming out of the plate’s back.
+                         * @default iso-10642-m3x10
+                         * @enum {unknown}
+                         */
+                        jointScrew: "iso-10642-m3x8" | "iso-10642-m3x10" | "iso-10642-m3x12" | "iso-10642-m3x16" | "iso-10642-m3x20" | "iso-10642-m4x8" | "iso-10642-m4x10" | "iso-10642-m4x12" | "iso-10642-m4x16" | "iso-10642-m4x20" | "iso-7046-m2x5" | "iso-7046-m2x6" | "iso-7046-m2x8" | "iso-7046-m2x10" | "iso-7046-m2x12" | "iso-7046-m2x16" | "iso-7046-m2x20" | "iso-7046-m2-5x5" | "iso-7046-m2-5x6" | "iso-7046-m2-5x8" | "iso-7046-m2-5x10" | "iso-7046-m2-5x12" | "iso-7046-m2-5x16" | "iso-7046-m2-5x20" | "iso-7046-m3x5" | "iso-7046-m3x6" | "iso-7046-m3x8" | "iso-7046-m3x10" | "iso-7046-m3x12" | "iso-7046-m3x16" | "iso-7046-m3x20" | "iso-7046-m4x5" | "iso-7046-m4x6" | "iso-7046-m4x8" | "iso-7046-m4x10" | "iso-7046-m4x12" | "iso-7046-m4x16" | "iso-7046-m4x20";
                         /**
                          * Plate thickness
                          * @description Thickness of the honeycomb plates, in mm.

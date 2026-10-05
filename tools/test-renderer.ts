@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { activeParts, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
@@ -285,14 +285,19 @@ try {
   }
   // Window cat guard: the defaults; side panels alone with solid plates; the smallest window; the most segments (eight per panel);
   // the finest and thinnest honeycomb at the least play; the coarsest and thickest at the most play and the widest gap; the
-  // tallest and widest window in the longest parts. Each segment must be one closed solid, as many as the layout has, as high as
-  // its plate and spine (a side panel's top segment: its bosses; the strip's ends: their pins), and the strip as deep as the gap.
+  // tallest and widest window in the longest parts; the splice bars into nuts (the default), into inserts, with M4 and square nuts,
+  // and glued joints without them. Each segment must be one closed solid, as many as the layout has, as high as its plate and spine
+  // (a side panel's top segment: its bosses; the strip's ends: their pins), and the strip as deep as the gap; each splice bar one
+  // closed solid of the bar's size.
   const guardRuns: { name: string; overrides: ParameterValues }[] = [
     { name: 'default', overrides: {} },
-    { name: 'side panels alone, solid plates', overrides: { topStrip: false, cell: 0 } },
+    { name: 'side panels alone, solid plates, glued', overrides: { topStrip: false, cell: 0, segmentJoints: 'glue' } },
     { name: 'smallest window', overrides: { height: 150, width: 300, gap: 60, tipWidth: 20 } },
     { name: 'eight segments per panel', overrides: { height: 1500, width: 1500, maxPartLength: 188, tipWidth: 25 } },
-    { name: 'finest, thinnest, least play', overrides: { cell: 8, web: 4, thickness: 2.4, ribHeight: 2, border: 3, fit: 0.05 } },
+    { name: 'finest, thinnest, least play', overrides: { cell: 8, web: 4, thickness: 2.4, ribHeight: 2, border: 3, fit: 0.05, jointScrew: 'iso-10642-m3x8' } },
+    { name: 'threaded inserts, finest web', overrides: { segmentJoints: 'threaded-insert', web: 2 } },
+    { name: 'M4 nylon-insert nuts', overrides: { jointThread: 'M4', jointNut: 'iso-10511-m4', jointScrew: 'iso-10642-m4x12' } },
+    { name: 'square nuts, M2', overrides: { jointThread: 'M2', jointNut: 'din-562-m2', jointScrew: 'iso-7046-m2x10' } },
     { name: 'coarsest, thickest, most play, widest gap', overrides: { cell: 40, web: 2, thickness: 6, ribHeight: 12, border: 15, fit: 0.6, gap: 200, tipWidth: 60 } },
     { name: 'tallest and widest in the longest parts', overrides: { height: 1500, width: 1600, maxPartLength: 300, tipWidth: 20 } },
   ];
@@ -310,9 +315,18 @@ try {
     const p = parameters as unknown as WindowCatGuardParameters;
     const layout = windowCatGuardLayout(p);
     const segments = (kind: string, count: number) => Array.from({ length: count }, (_, i) => `${kind}-${i + 1}`);
-    assert.deepEqual(result.artifact.parts.map(part => part.id), [...segments('left', layout.sideSegments), ...segments('right', layout.sideSegments), ...segments('strip', layout.stripSegments)], `window cat guard ${name}`);
+    const spliced = p.segmentJoints !== 'glue';
+    const bars = !spliced ? [] : [...segments('left-bar', layout.sideSegments - 1), ...segments('right-bar', layout.sideSegments - 1),
+      ...segments('strip-bar', Math.max(0, layout.stripSegments - 1)).flatMap(id => [`${id}-1`, `${id}-2`])];
+    assert.deepEqual(result.artifact.parts.map(part => part.id), [...segments('left', layout.sideSegments), ...segments('right', layout.sideSegments), ...segments('strip', layout.stripSegments), ...bars], `window cat guard ${name}`);
     const pinTop = layout.pinZ + WINDOW_CAT_GUARD.pinDiameter / 2;
-    for (const part of result.artifact.parts) {
+    const s = WINDOW_CAT_GUARD_SPLICE;
+    for (const part of result.artifact.parts.filter(part => part.id.includes('-bar-'))) {
+      const want = [s.far - s.near + 2 * s.end, s.width, s.thickness];
+      for (const [index, value] of [part.dimensions.x, part.dimensions.y, part.dimensions.z].entries())
+        assert.ok(Math.abs(value - (want[index] ?? NaN)) < 0.01, `window cat guard ${name} ${part.id}: ${value} != ${want[index]}`);
+    }
+    for (const part of result.artifact.parts.filter(part => !part.id.includes('-bar-'))) {
       const end = part.id === 'strip-1' || part.id === `strip-${layout.stripSegments}`;
       const height = part.id.endsWith('-1') && part.id !== 'strip-1' && p.topStrip ? p.thickness + Math.max(p.ribHeight, WINDOW_CAT_GUARD.bossHeight)
         : Math.max(p.thickness + p.ribHeight, end ? pinTop : 0);
