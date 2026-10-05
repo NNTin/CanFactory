@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { dimensionOf, findPart, toggleLatchMechanism as TL } from '@canfactory/contracts';
+import { dimensionOf, findPart } from '@canfactory/contracts';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
 import type { CatioMode } from './catioSettings.ts';
@@ -7,8 +7,9 @@ import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
 import { buildWindowContext } from './catioWindowContext.ts';
 import { COUPLING, couplingLayout, couplingSite, type CouplingConfig, type CouplingLayout, type CouplingSite } from './catioCoupling.ts';
 import { buildInsertContext } from './catioWindowInsertScene.ts';
-import { facePoint, TUNNEL, vec, type Face, type Rect } from './catioTunnel.ts';
-import { buildToggleLatchMeshes, placeLatchPart } from './toggleLatchMeshes.ts';
+import { TUNNEL, vec } from './catioTunnel.ts';
+import { buildSectionPieces, tunnelDrawing } from './catioTunnelPieces.ts';
+import { buildPrintedLatches } from './catioPrintedLatchScene.ts';
 
 /** Stage 3 fits the latches to the first section this far above its place; stage 4 lowers it onto its wall support. */
 export const LIFT = 450;
@@ -23,21 +24,6 @@ export interface PieceMotion {
   role?: 'timber' | 'seal' | 'catch' | 'latch' | 'lip' | 'screw'; of?: string; drive?: V3;
   /** Pieces fitted to the first section travel with it while it is lowered. */
   carried?: boolean;
-}
-
-/**
- * The printed latch's own frame (`latchPoses`: x across it, y along the pull, z off the face) on a side of the joint: z out of the
- * side face (±X), y along the joint (Y), x up it (Z), turned over on the left so that it stays a rotation.
- */
-function latchFrame(side: -1 | 1) {
-  const frame = new THREE.Group(); frame.matrixAutoUpdate = false;
-  frame.matrix.set(0, 0, side, 0, 0, 1, 0, 0, -side, 0, 0, 0, 0, 0, 0, 1);
-  return frame;
-}
-/** How far open (0 locked, 1 released) puts the printed latch: the lever back over centre to open, then the link swung off the hook. */
-function printedLatchState(open: number) {
-  const turn = THREE.MathUtils.clamp(open / 0.7, 0, 1), swing = THREE.MathUtils.clamp((open - 0.7) / 0.3, 0, 1);
-  return TL.latchState(TL.CLOSED + (TL.OPEN - TL.CLOSED) * turn, TL.SWING * swing);
 }
 
 /**
@@ -56,8 +42,7 @@ export function buildCouplingPieces(p: ReturnType<typeof createCatioParts>, layo
     box(seal, [Math.abs(x - px) + 2 * sw, y1 - y0, Math.abs(z - pz) + (i === 1 ? 2 * sw : 0)], [(x + px) / 2, (y0 + y1) / 2, (z + pz) / 2], m.rubber);
   });
   const gn = layout.latchPart;
-  const printed = gn ? null : buildToggleLatchMeshes();
-  const locked = TL.latchPoses(TL.latchState(TL.CLOSED));
+  let dispose = () => {};
   let catches: { latch: CouplingLayout['latches'][number]; group: THREE.Group }[];
   let latches: { latch: CouplingLayout['latches'][number]; group: THREE.Group; lever: THREE.Group; setOpen: (open: number) => void }[];
   if (gn) {
@@ -81,28 +66,18 @@ export function buildCouplingPieces(p: ReturnType<typeof createCatioParts>, layo
       return { latch: q, group, lever, setOpen: (open: number) => lever.rotation.set(0, 0, q.side * THREE.MathUtils.degToRad(OPEN) * open) };
     });
   } else {
-    const meshes = printed ?? buildToggleLatchMeshes();
-    const part = (frame: THREE.Group, id: 'base' | 'lever' | 'link' | 'catch') => { const object = meshes[id].clone(); frame.add(object); return object; };
-    catches = layout.latches.map(q => {
-      const group = at([q.faceX, q.printed?.seam ?? q.hingeY, q.z]); const frame = latchFrame(q.side); group.add(frame);
-      placeLatchPart(part(frame, 'catch'), locked.catch);
-      return { latch: q, group };
-    });
-    latches = layout.latches.map(q => {
-      const group = at([q.faceX, q.printed?.seam ?? q.hingeY, q.z]); const frame = latchFrame(q.side); group.add(frame);
-      placeLatchPart(part(frame, 'base'), locked.base);
-      const lever = part(frame, 'lever'); lever.name = `${q.id}-lever`; const link = part(frame, 'link');
-      const setOpen = (open: number) => { const poses = TL.latchPoses(printedLatchState(open)); placeLatchPart(lever, poses.lever); placeLatchPart(link, poses.link); };
-      setOpen(0);
-      return { latch: q, group, lever, setOpen };
-    });
+    // the shared printed latch, at the mounts the layout placed
+    const placed = layout.latches.flatMap(q => q.printed ? [{ ...q.printed.mount, latch: q }] : []);
+    const printed = buildPrintedLatches(placed); dispose = printed.dispose;
+    catches = printed.catches.map(({ mount, group }) => ({ latch: mount.latch, group }));
+    latches = printed.latches.map(({ mount, group, lever, setOpen }) => ({ latch: mount.latch, group, lever, setOpen }));
   }
   let lip: THREE.Group | null = null;
   if (layout.lip) {
     const { x0, x1, y0: ly0, y1: ly1, z } = layout.lip;
     lip = at(); box(lip, [x1 - x0, ly1 - ly0, COUPLING.lip.thickness], [(x0 + x1) / 2, (ly0 + ly1) / 2, z + COUPLING.lip.thickness / 2], m.rubber);
   }
-  return { frame, seal, catches, latches, lip, dispose: () => printed?.dispose() };
+  return { frame, seal, catches, latches, lip, dispose };
 }
 
 /**
@@ -118,46 +93,7 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
   const p = createCatioParts(); const { component, box, rod, materials: m } = p;
   const { hinge } = buildWindowContext(p, site.site.window);
   const start = p.components.length;
-  const geometries: THREE.BufferGeometry[] = [];
-  const discGeometry = new THREE.CylinderGeometry(1, 1, 1, 20); geometries.push(discGeometry);
-  const vector = (v: V3) => new THREE.Vector3(...v);
-  const cylinder = (parent: THREE.Object3D, from: V3, to: V3, radius: number, material: THREE.Material) => {
-    const a = vector(from); const c = vector(to); const v = c.clone().sub(a);
-    const mesh = new THREE.Mesh(discGeometry, material);
-    mesh.position.copy(a.add(c).multiplyScalar(0.5)); mesh.scale.set(radius, v.length(), radius);
-    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize()); mesh.castShadow = true; parent.add(mesh); return mesh;
-  };
-  /** A solid between two quadrilaterals, relative to `origin` (as in the tunnel scene). */
-  const hexahedron = (parent: THREE.Object3D, corners: V3[], material: THREE.Material, origin: V3) => {
-    const c = corners.map(q => vec.sub(q, origin));
-    const quads = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]];
-    const positions: number[] = [];
-    for (const [a, b, c2, d] of quads) for (const i of [a, b, c2, a, c2, d]) positions.push(...(c[i ?? 0] ?? [0, 0, 0]));
-    const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); geometry.computeVertexNormals();
-    geometries.push(geometry);
-    const mesh = new THREE.Mesh(geometry, material); mesh.castShadow = true; mesh.receiveShadow = true;
-    (material as THREE.MeshStandardMaterial).side = THREE.DoubleSide; parent.add(mesh); return mesh;
-  };
-  const corners = (from: Face, fromOffset: number, to: Face, toOffset: number, [u0, u1, v0, v1]: Rect): V3[] => [
-    ...([[u0, v0], [u1, v0], [u1, v1], [u0, v1]] as const).map(([u, v]) => facePoint(from, u, v, fromOffset)),
-    ...([[u0, v0], [u1, v0], [u1, v1], [u0, v1]] as const).map(([u, v]) => facePoint(to, u, v, toOffset)),
-  ];
-  const wire = new THREE.BoxGeometry(1, 1, 1); geometries.push(wire);
-  const meshQuad = (parent: THREE.Object3D, c: [V3, V3, V3, V3]) => {
-    const pitch = TUNNEL.mesh.opening + TUNNEL.mesh.wire; const lines: [V3, V3][] = [];
-    const lerp = (a: V3, b: V3, t: number) => vec.add(a, vec.mul(vec.sub(b, a), t));
-    const [c0, c1, c2, c3] = c;
-    const n1 = Math.max(1, Math.round(vec.len(vec.sub(c1, c0)) / pitch)); const n2 = Math.max(1, Math.round(vec.len(vec.sub(c3, c0)) / pitch));
-    for (let i = 0; i <= n1; i++) lines.push([lerp(c0, c1, i / n1), lerp(c3, c2, i / n1)]);
-    for (let i = 0; i <= n2; i++) lines.push([lerp(c0, c3, i / n2), lerp(c1, c2, i / n2)]);
-    const wires = new THREE.InstancedMesh(wire, m.mesh, lines.length); const pose = new THREE.Object3D();
-    lines.forEach(([a, b], i) => {
-      pose.position.copy(vector(vec.mul(vec.add(a, b), 0.5)));
-      pose.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vector(vec.unit(vec.sub(b, a))));
-      pose.scale.set(TUNNEL.mesh.wire, vec.len(vec.sub(b, a)) + TUNNEL.mesh.wire, TUNNEL.mesh.wire); pose.updateMatrix(); wires.setMatrixAt(i, pose.matrix);
-    });
-    parent.add(wires); return wires;
-  };
+  const draw = tunnelDrawing(p); const { vector, cylinder } = draw;
 
   const motions: PieceMotion[] = [];
   const move = (object: THREE.Object3D, stage: number, window: [number, number], approach: V3, action: string, meta: Partial<Omit<PieceMotion, 'object' | 'stage' | 'window' | 'approach' | 'action'>> = {}) => {
@@ -176,7 +112,7 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
   const s = layout.wallSupport;
   if (s) {
     const centre: V3 = [s.at[0], s.at[1], s.top - s.depth / 2];
-    const bearer = box(supportGroup, [s.length, TUNNEL.bearer.width, s.depth], centre, s.kind === 'block' ? m.endgrain : m.timber);
+    const bearer = box(supportGroup, [s.length, s.width, s.depth], centre, s.kind === 'block' ? m.endgrain : m.timber);
     bearer.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.atan2(s.across[1], s.across[0]));
     const foot = tl.foot; const l3 = tl.footHeight;
     for (const f of s.feet) {
@@ -217,9 +153,11 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
 
   // Stage 3: the first section (built on the tunnel page) arrives raised; its latch bodies, screws and floor lip are fitted.
   if (first) {
+    // drawn by the tunnel's own builder: its rings, rails, floor and mesh
     const timber = piece(group('first-section', 3, 'timber')); const mesh = piece(group('first-section-mesh', 3, 'mesh'));
-    for (const mem of tl.members.filter(q => q.piece === first.id)) hexahedron(timber, corners(mem.from, mem.fromOffset, mem.to, mem.toOffset, mem.rect), mem.kind === 'flange' ? m.endgrain : m.timber, [0, 0, 0]);
-    for (const q of tl.panels.filter(q => q.piece === first.id)) meshQuad(mesh, q.corners);
+    const section = buildSectionPieces(p, draw, tl, [first.id]);
+    for (const { group: g } of [...section.members, ...section.cleats]) timber.add(g);
+    for (const { group: g } of section.panels) mesh.add(g);
     // it is already built: it arrives whole at the start of the stage and only travels with the lift
     for (const g of [timber, mesh]) move(g, 3, [0, 0], [0, 0, 0], 'The first section, framed and meshed on the tunnel page', { role: 'timber', carried: true });
   }
@@ -272,6 +210,6 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
     hinge.rotation.z = -Math.PI / 2;
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); pieces.dispose(); for (const g of geometries) g.dispose(); }
+  function dispose() { p.dispose(); pieces.dispose(); draw.dispose(); }
   return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers, lift: () => currentLift, caption: () => currentAction };
 }

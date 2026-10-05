@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { findPart, partUsage, TUNNEL_FOOT, tunnelConcept } from '@canfactory/contracts';
+import { findPart, partUsage, toggleLatchMechanism as TL, TUNNEL_FOOT, tunnelConcept } from '@canfactory/contracts';
 import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { tunnelDefinition } from './catioSubassemblies.ts';
 import {
-  facePoint, groundAt, jointSetback, portFloor, TUNNEL, TUNNEL_CONTROLS, TUNNEL_DEFAULT, TUNNEL_PAD_HEIGHT, TUNNEL_PRESETS, tunnelFacts, tunnelBom, tunnelLayout, tunnelSite, tunnelSteps, validateTunnel, vec, type TunnelConfig,
+  facePoint, groundAt, jointSetback, portFloor, SUPPORT_FIXINGS, TUNNEL, TUNNEL_CONTROLS, TUNNEL_DEFAULT, TUNNEL_PAD_HEIGHT, TUNNEL_PRESETS, tunnelFacts, tunnelBom, tunnelLayout, tunnelSite, tunnelSteps, validateTunnel, vec, type SupportFixing, type TunnelConfig,
 } from './catioTunnel.ts';
 import { createTunnelScene, LIFT } from './catioTunnelScene.ts';
+import { TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
+import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 import type { V3 } from './catioSubassembly.ts';
 import { WINDOW_INSERT_DEFAULT, windowInsertLayout, type WindowInsertConfig } from './catioWindowInsert.ts';
 
@@ -17,7 +19,9 @@ const installed: CatioState = { progress: 6, exploded: false, windowOpen: true, 
 const optionConfigs: TunnelConfig[] = [TUNNEL_DEFAULT, ...TUNNEL_CONTROLS.filter(c => !c.range).flatMap(control => control.options.map(option => ({ ...TUNNEL_DEFAULT, [control.key]: option.value }))),
   // the Ganter feet in every size, and the printed feet at their lowest and highest
   ...TUNNEL_FOOT.diameters.map(footDiameter => ({ ...TUNNEL_DEFAULT, footPad: 'ganter' as const, footDiameter })),
-  { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.min }, { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.max, footDiameter: 25 }];
+  { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.min }, { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.max, footDiameter: 25 },
+  // self-standing on uneven ground of ±10 mm: the shorter screw in the feet
+  { ...TUNNEL_DEFAULT, supportBase: 'self-standing', groundTolerance: 10 }];
 /** Routes that turn either way, at odd angles, climb and fall, with both joint types. */
 const routes: TunnelConfig[] = ([
   TUNNEL_DEFAULT,
@@ -27,6 +31,10 @@ const routes: TunnelConfig[] = ([
   { ...TUNNEL_DEFAULT, portX: 900, portY: 5200, portFacing: 15, portHeight: 1100, maxSlope: 25, sectionLength: 1000 },
   { ...TUNNEL_DEFAULT, portX: -2400, portY: 2600, portFacing: -60, portHeight: 400, slopeLeg: 'approach', approach: 1800, groundFall: 4 },
 ] satisfies TunnelConfig[]).flatMap((config): TunnelConfig[] => [config, { ...config, angleJoint: 'mitred-ends' }]);
+/** Both coupling mechanisms, with every count of latches and bolts. */
+const joints: TunnelCouplingConfig[] = [TUNNEL_COUPLING_DEFAULT, ...TUNNEL_COUPLING_CONTROLS.flatMap(control => control.options.map(option => ({ ...TUNNEL_COUPLING_DEFAULT, [control.key]: option.value }))),
+  { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 4 }, { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 8 }];
+const bolted: TunnelCouplingConfig = { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' };
 const close = (a: V3, b: V3, digits = 6, message = '') => { for (const i of [0, 1, 2]) expect(a[i], `${message} [${i}]`).toBeCloseTo(b[i] ?? 0, digits); };
 const profile = (w: number, h: number): [number, number][] => [[-w / 2 - 70, -70], [w / 2 + 70, -70], [w / 2 + 70, h + 70], [-w / 2 - 70, h + 70], [-w / 2, 0], [w / 2, h]];
 
@@ -61,15 +69,67 @@ describe('tunnel route', () => {
     }
   });
 
-  it('meets every coupling face to face: the profile of both pieces is the same outline on the same plane', () => {
-    for (const config of routes) {
-      const l = tunnelLayout(config, site);
+  it('meets every coupling with the same outline on parallel planes: face to face when bolted, the printed latch’s gap apart when latched', () => {
+    for (const joint of [TUNNEL_COUPLING_DEFAULT, bolted]) for (const config of routes) {
+      const l = tunnelLayout(config, site, joint);
       l.pieces.slice(1).forEach((after, i) => {
         const before = l.pieces[i]; if (!before) return;
+        const coupling = l.couplings.find(c => c.after === after.id); if (!coupling) throw new Error(after.id);
+        // latched wherever both flanges are square to their pieces (sections and angle collars); a mitre is always bolted
+        const square = vec.dot(after.start.n, after.start.frame.y) > 1 - 1e-9;
+        expect(coupling.kind, `${coupling.id} ${JSON.stringify(joint)}`).toBe(joint.mechanism === 'printed-latch' && square ? 'latched' : 'bolted');
+        const gap = coupling.kind === 'latched' ? PRINTED_LATCH_JOINT.gap : 0;
+        expect(coupling.gap).toBeCloseTo(gap, 9);
         close(before.end.n, after.start.n, 12, `${after.id} plane`);
-        for (const [u, v] of profile(l.w, l.h)) close(facePoint(before.end, u, v), facePoint(after.start, u, v), 6, `${before.id} | ${after.id} at ${u},${v}`);
+        for (const [u, v] of profile(l.w, l.h)) close(vec.add(facePoint(before.end, u, v), vec.mul(after.start.n, gap)), facePoint(after.start, u, v), 6, `${before.id} | ${after.id} at ${u},${v}`);
       });
     }
+  });
+
+  it('makes room for the latches’ gaps: the route still ends exactly at the enclosure port, with every section no longer than the longest', () => {
+    for (const joint of [TUNNEL_COUPLING_DEFAULT, bolted]) for (const config of [...routes, ...TUNNEL_PRESETS.map(p => p.config())]) {
+      const l = tunnelLayout(config, site, joint);
+      expect(l.errors, `${JSON.stringify(config)} ${joint.mechanism}`).toEqual([]);
+      close(l.pieces.at(-1)?.end.at ?? [0, 0, 0], [config.portX, config.portY, portFloor(config, site)], 6, `end ${joint.mechanism}`);
+      for (const p of l.pieces.filter(q => q.kind === 'section')) expect(p.length, p.id).toBeLessThanOrEqual(config.sectionLength + 1e-9);
+      // the pieces and the gaps between them make up the route; a collar's ends stay at its setback from the vertex
+      const gaps = l.couplings.reduce((n, c) => n + c.gap, 0);
+      expect(l.totalLength + gaps).toBeCloseTo(l.pieces.reduce((n, p) => n + p.length, 0) + gaps, 9);
+      for (const j of l.joints) expect(j.stop - j.setback, j.id).toBeCloseTo(j.collar && joint.mechanism === 'printed-latch' ? PRINTED_LATCH_JOINT.gap : 0, 9);
+      // the enclosure end is bolted whatever the couplings are
+      expect(l.couplings.find(c => c.id === 'port')).toMatchObject({ kind: 'bolted', gap: 0 });
+      expect(l.couplings.find(c => c.id === 'port')?.bolts).toHaveLength(joint.boltsPerCoupling);
+    }
+    // the default route is as long with either mechanism: the gaps come out of the sections
+    const latchedLength = tunnelLayout(TUNNEL_DEFAULT, site, TUNNEL_COUPLING_DEFAULT); const boltedLength = tunnelLayout(TUNNEL_DEFAULT, site, bolted);
+    expect(latchedLength.pieces.length).toBe(boltedLength.pieces.length);
+    const span = (l: typeof latchedLength) => l.totalLength + l.couplings.reduce((n, c) => n + c.gap, 0);
+    expect(span(latchedLength)).toBeCloseTo(span(boltedLength), 9);
+  });
+
+  it('puts the printed latches on the flanges’ outer sides, plates within the flanges, screws in the timber and clear of the bearer’s and rails’ screws', () => {
+    for (const joint of joints.filter(j => j.mechanism === 'printed-latch')) for (const config of routes) {
+      const l = tunnelLayout(config, site, joint);
+      expect(l.errors).toEqual([]);
+      for (const c of l.couplings.filter(k => k.kind === 'latched')) {
+        expect(c.latches).toHaveLength(2 * joint.latchesPerSide); expect(c.bolts).toEqual([]);
+        expect(c.seal !== null).toBe(joint.seal === 'e-profile');
+        for (const q of c.latches) {
+          // on the side face, the pull along the tunnel back towards the flange before the joint
+          close(q.pull, vec.mul(c.face.n, -1), 12, q.id);
+          expect(Math.abs(vec.dot(vec.sub(q.at, c.face.at), c.face.frame.x))).toBeCloseTo(l.w / 2 + TUNNEL.flange.width, 6);
+        }
+      }
+      const screws = l.fasteners.filter(f => f.component === 'latch-screws' || f.component === 'catch-screws');
+      expect(screws).toHaveLength(4 * l.couplings.reduce((n, c) => n + c.latches.length, 0));
+      for (const f of screws) {
+        const c = l.couplings.find(k => k.latches.some(q => q.id === f.of)); if (!c) throw new Error(f.of);
+        // into the flange before the joint (base) or after it (catch), at least 5 mm in from its face
+        const depth = -vec.dot(vec.sub(f.at, c.face.at), c.face.n);
+        if (f.component === 'latch-screws') expect(depth - c.gap).toBeGreaterThan(5); else expect(-depth).toBeGreaterThan(5);
+      }
+    }
+    expect(tunnelLayout(TUNNEL_DEFAULT, site, bolted).fasteners.some(f => f.component === 'latch-screws')).toBe(false);
   });
 
   it('closes an angle collar exactly: its two flanges touch at the inside of the joint and open on the outside', () => {
@@ -168,16 +228,176 @@ describe('tunnel supports', () => {
       // reach ±25 mm no more; the 40 mm Ganter foot (80 mm stud) does
       expect(tooShort, JSON.stringify(config)).toBe(config.groundTolerance > (l.stud - 18 - 6.8) / 2 - TUNNEL.legRound / 2);
       if (tooShort) continue;
-      // the only other limit an option can hit from the defaults: a leg too short for the climb
-      expect(l.errors.filter(e => !/too short to climb/.test(e)), JSON.stringify(config)).toEqual([]);
+      // the only other limits an option can hit from the defaults: a leg too short for the climb, and a fixing that leaves a trestle
+      // standing on its own (gravity, or a latch or turn buttons where they do not fit)
+      const loose = l.supports.some(s => !s.hold.attached);
+      expect(l.errors.some(e => /Choose self-standing supports/.test(e)), JSON.stringify(config)).toBe(loose && config.supportBase === 'trestle');
+      expect(l.errors.filter(e => !/too short to climb|Choose self-standing supports/.test(e)), JSON.stringify(config)).toEqual([]);
       for (const s of l.supports) for (const f of s.feet) {
         expect(f.actualSetting, f.id).toBeGreaterThanOrEqual(l.travel.min - 1e-6);
         expect(f.actualSetting, f.id).toBeLessThanOrEqual(l.travel.max + 1e-6);
-        expect(f.slabTop - TUNNEL.slab.thickness).toBeCloseTo(groundAt(config, f.at[0], f.at[1]), 9);
+        // one slab under each leg (and under both feet of its sole), on the ground there
+        expect(f.slabTop - TUNNEL.slab.thickness).toBeCloseTo(groundAt(config, f.slabAt[0], f.slabAt[1]), 9);
         expect(f.leg % TUNNEL.legRound).toBe(0);
         // the stack from the slab to the bearer top is exact
-        expect(f.slabTop + l.footHeight + f.actualSetting + f.leg + s.depth).toBeCloseTo(s.top, 6);
+        expect(f.slabTop + l.footHeight + f.actualSetting + (s.soles.length ? TUNNEL.sole.thickness : 0) + f.leg + s.depth).toBeCloseTo(s.top, 6);
       }
+    }
+  });
+});
+
+describe('tunnel held on its supports', () => {
+  const held = (supportFixing: SupportFixing, supportBase: TunnelConfig['supportBase'] = 'trestle', config: TunnelConfig = TUNNEL_DEFAULT) => tunnelLayout({ ...config, supportFixing, supportBase }, site, TUNNEL_COUPLING_DEFAULT);
+  /** A straight route with section-to-section couplings: two flanges over a bearer, where the latch and the buttons fit. */
+  const straight: TunnelConfig = { ...TUNNEL_DEFAULT, portX: 0, portY: 3000, portLevel: 'window', sectionLength: 500 };
+  const fp = 'iso-2338-8x40';
+
+  it('screws up through every bearer by default, and binds every support to the tunnel', () => {
+    const l = held('screws');
+    expect(TUNNEL_DEFAULT.supportFixing).toBe('screws'); expect(TUNNEL_DEFAULT.supportBase).toBe('trestle');
+    expect(l.fasteners.filter(f => f.component === 'flange-screws')).toHaveLength(l.supports.reduce((n, s) => n + s.fixings.length, 0));
+    expect(l.supports.every(s => s.hold.attached)).toBe(true);
+  });
+
+  it('stands each dowel half in the bearer under a flange or collar rail, and drops the tunnel over them', () => {
+    for (const config of [TUNNEL_DEFAULT, straight]) {
+      const l = held('dowels', 'trestle', config); const screwed = held('screws', 'trestle', config);
+      expect(l.errors).toEqual([]);
+      expect(l.fasteners.some(f => f.component === 'flange-screws')).toBe(false);
+      for (const s of l.supports) {
+        expect(s.hold.dowels).toHaveLength(s.fixings.length);
+        // the tunnel sits on the bearer as before
+        expect(s.top).toBeCloseTo(screwed.supports.find(t => t.id === s.id)?.top ?? NaN, 9);
+        for (const d of s.hold.dowels) expect(d[2]).toBeCloseTo(s.top - TUNNEL.fixing.dowel.into, 9);
+      }
+      expect(tunnelBom('modular', { ...config, supportFixing: 'dowels' }, site, TUNNEL_COUPLING_DEFAULT).find(line => line.partId === fp)?.quantity).toBe(l.supports.reduce((n, s) => n + s.fixings.length, 0));
+    }
+  });
+
+  it('straps each support over the tunnel, hooked under cleats on the bearer’s ends', () => {
+    const l = held('strap');
+    for (const s of l.supports) {
+      const strap = s.hold.strap; if (!strap) throw new Error(s.id);
+      expect(strap.cleats).toHaveLength(2);
+      // from below the bearer's top, over the tunnel's top (flanges, or a collar's roof), down to the other end
+      const [a, b, c, d] = strap.path; if (!a || !b || !c || !d) throw new Error('path');
+      expect(a[2]).toBeLessThan(s.top); expect(d[2]).toBeLessThan(s.top);
+      expect(b[2]).toBeCloseTo(s.top + l.h + 2 * TUNNEL.flange.width - (s.flanges ? 0 : TUNNEL.flange.width - TUNNEL.rail), 6);
+      expect(strap.length).toBeGreaterThan(2 * (b[2] - a[2]) + l.w);
+    }
+    const lines = tunnelBom('modular', { ...TUNNEL_DEFAULT, supportFixing: 'strap' }, site);
+    expect(lines.filter(line => line.name.startsWith('EPDM tarp strap')).reduce((n, line) => n + line.quantity, 0)).toBe(l.supports.length);
+    expect(lines.find(line => line.name === 'Strap cleat')?.quantity).toBe(2 * l.supports.length);
+  });
+
+  it('turns a button flat on a post on the bearer’s end over a keeper on each flange’s side, under flanges flush with its ends', () => {
+    const l = held('turn-buttons', 'trestle', straight);
+    expect(l.errors).toEqual([]);
+    const { keeper, button } = TUNNEL.fixing;
+    for (const s of l.supports) {
+      expect(s.hold.buttons).toHaveLength(2 * s.flanges);
+      for (const b of s.hold.buttons) {
+        const out = (q: V3) => vec.dot(vec.sub(q, s.at), vec.mul(s.across, b.side)) - s.length / 2;
+        const z = (box: { center: V3; size: V3 }) => [box.center[2] - box.size[2] / 2, box.center[2] + box.size[2] / 2];
+        // the keeper on the flange's side, above the bearer and proud of the flush face; the post on the bearer's end below it
+        expect(z(b.keeper)[0]).toBeCloseTo(s.top + keeper.above, 9); expect(out(b.keeper.center)).toBeCloseTo(keeper.out / 2, 9);
+        expect(z(b.post)[0]).toBeLessThan(s.top); expect(out(b.post.center)).toBeGreaterThan(0);
+        // the button lies on its post, just clear of the keeper's top, and reaches over it
+        expect(z(b.button)[0]).toBeCloseTo((z(b.keeper)[1] ?? 0) + button.clearance, 9);
+        expect(z(b.post)[1]).toBeCloseTo(z(b.button)[0] ?? 0, 9);
+        const along = (q: V3) => vec.dot(vec.sub(q, s.at), s.along);
+        expect(along(b.button.center) + b.button.size[1] / 2).toBeGreaterThanOrEqual(along(b.keeper.center) + b.keeper.size[1] / 2 - 1e-9);
+        // its pivot screw goes down into the post; the keeper belongs to the section, the button to the support
+        expect(b.pivot[2]).toBeCloseTo((z(b.button)[1] ?? 0), 9);
+        expect(b.piece).not.toBe('');
+      }
+    }
+    const screws = (component: string) => l.fasteners.filter(f => f.component === component);
+    const buttons = l.supports.reduce((n, s) => n + s.hold.buttons.length, 0);
+    expect(screws('keeper-screws')).toHaveLength(buttons); expect(screws('post-screws')).toHaveLength(2 * buttons); expect(screws('button-screws')).toHaveLength(buttons);
+    expect(screws('button-screws').every(f => f.direction[2] === -1)).toBe(true);
+    expect(held('turn-buttons').errors.join()).toMatch(/Turn buttons fit only under flanges flush/);
+  });
+
+  it('rests on self-standing supports by gravity only, and says a trestle cannot', () => {
+    expect(held('gravity').errors.join()).toMatch(/With gravity only, nothing holds a support to the tunnel.*Choose self-standing supports/);
+    const l = held('gravity', 'self-standing');
+    expect(l.errors).toEqual([]);
+    expect(l.supports.every(s => !s.hold.attached && s.stands && s.feet.length === 4)).toBe(true);
+    // a trestle's legs on soles, a low bearer wide along the tunnel: two feet along the tunnel under each end, both on the one slab
+    const trestles = l.supports.filter(s => s.kind === 'trestle'); const blocks = l.supports.filter(s => s.kind === 'block');
+    expect(trestles.length).toBeGreaterThan(0); expect(blocks.length).toBeGreaterThan(0);
+    for (const s of l.supports) {
+      expect(s.soles).toHaveLength(s.kind === 'trestle' ? 2 : 0);
+      expect(s.width).toBe(s.kind === 'trestle' ? TUNNEL.bearer.width : TUNNEL.wideBlock.width);
+      for (const end of [0, 1]) {
+        const feet = s.feet.filter(f => f.end === end); const [a, b] = feet; if (!a || !b) throw new Error(s.id);
+        expect(Math.abs(vec.dot(vec.sub(a.at, b.at), s.along))).toBeCloseTo(s.kind === 'trestle' ? TUNNEL.sole.length - 2 * TUNNEL.sole.footInset : TUNNEL.wideBlock.width - 2 * TUNNEL.wideBlock.footInset, 6);
+        expect(a.slabAt).toEqual(b.slabAt);
+      }
+    }
+    // the wall end's low bearer stays clear of the wall
+    const wall = l.supports.find(s => s.id === 'support-wall'); if (!wall) throw new Error('wall');
+    expect(wall.at[1] - wall.width / 2).toBeGreaterThanOrEqual(TUNNEL.wallGap - 1e-6);
+    const lines = tunnelBom('modular', { ...TUNNEL_DEFAULT, supportFixing: 'gravity', supportBase: 'self-standing' }, site);
+    expect(lines.find(line => line.name === 'Sole')?.quantity).toBe(2 * trestles.length);
+    expect(lines.filter(line => line.name === 'Low bearer, wide').reduce((n, line) => n + line.quantity, 0)).toBe(blocks.length);
+    expect(lines.find(line => line.name === 'Sole')?.size).toBe(`${TUNNEL.sole.width} × ${TUNNEL.sole.thickness} on edge · ${TUNNEL.sole.length} long`);
+    expect(lines.find(line => line.id === 'slabs')?.quantity).toBe(2 * l.supports.length);
+  });
+
+  it('keeps every screw of a self-standing support inside its timber: the feet’s in the sole, the sole’s in the leg or low bearer', () => {
+    for (const groundTolerance of [10, 15, 20] as const) for (const footPad of ['printed', 'ganter'] as const) {
+      const l = held('gravity', 'self-standing', { ...straight, groundTolerance, footPad });
+      if (footPad === 'printed') {
+        // the shortest library screw with the travel the ground needs: M8 × 60 for ±10 mm, M8 × 80 beyond
+        expect(l.pad?.screw.id).toBe(groundTolerance === 10 ? 'iso-4017-m8x60' : 'iso-4017-m8x80');
+        expect(l.errors).toEqual([]);
+      }
+      for (const s of l.supports) for (const f of s.feet) {
+        const soleBottom = f.slabTop + l.footHeight + f.actualSetting; const soleTop = soleBottom + TUNNEL.sole.thickness;
+        // the stud's tip, however far the foot is turned within the travel the ground needs, stays inside the sole
+        for (const setting of [f.setting - groundTolerance, f.setting + groundTolerance, f.actualSetting]) {
+          if (setting < l.travel.min - 1e-6 || setting > l.travel.max + 1e-6) continue;
+          expect(f.slabTop + l.footHeight + l.stud - (setting - f.actualSetting), f.id).toBeLessThan(soleTop);
+        }
+        expect(l.travel.max - l.travel.min).toBeGreaterThanOrEqual(0);
+      }
+      for (const f of l.fasteners.filter(q => q.component === 'sole-screws')) {
+        const s = l.supports.find(q => q.id === f.support) ?? l.supports.find(q => q.feet.some(g => Math.hypot(g.legAt[0] - f.at[0], g.legAt[1] - f.at[1]) < 50)); if (!s) throw new Error('support');
+        // up through the sole into the leg (or low bearer) above it: within its 45 × 45 (or its width along the tunnel)
+        const end = s.feet.find(g => g.primary && Math.hypot(g.legAt[0] - f.at[0], g.legAt[1] - f.at[1]) < 50); if (!end) throw new Error('end');
+        expect(Math.abs(vec.dot(vec.sub(f.at, end.legAt), s.along))).toBeLessThan(TUNNEL.leg / 2);
+        expect(Math.abs(vec.dot(vec.sub(f.at, end.legAt), s.across))).toBeLessThan(TUNNEL.leg / 2 - 5);
+        expect(end.leg).toBeGreaterThan(0);
+        expect(f.direction).toEqual([0, 0, 1]);
+        expect(100 - TUNNEL.sole.thickness).toBeGreaterThan(20);
+      }
+    }
+    // a screw or stud that would come out of the top of a shallow low bearer is reported, and the shorter screw of a smaller
+    // tolerance fits there
+    const shallow: TunnelConfig = { ...TUNNEL_DEFAULT, portHeight: 200, slopeLeg: 'approach', approach: 1500, final: 1500 };
+    expect(tunnelLayout(shallow, site).errors.join()).toMatch(/At the joint 2 a foot’s screw would come out of the top of the low bearer \(59 mm up into 48 mm\)/);
+    expect(tunnelLayout({ ...shallow, footPad: 'ganter' }, site).errors.join()).toMatch(/a foot’s stud would come out of the top of the low bearer/);
+  });
+
+  it('stages every fixing: fittings on the levelled supports, buttons on the flanges, the hold-down last, each along its own way', () => {
+    for (const fixing of SUPPORT_FIXINGS) {
+      const config = { ...straight, supportFixing: fixing, supportBase: 'self-standing' as const };
+      const scene = createTunnelScene('modular', config, site, TUNNEL_COUPLING_DEFAULT);
+      for (const motion of scene.motions.filter(m => m.role === 'screw')) expect(motion.approach.clone().normalize().dot(new THREE.Vector3(...(motion.drive ?? [0, 0, 0]))), motion.action).toBeCloseTo(-1, 6);
+      const moments = new Map(scene.motions.filter(m => m.window[1] > m.window[0]).map(m => [m.stage - 1 + (m.window[0] + m.window[1]) / 2, m.action]));
+      for (const [progress, action] of moments) {
+        scene.update({ ...installed, progress });
+        expect(scene.caption?.(), `${fixing}: caption mid ${action}`).not.toBeNull();
+      }
+      const ids = scene.components.map(part => part.id);
+      expect(ids.includes('support-fixings'), fixing).toBe(['dowels', 'strap', 'turn-buttons'].includes(fixing));
+      expect(ids.includes('flange-screws'), fixing).toBe(fixing === 'screws');
+      expect(ids.includes('straps'), fixing).toBe(fixing === 'strap');
+      expect(ids.includes('turn-buttons'), fixing).toBe(fixing === 'turn-buttons');
+      expect(scene.layout.supports.every(s => s.stands)).toBe(true);
+      scene.dispose();
     }
   });
 });
@@ -193,15 +413,24 @@ describe('tunnel parts list', () => {
         if (line.partId) expect(findPart(line.partId), line.partId).toBeDefined();
       }
       const bolts = l.couplings.reduce((n, c) => n + c.bolts.length, 0);
-      expect(bolts).toBe((l.pieces.length) * config.couplingBolts);
+      // latched by default: only the enclosure end and any mitred joint are bolted
+      expect(bolts).toBe(l.couplings.filter(c => c.kind === 'bolted').length * TUNNEL_COUPLING_DEFAULT.boltsPerCoupling);
+      const latches = l.couplings.reduce((n, c) => n + c.latches.length, 0);
+      expect(latches).toBe(l.couplings.filter(c => c.kind === 'latched').length * 2 * TUNNEL_COUPLING_DEFAULT.latchesPerSide);
+      if (latches) expect(lines.find(line => line.modelId === 'toggle-latch')).toMatchObject({ quantity: latches, name: 'Toggle latch, printed' });
+      expect(l.fasteners.filter(f => f.component === 'latch-screws' || f.component === 'catch-screws')).toHaveLength(4 * latches);
+      expect(count('din-7997-4x25')).toBe(l.fasteners.filter(f => f.partId === 'din-7997-4x25').length);
+      expect(lines.find(line => line.id === 'coupling-seal')?.quantity ?? 0).toBe(l.couplings.filter(c => c.seal).length);
       // a printed foot's screw and lock nut are the coupling's M8 × 80 and nut
-      const feet = 2 * l.supports.length;
-      expect(count('iso-4017-m8x80')).toBe(bolts + (l.pad ? feet : 0));
+      const feet = l.supports.reduce((n, s) => n + s.feet.length, 0);
+      expect(feet).toBe((config.supportBase === 'self-standing' ? 4 : 2) * l.supports.length);
+      // (a self-standing support's printed feet may take a shorter screw)
+      expect(count('iso-4017-m8x80') + (l.pad && l.pad.screw.id !== 'iso-4017-m8x80' ? count(l.pad.screw.id) : 0)).toBe(bolts + (l.pad ? feet : 0));
       expect(count('iso-7093-m8')).toBe(2 * bolts);
       expect(count('iso-4032-m8')).toBe(bolts + (l.pad ? feet : 0));
-      if (l.pad) expect(lines.find(line => line.modelId === 'pressure-pad')).toMatchObject({ id: 'foot-pads', quantity: feet, size: `Ø ${config.footDiameter} × ${config.padHeight} mm · ${config.padSurface} sole · PETG · for an ISO 4017 M8 × 80 head` });
-      else { expect(count(l.foot.id)).toBe(feet); expect(lines.some(line => line.modelId)).toBe(false); }
-      expect(count('din-7965-m8x18')).toBe(2 * l.supports.length);
+      if (l.pad) expect(lines.find(line => line.modelId === 'pressure-pad')).toMatchObject({ id: 'foot-pads', quantity: feet, size: `Ø ${config.footDiameter} × ${config.padHeight} mm · ${config.padSurface} sole · PETG · for an ${l.pad.screw.designation} head` });
+      else { expect(count(l.foot.id)).toBe(feet); expect(lines.some(line => line.modelId === 'pressure-pad')).toBe(false); }
+      expect(count('din-7965-m8x18')).toBe(feet);
       expect(lines.find(line => line.id === 'slabs')?.quantity).toBe(2 * l.supports.length);
       expect(lines.filter(line => line.name === 'Leg').reduce((n, line) => n + line.quantity, 0)).toBe(l.supports.filter(s => s.kind === 'trestle').length * 2);
       expect(lines.filter(line => line.name.startsWith('Flange')).reduce((n, line) => n + line.quantity, 0)).toBe(8 * l.pieces.length);
@@ -217,9 +446,24 @@ describe('tunnel parts list', () => {
     expect(mitred.some(line => line.name === 'Section rail' && /°/.test(line.size))).toBe(true);
   });
 
+  it('lists bolts at every coupling with the bolts, and always at the enclosure end', () => {
+    for (const joint of joints) for (const config of [TUNNEL_DEFAULT, { ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends' as const }]) {
+      const l = tunnelLayout(config, site, joint); const lines = tunnelBom('modular', config, site, joint);
+      const count = (id: string) => lines.find(line => line.partId === id)?.quantity ?? 0;
+      const bolts = l.couplings.filter(c => c.kind === 'bolted').length * joint.boltsPerCoupling;
+      expect(bolts).toBeGreaterThanOrEqual(joint.boltsPerCoupling);
+      expect(count('iso-7093-m8')).toBe(2 * bolts);
+      expect(count('iso-4017-m8x80')).toBe(bolts + (l.pad ? 2 * l.supports.length : 0));
+      expect(lines.some(line => line.modelId === 'toggle-latch')).toBe(l.couplings.some(c => c.kind === 'latched'));
+      // angle collars keep every coupling square: all latched but the enclosure end
+      if (config.angleJoint === 'angle-collar') expect(l.couplings.filter(c => c.kind === 'bolted').map(c => c.id)).toEqual(joint.mechanism === 'bolts' ? l.couplings.map(c => c.id) : ['port']);
+      if (joint.mechanism === 'bolts') expect(l.couplings.every(c => c.kind === 'bolted')).toBe(true);
+    }
+  });
+
   it('links every library part it can use back to this page in the parts library', () => {
     expect(TUNNEL_CONTROLS.find(c => c.key === 'footDiameter')?.options.map(o => o.value)).toEqual([...TUNNEL_FOOT.diameters]);
-    const used = new Set([...routes, ...optionConfigs].flatMap(config => tunnelBom('modular', config, site).flatMap(line => line.partId ? [line.partId] : [])));
+    const used = new Set([...[...routes, ...optionConfigs].flatMap(config => tunnelBom('modular', config, site)), ...joints.flatMap(joint => tunnelBom('modular', TUNNEL_DEFAULT, site, joint))].flatMap(line => line.partId ? [line.partId] : []));
     expect([...used].sort()).toEqual([...new Set(tunnelConcept.parts.map(link => link.partId))].sort());
     for (const id of used) {
       const p = findPart(id); if (!p) throw new Error(id);
@@ -242,7 +486,9 @@ describe('tunnel scene', () => {
       expect(context.map(part => part.group.position.toArray())).toEqual(positions);
       for (const part of scene.components) expect(part.group.visible, `${part.id} at ${progress}`).toBe(part.step <= progress);
     }
-    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['terrain', 'window-insert', 'enclosure-port', 'slabs', 'legs', 'levelling-feet', 'bearers', 'flanges', 'rails', 'mesh', 'staples', 'coupling-bolts', 'port-bolts', 'flange-screws', 'docking-frame', 'coupling-latches']));
+    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['terrain', 'window-insert', 'enclosure-port', 'slabs', 'legs', 'levelling-feet', 'bearers', 'flanges', 'rails', 'mesh', 'staples', 'section-latches', 'section-latch-screws', 'section-seals', 'port-bolts', 'flange-screws', 'docking-frame', 'coupling-latches']));
+    // printed latches at the couplings by default: no bolts there; bolted, no latches
+    expect(scene.components.map(part => part.id)).not.toContain('coupling-bolts');
     scene.update({ ...installed, cutaway: true, hidden: new Set(['mesh']) });
     expect(scene.components.find(part => part.id === 'wall')?.group.visible).toBe(false);
     expect(scene.components.filter(part => part.layer === 'mesh').every(part => !part.group.visible)).toBe(true);
@@ -262,6 +508,26 @@ describe('tunnel scene', () => {
     scene.dispose();
   });
 
+  it('latches every square coupling with the shared printed latch, closed over centre once the pieces are down, each part on its pins', () => {
+    const scene = createTunnelScene('modular', TUNNEL_DEFAULT, site, TUNNEL_COUPLING_DEFAULT);
+    const latched = scene.layout.couplings.filter(c => c.kind === 'latched');
+    expect(scene.levers).toHaveLength(latched.length * 2 * TUNNEL_COUPLING_DEFAULT.latchesPerSide);
+    const G = TL.TOGGLE_LATCH_GEOMETRY;
+    const world = (object: THREE.Object3D, point: [number, number, number]) => new THREE.Vector3(...point).applyMatrix4(object.matrixWorld);
+    const named = (lever: THREE.Object3D, name: string) => lever.parent?.children.find(child => child.name === name);
+    const tip = (lever: THREE.Object3D) => world(lever, [30, G.lever.middle, 1.5]);
+    scene.update({ ...installed, progress: 4.5 }); const open = scene.levers.map(q => tip(q.lever).distanceTo(new THREE.Vector3(...q.mount.at)));
+    scene.update(installed);
+    scene.levers.forEach((q, i) => {
+      const base = named(q.lever, 'toggle-latch-base'), link = named(q.lever, 'toggle-latch-link'); if (!base || !link) throw new Error('latch parts');
+      expect(world(q.lever, [G.lever.pivot[0], G.lever.middle, G.lever.pivot[1]]).distanceTo(world(base, [G.base.middle, G.base.pivot[0], G.base.pivot[1]]))).toBeLessThan(1e-3);
+      expect(world(link, [G.link.hole[0], G.link.middle, G.link.hole[1]]).distanceTo(world(q.lever, [G.lever.pin[0], G.lever.middle, G.lever.pin[1]]))).toBeLessThan(1e-3);
+      // closed, the lever lies along the joint, much nearer the plates than it stood open
+      expect(tip(q.lever).distanceTo(new THREE.Vector3(...q.mount.at))).toBeLessThan(open[i] ?? 0);
+    });
+    scene.dispose();
+  });
+
   it('levels each support from its feet: low until stage 2, at its height after', () => {
     const scene = createTunnelScene('modular', TUNNEL_DEFAULT, site);
     const bearers = scene.motions.filter(m => m.role === 'bearer');
@@ -278,8 +544,8 @@ describe('tunnel scene', () => {
   });
 
   it('drives every fastener along its own axis, point first, in its order: nut before foot, bolt before nut', () => {
-    for (const config of [TUNNEL_DEFAULT, { ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends' as const, couplingBolts: 8 as const }]) {
-      const scene = createTunnelScene('modular', config, site);
+    for (const [config, joint] of [[TUNNEL_DEFAULT, TUNNEL_COUPLING_DEFAULT], [{ ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends' as const }, { ...bolted, boltsPerCoupling: 8 as const }], [{ ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends' as const }, TUNNEL_COUPLING_DEFAULT]] as const) {
+      const scene = createTunnelScene('modular', config, site, joint);
       for (const motion of scene.motions.filter(m => m.role === 'screw' || m.role === 'staple' || m.role === 'bolt')) {
         const drive = new THREE.Vector3(...(motion.drive ?? [0, 0, 0]));
         expect(motion.approach.clone().normalize().dot(drive), motion.action).toBeCloseTo(-1, 6);

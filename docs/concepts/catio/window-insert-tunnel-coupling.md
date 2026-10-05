@@ -72,6 +72,9 @@ latch's shared mechanism (`packages/contracts/src/toggleLatchMechanism.ts`), the
 - **Limits:** it has no safety catch or padlock eye, and its holding force is not rated. Choose the GN 831 for a joint
   that must hold a rated load, or must be locked.
 - **Parts list:** the latch line links to the model (`#/models/toggle-latch`), not the parts library.
+- **Shared:** its sizes, placement and screws (`PRINTED_LATCH`, `printedLatchScrews` in
+  [catioPrintedLatch.ts](../../../apps/web/src/catioPrintedLatch.ts)) and its drawing (`buildPrintedLatches`) are the same
+  code the [tunnel–tunnel coupling](tunnel-tunnel-coupling.md) uses between sections.
 - **Live assembly:**
   - Its four parts are built from their real profiles.
   - Stage 2 screws the catch plates on and stage 3 the base plates, with the lever and link on them.

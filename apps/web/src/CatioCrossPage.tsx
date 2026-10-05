@@ -32,6 +32,11 @@ export function ChangesNote({ page, setting }: { page: CatioSubassembly; setting
   return pages.length > 0 ? <small className="subassembly-affects">Also changes <Pages pages={pages} />.</small> : null;
 }
 
+/** Under a control another page owns and this one shares: set here or there, it is the same setting. */
+export function SharedNote({ page }: { page: CatioSubassembly }) {
+  return <small className="subassembly-affects">Shared with the <PageLink page={page} /> page: set it here or there.</small>;
+}
+
 /** In the brief: the pages this one is fitted to, and the pages fitted to it. */
 export function PageRelations({ page, follows }: { page: CatioSubassembly; follows: Follow[] }) {
   const dependents = dependentsOf(page).map(d => d.page);
