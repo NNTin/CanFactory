@@ -30,6 +30,20 @@ describe('generated STL validation', () => {
     });
     expect(() => inspectStl(stl([...tetrahedron, ...shifted]))).toThrow('disconnected');
   });
+  it('accepts sealed voids by design, and only inward-facing shells inside the solid', () => {
+    const transform = (scale: number, shift: Point, flip: boolean) => tetrahedron.map(([p, q, r]): Triangle => {
+      const move = ([x, y, z]: Point): Point => [x * scale + shift[0], y * scale + shift[1], z * scale + shift[2]];
+      return flip ? [move(p), move(r), move(q)] : [move(p), move(q), move(r)];
+    });
+    // a small tetrahedral cavity, facing inwards, well inside the large one
+    const cavity = transform(0.2, [1, 1, 1], true);
+    expect(() => inspectStl(stl([...tetrahedron, ...cavity]))).toThrow('disconnected');
+    const info = inspectStl(stl([...tetrahedron, ...cavity]), { allowVoids: true });
+    expect(info.volume).toBeCloseTo(1000 / 6 * (1 - 0.008));
+    // a second body (facing outwards), or an inward shell outside the solid, is still refused
+    expect(() => inspectStl(stl([...tetrahedron, ...transform(0.2, [1, 1, 1], false)]), { allowVoids: true })).toThrow('disconnected');
+    expect(() => inspectStl(stl([...transform(3, [0, 0, 0], false), ...transform(0.2, [40, 40, 40], true)]), { allowVoids: true })).toThrow('disconnected');
+  });
 });
 
 describe('assembly artifact aggregation', () => {

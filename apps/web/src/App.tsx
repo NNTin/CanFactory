@@ -8,6 +8,7 @@ import { formatHash, parseHash, partLink, type Route } from './route.ts';
 import { Viewer } from './Viewer.tsx';
 import { ToggleLatchIllustration } from './ToggleLatchIllustration.tsx';
 import { WindowCatGuardIllustration } from './WindowCatGuardIllustration.tsx';
+import { QrMagnetTagIllustration } from './QrMagnetTagIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { CatioConcept } from './CatioConcept.tsx';
 import { CatioSubassemblyRoute } from './CatioSubassemblyPage.tsx';
@@ -278,6 +279,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'toggle-latch': ToggleLatchIllustration,
   'pressure-pad': PressurePadIllustration,
   'window-cat-guard': WindowCatGuardIllustration,
+  'qr-magnet-tag': QrMagnetTagIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names
@@ -555,6 +557,7 @@ function Editor({ model }: { model: ModelDetail }) {
           <p className="panel-intro">A few adjustments. A perfect fit.</p>
           <div className="basic-controls">{model.controls.filter(control => control.group === 'basic' && shown(control)).map(field)}</div>
           {derived?.slotCount !== undefined && derived.slotCount !== null && <div className="slot-note"><Sparkles size={14} /><span>{derived.slotCount === 0 ? 'One opening. A smooth funnel.' : `${derived.slotCount.toLocaleString()} slots, automatically spaced.`}</span></div>}
+          {valid && derived?.notes?.map(note => <div key={note} className="slot-note derived-note"><Sparkles size={14} /><span>{note}</span></div>)}
           {model.controls.some(control => control.group === 'advanced') && <button className="advanced-button" type="button" aria-expanded={advanced} aria-controls="advanced-controls" onClick={() => setAdvanced(value => !value)}>
             Advanced settings <ChevronDown size={16} className={advanced ? 'rotated' : ''} />
           </button>}

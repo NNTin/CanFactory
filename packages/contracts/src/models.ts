@@ -6,6 +6,7 @@ import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
 import { PRESSURE_PAD, PRESSURE_PAD_SURFACES, PRESSURE_PAD_TYPES, pressurePadExtenderTravel, pressurePadLeg, pressurePadMinDiameter, pressurePadMinExtenderDiameter, pressurePadMinExtenderLength, pressurePadMinHeight, type PressurePadSurface, type PressurePadType } from './pressurePad.ts';
 import { leastRibSpacing, SEGMENT_JOINT_VALUES, sideJointWidth, sideWidth, WINDOW_CAT_GUARD_MAX_SEGMENTS, WINDOW_CAT_GUARD_SPLICE, windowCatGuardBolts, windowCatGuardLayout, windowCatGuardPieces, type SegmentJoints } from './windowCatGuard.ts';
+import { eccAllowsLogo, filamentChangeHeight, QR_TAG_MOUNTS, type QrTagMount, knockoutFits, magnetPocketIssues, maxLogoSize, moduleSize, QR_ECC_LEVELS, QR_LOGO_MIN_ECC, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, QR_TEXT_MAX_LENGTH, qrScad, qrTagCode, qrTagLayout, type QrEcc, type QrTagJoint, type QrTagShape, type QrTagShapeSettings } from './qrMagnetTag.ts';
 import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, type LatchMovement } from './toggleLatchMechanism.ts';
 
 /** A field-level, user-readable validation failure. Paths are parameter names. */
@@ -237,6 +238,9 @@ export interface ModelPart {
   includedWhen?: (parameters: ParameterValues) => boolean;
   /** True when the part is several separate closed bodies by design, such as the letters of engraved text. */
   separateBodies?: boolean;
+  /** True when the part may enclose sealed voids by design, e.g. the QR tag's cavities for magnets dropped in at a print pause: one
+   * outer closed shell, with inward-facing closed shells inside it (`inspectStl`'s `allowVoids`). */
+  sealedVoids?: boolean;
   /** Dimensions of chosen library parts that this part is sized from (see `PartDefines`). */
   partDefines?: PartDefines;
 }
@@ -374,8 +378,9 @@ export interface ModelDefinition {
   controls: Control[];
   defaults: ParameterValues;
   scadMapping: Record<string, string>;
-  /** How a mapped parameter is written after `-D NAME=`, for values that are not plain numbers, booleans or strings (see `scadLiteral`). */
-  scadEncode?: Record<string, (value: string) => string>;
+  /** How a mapped parameter is written after `-D NAME=`, for values that are not plain numbers, booleans or strings (see `scadLiteral`).
+   * It gets the (validated) value and all the parameters, for a value that depends on others (the QR tag's code on its error correction). */
+  scadEncode?: Record<string, (value: string, parameters: ParameterValues) => string>;
   /** For a single-generator model: dimensions of chosen library parts it is sized from (see `PartDefines`). */
   partDefines?: PartDefines;
   /** Only for an assembly: reference objects that depend on the parameters (see `LinkedReference`, `resolveAssembly`). */
@@ -384,16 +389,18 @@ export interface ModelDefinition {
    * parameters, and why, keyed by control. See `controlRange`. */
   limits?: (parameters: ParameterValues) => Record<string, ControlLimit>;
   validate: (parameters: unknown) => ParameterIssue[];
-  derived: (parameters: unknown) => { slotCount: number | null };
+  /** Figures derived from valid settings: `slotCount` (stored with the render), and `notes`, short facts the editor shows under the
+   * basic settings (e.g. the QR tag's filament-change height). */
+  derived: (parameters: unknown) => { slotCount: number | null; notes?: string[] };
 }
 
 /** The OpenSCAD literal for a validated parameter value: the model's `scadEncode` for that key (given a string), or else JSON, which
  * writes numbers, booleans and quoted, escaped strings the way OpenSCAD reads them. */
-export function scadLiteral(model: ModelDefinition, key: string, value: number | boolean | string): string {
+export function scadLiteral(model: ModelDefinition, key: string, value: number | boolean | string, parameters: ParameterValues = {}): string {
   const encode = model.scadEncode?.[key];
   if (encode) {
     if (typeof value !== 'string') throw new Error(`Parameter ${key} must be a string.`);
-    return encode(value);
+    return encode(value, parameters);
   }
   return JSON.stringify(value);
 }
@@ -409,7 +416,7 @@ export function scadDefines(model: ModelDefinition, source: { scadMapping?: Reco
   for (const [key, scadName] of Object.entries(source.scadMapping ?? {})) {
     const value = parameters[key];
     if (value === undefined) throw new Error('Invalid generator parameter mapping.');
-    defines.push([name(scadName), scadLiteral(model, key, value)]);
+    defines.push([name(scadName), scadLiteral(model, key, value, parameters)]);
   }
   for (const [key, variables] of Object.entries(source.partDefines ?? {})) {
     const id = parameters[key];
@@ -2317,7 +2324,263 @@ export const windowCatGuard = {
   derived: () => ({ slotCount: null }),
 } satisfies ModelDefinition;
 
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard];
+/**
+ * Magnetic QR code tag (models/qr-magnet-tag/generator.scad, docs/qr-magnet-tag.md): an original design of two printed parts, a
+ * border with disc magnets in its back, and a centre plate carrying a QR code of `qrText` with an optional SVG logo, printed in two
+ * colours with one filament change. `packages/contracts/src/qrMagnetTag.ts` encodes the code and repeats the generator's layout.
+ * The centre is held in the border's seat by the chosen `joint`.
+ */
+export const QR_TAG_JOINT_TEXT: Record<QrTagJoint, { label: string; description: string }> = {
+  'crush-ribs': { label: 'Crush ribs', description: 'Thin vertical ribs in the border’s seat, squeezed by the centre’s edge: press the centre in. Push it out through the hole in the back.' },
+  detent: { label: 'Detent', description: 'Bumps on the centre’s edge click into a groove round the seat. Push it out through the hole in the back.' },
+  'twist-lock': { label: 'Twist lock', description: 'A bayonet: the centre is a round disc whose three lugs drop through notches in the seat, then turn 30° under the seat’s lip until they stop, past a small click. The square tile gets a round seat.' },
+  magnets: { label: 'Magnets', description: 'A second set of the chosen magnets: in pockets in the seat floor and in the centre’s back, facing each other. Mind their polarity (see the print notes).' },
+};
+const QR_TAG_SHAPE_TEXT: Record<QrTagShape, { label: string; description: string }> = {
+  square: { label: 'Square', description: 'A square tile with rounded corners.' },
+  round: { label: 'Round', description: 'A round tile, the code inscribed in its round centre.' },
+};
+const QR_TAG_MOUNT_TEXT: Record<QrTagMount, { label: string; description: string }> = {
+  pockets: { label: 'Pockets (press or glue in)', description: 'Open pockets in the border’s back: press or glue the magnets in after printing. The magnets touch the steel, for the strongest hold.' },
+  embedded: { label: 'Embedded (print pause)', description: 'Sealed cavities: the print pauses at the height shown under the settings, you drop the magnets in, and the print closes over them. No glue, nothing to fall out; a thin skin between magnet and steel holds a little less.' },
+};
+const QR_ECC_TEXT: Record<QrEcc, { label: string; description: string }> = {
+  L: { label: 'L (7 %)', description: 'Low: the smallest code; it survives about 7 % damage. No logo.' },
+  M: { label: 'M (15 %)', description: 'Medium: survives about 15 % damage. No logo.' },
+  Q: { label: 'Q (25 %)', description: 'Quartile: survives about 25 % damage; a logo may cover part of it (at most 15 % of a large code, less of a small one).' },
+  H: { label: 'H (30 %)', description: 'High: the largest code; it survives about 30 % damage, and a logo may cover more of it (at most 25 % of a large code).' },
+};
+/** The fit (clearance per side) in which each joint works as designed (advice only, as the cigarette case's `SNAP_CLEARANCE`):
+ * ribs and bumps are sized on top of the fit, but need the walls to clear each other; the lugs turn freely from 0.2 mm; magnets
+ * hold at any fit. */
+export const QR_TAG_JOINT_FIT: Record<QrTagJoint, { minimum: number; maximum: number }> = {
+  'crush-ribs': { minimum: 0.1, maximum: 0.3 },
+  detent: { minimum: 0.15, maximum: 0.35 },
+  'twist-lock': { minimum: 0.2, maximum: 0.4 },
+  magnets: { minimum: 0.15, maximum: 0.6 },
+};
+export const QR_TAG_FIT_RANGE = { minimum: 0.05, maximum: 0.6, default: 0.2, step: 0.01 } as const;
+const QR_TAG_FIT_BANDS = [
+  { minimum: 0.05, maximum: 0.15, label: 'Very tight (press fit)' },
+  ...FIT_BANDS.slice(1),
+];
+
+/** The magnets the tag offers: round (disc) magnets of the parts library no larger than these, which keep the tag flat. Per setting,
+ * `magnetPocketIssues` then checks that their pockets fit the tile. */
+export const QR_TAG_MAGNET_LIMIT = { diameter: 12.1, thickness: 3.1 } as const;
+export function qrTagMagnetFits(part: Part): boolean {
+  return part.family === 'magnet' && part.attributes['shape'] === 'disc' && Boolean(part.dimensions['diameter'])
+    && dimensionOf(part, 'diameter', 'max') <= QR_TAG_MAGNET_LIMIT.diameter + 1e-9 && dimensionOf(part, 'thickness', 'max') <= QR_TAG_MAGNET_LIMIT.thickness + 1e-9;
+}
+/** Every magnet of the parts library that fits (`qrTagMagnetFits`), in the library's order; a test keeps the list equal to the library. */
+export const QR_TAG_MAGNETS = ['supermagnete-s-04-02-n', 'supermagnete-s-05-02-n52n', 'supermagnete-s-06-02-n', 'supermagnete-s-06-03-n', 'supermagnete-s-08-02-n', 'supermagnete-s-08-03-n', 'supermagnete-s-10-02-n', 'supermagnete-s-10-03-n', 'supermagnete-s-12-02-n'] as const;
+/** S-08-02-N: 8 × 2 mm, 1.1 kg of pull each. */
+export const DEFAULT_QR_TAG_MAGNET = 'supermagnete-s-08-02-n';
+
+export const DEFAULT_QR_MAGNET_TAG = {
+  qrText: 'https://example.com', errorCorrection: 'H', shape: 'square', size: 60, cornerRadius: 4, borderWidth: 6, quietZone: 2,
+  logo: '', logoSize: 20, baseThickness: 1.6, reliefHeight: 0.6, layerHeight: 0.2, joint: 'crush-ribs', fit: QR_TAG_FIT_RANGE.default,
+  magnet: DEFAULT_QR_TAG_MAGNET, magnetCount: 4, magnetMount: 'pockets',
+} as const;
+const qr = DEFAULT_QR_MAGNET_TAG;
+
+export const QrMagnetTagParametersSchema = Type.Object({
+  qrText: Type.String({ title: 'QR code text', description: `What the code holds, e.g. a web address: up to ${QR_TEXT_MAX_LENGTH} characters of printable ASCII (letters, digits, spaces and punctuation, no accents). The longer it is, the smaller the modules.`, default: qr.qrText, maxLength: QR_TEXT_MAX_LENGTH, pattern: '^[ -~]*$' }),
+  errorCorrection: Type.Enum(QR_ECC_LEVELS, { title: 'Error correction', description: 'How much of the code may be damaged or covered and still scan. Higher makes a larger code (smaller modules). A logo needs Q or H.', default: qr.errorCorrection }),
+  shape: Type.Enum(QR_TAG_SHAPES, { title: 'Shape', description: 'The outline of the tile.', default: qr.shape }),
+  size: dimension('Size', 'The tile’s outer width (square) or diameter (round), in mm.', qr.size, 30, 120, 1),
+  cornerRadius: dimension('Corner radius', 'Radius of the square tile’s outer corners, in mm. The seat’s corners follow it, less the border.', qr.cornerRadius, 0, 20, 0.5),
+  borderWidth: dimension('Border width', 'The visible ring between the code’s centre piece and the tile’s outer edge, in mm.', qr.borderWidth, 3, 20, 0.5),
+  quietZone: Type.Integer({ title: 'Quiet zone', description: 'The light margin round the code on the centre piece, in modules. Scanners need at least one; four is the standard.', default: qr.quietZone, minimum: 1, maximum: 4 }),
+  logo: Type.String({ title: 'Logo', description: 'An SVG file whose filled shapes stand in the middle of the code, raised in the dark filament on a light pad of whole modules. Strokes, text, pictures and style sheets in the file are left out. The file itself is never uploaded, only its outline.', default: qr.logo, maxLength: LOGO_MAX_LENGTH, pattern: '^[MLZ0-9 ]*$' }),
+  logoSize: Type.Number({ title: 'Logo size (%)', description: 'The logo’s width as a share of the code’s width, in %. Its pad may cost the code at most 60 % of the damage its error correction can repair (and cover at most 15 % of it at Q, 25 % at H), and never the corner patterns: the editor says how large it may be.', default: qr.logoSize, minimum: 10, maximum: 40, multipleOf: 1 }),
+  baseThickness: dimension('Base thickness', 'The light base of the centre piece, in mm. Change to the dark filament at its top (rounded up to a layer).', qr.baseThickness, 0.8, 3, 0.1),
+  reliefHeight: dimension('Relief height', 'How high the dark modules and the logo stand on the base, in mm.', qr.reliefHeight, 0.4, 2, 0.1),
+  layerHeight: dimension('Layer height', 'Your slicer’s layer height, in mm. Used to work out the filament-change height (and to check the relief has at least two dark layers), and with embedded magnets the pause height, which it puts on a layer boundary.', qr.layerHeight, 0.08, 0.32, 0.02),
+  joint: Type.Enum(QR_TAG_JOINTS, { title: 'Joint', description: 'How the centre is held in the border.', default: qr.joint }),
+  fit: dimension('Fit', 'Gap per side between the centre and the border’s seat, in mm. Larger is looser; raise it if your printer prints parts too tight.', qr.fit, QR_TAG_FIT_RANGE.minimum, QR_TAG_FIT_RANGE.maximum, QR_TAG_FIT_RANGE.step),
+  magnet: Type.Enum(QR_TAG_MAGNETS, { title: 'Magnets', description: 'The round magnets in the back of the border (and, with the magnet joint, in the seat and the centre). Each is a real product from the parts library; its pockets are cut to its greatest size.', default: qr.magnet }),
+  magnetMount: Type.Enum(QR_TAG_MOUNTS, { title: 'Magnet mounting', description: 'Open pockets that the magnets are pressed or glued into after printing, or sealed cavities that they are dropped into when the print pauses.', default: qr.magnetMount }),
+  magnetCount: Type.Number({ title: 'Magnets in the back', description: 'How many magnets the back holds: two on one diagonal, or four in the corners. The magnet joint uses as many again, twice.', default: qr.magnetCount, minimum: 2, maximum: 4, multipleOf: 2 }),
+}, { additionalProperties: false, description: 'Magnetic QR code tag parameters. All fields are required; dimensions are in millimetres.' });
+export type QrMagnetTagParameters = Static<typeof QrMagnetTagParametersSchema>;
+
+/** The layout's settings for these parameters: the shape and the chosen magnet's greatest size. */
+export function qrTagSettings(parameters: ParameterValues): QrTagShapeSettings {
+  const p = { ...DEFAULT_QR_MAGNET_TAG, ...parameters } as QrMagnetTagParameters;
+  const magnet = findPart(p.magnet) ?? findPart(DEFAULT_QR_TAG_MAGNET);
+  if (!magnet) throw new Error('The default magnet is missing from the parts library.');
+  return {
+    shape: p.shape, size: p.size, cornerRadius: p.cornerRadius, borderWidth: p.borderWidth, quietZone: p.quietZone,
+    baseThickness: p.baseThickness, reliefHeight: p.reliefHeight, joint: p.joint, fit: p.fit, magnetCount: p.magnetCount,
+    magnetMount: p.magnetMount, layerHeight: p.layerHeight, magnetDiameter: dimensionOf(magnet, 'diameter', 'max'), magnetThickness: dimensionOf(magnet, 'thickness', 'max'),
+  };
+}
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
+function validateQrMagnetTag(p: QrMagnetTagParameters): ParameterIssue[] {
+  const issues: ParameterIssue[] = [];
+  const t = QR_TAG;
+  try { decodeLogo(p.logo); }
+  catch (error) { return [{ field: 'logo', message: error instanceof SvgError ? error.message : 'The logo is malformed. Load the SVG file again.' }]; }
+  if (p.qrText === '') issues.push({ field: 'qrText', message: 'Enter the text the QR code should hold, e.g. a web address.' });
+  if (p.logo !== '' && !eccAllowsLogo(p.errorCorrection))
+    issues.push({ field: 'errorCorrection', message: `With a logo, the error correction must be at least ${QR_LOGO_MIN_ECC}: the logo covers part of the code. Choose Q or H, or remove the logo.` });
+  if (p.size - 2 * p.borderWidth < t.minSeat - 1e-9)
+    issues.push({ field: 'borderWidth', message: `The border leaves only ${p.size - 2 * p.borderWidth} mm for the centre; at least ${t.minSeat} mm. Narrow the border or enlarge the tile.` });
+  if (p.shape === 'square' && p.cornerRadius > p.size / 2 - 1 + 1e-9)
+    issues.push({ field: 'cornerRadius', message: `At most ${p.size / 2 - 1} mm on a ${p.size} mm tile.` });
+  if (issues.length > 0) return issues;
+  const settings = qrTagSettings(p);
+  const layout = qrTagLayout(settings);
+  if (p.qrText !== '') {
+    const code = qrTagCode(p);
+    const size = code.symbol.size;
+    const module = moduleSize(layout, size, p.quietZone);
+    if (module < t.minModule - 1e-9)
+      issues.push({ field: 'qrText', message: `The code needs ${size} × ${size} modules (version ${code.symbol.version}) plus the quiet zone, so each module would be only ${module.toFixed(2)} mm wide; at least ${t.minModule} mm print and scan reliably. Shorten the text, lower the error correction or enlarge the tile.` });
+    if (p.logo !== '' && eccAllowsLogo(p.errorCorrection) && !knockoutFits(size, code.pad, p.errorCorrection)) {
+      const most = maxLogoSize(size, p.errorCorrection);
+      issues.push({ field: 'logoSize', message: most > 0
+        ? `A ${p.logoSize} % logo needs a ${code.pad} × ${code.pad} module pad, more than this ${size} × ${size} code at ${p.errorCorrection} can lose. At most ${Math.min(most, 40)} %${p.errorCorrection === 'Q' ? ', or choose H' : ''}.`
+        : `This ${size} × ${size} code has no room for a logo pad clear of its corner patterns. Lengthen the text or choose H to get a larger code, or remove the logo.` });
+    }
+  }
+  const change = filamentChangeHeight(p.baseThickness, p.layerHeight);
+  const darkLayers = Math.floor((p.baseThickness + p.reliefHeight - change) / p.layerHeight + 1e-6);
+  if (darkLayers < 2)
+    issues.push({ field: 'reliefHeight', message: `Above the filament change at ${change} mm only ${Math.max(darkLayers, 0)} layer${darkLayers === 1 ? '' : 's'} of the relief print${darkLayers === 1 ? 's' : ''} dark at ${p.layerHeight} mm layers; at least 2. Raise the relief to ${round2(change + 2 * p.layerHeight - p.baseThickness)} mm, or make the base a multiple of the layer height.` });
+  if (p.baseThickness < 2 * p.layerHeight - 1e-9)
+    issues.push({ field: 'baseThickness', message: `The base must be at least two layers (${round2(2 * p.layerHeight)} mm) thick.` });
+  for (const message of magnetPocketIssues(settings, layout)) issues.push({ field: 'magnet', message });
+  if (p.joint === 'detent' && p.fit + t.detentEngage > (p.baseThickness - 2 * t.detentMargin) / 2 + 1e-9)
+    issues.push({ field: 'fit', message: `The detent’s bumps reach ${round2(p.fit + t.detentEngage)} mm (fit plus ${t.detentEngage} mm), too far for a ${p.baseThickness} mm base: lower the fit to ${round2((p.baseThickness - 2 * t.detentMargin) / 2 - t.detentEngage)} mm or thicken the base.` });
+  if (p.joint === 'twist-lock') {
+    if (layout.lip < t.lipMin - 1e-9)
+      issues.push({ field: 'baseThickness', message: `The twist lock’s lip over the lugs would be only ${round2(layout.lip)} mm; at least ${t.lipMin} mm. Thicken the base or the relief, or lower the fit.` });
+    if (p.size / 2 - layout.channelRadius < t.sideWall - 1e-9)
+      issues.push({ field: 'borderWidth', message: `The twist lock’s lugs turn ${t.lugDepth} mm into the border, which leaves too little wall: make the border at least ${round2(t.lugDepth + p.fit + t.sideWall)} mm wide.` });
+  }
+  return issues;
+}
+
+/** What the editor shows under the settings: where to change filament, and the code's size. */
+function qrMagnetTagNotes(p: QrMagnetTagParameters): string[] {
+  const change = filamentChangeHeight(p.baseThickness, p.layerHeight);
+  const notes = [`Change to the dark filament at ${change} mm, before layer ${Math.round(change / p.layerHeight) + 1} at ${p.layerHeight} mm layers: the modules and the logo print above it.`];
+  const settings = qrTagSettings(p);
+  const layout = qrTagLayout(settings);
+  if (layout.embedded) {
+    const count = layout.backPockets.length + layout.jointPockets.length;
+    notes.push(`Border: pause the print at ${layout.pauseHeight} mm, before layer ${Math.round(layout.pauseHeight / p.layerHeight) + 1} at ${p.layerHeight} mm layers, and drop the ${count} magnets into their cavities${layout.jointPockets.length > 0 ? ' (the seat’s with the same pole up as you want facing the centre)' : ''}; then resume.`);
+  }
+  if (p.qrText === '') return notes;
+  const code = qrTagCode(p);
+  const module = moduleSize(layout, code.symbol.size, p.quietZone);
+  notes.push(`QR version ${code.symbol.version}: ${code.symbol.size} × ${code.symbol.size} modules of ${module.toFixed(2)} mm, error correction ${p.errorCorrection}${code.pad > 0 ? `, a ${code.pad} × ${code.pad} module pad for the logo` : ''}.`);
+  return notes;
+}
+
+/** The magnets: those in the back, pressed in once the tag is together, and with the magnet joint, a pair per joint pocket: one
+ * in the seat floor, one in the centre's back, standing out of it into the floor's pocket (docs/qr-magnet-tag.md#magnets). */
+function qrTagMagnets(parameters: ParameterValues): LinkedReference[] {
+  const part = typeof parameters['magnet'] === 'string' ? findPart(parameters['magnet']) : undefined;
+  if (!part) return [];
+  const layout = qrTagLayout(qrTagSettings(parameters));
+  return [
+    // embedded magnets are sealed in during the print: they are in the border from the start, and move with nothing
+    ...layout.backPockets.map(([x, y], i): LinkedReference => layout.embedded
+      ? { id: `magnet-back-${i + 1}`, part: part.id, label: `embedded in the back, ${i + 1}`, pose: { position: [x, y, layout.backMagnetZ] } }
+      : { id: `magnet-back-${i + 1}`, part: part.id, label: `in the back, pocket ${i + 1}`, pose: { position: [x, y, 0] }, step: { title: 'Press the magnets into the back', from: [0, 0, -12] } }),
+    ...layout.jointPockets.map(([x, y], i): LinkedReference => ({ id: `magnet-seat-${i + 1}`, part: part.id, label: `${layout.embedded ? 'embedded under' : 'in'} the seat, ${layout.embedded ? '' : 'pocket '}${i + 1}`, pose: { position: [x, y, layout.seatMagnetZ] } })),
+    ...layout.jointPockets.map(([x, y], i): LinkedReference => ({ id: `magnet-centre-${i + 1}`, part: part.id, label: `in the centre, pocket ${i + 1}`, pose: { position: [x, y, layout.floor - layout.protrusion] }, movesWith: 'centre' })),
+  ];
+}
+
+/**
+ * The tag put together: the border lies back down, the centre comes into its seat according to the joint (pressed in, clicked in,
+ * dropped in and turned for the twist lock, or set onto the joint magnets), and the back magnets are pressed in last.
+ */
+export function qrMagnetTagAssembly(parameters: ParameterValues): Assembly {
+  const settings = qrTagSettings(parameters);
+  const layout = qrTagLayout(settings);
+  const centre: Assembly['poses'][string] = { position: [0, 0, layout.floor] };
+  const into: Record<QrTagJoint, string> = {
+    'crush-ribs': 'Press the centre into the border', detent: 'Click the centre into the border',
+    'twist-lock': 'Drop the centre in, its lugs through the notches', magnets: 'Set the centre onto the joint magnets',
+  };
+  const steps: Assembly['steps'] = [];
+  if (settings.joint === 'magnets' && !layout.embedded) steps.push({ title: 'Glue the joint magnets into the seat floor', parts: layout.jointPockets.map((_, i) => `magnet-seat-${i + 1}`), from: [0, 0, 15] });
+  steps.push({ title: into[settings.joint], parts: ['centre'], from: [0, 0, 25] });
+  const turn = QR_TAG.lockAngle;
+  const motion: Assembly['motion'] = settings.joint === 'twist-lock' ? [{
+    title: `Turn the centre ${turn}° clockwise until it stops`,
+    frames: Array.from({ length: turn / 2 }, (_, k) => ({ centre: { position: centre.position, rotation: [0, 0, -2 * (k + 1)] } })),
+  }] : undefined;
+  return { partColors: { border: '#2f6fd6', centre: '#eceff1' }, poses: { border: { position: [0, 0, 0] }, centre }, steps, lift: 20, ...(motion ? { motion } : {}) };
+}
+
+const qrMagnetTagControls = [
+  textControl(QrMagnetTagParametersSchema, 'qrText', 'basic'),
+  enumControl(QrMagnetTagParametersSchema, 'errorCorrection', 'basic', QR_ECC_LEVELS.map(value => ({ value, ...QR_ECC_TEXT[value] }))),
+  enumControl(QrMagnetTagParametersSchema, 'shape', 'basic', QR_TAG_SHAPES.map(value => ({ value, ...QR_TAG_SHAPE_TEXT[value] }))),
+  control(QrMagnetTagParametersSchema, 'size', 'basic'),
+  { ...control(QrMagnetTagParametersSchema, 'cornerRadius', 'basic'), visibleWhen: { control: 'shape', values: ['square'] } },
+  control(QrMagnetTagParametersSchema, 'borderWidth', 'basic'),
+  svgControl(QrMagnetTagParametersSchema, 'logo', 'basic'),
+  control(QrMagnetTagParametersSchema, 'logoSize', 'basic', null, null),
+  enumControl(QrMagnetTagParametersSchema, 'joint', 'basic', QR_TAG_JOINTS.map(value => ({ value, ...QR_TAG_JOINT_TEXT[value] }))),
+  partControl(QrMagnetTagParametersSchema, 'magnet', 'basic', 'magnet', QR_TAG_MAGNETS),
+  control(QrMagnetTagParametersSchema, 'magnetCount', 'basic', null, null),
+  enumControl(QrMagnetTagParametersSchema, 'magnetMount', 'basic', QR_TAG_MOUNTS.map(value => ({ value, ...QR_TAG_MOUNT_TEXT[value] }))),
+  control(QrMagnetTagParametersSchema, 'quietZone', 'advanced', null, null),
+  control(QrMagnetTagParametersSchema, 'baseThickness', 'advanced'),
+  control(QrMagnetTagParametersSchema, 'reliefHeight', 'advanced'),
+  control(QrMagnetTagParametersSchema, 'layerHeight', 'advanced'),
+  { ...control(QrMagnetTagParametersSchema, 'fit', 'advanced'), bands: QR_TAG_FIT_BANDS,
+    recommended: [{ control: 'joint', ranges: QR_TAG_JOINTS.map(value => ({ value, ...QR_TAG_JOINT_FIT[value] })) }] },
+];
+
+const QR_TAG_SOURCE = 'models/qr-magnet-tag/generator.scad';
+const QR_TAG_SHARED = { shape: 'SHAPE', size: 'SIZE', cornerRadius: 'CORNER_RADIUS', borderWidth: 'BORDER_WIDTH', baseThickness: 'BASE', reliefHeight: 'RELIEF', joint: 'JOINT', fit: 'FIT', magnetCount: 'MAGNET_COUNT', magnetMount: 'MOUNT', layerHeight: 'LAYER' };
+const QR_TAG_MAGNET_DEFINES: PartDefines = { magnet: { MAGNET_D: ['diameter', 'max'], MAGNET_T: ['thickness', 'max'] } };
+const qrMagnetTagParts: ModelPart[] = [
+  // with embedded magnets, the border encloses their sealed cavities
+  { id: 'border', title: 'Border', sourcePath: QR_TAG_SOURCE, scadConstants: { PART: 'border' }, scadMapping: QR_TAG_SHARED, partDefines: QR_TAG_MAGNET_DEFINES, sealedVoids: true },
+  { id: 'centre', title: 'Centre with the QR code', sourcePath: QR_TAG_SOURCE, scadConstants: { PART: 'centre' },
+    scadMapping: { ...QR_TAG_SHARED, qrText: 'QR', quietZone: 'QUIET_ZONE', logo: 'LOGO', logoSize: 'LOGO_SIZE' }, partDefines: QR_TAG_MAGNET_DEFINES },
+];
+
+export const qrMagnetTag = {
+  id: 'qr-magnet-tag' as const, version: '1' as const, title: 'Magnetic QR code tag',
+  description: 'A flat tag for the fridge or a whiteboard: a border with magnets in its back, and a centre piece with a QR code of your text and, if you like, your SVG logo, printed in two colours with a single filament change. Choose a square or round tile, its size, and how the centre is held in the border: crush ribs, a detent, a twist lock or magnets.',
+  attribution: 'CanFactory (original design)',
+  printNotes: 'Border: back down, no supports; press or glue the magnets into its back, or with embedded magnets pause at the height shown under the settings and drop them in. Centre: base down in the light filament; change to the dark filament at the height shown under the settings (the base’s top, rounded up to a layer). With the magnet joint, set each centre magnet onto its seat magnet first, so that they attract.',
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  parts: qrMagnetTagParts,
+  assembly: qrMagnetTagAssembly(DEFAULT_QR_MAGNET_TAG),
+  assemblyForParameters: qrMagnetTagAssembly,
+  linkedReferences: qrTagMagnets,
+  parameterSchema: QrMagnetTagParametersSchema,
+  controls: qrMagnetTagControls,
+  defaults: Object.fromEntries(qrMagnetTagControls.map(c => [c.key, c.default])),
+  scadMapping: {},
+  // Only numbers reach OpenSCAD: the code as rectangles of modules, encoded again from the validated text, and the logo's outline.
+  scadEncode: {
+    qrText: (text: string, parameters: ParameterValues) => qrScad({ qrText: text, errorCorrection: parameters['errorCorrection'] as QrEcc, logo: String(parameters['logo'] ?? ''), logoSize: Number(parameters['logoSize']) }),
+    logo: logoScad,
+  },
+  validate(parameters: unknown): ParameterIssue[] {
+    if (!Value.Check(QrMagnetTagParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
+    return validateQrMagnetTag(parameters);
+  },
+  derived(parameters: unknown) {
+    return { slotCount: null, ...(Value.Check(QrMagnetTagParametersSchema, parameters) && validateQrMagnetTag(parameters).length === 0 ? { notes: qrMagnetTagNotes(parameters) } : {}) };
+  },
+} satisfies ModelDefinition;
+
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

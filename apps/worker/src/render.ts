@@ -71,7 +71,7 @@ export interface MeshRepair { part: string; repaired: number }
 
 /** Read a rendered STL, repair float32 slivers, stamp attribution and validate it. Every failure is a GEOMETRY_INVALID defect
  * naming the part and, for a zero-area triangle, where it is. */
-async function finishStl(output: string, model: ModelDefinition, part: { id: string; title: string; separateBodies?: boolean }, repairs: MeshRepair[]): Promise<{ bytes: Buffer; info: MeshInfo }> {
+async function finishStl(output: string, model: ModelDefinition, part: { id: string; title: string; separateBodies?: boolean; sealedVoids?: boolean }, repairs: MeshRepair[]): Promise<{ bytes: Buffer; info: MeshInfo }> {
   const raw = await readFile(output);
   const where = `"${part.title}" (${part.id})`;
   if (raw.length < 84) throw new RenderFailure('GEOMETRY_INVALID', DEFECT, `${where}: OpenSCAD produced an incomplete STL (${raw.length} bytes).`, false);
@@ -80,7 +80,7 @@ async function finishStl(output: string, model: ModelDefinition, part: { id: str
     const repaired = repairFloat32Slivers(raw);
     bytes = repaired.bytes;
     stampAttribution(bytes, model);
-    const info = inspectStl(bytes, { allowDisconnected: part.separateBodies === true });
+    const info = inspectStl(bytes, { allowDisconnected: part.separateBodies === true, allowVoids: part.sealedVoids === true });
     if (!repaired.repaired) return { bytes, info };
     repairs.push({ part: part.id, repaired: repaired.repaired });
     return { bytes, info: { ...info, meshRepairs: repaired.repaired } };

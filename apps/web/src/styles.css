@@ -471,6 +471,10 @@ main {
   padding: 10px 9px;
   margin-bottom: 21px;
 }
+.slot-note.derived-note {
+  margin-bottom: 10px;
+  line-height: 1.45;
+}
 .advanced-button {
   display: flex;
   justify-content: space-between;
@@ -1059,7 +1063,8 @@ main {
 .litter-shovel-illustration,
 .toggle-latch-illustration,
 .pressure-pad-illustration,
-.window-cat-guard-illustration {
+.window-cat-guard-illustration,
+.qr-magnet-tag-illustration {
   width: 250px;
   height: 210px;
 }

@@ -425,7 +425,7 @@ describe('cigarette case magnets (parts library)', () => {
     expect(() => defines(caseBox, 'no-such-magnet')).toThrow();
     // the library data behind them is part of the cache fingerprint
     expect(linkedPartData(cigaretteCase).map(part => part.id)).toEqual([...CASE_MAGNETS]);
-    expect(partUsage(magnet('supermagnete-s-08-02-n'))).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Magnets', kind: 'model' }]);
+    expect(partUsage(magnet('supermagnete-s-08-02-n'))).toContainEqual({ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Magnets', kind: 'model' });
   });
 
   it('shows the four magnets in the assembly only in magnet mode, the lid’s moving with the lid', () => {

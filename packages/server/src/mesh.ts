@@ -165,8 +165,10 @@ export function repairFloat32Slivers(bytes: Buffer): { bytes: Buffer; repaired: 
 }
 
 /** Reject incomplete, degenerate, open, inconsistently wound, or disconnected generated solids. `allowDisconnected` is for a part
- * that is several separate closed bodies by design (the letters of engraved text); every body must still be closed. */
-export function inspectStl(bytes: Buffer, options: { allowDisconnected?: boolean } = {}): MeshInfo {
+ * that is several separate closed bodies by design (the letters of engraved text); every body must still be closed. `allowVoids` is
+ * for one solid that encloses sealed voids by design (the QR tag's cavities for magnets dropped in at a print pause): exactly one
+ * outer shell, and every other shell facing inwards (negative volume) and inside it. */
+export function inspectStl(bytes: Buffer, options: { allowDisconnected?: boolean; allowVoids?: boolean } = {}): MeshInfo {
   if (bytes.length < 84) throw new Error('The renderer produced an incomplete STL.');
   const triangleCount = bytes.readUInt32LE(80);
   if (triangleCount === 0 || triangleCount > 1_000_000 || bytes.length !== 84 + triangleCount * 50)
@@ -176,6 +178,8 @@ export function inspectStl(bytes: Buffer, options: { allowDisconnected?: boolean
   const edges = new Map<string, { count: number; winding: number }>();
   const bounds = { minX: Infinity, minY: Infinity, minZ: Infinity, maxX: -Infinity, maxY: -Infinity, maxZ: -Infinity };
   let volume = 0;
+  const corners: number[] = [];
+  const points: number[] = [];
   function root(id: number): number {
     let current = id;
     while (parents[current] !== current) {
@@ -194,7 +198,7 @@ export function inspectStl(bytes: Buffer, options: { allowDisconnected?: boolean
     const found = vertices.get(key);
     if (found !== undefined) return found;
     const id = vertices.size;
-    vertices.set(key, id); parents.push(id);
+    vertices.set(key, id); parents.push(id); points.push(x, y, z);
     return id;
   }
   function edge(a: number, b: number) {
@@ -216,15 +220,65 @@ export function inspectStl(bytes: Buffer, options: { allowDisconnected?: boolean
     if (nx * nx + ny * ny + nz * nz < 1e-20) throw new Error('The mesh contains a zero-area triangle.');
     const a = vertex(ax, ay, az); const b = vertex(bx, by, bz); const c = vertex(cx, cy, cz);
     edge(a, b); edge(b, c); edge(c, a);
+    corners.push(a, b, c);
     volume += (ax * (by * cz - bz * cy) + ay * (bz * cx - bx * cz) + az * (bx * cy - by * cx)) / 6;
   }
   for (const edgeInfo of edges.values()) {
     if (edgeInfo.count !== 2 || edgeInfo.winding !== 0) throw new Error('The mesh is not a closed, consistently wound solid.');
   }
-  if (!options.allowDisconnected && parents.some((_, index) => root(index) !== root(0))) throw new Error('The mesh contains disconnected pieces.');
+  if (!options.allowDisconnected && parents.some((_, index) => root(index) !== root(0))) {
+    if (!options.allowVoids) throw new Error('The mesh contains disconnected pieces.');
+    checkVoids(corners, points, root);
+  }
   if (!Number.isFinite(volume) || volume <= 0) throw new Error('The mesh has no positive enclosed volume.');
   return {
     sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length, triangles: triangleCount, volume,
     dimensions: { x: bounds.maxX - bounds.minX, y: bounds.maxY - bounds.minY, z: bounds.maxZ - bounds.minZ },
   };
+}
+
+/**
+ * For a solid with sealed voids (`inspectStl`'s `allowVoids`): the shells, by their signed volume, must be one outer shell (positive)
+ * and voids (negative), each void inside the outer shell (a ray from one of its points crosses the outer shell an odd number of
+ * times). Throws otherwise, e.g. for a second body beside the first.
+ */
+function checkVoids(corners: number[], points: number[], root: (id: number) => number): void {
+  const shells = new Map<number, number[]>();
+  for (let index = 0; index < corners.length; index += 3) {
+    const shell = root(corners[index] ?? 0);
+    const list = shells.get(shell) ?? [];
+    list.push(index);
+    shells.set(shell, list);
+  }
+  const at = (id: number, axis: number) => points[id * 3 + axis] ?? 0;
+  const signed = (triangles: number[]) => triangles.reduce((sum, index) => {
+    const [a, b, c] = [corners[index] ?? 0, corners[index + 1] ?? 0, corners[index + 2] ?? 0];
+    return sum + (at(a, 0) * (at(b, 1) * at(c, 2) - at(b, 2) * at(c, 1)) + at(a, 1) * (at(b, 2) * at(c, 0) - at(b, 0) * at(c, 2)) + at(a, 2) * (at(b, 0) * at(c, 1) - at(b, 1) * at(c, 0))) / 6;
+  }, 0);
+  const outer = [...shells.values()].filter(triangles => signed(triangles) > 0);
+  const [shell] = outer;
+  if (outer.length !== 1 || !shell) throw new Error('The mesh contains disconnected pieces.');
+  // Möller–Trumbore along a direction that is not parallel to any modelled face
+  const direction = [0.577, 0.578, 0.579];
+  const crossings = (origin: number[]) => shell.filter(index => {
+    const [a, b, c] = [corners[index] ?? 0, corners[index + 1] ?? 0, corners[index + 2] ?? 0];
+    const e1 = [0, 1, 2].map(k => at(b, k) - at(a, k)), e2 = [0, 1, 2].map(k => at(c, k) - at(a, k));
+    const [dx, dy, dz] = direction as [number, number, number];
+    const p = [dy * (e2[2] ?? 0) - dz * (e2[1] ?? 0), dz * (e2[0] ?? 0) - dx * (e2[2] ?? 0), dx * (e2[1] ?? 0) - dy * (e2[0] ?? 0)];
+    const det = (e1[0] ?? 0) * (p[0] ?? 0) + (e1[1] ?? 0) * (p[1] ?? 0) + (e1[2] ?? 0) * (p[2] ?? 0);
+    if (Math.abs(det) < 1e-12) return false;
+    const t0 = [0, 1, 2].map(k => (origin[k] ?? 0) - at(a, k));
+    const u = ((t0[0] ?? 0) * (p[0] ?? 0) + (t0[1] ?? 0) * (p[1] ?? 0) + (t0[2] ?? 0) * (p[2] ?? 0)) / det;
+    if (u < 0 || u > 1) return false;
+    const q = [(t0[1] ?? 0) * (e1[2] ?? 0) - (t0[2] ?? 0) * (e1[1] ?? 0), (t0[2] ?? 0) * (e1[0] ?? 0) - (t0[0] ?? 0) * (e1[2] ?? 0), (t0[0] ?? 0) * (e1[1] ?? 0) - (t0[1] ?? 0) * (e1[0] ?? 0)];
+    const v = (dx * (q[0] ?? 0) + dy * (q[1] ?? 0) + dz * (q[2] ?? 0)) / det;
+    if (v < 0 || u + v > 1) return false;
+    return ((e2[0] ?? 0) * (q[0] ?? 0) + (e2[1] ?? 0) * (q[1] ?? 0) + (e2[2] ?? 0) * (q[2] ?? 0)) / det > 0;
+  }).length;
+  for (const triangles of shells.values()) {
+    if (triangles === shell) continue;
+    const first = corners[triangles[0] ?? 0] ?? 0;
+    if (signed(triangles) >= 0 || crossings([at(first, 0), at(first, 1), at(first, 2)]) % 2 !== 1)
+      throw new Error('The mesh contains disconnected pieces.');
+  }
 }
