@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { zipSync } from 'fflate';
 import { activeParts, findModel, FONTS_DIR, isAssembly, scadDefines, validateParameters, type ApiError, type ModelDefinition, type ModelPart, type ParameterValues } from '@canfactory/contracts';
@@ -108,9 +108,14 @@ export async function renderJob(storage: Store | Storage, job: RenderJob, signal
     if (isAssembly(model)) {
       const entries: Record<string, Uint8Array> = {};
       const parts: AssemblyPart[] = [];
+      // parts that are the same generator call (source and overrides), such as the window cat guard's splice bars, render once
+      const rendered = new Map<string, string>();
       for (const part of activeParts(model, job.parameters)) {
         const output = join(directory, `${part.id}.stl`);
-        await renderPart(run, signal, store.projectRoot, model, part, job.parameters, output);
+        const call = JSON.stringify([part.sourcePath, scadDefines(model, part, job.parameters)]);
+        const same = rendered.get(call);
+        if (same) await copyFile(same, output);
+        else { await renderPart(run, signal, store.projectRoot, model, part, job.parameters, output); rendered.set(call, output); }
         signal.throwIfAborted();
         const { bytes, info } = await finishStl(output, model, part, repairs);
         entries[`${part.id}.stl`] = bytes;

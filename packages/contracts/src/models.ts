@@ -5,7 +5,7 @@ import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type Met
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
 import { PRESSURE_PAD, PRESSURE_PAD_SURFACES, PRESSURE_PAD_TYPES, pressurePadExtenderTravel, pressurePadLeg, pressurePadMinDiameter, pressurePadMinExtenderDiameter, pressurePadMinExtenderLength, pressurePadMinHeight, type PressurePadSurface, type PressurePadType } from './pressurePad.ts';
-import { leastRibSpacing, sideJointWidth, sideWidth, WINDOW_CAT_GUARD_MAX_SEGMENTS, windowCatGuardLayout, windowCatGuardPieces } from './windowCatGuard.ts';
+import { leastRibSpacing, SEGMENT_JOINT_VALUES, sideJointWidth, sideWidth, WINDOW_CAT_GUARD_MAX_SEGMENTS, WINDOW_CAT_GUARD_SPLICE, windowCatGuardBolts, windowCatGuardLayout, windowCatGuardPieces, type SegmentJoints } from './windowCatGuard.ts';
 import { eccAllowsLogo, filamentChangeHeight, knockoutFits, magnetPocketIssues, maxLogoSize, moduleSize, QR_ECC_LEVELS, QR_LOGO_MIN_ECC, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, QR_TEXT_MAX_LENGTH, qrScad, qrTagCode, qrTagLayout, type QrEcc, type QrTagJoint, type QrTagShape, type QrTagShapeSettings } from './qrMagnetTag.ts';
 import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, type LatchMovement } from './toggleLatchMechanism.ts';
 
@@ -2026,15 +2026,93 @@ export const pressurePad = {
 } satisfies ModelDefinition;
 
 /**
+ * The splice bars' fasteners (docs/window-cat-guard.md#splice-bars): two countersunk screws per bar, down through the bar into each
+ * segment, each into a nut in a pocket from the plate's back or a heat-set insert in the spine (or rib). Every part is a real
+ * product or standard part from the parts library. A screw fits when its head sits flush in the bar (`WINDOW_CAT_GUARD_SPLICE`)
+ * and it reaches past the bar no further than the deepest plate and spine allow (`GUARD_STACK`); a nut or an insert when its
+ * pocket or hole, with its wall, stays within `holderRadius` and it fits that deepest plate and spine. Whether a screw suits the
+ * chosen nut or insert at the chosen plate and spine is checked by `jointScrewHolds`.
+ */
+const SPLICE = WINDOW_CAT_GUARD_SPLICE;
+/** The plate and the spine together, the depth a screw goes into, at the least and the most `thickness` + `ribHeight`. */
+const GUARD_STACK = { minimum: 2.4 + 2, maximum: 6 + 12 } as const;
+const jointNutPocketRadius = (part: Part) => dimensionOf(part, 's', 'max') / (part.attributes['shape']?.startsWith('square') ? Math.SQRT2 : Math.sqrt(3)) + SPLICE.nutPlay / 2;
+
+export function jointScrewFits(part: Part): boolean {
+  if (part.family !== 'screw' || part.attributes['head'] !== 'countersunk' || !(screwThread(part) in ISO_273_CLEARANCE_HOLES)) return false;
+  const reach = screwLength(part) - SPLICE.thickness;
+  return dimensionOf(part, 'k', 'max') <= SPLICE.thickness - SPLICE.underHead + 1e-9 && (dimensionOf(part, 'dk', 'max') + SPLICE.sinkPlay) / 2 <= SPLICE.holderRadius + 1e-9
+    && reach > 0 && reach <= GUARD_STACK.maximum + 1e-9;
+}
+export function jointInsertFits(part: Part): boolean {
+  return part.family === 'threaded-insert' && dimensionOf(part, 'hole') / 2 + dimensionOf(part, 'wall') <= SPLICE.holderRadius + 1e-9 && dimensionOf(part, 'l') <= GUARD_STACK.maximum;
+}
+export function jointNutFits(part: Part): boolean {
+  return part.family === 'nut' && jointNutPocketRadius(part) + SPLICE.nutWall <= SPLICE.holderRadius + 1e-9
+    && SPLICE.nutRecess + nutHeight(part) + SPLICE.nutRoof <= GUARD_STACK.maximum;
+}
+
+/**
+ * Whether a screw holds in this nut or insert through a plate and spine `stack` deep (its countersunk head flush with the bar's
+ * top): into an insert, it reaches past the bar at least as far as the insert is long and no further than the plate's back; into
+ * a nut, its tip stays inside the plate's back, and the nut round it (at least `nutRecess` in) leaves `nutRoof` of the spine.
+ */
+export function jointScrewHolds(stack: number, joints: SegmentJoints, screw: Part, holder: Part): boolean {
+  const reach = screwLength(screw) - SPLICE.thickness;
+  if (joints === 'threaded-insert') return reach >= dimensionOf(holder, 'l') - 1e-9 && reach <= stack + 1e-9;
+  const tip = stack - reach;
+  return tip >= -1e-9 && Math.max(tip, SPLICE.nutRecess) + nutHeight(holder) <= stack - SPLICE.nutRoof + 1e-9;
+}
+
+/**
+ * The fasteners the splice bars offer: every library part that fits (`jointScrewFits`, `jointInsertFits`, `jointNutFits`), of a
+ * thread that has a fitting screw and a fitting nut or insert, in the library's order. Listed rather than computed, so that the
+ * parameters' types name them; a test keeps each list equal to the library's fitting parts.
+ */
+export const JOINT_THREADS = ['M2', 'M2.5', 'M3', 'M4'] as const;
+export const JOINT_SCREWS = [
+  'iso-10642-m3x8', 'iso-10642-m3x10', 'iso-10642-m3x12', 'iso-10642-m3x16', 'iso-10642-m3x20', 'iso-10642-m4x8', 'iso-10642-m4x10', 'iso-10642-m4x12', 'iso-10642-m4x16', 'iso-10642-m4x20',
+  'iso-7046-m2x5', 'iso-7046-m2x6', 'iso-7046-m2x8', 'iso-7046-m2x10', 'iso-7046-m2x12', 'iso-7046-m2x16', 'iso-7046-m2x20', 'iso-7046-m2-5x5', 'iso-7046-m2-5x6',
+  'iso-7046-m2-5x8', 'iso-7046-m2-5x10', 'iso-7046-m2-5x12', 'iso-7046-m2-5x16', 'iso-7046-m2-5x20', 'iso-7046-m3x5', 'iso-7046-m3x6', 'iso-7046-m3x8', 'iso-7046-m3x10',
+  'iso-7046-m3x12', 'iso-7046-m3x16', 'iso-7046-m3x20', 'iso-7046-m4x5', 'iso-7046-m4x6', 'iso-7046-m4x8', 'iso-7046-m4x10', 'iso-7046-m4x12', 'iso-7046-m4x16', 'iso-7046-m4x20',
+] as const;
+export const JOINT_INSERTS = [
+  'cnc-kitchen-m2x3', 'cnc-kitchen-m2-5x4', 'cnc-kitchen-m3x5-7', 'cnc-kitchen-m3x3', 'cnc-kitchen-m3x5x4', 'cnc-kitchen-m4x8-1', 'cnc-kitchen-m4x4', 'ruthex-rx-m2x4', 'ruthex-rx-m3x5-7', 'ruthex-rx-m4x8-1',
+] as const;
+export const JOINT_NUTS = [
+  'iso-4032-m2', 'iso-4032-m2-5', 'iso-4032-m3', 'iso-4032-m4', 'iso-4035-m2', 'iso-4035-m2-5', 'iso-4035-m3', 'iso-4035-m4', 'iso-10511-m3', 'iso-10511-m4', 'din-562-m2', 'din-562-m2-5', 'din-562-m3',
+] as const;
+/** M3, the usual thread of printed parts: a regular hexagon nut (or a CNC Kitchen M3 × 5.7 insert) on an ISO 10642 M3 × 10. */
+export const DEFAULT_JOINT_FASTENERS = { thread: 'M3', insert: 'cnc-kitchen-m3x5-7', nut: 'iso-4032-m3', screw: 'iso-10642-m3x10' } as const;
+const JOINT_THREAD_TEXT: Record<string, string> = { M2: 'The smallest screws.', 'M2.5': 'Between M2 and M3.', M3: 'The usual thread of printed parts.', M4: 'The sturdiest that fits the spine.' };
+
+const SEGMENT_JOINT_TEXT: Record<SegmentJoints, { label: string; description: string }> = {
+  'nut-bolt': { label: 'Splice bars, screws and nuts', description: 'A printed bar over every joint, on the two spines (or ribs), with a countersunk screw down into each segment and a nut pushed into a pocket in the plate’s back. The joint cannot come apart until you undo the screws.' },
+  'threaded-insert': { label: 'Splice bars, screws and threaded inserts', description: 'A printed bar over every joint, with a countersunk screw down into each segment, into a brass heat-set insert melted into the spine (or rib). Needs a soldering iron; the screws go in and out many times.' },
+  glue: { label: 'Dovetails only (glue them)', description: 'The joints as in the original: the dovetails hold the segments side by side, but lift out the way they went in. Glue each joint (epoxy or gel superglue for PETG) to keep the panel together.' },
+};
+
+/**
  * Window cat guard (models/window-cat-guard/generator.scad, docs/window-cat-guard.md): honeycomb panels that close the gaps of a
  * tilted window, built the way the reference parts in models/window-cat-guard/references/ are: flat honeycomb plates, split into
  * segments that join with an in-plane dovetail under a spine or rib that laps onto the next segment, and a top strip whose pins
- * plug into bosses on the side panels. Every panel longer than `maxPartLength` is split into equal segments, one part each.
+ * plug into bosses on the side panels. Every panel longer than `maxPartLength` is split into equal segments, one part each. Unlike
+ * the reference, a splice bar is screwed over every joint by default, since the dovetail alone lifts out the way it went in.
  */
 export const DEFAULT_WINDOW_CAT_GUARD = {
   height: 550, gap: 105, tipWidth: 10, width: 900, maxPartLength: 210, topStrip: true,
-  thickness: 4, ribHeight: 5, cell: 30, web: 4, border: 6, fit: 0.25,
+  segmentJoints: 'nut-bolt' as SegmentJoints, jointThread: DEFAULT_JOINT_FASTENERS.thread, jointInsert: DEFAULT_JOINT_FASTENERS.insert,
+  jointNut: DEFAULT_JOINT_FASTENERS.nut, jointScrew: DEFAULT_JOINT_FASTENERS.screw,
+  thickness: 4, ribHeight: 5, cell: 30, web: 4, border: 6, fit: 0.1,
 } as const;
+
+/** The clearance's bands (`fit`): 0.1 mm per side is a snug fit on a tuned printer; more is looser and wobblier. */
+const GUARD_CLEARANCE_BANDS = [
+  { minimum: 0.05, maximum: 0.1, label: 'Tight (a tuned printer; may need pressing)' },
+  { minimum: 0.1, maximum: 0.2, label: 'Snug fit' },
+  { minimum: 0.2, maximum: 0.3, label: 'Sliding fit (some wobble)' },
+  { minimum: 0.3, maximum: 0.4, label: 'Loose (for printers that print tight)' },
+];
 
 export const WindowCatGuardParametersSchema = Type.Object({
   height: dimension('Height', 'Height of the side panels: how high the side gap is that they close, from the panel’s tip at the bottom to the window’s top, in mm. Above the longest part they are split into segments.', DEFAULT_WINDOW_CAT_GUARD.height, 150, 1500, 1),
@@ -2043,13 +2121,18 @@ export const WindowCatGuardParametersSchema = Type.Object({
   width: dimension('Window width', 'Width of the window opening, in mm: from the left side panel’s outer face to the right one’s. The top strip spans it between the side panels’ bosses.', DEFAULT_WINDOW_CAT_GUARD.width, 300, 1600, 1),
   maxPartLength: dimension('Longest part', 'A side panel or the top strip longer than this is split into equal segments that dovetail together, so that every part fits your print bed, in mm.', DEFAULT_WINDOW_CAT_GUARD.maxPartLength, 120, 300, 1),
   topStrip: Type.Boolean({ title: 'Top strip', description: 'A strip across the gap at the top of the window, its pins plugged into bosses on the side panels: the guard becomes one frame that stands in the window. Off: two side panels on their own, without bosses.', default: DEFAULT_WINDOW_CAT_GUARD.topStrip }),
+  segmentJoints: Type.Enum(SEGMENT_JOINT_VALUES, { title: 'Segment joints', description: 'What holds the segments of a panel together. The dovetails keep them side by side but lift out the way they went in; a splice bar screwed over every joint holds them for good.', default: DEFAULT_WINDOW_CAT_GUARD.segmentJoints }),
+  jointThread: Type.Enum(JOINT_THREADS, { title: 'Screw thread', description: 'The thread of the splice bars’ screws and their nuts or inserts.', default: DEFAULT_JOINT_FASTENERS.thread }),
+  jointInsert: Type.Enum(JOINT_INSERTS, { title: 'Threaded inserts', description: 'The heat-set inserts, a real product from the parts library: each hole is sized from the maker’s recommendation, from the spine’s top.', default: DEFAULT_JOINT_FASTENERS.insert }),
+  jointNut: Type.Enum(JOINT_NUTS, { title: 'Nuts', description: 'The nuts, standard parts from the parts library: each pocket, from the plate’s back, is cut to the nut’s greatest size and sits where the screw ends.', default: DEFAULT_JOINT_FASTENERS.nut }),
+  jointScrew: Type.Enum(JOINT_SCREWS, { title: 'Screws', description: 'The countersunk screws, standard parts from the parts library, two per splice bar: their heads sit flush in the bar. A screw must reach through its nut, or as deep as its insert, without coming out of the plate’s back.', default: DEFAULT_JOINT_FASTENERS.screw }),
   thickness: dimension('Plate thickness', 'Thickness of the honeycomb plates, in mm.', DEFAULT_WINDOW_CAT_GUARD.thickness, 2.4, 6, 0.1),
   ribHeight: dimension('Rib height', 'How high the side panels’ spine and the strip’s ribs stand on the plate, in mm. They stiffen the panels and hold the joints flush.', DEFAULT_WINDOW_CAT_GUARD.ribHeight, 2, 12, 0.5),
   cell: dimension('Honeycomb holes', 'Size of the hexagonal holes, corner to corner, in mm (across flats: 0.87 ×). At most 40 mm, which a paw does not get through; 0 for solid plates.', DEFAULT_WINDOW_CAT_GUARD.cell, 0, 40, 0.5),
   web: dimension('Web', 'Width of the bars between the holes, in mm.', DEFAULT_WINDOW_CAT_GUARD.web, 2, 10, 0.1),
   border: dimension('Border', 'Solid border round every plate, in mm.', DEFAULT_WINDOW_CAT_GUARD.border, 3, 15, 0.5),
-  fit: dimension('Fit', 'Play in the dovetails, round the pins and between segments, on each side, in mm.', DEFAULT_WINDOW_CAT_GUARD.fit, 0.05, 0.6, 0.05),
-}, { additionalProperties: false, description: 'Window cat guard parameters. All fields are required; dimensions are in millimetres.' });
+  fit: dimension('Clearance', 'Gap per side between parts that fit together, in mm: round each dovetail’s tab in its notch, between the segments’ ends, and round the strip’s pins in the side panels’ bosses. Smaller is tighter and wobbles less; raise it if your printer prints parts that are too tight to go together.', DEFAULT_WINDOW_CAT_GUARD.fit, 0.05, 0.4, 0.01),
+}, { additionalProperties: false, description: 'Window cat guard parameters. All fields are required; dimensions are in millimetres; the joint fields are parts-library ids or attribute values.' });
 export type WindowCatGuardParameters = Static<typeof WindowCatGuardParametersSchema>;
 
 function validateWindowCatGuard(p: WindowCatGuardParameters): ParameterIssue[] {
@@ -2065,40 +2148,91 @@ function validateWindowCatGuard(p: WindowCatGuardParameters): ParameterIssue[] {
   if (p.topStrip && layout.spacing < leastRibSpacing() - 1e-9)
     issues.push({ field: 'gap', message: `With a top strip the gap must be at least ${Math.ceil((p.gap - layout.spacing + leastRibSpacing()) * 2) / 2} mm, for the bosses either side of the spine (or narrow the border).` });
   if (p.cell > 0 && p.cell < 2 * p.web) issues.push({ field: 'cell', message: `Holes smaller than twice the web (${2 * p.web} mm) are not worth printing: use 0 for solid plates.` });
+  issues.push(...segmentJointIssues(p));
   return issues;
+}
+
+/** The splice bars' screw must hold in the chosen nut or insert through this plate and spine (`jointScrewHolds`); the message names the shortest that does. */
+function segmentJointIssues(p: WindowCatGuardParameters): ParameterIssue[] {
+  if (p.segmentJoints === 'glue') return [];
+  const screw = findPart(p.jointScrew);
+  const holder = findPart(p.segmentJoints === 'threaded-insert' ? p.jointInsert : p.jointNut);
+  if (!screw || !holder || screwThread(screw) !== screwThread(holder)) return [];
+  const stack = p.thickness + p.ribHeight;
+  if (jointScrewHolds(stack, p.segmentJoints, screw, holder)) return [];
+  const best = JOINT_SCREWS.map(id => findPart(id)).filter((part): part is Part => part !== undefined && screwThread(part) === screwThread(holder) && jointScrewHolds(stack, p.segmentJoints, part, holder))
+    .sort((a, b) => screwLength(a) - screwLength(b))[0];
+  const reach = screwLength(screw) - SPLICE.thickness;
+  const why = p.segmentJoints === 'threaded-insert'
+    ? reach > stack ? `reaches ${reach} mm past the splice bar, through the ${stack} mm of plate and spine` : `reaches only ${reach} mm past the splice bar, but the ${holder.title} is ${dimensionOf(holder, 'l')} mm long`
+    : reach > stack ? `reaches ${reach} mm past the splice bar, out of the ${stack} mm of plate and spine` : `leaves no room in the ${stack} mm of plate and spine for the ${holder.title} round its tip and ${SPLICE.nutRoof} mm of spine over it`;
+  return [{ field: 'jointScrew', message: `${screw.title} ${why}. ${best ? `Use ${best.title}.` : 'No listed screw of this thread fits: make the plate or the ribs thicker, or choose another nut or insert.'}` }];
 }
 
 /**
  * The guard put together (docs/window-cat-guard.md#assembly): each side panel is joined from the top down, every segment's
- * dovetail dropped into the one above from the spine's side (its spine laps onto the plate above); the strip is joined from its
- * right end, each segment laid in from above, then plugged into the left panel's bosses, and the right panel is pushed onto the
- * strip's other pins.
+ * dovetail dropped into the one above from the spine's side (its spine laps onto the plate above), then a splice bar is screwed
+ * over every joint; the strip is joined from its right end, each segment laid in from above, its bars screwed on, then plugged into
+ * the left panel's bosses, and the right panel is pushed onto the strip's other pins.
  */
 export function windowCatGuardAssembly(parameters: ParameterValues): Assembly {
   const p = { ...DEFAULT_WINDOW_CAT_GUARD, ...parameters } as WindowCatGuardParameters;
   const layout = windowCatGuardLayout(p);
   const pieces = windowCatGuardPieces(p);
-  const of = (kind: string) => pieces.filter(piece => piece.kind === kind);
+  const of = (panel: string) => pieces.filter(piece => piece.panel === panel).map(piece => piece.id);
+  const bars = (panel: string, joints: (j: number) => boolean) => pieces.filter(piece => piece.kind === 'bar' && piece.panel === panel && joints(piece.segment)).map(piece => piece.id);
   const steps: Assembly['steps'] = [];
   const reach = 60;
-  // each step brings the rest of the panel along, so that the exploded layout shows every segment apart (a staircase)
+  // each step brings the rest of the panel along, so that the exploded layout shows every segment apart (a staircase); a splice bar
+  // rides with the segment it is screwed to in its tab (a side panel's lower one, the strip's left one), then comes on in a step of its own
   const from = (kind: string, first: number, last: number) => Array.from({ length: last - first + 1 }, (_, i) => `${kind}-${first + i}`);
-  for (let k = 2; k <= layout.sideSegments; k++)
-    steps.push({ title: `Left panel: drop segment ${k}’s dovetail into segment ${k - 1}`, parts: from('left', k, layout.sideSegments), from: [reach, 0, 0] });
-  for (let k = 2; k <= layout.sideSegments; k++)
-    steps.push({ title: `Right panel: drop segment ${k}’s dovetail into segment ${k - 1}`, parts: from('right', k, layout.sideSegments), from: [-reach, 0, 0] });
+  const joints = (n: number) => n > 2 ? 'every joint' : 'the joint';
+  for (const [side, title, direction] of [['left', 'Left panel', 1], ['right', 'Right panel', -1]] as const) {
+    for (let k = 2; k <= layout.sideSegments; k++)
+      steps.push({ title: `${title}: drop segment ${k}’s dovetail into segment ${k - 1}`, parts: [...from(side, k, layout.sideSegments), ...bars(side, j => j >= k - 1)], from: [direction * reach, 0, 0] });
+    if (bars(side, () => true).length > 0)
+      steps.push({ title: `${title}: screw a splice bar over ${joints(layout.sideSegments)}`, parts: bars(side, () => true), from: [direction * reach / 2, 0, 0] });
+  }
   if (layout.stripSegments > 0) {
     for (let k = layout.stripSegments - 1; k >= 1; k--)
-      steps.push({ title: `Top strip: lay segment ${k}’s dovetails into segment ${k + 1}`, parts: from('strip', 1, k), from: [0, 0, 40] });
-    steps.push({ title: 'Plug the top strip’s pins into the left panel’s bosses', parts: of('strip').map(piece => piece.id), from: [2 * reach, 0, 0] });
-    steps.push({ title: 'Push the right panel’s bosses onto the strip’s other pins; stand the guard in the window', parts: of('right').map(piece => piece.id), from: [4 * reach, 0, 0] });
+      steps.push({ title: `Top strip: lay segment ${k}’s dovetails into segment ${k + 1}`, parts: [...from('strip', 1, k), ...bars('strip', j => j <= k)], from: [0, 0, 40] });
+    if (bars('strip', () => true).length > 0)
+      steps.push({ title: `Top strip: screw a splice bar over ${joints(layout.stripSegments)}, on both ribs`, parts: bars('strip', () => true), from: [0, 0, 30] });
+    steps.push({ title: 'Plug the top strip’s pins into the left panel’s bosses', parts: of('strip'), from: [2 * reach, 0, 0] });
+    steps.push({ title: 'Push the right panel’s bosses onto the strip’s other pins; stand the guard in the window', parts: of('right'), from: [4 * reach, 0, 0] });
   }
   return {
-    partColors: Object.fromEntries(pieces.map(piece => [piece.id, piece.kind === 'strip' ? '#d9a441' : piece.segment % 2 === 1 ? '#4f7f9c' : '#6f9bb5'])),
+    partColors: Object.fromEntries(pieces.map(piece => [piece.id, piece.kind === 'bar' ? '#c8553d' : piece.kind === 'strip' ? '#d9a441' : piece.segment % 2 === 1 ? '#4f7f9c' : '#6f9bb5'])),
     poses: Object.fromEntries(pieces.map(piece => [piece.id, { position: piece.position, rotation: piece.rotation }])),
     steps, lift: 20,
   };
 }
+
+/**
+ * The splice bars' fasteners, as reference objects where they sit (docs/window-cat-guard.md#splice-bars): each screw's head flush
+ * with its bar's top, riding with the bar (a screw's own frame has its tip at z = 0 and its head up); each nut on the screw's tip
+ * (or `nutRecess` inside the plate's back), each insert flush with the spine's top, riding with its segment.
+ */
+function windowCatGuardFasteners(parameters: ParameterValues): LinkedReference[] {
+  const p = { ...DEFAULT_WINDOW_CAT_GUARD, ...parameters } as WindowCatGuardParameters;
+  const screw = findPart(p.jointScrew);
+  const insert = p.segmentJoints === 'threaded-insert';
+  const holder = findPart(insert ? p.jointInsert : p.jointNut);
+  if (p.segmentJoints === 'glue' || !screw || !holder) return [];
+  const stack = p.thickness + p.ribHeight;
+  const tip = stack + SPLICE.thickness - screwLength(screw);
+  const holderZ = insert ? stack - dimensionOf(holder, 'l') : Math.max(tip, SPLICE.nutRecess);
+  // a nut turned as its pocket is, corners along the spine: the library's hexagon has a corner at 30°, its square at 45° (the
+  // pocket's square is turned by 45° too)
+  const spin = !insert && !holder.attributes['shape']?.startsWith('square') ? -30 : 0;
+  return windowCatGuardBolts(p).flatMap((bolt): LinkedReference[] => [
+    { id: `${bolt.bar}-${bolt.end}-${insert ? 'insert' : 'nut'}`, part: holder.id, label: bolt.label, pose: { position: bolt.at(holderZ), rotation: bolt.turned(spin) }, movesWith: bolt.segment },
+    { id: `${bolt.bar}-${bolt.end}-screw`, part: screw.id, label: bolt.label, pose: { position: bolt.at(tip), rotation: bolt.rotation }, movesWith: bolt.bar },
+  ]);
+}
+
+/** A part-linked control that offers only the parts of the splice bars' screw thread. */
+const jointThreadFiltered = (c: Control): Control => ({ ...c, part: c.part && { ...c.part, filter: { control: 'jointThread', attribute: 'thread' } } });
 
 const windowCatGuardControls = [
   control(WindowCatGuardParametersSchema, 'height', 'basic'),
@@ -2106,50 +2240,80 @@ const windowCatGuardControls = [
   control(WindowCatGuardParametersSchema, 'width', 'basic'),
   control(WindowCatGuardParametersSchema, 'topStrip', 'basic'),
   control(WindowCatGuardParametersSchema, 'maxPartLength', 'basic'),
+  enumControl(WindowCatGuardParametersSchema, 'segmentJoints', 'basic', SEGMENT_JOINT_VALUES.map(value => ({ value, ...SEGMENT_JOINT_TEXT[value] }))),
+  // the fasteners, while the joints have splice bars: the inserts, nuts and screws offered are the library's parts of the chosen thread
+  ...[enumControl(WindowCatGuardParametersSchema, 'jointThread', 'basic', JOINT_THREADS.map(value => ({ value, label: value, description: JOINT_THREAD_TEXT[value] ?? '' }))),
+    { ...jointThreadFiltered(partControl(WindowCatGuardParametersSchema, 'jointInsert', 'basic', 'threaded-insert', JOINT_INSERTS)), visibleWhen: { control: 'segmentJoints', values: ['threaded-insert'] } },
+    { ...jointThreadFiltered(partControl(WindowCatGuardParametersSchema, 'jointNut', 'basic', 'nut', JOINT_NUTS)), visibleWhen: { control: 'segmentJoints', values: ['nut-bolt'] } },
+    jointThreadFiltered(partControl(WindowCatGuardParametersSchema, 'jointScrew', 'basic', 'screw', JOINT_SCREWS))]
+    .map((c): Control => ({ ...c, visibleWhen: c.visibleWhen ?? { control: 'segmentJoints', values: ['nut-bolt', 'threaded-insert'] } })),
+  { ...control(WindowCatGuardParametersSchema, 'fit', 'basic'), bands: GUARD_CLEARANCE_BANDS },
   control(WindowCatGuardParametersSchema, 'tipWidth', 'advanced'),
   control(WindowCatGuardParametersSchema, 'thickness', 'advanced'),
   control(WindowCatGuardParametersSchema, 'ribHeight', 'advanced'),
   control(WindowCatGuardParametersSchema, 'cell', 'advanced'),
   control(WindowCatGuardParametersSchema, 'web', 'advanced'),
   control(WindowCatGuardParametersSchema, 'border', 'advanced'),
-  control(WindowCatGuardParametersSchema, 'fit', 'advanced'),
 ];
 
 const WINDOW_CAT_GUARD_SOURCE = 'models/window-cat-guard/generator.scad';
-const WINDOW_CAT_GUARD_SHARED = { thickness: 'THICKNESS', ribHeight: 'RIB_HEIGHT', cell: 'CELL', web: 'WEB', border: 'BORDER', fit: 'FIT', gap: 'GAP', maxPartLength: 'MAX_LENGTH' };
+const WINDOW_CAT_GUARD_SHARED = { thickness: 'THICKNESS', ribHeight: 'RIB_HEIGHT', cell: 'CELL', web: 'WEB', border: 'BORDER', fit: 'FIT', gap: 'GAP', maxPartLength: 'MAX_LENGTH', segmentJoints: 'JOINTS', jointThread: 'SCREW_HOLE' };
 const WINDOW_CAT_GUARD_SIDE_MAPPING = { ...WINDOW_CAT_GUARD_SHARED, height: 'HEIGHT', tipWidth: 'TIP', topStrip: 'STRIP' };
 const WINDOW_CAT_GUARD_STRIP_MAPPING = { ...WINDOW_CAT_GUARD_SHARED, width: 'WIDTH' };
+/** The segments take the screw's length (where it ends), the insert's hole and the nut's pocket; a splice bar only the thread's
+ * clearance hole and the screw's head. Every bar is the same part, so the bars share one render. */
+const WINDOW_CAT_GUARD_SEGMENT_DEFINES: PartDefines = {
+  jointScrew: { SCREW_L: ['l', 'value'] },
+  jointInsert: { INSERT_HOLE: ['hole', 'value'], INSERT_DEPTH: ['holeDepth', 'value'] },
+  // a nylon-insert nut's pocket takes its overall height; a square nut's is square
+  jointNut: { NUT_S: ['s', 'max'], NUT_H: [['h', 'm'], 'max'], NUT_SHAPE: { attribute: 'shape' } },
+};
+const WINDOW_CAT_GUARD_BAR_DEFINES: PartDefines = { jointScrew: { SCREW_D: ['d', 'value'], SCREW_DK: ['dk', 'max'], SCREW_K: ['k', 'max'] } };
 const guardLayout = (parameters: ParameterValues) => windowCatGuardLayout({ ...DEFAULT_WINDOW_CAT_GUARD, ...parameters });
+const spliced = (parameters: ParameterValues) => (parameters['segmentJoints'] ?? DEFAULT_WINDOW_CAT_GUARD.segmentJoints) !== 'glue';
 const segmentTitle = (k: number, first: string) => `segment ${k}${k === 1 ? ` (${first})` : ''}`;
-/** Up to eight segments per side panel (1 = the top) and for the strip (1 = its left end), each present while the layout has it. */
+/** Up to eight segments per side panel (1 = the top) and for the strip (1 = its left end), each present while the layout has it;
+ * then up to seven splice bars per side panel and seven pairs on the strip (bar j joins segments j and j + 1), with splice bars. */
 const windowCatGuardParts: ModelPart[] = [
   ...(['left', 'right'] as const).flatMap(side => Array.from({ length: WINDOW_CAT_GUARD_MAX_SEGMENTS }, (_, i): ModelPart => ({
     id: `${side}-${i + 1}`, title: `${side === 'left' ? 'Left' : 'Right'} panel, ${segmentTitle(i + 1, 'top')}`, sourcePath: WINDOW_CAT_GUARD_SOURCE,
-    scadConstants: { PART: 'side', SIDE: side, SEGMENT: i + 1 }, scadMapping: WINDOW_CAT_GUARD_SIDE_MAPPING,
+    scadConstants: { PART: 'side', SIDE: side, SEGMENT: i + 1 }, scadMapping: WINDOW_CAT_GUARD_SIDE_MAPPING, partDefines: WINDOW_CAT_GUARD_SEGMENT_DEFINES,
     includedWhen: parameters => guardLayout(parameters).sideSegments > i,
   }))),
   ...Array.from({ length: WINDOW_CAT_GUARD_MAX_SEGMENTS }, (_, i): ModelPart => ({
     id: `strip-${i + 1}`, title: `Top strip, ${segmentTitle(i + 1, 'left end')}`, sourcePath: WINDOW_CAT_GUARD_SOURCE,
-    scadConstants: { PART: 'strip', SEGMENT: i + 1 }, scadMapping: WINDOW_CAT_GUARD_STRIP_MAPPING,
+    scadConstants: { PART: 'strip', SEGMENT: i + 1 }, scadMapping: WINDOW_CAT_GUARD_STRIP_MAPPING, partDefines: WINDOW_CAT_GUARD_SEGMENT_DEFINES,
     includedWhen: parameters => guardLayout(parameters).stripSegments > i,
   })),
+  ...(['left', 'right'] as const).flatMap(side => Array.from({ length: WINDOW_CAT_GUARD_MAX_SEGMENTS - 1 }, (_, i): ModelPart => ({
+    id: `${side}-bar-${i + 1}`, title: `${side === 'left' ? 'Left' : 'Right'} panel, splice bar ${i + 1} (segments ${i + 1}–${i + 2})`, sourcePath: WINDOW_CAT_GUARD_SOURCE,
+    scadConstants: { PART: 'bar' }, scadMapping: { jointThread: 'SCREW_HOLE' }, partDefines: WINDOW_CAT_GUARD_BAR_DEFINES,
+    includedWhen: parameters => spliced(parameters) && guardLayout(parameters).sideSegments > i + 1,
+  }))),
+  ...Array.from({ length: WINDOW_CAT_GUARD_MAX_SEGMENTS - 1 }, (_, i) => [1, 2].map((rib): ModelPart => ({
+    id: `strip-bar-${i + 1}-${rib}`, title: `Top strip, splice bar ${i + 1} (segments ${i + 1}–${i + 2}), rib ${rib}`, sourcePath: WINDOW_CAT_GUARD_SOURCE,
+    scadConstants: { PART: 'bar' }, scadMapping: { jointThread: 'SCREW_HOLE' }, partDefines: WINDOW_CAT_GUARD_BAR_DEFINES,
+    includedWhen: parameters => spliced(parameters) && guardLayout(parameters).stripSegments > i + 1,
+  }))).flat(),
 ];
 
 export const windowCatGuard = {
   id: 'window-cat-guard' as const, version: '1' as const, title: 'Window cat guard',
-  description: 'Honeycomb panels that close the gaps of a tilted window, so that a cat cannot slip into the wedge at the side: two side panels and a strip across the top, plugged together into one frame that stands in the window. Set the window’s height and width and the gap at the top; every panel longer than your print bed allows is split into segments that dovetail together.',
+  description: 'Honeycomb panels that close the gaps of a tilted window, so that a cat cannot slip into the wedge at the side: two side panels and a strip across the top, plugged together into one frame that stands in the window. Set the window’s height and width and the gap at the top; every panel longer than your print bed allows is split into segments that dovetail together, and a splice bar screwed over every joint (into nuts or threaded inserts from the parts library) keeps them together.',
   attribution: 'After “Tilted window cat protection” on MakerWorld',
   attributionLinks: [{ text: '“Tilted window cat protection” on MakerWorld', url: 'https://makerworld.com/de/models/3234292-tilted-window-cat-protection' }],
-  printNotes: 'Print every segment flat as generated, in PETG, no supports. Join each panel’s segments by dropping each dovetail into the next segment from the spine’s side, so that the spine laps onto it; plug the strip’s pins into the side panels’ bosses, then stand the guard in the tilted window.',
+  printNotes: 'Print every segment and splice bar flat as generated, in PETG, no supports; the splice bars are all alike. Push the nuts into their pockets in the plates’ backs (or melt the inserts into the spines). Join each panel’s segments by dropping each dovetail into the next segment from the spine’s side, so that the spine laps onto it, and screw a splice bar over every joint. Plug the strip’s pins into the side panels’ bosses, then stand the guard in the tilted window.',
   // ShareAlike: an adaptation of a CC BY-NC-SA 4.0 design (models/window-cat-guard/ATTRIBUTION.md)
   license: 'CC BY-NC-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
   parts: windowCatGuardParts,
   assembly: windowCatGuardAssembly(DEFAULT_WINDOW_CAT_GUARD),
   assemblyForParameters: windowCatGuardAssembly,
+  linkedReferences: windowCatGuardFasteners,
   parameterSchema: WindowCatGuardParametersSchema,
   controls: windowCatGuardControls,
   defaults: Object.fromEntries(windowCatGuardControls.map(c => [c.key, c.default])),
   scadMapping: {},
+  scadEncode: { jointThread: thread => JSON.stringify(ISO_273_CLEARANCE_HOLES[thread as MetricThread].medium) },
   validate(parameters: unknown): ParameterIssue[] {
     if (!Value.Check(WindowCatGuardParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
     return validateWindowCatGuard(parameters);
