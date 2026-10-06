@@ -185,6 +185,15 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await page.getByRole('combobox', { name: 'Collar corners' }).selectOption('butt-screwed');
   await expect(viewer).toHaveAttribute('data-config', /"cornerJoint":"butt-screwed"/);
   await expect(hardware.getByRole('link', { name: 'Countersunk wood screw 5 × 70' })).toBeVisible();
+  // hung on the window frame like an insect screen: bought hooks behind the frame's lip, the feet only under the sill rail
+  await page.getByRole('combobox', { name: 'Held in the recess by' }).selectOption('frame-hooks');
+  await expect(viewer).toHaveAttribute('data-visible-parts', /screen-hooks/);
+  await expect(page.getByRole('combobox', { name: 'Overlap on the frame' })).toBeVisible();
+  await expect(page.getByText('Hooks · bent at')).toBeVisible();
+  await expect(hardware.getByRole('link', { name: 'Insect screen hook, long (Windhager 03651, 5a)' })).toBeVisible();
+  await page.getByRole('spinbutton', { name: 'Seal gap' }).fill('1');
+  await expect(page.getByText(/too narrow for the hooks’ 0.8 mm strip/)).toBeVisible();
+  await page.getByRole('spinbutton', { name: 'Seal gap' }).fill('3.5');
   await page.getByRole('combobox', { name: 'Held in the recess by' }).selectOption('folding-wedges');
   await expect(viewer).toHaveAttribute('data-visible-parts', /folding-wedges/);
   await expect(page.getByRole('combobox', { name: 'Foot diameter' })).toBeVisible();

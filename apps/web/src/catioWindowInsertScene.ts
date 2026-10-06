@@ -35,12 +35,13 @@ export function buildInsertContext(p: ReturnType<typeof createCatioParts>, layou
 }
 
 /** The window insert in its window: every piece of `windowInsertLayout`, staged as `windowInsertSteps` describes. */
-export function createWindowInsertScene(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant)): SubassemblyModel & {
-  layout: ReturnType<typeof windowInsertLayout>; insert: THREE.Group; motions: PieceMotion[];
+export function createWindowInsertScene(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant, config)): SubassemblyModel & {
+  layout: ReturnType<typeof windowInsertLayout>; insert: THREE.Group; motions: PieceMotion[]; tilt: THREE.Group;
 } {
   const layout = windowInsertLayout(variant, config, window);
   const p = createCatioParts(); const { component, box, rod, panel, materials: m } = p;
-  const { hinge } = buildWindowContext(p, window);
+  const { hinge, tilt } = buildWindowContext(p, window);
+  const hung = layout.hooks.length > 0;
   const insert = new THREE.Group(); insert.name = 'window-insert'; p.root.add(insert);
   const first = p.components.length;
   const hexGeometry = new THREE.CylinderGeometry(1, 1, 1, 6);
@@ -104,8 +105,9 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
   const byComponent = new Map<string, typeof layout.fasteners>();
   for (const f of layout.fasteners) byComponent.set(f.component, [...(byComponent.get(f.component) ?? []), f]);
   for (const [id, list] of byComponent) {
-    const stage = id === 'corner-screws' ? 1 : 3;
-    const [from, to] = id === 'corner-screws' ? [0.55, 1] as [number, number] : stage3Windows[id] ?? [0, 1];
+    // the hooks' screws go in with the hooks, in stage 2
+    const stage = id === 'corner-screws' ? 1 : id === 'hook-screws' ? 2 : 3;
+    const [from, to] = id === 'corner-screws' ? [0.55, 1] as [number, number] : id === 'hook-screws' ? [0.85, 1] as [number, number] : stage3Windows[id] ?? [0, 1];
     // all fasteners of a kind go in together; each still along its own axis
     const kinds = new Map<string, { count: number; ways: Set<string> }>();
     for (const f of list) { const k = kinds.get(f.partId) ?? { count: 0, ways: new Set<string>() }; k.count++; k.ways.add(describe(f.direction)); kinds.set(f.partId, k); }
@@ -238,6 +240,17 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
     movers.push({ slide, kind: clamp.kind, turns: true });
   });
 
+  // Stage 2, hung on the window frame: the hooks, bent, laid on the stiles' backs from the room side, then screwed (above).
+  if (hung) {
+    const hooks = group('screen-hooks', 2, 'hardware');
+    const kinds = new Map<string, number>(); for (const h of layout.hooks) kinds.set(h.part.title, (kinds.get(h.part.title) ?? 0) + 1);
+    const caption = `${[...kinds].map(([title, n]) => `${n} × ${title}`).join(', ')}: bent at ${layout.hookFit?.bend ?? 0} mm, laid on the back of the stiles`;
+    for (const h of layout.hooks) {
+      const g = piece(hooks); for (const b of h.boxes) box(g, b.size, b.center, m.hardware);
+      move(g, 2, [0.65, 0.85], [0, -120, 0], caption);
+    }
+  }
+
   // Stage 3: mesh, each panel pressed on from outdoors (the direct variant's sleeve slid along the passage).
   layout.panels.forEach(mp => {
     const parent = panel(mp.id, 3, mp.width, mp.height, mp.center, mp.plane, [0, 0, 0]);
@@ -246,7 +259,7 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
 
   // Stage 6: docking brackets (direct), or the gate tracks from the room side and the gate dropped into them from above.
   if (layout.port) {
-    const { width: w, height: h } = layout.port; const yGate = layout.yIn + 14;
+    const { width: w, height: h } = layout.port; const yGate = layout.yIn + INSERT.gate.y; const [lx, ly, lz] = INSERT.gate.latch;
     const tracks = group('gate-tracks', 6, 'hardware');
     for (const sx of [-1, 1]) {
       const g = piece(tracks); box(g, [12, 12, 2 * h + 45], [sx * (w / 2 + 16), yGate, layout.floor + h + 22.5], m.hardware);
@@ -254,7 +267,7 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
     }
     const gate = piece(group('cat-gate', 6, 'timber')); box(gate, [w + 20, 12, h + 20], [0, yGate, layout.floor + (h + 20) / 2], m.endgrain);
     move(gate, 6, [0.4, 0.7], [0, 0, h + 30], 'Cat gate: lowered into its tracks from above');
-    const latch = piece(group('gate-latch', 6, 'hardware')); box(latch, [42, 20, 12], [0, yGate - 16, layout.floor + h - 35], m.hardware);
+    const latch = piece(group('gate-latch', 6, 'hardware')); box(latch, [lx, ly, lz], [0, yGate - INSERT.gate.latchY, layout.floor + h - 35], m.hardware);
     move(latch, 6, [0.75, 0.95], [0, -140, 0], 'Gate latch: fitted from the room side');
   } else {
     const brackets = group('docking-brackets', 6, 'hardware');
@@ -286,7 +299,12 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
       if (motion.axis && motion.turns) motion.object.quaternion.multiply(spin.setFromAxisAngle(motion.axis, -away * motion.turns * Math.PI * 2));
     }
     // exploded, the insert is shown on the bench, clear of the wall
-    insert.position.y = state.exploded ? BENCH_OFFSET : BENCH_OFFSET * (1 - ease(along(state.progress, 4)));
+    // hung on the window frame: carried in lifted, the long hooks slipped up behind the head lip, then let down over the sill lip
+    // once it lies against the frame
+    const lift = layout.hookFit?.lift ?? 0;
+    const carried = hung ? THREE.MathUtils.clamp(along(state.progress, 4) / 0.75, 0, 1) : along(state.progress, 4);
+    insert.position.y = state.exploded ? BENCH_OFFSET : BENCH_OFFSET * (1 - ease(carried));
+    insert.position.z = state.exploded || !hung ? 0 : lift * (1 - ease(THREE.MathUtils.clamp((along(state.progress, 4) - 0.75) / 0.25, 0, 1))) * (state.progress > 3 ? 1 : 0);
     focus = insert.position.y > BENCH_OFFSET / 2 ? [0, BENCH_OFFSET, 0] : [0, 0, 0];
     const tight = ease(along(state.progress, 5));
     for (const mover of movers) {
@@ -299,7 +317,11 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
     }
     let action: string | null = active.size > 0 ? [...active].join('; ') : null;
     const stage = Math.ceil(state.progress);
-    if (!action && state.progress > 3 && state.progress < 4) action = 'The finished insert is carried from the bench to the window';
+    if (!action && !hung && state.progress > 3 && state.progress < 4) action = 'The finished insert is carried from the bench to the window';
+    if (!action && hung && state.progress > 3 && state.progress < 4) action = along(state.progress, 4) < 0.75
+      ? `The insert is carried to the window, lifted ${lift} mm, and its long hooks slipped up behind the frame’s head lip`
+      : 'Let down: the short hooks drop behind the sill lip and the feet stand on the recess floor';
+    if (!action && hung && stage === 5 && state.progress < 5) action = 'Each foot is turned until the short hooks stand clear of the sill lip; then the sash is closed over the hooks';
     if (!action && stage === 5 && state.progress < 5) action = pad
       ? 'Each spreader screw is turned by its head from inside: the thrust pad moves out, without turning, until it bears on the reveal; then the lock nut is run up to the collar'
       : config.attachment === 'spreader-feet'
@@ -310,7 +332,7 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
     p.root.updateMatrixWorld(true);
   }
   function dispose() { p.dispose(); hexGeometry.dispose(); discGeometry.dispose(); }
-  return { root: p.root, hinge, components: p.components, update, dispose, layout, insert, motions, caption: () => currentAction, focusOffset: () => focus };
+  return { root: p.root, hinge, tilt, components: p.components, update, dispose, layout, insert, motions, caption: () => currentAction, focusOffset: () => focus };
 }
 
 /** How a fastener is driven, in words: from which face. */

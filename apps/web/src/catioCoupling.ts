@@ -44,6 +44,8 @@ export const COUPLING = {
   lip: { thickness: 3, overlap: 25 },
   /** Docking frame screw spacing, and the latch body's distance in from the flange's face. */
   screwPitch: 150, latchInset: 2,
+  /** How far a docking frame screw bites at least into the jamb or transom behind it. */
+  frameBite: 20,
   /** The least distance from a docking frame screw to a batten screw or staple already in the insert's port frame. */
   screwClearance: 12,
 } as const;
@@ -165,7 +167,11 @@ export function couplingLayout(config: CouplingConfig, { tunnel, site }: Couplin
   // Fasteners: frame screws through the frame (and batten) into the jambs and transom, kept clear of the batten screws and
   // staples already on those centre lines; two screws in each latch body and catch.
   const fasteners: Fastener[] = [];
-  const frameScrew = part(HW.frameScrew); const latchScrew = part(HW.latchScrew);
+  // a frame screw bites at least COUPLING.frameBite into the jamb or transom behind the frame (and the batten under it): the usual
+  // 5 × 60, or a 6 × 90 when the insert hangs on the window frame and its port frame lies deeper
+  const frameScrew = [part(HW.frameScrew), part(HW.frameScrewDeep)].find(p => dimensionOf(p, 'l') - (front - insert.yOut) >= COUPLING.frameBite) ?? part(HW.frameScrewDeep);
+  if (dimensionOf(frameScrew, 'l') - (front - insert.yOut) < COUPLING.frameBite) errors.push(`The docking frame is too thick for its screws to bite ${COUPLING.frameBite} mm into the port frame.`);
+  const latchScrew = part(HW.latchScrew);
   const spaced = (from: number, to: number, count: number) => Array.from({ length: count }, (_, i) => count === 1 ? (from + to) / 2 : from + i * (to - from) / (count - 1));
   const gap = COUPLING.screwClearance;
   const faceFasteners = insert.fasteners.filter(f => f.component === 'batten-screws' || f.component === 'staples');
@@ -329,7 +335,7 @@ export const COUPLING_DECISIONS: DesignDecision[] = [
     choice: 'The tunnel’s wall support carries the first flange, as on the tunnel page. The joint touches the insert only through the soft seal and the latches, which pull along the tunnel; the docking frame has no sill, and nothing of the tunnel rests on the threshold except the rubber lip.',
     why: 'The insert is held in its recess only by pressure, so it must not take the tunnel’s weight. Locating pins or a spigot would hand that weight to it as soon as the support settled, so there are none: the support’s levelling feet set the height. If a latch has to lift or push the flange to close, re-level the wall support, not the latch.' },
   { title: 'A docking frame on the insert', from: { page: 'window-insert', settings: ['meshFixing', 'fixingPitch'] },
-    choice: `Two ${PRINTED_FRAME_DEPTH} × ${TUNNEL.flange.width} stiles (${FRAME_DEPTH} × ${TUNNEL.flange.width} with GN 831 latches) on the port jambs and a head on the transom, screwed through into them with DIN 7997 5 × ${FRAME_SCREW_LENGTH} screws, rebated ${INSERT.batten.thickness} mm over the cover battens where the insert has them. Its face is the flange’s outline above the floor, ${COUPLING.printed.gap} mm short of the flange (${COUPLING.gap} mm with GN 831 latches). The screws sit between the insert’s batten screws and staples, at least ${COUPLING.screwClearance} mm from each. Whether there are battens, and where their screws are, is set by the window insert’s mesh fixing: with staples only the frame sits flat on the mesh, unrebated.`,
+    choice: `Two ${PRINTED_FRAME_DEPTH} × ${TUNNEL.flange.width} stiles (${FRAME_DEPTH} × ${TUNNEL.flange.width} with GN 831 latches) on the port jambs and a head on the transom, screwed through into them with DIN 7997 5 × ${FRAME_SCREW_LENGTH} screws, rebated ${INSERT.batten.thickness} mm over the cover battens where the insert has them. Its face is the flange’s outline above the floor, ${COUPLING.printed.gap} mm short of the flange (${COUPLING.gap} mm with GN 831 latches). The screws sit between the insert’s batten screws and staples, at least ${COUPLING.screwClearance} mm from each. Whether there are battens, and where their screws are, is set by the window insert’s mesh fixing: with staples only the frame sits flat on the mesh, unrebated. When the insert hangs on the window frame, its port frame lies 27.5 mm deeper in the recess: the frame is that much thicker and takes DIN 7997 6 × 90 screws.`,
     why: `The port frame’s face lies ${PORT_FACE_DEPTH} mm inside the recess and is broken up by battens, while the flange stands ${TUNNEL.wallGap} mm off the wall: the frame brings a flat, matching face to the joint, and gives the catch brackets a side in line with the flange’s side. ${PRINTED_FRAME_DEPTH} mm is the depth from the mesh to the gap (${FRAME_DEPTH} mm with GN 831 latches), so the screws reach ${FRAME_SCREW_LENGTH - PRINTED_FRAME_DEPTH - INSERT.mesh.wire} mm into the jambs (${FRAME_SCREW_LENGTH - FRAME_DEPTH - INSERT.mesh.wire} mm) whichever mesh fixing the insert has. A screw on a batten screw’s centre line would run into its hole or split the 40 mm jamb, so they are moved clear. It stays on the insert when the insert is lifted out.` },
   { title: 'A squashed seal and a floor lip', parameter: 'Floor gap',
     choice: `A self-adhesive EPDM E-profile (${COUPLING.printed.seal.width} × ${COUPLING.printed.seal.height}, made for 2–3.5 mm gaps) round the frame’s face, squashed to the printed latches’ ${COUPLING.printed.gap} mm gap; with GN 831 latches, a hollow EPDM D-profile about ${COUPLING.seal.height} mm high, squashed to their ${COUPLING.gap} mm gap; a ${COUPLING.lip.thickness} mm EPDM lip screwed to the flange’s sill, lying ${COUPLING.lip.overlap} mm onto the threshold.`,

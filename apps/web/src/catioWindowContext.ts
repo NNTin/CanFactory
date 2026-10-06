@@ -1,14 +1,12 @@
 import * as THREE from 'three';
 import type { createCatioParts } from './catioParts.ts';
+import { windowFrame, type WindowShape } from './catioWindow.ts';
 
-/** The existing surroundings every catio sub-assembly is fitted to: wall with its window opening, fixed frame, inward sash, grass and room floor. */
-export interface WindowContextSpec {
-  glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number;
-  openingWidth: number; openingHeight: number; recessFloor: number; sill: number; sashY: number;
-}
+/** The existing surroundings every catio sub-assembly is fitted to: wall with its window opening, the tilt-and-turn window's fixed frame and sash (catioWindow.ts), grass and room floor. */
+export interface WindowContextSpec extends WindowShape { glassWidth: number; glassHeight: number }
 
 /**
- * Builds the stationary context (step 0) and returns the sash's hinge, which `windowOpen` turns. Without `terrain`, the caller
+ * Builds the stationary context (step 0) and returns the sash's hinge, which `windowOpen` turns, and its tilt. Without `terrain`, the caller
  * draws its own ground outside (e.g. uneven ground under a tunnel); the room floor is still drawn.
  */
 export function buildWindowContext(parts: ReturnType<typeof createCatioParts>, w: WindowContextSpec, ground = { width: 2600, depth: 1500 }, terrainOutside = true) {
@@ -31,16 +29,30 @@ export function buildWindowContext(parts: ReturnType<typeof createCatioParts>, w
     }
     terrain.add(blades);
   }
+  // The fixed frame in section: its outer lip (frameFace wide, frameLip thick) overlaps the sash; its body behind stops the Falzluft
+  // short of the sash's edge; the outer seal fills the gap between the lip's back and the closed sash, just outside the lip's tips.
+  const f = windowFrame(w); const { sealGap, frameDepth } = w.profile;
   const fixed = component('fixed-window-frame', 0, undefined);
-  const frame = (w.openingWidth - w.sashWidth) / 2;
-  ring(fixed, w.openingWidth, w.openingHeight, frame, 65, -150, w.recessFloor, m.window);
+  const frameBox = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, material: THREE.Material) =>
+    box(fixed, [x1 - x0, y1 - y0, z1 - z0], [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2], material);
+  const ow = w.openingWidth / 2; const lw = f.lip.width / 2; const fz = w.recessFloor;
+  for (const [x0, x1] of [[-ow, -lw], [lw, ow]] as const) frameBox(x0, x1, f.lipBack, f.face, fz, f.top, m.window);
+  for (const [z0, z1] of [[fz, f.lip.bottom], [f.lip.top, f.top]] as const) frameBox(-lw, lw, f.lipBack, f.face, z0, z1, m.window);
+  const bw = f.body.width;
+  for (const s of [-1, 1]) frameBox(s < 0 ? -ow : ow - bw, s < 0 ? -ow + bw : ow, f.back, f.lipBack, fz, f.top, m.window);
+  frameBox(-ow + bw, ow - bw, f.back, f.lipBack, fz, fz + f.body.bottom, m.window);
+  frameBox(-ow + bw, ow - bw, f.back, f.lipBack, f.top - f.body.top, f.top, m.window);
+  const seal = 5;
+  ring(fixed, f.lip.width + 2 * seal, f.lip.top - f.lip.bottom + 2 * seal, seal, sealGap, f.lipBack - sealGap / 2, f.lip.bottom - seal, m.rubber);
+  // The sash turns on its hinge side about a vertical axis at its room-side face, and tilts about its sill edge there (Dreh-Kipp).
   const sash = component('opening-sash', 0, undefined);
-  const hinge = new THREE.Group(); hinge.position.set(-w.sashWidth / 2, w.sashY, w.sill); sash.add(hinge);
-  const leaf = new THREE.Group(); leaf.position.x = w.sashWidth / 2; hinge.add(leaf);
+  const hinge = new THREE.Group(); hinge.position.set(-w.sashWidth / 2, f.sash.room, w.sill); sash.add(hinge);
+  const tilt = new THREE.Group(); hinge.add(tilt);
+  const leaf = new THREE.Group(); leaf.position.set(w.sashWidth / 2, frameDepth / 2, 0); tilt.add(leaf);
   const bx = (w.sashWidth - w.glassWidth) / 2; const bz = (w.sashHeight - w.glassHeight) / 2;
-  for (const s of [-1, 1]) box(leaf, [bx, 60, w.sashHeight], [s * (w.sashWidth - bx) / 2, 0, w.sashHeight / 2], m.window);
-  for (const z of [bz / 2, w.sashHeight - bz / 2]) box(leaf, [w.glassWidth, 60, bz], [0, 0, z], m.window);
+  for (const s of [-1, 1]) box(leaf, [bx, frameDepth, w.sashHeight], [s * (w.sashWidth - bx) / 2, 0, w.sashHeight / 2], m.window);
+  for (const z of [bz / 2, w.sashHeight - bz / 2]) box(leaf, [w.glassWidth, frameDepth, bz], [0, 0, z], m.window);
   box(leaf, [w.glassWidth, 6, w.glassHeight], [0, 0, w.sashHeight / 2], m.glass).name = 'context-glass';
-  box(leaf, [14, 24, 85], [w.sashWidth / 2 - bx / 2, -42, w.sashHeight / 2], m.hardware);
-  return { hinge };
+  box(leaf, [14, 24, 85], [w.sashWidth / 2 - bx / 2, -frameDepth / 2 - 12, w.sashHeight / 2], m.hardware);
+  return { hinge, tilt };
 }

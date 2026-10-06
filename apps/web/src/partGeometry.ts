@@ -236,8 +236,19 @@ function toggleLatch(part: Part): Piece[] {
   return pieces;
 }
 
+function screenHook(part: Part): Piece[] {
+  // bent for a lip in the middle of its range: the screwed leg standing up, the strip turned along +Y past the lip, the tip up
+  const h = value(part, 'h'); const l = value(part, 'l'); const w = value(part, 'w'); const t = value(part, 't'); const d = value(part, 'd');
+  const reach = (value(part, 'x1') + value(part, 'x2')) / 2 + value(part, 'c');
+  const block = (size: [number, number, number], at: [number, number, number]) => {
+    const geometry = new THREE.BoxGeometry(...size); geometry.translate(at[0], at[1] + size[1] / 2, at[2] + size[2] / 2); return paint(geometry, STEEL);
+  };
+  const hole = new THREE.CylinderGeometry(d / 2, d / 2, t * 1.4, 20); hole.translate(0, t / 2, l * 0.25);
+  return [block([w, t, l], [0, 0, 0]), block([w, reach + t, t], [0, 0, l - t]), block([w, t, h], [0, reach, l - t]), paint(hole, DARK)];
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
-  screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch,
+  screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */

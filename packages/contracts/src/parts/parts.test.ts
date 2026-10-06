@@ -93,6 +93,13 @@ describe('parts library', () => {
         expect(dimension(part, 'l1'), message).toBeGreaterThan(dimension(part, 'b3') + dimension(part, 'b4'));
         expect(dimension(part, 'l1'), message).toBeGreaterThan(dimension(part, 'l2'));
       }
+      if (part.family === 'screen-hook') {
+        // a strip wider than its hole and thicker than nothing, bent for a range of lips, with its tip shorter than its leg
+        expect(dimension(part, 'w'), message).toBeGreaterThan(d);
+        expect(dimension(part, 't'), message).toBeGreaterThan(0);
+        expect(dimension(part, 'x2'), message).toBeGreaterThan(dimension(part, 'x1'));
+        expect(dimension(part, 'l'), message).toBeGreaterThan(dimension(part, 'h'));
+      }
       if (part.family === 'bearing') expect(dimension(part, 'D'), message).toBeGreaterThan(d);
       if (part.family === 'magnet' && part.attributes['shape'] !== 'block') expect(dimension(part, 'diameter'), message).toBeGreaterThan(dimension(part, 'innerDiameter') || 0);
     }

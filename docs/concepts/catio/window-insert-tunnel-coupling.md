@@ -96,7 +96,9 @@ the scene, the parts list and the tests.
      (**Cover battens at the port**, "Set on the window insert page: Mesh to timber"). With staples only, the frame sits flat
      on the mesh, unrebated.
    - **Fixing:** DIN 7997 5 × 60 screws from its face, every 15 cm or less. Each reaches 23 mm into the jamb or transom
-     (26 mm with GN 831 latches), whichever mesh fixing the insert has. The insert's batten screws and staples lie on the same centre lines. With the
+     (26 mm with GN 831 latches), whichever mesh fixing the insert has. When the insert
+     [hangs on the window frame](window-insert.md#hung-on-the-window-frame), its port frame lies 27.5 mm deeper: the docking
+     frame is that much thicker and takes DIN 7997 6 × 90 screws, which reach 25.5 mm (28.5 mm) in. Every screw bites at least 20 mm. The insert's batten screws and staples lie on the same centre lines. With the
      defaults, one batten screw sat exactly where the middle stile screw went. So each frame screw is moved to the nearest
      spot at least 12 mm from all of them (`clearOf`), and the page reports a clash if none is found (`fastenerClashes`).
      The window insert's **Fixing spacing** therefore moves these screws too.

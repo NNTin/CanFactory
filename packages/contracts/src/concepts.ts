@@ -20,6 +20,10 @@ export const WINDOW_INSERT_HARDWARE = {
   staple: 'din-1159-2-5x25',
   insertNut: 'din-7965-m8x18',
   jamNut: 'iso-4032-m8',
+  /** Hung on the window frame: the screen hooks behind the frame's lip, long at the head and short at the sill, and their screws. */
+  hookTop: 'windhager-03651-5a',
+  hookBottom: 'windhager-03651-5b',
+  hookScrew: 'din-7997-3x16',
 } as const;
 
 /** The window insert's clamp feet: Ganter GN 343.2 KR on an M8 stud, in these diameters. */
@@ -82,6 +86,9 @@ export const windowInsertConcept: ConceptPage = {
     { partId: windowInsertPadScrews().spreader.id, via: 'Printed pads (spreader screws, turned from inside)' },
     { partId: windowInsertPadScrews().bearing.id, via: 'Printed pads (in the feet under the sill)' },
     { partId: WINDOW_INSERT_PAD.thrustNut, via: 'Printed pads (on each spreader screw’s tip)' },
+    { partId: h.hookTop, via: 'Hung on the window frame (hooks at the head)' },
+    { partId: h.hookBottom, via: 'Hung on the window frame (hooks at the sill)' },
+    { partId: h.hookScrew, via: 'Hung on the window frame (screws of the hooks)' },
     ...WINDOW_INSERT_FOOT.diameters.flatMap(d1 => {
       const { spreader, bearing } = windowInsertFeet(d1);
       return [{ partId: spreader.id, via: `Spreader feet (${d1} mm)` }, { partId: bearing.id, via: `Bearing feet under the sill (${d1} mm)` }];
@@ -160,6 +167,8 @@ export const tunnelConcept: ConceptPage = {
  */
 export const COUPLING_HARDWARE = {
   frameScrew: 'din-7997-5x60',
+  /** When the insert hangs on the window frame, its port frame lies deeper in the recess and the docking frame is thicker. */
+  frameScrewDeep: 'din-7997-6x90',
   latchScrew: 'din-7997-4x25',
   lipScrew: 'din-7997-4x25',
 } as const;
@@ -174,6 +183,7 @@ export const insertTunnelCouplingConcept: ConceptPage = {
   id: 'catio/insert-tunnel-coupling', title: 'Window catio: insert–tunnel coupling',
   parts: [
     { partId: c.frameScrew, via: 'Docking frame to the port jambs and transom' },
+    { partId: c.frameScrewDeep, via: 'Docking frame to the port jambs and transom (insert hung on the window frame)' },
     { partId: c.latchScrew, via: 'Latches and catch brackets; floor lip' },
     ...COUPLING_LATCH.types.flatMap(type => COUPLING_LATCH.materials.map(material => ({ partId: couplingLatch(type, material).id, via: `Toggle latches (type ${type}, ${material === 'NI' ? 'stainless' : 'steel'})` }))),
   ],

@@ -4,7 +4,8 @@ import { dimensionOf, findPart, partUsage, WINDOW_INSERT_FOOT, windowInsertConce
 import type { CatioState } from './catioScene.ts';
 import { parseSubassemblySettings, defaultSubassemblySettings } from './catioSubassembly.ts';
 import { windowInsertDefinition } from './catioSubassemblies.ts';
-import { INSERT, PAD_HEIGHT, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from './catioWindowInsert.ts';
+import { TILT_MAX, windowFrame } from './catioWindow.ts';
+import { HOOK_FIT, INSERT, PAD_HEIGHT, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from './catioWindowInsert.ts';
 import { BENCH_OFFSET, createWindowInsertScene } from './catioWindowInsertScene.ts';
 
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
@@ -12,9 +13,13 @@ const bounds = (object: THREE.Object3D) => new THREE.Box3().setFromObject(object
 const variants = ['direct', 'modular'] as const;
 /** Every value of every control, one at a time, from the defaults. */
 const ganter: WindowInsertConfig = { ...WINDOW_INSERT_DEFAULT, clampPad: 'ganter' };
+const hung: WindowInsertConfig = { ...WINDOW_INSERT_DEFAULT, attachment: 'frame-hooks' };
 const configs: WindowInsertConfig[] = [WINDOW_INSERT_DEFAULT, ...WINDOW_INSERT_CONTROLS.flatMap(control => control.options.map(option => ({ ...WINDOW_INSERT_DEFAULT, [control.key]: option.value }))),
   // the Ganter feet in every size, and the printed pads at their lowest and highest
-  ...WINDOW_INSERT_FOOT.diameters.map(footDiameter => ({ ...ganter, footDiameter })), { ...WINDOW_INSERT_DEFAULT, padHeight: PAD_HEIGHT.min }, { ...WINDOW_INSERT_DEFAULT, padHeight: PAD_HEIGHT.max, footDiameter: 25 }];
+  ...WINDOW_INSERT_FOOT.diameters.map(footDiameter => ({ ...ganter, footDiameter })), { ...WINDOW_INSERT_DEFAULT, padHeight: PAD_HEIGHT.min }, { ...WINDOW_INSERT_DEFAULT, padHeight: PAD_HEIGHT.max, footDiameter: 25 },
+  // hung on the window frame: every overlap, the Ganter feet, three feet, the tallest pads, and thin and thick frame lips
+  ...[10, 15, 20, 25].map(frameOverlap => ({ ...hung, frameOverlap }) as WindowInsertConfig), { ...hung, clampPad: 'ganter' }, { ...hung, clampsPerSide: 3 },
+  { ...hung, padHeight: PAD_HEIGHT.max }, { ...hung, frameLip: 8, sealGap: 4.5 }, { ...hung, frameLip: 35, frameFace: 90, frameDepth: 120 }];
 const component = (scene: ReturnType<typeof createWindowInsertScene>, id: string) => {
   const found = scene.components.find(part => part.id === id); if (!found) throw new Error(`missing ${id}`); return found.group;
 };
@@ -53,20 +58,31 @@ describe('window insert', () => {
     for (const variant of variants) for (const config of configs) {
       expect(validateWindowInsert(variant, config), `${variant} ${JSON.stringify(config)}`).toEqual([]);
       const scene = createWindowInsertScene(variant, config); scene.update(installed);
-      const w = windowFor(variant);
+      const w = windowFor(variant, config); const frame = windowFrame(w);
       const pieces = scene.components.filter(part => part.layer !== 'environment' && part.id !== 'fixed-window-frame' && part.id !== 'opening-sash').map(part => ({ id: part.id, box: bounds(part.group) }));
+      // only the hooks (and their screws' tips) reach past the frame's face, behind its lip, and (hung) the gate latch on the port's
+      // room side into the window opening: all clear of the closed sash
+      const behind = (id: string) => id === 'screen-hooks' || id === 'hook-screws' || (config.attachment === 'frame-hooks' && id === 'gate-latch');
       for (const piece of pieces) {
         if (piece.box.isEmpty()) continue;
         expect(piece.box.min.x, `${variant} ${piece.id}`).toBeGreaterThanOrEqual(-w.openingWidth / 2 - 0.01);
         expect(piece.box.max.x, `${variant} ${piece.id}`).toBeLessThanOrEqual(w.openingWidth / 2 + 0.01);
         expect(piece.box.min.z, `${variant} ${piece.id}`).toBeGreaterThanOrEqual(w.recessFloor - 0.01);
         expect(piece.box.max.z, `${variant} ${piece.id}`).toBeLessThanOrEqual(w.recessFloor + w.openingHeight + 0.01);
-        expect(piece.box.min.y, `${variant} ${piece.id}`).toBeGreaterThan(-117.5); // the room-side face of the fixed frame
+        if (behind(piece.id)) expect(piece.box.min.y, `${variant} ${piece.id}`).toBeGreaterThanOrEqual(frame.sashFace + HOOK_FIT.gap - 0.01);
+        else expect(piece.box.min.y, `${variant} ${piece.id}`).toBeGreaterThanOrEqual(frame.face - 0.01); // the fixed frame's outer face
       }
       for (let angle = 0; angle <= 90; angle += 10) {
         scene.hinge.rotation.z = -THREE.MathUtils.degToRad(angle); scene.root.updateMatrixWorld(true);
         const sash = bounds(scene.hinge);
         for (const piece of pieces) expect(sash.intersectsBox(piece.box), `${piece.id} meets the sash at ${angle}°`).toBe(false);
+      }
+      // and tilted (Kipp) as far as its stays let it
+      scene.hinge.rotation.z = 0;
+      for (let angle = 0; angle <= TILT_MAX; angle += 2) {
+        scene.tilt.rotation.x = THREE.MathUtils.degToRad(angle); scene.root.updateMatrixWorld(true);
+        const sash = bounds(scene.hinge);
+        for (const piece of pieces) expect(sash.intersectsBox(piece.box), `${piece.id} meets the sash tilted ${angle}°`).toBe(false);
       }
       scene.dispose();
     }
@@ -206,7 +222,15 @@ describe('window insert', () => {
         expect(count(l.bearingFoot.id)).toBe(config.clampsPerSide);
         expect(count('din-7965-m8x18')).toBe(4 * config.clampsPerSide);
         expect(count('iso-4032-m8')).toBe(3 * config.clampsPerSide);
+      } else if (config.attachment === 'frame-hooks') {
+        // feet under the sill rail only, and two long and two short hooks with two screws each
+        expect(count('din-7965-m8x18')).toBe(config.clampsPerSide);
+        if (l.pad) expect(printed.map(line => [line.id, line.quantity])).toEqual([['foot-pads', config.clampsPerSide]]);
+        else expect(count(l.bearingFoot.id)).toBe(config.clampsPerSide);
+        expect([count('windhager-03651-5a'), count('windhager-03651-5b'), count('din-7997-3x16')]).toEqual([2, 2, 8]);
+        expect(lines.some(line => line.name === 'Pressure pad, thrust pad' || line.partId === 'iso-10511-m8')).toBe(false);
       } else expect(lines.find(line => line.id === 'folding-wedges')?.quantity).toBe(8 * config.clampsPerSide);
+      if (config.attachment !== 'frame-hooks') expect(lines.some(line => line.partId?.startsWith('windhager'))).toBe(false);
       // the direct sleeve's threshold edges are always stapled; the modular port's mesh lies only on faces a batten can cover
       expect(count('din-1159-2-5x25') > 0).toBe(variant === 'direct' || config.meshFixing !== 'battens');
       expect(count('din-7997-4x35') > 0).toBe(true);
@@ -267,5 +291,85 @@ describe('parts library previews of the window insert hardware', () => {
       expect(size.z, part.id).toBeCloseTo(height, 0);
       geometry.dispose();
     }
+  });
+});
+
+describe('window insert hung on the window frame', () => {
+  const l = windowInsertLayout('direct', hung);
+  const frame = windowFrame(l.window);
+
+  it('models the tilt-and-turn window as it is: the frame’s lip over the sash, the seal gap between them', () => {
+    // VEKA Softline 82 MD: 73 mm of frame from outside, so a 1000 mm frame's lip leaves 854 mm and covers the 910 mm sash 28 mm a side
+    expect(frame.lip.width).toBe(854);
+    expect(frame.overlap).toBe(28);
+    expect(frame.face - frame.lipBack).toBe(15.5);
+    expect(frame.lipBack - frame.sashFace).toBe(3.5);
+    // the context draws it so: the fixed frame's face, and the closed sash's face behind the lip and its seal
+    const scene = createWindowInsertScene('direct', hung); scene.update(installed);
+    expect(bounds(component(scene, 'fixed-window-frame')).max.y).toBeCloseTo(frame.face, 6);
+    expect(bounds(scene.hinge).max.y).toBeCloseTo(frame.sashFace, 6);
+    scene.dispose();
+    // a lip too narrow to cover the sash is not a window
+    expect(validateWindowInsert('direct', { ...hung, frameFace: 50 }).join(' ')).toMatch(/covers the sash by only 5 mm/);
+  });
+
+  it('lies on the frame’s face, overlapping it beyond the lip, and stands on its feet under the sill rail', () => {
+    expect(validateWindowInsert('direct', hung)).toEqual([]);
+    expect(l.yIn).toBe(frame.face);
+    expect(l.W).toBe(854 + 2 * hung.frameOverlap);
+    expect(l.z0 + l.H).toBe(frame.lip.top + hung.frameOverlap);
+    expect(l.z0).toBe(l.window.recessFloor + 24.5 + INSERT.travel);
+    expect(l.clamps.map(c => `${c.side} ${c.kind}`)).toEqual(['sill bearing', 'sill bearing']);
+    // the floor the tunnel starts from does not change: the same feet set it
+    expect(l.floor).toBe(windowInsertLayout('direct', WINDOW_INSERT_DEFAULT).floor);
+  });
+
+  it('reaches behind the lip at the head and the sill, its barbs in the seal gap so that the sash closes over them', () => {
+    const fit = l.hookFit; if (!fit) throw new Error('no hooks');
+    expect(l.hooks.map(h => `${h.side} ${h.end} ${h.part.id}`).sort()).toEqual(['left head windhager-03651-5a', 'left sill windhager-03651-5b', 'right head windhager-03651-5a', 'right sill windhager-03651-5b']);
+    // bent at the lip plus half the spare seal gap, to 0.5 mm: 15.5 + (3.5 - 0.8) / 2 - 0.8 = 16.05, so 16
+    expect(fit.bend).toBe(16);
+    for (const h of l.hooks) {
+      expect(h.barb.outer).toBeLessThanOrEqual(frame.lipBack - HOOK_FIT.gap);
+      expect(h.barb.inner).toBeGreaterThanOrEqual(frame.sashFace + HOOK_FIT.gap);
+      expect(h.barb.engage).toBeGreaterThanOrEqual(HOOK_FIT.engage);
+      // over the lip's opening, in front of the sash, on the stile's part beside it
+      expect(Math.abs(h.x)).toBeLessThan(frame.lip.width / 2);
+      expect(Math.abs(h.x)).toBeGreaterThan(l.Wi / 2);
+      const barb = h.boxes[2]; if (!barb) throw new Error('barb');
+      const [bottom, top] = [barb.center[2] - barb.size[2] / 2, barb.center[2] + barb.size[2] / 2];
+      if (h.end === 'head') expect(top - frame.lip.top).toBeCloseTo(h.barb.engage, 6);
+      else expect(frame.lip.bottom - bottom).toBeCloseTo(h.barb.engage, 6);
+    }
+    // lifted to hang it, the short hooks clear the sill lip while the long ones stay below the head lip's tip
+    expect(fit.lift).toBeCloseTo(fit.engage.sill + HOOK_FIT.clearance, 6);
+    expect(fit.headClear).toBeGreaterThan(fit.lift);
+    // two screws in each hook, from the room side into the stile
+    expect(l.fasteners.filter(f => f.component === 'hook-screws').map(f => f.direction)).toEqual(Array(8).fill([0, 1, 0]));
+  });
+
+  it('refuses a window the hooks cannot fit, or whose sash would not close over them', () => {
+    expect(validateWindowInsert('direct', { ...hung, sealGap: 1.5 }).join(' ')).toMatch(/seal gap \(1.5 mm\) is too narrow/);
+    expect(validateWindowInsert('direct', { ...hung, frameLip: 4 }).join(' ')).toMatch(/frame lip 5–35 mm thick, not 4 mm/);
+    // the modular cat gate's latch stands behind the collar's back, in front of the sash: a thin lip leaves too little room
+    expect(validateWindowInsert('modular', { ...hung, frameLip: 5, sealGap: 2.5 }).join(' ')).toMatch(/gate’s latch needs 13 mm/);
+    expect(validateWindowInsert('direct', { ...hung, frameLip: 5, sealGap: 2.5 })).toEqual([]);
+  });
+
+  it('is hung, lifted, on the frame and let down onto its feet, and says how', () => {
+    const steps = windowInsertSteps('modular', hung);
+    expect(steps.map(s => s.title)).toEqual(['Existing window', 'Join the collar', 'Fit the feet and hooks', 'Cat port and infill mesh', 'Hang it on the window frame', 'Level it and close the window', 'Gate and check']);
+    expect(steps[2]?.detail).toContain('at 16 mm');
+    expect(steps[4]?.detail).toContain(`lift it ${l.hookFit?.lift} mm`);
+    const scene = createWindowInsertScene('modular', hung);
+    scene.update({ ...installed, progress: 3.5 });
+    expect(scene.insert.position.z).toBeCloseTo(l.hookFit?.lift ?? 0, 6);
+    expect(scene.caption?.()).toMatch(/long hooks slipped up behind the frame’s head lip/);
+    scene.update({ ...installed, progress: 4 });
+    expect(scene.insert.position.z).toBe(0);
+    scene.update({ ...installed, progress: 1.75 });
+    expect(scene.caption?.()).toMatch(/Insect screen hook, long .*: bent at 16 mm/);
+    scene.dispose();
+    expect(windowInsertFacts('direct', hung).find(f => f.label === 'Hooks · bent at')?.value).toBe('16 mm');
   });
 });
