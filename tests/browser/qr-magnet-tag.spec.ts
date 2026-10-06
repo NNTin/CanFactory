@@ -32,6 +32,17 @@ test('the preview shows both parts and plays the assembly; new text and an SVG l
   await expect.poll(async () => Number(await slider.inputValue()), { timeout: 10_000 }).toBeGreaterThan(0.05);
   await page.getByRole('button', { name: 'Pause assembly' }).click();
 
+  // Embedded magnets: the border is rendered with sealed cavities, and the editor says where to pause the print.
+  await page.getByLabel('Magnet mounting').selectOption('embedded');
+  await expect(page.getByText('Border: pause the print at 2.6 mm, before layer 14 at 0.2 mm layers, and drop the 4 magnets into their cavities; then resume.')).toBeVisible();
+  await expect(download).toBeEnabled({ timeout: 180_000 });
+  // they are in the border from the start: the slider has no step for them
+  await slider.press('End');
+  await slider.press('ArrowLeft');
+  await expect(slider).toHaveAttribute('aria-valuetext', 'Lift and lay out the parts');
+  await page.getByLabel('Magnet mounting').selectOption('pockets');
+  await expect(download).toBeEnabled({ timeout: 180_000 });
+
   // New text renders a new code: the API gets the text, never a matrix.
   await page.getByLabel('QR code text').fill('https://github.com/NNTin/CanFactory');
   await expect(page.getByText('QR version 5: 37 × 37 modules')).toBeVisible();

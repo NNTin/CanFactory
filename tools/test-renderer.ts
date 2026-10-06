@@ -42,6 +42,22 @@ function decodeTop(mesh: Mesh, threshold: number, half: number): string | undefi
   top.forEach((z, index) => data.set(z === -Infinity ? [47, 111, 214, 255] : z > threshold ? [20, 20, 24, 255] : [238, 239, 241, 255], index * 4));
   return jsQR(data, side, side, { inversionAttempts: 'dontInvert' })?.data;
 }
+/** How many separate closed shells a mesh has (vertices joined by their triangles). */
+function shells(mesh: Mesh): number {
+  const ids = new Map<string, number>(), parent: number[] = [];
+  const find = (i: number): number => { let r = i; while (parent[r] !== r) r = parent[r] ?? r; return r; };
+  const id = (k: number) => {
+    const key = Array.from(mesh.tris.subarray(k, k + 3)).join(',');
+    let found = ids.get(key);
+    if (found === undefined) { found = ids.size; ids.set(key, found); parent.push(found); }
+    return found;
+  };
+  for (let i = 0; i < mesh.tris.length; i += 9) {
+    const [a, b, c] = [id(i), id(i + 3), id(i + 6)].map(find) as [number, number, number];
+    parent[b] = a; parent[c] = a; parent[find(b)] = a;
+  }
+  return new Set(parent.map((_, i) => find(i))).size;
+}
 const WIDE_BAR = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg"><rect width="80" height="20" rx="5"/></svg>');
 const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
@@ -385,6 +401,12 @@ try {
     { name: 'thinnest centre, fine layers', overrides: { baseThickness: 0.8, reliefHeight: 0.4, layerHeight: 0.08 } },
     { name: 'thinnest base that holds joint magnets, 3 mm magnets', overrides: { baseThickness: 1.2, joint: 'magnets', magnet: 'supermagnete-s-06-03-n' } },
     { name: 'thickest centre', overrides: { baseThickness: 3, reliefHeight: 2, joint: 'detent', fit: 0.6 } },
+    // embedded magnets: sealed cavities in the border, at the pause height for the layer height
+    ...QR_TAG_JOINTS.map(joint => ({ name: `embedded magnets, ${joint}`, overrides: { magnetMount: 'embedded', joint } })),
+    { name: 'embedded magnets, round magnet joint, 2 pairs of 10 × 3 mm', overrides: { magnetMount: 'embedded', shape: 'round', size: 80, joint: 'magnets', magnetCount: 2, magnet: 'supermagnete-s-10-03-n' } },
+    { name: 'embedded magnets at the finest layers', overrides: { magnetMount: 'embedded', layerHeight: 0.08 } },
+    { name: 'embedded magnets at the coarsest layers', overrides: { magnetMount: 'embedded', layerHeight: 0.32, reliefHeight: 0.7 } },
+    { name: 'embedded magnets, smallest tile', overrides: { magnetMount: 'embedded', size: 30, borderWidth: 3, quietZone: 1, qrText: 'hi', errorCorrection: 'L', cornerRadius: 0 } },
   ];
   for (const { name, overrides } of only && only !== 'qr-magnet-tag' ? [] : tagRuns) {
     const started = Date.now();
@@ -413,6 +435,10 @@ try {
     near(centre?.dimensions.y, p.joint === 'twist-lock' ? layout.centreWidth + QR_TAG.lugDepth : across, 'centre depth');
     // the centre seen from above: whatever stands above the middle of the relief is dark
     const entries = unzipSync(new Uint8Array(await readFile(store.artifacts.path(job.id, 'zip'))));
+    // embedded magnets: the border is one outer shell with a sealed cavity per magnet inside it (the worker checked they face inwards)
+    const borderStl = entries['border.stl']; assert.ok(borderStl, 'border.stl');
+    const cavities = layout.embedded ? layout.backPockets.length + layout.jointPockets.length : 0;
+    assert.equal(shells(parseStl(Buffer.from(borderStl.buffer, borderStl.byteOffset, borderStl.byteLength))), 1 + cavities, `QR tag ${name}: the border's shells`);
     const stl = entries['centre.stl']; assert.ok(stl, 'centre.stl');
     const decoded = decodeTop(parseStl(Buffer.from(stl.buffer, stl.byteOffset, stl.byteLength)), p.baseThickness + p.reliefHeight / 2, layout.centreWidth / 2 + 3);
     assert.equal(decoded, p.qrText, `QR tag ${name}: the rendered centre decodes to ${JSON.stringify(decoded)}`);

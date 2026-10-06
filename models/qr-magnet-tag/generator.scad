@@ -2,7 +2,8 @@
 //
 // A flat tag for a fridge or a whiteboard, in two printed parts (PART):
 //
-// - "border": the frame. Disc magnets sit in pockets in its back, so that the tag sticks to steel. It is a shallow tray: a floor
+// - "border": the frame. Disc magnets sit in its back, so that the tag sticks to steel: in open pockets, pressed or glued in
+//   after printing (MOUNT = "pockets"), or sealed in cavities that they are dropped into when the print pauses ("embedded"). It is a shallow tray: a floor
 //   that holds the magnets, and round it the visible ring, BORDER_WIDTH wide, whose inside is the seat for the centre piece. It
 //   prints back down (the magnets' pockets open onto the bed: each needs only a short bridge over it, no supports).
 // - "centre": a plate that carries a QR code, and in its middle an optional logo. It prints base down as ONE model in two colours:
@@ -49,6 +50,10 @@ JOINT = "crush-ribs"; //[crush-ribs,detent,twist-lock,magnets]
 FIT = 0.2; //[0.05:0.01:0.6]
 // Magnets in the back (and pairs of joint magnets)
 MAGNET_COUNT = 4; //[2:2:4]
+// How the border holds its magnets: open pockets (pressed or glued in), or sealed cavities they are dropped into at a print pause
+MOUNT = "pockets"; //[pockets,embedded]
+// The slicer's layer height: the pause height of embedded magnets is on a layer boundary
+LAYER = 0.2; //[0.08:0.02:0.32]
 // The chosen magnet's greatest diameter and height (from the parts library)
 MAGNET_D = 8.1;
 MAGNET_T = 2.1;
@@ -84,6 +89,8 @@ RIBS_PER_SIDE = 2;      //   how many per side of a square seat,
 RIBS_ROUND = 8;         //   and round a round one
 DETENT_ENGAGE = 0.2;    // detent: how far the bumps reach past the seat wall,
 DETENT_SPAN = 0.4;      //   and how much of each side they span
+EMBED_SKIN = 0.4;       // embedded magnets: the least skin under them (whole layers),
+EMBED_HEADROOM = 0.05;  //   and over them before the pause
 GROW = 0.01;            // every module is grown by this, so that touching modules overlap rather than share an edge
 
 // --- derived layout (qrTagLayout) ---
@@ -92,7 +99,15 @@ POCKET_DEPTH = MAGNET_T;
 CENTRE_POCKET = min(POCKET_DEPTH, BASE - CENTRE_WALL);
 PROTRUSION = POCKET_DEPTH - CENTRE_POCKET;
 JOINT_POCKET = POCKET_DEPTH + PROTRUSION + MAGNET_GAP;
-FLOOR = max(POCKET_DEPTH + FLOOR_WALL, JOINT == "magnets" ? JOINT_POCKET + JOINT_BACK_WALL : 0);
+// a height rounded up to whole layers, to the micrometre
+function layers(h) = round(ceil(h / LAYER - 1e-9) * LAYER * 1e6) / 1e6;
+// Embedded: every magnet of the border lies in a sealed cavity from SKIN over the back up to PAUSE (where the print pauses for
+// them), under FLOOR_WALL of floor; the centre's joint magnet still stands out into an open pocket above that.
+EMBEDDED = MOUNT == "embedded";
+SKIN = EMBEDDED ? layers(EMBED_SKIN) : 0;
+PAUSE = EMBEDDED ? layers(SKIN + POCKET_DEPTH + EMBED_HEADROOM) : 0;
+FLOOR = EMBEDDED ? PAUSE + FLOOR_WALL + (JOINT == "magnets" ? PROTRUSION + MAGNET_GAP : 0)
+  : max(POCKET_DEPTH + FLOOR_WALL, JOINT == "magnets" ? JOINT_POCKET + JOINT_BACK_WALL : 0);
 SEAT_DEPTH = BASE + RELIEF;
 HEIGHT = FLOOR + SEAT_DEPTH;
 ROUND_SEAT = SHAPE == "round" || JOINT == "twist-lock";
@@ -172,9 +187,15 @@ module border() {
       // so that the channel's floor is the seat's floor, not a second face in the same plane
       rotate_extrude($fn = 4 * ARC) polygon([[0, FLOOR], [CHANNEL_R, FLOOR], [CHANNEL_R, FLOOR + LUG_HEIGHT + FIT], [SEAT_W / 2, FLOOR + LUG_HEIGHT + FIT], [SEAT_W / 2, HEIGHT + 1], [0, HEIGHT + 1]]);
     else translate([0, 0, FLOOR]) linear_extrude(height = SEAT_DEPTH + 1) polygon(ring(0));
-    for (p = BACK_POCKETS) translate([p[0], p[1], -1]) cylinder(d = POCKET_D, h = POCKET_DEPTH + 1, $fn = 48);
+    if (EMBEDDED) {
+      // sealed cavities, the back's and the seat's at the same heights, so that one pause serves them all
+      for (p = concat(BACK_POCKETS, JOINT_POCKETS)) translate([p[0], p[1], SKIN]) cylinder(d = POCKET_D, h = PAUSE - SKIN, $fn = 48);
+      // the open pocket the centre's joint magnet stands into
+      if (JOINT == "magnets") for (p = JOINT_POCKETS) translate([p[0], p[1], FLOOR - PROTRUSION - MAGNET_GAP]) cylinder(d = POCKET_D, h = PROTRUSION + MAGNET_GAP + 1, $fn = 48);
+    }
+    else for (p = BACK_POCKETS) translate([p[0], p[1], -1]) cylinder(d = POCKET_D, h = POCKET_DEPTH + 1, $fn = 48);
     translate([0, 0, -1]) cylinder(d = PUSH_HOLE, h = FLOOR + 2, $fn = 32);
-    if (JOINT == "magnets") for (p = JOINT_POCKETS) translate([p[0], p[1], FLOOR - JOINT_POCKET]) cylinder(d = POCKET_D, h = JOINT_POCKET + 1, $fn = 48);
+    if (JOINT == "magnets" && !EMBEDDED) for (p = JOINT_POCKETS) translate([p[0], p[1], FLOOR - JOINT_POCKET]) cylinder(d = POCKET_D, h = JOINT_POCKET + 1, $fn = 48);
     if (JOINT == "detent") {
       // a groove round the seat wall, DETENT_ENGAGE + FIT deep, at the height of the bumps on the centre's edge
       g = DETENT_ENGAGE + FIT;

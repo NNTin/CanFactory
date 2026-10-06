@@ -1710,7 +1710,7 @@ export interface operations {
                         reliefHeight: number;
                         /**
                          * Layer height
-                         * @description Your slicer’s layer height, in mm. Only used to work out the filament-change height and to check the relief has at least two dark layers.
+                         * @description Your slicer’s layer height, in mm. Used to work out the filament-change height (and to check the relief has at least two dark layers), and with embedded magnets the pause height, which it puts on a layer boundary.
                          * @default 0.2
                          */
                         layerHeight: number;
@@ -1734,6 +1734,13 @@ export interface operations {
                          * @enum {unknown}
                          */
                         magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-02-n" | "supermagnete-s-08-03-n" | "supermagnete-s-10-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
+                        /**
+                         * Magnet mounting
+                         * @description Open pockets that the magnets are pressed or glued into after printing, or sealed cavities that they are dropped into when the print pauses.
+                         * @default pockets
+                         * @enum {unknown}
+                         */
+                        magnetMount: "pockets" | "embedded";
                         /**
                          * Magnets in the back
                          * @description How many magnets the back holds: two on one diagonal, or four in the corners. The magnet joint uses as many again, twice.

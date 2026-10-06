@@ -226,7 +226,19 @@ export const QR_TAG = {
   minModule: 1,
   /** The smallest seat (the inside of the border). */
   minSeat: 20,
+  /** Embedded magnets: the least skin between a magnet and the back face (rounded up to whole layers), and the least headroom over
+   * the magnet's greatest height before the print pauses (the cavity's top is the pause height, on a layer boundary). */
+  embedSkin: 0.4, embedHeadroom: 0.05,
 } as const;
+
+/** How the magnets are held: in open pockets, pressed or glued in after printing, or sealed in cavities, dropped in when the print
+ * pauses. */
+export const QR_TAG_MOUNTS = ['pockets', 'embedded'] as const;
+export type QrTagMount = typeof QR_TAG_MOUNTS[number];
+
+/** A height rounded up to whole layers (to the micrometre, as the SCAD file's `layers`). */
+export const toLayers = (height: number, layerHeight: number): number =>
+  Math.round(Math.ceil(height / layerHeight - 1e-9) * layerHeight * 1e6) / 1e6;
 
 export const QR_TAG_JOINTS = ['crush-ribs', 'detent', 'twist-lock', 'magnets'] as const;
 export type QrTagJoint = typeof QR_TAG_JOINTS[number];
@@ -237,6 +249,7 @@ export type QrTagShape = typeof QR_TAG_SHAPES[number];
 export interface QrTagShapeSettings {
   shape: QrTagShape; size: number; cornerRadius: number; borderWidth: number; quietZone: number;
   baseThickness: number; reliefHeight: number; joint: QrTagJoint; fit: number; magnetCount: number;
+  magnetMount: QrTagMount; layerHeight: number;
   magnetDiameter: number; magnetThickness: number;
 }
 
@@ -253,7 +266,16 @@ export function qrTagLayout(p: QrTagShapeSettings) {
   const centrePocket = Math.min(pocketDepth, p.baseThickness - t.centreWall);
   const protrusion = pocketDepth - centrePocket;
   const jointPocket = pocketDepth + protrusion + t.magnetGap;
-  const floor = Math.max(pocketDepth + t.floorWall, p.joint === 'magnets' ? jointPocket + t.jointBackWall : 0);
+  // Embedded: every magnet of the border (in the back, and the magnet joint's in the seat) lies in a sealed cavity from `skin`
+  // over the back face up to the pause height; the floor closes over it. The centre's joint magnet still stands out of the centre
+  // into an open pocket above that floor.
+  const embedded = p.magnetMount === 'embedded';
+  const skin = embedded ? toLayers(t.embedSkin, p.layerHeight) : 0;
+  const pauseHeight = embedded ? toLayers(skin + pocketDepth + t.embedHeadroom, p.layerHeight) : 0;
+  const floor = embedded ? pauseHeight + t.floorWall + (p.joint === 'magnets' ? protrusion + t.magnetGap : 0)
+    : Math.max(pocketDepth + t.floorWall, p.joint === 'magnets' ? jointPocket + t.jointBackWall : 0);
+  const backMagnetZ = skin;
+  const seatMagnetZ = embedded ? skin : floor - jointPocket;
   const seatDepth = p.baseThickness + p.reliefHeight;
   const height = floor + seatDepth;
   const roundSeat = p.shape === 'round' || p.joint === 'twist-lock';
@@ -276,7 +298,7 @@ export function qrTagLayout(p: QrTagShapeSettings) {
   // twist lock: the channel under the lip that the lugs turn in, and the lip over them
   const channelRadius = seatWidth / 2 + t.lugDepth + p.fit;
   const lip = seatDepth - t.lugHeight - p.fit;
-  return { pocketD, pocketDepth, centrePocket, protrusion, jointPocket, floor, seatDepth, height, roundSeat, seatWidth, seatRadius, centreWidth, centreRadius, codeWidth, backPockets, jointPockets, channelRadius, lip };
+  return { pocketD, pocketDepth, centrePocket, protrusion, jointPocket, embedded, skin, pauseHeight, backMagnetZ, seatMagnetZ, floor, seatDepth, height, roundSeat, seatWidth, seatRadius, centreWidth, centreRadius, codeWidth, backPockets, jointPockets, channelRadius, lip };
 }
 export type QrTagLayout = ReturnType<typeof qrTagLayout>;
 
@@ -284,8 +306,7 @@ export type QrTagLayout = ReturnType<typeof qrTagLayout>;
 export const moduleSize = (layout: QrTagLayout, modules: number, quietZone: number): number => layout.codeWidth / (modules + 2 * quietZone);
 
 /** The height at which to change to the dark filament: the base's top, rounded up to a layer boundary. */
-export const filamentChangeHeight = (baseThickness: number, layerHeight: number): number =>
-  Math.round(Math.ceil(baseThickness / layerHeight - 1e-9) * layerHeight * 1000) / 1000;
+export const filamentChangeHeight = (baseThickness: number, layerHeight: number): number => toLayers(baseThickness, layerHeight);
 
 /** Problems with the magnet pockets for these settings (empty when they fit), in words for the user. */
 export function magnetPocketIssues(p: QrTagShapeSettings, layout: QrTagLayout = qrTagLayout(p)): string[] {

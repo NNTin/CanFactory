@@ -212,7 +212,7 @@ describe('QR magnet tag contract', () => {
       POCKET_PLAY: t.pocketPlay, FLOOR_WALL: t.floorWall, SIDE_WALL: t.sideWall, JOINT_BACK_WALL: t.jointBackWall, CENTRE_WALL: t.centreWall, MAGNET_GAP: t.magnetGap,
       PUSH_HOLE: t.pushHole, SEAT_RADIUS: t.seatRadius, LUG_DEPTH: t.lugDepth, LUG_ANGLE: t.lugAngle, LUG_HEIGHT: t.lugHeight, LUGS: t.lugs, LOCK_ANGLE: t.lockAngle,
       TWIST_ENGAGE: t.twistEngage, RIDGE_ANGLE: t.ridgeAngle, STOP_ANGLE: t.stopAngle, RIB_RADIUS: t.ribRadius, RIB_SQUEEZE: t.ribSqueeze, RIBS_PER_SIDE: t.ribsPerSide,
-      RIBS_ROUND: t.ribsRound, DETENT_ENGAGE: t.detentEngage, DETENT_SPAN: t.detentSpan,
+      RIBS_ROUND: t.ribsRound, DETENT_ENGAGE: t.detentEngage, DETENT_SPAN: t.detentSpan, EMBED_SKIN: t.embedSkin, EMBED_HEADROOM: t.embedHeadroom,
     };
     for (const [name, value] of Object.entries(fixed)) expect(source, name).toMatch(new RegExp(`^${name} = ${String(value).replace('.', '\\.')};`, 'm'));
   });
@@ -287,6 +287,32 @@ describe('QR magnet tag contract', () => {
     expect(issues({ joint: 'twist-lock', borderWidth: 3, size: 120 })).toEqual([]);
     expect(said({ borderWidth: 20, size: 50 }, 'borderWidth')).toContain('at least 20 mm');
     expect(said({ cornerRadius: 20, size: 30 }, 'cornerRadius')).toContain('At most 14 mm');
+  });
+
+  it('embeds the magnets in sealed cavities that close at a pause height on a layer boundary', () => {
+    const layout = (parameters: ParameterValues) => qrTagLayout(qrTagSettings({ ...defaults, magnetMount: 'embedded', ...parameters }));
+    // 0.4 mm of skin, the 2.1 mm magnet and 0.05 mm of headroom: the cavity closes at 2.6 mm (a layer boundary), under 0.8 mm of floor
+    expect(layout({})).toMatchObject({ embedded: true, skin: 0.4, pauseHeight: 2.6, backMagnetZ: 0.4 });
+    expect(layout({}).floor).toBeCloseTo(3.4, 9);
+    // the layer height moves the pause onto its layers: 0.48 mm of skin and a pause at 2.64 mm at 0.12 mm layers; 0.64 and 2.88 at 0.32
+    expect(layout({ layerHeight: 0.12 })).toMatchObject({ skin: 0.48, pauseHeight: 2.64 });
+    expect(layout({ layerHeight: 0.32 })).toMatchObject({ skin: 0.64, pauseHeight: 2.88 });
+    // with the magnet joint, the seat's magnets are embedded at the same height (one pause), and the centre's stands into an open
+    // pocket above the floor over them
+    const joint = layout({ joint: 'magnets' });
+    expect(joint.seatMagnetZ).toBe(joint.skin);
+    expect(joint.floor).toBeCloseTo(joint.pauseHeight + QR_TAG.floorWall + joint.protrusion + QR_TAG.magnetGap, 9);
+    expect(issues({ magnetMount: 'embedded', joint: 'magnets' })).toEqual([]);
+    // the editor says where to pause, and how many magnets go in
+    expect(qrMagnetTag.derived({ ...defaults, magnetMount: 'embedded' }).notes).toContain('Border: pause the print at 2.6 mm, before layer 14 at 0.2 mm layers, and drop the 4 magnets into their cavities; then resume.');
+    expect(qrMagnetTag.derived({ ...defaults, magnetMount: 'embedded', joint: 'magnets', magnetCount: 2 }).notes?.join(' ')).toContain('drop the 4 magnets');
+    expect(qrMagnetTag.derived(defaults).notes?.join(' ')).not.toContain('pause');
+    expect(qrMagnetTag.parts.find(part => part.id === 'border')?.sealedVoids).toBe(true);
+    // embedded magnets are in the border from the start: no step of their own, and no gluing step for the seat's
+    const assembly = resolveAssembly(qrMagnetTag, qrMagnetTag.assembly, { ...defaults, magnetMount: 'embedded', joint: 'magnets' });
+    expect(assembly?.steps.map(step => step.title)).toEqual(['Set the centre onto the joint magnets']);
+    expect(assembly?.poses['magnet-back-1']?.position[2]).toBe(0.4);
+    expect(assembly?.poses['magnet-seat-1']?.position[2]).toBe(0.4);
   });
 
   it('assembles both parts and the magnets, in steps that suit the joint', () => {

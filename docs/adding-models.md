@@ -54,7 +54,9 @@ variable each becomes, and the worker passes only those as `-D`. One key may fee
 `towerDiameter` feeds all five, which is what makes their threads mate), and several parts may share a source file with
 different mappings (both lattice segments are `raute.scad`, with `ROWS` fed by `shortRauteRows` or `tallRauteRows`). A part that only exists for some settings (the cigarette case's `case-text`) sets `ModelPart.includedWhen`; the worker renders
 `activeParts(model, parameters)`, and `separateBodies` relaxes the one-connected-body check for a part that is several closed
-bodies by design (see [cigarette-case-text.md](cigarette-case-text.md)). A
+bodies by design (see [cigarette-case-text.md](cigarette-case-text.md)). `sealedVoids` lets a part enclose sealed voids by design, such as
+cavities for magnets dropped in at a print pause: one outer shell, with inward-facing shells inside it (see
+[qr-magnet-tag.md](qr-magnet-tag.md#embedded-magnets-print-pause)). A
 model with no adjustable parameters simply leaves every mapping empty (empty `parameterSchema`, no controls); the catalogue then reports `customizable: false` and the web app shows it as an assembly preview. The cigarette case is registered this way: its five parts point at the verified static reconstructions in `models/cigarette-case/reference/`, and a later iteration replaces them with parametric generators (add the parameters, bump the version). Part
 mappings are part of the cache fingerprint, as are all part sources. Because a part receives no other `-D`, its own
 constants (`ROUNDNESS` etc.) apply exactly as written.

@@ -3,7 +3,8 @@
 A flat tag that sticks to a fridge or a whiteboard, in two printed parts
 ([issue #48](https://github.com/NNTin/CanFactory/issues/48)):
 
-- **Border** (`border`): the frame. Disc magnets from the parts library sit in pockets in its back.
+- **Border** (`border`): the frame. Disc magnets from the parts library sit in its back: in open pockets, pressed or glued in, or
+  **embedded** in sealed cavities that they are dropped into when the print pauses (`magnetMount`).
 - **Centre** (`centre`): a plate carrying a QR code of `qrText`, with an optional SVG logo in its middle. It prints as **one
   model in two colours**: a light base, then the dark modules and logo raised on it, with **one filament change**.
 
@@ -25,11 +26,12 @@ The centre is held in the border by the chosen `joint`. An original CanFactory d
 | `logoSize` | 20 % | 10–40 % of the code's width | Limited by the error correction (see [Logo](#logo)). |
 | `baseThickness` | 1.6 mm | 0.8–3 | The light base. The filament change is at its top. |
 | `reliefHeight` | 0.6 mm | 0.4–2 | How high the dark modules and the logo stand on the base. |
-| `layerHeight` | 0.2 mm | 0.08–0.32 | Your slicer's layer height: only for the reported change height and its check. |
+| `layerHeight` | 0.2 mm | 0.08–0.32 | Your slicer's layer height: for the reported change height and its check, and with embedded magnets the pause height (the only geometry it changes). |
 | `joint` | `crush-ribs` | `crush-ribs` `detent` `twist-lock` `magnets` | How the centre is held. |
 | `fit` | 0.2 mm | 0.05–0.6 | Gap per side between the centre and the seat, with bands and per-joint recommendations. |
 | `magnet` | S-08-02-N (8 × 2 mm) | the library's disc magnets up to 12 × 3 mm | Back pockets, and the `magnets` joint. |
 | `magnetCount` | 4 | 2 or 4 | Back pockets: two on one diagonal, or one in each corner. |
+| `magnetMount` | `pockets` | `pockets` `embedded` | Open pockets (press or glue the magnets in after printing), or sealed cavities (drop them in at a print pause). |
 
 The module size is `codeWidth / (modules + 2 × quietZone)`, where `codeWidth` is the largest square on the centre's face (a
 rounded square loses its corner arcs; a disc's inscribed square is its diameter / √2). Validation refuses modules under
@@ -57,6 +59,31 @@ the ring's front, the visible face, is the top surface. No part needs supports.
 
 **The centre prints base down**: the light base (`baseThickness`), then the dark modules and the logo
 (`reliefHeight`). It goes into the seat the same way up, so the assembly needs no turning over.
+
+### Embedded magnets (print pause)
+
+With `magnetMount = embedded` every magnet of the border (the back's, and with the magnet joint the seat's) lies in a **sealed
+cavity**: from a skin over the back face up to the **pause height**, under the floor's 0.8 mm wall. All cavities share those
+heights, so one pause serves them all.
+
+- The skin is at least 0.4 mm, in whole layers (`toLayers`): 0.4 mm at 0.2 or 0.08 mm layers, 0.48 mm at 0.12, 0.64 mm at 0.32.
+- The pause height is the skin plus the magnet's greatest height plus 0.05 mm of headroom, rounded up to a layer boundary:
+  **2.6 mm, before layer 14** for the default 8 × 2 mm magnets at 0.2 mm layers. The cavity's top is that boundary, so the next
+  layer is the first to bridge over the magnets, and the nozzle never meets one. This is the only geometry `layerHeight` changes.
+- The floor grows by the skin and the headroom (3.4 mm instead of 2.9 mm by default). With the magnet joint, the centre's magnet
+  still stands into an open pocket above the floor over the embedded seat magnet (the two then 1.0 mm apart instead of 0.2 mm).
+- The editor shows the pause under the settings ("Border: pause the print at 2.6 mm, before layer 14 … and drop the 4 magnets
+  into their cavities; then resume"). In the slicer, add a pause (PrusaSlicer/OrcaSlicer: *Add pause print* at that height;
+  Cura: *Pause at height*) before that layer.
+- The skin costs some hold: the magnets no longer touch the steel. Choose a larger magnet, or open pockets, for heavy use.
+- Neodymium magnets jump to a steel print sheet and to each other: drop each in with tweezers, and check before resuming that all
+  sit flat at the bottom of their cavities (a raised one would be hit by the nozzle).
+- The STL encloses the cavities as inward-facing shells. That is a new, generic option of the mesh check:
+  `ModelPart.sealedVoids` lets `inspectStl` (`allowVoids`) accept exactly one outer shell plus shells that face inwards (negative
+  volume) and lie inside it, which a ray-parity test confirms; a second body beside the first is still refused. The renderer
+  test counts the border's shells: one plus a cavity per magnet.
+- In the assembly preview the embedded magnets are in the border from the start: they have no step, and with the magnet joint the
+  seat magnets are not glued in either. Hide the border (its button under the slider) to see them.
 
 ### The colour change
 
@@ -151,7 +178,12 @@ magnet of the library up to 12.1 × 3.1 mm (`qrTagMagnetFits`), and a test keeps
 `magnetPocketIssues` checks that the pockets fit the tile (1.2 mm of wall to the edge, to the push-out hole and between
 pockets).
 
-**Polarity.** The back magnets only need to hold to steel: any pole may face the back, but put them all the same way round, so
+**Polarity.** With embedded magnets the same rules apply at the pause: drop the back magnets in all the same way up, and with the
+magnet joint drop each seat magnet in with the pole you want facing the centre on top (mark it first); after printing, set each
+of the centre's magnets onto the finished border over its seat magnet, so that it takes the attracting side, before gluing it into
+the centre.
+
+The back magnets only need to hold to steel: any pole may face the back, but put them all the same way round, so
 that neighbours do not push each other out of their pockets while the glue sets. With the magnet joint, the pairs must attract:
 glue the seat magnets in first, then set each of the centre's magnets onto its seat magnet before gluing it into the centre, so
 that it takes the attracting side. The joint magnets lie on the axes and the back magnets on the diagonals, at least a pocket
@@ -178,6 +210,11 @@ Every magnet in its pocket, and the exploded layout, share 0.00 mm³; the explod
 The same holds for a round twist lock with two magnets (0.27 mm³ while turning), a round magnet joint with 6 × 3 mm magnets,
 a 120 mm twist lock at 0.6 mm fit with 12 mm magnets (0.20 mm³), a 40 mm round detent at 0.4 mm fit (1.47 mm³ clicking in) and
 crush ribs at 0.6 mm fit (0.37 mm³).
+
+Embedded magnets (`magnetMount: embedded`) share 0.00 mm³ with the border in their sealed cavities, with the crush ribs (0.80 mm³
+assembled, as above), the magnet joint, and a round twist lock with two magnets at 0.32 mm layers (0.27 mm³ while turning). A
+negative control raising the cavities 0.8 mm above the magnets (`--defines '{"EMBED_SKIN":1.2}'`) shares 41.05 mm³ per magnet, so
+the check sees magnets inside sealed cavities.
 
 **Negative control** (`--defines '{"FIT":-0.3}'`, the centre 0.3 mm larger than the seat on every side): border × centre shares
 76.9 mm³ for the crush ribs, the detent and the magnets and 54.1 mm³ for the twist lock (58.3 mm³ while turning), and the
@@ -217,12 +254,14 @@ checked character by character, which reaches OpenSCAD as numbers.
   fullest code of every version from 1 to 10 at every error correction, the largest allowed logo at `Q` and `H` for versions 2
   to 12, and the codeword count at full capacity for versions 2 to 9; and the contract (validation messages, SCAD defaults and
   fixed sizes, the magnet list, the assembly).
-- `TEST_ONLY=qr-magnet-tag npm run test:renderer`: 25 real renders (every joint on both shapes, the smallest and largest tiles,
+- `TEST_ONLY=qr-magnet-tag npm run test:renderer`: 33 real renders, eight of them with embedded magnets (every joint, a round magnet
+  joint with 10 × 3 mm magnets, the finest and coarsest layers, the smallest tile), the border counted as one shell plus a cavity
+  per magnet; the 25 others (every joint on both shapes, the smallest and largest tiles,
   the longest text at `L`, a logo at `H` and the largest logo at `Q`, the fit's extremes for every joint, the thinnest and
-  thickest centres). Each part must be one closed solid of the expected size with no sliver repairs, and the **rendered
+  thickest centres. Each part must be one closed solid of the expected size with no sliver repairs, and the **rendered
   centre's STL**, seen from above (dark where the relief stands), must decode to the text with jsQR.
-- `TEST_ONLY=qr-magnet-tag npm run test:sweep`: boundaries and random settings; 78 renders, no repairs, no failures (seed 1, 40
-  samples).
+- `TEST_ONLY=qr-magnet-tag npm run test:sweep`: boundaries and random settings; 78 renders (seed 1), 118 (seed 7) and 119
+  (seed 11, 42 of them with embedded magnets), no repairs, no failures.
 - `npm run test:browser -- qr-magnet-tag`: the editor's preview of both parts, the slider, new text and an SVG logo re-rendering,
   and the card's animation.
 

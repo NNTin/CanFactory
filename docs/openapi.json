@@ -3894,6 +3894,7 @@
                           "joint",
                           "fit",
                           "magnet",
+                          "magnetMount",
                           "magnetCount"
                         ],
                         "properties": {
@@ -3998,7 +3999,7 @@
                           "layerHeight": {
                             "type": "number",
                             "title": "Layer height",
-                            "description": "Your slicer’s layer height, in mm. Only used to work out the filament-change height and to check the relief has at least two dark layers.",
+                            "description": "Your slicer’s layer height, in mm. Used to work out the filament-change height (and to check the relief has at least two dark layers), and with embedded magnets the pause height, which it puts on a layer boundary.",
                             "default": 0.2,
                             "minimum": 0.08,
                             "maximum": 0.32,
@@ -4039,6 +4040,15 @@
                             "title": "Magnets",
                             "description": "The round magnets in the back of the border (and, with the magnet joint, in the seat and the centre). Each is a real product from the parts library; its pockets are cut to its greatest size.",
                             "default": "supermagnete-s-08-02-n"
+                          },
+                          "magnetMount": {
+                            "enum": [
+                              "pockets",
+                              "embedded"
+                            ],
+                            "title": "Magnet mounting",
+                            "description": "Open pockets that the magnets are pressed or glued into after printing, or sealed cavities that they are dropped into when the print pauses.",
+                            "default": "pockets"
                           },
                           "magnetCount": {
                             "type": "number",
