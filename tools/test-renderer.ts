@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { activeParts, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
@@ -63,7 +63,7 @@ const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
 store.migrate(); store.seed();
 const app = await createApp(store);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = selectRunner(directory);
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -641,6 +641,67 @@ try {
         assert.ok(Math.abs(value - (expected[index] ?? NaN)) < 0.01, `toggle latch ${name} ${part.id}: ${value} != ${expected[index]}`);
     }
     console.log(`PASS toggle latch ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+  // Printed corner bracket: the defaults (the window insert's), uneven legs with one hole, the widest and thickest plate for 6 mm
+  // screws, the smallest for 3 mm ones, five holes a leg, and both other fits. One closed solid, as long as each leg and as thick as
+  // the plate, with every hole through it (genus = holes).
+  const bracketRuns: { name: string; overrides: ParameterValues }[] = [
+    { name: 'default', overrides: {} },
+    { name: 'uneven legs, one hole each', overrides: { legA: 150, legB: 80, holesPerLeg: 1 } },
+    { name: 'widest, thickest, 6 mm screws', overrides: { legA: 140, legB: 140, width: 40, thickness: 10, holesPerLeg: 2, holeSpacing: 30, firstHole: 60, woodScrewDiameter: '6 mm', woodScrew: 'din-7997-6x60' } },
+    { name: 'smallest, 3 mm screws, fine', overrides: { legA: 40, legB: 40, width: 10, thickness: 3, holesPerLeg: 1, firstHole: 20, woodScrewDiameter: '3 mm', woodScrew: 'din-7997-3x12', holeFit: 'fine' } },
+    { name: 'five holes a leg, coarse', overrides: { legA: 250, legB: 250, holesPerLeg: 5, holeSpacing: 25, holeFit: 'coarse' } },
+  ];
+  for (const { name, overrides } of only && only !== 'printed-corner-bracket' ? [] : bracketRuns) {
+    const started = Date.now();
+    const parameters = { ...printedCornerBracket.defaults, ...overrides };
+    assert.deepEqual(validateParameters(printedCornerBracket, parameters), [], `printed corner bracket ${name}`);
+    const queued = store.enqueue(printedCornerBracket, parameters);
+    const job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken;
+    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `printed corner bracket ${name}`); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `printed corner bracket ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const [bracket] = result.artifact.parts; assert.ok(bracket && result.artifact.parts.length === 1);
+    const [a, b, w, t] = ['legA', 'legB', 'width', 'thickness'].map(key => Number(parameters[key])) as [number, number, number, number];
+    for (const [index, value] of [bracket.dimensions.x, bracket.dimensions.y, bracket.dimensions.z].entries())
+      assert.ok(Math.abs(value - ([a, b, t][index] ?? NaN)) < 0.01, `printed corner bracket ${name}: ${value} != ${[a, b, t][index]}`);
+    // the plate's L less its holes
+    assert.ok(bracket.volume < (a * w + (b - w) * w) * t && bracket.volume > 0.8 * (a * w + (b - w) * w) * t, `printed corner bracket ${name}: volume ${bracket.volume}`);
+    console.log(`PASS printed corner bracket ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+  // Printed screen hook: the defaults (a VEKA Softline 82 MD), the thinnest lip with the least seal gap the 2 mm barb takes, a thin
+  // barb in a narrow gap, the thickest lip with the widest gap and the largest strip for 6 mm screws, and a coarse fit. Both hooks are
+  // one closed solid each: as deep as the barb's back, as long as the leg and the barb's rise, as wide as the strip.
+  const hookRuns: { name: string; overrides: ParameterValues }[] = [
+    { name: 'default', overrides: {} },
+    { name: 'thinnest lip, least gap', overrides: { frameLip: 5, sealGap: 3 } },
+    { name: 'thin barb in a narrow gap', overrides: { frameLip: 12, sealGap: 2.5, barbThickness: 1.5, legThickness: 3, turnThickness: 3, engage: 3, legLength: 25 } },
+    { name: 'thickest lip, widest gap, largest strip, 6 mm screws', overrides: { frameLip: 35, sealGap: 10, barbThickness: 4, engage: 15, clearance: 3, width: 20, legLength: 80, legThickness: 8, turnThickness: 8, woodScrewDiameter: '6 mm', woodScrew: 'din-7997-6x40' } },
+    { name: '4 mm screws, coarse', overrides: { width: 12, woodScrewDiameter: '4 mm', woodScrew: 'din-7997-4x25', holeFit: 'coarse' } },
+  ];
+  for (const { name, overrides } of only && only !== 'printed-screen-hook' ? [] : hookRuns) {
+    const started = Date.now();
+    const parameters = { ...printedScreenHook.defaults, ...overrides };
+    assert.deepEqual(validateParameters(printedScreenHook, parameters), [], `printed screen hook ${name}`);
+    const queued = store.enqueue(printedScreenHook, parameters);
+    const job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken;
+    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `printed screen hook ${name}`); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `printed screen hook ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['long', 'short']);
+    const screw = findPart(String(parameters['woodScrew'])); assert.ok(screw);
+    const shape = printedScreenHookShape(parameters as unknown as Parameters<typeof printedScreenHookShape>[0], screw);
+    for (const part of result.artifact.parts) {
+      const rise = part.id === 'long' ? shape.rise.long : shape.rise.short;
+      const want = [shape.back, Number(parameters['legLength']) + rise, Number(parameters['width'])];
+      for (const [index, value] of [part.dimensions.x, part.dimensions.y, part.dimensions.z].entries())
+        assert.ok(Math.abs(value - (want[index] ?? NaN)) < 0.01, `printed screen hook ${name} ${part.id}: ${value} != ${want[index]}`);
+    }
+    console.log(`PASS printed screen hook ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {
