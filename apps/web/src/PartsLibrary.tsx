@@ -76,7 +76,7 @@ function PartDetails({ detail, part }: { detail: PartFamilyDetail; part: Part })
     {attributes.length > 0 && <dl className="part-attributes">{attributes.map(([key, value]) =>
       <div key={key}><dt>{detail.family.attributes.find(attribute => attribute.key === key)?.label ?? key.replace(/([A-Z])/g, ' $1').toLowerCase()}</dt><dd>{value.replace(/^([a-z]+)-([a-z])/, '$1 $2')}</dd></div>)}</dl>}
     {part.notes && <p className="part-notes">{part.notes}</p>}
-    {market && linking && <WhereToBuy partId={part.id} offers={offers} market={market} choose={choose} />}
+    {market && linking && <WhereToBuy key={part.id} partId={part.id} offers={offers} market={market} choose={choose} />}
     <h3>Sources</h3>
     <ul className="part-sources">{part.sources.flatMap(id => { const source = sources.get(id); return source ? [source] : []; }).map(source =>
       <li key={source.id}><span className={`source-kind source-${source.kind}`}>{source.kind}</span>{source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : source.title}

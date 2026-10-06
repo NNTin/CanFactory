@@ -2159,7 +2159,8 @@ main {
 .hardware td, .buy-list-items td { padding: 8px 10px; border-bottom: 1px solid #eceee6; vertical-align: top; color: #59654d; }
 .hardware td small { color: #8a8d80; margin-left: 6px; }
 .hardware td a, .buy-list-items td a { color: #4d6b38; }
-.buy-list-page .page-heading { align-items: flex-end; }
+.buy-list-page .page-heading { align-items: flex-end; flex-wrap: wrap; gap: 16px; }
+.market-picker select { max-width: 100%; min-width: 0; }
 .buy-list-shop { margin: 0 0 26px; }
 .buy-list-shop h2, .buy-list-sources-title { font: 24px Georgia, serif; margin: 0 0 10px; }
 .buy-list-sources-title { margin-top: 34px; }
