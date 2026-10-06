@@ -1624,9 +1624,9 @@ export interface operations {
                          */
                         border: number;
                         /**
-                         * Fit
-                         * @description Play in the dovetails, round the pins and between segments, on each side, in mm.
-                         * @default 0.25
+                         * Clearance
+                         * @description Gap per side between parts that fit together, in mm: round each dovetail’s tab in its notch, between the segments’ ends, and round the strip’s pins in the side panels’ bosses. Smaller is tighter and wobbles less; raise it if your printer prints parts that are too tight to go together.
+                         * @default 0.1
                          */
                         fit: number;
                     };

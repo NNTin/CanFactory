@@ -2099,8 +2099,16 @@ export const DEFAULT_WINDOW_CAT_GUARD = {
   height: 550, gap: 105, tipWidth: 10, width: 900, maxPartLength: 210, topStrip: true,
   segmentJoints: 'nut-bolt' as SegmentJoints, jointThread: DEFAULT_JOINT_FASTENERS.thread, jointInsert: DEFAULT_JOINT_FASTENERS.insert,
   jointNut: DEFAULT_JOINT_FASTENERS.nut, jointScrew: DEFAULT_JOINT_FASTENERS.screw,
-  thickness: 4, ribHeight: 5, cell: 30, web: 4, border: 6, fit: 0.25,
+  thickness: 4, ribHeight: 5, cell: 30, web: 4, border: 6, fit: 0.1,
 } as const;
+
+/** The clearance's bands (`fit`): 0.1 mm per side is a snug fit on a tuned printer; more is looser and wobblier. */
+const GUARD_CLEARANCE_BANDS = [
+  { minimum: 0.05, maximum: 0.1, label: 'Tight (a tuned printer; may need pressing)' },
+  { minimum: 0.1, maximum: 0.2, label: 'Snug fit' },
+  { minimum: 0.2, maximum: 0.3, label: 'Sliding fit (some wobble)' },
+  { minimum: 0.3, maximum: 0.4, label: 'Loose (for printers that print tight)' },
+];
 
 export const WindowCatGuardParametersSchema = Type.Object({
   height: dimension('Height', 'Height of the side panels: how high the side gap is that they close, from the panel’s tip at the bottom to the window’s top, in mm. Above the longest part they are split into segments.', DEFAULT_WINDOW_CAT_GUARD.height, 150, 1500, 1),
@@ -2119,7 +2127,7 @@ export const WindowCatGuardParametersSchema = Type.Object({
   cell: dimension('Honeycomb holes', 'Size of the hexagonal holes, corner to corner, in mm (across flats: 0.87 ×). At most 40 mm, which a paw does not get through; 0 for solid plates.', DEFAULT_WINDOW_CAT_GUARD.cell, 0, 40, 0.5),
   web: dimension('Web', 'Width of the bars between the holes, in mm.', DEFAULT_WINDOW_CAT_GUARD.web, 2, 10, 0.1),
   border: dimension('Border', 'Solid border round every plate, in mm.', DEFAULT_WINDOW_CAT_GUARD.border, 3, 15, 0.5),
-  fit: dimension('Fit', 'Play in the dovetails, round the pins and between segments, on each side, in mm.', DEFAULT_WINDOW_CAT_GUARD.fit, 0.05, 0.6, 0.05),
+  fit: dimension('Clearance', 'Gap per side between parts that fit together, in mm: round each dovetail’s tab in its notch, between the segments’ ends, and round the strip’s pins in the side panels’ bosses. Smaller is tighter and wobbles less; raise it if your printer prints parts that are too tight to go together.', DEFAULT_WINDOW_CAT_GUARD.fit, 0.05, 0.4, 0.01),
 }, { additionalProperties: false, description: 'Window cat guard parameters. All fields are required; dimensions are in millimetres; the joint fields are parts-library ids or attribute values.' });
 export type WindowCatGuardParameters = Static<typeof WindowCatGuardParametersSchema>;
 
@@ -2210,8 +2218,11 @@ function windowCatGuardFasteners(parameters: ParameterValues): LinkedReference[]
   const stack = p.thickness + p.ribHeight;
   const tip = stack + SPLICE.thickness - screwLength(screw);
   const holderZ = insert ? stack - dimensionOf(holder, 'l') : Math.max(tip, SPLICE.nutRecess);
+  // a nut turned as its pocket is, corners along the spine: the library's hexagon has a corner at 30°, its square at 45° (the
+  // pocket's square is turned by 45° too)
+  const spin = !insert && !holder.attributes['shape']?.startsWith('square') ? -30 : 0;
   return windowCatGuardBolts(p).flatMap((bolt): LinkedReference[] => [
-    { id: `${bolt.bar}-${bolt.end}-${insert ? 'insert' : 'nut'}`, part: holder.id, label: bolt.label, pose: { position: bolt.at(holderZ), rotation: bolt.rotation }, movesWith: bolt.segment },
+    { id: `${bolt.bar}-${bolt.end}-${insert ? 'insert' : 'nut'}`, part: holder.id, label: bolt.label, pose: { position: bolt.at(holderZ), rotation: bolt.turned(spin) }, movesWith: bolt.segment },
     { id: `${bolt.bar}-${bolt.end}-screw`, part: screw.id, label: bolt.label, pose: { position: bolt.at(tip), rotation: bolt.rotation }, movesWith: bolt.bar },
   ]);
 }
@@ -2232,13 +2243,13 @@ const windowCatGuardControls = [
     { ...jointThreadFiltered(partControl(WindowCatGuardParametersSchema, 'jointNut', 'basic', 'nut', JOINT_NUTS)), visibleWhen: { control: 'segmentJoints', values: ['nut-bolt'] } },
     jointThreadFiltered(partControl(WindowCatGuardParametersSchema, 'jointScrew', 'basic', 'screw', JOINT_SCREWS))]
     .map((c): Control => ({ ...c, visibleWhen: c.visibleWhen ?? { control: 'segmentJoints', values: ['nut-bolt', 'threaded-insert'] } })),
+  { ...control(WindowCatGuardParametersSchema, 'fit', 'basic'), bands: GUARD_CLEARANCE_BANDS },
   control(WindowCatGuardParametersSchema, 'tipWidth', 'advanced'),
   control(WindowCatGuardParametersSchema, 'thickness', 'advanced'),
   control(WindowCatGuardParametersSchema, 'ribHeight', 'advanced'),
   control(WindowCatGuardParametersSchema, 'cell', 'advanced'),
   control(WindowCatGuardParametersSchema, 'web', 'advanced'),
   control(WindowCatGuardParametersSchema, 'border', 'advanced'),
-  control(WindowCatGuardParametersSchema, 'fit', 'advanced'),
 ];
 
 const WINDOW_CAT_GUARD_SOURCE = 'models/window-cat-guard/generator.scad';

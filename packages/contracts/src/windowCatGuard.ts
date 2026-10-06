@@ -118,10 +118,12 @@ const PANEL_POSE = {
 
 /**
  * One screw of a splice bar: the bar, the segment it goes into, and the screw's axis, `at(z)` giving the point at height z over the
- * plate's back in world coordinates; `rotation` turns a part's +z (a screw's head, a nut's top) along the axis, towards the bar.
- * `end` is `near` (the segment with the tab) or `far` (the segment with the notch).
+ * plate's back in world coordinates; `rotation` turns a part's +z (a screw's head, a nut's top) along the axis, towards the bar, and
+ * `turned(degrees)` does the same with the part first turned about its own z, so that its x runs along the spine (or rib) at 0 and
+ * `degrees` past it (a nut's pocket has its corners along the spine). `end` is `near` (the segment with the tab) or `far` (the
+ * segment with the notch).
  */
-export interface WindowCatGuardBolt { bar: string; segment: string; end: 'near' | 'far'; label: string; rotation: Vector; at: (z: number) => Vector }
+export interface WindowCatGuardBolt { bar: string; segment: string; end: 'near' | 'far'; label: string; rotation: Vector; turned: (degrees: number) => Vector; at: (z: number) => Vector }
 
 /** Every splice bar's two screws (none with `segmentJoints` glue). */
 export function windowCatGuardBolts(p: WindowCatGuardShape): WindowCatGuardBolt[] {
@@ -132,12 +134,15 @@ export function windowCatGuardBolts(p: WindowCatGuardShape): WindowCatGuardBolt[
   for (const side of ['left', 'right'] as const) {
     const pose = PANEL_POSE[side](p);
     const mirror = side === 'right' ? -1 : 1;
+    // the spine's direction in the panel as printed (the right panel is mirrored); turning by it and then by the panel's pose is
+    // the same as [90, −angle, ±90] (see windowCatGuardPieces)
+    const a = side === 'left' ? spineAngle(p) : 180 - spineAngle(p);
     for (let j = 1; j < l.sideSegments; j++) {
       const y = p.height - j * l.sideLength;
       for (const [end, offset, segment] of [['near', s.near, j + 1], ['far', s.far, j]] as const) {
         const [x, py] = spineAt(p, y, offset);
         bolts.push({ bar: `${side}-bar-${j}`, segment: `${side}-${segment}`, end, label: `${side} panel, joint ${j}–${j + 1}, in segment ${segment}`, rotation: pose.rotation,
-          at: z => placePoint([mirror * x, py, z], pose.rotation, pose.position) });
+          turned: degrees => [90, -(a + degrees), pose.rotation[2]], at: z => placePoint([mirror * x, py, z], pose.rotation, pose.position) });
       }
     }
   }
@@ -145,7 +150,7 @@ export function windowCatGuardBolts(p: WindowCatGuardShape): WindowCatGuardBolt[
   for (let j = 1; j < l.stripSegments; j++) for (const [r, rib] of l.ribs.entries())
     for (const [end, offset, segment] of [['near', s.near, j], ['far', s.far, j + 1]] as const)
       bolts.push({ bar: `strip-bar-${j}-${r + 1}`, segment: `strip-${segment}`, end, label: `top strip, joint ${j}–${j + 1}, rib ${r + 1}, in segment ${segment}`, rotation: [0, 0, 0],
-        at: z => [l.stripStart + j * l.stripPiece + offset, rib, stripZ + z] });
+        turned: degrees => [0, 0, degrees], at: z => [l.stripStart + j * l.stripPiece + offset, rib, stripZ + z] });
   return bolts;
 }
 

@@ -82,8 +82,8 @@ describe('window cat guard contract', () => {
     expect(said({ width: 1600, maxPartLength: 120 }, 'maxPartLength')).toContain('top strip');
     expect(issues({ width: 1600, maxPartLength: 120, topStrip: false, height: 900, tipWidth: 30 })).toEqual([]);
     expect(issues({ tipWidth: 60, gap: 60 })).toContainEqual(expect.objectContaining({ field: 'tipWidth' }));
-    // a short bottom segment's joint is too narrow for the dovetail: 10 + 95 × 150 / 1200 = 21.875 mm < 32.5 mm
-    expect(sideJointWidth(shape())).toBe(32.5);
+    // a short bottom segment's joint is too narrow for the dovetail: 10 + 95 × 150 / 1200 = 21.875 mm < 32.2 mm
+    expect(sideJointWidth(shape())).toBeCloseTo(32.2, 9);
     expect(sideWidth(shape({ height: 1200 }), 150)).toBe(21.875);
     expect(said({ height: 1200, maxPartLength: 150 }, 'tipWidth')).toContain('only 21.8 mm');
     // the bosses either side of the spine need room across the gap
@@ -93,6 +93,19 @@ describe('window cat guard contract', () => {
     expect(issues({ gap: 60, tipWidth: 20 })).toEqual([]);
     expect(issues({ cell: 5 })).toContainEqual(expect.objectContaining({ field: 'cell' }));
     expect(issues({ cell: 0 })).toEqual([]);
+  });
+
+  it('sets the clearance of every fit with one basic setting, 0.1 mm by default', () => {
+    const clearance = windowCatGuard.controls.find(control => control.key === 'fit');
+    expect(clearance).toMatchObject({ label: 'Clearance', group: 'basic', default: 0.1, minimum: 0.05, maximum: 0.4, step: 0.01 });
+    expect(clearance?.bands?.[0]?.minimum).toBe(0.05);
+    expect(clearance?.bands?.at(-1)?.maximum).toBe(0.4);
+    expect(validateParameters(windowCatGuard, { ...defaults, fit: 0.37 })).toEqual([]);
+    expect(validateParameters(windowCatGuard, { ...defaults, fit: 0.5 })).toContainEqual(expect.objectContaining({ field: 'fit' }));
+    expect(validateParameters(windowCatGuard, { ...defaults, fit: 0.04 })).toContainEqual(expect.objectContaining({ field: 'fit' }));
+    // every part with a fit takes it: the segments (dovetails, ends, the bosses' holes), not the splice bars
+    for (const part of activeParts(windowCatGuard, defaults))
+      expect(scadDefines(windowCatGuard, part, { ...defaults, fit: 0.17 }).some(([name, value]) => name === 'FIT' && value === '0.17'), part.id).toBe(!part.id.includes('-bar-'));
   });
 
   it('offers every library fastener that fits a splice bar, and checks that the screw holds in its nut or insert', () => {
@@ -205,6 +218,13 @@ describe('window cat guard contract', () => {
         expect(place([-half, 0, 0], bar.rotation, bar.position), bar.id).toEqual(round(near?.at(stack) ?? []));
         expect(place([half, 0, 0], bar.rotation, bar.position), bar.id).toEqual(round(far?.at(stack) ?? []));
         expect(place([half, 0, s.thickness], bar.rotation, bar.position), bar.id).toEqual(round(far?.at(stack + s.thickness) ?? []));
+        // a part turned by 0 has its x along the bar, from the near screw to the far one (a nut's pocket has its corners that way)
+        for (const bolt of [near, far]) {
+          const along = place([1, 0, 0], bolt?.turned(0) ?? [], [0, 0, 0]);
+          const axis = place([1, 0, 0], bar.rotation, [0, 0, 0]);
+          along.forEach((value, i) => expect(value, bar.id).toBeCloseTo(axis[i] ?? NaN, 6));
+          expect(place([0, 0, 1], bolt?.turned(37) ?? [], [0, 0, 0])).toEqual(place([0, 0, 1], bolt?.rotation ?? [], [0, 0, 0]));
+        }
         // the screw into the segment with the tab is the lower (left) one's, the other the upper (right) one's
         expect(near?.segment).toBe(`${bar.panel}-${bar.panel === 'strip' ? bar.segment : bar.segment + 1}`);
         expect(far?.segment).toBe(`${bar.panel}-${bar.panel === 'strip' ? bar.segment + 1 : bar.segment}`);

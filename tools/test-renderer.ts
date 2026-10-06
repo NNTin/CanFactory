@@ -298,7 +298,7 @@ try {
     { name: 'threaded inserts, finest web', overrides: { segmentJoints: 'threaded-insert', web: 2 } },
     { name: 'M4 nylon-insert nuts', overrides: { jointThread: 'M4', jointNut: 'iso-10511-m4', jointScrew: 'iso-10642-m4x12' } },
     { name: 'square nuts, M2', overrides: { jointThread: 'M2', jointNut: 'din-562-m2', jointScrew: 'iso-7046-m2x10' } },
-    { name: 'coarsest, thickest, most play, widest gap', overrides: { cell: 40, web: 2, thickness: 6, ribHeight: 12, border: 15, fit: 0.6, gap: 200, tipWidth: 60 } },
+    { name: 'coarsest, thickest, most play, widest gap', overrides: { cell: 40, web: 2, thickness: 6, ribHeight: 12, border: 15, fit: 0.4, gap: 200, tipWidth: 60 } },
     { name: 'tallest and widest in the longest parts', overrides: { height: 1500, width: 1600, maxPartLength: 300, tipWidth: 20 } },
   ];
   for (const { name, overrides } of only && only !== 'window-cat-guard' ? [] : guardRuns) {

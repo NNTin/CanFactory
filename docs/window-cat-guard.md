@@ -97,7 +97,7 @@ above. So, unlike the reference, `segmentJoints` screws a **splice bar** over ev
 - **The top strip** has a bar on each rib at every joint (4 screws per joint). Under a bar, the 4 mm rib widens to the bar's
   12 mm, and the honeycomb keeps a `web` clear of it.
 - **`glue`** leaves the dovetails as in the reference, with no bars and no holes (the geometry is unchanged from before
-  splice bars). Glue each joint: epoxy or gel superglue for PETG (the 0.25 mm play is too wide for thin superglue).
+  splice bars). Glue each joint: epoxy or gel superglue for PETG (thin superglue needs the tightest clearance).
 
 The fasteners come from the parts library. Screws are countersunk (ISO 10642, ISO 7046-1) with a head that leaves 0.8 mm of the
 bar under it and fits within 5.5 mm of the axis. Nuts (ISO 4032, ISO 4035, ISO 10511, DIN 562) and inserts (CNC Kitchen, ruthex)
@@ -119,7 +119,7 @@ offers M2 to M4. The default is an ISO 4032 M3 nut on an ISO 10642 M3 × 10.
 | `cell` | 30 | 0–40 | Honeycomb holes, corner to corner (0: solid). 40 mm (35 mm across flats) is the most: a paw does not get through. |
 | `web` | 4 | 2–10 | Bars between the holes. |
 | `border` | 6 | 3–15 | Solid border round every plate. |
-| `fit` | 0.25 | 0.05–0.6 | Play in the dovetails, round the pins and between the segments, per side. |
+| `fit` (Clearance) | 0.1 | 0.05–0.4, step 0.01 | Gap per side between parts that fit together: round each dovetail's tab in its notch, between the segments' ends, and round the strip's pins in the bosses. A basic setting, with bands: tight (0.05–0.1), snug (0.1–0.2), sliding (0.2–0.3), loose (0.3–0.4). |
 | `segmentJoints` | `nut-bolt` | `nut-bolt`, `threaded-insert`, `glue` | What holds the segments together: a splice bar over every joint, screwed into nuts or heat-set inserts; or the dovetails alone, glued. |
 | `jointThread` | M3 | M2–M4 | The screws' thread; the lists below offer only parts of it. |
 | `jointNut` / `jointInsert` | ISO 4032 M3 / CNC Kitchen M3 × 5.7 | library parts that fit | The nut or the insert in each segment. |
@@ -129,7 +129,7 @@ The settings are refused when:
 
 - a panel would need more than eight segments (the message names the shortest `maxPartLength` that fits);
 - the side panels are not narrower at the bottom than at the top;
-- the lowest joint of a side panel is narrower than its dovetail needs: `2 × (6 + 1 + 3 + fit + border)`, 32.5 mm by default.
+- the lowest joint of a side panel is narrower than its dovetail needs: `2 × (6 + 1 + 3 + fit + border)`, 32.2 mm by default.
   Widen the bottom, or allow longer parts so that the joint sits higher;
 - with a top strip, the bosses do not fit either side of the spine across the gap (the ribs at least 25 mm apart);
 - the holes are smaller than twice the web;
@@ -177,7 +177,10 @@ it stays at rest. `data-guard-stage` names the current stage for the browser tes
   bars are all alike.
 - Measure the gap at the top with the window tilted, and the height from where the gap is about `tipWidth` wide up to the
   top. Measure the width between the frame's side faces.
-- Join the segments as above. The dovetails are a slip fit at the default 0.25 mm; the splice bars hold them. With
+- Join the segments as above. At the default clearance (0.1 mm per side) the dovetails and pins are a snug fit; the splice
+  bars hold the segments. If a test joint is too tight to go together, raise the clearance in steps of 0.05 mm; if it wobbles,
+  lower it. The dovetail's flanks are shallow (3 mm over 8 mm), so along the panel a joint has about 3.7 × the clearance of
+  slop before the bar is screwed down (0.37 mm at 0.1 mm, 0.92 mm at the earlier 0.25 mm). With
   `segmentJoints = glue`, glue each joint instead.
 - The guard is held by the window: the side panels stand in the side gaps against the frame and the strip lies in the top
   gap. Close the window only after taking the guard out.

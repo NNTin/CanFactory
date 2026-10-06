@@ -75,8 +75,8 @@ CELL = 30; //[0:0.5:60]
 WEB = 4; //[2:0.1:10]
 // Solid border round every plate
 BORDER = 6; //[3:0.5:15]
-// Play in every joint, on each side
-FIT = 0.25; //[0.05:0.05:0.6]
+// Clearance in every joint, on each side: dovetails, segment ends, pins in bosses
+FIT = 0.1; //[0.05:0.01:0.4]
 // How the segments hold together: a splice bar over every joint, screwed into nuts or heat-set inserts; or the dovetails alone (glued)
 JOINTS = "nut-bolt"; //[nut-bolt,threaded-insert,glue]
 
