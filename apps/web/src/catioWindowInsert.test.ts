@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { dimensionOf, findPart, partUsage, WINDOW_INSERT_BRACKETS, WINDOW_INSERT_FOOT, windowInsertConcept } from '@canfactory/contracts';
+import { dimensionOf, findPart, modelUsage, partUsage, printedCornerBracket, printedCornerBracketFor, printedScreenHook, validateParameters, WINDOW_INSERT_BRACKETS, WINDOW_INSERT_FOOT, WINDOW_INSERT_MEMBER, windowInsertConcept } from '@canfactory/contracts';
 import { fastenerClashes } from './catioSubassembly.ts';
 import type { CatioState } from './catioScene.ts';
 import { parseSubassemblySettings, defaultSubassemblySettings } from './catioSubassembly.ts';
@@ -18,6 +18,8 @@ const variants = ['direct', 'modular'] as const;
 const pressed: WindowInsertConfig = { ...WINDOW_INSERT_DEFAULT, attachment: 'spreader-feet' };
 const ganter: WindowInsertConfig = { ...pressed, clampPad: 'ganter' };
 const hung: WindowInsertConfig = { ...WINDOW_INSERT_DEFAULT, attachment: 'frame-hooks' };
+/** Hung on Windhager 03651's bought hooks, bent to the window, and with GAH Alberts' bought steel corner brackets. */
+const bought: WindowInsertConfig = { ...hung, screenHook: 'windhager-03651', cornerBracket: 'gah-alberts-stuhlwinkel-100x100x19' };
 /** Brackets that would cover a hung insert's screen hooks (too wide, or the head hooks too near the top with 10 mm of overlap): checked on their own. */
 const besideHooks = (config: WindowInsertConfig) => config.attachment !== 'frame-hooks' || config.cornerJoint !== 'corner-bracket' || (!/125x125|150x150/.test(config.cornerBracket) && config.frameOverlap > 10);
 const configs: WindowInsertConfig[] = ([WINDOW_INSERT_DEFAULT, pressed, ...[WINDOW_INSERT_DEFAULT, pressed].flatMap(base => WINDOW_INSERT_CONTROLS.flatMap(control => control.options.map(option => ({ ...base, [control.key]: option.value })))),
@@ -26,6 +28,7 @@ const configs: WindowInsertConfig[] = ([WINDOW_INSERT_DEFAULT, pressed, ...[WIND
   // hung on the window frame: every overlap, the Ganter feet, three feet, the tallest pads, and thin and thick frame lips
   ...[10, 15, 20, 25].map(frameOverlap => ({ ...hung, frameOverlap }) as WindowInsertConfig), { ...hung, clampPad: 'ganter' }, { ...hung, clampsPerSide: 3 },
   { ...hung, padHeight: PAD_HEIGHT.max }, { ...hung, frameLip: 8, sealGap: 4.5 }, { ...hung, frameLip: 35, frameFace: 90, frameDepth: 120 },
+  { ...bought, frameLip: 8, sealGap: 4.5 }, { ...bought, frameLip: 12, sealGap: 2.5 }, { ...bought, clampPad: 'ganter' }, { ...hung, frameLip: 12, sealGap: 3 },
   { ...hung, frameOverlap: 10, cornerJoint: 'half-lap' }] as WindowInsertConfig[]).filter(besideHooks);
 const component = (scene: ReturnType<typeof createWindowInsertScene>, id: string) => {
   const found = scene.components.find(part => part.id === id); if (!found) throw new Error(`missing ${id}`); return found.group;
@@ -236,7 +239,17 @@ describe('window insert', () => {
         expect(count('din-7965-m8x18')).toBe(config.clampsPerSide);
         if (l.pad) expect(printed.map(line => [line.id, line.quantity])).toEqual([['foot-pads', config.clampsPerSide]]);
         else expect(count(l.bearingFoot.id)).toBe(config.clampsPerSide);
-        expect([count('windhager-03651-5a'), count('windhager-03651-5b'), count('din-7997-3x16')]).toEqual([2, 2, 8]);
+        const hooks = lines.filter(line => line.modelId === 'printed-screen-hook');
+        if (config.screenHook === 'printed') {
+          // printed for this window: two long and two short, linked to the model, with their screws from the library
+          expect(hooks.map(line => [line.name, line.quantity])).toEqual([['Printed screen hook, long (head)', 2], ['Printed screen hook, short (sill)', 2]]);
+          expect(hooks[0]?.size).toContain(`For a ${config.frameLip} mm frame lip and a ${config.sealGap} mm seal gap`);
+          expect(count('din-7997-3x20')).toBe(8);
+          expect(lines.some(line => line.partId?.startsWith('windhager'))).toBe(false);
+        } else {
+          expect(hooks).toEqual([]);
+          expect([count('windhager-03651-5a'), count('windhager-03651-5b'), count('din-7997-3x16')]).toEqual([2, 2, 8]);
+        }
         expect(lines.some(line => line.name === 'Pressure pad, thrust pad' || line.partId === 'iso-10511-m8')).toBe(false);
       } else expect(lines.find(line => line.id === 'folding-wedges')?.quantity).toBe(8 * config.clampsPerSide);
       if (config.attachment !== 'frame-hooks') expect(lines.some(line => line.partId?.startsWith('windhager'))).toBe(false);
@@ -245,6 +258,15 @@ describe('window insert', () => {
       expect(count('din-7997-4x35') > 0).toBe(true);
       expect(lines.some(line => line.name.startsWith('Cover batten'))).toBe(config.meshFixing !== 'staples');
       expect(lines.filter(line => line.group === 'Mesh')).toHaveLength(3);
+      // the corner brackets: printed (linked to the model) or bought (from the library), four either way
+      const brackets = lines.filter(line => line.modelId === 'printed-corner-bracket');
+      if (config.cornerJoint !== 'corner-bracket') expect(brackets).toEqual([]);
+      else if (config.cornerBracket === 'printed') {
+        expect(brackets.map(line => line.quantity)).toEqual([4]);
+        expect(lines.some(line => line.partId?.startsWith('gah-alberts'))).toBe(false);
+      } else expect([brackets.length, count(config.cornerBracket)]).toEqual([0, 4]);
+      // every model it prints names this page under “Used by”
+      for (const line of lines) if (line.modelId) expect(modelUsage(line.modelId).map(use => use.pageId), line.modelId).toContain('catio/window-insert');
     }
     const lap = windowInsertLayout('direct', { ...WINDOW_INSERT_DEFAULT, cornerJoint: 'half-lap' }); const butt = windowInsertLayout('direct', { ...WINDOW_INSERT_DEFAULT, cornerJoint: 'butt-screwed' });
     expect(lap.timber.find(piece => piece.id === 'collar-head')?.length).toBe(lap.W);
@@ -334,10 +356,20 @@ describe('window insert hung on the window frame', () => {
   });
 
   it('reaches behind the lip at the head and the sill, its barbs in the seal gap so that the sash closes over them', () => {
+    for (const config of [hung, bought, { ...hung, frameLip: 8, sealGap: 4.5 }, { ...bought, frameLip: 8, sealGap: 4.5 }]) {
+    const l = windowInsertLayout('direct', config); const frame = windowFrame(l.window);
     const fit = l.hookFit; if (!fit) throw new Error('no hooks');
-    expect(l.hooks.map(h => `${h.side} ${h.end} ${h.part.id}`).sort()).toEqual(['left head windhager-03651-5a', 'left sill windhager-03651-5b', 'right head windhager-03651-5a', 'right sill windhager-03651-5b']);
-    // bent at the lip plus half the spare seal gap, to 0.5 mm: 15.5 + (3.5 - 0.8) / 2 - 0.8 = 16.05, so 16
-    expect(fit.bend).toBe(16);
+    if (config.screenHook === 'printed') {
+      expect(l.hooks.map(h => `${h.side} ${h.end} ${h.title}`).sort()).toEqual(['left head Printed screen hook, long (head)', 'left sill Printed screen hook, short (sill)', 'right head Printed screen hook, long (head)', 'right sill Printed screen hook, short (sill)']);
+      // made for the window: the barb in the middle of the seal gap, nothing to bend; the model's own default reach behind the lip
+      expect(fit.bend).toBeNull();
+      for (const h of l.hooks) expect((frame.lipBack - h.barb.outer) - (h.barb.inner - frame.sashFace)).toBeCloseTo(0, 9);
+      expect(fit.engage).toEqual({ head: printedScreenHook.defaults['engage'], sill: printedScreenHook.defaults['engage'] });
+    } else {
+      expect(l.hooks.map(h => `${h.side} ${h.end} ${h.part?.id}`).sort()).toEqual(['left head windhager-03651-5a', 'left sill windhager-03651-5b', 'right head windhager-03651-5a', 'right sill windhager-03651-5b']);
+      // bent at the lip plus half the spare seal gap, to 0.5 mm: 15.5 + (3.5 - 0.8) / 2 - 0.8 = 16.05, so 16
+      if (config.frameLip === 15.5) expect(fit.bend).toBe(16);
+    }
     for (const h of l.hooks) {
       expect(h.barb.outer).toBeLessThanOrEqual(frame.lipBack - HOOK_FIT.gap);
       expect(h.barb.inner).toBeGreaterThanOrEqual(frame.sashFace + HOOK_FIT.gap);
@@ -355,20 +387,47 @@ describe('window insert hung on the window frame', () => {
     expect(fit.headClear).toBeGreaterThan(fit.lift);
     // two screws in each hook, from the room side into the stile
     expect(l.fasteners.filter(f => f.component === 'hook-screws').map(f => f.direction)).toEqual(Array(8).fill([0, 1, 0]));
+    expect(validateWindowInsert('direct', config)).toEqual([]);
+    }
+  });
+
+  it('places the printed hooks as the model makes them for this window, and lists them with the window’s settings', () => {
+    for (const config of [hung, { ...hung, frameLip: 8, sealGap: 4.5 }, { ...hung, frameLip: 35, frameFace: 90 }]) {
+      const l = windowInsertLayout('direct', config); const fit = l.hookFit; if (!fit) throw new Error('no hooks');
+      const parameters = fit.spec.parameters; if (!parameters) throw new Error('printed');
+      // the model, set to this window, is valid, and its barbs are where the layout draws them
+      expect(parameters).toMatchObject({ ...printedScreenHook.defaults, frameLip: config.frameLip, sealGap: config.sealGap });
+      expect(validateParameters(printedScreenHook, parameters)).toEqual([]);
+      const head = l.hooks.find(h => h.end === 'head'); const sill = l.hooks.find(h => h.end === 'sill'); if (!head || !sill) throw new Error('hooks');
+      const height = (h: typeof head, k: number) => h.boxes[k]?.size[2] ?? 0;
+      expect(height(head, 2) - Number(parameters['turnThickness'])).toBeCloseTo(fit.spec.rise.head, 9);
+      expect(height(sill, 2) - Number(parameters['turnThickness'])).toBeCloseTo(fit.spec.rise.sill, 9);
+      expect(fit.spec.rise.head).toBeCloseTo(2 * (Number(parameters['engage']) + Number(parameters['clearance'])), 9);
+      expect(head.boxes[0]?.size).toEqual([parameters['width'], parameters['legThickness'], parameters['legLength']]);
+      expect(l.yIn - head.barb.outer).toBeCloseTo(config.frameLip + (config.sealGap - Number(parameters['barbThickness'])) / 2, 9);
+      expect(new Set(l.fasteners.filter(f => f.component === 'hook-screws').map(f => f.partId))).toEqual(new Set([parameters['woodScrew']]));
+    }
   });
 
   it('refuses a window the hooks cannot fit, or whose sash would not close over them', () => {
-    expect(validateWindowInsert('direct', { ...hung, sealGap: 1.5 }).join(' ')).toMatch(/seal gap \(1.5 mm\) is too narrow/);
-    expect(validateWindowInsert('direct', { ...hung, frameLip: 4 }).join(' ')).toMatch(/frame lip 5–35 mm thick, not 4 mm/);
+    expect(validateWindowInsert('direct', { ...bought, sealGap: 1.5 }).join(' ')).toMatch(/seal gap \(1.5 mm\) is too narrow for the hooks’ 0.8 mm strip/);
+    expect(validateWindowInsert('direct', { ...bought, frameLip: 4 }).join(' ')).toMatch(/hooks bend for a frame lip 5–35 mm thick, not 4 mm/);
+    expect(validateWindowInsert('direct', { ...hung, frameLip: 4 }).join(' ')).toMatch(/hooks are made for a frame lip 5–35 mm thick, not 4 mm/);
+    // the printed barb is 2 mm: a seal gap under 3 mm is too narrow for it, but not for the bought strip
+    expect(validateWindowInsert('direct', { ...hung, sealGap: 2.5 }).join(' ')).toMatch(/seal gap \(2.5 mm\) is too narrow for the printed hooks’ 2 mm barb.*Choose the bought hooks/);
+    expect(validateWindowInsert('direct', { ...bought, sealGap: 2.5 })).toEqual([]);
     // the modular cat gate's latch stands behind the collar's back, in front of the sash: a thin lip leaves too little room
-    expect(validateWindowInsert('modular', { ...hung, frameLip: 5, sealGap: 2.5 }).join(' ')).toMatch(/gate’s latch needs 13 mm/);
-    expect(validateWindowInsert('direct', { ...hung, frameLip: 5, sealGap: 2.5 })).toEqual([]);
+    expect(validateWindowInsert('modular', { ...bought, frameLip: 5, sealGap: 2.5 }).join(' ')).toMatch(/gate’s latch needs 13 mm/);
+    expect(validateWindowInsert('direct', { ...bought, frameLip: 5, sealGap: 2.5 })).toEqual([]);
+    expect(validateWindowInsert('direct', { ...hung, frameLip: 5, sealGap: 3 })).toEqual([]);
   });
 
   it('is hung, lifted, on the frame and let down onto its feet, and says how', () => {
     const steps = windowInsertSteps('modular', hung);
     expect(steps.map(s => s.title)).toEqual(['Existing window', 'Join the collar', 'Fit the feet and hooks', 'Cat port and infill mesh', 'Hang it on the window frame', 'Level it and close the window', 'Gate and check']);
-    expect(steps[2]?.detail).toContain('at 16 mm');
+    expect(steps[2]?.detail).toContain('printed for this window’s 15.5 mm lip and 3.5 mm seal gap');
+    expect(steps[2]?.detail).toContain(`turns ${l.hookFit?.fromTop} mm below the collar’s top`);
+    expect(windowInsertSteps('modular', bought)[2]?.detail).toMatch(/at 16 mm .* two 3 × 16 screws/);
     expect(steps[4]?.detail).toContain(`lift it ${l.hookFit?.lift} mm`);
     const scene = createWindowInsertScene('modular', hung);
     scene.update({ ...installed, progress: 3.5 });
@@ -377,9 +436,14 @@ describe('window insert hung on the window frame', () => {
     scene.update({ ...installed, progress: 4 });
     expect(scene.insert.position.z).toBe(0);
     scene.update({ ...installed, progress: 1.75 });
-    expect(scene.caption?.()).toMatch(/Insect screen hook, long .*: bent at 16 mm/);
+    expect(scene.caption?.()).toMatch(/2 × Printed screen hook, long \(head\), 2 × Printed screen hook, short \(sill\): printed for this window/);
     scene.dispose();
-    expect(windowInsertFacts('direct', hung).find(f => f.label === 'Hooks · bent at')?.value).toBe('16 mm');
+    const boughtScene = createWindowInsertScene('modular', bought);
+    boughtScene.update({ ...installed, progress: 1.75 });
+    expect(boughtScene.caption?.()).toMatch(/Insect screen hook, long .*: bent at 16 mm/);
+    boughtScene.dispose();
+    expect(windowInsertFacts('direct', hung).find(f => f.label === 'Hooks · printed for')?.value).toBe('lip 15.5 mm, seal gap 3.5 mm');
+    expect(windowInsertFacts('direct', bought).find(f => f.label === 'Hooks · bent at')?.value).toBe('16 mm');
   });
 
   it('shows its hooks and feet where another page draws the installed insert', () => {
@@ -397,10 +461,23 @@ describe('window insert hung on the window frame', () => {
   });
 
 describe('window insert collar corners with flat corner brackets', () => {
-  it('lets a bought flat corner bracket into the room-side face of each butt joint, screwed through every hole', () => {
-    for (const variant of variants) for (const config of [WINDOW_INSERT_DEFAULT, pressed]) {
+  it('sizes the printed bracket, the default, from the collar’s member, as the model’s defaults are', () => {
+    expect(WINDOW_INSERT_DEFAULT.cornerBracket).toBe('printed');
+    expect(WINDOW_INSERT_MEMBER).toBe(INSERT.member);
+    const size = printedCornerBracketFor(INSERT.member);
+    expect(Object.fromEntries(Object.keys(size).map(key => [key, printedCornerBracket.defaults[key]]))).toEqual(size);
+    const [bracket] = windowInsertLayout('direct', WINDOW_INSERT_DEFAULT).brackets; if (!bracket) throw new Error('bracket');
+    expect(bracket.spec).toMatchObject({ part: null, a: size.legA, b: size.legB, c: size.width, t: size.thickness });
+    expect(bracket.spec.screw.id).toBe(printedCornerBracket.defaults['woodScrew']);
+    expect(validateParameters(printedCornerBracket, printedCornerBracket.defaults)).toEqual([]);
+    // every hole lies past the joint, on the member its leg runs along
+    for (const hole of bracket.spec.holes) expect(hole.along).toBeGreaterThan(INSERT.member);
+  });
+
+  it('lets a flat corner bracket, printed or bought, into the room-side face of each butt joint, screwed through every hole', () => {
+    for (const variant of variants) for (const [config, id, screw, holes] of [[WINDOW_INSERT_DEFAULT, null, 'din-7997-4x35', 6], [pressed, null, 'din-7997-4x35', 6], [bought, 'gah-alberts-stuhlwinkel-100x100x19', 'din-7997-5x35', 6], [{ ...pressed, cornerBracket: 'gah-alberts-stuhlwinkel-100x100x19' }, 'gah-alberts-stuhlwinkel-100x100x19', 'din-7997-5x35', 6]] as const) {
       const l = windowInsertLayout(variant, config);
-      expect(l.brackets.map(b => b.part.id)).toEqual(Array(4).fill('gah-alberts-stuhlwinkel-100x100x19'));
+      expect(l.brackets.map(b => b.spec.part?.id ?? null)).toEqual(Array(4).fill(id));
       for (const b of l.brackets) for (const plate of b.boxes) {
         // flush in the room-side face, within the collar's outline, at most the 40 mm member wide across it
         expect(plate.center[1] - plate.size[1] / 2).toBe(l.yIn);
@@ -408,8 +485,8 @@ describe('window insert collar corners with flat corner brackets', () => {
         expect(Math.min(plate.size[0], plate.size[2])).toBeLessThanOrEqual(INSERT.member);
       }
       const screws = l.fasteners.filter(f => f.component === 'bracket-screws');
-      expect(screws).toHaveLength(4 * 6);
-      expect(new Set(screws.map(f => f.partId))).toEqual(new Set(['din-7997-5x35']));
+      expect(screws).toHaveLength(4 * holes);
+      expect(new Set(screws.map(f => f.partId))).toEqual(new Set([screw]));
       // the corner screws stay, through the stiles into the rails' end grain, and nothing runs into another
       expect(l.fasteners.filter(f => f.component === 'corner-screws').every(f => f.partId === 'din-7997-5x70')).toBe(true);
       expect(fastenerClashes(screws, l.fasteners.filter(f => f.component !== 'bracket-screws'), 6)).toEqual([]);
@@ -424,19 +501,35 @@ describe('window insert collar corners with flat corner brackets', () => {
       if (/125x125|150x150/.test(cornerBracket)) expect(errors.join(' ')).toMatch(/would lie over the screen hooks/);
       else expect(errors).toEqual([]);
     }
-    // with only 10 mm on the frame, the head hooks turn in 17 mm below the collar's top, under any bracket's rail leg
+    // with only 10 mm on the frame, the head hooks turn in 17 mm (printed: 18 mm) below the collar's top, under any bracket's rail leg
     expect(validateWindowInsert('direct', { ...hung, frameOverlap: 10 }).join(' ')).toMatch(/more overlap on the frame/);
+    expect(validateWindowInsert('direct', { ...bought, frameOverlap: 10 }).join(' ')).toMatch(/more overlap on the frame/);
     expect(validateWindowInsert('direct', { ...hung, frameOverlap: 10, cornerJoint: 'half-lap' })).toEqual([]);
   });
 
-  it('lists the brackets and their screws, says how they go in, and stages them after the corner screws', () => {
+  it('lists the printed brackets, linked to their model, says how they go in, and stages them after the corner screws', () => {
     const lines = windowInsertBom('direct', WINDOW_INSERT_DEFAULT);
+    const bracket = lines.find(line => line.modelId === 'printed-corner-bracket');
+    expect(bracket).toMatchObject({ name: 'Printed corner bracket', quantity: 4, size: '100 × 100 × 20 mm, 5 mm thick · 6 holes for DIN 7997 4 × 35 · PETG (the model’s defaults)' });
+    expect(bracket?.partId).toBeUndefined();
+    expect(lines.find(line => line.partId === 'din-7997-4x35')?.use).toContain('Corner bracket');
+    expect(windowInsertSteps('direct', WINDOW_INSERT_DEFAULT)[1]?.detail).toMatch(/100 × 100 printed corner bracket.*chisel it in 5 mm.*all 6 holes with 4 × 35 screws/);
+    const scene = createWindowInsertScene('direct', WINDOW_INSERT_DEFAULT);
+    const at = (role: string) => scene.motions.filter(m => m.action.includes(role)).map(m => m.window[0]);
+    scene.update({ ...installed, progress: 0.8 });
+    expect(scene.caption?.()).toMatch(/4 × Printed corner bracket: laid into its recess/);
+    expect(Math.min(...at('Printed corner bracket'))).toBeGreaterThan(Math.max(...at('Countersunk wood screw 5 × 70')));
+    scene.dispose();
+  });
+
+  it('lists the bought brackets and their screws, says how they go in, and stages them after the corner screws', () => {
+    const lines = windowInsertBom('direct', bought);
     const bracket = lines.find(line => line.partId === 'gah-alberts-stuhlwinkel-100x100x19');
     expect(bracket?.quantity).toBe(4);
     expect(bracket?.size).toContain('GAH Alberts Stuhlwinkel 100 × 100 × 19 mm');
     expect(lines.find(line => line.partId === 'din-7997-5x35')?.quantity).toBe(24);
-    expect(windowInsertSteps('direct', WINDOW_INSERT_DEFAULT)[1]?.detail).toMatch(/chisel it in 2 mm.*all 6 holes with 5 × 35 screws/);
-    const scene = createWindowInsertScene('direct', WINDOW_INSERT_DEFAULT);
+    expect(windowInsertSteps('direct', bought)[1]?.detail).toMatch(/chisel it in 2 mm.*all 6 holes with 5 × 35 screws/);
+    const scene = createWindowInsertScene('direct', bought);
     const at = (role: string) => scene.motions.filter(m => m.action.includes(role)).map(m => m.window[0]);
     scene.update({ ...installed, progress: 0.8 });
     expect(scene.caption?.()).toMatch(/4 × Flat corner bracket 100 × 100 × 19: laid into its recess/);
