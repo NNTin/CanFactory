@@ -181,3 +181,27 @@ export function matchOffers(requirements: readonly Requirement[], market: Market
 export function marketOfCountry(country: string | null | undefined): Market {
   return country !== null && country !== undefined && ['DE', 'AT', 'CH'].includes(country.toUpperCase()) ? 'DE' : 'US';
 }
+
+export const MarketInfoSchema = Type.Object({
+  market: MarketSchema,
+  country: Type.Union([Type.String(), Type.Null()], { description: 'The visitor’s country as Cloudflare saw it (CF-IPCountry), or null when unknown.' }),
+  source: Type.Union([Type.Literal('geo'), Type.Literal('default')], { description: '`geo`: from the country. `default`: no country, so the US market.' }),
+  networks: Type.Object({ DE: NetworksSchema, US: NetworksSchema }, { additionalProperties: false, description: 'Which networks link, per market. With none, the site shows no affiliate links.' }),
+}, { additionalProperties: false });
+export type MarketInfo = Static<typeof MarketInfoSchema>;
+
+/** Up to 200 parts as `<partId>` or `<partId>:<quantity>`, comma separated, e.g. `ruthex-rx-m3x5-7:4,iso-4762-m3x10:8`. */
+export const OFFER_PARTS_PATTERN = '^[a-z0-9]+(-[a-z0-9]+)*(:[1-9][0-9]{0,3})?(,[a-z0-9]+(-[a-z0-9]+)*(:[1-9][0-9]{0,3})?){0,199}$';
+export const OffersQuerySchema = Type.Object({
+  market: MarketSchema,
+  parts: Type.String({ pattern: OFFER_PARTS_PATTERN, maxLength: 12_000, description: 'The parts and how many of each (default 1), e.g. `ruthex-rx-m3x5-7:4,iso-4762-m3x10:8`.' }),
+}, { additionalProperties: false });
+
+/** The requirements of an offers query's `parts`. */
+export function parseOfferParts(parts: string): Requirement[] {
+  return parts.split(',').map(item => { const [partId = '', quantity = '1'] = item.split(':'); return { partId, quantity: Number(quantity) }; });
+}
+/** The `parts` of an offers query for these requirements. */
+export function formatOfferParts(requirements: readonly Requirement[]): string {
+  return requirements.map(requirement => requirement.quantity === 1 ? requirement.partId : `${requirement.partId}:${requirement.quantity}`).join(',');
+}
