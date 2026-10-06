@@ -18,7 +18,8 @@ a parts list with every piece's dimensions, and the design decisions below. Choi
 
 | Parameter | Default | Options | Applies to |
 | --- | --- | --- | --- |
-| Collar corners | Half-lap, glued + 2 screws | Half-lap; butt joint + 2 screws | Both |
+| Collar corners | Butt joint + 2 screws + flat corner bracket | Corner bracket; half-lap, glued + 2 screws; butt joint + 2 screws | Both |
+| Corner bracket | 100 × 100 × 19 mm | GAH Alberts Stuhlwinkel 75, 90, 100, 125, 150 mm | Corner bracket (hung: up to 100 mm, clear of the hooks) |
 | Port transom & jambs | Housed 10 mm + screw | Housed; butt joint + screws | With tunnel |
 | Mesh to timber | Staples under cover battens | Staples + battens; staples only; battens only | Both |
 | Fixing spacing | 15 cm | 10, 15, 20 cm | Both |
@@ -144,17 +145,29 @@ Not published, and estimated in the parts library from Windhager's instruction d
    collar with 10 mm clearance, too little for any real clamp. Pressed into the recess, **the whole-catio scenes still
    draw their schematic 98 cm collar**; adopting this sizing there is a follow-up. Hung (the default), they draw the hung
    collar's width on the frame's face.
-5. **Half-lapped collar corners.** The spreaders push the corners apart; a glued half-lap (30 mm, half the 60 mm depth)
+5. **Flat corner brackets at the collar corners.** Each corner is a butt joint (the rails between the stiles, two DIN 7997
+   5 × 70 screws through the stile into the rail's end grain) with a flat corner bracket across it: a GAH Alberts Stuhlwinkel
+   100 × 100 × 19, 2 mm sendzimir-galvanised steel, let in flush (a 2 mm recess) on the room-side face and screwed through its
+   six countersunk 5.3 mm holes with DIN 7997 5 × 35 screws. A steel plate across both members holds the corner square and closed
+   against the spreaders' push and the racking of a cat or the wind better than a lap's glue or screws in end grain alone.
+   - It goes on the room-side face because the outdoor face carries the mesh and battens, and it is let in so that a hung
+     collar still lies flat on the window frame.
+   - Hung on the window frame, the brackets must stay clear of the screen hooks screwed to the stiles' backs: 19 mm wide, the
+     100 mm bracket leaves them at least 3 mm (with the default 15 mm overlap); the 125 and 150 mm ones (22 and 25 mm wide), or only 10 mm of overlap on the
+     frame (the head hooks then turn in 17 mm below the collar's top, under the bracket's rail leg), are refused.
+   - Alberts gives each bracket's hole count and size but not where the holes are: the page spaces them evenly along each leg
+     beyond the corner square (an estimate), and checks they miss the corner screws.
+6. **Half-lapped collar corners (option).** The spreaders push the corners apart; a glued half-lap (30 mm, half the 60 mm depth)
    with two DIN 7997 4 × 50 screws carries that on long grain and timber shoulders. A butt joint (two DIN 7997 5 × 70 screws
    through the stile into the rail's end grain) remains selectable.
-6. **Mesh clamped under battens.** DIN 1159 2.5 × 25 staples locate the tensioned mesh every 15 cm; 40 × 15 cover battens,
+7. **Mesh clamped under battens.** DIN 1159 2.5 × 25 staples locate the tensioned mesh every 15 cm; 40 × 15 cover battens,
    screwed through the mesh with DIN 7997 4 × 35 screws, clamp the whole edge and cover the cut wire ends. Where the direct
    variant's passage sleeve meets a threshold edge there is no face for a batten, so it is stapled in every option; the
    modular insert's mesh lies only on faces, so "battens only" needs no staples there.
-7. **The modular cat port.** A full-width transom over the port and two jambs give every infill mesh panel timber on all
+8. **The modular cat port.** A full-width transom over the port and two jambs give every infill mesh panel timber on all
    four edges. They sit in 10 mm housings (or butt joints), the jambs screwed from under the sill rail with DIN 7997 6 × 90.
    The sliding gate runs in tracks on the room side of the port.
-8. **The cat port ends at its frame.** Nothing of the insert continues the port out to the wall face. The
+9. **The cat port ends at its frame.** Nothing of the insert continues the port out to the wall face. The
    [insert–tunnel coupling](window-insert-tunnel-coupling.md) screws a docking frame onto the jambs and transom, which
    carries the passage on to the tunnel. The frame **stays on the insert from then on**, also when it is lifted out. Its
    parts are on the coupling's parts list. Its screws are placed between this page's batten screws and staples, so
@@ -163,7 +176,8 @@ Not published, and estimated in the parts library from Windhager's instruction d
 
 ## Assembly
 
-1. **Join the collar** on a bench outside: half-laps glued and screwed (or butt joints screwed); check the diagonals.
+1. **Join the collar** on a bench outside: butt joints screwed, then a flat corner bracket let into the room-side face of each
+   corner and screwed through every hole (or half-laps glued and screwed, or butt joints screwed alone); check the diagonals.
 2. **Fit the clamp hardware**: insert nuts. Then, with printed pads, a foot on an M8 × 30 under the sill rail, and in the
    stiles and head an M8 × 80 with its lock nut from inside, its tip's lock nut and the thrust pad slid on from outside. With
    Ganter feet, short-stud bearing feet under the sill rail and long-stud spreaders with their jammed nuts. Or prepare the
@@ -214,6 +228,7 @@ All with the source of every value (see [adding-parts.md](../../adding-parts.md)
 | Nails and staples (`nail`) | DIN 1159 staples 2.5 × 25, 3.1 × 31, 3.4 × 34, 3.8 × 38 | Keller & Kalmbach DIN 1159 sizes |
 | Insert nuts for wood (`insert-nut`) | DIN 7965 M6 × 15, M8 × 18, M10 × 25 | fasteners.eu DIN 7965 table |
 | Levelling feet and pressure pads (`levelling-foot`) | Ganter GN 343.2 KR, d1 25/32/40, M8/M10, all listed studs | Ganter's table, drawing and specification |
+| Flat corner brackets (`corner-bracket`) | GAH Alberts Stuhlwinkel 25–150 mm (10 sizes, sendzimir galvanised); Simpson Strong-Tie L150PB | Alberts' page for each article (a × b × c, thickness, holes); Simpson's L-PB data sheet. Hole positions are not published (estimated) |
 | Insect screen hooks (`screen-hook`) | Windhager 03651, long (5a) and short (5b) | Windhager's product page (5–35 mm lips) and assembly instructions QA468 (15 and 7 mm tips, X + 3 mm); width, thickness, leg and hole estimated from its drawings |
 
 The printed pads use parts already in the library: ISO 4017 M8 × 80 and M8 × 30, ISO 10511 M8 and ISO 4032 M8. The pads

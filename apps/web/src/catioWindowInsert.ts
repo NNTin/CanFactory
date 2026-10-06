@@ -1,4 +1,4 @@
-import { dimensionOf, findPart, PRESSURE_PAD_SURFACES, pressurePadMinDiameter, pressurePadMinHeight, WINDOW_INSERT_FOOT, WINDOW_INSERT_HARDWARE as HW, WINDOW_INSERT_PAD, windowInsertFeet, windowInsertPadScrews, type Part, type PressurePadSurface } from '@canfactory/contracts';
+import { cornerBracketHoles, cornerBracketScrew, dimensionOf, findPart, PRESSURE_PAD_SURFACES, WINDOW_INSERT_BRACKETS, type WindowInsertBracket, pressurePadMinDiameter, pressurePadMinHeight, WINDOW_INSERT_FOOT, WINDOW_INSERT_HARDWARE as HW, WINDOW_INSERT_PAD, windowInsertFeet, windowInsertPadScrews, type Part, type PressurePadSurface } from '@canfactory/contracts';
 import { CATIO, CATIO_DERIVED, type CatioView } from './catioDesign.ts';
 import { validateWindowProfile, WINDOW_PROFILE_DEFAULT, WINDOW_PROFILE_RANGES, windowFrame, type WindowProfile } from './catioWindow.ts';
 import { loadCatioSettings, type CatioMode } from './catioSettings.ts';
@@ -10,8 +10,10 @@ import { fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblySt
  * catioDesign.ts. The layout below is the one source for the 3D scene, the parts list and the tests.
  */
 export interface WindowInsertConfig {
-  /** How the collar's four members meet at its corners. */
-  cornerJoint: 'half-lap' | 'butt-screwed';
+  /** How the collar's four members meet at its corners: butt joints held by a flat corner bracket, half-laps, or butt joints alone. */
+  cornerJoint: 'corner-bracket' | 'half-lap' | 'butt-screwed';
+  /** The flat corner bracket across each corner (a library part), with a corner-bracket joint. */
+  cornerBracket: WindowInsertBracket;
   /** How the cat port's transom and jambs meet the collar (with tunnel only). */
   junctionJoint: 'housed' | 'butt-screwed';
   /** How the wire mesh is held on the timber. */
@@ -37,7 +39,7 @@ export interface WindowInsertConfig {
 }
 
 export const WINDOW_INSERT_DEFAULT: WindowInsertConfig = {
-  cornerJoint: 'half-lap', junctionJoint: 'housed', meshFixing: 'staples-and-battens', fixingPitch: 150,
+  cornerJoint: 'corner-bracket', cornerBracket: 'gah-alberts-stuhlwinkel-100x100x19', junctionJoint: 'housed', meshFixing: 'staples-and-battens', fixingPitch: 150,
   attachment: 'frame-hooks', frameOverlap: 15, clampsPerSide: 2, clampPad: 'printed', padHeight: 24.5, padSurface: 'grooved', footDiameter: 32,
   ...WINDOW_PROFILE_DEFAULT,
 };
@@ -134,8 +136,10 @@ export interface Hook {
   /** The barb's faces along Y, and how far it reaches behind the lip past the lip's tip. */
   barb: { outer: number; inner: number; engage: number };
 }
+/** A flat corner bracket across one corner, let in flush on the collar's room-side face: its two legs, along the rail and the stile. */
+export interface CornerBracket { id: string; corner: string; part: Part; boxes: Box[] }
 export interface Fastener {
-  partId: string; component: 'corner-screws' | 'threshold-screws' | 'port-screws' | 'batten-screws' | 'staples' | 'hook-screws';
+  partId: string; component: 'corner-screws' | 'bracket-screws' | 'threshold-screws' | 'port-screws' | 'batten-screws' | 'staples' | 'hook-screws';
   at: V3; /** Driven in this direction from `at`. */ direction: V3; use: string;
   /** A staple's crown runs this way, across the wire it holds. */ across?: V3;
 }
@@ -174,7 +178,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
   const lap = config.cornerJoint === 'half-lap';
   const rail = (id: 'head' | 'sill', z: number) => {
     const name = `Collar rail, ${id}`;
-    if (!lap) return timber.push({ id: `collar-${id}`, component: `collar-${id}`, name, section, length: Wi, cut: `${Wi} long, square ends`, use: 'Between the stiles, screwed through them', boxes: [box([Wi, D, m], [0, yc, z])] });
+    if (!lap) return timber.push({ id: `collar-${id}`, component: `collar-${id}`, name, section, length: Wi, cut: `${Wi} long, square ends`, use: config.cornerJoint === 'corner-bracket' ? 'Between the stiles, screwed through them; a flat corner bracket over each end' : 'Between the stiles, screwed through them', boxes: [box([Wi, D, m], [0, yc, z])] });
     return timber.push({ id: `collar-${id}`, component: `collar-${id}`, name, section, length: W, cut: `${W} long, ${D / 2} mm half-lap at both ends (room side kept)`, use: 'Full width, lapped under the stiles',
       boxes: [box([Wi, D, m], [0, yc, z]), ...[-1, 1].map(s => box([m, D / 2, m], [s * (W - m) / 2, yIn + D / 4, z]))] });
   };
@@ -195,6 +199,27 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
       // two screws through the stile into the end grain of the rail
       const s = part(HW.buttScrew);
       for (const k of [-1, 1]) fasteners.push({ partId: s.id, component: 'corner-screws', at: [sx * W / 2, yc + k * 15, z], direction: [-sx, 0, 0], use: `Butt joint, ${corner} corner` });
+    }
+  }
+
+  // Flat corner brackets: one across each butt-jointed corner, let in flush on the room-side face (the outdoor face carries the mesh
+  // and battens), one leg along the rail and one along the stile, screwed through every hole from the room side.
+  const brackets: CornerBracket[] = [];
+  if (config.cornerJoint === 'corner-bracket') {
+    const bracket = part(config.cornerBracket); const screw = cornerBracketScrew(bracket);
+    const a = dim(bracket, 'a'); const b = dim(bracket, 'b'); const c = dim(bracket, 'c'); const t = dim(bracket, 't');
+    for (const sx of [-1, 1] as const) for (const sz of [-1, 1] as const) {
+      // the outer corner, and the ways in along the rail (x) and up or down the stile (z)
+      const cx = sx * W / 2; const cz = sz < 0 ? z0 : z0 + H; const ix = -sx; const iz = -sz;
+      const corner = `${sz < 0 ? 'bottom' : 'top'} ${sx < 0 ? 'left' : 'right'}`;
+      const span = (from: number, to: number) => [Math.min(from, to), Math.max(from, to)] as const;
+      const plate = (x: readonly [number, number], z: readonly [number, number]): Box => box([x[1] - x[0], t, z[1] - z[0]], [(x[0] + x[1]) / 2, yIn + t / 2, (z[0] + z[1]) / 2]);
+      brackets.push({ id: `bracket-${corner.replace(' ', '-')}`, corner, part: bracket,
+        boxes: [plate(span(cx, cx + ix * a), span(cz, cz + iz * c)), plate(span(cx, cx + ix * c), span(cz + iz * c, cz + iz * b))] });
+      for (const hole of cornerBracketHoles(bracket)) {
+        const [x, z] = hole.leg === 'a' ? [cx + ix * hole.along, cz + iz * hole.across] : [cx + ix * hole.across, cz + iz * hole.along];
+        fasteners.push({ partId: screw.id, component: 'bracket-screws', at: [x, yIn, z], direction: [0, 1, 0], use: `Corner bracket, ${corner} corner` });
+      }
     }
   }
 
@@ -336,7 +361,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
   }
 
   return {
-    variant, config, window, frame: frameOf, gap, W, H, Wi, Hi, x0, z0, yIn, yOut, floor, port, timber, panels, fasteners, clamps, hooks, hookFit,
+    variant, config, window, frame: frameOf, gap, W, H, Wi, Hi, x0, z0, yIn, yOut, floor, port, timber, panels, fasteners, clamps, hooks, hookFit, brackets,
     spreaderFoot, bearingFoot, pad, nut, insertNut: part(HW.insertNut),
   };
 }
@@ -351,6 +376,11 @@ function spaced(length: number, count: number): number[] {
 export function validateWindowInsert(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant, config)): string[] {
   const errors: string[] = [...validateWindowProfile(window)];
   const l = windowInsertLayout(variant, config, window);
+  // the corner brackets lie on the room-side face, like the hooks' screwed legs: they must not overlap there
+  const face = (b: Box) => ({ x0: b.center[0] - b.size[0] / 2, x1: b.center[0] + b.size[0] / 2, z0: b.center[2] - b.size[2] / 2, z1: b.center[2] + b.size[2] / 2 });
+  const legs = l.hooks.map(h => h.boxes[0]).filter((b): b is Box => !!b).map(face);
+  const plates = l.brackets.flatMap(b => b.boxes).map(face);
+  if (plates.some(p => legs.some(q => p.x0 < q.x1 + 2 && q.x0 < p.x1 + 2 && p.z0 < q.z1 + 2 && q.z0 < p.z1 + 2))) errors.push('The corner brackets would lie over the screen hooks on the stiles: choose a smaller bracket, more overlap on the frame, or another corner joint.');
   const hook = l.hooks[0]; const fit = l.hookFit;
   if (hook && fit) {
     const { frameLip: X, sealGap: g, frameFace } = window.profile;
@@ -386,7 +416,10 @@ export function validateWindowInsert(variant: CatioMode, config: WindowInsertCon
 
 /** Stage 0 is the window as it is; stages 1–3 happen on a bench outside, 4–6 at the window. */
 export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig): readonly AssemblyStep[] {
-  const joint = config.cornerJoint === 'half-lap'
+  const bracket = part(config.cornerBracket); const bracketScrew = cornerBracketScrew(bracket);
+  const joint = config.cornerJoint === 'corner-bracket'
+    ? `Stand the two stiles. Slide the head and sill rails in between them from the outdoor side. Then drive two 5 × 70 screws through each stile into the end grain of the rail. Turn the collar over: at each corner lay a ${dimensionOf(bracket, 'a')} × ${dimensionOf(bracket, 'b')} flat corner bracket on the room-side face, flush with the outer edges, mark round it and chisel it in ${dimensionOf(bracket, 't')} mm, so that it lies flush; then screw it on through all ${cornerBracketHoles(bracket).length} holes with ${bracketScrew.designation.replace('DIN 7997 ', '')} screws`
+    : config.cornerJoint === 'half-lap'
     ? 'Lay the sill and head rails, laps facing outdoors. Glue the laps and press the stiles onto them from the outdoor side. Then drive two 4 × 50 screws into each corner from the outdoor face, one corner after another'
     : 'Stand the two stiles. Slide the head and sill rails in between them from the outdoor side. Then drive two 5 × 70 screws through each stile into the end grain of the rail';
   const hung = config.attachment === 'frame-hooks';
@@ -441,6 +474,7 @@ const partSize = (p: Part) => {
     case 'nut': return [d('s'), p.dimensions['h'] ? d('h') : d('m')].join(' · ');
     case 'screw': return [d('d'), d('l'), `A/F ${p.dimensions['s']?.value ?? ''}`].join(' · ');
     case 'screen-hook': return [d('h'), d('w'), d('t')].join(' · ');
+    case 'corner-bracket': return [d('a'), d('c'), d('t'), d('d')].join(' · ');
     default: return '';
   }
 };
@@ -481,6 +515,7 @@ export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, 
     } else if (c.kind === 'bearing') add(l.bearingFoot.id, 'Under the sill rail: carries the insert on the recess floor');
     else { add(l.spreaderFoot.id, 'In the stiles and head rail: presses on the reveal'); add(l.nut.id, 'Jammed against the foot’s own nut on the inner end of each spreader stud'); }
   }
+  for (const b of l.brackets) add(b.part.id, 'Across each collar corner, let in flush on the room-side face');
   for (const hook of l.hooks) add(hook.part.id, `${hook.end === 'head' ? 'At the head of each stile: slipped up behind the frame’s head lip' : 'At the sill end of each stile: dropped behind the frame’s sill lip'}, bent at ${l.hookFit?.bend ?? 0} mm`);
   for (const [partId, entry] of counts) {
     const p = part(partId);
@@ -537,8 +572,11 @@ export function windowInsertViews(variant: CatioMode, config: WindowInsertConfig
 const PAD_SOLE: Record<PressurePadSurface, string> = { flat: 'Flat', grooved: 'Grooved', domed: 'Domed' };
 
 export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = [
-  { key: 'cornerJoint', label: 'Collar corners', group: 'Timber joints', help: 'Half-laps lock the corners against the spreaders’ outward push; butt joints are quicker but hold only by screws in end grain.',
-    options: [{ value: 'half-lap', label: 'Half-lap, glued + 2 screws' }, { value: 'butt-screwed', label: 'Butt joint + 2 screws' }] },
+  { key: 'cornerJoint', label: 'Collar corners', group: 'Timber joints', help: 'A flat steel corner bracket across each butt joint keeps the corner square and closed, the stiffest of the three. Half-laps lock the corners on glue and timber shoulders; butt joints alone hold only by screws in end grain.',
+    options: [{ value: 'corner-bracket', label: 'Butt joint + 2 screws + flat corner bracket' }, { value: 'half-lap', label: 'Half-lap, glued + 2 screws' }, { value: 'butt-screwed', label: 'Butt joint + 2 screws' }] },
+  { key: 'cornerBracket', label: 'Corner bracket', group: 'Timber joints', when: c => c.cornerJoint === 'corner-bracket',
+    help: 'GAH Alberts Stuhlwinkel from the parts library, let in flush on the collar’s room-side face. A longer leg holds the corner stiffer; hung on the window frame, it must stay clear of the screen hooks on the stiles (the page checks).',
+    options: WINDOW_INSERT_BRACKETS.map(id => { const p = part(id); return { value: id, label: `${dimensionOf(p, 'a')} × ${dimensionOf(p, 'b')} × ${dimensionOf(p, 'c')} mm` }; }) },
   { key: 'junctionJoint', label: 'Port transom & jambs', group: 'Timber joints', variants: ['modular'], help: 'Housings carry the transom and jambs on timber; butt joints rely on the screws alone.',
     options: [{ value: 'housed', label: 'Housed 10 mm + screw' }, { value: 'butt-screwed', label: 'Butt joint + screws' }] },
   { key: 'meshFixing', label: 'Mesh to timber', group: 'Mesh', help: 'Staples hold the wire; battens clamp it along the whole edge and cover the cut ends. Where the passage sleeve meets the threshold edge (direct) it is always stapled.',
@@ -590,7 +628,10 @@ export const WINDOW_INSERT_DECISIONS: DesignDecision[] = [
   { title: 'Spreaders on all four sides', parameter: 'Clamps per side',
     choice: 'The clamps act in opposed pairs (left–right, head–sill), so their forces cancel in the collar instead of pushing it out of the recess.',
     why: 'Weight goes straight down through the sill feet onto the exterior sill; the side and head pairs give the friction that resists a cat pushing on the mesh. The feet sit at the room-side half of the collar, behind the mesh, where the hand reaches.' },
-  { title: 'Half-lapped collar corners', parameter: 'Collar corners',
+  { title: 'Flat corner brackets at the collar corners', parameter: 'Collar corners',
+    choice: 'Each corner is a butt joint (the rails between the stiles, two DIN 7997 5 × 70 screws through each stile into the rail’s end grain) with a GAH Alberts 100 × 100 × 19 flat corner bracket (Stuhlwinkel, 2 mm sendzimir-galvanised steel) let in flush across it on the room-side face, screwed through its six holes with DIN 7997 5 × 35 screws.',
+    why: 'The spreaders push the corners apart, and a cat or the wind racks the collar: a steel plate screwed across both members holds the corner square and closed better than a lap’s glue or screws in end grain alone. It goes on the room-side face because the outdoor face carries the mesh and its battens, and it is let in so that the collar still lies flat on the window frame when hung. 19 mm wide, it stays clear of the screen hooks beside it on the stiles. Half-laps, or butt joints alone, remain selectable; the bracket size too.' },
+  { title: 'Half-lapped collar corners (option)', parameter: 'Collar corners',
     choice: 'Each 40 × 60 collar member is halved 30 mm deep at its ends, glued and screwed with two DIN 7997 4 × 50 screws from the outdoor face.',
     why: 'The spreaders push the stiles and rails apart at the corners. A lap carries that on long-grain glue and timber shoulders; a butt joint (the alternative) holds only by screws in end grain.' },
   { title: 'Mesh clamped under battens', parameter: 'Mesh to timber',

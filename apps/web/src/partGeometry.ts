@@ -1,4 +1,4 @@
-import { METRIC_THREADS, type MetricThread, type Part } from '@canfactory/contracts';
+import { cornerBracketHoles, METRIC_THREADS, type MetricThread, type Part } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -247,8 +247,19 @@ function screenHook(part: Part): Piece[] {
   return [block([w, t, l], [0, 0, 0]), block([w, reach + t, t], [0, 0, l - t]), block([w, t, h], [0, reach, l - t]), paint(hole, DARK)];
 }
 
+function cornerBracket(part: Part): Piece[] {
+  // lying flat: leg a along +X and leg b along +Y from the outer corner, with its screw holes as dark discs
+  const a = value(part, 'a'); const b = value(part, 'b'); const c = value(part, 'c'); const t = value(part, 't'); const d = value(part, 'd');
+  const plate = (x: number, y: number, w: number, h: number) => { const geometry = new THREE.BoxGeometry(w, h, t); geometry.translate(x + w / 2, y + h / 2, t / 2); return paint(geometry, STEEL); };
+  const holes = cornerBracketHoles(part).map(hole => {
+    const geometry = new THREE.CylinderGeometry(d / 2, d / 2, t * 1.2, 20); geometry.rotateX(Math.PI / 2);
+    geometry.translate(hole.leg === 'a' ? hole.along : hole.across, hole.leg === 'a' ? hole.across : hole.along, t / 2); return paint(geometry, DARK);
+  });
+  return [plate(0, 0, a, c), plate(0, c, c, b - c), ...holes];
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
-  screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook,
+  screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */

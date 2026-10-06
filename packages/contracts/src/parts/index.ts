@@ -1,4 +1,5 @@
 import { bearingFamily, bearingParts } from './bearings.ts';
+import { cornerBracketFamily, cornerBracketParts } from './corner-brackets.ts';
 import { everydayObjectFamily, everydayObjectParts } from './everyday-objects.ts';
 import { insertFamily, insertParts } from './inserts.ts';
 import { insertNutFamily, insertNutParts } from './insert-nuts.ts';
@@ -16,6 +17,7 @@ import { woodScrewFamily, woodScrewParts } from './wood-screws.ts';
 
 export * from './schema.ts';
 export { PART_SOURCES, findPartSource } from './sources.ts';
+export { cornerBracketHoles } from './corner-brackets.ts';
 
 /**
  * The parts library: real-world items that models are made to fit, grouped into families. Each family is one file with its
@@ -26,12 +28,12 @@ export { PART_SOURCES, findPartSource } from './sources.ts';
  */
 export const partFamilies: readonly PartFamily[] = [
   magnetFamily, screwFamily, nutFamily, washerFamily, insertFamily, bearingFamily, pinFamily, everydayObjectFamily,
-  woodScrewFamily, nailFamily, insertNutFamily, levellingFootFamily, toggleLatchFamily, screenHookFamily,
+  woodScrewFamily, nailFamily, insertNutFamily, levellingFootFamily, toggleLatchFamily, screenHookFamily, cornerBracketFamily,
 ];
 
 export const parts: readonly Part[] = [
   ...magnetParts, ...screwParts, ...nutParts, ...washerParts, ...insertParts, ...bearingParts, ...pinParts, ...everydayObjectParts,
-  ...woodScrewParts, ...nailParts, ...insertNutParts, ...levellingFootParts, ...toggleLatchParts, ...screenHookParts,
+  ...woodScrewParts, ...nailParts, ...insertNutParts, ...levellingFootParts, ...toggleLatchParts, ...screenHookParts, ...cornerBracketParts,
 ];
 
 export function findPart(id: string): Part | undefined { return parts.find(part => part.id === id); }

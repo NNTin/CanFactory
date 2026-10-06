@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { dimensionOf, findPart, partUsage, WINDOW_INSERT_FOOT, windowInsertConcept } from '@canfactory/contracts';
+import { dimensionOf, findPart, partUsage, WINDOW_INSERT_BRACKETS, WINDOW_INSERT_FOOT, windowInsertConcept } from '@canfactory/contracts';
+import { fastenerClashes } from './catioSubassembly.ts';
 import type { CatioState } from './catioScene.ts';
 import { parseSubassemblySettings, defaultSubassemblySettings } from './catioSubassembly.ts';
 import { windowInsertDefinition } from './catioSubassemblies.ts';
@@ -17,12 +18,15 @@ const variants = ['direct', 'modular'] as const;
 const pressed: WindowInsertConfig = { ...WINDOW_INSERT_DEFAULT, attachment: 'spreader-feet' };
 const ganter: WindowInsertConfig = { ...pressed, clampPad: 'ganter' };
 const hung: WindowInsertConfig = { ...WINDOW_INSERT_DEFAULT, attachment: 'frame-hooks' };
-const configs: WindowInsertConfig[] = [WINDOW_INSERT_DEFAULT, pressed, ...[WINDOW_INSERT_DEFAULT, pressed].flatMap(base => WINDOW_INSERT_CONTROLS.flatMap(control => control.options.map(option => ({ ...base, [control.key]: option.value })))),
+/** Brackets that would cover a hung insert's screen hooks (too wide, or the head hooks too near the top with 10 mm of overlap): checked on their own. */
+const besideHooks = (config: WindowInsertConfig) => config.attachment !== 'frame-hooks' || config.cornerJoint !== 'corner-bracket' || (!/125x125|150x150/.test(config.cornerBracket) && config.frameOverlap > 10);
+const configs: WindowInsertConfig[] = ([WINDOW_INSERT_DEFAULT, pressed, ...[WINDOW_INSERT_DEFAULT, pressed].flatMap(base => WINDOW_INSERT_CONTROLS.flatMap(control => control.options.map(option => ({ ...base, [control.key]: option.value })))),
   // the Ganter feet in every size, and the printed pads at their lowest and highest
   ...WINDOW_INSERT_FOOT.diameters.map(footDiameter => ({ ...ganter, footDiameter })), { ...pressed, padHeight: PAD_HEIGHT.min }, { ...pressed, padHeight: PAD_HEIGHT.max, footDiameter: 25 },
   // hung on the window frame: every overlap, the Ganter feet, three feet, the tallest pads, and thin and thick frame lips
   ...[10, 15, 20, 25].map(frameOverlap => ({ ...hung, frameOverlap }) as WindowInsertConfig), { ...hung, clampPad: 'ganter' }, { ...hung, clampsPerSide: 3 },
-  { ...hung, padHeight: PAD_HEIGHT.max }, { ...hung, frameLip: 8, sealGap: 4.5 }, { ...hung, frameLip: 35, frameFace: 90, frameDepth: 120 }];
+  { ...hung, padHeight: PAD_HEIGHT.max }, { ...hung, frameLip: 8, sealGap: 4.5 }, { ...hung, frameLip: 35, frameFace: 90, frameDepth: 120 },
+  { ...hung, frameOverlap: 10, cornerJoint: 'half-lap' }] as WindowInsertConfig[]).filter(besideHooks);
 const component = (scene: ReturnType<typeof createWindowInsertScene>, id: string) => {
   const found = scene.components.find(part => part.id === id); if (!found) throw new Error(`missing ${id}`); return found.group;
 };
@@ -242,7 +246,7 @@ describe('window insert', () => {
       expect(lines.some(line => line.name.startsWith('Cover batten'))).toBe(config.meshFixing !== 'staples');
       expect(lines.filter(line => line.group === 'Mesh')).toHaveLength(3);
     }
-    const lap = windowInsertLayout('direct', WINDOW_INSERT_DEFAULT); const butt = windowInsertLayout('direct', { ...WINDOW_INSERT_DEFAULT, cornerJoint: 'butt-screwed' });
+    const lap = windowInsertLayout('direct', { ...WINDOW_INSERT_DEFAULT, cornerJoint: 'half-lap' }); const butt = windowInsertLayout('direct', { ...WINDOW_INSERT_DEFAULT, cornerJoint: 'butt-screwed' });
     expect(lap.timber.find(piece => piece.id === 'collar-head')?.length).toBe(lap.W);
     expect(butt.timber.find(piece => piece.id === 'collar-head')?.length).toBe(butt.W - 2 * INSERT.member);
     expect(lap.fasteners.filter(f => f.component === 'corner-screws').every(f => f.partId === 'din-7997-4x50')).toBe(true);
@@ -279,7 +283,7 @@ describe('window insert', () => {
     const settings = parseSubassemblySettings(windowInsertDefinition, saved);
     expect(settings.variant).toBe('modular');
     expect(settings.config.footDiameter).toBe(40);
-    expect(settings.config.cornerJoint).toBe('half-lap');
+    expect(settings.config.cornerJoint).toBe('corner-bracket');
     expect(settings.views.modular).toMatchObject({ progress: 3, view: 'Mounting', hidden: ['mesh'], windowOpen: false });
     expect(parseSubassemblySettings(windowInsertDefinition, '{oops')).toEqual(defaultSubassemblySettings(windowInsertDefinition));
   });
@@ -386,7 +390,59 @@ describe('window insert hung on the window frame', () => {
       return meshes - timber;
     };
     // three strips a hook, a stem and a pad a foot; nothing pressed into the recess
-    expect(count(hung)).toBe(3 * 4 + 2 * hung.clampsPerSide);
-    expect(count(pressed)).toBe(0);
+    // two plates a corner bracket, three strips a hook, a stem and a pad a foot; only the brackets pressed into the recess
+    expect(count(hung)).toBe(2 * 4 + 3 * 4 + 2 * hung.clampsPerSide);
+    expect(count(pressed)).toBe(2 * 4);
+    expect(count({ ...pressed, cornerJoint: 'half-lap' })).toBe(0);
   });
+
+describe('window insert collar corners with flat corner brackets', () => {
+  it('lets a bought flat corner bracket into the room-side face of each butt joint, screwed through every hole', () => {
+    for (const variant of variants) for (const config of [WINDOW_INSERT_DEFAULT, pressed]) {
+      const l = windowInsertLayout(variant, config);
+      expect(l.brackets.map(b => b.part.id)).toEqual(Array(4).fill('gah-alberts-stuhlwinkel-100x100x19'));
+      for (const b of l.brackets) for (const plate of b.boxes) {
+        // flush in the room-side face, within the collar's outline, at most the 40 mm member wide across it
+        expect(plate.center[1] - plate.size[1] / 2).toBe(l.yIn);
+        expect(Math.abs(plate.center[0]) + plate.size[0] / 2).toBeLessThanOrEqual(l.W / 2 + 1e-9);
+        expect(Math.min(plate.size[0], plate.size[2])).toBeLessThanOrEqual(INSERT.member);
+      }
+      const screws = l.fasteners.filter(f => f.component === 'bracket-screws');
+      expect(screws).toHaveLength(4 * 6);
+      expect(new Set(screws.map(f => f.partId))).toEqual(new Set(['din-7997-5x35']));
+      // the corner screws stay, through the stiles into the rails' end grain, and nothing runs into another
+      expect(l.fasteners.filter(f => f.component === 'corner-screws').every(f => f.partId === 'din-7997-5x70')).toBe(true);
+      expect(fastenerClashes(screws, l.fasteners.filter(f => f.component !== 'bracket-screws'), 6)).toEqual([]);
+      expect(validateWindowInsert(variant, config)).toEqual([]);
+    }
+  });
+
+  it('keeps the brackets clear of a hung insert’s hooks, and offers the larger ones pressed into the recess', () => {
+    for (const cornerBracket of WINDOW_INSERT_BRACKETS) {
+      expect(validateWindowInsert('direct', { ...pressed, cornerBracket })).toEqual([]);
+      const errors = validateWindowInsert('direct', { ...hung, cornerBracket });
+      if (/125x125|150x150/.test(cornerBracket)) expect(errors.join(' ')).toMatch(/would lie over the screen hooks/);
+      else expect(errors).toEqual([]);
+    }
+    // with only 10 mm on the frame, the head hooks turn in 17 mm below the collar's top, under any bracket's rail leg
+    expect(validateWindowInsert('direct', { ...hung, frameOverlap: 10 }).join(' ')).toMatch(/more overlap on the frame/);
+    expect(validateWindowInsert('direct', { ...hung, frameOverlap: 10, cornerJoint: 'half-lap' })).toEqual([]);
+  });
+
+  it('lists the brackets and their screws, says how they go in, and stages them after the corner screws', () => {
+    const lines = windowInsertBom('direct', WINDOW_INSERT_DEFAULT);
+    const bracket = lines.find(line => line.partId === 'gah-alberts-stuhlwinkel-100x100x19');
+    expect(bracket?.quantity).toBe(4);
+    expect(bracket?.size).toContain('GAH Alberts Stuhlwinkel 100 × 100 × 19 mm');
+    expect(lines.find(line => line.partId === 'din-7997-5x35')?.quantity).toBe(24);
+    expect(windowInsertSteps('direct', WINDOW_INSERT_DEFAULT)[1]?.detail).toMatch(/chisel it in 2 mm.*all 6 holes with 5 × 35 screws/);
+    const scene = createWindowInsertScene('direct', WINDOW_INSERT_DEFAULT);
+    const at = (role: string) => scene.motions.filter(m => m.action.includes(role)).map(m => m.window[0]);
+    scene.update({ ...installed, progress: 0.8 });
+    expect(scene.caption?.()).toMatch(/4 × Flat corner bracket 100 × 100 × 19: laid into its recess/);
+    expect(Math.min(...at('Flat corner bracket'))).toBeGreaterThan(Math.max(...at('Countersunk wood screw 5 × 70')));
+    expect(Math.min(...at('Countersunk wood screw 5 × 35'))).toBeGreaterThan(Math.max(...at('Flat corner bracket')));
+    scene.dispose();
+  });
+});
 });

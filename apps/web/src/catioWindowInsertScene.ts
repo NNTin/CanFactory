@@ -26,10 +26,11 @@ export interface PieceMotion {
   role?: 'insert-nut' | 'foot' | 'own-nut' | 'second-nut' | 'pad-screw' | 'pad-nut' | 'pad' | 'screw' | 'staple'; of?: string; drive?: V3;
 }
 
-/** The installed insert as fixed context on another page: its timber, its hooks and feet when hung, and its mesh on the mesh layer. */
+/** The installed insert as fixed context on another page: its timber, corner brackets, hooks and feet when hung, and its mesh on the mesh layer. */
 export function buildInsertContext(p: ReturnType<typeof createCatioParts>, layout: WindowInsertLayout) {
   const insert = p.component('window-insert', 0, undefined);
   for (const t of layout.timber) for (const b of t.boxes) p.box(insert, b.size, b.center, t.component === 'threshold' || t.component === 'cover-battens' ? p.materials.endgrain : p.materials.timber);
+  for (const b of layout.brackets) for (const plate of b.boxes) p.box(insert, plate.size, plate.center, p.materials.hardware);
   buildHungHardware(p, layout, insert, insert);
   for (const q of layout.panels) p.panel(`insert-${q.id}`, 0, q.width, q.height, q.center, q.plane, [0, 0, 0]);
   return insert;
@@ -121,8 +122,10 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
   for (const f of layout.fasteners) byComponent.set(f.component, [...(byComponent.get(f.component) ?? []), f]);
   for (const [id, list] of byComponent) {
     // the hooks' screws go in with the hooks, in stage 2
-    const stage = id === 'corner-screws' ? 1 : id === 'hook-screws' ? 2 : 3;
-    const [from, to] = id === 'corner-screws' ? [0.55, 1] as [number, number] : id === 'hook-screws' ? [0.85, 1] as [number, number] : stage3Windows[id] ?? [0, 1];
+    // the corner brackets' screws go in last in stage 1, after the corner screws and the brackets
+    const brackets = layout.brackets.length > 0;
+    const stage = id === 'corner-screws' || id === 'bracket-screws' ? 1 : id === 'hook-screws' ? 2 : 3;
+    const [from, to]: [number, number] = id === 'corner-screws' ? (brackets ? [0.55, 0.75] : [0.55, 1]) : id === 'bracket-screws' ? [0.88, 1] : id === 'hook-screws' ? [0.85, 1] : stage3Windows[id] ?? [0, 1];
     // all fasteners of a kind go in together; each still along its own axis
     const kinds = new Map<string, { count: number; ways: Set<string> }>();
     for (const f of list) { const k = kinds.get(f.partId) ?? { count: 0, ways: new Set<string>() }; k.count++; k.ways.add(describe(f.direction)); kinds.set(f.partId, k); }
@@ -254,6 +257,17 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
     }
     movers.push({ slide, kind: clamp.kind, turns: true });
   });
+
+  // Stage 1, with flat corner brackets: each laid into its recess on the room-side face, then screwed (above).
+  if (layout.brackets.length) {
+    const brackets = group('corner-brackets', 1, 'hardware');
+    const [first] = layout.brackets;
+    const caption = `${layout.brackets.length} × ${first?.part.title ?? 'Flat corner bracket'}: laid into its recess across the corner on the room-side face`;
+    for (const b of layout.brackets) {
+      const g = piece(brackets); for (const plate of b.boxes) box(g, plate.size, plate.center, m.hardware);
+      move(g, 1, [0.75, 0.88], [0, -120, 0], caption);
+    }
+  }
 
   // Stage 2, hung on the window frame: the hooks, bent, laid on the stiles' backs from the room side, then screwed (above).
   if (hung) {

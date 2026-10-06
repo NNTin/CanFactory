@@ -169,6 +169,13 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await expect(hardware.getByRole('link', { name: 'Insect screen hook, short (Windhager 03651, 5b)' })).toHaveAttribute('href', '#/parts/screen-hook/windhager-03651-5b');
   await expect(hardware.getByRole('link', { name: 'Pressure pad, foot' })).toBeVisible();
   await expect(hardware.getByRole('link', { name: 'Pressure pad, thrust pad' })).toHaveCount(0);
+  // flat corner brackets across the collar's butt joints by default, from the parts library
+  await expect(viewer).toHaveAttribute('data-visible-parts', /corner-brackets/);
+  await expect(page.getByRole('combobox', { name: 'Corner bracket' })).toHaveValue('gah-alberts-stuhlwinkel-100x100x19');
+  await expect(hardware.getByRole('link', { name: 'Flat corner bracket 100 × 100 × 19' })).toHaveAttribute('href', '#/parts/corner-bracket/gah-alberts-stuhlwinkel-100x100x19');
+  await page.getByRole('combobox', { name: 'Corner bracket' }).selectOption('gah-alberts-stuhlwinkel-150x150x25');
+  await expect(page.getByText(/would lie over the screen hooks/)).toBeVisible();
+  await page.getByRole('combobox', { name: 'Corner bracket' }).selectOption('gah-alberts-stuhlwinkel-100x100x19');
   // pressed into the recess instead: printed pads on library screws; the Ganter feet stay selectable
   await page.getByRole('combobox', { name: 'Held in the recess by' }).selectOption('spreader-feet');
   await expect(viewer).toHaveAttribute('data-visible-parts', /spreader-clamps/);

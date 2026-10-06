@@ -93,6 +93,13 @@ describe('parts library', () => {
         expect(dimension(part, 'l1'), message).toBeGreaterThan(dimension(part, 'b3') + dimension(part, 'b4'));
         expect(dimension(part, 'l1'), message).toBeGreaterThan(dimension(part, 'l2'));
       }
+      if (part.family === 'corner-bracket') {
+        // legs longer than they are wide, a hole narrower than the leg, a plate thinner than the hole
+        expect(dimension(part, 'a'), message).toBeGreaterThan(dimension(part, 'c'));
+        expect(dimension(part, 'b'), message).toBeGreaterThan(dimension(part, 'c'));
+        expect(dimension(part, 'c'), message).toBeGreaterThan(d);
+        expect(dimension(part, 't'), message).toBeLessThan(d);
+      }
       if (part.family === 'screen-hook') {
         // a strip wider than its hole and thicker than nothing, bent for a range of lips, with its tip shorter than its leg
         expect(dimension(part, 'w'), message).toBeGreaterThan(d);
