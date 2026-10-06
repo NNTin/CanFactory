@@ -29,7 +29,7 @@ describe('Awin feeds', () => {
     expect(parseCsv('a,"b,1","c ""x""\ny"\r\n1,,3')).toEqual([['a', 'b,1', 'c "x"\ny'], ['1', '', '3']]);
     const parser = new CsvParser();
     const text = 'a,"q""uote",z\n"split\nfield",2,3\n';
-    const records = [...text].flatMap(character => parser.push(character));
+    const records = Array.from({ length: text.length }, (_, index) => text.charAt(index)).flatMap(character => parser.push(character));
     expect([...records, ...parser.end()]).toEqual([['a', 'q"uote', 'z'], ['split\nfield', '2', '3']]);
   });
 

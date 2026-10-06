@@ -2129,3 +2129,49 @@ main {
 }
 .catio-assembly p.subassembly-action { margin-top: 8px; color: #4f6440; min-height: 1.7em; }
 .subassembly-action strong { font-weight: 600; }
+
+/* Where to buy: affiliate offers, the hardware of a build, the buy list, and the disclosure and privacy pages (docs/affiliate-offers.md). */
+.where-to-buy { margin-top: 22px; padding-top: 4px; border-top: 1px solid #eceee6; }
+.where-to-buy-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.where-to-buy-heading h3 { margin: 18px 0 8px; }
+.where-to-buy-heading h2 { font: 28px Georgia, serif; margin: 8px 0 6px; letter-spacing: -.4px; }
+.market-picker { font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.market-picker select { font: inherit; font-size: 11px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: #3f4a3a; }
+.offer-list { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 6px; }
+.offer-row { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 10px 12px; background: #fafbf6; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
+.offer-row > div { display: grid; gap: 3px; min-width: 0; }
+.offer-title { color: #39433a; font-weight: 500; overflow-wrap: anywhere; }
+.offer-row small, .offer-price small { color: #8a8d80; font-size: 10.5px; }
+.offer-price { color: #4d5249; font-size: 11.5px; }
+.offer-price strong { color: #313d32; font-weight: 620; }
+.offer-link { display: inline-flex; align-items: center; gap: 4px; color: #4d6b38; white-space: nowrap; }
+.buy-list-add { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 11px; color: var(--muted); }
+.buy-list-add label { display: inline-flex; align-items: center; gap: 6px; }
+.buy-list-add input, .buy-list-items input { width: 70px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.secondary-button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 6px; border: 1px solid #c9cdbd; background: var(--surface); color: #313d32; font-size: 12px; }
+.secondary-button:hover:not(:disabled) { border-color: #313d32; }
+.affiliate-note { font-size: 10.5px; color: #8a8d80; margin: 10px 0 0; }
+.affiliate-note a { color: inherit; }
+.hardware { margin: 30px 0 0; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.hardware-intro { font-size: 12px; color: #808875; margin: 0 0 14px; }
+.hardware table, .buy-list-items { width: 100%; border-collapse: collapse; font-size: 12px; }
+.hardware th, .buy-list-items th { text-align: left; font-weight: 500; font-size: 10px; letter-spacing: .4px; text-transform: uppercase; color: #858b7b; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.hardware td, .buy-list-items td { padding: 8px 10px; border-bottom: 1px solid #eceee6; vertical-align: top; color: #59654d; }
+.hardware td small { color: #8a8d80; margin-left: 6px; }
+.hardware td a, .buy-list-items td a { color: #4d6b38; }
+.buy-list-page .page-heading { align-items: flex-end; }
+.buy-list-shop { margin: 0 0 26px; }
+.buy-list-shop h2, .buy-list-sources-title { font: 24px Georgia, serif; margin: 0 0 10px; }
+.buy-list-sources-title { margin-top: 34px; }
+.cart-link { display: inline-block; margin-top: 12px; text-decoration: none; }
+.legal-page { max-width: 760px; margin: 40px 0 60px; font-size: 13.5px; line-height: 1.7; color: #4d5249; }
+.legal-page h1 { font: 42px Georgia, serif; margin: 10px 0 18px; color: #313d32; }
+.legal-page h2 { font-size: 15px; font-weight: 620; margin: 26px 0 6px; color: #313d32; }
+.legal-page a { color: #4d6b38; }
+.site-footer .footer-link { color: inherit; }
+.site-footer .footer-link:hover, .site-footer .footer-link:focus-visible { color: #788268; }
+@media (max-width: 640px) {
+  .offer-row { flex-direction: column; align-items: flex-start; }
+  .hardware { padding: 16px; }
+  .hardware table { font-size: 11px; }
+}

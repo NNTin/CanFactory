@@ -86,6 +86,9 @@ describe('product matcher', () => {
     expect(screws?.offers).toHaveLength(1);
     expect(screws?.offers[0]).toMatchObject({ kind: 'search', shopKey: 'amazon-DE', offerId: null, url: expect.stringContaining('https://www.amazon.de/s?k=') as unknown });
     expect(result.shops.map(shop => [shop.shopKey, shop.lines.length, shop.cartUrl])).toEqual([['amazon-DE', 2, null]]);
+    // Once the Add-to-Cart form is verified, Amazon's group gets one link for its curated lines (not the searches).
+    const cart = matchOffers([{ partId: 'ruthex-rx-m3x5-7', quantity: 150 }, { partId: 'iso-4762-m3x10', quantity: 4 }], 'DE', { findPart, now, accounts, cartForm: true });
+    expect(cart.shops[0]?.cartUrl).toBe('https://www.amazon.de/gp/aws/cart/add.html?ASIN.1=B08BCRZZS3&Quantity.1=2&AssociateTag=canfactory-21');
   });
 
   it('buys an assortment once, in enough packs for every part it covers', () => {

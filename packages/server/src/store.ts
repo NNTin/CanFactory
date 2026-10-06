@@ -23,9 +23,9 @@ export interface AwinOfferRow {
 }
 export const AWIN_COLUMNS = `advertiser_id AS "advertiserId", merchant_product_id AS "merchantProductId", market, deep_link AS "deepLink", name, price, currency,
   delivery_cost AS "deliveryCost", in_stock AS "inStock", last_imported AS "lastImported"`;
-/** A stored Awin row as the matcher takes it; SQLite keeps booleans as 0/1, PostgreSQL bigints come back as numbers via ::float8. */
+/** A stored Awin row as the matcher takes it: SQLite keeps booleans as 0/1 (PostgreSQL's bigints are read as ::float8, so numbers). */
 export function awinLive(row: AwinOfferRow): AwinLive {
-  return { ...row, advertiserId: Number(row.advertiserId), lastImported: Number(row.lastImported), inStock: row.inStock === null ? null : Boolean(row.inStock) };
+  return { ...row, inStock: row.inStock === null ? null : Boolean(row.inStock) };
 }
 
 /** File operations are isolated so a future object store can replace the local volume. */

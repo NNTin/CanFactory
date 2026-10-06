@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, Box, RotateCcw } from 'lucide-react';
 import * as THREE from 'three';
-import { findPart } from '@canfactory/contracts';
+import { bomRequirements, findPart } from '@canfactory/contracts';
 import { createStage, type Stage } from './stage.ts';
 import type { CatioLayer, CatioView } from './catioDesign.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { BOM_GROUPS, inRange, loadSubassemblySettings, saveShared, subassemblyStorageKey, defaultSubassemblySettings, type BomLine, type NumberRange, type SubassemblyDefinition, type SubassemblyModel, type SubassemblyViewing } from './catioSubassembly.ts';
-import { couplingDefinition, dependentsOf, tunnelCouplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
+import { CATIO_SUBASSEMBLY_TITLES, couplingDefinition, dependentsOf, tunnelCouplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
 import { ChangesNote, OtherPageIssues, PageRelations, SettingSource, SharedNote, useOtherPageIssues } from './CatioCrossPage.tsx';
 import { formatHash, type CatioSubassembly } from './route.ts';
+import { AffiliateNote, OfferLink } from './Shopping.tsx';
+import { addToBuyList, useMarket, useOffers, type BuyListSource } from './shopping.ts';
 
 const VIEWS: CatioView[] = ['Exterior', 'Interior', 'Front', 'Side', 'Top', 'Mounting'];
 const LAYERS: { id: CatioLayer; title: string }[] = [
@@ -154,7 +156,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
         <div className="catio-layers" role="group" aria-label="Visible components">{LAYERS.map(layer => <button key={layer.id} type="button" aria-pressed={!hidden.has(layer.id)} disabled={unsupported} onClick={() => toggleLayer(layer.id)}>{definition.layerLabels?.[layer.id] ?? layer.title}</button>)}</div>
       </section>
     </div>
-    <PartsList lines={bom} />
+    <PartsList lines={bom} from={{ kind: 'concept', id: `catio/${definition.id}`, label: `Catio: ${CATIO_SUBASSEMBLY_TITLES[definition.id]}` }} />
     <section className="catio-instructions" aria-label="Assembly instructions"><span className="eyebrow">THE ASSEMBLY</span><h2>{definition.assemblyHeading}</h2>
       <ol>{steps.slice(1).map(info => <li key={info.title}><strong>{info.title}</strong><p>{info.detail}</p></li>)}</ol></section>
     <section className="subassembly-decisions" aria-label="Design decisions"><span className="eyebrow">THE DEFAULTS, AND WHY</span><h2>Choices to redirect.</h2>
@@ -183,16 +185,29 @@ function NumberField({ label, help, range, value, onCommit, note }: { label: str
     <small>{help} {`${shown(range.min)}–${shown(range.max)} ${range.unit}.`}</small>{note}</label>;
 }
 
-function PartsList({ lines }: { lines: BomLine[] }) {
+function PartsList({ lines, from }: { lines: BomLine[]; from: BuyListSource }) {
+  // Library parts link to shops too, when a network links in the visitor's market (see docs/affiliate-offers.md).
+  const { market, linking } = useMarket();
+  const requirements = bomRequirements(lines);
+  const offers = useOffers(requirements, market, linking);
+  const buying = linking && requirements.length > 0;
+  const [added, setAdded] = useState(false);
   return <section className="subassembly-parts" aria-label="Parts list"><span className="eyebrow">THE PARTS</span><h2>Everything it takes.</h2>
     <p>Timber is cut for this design; hardware links to the parts library, with its standard or maker’s dimensions, and printed parts to their model. Sizes in millimetres.</p>
     {BOM_GROUPS.map(group => {
       const rows = lines.filter(line => line.group === group);
       return rows.length > 0 && <table key={group} aria-label={`${group} parts`}><caption>{group}</caption>
-        <thead><tr><th scope="col">Qty</th><th scope="col">Part</th><th scope="col">Dimensions</th><th scope="col">Where</th></tr></thead>
-        <tbody>{rows.map(line => <tr key={line.id}><td>{line.quantity}</td>
-          <td>{line.partId ? <a href={formatHash({ view: 'parts', family: findPart(line.partId)?.family ?? null, part: line.partId, filters: {} })}>{line.name}</a>
-            : line.modelId ? <a href={formatHash({ view: 'models', model: line.modelId })}>{line.name}</a> : line.name}</td>
-          <td>{line.size}</td><td>{line.use}</td></tr>)}</tbody></table>;
-    })}</section>;
+        <thead><tr><th scope="col">Qty</th><th scope="col">Part</th><th scope="col">Dimensions</th><th scope="col">Where</th>{buying && <th scope="col">Buy</th>}</tr></thead>
+        <tbody>{rows.map(line => {
+          const best = line.partId ? offers?.matches.find(match => match.partId === line.partId)?.offers[0] : undefined;
+          return <tr key={line.id}><td>{line.quantity}</td>
+            <td>{line.partId ? <a href={formatHash({ view: 'parts', family: findPart(line.partId)?.family ?? null, part: line.partId, filters: {} })}>{line.name}</a>
+              : line.modelId ? <a href={formatHash({ view: 'models', model: line.modelId })}>{line.name}</a> : line.name}</td>
+            <td>{line.size}</td><td>{line.use}</td>
+            {buying && <td>{best ? <OfferLink offer={best}>{best.kind === 'search' ? `Search ${best.shop}` : best.shop}</OfferLink> : null}</td>}</tr>;
+        })}</tbody></table>;
+    })}
+    {buying && <><div className="buy-list-add"><button type="button" className="secondary-button" onClick={() => { addToBuyList(from, requirements); setAdded(true); }}>Add all hardware to buy list</button>
+      {added && <a href={formatHash({ view: 'buy-list' })}>See the buy list</a>}</div><AffiliateNote /></>}
+  </section>;
 }

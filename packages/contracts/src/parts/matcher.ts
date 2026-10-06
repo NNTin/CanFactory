@@ -12,7 +12,7 @@ export const AWIN_PRICE_MAX_AGE_MS = 72 * 3_600_000;
  * Associates tag without the API's access key. It is documented only in the retired PA-API 5 docs; until someone has checked
  * both (it needs an Associates account), the buy list links each item instead. See docs/affiliate-offers.md.
  */
-export const AMAZON_CART_FORM_VERIFIED = false;
+export const AMAZON_CART_FORM_VERIFIED: boolean = false;
 
 /** The listing of an ASIN on a market's Amazon, with the Associates tag. Amazon's links are used as they are, never edited. */
 export function amazonProductUrl(asin: string, market: Market, tag: string): string {
@@ -102,6 +102,8 @@ export interface MatchOptions {
   live?: readonly AwinLive[];
   now?: number;
   catalogue?: readonly Offer[];
+  /** Whether to give Amazon's shop group a cart link (default `AMAZON_CART_FORM_VERIFIED`). */
+  cartForm?: boolean;
   findPart: (id: string) => Pick<Part, 'id' | 'designation' | 'product'> | undefined;
 }
 
@@ -116,7 +118,7 @@ export function enabledNetworks(market: Market, accounts: AffiliateAccounts = AF
  * of each part, grouped by shop, where a pack that covers several parts (an assortment) is bought once, in enough packs for all.
  */
 export function matchOffers(requirements: readonly Requirement[], market: Market, options: MatchOptions): Offers {
-  const { accounts = AFFILIATE_ACCOUNTS, live = [], now = Date.now(), catalogue = curatedOffers } = options;
+  const { accounts = AFFILIATE_ACCOUNTS, live = [], now = Date.now(), catalogue = curatedOffers, cartForm = AMAZON_CART_FORM_VERIFIED } = options;
   const networks = enabledNetworks(market, accounts);
   const tag = accounts.amazon[market];
   const publisherId = accounts.awin.publisherId;
@@ -168,7 +170,7 @@ export function matchOffers(requirements: readonly Requirement[], market: Market
     else group.lines.push({ offer: best, packs: best.packs, partIds: [match.partId] });
   }
   const shops = [...groups.values()];
-  if (AMAZON_CART_FORM_VERIFIED && tag !== null) {
+  if (cartForm && tag !== null) {
     for (const group of shops) {
       const items = group.lines.flatMap(line => line.offer.asin ? [{ asin: line.offer.asin, quantity: line.packs }] : []);
       if (group.network === 'amazon' && items.length > 0) group.cartUrl = amazonCartUrl(items, market, tag);

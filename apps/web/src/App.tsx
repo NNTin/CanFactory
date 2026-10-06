@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, ShoppingBasket, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from '@canfactory/client';
-import { controlRange, controlShown, decodeLogo, findModel, findPartFamily, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
+import { controlRange, controlShown, decodeLogo, findModel, findPartFamily, modelBom, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
 import { PartsLibrary } from './PartsLibrary.tsx';
+import { BuyListPage, DisclosurePage, Hardware, PrivacyPage } from './Shopping.tsx';
+import { useBuyList, useMarket } from './shopping.ts';
 import { referenceObjects } from './referenceObjects.ts';
 import { formatHash, parseHash, partLink, type Route } from './route.ts';
 import { Viewer } from './Viewer.tsx';
@@ -492,6 +494,8 @@ function Editor({ model }: { model: ModelDetail }) {
   const ready = rendering.ready && loadedUrl === url && !viewerError;
   const error = rendering.error ?? viewerError ?? downloadError;
   const derived = definition?.derived(parameters);
+  // The library parts the model holds for these settings (its assembly's real-world objects), for “Hardware for this build”.
+  const hardware = useMemo(() => definition ? modelBom(definition, valid ? parameters : displayedParameters) : [], [definition, valid, parameters, displayedParameters]);
 
   useEffect(() => {
     if (!valid) return;
@@ -589,6 +593,8 @@ function Editor({ model }: { model: ModelDetail }) {
         </div>
       </section>
     </div>
+    {hardware.length > 0 && <Hardware requirements={hardware} from={{ kind: 'model', id: model.id, label: model.title }}
+      intro="The parts this model is made to fit, for your current settings." />}
     <div className="model-footer"><span>Designed by <Attribution text={model.attribution} links={model.attributionLinks} />. <a href={model.licenseUrl} target="_blank" rel="noreferrer">{model.license}</a></span><span>All dimensions in millimetres · {model.printNotes}</span></div>
   </>;
 }
@@ -639,6 +645,8 @@ export function App() {
   const partsRoute = route?.view === 'parts' ? route : null;
   const family = partsRoute?.family ? families.find(candidate => candidate.id === partsRoute.family) : undefined;
   const partCount = families.reduce((sum, candidate) => sum + candidate.count, 0);
+  const shopping = useMarket();
+  const buyList = useBuyList();
 
   return <div className="app-shell">
     <header className="site-header"><button className="brand" type="button" aria-label="CanFactory model library" onClick={openLibrary}><span className="brand-mark"><Layers3 size={24} strokeWidth={1.7} /></span>CanFactory<span className="brand-dot">.</span></button>
@@ -646,10 +654,14 @@ export function App() {
         <button type="button" className="library-link" aria-current={route?.view === 'models' ? 'page' : undefined} onClick={openLibrary}>Model library <span>{models.length.toString().padStart(2, '0')}</span></button>
         <button type="button" className="library-link" aria-current={partsRoute ? 'page' : undefined} onClick={openParts}>Parts library <span>{partCount.toString().padStart(2, '0')}</span></button>
         <button type="button" className="library-link" aria-current={route?.view === 'concepts' ? 'page' : undefined} onClick={() => navigate({ view: 'concepts', concept: 'catio', subassembly: null })}>Catio concept</button>
+        {(shopping.enabled || buyList.length > 0) && <button type="button" className="library-link" aria-current={route?.view === 'buy-list' ? 'page' : undefined} onClick={() => navigate({ view: 'buy-list' })}><ShoppingBasket size={13} aria-hidden="true" /> Buy list <span>{new Set(buyList.map(item => item.partId)).size.toString().padStart(2, '0')}</span></button>}
         <span className="local-badge"><i /> Local workspace</span></div>
     </header>
     <main>
-      {route?.view === 'concepts' ? <><div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button><span>/</span>
+      {route?.view === 'buy-list' || route?.view === 'disclosure' || route?.view === 'privacy' ? <>
+        <div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button><span>/</span><span>{{ 'buy-list': 'Buy list', disclosure: 'Disclosure', privacy: 'Privacy' }[route.view]}</span></div>
+        {route.view === 'buy-list' ? <BuyListPage /> : route.view === 'disclosure' ? <DisclosurePage /> : <PrivacyPage />}</>
+        : route?.view === 'concepts' ? <><div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button><span>/</span>
         {route.subassembly ? <><button type="button" onClick={() => navigate({ view: 'concepts', concept: 'catio', subassembly: null })}>Catio concept</button><span>/</span><span>{CATIO_SUBASSEMBLY_TITLES[route.subassembly]}</span></> : <span>Catio concept</span>}</div>
         {route.subassembly ? <CatioSubassemblyRoute key={route.subassembly} id={route.subassembly} /> : <CatioConcept />}</> : partsRoute ? <>
         <div className="breadcrumb"><button type="button" onClick={openParts}><ArrowLeft size={13} /> Parts library</button>
@@ -669,6 +681,6 @@ export function App() {
                 <div className="coming-next"><span className="plus-shape">+</span><h2>More useful things to come.</h2><p>A growing collection for everyday making.</p></div></div></>}
       </>}
     </main>
-    <footer className="site-footer"><span>MAKE IT FIT. MAKE IT REAL.</span><span>CanFactory · Your local workshop · <BuildCommit /></span></footer>
+    <footer className="site-footer"><span>MAKE IT FIT. MAKE IT REAL.</span><span>CanFactory · Your local workshop · <a className="footer-link" href={formatHash({ view: 'disclosure' })}>Disclosure</a> · <a className="footer-link" href={formatHash({ view: 'privacy' })}>Privacy</a> · <BuildCommit /></span></footer>
   </div>;
 }
