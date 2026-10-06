@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, ShoppingBasket, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from '@canfactory/client';
-import { controlRange, controlShown, decodeLogo, findModel, findPartFamily, modelBom, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
+import { controlRange, controlShown, decodeLogo, findModel, findPartFamily, modelBom, modelUsage, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
 import { PartsLibrary } from './PartsLibrary.tsx';
 import { BuyListPage, DisclosurePage, Hardware, PrivacyPage } from './Shopping.tsx';
 import { useBuyList, useMarket } from './shopping.ts';
@@ -11,6 +11,8 @@ import { Viewer } from './Viewer.tsx';
 import { ToggleLatchIllustration } from './ToggleLatchIllustration.tsx';
 import { WindowCatGuardIllustration } from './WindowCatGuardIllustration.tsx';
 import { QrMagnetTagIllustration } from './QrMagnetTagIllustration.tsx';
+import { PrintedCornerBracketIllustration } from './PrintedCornerBracketIllustration.tsx';
+import { PrintedScreenHookIllustration } from './PrintedScreenHookIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { CatioConcept } from './CatioConcept.tsx';
 import { CatioSubassemblyRoute } from './CatioSubassemblyPage.tsx';
@@ -282,6 +284,8 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'pressure-pad': PressurePadIllustration,
   'window-cat-guard': WindowCatGuardIllustration,
   'qr-magnet-tag': QrMagnetTagIllustration,
+  'printed-corner-bracket': PrintedCornerBracketIllustration,
+  'printed-screen-hook': PrintedScreenHookIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names
@@ -480,6 +484,7 @@ function Editor({ model }: { model: ModelDetail }) {
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const definition = findModel(model.id);
+  const usage = useMemo(() => modelUsage(model.id), [model.id]);
   const issues = useMemo(() => definition ? validateParameters(definition, parameters) : [{ field: '', message: 'Reload the page to use this model’s current editor.' }], [definition, parameters]);
   const valid = issues.length === 0;
   const rendering = useRender(model, parameters, valid);
@@ -595,7 +600,9 @@ function Editor({ model }: { model: ModelDetail }) {
     </div>
     {hardware.length > 0 && <Hardware requirements={hardware} from={{ kind: 'model', id: model.id, label: model.title }}
       intro="The parts this model is made to fit, for your current settings." />}
-    <div className="model-footer"><span>Designed by <Attribution text={model.attribution} links={model.attributionLinks} />. <a href={model.licenseUrl} target="_blank" rel="noreferrer">{model.license}</a></span><span>All dimensions in millimetres · {model.printNotes}</span></div>
+    <div className="model-footer"><span>Designed by <Attribution text={model.attribution} links={model.attributionLinks} />. <a href={model.licenseUrl} target="_blank" rel="noreferrer">{model.license}</a>
+      {usage.length > 0 && <span className="model-usage"> · Used by {usage.map((use, index) => <span key={`${use.pageId}:${use.via}`}>{index > 0 && ', '}<a href={`#/concepts/${use.pageId}`}>{use.title}</a> <small>({use.via})</small></span>)}</span>}</span>
+      <span>All dimensions in millimetres · {model.printNotes}</span></div>
   </>;
 }
 

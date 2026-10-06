@@ -120,9 +120,9 @@ export const windowInsertConcept: ConceptPage = {
     }),
   ].filter((link, index, all) => all.findIndex(other => other.partId === link.partId && other.via === link.via) === index),
   models: [
-    { modelId: 'printed-corner-bracket', via: 'Collar corners (flat corner brackets, the default)' },
-    { modelId: 'printed-screen-hook', via: 'Hung on the window frame (screen hooks, the default)' },
-    { modelId: 'pressure-pad', via: 'Spreader and bearing feet (printed pads, the default)' },
+    { modelId: 'printed-corner-bracket', via: 'collar corners, the default' },
+    { modelId: 'printed-screen-hook', via: 'screen hooks on the window frame, the default' },
+    { modelId: 'pressure-pad', via: 'spreader and bearing feet, the default' },
   ],
 };
 
@@ -189,8 +189,8 @@ export const tunnelConcept: ConceptPage = {
     { partId: t.braceScrew, via: 'Turn buttons’ pivots on the flanges' },
   ],
   models: [
-    { modelId: 'pressure-pad', via: 'Support feet (printed, the default)' },
-    { modelId: 'toggle-latch', via: 'Latched couplings (printed toggle latches)' },
+    { modelId: 'pressure-pad', via: 'support feet, the default' },
+    { modelId: 'toggle-latch', via: 'latched couplings' },
   ],
 };
 
@@ -221,7 +221,7 @@ export const insertTunnelCouplingConcept: ConceptPage = {
     { partId: c.latchScrew, via: 'Latches and catch brackets; floor lip' },
     ...COUPLING_LATCH.types.flatMap(type => COUPLING_LATCH.materials.map(material => ({ partId: couplingLatch(type, material).id, via: `Toggle latches (type ${type}, ${material === 'NI' ? 'stainless' : 'steel'})` }))),
   ],
-  models: [{ modelId: 'toggle-latch', via: 'Toggle latches (printed, the default)' }],
+  models: [{ modelId: 'toggle-latch', via: 'toggle latches, the default' }],
 };
 
 /**
@@ -236,7 +236,7 @@ export const tunnelTunnelCouplingConcept: ConceptPage = {
     { partId: t.couplingWasher, via: 'Bolted couplings (both sides)' },
     { partId: t.couplingNut, via: 'Bolted couplings' },
   ],
-  models: [{ modelId: 'toggle-latch', via: 'Latched couplings (printed toggle latches, the default)' }],
+  models: [{ modelId: 'toggle-latch', via: 'latched couplings, the default' }],
 };
 
 export const conceptPages: readonly ConceptPage[] = [windowInsertConcept, tunnelConcept, insertTunnelCouplingConcept, tunnelTunnelCouplingConcept];

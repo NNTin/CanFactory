@@ -662,8 +662,8 @@ export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = 
   { key: 'cornerBracket', label: 'Corner bracket', group: 'Timber joints', when: c => c.cornerJoint === 'corner-bracket',
     help: 'The printed corner bracket from the model library (PETG, sized for the collar’s 40 mm members), or a bought GAH Alberts Stuhlwinkel from the parts library, steel. Either is let in flush on the collar’s room-side face. A longer leg holds the corner stiffer; hung on the window frame, it must stay clear of the screen hooks on the stiles (the page checks).',
     options: [
-      { value: 'printed', label: (() => { const b = windowInsertBracket('printed'); return `Printed corner bracket (model), ${b.a} × ${b.b} × ${b.c} mm`; })() },
-      ...WINDOW_INSERT_BRACKETS.map(id => { const p = part(id); return { value: id, label: `GAH Alberts Stuhlwinkel, ${dimensionOf(p, 'a')} × ${dimensionOf(p, 'b')} × ${dimensionOf(p, 'c')} mm` }; }),
+      { value: 'printed', label: (() => { const b = windowInsertBracket('printed'); return `Printed (model), ${b.a} × ${b.b} × ${b.c} mm`; })() },
+      ...WINDOW_INSERT_BRACKETS.map(id => { const p = part(id); return { value: id, label: `GAH Alberts, ${dimensionOf(p, 'a')} × ${dimensionOf(p, 'b')} × ${dimensionOf(p, 'c')} mm` }; }),
     ] },
   { key: 'junctionJoint', label: 'Port transom & jambs', group: 'Timber joints', variants: ['modular'], help: 'Housings carry the transom and jambs on timber; butt joints rely on the screws alone.',
     options: [{ value: 'housed', label: 'Housed 10 mm + screw' }, { value: 'butt-screwed', label: 'Butt joint + screws' }] },
