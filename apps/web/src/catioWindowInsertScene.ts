@@ -26,12 +26,27 @@ export interface PieceMotion {
   role?: 'insert-nut' | 'foot' | 'own-nut' | 'second-nut' | 'pad-screw' | 'pad-nut' | 'pad' | 'screw' | 'staple'; of?: string; drive?: V3;
 }
 
-/** The installed insert as fixed context on another page: its timber, and its mesh panels on the mesh layer. */
+/** The installed insert as fixed context on another page: its timber, its hooks and feet when hung, and its mesh on the mesh layer. */
 export function buildInsertContext(p: ReturnType<typeof createCatioParts>, layout: WindowInsertLayout) {
   const insert = p.component('window-insert', 0, undefined);
   for (const t of layout.timber) for (const b of t.boxes) p.box(insert, b.size, b.center, t.component === 'threshold' || t.component === 'cover-battens' ? p.materials.endgrain : p.materials.timber);
+  buildHungHardware(p, layout, insert, insert);
   for (const q of layout.panels) p.panel(`insert-${q.id}`, 0, q.width, q.height, q.center, q.plane, [0, 0, 0]);
   return insert;
+}
+
+/**
+ * A hung insert's hardware, installed: its screen hooks behind the window frame's lip (into `hooks`) and its feet under the sill rail
+ * standing on the recess floor (into `feet`), drawn simply. Nothing for an insert pressed into the recess.
+ */
+export function buildHungHardware(p: ReturnType<typeof createCatioParts>, layout: WindowInsertLayout, hooks: THREE.Group, feet: THREE.Group) {
+  if (!layout.hooks.length) return;
+  for (const h of layout.hooks) for (const b of h.boxes) p.box(hooks, b.size, b.center, p.materials.hardware);
+  const radius = (layout.pad?.diameter ?? dimensionOf(layout.bearingFoot, 'd1')) / 2;
+  for (const c of layout.clamps) if (c.kind === 'bearing') {
+    p.rod(feet, [c.at[0], c.at[1], c.at[2]], [c.at[0], c.at[1], c.at[2] - layout.gap + INSERT.travel], 4);
+    p.rod(feet, [c.at[0], c.at[1], c.at[2] - layout.gap + INSERT.travel], [c.at[0], c.at[1], c.at[2] - layout.gap], radius, layout.pad ? p.materials.printed : p.materials.rubber);
+  }
 }
 
 /** The window insert in its window: every piece of `windowInsertLayout`, staged as `windowInsertSteps` describes. */

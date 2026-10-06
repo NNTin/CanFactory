@@ -162,9 +162,16 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   const viewer = page.getByTestId('subassembly-viewer');
   await expect(viewer).toHaveAttribute('data-ready', 'true');
   await expect(viewer).toHaveAttribute('data-variant', 'direct');
-  await expect(viewer).toHaveAttribute('data-visible-parts', /spreader-clamps/);
   const hardware = page.getByRole('table', { name: 'Hardware parts' });
-  // printed pads on library screws by default; the Ganter feet stay selectable
+  // hung on the window frame by default: bought screen hooks behind the frame's lip, printed feet under the sill rail
+  await expect(viewer).toHaveAttribute('data-visible-parts', /screen-hooks/);
+  await expect(viewer).not.toHaveAttribute('data-visible-parts', /spreader-clamps/);
+  await expect(hardware.getByRole('link', { name: 'Insect screen hook, short (Windhager 03651, 5b)' })).toHaveAttribute('href', '#/parts/screen-hook/windhager-03651-5b');
+  await expect(hardware.getByRole('link', { name: 'Pressure pad, foot' })).toBeVisible();
+  await expect(hardware.getByRole('link', { name: 'Pressure pad, thrust pad' })).toHaveCount(0);
+  // pressed into the recess instead: printed pads on library screws; the Ganter feet stay selectable
+  await page.getByRole('combobox', { name: 'Held in the recess by' }).selectOption('spreader-feet');
+  await expect(viewer).toHaveAttribute('data-visible-parts', /spreader-clamps/);
   await expect(hardware.getByRole('link', { name: 'Pressure pad, thrust pad' })).toHaveAttribute('href', '#/models/pressure-pad');
   await expect(hardware.getByRole('link', { name: 'Pressure pad, foot' })).toHaveAttribute('href', '#/models/pressure-pad');
   await expect(hardware.getByRole('link', { name: 'Hexagon head screw M8 × 80' })).toBeVisible();
@@ -236,7 +243,7 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await page.getByRole('button', { name: 'Direct · original design', exact: true }).click();
   await expect(viewer).toHaveAttribute('data-config', /"attachment":"folding-wedges"/);
   await page.getByRole('button', { name: 'Reset to the recommended defaults' }).click();
-  await expect(viewer).toHaveAttribute('data-config', /"attachment":"spreader-feet"/);
+  await expect(viewer).toHaveAttribute('data-config', /"attachment":"frame-hooks"/);
   await page.getByRole('button', { name: 'Catio concept', exact: true }).first().click();
   await expect(page).toHaveURL(/#\/concepts\/catio$/);
   expect(errors).toEqual([]);
@@ -358,7 +365,8 @@ test('opens the insert–tunnel coupling, switches its latches, stages the docki
   await expect(hardware.getByRole('cell', { name: 'EPDM E-profile seal, self-adhesive (custom)' })).toBeVisible();
   await expect(hardware.getByRole('link', { name: /GN 831/ })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: 'Latch', exact: true })).toHaveCount(0);
-  await expect(hardware.getByRole('link', { name: 'Countersunk wood screw 5 × 60' })).toBeVisible();
+  // the insert hangs on the window frame by default, so its port frame lies deeper and the docking frame takes 6 × 90 screws
+  await expect(hardware.getByRole('link', { name: 'Countersunk wood screw 6 × 90' })).toBeVisible();
   await expect(page.getByRole('table', { name: 'Timber parts' }).getByRole('cell', { name: 'Docking frame stile' })).toBeVisible();
   // the window insert's setting behind the frame's fit, linked to where it is changed
   const battens = page.locator('.catio-dimensions > div', { hasText: 'Cover battens at the port' });

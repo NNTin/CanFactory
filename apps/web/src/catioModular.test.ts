@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { MODULAR_DEFAULT as defaults, modularLayout, modularCamera, validateModular, type ModularConfig } from './catioModularDesign.ts';
+import { WINDOW_INSERT_DEFAULT } from './catioWindowInsert.ts';
 import { createModularCatio, type ModularState } from './catioModularScene.ts';
 import { defaultCatioSettings, parseCatioSettings } from './catioSettings.ts';
 
@@ -46,7 +47,7 @@ describe('modular catio layout and validation', () => {
 describe('modular scene geometry', () => {
   it('models rectangular glass and sash independently, with all fittings outside the inward sweep', () => {
     const scene = createModularCatio({ ...defaults, glassWidth: 700, glassHeight: 900, sashWidth: 830, sashHeight: 1050 }); scene.update(assembled);
-    const glass = scene.root.getObjectByName('modular-glass'); if (!glass) throw new Error('Missing glass');
+    const glass = scene.root.getObjectByName('context-glass'); if (!glass) throw new Error('Missing glass');
     expect(bounds(glass).getSize(new THREE.Vector3()).toArray()).toEqual([700, 6, 900]);
     expect(bounds(scene.hinge).getSize(new THREE.Vector3()).x).toBe(830);
     expect(bounds(scene.hinge).getSize(new THREE.Vector3()).z).toBe(1050);
@@ -56,6 +57,16 @@ describe('modular scene geometry', () => {
       for (const p of installed) expect(bounds(scene.hinge).intersectsBox(p.box), `${p.id} at ${angle}`).toBe(false);
     }
     scene.dispose();
+  });
+  it('hangs the window insert on the window frame with its screen hooks by default, or clamps it into the recess', () => {
+    const hung = createModularCatio(defaults, WINDOW_INSERT_DEFAULT);
+    expect(hung.components.map(p => p.id)).toContain('screen-hooks');
+    expect(hung.components.map(p => p.id)).not.toContain('padded-clamps');
+    hung.dispose();
+    const pressed = createModularCatio(defaults, { ...WINDOW_INSERT_DEFAULT, attachment: 'spreader-feet' });
+    expect(pressed.components.map(p => p.id)).toContain('padded-clamps');
+    expect(pressed.components.map(p => p.id)).not.toContain('screen-hooks');
+    pressed.dispose();
   });
   it('docks the tunnel to the window port with a docking frame, as the coupling page does, not a mesh throat', () => {
     const scene = createModularCatio(defaults);

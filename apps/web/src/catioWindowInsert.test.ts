@@ -6,17 +6,20 @@ import { parseSubassemblySettings, defaultSubassemblySettings } from './catioSub
 import { windowInsertDefinition } from './catioSubassemblies.ts';
 import { TILT_MAX, windowFrame } from './catioWindow.ts';
 import { HOOK_FIT, INSERT, PAD_HEIGHT, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from './catioWindowInsert.ts';
-import { BENCH_OFFSET, createWindowInsertScene } from './catioWindowInsertScene.ts';
+import { BENCH_OFFSET, buildInsertContext, createWindowInsertScene } from './catioWindowInsertScene.ts';
+import { createCatioParts } from './catioParts.ts';
 
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
 const bounds = (object: THREE.Object3D) => new THREE.Box3().setFromObject(object, true);
 const variants = ['direct', 'modular'] as const;
 /** Every value of every control, one at a time, from the defaults. */
-const ganter: WindowInsertConfig = { ...WINDOW_INSERT_DEFAULT, clampPad: 'ganter' };
+/** Pressed into the recess by spreader feet, and hung on the window frame (the default). */
+const pressed: WindowInsertConfig = { ...WINDOW_INSERT_DEFAULT, attachment: 'spreader-feet' };
+const ganter: WindowInsertConfig = { ...pressed, clampPad: 'ganter' };
 const hung: WindowInsertConfig = { ...WINDOW_INSERT_DEFAULT, attachment: 'frame-hooks' };
-const configs: WindowInsertConfig[] = [WINDOW_INSERT_DEFAULT, ...WINDOW_INSERT_CONTROLS.flatMap(control => control.options.map(option => ({ ...WINDOW_INSERT_DEFAULT, [control.key]: option.value }))),
+const configs: WindowInsertConfig[] = [WINDOW_INSERT_DEFAULT, pressed, ...[WINDOW_INSERT_DEFAULT, pressed].flatMap(base => WINDOW_INSERT_CONTROLS.flatMap(control => control.options.map(option => ({ ...base, [control.key]: option.value })))),
   // the Ganter feet in every size, and the printed pads at their lowest and highest
-  ...WINDOW_INSERT_FOOT.diameters.map(footDiameter => ({ ...ganter, footDiameter })), { ...WINDOW_INSERT_DEFAULT, padHeight: PAD_HEIGHT.min }, { ...WINDOW_INSERT_DEFAULT, padHeight: PAD_HEIGHT.max, footDiameter: 25 },
+  ...WINDOW_INSERT_FOOT.diameters.map(footDiameter => ({ ...ganter, footDiameter })), { ...pressed, padHeight: PAD_HEIGHT.min }, { ...pressed, padHeight: PAD_HEIGHT.max, footDiameter: 25 },
   // hung on the window frame: every overlap, the Ganter feet, three feet, the tallest pads, and thin and thick frame lips
   ...[10, 15, 20, 25].map(frameOverlap => ({ ...hung, frameOverlap }) as WindowInsertConfig), { ...hung, clampPad: 'ganter' }, { ...hung, clampsPerSide: 3 },
   { ...hung, padHeight: PAD_HEIGHT.max }, { ...hung, frameLip: 8, sealGap: 4.5 }, { ...hung, frameLip: 35, frameFace: 90, frameDepth: 120 }];
@@ -26,10 +29,10 @@ const component = (scene: ReturnType<typeof createWindowInsertScene>, id: string
 
 describe('window insert', () => {
   it('sizes the collar from the printed pads’ height', () => {
-    const l = windowInsertLayout('direct', WINDOW_INSERT_DEFAULT);
+    const l = windowInsertLayout('direct', pressed);
     expect(l.pad).toMatchObject({ height: 24.5, diameter: 32, surface: 'grooved' });
     expect(l.gap).toBe(24.5 + INSERT.travel);
-    expect(windowInsertLayout('direct', { ...WINDOW_INSERT_DEFAULT, padHeight: 30 }).W).toBe(1000 - 2 * (30 + INSERT.travel));
+    expect(windowInsertLayout('direct', { ...pressed, padHeight: 30 }).W).toBe(1000 - 2 * (30 + INSERT.travel));
     // a spreader screw passes the thrust pad's lip and lock nut, the travel, the member and its own lock nut; a bearing screw fills the insert nut
     expect(l.pad?.spreaderScrew.id).toBe('iso-4017-m8x80');
     expect(dimensionOf(l.pad?.spreaderScrew ?? l.nut, 'l')).toBeGreaterThanOrEqual(3 + 8 + INSERT.travel + INSERT.member + 6.8);
@@ -89,7 +92,7 @@ describe('window insert', () => {
   });
 
   it('presses every spreader pad onto the reveal only once tightened, with the sill feet on the recess floor', () => {
-    for (const variant of variants) for (const config of [WINDOW_INSERT_DEFAULT, ganter]) {
+    for (const variant of variants) for (const config of [pressed, ganter]) {
       const scene = createWindowInsertScene(variant, config); const w = windowFor(variant);
       scene.update(installed);
       const feet = bounds(component(scene, 'spreader-clamps'));
@@ -132,7 +135,9 @@ describe('window insert', () => {
       expect(scene.insert.position.y).toBe(progress <= 3 || progress % 2 === 0 ? BENCH_OFFSET : 0);
       expect(scene.focusOffset?.()).toEqual([0, scene.insert.position.y, 0]);
     }
-    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['collar-head', 'collar-left', 'corner-screws', 'insert-nuts', 'spreader-clamps', 'bearing-feet', 'port-frame', 'infill-top', 'staples', 'cover-battens', 'cat-gate']));
+    // hung on the window frame, by default: the hooks and their screws, and only the bearing feet
+    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['collar-head', 'collar-left', 'corner-screws', 'insert-nuts', 'screen-hooks', 'hook-screws', 'bearing-feet', 'port-frame', 'infill-top', 'staples', 'cover-battens', 'cat-gate']));
+    expect(scene.components.map(part => part.id)).not.toContain('spreader-clamps');
     scene.update({ ...installed, cutaway: true, hidden: new Set(['mesh']) });
     expect(component(scene, 'wall').visible).toBe(false);
     expect(scene.components.filter(part => part.layer === 'mesh').every(part => !part.group.visible)).toBe(true);
@@ -142,7 +147,7 @@ describe('window insert', () => {
   it('fits each clamp’s hardware in order: Ganter, insert nut and stud from outside, then the two nuts from inside; printed, the screw from inside, its nut and pad from outside', () => {
     // which way each piece comes in, along the clamp's outward normal: +1 from outside, -1 from inside, 0 sideways
     const way: Record<string, number> = { 'insert-nut': 1, foot: 1, 'own-nut': -1, 'second-nut': -1, 'pad-screw': -1, 'pad-nut': 1, pad: 0 };
-    for (const variant of variants) for (const config of [WINDOW_INSERT_DEFAULT, ganter]) {
+    for (const variant of variants) for (const config of [pressed, ganter]) {
       const scene = createWindowInsertScene(variant, config); scene.update(installed);
       const printed = config.clampPad === 'printed';
       for (const clamp of scene.layout.clamps) {
@@ -371,5 +376,17 @@ describe('window insert hung on the window frame', () => {
     expect(scene.caption?.()).toMatch(/Insect screen hook, long .*: bent at 16 mm/);
     scene.dispose();
     expect(windowInsertFacts('direct', hung).find(f => f.label === 'Hooks · bent at')?.value).toBe('16 mm');
+  });
+
+  it('shows its hooks and feet where another page draws the installed insert', () => {
+    const count = (config: WindowInsertConfig) => {
+      const p = createCatioParts(); const layout = windowInsertLayout('modular', config);
+      const insert = buildInsertContext(p, layout); let meshes = 0; insert.traverse(o => { if (o instanceof THREE.Mesh) meshes++; });
+      const timber = layout.timber.reduce((n, t) => n + t.boxes.length, 0); p.dispose();
+      return meshes - timber;
+    };
+    // three strips a hook, a stem and a pad a foot; nothing pressed into the recess
+    expect(count(hung)).toBe(3 * 4 + 2 * hung.clampsPerSide);
+    expect(count(pressed)).toBe(0);
   });
 });

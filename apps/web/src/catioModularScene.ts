@@ -2,11 +2,19 @@ import * as THREE from 'three';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
 import { MODULAR as d, modularLayout, validateModular, type ModularConfig } from './catioModularDesign.ts';
+import { buildWindowFrame } from './catioWindowContext.ts';
+import { HOOK_FIT, modularWindow, savedWindowInsert, windowInsertLayout, windowProfileOf, type WindowInsertConfig } from './catioWindowInsert.ts';
+import { buildHungHardware } from './catioWindowInsertScene.ts';
 
 type V3 = [number, number, number];
 export interface CatioDoor { id: string; label: string; kind: 'cat' | 'human'; connected: boolean; moving: THREE.Group[] }
 export interface ModularState extends CatioState { doors?: Readonly<Record<string, boolean>> }
-export function createModularCatio(c: ModularConfig) {
+/**
+ * The modular catio. The window is the real tilt-and-turn window; the insert follows the window insert page (`insert`, as saved
+ * there by default): hung on the window frame, its collar lies on the frame's face with its screen hooks and feet, otherwise it is
+ * the schematic recess collar with padded clamps.
+ */
+export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig = savedWindowInsert()) {
   const errors = validateModular(c); if (errors.length) throw new Error(errors.join(' '));
   const p = createCatioParts(); const { component, box, rod, ring, panel, materials: m } = p;
   const layout = modularLayout(c); const doors: CatioDoor[] = [];
@@ -74,32 +82,36 @@ export function createModularCatio(c: ModularConfig) {
   for (const side of [-1, 1]) box(wall, [400, 300, wallTop + 450], [side * (fixedW / 2 + 200), -150, (wallTop - 450) / 2], m.wall);
   box(wall, [fixedW, 300, 605], [0, -150, -147.5], m.wall);
   box(wall, [fixedW, 300, wallTop - 155 - fixedH], [0, -150, (wallTop + 155 + fixedH) / 2], m.wall);
-  const fixed = component('fixed-window-frame', 0, undefined);
-  ring(fixed, fixedW, fixedH, 45, 65, -150, 155, m.window);
-  const sash = component('opening-sash', 0, undefined);
-  const hinge = new THREE.Group(); hinge.position.set(-c.sashWidth / 2, -200, 200); sash.add(hinge);
-  const leaf = new THREE.Group(); leaf.position.x = c.sashWidth / 2; hinge.add(leaf);
-  const borderX = (c.sashWidth - c.glassWidth) / 2; const borderZ = (c.sashHeight - c.glassHeight) / 2;
-  for (const side of [-1, 1]) box(leaf, [borderX, 60, c.sashHeight], [side * (c.sashWidth - borderX) / 2, 0, c.sashHeight / 2], m.window);
-  for (const z of [borderZ / 2, c.sashHeight - borderZ / 2]) box(leaf, [c.glassWidth, 60, borderZ], [0, 0, z], m.window);
-  box(leaf, [c.glassWidth, 6, c.glassHeight], [0, 0, c.sashHeight / 2], m.glass).name = 'modular-glass';
-  box(leaf, [14, 24, 85], [c.sashWidth / 2 - borderX / 2, -42, c.sashHeight / 2], m.hardware);
+  const window = modularWindow(c, windowProfileOf(insert));
+  const { hinge } = buildWindowFrame(p, window);
+  const hanging = windowInsertLayout('modular', insert, window);
+  const hung = hanging.hooks.length > 0;
+  // the collar's middle and back: on the frame's face when hung; the port frame stands far enough out that its gate latch, 52 mm
+  // behind it, stays in front of the closed sash
+  const collarY = hung ? hanging.yIn + 30 : -60; const collarBack = collarY - 30;
+  const portY = hung ? Math.max(collarY, hanging.frame.sashFace + HOOK_FIT.gap + 52) : -60;
   const collar = component('recess-collar', 1, 'timber', [0, -220, 120]);
-  ring(collar, c.sashWidth + 70, c.sashHeight + 70, 40, 60, -60, 160, m.timber);
-  const clamps = component('padded-clamps', 1, 'hardware', [0, -220, 120]);
-  for (const side of [-1, 1]) for (const z of [320, c.sashHeight + 50]) {
-    rod(clamps, [side * (c.sashWidth / 2 - 30), -60, z], [side * (fixedW / 2 - 4), -60, z], 5);
-    box(clamps, [8, 55, 65], [side * (fixedW / 2 - 4), -60, z], m.rubber);
-    box(clamps, [12, 25, 45], [side * (c.sashWidth / 2 - 30), -60, z], m.hardware);
+  const collarWidth = hung ? hanging.W : c.sashWidth + 70; const collarTop = hung ? hanging.z0 + hanging.H : 160 + c.sashHeight + 70;
+  ring(collar, collarWidth, collarTop - 160, 40, 60, collarY, 160, m.timber);
+  if (hung) {
+    const hooks = component('screen-hooks', 1, 'hardware', [0, -220, 120]);
+    buildHungHardware(p, { ...hanging, gap: 160 - window.recessFloor, clamps: hanging.clamps.map(cl => ({ ...cl, at: [cl.at[0], cl.at[1], 160] })) }, hooks, hooks);
+  } else {
+    const clamps = component('padded-clamps', 1, 'hardware', [0, -220, 120]);
+    for (const side of [-1, 1]) for (const z of [320, c.sashHeight + 50]) {
+      rod(clamps, [side * (c.sashWidth / 2 - 30), -60, z], [side * (fixedW / 2 - 4), -60, z], 5);
+      box(clamps, [8, 55, 65], [side * (fixedW / 2 - 4), -60, z], m.rubber);
+      box(clamps, [12, 25, 45], [side * (c.sashWidth / 2 - 30), -60, z], m.hardware);
+    }
   }
-  perforated('window-infill', 1, c.sashWidth - 10, 200, c.sashHeight + 190, -60);
-  placed(0, -60, Math.PI, () => port('window-cat', 'Window cat gate', 1, true));
+  perforated('window-infill', 1, collarWidth - 80, 200, hung ? collarTop - 10 : c.sashHeight + 190, collarY);
+  placed(0, portY, Math.PI, () => port('window-cat', 'Window cat gate', 1, true));
   const threshold = component('window-threshold', 1, 'timber', [0, -220, 120]);
-  box(threshold, [w, 90, 18], [0, -45, 191], m.endgrain);
+  box(threshold, [w, -collarBack, 18], [0, collarBack / 2, 191], m.endgrain);
   // The insert–tunnel coupling's docking frame (schematic): stiles and a head, the flange's outline, from the port to the wall face.
   const dockingFrame = component('window-docking-frame', 1, 'timber', [0, -220, 120]);
-  for (const side of [-1, 1]) box(dockingFrame, [70, 90, h + 70], [side * (w / 2 + 35), -45, 200 + (h + 70) / 2]);
-  box(dockingFrame, [w, 90, 70], [0, -45, 200 + h + 35]);
+  for (const side of [-1, 1]) box(dockingFrame, [70, -collarBack, h + 70], [side * (w / 2 + 35), collarBack / 2, 200 + (h + 70) / 2]);
+  box(dockingFrame, [w, -collarBack, 70], [0, collarBack / 2, 200 + h + 35]);
 
   for (const e of layout.enclosures) placed(e.centerX, e.rearY, 0, () => {
     const { width: ew, depth: ed, height: eh } = e.size; const half = ew / 2; const id = e.id;

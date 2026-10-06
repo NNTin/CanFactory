@@ -1,13 +1,21 @@
 import * as THREE from 'three';
 import { createCatioParts } from './catioParts.ts';
 import { CATIO as d, CATIO_DERIVED as g, type CatioLayer } from './catioDesign.ts';
+import { buildWindowFrame } from './catioWindowContext.ts';
+import { savedWindowInsert, windowFor, windowInsertLayout, type WindowInsertConfig } from './catioWindowInsert.ts';
+import { buildHungHardware } from './catioWindowInsertScene.ts';
 
 type V3 = [number, number, number];
 export interface CatioState { progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: ReadonlySet<CatioLayer> }
 export interface MeshPanel { id: string; width: number; height: number; center: V3; plane: 'xy' | 'xz' | 'yz' }
 
-/** The concept geometry is authored here, independently of the render API and future printable CAD. */
-export function createCatioScene() {
+/**
+ * The concept geometry is authored here, independently of the render API and future printable CAD. The window is the real
+ * tilt-and-turn window (catioWindow.ts); the insert follows the window insert page (`insert`, as saved there by default): hung on
+ * the window frame, its collar lies on the frame's face with its screen hooks and feet, otherwise it is the schematic recess
+ * collar with padded clamps. Either way the collar stays schematic in height, so that the passage and ramp meet the sill.
+ */
+export function createCatioScene(insert: WindowInsertConfig = savedWindowInsert()) {
   const parts = createCatioParts();
   const { root, components, panels, materials, component, box, rod, ring, panel, dispose } = parts;
   const wall = component('wall', 0, 'environment');
@@ -28,24 +36,26 @@ export function createCatioScene() {
   }
   terrain.add(blades);
 
-  const fixed = component('fixed-window-frame', 0, undefined);
-  ring(fixed, d.fixedFrame, d.fixedFrame, (d.fixedFrame - d.sash) / 2, 65, -d.recess, g.fixedBottom, materials.window);
-  const sash = component('opening-sash', 0, undefined);
-  const hinge = new THREE.Group(); hinge.position.set(-d.sash / 2, g.sashY, d.sill); sash.add(hinge);
-  const leaf = new THREE.Group(); leaf.position.x = d.sash / 2; hinge.add(leaf);
-  ring(leaf, d.sash, d.sash, g.sashBorder, d.sashThickness, 0, 0, materials.window);
-  box(leaf, [d.glass, 6, d.glass], [0, 0, d.sash / 2], materials.glass).name = 'glass-800';
-  box(leaf, [16, 40, 16], [d.sash / 2 - 30, -45, d.sash / 2], materials.hardware);
-  box(leaf, [14, 14, 90], [d.sash / 2 - 30, -65, d.sash / 2 - 35], materials.hardware);
-  for (const z of [d.sill + 150, d.sill + d.sash - 150]) rod(fixed, [-d.sash / 2, g.sashY, z - 25], [-d.sash / 2, g.sashY, z + 25], 8);
+  const window = windowFor('direct', insert);
+  const { hinge } = buildWindowFrame(parts, window);
+  const hanging = windowInsertLayout('direct', insert, window);
+  const hung = hanging.hooks.length > 0;
 
   const collar = component('recess-collar', 1, 'timber', [0, -420, 160]);
-  ring(collar, d.collarOuter, d.collarOuter, d.collarMember, d.collarDepth, d.collarY, d.sill - d.collarMember, materials.timber);
-  const clamps = component('padded-clamps', 1, 'hardware', [0, -420, 160]);
-  for (const side of [-1, 1]) for (const z of [350, 950]) {
-    rod(clamps, [side * 425, d.collarY, z], [side * 496, d.collarY, z], 5);
-    box(clamps, [8, 55, 65], [side * 496, d.collarY, z], materials.rubber);
-    box(clamps, [10, 24, 50], [side * 425, d.collarY, z], materials.hardware);
+  const collarBottom = d.sill - d.collarMember;
+  if (hung) {
+    // on the frame's face, as wide and as high as the hung insert; its hooks reach behind the frame's lip, its feet stand below
+    ring(collar, hanging.W, hanging.z0 + hanging.H - collarBottom, d.collarMember, d.collarDepth, hanging.yIn + d.collarDepth / 2, collarBottom, materials.timber);
+    const hooks = component('screen-hooks', 1, 'hardware', [0, -420, 160]);
+    buildHungHardware(parts, { ...hanging, gap: collarBottom - window.recessFloor, clamps: hanging.clamps.map(c => ({ ...c, at: [c.at[0], c.at[1], collarBottom] })) }, hooks, hooks);
+  } else {
+    ring(collar, d.collarOuter, d.collarOuter, d.collarMember, d.collarDepth, d.collarY, collarBottom, materials.timber);
+    const clamps = component('padded-clamps', 1, 'hardware', [0, -420, 160]);
+    for (const side of [-1, 1]) for (const z of [350, 950]) {
+      rod(clamps, [side * 425, d.collarY, z], [side * 496, d.collarY, z], 5);
+      box(clamps, [8, 55, 65], [side * 496, d.collarY, z], materials.rubber);
+      box(clamps, [10, 24, 50], [side * 425, d.collarY, z], materials.hardware);
+    }
   }
   const base = component('base-rails', 2, 'timber', [0, 350, 0]);
   const feet = component('four-legs-and-pads', 2, 'hardware', [0, 350, 0]);
@@ -82,7 +92,7 @@ export function createCatioScene() {
   for (const side of [-1, 1]) panel(`rear-side-mesh-${side}`, 4, sideWidth, d.height - 90, [side * (half - sideWidth / 2), 10, (d.height + 90) / 2], 'xz', [0, 230, 60]);
   panel('rear-bottom-mesh', 4, g.portalWidth, d.sill - 90, [0, 10, (d.sill + 90) / 2], 'xz', [0, 230, 60]);
   panel('rear-top-mesh', 4, g.portalWidth, d.height - g.portalTop, [0, 10, (g.portalTop + d.height) / 2], 'xz', [0, 230, 60]);
-  const passageStart = d.collarY - d.collarDepth / 2;
+  const passageStart = hung ? hanging.yIn : d.collarY - d.collarDepth / 2;
   const passageEnd = t;
   const passageDepth = passageEnd - passageStart;
   const passageY = (passageStart + passageEnd) / 2;

@@ -2,8 +2,9 @@
 
 The window insert is the removable timber collar that sits in the exterior window recess. It carries the cat's way out
 (the open passage of the original design, or the small gated cat port of the modular design). **Nothing is drilled into the
-wall or the window**: the insert is either pressed into the recess, or hung on the window's fixed frame like an insect screen
-(see [Hung on the window frame](#hung-on-the-window-frame)), where the window still closes with the insert in place.
+wall or the window**: by default the insert hangs on the window's fixed frame like an insect screen (see
+[Hung on the window frame](#hung-on-the-window-frame)), so the window still closes with the insert in place; it can instead be
+pressed into the recess by spreader feet or folding wedges.
 
 Live page: `#/concepts/catio/window-insert`, also linked from the catio concept page under **Sub-assemblies**. For local
 development, `npm run dev --workspace @canfactory/web -- --port 5181`, then
@@ -21,7 +22,7 @@ a parts list with every piece's dimensions, and the design decisions below. Choi
 | Port transom & jambs | Housed 10 mm + screw | Housed; butt joint + screws | With tunnel |
 | Mesh to timber | Staples under cover battens | Staples + battens; staples only; battens only | Both |
 | Fixing spacing | 15 cm | 10, 15, 20 cm | Both |
-| Held in the recess by | Padded spreader feet | Spreader feet; folding timber wedges; hooks on the window frame + feet | Both |
+| Held in the recess by | Hooks on the window frame + feet | Hooks on the window frame + feet; spreader feet; folding timber wedges | Both |
 | Overlap on the frame | 15 mm | 10, 15, 20, 25 mm | Hooks on the window frame |
 | Spreader feet | Printed pads on M8 screws | Printed pads; Ganter GN 343.2 levelling feet | Spreader feet, and the feet under a hung insert |
 | Pad height | 24.5 mm | 18 to 40 mm, in 0.5 mm steps | Printed pads |
@@ -68,7 +69,7 @@ outermost leg from its face to its seal (the lip), and the step from the frame's
 
 ## Hung on the window frame
 
-**Held in the recess by → Hooks on the window frame + feet** hangs the insert the way insect screens (Spannrahmen) hang on
+**Held in the recess by → Hooks on the window frame + feet**, the default, hangs the insert the way insect screens (Spannrahmen) hang on
 tilt-and-turn windows without drilling. Their hooks catch the **fixed frame's outer lip**, not the sash: Neher's catalogue
 (Spannrahmen 04/2025, pp. 9–10) has its sprung stainless angles press “gegen den Blendrahmenüberschlag”, and its section
 drawings show the angle's tip at the lip's end, beside the seal. The closed sash offers no edge of its own to hook: from outside,
@@ -98,6 +99,10 @@ its face runs flat from the frame's seal to the glass.
   0–12° against every piece of the insert.
 - **The collar lies 27.5 mm deeper** than when pressed into the recess, so the [insert–tunnel coupling](window-insert-tunnel-coupling.md)'s
   docking frame is that much thicker and takes DIN 7997 6 × 90 screws. The cat port's floor does not change: the same feet set it.
+- **Everywhere the insert is drawn.** The tunnel and coupling pages draw the installed insert with its hooks and feet, and the
+  whole catio's scenes (direct and modular) draw the real tilt-and-turn window with the collar on the frame's face, its hooks
+  and feet, and say so in their insert step; they follow how this page holds the insert. Those scenes keep their schematic
+  collar height, so that their passage and ramp still meet the sill.
 
 Not published, and estimated in the parts library from Windhager's instruction drawings: the strip's width (8 mm), thickness
 (0.8 mm), leg length (40 mm) and hole (4.2 mm). Neither Windhager nor Neher gives a spring force or load rating.
@@ -136,8 +141,9 @@ Not published, and estimated in the parts library from Windhager's instruction d
 4. **Collar size follows the clamp.** The gap round the collar is the printed pad's height (or the Ganter foot's height with
    its cap, l3) plus 8 mm of travel. That is 32.5 mm for the default 24.5 mm pad, the same as for the 32 mm Ganter foot, so
    the collar is 93.5 × 93.5 cm in the 100 cm recess. The original concept drew a 98 cm
-   collar with 10 mm clearance, too little for any real clamp. **The whole-catio scenes still draw their schematic 98 cm
-   collar**; adopting this sizing there is a follow-up.
+   collar with 10 mm clearance, too little for any real clamp. Pressed into the recess, **the whole-catio scenes still
+   draw their schematic 98 cm collar**; adopting this sizing there is a follow-up. Hung (the default), they draw the hung
+   collar's width on the frame's face.
 5. **Half-lapped collar corners.** The spreaders push the corners apart; a glued half-lap (30 mm, half the 60 mm depth)
    with two DIN 7997 4 × 50 screws carries that on long grain and timber shoulders. A butt joint (two DIN 7997 5 × 70 screws
    through the stile into the rail's end grain) remains selectable.

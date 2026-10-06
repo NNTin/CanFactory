@@ -10,7 +10,7 @@ export interface WindowContextSpec extends WindowShape { glassWidth: number; gla
  * draws its own ground outside (e.g. uneven ground under a tunnel); the room floor is still drawn.
  */
 export function buildWindowContext(parts: ReturnType<typeof createCatioParts>, w: WindowContextSpec, ground = { width: 2600, depth: 1500 }, terrainOutside = true) {
-  const { component, box, ring, materials: m } = parts;
+  const { component, box, materials: m } = parts;
   const wallTop = w.recessFloor + w.openingHeight + 500; const wallBottom = -650; const side = (ground.width - w.openingWidth) / 2;
   const wall = component('wall', 0, 'environment');
   for (const s of [-1, 1]) box(wall, [side, 300, wallTop - wallBottom], [s * (w.openingWidth + side) / 2, -150, (wallTop + wallBottom) / 2], m.wall);
@@ -29,6 +29,15 @@ export function buildWindowContext(parts: ReturnType<typeof createCatioParts>, w
     }
     terrain.add(blades);
   }
+  return buildWindowFrame(parts, w);
+}
+
+/**
+ * The tilt-and-turn window itself (catioWindow.ts): its fixed frame and seal (`fixed-window-frame`) and its sash (`opening-sash`),
+ * whose hinge `windowOpen` turns and whose `tilt` tilts it. The whole catio's scenes draw it too.
+ */
+export function buildWindowFrame(parts: ReturnType<typeof createCatioParts>, w: WindowContextSpec) {
+  const { component, box, ring, materials: m } = parts;
   // The fixed frame in section: its outer lip (frameFace wide, frameLip thick) overlaps the sash; its body behind stops the Falzluft
   // short of the sash's edge; the outer seal fills the gap between the lip's back and the closed sash, just outside the lip's tips.
   const f = windowFrame(w); const { sealGap, frameDepth } = w.profile;

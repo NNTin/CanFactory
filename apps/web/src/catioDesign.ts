@@ -39,3 +39,6 @@ export const CATIO_VIEWS: Record<CatioView, { position: [number, number, number]
   Top: { position: [0, 450, 3700], target: [0, 451, 0] },
   Mounting: { position: [700, -1400, 1100], target: [-180, -55, 680] },
 };
+
+/** The concept's second step when the window insert hangs on the window frame (its default), instead of clamping into the recess. */
+export const CATIO_HUNG_STEP = { title: 'Hang the collar on the window', detail: 'Open the sash inward. Lift the collar, slip its long screen hooks up behind the fixed frame’s head lip, and let it down: its short hooks drop behind the sill lip and its feet stand on the recess floor. The sash still closes over the hooks.' };

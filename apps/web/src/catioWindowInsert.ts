@@ -2,7 +2,7 @@ import { dimensionOf, findPart, PRESSURE_PAD_SURFACES, pressurePadMinDiameter, p
 import { CATIO, CATIO_DERIVED, type CatioView } from './catioDesign.ts';
 import { validateWindowProfile, WINDOW_PROFILE_DEFAULT, WINDOW_PROFILE_RANGES, windowFrame, type WindowProfile } from './catioWindow.ts';
 import { loadCatioSettings, type CatioMode } from './catioSettings.ts';
-import { fastenersAlong, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type V3 } from './catioSubassembly.ts';
+import { fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type V3 } from './catioSubassembly.ts';
 
 /**
  * The window insert: the removable timber collar that sits in the exterior window recess, its mesh, and the clamps that hold
@@ -38,7 +38,7 @@ export interface WindowInsertConfig {
 
 export const WINDOW_INSERT_DEFAULT: WindowInsertConfig = {
   cornerJoint: 'half-lap', junctionJoint: 'housed', meshFixing: 'staples-and-battens', fixingPitch: 150,
-  attachment: 'spreader-feet', frameOverlap: 15, clampsPerSide: 2, clampPad: 'printed', padHeight: 24.5, padSurface: 'grooved', footDiameter: 32,
+  attachment: 'frame-hooks', frameOverlap: 15, clampsPerSide: 2, clampPad: 'printed', padHeight: 24.5, padSurface: 'grooved', footDiameter: 32,
   ...WINDOW_PROFILE_DEFAULT,
 };
 
@@ -100,10 +100,13 @@ export function windowFor(variant: CatioMode, config: WindowProfile = WINDOW_INS
     glassWidth: CATIO.glass, glassHeight: CATIO.glass, sashWidth: CATIO.sash, sashHeight: CATIO.sash,
     openingWidth: CATIO.fixedFrame, openingHeight: CATIO.fixedFrame, recessFloor: CATIO_DERIVED.fixedBottom, sill: CATIO.sill, profile, tunnel: null,
   };
-  const c = loadCatioSettings().config;
+  return modularWindow(loadCatioSettings().config, profile);
+}
+
+/** The modular design's window: its fixed frame is the sash + 45 mm a side, its floor 45 mm below the sill. */
+export function modularWindow(c: { glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number; tunnelWidth: number; tunnelHeight: number }, profile: WindowProfile = windowProfileOf(WINDOW_INSERT_DEFAULT)): WindowSpec {
   return {
     glassWidth: c.glassWidth, glassHeight: c.glassHeight, sashWidth: c.sashWidth, sashHeight: c.sashHeight,
-    // The modular scene's fixed frame is the sash + 45 mm a side; its floor sits 45 mm below the sill.
     openingWidth: c.sashWidth + 90, openingHeight: c.sashHeight + 90, recessFloor: CATIO.sill - 45, sill: CATIO.sill, profile,
     tunnel: { width: c.tunnelWidth, height: c.tunnelHeight },
   };
@@ -571,6 +574,8 @@ export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = 
 ];
 
 export const parseWindowInsert = (raw: unknown) => parseControlled(WINDOW_INSERT_DEFAULT, WINDOW_INSERT_CONTROLS, raw);
+/** The window insert as saved on its page (or its defaults), for the pages and scenes that draw it. */
+export const savedWindowInsert = () => loadSubassemblyConfig('window-insert', parseWindowInsert, WINDOW_INSERT_DEFAULT);
 
 export const WINDOW_INSERT_DECISIONS: DesignDecision[] = [
   { title: 'Held by pressure, not fixings', parameter: 'Held in the recess by',
@@ -596,7 +601,7 @@ export const WINDOW_INSERT_DECISIONS: DesignDecision[] = [
     why: 'The docking frame carries the passage from the port to the tunnel’s first flange and gives the latches their catch, so a mesh throat there would only be in its way. Its parts are on the coupling’s parts list; its screws are placed between this page’s batten screws and staples, so the mesh fixing and its spacing change it.' },
   { title: 'Collar sized from the clamps', parameter: 'Pad height',
     choice: 'The collar is the recess size less the clamp gap on each side: the printed pad’s height, or the Ganter foot’s height with its cap, plus 8 mm of thread travel (32.5 mm for the default 24.5 mm pad, as for the 32 mm foot).',
-    why: 'The original concept left 10 mm round its 98 cm collar, too little for any real clamp. Here the gap follows from the chosen part, so the collar (93.5 cm by default) and its cut list change with it. The whole-catio scenes keep their schematic 98 cm collar until this is adopted there.' },
+    why: 'The original concept left 10 mm round its 98 cm collar, too little for any real clamp. Here the gap follows from the chosen part, so the collar (93.5 cm by default) and its cut list change with it. Pressed into the recess, the whole-catio scenes keep their schematic 98 cm collar until this is adopted there; hung on the window frame, they draw the hung collar.' },
   { title: 'The window as it really is', parameter: 'Frame width, from outside',
     choice: 'A tilt-and-turn window: the fixed frame’s outer lip, 73 mm wide from outside and 15.5 mm thick, overlaps the closed sash, whose face lies 3.5 mm behind the lip across its seal; the frame and sash are 82 mm deep, with a 12 mm rebate gap round the sash’s edge.',
     why: 'These are a VEKA Softline 82 MD window’s: VEKA dimensions 82 mm and 73 mm; the lip and the seal gap are scaled from its section drawing. Measure your own window and set them under The window: they place the hooks, bend them, and check the sash still closes.' },
