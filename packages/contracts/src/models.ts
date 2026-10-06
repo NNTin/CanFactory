@@ -1,5 +1,5 @@
 import { conceptPages } from './concepts.ts';
-import { Type, type Static, type TSchema } from 'typebox';
+import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
@@ -7,6 +7,9 @@ import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
 import { PRESSURE_PAD, PRESSURE_PAD_SURFACES, PRESSURE_PAD_TYPES, pressurePadExtenderTravel, pressurePadLeg, pressurePadMinDiameter, pressurePadMinExtenderDiameter, pressurePadMinExtenderLength, pressurePadMinHeight, type PressurePadSurface, type PressurePadType } from './pressurePad.ts';
 import { leastRibSpacing, SEGMENT_JOINT_VALUES, sideJointWidth, sideWidth, WINDOW_CAT_GUARD_MAX_SEGMENTS, WINDOW_CAT_GUARD_SPLICE, windowCatGuardBolts, windowCatGuardLayout, windowCatGuardPieces, type SegmentJoints } from './windowCatGuard.ts';
 import { eccAllowsLogo, filamentChangeHeight, QR_TAG_MOUNTS, type QrTagMount, knockoutFits, magnetPocketIssues, maxLogoSize, moduleSize, QR_ECC_LEVELS, QR_LOGO_MIN_ECC, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, QR_TEXT_MAX_LENGTH, qrScad, qrTagCode, qrTagLayout, type QrEcc, type QrTagJoint, type QrTagShape, type QrTagShapeSettings } from './qrMagnetTag.ts';
+import { clearanceHoles, PRINTED_WOOD_DIAMETERS, PRINTED_WOOD_SCREWS } from './screwHoles.ts';
+import { PRINTED_CORNER_BRACKET_DEFAULT, PRINTED_CORNER_BRACKET_SCREW, printedCornerBracketBite, printedCornerBracketHoles, printedCornerBracketIssues } from './printedCornerBracket.ts';
+import { PRINTED_BARB_MIN, PRINTED_SCREEN_HOOK_DEFAULT, PRINTED_SCREEN_HOOK_SCREW, printedScreenHookIssues, printedScreenHookShape } from './printedScreenHook.ts';
 import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, type LatchMovement } from './toggleLatchMechanism.ts';
 
 /** A field-level, user-readable validation failure. Paths are parameter names. */
@@ -1663,20 +1666,8 @@ export const TOGGLE_LATCH_SEAT = {
   /** Material a hole leaves above and below it, and the least a screw must reach past the plate's back. */
   holeWall: 1.5, minReach: 4,
 } as const;
-/** Clearance-hole allowances over a wood screw's diameter, by fit: DIN EN 20273's for M4 and M5 (which it does not give for wood screws). */
-export const WOOD_SCREW_PLAY = { fine: 0.3, medium: 0.5, coarse: 0.8 } as const;
-
-/** The three clearance holes (fine, medium, coarse) for a library screw: DIN EN 20273 for a metric thread, the allowances above for a wood screw. */
-export function latchScrewHoles(part: Part): [number, number, number] {
-  if (part.family === 'wood-screw') {
-    const d = dimensionOf(part, 'd');
-    return [WOOD_SCREW_PLAY.fine, WOOD_SCREW_PLAY.medium, WOOD_SCREW_PLAY.coarse].map(play => Math.round((d + play) * 100) / 100) as [number, number, number];
-  }
-  const thread = String(part.attributes['thread']);
-  if (!(thread in ISO_273_CLEARANCE_HOLES)) throw new Error(`${part.id} has no DIN EN 20273 clearance hole.`);
-  const holes = ISO_273_CLEARANCE_HOLES[thread as MetricThread];
-  return [holes.fine, holes.medium, holes.coarse];
-}
+/** The three clearance holes (fine, medium, coarse) for a library screw (screwHoles.ts). */
+export const latchScrewHoles = clearanceHoles;
 
 /** Whether a library screw can fasten the latch's plates: its coarse hole leaves `holeWall` above and below; a countersunk head's
  * countersink fits the plate and leaves `minStraight` of hole; any other head stays clear of the link's side bars; and it reaches
@@ -2580,7 +2571,199 @@ export const qrMagnetTag = {
   },
 } satisfies ModelDefinition;
 
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag];
+/**
+ * The printed hardware's wood screws (printed corner bracket, printed screen hook): a diameter, which filters the screw list, the
+ * screw, whose clearance holes go to the SCAD file as a vector (`scadEncode`) and whose head sizes its countersink (`partDefines`),
+ * and the hole fit.
+ */
+const WOOD_DIAMETER_TEXT = (value: string) => ({ value, label: value, description: `DIN 7997 countersunk wood screws, ${value} in diameter.` });
+const printedScrewControls = (schema: TObject) => [
+  { ...enumControl(schema, 'woodScrewDiameter', 'basic', PRINTED_WOOD_DIAMETERS.map(WOOD_DIAMETER_TEXT)), part: { family: 'wood-screw', attribute: 'diameter', filter: null } },
+  { ...partControl(schema, 'woodScrew', 'basic', 'wood-screw', PRINTED_WOOD_SCREWS), part: { family: 'wood-screw', attribute: null, filter: { control: 'woodScrewDiameter', attribute: 'diameter' } } },
+];
+const PRINTED_SCREW_DEFINES: PartDefines = { woodScrew: { WOOD_D: ['d', 'value'], WOOD_DK: ['dk', 'max'], WOOD_K: ['k', 'max'] } };
+const clearanceHolesScad = (id: string) => {
+  const part = findPart(id);
+  if (!part) throw new Error(`${id} is not a part of the library.`);
+  return JSON.stringify(clearanceHoles(part));
+};
+const libraryScrew = (id: unknown): Part => {
+  const part = typeof id === 'string' ? findPart(id) : undefined;
+  if (!part) throw new Error(`${String(id)} is not a part of the library.`);
+  return part;
+};
+/** A screw of the printed hardware driven into its countersunk hole: the screw's own frame (tip on z = 0, head up) turned by `rotation`. */
+const drivenScrew = (id: string, screw: Part, label: string, position: [number, number, number], rotation: [number, number, number], from: [number, number, number]): LinkedReference =>
+  ({ id, part: screw.id, label, pose: { position, rotation }, step: { title: 'Drive the screws in', from } });
+
+/**
+ * Printed corner bracket: an original design (models/printed-corner-bracket/generator.scad, docs/printed-corner-bracket.md), a flat
+ * L-shaped plate screwed across a frame's corner in place of a bought flat corner bracket (Stuhlwinkel). Its defaults follow the
+ * window catio insert's 40 mm collar member (`printedCornerBracketFor`), whose corners it holds by default.
+ */
+const PCB = PRINTED_CORNER_BRACKET_DEFAULT;
+export const PrintedCornerBracketParametersSchema = Type.Object({
+  legA: dimension('Leg A', 'Length of one leg, over the outer corner, in mm: the one along the rail.', PCB.legA, 40, 250, 1),
+  legB: dimension('Leg B', 'Length of the other leg, over the outer corner, in mm: the one along the stile.', PCB.legB, 40, 250, 1),
+  width: dimension('Width', 'Width of both legs in mm. On a 40 mm member, 20 mm keeps to its outer half.', PCB.width, 10, 40, 0.5),
+  thickness: dimension('Thickness', 'Plate thickness in mm: also how deep it is let into the timber to lie flush.', PCB.thickness, 3, 10, 0.5),
+  holesPerLeg: Type.Integer({ title: 'Holes per leg', description: 'Screw holes along each leg’s middle line.', default: PCB.holesPerLeg, minimum: 1, maximum: 5 }),
+  holeSpacing: dimension('Hole spacing', 'Distance between neighbouring holes on a leg, in mm.', PCB.holeSpacing, 8, 80, 0.5),
+  firstHole: dimension('First hole', 'Distance from the outer corner, along each leg, to its first hole, in mm. Past the member the other leg lies on, every screw holds the member its leg runs along.', PCB.firstHole, 10, 240, 0.5),
+  woodScrewDiameter: Type.Enum(PRINTED_WOOD_DIAMETERS, { title: 'Wood screw diameter', description: 'The wood screws’ diameter; the screws below are those of this diameter.', default: PRINTED_CORNER_BRACKET_SCREW.diameter }),
+  woodScrew: Type.Enum(PRINTED_WOOD_SCREWS, { title: 'Wood screw', description: 'The countersunk wood screw the holes and countersinks are sized for. Its length does not change the bracket; choose one that bites far enough into the timber.', default: PRINTED_CORNER_BRACKET_SCREW.screw }),
+  holeFit: Type.Enum(HOLE_FIT_VALUES, { title: 'Hole fit', description: 'How much play the screws have in their holes: 0.3 / 0.5 / 0.8 mm over the screw’s diameter, DIN EN 20273’s allowances for M4 and M5.', default: 'medium' }),
+}, { additionalProperties: false, description: 'Printed corner bracket parameters. All fields are required; dimensions are in millimetres; the screw is a parts-library id.' });
+export type PrintedCornerBracketParameters = Static<typeof PrintedCornerBracketParametersSchema>;
+
+const printedCornerBracketControls = [
+  control(PrintedCornerBracketParametersSchema, 'legA', 'basic'),
+  control(PrintedCornerBracketParametersSchema, 'legB', 'basic'),
+  control(PrintedCornerBracketParametersSchema, 'width', 'basic'),
+  control(PrintedCornerBracketParametersSchema, 'thickness', 'basic'),
+  control(PrintedCornerBracketParametersSchema, 'holesPerLeg', 'basic', null, null),
+  control(PrintedCornerBracketParametersSchema, 'holeSpacing', 'basic'),
+  control(PrintedCornerBracketParametersSchema, 'firstHole', 'basic'),
+  ...printedScrewControls(PrintedCornerBracketParametersSchema),
+  enumControl(PrintedCornerBracketParametersSchema, 'holeFit', 'advanced', HOLE_FIT_VALUES.map(value => ({ value, ...HOLE_FIT_TEXT[value] }))),
+];
+
+/** The bracket lowered onto the corner, then its screws driven in from above, flush in their countersinks. */
+function printedCornerBracketScrews(parameters: ParameterValues): LinkedReference[] {
+  const p = { ...printedCornerBracket.defaults, ...parameters } as PrintedCornerBracketParameters;
+  const screw = libraryScrew(p.woodScrew); const l = dimensionOf(screw, 'l');
+  return printedCornerBracketHoles(p).map((hole, i) => drivenScrew(`screw-${i + 1}`, screw, `leg ${hole.leg.toUpperCase()}`,
+    hole.leg === 'a' ? [hole.along, hole.across, p.thickness - l] : [hole.across, hole.along, p.thickness - l], [0, 0, 0], [0, 0, l + 10]));
+}
+
+export const printedCornerBracket = {
+  id: 'printed-corner-bracket' as const, version: '1' as const, title: 'Printed corner bracket',
+  description: 'A flat L-shaped plate screwed across the corner of a timber frame, one leg on each member, to keep the corner square and closed: a printed flat corner bracket. Set the legs, width and thickness, how many holes and where, and choose the countersunk wood screw from the parts library: the holes are its clearance holes, countersunk so its head sits flush. The defaults suit the window catio insert’s 40 mm collar.',
+  attribution: 'CanFactory (original design)',
+  printNotes: 'Print in PETG as generated, back down; no supports. 100 % infill or at least five walls round the holes.',
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  parts: [{ id: 'bracket', title: 'Bracket', sourcePath: 'models/printed-corner-bracket/generator.scad',
+    scadMapping: { legA: 'LEG_A', legB: 'LEG_B', width: 'WIDTH', thickness: 'THICKNESS', holesPerLeg: 'HOLES_PER_LEG', holeSpacing: 'HOLE_SPACING', firstHole: 'FIRST_HOLE', holeFit: 'HOLE_FIT', woodScrew: 'WOOD_HOLES' },
+    partDefines: PRINTED_SCREW_DEFINES }],
+  assembly: { partColors: { bracket: '#5f7350' }, poses: { bracket: { position: [0, 0, 0] } }, steps: [{ title: 'Lay the bracket across the corner', parts: ['bracket'], from: [0, 0, 20] }], lift: 10 },
+  linkedReferences: printedCornerBracketScrews,
+  parameterSchema: PrintedCornerBracketParametersSchema,
+  controls: printedCornerBracketControls,
+  defaults: Object.fromEntries(printedCornerBracketControls.map(c => [c.key, c.default])),
+  scadMapping: {},
+  scadEncode: { woodScrew: clearanceHolesScad },
+  validate(parameters: unknown): ParameterIssue[] {
+    if (!Value.Check(PrintedCornerBracketParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
+    return printedCornerBracketIssues(parameters, libraryScrew(parameters.woodScrew));
+  },
+  derived(parameters: unknown) {
+    if (!Value.Check(PrintedCornerBracketParametersSchema, parameters)) return { slotCount: null };
+    const screw = libraryScrew(parameters.woodScrew);
+    return { slotCount: null, notes: [`${2 * parameters.holesPerLeg} screws, ${screw.designation}: each bites ${printedCornerBracketBite(parameters, screw)} mm into the timber through the plate.`, `Let it in ${parameters.thickness} mm to lie flush with the timber’s face.`] };
+  },
+} satisfies ModelDefinition;
+
+/**
+ * Printed screen hook: an original design (models/printed-screen-hook/generator.scad, docs/printed-screen-hook.md), the long (head) and
+ * the short (sill) hook that hang a screen frame on a tilt-and-turn window's fixed frame, made for one window's lip and seal gap.
+ */
+const PSH = PRINTED_SCREEN_HOOK_DEFAULT;
+export const PrintedScreenHookParametersSchema = Type.Object({
+  frameLip: dimension('Frame lip thickness', 'Open the window and measure the fixed frame’s outermost leg, from its outer face to the seal on its back, in mm. The barb reaches behind it.', 15.5, 5, 35, 0.5),
+  sealGap: dimension('Seal gap', 'From the lip’s back to the closed sash’s face, where the outer seal is, in mm. The barb lies in it, centred, so the sash still closes.', 3.5, 1, 10, 0.5),
+  engage: dimension('Reach behind the lip', 'How far both barbs reach behind the lip once the frame hangs, in mm. The long barb is made longer by what the frame is lifted to hang it.', PSH.engage, 3, 15, 0.5),
+  width: dimension('Width', 'Width of the strip in mm.', PSH.width, 8, 20, 0.5),
+  legLength: dimension('Leg length', 'From the turn’s outer face to the end of the screwed leg, in mm.', PSH.legLength, 25, 80, 1),
+  legThickness: dimension('Leg thickness', 'Of the screwed leg, in mm: it takes the countersunk heads.', PSH.legThickness, 2.5, 8, 0.5),
+  turnThickness: dimension('Turn thickness', 'Of the turn into the window, in mm.', PSH.turnThickness, 2.5, 8, 0.5),
+  barbThickness: dimension('Barb thickness', 'Of the barb in the seal gap, in mm: at most the gap less 0.5 mm each side.', PSH.barbThickness, PRINTED_BARB_MIN, 4, 0.1),
+  clearance: dimension('Clearance', 'How far the short hooks’ turns stand off the sill lip’s tip once the frame stands on its feet, in mm, and the long ones’ off the head lip while it is lifted.', PSH.clearance, 0.5, 3, 0.5),
+  woodScrewDiameter: Type.Enum(PRINTED_WOOD_DIAMETERS, { title: 'Wood screw diameter', description: 'The wood screws’ diameter; the screws below are those of this diameter.', default: PRINTED_SCREEN_HOOK_SCREW.diameter }),
+  woodScrew: Type.Enum(PRINTED_WOOD_SCREWS, { title: 'Wood screw', description: 'The countersunk wood screw the leg’s two holes are sized for. Its length does not change the hook.', default: PRINTED_SCREEN_HOOK_SCREW.screw }),
+  holeFit: Type.Enum(HOLE_FIT_VALUES, { title: 'Hole fit', description: 'How much play the screws have in their holes: 0.3 / 0.5 / 0.8 mm over the screw’s diameter, DIN EN 20273’s allowances for M4 and M5.', default: 'medium' }),
+}, { additionalProperties: false, description: 'Printed screen hook parameters. All fields are required; dimensions are in millimetres; the screw is a parts-library id.' });
+export type PrintedScreenHookParameters = Static<typeof PrintedScreenHookParametersSchema>;
+
+const printedScreenHookControls = [
+  control(PrintedScreenHookParametersSchema, 'frameLip', 'basic'),
+  control(PrintedScreenHookParametersSchema, 'sealGap', 'basic'),
+  control(PrintedScreenHookParametersSchema, 'engage', 'basic'),
+  control(PrintedScreenHookParametersSchema, 'width', 'basic'),
+  ...printedScrewControls(PrintedScreenHookParametersSchema),
+  control(PrintedScreenHookParametersSchema, 'legLength', 'advanced'),
+  control(PrintedScreenHookParametersSchema, 'legThickness', 'advanced'),
+  control(PrintedScreenHookParametersSchema, 'turnThickness', 'advanced'),
+  control(PrintedScreenHookParametersSchema, 'barbThickness', 'advanced'),
+  control(PrintedScreenHookParametersSchema, 'clearance', 'advanced'),
+  enumControl(PrintedScreenHookParametersSchema, 'holeFit', 'advanced', HOLE_FIT_VALUES.map(value => ({ value, ...HOLE_FIT_TEXT[value] }))),
+];
+
+/**
+ * The two hooks as they sit on a stile, seen from the side: the section stood up (Y up), the long one at the head with its barb up,
+ * the short one at the sill turned over, barb down, both `width` across along -Y. `PRINTED_HOOK_SPAN` apart, turn to turn.
+ */
+const PRINTED_HOOK_SPAN = 110;
+const hookPose = (part: 'long' | 'short', p: PrintedScreenHookParameters) => part === 'long'
+  ? { position: [0, 0, PRINTED_HOOK_SPAN + p.engage + p.clearance] as [number, number, number], rotation: [90, 0, 0] as [number, number, number] }
+  : { position: [0, -p.width, p.engage + p.clearance] as [number, number, number], rotation: [-90, 0, 0] as [number, number, number] };
+export function printedScreenHookAssembly(parameters: ParameterValues): Assembly {
+  const p = { ...printedScreenHook.defaults, ...parameters } as PrintedScreenHookParameters;
+  return {
+    partColors: { long: '#5f7350', short: '#d98460' },
+    poses: { long: hookPose('long', p), short: hookPose('short', p) },
+    steps: [
+      { title: 'Lay the long hook on the stile’s back, at the head, barb up', parts: ['long'], from: [30, 0, 0] },
+      { title: 'Lay the short hook on the stile’s back, at the sill, barb down', parts: ['short'], from: [30, 0, 0] },
+    ],
+    lift: 10,
+  };
+}
+/** Two screws through each hook's leg, from the room side (+X) into the stile. */
+function printedScreenHookScrews(parameters: ParameterValues): LinkedReference[] {
+  const p = { ...printedScreenHook.defaults, ...parameters } as PrintedScreenHookParameters;
+  const screw = libraryScrew(p.woodScrew); const l = dimensionOf(screw, 'l');
+  const { holes } = printedScreenHookShape(p, screw);
+  return (['long', 'short'] as const).flatMap(part => {
+    const pose = hookPose(part, p); const [x, y, z] = pose.position; const up = part === 'long' ? 1 : -1;
+    return holes.map((v, i) => drivenScrew(`${part}-screw-${i + 1}`, screw, `${part} hook`, [x + p.legThickness - l, y + (part === 'long' ? -p.width / 2 : p.width / 2), z + up * v], [0, 90, 0], [l + 10, 0, 0]));
+  });
+}
+
+export const printedScreenHook = {
+  id: 'printed-screen-hook' as const, version: '1' as const, title: 'Printed screen hook',
+  description: 'Hooks that hang a screen frame on a tilt-and-turn window without drilling, as insect screens hang: a leg screwed to the frame’s back, a turn into the window and a barb that reaches behind the fixed frame’s lip, in the seal gap, so the sash still closes. Enter your window’s lip thickness and seal gap and the barb stands where they put it: nothing to bend. A long hook for the head and a short one for the sill, as a ZIP; choose the wood screws from the parts library.',
+  attribution: 'CanFactory (original design)',
+  printNotes: 'Print in PETG as generated, lying on its side; no supports. Print two of each: two long hooks for the head, two short ones for the sill.',
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  parts: (['long', 'short'] as const).map((part): ModelPart => ({
+    id: part, title: part === 'long' ? 'Long hook (head)' : 'Short hook (sill)', sourcePath: 'models/printed-screen-hook/generator.scad', scadConstants: { PART: part },
+    scadMapping: { frameLip: 'FRAME_LIP', sealGap: 'SEAL_GAP', engage: 'ENGAGE', clearance: 'CLEARANCE', width: 'WIDTH', legLength: 'LEG_LENGTH', legThickness: 'LEG_THICKNESS', turnThickness: 'TURN_THICKNESS', barbThickness: 'BARB_THICKNESS', holeFit: 'HOLE_FIT', woodScrew: 'WOOD_HOLES' },
+    partDefines: PRINTED_SCREW_DEFINES,
+  })),
+  get assembly() { return printedScreenHookAssembly(this.defaults); },
+  assemblyForParameters: printedScreenHookAssembly,
+  linkedReferences: printedScreenHookScrews,
+  parameterSchema: PrintedScreenHookParametersSchema,
+  controls: printedScreenHookControls,
+  defaults: Object.fromEntries(printedScreenHookControls.map(c => [c.key, c.default])),
+  scadMapping: {},
+  scadEncode: { woodScrew: clearanceHolesScad },
+  validate(parameters: unknown): ParameterIssue[] {
+    if (!Value.Check(PrintedScreenHookParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
+    return printedScreenHookIssues(parameters, libraryScrew(parameters.woodScrew));
+  },
+  derived(parameters: unknown) {
+    if (!Value.Check(PrintedScreenHookParametersSchema, parameters)) return { slotCount: null };
+    const shape = printedScreenHookShape(parameters, libraryScrew(parameters.woodScrew));
+    const mm = (value: number) => `${Math.round(value * 10) / 10} mm`;
+    return { slotCount: null, notes: [
+      `Barbs ${mm(shape.rise.long)} (long) and ${mm(shape.rise.short)} (short) past the turn, ${mm(shape.front)} from the leg’s face: ${mm((parameters.sealGap - parameters.barbThickness) / 2)} clear of the lip’s back and of the sash.`,
+      `Screw the long hooks with their turns ${mm(shape.headClear)} below the head lip’s tip, the short ones ${mm(parameters.clearance)} above the sill lip’s tip; lift the frame ${mm(shape.lift)} to hang it.`,
+    ] };
+  },
+} satisfies ModelDefinition;
+
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 
