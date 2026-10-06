@@ -1,7 +1,8 @@
 import { createReadStream, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Readable } from 'node:stream';
-import type { ApiError, ModelDefinition, ModelDetail, ParameterValues } from '@canfactory/contracts';
+import type { ApiError, AwinLive, ModelDefinition, ModelDetail, ParameterValues } from '@canfactory/contracts';
+import type { AwinFeedState, AwinOfferKey, AwinStore } from './awin.ts';
 import { AppError } from './errors.ts';
 import type { AssemblyInfo, MeshInfo } from './mesh.ts';
 import type { RenderJob } from './schema.ts';
@@ -16,7 +17,7 @@ export interface CatalogueEntry {
 }
 
 /** All remote operations are awaited; only render scratch has a local path. */
-export interface Storage {
+export interface Storage extends AwinStore {
   readonly projectRoot: string;
   readonly temporaryDir: string;
   now(): Promise<number>;
@@ -39,6 +40,8 @@ export interface Storage {
   /** `format` only matters for the local/SQLite backend, whose file extension isn't otherwise known; the
    * PostgreSQL/S3 backend's stored object key already encodes it. */
   readArtifact(job: RenderJob, format?: ArtifactFormat): Promise<Readable>;
+  /** The offers service's stored Awin feed rows for these products (absent rows are left out). */
+  awinOffers(keys: readonly AwinOfferKey[]): Promise<AwinLive[]>;
   metrics(): Promise<string>;
   close(): Promise<void>;
 }
@@ -76,6 +79,9 @@ export class LocalStorage implements Storage {
     if (!existsSync(path)) throw new AppError(410, 'RENDER_EXPIRED', 'The generated file is no longer available. Generate it again.');
     return Promise.resolve(createReadStream(path));
   }
+  awinOffers(keys: readonly AwinOfferKey[]) { return Promise.resolve(this.local.awinOffers(keys)); }
+  awinFeeds() { return Promise.resolve(this.local.awinFeeds()); }
+  saveAwinFeed(feed: AwinFeedState, rows: readonly AwinLive[]) { this.local.saveAwinFeed(feed, rows); return Promise.resolve(); }
   metrics() { return Promise.resolve(''); }
   close() { this.local.close(); return Promise.resolve(); }
 }

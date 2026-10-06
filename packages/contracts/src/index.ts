@@ -3,6 +3,7 @@ import { aiRubberDuck, AssemblySchema, cigaretteCase, ControlSchema, fruitFlyTra
 import { PartFamilySchema, PartSchema, PartSourceSchema } from './parts/index.ts';
 export * from './models.ts';
 export * from './assembly.ts';
+export * from './bom.ts';
 export * from './svgLogo.ts';
 export * from './parts/index.ts';
 export * from './concepts.ts';

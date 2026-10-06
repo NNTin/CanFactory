@@ -16,6 +16,9 @@ import { washerFamily, washerParts } from './washers.ts';
 import { woodScrewFamily, woodScrewParts } from './wood-screws.ts';
 
 export * from './schema.ts';
+export * from './offers.ts';
+export * from './affiliateAccounts.ts';
+export * from './matcher.ts';
 export { PART_SOURCES, findPartSource } from './sources.ts';
 export { cornerBracketHoles } from './corner-brackets.ts';
 

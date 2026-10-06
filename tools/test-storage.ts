@@ -79,6 +79,14 @@ try {
   await first.pool.query(`UPDATE model_revisions SET detail = detail - 'artifactFormat' - 'customizable'`);
   await second.seed();
   assert.ok((await second.listModels()).every(entry => ['stl', 'zip'].includes(entry.artifactFormat) && typeof entry.customizable === 'boolean'), 'reseeding must refresh stored model details');
+  // The offers service: a feed's rows replace that feed's earlier rows, and keep their types through PostgreSQL.
+  const awinRow = { advertiserId: 777, merchantProductId: 'SKU-1', market: 'DE' as const, deepLink: 'https://www.awin1.com/pclick.php?p=1', name: 'M3 inserts',
+    price: 4.99, currency: 'EUR', deliveryCost: null, inStock: true, lastImported: 1_791_000_000_000 };
+  await first.saveAwinFeed({ feedId: 42, advertiserId: 777, lastImported: awinRow.lastImported }, [awinRow, { ...awinRow, merchantProductId: 'SKU-2', inStock: null }]);
+  await second.saveAwinFeed({ feedId: 42, advertiserId: 777, lastImported: awinRow.lastImported + 1 }, [{ ...awinRow, lastImported: awinRow.lastImported + 1 }]);
+  assert.deepEqual(await first.awinOffers([{ advertiserId: 777, merchantProductId: 'SKU-1', market: 'DE' }, { advertiserId: 777, merchantProductId: 'SKU-2', market: 'DE' }]),
+    [{ ...awinRow, lastImported: awinRow.lastImported + 1 }]);
+  assert.deepEqual(await first.awinFeeds(), [{ feedId: 42, advertiserId: 777, lastImported: awinRow.lastImported + 1 }]);
   const apis = await Promise.all([createApp(first), createApp(second)]);
   try {
     const model = await first.getModel(fruitFlyTrap.id); assert.ok(model);
