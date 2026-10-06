@@ -124,8 +124,8 @@ differ, and includes the object in its collision checks.
 **Real-world parts.** When a setting chooses a real part (a screw size, a magnet), link the control to the parts library: set
 `part: { family, attribute }` on it. With `attribute: null` each option value is a part id; otherwise each value is a value of
 that attribute (the plank connector's `screwHoles` = `M3` stands for every M3 screw). The editor then links the chosen option to
-the library, and the library lists the model under the part's “Used by”. Take the sizes a model needs (e.g. `ISO_273_CLEARANCE_HOLES`)
-from the library rather than copying them. For a setting whose values are part ids (e.g. the cigarette case's `magnet`):
+the library, and the library lists the model under the part's “Used by”. Take the sizes a model needs (e.g. `ISO_273_CLEARANCE_HOLES`, or `clearanceHoles`
+for any library screw, wood screws included) from the library rather than copying them. For a setting whose values are part ids (e.g. the cigarette case's `magnet`):
 
 - **The control:** `partControl(schema, key, group, family, partIds)` names and describes each option from the library. Offer only the
   parts the geometry can take, and prove it with a test (the case's `magnetFits`, the litter shovel's `handleScrewFits`).
@@ -144,7 +144,7 @@ from the library rather than copying them. For a setting whose values are part i
   the parts are together). `resolveAssembly` adds them to the assembly for the editor and the collision check. An assembly's own steps may also
   name a linked reference by its id, to move it in among the printed parts: the pressure pad's screws and nuts go in between
   its extenders this way (`pressurePadAssembly`). Parts without an
-  STL are built from their dimensions in the preview. The check renders magnets, screws, nuts and threaded inserts from the generic
+  STL are built from their dimensions in the preview. The check renders magnets, screws (wood screws at their nominal diameter), nuts and threaded inserts from the generic
   models in `parts/` (`GENERIC_MODELS` in `tools/check-assembly.ts`). A screw's thread is drawn at its minor diameter and a nut's
   or insert's bore at the thread's diameter, so a screw in its nut does not count as a collision. An insert is drawn as the hole
   it is melted into.
@@ -170,6 +170,10 @@ preferences are isolated by version and stale API requests receive a conflict.
 Source/schema/mapping changes also alter the cache fingerprint. The current
 fingerprint assumes a self-contained generator: if adding includes, libraries,
 or imported geometry, extend fingerprinting to cover every dependency first.
+
+**Used by a concept page (optional).** A model a concept page prints (e.g. the catio window insert's pressure pads, corner
+brackets and screen hooks) is listed in that page's `models` (`packages/contracts/src/concepts.ts`): the model's editor then names
+the page under “Used by” (`modelUsage`), and the page's parts-list line links to the model (`BomLine.modelId`).
 
 Do not accept arbitrary uploaded SCAD or construct shell commands from parameter
 values. Provided models are trusted repository code; users supply only values
