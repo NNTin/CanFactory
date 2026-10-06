@@ -80,3 +80,9 @@ for a reference object, `npm run check:assembly` fails until you do.
 Either way the library lists the model under the part's “Used by” (`partUsage`).
 - **A concept page** (not a model, e.g. the catio window insert, `#/concepts/catio/window-insert`): list the parts it uses in
   `packages/contracts/src/concepts.ts`; the library lists the page under “Used by” with `kind: 'concept'`.
+
+## Where to buy
+
+A part can link to shops: add a curated offer for it to `packages/contracts/src/parts/offers.ts` (an Amazon ASIN or an
+Awin advertiser's product, one row per market, with the pieces per pack). Without one, the part links to a search of the
+visitor's Amazon for its designation. See [affiliate-offers.md](affiliate-offers.md).

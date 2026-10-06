@@ -15,6 +15,8 @@ them offline using `npm run contracts:generate` and `npm run contracts:check`.
 | `GET /api/v1/part-families` | List the parts library's families, with their part counts. |
 | `GET /api/v1/part-families/{id}` | Get a family with all its parts, the sources they cite, and the models that link to each part. |
 | `GET /api/v1/parts/{id}` | Get one part, its family, its sources, and the models that link to it. |
+| `GET /api/v1/market` | The visitor's market from Cloudflare's `CF-IPCountry` (DE/AT/CH → `DE`, else `US`) and which affiliate networks link in each market. `private, no-store`. |
+| `GET /api/v1/offers?market=DE&parts=<id>[:<qty>],…` | Where to buy parts: ranked affiliate offers per part in packs that cover each quantity, and the buy list grouped by shop. 404 for an unknown part. See [affiliate-offers.md](affiliate-offers.md). |
 | `POST /api/v1/renders` | Submit complete settings; return an existing successful render (200) or pending job (202). |
 | `GET /api/v1/renders/{id}` | Poll status, expiry, derived slot count, and available artifact metadata. |
 | `GET /api/v1/renders/{id}/stl` | Stream generated binary STL; `?download=true` changes only content disposition. |
