@@ -1,4 +1,4 @@
-import { METRIC_THREADS, type MetricThread, type Part } from '@canfactory/contracts';
+import { cornerBracketHoles, METRIC_THREADS, type MetricThread, type Part } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -236,8 +236,30 @@ function toggleLatch(part: Part): Piece[] {
   return pieces;
 }
 
+function screenHook(part: Part): Piece[] {
+  // bent for a lip in the middle of its range: the screwed leg standing up, the strip turned along +Y past the lip, the tip up
+  const h = value(part, 'h'); const l = value(part, 'l'); const w = value(part, 'w'); const t = value(part, 't'); const d = value(part, 'd');
+  const reach = (value(part, 'x1') + value(part, 'x2')) / 2 + value(part, 'c');
+  const block = (size: [number, number, number], at: [number, number, number]) => {
+    const geometry = new THREE.BoxGeometry(...size); geometry.translate(at[0], at[1] + size[1] / 2, at[2] + size[2] / 2); return paint(geometry, STEEL);
+  };
+  const hole = new THREE.CylinderGeometry(d / 2, d / 2, t * 1.4, 20); hole.translate(0, t / 2, l * 0.25);
+  return [block([w, t, l], [0, 0, 0]), block([w, reach + t, t], [0, 0, l - t]), block([w, t, h], [0, reach, l - t]), paint(hole, DARK)];
+}
+
+function cornerBracket(part: Part): Piece[] {
+  // lying flat: leg a along +X and leg b along +Y from the outer corner, with its screw holes as dark discs
+  const a = value(part, 'a'); const b = value(part, 'b'); const c = value(part, 'c'); const t = value(part, 't'); const d = value(part, 'd');
+  const plate = (x: number, y: number, w: number, h: number) => { const geometry = new THREE.BoxGeometry(w, h, t); geometry.translate(x + w / 2, y + h / 2, t / 2); return paint(geometry, STEEL); };
+  const holes = cornerBracketHoles(part).map(hole => {
+    const geometry = new THREE.CylinderGeometry(d / 2, d / 2, t * 1.2, 20); geometry.rotateX(Math.PI / 2);
+    geometry.translate(hole.leg === 'a' ? hole.along : hole.across, hole.leg === 'a' ? hole.across : hole.along, t / 2); return paint(geometry, DARK);
+  });
+  return [plate(0, 0, a, c), plate(0, c, c, b - c), ...holes];
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
-  screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch,
+  screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */

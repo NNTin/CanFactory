@@ -115,8 +115,8 @@ export interface TunnelSite { w: number; h: number; floorZ: number; window: Wind
 
 /** The window insert as saved on its own page (or its defaults), in the modular window saved on the catio concept page. */
 export function tunnelSite(): TunnelSite {
-  const window = windowFor('modular');
   const insert = loadSubassemblyConfig('window-insert', parseWindowInsert, WINDOW_INSERT_DEFAULT);
+  const window = windowFor('modular', insert);
   const tunnel = window.tunnel ?? { width: 300, height: 300 };
   return { w: tunnel.width, h: tunnel.height, floorZ: windowInsertLayout('modular', insert, window).floor, window, insert };
 }

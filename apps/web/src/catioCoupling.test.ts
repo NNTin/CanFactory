@@ -14,7 +14,9 @@ import { partGeometry } from './partGeometry.ts';
 const base = tunnelSite();
 const site: CouplingSite = { tunnel: TUNNEL_DEFAULT, site: base };
 /** The insert with each of its mesh fixings: the docking frame is rebated over cover battens only where there are battens. */
-const sites: CouplingSite[] = (['staples-and-battens', 'staples', 'battens'] as const).map(meshFixing => ({ tunnel: TUNNEL_DEFAULT, site: { ...base, insert: { ...WINDOW_INSERT_DEFAULT, meshFixing } } }));
+// every mesh fixing, pressed into the recess and hung on the window frame (its collar then lies deeper, on the frame's face)
+const sites: CouplingSite[] = (['spreader-feet', 'frame-hooks'] as const).flatMap(attachment => (['staples-and-battens', 'staples', 'battens'] as const)
+  .map(meshFixing => ({ tunnel: TUNNEL_DEFAULT, site: { ...base, insert: { ...WINDOW_INSERT_DEFAULT, attachment, meshFixing } } })));
 /** Every option of every control, one at a time, from the defaults. */
 const configs: CouplingConfig[] = [COUPLING_DEFAULT, ...COUPLING_CONTROLS.flatMap(control => control.options.map(option => ({ ...COUPLING_DEFAULT, [control.key]: option.value })))];
 const installed: CatioState = { progress: 5, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
@@ -52,7 +54,10 @@ describe('insert–tunnel coupling', () => {
         const screw = findPart(f.partId); if (!screw) throw new Error(f.partId);
         const length = dimensionOf(screw, 'l');
         expect(f.direction).toEqual([0, -1, 0]);
-        expect(length - (f.at[1] - l.insert.yOut), `${f.use} bite`).toBeCloseTo(latch === 'printed' ? 23 : 26, 9);
+        // pressed into the recess, a 5 × 60 bites 23 (26) mm; hung on the window frame, the thicker frame takes a 6 × 90
+        const hung = s.site.insert.attachment === 'frame-hooks';
+        expect(f.partId).toBe(hung ? 'din-7997-6x90' : 'din-7997-5x60');
+        expect(length - (f.at[1] - l.insert.yOut), `${f.use} bite`).toBeCloseTo((latch === 'printed' ? 23 : 26) + (hung ? 2.5 : 0), 9);
       }
     }
   });
@@ -89,6 +94,7 @@ describe('insert–tunnel coupling', () => {
     expect(text).toContain(`${Math.round(l.thickness)} × ${TUNNEL.flange.width} stiles`);
     expect(text).toContain(`the joint is ${Math.round(l.flangeFront - l.meshFace)} mm deep`);
     expect(text).toContain(`lies ${Math.round(-l.meshFace)} mm inside the recess`);
+    expect(text).toContain(`with ${l.fasteners.find(f => f.component === 'frame-screws')?.partId === 'din-7997-6x90' ? 'DIN 7997 6 × 90' : 'DIN 7997 5 × 60'} screws`);
     expect(COUPLING_DECISIONS.find(d => d.title === 'A docking frame on the insert')?.from).toEqual({ page: 'window-insert', settings: ['meshFixing', 'fixingPitch'] });
   });
 
@@ -128,9 +134,11 @@ describe('insert–tunnel coupling', () => {
       }
       expect(l.tolerance).toBe(w2 / 2);
     }
-    // the long type would hang its catch off the back of the frame: the joint is too shallow for it
+    // the long type would hang its catch off the back of the frame where the insert is pressed into the recess: the joint is too
+    // shallow for it there (hung on the window frame, the default, it is 27.5 mm deeper)
     const long = findPart('ganter-gn-831-100-a-ni-1'); if (!long) throw new Error('long latch');
-    const l = couplingLayout(COUPLING_DEFAULT, site);
+    const pressed = sites.find(s => s.site.insert.attachment === 'spreader-feet'); if (!pressed) throw new Error('pressed');
+    const l = couplingLayout(COUPLING_DEFAULT, pressed);
     expect(l.flangeFront - COUPLING.latchInset - dimensionOf(long, 'l1') - dimensionOf(long, 'w2') / 2).toBeLessThan(l.meshFace);
   });
 
@@ -197,12 +205,14 @@ describe('insert–tunnel coupling parts list', () => {
         expect(lines.some(line => line.partId?.startsWith('ganter-gn-831'))).toBe(false);
         expect(lines.find(line => line.id === 'seal')?.name).toMatch(/E-profile/);
       }
-      expect(count('din-7997-5x60')).toBe(l.fasteners.filter(f => f.component === 'frame-screws').length);
+      expect(count('din-7997-5x60') + count('din-7997-6x90')).toBe(l.fasteners.filter(f => f.component === 'frame-screws').length);
       // two screws in each latch body and each catch, and three through the lip
       expect(count('din-7997-4x25')).toBe(4 * l.latches.length + (l.lip ? 3 : 0));
       expect(lines.find(line => line.id === 'frame-stile')?.quantity).toBe(2);
       expect(lines.find(line => line.id === 'frame-head')?.quantity).toBe(1);
-      expect(lines.find(line => line.id === 'frame-stile')?.size).toMatch(config.latch === 'printed' ? /^35 × 70 · 300 long/ : /^32 × 70 · 300 long/);
+      // hung on the window frame, the port frame lies 27.5 mm deeper and the docking frame is that much thicker
+      const deeper = s.site.insert.attachment === 'frame-hooks' ? 27.5 : 0;
+      expect(lines.find(line => line.id === 'frame-stile')?.size).toMatch(new RegExp(`^${Math.round((config.latch === 'printed' ? 35 : 32) + deeper)} × 70 · 300 long`));
       expect(lines.some(line => line.id === 'floor-lip')).toBe(config.floorLip === 'rubber-lip');
       expect(lines.find(line => line.id === 'seal')?.size).toContain(`${Math.ceil(l.seal.length / 10) * 10} long`);
     }
@@ -210,7 +220,7 @@ describe('insert–tunnel coupling parts list', () => {
 
   it('links every library part it can use back to this page in the parts library', () => {
     const used = new Set(configs.flatMap(config => [...COUPLING_LATCH.types].flatMap(latchType => [...COUPLING_LATCH.materials].flatMap(latchMaterial =>
-      couplingBom('modular', { ...config, latchType, latchMaterial }, site).flatMap(line => line.partId ? [line.partId] : [])))));
+      [site, ...sites].flatMap(s => couplingBom('modular', { ...config, latchType, latchMaterial }, s).flatMap(line => line.partId ? [line.partId] : []))))));
     expect([...used].sort()).toEqual([...new Set(insertTunnelCouplingConcept.parts.map(link => link.partId))].sort());
     for (const id of used) {
       const p = findPart(id); if (!p) throw new Error(id);

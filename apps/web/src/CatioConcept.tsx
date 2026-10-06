@@ -1,14 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Box, RotateCcw } from 'lucide-react';
 import * as THREE from 'three';
 import { createStage, type Stage } from './stage.ts';
 import { createCatioScene, type CatioState } from './catioScene.ts';
 import { CatioParameters } from './CatioParameters.tsx';
 import { createModularCatio, type CatioDoor } from './catioModularScene.ts';
-import { MODULAR_DEFAULT, MODULAR_STEPS, modularCamera, modularLayout, validateModular, type ModularConfig } from './catioModularDesign.ts';
+import { MODULAR_DEFAULT, MODULAR_HUNG_STEP, MODULAR_STEPS, modularCamera, modularLayout, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { CATIO_STORAGE_KEY, loadCatioSettings, type CatioViewing, type CatioMode } from './catioSettings.ts';
-import { CATIO_STEPS, CATIO_VIEWS, type CatioLayer, type CatioView } from './catioDesign.ts';
+import { CATIO_HUNG_STEP, CATIO_STEPS, CATIO_VIEWS, type CatioLayer, type CatioView } from './catioDesign.ts';
 import { CATIO_SUBASSEMBLY_TITLES } from './catioSubassemblies.ts';
+import { savedWindowInsert } from './catioWindowInsert.ts';
 import { OtherPageIssues, useOtherPageIssues } from './CatioCrossPage.tsx';
 import { CATIO_SUBASSEMBLIES, formatHash } from './route.ts';
 
@@ -47,8 +48,10 @@ export function CatioConcept() {
   const hidden = new Set(viewing.hidden);
   const stateRef = useRef<CatioState & { doors: Record<string, boolean> }>({ ...viewing, hidden });
   stateRef.current = { ...viewing, hidden };
-  const steps = mode === 'modular' ? MODULAR_STEPS : CATIO_STEPS;
-  const index = Math.ceil(progress); const step = steps[index] ?? steps[6];
+  // the insert's step follows how the window insert page holds it: hung on the window frame (the default) or clamped in the recess
+  const hung = useMemo(() => savedWindowInsert().attachment === 'frame-hooks', []);
+  const steps = (mode === 'modular' ? MODULAR_STEPS : CATIO_STEPS).map((step, i) => i === 1 && hung ? (mode === 'modular' ? MODULAR_HUNG_STEP : CATIO_HUNG_STEP) : step);
+  const index = Math.ceil(progress); const step = steps[index] ?? CATIO_STEPS[6];
   const editView = (patch: Partial<CatioViewing>) => setSettings(current => ({ ...current, views: { ...current.views, [mode]: { ...current.views[mode], ...patch } } }));
   const setProgress = (value: number) => editView({ progress: value });
   const setExploded = (value: boolean) => editView({ exploded: value });

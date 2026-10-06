@@ -23,6 +23,8 @@ export const MODULAR_STEPS = [
   { title: 'Couple the connections', detail: 'Seat the matching rectangular collars and secure the removable clamps at every joint. Gates remain closed while connections are made.' },
   { title: 'Open the connected gates', detail: 'With maintenance doors latched, open the gates along the connected route. Before disconnecting a run, close and latch the gates at both ends.' },
 ] as const;
+/** The modular concept's second step when the window insert hangs on the window frame (its default). */
+export const MODULAR_HUNG_STEP = { title: 'Fit the window insert', detail: 'Hang it on the window frame: its screen hooks reach behind the fixed frame’s lip and its feet stand on the recess floor, so the sash still closes. Keep the small sliding cat gate closed; mesh fills the remaining opening.' };
 
 export function validateModular(c: ModularConfig): string[] {
   const errors: string[] = [];

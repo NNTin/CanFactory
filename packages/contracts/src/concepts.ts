@@ -20,10 +20,31 @@ export const WINDOW_INSERT_HARDWARE = {
   staple: 'din-1159-2-5x25',
   insertNut: 'din-7965-m8x18',
   jamNut: 'iso-4032-m8',
+  /** Hung on the window frame: the screen hooks behind the frame's lip, long at the head and short at the sill, and their screws. */
+  hookTop: 'windhager-03651-5a',
+  hookBottom: 'windhager-03651-5b',
+  hookScrew: 'din-7997-3x16',
 } as const;
 
 /** The window insert's clamp feet: Ganter GN 343.2 KR on an M8 stud, in these diameters. */
 export const WINDOW_INSERT_FOOT = { thread: 'M8', diameters: [25, 32, 40], member: 40, travel: 8 } as const;
+
+/**
+ * The window insert's flat corner brackets (GAH Alberts Stuhlwinkel), the sizes offered: legs 75–150 mm, at most 25 mm wide so they
+ * sit on the 40 mm members. 100 × 100 × 19 by default.
+ */
+export const WINDOW_INSERT_BRACKETS = ['gah-alberts-stuhlwinkel-75x75x16', 'gah-alberts-stuhlwinkel-90x90x19', 'gah-alberts-stuhlwinkel-100x100x19', 'gah-alberts-stuhlwinkel-125x125x22', 'gah-alberts-stuhlwinkel-150x150x25'] as const;
+export type WindowInsertBracket = typeof WINDOW_INSERT_BRACKETS[number];
+
+/**
+ * The DIN 7997 screw for a corner bracket's holes: the thickest that passes its hole with 0.3 mm to spare (the holes are countersunk
+ * for it), long enough to bite 30 mm into the timber through the plate.
+ */
+export function cornerBracketScrew(bracket: Part): Part {
+  const hole = dimensionOf(bracket, 'd');
+  const d = [6, 5, 4.5, 4].find(size => size <= hole - 0.3) ?? 4;
+  return libraryPart(`din-7997-${String(d).replace('.', '-')}x${d === 6 ? 40 : 35}`);
+}
 
 function libraryPart(id: string): Part {
   const found = findPart(id);
@@ -82,6 +103,11 @@ export const windowInsertConcept: ConceptPage = {
     { partId: windowInsertPadScrews().spreader.id, via: 'Printed pads (spreader screws, turned from inside)' },
     { partId: windowInsertPadScrews().bearing.id, via: 'Printed pads (in the feet under the sill)' },
     { partId: WINDOW_INSERT_PAD.thrustNut, via: 'Printed pads (on each spreader screw’s tip)' },
+    ...WINDOW_INSERT_BRACKETS.map(id => ({ partId: id, via: 'Collar corners (flat corner bracket)' })),
+    ...WINDOW_INSERT_BRACKETS.map(id => ({ partId: cornerBracketScrew(libraryPart(id)).id, via: 'Collar corners (screws of the corner brackets)' })),
+    { partId: h.hookTop, via: 'Hung on the window frame (hooks at the head)' },
+    { partId: h.hookBottom, via: 'Hung on the window frame (hooks at the sill)' },
+    { partId: h.hookScrew, via: 'Hung on the window frame (screws of the hooks)' },
     ...WINDOW_INSERT_FOOT.diameters.flatMap(d1 => {
       const { spreader, bearing } = windowInsertFeet(d1);
       return [{ partId: spreader.id, via: `Spreader feet (${d1} mm)` }, { partId: bearing.id, via: `Bearing feet under the sill (${d1} mm)` }];
@@ -160,6 +186,8 @@ export const tunnelConcept: ConceptPage = {
  */
 export const COUPLING_HARDWARE = {
   frameScrew: 'din-7997-5x60',
+  /** When the insert hangs on the window frame, its port frame lies deeper in the recess and the docking frame is thicker. */
+  frameScrewDeep: 'din-7997-6x90',
   latchScrew: 'din-7997-4x25',
   lipScrew: 'din-7997-4x25',
 } as const;
@@ -174,6 +202,7 @@ export const insertTunnelCouplingConcept: ConceptPage = {
   id: 'catio/insert-tunnel-coupling', title: 'Window catio: insert–tunnel coupling',
   parts: [
     { partId: c.frameScrew, via: 'Docking frame to the port jambs and transom' },
+    { partId: c.frameScrewDeep, via: 'Docking frame to the port jambs and transom (insert hung on the window frame)' },
     { partId: c.latchScrew, via: 'Latches and catch brackets; floor lip' },
     ...COUPLING_LATCH.types.flatMap(type => COUPLING_LATCH.materials.map(material => ({ partId: couplingLatch(type, material).id, via: `Toggle latches (type ${type}, ${material === 'NI' ? 'stainless' : 'steel'})` }))),
   ],

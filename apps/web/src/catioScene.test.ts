@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { createCatioScene, type CatioState } from './catioScene.ts';
 import { CATIO, CATIO_DERIVED } from './catioDesign.ts';
+import { WINDOW_INSERT_DEFAULT, windowInsertLayout } from './catioWindowInsert.ts';
 
 const assembled: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
 const bounds = (object: THREE.Object3D) => new THREE.Box3().setFromObject(object, true);
@@ -9,7 +10,7 @@ const bounds = (object: THREE.Object3D) => new THREE.Box3().setFromObject(object
 describe('catio concept geometry', () => {
   it('preserves the measured glass and sash independently of the illustrative fixed frame', () => {
     const scene = createCatioScene(); scene.update(assembled);
-    const glass = scene.root.getObjectByName('glass-800');
+    const glass = scene.root.getObjectByName('context-glass');
     if (!glass) throw new Error('Glass geometry missing');
     expect(bounds(glass).getSize(new THREE.Vector3()).toArray()).toEqual([800, 6, 800]);
     const opening = bounds(scene.hinge);
@@ -67,5 +68,21 @@ describe('catio concept geometry', () => {
     expect(scene.components.filter(part => part.layer === 'mesh').every(part => !part.group.visible)).toBe(true);
     expect(scene.components.find(part => part.id === 'wall')?.group.visible).toBe(false);
     scene.dispose();
+  });
+
+  it('hangs the collar on the window frame with its screen hooks by default, or clamps it into the recess', () => {
+    const hung = createCatioScene(WINDOW_INSERT_DEFAULT); hung.update(assembled);
+    const ids = hung.components.map(part => part.id);
+    expect(ids).toContain('screen-hooks'); expect(ids).not.toContain('padded-clamps');
+    // the hooks are the insert page's, behind the fixed frame's lip and clear of the closed sash
+    const hooks = hung.components.find(part => part.id === 'screen-hooks'); if (!hooks) throw new Error('hooks');
+    const layout = windowInsertLayout('direct', WINDOW_INSERT_DEFAULT);
+    expect(bounds(hooks.group).min.y).toBeGreaterThan(layout.frame.sashFace);
+    expect(bounds(hooks.group).min.y).toBeLessThan(layout.frame.lipBack);
+    hung.dispose();
+    const pressed = createCatioScene({ ...WINDOW_INSERT_DEFAULT, attachment: 'spreader-feet' });
+    expect(pressed.components.map(part => part.id)).toEqual(expect.arrayContaining(['padded-clamps', 'recess-collar']));
+    expect(pressed.components.map(part => part.id)).not.toContain('screen-hooks');
+    pressed.dispose();
   });
 });
