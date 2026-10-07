@@ -704,7 +704,8 @@ try {
     console.log(`PASS printed screen hook ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   // Spring ball detent: the defaults (M10, press cap, slot), the set screw in the same body, the smallest (M6, 2.5 mm ball), an M8 with a
-  // hex socket, an M12 with a set screw behind a hex socket, and the largest ball in an M12 with the most interference and no thread play.
+  // hex socket, an M12 with a set screw behind a hex socket, side openings in plain and threaded bodies, a plain body with a press cap,
+  // and the largest ball in an M12 with the most interference and no thread play.
   // The body is one closed solid with one hole through it (genus 1), as long as set and as wide as its printed thread; the cap, when
   // there is one, is as long as the layout says.
   const detentRuns: { name: string; overrides: ParameterValues }[] = [
@@ -714,6 +715,10 @@ try {
     { name: 'M8, hex socket', overrides: { thread: 'M8', ball: 'steel-ball-2-5-g100', spring: 'gutekunst-d-027', protrusion: 0.25, travel: 0.6, bodyLength: 20, toolFeature: 'hex' } },
     { name: 'M8, 3 mm ball, coarse play', overrides: { thread: 'M8', ball: 'steel-ball-3-g100', spring: 'gutekunst-d-039', protrusion: 0.3, travel: 0.6, bodyLength: 14, clearance: 0.4, threadPlay: 0.4 } },
     { name: 'M12, set screw behind a hex socket', overrides: { thread: 'M12', retention: 'set-screw', toolFeature: 'hex', bodyLength: 28 } },
+    { name: 'plain body, side opening', overrides: { body: 'plain', retention: 'side-opening', toolFeature: 'none', spring: 'gutekunst-d-078', bodyLength: 18 } },
+    { name: 'M10, side opening behind a hex socket', overrides: { retention: 'side-opening', toolFeature: 'hex', spring: 'gutekunst-d-078' } },
+    { name: 'plain 14 mm body, 6 mm ball, side opening behind a slot', overrides: { body: 'plain', bodyDiameter: 14, ball: 'steel-ball-6-g100', spring: 'gutekunst-d-108', protrusion: 1.2, travel: 1.4, retention: 'side-opening', bodyLength: 26 } },
+    { name: 'plain body, press cap', overrides: { body: 'plain', bodyDiameter: 8, toolFeature: 'none', ball: 'steel-ball-4-g100', spring: 'gutekunst-d-082', protrusion: 0.6, travel: 0.8, bodyLength: 16 } },
     { name: 'M12, 6 mm ball, no thread play', overrides: { thread: 'M12', ball: 'steel-ball-6-g100', spring: 'gutekunst-d-134', protrusion: 1.4, travel: 2, bodyLength: 40, threadPlay: 0, clearance: 0.4, capInterference: 0.5 } },
   ];
   for (const { name, overrides } of only && only !== 'spring-ball-detent' ? [] : detentRuns) {

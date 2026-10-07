@@ -15,7 +15,7 @@ const x = (z: number) => BACK_X + z * SCALE, y = (r: number) => AXIS_Y - r * SCA
  */
 export function SpringBallDetentIllustration() {
   if (!L) return <svg viewBox="0 0 240 190" aria-hidden="true" />;
-  const length = D.bodyLength; const { major, minor, pitch } = L.thread;
+  const length = D.bodyLength; const { major, minor } = L.thread; const pitch = L.thread.pitch ?? 1.5;
   // one wall in section, above the axis (side 1) or below it (-1): the plain collar behind the slot, the thread's teeth (crest flat,
   // flanks, root), the nose's chamfer, then back inside along the lip, the cone and the bore
   const wall = (side: 1 | -1) => {

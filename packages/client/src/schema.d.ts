@@ -400,6 +400,8 @@ export interface operations {
                                     position: number[];
                                     /** @description Rotation in degrees about the part’s own origin, applied about X, then Y, then Z. */
                                     rotation?: number[];
+                                    /** @description Scale per axis about the part’s own origin, applied before the rotation; 1 by default. For a part that is squeezed in place, such as a compression spring drawn at its free length and compressed to its installed length. */
+                                    scale?: number[];
                                 };
                             };
                             steps: {
@@ -409,6 +411,8 @@ export interface operations {
                                 parts: string[];
                                 /** @description Offset in mm at which the parts start this step; they end it at their assembled pose. */
                                 from: number[];
+                                /** @description The scale its parts have when this step starts; during it they reach the scale of the next step that sets one, else their pose’s. E.g. a spring compressed to go in through an opening, let go in a later step. */
+                                scaleFrom?: number[];
                             }[];
                             /** @description Height in mm of the exploded layout above the print bed. */
                             lift: number;
@@ -432,6 +436,8 @@ export interface operations {
                                         position: number[];
                                         /** @description Rotation in degrees about the part’s own origin, applied about X, then Y, then Z. */
                                         rotation?: number[];
+                                        /** @description Scale per axis about the part’s own origin, applied before the rotation; 1 by default. For a part that is squeezed in place, such as a compression spring drawn at its free length and compressed to its installed length. */
+                                        scale?: number[];
                                     };
                                 }[];
                             }[];
@@ -2140,12 +2146,25 @@ export interface operations {
                     /** @description Spring ball detent parameters. All fields are required; dimensions are in millimetres; the ball, spring and set screw are parts-library ids. */
                     parameters: {
                         /**
+                         * Body
+                         * @description A threaded body that screws into a tapped hole, or a plain one.
+                         * @default threaded
+                         * @enum {unknown}
+                         */
+                        body: "threaded" | "plain";
+                        /**
                          * Thread
                          * @description The body’s metric thread (ISO 261 coarse pitch), printed on the outside: it screws into a tapped hole of that size.
                          * @default M10
                          * @enum {unknown}
                          */
                         thread: "M6" | "M8" | "M10" | "M12";
+                        /**
+                         * Body diameter
+                         * @description The plain body’s outside diameter, in mm.
+                         * @default 10
+                         */
+                        bodyDiameter: number;
                         /**
                          * Ball
                          * @description The steel ball from the parts library. Its bore is its largest diameter plus the clearance.
@@ -2159,7 +2178,7 @@ export interface operations {
                          * @default gutekunst-d-107
                          * @enum {unknown}
                          */
-                        spring: "gutekunst-d-024" | "gutekunst-d-027" | "gutekunst-d-039" | "gutekunst-d-054" | "gutekunst-d-077" | "gutekunst-d-082" | "gutekunst-d-088" | "gutekunst-d-102" | "gutekunst-d-107" | "gutekunst-d-134" | "gutekunst-d-139";
+                        spring: "gutekunst-d-024" | "gutekunst-d-027" | "gutekunst-d-039" | "gutekunst-d-040" | "gutekunst-d-054" | "gutekunst-d-055" | "gutekunst-d-077" | "gutekunst-d-078" | "gutekunst-d-082" | "gutekunst-d-083" | "gutekunst-d-088" | "gutekunst-d-102" | "gutekunst-d-107" | "gutekunst-d-108" | "gutekunst-d-134" | "gutekunst-d-139";
                         /**
                          * Protrusion
                          * @description How far the ball stands out of the nose, in mm. The nose’s lip must still reach over the ball, so a larger ball can stand out further.
@@ -2174,11 +2193,11 @@ export interface operations {
                         travel: number;
                         /**
                          * Retention
-                         * @description What closes the back once the ball and the spring are in.
+                         * @description What keeps the ball and the spring in: a cap or a set screw closing the back, or the spring itself, put in through an opening in the side.
                          * @default press-cap
                          * @enum {unknown}
                          */
-                        retention: "press-cap" | "set-screw";
+                        retention: "press-cap" | "set-screw" | "side-opening";
                         /**
                          * Set screw
                          * @description The flat-point set screw that closes the back and sets the preload. The ball and spring go in through its tap hole.
@@ -2194,11 +2213,11 @@ export interface operations {
                         bodyLength: number;
                         /**
                          * Tool feature
-                         * @description What turns the body: a slot or a hex socket in its back.
+                         * @description What turns the body: a slot or a hex socket in its back, or none for a plain body.
                          * @default slot
                          * @enum {unknown}
                          */
-                        toolFeature: "slot" | "hex";
+                        toolFeature: "slot" | "hex" | "none";
                         /**
                          * Clearance
                          * @description Play of the ball in its bore, over its largest diameter, in mm.

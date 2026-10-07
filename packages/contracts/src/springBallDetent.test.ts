@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
 import { activeParts, artifactFormat, findModel, linkedPartData, modelSourcePaths, partUsage, scadDefines, springBallDetent, validateParameters, type ParameterValues } from './models.ts';
-import { resolveAssembly } from './assembly.ts';
+import { assemblyScale, resolveAssembly } from './assembly.ts';
 import { modelBom, RenderRequestSchema } from './index.ts';
 import { dimensionOf, findPart, parts } from './parts/index.ts';
 import {
@@ -30,6 +30,7 @@ describe('spring ball detent contract', () => {
     expect(validateParameters(springBallDetent, defaults)).toEqual([]);
     expect(activeParts(springBallDetent, defaults).map(p => p.id)).toEqual(['body', 'cap']);
     expect(activeParts(springBallDetent, { ...defaults, retention: 'set-screw' }).map(p => p.id)).toEqual(['body']);
+    expect(activeParts(springBallDetent, { ...defaults, retention: 'side-opening', spring: 'gutekunst-d-078' }).map(p => p.id)).toEqual(['body']);
     expect(Value.Check(RenderRequestSchema, { modelId: 'spring-ball-detent', modelVersion: '1', parameters: defaults })).toBe(true);
     expect(Value.Check(RenderRequestSchema, { modelId: 'spring-ball-detent', modelVersion: '1', parameters: { ...defaults, thread: 'M5' } })).toBe(false);
   });
@@ -46,7 +47,7 @@ describe('spring ball detent contract', () => {
   it('keeps every SCAD default equal to the contract default it is mapped from, and the fixed rules equal', () => {
     for (const piece of springBallDetent.parts)
       for (const [name, literal] of scadDefines(springBallDetent, piece, defaults)) if (name !== 'PART') expect(scad, name).toMatch(new RegExp(`^${name} = ${escape(literal)};`, 'm'));
-    const rules: [string, number][] = [['WALL', DETENT.wall], ['LIP_EDGE', DETENT.lipEdge], ['MIN_PRELOAD', DETENT.minPreload.mm], ['MIN_PRELOAD_SHARE', DETENT.minPreload.share],
+    const rules: [string, number][] = [['SIDE_ENGAGE', DETENT.sideEngage], ['SIDE_MARGIN', DETENT.sideMargin], ['BACK_FLOOR', DETENT.backFloor], ['PLAIN_CHAMFER', DETENT.plainChamfer], ['WALL', DETENT.wall], ['LIP_EDGE', DETENT.lipEdge], ['MIN_PRELOAD', DETENT.minPreload.mm], ['MIN_PRELOAD_SHARE', DETENT.minPreload.share],
       ['PRELOAD_SHARE', DETENT.preloadShare], ['CAP_MIN', DETENT.capMin], ['CAP_PLAY', DETENT.capPlay], ['CAP_RIB_COUNT', DETENT.capRibs], ['CAP_RIB_WIDTH', DETENT.capRibWidth], ['KEY_PLAY', DETENT.keyPlay]];
     for (const [name, value] of rules) expect(scad, name).toMatch(new RegExp(`^${name} = ${value};`, 'm'));
     expect(scad).toMatch(new RegExp(`^HEX_KEYS = \\[${HEX_KEYS.join(', ')}\\];`, 'm'));
@@ -87,10 +88,34 @@ describe('spring ball detent contract', () => {
     expect(validateParameters(springBallDetent, { ...defaults, thread: 'M12', retention: 'set-screw', toolFeature: 'hex', bodyLength: 28 })).toEqual([]);
   });
 
+  it('makes a plain body, and a side opening the spring holds itself and the ball behind', () => {
+    const side = { body: 'plain', retention: 'side-opening', toolFeature: 'none', spring: 'gutekunst-d-078' };
+    expect(validateParameters(springBallDetent, { ...defaults, ...side })).toEqual([]);
+    const l = layoutOf(side);
+    // the plain body's own diameter takes the place of the thread's root
+    expect(l.thread).toMatchObject({ major: 10, minor: 10, maxHole: 10 - 2 * DETENT.wall });
+    // the opening takes the ball, and the spring compressed to its least length and the margin
+    expect(l.side.top - l.side.bottom).toBeCloseTo(l.side.fit, 9);
+    expect(l.side.fit).toBeGreaterThanOrEqual(Math.max(l.least + DETENT.sideMargin, l.bore) - 1e-9);
+    // let go, the spring reaches into the pocket below and the bore above, also with the ball pushed in
+    expect(l.side.bottom - l.seat).toBeCloseTo(DETENT.sideEngage, 9);
+    expect(l.springTop - Number(defaults['travel']) - l.side.top).toBeCloseTo(DETENT.sideEngage, 9);
+    expect(l.seat - l.tool.depth).toBeGreaterThanOrEqual(DETENT.backFloor);
+    // D-107 is too short to span the opening; a threaded body needs a tool feature; a short body leaves no solid back
+    expect(fields({ ...side, spring: 'gutekunst-d-107' })).toEqual(['spring']);
+    expect(fields({ ...side, body: 'threaded' })).toEqual(['toolFeature']);
+    expect(fields({ ...side, bodyLength: 12 })).toEqual(['bodyLength']);
+    expect(fields({ ...side, bodyDiameter: 6 })).toEqual(['ball']);
+    // behind a solid back the hex socket takes the largest key up to half the size, as GN 615.3
+    expect(layoutOf({ ...side, body: 'threaded', toolFeature: 'hex' }).tool).toMatchObject({ key: 5 });
+    expect(validateParameters(springBallDetent, { ...defaults, body: 'plain', toolFeature: 'none' })).toEqual([]);
+    expect(springBallDetent.derived({ ...defaults, ...side }).notes?.[1]).toContain('squeeze the spring to');
+  });
+
   it('has a working ball and spring for every thread, and every valid choice keeps its walls and its spring short of solid', () => {
     for (const thread of DETENT_THREADS) {
       let valid = 0;
-      for (const ball of DETENT_BALLS) for (const spring of DETENT_SPRINGS) for (const retention of ['press-cap', 'set-screw']) for (const toolFeature of ['slot', 'hex']) {
+      for (const ball of DETENT_BALLS) for (const spring of DETENT_SPRINGS) for (const retention of ['press-cap', 'set-screw', 'side-opening']) for (const toolFeature of ['slot', 'hex']) {
         const range = protrusionRange(part(ball));
         const protrusion = Math.ceil(range.min * 20) / 20;
         const overrides = { thread, ball, spring, retention, toolFeature, protrusion, travel: protrusion, bodyLength: 40, setScrew: 'iso-4026-m3x3' };
@@ -105,14 +130,27 @@ describe('spring ball detent contract', () => {
     }
   });
 
-  it('puts the ball up into the bore onto the lip, then the press cap or the set screw at its nominal preload', () => {
+  it('puts the ball onto the lip, the spring in loaded between its seat and the ball, then the cap or the set screw; and works it', () => {
     const assembly = resolveAssembly(springBallDetent, springBallDetent.assembly, defaults);
-    expect(assembly?.steps.map(step => step.title)).toEqual(['Drop the ball into the back, then the spring', 'Press the cap in, flush with the slot’s floor']);
+    expect(assembly?.steps.map(step => step.title)).toEqual(['Drop the ball into the back', 'Then the spring', 'Press the cap in, flush with the slot’s floor']);
     const l = layoutOf();
     expect(assembly?.poses['cap']).toEqual({ position: [0, 0, 2.5] });
     expect(assembly?.poses['ball']?.position[2]).toBeCloseTo(l.centre - 4.5475 / 2, 9);
+    // the spring, drawn at its free length, squeezed to its installed length on its seat
+    expect(assembly?.poses['spring']).toEqual({ position: [0, 0, l.seat], scale: [1, 1, l.installed / 9.6] });
+    // pushing the ball in by the travel compresses it by as much
+    const [pushed] = assembly?.motion?.[0]?.frames ?? [];
+    expect(pushed?.['spring']?.scale?.[2]).toBeCloseTo((l.installed - 1) / 9.6, 9);
+    expect(pushed?.['ball']?.position[2]).toBeCloseTo(l.centre - 4.5475 / 2 - 1, 9);
+    // through a side opening: the ball in and up, then the spring in compressed, then let go
+    const side = { ...defaults, body: 'plain', retention: 'side-opening', toolFeature: 'none', spring: 'gutekunst-d-078' };
+    const opened = resolveAssembly(springBallDetent, undefined, side);
+    const s = layoutOf(side);
+    expect(opened?.steps.map(step => step.parts)).toEqual([['ball'], ['ball'], ['spring'], ['spring']]);
+    expect(assemblyScale(opened ?? { poses: {}, steps: [], lift: 0 }, 'spring', { arrange: 1, steps: [1, 1, 0, 0] })[2]).toBeCloseTo((s.side.fit - 0.2) / 15, 9);
+    expect(assemblyScale(opened ?? { poses: {}, steps: [], lift: 0 }, 'spring', { arrange: 1, steps: [1, 1, 1, 1] })[2]).toBeCloseTo(s.installed / 15, 9);
     const screwed = resolveAssembly(springBallDetent, undefined, { ...defaults, retention: 'set-screw' });
-    expect(screwed?.steps.map(step => step.parts)).toEqual([['ball'], ['set-screw']]);
+    expect(screwed?.steps.map(step => step.parts)).toEqual([['ball'], ['spring'], ['set-screw']]);
     expect(screwed?.poses['set-screw']).toEqual({ position: [0, 0, layoutOf({ retention: 'set-screw' }).seat], rotation: [180, 0, 0] });
     expect(screwed?.references?.map(reference => reference.part)).toEqual(['steel-ball-4-5-g100', 'gutekunst-d-107', 'iso-4026-m6x6']);
     // the hardware list: the ball, the spring and the set screw
