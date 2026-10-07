@@ -2081,6 +2081,722 @@
         }
       }
     },
+    "/api/v1/market": {
+      "get": {
+        "operationId": "getMarket",
+        "summary": "The visitor’s market (by country) and the networks that link in each market",
+        "tags": [
+          "Offers"
+        ],
+        "description": "DE, AT and CH shop in the DE market (amazon.de); every other or unknown country in the US market (amazon.com). The country is Cloudflare’s CF-IPCountry header; it is not stored.",
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "market",
+                    "country",
+                    "source",
+                    "networks"
+                  ],
+                  "properties": {
+                    "market": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "DE"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "US"
+                          ]
+                        }
+                      ],
+                      "description": "`DE`: amazon.de and German Awin advertisers. `US`: amazon.com and US Awin advertisers."
+                    },
+                    "country": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The visitor’s country as Cloudflare saw it (CF-IPCountry), or null when unknown."
+                    },
+                    "source": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "geo"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "default"
+                          ]
+                        }
+                      ],
+                      "description": "`geo`: from the country. `default`: no country, so the US market."
+                    },
+                    "networks": {
+                      "type": "object",
+                      "required": [
+                        "DE",
+                        "US"
+                      ],
+                      "properties": {
+                        "DE": {
+                          "type": "object",
+                          "required": [
+                            "amazon",
+                            "awin"
+                          ],
+                          "properties": {
+                            "amazon": {
+                              "type": "boolean"
+                            },
+                            "awin": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "US": {
+                          "type": "object",
+                          "required": [
+                            "amazon",
+                            "awin"
+                          ],
+                          "properties": {
+                            "amazon": {
+                              "type": "boolean"
+                            },
+                            "awin": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false,
+                      "description": "Which networks link, per market. With none, the site shows no affiliate links."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/offers": {
+      "get": {
+        "operationId": "getOffers",
+        "summary": "Where to buy parts: ranked affiliate offers per part, and the buy list grouped by shop",
+        "tags": [
+          "Offers"
+        ],
+        "description": "Curated offers of the market’s networks with an account, best first, in packs that cover each quantity; a search of the market’s Amazon for a part with none. Amazon offers never carry a price; an Awin offer carries its feed’s price for 72 hours after Awin imported the feed.",
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "DE"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "US"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "market",
+            "required": true,
+            "description": "`DE`: amazon.de and German Awin advertisers. `US`: amazon.com and US Awin advertisers."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*(:[1-9][0-9]{0,3})?(,[a-z0-9]+(-[a-z0-9]+)*(:[1-9][0-9]{0,3})?){0,199}$",
+              "maxLength": 12000
+            },
+            "in": "query",
+            "name": "parts",
+            "required": true,
+            "description": "The parts and how many of each (default 1), e.g. `ruthex-rx-m3x5-7:4,iso-4762-m3x10:8`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "market",
+                    "networks",
+                    "matches",
+                    "shops"
+                  ],
+                  "properties": {
+                    "market": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "DE"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "US"
+                          ]
+                        }
+                      ],
+                      "description": "`DE`: amazon.de and German Awin advertisers. `US`: amazon.com and US Awin advertisers."
+                    },
+                    "networks": {
+                      "type": "object",
+                      "required": [
+                        "amazon",
+                        "awin"
+                      ],
+                      "properties": {
+                        "amazon": {
+                          "type": "boolean"
+                        },
+                        "awin": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "matches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "partId",
+                          "quantity",
+                          "offers"
+                        ],
+                        "properties": {
+                          "partId": {
+                            "type": "string"
+                          },
+                          "quantity": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "offers": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "offerId",
+                                "kind",
+                                "network",
+                                "shop",
+                                "shopKey",
+                                "title",
+                                "url",
+                                "asin",
+                                "covers",
+                                "packs",
+                                "sameAsProduct",
+                                "price",
+                                "inStock"
+                              ],
+                              "properties": {
+                                "offerId": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "The curated offer, or null for a search link."
+                                },
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "curated"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "search"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "`curated`: a checked listing. `search`: a search of the market’s Amazon, for a part with no curated offer."
+                                },
+                                "network": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "amazon"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "awin"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "shop": {
+                                  "type": "string",
+                                  "description": "The shop as shown to visitors, e.g. “amazon.de”."
+                                },
+                                "shopKey": {
+                                  "type": "string",
+                                  "description": "Groups the buy list by shop: `amazon-DE`, `amazon-US` or `awin-<advertiserId>`."
+                                },
+                                "title": {
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "description": "The affiliate link. Shown with rel=\"sponsored\"."
+                                },
+                                "asin": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "covers": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "required": [
+                                      "partId",
+                                      "quantity"
+                                    ],
+                                    "properties": {
+                                      "partId": {
+                                        "type": "string"
+                                      },
+                                      "quantity": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "packs": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "description": "Packs needed for the requested quantity of the part (1 for a search)."
+                                },
+                                "sameAsProduct": {
+                                  "type": "boolean"
+                                },
+                                "price": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "amount",
+                                        "currency",
+                                        "deliveryCost",
+                                        "asOf"
+                                      ],
+                                      "properties": {
+                                        "amount": {
+                                          "type": "number"
+                                        },
+                                        "currency": {
+                                          "type": "string"
+                                        },
+                                        "deliveryCost": {
+                                          "anyOf": [
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ],
+                                          "description": "Shipping, when the feed gives it."
+                                        },
+                                        "asOf": {
+                                          "type": "string",
+                                          "description": "When the advertiser’s feed was imported (ISO 8601); prices older than 72 hours are not given."
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Awin only, from the advertiser’s feed. Amazon offers never carry a price."
+                                },
+                                "inStock": {
+                                  "anyOf": [
+                                    {
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "description": "Best first. Empty when no network is enabled for the market."
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "description": "One per requested part, in request order."
+                    },
+                    "shops": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "shopKey",
+                          "shop",
+                          "network",
+                          "lines",
+                          "cartUrl"
+                        ],
+                        "properties": {
+                          "shopKey": {
+                            "type": "string"
+                          },
+                          "shop": {
+                            "type": "string"
+                          },
+                          "network": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "amazon"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "awin"
+                                ]
+                              }
+                            ]
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "offer",
+                                "packs",
+                                "partIds"
+                              ],
+                              "properties": {
+                                "offer": {
+                                  "type": "object",
+                                  "required": [
+                                    "offerId",
+                                    "kind",
+                                    "network",
+                                    "shop",
+                                    "shopKey",
+                                    "title",
+                                    "url",
+                                    "asin",
+                                    "covers",
+                                    "packs",
+                                    "sameAsProduct",
+                                    "price",
+                                    "inStock"
+                                  ],
+                                  "properties": {
+                                    "offerId": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ],
+                                      "description": "The curated offer, or null for a search link."
+                                    },
+                                    "kind": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "curated"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "search"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "`curated`: a checked listing. `search`: a search of the market’s Amazon, for a part with no curated offer."
+                                    },
+                                    "network": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "amazon"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "awin"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "shop": {
+                                      "type": "string",
+                                      "description": "The shop as shown to visitors, e.g. “amazon.de”."
+                                    },
+                                    "shopKey": {
+                                      "type": "string",
+                                      "description": "Groups the buy list by shop: `amazon-DE`, `amazon-US` or `awin-<advertiserId>`."
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "url": {
+                                      "type": "string",
+                                      "description": "The affiliate link. Shown with rel=\"sponsored\"."
+                                    },
+                                    "asin": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "covers": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "required": [
+                                          "partId",
+                                          "quantity"
+                                        ],
+                                        "properties": {
+                                          "partId": {
+                                            "type": "string"
+                                          },
+                                          "quantity": {
+                                            "type": "integer",
+                                            "minimum": 1
+                                          }
+                                        },
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "packs": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "description": "Packs needed for the requested quantity of the part (1 for a search)."
+                                    },
+                                    "sameAsProduct": {
+                                      "type": "boolean"
+                                    },
+                                    "price": {
+                                      "anyOf": [
+                                        {
+                                          "type": "object",
+                                          "required": [
+                                            "amount",
+                                            "currency",
+                                            "deliveryCost",
+                                            "asOf"
+                                          ],
+                                          "properties": {
+                                            "amount": {
+                                              "type": "number"
+                                            },
+                                            "currency": {
+                                              "type": "string"
+                                            },
+                                            "deliveryCost": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "number"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ],
+                                              "description": "Shipping, when the feed gives it."
+                                            },
+                                            "asOf": {
+                                              "type": "string",
+                                              "description": "When the advertiser’s feed was imported (ISO 8601); prices older than 72 hours are not given."
+                                            }
+                                          },
+                                          "additionalProperties": false
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ],
+                                      "description": "Awin only, from the advertiser’s feed. Amazon offers never carry a price."
+                                    },
+                                    "inStock": {
+                                      "anyOf": [
+                                        {
+                                          "type": "boolean"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "packs": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "description": "Packs to buy: enough of every part the pack covers."
+                                },
+                                "partIds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "description": "The requested parts this line buys."
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "cartUrl": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "One link that puts every line in the basket, where the shop supports it."
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "description": "The buy list: the best offer of every part, grouped by shop."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/renders": {
       "post": {
         "operationId": "createRender",
@@ -5456,6 +6172,10 @@
     {
       "name": "Renders",
       "description": "Temporary render jobs and their STL artifacts."
+    },
+    {
+      "name": "Offers",
+      "description": "Where to buy the parts: affiliate links of Amazon and Awin advertisers, by market."
     }
   ]
 }

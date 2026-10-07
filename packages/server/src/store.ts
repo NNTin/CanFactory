@@ -7,14 +7,26 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { and, asc, count, eq, gt, lte } from 'drizzle-orm';
 import {
   artifactFormat, findModel, linkedPartData, models, modelSourcePaths,
-  type ApiError, type ModelDefinition, type ModelDetail, type ParameterValues, type Render,
+  type ApiError, type AwinLive, type Market, type ModelDefinition, type ModelDetail, type ParameterValues, type Render,
 } from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS, QUEUE_LIMIT, RENDERER_FINGERPRINT } from './config.ts';
 import { AppError } from './errors.ts';
 import type { AssemblyInfo, MeshInfo } from './mesh.ts';
 import { catalog, jobs, workers, type RenderJob } from './schema.ts';
+import type { AwinFeedState, AwinOfferKey } from './awin.ts';
 
 export type ArtifactFormat = 'stl' | 'zip';
+
+export interface AwinOfferRow {
+  advertiserId: number; merchantProductId: string; market: Market; deepLink: string; name: string;
+  price: number | null; currency: string | null; deliveryCost: number | null; inStock: number | boolean | null; lastImported: number;
+}
+export const AWIN_COLUMNS = `advertiser_id AS "advertiserId", merchant_product_id AS "merchantProductId", market, deep_link AS "deepLink", name, price, currency,
+  delivery_cost AS "deliveryCost", in_stock AS "inStock", last_imported AS "lastImported"`;
+/** A stored Awin row as the matcher takes it: SQLite keeps booleans as 0/1 (PostgreSQL's bigints are read as ::float8, so numbers). */
+export function awinLive(row: AwinOfferRow): AwinLive {
+  return { ...row, inStock: row.inStock === null ? null : Boolean(row.inStock) };
+}
 
 /** File operations are isolated so a future object store can replace the local volume. */
 export class ArtifactStore {
@@ -184,6 +196,28 @@ export class Store implements RenderQueue {
     this.db.insert(workers).values({ id, heartbeatAt: this.now() }).onConflictDoUpdate({ target: workers.id, set: { heartbeatAt: this.now() } }).run();
   }
   workerReady(): boolean { return this.db.select().from(workers).where(gt(workers.heartbeatAt, this.now() - LEASE_MS)).limit(1).get() !== undefined; }
+  /** The stored feed rows of these Awin products (the offers service). */
+  awinOffers(keys: readonly AwinOfferKey[]): AwinLive[] {
+    const select = this.sqlite.prepare<[number, string, string], AwinOfferRow>(`SELECT ${AWIN_COLUMNS} FROM awin_offers WHERE advertiser_id=? AND merchant_product_id=? AND market=?`);
+    return keys.flatMap(key => { const row = select.get(key.advertiserId, key.merchantProductId, key.market); return row ? [awinLive(row)] : []; });
+  }
+  awinFeeds(): AwinFeedState[] {
+    return this.sqlite.prepare<[], AwinFeedState>('SELECT feed_id AS feedId, advertiser_id AS advertiserId, last_imported AS lastImported FROM awin_feeds').all();
+  }
+  /** Replaces everything stored from one feed with its new rows, and records when Awin imported it. */
+  saveAwinFeed(feed: AwinFeedState, rows: readonly AwinLive[]): void {
+    const now = this.now();
+    this.sqlite.transaction(() => {
+      this.sqlite.prepare('DELETE FROM awin_offers WHERE feed_id=?').run(feed.feedId);
+      const insert = this.sqlite.prepare(`INSERT INTO awin_offers(advertiser_id,merchant_product_id,market,feed_id,deep_link,name,price,currency,delivery_cost,in_stock,last_imported,fetched_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(advertiser_id,merchant_product_id,market) DO UPDATE SET feed_id=excluded.feed_id,deep_link=excluded.deep_link,name=excluded.name,
+        price=excluded.price,currency=excluded.currency,delivery_cost=excluded.delivery_cost,in_stock=excluded.in_stock,last_imported=excluded.last_imported,fetched_at=excluded.fetched_at`);
+      for (const row of rows) insert.run(row.advertiserId, row.merchantProductId, row.market, feed.feedId, row.deepLink, row.name, row.price, row.currency, row.deliveryCost,
+        row.inStock === null ? null : Number(row.inStock), row.lastImported, now);
+      this.sqlite.prepare(`INSERT INTO awin_feeds(feed_id,advertiser_id,last_imported,fetched_at) VALUES(?,?,?,?)
+        ON CONFLICT(feed_id) DO UPDATE SET advertiser_id=excluded.advertiser_id,last_imported=excluded.last_imported,fetched_at=excluded.fetched_at`).run(feed.feedId, feed.advertiserId, feed.lastImported, now);
+    }).immediate();
+  }
   close(): void { this.sqlite.close(); }
 }
 

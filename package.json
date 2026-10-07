@@ -28,6 +28,7 @@
     "check": "npm run typecheck && npm run lint && npm run contracts:check && npm test",
     "test:storage": "tsx tools/test-storage.ts",
     "maintenance": "tsx tools/maintenance.ts",
+    "offers:ingest": "tsx tools/offers.ts ingest-awin",
     "preview:check": "tsx tools/check-preview.ts"
   },
   "dependencies": {

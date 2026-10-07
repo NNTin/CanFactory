@@ -32,6 +32,13 @@ Configure `web.replicas`, `api.replicas`, and `worker.replicas` independently.
 The initial worker maximum is two; each pod renders one job at a time, with no
 rollout surge. Maintenance runs independently each minute. No HPA is installed.
 
+The `offers` CronJob ingests Awin product feeds for the curated affiliate offers
+hourly (`docs/affiliate-offers.md`). It is suspended by default: before setting
+`offers.suspend=false`, create the Secret named by `offers.secret` with
+`AWIN_DATAFEED_KEY` (Awin's product feed key) and allow the pods egress to
+`productdata.awin.com` and `datafeed.api.productserve.com` on 443. It uses the
+maintenance Secret for its database connection.
+
 Web listens on 8080 internally, API on 3001. Route `/api/*` directly to the API
 Service and all other requests to web. API probes/metrics listen on a private
 3002 port which is intentionally absent from the public Service. The web image's

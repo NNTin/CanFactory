@@ -102,6 +102,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The visitor’s market (by country) and the networks that link in each market
+         * @description DE, AT and CH shop in the DE market (amazon.de); every other or unknown country in the US market (amazon.com). The country is Cloudflare’s CF-IPCountry header; it is not stored.
+         */
+        get: operations["getMarket"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where to buy parts: ranked affiliate offers per part, and the buy list grouped by shop
+         * @description Curated offers of the market’s networks with an account, best first, in packs that cover each quantity; a search of the market’s Amazon for a part with none. Amazon offers never carry a price; an Awin offer carries its feed’s price for 72 hours after Awin imported the feed.
+         */
+        get: operations["getOffers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/renders": {
         parameters: {
             query?: never;
@@ -769,6 +809,187 @@ export interface operations {
                             via: string;
                             /** @description `model`: a model in the library; `concept`: a concept page. */
                             kind: "model" | "concept";
+                        }[];
+                    };
+                };
+            };
+            /** @description Default Response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Stable machine-readable error code.
+                         * @example INVALID_PARAMETERS
+                         */
+                        code: string;
+                        /** @description Actionable human-readable explanation. */
+                        message: string;
+                        issues: {
+                            field: string;
+                            message: string;
+                        }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
+                    };
+                };
+            };
+        };
+    };
+    getMarket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description `DE`: amazon.de and German Awin advertisers. `US`: amazon.com and US Awin advertisers. */
+                        market: "DE" | "US";
+                        /** @description The visitor’s country as Cloudflare saw it (CF-IPCountry), or null when unknown. */
+                        country: string | null;
+                        /** @description `geo`: from the country. `default`: no country, so the US market. */
+                        source: "geo" | "default";
+                        /** @description Which networks link, per market. With none, the site shows no affiliate links. */
+                        networks: {
+                            DE: {
+                                amazon: boolean;
+                                awin: boolean;
+                            };
+                            US: {
+                                amazon: boolean;
+                                awin: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+    getOffers: {
+        parameters: {
+            query: {
+                /** @description `DE`: amazon.de and German Awin advertisers. `US`: amazon.com and US Awin advertisers. */
+                market: "DE" | "US";
+                /** @description The parts and how many of each (default 1), e.g. `ruthex-rx-m3x5-7:4,iso-4762-m3x10:8`. */
+                parts: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description `DE`: amazon.de and German Awin advertisers. `US`: amazon.com and US Awin advertisers. */
+                        market: "DE" | "US";
+                        networks: {
+                            amazon: boolean;
+                            awin: boolean;
+                        };
+                        /** @description One per requested part, in request order. */
+                        matches: {
+                            partId: string;
+                            quantity: number;
+                            /** @description Best first. Empty when no network is enabled for the market. */
+                            offers: {
+                                /** @description The curated offer, or null for a search link. */
+                                offerId: string | null;
+                                /** @description `curated`: a checked listing. `search`: a search of the market’s Amazon, for a part with no curated offer. */
+                                kind: "curated" | "search";
+                                network: "amazon" | "awin";
+                                /** @description The shop as shown to visitors, e.g. “amazon.de”. */
+                                shop: string;
+                                /** @description Groups the buy list by shop: `amazon-DE`, `amazon-US` or `awin-<advertiserId>`. */
+                                shopKey: string;
+                                title: string;
+                                /** @description The affiliate link. Shown with rel="sponsored". */
+                                url: string;
+                                asin: string | null;
+                                covers: {
+                                    partId: string;
+                                    quantity: number;
+                                }[];
+                                /** @description Packs needed for the requested quantity of the part (1 for a search). */
+                                packs: number;
+                                sameAsProduct: boolean;
+                                /** @description Awin only, from the advertiser’s feed. Amazon offers never carry a price. */
+                                price: {
+                                    amount: number;
+                                    currency: string;
+                                    /** @description Shipping, when the feed gives it. */
+                                    deliveryCost: number | null;
+                                    /** @description When the advertiser’s feed was imported (ISO 8601); prices older than 72 hours are not given. */
+                                    asOf: string;
+                                } | null;
+                                inStock: boolean | null;
+                            }[];
+                        }[];
+                        /** @description The buy list: the best offer of every part, grouped by shop. */
+                        shops: {
+                            shopKey: string;
+                            shop: string;
+                            network: "amazon" | "awin";
+                            lines: {
+                                offer: {
+                                    /** @description The curated offer, or null for a search link. */
+                                    offerId: string | null;
+                                    /** @description `curated`: a checked listing. `search`: a search of the market’s Amazon, for a part with no curated offer. */
+                                    kind: "curated" | "search";
+                                    network: "amazon" | "awin";
+                                    /** @description The shop as shown to visitors, e.g. “amazon.de”. */
+                                    shop: string;
+                                    /** @description Groups the buy list by shop: `amazon-DE`, `amazon-US` or `awin-<advertiserId>`. */
+                                    shopKey: string;
+                                    title: string;
+                                    /** @description The affiliate link. Shown with rel="sponsored". */
+                                    url: string;
+                                    asin: string | null;
+                                    covers: {
+                                        partId: string;
+                                        quantity: number;
+                                    }[];
+                                    /** @description Packs needed for the requested quantity of the part (1 for a search). */
+                                    packs: number;
+                                    sameAsProduct: boolean;
+                                    /** @description Awin only, from the advertiser’s feed. Amazon offers never carry a price. */
+                                    price: {
+                                        amount: number;
+                                        currency: string;
+                                        /** @description Shipping, when the feed gives it. */
+                                        deliveryCost: number | null;
+                                        /** @description When the advertiser’s feed was imported (ISO 8601); prices older than 72 hours are not given. */
+                                        asOf: string;
+                                    } | null;
+                                    inStock: boolean | null;
+                                };
+                                /** @description Packs to buy: enough of every part the pack covers. */
+                                packs: number;
+                                /** @description The requested parts this line buys. */
+                                partIds: string[];
+                            }[];
+                            /** @description One link that puts every line in the basket, where the shop supports it. */
+                            cartUrl: string | null;
                         }[];
                     };
                 };
