@@ -1250,6 +1250,46 @@ main {
     animation: none;
   }
 }
+/* The spring ball detent: on hover the ball is pushed in by its travel, squeezing the spring, and let go again. */
+.spring-ball-detent-illustration .sbd-spring {
+  transform-origin: var(--sbd-origin);
+}
+.model-card:hover .sbd-ball,
+.model-card:focus-visible .sbd-ball {
+  animation: sbd-push 1.8s ease-in-out infinite;
+}
+.model-card:hover .sbd-spring,
+.model-card:focus-visible .sbd-spring {
+  animation: sbd-squeeze 1.8s ease-in-out infinite;
+}
+@keyframes sbd-push {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  40%,
+  60% {
+    transform: translateX(var(--sbd-push));
+  }
+}
+@keyframes sbd-squeeze {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  40%,
+  60% {
+    transform: scaleX(var(--sbd-squeeze));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .model-card:hover .sbd-ball,
+  .model-card:focus-visible .sbd-ball,
+  .model-card:hover .sbd-spring,
+  .model-card:focus-visible .sbd-spring {
+    animation: none;
+  }
+}
 /* The pressure pad: on hover the extender runs up and down the screw below, setting the leg's height. */
 .pp-guide {
   opacity: 0;

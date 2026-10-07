@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Box, Eye, EyeOff, Grid2X2, Pause, Play, RotateCcw } from 'lucide-react';
-import { assemblyOffset, assemblyState, assemblyStops, motionFrames, motionPose, type Assembly, type AssemblyState } from '@canfactory/contracts';
+import { assemblyOffset, assemblyScale, assemblyState, assemblyStops, motionFrames, motionPose, type Assembly, type AssemblyState } from '@canfactory/contracts';
 import { unzipSync } from 'fflate';
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
@@ -31,6 +31,7 @@ interface SceneController {
 interface LoadedPart { id: string; reference: boolean }
 
 const GRID_ROTATION = new THREE.Quaternion();
+const UNIT = [1, 1, 1];
 
 type Pose = Assembly['poses'][string];
 const poseRotation = (pose: Pose, target: THREE.Quaternion) => {
@@ -47,7 +48,8 @@ class Placement {
 
   /**
    * Blends from the print bed to the part's (offset) assembled pose while the parts are lifted, then follows the steps, then the
-   * movements (`frames`, from `motionFrames`): between two frames, rigidly, its rotation along the shorter arc.
+   * movements (`frames`, from `motionFrames`): between two frames, rigidly, its rotation along the shorter arc (its scale, if it has
+   * one, linearly).
    */
   apply(assembly: Assembly, state: AssemblyState, frames: ReturnType<typeof motionFrames>) {
     const moving = motionPose(frames, this.id, state);
@@ -55,14 +57,17 @@ class Placement {
       poseRotation(moving.from, this.rotation); poseRotation(moving.to, this.next);
       this.mesh.quaternion.slerpQuaternions(this.rotation, this.next, moving.f);
       this.mesh.position.lerpVectors(this.position.fromArray(moving.from.position), new THREE.Vector3().fromArray(moving.to.position), moving.f);
+      this.mesh.scale.lerpVectors(new THREE.Vector3().fromArray(moving.from.scale ?? UNIT), new THREE.Vector3().fromArray(moving.to.scale ?? UNIT), moving.f);
       return;
     }
     const pose = assembly.poses[this.id];
-    if (!pose) { this.mesh.position.copy(this.grid); this.mesh.quaternion.identity(); return; }
+    if (!pose) { this.mesh.position.copy(this.grid); this.mesh.quaternion.identity(); this.mesh.scale.set(1, 1, 1); return; }
     poseRotation(pose, this.rotation);
     this.position.fromArray(pose.position).add(new THREE.Vector3().fromArray(assemblyOffset(assembly, this.id, state)));
     this.mesh.quaternion.slerpQuaternions(GRID_ROTATION, this.rotation, state.arrange);
     this.mesh.position.lerpVectors(this.grid, this.position, state.arrange);
+    // squeezed parts (a compressed spring) take their scale as they leave the print bed
+    this.mesh.scale.lerpVectors(new THREE.Vector3(1, 1, 1), new THREE.Vector3().fromArray(assemblyScale(assembly, this.id, state)), state.arrange);
   }
 }
 

@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { activeParts, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
@@ -63,7 +63,7 @@ const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
 store.migrate(); store.seed();
 const app = await createApp(store);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = selectRunner(directory);
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -711,6 +711,45 @@ try {
       if (one !== undefined && two !== undefined) assert.ok(two < one - 10, `printed screen hook two screws ${id}: ${two} mm³ is not a hole less than ${one} mm³`);
     }
     console.log(`PASS printed screen hook ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+  // Spring ball detent: the defaults (M10, press cap, slot), the set screw in the same body, the smallest (M6, 2.5 mm ball), an M8 with a
+  // hex socket, an M12 with a set screw behind a hex socket, side openings in plain and threaded bodies, a plain body with a press cap,
+  // and the largest ball in an M12 with the most interference and no thread play.
+  // The body is one closed solid with one hole through it (genus 1), as long as set and as wide as its printed thread; the cap, when
+  // there is one, is as long as the layout says.
+  const detentRuns: { name: string; overrides: ParameterValues }[] = [
+    { name: 'default', overrides: {} },
+    { name: 'set screw', overrides: { retention: 'set-screw' } },
+    { name: 'M6, 2.5 mm ball', overrides: { thread: 'M6', ball: 'steel-ball-2-5-g100', spring: 'gutekunst-d-024', protrusion: 0.25, travel: 0.5, bodyLength: 14 } },
+    { name: 'M8, hex socket', overrides: { thread: 'M8', ball: 'steel-ball-2-5-g100', spring: 'gutekunst-d-027', protrusion: 0.25, travel: 0.6, bodyLength: 20, toolFeature: 'hex' } },
+    { name: 'M8, 3 mm ball, coarse play', overrides: { thread: 'M8', ball: 'steel-ball-3-g100', spring: 'gutekunst-d-039', protrusion: 0.3, travel: 0.6, bodyLength: 14, clearance: 0.4, threadPlay: 0.4 } },
+    { name: 'M12, set screw behind a hex socket', overrides: { thread: 'M12', retention: 'set-screw', toolFeature: 'hex', bodyLength: 28 } },
+    { name: 'plain body, side opening', overrides: { body: 'plain', retention: 'side-opening', toolFeature: 'none', spring: 'gutekunst-d-078', bodyLength: 18 } },
+    { name: 'M10, side opening behind a hex socket', overrides: { retention: 'side-opening', toolFeature: 'hex', spring: 'gutekunst-d-078' } },
+    { name: 'plain 14 mm body, 6 mm ball, side opening behind a slot', overrides: { body: 'plain', bodyDiameter: 14, ball: 'steel-ball-6-g100', spring: 'gutekunst-d-108', protrusion: 1.2, travel: 1.4, retention: 'side-opening', bodyLength: 26 } },
+    { name: 'plain body, press cap', overrides: { body: 'plain', bodyDiameter: 8, toolFeature: 'none', ball: 'steel-ball-4-g100', spring: 'gutekunst-d-082', protrusion: 0.6, travel: 0.8, bodyLength: 16 } },
+    { name: 'M12, 6 mm ball, no thread play', overrides: { thread: 'M12', ball: 'steel-ball-6-g100', spring: 'gutekunst-d-134', protrusion: 1.4, travel: 2, bodyLength: 40, threadPlay: 0, clearance: 0.4, capInterference: 0.5 } },
+  ];
+  for (const { name, overrides } of only && only !== 'spring-ball-detent' ? [] : detentRuns) {
+    const started = Date.now();
+    const parameters = { ...springBallDetent.defaults, ...overrides };
+    assert.deepEqual(validateParameters(springBallDetent, parameters), [], `spring ball detent ${name}`);
+    const queued = store.enqueue(springBallDetent, parameters);
+    const job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken;
+    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `spring ball detent ${name}`); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `spring ball detent ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const press = parameters['retention'] === 'press-cap';
+    assert.deepEqual(result.artifact.parts.map(part => part.id), press ? ['body', 'cap'] : ['body']);
+    const chosen = (key: string) => { const found = findPart(String(parameters[key])); assert.ok(found); return found; };
+    const layout = springBallDetentLayout(parameters as unknown as SpringBallDetentSize, { ball: chosen('ball'), spring: chosen('spring'), setScrew: chosen('setScrew') });
+    const [body, cap] = result.artifact.parts; assert.ok(body);
+    assert.ok(Math.abs(body.dimensions.z - Number(parameters['bodyLength'])) < 0.01, `spring ball detent ${name}: length ${body.dimensions.z}`);
+    for (const across of [body.dimensions.x, body.dimensions.y]) assert.ok(across <= layout.thread.major + 0.01 && across > layout.thread.major - 0.1, `spring ball detent ${name}: ${across} across, thread ${layout.thread.major}`);
+    if (press) { assert.ok(cap && Math.abs(cap.dimensions.z - layout.cap.length) < 0.01, `spring ball detent ${name}: cap ${cap?.dimensions.z} != ${layout.cap.length}`); }
+    console.log(`PASS spring ball detent ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

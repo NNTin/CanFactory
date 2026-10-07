@@ -3,6 +3,7 @@ import type { Dimension, PartSource } from './schema.ts';
 /** The day the web sources below were read. Re-read a source and update its `accessed` date when correcting a value from it. */
 const ACCESSED = '2026-09-27';
 const CATIO_ACCESSED = '2026-10-02';
+const DETENT_ACCESSED = '2026-10-07';
 
 const iso = (number: string, title: string): PartSource => ({
   id: `iso-${number.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, title: `ISO ${number}: ${title}`, publisher: 'ISO',
@@ -78,6 +79,14 @@ export const PART_SOURCES: readonly PartSource[] = [
   // The window insert's collar corners (flat corner brackets), read 2026-10-06.
   { id: 'alberts-stuhlwinkel', title: 'Stuhlwinkel: each article’s sizes a × b × c, Materialstärke and Anzahl x Loch-Ø', publisher: 'Gust. Alberts GmbH & Co. KG (GAH Alberts)', url: 'https://www.alberts.de/produkte/eisenwaren/holzverbinder/stuhlwinkel/', kind: 'manufacturer', accessed: '2026-10-06' },
   { id: 'simpson-l-pb', title: 'L-PB L-Flachverbinder, technical data sheet: A, B, C, t, holes', publisher: 'Simpson Strong-Tie GmbH', url: 'https://pim.strongtie.eu/api/v1/public/download/de/de/product/1645/L-PB.pdf', kind: 'manufacturer', accessed: '2026-10-06' },
+  // The spring ball detent's ball, spring and set screw, read 2026-10-07.
+  { ...iso('3290-1', 'Rolling bearings — Balls — Part 1: Steel balls'), accessed: DETENT_ACCESSED },
+  { ...din('5401', 'Rolling bearings — Balls for rolling bearings and general industrial use'), accessed: DETENT_ACCESSED },
+  { id: 'kugel-pompel-din-5401', title: 'Data sheet: dimensional/shape accuracy and roughness, DIN 5401:2002-08 (V1.03): each grade’s boundary dimensions', publisher: 'Kugel Pompel GmbH', url: 'https://www.kugelpompel.at/img/cms/Downloads/Datenbl%C3%A4tter%20Normen/Data%20sheet%20Dimensional%20shape%20accuracy%20and%20roughness%20DIN%205401%20V1-03.pdf', kind: 'reference', accessed: DETENT_ACCESSED },
+  { id: 'gutekunst-compression-springs', title: 'Compression springs: each article’s data (d, De, L0, Ln, Lndyn, R, Fn, n, tolerances)', publisher: 'Gutekunst + Co. KG Federnfabriken (federnshop.com)', url: 'https://www.federnshop.com/en/products/compression_springs.html', kind: 'manufacturer', accessed: DETENT_ACCESSED },
+  { id: 'din-en-13906-1', title: 'DIN EN 13906-1: Cylindrical helical springs made from round wire and bar — Calculation and design — Part 1: Compression springs', publisher: 'DIN', url: 'https://www.dinmedia.de/en/search?query=DIN%20EN%2013906-1', kind: 'standard', accessed: DETENT_ACCESSED },
+  { ...iso('4026', 'Hexagon socket set screws with flat point'), accessed: DETENT_ACCESSED },
+  { id: 'fasteners-eu-iso-4026', title: 'ISO 4026 dimension table', publisher: 'fasteners.eu', url: 'https://www.fasteners.eu/standards/ISO/4026/', kind: 'reference', accessed: DETENT_ACCESSED },
   { id: 'bic-graphic-j25', title: 'BIC J25 lighter (product 3460002360): 62 × 22 × 11 mm', publisher: 'BIC Graphic', url: 'https://www.bicgraphic.com/gb/bic-j25-lighter-3460002360.html', kind: 'manufacturer', accessed: '2026-09-25' },
   { id: '4imprint-j25', title: 'BIC J25 Standard Lighter: 22 × 62 × 11 mm', publisher: '4imprint UK', url: 'https://www.4imprint.co.uk/product/502972/BIC-J25-Standard-Lighter', kind: 'reference', accessed: '2026-09-25' },
   { id: 'wemag-j25', title: 'BIC Mini lighter J25: 22 × 62 × 11 mm', publisher: 'WE MAG', url: 'https://wemag.gr/en/product/bic-mini-lighter-j25-2360/', kind: 'reference', accessed: '2026-09-25' },

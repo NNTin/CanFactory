@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { Value } from 'typebox/value';
-import { assemblyOffset, assemblyState, assemblyStops, motionFrames, motionPose } from './assembly.ts';
+import { assemblyOffset, assemblyScale, assemblyState, assemblyStops, motionFrames, motionPose } from './assembly.ts';
 import { activeParts, AssemblySchema, isAssembly, models, type Assembly } from './models.ts';
 import { findPart, partAssetPath } from './parts/index.ts';
 
@@ -112,5 +112,21 @@ describe('registered assemblies', () => {
     expect(cigaretteCase.assembly.references).toEqual([{ id: 'mini-bic-lighter', part: 'bic-j25-mini-lighter', title: 'BIC Mini lighter (J25)' }]);
     expect(cigaretteCase.parts.map(part => part.id)).not.toContain('mini-bic-lighter');
     expect(cigaretteCase.assembly.steps.map(step => step.title).slice(-2)).toEqual(['Insert the lighter into its bay', 'Close the case']);
+  });
+
+  it('squeezes a part from a step’s scaleFrom to the next one, then to its pose’s scale, and is unscaled without either', () => {
+    const squeezed: Assembly = {
+      poses: { spring: { position: [0, 0, 0], scale: [1, 1, 0.75] }, ball: { position: [0, 0, 0] } },
+      steps: [
+        { title: 'In, compressed', parts: ['spring'], from: [10, 0, 0], scaleFrom: [1, 1, 0.5] },
+        { title: 'Let go', parts: ['spring'], from: [0, 0, 0], scaleFrom: [1, 1, 0.5] },
+      ],
+      lift: 0,
+    };
+    expect(assemblyScale(squeezed, 'spring', { arrange: 1, steps: [0, 0] })).toEqual([1, 1, 0.5]);
+    expect(assemblyScale(squeezed, 'spring', { arrange: 1, steps: [0.5, 0] })).toEqual([1, 1, 0.5]);
+    expect(assemblyScale(squeezed, 'spring', { arrange: 1, steps: [1, 0.5] })).toEqual([1, 1, 0.625]);
+    expect(assemblyScale(squeezed, 'spring', { arrange: 1, steps: [1, 1] })).toEqual([1, 1, 0.75]);
+    expect(assemblyScale(squeezed, 'ball', { arrange: 1, steps: [0, 0] })).toEqual([1, 1, 1]);
   });
 });

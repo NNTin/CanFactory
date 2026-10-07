@@ -17,7 +17,7 @@
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
-import { activeParts, assemblyOffset, dimensionOf, motionFrames, findPart, isAssembly, models, partAssetPath, resolveAssembly, scadDefines, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues, type Part } from '../packages/contracts/src/index.ts';
+import { activeParts, assemblyOffset, assemblyScale, dimensionOf, motionFrames, findPart, isAssembly, models, partAssetPath, resolveAssembly, scadDefines, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues, type Part } from '../packages/contracts/src/index.ts';
 import { intersectionVolume } from './stl-to-scad/compare.ts';
 import { renderScad } from './stl-to-scad/openscad.ts';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
@@ -57,6 +57,17 @@ const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part) => Re
     scad: 'parts/nuts/nut.scad',
     defines: part => ({ SQUARE: String(part.attributes['shape']?.startsWith('square') === true), S: size(part, 's'), H: part.dimensions['h'] ? size(part, 'h') : size(part, 'm'), D: size(part, 'd', 'value') }),
   },
+  // a set screw's thread at its minor diameter, which the tap drill of its hole clears
+  'set-screw': {
+    scad: 'parts/set-screws/set-screw.scad',
+    defines: part => ({ D: size(part, 'd', 'value'), PITCH: size(part, 'pitch', 'value'), L: size(part, 'l', 'value') }),
+  },
+  ball: { scad: 'parts/balls/ball.scad', defines: part => ({ D: size(part, 'd') }) },
+  // a spring at its free length, its total coils being the active ones and a closed end each
+  spring: {
+    scad: 'parts/springs/spring.scad',
+    defines: part => ({ D_WIRE: size(part, 'd', 'value'), DE: size(part, 'De'), L0: size(part, 'L0'), COILS: String(Number(/with ([\d.]+) active coils/.exec(part.description)?.[1] ?? 5) + 2) }),
+  },
   'threaded-insert': {
     scad: 'parts/inserts/insert.scad',
     defines: part => ({ HOLE: size(part, 'hole', 'value'), L: size(part, 'l', 'value'), D: part.attributes['thread']?.slice(1) ?? '0' }),
@@ -64,12 +75,12 @@ const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part) => Re
 };
 const CELL = 0.25;
 
-/** Rotates about X, then Y, then Z (degrees), then translates. */
-function place(mesh: Mesh, rotation: readonly number[], position: readonly number[]): Mesh {
+/** Scales (per axis), then rotates about X, then Y, then Z (degrees), then translates. */
+function place(mesh: Mesh, rotation: readonly number[], position: readonly number[], scale: readonly number[] = [1, 1, 1]): Mesh {
   const [ax, ay, az] = rotation.map(degrees => degrees * Math.PI / 180) as [number, number, number];
   const tris = new Float64Array(mesh.tris.length);
   for (let i = 0; i < tris.length; i += 3) {
-    let x = g(mesh.tris, i), y = g(mesh.tris, i + 1), z = g(mesh.tris, i + 2);
+    let x = g(mesh.tris, i) * g(scale, 0), y = g(mesh.tris, i + 1) * g(scale, 1), z = g(mesh.tris, i + 2) * g(scale, 2);
     [y, z] = [y * Math.cos(ax) - z * Math.sin(ax), y * Math.sin(ax) + z * Math.cos(ax)];
     [x, z] = [x * Math.cos(ay) + z * Math.sin(ay), -x * Math.sin(ay) + z * Math.cos(ay)];
     [x, y] = [x * Math.cos(az) - y * Math.sin(az), x * Math.sin(az) + y * Math.cos(az)];
@@ -84,7 +95,7 @@ function layout(assembly: Assembly, parts: Map<string, Mesh>, state: AssemblySta
     const pose = assembly.poses[id];
     if (!pose) continue;
     const offset = assemblyOffset(assembly, id, state);
-    placed.set(id, place(mesh, pose.rotation ?? [0, 0, 0], pose.position.map((value, axis) => value + g(offset, axis))));
+    placed.set(id, place(mesh, pose.rotation ?? [0, 0, 0], pose.position.map((value, axis) => value + g(offset, axis)), assemblyScale(assembly, id, state)));
   }
   return placed;
 }
@@ -180,7 +191,7 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
       const placed = new Map<string, Mesh>();
       for (const [id, mesh] of parts) {
         const pose = poses[id];
-        if (pose) placed.set(id, place(mesh, pose.rotation ?? [0, 0, 0], pose.position));
+        if (pose) placed.set(id, place(mesh, pose.rotation ?? [0, 0, 0], pose.position, pose.scale));
       }
       for (const finding of pairs('', placed)) if (finding.volume > worst.volume) worst = { check: `${finding.check.slice(2)}, frame ${frame + 1} of ${frames.length - 1}`, volume: finding.volume };
     });

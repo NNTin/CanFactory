@@ -258,8 +258,39 @@ function cornerBracket(part: Part): Piece[] {
   return [plate(0, 0, a, c), plate(0, c, c, b - c), ...holes];
 }
 
+function setScrew(part: Part): Piece[] {
+  // headless, threaded all along, standing on its flat point with the hex socket at the top
+  const d = value(part, 'd'); const l = value(part, 'l'); const dp = value(part, 'dp'); const s = value(part, 's'); const t = value(part, 't');
+  const chamfer = (d - dp) / 2;
+  const body = revolve([[0, 0], [dp / 2, 0], [d / 2, chamfer], [d / 2, l - d * 0.08], [d / 2 - d * 0.08, l], [0, l]], STEEL, 32);
+  const socket = prism(polygon(6, hexAcrossFlats(s)), l - t, t + 0.01, DARK);
+  return [body, socket];
+}
+
+function ball(part: Part): Piece[] {
+  const r = value(part, 'd') / 2;
+  const sphere = new THREE.SphereGeometry(r, 32, 16); sphere.translate(0, 0, r);
+  return [paint(sphere, NICKEL)];
+}
+
+function spring(part: Part): Piece[] {
+  // the wire's centre line as a helix at the mean diameter, at its free length; closed ends drawn as one flat turn each
+  const d = value(part, 'd'); const De = value(part, 'De'); const L0 = value(part, 'L0');
+  const coils = Number(/with ([\d.]+) active coils/.exec(part.description)?.[1] ?? 5);
+  const radius = (De - d) / 2; const turns = coils + 2; const samples = Math.ceil(turns * 24);
+  const points: THREE.Vector3[] = [];
+  for (let i = 0; i <= samples; i++) {
+    const turn = i / samples * turns;
+    // the end turns lie flat (closed), the active ones rise evenly between them
+    const z = d / 2 + (L0 - d) * Math.min(1, Math.max(0, (turn - 1) / coils));
+    points.push(new THREE.Vector3(radius * Math.cos(turn * 2 * Math.PI), radius * Math.sin(turn * 2 * Math.PI), z));
+  }
+  return [paint(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), samples, d / 2, 8, false), STEEL)];
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
+  'set-screw': setScrew, ball, spring,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */
