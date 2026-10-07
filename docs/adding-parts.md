@@ -66,7 +66,8 @@ whole catalogue:
 - **`ball`** (`balls.ts`): ISO 3290-1 / DIN 5401 chromium-steel (100Cr6) balls of grade G100, 2.5 to 6 mm. One dimension, the
   diameter `d`, whose limits are the grade's boundary dimensions (±47.5 µm, read from Kugel Pompel's DIN 5401 data sheet).
   A bore takes the `max`.
-- **`spring`** (`springs.ts`): Gutekunst compression springs by article, each read from its own page on federnshop.com:
+- **`spring`** (`springs.ts`): Gutekunst compression springs by article (short ones for a capped detent, longer ones to span a side
+  opening), each read from its own page on federnshop.com:
   - dimensions: wire `d`, outer diameter `De` (± its tolerance), free length `L0` (± its tolerance), the least length in static
     use `Ln` (the solid length plus EN 13906-1's least coil gaps: never compress it further) and in dynamic use `Lndyn`;
   - attributes: the spring rate (`rate`, read with `springRate(part)`) and the largest force.

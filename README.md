@@ -33,9 +33,10 @@ the collar's members, and insect-screen hooks generated for your window's frame 
 Both size their countersunk holes for a DIN 7997 wood screw from the parts library; the bought steel brackets and hooks they
 replace stay selectable on the window insert page.
 
-The [spring ball detent](docs/spring-ball-detent.md) is a printed spring plunger, as Ganter's GN 615: a threaded body (M6–M12)
-that holds a steel ball out of its nose on a spring, for indexing and click-in retention. Choose the ball and the spring from the
-parts library, how far the ball stands out and gives, and a press cap or a set screw to close the back. The settings are checked
+The [spring ball detent](docs/spring-ball-detent.md) is a printed spring plunger, as Ganter's GN 615: a threaded (M6–M12) or plain
+body that holds a steel ball out of its nose on a spring, for indexing and click-in retention. Choose the ball and the spring from
+the parts library, how far the ball stands out and gives, and a press cap or a set screw to close the back, or a side opening the
+ball and spring go in through, where the spring holds itself and the ball. The settings are checked
 so that the spring never goes solid and every wall prints.
 
 ## Run with Docker

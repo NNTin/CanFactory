@@ -94,6 +94,13 @@ Under the slider, a parts list names every part and reference object (their `tit
 button hides or shows its part, at any point of the slider, so that the parts inside can be seen. Nothing needs to be added to the
 model for this. Models without `assembly` keep the plain grid.
 
+**Squeezed parts (optional).** A pose may set `scale` (per axis, about the part's own origin, before its rotation): a part drawn at
+one size and shown at another, such as a compression spring from the parts library drawn at its free length and compressed to its
+installed length. A step may set `scaleFrom`: the scale its parts start the step with, reaching the next step's `scaleFrom`, else
+their pose's, as it plays (`assemblyScale`). The spring ball detent's spring comes in through a side opening squeezed this way and
+is let go in the next step. Movement frames may scale too: its "Push the ball in" movement shortens the spring by the travel. The
+viewer and `npm run check:assembly` apply the same scale.
+
 **Movements (optional).** An assembly that moves once it is put together (a latch opening and closing, a lid on a hinge) adds
 `motion`: a list of movements, each a `title` and `frames` of rigid poses for the parts it moves, evenly spaced in time. The
 slider plays them after the steps, one stop per movement, each from the poses the previous one ended in (`motionFrames`,
