@@ -5202,7 +5202,6 @@
                           },
                           "ball": {
                             "enum": [
-                              "steel-ball-2-g100",
                               "steel-ball-2-5-g100",
                               "steel-ball-3-g100",
                               "steel-ball-3-5-g100",
@@ -5238,7 +5237,7 @@
                             "title": "Protrusion",
                             "description": "How far the ball stands out of the nose, in mm. The nose’s lip must still reach over the ball, so a larger ball can stand out further.",
                             "default": 0.8,
-                            "minimum": 0.3,
+                            "minimum": 0.2,
                             "maximum": 3,
                             "multipleOf": 0.05
                           },
@@ -5247,7 +5246,7 @@
                             "title": "Travel",
                             "description": "How far the ball can be pushed in, in mm: at least the protrusion, so that it goes in flush, and no further than the spring allows before it goes solid.",
                             "default": 1,
-                            "minimum": 0.3,
+                            "minimum": 0.2,
                             "maximum": 6,
                             "multipleOf": 0.05
                           },

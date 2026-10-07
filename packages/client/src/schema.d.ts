@@ -2152,7 +2152,7 @@ export interface operations {
                          * @default steel-ball-4-5-g100
                          * @enum {unknown}
                          */
-                        ball: "steel-ball-2-g100" | "steel-ball-2-5-g100" | "steel-ball-3-g100" | "steel-ball-3-5-g100" | "steel-ball-4-g100" | "steel-ball-4-5-g100" | "steel-ball-5-g100" | "steel-ball-6-g100";
+                        ball: "steel-ball-2-5-g100" | "steel-ball-3-g100" | "steel-ball-3-5-g100" | "steel-ball-4-g100" | "steel-ball-4-5-g100" | "steel-ball-5-g100" | "steel-ball-6-g100";
                         /**
                          * Spring
                          * @description The compression spring from the parts library: it must fit the ball’s bore, and its inner diameter must be small enough for the ball to sit on it.

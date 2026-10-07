@@ -63,6 +63,11 @@ const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part) => Re
     defines: part => ({ D: size(part, 'd', 'value'), PITCH: size(part, 'pitch', 'value'), L: size(part, 'l', 'value') }),
   },
   ball: { scad: 'parts/balls/ball.scad', defines: part => ({ D: size(part, 'd') }) },
+  // a spring at its free length, its total coils being the active ones and a closed end each
+  spring: {
+    scad: 'parts/springs/spring.scad',
+    defines: part => ({ D_WIRE: size(part, 'd', 'value'), DE: size(part, 'De'), L0: size(part, 'L0'), COILS: String(Number(/with ([\d.]+) active coils/.exec(part.description)?.[1] ?? 5) + 2) }),
+  },
   'threaded-insert': {
     scad: 'parts/inserts/insert.scad',
     defines: part => ({ HOLE: size(part, 'hole', 'value'), L: size(part, 'l', 'value'), D: part.attributes['thread']?.slice(1) ?? '0' }),

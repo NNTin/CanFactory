@@ -2818,8 +2818,8 @@ const SBD_DEFINES: PartDefines = {
 
 /**
  * The detent assembled standing nose up, as it is printed: the ball goes up into the bore from the back, then the press cap or the
- * set screw. The spring between them is not drawn (its length changes as it is compressed). The exploded layout stacks them below the
- * body: the ball, then the cap or the set screw.
+ * set screw. The spring between them is shown beside the body at its free length (`springBallDetentReferences`), since inside it is
+ * compressed. The exploded layout stacks them below the body: the ball, then the cap or the set screw.
  */
 export function springBallDetentAssembly(parameters: ParameterValues): Assembly {
   const p = { ...springBallDetent.defaults, ...parameters } as SpringBallDetentParameters;
@@ -2834,7 +2834,7 @@ export function springBallDetentAssembly(parameters: ParameterValues): Assembly 
     partColors: { body: '#5f7350', cap: '#d98460' },
     poses: p.retention === 'press-cap' ? { body: { position: [0, 0, 0] }, cap: { position: [0, 0, layout.tool.depth] } } : { body: { position: [0, 0, 0] } },
     steps: [
-      { title: 'Drop the ball into the back, then the spring (not drawn)', parts: ['ball'], from: [0, 0, -(ballTop + below)] },
+      { title: 'Drop the ball into the back, then the spring', parts: ['ball'], from: [0, 0, -(ballTop + below)] },
       p.retention === 'press-cap'
         ? { title: `Press the cap in, flush with the ${layout.tool.kind === 'slot' ? 'slot' : 'socket'}’s floor`, parts: ['cap'], from: [0, 0, -closerDrop] }
         : { title: 'Turn the set screw in to set the preload', parts: ['set-screw'], from: [0, 0, -closerDrop] },
@@ -2842,12 +2842,16 @@ export function springBallDetentAssembly(parameters: ParameterValues): Assembly 
     lift: Math.ceil(closerDrop - closerTop + closer + 2),
   };
 }
-/** The ball on the lip, and the set screw at its nominal preload, point up. */
+/** The ball on the lip, the spring standing beside the body at its free length (inside, it is compressed), and the set screw at its
+ * nominal preload, point up. Each is a line of the model's hardware list. */
 function springBallDetentReferences(parameters: ParameterValues): LinkedReference[] {
   const p = { ...springBallDetent.defaults, ...parameters } as SpringBallDetentParameters;
   const parts = detentParts(p);
   const layout = springBallDetentLayout(p, parts);
-  const references: LinkedReference[] = [{ id: 'ball', part: parts.ball.id, label: 'on the lip', pose: { position: [0, 0, layout.centre - dimensionOf(parts.ball, 'd', 'max') / 2] } }];
+  const references: LinkedReference[] = [
+    { id: 'ball', part: parts.ball.id, label: 'on the lip', pose: { position: [0, 0, layout.centre - dimensionOf(parts.ball, 'd', 'max') / 2] } },
+    { id: 'spring', part: parts.spring.id, label: 'beside it, at its free length', pose: { position: [layout.thread.major / 2 + dimensionOf(parts.spring, 'De', 'max') / 2 + 4, 0, 0] } },
+  ];
   if (p.retention === 'set-screw') references.push({ id: 'set-screw', part: parts.setScrew.id, label: 'closing the back', pose: { position: [0, 0, layout.seat], rotation: [180, 0, 0] } });
   return references;
 }
@@ -2881,7 +2885,7 @@ export const springBallDetent = {
     const mm = (value: number) => `${Math.round(value * 10) / 10} mm`;
     const n = (value: number) => `${Math.round(value * 10) / 10} N`;
     const { tool } = layout;
-    const feature = tool.kind === 'slot' ? `a ${mm(tool.width ?? 0)} slot, ${mm(tool.depth)} deep` : `a hex socket for a ${tool.key} mm key, ${mm(tool.depth)} deep`;
+    const feature = tool.kind === 'slot' ? `a ${mm(tool.width)} slot, ${mm(tool.depth)} deep` : `a hex socket for a ${tool.key} mm key, ${mm(tool.depth)} deep`;
     const forces = (installed: number) => `${n(layout.rate * (layout.free - installed))} with the ball out, ${n(layout.rate * (layout.free - installed + parameters.travel))} pushed in`;
     return { slotCount: null, notes: [
       `Printed ${parameters.thread} thread, ${mm(layout.thread.major)} over its crests, with ${feature} in the back; the ball sits in a ${mm(layout.bore)} bore.`,

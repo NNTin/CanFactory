@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
 import { activeParts, artifactFormat, findModel, linkedPartData, modelSourcePaths, partUsage, scadDefines, springBallDetent, validateParameters, type ParameterValues } from './models.ts';
 import { resolveAssembly } from './assembly.ts';
-import { RenderRequestSchema } from './index.ts';
+import { modelBom, RenderRequestSchema } from './index.ts';
 import { dimensionOf, findPart, parts } from './parts/index.ts';
 import {
   DETENT, DETENT_BALLS, DETENT_SET_SCREWS, DETENT_SPRINGS, DETENT_THREADS, HEX_KEYS, lipOverlap, protrusionRange, SPRING_BALL_DETENT_DEFAULT,
@@ -107,13 +107,15 @@ describe('spring ball detent contract', () => {
 
   it('puts the ball up into the bore onto the lip, then the press cap or the set screw at its nominal preload', () => {
     const assembly = resolveAssembly(springBallDetent, springBallDetent.assembly, defaults);
-    expect(assembly?.steps.map(step => step.title)).toEqual(['Drop the ball into the back, then the spring (not drawn)', 'Press the cap in, flush with the slot’s floor']);
+    expect(assembly?.steps.map(step => step.title)).toEqual(['Drop the ball into the back, then the spring', 'Press the cap in, flush with the slot’s floor']);
     const l = layoutOf();
     expect(assembly?.poses['cap']).toEqual({ position: [0, 0, 2.5] });
     expect(assembly?.poses['ball']?.position[2]).toBeCloseTo(l.centre - 4.5475 / 2, 9);
     const screwed = resolveAssembly(springBallDetent, undefined, { ...defaults, retention: 'set-screw' });
     expect(screwed?.steps.map(step => step.parts)).toEqual([['ball'], ['set-screw']]);
     expect(screwed?.poses['set-screw']).toEqual({ position: [0, 0, layoutOf({ retention: 'set-screw' }).seat], rotation: [180, 0, 0] });
-    expect(screwed?.references?.map(reference => reference.part)).toEqual(['steel-ball-4-5-g100', 'iso-4026-m6x6']);
+    expect(screwed?.references?.map(reference => reference.part)).toEqual(['steel-ball-4-5-g100', 'gutekunst-d-107', 'iso-4026-m6x6']);
+    // the hardware list: the ball, the spring and the set screw
+    expect(modelBom(springBallDetent, { ...defaults, retention: 'set-screw' }).map(line => line.partId)).toEqual(['steel-ball-4-5-g100', 'gutekunst-d-107', 'iso-4026-m6x6']);
   });
 });

@@ -156,7 +156,7 @@ export function springBallDetentIssues(p: SpringBallDetentSize, parts: DetentPar
     else if (layout.screw.tap < bore - 1e-9) issues.push({ field: 'setScrew', message: `The ball and spring go in through the set screw’s ${mm(layout.screw.tap)} tap hole, which is narrower than the ${mm(bore)} bore. Choose a larger set screw, or the press cap.` });
     else if (dimensionOf(setScrew, 'dp', 'min') <= layout.inner + 1e-9) issues.push({ field: 'setScrew', message: `The ${setScrew.designation}’s ${mm(dimensionOf(setScrew, 'dp', 'min'))} flat point is no wider than the spring is inside (${mm(layout.inner)}): the spring would slip over it. Choose a larger set screw.` });
   }
-  if (tool.kind === 'hex' && (tool.corners ?? 0) > thread.maxHole + 1e-9) issues.push({ field: 'toolFeature', message: `A hex socket for a ${tool.key} mm key, which the ${p.retention === 'press-cap' ? 'press cap' : 'set screw'} must pass, is ${mm(tool.corners ?? 0)} across its corners: ${body} takes at most ${mm(thread.maxHole)}. Choose the slot, or a larger thread.` });
+  if (tool.kind === 'hex' && tool.corners > thread.maxHole + 1e-9) issues.push({ field: 'toolFeature', message: `A hex socket for a ${tool.key} mm key, which the ${p.retention === 'press-cap' ? 'press cap' : 'set screw'} must pass, is ${mm(tool.corners)} across its corners: ${body} takes at most ${mm(thread.maxHole)}. Choose the slot, or a larger thread.` });
   return issues;
 }
 
