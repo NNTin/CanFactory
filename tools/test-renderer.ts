@@ -403,6 +403,9 @@ try {
     { name: 'thickest centre', overrides: { baseThickness: 3, reliefHeight: 2, joint: 'detent', fit: 0.6 } },
     // embedded magnets: sealed cavities in the border, at the pause height for the layer height
     ...QR_TAG_JOINTS.map(joint => ({ name: `embedded magnets, ${joint}`, overrides: { magnetMount: 'embedded', joint } })),
+    // the thinnest magnets: the shallowest pockets, and the joint magnet standing least out of the centre
+    { name: '1 mm magnets, magnet joint', overrides: { joint: 'magnets', magnet: 'supermagnete-s-08-01-n' } },
+    { name: 'embedded 1 mm magnets, magnet joint', overrides: { magnetMount: 'embedded', joint: 'magnets', magnet: 'supermagnete-s-10-01-n' } },
     { name: 'embedded magnets, round magnet joint, 2 pairs of 10 × 3 mm', overrides: { magnetMount: 'embedded', shape: 'round', size: 80, joint: 'magnets', magnetCount: 2, magnet: 'supermagnete-s-10-03-n' } },
     { name: 'embedded magnets at the finest layers', overrides: { magnetMount: 'embedded', layerHeight: 0.08 } },
     { name: 'embedded magnets at the coarsest layers', overrides: { magnetMount: 'embedded', layerHeight: 0.32, reliefHeight: 0.7 } },

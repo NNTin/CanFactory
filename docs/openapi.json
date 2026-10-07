@@ -3186,8 +3186,11 @@
                           "magnet": {
                             "enum": [
                               "supermagnete-s-04-02-n",
+                              "supermagnete-s-05-01-n",
                               "supermagnete-s-05-02-n52n",
+                              "supermagnete-s-06-01-n",
                               "supermagnete-s-06-02-n",
+                              "supermagnete-s-08-01-n",
                               "supermagnete-s-08-02-n"
                             ],
                             "title": "Magnets",
@@ -4771,11 +4774,15 @@
                           "magnet": {
                             "enum": [
                               "supermagnete-s-04-02-n",
+                              "supermagnete-s-05-01-n",
                               "supermagnete-s-05-02-n52n",
+                              "supermagnete-s-06-01-n",
                               "supermagnete-s-06-02-n",
                               "supermagnete-s-06-03-n",
+                              "supermagnete-s-08-01-n",
                               "supermagnete-s-08-02-n",
                               "supermagnete-s-08-03-n",
+                              "supermagnete-s-10-01-n",
                               "supermagnete-s-10-02-n",
                               "supermagnete-s-10-03-n",
                               "supermagnete-s-12-02-n"

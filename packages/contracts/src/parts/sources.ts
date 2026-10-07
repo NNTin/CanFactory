@@ -4,6 +4,7 @@ import type { Dimension, PartSource } from './schema.ts';
 const ACCESSED = '2026-09-27';
 const CATIO_ACCESSED = '2026-10-02';
 const DETENT_ACCESSED = '2026-10-07';
+const COLLAR_ACCESSED = '2026-10-07';
 
 const iso = (number: string, title: string): PartSource => ({
   id: `iso-${number.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, title: `ISO ${number}: ${title}`, publisher: 'ISO',
@@ -87,6 +88,19 @@ export const PART_SOURCES: readonly PartSource[] = [
   { id: 'din-en-13906-1', title: 'DIN EN 13906-1: Cylindrical helical springs made from round wire and bar — Calculation and design — Part 1: Compression springs', publisher: 'DIN', url: 'https://www.dinmedia.de/en/search?query=DIN%20EN%2013906-1', kind: 'standard', accessed: DETENT_ACCESSED },
   { ...iso('4026', 'Hexagon socket set screws with flat point'), accessed: DETENT_ACCESSED },
   { id: 'fasteners-eu-iso-4026', title: 'ISO 4026 dimension table', publisher: 'fasteners.eu', url: 'https://www.fasteners.eu/standards/ISO/4026/', kind: 'reference', accessed: DETENT_ACCESSED },
+  // The cat collar tag's hardware: split rings, NFC tags and the collars it is sized for, read 2026-10-07.
+  { id: 'keyring-com-split-rings', title: 'Split key rings (Avco, made in the USA): each article’s “Actual Key Ring Dimensions” (outside and inside diameter, A and B dimension, wire diameter)', publisher: 'keyring.com', url: 'https://keyring.com/shop-by-category/plain-key-rings/', kind: 'reference', accessed: COLLAR_ACCESSED },
+  { id: 'keyring-com-split-ring-chart', title: 'USA Made Split Key Rings – Size Chart (Avco #92000–#92975, outside and inside diameters, actual size)', publisher: 'keyring.com (© AKN 2011)', url: 'https://keyring.com/content/USA-Made-Split-Keyrings-Size-Comparison.pdf', kind: 'reference', accessed: COLLAR_ACCESSED },
+  { id: 'nxp-ntag213-215-216', title: 'NTAG213/215/216, NFC Forum Type 2 Tag compliant IC with 144/504/888 bytes user memory, product data sheet, Rev. 3.2 (2 June 2015)', publisher: 'NXP Semiconductors', url: 'https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf', kind: 'manufacturer', accessed: COLLAR_ACCESSED },
+  { id: 'gototags-nfc', title: 'GoToTags NFC inlays and stickers: each article’s Dimensions, Antenna Dimensions, chip and NFC memory', publisher: 'GoToTags', url: 'https://store.gototags.com/', kind: 'manufacturer', accessed: COLLAR_ACCESSED },
+  { id: 'core-electronics-ce08496', title: 'RFID/NFC Tag 25mm Coin (NTAG213 Chip, 13.56MHz), CE08496: “Dimensions: 0.9 x 25mm Diameter”', publisher: 'Core Electronics', url: 'https://core-electronics.com.au/ntag213-coin-25mm-white.html', kind: 'manufacturer', accessed: COLLAR_ACCESSED },
+  { id: 'lupinepet-safety-cat-collar', title: 'Original Designs Safety Cat Collar: 1/2" wide, adjusts from 8" to 12", YKK breakaway buckle (approx. 5 lbs), steel D-ring', publisher: 'LupinePet', url: 'https://www.lupinepet.com/products/original-designs-safety-cat-collar', kind: 'manufacturer', accessed: COLLAR_ACCESSED },
+  { id: 'rogz-cat-collars', title: 'Rogz KiddyCat and AlleyCat Safety Release Collars: Safeloc break-away buckle with three load settings, D-ring', publisher: 'Rogz', url: 'https://rogz.com/products/catz/cat-collars/', kind: 'manufacturer', accessed: COLLAR_ACCESSED },
+  { id: 'vetnpetdirect-rogz', title: 'Rogz KiddyCat (8mm width, neck 165–230mm; 11mm width, neck 255–310mm) and AlleyCat (Width 11mm, neck 20–31cm) Safety Release Cat Collars', publisher: 'Vet-n-Pet DIRECT', url: 'https://www.vetnpetdirect.com.au/products/rogz-kiddycat-safeloc-cat-collar', kind: 'reference', accessed: COLLAR_ACCESSED },
+  { id: 'reberranch-coastal-safe-cat', title: 'Coastal Pet Products Safe Cat Fashion Adjustable Breakaway Collar: 3/8" × 8"–12", breakaway buckle', publisher: 'Reber Ranch', url: 'https://reberranch.com/collections/pet-collars/products/coastal-pet-product-safe-cat-fashion-adjustable-breakaway-collar', kind: 'reference', accessed: COLLAR_ACCESSED },
+  { id: 'trixie-4180', title: 'TRIXIE Cat Collar with Address Tag, item no. 4180: continuously adjustable webbing tape', publisher: 'TRIXIE Heimtierbedarf GmbH & Co. KG', url: 'https://www.trixie.de/en/productworld/cat/transport-travel/cat-harnesses-collars/cat-collar-with-address-tag-1001435869-1001449753?itemNo=4180', kind: 'manufacturer', accessed: COLLAR_ACCESSED },
+  { id: 'zooplus-trixie-4180', title: 'Trixie Cat Collar with Address Tag – 22cm: “Width: 10mm”, nylon, Snap & Easy safety fastening', publisher: 'zooplus', url: 'https://www.zooplus.co.uk/shop/cats/cat_carriers_travel/collars/multi_coloured/153169', kind: 'reference', accessed: COLLAR_ACCESSED },
+  { id: 'fox-valley-webbing', title: 'Nylon webbing specs: thickness of each width (3/8": 1.18 mm; 5/8" to 1 1/2": 1.80 mm)', publisher: 'Fox Valley Dog Collars', url: 'https://foxvalleydogcollars.com/pages/webbing-specs', kind: 'reference', accessed: COLLAR_ACCESSED },
   { id: 'bic-graphic-j25', title: 'BIC J25 lighter (product 3460002360): 62 × 22 × 11 mm', publisher: 'BIC Graphic', url: 'https://www.bicgraphic.com/gb/bic-j25-lighter-3460002360.html', kind: 'manufacturer', accessed: '2026-09-25' },
   { id: '4imprint-j25', title: 'BIC J25 Standard Lighter: 22 × 62 × 11 mm', publisher: '4imprint UK', url: 'https://www.4imprint.co.uk/product/502972/BIC-J25-Standard-Lighter', kind: 'reference', accessed: '2026-09-25' },
   { id: 'wemag-j25', title: 'BIC Mini lighter J25: 22 × 62 × 11 mm', publisher: 'WE MAG', url: 'https://wemag.gr/en/product/bic-mini-lighter-j25-2360/', kind: 'reference', accessed: '2026-09-25' },

@@ -626,7 +626,7 @@ export function magnetFits(part: Part): boolean {
  * The magnets the case lid offers: every magnet of the parts library that fits (`magnetFits`), in the library's order. Listed
  * rather than computed, so that the parameter's type names them; a test keeps the list equal to the library's fitting magnets.
  */
-export const CASE_MAGNETS = ['supermagnete-s-04-02-n', 'supermagnete-s-05-02-n52n', 'supermagnete-s-06-02-n', 'supermagnete-s-08-02-n'] as const;
+export const CASE_MAGNETS = ['supermagnete-s-04-02-n', 'supermagnete-s-05-01-n', 'supermagnete-s-05-02-n52n', 'supermagnete-s-06-01-n', 'supermagnete-s-06-02-n', 'supermagnete-s-08-01-n', 'supermagnete-s-08-02-n'] as const;
 /** S-06-02-N: 6.1 x 2.1 mm at most, the pocket of the original design. */
 export const DEFAULT_CASE_MAGNET = 'supermagnete-s-06-02-n';
 
@@ -2367,7 +2367,7 @@ export function qrTagMagnetFits(part: Part): boolean {
     && dimensionOf(part, 'diameter', 'max') <= QR_TAG_MAGNET_LIMIT.diameter + 1e-9 && dimensionOf(part, 'thickness', 'max') <= QR_TAG_MAGNET_LIMIT.thickness + 1e-9;
 }
 /** Every magnet of the parts library that fits (`qrTagMagnetFits`), in the library's order; a test keeps the list equal to the library. */
-export const QR_TAG_MAGNETS = ['supermagnete-s-04-02-n', 'supermagnete-s-05-02-n52n', 'supermagnete-s-06-02-n', 'supermagnete-s-06-03-n', 'supermagnete-s-08-02-n', 'supermagnete-s-08-03-n', 'supermagnete-s-10-02-n', 'supermagnete-s-10-03-n', 'supermagnete-s-12-02-n'] as const;
+export const QR_TAG_MAGNETS = ['supermagnete-s-04-02-n', 'supermagnete-s-05-01-n', 'supermagnete-s-05-02-n52n', 'supermagnete-s-06-01-n', 'supermagnete-s-06-02-n', 'supermagnete-s-06-03-n', 'supermagnete-s-08-01-n', 'supermagnete-s-08-02-n', 'supermagnete-s-08-03-n', 'supermagnete-s-10-01-n', 'supermagnete-s-10-02-n', 'supermagnete-s-10-03-n', 'supermagnete-s-12-02-n'] as const;
 /** S-08-02-N: 8 × 2 mm, 1.1 kg of pull each. */
 export const DEFAULT_QR_TAG_MAGNET = 'supermagnete-s-08-02-n';
 

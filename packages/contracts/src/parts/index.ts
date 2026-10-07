@@ -1,5 +1,6 @@
 import { ballFamily, ballParts } from './balls.ts';
 import { bearingFamily, bearingParts } from './bearings.ts';
+import { catCollarFamily, catCollarParts } from './cat-collars.ts';
 import { cornerBracketFamily, cornerBracketParts } from './corner-brackets.ts';
 import { everydayObjectFamily, everydayObjectParts } from './everyday-objects.ts';
 import { insertFamily, insertParts } from './inserts.ts';
@@ -7,12 +8,14 @@ import { insertNutFamily, insertNutParts } from './insert-nuts.ts';
 import { levellingFootFamily, levellingFootParts } from './levelling-feet.ts';
 import { magnetFamily, magnetParts } from './magnets.ts';
 import { nailFamily, nailParts } from './nails.ts';
+import { nfcTagFamily, nfcTagParts } from './nfc-tags.ts';
 import { nutFamily, nutParts } from './nuts.ts';
 import { pinFamily, pinParts } from './pins.ts';
 import type { Part, PartFamily } from './schema.ts';
 import { screenHookFamily, screenHookParts } from './screen-hooks.ts';
 import { screwFamily, screwParts } from './screws.ts';
 import { setScrewFamily, setScrewParts } from './set-screws.ts';
+import { splitRingFamily, splitRingParts } from './split-rings.ts';
 import { springFamily, springParts } from './springs.ts';
 import { toggleLatchFamily, toggleLatchParts } from './toggle-latches.ts';
 import { washerFamily, washerParts } from './washers.ts';
@@ -36,13 +39,13 @@ export { springRate } from './springs.ts';
 export const partFamilies: readonly PartFamily[] = [
   magnetFamily, screwFamily, nutFamily, washerFamily, insertFamily, bearingFamily, pinFamily, everydayObjectFamily,
   woodScrewFamily, nailFamily, insertNutFamily, levellingFootFamily, toggleLatchFamily, screenHookFamily, cornerBracketFamily,
-  setScrewFamily, ballFamily, springFamily,
+  setScrewFamily, ballFamily, springFamily, splitRingFamily, nfcTagFamily, catCollarFamily,
 ];
 
 export const parts: readonly Part[] = [
   ...magnetParts, ...screwParts, ...nutParts, ...washerParts, ...insertParts, ...bearingParts, ...pinParts, ...everydayObjectParts,
   ...woodScrewParts, ...nailParts, ...insertNutParts, ...levellingFootParts, ...toggleLatchParts, ...screenHookParts, ...cornerBracketParts,
-  ...setScrewParts, ...ballParts, ...springParts,
+  ...setScrewParts, ...ballParts, ...springParts, ...splitRingParts, ...nfcTagParts, ...catCollarParts,
 ];
 
 export function findPart(id: string): Part | undefined { return parts.find(part => part.id === id); }

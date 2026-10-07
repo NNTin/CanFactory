@@ -1206,7 +1206,7 @@ export interface operations {
                          * @default supermagnete-s-06-02-n
                          * @enum {unknown}
                          */
-                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-02-n" | "supermagnete-s-08-02-n";
+                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-01-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-01-n" | "supermagnete-s-06-02-n" | "supermagnete-s-08-01-n" | "supermagnete-s-08-02-n";
                         /**
                          * Mini box lid
                          * @description How the mini lid holds in the mini box: the original pads (a clearance fit), a detent or crush ribs.
@@ -1960,7 +1960,7 @@ export interface operations {
                          * @default supermagnete-s-08-02-n
                          * @enum {unknown}
                          */
-                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-02-n" | "supermagnete-s-08-03-n" | "supermagnete-s-10-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
+                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-01-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-01-n" | "supermagnete-s-06-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-01-n" | "supermagnete-s-08-02-n" | "supermagnete-s-08-03-n" | "supermagnete-s-10-01-n" | "supermagnete-s-10-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
                         /**
                          * Magnet mounting
                          * @description Open pockets that the magnets are pressed or glued into after printing, or sealed cavities that they are dropped into when the print pauses.

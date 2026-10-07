@@ -288,9 +288,36 @@ function spring(part: Part): Piece[] {
   return [paint(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), samples, d / 2, 8, false), STEEL)];
 }
 
+function splitRing(part: Part): Piece[] {
+  // two flat turns of the band, one on the other, each half the ring's thickness, with rounded edges
+  const r1 = value(part, 'd') / 2; const r2 = value(part, 'D') / 2; const turn = value(part, 'b') / 2;
+  const c = Math.min(0.2, turn / 3, (r2 - r1) / 3);
+  const color = part.attributes['material']?.startsWith('stainless') ? STEEL : NICKEL;
+  const band = (z0: number): Piece => ring([[r1, z0 + c], [r1 + c, z0], [r2 - c, z0], [r2, z0 + c], [r2, z0 + turn - c], [r2 - c, z0 + turn], [r1 + c, z0 + turn], [r1, z0 + turn - c]], color);
+  return [band(0), band(turn)];
+}
+
+const INLAY = 0xdfe6ea;
+const COLLAR = 0x3a6ea5;
+
+function nfcTag(part: Part): Piece[] {
+  // a flat disc with its antenna's outer turn drawn on top (none is published for a coin)
+  const r = value(part, 'D') / 2; const h = value(part, 'h'); const antenna = value(part, 'antenna') / 2;
+  const colour = part.attributes['colour'];
+  const body = revolve([[0, 0], [r, 0], [r, h], [0, h]], colour === 'black' ? DARK : colour === 'clear' ? INLAY : 0xf4f4f2, 64);
+  if (!antenna) return [body];
+  return [body, ring([[antenna - 0.8, h], [antenna, h], [antenna, h + 0.02], [antenna - 0.8, h + 0.02]], STEEL, 64)];
+}
+
+function catCollar(part: Part): Piece[] {
+  // a 60 mm piece of the strap, lying flat along X
+  const strap = new THREE.BoxGeometry(60, value(part, 'width'), largest(part, 'thickness')); strap.translate(0, 0, largest(part, 'thickness') / 2);
+  return [paint(strap, COLLAR)];
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
-  'set-screw': setScrew, ball, spring,
+  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */
