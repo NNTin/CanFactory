@@ -26,6 +26,10 @@ test('the editor takes the window’s lip and seal gap, says where the hooks go,
   await page.goto('/#/models/printed-screen-hook');
   await expect(page.locator('.model-footer').getByRole('link', { name: 'Window catio: window insert' })).toHaveAttribute('href', '#/concepts/catio/window-insert');
   await expect(page.getByText('lift the frame 7 mm to hang it')).toBeVisible();
+  // one screw by default, that the hook turns on; two hold it square
+  await expect(page.getByText(/One screw in each leg, 11.5 mm from the turn.*swung 53° either way/)).toBeVisible();
+  await page.getByRole('spinbutton', { name: 'Screws per hook' }).fill('2');
+  await expect(page.getByText('Two screws in each leg: the hooks are held square and cannot turn.')).toBeVisible();
   await page.getByRole('spinbutton', { name: 'Seal gap' }).fill('2.5');
   await expect(page.getByRole('alert')).toContainText('or use bought hooks');
   await page.getByRole('spinbutton', { name: 'Seal gap' }).fill('6');

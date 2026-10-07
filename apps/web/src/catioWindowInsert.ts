@@ -417,7 +417,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
       hooks.push({ id: `hook-sill-${side}`, side, end: 'sill', part: spec.parts.sill, title: spec.titles.sill, x,
         boxes: [strip(yLeg, yIn, zSill, zSill + l), strip(inner, yLeg, zSill, zSill + turn), strip(inner, outer, zSill - spec.rise.sill, zSill + turn)],
         barb: { outer, inner, engage: hookFit.engage.sill } });
-      // two screws through each leg, from the room side into the stile
+      // the screws through each leg (the printed hooks' one or two, the bought strips' two), from the room side into the stile
       for (const along of spec.screws) for (const [z, end] of [[zHead - along, 'head'], [zSill + along, 'sill']] as const)
         fasteners.push({ partId: spec.screw.id, component: 'hook-screws', at: [x, yLeg, z], direction: [0, 1, 0], use: `Screen hook at the ${end}, into the back of the ${side} stile` });
     }
@@ -492,10 +492,11 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
   const hung = config.attachment === 'frame-hooks';
   const printed = config.attachment !== 'folding-wedges' && config.clampPad === 'printed';
   const fit = hung ? windowInsertLayout(variant, config).hookFit : null;
-  const hookScrews = fit ? fit.spec.screw.designation.replace('DIN 7997 ', '') : '';
+  const hookScrews = fit ? `${fit.spec.screws.length === 1 ? 'one' : 'two'} ${fit.spec.screw.designation.replace('DIN 7997 ', '')} screw${fit.spec.screws.length === 1 ? '' : 's'}` : '';
+  const turns = fit?.spec.screws.length === 1 ? ' Each turns on its one screw: set it straight along the stile, then tighten the screw.' : '';
   const hookText = !fit ? '' : fit.bend === null
-    ? ` Then take the four printed screen hooks, printed for this window’s ${config.frameLip} mm lip and ${config.sealGap} mm seal gap: two long ones for the head, two short ones for the sill. Screw each to the back of a stile, where it lies over the window opening, with two ${hookScrews} screws from the room side: the long ones with their turns ${fit.fromTop} mm below the collar’s top and their barbs pointing up, the short ones with their turns ${fit.fromBottom} mm above its bottom and their barbs pointing down.`
-    : ` Then bend the four screen hooks with pliers at ${fit.bend} mm (the set’s gauge has a scale): two long ones for the head, two short ones for the sill. Screw each to the back of a stile, where it lies over the window opening, with two ${hookScrews} screws from the room side: the long ones with their bends ${fit.fromTop} mm below the collar’s top and their tips pointing up, the short ones with their bends ${fit.fromBottom} mm above its bottom and their tips pointing down.`;
+    ? ` Then take the four printed screen hooks, printed for this window’s ${config.frameLip} mm lip and ${config.sealGap} mm seal gap: two long ones for the head, two short ones for the sill. Screw each to the back of a stile, where it lies over the window opening, with ${hookScrews} from the room side: the long ones with their turns ${fit.fromTop} mm below the collar’s top and their barbs pointing up, the short ones with their turns ${fit.fromBottom} mm above its bottom and their barbs pointing down.${turns}`
+    : ` Then bend the four screen hooks with pliers at ${fit.bend} mm (the set’s gauge has a scale): two long ones for the head, two short ones for the sill. Screw each to the back of a stile, where it lies over the window opening, with ${hookScrews} from the room side: the long ones with their bends ${fit.fromTop} mm below the collar’s top and their tips pointing up, the short ones with their bends ${fit.fromBottom} mm above its bottom and their tips pointing down.`;
   const clamp = hung
     ? (printed
       ? 'Under the sill rail, at every foot: (1) screw an M8 insert nut into the rail’s underside; (2) slide a hexagon head screw’s head into a printed foot and screw it up into the insert nut by turning the foot.'
@@ -602,7 +603,7 @@ export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, 
   const spec = l.hookFit?.spec;
   if (spec?.printed) for (const end of ['head', 'sill'] as const) {
     lines.push({ id: `printed-screen-hooks-${end}`, group: 'Hardware', name: spec.titles[end], quantity: l.hooks.filter(h => h.end === end).length, modelId: printedScreenHook.id,
-      size: `For a ${config.frameLip} mm frame lip and a ${config.sealGap} mm seal gap (set them on the model) · ${spec.width} mm wide, barb ${spec.barb} mm · holes for ${spec.screw.designation} · PETG`, use: hookUse(end) });
+      size: `For a ${config.frameLip} mm frame lip and a ${config.sealGap} mm seal gap (set them on the model) · ${spec.width} mm wide, barb ${spec.barb} mm · ${spec.screws.length === 1 ? '1 hole' : `${spec.screws.length} holes`} for ${spec.screw.designation} · PETG`, use: hookUse(end) });
   }
   if (l.pad) {
     const sole = `${l.pad.surface} sole`; const size = `Ø ${l.pad.diameter} × ${l.pad.height} mm · ${sole} · PETG`;
