@@ -63,6 +63,15 @@ const RUTHEX_BOX: Offer['covers'] = [
  * The curated offers: listings checked by hand against the part they sell, one row per market (an ASIN of amazon.de is not
  * necessarily the same product on amazon.com: B07YSV66Y5 is ruthex's M4 insert on amazon.de and its ¼″ insert on amazon.com).
  * Parts without an offer link to a search of the market's Amazon instead. See docs/affiliate-offers.md.
+ *
+ * TODO(awin): applied on 2026-10-07 to these Awin programmes (DE market), waiting for approval. Once one approves, curate its
+ * products here (`network: 'awin'`, its advertiser id, the feed's `merchant_product_id`), store the product feed key in the
+ * `canfactory-offers` Secret, and enable the `offers` CronJob:
+ * - 28052 online-schrauben DE: ISO/DIN screws, nuts, washers and wood screws, from a single piece.
+ * - 21761 3D Jake DE: ruthex heat-set inserts, filament, 3D-printing parts.
+ * - 11354 Conrad Electronic DE: fasteners, magnets, electronics.
+ * - 11830 Globus Baumarkt DE: catio timber, mesh, brackets and hooks.
+ * - 11330 Zooplus DE: cat nets and catio accessories.
  */
 export const offers: readonly Offer[] = [
   amazon('DE', 'B088QJG676', 'ruthex RX-M2x4, pack of 70', [{ partId: 'ruthex-rx-m2x4', quantity: 70 }], { sameAsProduct: true }),
