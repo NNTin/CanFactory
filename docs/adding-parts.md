@@ -1,7 +1,7 @@
 # The parts library
 
 The parts library is a catalogue of real-world parts that models are made to fit: screws, nuts, washers, magnets, threaded
-inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, and everyday objects such as the BIC
+inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, and everyday objects such as the BIC
 Mini lighter the cigarette case holds. Every entry is one real
 item, a size of a standard part (ISO 4762 M3 × 10) or a named product (supermagnete S-06-02-N), with its dimensions, their
 tolerances where the source gives them, and the source of every value.
@@ -57,6 +57,25 @@ its id; if a value was wrong, correct it under the same id.
 `npm test` checks the whole library (`parts.test.ts`): the schema, that every part has its family's required dimensions and a
 source for every value, unique ids, titles and descriptions, and physical sanity per family (a head is wider than its thread,
 a nut's corners are wider than its flats, an insert's hole is smaller than the insert).
+
+### Balls, springs and set screws
+
+Three families added for the [spring ball detent](spring-ball-detent.md). Their sizes are scoped to what that model needs, not a
+whole catalogue:
+
+- **`ball`** (`balls.ts`): ISO 3290-1 / DIN 5401 chromium-steel (100Cr6) balls of grade G100, 2.5 to 6 mm. One dimension, the
+  diameter `d`, whose limits are the grade's boundary dimensions (±47.5 µm, read from Kugel Pompel's DIN 5401 data sheet).
+  A bore takes the `max`.
+- **`spring`** (`springs.ts`): Gutekunst compression springs by article, each read from its own page on federnshop.com:
+  - dimensions: wire `d`, outer diameter `De` (± its tolerance), free length `L0` (± its tolerance), the least length in static
+    use `Ln` (the solid length plus EN 13906-1's least coil gaps: never compress it further) and in dynamic use `Lndyn`;
+  - attributes: the spring rate (`rate`, read with `springRate(part)`) and the largest force.
+  - The test checks that the rate times `L0 − Ln` is the maker's largest force. The inner diameter is `De − 2d`.
+- **`set-screw`** (`set-screws.ts`): ISO 4026 hexagon socket set screws with a flat point, M3 to M8. Dimensions: `d`, `pitch`,
+  `l`, the point `dp` (max/min), the key `s` and the socket depth `t`.
+
+`npm run check:assembly` renders them from generic models in `parts/balls/`, `parts/springs/` and `parts/set-screws/`. The set
+screw's thread is drawn at its minor diameter, so that it clears its tap-drill hole.
 
 ## Previews
 
