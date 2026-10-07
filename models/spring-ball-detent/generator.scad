@@ -118,17 +118,23 @@ FLANK = THREAD_DEPTH / tan(60);
 function thread_r(u) = let (a = abs(u - round(u)))
     a <= 1 / 16 ? R_MAJ : a <= 1 / 16 + FLANK ? R_MAJ - (a - 1 / 16) * P * tan(60) : R_MIN;
 
-// A right-handed thread: the section at z = 0, twisted one turn per pitch.
-module threaded_rod(h) {
-    n = ROUNDNESS;
-    linear_extrude(height = h, twist = -360 * h / P, slices = ceil(h / P * 72), convexity = 10)
-        polygon([for (i = [0 : n - 1]) let (a = 360 * i / n) thread_r(i / n) * [cos(a), sin(a)]]);
-}
+// The lead-in: a 45 degree chamfer at both ends, from just inside the root (so that the end faces lie within it) to the crest.
+// Behind a slot the back is a plain collar at that diameter, as deep as the slot, so that the slot never cuts through thread flanks.
+R_END  = R_MIN - 0.2;
+COLLAR = TOOL_FEATURE == "slot" ? TOOL_DEPTH : 0;
+function envelope_r(z) = min(R_MAJ, R_END + max(0, z - COLLAR), R_END + L - z);
 
-// The thread's lead-in: a 45 degree chamfer from the root to the crest at both ends.
-module envelope() {
-    c = R_MAJ - R_MIN + 0.01;
-    rotate_extrude($fn = ROUNDNESS) polygon([[0, 0], [R_MIN, 0], [R_MAJ + 0.01, c], [R_MAJ + 0.01, L - c], [R_MIN, L], [0, L]]);
+// The threaded body as one polyhedron: rings of ROUNDNESS points, P/48 apart, each at the thread's radius for its angle and height
+// (a right-handed thread: a crest's middle at angle a lies a/360 of a pitch up), clamped to the lead-in. Built directly rather than
+// intersected with the lead-in, so that no two curved surfaces cross.
+module threaded_body() {
+    n = ROUNDNESS;
+    m = ceil(L / (P / 48));
+    points = [for (j = [0 : m]) let (z = L * j / m) for (i = [0 : n - 1])
+        let (a = 360 * i / n, r = min(thread_r(i / n - z / P), envelope_r(z))) [r * cos(a), r * sin(a), z]];
+    sides = [for (j = [0 : m - 1]) for (i = [0 : n - 1]) let (a = j * n + i, b = (j + 1) * n + i, c = (j + 1) * n + (i + 1) % n, d = j * n + (i + 1) % n)
+        each [[a, b, c], [a, c, d]]];
+    polyhedron(points = points, faces = concat([[for (i = [0 : n - 1]) i]], sides, [[for (i = [n - 1 : -1 : 0]) m * n + i]]), convexity = 10);
 }
 
 // The bore: from the back (the set screw's tap drill, then a 45 degree step to the bore), the ball's bore, the cone to the lip.
@@ -145,20 +151,21 @@ module tool_feature() {
 
 module body() {
     difference() {
-        intersection() { threaded_rod(L); envelope(); }
+        threaded_body();
         cavity();
         tool_feature();
     }
 }
 
 // The press cap: a core a little under the bore, with crush ribs that stand out to the bore plus the interference, and a lead-in.
+// The ribs overshoot and the envelope trims them, so that no face of theirs lies on the envelope's.
 module cap() {
     lead = 0.5;
     intersection() {
         union() {
             cylinder(d = CORE_D, h = CAP_LENGTH, $fn = ROUNDNESS);
             if (CAP_RIBS) for (i = [0 : CAP_RIB_COUNT - 1]) rotate(360 * i / CAP_RIB_COUNT)
-                translate([CORE_D / 2 - 0.3, -CAP_RIB_WIDTH / 2, 0]) cube([(RIBS_D - CORE_D) / 2 + 0.3, CAP_RIB_WIDTH, CAP_LENGTH]);
+                translate([CORE_D / 2 - 0.3, -CAP_RIB_WIDTH / 2, -1]) cube([(RIBS_D - CORE_D) / 2 + 0.6, CAP_RIB_WIDTH, CAP_LENGTH + 2]);
         }
         rotate_extrude($fn = ROUNDNESS)
             polygon([[0, 0], [RIBS_D / 2, 0], [RIBS_D / 2, CAP_LENGTH - lead], [CORE_D / 2 - lead, CAP_LENGTH], [0, CAP_LENGTH]]);
