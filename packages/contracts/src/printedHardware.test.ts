@@ -128,20 +128,40 @@ describe('printed screen hook contract', () => {
     expect(validateParameters(printedScreenHook, { ...defaults, sealGap: 1 })[0]?.message).toMatch(new RegExp(`at least ${PRINTED_BARB_MIN} mm\\), or use bought hooks`));
     // a 5 mm lip and a 3 mm seal gap leave 5.5 mm to the barb: a 5 mm leg would leave no turn
     expect(fields(printedScreenHook, { ...defaults, frameLip: 5, sealGap: 3, legThickness: 5 })).toContain('legThickness');
-    expect(fields(printedScreenHook, { ...defaults, legLength: 25, woodScrewDiameter: '4 mm', woodScrew: 'din-7997-4x20' })).toContain('legLength');
+    // two 4 mm screws need 4 + 3 + 3 × 5.45 mm of leg; one, as much leg past it as it stands from the turn: 2 × (8 + 3 + 5.45) mm
+    const four = { ...defaults, width: 11, legLength: 25, woodScrewDiameter: '4 mm', woodScrew: 'din-7997-4x20' };
+    expect(fields(printedScreenHook, { ...four, screwCount: 2 })).toContain('legLength');
+    expect(validateParameters(printedScreenHook, four)).toEqual([]);
+    expect(fields(printedScreenHook, { ...four, turnThickness: 8 })).toEqual(['legLength']);
+    expect(validateParameters(printedScreenHook, { ...four, turnThickness: 8 })[0]?.message).toMatch(/at least 33 mm long: with one screw, 16.5 mm from the turn/);
+    expect(validateParameters(printedScreenHook, { ...four, turnThickness: 8, legLength: 33 })).toEqual([]);
     expect(fields(printedScreenHook, { ...defaults, woodScrewDiameter: '5 mm', woodScrew: 'din-7997-5x30' })).toContain('woodScrew');
   });
 
-  it('drives two screws into each hook’s leg from the room side', () => {
-    const assembly = resolveAssembly(printedScreenHook, printedScreenHook.assembly, defaults);
-    expect(assembly?.steps.map(step => step.title)).toEqual(['Lay the long hook on the stile’s back, at the head, barb up', 'Lay the short hook on the stile’s back, at the sill, barb down', 'Drive the screws in']);
-    expect(assembly?.steps.at(-1)?.parts).toEqual(['long-screw-1', 'long-screw-2', 'short-screw-1', 'short-screw-2']);
-    // head flush with the leg's inner face, the screw along +X
+  it('drives one screw, by default, or two into each hook’s leg from the room side', () => {
     const screw = part('din-7997-3x20');
-    for (const id of ['long-screw-1', 'short-screw-2']) expect(assembly?.poses[id]).toMatchObject({ position: [4 - dimensionOf(screw, 'l'), expect.any(Number), expect.any(Number)], rotation: [0, 90, 0] });
+    for (const [screwCount, ids] of [[1, ['long-screw-1', 'short-screw-1']], [2, ['long-screw-1', 'long-screw-2', 'short-screw-1', 'short-screw-2']]] as const) {
+      const parameters = { ...defaults, screwCount };
+      const assembly = resolveAssembly(printedScreenHook, printedScreenHook.assemblyForParameters(parameters), parameters);
+      expect(assembly?.steps.map(step => step.title)).toEqual(['Lay the long hook on the stile’s back, at the head, barb up', 'Lay the short hook on the stile’s back, at the sill, barb down', 'Drive the screws in']);
+      expect(assembly?.steps.at(-1)?.parts).toEqual(ids);
+      // head flush with the leg's inner face, the screw along +X
+      for (const id of ids) expect(assembly?.poses[id]).toMatchObject({ position: [4 - dimensionOf(screw, 'l'), expect.any(Number), expect.any(Number)], rotation: [0, 90, 0] });
+    }
+    expect(defaults['screwCount']).toBe(1);
+    // the one screw is where the first of two goes: just past the 3 mm fillet, its 4.5 mm countersink seat clear of it
+    const one = printedScreenHookShape(size(), screw); const two = printedScreenHookShape(size({ screwCount: 2 }), screw);
+    expect(one.holes).toEqual([-11.5]);
+    expect(two.holes).toEqual([-11.5, -35.5]);
+    expect(two.swing).toBeNull();
+    // eased, a long hook swings its barb's far corner, 25.5 mm out and 5 mm across, down to the head lip's tip, 19.5 mm out
+    const a = (one.swing ?? 0) * Math.PI / 180;
+    expect(25.5 * Math.cos(a) + 5 * Math.sin(a)).toBeCloseTo(19.5, 9);
     expect(printedScreenHook.derived(defaults).notes).toEqual([
       'Barbs 14 mm (long) and 7 mm (short) past the turn, 16.3 mm from the leg’s face: 0.8 mm clear of the lip’s back and of the sash.',
       'Screw the long hooks with their turns 8 mm below the head lip’s tip, the short ones 1 mm above the sill lip’s tip; lift the frame 7 mm to hang it.',
+      'One screw in each leg, 11.5 mm from the turn: eased, a hook turns on it; a long hook’s barb is clear below the head lip once it is swung 53° either way.',
     ]);
+    expect(printedScreenHook.derived({ ...defaults, screwCount: 2 }).notes?.at(-1)).toBe('Two screws in each leg: the hooks are held square and cannot turn.');
   });
 });

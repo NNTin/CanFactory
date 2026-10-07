@@ -81,9 +81,11 @@ its face runs flat from the frame's seal to the glass.
   screens overlap 14 mm and need at least 15 mm of frame at the sides). The rest of each 40 mm stile lies over the window
   opening. The collar is the lip's opening plus the overlap: 88.4 cm wide on the default window.
 - **Four printed screen hooks** (**Screen hooks**, the default), the [printed-screen-hook](../../printed-screen-hook.md) model
-  in PETG, two long and two short, are screwed to the stiles' backs with two DIN 7997 3 × 20 screws each: the long ones at the
-  head, their barbs up behind the head lip, the short ones at the sill, their barbs down behind the sill lip. Each is a 4 mm
-  leg, a 4 mm turn into the window and a 2 mm barb, 10 mm wide.
+  in PETG, two long and two short, are screwed to the stiles' backs with one DIN 7997 3 × 20 screw each (the model's default):
+  the long ones at the head, their barbs up behind the head lip, the short ones at the sill, their barbs down behind the sill
+  lip. Each is a 4 mm leg, a 4 mm turn into the window and a 2 mm barb, 10 mm wide. On its one screw, near the turn, a hook can
+  be turned while it is fitted, set straight along the stile and then tightened, and swung aside later without unscrewing it
+  (see [Screws and holes](../../printed-screen-hook.md#screws-and-holes)).
 - **Made for the window, so it still closes.** The model is set to the window's **Frame lip thickness** and **Seal gap** (the
   parts list gives both): each turn reaches into the window just inside the lip's tip, and its barb stands in the middle of the
   seal gap, 0.75 mm clear of the lip's back and of the closed sash on the default window. Nothing is bent on site. The 2 mm barb

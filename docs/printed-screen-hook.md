@@ -32,7 +32,8 @@ has to leave room above the collar to lift it while it is hung, which the window
 The section, extruded **Width** across, is drawn in X (from the leg's face on the stile into the window) and Y (along the
 stile, from the turn's outer face, the face towards the lip's tip):
 
-- the **leg**, **Leg thickness** thick and **Leg length** long from the turn's outer face, with two countersunk holes across it;
+- the **leg**, **Leg thickness** thick and **Leg length** long from the turn's outer face, with one countersunk hole across it
+  (or two, see [Screws and holes](#screws-and-holes));
 - the **turn**, **Turn thickness** thick, from the leg to the barb;
 - the **barb**, **Barb thickness** thick, rising past the turn's outer face;
 - a 45° fillet, up to 3 mm, in the leg's corner with the turn, on the side away from the lip.
@@ -48,10 +49,30 @@ the sill lip's tip, a 7 mm lift (`printedScreenHookShape` in `packages/contracts
 
 ## Screws and holes
 
-Two holes through the leg, countersunk on its inner face: the screws go in from the room side into the stile. They are sized
-from a **DIN 7997 countersunk wood screw** chosen from the parts library, with the same clearance allowances (0.3 / 0.5 / 0.8 mm
-over its diameter, **Hole fit**) and countersink as the [printed corner bracket](printed-corner-bracket.md). The first hole sits
-past the fillet, the second near the leg's end.
+The holes run through the leg, countersunk on its inner face: the screws go in from the room side into the stile. They are
+sized from a **DIN 7997 countersunk wood screw** chosen from the parts library, with the same clearance allowances (0.3 / 0.5 /
+0.8 mm over its diameter, **Hole fit**) and countersink as the [printed corner bracket](printed-corner-bracket.md).
+
+**Screws per hook** is one (the default) or two:
+
+- **One screw** sits just past the fillet, as near the turn as its countersink allows: the turn's thickness, the fillet and
+  half the countersink with its 1.5 mm wall, 11.5 mm from the turn's outer face with the defaults. Two screws lock the hook's
+  angle on the stile; one lets it **turn** on its screw when the screw is eased, in the plane of the stile's back. While
+  fitting, the hook is set straight along the stile by eye and the screw then tightened. On the hung insert a long hook can be
+  swung aside, its barb sliding along the seal gap until it is down clear of the head lip's tip, without unscrewing it: with
+  the defaults that takes 53° either way (the barb's far corner, 25.5 mm out and 5 mm across, comes down to the tip, 19.5 mm out).
+  The editor gives the angle for the settings.
+- **Why there, and not centred or at the leg's end.** The barb pulls the hook away from the stile, at the turn. With the screw
+  near the turn that pull acts close to it, and the leg's tail, past the screw, bears on the stile as a lever against the hook
+  prying off; the screw takes little more than the pull. A screw at the leg's end would have the whole leg between it and the
+  barb, a lever that pries it out, and would swing the barb on a wide circle, far along the lip. Near the turn it swings on the
+  smallest circle, and at the head the turn's and leg's corners stay below the lip's tip as it turns. (Windhager's bought strip has a hole
+  and a slot, so that its height can be set; a single printed hole lets the hook's angle be set instead.)
+- **Two screws**, the first where the one goes and the second near the leg's end, hold the hook square: it cannot turn, and two
+  screws share the pull. Choose them where the hook should never move.
+
+The hook is not meant to turn on its own: the barb's pull runs along the screw, not round it, so a tightened screw holds it by
+friction. Ease the screw to turn it, and tighten it again.
 
 ## Parameters
 
@@ -61,6 +82,7 @@ past the fillet, the second near the leg's end.
 | Seal gap | 3.5 mm | 1–10 mm | The window's seal gap, above |
 | Reach behind the lip | 6 mm | 3–15 mm | How far both barbs reach behind the lip once hung |
 | Width | 10 mm | 8–20 mm | Of the strip |
+| Screws per hook | 1 | 1–2 | One, near the turn, that the hook turns on; or two, that hold it square |
 | Wood screw diameter, Wood screw | 3 mm, DIN 7997 3 × 20 | every DIN 7997 screw in the library | Through the leg into the stile |
 | Leg length (advanced) | 40 mm | 25–80 mm | From the turn's outer face to the leg's end |
 | Leg thickness (advanced) | 4 mm | 2.5–8 mm | Takes the countersunk heads |
@@ -76,7 +98,10 @@ The editor refuses, before anything is rendered:
 - a barb that leaves less than 0.5 mm each side in the seal gap: the sash would not close. It names the thinnest barb that
   prints (1.2 mm), and the bought hooks, whose strip is 0.8 mm. The default 2 mm barb needs a 3 mm gap.
 - a leg too thick to stand clear of the closed sash, or too thick for the turn to reach on to the barb;
-- a leg too short for two screws, and screws that do not seat (as the corner bracket's).
+- a leg too short for its screws, and screws that do not seat (as the corner bracket's). Two screws need their countersinks
+  clear of the fillet, of each other and of the leg's end. One needs the leg to run on past it at least as far as it stands
+  from the turn (23 mm of leg with the defaults), so that the leg's tail levers against the hook prying off at no worse than
+  1 : 1, and the screw takes at most about twice the barb's pull.
 
 Every other combination renders as two closed solids (`npm run test:renderer`, and the geometry sweep).
 
@@ -89,8 +114,8 @@ printed hook would be no reason to leave out the feet or make them smaller.
 ## In the catio
 
 **Screen hooks → Printed screen hooks (model)** is the [window insert](concepts/catio/window-insert.md)'s default when it hangs
-on the window frame: two long hooks at the head of the stiles and two short ones at the sill, with two DIN 7997 3 × 20 screws
-each. The insert page sets the model to its window's lip and seal gap, places the hooks where the model makes them, and its
+on the window frame: two long hooks at the head of the stiles and two short ones at the sill, with one DIN 7997 3 × 20 screw
+each (the model's default, so four in all; set **Screws per hook** to 2 for eight). The insert page sets the model to its window's lip and seal gap, places the hooks where the model makes them, and its
 parts list links each hook's line to this model with the lip and seal gap to enter. Windhager 03651's bought, bent hooks remain
 selectable, and are the choice for a seal gap under 3 mm. This model's editor lists the window insert under “Used by”.
 
@@ -102,5 +127,5 @@ holes run across them.
 ## Assembly preview
 
 The preview stands the long hook at the head of a stile, barb up, and the short one at the sill, barb down, then drives the
-library screws into their legs from the room side (`printedScreenHookAssembly`, `printedScreenHookScrews`). `npm run
+library screws (one or two each) into their legs from the room side (`printedScreenHookAssembly`, `printedScreenHookScrews`). `npm run
 check:assembly -- printed-screen-hook` renders both hooks and the screws and checks that no screw meets a hook.

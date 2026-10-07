@@ -672,15 +672,19 @@ try {
     console.log(`PASS printed corner bracket ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   // Printed screen hook: the defaults (a VEKA Softline 82 MD), the thinnest lip with the least seal gap the 2 mm barb takes, a thin
-  // barb in a narrow gap, the thickest lip with the widest gap and the largest strip for 6 mm screws, and a coarse fit. Both hooks are
-  // one closed solid each: as deep as the barb's back, as long as the leg and the barb's rise, as wide as the strip.
+  // barb in a narrow gap, the thickest lip with the widest gap and the largest strip for 6 mm screws, and a coarse fit, all with the
+  // default one screw; then two screws, by default and on the shortest leg. Both hooks are one closed solid each: as deep as the
+  // barb's back, as long as the leg and the barb's rise, as wide as the strip; two screws' holes take more out than one.
   const hookRuns: { name: string; overrides: ParameterValues }[] = [
     { name: 'default', overrides: {} },
     { name: 'thinnest lip, least gap', overrides: { frameLip: 5, sealGap: 3 } },
     { name: 'thin barb in a narrow gap', overrides: { frameLip: 12, sealGap: 2.5, barbThickness: 1.5, legThickness: 3, turnThickness: 3, engage: 3, legLength: 25 } },
     { name: 'thickest lip, widest gap, largest strip, 6 mm screws', overrides: { frameLip: 35, sealGap: 10, barbThickness: 4, engage: 15, clearance: 3, width: 20, legLength: 80, legThickness: 8, turnThickness: 8, woodScrewDiameter: '6 mm', woodScrew: 'din-7997-6x40' } },
     { name: '4 mm screws, coarse', overrides: { width: 12, woodScrewDiameter: '4 mm', woodScrew: 'din-7997-4x25', holeFit: 'coarse' } },
+    { name: 'two screws', overrides: { screwCount: 2 } },
+    { name: 'two screws, shortest leg', overrides: { screwCount: 2, legLength: 25 } },
   ];
+  const hookVolumes = new Map<string, number>();
   for (const { name, overrides } of only && only !== 'printed-screen-hook' ? [] : hookRuns) {
     const started = Date.now();
     const parameters = { ...printedScreenHook.defaults, ...overrides };
@@ -700,6 +704,11 @@ try {
       const want = [shape.back, Number(parameters['legLength']) + rise, Number(parameters['width'])];
       for (const [index, value] of [part.dimensions.x, part.dimensions.y, part.dimensions.z].entries())
         assert.ok(Math.abs(value - (want[index] ?? NaN)) < 0.01, `printed screen hook ${name} ${part.id}: ${value} != ${want[index]}`);
+      hookVolumes.set(`${name} ${part.id}`, part.volume);
+    }
+    if (name === 'two screws') for (const id of ['long', 'short']) {
+      const one = hookVolumes.get(`default ${id}`); const two = hookVolumes.get(`two screws ${id}`);
+      if (one !== undefined && two !== undefined) assert.ok(two < one - 10, `printed screen hook two screws ${id}: ${two} mm³ is not a hole less than ${one} mm³`);
     }
     console.log(`PASS printed screen hook ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
