@@ -74,6 +74,24 @@ export function assemblyOffset(assembly: Assembly, partId: string, state: Assemb
   return offset;
 }
 
+const ONE: Vector = [1, 1, 1];
+
+/**
+ * The part's scale in this state (`Pose.scale`, `Step.scaleFrom`): the `scaleFrom` of the first step that sets one and has not
+ * finished, blended over that step towards the next such step's `scaleFrom`, or the pose's scale; the pose's scale once all have
+ * played.
+ */
+export function assemblyScale(assembly: Assembly, partId: string, state: AssemblyState): Vector {
+  const target = [...assembly.poses[partId]?.scale ?? ONE] as Vector;
+  const scaled = assembly.steps.flatMap((step, index) => step.scaleFrom && step.parts.includes(partId) ? [{ index, from: step.scaleFrom }] : []);
+  const current = scaled.findIndex(({ index }) => (state.steps[index] ?? 0) < 1);
+  const step = scaled[current];
+  if (!step) return target;
+  const next = scaled[current + 1]?.from ?? target;
+  const f = state.steps[step.index] ?? 0;
+  return [0, 1, 2].map(axis => (step.from[axis] ?? 1) + ((next[axis] ?? 1) - (step.from[axis] ?? 1)) * f) as Vector;
+}
+
 /** The steps of their own that linked references add (`LinkedReference.step`), one per title, in the order the titles first appear;
  * each moves every reference of that title, from the first one's offset. */
 function linkedSteps(linked: LinkedReference[]): Assembly['steps'] {
