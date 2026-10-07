@@ -10,6 +10,7 @@ import { eccAllowsLogo, filamentChangeHeight, QR_TAG_MOUNTS, type QrTagMount, kn
 import { clearanceHoles, PRINTED_WOOD_DIAMETERS, PRINTED_WOOD_SCREWS } from './screwHoles.ts';
 import { PRINTED_CORNER_BRACKET_DEFAULT, PRINTED_CORNER_BRACKET_SCREW, printedCornerBracketBite, printedCornerBracketHoles, printedCornerBracketIssues } from './printedCornerBracket.ts';
 import { PRINTED_BARB_MIN, PRINTED_SCREEN_HOOK_DEFAULT, PRINTED_SCREEN_HOOK_SCREW, printedScreenHookIssues, printedScreenHookShape } from './printedScreenHook.ts';
+import { DETENT_BALLS, DETENT_RETENTIONS, DETENT_SET_SCREWS, DETENT_SPRINGS, DETENT_THREAD_PITCH, DETENT_THREADS, DETENT_TOOL_FEATURES, SPRING_BALL_DETENT_DEFAULT, springBallDetentIssues, springBallDetentLayout, type DetentParts, type DetentRetention, type DetentToolFeature } from './springBallDetent.ts';
 import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, type LatchMovement } from './toggleLatchMechanism.ts';
 
 /** A field-level, user-readable validation failure. Paths are parameter names. */
@@ -2763,7 +2764,135 @@ export const printedScreenHook = {
   },
 } satisfies ModelDefinition;
 
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook];
+/**
+ * Spring ball detent: an original design (models/spring-ball-detent/generator.scad, docs/spring-ball-detent.md), a printed, threaded
+ * spring plunger with a bought steel ball and spring, as Ganter's GN 615: the body, and its press cap unless a set screw closes it.
+ */
+const SBD = SPRING_BALL_DETENT_DEFAULT;
+const RETENTION_TEXT: Record<DetentRetention, { label: string; description: string }> = {
+  'press-cap': { label: 'Press cap', description: 'A printed cap with crush ribs, pushed into the back up to the tool feature’s floor: no tools, and the preload is set by the design.' },
+  'set-screw': { label: 'Set screw', description: 'A bought ISO 4026 set screw in a hole you tap in the back: turn it in or out to set the preload.' },
+};
+const TOOL_FEATURE_TEXT: Record<DetentToolFeature, { label: string; description: string }> = {
+  slot: { label: 'Slot', description: 'A screwdriver slot across the back face, as GN 615.' },
+  hex: { label: 'Hex socket', description: 'A socket for a hex key in the back, as GN 615.3; it must be wider than what goes in through it, so it needs more wall.' },
+};
+export const SpringBallDetentParametersSchema = Type.Object({
+  thread: Type.Enum(DETENT_THREADS, { title: 'Thread', description: 'The body’s metric thread (ISO 261 coarse pitch), printed on the outside: it screws into a tapped hole of that size.', default: SBD.thread }),
+  ball: Type.Enum(DETENT_BALLS, { title: 'Ball', description: 'The steel ball from the parts library. Its bore is its largest diameter plus the clearance.', default: SBD.ball }),
+  spring: Type.Enum(DETENT_SPRINGS, { title: 'Spring', description: 'The compression spring from the parts library: it must fit the ball’s bore, and its inner diameter must be small enough for the ball to sit on it.', default: SBD.spring }),
+  protrusion: dimension('Protrusion', 'How far the ball stands out of the nose, in mm. The nose’s lip must still reach over the ball, so a larger ball can stand out further.', SBD.protrusion, 0.2, 3, 0.05),
+  travel: dimension('Travel', 'How far the ball can be pushed in, in mm: at least the protrusion, so that it goes in flush, and no further than the spring allows before it goes solid.', SBD.travel, 0.2, 6, 0.05),
+  retention: Type.Enum(DETENT_RETENTIONS, { title: 'Retention', description: 'What closes the back once the ball and the spring are in.', default: SBD.retention }),
+  setScrew: Type.Enum(DETENT_SET_SCREWS, { title: 'Set screw', description: 'The flat-point set screw that closes the back and sets the preload. The ball and spring go in through its tap hole.', default: SBD.setScrew }),
+  bodyLength: dimension('Body length', 'From the back face to the nose, in mm, without the ball.', SBD.bodyLength, 8, 40, 0.5),
+  toolFeature: Type.Enum(DETENT_TOOL_FEATURES, { title: 'Tool feature', description: 'What turns the body: a slot or a hex socket in its back.', default: SBD.toolFeature }),
+  clearance: dimension('Clearance', 'Play of the ball in its bore, over its largest diameter, in mm.', SBD.clearance, 0.1, 0.6, 0.05),
+  threadPlay: dimension('Thread play', 'How much smaller than the nominal the printed thread’s major diameter is, in mm, so that it turns in a tapped hole.', SBD.threadPlay, 0, 0.6, 0.05),
+  capInterference: dimension('Cap interference', 'How far the press cap’s crush ribs stand out over the bore, across its diameter, in mm.', SBD.capInterference, 0, 0.5, 0.05),
+}, { additionalProperties: false, description: 'Spring ball detent parameters. All fields are required; dimensions are in millimetres; the ball, spring and set screw are parts-library ids.' });
+export type SpringBallDetentParameters = Static<typeof SpringBallDetentParametersSchema>;
+
+const springBallDetentControls = [
+  enumControl(SpringBallDetentParametersSchema, 'thread', 'basic', DETENT_THREADS.map(value => ({ value, label: value, description: `An ${value} × ${DETENT_THREAD_PITCH[value]} thread.` }))),
+  partControl(SpringBallDetentParametersSchema, 'ball', 'basic', 'ball', DETENT_BALLS),
+  partControl(SpringBallDetentParametersSchema, 'spring', 'basic', 'spring', DETENT_SPRINGS),
+  control(SpringBallDetentParametersSchema, 'protrusion', 'basic'),
+  control(SpringBallDetentParametersSchema, 'travel', 'basic'),
+  enumControl(SpringBallDetentParametersSchema, 'retention', 'basic', DETENT_RETENTIONS.map(value => ({ value, ...RETENTION_TEXT[value] }))),
+  { ...partControl(SpringBallDetentParametersSchema, 'setScrew', 'basic', 'set-screw', DETENT_SET_SCREWS), visibleWhen: { control: 'retention', values: ['set-screw'] } },
+  control(SpringBallDetentParametersSchema, 'bodyLength', 'basic'),
+  enumControl(SpringBallDetentParametersSchema, 'toolFeature', 'basic', DETENT_TOOL_FEATURES.map(value => ({ value, ...TOOL_FEATURE_TEXT[value] }))),
+  control(SpringBallDetentParametersSchema, 'clearance', 'advanced'),
+  control(SpringBallDetentParametersSchema, 'threadPlay', 'advanced'),
+  { ...control(SpringBallDetentParametersSchema, 'capInterference', 'advanced'), visibleWhen: { control: 'retention', values: ['press-cap'] } },
+];
+
+const detentParts = (p: SpringBallDetentParameters): DetentParts => ({ ball: libraryScrew(p.ball), spring: libraryScrew(p.spring), setScrew: libraryScrew(p.setScrew) });
+const SBD_MAPPING = { thread: 'THREAD', protrusion: 'PROTRUSION', travel: 'TRAVEL', retention: 'RETENTION', bodyLength: 'BODY_LENGTH', toolFeature: 'TOOL_FEATURE', clearance: 'CLEARANCE', threadPlay: 'THREAD_PLAY', capInterference: 'CAP_INTERFERENCE' };
+const SBD_DEFINES: PartDefines = {
+  ball: { BALL_D: ['d', 'value'], BALL_MAX: ['d', 'max'], BALL_MIN: ['d', 'min'] },
+  spring: { SPRING_WIRE: ['d', 'value'], SPRING_DE: ['De', 'value'], SPRING_FREE: ['L0', 'value'], SPRING_LEAST: ['Ln', 'value'] },
+  setScrew: { SET_D: ['d', 'value'], SET_PITCH: ['pitch', 'value'], SET_L: ['l', 'value'] },
+};
+
+/**
+ * The detent assembled standing nose up, as it is printed: the ball goes up into the bore from the back, then the press cap or the
+ * set screw. The spring between them is not drawn (its length changes as it is compressed). The exploded layout stacks them below the
+ * body: the ball, then the cap or the set screw.
+ */
+export function springBallDetentAssembly(parameters: ParameterValues): Assembly {
+  const p = { ...springBallDetent.defaults, ...parameters } as SpringBallDetentParameters;
+  const parts = detentParts(p);
+  const layout = springBallDetentLayout(p, parts);
+  const ballMax = dimensionOf(parts.ball, 'd', 'max');
+  const below = 3; const ballTop = layout.centre + ballMax / 2;
+  const closer = p.retention === 'press-cap' ? layout.cap.length : dimensionOf(parts.setScrew, 'l');
+  const closerTop = p.retention === 'press-cap' ? layout.tool.depth + layout.cap.length : layout.seat;
+  const closerDrop = closerTop + below + ballMax + below;
+  return {
+    partColors: { body: '#5f7350', cap: '#d98460' },
+    poses: p.retention === 'press-cap' ? { body: { position: [0, 0, 0] }, cap: { position: [0, 0, layout.tool.depth] } } : { body: { position: [0, 0, 0] } },
+    steps: [
+      { title: 'Drop the ball into the back, then the spring (not drawn)', parts: ['ball'], from: [0, 0, -(ballTop + below)] },
+      p.retention === 'press-cap'
+        ? { title: `Press the cap in, flush with the ${layout.tool.kind === 'slot' ? 'slot' : 'socket'}’s floor`, parts: ['cap'], from: [0, 0, -closerDrop] }
+        : { title: 'Turn the set screw in to set the preload', parts: ['set-screw'], from: [0, 0, -closerDrop] },
+    ],
+    lift: Math.ceil(closerDrop - closerTop + closer + 2),
+  };
+}
+/** The ball on the lip, and the set screw at its nominal preload, point up. */
+function springBallDetentReferences(parameters: ParameterValues): LinkedReference[] {
+  const p = { ...springBallDetent.defaults, ...parameters } as SpringBallDetentParameters;
+  const parts = detentParts(p);
+  const layout = springBallDetentLayout(p, parts);
+  const references: LinkedReference[] = [{ id: 'ball', part: parts.ball.id, label: 'on the lip', pose: { position: [0, 0, layout.centre - dimensionOf(parts.ball, 'd', 'max') / 2] } }];
+  if (p.retention === 'set-screw') references.push({ id: 'set-screw', part: parts.setScrew.id, label: 'closing the back', pose: { position: [0, 0, layout.seat], rotation: [180, 0, 0] } });
+  return references;
+}
+
+export const springBallDetent = {
+  id: 'spring-ball-detent' as const, version: '1' as const, title: 'Spring ball detent',
+  description: 'A printed spring plunger: a threaded body that holds a steel ball part-way out of its nose on a spring, for indexing, positioning and click-in retention, as Ganter’s GN 615. Choose the thread, the ball and the spring from the parts library, how far the ball stands out and how far it gives, and a press cap or a set screw (adjustable preload) to close the back; the body is sized round them, and the settings are checked so that the spring never goes solid.',
+  attribution: 'CanFactory (original design)',
+  printNotes: 'Print the body in PETG standing on its back face, nose up, and the cap standing; no supports. 0.2 mm layers or finer for the thread; 100 % infill.',
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  parts: (['body', 'cap'] as const).map((part): ModelPart => ({
+    id: part, title: part === 'body' ? 'Body' : 'Press cap', sourcePath: 'models/spring-ball-detent/generator.scad', scadConstants: { PART: part },
+    scadMapping: SBD_MAPPING, partDefines: SBD_DEFINES,
+    ...(part === 'cap' ? { includedWhen: (parameters: ParameterValues) => parameters['retention'] === 'press-cap' } : {}),
+  })),
+  get assembly() { return springBallDetentAssembly(this.defaults); },
+  assemblyForParameters: springBallDetentAssembly,
+  linkedReferences: springBallDetentReferences,
+  parameterSchema: SpringBallDetentParametersSchema,
+  controls: springBallDetentControls,
+  defaults: Object.fromEntries(springBallDetentControls.map(c => [c.key, c.default])),
+  scadMapping: {},
+  validate(parameters: unknown): ParameterIssue[] {
+    if (!Value.Check(SpringBallDetentParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
+    return springBallDetentIssues(parameters, detentParts(parameters));
+  },
+  derived(parameters: unknown) {
+    if (!Value.Check(SpringBallDetentParametersSchema, parameters)) return { slotCount: null };
+    const parts = detentParts(parameters);
+    const layout = springBallDetentLayout(parameters, parts);
+    const mm = (value: number) => `${Math.round(value * 10) / 10} mm`;
+    const n = (value: number) => `${Math.round(value * 10) / 10} N`;
+    const { tool } = layout;
+    const feature = tool.kind === 'slot' ? `a ${mm(tool.width ?? 0)} slot, ${mm(tool.depth)} deep` : `a hex socket for a ${tool.key} mm key, ${mm(tool.depth)} deep`;
+    const forces = (installed: number) => `${n(layout.rate * (layout.free - installed))} with the ball out, ${n(layout.rate * (layout.free - installed + parameters.travel))} pushed in`;
+    return { slotCount: null, notes: [
+      `Printed ${parameters.thread} thread, ${mm(layout.thread.major)} over its crests, with ${feature} in the back; the ball sits in a ${mm(layout.bore)} bore.`,
+      parameters.retention === 'press-cap'
+        ? `The spring pushes ${forces(layout.installed)}. Press the ${mm(layout.cap.length)} cap in until it is flush with the ${tool.kind === 'slot' ? 'slot' : 'socket'}’s floor, ${mm(tool.depth)} in.`
+        : `Tap the back ${parameters.setScrew.replace('iso-4026-', '').split('x')[0]?.toUpperCase()} (${mm(layout.screw.tap)} hole, ${mm(layout.screw.tapTop)} deep). With the set screw’s point ${mm(layout.seat)} in from the back, the spring pushes ${forces(layout.installed)}; from ${mm(layout.screw.seatLeast)} to ${mm(layout.screw.seatMost)} in, ${n(layout.rate * layout.preload)} to ${n(layout.rate * (layout.free - layout.shortest))} with the ball out.`,
+    ] };
+  },
+} satisfies ModelDefinition;
+
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

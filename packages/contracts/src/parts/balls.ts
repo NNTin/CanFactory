@@ -16,7 +16,7 @@ export const ballFamily: PartFamily = {
 const G100 = 0.0475;
 
 /** The nominal diameters, in mm: common trade sizes of the standard, those that the spring ball detent's bores can take. */
-const DIAMETERS = [2, 2.5, 3, 3.5, 4, 4.5, 5, 6];
+const DIAMETERS = [2.5, 3, 3.5, 4, 4.5, 5, 6];
 
 export const ballParts: Part[] = DIAMETERS.map((d): Part => {
   const size = String(d).replace('.', '-');

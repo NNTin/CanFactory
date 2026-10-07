@@ -1,5 +1,5 @@
 import { Type, type Static } from 'typebox';
-import { aiRubberDuck, AssemblySchema, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector, pressurePad, printedCornerBracket, printedScreenHook, qrMagnetTag, toggleLatch, windowCatGuard } from './models.ts';
+import { aiRubberDuck, AssemblySchema, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector, pressurePad, printedCornerBracket, printedScreenHook, qrMagnetTag, springBallDetent, toggleLatch, windowCatGuard } from './models.ts';
 import { PartFamilySchema, PartSchema, PartSourceSchema } from './parts/index.ts';
 export * from './models.ts';
 export * from './assembly.ts';
@@ -13,6 +13,7 @@ export * from './qrMagnetTag.ts';
 export * from './screwHoles.ts';
 export * from './printedCornerBracket.ts';
 export * from './printedScreenHook.ts';
+export * from './springBallDetent.ts';
 /** The toggle latch's mechanism, shared by the catalogue card's side view and the assembly preview. */
 export * as toggleLatchMechanism from './toggleLatchMechanism.ts';
 
@@ -114,6 +115,11 @@ export const RenderRequestSchema = Type.Union([
     modelId: Type.Literal(printedScreenHook.id),
     modelVersion: Type.Literal(printedScreenHook.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
     parameters: printedScreenHook.parameterSchema,
+  }, { additionalProperties: false }),
+  Type.Object({
+    modelId: Type.Literal(springBallDetent.id),
+    modelVersion: Type.Literal(springBallDetent.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
+    parameters: springBallDetent.parameterSchema,
   }, { additionalProperties: false }),
 ], { description: 'Complete, uncoerced settings for one model version.' });
 export type RenderRequest = Static<typeof RenderRequestSchema>;

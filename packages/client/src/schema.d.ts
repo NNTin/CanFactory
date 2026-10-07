@@ -2129,6 +2129,95 @@ export interface operations {
                          */
                         holeFit: "fine" | "medium" | "coarse";
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "spring-ball-detent";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Spring ball detent parameters. All fields are required; dimensions are in millimetres; the ball, spring and set screw are parts-library ids. */
+                    parameters: {
+                        /**
+                         * Thread
+                         * @description The body’s metric thread (ISO 261 coarse pitch), printed on the outside: it screws into a tapped hole of that size.
+                         * @default M10
+                         * @enum {unknown}
+                         */
+                        thread: "M6" | "M8" | "M10" | "M12";
+                        /**
+                         * Ball
+                         * @description The steel ball from the parts library. Its bore is its largest diameter plus the clearance.
+                         * @default steel-ball-4-5-g100
+                         * @enum {unknown}
+                         */
+                        ball: "steel-ball-2-g100" | "steel-ball-2-5-g100" | "steel-ball-3-g100" | "steel-ball-3-5-g100" | "steel-ball-4-g100" | "steel-ball-4-5-g100" | "steel-ball-5-g100" | "steel-ball-6-g100";
+                        /**
+                         * Spring
+                         * @description The compression spring from the parts library: it must fit the ball’s bore, and its inner diameter must be small enough for the ball to sit on it.
+                         * @default gutekunst-d-107
+                         * @enum {unknown}
+                         */
+                        spring: "gutekunst-d-024" | "gutekunst-d-027" | "gutekunst-d-039" | "gutekunst-d-054" | "gutekunst-d-077" | "gutekunst-d-082" | "gutekunst-d-088" | "gutekunst-d-102" | "gutekunst-d-107" | "gutekunst-d-134" | "gutekunst-d-139";
+                        /**
+                         * Protrusion
+                         * @description How far the ball stands out of the nose, in mm. The nose’s lip must still reach over the ball, so a larger ball can stand out further.
+                         * @default 0.8
+                         */
+                        protrusion: number;
+                        /**
+                         * Travel
+                         * @description How far the ball can be pushed in, in mm: at least the protrusion, so that it goes in flush, and no further than the spring allows before it goes solid.
+                         * @default 1
+                         */
+                        travel: number;
+                        /**
+                         * Retention
+                         * @description What closes the back once the ball and the spring are in.
+                         * @default press-cap
+                         * @enum {unknown}
+                         */
+                        retention: "press-cap" | "set-screw";
+                        /**
+                         * Set screw
+                         * @description The flat-point set screw that closes the back and sets the preload. The ball and spring go in through its tap hole.
+                         * @default iso-4026-m6x6
+                         * @enum {unknown}
+                         */
+                        setScrew: "iso-4026-m3x3" | "iso-4026-m3x4" | "iso-4026-m3x5" | "iso-4026-m3x6" | "iso-4026-m3x8" | "iso-4026-m3x10" | "iso-4026-m4x4" | "iso-4026-m4x5" | "iso-4026-m4x6" | "iso-4026-m4x8" | "iso-4026-m4x10" | "iso-4026-m4x12" | "iso-4026-m5x5" | "iso-4026-m5x6" | "iso-4026-m5x8" | "iso-4026-m5x10" | "iso-4026-m5x12" | "iso-4026-m6x6" | "iso-4026-m6x8" | "iso-4026-m6x10" | "iso-4026-m6x12" | "iso-4026-m6x16" | "iso-4026-m8x8" | "iso-4026-m8x10" | "iso-4026-m8x12" | "iso-4026-m8x16";
+                        /**
+                         * Body length
+                         * @description From the back face to the nose, in mm, without the ball.
+                         * @default 22
+                         */
+                        bodyLength: number;
+                        /**
+                         * Tool feature
+                         * @description What turns the body: a slot or a hex socket in its back.
+                         * @default slot
+                         * @enum {unknown}
+                         */
+                        toolFeature: "slot" | "hex";
+                        /**
+                         * Clearance
+                         * @description Play of the ball in its bore, over its largest diameter, in mm.
+                         * @default 0.3
+                         */
+                        clearance: number;
+                        /**
+                         * Thread play
+                         * @description How much smaller than the nominal the printed thread’s major diameter is, in mm, so that it turns in a tapped hole.
+                         * @default 0.2
+                         */
+                        threadPlay: number;
+                        /**
+                         * Cap interference
+                         * @description How far the press cap’s crush ribs stand out over the bore, across its diameter, in mm.
+                         * @default 0.2
+                         */
+                        capInterference: number;
+                    };
                 };
             };
         };
