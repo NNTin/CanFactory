@@ -5016,6 +5016,7 @@
                           "turnThickness",
                           "barbThickness",
                           "clearance",
+                          "screwCount",
                           "woodScrewDiameter",
                           "woodScrew",
                           "holeFit"
@@ -5102,6 +5103,14 @@
                             "maximum": 3,
                             "multipleOf": 0.5
                           },
+                          "screwCount": {
+                            "type": "integer",
+                            "title": "Screws per hook",
+                            "description": "One screw, just past the turn: eased, the hook turns on it, to set it square to the lip while fitting, or to swing a long hook’s barb down clear of the head lip without unscrewing it. Two hold it square on the stile and cannot turn.",
+                            "default": 1,
+                            "minimum": 1,
+                            "maximum": 2
+                          },
                           "woodScrewDiameter": {
                             "enum": [
                               "3 mm",
@@ -5158,7 +5167,7 @@
                               "din-7997-6x100"
                             ],
                             "title": "Wood screw",
-                            "description": "The countersunk wood screw the leg’s two holes are sized for. Its length does not change the hook.",
+                            "description": "The countersunk wood screw the leg’s holes are sized for. Its length does not change the hook.",
                             "default": "din-7997-3x20"
                           },
                           "holeFit": {

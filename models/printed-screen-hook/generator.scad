@@ -15,8 +15,12 @@
 // Section, in X and Y, extruded WIDTH along Z: X from the leg's face on the stile (x = 0) into the window; Y along the stile from
 // the turn's outer face (y = 0, towards the lip's tip) away from the leg: the leg runs to y = -LEG_LENGTH, the barb rises to +y.
 // It prints as generated, lying on its side (z = 0) with the section on the bed, so the layers run along the barb and the turn
-// and no supports are needed. The leg's two holes run across it (along X), countersunk on its inner face (x = LEG_THICKNESS):
-// the screws go in from the room side into the stile. A fillet (gusset) stiffens the leg's corner with the turn.
+// and no supports are needed. The leg's holes run across it (along X), countersunk on its inner face (x = LEG_THICKNESS): the
+// screws go in from the room side into the stile. A fillet (gusset) stiffens the leg's corner with the turn.
+//
+// One screw (SCREW_COUNT = 1, the default) or two. One sits just past the fillet, as near the turn as its countersink allows:
+// the barb's pull acts close to it and the leg's tail bears on the stile against prying, and, eased, the hook turns on it, to be
+// set square while fitting or swung aside, its barb down clear of the lip. Two (the second near the leg's end) hold it square.
 
 // Which hook: the long one (head) or the short one (sill)
 PART = "long"; //[long,short]
@@ -33,6 +37,8 @@ LEG_LENGTH = 40;     //[25:1:80]
 LEG_THICKNESS = 4;   //[2.5:0.5:8]
 TURN_THICKNESS = 4;  //[2.5:0.5:8]
 BARB_THICKNESS = 2;  //[1.2:0.1:4]
+// Screws through the leg: one (the hook turns on it) or two (held square)
+SCREW_COUNT = 1;     //[1:1:2]
 
 // The wood screw (DIN 7997, from the parts library; see packages/contracts/src/models.ts, printedScreenHook): its clearance holes
 // (fine, medium, coarse: d + 0.3 / 0.5 / 0.8 mm), diameter and head.
@@ -61,13 +67,16 @@ SHORT_RISE = ENGAGE + CLEARANCE;
 RISE   = PART == "long" ? ENGAGE + SHORT_RISE + CLEARANCE : SHORT_RISE;
 GUSSET = max(0, min(GUSSET_MAX, FRONT - LEG_THICKNESS - 0.5));
 SINK   = SINK_D / 2 + SINK_WALL;
-HOLES  = [-(TURN_THICKNESS + GUSSET + SINK), -(LEG_LENGTH - SINK)];
+FIRST  = -(TURN_THICKNESS + GUSSET + SINK);
+HOLES  = SCREW_COUNT == 1 ? [FIRST] : [FIRST, -(LEG_LENGTH - SINK)];
 
 assert(BARB_THICKNESS + 2 * GAP <= SEAL_GAP + 1e-6, "the barb must leave GAP each side in the seal gap");
 assert(FRONT - LEG_THICKNESS >= 1 - 1e-6, "the turn must reach on from the leg to the barb");
 assert(LEG_THICKNESS >= WOOD_K + 1 - 1e-6, "LEG_THICKNESS must leave 1 mm of hole under the screw's countersunk head");
 assert(WIDTH >= SINK_D + 2 * SINK_WALL - 1e-6, "WIDTH must leave SINK_WALL round the countersinks");
-assert(HOLES[0] - HOLES[1] >= 2 * SINK - 1e-6, "the leg must be long enough for two screws");
+assert(SCREW_COUNT == 1 || SCREW_COUNT == 2, "SCREW_COUNT must be 1 or 2");
+assert(SCREW_COUNT != 1 || LEG_LENGTH >= -2 * FIRST - 1e-6, "with one screw the leg must run on past it as far as it stands from the turn");
+assert(SCREW_COUNT != 2 || HOLES[0] - HOLES[1] >= 2 * SINK - 1e-6, "the leg must be long enough for two screws");
 
 module section() {
     polygon([

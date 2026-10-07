@@ -2681,8 +2681,9 @@ export const PrintedScreenHookParametersSchema = Type.Object({
   turnThickness: dimension('Turn thickness', 'Of the turn into the window, in mm.', PSH.turnThickness, 2.5, 8, 0.5),
   barbThickness: dimension('Barb thickness', 'Of the barb in the seal gap, in mm: at most the gap less 0.5 mm each side.', PSH.barbThickness, PRINTED_BARB_MIN, 4, 0.1),
   clearance: dimension('Clearance', 'How far the short hooks’ turns stand off the sill lip’s tip once the frame stands on its feet, in mm, and the long ones’ off the head lip while it is lifted.', PSH.clearance, 0.5, 3, 0.5),
+  screwCount: Type.Integer({ title: 'Screws per hook', description: 'One screw, just past the turn: eased, the hook turns on it, to set it square to the lip while fitting, or to swing a long hook’s barb down clear of the head lip without unscrewing it. Two hold it square on the stile and cannot turn.', default: PSH.screwCount, minimum: 1, maximum: 2 }),
   woodScrewDiameter: Type.Enum(PRINTED_WOOD_DIAMETERS, { title: 'Wood screw diameter', description: 'The wood screws’ diameter; the screws below are those of this diameter.', default: PRINTED_SCREEN_HOOK_SCREW.diameter }),
-  woodScrew: Type.Enum(PRINTED_WOOD_SCREWS, { title: 'Wood screw', description: 'The countersunk wood screw the leg’s two holes are sized for. Its length does not change the hook.', default: PRINTED_SCREEN_HOOK_SCREW.screw }),
+  woodScrew: Type.Enum(PRINTED_WOOD_SCREWS, { title: 'Wood screw', description: 'The countersunk wood screw the leg’s holes are sized for. Its length does not change the hook.', default: PRINTED_SCREEN_HOOK_SCREW.screw }),
   holeFit: Type.Enum(HOLE_FIT_VALUES, { title: 'Hole fit', description: 'How much play the screws have in their holes: 0.3 / 0.5 / 0.8 mm over the screw’s diameter, DIN EN 20273’s allowances for M4 and M5.', default: 'medium' }),
 }, { additionalProperties: false, description: 'Printed screen hook parameters. All fields are required; dimensions are in millimetres; the screw is a parts-library id.' });
 export type PrintedScreenHookParameters = Static<typeof PrintedScreenHookParametersSchema>;
@@ -2692,6 +2693,7 @@ const printedScreenHookControls = [
   control(PrintedScreenHookParametersSchema, 'sealGap', 'basic'),
   control(PrintedScreenHookParametersSchema, 'engage', 'basic'),
   control(PrintedScreenHookParametersSchema, 'width', 'basic'),
+  control(PrintedScreenHookParametersSchema, 'screwCount', 'basic', null, null),
   ...printedScrewControls(PrintedScreenHookParametersSchema),
   control(PrintedScreenHookParametersSchema, 'legLength', 'advanced'),
   control(PrintedScreenHookParametersSchema, 'legThickness', 'advanced'),
@@ -2721,7 +2723,7 @@ export function printedScreenHookAssembly(parameters: ParameterValues): Assembly
     lift: 10,
   };
 }
-/** Two screws through each hook's leg, from the room side (+X) into the stile. */
+/** The screws through each hook's leg (one or two), from the room side (+X) into the stile. */
 function printedScreenHookScrews(parameters: ParameterValues): LinkedReference[] {
   const p = { ...printedScreenHook.defaults, ...parameters } as PrintedScreenHookParameters;
   const screw = libraryScrew(p.woodScrew); const l = dimensionOf(screw, 'l');
@@ -2740,7 +2742,7 @@ export const printedScreenHook = {
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   parts: (['long', 'short'] as const).map((part): ModelPart => ({
     id: part, title: part === 'long' ? 'Long hook (head)' : 'Short hook (sill)', sourcePath: 'models/printed-screen-hook/generator.scad', scadConstants: { PART: part },
-    scadMapping: { frameLip: 'FRAME_LIP', sealGap: 'SEAL_GAP', engage: 'ENGAGE', clearance: 'CLEARANCE', width: 'WIDTH', legLength: 'LEG_LENGTH', legThickness: 'LEG_THICKNESS', turnThickness: 'TURN_THICKNESS', barbThickness: 'BARB_THICKNESS', holeFit: 'HOLE_FIT', woodScrew: 'WOOD_HOLES' },
+    scadMapping: { frameLip: 'FRAME_LIP', sealGap: 'SEAL_GAP', engage: 'ENGAGE', clearance: 'CLEARANCE', width: 'WIDTH', legLength: 'LEG_LENGTH', legThickness: 'LEG_THICKNESS', turnThickness: 'TURN_THICKNESS', barbThickness: 'BARB_THICKNESS', screwCount: 'SCREW_COUNT', holeFit: 'HOLE_FIT', woodScrew: 'WOOD_HOLES' },
     partDefines: PRINTED_SCREW_DEFINES,
   })),
   get assembly() { return printedScreenHookAssembly(this.defaults); },
@@ -2762,6 +2764,9 @@ export const printedScreenHook = {
     return { slotCount: null, notes: [
       `Barbs ${mm(shape.rise.long)} (long) and ${mm(shape.rise.short)} (short) past the turn, ${mm(shape.front)} from the leg’s face: ${mm((parameters.sealGap - parameters.barbThickness) / 2)} clear of the lip’s back and of the sash.`,
       `Screw the long hooks with their turns ${mm(shape.headClear)} below the head lip’s tip, the short ones ${mm(parameters.clearance)} above the sill lip’s tip; lift the frame ${mm(shape.lift)} to hang it.`,
+      shape.swing === null
+        ? 'Two screws in each leg: the hooks are held square and cannot turn.'
+        : `One screw in each leg, ${mm(-(shape.holes[0] ?? 0))} from the turn: eased, a hook turns on it; a long hook’s barb is clear below the head lip once it is swung ${Math.ceil(shape.swing)}° either way.`,
     ] };
   },
 } satisfies ModelDefinition;

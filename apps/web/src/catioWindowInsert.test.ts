@@ -235,7 +235,7 @@ describe('window insert', () => {
         expect(count('din-7965-m8x18')).toBe(4 * config.clampsPerSide);
         expect(count('iso-4032-m8')).toBe(3 * config.clampsPerSide);
       } else if (config.attachment === 'frame-hooks') {
-        // feet under the sill rail only, and two long and two short hooks with two screws each
+        // feet under the sill rail only, and two long and two short hooks: printed, one screw each (the model's default); bought, two
         expect(count('din-7965-m8x18')).toBe(config.clampsPerSide);
         if (l.pad) expect(printed.map(line => [line.id, line.quantity])).toEqual([['foot-pads', config.clampsPerSide]]);
         else expect(count(l.bearingFoot.id)).toBe(config.clampsPerSide);
@@ -244,7 +244,8 @@ describe('window insert', () => {
           // printed for this window: two long and two short, linked to the model, with their screws from the library
           expect(hooks.map(line => [line.name, line.quantity])).toEqual([['Printed screen hook, long (head)', 2], ['Printed screen hook, short (sill)', 2]]);
           expect(hooks[0]?.size).toContain(`For a ${config.frameLip} mm frame lip and a ${config.sealGap} mm seal gap`);
-          expect(count('din-7997-3x20')).toBe(8);
+          expect(count('din-7997-3x20')).toBe(4);
+          expect(hooks[0]?.size).toContain('1 hole for DIN 7997 3 × 20');
           expect(lines.some(line => line.partId?.startsWith('windhager'))).toBe(false);
         } else {
           expect(hooks).toEqual([]);
@@ -385,8 +386,8 @@ describe('window insert hung on the window frame', () => {
     // lifted to hang it, the short hooks clear the sill lip while the long ones stay below the head lip's tip
     expect(fit.lift).toBeCloseTo(fit.engage.sill + HOOK_FIT.clearance, 6);
     expect(fit.headClear).toBeGreaterThan(fit.lift);
-    // two screws in each hook, from the room side into the stile
-    expect(l.fasteners.filter(f => f.component === 'hook-screws').map(f => f.direction)).toEqual(Array(8).fill([0, 1, 0]));
+    // one screw in each printed hook (the model's default), two in each bought one, from the room side into the stile
+    expect(l.fasteners.filter(f => f.component === 'hook-screws').map(f => f.direction)).toEqual(Array(config.screenHook === 'printed' ? 4 : 8).fill([0, 1, 0]));
     expect(validateWindowInsert('direct', config)).toEqual([]);
     }
   });
@@ -428,6 +429,8 @@ describe('window insert hung on the window frame', () => {
     expect(steps[2]?.detail).toContain('printed for this window’s 15.5 mm lip and 3.5 mm seal gap');
     expect(steps[2]?.detail).toContain(`turns ${l.hookFit?.fromTop} mm below the collar’s top`);
     expect(windowInsertSteps('modular', bought)[2]?.detail).toMatch(/at 16 mm .* two 3 × 16 screws/);
+    // the printed hooks take one screw each, and turn on it until it is tightened
+    expect(steps[2]?.detail).toMatch(/with one 3 × 20 screw from the room side.*Each turns on its one screw/);
     expect(steps[4]?.detail).toContain(`lift it ${l.hookFit?.lift} mm`);
     const scene = createWindowInsertScene('modular', hung);
     scene.update({ ...installed, progress: 3.5 });

@@ -2114,6 +2114,12 @@ export interface operations {
                          */
                         clearance: number;
                         /**
+                         * Screws per hook
+                         * @description One screw, just past the turn: eased, the hook turns on it, to set it square to the lip while fitting, or to swing a long hook’s barb down clear of the head lip without unscrewing it. Two hold it square on the stile and cannot turn.
+                         * @default 1
+                         */
+                        screwCount: number;
+                        /**
                          * Wood screw diameter
                          * @description The wood screws’ diameter; the screws below are those of this diameter.
                          * @default 3 mm
@@ -2122,7 +2128,7 @@ export interface operations {
                         woodScrewDiameter: "3 mm" | "3.5 mm" | "4 mm" | "4.5 mm" | "5 mm" | "6 mm";
                         /**
                          * Wood screw
-                         * @description The countersunk wood screw the leg’s two holes are sized for. Its length does not change the hook.
+                         * @description The countersunk wood screw the leg’s holes are sized for. Its length does not change the hook.
                          * @default din-7997-3x20
                          * @enum {unknown}
                          */
