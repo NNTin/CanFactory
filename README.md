@@ -27,6 +27,12 @@ The [magnetic QR code tag](docs/qr-magnet-tag.md) sticks to a fridge or whiteboa
 with magnets in its back (glued in, or embedded at a print pause), and a centre with a QR code of your text and an optional SVG logo,
 printed in two colours with one filament change. The centre clicks, twists or snaps into the border.
 
+The [printed corner bracket](docs/printed-corner-bracket.md) and the [printed screen hook](docs/printed-screen-hook.md)
+are the window catio insert's printed hardware, and its defaults: a flat L-shaped plate across each collar corner, sized from
+the collar's members, and insect-screen hooks generated for your window's frame lip and seal gap, so nothing is bent on site.
+Both size their countersunk holes for a DIN 7997 wood screw from the parts library; the bought steel brackets and hooks they
+replace stay selectable on the window insert page.
+
 ## Run with Docker
 
 Requires Docker Engine/Desktop and Docker Compose.

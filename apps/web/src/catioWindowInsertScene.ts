@@ -30,7 +30,7 @@ export interface PieceMotion {
 export function buildInsertContext(p: ReturnType<typeof createCatioParts>, layout: WindowInsertLayout) {
   const insert = p.component('window-insert', 0, undefined);
   for (const t of layout.timber) for (const b of t.boxes) p.box(insert, b.size, b.center, t.component === 'threshold' || t.component === 'cover-battens' ? p.materials.endgrain : p.materials.timber);
-  for (const b of layout.brackets) for (const plate of b.boxes) p.box(insert, plate.size, plate.center, p.materials.hardware);
+  for (const b of layout.brackets) for (const plate of b.boxes) p.box(insert, plate.size, plate.center, b.spec.part ? p.materials.hardware : p.materials.printed);
   buildHungHardware(p, layout, insert, insert);
   for (const q of layout.panels) p.panel(`insert-${q.id}`, 0, q.width, q.height, q.center, q.plane, [0, 0, 0]);
   return insert;
@@ -42,7 +42,7 @@ export function buildInsertContext(p: ReturnType<typeof createCatioParts>, layou
  */
 export function buildHungHardware(p: ReturnType<typeof createCatioParts>, layout: WindowInsertLayout, hooks: THREE.Group, feet: THREE.Group) {
   if (!layout.hooks.length) return;
-  for (const h of layout.hooks) for (const b of h.boxes) p.box(hooks, b.size, b.center, p.materials.hardware);
+  for (const h of layout.hooks) for (const b of h.boxes) p.box(hooks, b.size, b.center, h.part ? p.materials.hardware : p.materials.printed);
   const radius = (layout.pad?.diameter ?? dimensionOf(layout.bearingFoot, 'd1')) / 2;
   for (const c of layout.clamps) if (c.kind === 'bearing') {
     p.rod(feet, [c.at[0], c.at[1], c.at[2]], [c.at[0], c.at[1], c.at[2] - layout.gap + INSERT.travel], 4);
@@ -258,24 +258,26 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
     movers.push({ slide, kind: clamp.kind, turns: true });
   });
 
-  // Stage 1, with flat corner brackets: each laid into its recess on the room-side face, then screwed (above).
+  // Stage 1, with flat corner brackets (printed or bought): each laid into its recess on the room-side face, then screwed (above).
   if (layout.brackets.length) {
     const brackets = group('corner-brackets', 1, 'hardware');
     const [first] = layout.brackets;
-    const caption = `${layout.brackets.length} × ${first?.part.title ?? 'Flat corner bracket'}: laid into its recess across the corner on the room-side face`;
+    const caption = `${layout.brackets.length} × ${first?.spec.title ?? 'Flat corner bracket'}: laid into its recess across the corner on the room-side face`;
     for (const b of layout.brackets) {
-      const g = piece(brackets); for (const plate of b.boxes) box(g, plate.size, plate.center, m.hardware);
+      const g = piece(brackets); for (const plate of b.boxes) box(g, plate.size, plate.center, b.spec.part ? m.hardware : m.printed);
       move(g, 1, [0.75, 0.88], [0, -120, 0], caption);
     }
   }
 
-  // Stage 2, hung on the window frame: the hooks, bent, laid on the stiles' backs from the room side, then screwed (above).
+  // Stage 2, hung on the window frame: the hooks, printed for the window or bent to it, laid on the stiles' backs from the room
+  // side, then screwed (above).
   if (hung) {
     const hooks = group('screen-hooks', 2, 'hardware');
-    const kinds = new Map<string, number>(); for (const h of layout.hooks) kinds.set(h.part.title, (kinds.get(h.part.title) ?? 0) + 1);
-    const caption = `${[...kinds].map(([title, n]) => `${n} × ${title}`).join(', ')}: bent at ${layout.hookFit?.bend ?? 0} mm, laid on the back of the stiles`;
+    const kinds = new Map<string, number>(); for (const h of layout.hooks) kinds.set(h.title, (kinds.get(h.title) ?? 0) + 1);
+    const bend = layout.hookFit?.bend ?? null;
+    const caption = `${[...kinds].map(([title, n]) => `${n} × ${title}`).join(', ')}: ${bend === null ? 'printed for this window' : `bent at ${bend} mm`}, laid on the back of the stiles`;
     for (const h of layout.hooks) {
-      const g = piece(hooks); for (const b of h.boxes) box(g, b.size, b.center, m.hardware);
+      const g = piece(hooks); for (const b of h.boxes) box(g, b.size, b.center, h.part ? m.hardware : m.printed);
       move(g, 2, [0.65, 0.85], [0, -120, 0], caption);
     }
   }

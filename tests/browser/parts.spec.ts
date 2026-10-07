@@ -70,14 +70,14 @@ test('browses the parts library: families, filters in the link, a hovered part n
     await page.goto(`/#/parts/${family}`);
     expect(await shownParts(page)).toContain(first);
   }
-  // A part the window insert uses by default (the flat corner bracket at each collar corner) links back to that concept page, and
-  // the link opens it.
+  // A part the window insert can use (the bought flat corner bracket, the alternative to its printed one) links back to that
+  // concept page, and the link opens it, with its default printed bracket.
   await page.goto('/#/parts/corner-bracket/gah-alberts-stuhlwinkel-100x100x19');
   const used = page.getByRole('article', { name: 'Flat corner bracket 100 × 100 × 19 details' }).getByRole('link', { name: 'Window catio: window insert' });
   await expect(used).toHaveAttribute('href', '#/concepts/catio/window-insert');
   await used.click();
   await expect(page).toHaveURL(/#\/concepts\/catio\/window-insert$/);
-  await expect(page.getByRole('table', { name: 'Hardware parts' }).getByRole('link', { name: 'Flat corner bracket 100 × 100 × 19' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Hardware parts' }).getByRole('link', { name: 'Printed corner bracket' })).toHaveAttribute('href', '#/models/printed-corner-bracket');
   expect(errors).toEqual([]);
 });
 

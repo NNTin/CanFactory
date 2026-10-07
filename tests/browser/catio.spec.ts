@@ -163,19 +163,32 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await expect(viewer).toHaveAttribute('data-ready', 'true');
   await expect(viewer).toHaveAttribute('data-variant', 'direct');
   const hardware = page.getByRole('table', { name: 'Hardware parts' });
-  // hung on the window frame by default: bought screen hooks behind the frame's lip, printed feet under the sill rail
+  // hung on the window frame by default: printed screen hooks, made for the window, behind the frame's lip, printed feet under the
+  // sill rail; Windhager's bought hooks stay selectable
   await expect(viewer).toHaveAttribute('data-visible-parts', /screen-hooks/);
   await expect(viewer).not.toHaveAttribute('data-visible-parts', /spreader-clamps/);
+  await expect(page.getByRole('combobox', { name: 'Screen hooks' })).toHaveValue('printed');
+  await expect(hardware.getByRole('link', { name: 'Printed screen hook, long (head)' })).toHaveAttribute('href', '#/models/printed-screen-hook');
+  await expect(hardware.getByRole('link', { name: 'Printed screen hook, short (sill)' })).toHaveAttribute('href', '#/models/printed-screen-hook');
+  await expect(hardware.getByText(/For a 15.5 mm frame lip and a 3.5 mm seal gap/).first()).toBeVisible();
+  await expect(page.getByText('Hooks · printed for')).toBeVisible();
+  await page.getByRole('combobox', { name: 'Screen hooks' }).selectOption('windhager-03651');
   await expect(hardware.getByRole('link', { name: 'Insect screen hook, short (Windhager 03651, 5b)' })).toHaveAttribute('href', '#/parts/screen-hook/windhager-03651-5b');
+  await expect(hardware.getByRole('link', { name: 'Printed screen hook, long (head)' })).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'Screen hooks' }).selectOption('printed');
   await expect(hardware.getByRole('link', { name: 'Pressure pad, foot' })).toBeVisible();
   await expect(hardware.getByRole('link', { name: 'Pressure pad, thrust pad' })).toHaveCount(0);
-  // flat corner brackets across the collar's butt joints by default, from the parts library
+  // printed flat corner brackets across the collar's butt joints by default, linked to their model; GAH Alberts' bought ones stay
+  // selectable from the parts library
   await expect(viewer).toHaveAttribute('data-visible-parts', /corner-brackets/);
-  await expect(page.getByRole('combobox', { name: 'Corner bracket' })).toHaveValue('gah-alberts-stuhlwinkel-100x100x19');
+  await expect(page.getByRole('combobox', { name: 'Corner bracket' })).toHaveValue('printed');
+  await expect(hardware.getByRole('link', { name: 'Printed corner bracket' })).toHaveAttribute('href', '#/models/printed-corner-bracket');
+  await page.getByRole('combobox', { name: 'Corner bracket' }).selectOption('gah-alberts-stuhlwinkel-100x100x19');
   await expect(hardware.getByRole('link', { name: 'Flat corner bracket 100 × 100 × 19' })).toHaveAttribute('href', '#/parts/corner-bracket/gah-alberts-stuhlwinkel-100x100x19');
+  await expect(hardware.getByRole('link', { name: 'Printed corner bracket' })).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Corner bracket' }).selectOption('gah-alberts-stuhlwinkel-150x150x25');
   await expect(page.getByText(/would lie over the screen hooks/)).toBeVisible();
-  await page.getByRole('combobox', { name: 'Corner bracket' }).selectOption('gah-alberts-stuhlwinkel-100x100x19');
+  await page.getByRole('combobox', { name: 'Corner bracket' }).selectOption('printed');
   // pressed into the recess instead: printed pads on library screws; the Ganter feet stay selectable
   await page.getByRole('combobox', { name: 'Held in the recess by' }).selectOption('spreader-feet');
   await expect(viewer).toHaveAttribute('data-visible-parts', /spreader-clamps/);
@@ -199,15 +212,22 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await page.getByRole('combobox', { name: 'Collar corners' }).selectOption('butt-screwed');
   await expect(viewer).toHaveAttribute('data-config', /"cornerJoint":"butt-screwed"/);
   await expect(hardware.getByRole('link', { name: 'Countersunk wood screw 5 × 70' })).toBeVisible();
-  // hung on the window frame like an insect screen: bought hooks behind the frame's lip, the feet only under the sill rail
+  // hung on the window frame like an insect screen: printed hooks behind the frame's lip, the feet only under the sill rail
   await page.getByRole('combobox', { name: 'Held in the recess by' }).selectOption('frame-hooks');
   await expect(viewer).toHaveAttribute('data-visible-parts', /screen-hooks/);
   await expect(page.getByRole('combobox', { name: 'Overlap on the frame' })).toBeVisible();
+  await expect(page.getByText('Hooks · printed for')).toBeVisible();
+  // a seal gap too narrow for the printed barb: the page says to choose the bought hooks, whose strip takes it
+  await page.getByRole('spinbutton', { name: 'Seal gap' }).fill('2.5');
+  await expect(page.getByText(/too narrow for the printed hooks’ 2 mm barb/)).toBeVisible();
+  await page.getByRole('combobox', { name: 'Screen hooks' }).selectOption('windhager-03651');
   await expect(page.getByText('Hooks · bent at')).toBeVisible();
   await expect(hardware.getByRole('link', { name: 'Insect screen hook, long (Windhager 03651, 5a)' })).toBeVisible();
+  await expect(page.getByText(/too narrow for the printed hooks/)).toHaveCount(0);
   await page.getByRole('spinbutton', { name: 'Seal gap' }).fill('1');
   await expect(page.getByText(/too narrow for the hooks’ 0.8 mm strip/)).toBeVisible();
   await page.getByRole('spinbutton', { name: 'Seal gap' }).fill('3.5');
+  await page.getByRole('combobox', { name: 'Screen hooks' }).selectOption('printed');
   await page.getByRole('combobox', { name: 'Held in the recess by' }).selectOption('folding-wedges');
   await expect(viewer).toHaveAttribute('data-visible-parts', /folding-wedges/);
   await expect(page.getByRole('combobox', { name: 'Foot diameter' })).toBeVisible();

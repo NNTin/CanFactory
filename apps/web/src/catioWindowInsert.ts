@@ -1,4 +1,4 @@
-import { cornerBracketHoles, cornerBracketScrew, dimensionOf, findPart, PRESSURE_PAD_SURFACES, WINDOW_INSERT_BRACKETS, type WindowInsertBracket, pressurePadMinDiameter, pressurePadMinHeight, WINDOW_INSERT_FOOT, WINDOW_INSERT_HARDWARE as HW, WINDOW_INSERT_PAD, windowInsertFeet, windowInsertPadScrews, type Part, type PressurePadSurface } from '@canfactory/contracts';
+import { cornerBracketHoles, cornerBracketScrew, dimensionOf, findPart, PRESSURE_PAD_SURFACES, PRINTED_CORNER_BRACKET_SCREW, printedCornerBracket, printedCornerBracketFor, printedCornerBracketHoles, printedScreenHook, printedScreenHookShape, SCREEN_HOOK_FIT, validateParameters, WINDOW_INSERT_BRACKETS, type WindowInsertBracket, pressurePadMinDiameter, pressurePadMinHeight, WINDOW_INSERT_FOOT, WINDOW_INSERT_HARDWARE as HW, WINDOW_INSERT_PAD, windowInsertFeet, windowInsertPadScrews, type Part, type PressurePadSurface } from '@canfactory/contracts';
 import { CATIO, CATIO_DERIVED, type CatioView } from './catioDesign.ts';
 import { validateWindowProfile, WINDOW_PROFILE_DEFAULT, WINDOW_PROFILE_RANGES, windowFrame, type WindowProfile } from './catioWindow.ts';
 import { loadCatioSettings, type CatioMode } from './catioSettings.ts';
@@ -12,8 +12,8 @@ import { fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblySt
 export interface WindowInsertConfig {
   /** How the collar's four members meet at its corners: butt joints held by a flat corner bracket, half-laps, or butt joints alone. */
   cornerJoint: 'corner-bracket' | 'half-lap' | 'butt-screwed';
-  /** The flat corner bracket across each corner (a library part), with a corner-bracket joint. */
-  cornerBracket: WindowInsertBracket;
+  /** The flat corner bracket across each corner, with a corner-bracket joint: printed (the `printed-corner-bracket` model) or bought (a library part). */
+  cornerBracket: 'printed' | WindowInsertBracket;
   /** How the cat port's transom and jambs meet the collar (with tunnel only). */
   junctionJoint: 'housed' | 'butt-screwed';
   /** How the wire mesh is held on the timber. */
@@ -22,6 +22,8 @@ export interface WindowInsertConfig {
   fixingPitch: 100 | 150 | 200;
   /** How the insert is held: pressed into the recess, or hung on the window frame's outer lip (and standing on its feet). */
   attachment: 'spreader-feet' | 'folding-wedges' | 'frame-hooks';
+  /** Hung on the window frame: the screen hooks, printed for this window (the `printed-screen-hook` model) or Windhager 03651's, bought and bent to it. */
+  screenHook: 'printed' | 'windhager-03651';
   /** Hung on the window frame: how far the collar overlaps the frame's face beyond the lip's tips, at the head and sides. */
   frameOverlap: 10 | 15 | 20 | 25;
   /** Clamps (or wedge pairs) along each side of the collar. */
@@ -39,8 +41,8 @@ export interface WindowInsertConfig {
 }
 
 export const WINDOW_INSERT_DEFAULT: WindowInsertConfig = {
-  cornerJoint: 'corner-bracket', cornerBracket: 'gah-alberts-stuhlwinkel-100x100x19', junctionJoint: 'housed', meshFixing: 'staples-and-battens', fixingPitch: 150,
-  attachment: 'frame-hooks', frameOverlap: 15, clampsPerSide: 2, clampPad: 'printed', padHeight: 24.5, padSurface: 'grooved', footDiameter: 32,
+  cornerJoint: 'corner-bracket', cornerBracket: 'printed', junctionJoint: 'housed', meshFixing: 'staples-and-battens', fixingPitch: 150,
+  attachment: 'frame-hooks', screenHook: 'printed', frameOverlap: 15, clampsPerSide: 2, clampPad: 'printed', padHeight: 24.5, padSurface: 'grooved', footDiameter: 32,
   ...WINDOW_PROFILE_DEFAULT,
 };
 
@@ -73,12 +75,13 @@ export const INSERT = {
 } as const;
 
 /**
- * Hung on the window frame: how the screen hooks sit. Once the feet stand, the short hooks' turned strips clear the sill lip's tip by
- * `clearance`, so the feet carry the insert and the hooks only keep it on the frame. Each barb lies in the seal gap, `gap` clear of
- * the lip's back and of the closed sash, and reaches at least `engage` behind the lip. To hang it, the insert is lifted by the short
- * hooks' reach behind the lip and `clearance` more; the long hooks' strips stay `clearance` below the head lip's tip meanwhile.
+ * Hung on the window frame: how the screen hooks sit, bought or printed (`SCREEN_HOOK_FIT`). Once the feet stand, the short hooks'
+ * turns clear the sill lip's tip by `clearance`, so the feet carry the insert and the hooks only keep it on the frame. Each barb lies
+ * in the seal gap, `gap` clear of the lip's back and of the closed sash, and reaches at least `engage` behind the lip. To hang it, the
+ * insert is lifted by the short hooks' reach behind the lip and `clearance` more; the long hooks' turns stay `clearance` below the
+ * head lip's tip meanwhile.
  */
-export const HOOK_FIT = { clearance: 1, gap: 0.5, engage: 3 } as const;
+export const HOOK_FIT = SCREEN_HOOK_FIT;
 
 /** The existing window the insert fits, as the whole-catio concept assumes it. */
 export interface WindowSpec {
@@ -121,6 +124,69 @@ function part(id: string): Part {
 }
 const dim = (p: Part, key: string) => dimensionOf(p, key);
 
+/**
+ * A corner bracket, printed or bought, as the collar takes it: its legs (`a` along the rail, `b` along the stile), width `c` and
+ * thickness `t`, its holes (`along` a leg from the outer corner, `across` it from the outer edge) and the screw through each.
+ * `part` is the library part of a bought one; a printed one is the `printed-corner-bracket` model at `size`, its defaults.
+ */
+export interface BracketSpec {
+  part: Part | null; title: string; a: number; b: number; c: number; t: number;
+  holes: { leg: 'a' | 'b'; along: number; across: number }[]; screw: Part;
+}
+export function windowInsertBracket(choice: WindowInsertConfig['cornerBracket']): BracketSpec {
+  if (choice === 'printed') {
+    // sized for the collar's member, as the model's defaults are
+    const size = printedCornerBracketFor(INSERT.member);
+    return { part: null, title: printedCornerBracket.title, a: size.legA, b: size.legB, c: size.width, t: size.thickness, holes: printedCornerBracketHoles(size), screw: part(PRINTED_CORNER_BRACKET_SCREW.screw) };
+  }
+  const bracket = part(choice);
+  return { part: bracket, title: bracket.title, a: dim(bracket, 'a'), b: dim(bracket, 'b'), c: dim(bracket, 'c'), t: dim(bracket, 't'), holes: cornerBracketHoles(bracket), screw: cornerBracketScrew(bracket) };
+}
+
+/**
+ * The screen hooks, printed or bought, as they hang the insert: from the stile's back (`u`), the leg's, turn's and barb's
+ * thicknesses, the barb's lip-side face `front`; along the stile, the leg's `length` and each barb's `rise` past its turn's outer
+ * face; the screws' places along the leg from that face, and the screw; and the `clearance` the short hooks' turns keep off the sill
+ * lip. Either suits a lip of `lip`. Windhager's strips are bent to the window, at `bend` (inner size, to 0.5 mm); the printed hooks
+ * are the `printed-screen-hook` model set to this window's lip and seal gap (`parameters`, otherwise its defaults), and `issues` are
+ * what that model says of them.
+ */
+export interface HookSpec {
+  printed: boolean; parts: { head: Part | null; sill: Part | null }; titles: { head: string; sill: string };
+  leg: number; turn: number; barb: number; width: number; length: number; front: number; rise: { head: number; sill: number };
+  screws: number[]; screw: Part; clearance: number; bend: number | null; lip: { min: number; max: number };
+  parameters: Record<string, number | string> | null; issues: string[];
+}
+export function windowInsertHooks(config: Pick<WindowInsertConfig, 'screenHook'>, profile: WindowProfile): HookSpec {
+  const { frameLip: X, sealGap: g } = profile;
+  if (config.screenHook === 'printed') {
+    const parameters = { ...printedScreenHook.defaults, frameLip: X, sealGap: g } as Parameters<typeof printedScreenHookShape>[0] & Record<string, number | string>;
+    const screw = part(String(parameters['woodScrew']));
+    const shape = printedScreenHookShape(parameters, screw);
+    // the barb's gap is checked by the insert for either kind of hook
+    // the insert checks the lip's range and the barb's gap itself, for either kind of hook
+    const issues = validateParameters(printedScreenHook, parameters).filter(issue => !['frameLip', 'sealGap', 'barbThickness'].includes(issue.field)).map(issue => `The printed screen hooks: ${issue.message}`);
+    const lipControl = printedScreenHook.controls.find(control => control.key === 'frameLip');
+    return {
+      printed: true, parts: { head: null, sill: null }, titles: { head: `${printedScreenHook.title}, long (head)`, sill: `${printedScreenHook.title}, short (sill)` },
+      leg: parameters.legThickness, turn: parameters.turnThickness, barb: parameters.barbThickness, width: parameters.width, length: parameters.legLength,
+      front: shape.front, rise: { head: shape.rise.long, sill: shape.rise.short }, screws: shape.holes.map(v => -v), screw, clearance: parameters.clearance,
+      bend: null, lip: { min: lipControl?.minimum ?? 0, max: lipControl?.maximum ?? Infinity }, parameters, issues,
+    };
+  }
+  const top = part(HW.hookTop); const bottom = part(HW.hookBottom);
+  const t = dim(top, 't'); const l = dim(top, 'l');
+  // the barb's lip-side face half the spare gap behind the lip's back; the bend is the inner size from the leg to it, to 0.5 mm
+  const bend = Math.round((X + (g - t) / 2 - t) * 2) / 2;
+  return {
+    printed: false, parts: { head: top, sill: bottom }, titles: { head: top.title, sill: bottom.title },
+    leg: t, turn: t, barb: t, width: dim(top, 'w'), length: l, front: t + bend, rise: { head: dim(top, 'h') - t, sill: dim(bottom, 'h') - t },
+    // through the strip's hole and slot
+    screws: [l * 0.35, l * 0.8], screw: part(HW.hookScrew), clearance: HOOK_FIT.clearance,
+    bend, lip: { min: dim(top, 'x1'), max: dim(top, 'x2') }, parameters: null, issues: [],
+  };
+}
+
 export type Side = 'left' | 'right' | 'head' | 'sill';
 export interface Box { size: V3; center: V3 }
 export interface TimberPiece { id: string; component: string; name: string; section: string; length: number; cut: string; use: string; boxes: Box[] }
@@ -132,12 +198,13 @@ export interface Clamp { id: string; side: Side; kind: 'spreader' | 'bearing' | 
  * bent up (at the head) or down (at the sill) behind the lip. `boxes` are its leg, its turn and its barb.
  */
 export interface Hook {
-  id: string; side: 'left' | 'right'; end: 'head' | 'sill'; part: Part; x: number; boxes: Box[];
+  /** The library part of a bought hook; null for a printed one (`title` names either). */
+  id: string; side: 'left' | 'right'; end: 'head' | 'sill'; part: Part | null; title: string; x: number; boxes: Box[];
   /** The barb's faces along Y, and how far it reaches behind the lip past the lip's tip. */
   barb: { outer: number; inner: number; engage: number };
 }
 /** A flat corner bracket across one corner, let in flush on the collar's room-side face: its two legs, along the rail and the stile. */
-export interface CornerBracket { id: string; corner: string; part: Part; boxes: Box[] }
+export interface CornerBracket { id: string; corner: string; spec: BracketSpec; boxes: Box[] }
 export interface Fastener {
   partId: string; component: 'corner-screws' | 'bracket-screws' | 'threshold-screws' | 'port-screws' | 'batten-screws' | 'staples' | 'hook-screws';
   at: V3; /** Driven in this direction from `at`. */ direction: V3; use: string;
@@ -206,17 +273,16 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
   // and battens), one leg along the rail and one along the stile, screwed through every hole from the room side.
   const brackets: CornerBracket[] = [];
   if (config.cornerJoint === 'corner-bracket') {
-    const bracket = part(config.cornerBracket); const screw = cornerBracketScrew(bracket);
-    const a = dim(bracket, 'a'); const b = dim(bracket, 'b'); const c = dim(bracket, 'c'); const t = dim(bracket, 't');
+    const spec = windowInsertBracket(config.cornerBracket); const { screw, a, b, c, t } = spec;
     for (const sx of [-1, 1] as const) for (const sz of [-1, 1] as const) {
       // the outer corner, and the ways in along the rail (x) and up or down the stile (z)
       const cx = sx * W / 2; const cz = sz < 0 ? z0 : z0 + H; const ix = -sx; const iz = -sz;
       const corner = `${sz < 0 ? 'bottom' : 'top'} ${sx < 0 ? 'left' : 'right'}`;
       const span = (from: number, to: number) => [Math.min(from, to), Math.max(from, to)] as const;
       const plate = (x: readonly [number, number], z: readonly [number, number]): Box => box([x[1] - x[0], t, z[1] - z[0]], [(x[0] + x[1]) / 2, yIn + t / 2, (z[0] + z[1]) / 2]);
-      brackets.push({ id: `bracket-${corner.replace(' ', '-')}`, corner, part: bracket,
+      brackets.push({ id: `bracket-${corner.replace(' ', '-')}`, corner, spec,
         boxes: [plate(span(cx, cx + ix * a), span(cz, cz + iz * c)), plate(span(cx, cx + ix * c), span(cz + iz * c, cz + iz * b))] });
-      for (const hole of cornerBracketHoles(bracket)) {
+      for (const hole of spec.holes) {
         const [x, z] = hole.leg === 'a' ? [cx + ix * hole.along, cz + iz * hole.across] : [cx + ix * hole.across, cz + iz * hole.along];
         fasteners.push({ partId: screw.id, component: 'bracket-screws', at: [x, yIn, z], direction: [0, 1, 0], use: `Corner bracket, ${corner} corner` });
       }
@@ -321,42 +387,39 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
   }
 
   // Hung on the window frame: a long hook at the head and a short one at the sill of each stile, on the stile's back where it lies
-  // over the lip's opening. Each strip is turned into the window just inside the lip's tip and bent at `bend` (inner size), which
-  // puts its barb in the middle of the seal gap, behind the lip and in front of the closed sash: the sash closes over it.
+  // over the lip's opening. Each turns into the window just inside the lip's tip; its barb lies in the middle of the seal gap, behind
+  // the lip and in front of the closed sash: the sash closes over it. A bought strip is bent at `bend` (inner size) to put it there.
   const hooks: Hook[] = [];
-  /** The bend (inner size), the lift to hang it, the turns' places on the stiles from the collar's top and bottom, the barbs' reach. */
-  let hookFit: { bend: number; lift: number; headClear: number; fromTop: number; fromBottom: number; engage: { head: number; sill: number } } | null = null;
+  /** The hooks; the bend (bought), the lift to hang it, the turns' places on the stiles from the collar's top and bottom, the barbs' reach. */
+  let hookFit: { spec: HookSpec; bend: number | null; lift: number; headClear: number; fromTop: number; fromBottom: number; engage: { head: number; sill: number } } | null = null;
   if (hung) {
-    const top = part(HW.hookTop); const bottom = part(HW.hookBottom); const screw = part(HW.hookScrew);
-    const t = dim(top, 't'); const w = dim(top, 'w'); const l = dim(top, 'l');
-    const { frameLip: X, sealGap: g } = window.profile;
-    // the barb's lip-side face half the spare gap behind the lip's back; the bend is the inner size from the leg to it, to 0.5 mm
-    const bend = Math.round((X + (g - t) / 2 - t) * 2) / 2;
-    const yLeg = yIn - t; const outer = yLeg - bend; const inner = outer - t;
-    const c = HOOK_FIT.clearance;
-    const sillEngage = dim(bottom, 'h') - t - c;
-    const lift = sillEngage + c; const headClear = lift + c;
+    const spec = windowInsertHooks(config, window.profile);
+    const yLeg = yIn - spec.leg; const outer = yIn - spec.front; const inner = outer - spec.barb;
+    const c = spec.clearance;
+    // let down, the short hooks' turns stand `c` off the sill lip; lifted by their barbs' rise, they clear it, while the long hooks'
+    // turns stay `c` below the head lip's tip
+    const lift = spec.rise.sill; const headClear = lift + c;
     const round = (v: number) => Math.round(v * 10) / 10;
-    hookFit = { bend, lift: round(lift), headClear: round(headClear), fromTop: round(headClear + config.frameOverlap), fromBottom: round(frameOf.lip.bottom + c - z0),
-      engage: { head: round(dim(top, 'h') - t - headClear), sill: round(sillEngage) } };
-    const lipX = frameOf.lip.width / 2;
+    hookFit = { spec, bend: spec.bend, lift: round(lift), headClear: round(headClear), fromTop: round(headClear + config.frameOverlap), fromBottom: round(frameOf.lip.bottom + c - z0),
+      engage: { head: round(spec.rise.head - headClear), sill: round(spec.rise.sill - c) } };
+    const lipX = frameOf.lip.width / 2; const { length: l, turn } = spec;
     for (const sx of [-1, 1] as const) {
       // centred on the stile's part over the opening, between the lip's tip and the stile's inner edge
       const x = sx * (lipX + Wi / 2) / 2; const side = sx < 0 ? 'left' : 'right';
-      const strip = (y0: number, y1: number, z0: number, z1: number): Box => box([w, y1 - y0, z1 - z0], [x, (y0 + y1) / 2, (z0 + z1) / 2]);
+      const strip = (y0: number, y1: number, z0: number, z1: number): Box => box([spec.width, y1 - y0, z1 - z0], [x, (y0 + y1) / 2, (z0 + z1) / 2]);
       // at the head: the turn's top face headClear below the lip's tip, the leg down the stile, the barb up behind the lip
       const zHead = frameOf.lip.top - headClear;
-      hooks.push({ id: `hook-head-${side}`, side, end: 'head', part: top, x,
-        boxes: [strip(yLeg, yIn, zHead - l, zHead), strip(inner, yLeg, zHead - t, zHead), strip(inner, outer, zHead - t, zHead - t + dim(top, 'h'))],
+      hooks.push({ id: `hook-head-${side}`, side, end: 'head', part: spec.parts.head, title: spec.titles.head, x,
+        boxes: [strip(yLeg, yIn, zHead - l, zHead), strip(inner, yLeg, zHead - turn, zHead), strip(inner, outer, zHead - turn, zHead + spec.rise.head)],
         barb: { outer, inner, engage: hookFit.engage.head } });
       // at the sill: the turn's underside `c` above the lip's tip, the leg up the stile, the barb down behind the lip
       const zSill = frameOf.lip.bottom + c;
-      hooks.push({ id: `hook-sill-${side}`, side, end: 'sill', part: bottom, x,
-        boxes: [strip(yLeg, yIn, zSill, zSill + l), strip(inner, yLeg, zSill, zSill + t), strip(inner, outer, zSill + t - dim(bottom, 'h'), zSill + t)],
+      hooks.push({ id: `hook-sill-${side}`, side, end: 'sill', part: spec.parts.sill, title: spec.titles.sill, x,
+        boxes: [strip(yLeg, yIn, zSill, zSill + l), strip(inner, yLeg, zSill, zSill + turn), strip(inner, outer, zSill - spec.rise.sill, zSill + turn)],
         barb: { outer, inner, engage: hookFit.engage.sill } });
-      // two screws through each leg's hole and slot, from the room side into the stile
-      for (const [z, end] of [[zHead - l * 0.35, 'head'], [zHead - l * 0.8, 'head'], [zSill + l * 0.35, 'sill'], [zSill + l * 0.8, 'sill']] as const)
-        fasteners.push({ partId: screw.id, component: 'hook-screws', at: [x, yLeg, z], direction: [0, 1, 0], use: `Screen hook at the ${end}, into the back of the ${side} stile` });
+      // two screws through each leg, from the room side into the stile
+      for (const along of spec.screws) for (const [z, end] of [[zHead - along, 'head'], [zSill + along, 'sill']] as const)
+        fasteners.push({ partId: spec.screw.id, component: 'hook-screws', at: [x, yLeg, z], direction: [0, 1, 0], use: `Screen hook at the ${end}, into the back of the ${side} stile` });
     }
   }
 
@@ -384,17 +447,21 @@ export function validateWindowInsert(variant: CatioMode, config: WindowInsertCon
   const hook = l.hooks[0]; const fit = l.hookFit;
   if (hook && fit) {
     const { frameLip: X, sealGap: g, frameFace } = window.profile;
-    const t = dimensionOf(hook.part, 't');
-    if (X < dimensionOf(hook.part, 'x1') || X > dimensionOf(hook.part, 'x2')) errors.push(`The screen hooks bend for a frame lip ${dimensionOf(hook.part, 'x1')}–${dimensionOf(hook.part, 'x2')} mm thick, not ${X} mm.`);
-    // the barb, as bent (to 0.5 mm), clear of the lip's back and of the closed sash's face
-    if (Math.min(hook.barb.inner - l.frame.sashFace, l.frame.lipBack - hook.barb.outer) < HOOK_FIT.gap - 1e-9) errors.push(`The seal gap (${g} mm) is too narrow for the hooks’ ${t} mm strip: the sash would not close over them.`);
+    const { spec } = fit;
+    if (X < spec.lip.min || X > spec.lip.max) errors.push(`The screen hooks ${spec.printed ? 'are made' : 'bend'} for a frame lip ${spec.lip.min}–${spec.lip.max} mm thick, not ${X} mm.`);
+    errors.push(...spec.issues);
+    // the barb (a bought one as bent, to 0.5 mm) clear of the lip's back and of the closed sash's face
+    if (Math.min(hook.barb.inner - l.frame.sashFace, l.frame.lipBack - hook.barb.outer) < HOOK_FIT.gap - 1e-9)
+      errors.push(spec.printed
+        ? `The seal gap (${g} mm) is too narrow for the printed hooks’ ${spec.barb} mm barb: the sash would not close over them. Choose the bought hooks, whose strip is thinner.`
+        : `The seal gap (${g} mm) is too narrow for the hooks’ ${spec.barb} mm strip: the sash would not close over them.`);
     if (Math.min(fit.engage.head, fit.engage.sill) < HOOK_FIT.engage) errors.push('The hooks would not reach far enough behind the frame’s lip.');
     if (frameFace - config.frameOverlap < fit.lift) errors.push(`Hanging the insert needs ${fit.lift} mm of room above the collar to lift it; it overlaps the frame too far.`);
     if (l.frame.lip.bottom - l.z0 < 8) errors.push('Standing on these feet, the collar does not reach over the frame below the lip’s tip: choose lower feet or pads.');
     // the cat gate's latch stands behind the collar's back, in front of the closed sash
     const latchBack = l.yIn + INSERT.gate.y - INSERT.gate.latchY - INSERT.gate.latch[1] / 2;
     if (l.port && latchBack - l.frame.sashFace < HOOK_FIT.gap) errors.push(`The cat gate’s latch needs ${Math.ceil(l.yIn - latchBack + HOOK_FIT.gap)} mm between the frame’s face and the closed sash; this window has ${l.frame.face - l.frame.sashFace} mm.`);
-    if (INSERT.member - config.frameOverlap < dimensionOf(hook.part, 'w') + 4) errors.push('The collar overlaps the frame too far: the hooks need the stiles’ inner part over the window opening.');
+    if (INSERT.member - config.frameOverlap < spec.width + 4) errors.push('The collar overlaps the frame too far: the hooks need the stiles’ inner part over the window opening.');
   }
   if (l.W - 2 * INSERT.member < window.sashWidth * 0.6) errors.push('The collar opening is too narrow for this window.');
   if (l.port) {
@@ -416,16 +483,19 @@ export function validateWindowInsert(variant: CatioMode, config: WindowInsertCon
 
 /** Stage 0 is the window as it is; stages 1–3 happen on a bench outside, 4–6 at the window. */
 export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig): readonly AssemblyStep[] {
-  const bracket = part(config.cornerBracket); const bracketScrew = cornerBracketScrew(bracket);
+  const bracket = windowInsertBracket(config.cornerBracket);
   const joint = config.cornerJoint === 'corner-bracket'
-    ? `Stand the two stiles. Slide the head and sill rails in between them from the outdoor side. Then drive two 5 × 70 screws through each stile into the end grain of the rail. Turn the collar over: at each corner lay a ${dimensionOf(bracket, 'a')} × ${dimensionOf(bracket, 'b')} flat corner bracket on the room-side face, flush with the outer edges, mark round it and chisel it in ${dimensionOf(bracket, 't')} mm, so that it lies flush; then screw it on through all ${cornerBracketHoles(bracket).length} holes with ${bracketScrew.designation.replace('DIN 7997 ', '')} screws`
+    ? `Stand the two stiles. Slide the head and sill rails in between them from the outdoor side. Then drive two 5 × 70 screws through each stile into the end grain of the rail. Turn the collar over: at each corner lay a ${bracket.a} × ${bracket.b} ${bracket.part ? 'flat corner bracket' : 'printed corner bracket'} on the room-side face, flush with the outer edges, mark round it and chisel it in ${bracket.t} mm, so that it lies flush; then screw it on through all ${bracket.holes.length} holes with ${bracket.screw.designation.replace('DIN 7997 ', '')} screws`
     : config.cornerJoint === 'half-lap'
     ? 'Lay the sill and head rails, laps facing outdoors. Glue the laps and press the stiles onto them from the outdoor side. Then drive two 4 × 50 screws into each corner from the outdoor face, one corner after another'
     : 'Stand the two stiles. Slide the head and sill rails in between them from the outdoor side. Then drive two 5 × 70 screws through each stile into the end grain of the rail';
   const hung = config.attachment === 'frame-hooks';
   const printed = config.attachment !== 'folding-wedges' && config.clampPad === 'printed';
   const fit = hung ? windowInsertLayout(variant, config).hookFit : null;
-  const hookText = fit ? ` Then bend the four screen hooks with pliers at ${fit.bend} mm (the set’s gauge has a scale): two long ones for the head, two short ones for the sill. Screw each to the back of a stile, where it lies over the window opening, with two 3 × 16 screws from the room side: the long ones with their bends ${fit.fromTop} mm below the collar’s top and their tips pointing up, the short ones with their bends ${fit.fromBottom} mm above its bottom and their tips pointing down.` : '';
+  const hookScrews = fit ? fit.spec.screw.designation.replace('DIN 7997 ', '') : '';
+  const hookText = !fit ? '' : fit.bend === null
+    ? ` Then take the four printed screen hooks, printed for this window’s ${config.frameLip} mm lip and ${config.sealGap} mm seal gap: two long ones for the head, two short ones for the sill. Screw each to the back of a stile, where it lies over the window opening, with two ${hookScrews} screws from the room side: the long ones with their turns ${fit.fromTop} mm below the collar’s top and their barbs pointing up, the short ones with their turns ${fit.fromBottom} mm above its bottom and their barbs pointing down.`
+    : ` Then bend the four screen hooks with pliers at ${fit.bend} mm (the set’s gauge has a scale): two long ones for the head, two short ones for the sill. Screw each to the back of a stile, where it lies over the window opening, with two ${hookScrews} screws from the room side: the long ones with their bends ${fit.fromTop} mm below the collar’s top and their tips pointing up, the short ones with their bends ${fit.fromBottom} mm above its bottom and their tips pointing down.`;
   const clamp = hung
     ? (printed
       ? 'Under the sill rail, at every foot: (1) screw an M8 insert nut into the rail’s underside; (2) slide a hexagon head screw’s head into a printed foot and screw it up into the insert nut by turning the foot.'
@@ -440,7 +510,7 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
     ? `Lower the threshold onto the sill rail and screw it down from above. Slide the passage sleeve mesh on from outdoors and ${mesh}.`
     : `Lower the threshold onto the sill rail and screw it down from above. Slide the transom into its stile housings from outdoors, then each jamb up into the transom. Screw the transom through the stiles and the jambs up from under the sill rail. Offer the infill mesh from outdoors and ${mesh}.`;
   const tighten = hung
-    ? `${printed ? 'Turn each printed foot by hand' : 'Turn each foot’s hexagon with a 13 mm spanner'} until the short hooks stand ${HOOK_FIT.clearance} mm clear of the sill lip: the feet carry the insert, the hooks only keep it on the frame. Close the sash: the hooks’ tips lie in the seal gap, so it closes and locks as over an insect screen; the seal is pressed locally at the four hooks.`
+    ? `${printed ? 'Turn each printed foot by hand' : 'Turn each foot’s hexagon with a 13 mm spanner'} until the short hooks stand ${fit?.spec.clearance ?? HOOK_FIT.clearance} mm clear of the sill lip: the feet carry the insert, the hooks only keep it on the frame. Close the sash: the hooks’ tips lie in the seal gap, so it closes and locks as over an insect screen; the seal is pressed locally at the four hooks.`
     : printed
     ? 'From inside, through the open window: put a 13 mm spanner on each spreader screw’s head and turn it, so the pad moves out, without turning, until it bears on the reveal. Tighten opposite pairs in turn, then run each lock nut up against the collar. No drilling; the pads only press.'
     : config.attachment === 'spreader-feet'
@@ -515,11 +585,24 @@ export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, 
     } else if (c.kind === 'bearing') add(l.bearingFoot.id, 'Under the sill rail: carries the insert on the recess floor');
     else { add(l.spreaderFoot.id, 'In the stiles and head rail: presses on the reveal'); add(l.nut.id, 'Jammed against the foot’s own nut on the inner end of each spreader stud'); }
   }
-  for (const b of l.brackets) add(b.part.id, 'Across each collar corner, let in flush on the room-side face');
-  for (const hook of l.hooks) add(hook.part.id, `${hook.end === 'head' ? 'At the head of each stile: slipped up behind the frame’s head lip' : 'At the sill end of each stile: dropped behind the frame’s sill lip'}, bent at ${l.hookFit?.bend ?? 0} mm`);
+  const hookUse = (end: Hook['end']) => end === 'head' ? 'At the head of each stile: slipped up behind the frame’s head lip' : 'At the sill end of each stile: dropped behind the frame’s sill lip';
+  for (const b of l.brackets) if (b.spec.part) add(b.spec.part.id, 'Across each collar corner, let in flush on the room-side face');
+  for (const hook of l.hooks) if (hook.part) add(hook.part.id, `${hookUse(hook.end)}, bent at ${l.hookFit?.bend ?? 0} mm`);
   for (const [partId, entry] of counts) {
     const p = part(partId);
     lines.push({ id: partId, group: 'Hardware', name: p.title, quantity: entry.quantity, size: `${p.designation} · ${partSize(p)}`, use: [...entry.uses].join('; '), partId });
+  }
+  // printed brackets and hooks: linked to their models, not the parts library
+  const [bracket] = l.brackets;
+  if (bracket && !bracket.spec.part) {
+    const b = bracket.spec;
+    lines.push({ id: 'printed-corner-brackets', group: 'Hardware', name: printedCornerBracket.title, quantity: l.brackets.length, modelId: printedCornerBracket.id,
+      size: `${b.a} × ${b.b} × ${b.c} mm, ${b.t} mm thick · ${b.holes.length} holes for ${b.screw.designation} · PETG (the model’s defaults)`, use: 'Across each collar corner, let in flush on the room-side face' });
+  }
+  const spec = l.hookFit?.spec;
+  if (spec?.printed) for (const end of ['head', 'sill'] as const) {
+    lines.push({ id: `printed-screen-hooks-${end}`, group: 'Hardware', name: spec.titles[end], quantity: l.hooks.filter(h => h.end === end).length, modelId: printedScreenHook.id,
+      size: `For a ${config.frameLip} mm frame lip and a ${config.sealGap} mm seal gap (set them on the model) · ${spec.width} mm wide, barb ${spec.barb} mm · holes for ${spec.screw.designation} · PETG`, use: hookUse(end) });
   }
   if (l.pad) {
     const sole = `${l.pad.surface} sole`; const size = `Ø ${l.pad.diameter} × ${l.pad.height} mm · ${sole} · PETG`;
@@ -542,7 +625,9 @@ export function windowInsertFacts(variant: CatioMode, config: WindowInsertConfig
     { label: 'Window frame · from outside', value: `${config.frameFace} mm wide, lip ${config.frameLip} mm` },
     { label: 'Collar · outside', value: `${cm(l.W)} × ${cm(l.H)} cm` },
     ...(l.hookFit
-      ? [{ label: 'Feet · under the sill rail', value: `${cm(l.gap)} cm` }, { label: 'Hooks · bent at', value: `${l.hookFit.bend} mm` }]
+      ? [{ label: 'Feet · under the sill rail', value: `${cm(l.gap)} cm` }, l.hookFit.bend === null
+        ? { label: 'Hooks · printed for', value: `lip ${config.frameLip} mm, seal gap ${config.sealGap} mm` }
+        : { label: 'Hooks · bent at', value: `${l.hookFit.bend} mm` }]
       : [{ label: config.attachment === 'spreader-feet' ? 'Clamp gap · each side' : 'Wedge gap · each side', value: `${cm(l.gap)} cm` }]),
     { label: variant === 'direct' ? 'Passage · clear' : 'Cat port · clear', value: l.port ? `${cm(l.port.width)} × ${cm(l.port.height)} cm` : `${cm(l.Wi)} × ${cm(l.z0 + l.H - INSERT.member - l.floor)} cm` },
     // the clamp gap sets it, and the tunnel starts from it
@@ -572,19 +657,25 @@ export function windowInsertViews(variant: CatioMode, config: WindowInsertConfig
 const PAD_SOLE: Record<PressurePadSurface, string> = { flat: 'Flat', grooved: 'Grooved', domed: 'Domed' };
 
 export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = [
-  { key: 'cornerJoint', label: 'Collar corners', group: 'Timber joints', help: 'A flat steel corner bracket across each butt joint keeps the corner square and closed, the stiffest of the three. Half-laps lock the corners on glue and timber shoulders; butt joints alone hold only by screws in end grain.',
+  { key: 'cornerJoint', label: 'Collar corners', group: 'Timber joints', help: 'A flat corner bracket across each butt joint keeps the corner square and closed, the stiffest of the three. Half-laps lock the corners on glue and timber shoulders; butt joints alone hold only by screws in end grain.',
     options: [{ value: 'corner-bracket', label: 'Butt joint + 2 screws + flat corner bracket' }, { value: 'half-lap', label: 'Half-lap, glued + 2 screws' }, { value: 'butt-screwed', label: 'Butt joint + 2 screws' }] },
   { key: 'cornerBracket', label: 'Corner bracket', group: 'Timber joints', when: c => c.cornerJoint === 'corner-bracket',
-    help: 'GAH Alberts Stuhlwinkel from the parts library, let in flush on the collar’s room-side face. A longer leg holds the corner stiffer; hung on the window frame, it must stay clear of the screen hooks on the stiles (the page checks).',
-    options: WINDOW_INSERT_BRACKETS.map(id => { const p = part(id); return { value: id, label: `${dimensionOf(p, 'a')} × ${dimensionOf(p, 'b')} × ${dimensionOf(p, 'c')} mm` }; }) },
+    help: 'The printed corner bracket from the model library (PETG, sized for the collar’s 40 mm members), or a bought GAH Alberts Stuhlwinkel from the parts library, steel. Either is let in flush on the collar’s room-side face. A longer leg holds the corner stiffer; hung on the window frame, it must stay clear of the screen hooks on the stiles (the page checks).',
+    options: [
+      { value: 'printed', label: (() => { const b = windowInsertBracket('printed'); return `Printed (model), ${b.a} × ${b.b} × ${b.c} mm`; })() },
+      ...WINDOW_INSERT_BRACKETS.map(id => { const p = part(id); return { value: id, label: `GAH Alberts, ${dimensionOf(p, 'a')} × ${dimensionOf(p, 'b')} × ${dimensionOf(p, 'c')} mm` }; }),
+    ] },
   { key: 'junctionJoint', label: 'Port transom & jambs', group: 'Timber joints', variants: ['modular'], help: 'Housings carry the transom and jambs on timber; butt joints rely on the screws alone.',
     options: [{ value: 'housed', label: 'Housed 10 mm + screw' }, { value: 'butt-screwed', label: 'Butt joint + screws' }] },
   { key: 'meshFixing', label: 'Mesh to timber', group: 'Mesh', help: 'Staples hold the wire; battens clamp it along the whole edge and cover the cut ends. Where the passage sleeve meets the threshold edge (direct) it is always stapled.',
     options: [{ value: 'staples-and-battens', label: 'Staples under cover battens' }, { value: 'staples', label: 'Staples only' }, { value: 'battens', label: 'Cover battens only' }] },
   { key: 'fixingPitch', label: 'Fixing spacing', group: 'Mesh', help: 'The greatest distance between staples, and between batten screws, along an edge.',
     options: [{ value: 100, label: '10 cm' }, { value: 150, label: '15 cm' }, { value: 200, label: '20 cm' }] },
-  { key: 'attachment', label: 'Held in the recess by', group: 'Window attachment', help: 'No drilling either way. Spreader feet are tightened and released from inside; wedges are cheaper but driven from outside. Hung on the window frame, the collar lies on the frame’s face and four bought screen hooks reach behind its lip, like an insect screen’s, while feet under the sill rail carry it: the window still closes with the insert in place.',
+  { key: 'attachment', label: 'Held in the recess by', group: 'Window attachment', help: 'No drilling either way. Spreader feet are tightened and released from inside; wedges are cheaper but driven from outside. Hung on the window frame, the collar lies on the frame’s face and four screen hooks reach behind its lip, like an insect screen’s, while feet under the sill rail carry it: the window still closes with the insert in place.',
     options: [{ value: 'spreader-feet', label: 'Padded spreader feet' }, { value: 'folding-wedges', label: 'Folding timber wedges' }, { value: 'frame-hooks', label: 'Hooks on the window frame + feet' }] },
+  { key: 'screenHook', label: 'Screen hooks', group: 'Window attachment', when: c => c.attachment === 'frame-hooks',
+    help: 'The printed screen hook from the model library (PETG), made for this window’s lip and seal gap below, so nothing is bent; its barb is 2 mm thick, so it needs a seal gap of at least 3 mm. Or Windhager 03651’s bought stainless hooks from the parts library, bent with pliers to the lip, for a lip of 5–35 mm and a seal gap down to about 2.5 mm. Either way the feet carry the insert.',
+    options: [{ value: 'printed', label: 'Printed screen hooks (model)' }, { value: 'windhager-03651', label: 'Windhager 03651 (stainless, bent)' }] },
   { key: 'frameOverlap', label: 'Overlap on the frame', group: 'Window attachment', when: c => c.attachment === 'frame-hooks',
     help: 'How far the collar lies on the fixed frame’s face beyond the lip’s tips, at the head and sides (insect screens: at least 15 mm). The rest of each 40 mm stile lies over the window opening, where the hooks are screwed.',
     options: [{ value: 10, label: '10 mm' }, { value: 15, label: '15 mm' }, { value: 20, label: '20 mm' }, { value: 25, label: '25 mm' }] },
@@ -604,7 +695,7 @@ export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = 
   { key: 'frameFace', label: 'Frame width, from outside', group: 'The window', options: [], range: { ...WINDOW_PROFILE_RANGES.frameFace, unit: 'mm' },
     help: 'How wide the fixed frame shows from outside, from its outer edge to the tip of its lip, over the closed sash. 73 mm is a VEKA Softline 82 window. Hung on the frame, the collar lies on this face.' },
   { key: 'frameLip', label: 'Frame lip thickness', group: 'The window', options: [], range: { ...WINDOW_PROFILE_RANGES.frameLip, unit: 'mm' },
-    help: 'Open the window and measure the fixed frame’s outermost leg, from its outer face to the seal on its back (Windhager calls it X). The hooks are bent to it; they suit 5–35 mm.' },
+    help: 'Open the window and measure the fixed frame’s outermost leg, from its outer face to the seal on its back (Windhager calls it X). The printed hooks are made for it; the bought ones are bent to it, and suit 5–35 mm.' },
   { key: 'sealGap', label: 'Seal gap', group: 'The window', options: [], range: { ...WINDOW_PROFILE_RANGES.sealGap, unit: 'mm' },
     help: 'From the lip’s back to the closed sash’s face, where the outer seal is: the frame’s face to the sash’s face, less the lip. The hooks’ tips lie in it, so the sash still closes.' },
   { key: 'frameDepth', label: 'Frame depth', group: 'The window', options: [], range: { ...WINDOW_PROFILE_RANGES.frameDepth, unit: 'mm' },
@@ -615,13 +706,20 @@ export const parseWindowInsert = (raw: unknown) => parseControlled(WINDOW_INSERT
 /** The window insert as saved on its page (or its defaults), for the pages and scenes that draw it. */
 export const savedWindowInsert = () => loadSubassemblyConfig('window-insert', parseWindowInsert, WINDOW_INSERT_DEFAULT);
 
+/** The printed defaults, for the decisions below: the bracket for the collar's members, the hooks for the default window. */
+const PRINTED_BRACKET = windowInsertBracket('printed');
+const PRINTED_HOOKS = windowInsertHooks({ screenHook: 'printed' }, WINDOW_PROFILE_DEFAULT);
+
 export const WINDOW_INSERT_DECISIONS: DesignDecision[] = [
   { title: 'Held by pressure, not fixings', parameter: 'Held in the recess by',
     choice: 'Spreaders turned out of M8 insert nuts in the collar: two or three on each stile and the head press on the reveals; those under the sill rail stand on the recess floor and carry the weight.',
     why: 'This formalises the concept’s “padded clamps against the solid exterior recess”. Nothing is drilled or glued to the building; releasing the studs frees the insert. The pads’ grooved or domed soles (or the Ganter feet’s 15° swivel and elastomer caps) follow an uneven render reveal; tightening from inside the open window keeps the original concept’s reach-through adjustment. Folding wedges are offered as the low-cost alternative, but they are driven and loosened from outside. Rejected: a bar across the inside of the frame (stops the sash closing), tension straps through the open sash (same), and adhesive or suction mounts (unreliable outdoors).' },
   { title: 'Or hung on the window frame, like an insect screen', parameter: 'Held in the recess by',
-    choice: 'The collar lies on the fixed frame’s outer face, overlapping it 15 mm beyond the lip’s tips. Two long and two short Windhager 03651 screen hooks, screwed to the stiles’ backs, reach behind the frame’s lip at the head and the sill; printed feet (or levelling feet) under the sill rail stand on the recess floor.',
-    why: 'This is how insect screens hang on tilt-and-turn windows without drilling: their hooks catch the fixed frame’s outer lip (Blendrahmenüberschlag), not the sash, whose face lies behind the lip with only the seal between. Each hook is bent so that its tip lies in the seal gap, in front of the closed sash, so the window still closes. The feet carry the insert’s weight, about 10 kg, so the frame’s lip only keeps it from tipping out. Lifted by the short hooks’ reach, it is hung by the long ones and dropped over the sill lip, as a screen is.' },
+    choice: 'The collar lies on the fixed frame’s outer face, overlapping it 15 mm beyond the lip’s tips. Two long and two short screen hooks, screwed to the stiles’ backs, reach behind the frame’s lip at the head and the sill: printed by default, Windhager 03651’s bought ones as the option. Printed feet (or levelling feet) under the sill rail stand on the recess floor.',
+    why: 'This is how insect screens hang on tilt-and-turn windows without drilling: their hooks catch the fixed frame’s outer lip (Blendrahmenüberschlag), not the sash, whose face lies behind the lip with only the seal between. Each hook’s tip lies in the seal gap, in front of the closed sash, so the window still closes. The feet carry the insert’s weight, about 10 kg, so the frame’s lip only keeps it from tipping out. Lifted by the short hooks’ reach, it is hung by the long ones and dropped over the sill lip, as a screen is.' },
+  { title: 'Printed screen hooks, made for the window', parameter: 'Screen hooks',
+    choice: `The printed screen hook from the model library, in PETG: a ${PRINTED_HOOKS.leg} mm leg screwed to the stile with two ${PRINTED_HOOKS.screw.designation} screws, a ${PRINTED_HOOKS.turn} mm turn into the window and a ${PRINTED_HOOKS.barb} mm barb, ${PRINTED_HOOKS.width} mm wide. The model is set to the window’s lip and seal gap (under The window), which put the barb in the middle of the seal gap; its barbs reach ${PRINTED_HOOKS.rise.sill - PRINTED_HOOKS.clearance} mm behind the lip, the long ones made longer by the lift that hangs the insert. Windhager 03651’s stainless hooks remain selectable.`,
+    why: 'A bought hook is a strip bent with pliers to one window, by eye against a gauge; the printed one is generated for the window as measured, so it fits as it comes off the printer, and it costs a few grams of filament. The feet still carry the insert, as with bought hooks: the hooks only keep it on the frame, so their strength is not what holds the weight. The printed hook’s holding force is not rated, as it has not been printed and tested; it is no reason to leave out or shrink the feet. Its 2 mm barb needs a seal gap of 3 mm: in a narrower one, down to about 2.5 mm, choose the bought hooks, whose strip is 0.8 mm.' },
   { title: 'Printed pads on library screws', parameter: 'Spreader feet',
     choice: 'Each spreader is an ISO 4017 M8 × 80 hexagon head screw turned from inside through the insert nut, locked by an ISO 4032 nut on the collar’s inner face. An ISO 10511 lock nut on its tip turns freely in a printed thrust pad (the pressure-pad model, PETG). Under the sill rail, an M8 × 30’s head sits in a printed foot, turned by hand. Ganter GN 343.2 levelling feet remain selectable.',
     why: 'Screws and nuts are cheap and to hand; bought levelling feet are not. The screw’s own head is the drive, so one nut locks it instead of two jammed on a stud. The thrust pad does not turn with the screw, so it does not scrub the render, as the Ganter foot’s ball does not. A printed pad does not swivel: the domed sole follows a reveal that is not square to the screw. PETG creeps under a constant load in summer sun, so check the clamps again after the first warm season.' },
@@ -629,8 +727,8 @@ export const WINDOW_INSERT_DECISIONS: DesignDecision[] = [
     choice: 'The clamps act in opposed pairs (left–right, head–sill), so their forces cancel in the collar instead of pushing it out of the recess.',
     why: 'Weight goes straight down through the sill feet onto the exterior sill; the side and head pairs give the friction that resists a cat pushing on the mesh. The feet sit at the room-side half of the collar, behind the mesh, where the hand reaches.' },
   { title: 'Flat corner brackets at the collar corners', parameter: 'Collar corners',
-    choice: 'Each corner is a butt joint (the rails between the stiles, two DIN 7997 5 × 70 screws through each stile into the rail’s end grain) with a GAH Alberts 100 × 100 × 19 flat corner bracket (Stuhlwinkel, 2 mm sendzimir-galvanised steel) let in flush across it on the room-side face, screwed through its six holes with DIN 7997 5 × 35 screws.',
-    why: 'The spreaders push the corners apart, and a cat or the wind racks the collar: a steel plate screwed across both members holds the corner square and closed better than a lap’s glue or screws in end grain alone. It goes on the room-side face because the outdoor face carries the mesh and its battens, and it is let in so that the collar still lies flat on the window frame when hung. 19 mm wide, it stays clear of the screen hooks beside it on the stiles. Half-laps, or butt joints alone, remain selectable; the bracket size too.' },
+    choice: `Each corner is a butt joint (the rails between the stiles, two DIN 7997 5 × 70 screws through each stile into the rail’s end grain) with a printed corner bracket, ${PRINTED_BRACKET.a} × ${PRINTED_BRACKET.b} × ${PRINTED_BRACKET.c} mm and ${PRINTED_BRACKET.t} mm thick, let in flush across it on the room-side face, screwed through its ${PRINTED_BRACKET.holes.length} holes with ${PRINTED_BRACKET.screw.designation} screws. GAH Alberts steel flat corner brackets (Stuhlwinkel) remain selectable, 100 × 100 × 19 the one it replaces.`,
+    why: `The spreaders push the corners apart, and a cat or the wind racks the collar: a plate screwed across both members holds the corner square and closed better than a lap’s glue or screws in end grain alone. It goes on the room-side face because the outdoor face carries the mesh and its battens, and it is let in so that the collar still lies flat on the window frame when hung. Its sizes follow the ${INSERT.member} mm member: legs of 2.5 members, as the steel bracket’s 100 mm, and half a member wide, so that it stays clear of the screen hooks beside it on the stiles. Each leg’s three holes lie past the joint, on the member the leg runs along, so every screw holds that member. Printed, it is ${PRINTED_BRACKET.t} mm of PETG for the steel’s 2 mm, and cheaper and to hand; its strength is not rated. Half-laps, or butt joints alone, remain selectable.` },
   { title: 'Half-lapped collar corners (option)', parameter: 'Collar corners',
     choice: 'Each 40 × 60 collar member is halved 30 mm deep at its ends, glued and screwed with two DIN 7997 4 × 50 screws from the outdoor face.',
     why: 'The spreaders push the stiles and rails apart at the corners. A lap carries that on long-grain glue and timber shoulders; a butt joint (the alternative) holds only by screws in end grain.' },

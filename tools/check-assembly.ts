@@ -48,6 +48,11 @@ const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part) => Re
       HEX: String(part.attributes['head'] === 'hex'), HEAD_S: part.attributes['head'] === 'hex' ? size(part, 's') : '0',
     }),
   },
+  // a wood screw cuts its own thread: drawn at its nominal diameter, which its clearance hole clears
+  'wood-screw': {
+    scad: 'parts/screws/screw.scad',
+    defines: part => ({ COUNTERSUNK: String(part.attributes['head'] === 'countersunk'), D: size(part, 'd', 'value'), PITCH: '0', L: size(part, 'l', 'value'), HEAD_D: size(part, 'dk'), HEAD_K: size(part, 'k'), HEX: 'false', HEAD_S: '0' }),
+  },
   nut: {
     scad: 'parts/nuts/nut.scad',
     defines: part => ({ SQUARE: String(part.attributes['shape']?.startsWith('square') === true), S: size(part, 's'), H: part.dimensions['h'] ? size(part, 'h') : size(part, 'm'), D: size(part, 'd', 'value') }),

@@ -19,11 +19,12 @@ a parts list with every piece's dimensions, and the design decisions below. Choi
 | Parameter | Default | Options | Applies to |
 | --- | --- | --- | --- |
 | Collar corners | Butt joint + 2 screws + flat corner bracket | Corner bracket; half-lap, glued + 2 screws; butt joint + 2 screws | Both |
-| Corner bracket | 100 × 100 × 19 mm | GAH Alberts Stuhlwinkel 75, 90, 100, 125, 150 mm | Corner bracket (hung: up to 100 mm, clear of the hooks) |
+| Corner bracket | Printed (model), 100 × 100 × 20 mm | Printed ([printed-corner-bracket](../../printed-corner-bracket.md)); GAH Alberts Stuhlwinkel 75, 90, 100, 125, 150 mm | Corner bracket (hung: up to 100 mm, clear of the hooks) |
 | Port transom & jambs | Housed 10 mm + screw | Housed; butt joint + screws | With tunnel |
 | Mesh to timber | Staples under cover battens | Staples + battens; staples only; battens only | Both |
 | Fixing spacing | 15 cm | 10, 15, 20 cm | Both |
 | Held in the recess by | Hooks on the window frame + feet | Hooks on the window frame + feet; spreader feet; folding timber wedges | Both |
+| Screen hooks | Printed screen hooks (model) | Printed ([printed-screen-hook](../../printed-screen-hook.md), made for the window below); Windhager 03651, bent | Hooks on the window frame |
 | Overlap on the frame | 15 mm | 10, 15, 20, 25 mm | Hooks on the window frame |
 | Spreader feet | Printed pads on M8 screws | Printed pads; Ganter GN 343.2 levelling feet | Spreader feet, and the feet under a hung insert |
 | Pad height | 24.5 mm | 18 to 40 mm, in 0.5 mm steps | Printed pads |
@@ -79,23 +80,32 @@ its face runs flat from the frame's seal to the glass.
 - **The collar lies on the frame's outer face**, overlapping it 15 mm beyond the lip's tips at the head and sides (Neher's
   screens overlap 14 mm and need at least 15 mm of frame at the sides). The rest of each 40 mm stile lies over the window
   opening. The collar is the lip's opening plus the overlap: 88.4 cm wide on the default window.
-- **Four bought screen hooks**, Windhager 03651 (two long, two short, stainless, in the parts library as `screen-hook`), are
-  screwed to the stiles' backs with two DIN 7997 3 × 16 screws each: the long ones at the head, their 15 mm tips up behind the
-  head lip, the short ones at the sill, their 7 mm tips down behind the sill lip.
-- **Bent so the window still closes.** Each strip turns into the window just inside the lip's tip and is bent so that its tip
-  lies in the middle of the seal gap, 0.5 mm clear of the lip's back and of the closed sash (16 mm on the default window, to
-  0.5 mm). Windhager's own rule, the lip measured with the window open plus 3 mm, is for windows with room behind the lip; here
-  the page bends to the window's real profile and refuses a seal gap too narrow for the 0.8 mm strip. The seal is pressed
-  locally at the four hooks, as with any hooked insect screen. With the tunnel, the cat gate's latch also stands 12 mm behind the
-  collar's back, in front of the sash, and the page checks there is room for it.
+- **Four printed screen hooks** (**Screen hooks**, the default), the [printed-screen-hook](../../printed-screen-hook.md) model
+  in PETG, two long and two short, are screwed to the stiles' backs with two DIN 7997 3 × 20 screws each: the long ones at the
+  head, their barbs up behind the head lip, the short ones at the sill, their barbs down behind the sill lip. Each is a 4 mm
+  leg, a 4 mm turn into the window and a 2 mm barb, 10 mm wide.
+- **Made for the window, so it still closes.** The model is set to the window's **Frame lip thickness** and **Seal gap** (the
+  parts list gives both): each turn reaches into the window just inside the lip's tip, and its barb stands in the middle of the
+  seal gap, 0.75 mm clear of the lip's back and of the closed sash on the default window. Nothing is bent on site. The 2 mm barb
+  needs a seal gap of 3 mm; in a narrower one the page says to choose the bought hooks. The seal is pressed locally at the four
+  hooks, as with any hooked insect screen. With the tunnel, the cat gate's latch also stands 12 mm behind the collar's back, in
+  front of the sash, and the page checks there is room for it.
+- **Or bought hooks, bent** (**Screen hooks → Windhager 03651**): two long and two short stainless strips (in the parts
+  library as `screen-hook`), screwed on with two DIN 7997 3 × 16 screws each, their 15 mm and 7 mm tips behind the lips. Each
+  strip is bent so that its tip lies in the middle of the seal gap, 0.5 mm clear of the lip's back and of the closed sash (16 mm
+  on the default window, to 0.5 mm). Windhager's own rule, the lip measured with the window open plus 3 mm, is for windows with
+  room behind the lip; here the page bends to the window's real profile and refuses a seal gap too narrow for the 0.8 mm strip
+  (it takes gaps down to about 2.5 mm).
 - **The feet carry it.** The sill rail keeps its bearing feet (printed feet or levelling feet, as chosen), standing on the recess
   floor; the side and head spreaders are left out. The insert (about 10 kg of timber and mesh, estimated) never hangs on the
   frame's lip: once the feet stand, the short hooks clear the sill lip by 1 mm, and the hooks only keep it from tipping out.
   This keeps the earlier decision that the frame is not loaded.
-- **Lift and drop.** To hang it, the insert is lifted by the short hooks' reach behind the lip plus 1 mm (6.2 mm), the long hooks
-  are slipped up behind the head lip, its foot is swung in against the frame, and it is let down: the short hooks drop behind
-  the sill lip. The long hooks' strips stay 7.2 mm below the head lip's tip meanwhile, and reach 7 mm behind it once down. The
-  page checks the room above the collar for the lift.
+- **Lift and drop.** To hang it, the insert is lifted by the short hooks' reach behind the lip plus 1 mm (7 mm with the printed
+  hooks, 6.2 mm with the bought ones), the long hooks are slipped up behind the head lip, its foot is swung in against the frame,
+  and it is let down: the short hooks drop behind the sill lip. The long hooks' turns stay 1 mm below the head lip's tip
+  meanwhile, 8 mm (7.2 mm) below it once down, and their barbs reach 6 mm (7 mm) behind it. The printed long hook's barb is made
+  longer by just that lift, so both printed hooks reach the same 6 mm behind their lips. The page checks the room above the
+  collar for the lift.
 - **Turning and tilting** move the sash's face into the room, away from the hooks; the tests turn the sash 0–90° and tilt it
   0–12° against every piece of the insert.
 - **The collar lies 27.5 mm deeper** than when pressed into the recess, so the [insert–tunnel coupling](window-insert-tunnel-coupling.md)'s
@@ -106,7 +116,9 @@ its face runs flat from the frame's seal to the glass.
   collar height, so that their passage and ramp still meet the sill.
 
 Not published, and estimated in the parts library from Windhager's instruction drawings: the strip's width (8 mm), thickness
-(0.8 mm), leg length (40 mm) and hole (4.2 mm). Neither Windhager nor Neher gives a spring force or load rating.
+(0.8 mm), leg length (40 mm) and hole (4.2 mm). Neither Windhager nor Neher gives a spring force or load rating, and the printed
+hook has none either: it has not been printed and tested. That is why the feet carry the insert with either kind of hook, as
+before; the printed hooks are no reason to leave the feet out or make them smaller.
 
 ## Design decisions (defaults to redirect)
 
@@ -146,17 +158,23 @@ Not published, and estimated in the parts library from Windhager's instruction d
    draw their schematic 98 cm collar**; adopting this sizing there is a follow-up. Hung (the default), they draw the hung
    collar's width on the frame's face.
 5. **Flat corner brackets at the collar corners.** Each corner is a butt joint (the rails between the stiles, two DIN 7997
-   5 × 70 screws through the stile into the rail's end grain) with a flat corner bracket across it: a GAH Alberts Stuhlwinkel
-   100 × 100 × 19, 2 mm sendzimir-galvanised steel, let in flush (a 2 mm recess) on the room-side face and screwed through its
-   six countersunk 5.3 mm holes with DIN 7997 5 × 35 screws. A steel plate across both members holds the corner square and closed
-   against the spreaders' push and the racking of a cat or the wind better than a lap's glue or screws in end grain alone.
+   5 × 70 screws through the stile into the rail's end grain) with a flat corner bracket across it, let in flush on the
+   room-side face. A plate across both members holds the corner square and closed against the spreaders' push and the racking
+   of a cat or the wind better than a lap's glue or screws in end grain alone.
+   - **Printed, by default:** the [printed-corner-bracket](../../printed-corner-bracket.md) model in PETG, sized from the 40 mm
+     member: legs of 2.5 members (100 mm, as the steel bracket it replaces), half a member wide (20 mm) and 5 mm thick, let in
+     5 mm. Each leg's three holes lie past the joint (50, 70 and 90 mm from the corner), on the member the leg runs along, so
+     every DIN 7997 4 × 35 screw holds that member and bites 30 mm into it. Its strength is not rated.
+   - **Or bought:** a GAH Alberts Stuhlwinkel, 100 × 100 × 19 the one the printed bracket replaces, 2 mm sendzimir-galvanised
+     steel, let in 2 mm and screwed through its six countersunk 5.3 mm holes with DIN 7997 5 × 35 screws. Alberts gives each
+     bracket's hole count and size but not where the holes are: the page spaces them evenly along each leg beyond the corner
+     square (an estimate), and checks they miss the corner screws.
    - It goes on the room-side face because the outdoor face carries the mesh and battens, and it is let in so that a hung
      collar still lies flat on the window frame.
-   - Hung on the window frame, the brackets must stay clear of the screen hooks screwed to the stiles' backs: 19 mm wide, the
-     100 mm bracket leaves them at least 3 mm (with the default 15 mm overlap); the 125 and 150 mm ones (22 and 25 mm wide), or only 10 mm of overlap on the
-     frame (the head hooks then turn in 17 mm below the collar's top, under the bracket's rail leg), are refused.
-   - Alberts gives each bracket's hole count and size but not where the holes are: the page spaces them evenly along each leg
-     beyond the corner square (an estimate), and checks they miss the corner screws.
+   - Hung on the window frame, the brackets must stay clear of the screen hooks screwed to the stiles' backs: 20 mm wide, the
+     printed bracket leaves them 2.5 mm (19 mm wide, the 100 mm Alberts bracket at least 3 mm) with the default 15 mm overlap; the
+     125 and 150 mm Alberts ones (22 and 25 mm wide), or only 10 mm of overlap on the frame (the head hooks then turn in 17–18 mm
+     below the collar's top, under the bracket's rail leg), are refused.
 6. **Half-lapped collar corners (option).** The spreaders push the corners apart; a glued half-lap (30 mm, half the 60 mm depth)
    with two DIN 7997 4 × 50 screws carries that on long grain and timber shoulders. A butt joint (two DIN 7997 5 × 70 screws
    through the stile into the rail's end grain) remains selectable.
@@ -190,7 +208,7 @@ Not published, and estimated in the parts library from Windhager's instruction d
 6. **Docking brackets** (direct) or **gate tracks, gate and latch** (with tunnel); open and close the window to check.
 
 Hung on the window frame, steps 2, 4 and 5 change: **fit the feet and hooks** (insert nuts and feet under the sill rail only;
-the four hooks bent to the page's size and screwed to the stiles' backs), **hang it on the window frame** (open the sash, lift
+the four hooks, printed for the window or bent to the page's size, screwed to the stiles' backs), **hang it on the window frame** (open the sash, lift
 the insert, slip the long hooks up behind the head lip, swing it in and let it down onto its feet), and **level it and close
 the window** (turn the feet until the short hooks stand 1 mm clear of the sill lip, then close the sash over the hooks).
 
@@ -233,7 +251,10 @@ All with the source of every value (see [adding-parts.md](../../adding-parts.md)
 
 The printed pads use parts already in the library: ISO 4017 M8 × 80 and M8 × 30, ISO 10511 M8 and ISO 4032 M8. The pads
 themselves are the [pressure-pad](../../pressure-pad.md) model. The parts list links them there with their size, sole and
-nut or screw.
+nut or screw. The same goes for the printed corner brackets ([printed-corner-bracket](../../printed-corner-bracket.md), with
+DIN 7997 4 × 35 screws) and the printed screen hooks ([printed-screen-hook](../../printed-screen-hook.md), with DIN 7997 3 × 20
+screws): their parts-list lines link to the models with the settings to print them at (for the hooks, this window's lip and
+seal gap), and each model's editor names this page under “Used by” (`modelUsage`, from the concept page's `models`).
 
 The parts the insert can use (every option) are listed once in
 [packages/contracts/src/concepts.ts](../../../packages/contracts/src/concepts.ts). The page's layout takes its hardware from
@@ -254,7 +275,8 @@ and outer diameter).
   [window context](../../../apps/web/src/catioWindowContext.ts), which draws that window
 - [Tests](../../../apps/web/src/catioWindowInsert.test.ts): every option in both variants clears the 0–90° sash sweep and
   stays inside the recess (hung, the hooks reach only behind the lip, clear of the closed sash, turned 0–90° and tilted 0–12°);
-  the hooks' barbs lie in the seal gap and reach behind the lip at the head and the sill; spreader pads reach the reveals only once tightened and the sill feet stand on the recess floor;
+  the hooks' barbs lie in the seal gap and reach behind the lip at the head and the sill, printed or bought, and the printed
+  hooks are where the model, set to the window, makes them; spreader pads reach the reveals only once tightened and the sill feet stand on the recess floor;
   the bench-to-recess staging; parts-list counts against the layout; settings restoration. Browser coverage is in
   [catio.spec.ts](../../../tests/browser/catio.spec.ts).
 

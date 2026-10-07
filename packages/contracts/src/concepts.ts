@@ -1,13 +1,17 @@
 import { dimensionOf, findPart, parts, type Part } from './parts/index.ts';
 import { hexScrew, PRESSURE_PAD, pressurePadSeat } from './pressurePad.ts';
+import { PRINTED_CORNER_BRACKET_SCREW } from './printedCornerBracket.ts';
+import { PRINTED_SCREEN_HOOK_SCREW } from './printedScreenHook.ts';
 
 /**
  * Concept pages that use parts of the library, so that the library's “Used by” lists them beside the models. A concept is
  * not a model (no SCAD, no render): its page lives in the web app at `#/concepts/<id>`, and the part ids it may use are
- * listed here, once, for both that page and the library.
+ * listed here, once, for both that page and the library. The models of the library it has printed (`models`) are listed the
+ * same way, so that a model's editor can name the pages that use it (`modelUsage`).
  */
 export interface ConceptPartLink { partId: string; via: string }
-export interface ConceptPage { id: string; title: string; parts: ConceptPartLink[] }
+export interface ConceptModelLink { modelId: string; via: string }
+export interface ConceptPage { id: string; title: string; parts: ConceptPartLink[]; models: ConceptModelLink[] }
 
 /** The window catio's window insert: the fixed hardware of its joints and mesh, by role. */
 export const WINDOW_INSERT_HARDWARE = {
@@ -108,11 +112,18 @@ export const windowInsertConcept: ConceptPage = {
     { partId: h.hookTop, via: 'Hung on the window frame (hooks at the head)' },
     { partId: h.hookBottom, via: 'Hung on the window frame (hooks at the sill)' },
     { partId: h.hookScrew, via: 'Hung on the window frame (screws of the hooks)' },
+    { partId: PRINTED_CORNER_BRACKET_SCREW.screw, via: 'Collar corners (screws of the printed corner brackets)' },
+    { partId: PRINTED_SCREEN_HOOK_SCREW.screw, via: 'Hung on the window frame (screws of the printed hooks)' },
     ...WINDOW_INSERT_FOOT.diameters.flatMap(d1 => {
       const { spreader, bearing } = windowInsertFeet(d1);
       return [{ partId: spreader.id, via: `Spreader feet (${d1} mm)` }, { partId: bearing.id, via: `Bearing feet under the sill (${d1} mm)` }];
     }),
   ].filter((link, index, all) => all.findIndex(other => other.partId === link.partId && other.via === link.via) === index),
+  models: [
+    { modelId: 'printed-corner-bracket', via: 'collar corners, the default' },
+    { modelId: 'printed-screen-hook', via: 'screen hooks on the window frame, the default' },
+    { modelId: 'pressure-pad', via: 'spreader and bearing feet, the default' },
+  ],
 };
 
 /**
@@ -177,6 +188,10 @@ export const tunnelConcept: ConceptPage = {
     { partId: t.floorScrew, via: 'Strap cleats and turn-button keepers on the bearers’ ends' },
     { partId: t.braceScrew, via: 'Turn buttons’ pivots on the flanges' },
   ],
+  models: [
+    { modelId: 'pressure-pad', via: 'support feet, the default' },
+    { modelId: 'toggle-latch', via: 'latched couplings' },
+  ],
 };
 
 /**
@@ -206,6 +221,7 @@ export const insertTunnelCouplingConcept: ConceptPage = {
     { partId: c.latchScrew, via: 'Latches and catch brackets; floor lip' },
     ...COUPLING_LATCH.types.flatMap(type => COUPLING_LATCH.materials.map(material => ({ partId: couplingLatch(type, material).id, via: `Toggle latches (type ${type}, ${material === 'NI' ? 'stainless' : 'steel'})` }))),
   ],
+  models: [{ modelId: 'toggle-latch', via: 'toggle latches, the default' }],
 };
 
 /**
@@ -220,6 +236,12 @@ export const tunnelTunnelCouplingConcept: ConceptPage = {
     { partId: t.couplingWasher, via: 'Bolted couplings (both sides)' },
     { partId: t.couplingNut, via: 'Bolted couplings' },
   ],
+  models: [{ modelId: 'toggle-latch', via: 'latched couplings, the default' }],
 };
 
 export const conceptPages: readonly ConceptPage[] = [windowInsertConcept, tunnelConcept, insertTunnelCouplingConcept, tunnelTunnelCouplingConcept];
+
+/** The concept pages that use a model of the library, printed: what its editor lists under “Used by”. */
+export function modelUsage(modelId: string): { pageId: string; title: string; via: string }[] {
+  return conceptPages.flatMap(page => page.models.filter(link => link.modelId === modelId).map(link => ({ pageId: page.id, title: page.title, via: link.via })));
+}

@@ -1969,6 +1969,166 @@ export interface operations {
                          */
                         magnetCount: number;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "printed-corner-bracket";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Printed corner bracket parameters. All fields are required; dimensions are in millimetres; the screw is a parts-library id. */
+                    parameters: {
+                        /**
+                         * Leg A
+                         * @description Length of one leg, over the outer corner, in mm: the one along the rail.
+                         * @default 100
+                         */
+                        legA: number;
+                        /**
+                         * Leg B
+                         * @description Length of the other leg, over the outer corner, in mm: the one along the stile.
+                         * @default 100
+                         */
+                        legB: number;
+                        /**
+                         * Width
+                         * @description Width of both legs in mm. On a 40 mm member, 20 mm keeps to its outer half.
+                         * @default 20
+                         */
+                        width: number;
+                        /**
+                         * Thickness
+                         * @description Plate thickness in mm: also how deep it is let into the timber to lie flush.
+                         * @default 5
+                         */
+                        thickness: number;
+                        /**
+                         * Holes per leg
+                         * @description Screw holes along each leg’s middle line.
+                         * @default 3
+                         */
+                        holesPerLeg: number;
+                        /**
+                         * Hole spacing
+                         * @description Distance between neighbouring holes on a leg, in mm.
+                         * @default 20
+                         */
+                        holeSpacing: number;
+                        /**
+                         * First hole
+                         * @description Distance from the outer corner, along each leg, to its first hole, in mm. Past the member the other leg lies on, every screw holds the member its leg runs along.
+                         * @default 50
+                         */
+                        firstHole: number;
+                        /**
+                         * Wood screw diameter
+                         * @description The wood screws’ diameter; the screws below are those of this diameter.
+                         * @default 4 mm
+                         * @enum {unknown}
+                         */
+                        woodScrewDiameter: "3 mm" | "3.5 mm" | "4 mm" | "4.5 mm" | "5 mm" | "6 mm";
+                        /**
+                         * Wood screw
+                         * @description The countersunk wood screw the holes and countersinks are sized for. Its length does not change the bracket; choose one that bites far enough into the timber.
+                         * @default din-7997-4x35
+                         * @enum {unknown}
+                         */
+                        woodScrew: "din-7997-3x12" | "din-7997-3x16" | "din-7997-3x20" | "din-7997-3x25" | "din-7997-3x30" | "din-7997-3-5x16" | "din-7997-3-5x20" | "din-7997-3-5x25" | "din-7997-3-5x30" | "din-7997-3-5x35" | "din-7997-3-5x40" | "din-7997-4x20" | "din-7997-4x25" | "din-7997-4x30" | "din-7997-4x35" | "din-7997-4x40" | "din-7997-4x45" | "din-7997-4x50" | "din-7997-4-5x25" | "din-7997-4-5x30" | "din-7997-4-5x35" | "din-7997-4-5x40" | "din-7997-4-5x45" | "din-7997-4-5x50" | "din-7997-4-5x60" | "din-7997-5x30" | "din-7997-5x35" | "din-7997-5x40" | "din-7997-5x50" | "din-7997-5x60" | "din-7997-5x70" | "din-7997-5x80" | "din-7997-6x40" | "din-7997-6x50" | "din-7997-6x60" | "din-7997-6x70" | "din-7997-6x80" | "din-7997-6x90" | "din-7997-6x100";
+                        /**
+                         * Hole fit
+                         * @description How much play the screws have in their holes: 0.3 / 0.5 / 0.8 mm over the screw’s diameter, DIN EN 20273’s allowances for M4 and M5.
+                         * @default medium
+                         * @enum {unknown}
+                         */
+                        holeFit: "fine" | "medium" | "coarse";
+                    };
+                } | {
+                    /** @enum {string} */
+                    modelId: "printed-screen-hook";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Printed screen hook parameters. All fields are required; dimensions are in millimetres; the screw is a parts-library id. */
+                    parameters: {
+                        /**
+                         * Frame lip thickness
+                         * @description Open the window and measure the fixed frame’s outermost leg, from its outer face to the seal on its back, in mm. The barb reaches behind it.
+                         * @default 15.5
+                         */
+                        frameLip: number;
+                        /**
+                         * Seal gap
+                         * @description From the lip’s back to the closed sash’s face, where the outer seal is, in mm. The barb lies in it, centred, so the sash still closes.
+                         * @default 3.5
+                         */
+                        sealGap: number;
+                        /**
+                         * Reach behind the lip
+                         * @description How far both barbs reach behind the lip once the frame hangs, in mm. The long barb is made longer by what the frame is lifted to hang it.
+                         * @default 6
+                         */
+                        engage: number;
+                        /**
+                         * Width
+                         * @description Width of the strip in mm.
+                         * @default 10
+                         */
+                        width: number;
+                        /**
+                         * Leg length
+                         * @description From the turn’s outer face to the end of the screwed leg, in mm.
+                         * @default 40
+                         */
+                        legLength: number;
+                        /**
+                         * Leg thickness
+                         * @description Of the screwed leg, in mm: it takes the countersunk heads.
+                         * @default 4
+                         */
+                        legThickness: number;
+                        /**
+                         * Turn thickness
+                         * @description Of the turn into the window, in mm.
+                         * @default 4
+                         */
+                        turnThickness: number;
+                        /**
+                         * Barb thickness
+                         * @description Of the barb in the seal gap, in mm: at most the gap less 0.5 mm each side.
+                         * @default 2
+                         */
+                        barbThickness: number;
+                        /**
+                         * Clearance
+                         * @description How far the short hooks’ turns stand off the sill lip’s tip once the frame stands on its feet, in mm, and the long ones’ off the head lip while it is lifted.
+                         * @default 1
+                         */
+                        clearance: number;
+                        /**
+                         * Wood screw diameter
+                         * @description The wood screws’ diameter; the screws below are those of this diameter.
+                         * @default 3 mm
+                         * @enum {unknown}
+                         */
+                        woodScrewDiameter: "3 mm" | "3.5 mm" | "4 mm" | "4.5 mm" | "5 mm" | "6 mm";
+                        /**
+                         * Wood screw
+                         * @description The countersunk wood screw the leg’s two holes are sized for. Its length does not change the hook.
+                         * @default din-7997-3x20
+                         * @enum {unknown}
+                         */
+                        woodScrew: "din-7997-3x12" | "din-7997-3x16" | "din-7997-3x20" | "din-7997-3x25" | "din-7997-3x30" | "din-7997-3-5x16" | "din-7997-3-5x20" | "din-7997-3-5x25" | "din-7997-3-5x30" | "din-7997-3-5x35" | "din-7997-3-5x40" | "din-7997-4x20" | "din-7997-4x25" | "din-7997-4x30" | "din-7997-4x35" | "din-7997-4x40" | "din-7997-4x45" | "din-7997-4x50" | "din-7997-4-5x25" | "din-7997-4-5x30" | "din-7997-4-5x35" | "din-7997-4-5x40" | "din-7997-4-5x45" | "din-7997-4-5x50" | "din-7997-4-5x60" | "din-7997-5x30" | "din-7997-5x35" | "din-7997-5x40" | "din-7997-5x50" | "din-7997-5x60" | "din-7997-5x70" | "din-7997-5x80" | "din-7997-6x40" | "din-7997-6x50" | "din-7997-6x60" | "din-7997-6x70" | "din-7997-6x80" | "din-7997-6x90" | "din-7997-6x100";
+                        /**
+                         * Hole fit
+                         * @description How much play the screws have in their holes: 0.3 / 0.5 / 0.8 mm over the screw’s diameter, DIN EN 20273’s allowances for M4 and M5.
+                         * @default medium
+                         * @enum {unknown}
+                         */
+                        holeFit: "fine" | "medium" | "coarse";
+                    };
                 };
             };
         };

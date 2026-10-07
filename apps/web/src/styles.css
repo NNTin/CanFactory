@@ -1196,6 +1196,60 @@ main {
     transition: none;
   }
 }
+/* The printed corner bracket: on hover the plate lifts off its recess, its screws rise out of it, and both settle again. */
+.model-card:hover .pcb-plate,
+.model-card:focus-visible .pcb-plate {
+  animation: pcb-lift 2.6s ease-in-out infinite;
+}
+.model-card:hover .pcb-screws,
+.model-card:focus-visible .pcb-screws {
+  animation: pcb-screws 2.6s ease-in-out infinite;
+}
+@keyframes pcb-lift {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  45%,
+  55% {
+    transform: translate(-6px, -10px);
+  }
+}
+@keyframes pcb-screws {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  45%,
+  55% {
+    transform: translate(-12px, -20px);
+  }
+}
+/* The printed screen hook: on hover the insert is lifted as it is to hang it, the barb sliding up behind the lip, and let down. */
+.model-card:hover .psh-insert,
+.model-card:focus-visible .psh-insert {
+  animation: psh-hang 2.4s ease-in-out infinite;
+}
+@keyframes psh-hang {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40%,
+  60% {
+    transform: translateY(var(--psh-lift));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .model-card:hover .pcb-plate,
+  .model-card:focus-visible .pcb-plate,
+  .model-card:hover .pcb-screws,
+  .model-card:focus-visible .pcb-screws,
+  .model-card:hover .psh-insert,
+  .model-card:focus-visible .psh-insert {
+    animation: none;
+  }
+}
 /* The pressure pad: on hover the extender runs up and down the screw below, setting the leg's height. */
 .pp-guide {
   opacity: 0;
