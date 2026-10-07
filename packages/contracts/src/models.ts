@@ -11,6 +11,8 @@ import { clearanceHoles, PRINTED_WOOD_DIAMETERS, PRINTED_WOOD_SCREWS } from './s
 import { PRINTED_CORNER_BRACKET_DEFAULT, PRINTED_CORNER_BRACKET_SCREW, printedCornerBracketBite, printedCornerBracketHoles, printedCornerBracketIssues } from './printedCornerBracket.ts';
 import { PRINTED_BARB_MIN, PRINTED_SCREEN_HOOK_DEFAULT, PRINTED_SCREEN_HOOK_SCREW, printedScreenHookIssues, printedScreenHookShape } from './printedScreenHook.ts';
 import { DETENT_BALLS, DETENT_BODIES, DETENT_RETENTIONS, DETENT_SET_SCREWS, DETENT_SPRINGS, DETENT_THREAD_PITCH, DETENT_THREADS, DETENT_TOOL_FEATURES, SPRING_BALL_DETENT_DEFAULT, springBallDetentIssues, springBallDetentLayout, type DetentBody, type DetentParts, type DetentRetention, type DetentToolFeature } from './springBallDetent.ts';
+import { COLLAR_TAG_ATTACHMENTS, COLLAR_TAG_FRONT_STYLES, COLLAR_TAG_MARKS, COLLAR_TAG_MOUNTS, COLLAR_TAG_SHAPES, collarTagIssues, collarTagLayout, collarTagWeight, embossChangeHeight, type CollarTagAttachment, type CollarTagFace, type CollarTagFrontStyle, type CollarTagMark, type CollarTagMount, type CollarTagSettings, type CollarTagShape } from './catCollarTag.ts';
+import { layerAbove } from './printPause.ts';
 import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, type LatchMovement } from './toggleLatchMechanism.ts';
 
 /** A field-level, user-readable validation failure. Paths are parameter names. */
@@ -2948,7 +2950,297 @@ export const springBallDetent = {
   },
 } satisfies ModelDefinition;
 
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent];
+/**
+ * Cat collar tag (models/cat-collar-tag/generator.scad, docs/cat-collar-tag.md): an original design, a name tag with a mark of its
+ * own on each face, an optional NFC tag and magnets, and a choice of how it goes on the collar (`attachment`). One model with one
+ * tag face for every attachment, rather than a model per attachment, since the face is most of it and a SCAD file cannot share
+ * code with another. `packages/contracts/src/catCollarTag.ts` repeats the generator's layout.
+ */
+const COLLAR_TAG_ATTACHMENT_TEXT: Record<CollarTagAttachment, { label: string; description: string }> = {
+  hanging: { label: 'Hanging (split ring)', description: 'A traditional hanging tag: a bail at the top with a hole for a split ring, which hangs it from the collar’s D-ring or O-ring.' },
+  'slide-on': { label: 'Slide-on (collar through it)', description: 'A flat tag with a slot near each end: the strap runs through both, in front of the end bars and behind the middle, so that it lies flat on the collar and does not slide easily. No hardware; thread the collar’s free end through it.' },
+};
+const COLLAR_TAG_SHAPE_TEXT: Record<CollarTagShape, { label: string; description: string }> = {
+  round: { label: 'Round', description: 'A disc, as wide as it is high.' },
+  'rounded-rectangle': { label: 'Rounded rectangle', description: 'A rectangle whose corners are rounded by a quarter of its shorter side.' },
+  bone: { label: 'Bone', description: 'A bar between four round lobes; at least 1.4 times as wide as it is high.' },
+  heart: { label: 'Heart', description: 'A heart; a hanging one hangs from the dip between its lobes.' },
+  fish: { label: 'Fish', description: 'An oval body with a tail; the text sits on the body.' },
+};
+const COLLAR_TAG_MARK_TEXT: Record<CollarTagMark, { label: string; description: string }> = {
+  none: { label: 'Nothing', description: 'A plain face.' },
+  text: { label: 'Text', description: 'One or two lines of text in one of four fonts.' },
+  logo: { label: 'SVG logo', description: 'The filled shapes of an SVG file, scaled to fit the free area.' },
+};
+const COLLAR_TAG_FRONT_STYLE_TEXT: Record<CollarTagFrontStyle, { label: string; description: string }> = {
+  engrave: { label: 'Engraved', description: 'Carved into the front. Works on any printer and wears least.' },
+  emboss: { label: 'Embossed', description: 'Raised on the front; change filament at the height shown under the settings to print it in another colour.' },
+};
+const COLLAR_TAG_NFC_TEXT: Record<CollarTagMount, { label: string; description: string }> = {
+  none: { label: 'None', description: 'No NFC tag.' },
+  pocket: { label: 'Pocket in the back', description: 'An open pocket in the back, as deep as the tag is thick: stick the NFC tag in with its own adhesive after printing. The thinnest tag.' },
+  embedded: { label: 'Embedded (print pause)', description: 'A sealed cavity: the print pauses at the height shown under the settings, you drop the NFC tag in, and the print closes over it. Phones read through the plastic.' },
+};
+const COLLAR_TAG_MAGNET_TEXT: Record<CollarTagMount, { label: string; description: string }> = {
+  none: { label: 'None', description: 'No magnets.' },
+  pocket: { label: 'Pockets in the back', description: 'Open pockets in the back: press or glue the magnets in after printing. They touch the steel, for the strongest hold.' },
+  embedded: { label: 'Embedded (print pause)', description: 'Sealed cavities: the print pauses at the height shown under the settings, you drop the magnets in, and the print closes over them. Nothing to fall out, which suits a cat; a thin skin holds a little less, and the tag must be thicker.' },
+};
+
+/** The magnets the tag offers: discs of the parts library up to 10 × 2 mm, which keep a tag light and thin. */
+export const COLLAR_TAG_MAGNET_LIMIT = { diameter: 10.1, thickness: 2.1 } as const;
+export function collarTagMagnetFits(part: Part): boolean {
+  return part.family === 'magnet' && part.attributes['shape'] === 'disc' && Boolean(part.dimensions['diameter'])
+    && dimensionOf(part, 'diameter', 'max') <= COLLAR_TAG_MAGNET_LIMIT.diameter + 1e-9 && dimensionOf(part, 'thickness', 'max') <= COLLAR_TAG_MAGNET_LIMIT.thickness + 1e-9;
+}
+/** Every magnet of the parts library that fits (`collarTagMagnetFits`), in the library's order; a test keeps the list equal to the library. */
+export const COLLAR_TAG_MAGNETS = ['supermagnete-s-04-02-n', 'supermagnete-s-05-01-n', 'supermagnete-s-05-02-n52n', 'supermagnete-s-06-01-n', 'supermagnete-s-06-02-n', 'supermagnete-s-08-01-n', 'supermagnete-s-08-02-n', 'supermagnete-s-10-01-n', 'supermagnete-s-10-02-n'] as const;
+/** Every NFC tag, split ring and cat collar of the parts library; tests keep the lists equal to the library. */
+export const COLLAR_TAG_NFC_TAGS = ['gototags-bgrduhnvrl', 'gototags-gml7cqg3v7', 'gototags-hg5w9byet8', 'gototags-fjz3am6fjz', 'gototags-bzkx3zlhxx', 'core-electronics-ce08496'] as const;
+export const COLLAR_TAG_SPLIT_RINGS = ['avco-kr-90920', 'avco-kr-90930', 'avco-kr-92000', 'avco-kr-92100', 'avco-kr-92200', 'avco-kr-9335', 'avco-kr-9337', 'avco-kr-93400'] as const;
+export const COLLAR_TAG_COLLARS = ['rogz-kiddycat-8mm', 'rogz-kiddycat-11mm', 'rogz-alleycat-11mm', 'coastal-safe-cat-fashion-3-8in', 'trixie-4180', 'lupinepet-original-designs-safety-cat-collar'] as const;
+
+const COLLAR_TAG_LINE = (title: string, description: string, value: string) =>
+  Type.String({ title, description: `${description} Up to 16 characters of printable ASCII (letters, digits, spaces and punctuation, no accents).`, default: value, maxLength: 16, pattern: '^[ -~]*$' });
+const COLLAR_TAG_LOGO = (title: string, description: string) =>
+  Type.String({ title, description: `${description} Strokes, text, pictures and style sheets in the file are left out. The file itself is never uploaded, only its outline.`, default: '', maxLength: LOGO_MAX_LENGTH, pattern: '^[MLZ0-9 ]*$' });
+
+export const DEFAULT_CAT_COLLAR_TAG = {
+  attachment: 'hanging', shape: 'round', width: 30, height: 22, thickness: 2.4, edgeRadius: 0.6,
+  frontMark: 'text', frontLine1: 'Luna', frontLine2: '', frontFont: 'sans', frontTextSize: 5.5, frontLogo: '', frontLogoSize: 10, frontStyle: 'engrave',
+  backMark: 'text', backLine1: 'If found:', backLine2: '555 0100', backFont: 'sans', backTextSize: 3, backLogo: '', backLogoSize: 10,
+  nfc: 'none', nfcTag: 'gototags-bgrduhnvrl', magnetMount: 'none', magnet: 'supermagnete-s-06-01-n', magnetCount: 1,
+  splitRing: 'avco-kr-9335', dRingWire: 2, bailWall: 2,
+  collar: 'trixie-4180', slotFit: 0.3, barWidth: 3,
+  engraveDepth: 0.6, embossHeight: 0.6, layerHeight: 0.2,
+} as const;
+const ct = DEFAULT_CAT_COLLAR_TAG;
+
+export const CatCollarTagParametersSchema = Type.Object({
+  attachment: Type.Enum(COLLAR_TAG_ATTACHMENTS, { title: 'Attachment', description: 'How the tag goes on the collar.', default: ct.attachment }),
+  shape: Type.Enum(COLLAR_TAG_SHAPES, { title: 'Shape', description: 'The tag’s outline.', default: ct.shape }),
+  width: dimension('Width', 'The tag’s width (a round tag’s diameter), in mm, without a hanging tag’s bail.', ct.width, 15, 60, 0.5),
+  height: dimension('Height', 'The tag’s height, in mm, without a hanging tag’s bail. A round tag is as high as it is wide.', ct.height, 10, 45, 0.5),
+  thickness: dimension('Thickness', 'The tag’s thickness, in mm, without an embossed mark. Embedded magnets or an NFC tag need a minimum, which the editor names.', ct.thickness, 1, 6, 0.1),
+  edgeRadius: dimension('Edge rounding', 'How far the front and back edges are rounded, in mm: a soft edge against the cat. At most half the thickness.', ct.edgeRadius, 0, 2, 0.1),
+  frontMark: Type.Enum(COLLAR_TAG_MARKS, { title: 'Front', description: 'What the front carries: text, a logo or nothing.', default: ct.frontMark }),
+  frontLine1: COLLAR_TAG_LINE('Front text, line 1', 'The front’s first line, e.g. the cat’s name.', ct.frontLine1),
+  frontLine2: COLLAR_TAG_LINE('Front text, line 2', 'An optional second line on the front.', ct.frontLine2),
+  frontFont: Type.Enum(TEXT_FONT_VALUES, { title: 'Front font', description: 'The front text’s font. All are bold, so that the strokes print cleanly.', default: ct.frontFont }),
+  frontTextSize: dimension('Front text size', 'Letter height of the front text in mm (the height of a capital). Longer text needs a smaller size.', ct.frontTextSize, 2.5, 12, 0.5),
+  frontLogo: COLLAR_TAG_LOGO('Front logo', 'An SVG file whose filled shapes go on the front.'),
+  frontLogoSize: dimension('Front logo size', 'Height of the front logo in mm; a wide logo is made smaller to fit the free width.', ct.frontLogoSize, 3, 30, 0.5),
+  frontStyle: Type.Enum(COLLAR_TAG_FRONT_STYLES, { title: 'Front style', description: 'Whether the front’s text or logo is carved in or raised.', default: ct.frontStyle }),
+  backMark: Type.Enum(COLLAR_TAG_MARKS, { title: 'Back', description: 'What the back carries: text, a logo or nothing. The back lies on the print bed, so its mark is engraved, mirrored to read when the tag is turned over.', default: ct.backMark }),
+  backLine1: COLLAR_TAG_LINE('Back text, line 1', 'The back’s first line.', ct.backLine1),
+  backLine2: COLLAR_TAG_LINE('Back text, line 2', 'The back’s second line, e.g. a phone number.', ct.backLine2),
+  backFont: Type.Enum(TEXT_FONT_VALUES, { title: 'Back font', description: 'The back text’s font.', default: ct.backFont }),
+  backTextSize: dimension('Back text size', 'Letter height of the back text in mm.', ct.backTextSize, 2.5, 12, 0.5),
+  backLogo: COLLAR_TAG_LOGO('Back logo', 'An SVG file whose filled shapes are engraved in the back.'),
+  backLogoSize: dimension('Back logo size', 'Height of the back logo in mm; a wide logo is made smaller to fit the free width.', ct.backLogoSize, 3, 30, 0.5),
+  nfc: Type.Enum(COLLAR_TAG_MOUNTS, { title: 'NFC tag', description: 'An NFC tag that a phone reads (e.g. a web page with your phone number): none, in a pocket in the back, or embedded at a print pause.', default: ct.nfc }),
+  nfcTag: Type.Enum(COLLAR_TAG_NFC_TAGS, { title: 'NFC tag product', description: 'The NFC tag, a real product from the parts library; its pocket or cavity is cut to its size.', default: ct.nfcTag }),
+  magnetMount: Type.Enum(COLLAR_TAG_MOUNTS, { title: 'Magnets', description: 'Disc magnets, to stick the tag to a fridge or a board when the cat is not wearing it: none, in pockets in the back, or embedded at a print pause. Only one of the NFC tag and the magnets can be embedded.', default: ct.magnetMount }),
+  magnet: Type.Enum(COLLAR_TAG_MAGNETS, { title: 'Magnet', description: 'The disc magnet, a real product from the parts library; its pockets are cut to its greatest size.', default: ct.magnet }),
+  magnetCount: Type.Integer({ title: 'Magnet count', description: 'One magnet (in the middle, or beside an NFC tag) or two (at the ends of the free area).', default: ct.magnetCount, minimum: 1, maximum: 2 }),
+  splitRing: Type.Enum(COLLAR_TAG_SPLIT_RINGS, { title: 'Split ring', description: 'The split ring that hangs the tag on the collar, a real product from the parts library. The bail’s hole is sized for its band, and the ring is checked to go round the bail and the D-ring.', default: ct.splitRing }),
+  dRingWire: dimension('D-ring wire', 'The thickness of the collar’s D-ring or O-ring wire, in mm, which the split ring must hold beside the bail. Makers do not publish it: measure yours.', ct.dRingWire, 1, 4, 0.1),
+  bailWall: dimension('Bail wall', 'The wall round the bail’s hole, in mm. Thicker is stronger.', ct.bailWall, 1.2, 4, 0.1),
+  collar: Type.Enum(COLLAR_TAG_COLLARS, { title: 'Collar', description: 'The collar the tag slides onto, a real product from the parts library: the slots are cut for its strap’s width and (estimated) thickness.', default: ct.collar }),
+  slotFit: dimension('Slot fit', 'Play of the slots over the strap’s thickness, in mm. Less holds the tag in place more firmly; more slides more easily.', ct.slotFit, 0, 1, 0.05),
+  barWidth: dimension('End bar width', 'The width of the bar outside each slot, in mm.', ct.barWidth, 2, 8, 0.5),
+  engraveDepth: dimension('Engraving depth', 'How deep engraved text and logos are carved, in mm.', ct.engraveDepth, 0.3, 1.2, 0.1),
+  embossHeight: dimension('Emboss height', 'How high an embossed front stands, in mm.', ct.embossHeight, 0.4, 1.5, 0.1),
+  layerHeight: dimension('Layer height', 'Your slicer’s layer height, in mm: the print pause and the filament change are put on a layer boundary.', ct.layerHeight, 0.08, 0.32, 0.02),
+}, { additionalProperties: false, description: 'Cat collar tag parameters. All fields are required; dimensions are in millimetres; the parts are parts-library ids.' });
+export type CatCollarTagParameters = Static<typeof CatCollarTagParametersSchema>;
+
+const libraryPart = (id: string): Part => findPart(id) ?? (() => { throw new Error(`${id} is not a part of the library.`); })();
+
+/** The layout's settings for these parameters: the faces, and the chosen parts' greatest sizes. */
+export function catCollarTagSettings(parameters: ParameterValues): CollarTagSettings {
+  const p = { ...DEFAULT_CAT_COLLAR_TAG, ...parameters } as CatCollarTagParameters;
+  const nfc = libraryPart(p.nfcTag), magnet = libraryPart(p.magnet), ring = libraryPart(p.splitRing), collar = libraryPart(p.collar);
+  const face = (side: 'front' | 'back'): CollarTagFace => ({
+    mark: p[`${side}Mark`], line1: p[`${side}Line1`], line2: p[`${side}Line2`], font: p[`${side}Font`], textSize: p[`${side}TextSize`], logo: p[`${side}Logo`], logoSize: p[`${side}LogoSize`],
+  });
+  return {
+    attachment: p.attachment, shape: p.shape, width: p.width, height: p.height, thickness: p.thickness, edgeRadius: p.edgeRadius,
+    front: face('front'), frontStyle: p.frontStyle, back: face('back'), engraveDepth: p.engraveDepth, embossHeight: p.embossHeight,
+    nfc: p.nfc, nfcDiameter: dimensionOf(nfc, 'D', 'max'), nfcThickness: dimensionOf(nfc, 'h', 'max'), nfcAntenna: nfc.dimensions['antenna'] ? dimensionOf(nfc, 'antenna') : 0,
+    magnetMount: p.magnetMount, magnetCount: p.magnetCount, magnetDiameter: dimensionOf(magnet, 'diameter', 'max'), magnetThickness: dimensionOf(magnet, 'thickness', 'max'),
+    layerHeight: p.layerHeight,
+    ringInner: dimensionOf(ring, 'd'), ringOuter: dimensionOf(ring, 'D'), ringBand: dimensionOf(ring, 'a', 'max'), ringThickness: dimensionOf(ring, 'b', 'max'), dRingWire: p.dRingWire, bailWall: p.bailWall,
+    collarWidth: dimensionOf(collar, 'width', 'max'), collarThickness: dimensionOf(collar, 'thickness', 'max'), slotFit: p.slotFit, barWidth: p.barWidth,
+  };
+}
+
+function validateCatCollarTag(p: CatCollarTagParameters): ParameterIssue[] {
+  for (const field of ['frontLogo', 'backLogo'] as const) {
+    try { decodeLogo(p[field]); }
+    catch (error) { return [{ field, message: error instanceof SvgError ? error.message : 'The logo is malformed. Load the SVG file again.' }]; }
+  }
+  return collarTagIssues(catCollarTagSettings(p));
+}
+
+const ctmm = (value: number) => `${Math.round(value * 10) / 10} mm`;
+
+/** What the editor shows under the settings: the tag's size and weight, how it goes on, and where to pause or change filament. */
+function catCollarTagNotes(p: CatCollarTagParameters): string[] {
+  const settings = catCollarTagSettings(p);
+  const layout = collarTagLayout(settings);
+  const notes = [`A ${COLLAR_TAG_SHAPE_TEXT[p.shape].label.toLowerCase()} tag, ${ctmm(p.width)} × ${ctmm(layout.bounds.y)} × ${ctmm(layout.bounds.z)}${layout.hanging ? ' with its bail' : ''}: about ${(Math.round(collarTagWeight(settings, layout) * 10) / 10).toFixed(1)} g in PLA, before the hardware.`];
+  if (layout.hanging) notes.push(`The bail’s hole is ${ctmm(layout.holeD)} across, for the split ring (${libraryPart(p.splitRing).title}): open the ring with a fingernail or a ring opener and wind it through.`);
+  else notes.push(`The slots are ${ctmm(layout.slotWidth)} × ${ctmm(layout.slotLength)}, for the ${ctmm(settings.collarWidth)} strap: open the collar, run its free end down through one slot and up through the other, so that it lies in front of the end bars and behind the middle, and close it again, clear of the safety buckle.`);
+  if (layout.embedded) {
+    const what = layout.embedded === 'nfc' ? 'the NFC tag into its cavity' : layout.magnets.length === 1 ? 'the magnet into its cavity' : `the ${layout.magnets.length} magnets into their cavities`;
+    notes.push(`Pause the print at ${layout.pauseHeight} mm, before layer ${layerAbove(layout.pauseHeight, p.layerHeight)} at ${p.layerHeight} mm layers, and drop ${what}; check ${layout.embedded === 'nfc' ? 'it lies' : 'they lie'} flat, then resume.`);
+  }
+  if (p.nfc === 'pocket') notes.push('After printing, stick the NFC tag into the pocket in the back with its own adhesive.');
+  if (p.magnetMount === 'pocket') notes.push(`After printing, press or glue the magnet${p.magnetCount === 1 ? '' : 's'} into the back.`);
+  if (p.nfc !== 'none' && p.magnetMount !== 'none') notes.push(`Try the NFC tag with your phone: the magnets are ${ctmm(Math.abs((layout.magnets[0]?.[0] ?? 0) - layout.area.x) - layout.nfcReach - layout.magnetPocket / 2)} from its antenna, and metal nearby shortens the read range.`);
+  if (layout.emboss > 0) {
+    const change = embossChangeHeight(settings);
+    notes.push(`For the raised front in another colour, change filament at ${change} mm, before layer ${layerAbove(change, p.layerHeight)} at ${p.layerHeight} mm layers.`);
+  }
+  return notes;
+}
+
+/** The hardware in the preview: the embedded or pocketed NFC tag and magnets, the split ring through the bail, or the collar's
+ * strap threaded through the slots. */
+function catCollarTagReferences(parameters: ParameterValues): LinkedReference[] {
+  const p = { ...DEFAULT_CAT_COLLAR_TAG, ...parameters } as CatCollarTagParameters;
+  const settings = catCollarTagSettings(p);
+  const layout = collarTagLayout(settings);
+  const references: LinkedReference[] = [];
+  if (p.nfc !== 'none') references.push(p.nfc === 'embedded'
+    ? { id: 'nfc-tag', part: p.nfcTag, label: 'embedded', pose: { position: [layout.area.x, layout.area.y, layout.nfcZ] }, movesWith: 'tag' }
+    : { id: 'nfc-tag', part: p.nfcTag, label: 'in the pocket in the back', pose: { position: [layout.area.x, layout.area.y, 0] }, step: { title: 'Stick the NFC tag into the back', from: [0, 0, -10] } });
+  layout.magnets.forEach(([x, y], i) => references.push(p.magnetMount === 'embedded'
+    ? { id: `magnet-${i + 1}`, part: p.magnet, label: `embedded, ${i + 1}`, pose: { position: [x, y, layout.magnetZ] }, movesWith: 'tag' }
+    : { id: `magnet-${i + 1}`, part: p.magnet, label: `in the back, pocket ${i + 1}`, pose: { position: [x, y, 0] }, step: { title: 'Press the magnets into the back', from: [0, 0, -10] } }));
+  if (layout.hanging) {
+    // the ring stands across the bail, its band through the hole: its axis along x, its circle through the hole's centre
+    const ring = libraryPart(p.splitRing);
+    const b = dimensionOf(ring, 'b', 'max'), mean = (dimensionOf(ring, 'D') + dimensionOf(ring, 'd')) / 4;
+    references.push({ id: 'split-ring', part: ring.id, label: 'through the bail', pose: { position: [layout.hole[0] - b / 2, layout.hole[1] + mean, p.thickness / 2], rotation: [0, 90, 0] }, movesWith: 'tag' });
+  } else {
+    // the strap: in front of the end bars, down through the slots, behind the middle; five pieces of the 60 mm strap, touching
+    const collar = libraryPart(p.collar);
+    const t = dimensionOf(collar, 'thickness', 'max'), STRAP = 60;
+    const [left, right] = layout.slots as [[number, number], [number, number]];
+    const y = left[1], outer = p.width / 2 + 12;
+    const piece = (id: string, label: string, x0: number, x1: number, z: number): LinkedReference =>
+      ({ id, part: collar.id, label, pose: { position: [(x0 + x1) / 2, y, z], scale: [(x1 - x0) / STRAP, 1, 1] }, movesWith: 'tag' });
+    const through = (id: string, label: string, x: number): LinkedReference =>
+      ({ id, part: collar.id, label, pose: { position: [x - t / 2, y, p.thickness / 2], rotation: [0, 90, 0], scale: [(p.thickness + 2 * t) / STRAP, 1, 1] }, movesWith: 'tag' });
+    references.push(
+      piece('strap-left', 'strap, in front of the left end bar', -outer, left[0] - t / 2, p.thickness),
+      through('strap-left-slot', 'strap, through the left slot', left[0]),
+      piece('strap-middle', 'strap, behind the middle', left[0] + t / 2, right[0] - t / 2, -t),
+      through('strap-right-slot', 'strap, through the right slot', right[0]),
+      piece('strap-right', 'strap, in front of the right end bar', right[0] + t / 2, outer, p.thickness),
+    );
+  }
+  const base = catCollarTagBase(p);
+  return references.map(reference => ({ ...reference, pose: { ...reference.pose, position: [reference.pose.position[0], reference.pose.position[1], reference.pose.position[2] + base] } }));
+}
+
+/** How high the tag stands in the preview, so that nothing hangs below the floor: the split ring standing across the bail, or the
+ * strap behind the tag. */
+function catCollarTagBase(p: CatCollarTagParameters): number {
+  if (p.attachment === 'hanging') return Math.max(0, dimensionOf(libraryPart(p.splitRing), 'D', 'max') / 2 - p.thickness / 2);
+  return dimensionOf(libraryPart(p.collar), 'thickness', 'max');
+}
+
+/** The tag is the base: the hardware is shown in place round it and moves with it (embedded items, the ring through the bail, the strap
+ * through the slots), and only what goes in after printing has a step of its own (`catCollarTagReferences`). */
+export function catCollarTagAssembly(parameters: ParameterValues): Assembly {
+  const p = { ...DEFAULT_CAT_COLLAR_TAG, ...parameters } as CatCollarTagParameters;
+  return { partColors: { tag: '#e8a33d' }, poses: { tag: { position: [0, 0, catCollarTagBase(p)] } },
+    steps: [{ title: p.attachment === 'hanging' ? 'The tag on its split ring' : 'The tag on the collar', parts: ['tag'], from: [0, 0, 15] }], lift: 10 };
+}
+
+const COLLAR_TAG_SHAPES_WITH_HEIGHT = COLLAR_TAG_SHAPES.filter(shape => shape !== 'round');
+const faceControls = (side: 'front' | 'back') => {
+  const S = CatCollarTagParametersSchema;
+  const mark = `${side}Mark` as const;
+  return [
+    enumControl(S, mark, 'basic', COLLAR_TAG_MARKS.map(value => ({ value, ...COLLAR_TAG_MARK_TEXT[value] }))),
+    ...[textControl(S, `${side}Line1`, 'basic'), textControl(S, `${side}Line2`, 'basic'),
+      enumControl(S, `${side}Font`, 'basic', TEXT_FONT_VALUES.map(value => ({ value, ...TEXT_FONT_TEXT[value] }))), control(S, `${side}TextSize`, 'basic')]
+      .map(c => ({ ...c, visibleWhen: { control: mark, values: ['text'] } })),
+    ...[svgControl(S, `${side}Logo`, 'basic'), control(S, `${side}LogoSize`, 'basic')].map(c => ({ ...c, visibleWhen: { control: mark, values: ['logo'] } })),
+  ];
+};
+const catCollarTagControls = [
+  enumControl(CatCollarTagParametersSchema, 'attachment', 'basic', COLLAR_TAG_ATTACHMENTS.map(value => ({ value, ...COLLAR_TAG_ATTACHMENT_TEXT[value] }))),
+  enumControl(CatCollarTagParametersSchema, 'shape', 'basic', COLLAR_TAG_SHAPES.map(value => ({ value, ...COLLAR_TAG_SHAPE_TEXT[value] }))),
+  control(CatCollarTagParametersSchema, 'width', 'basic'),
+  { ...control(CatCollarTagParametersSchema, 'height', 'basic'), visibleWhen: { control: 'shape', values: COLLAR_TAG_SHAPES_WITH_HEIGHT } },
+  { ...control(CatCollarTagParametersSchema, 'thickness', 'basic'),
+    recommended: [
+      { control: 'nfc', ranges: [{ value: 'none', minimum: 1.2, maximum: 4 }, { value: 'pocket', minimum: 1.6, maximum: 4 }, { value: 'embedded', minimum: 1.8, maximum: 4 }] },
+      { control: 'magnetMount', ranges: [{ value: 'none', minimum: 1.2, maximum: 4 }, { value: 'pocket', minimum: 2.4, maximum: 4.5 }, { value: 'embedded', minimum: 2.6, maximum: 5 }] },
+    ] },
+  ...faceControls('front'),
+  { ...enumControl(CatCollarTagParametersSchema, 'frontStyle', 'basic', COLLAR_TAG_FRONT_STYLES.map(value => ({ value, ...COLLAR_TAG_FRONT_STYLE_TEXT[value] }))), visibleWhen: { control: 'frontMark', values: ['text', 'logo'] } },
+  ...faceControls('back'),
+  enumControl(CatCollarTagParametersSchema, 'nfc', 'basic', COLLAR_TAG_MOUNTS.map(value => ({ value, ...COLLAR_TAG_NFC_TEXT[value] }))),
+  { ...partControl(CatCollarTagParametersSchema, 'nfcTag', 'basic', 'nfc-tag', COLLAR_TAG_NFC_TAGS), visibleWhen: { control: 'nfc', values: ['pocket', 'embedded'] } },
+  enumControl(CatCollarTagParametersSchema, 'magnetMount', 'basic', COLLAR_TAG_MOUNTS.map(value => ({ value, ...COLLAR_TAG_MAGNET_TEXT[value] }))),
+  ...[partControl(CatCollarTagParametersSchema, 'magnet', 'basic', 'magnet', COLLAR_TAG_MAGNETS), control(CatCollarTagParametersSchema, 'magnetCount', 'basic', null, null)]
+    .map(c => ({ ...c, visibleWhen: { control: 'magnetMount', values: ['pocket', 'embedded'] } })),
+  { ...partControl(CatCollarTagParametersSchema, 'splitRing', 'basic', 'split-ring', COLLAR_TAG_SPLIT_RINGS), visibleWhen: { control: 'attachment', values: ['hanging'] } },
+  ...[control(CatCollarTagParametersSchema, 'dRingWire', 'advanced'), control(CatCollarTagParametersSchema, 'bailWall', 'advanced')]
+    .map(c => ({ ...c, visibleWhen: { control: 'attachment', values: ['hanging'] } })),
+  { ...partControl(CatCollarTagParametersSchema, 'collar', 'basic', 'cat-collar', COLLAR_TAG_COLLARS), visibleWhen: { control: 'attachment', values: ['slide-on'] } },
+  ...[control(CatCollarTagParametersSchema, 'slotFit', 'advanced'), control(CatCollarTagParametersSchema, 'barWidth', 'advanced')]
+    .map(c => ({ ...c, visibleWhen: { control: 'attachment', values: ['slide-on'] } })),
+  control(CatCollarTagParametersSchema, 'edgeRadius', 'advanced'),
+  control(CatCollarTagParametersSchema, 'engraveDepth', 'advanced'),
+  { ...control(CatCollarTagParametersSchema, 'embossHeight', 'advanced'), visibleWhen: { control: 'frontStyle', values: ['emboss'] } },
+  control(CatCollarTagParametersSchema, 'layerHeight', 'advanced'),
+];
+
+const CAT_COLLAR_TAG_MAPPING = {
+  attachment: 'ATTACHMENT', shape: 'SHAPE', width: 'WIDTH', height: 'HEIGHT', thickness: 'THICKNESS', edgeRadius: 'EDGE_R',
+  frontMark: 'FRONT_MARK', frontLine1: 'FRONT_LINE_A', frontLine2: 'FRONT_LINE_B', frontFont: 'FRONT_FONT', frontTextSize: 'FRONT_SIZE', frontLogo: 'FRONT_LOGO', frontLogoSize: 'FRONT_LOGO_SIZE', frontStyle: 'FRONT_STYLE',
+  backMark: 'BACK_MARK', backLine1: 'BACK_LINE_A', backLine2: 'BACK_LINE_B', backFont: 'BACK_FONT', backTextSize: 'BACK_SIZE', backLogo: 'BACK_LOGO', backLogoSize: 'BACK_LOGO_SIZE',
+  engraveDepth: 'ENGRAVE', embossHeight: 'EMBOSS', nfc: 'NFC', magnetMount: 'MAGNET_MOUNT', magnetCount: 'MAGNET_COUNT', bailWall: 'BAIL_WALL', slotFit: 'SLOT_FIT', barWidth: 'BAR_WIDTH', layerHeight: 'LAYER',
+};
+const CAT_COLLAR_TAG_DEFINES: PartDefines = {
+  nfcTag: { NFC_D: ['D', 'max'], NFC_T: ['h', 'max'] }, magnet: { MAGNET_D: ['diameter', 'max'], MAGNET_T: ['thickness', 'max'] },
+  splitRing: { RING_A: ['a', 'max'], RING_B: ['b', 'max'] }, collar: { COLLAR_W: ['width', 'max'], COLLAR_T: ['thickness', 'max'] },
+};
+
+export const catCollarTag = {
+  id: 'cat-collar-tag' as const, version: '1' as const, title: 'Cat collar tag',
+  description: 'A name tag for a cat’s collar, with your own text or SVG logo on each face, an optional NFC tag that a phone reads, and optional magnets to stick it to the fridge. Choose how it goes on the collar (a hanging tag on a split ring, or a slide-on tag the strap runs through), its shape, size and thickness; the split ring, the collar, the NFC tag and the magnets are real products from the parts library, and the tag is checked to fit them.',
+  attribution: 'CanFactory (original design)',
+  printNotes: 'Print back down, as generated, in PETG or PLA; no supports. With an embedded NFC tag or magnets, pause at the height shown under the settings and drop them in. For an embossed front in another colour, change filament where shown. Keep the collar’s breakaway buckle free: never put the tag across it.',
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  // with an embedded NFC tag or magnets, the tag encloses their sealed cavities
+  parts: [{ id: 'tag', title: 'Tag', sourcePath: 'models/cat-collar-tag/generator.scad', scadConstants: { PART: 'tag' }, scadMapping: CAT_COLLAR_TAG_MAPPING, partDefines: CAT_COLLAR_TAG_DEFINES, sealedVoids: true }],
+  assetPaths: ['LiberationSans-Bold.ttf', 'LiberationSerif-Bold.ttf', 'LiberationMono-Bold.ttf', 'DejaVuSans-Bold.ttf'].map(name => `${FONTS_DIR}/${name}`),
+  assembly: catCollarTagAssembly(DEFAULT_CAT_COLLAR_TAG),
+  assemblyForParameters: catCollarTagAssembly,
+  linkedReferences: catCollarTagReferences,
+  parameterSchema: CatCollarTagParametersSchema,
+  controls: catCollarTagControls,
+  defaults: Object.fromEntries(catCollarTagControls.map(c => [c.key, c.default])),
+  scadMapping: {},
+  scadEncode: { frontLogo: logoScad, backLogo: logoScad },
+  validate(parameters: unknown): ParameterIssue[] {
+    if (!Value.Check(CatCollarTagParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the model schema.' }];
+    return validateCatCollarTag(parameters);
+  },
+  derived(parameters: unknown) {
+    return { slotCount: null, ...(Value.Check(CatCollarTagParametersSchema, parameters) && validateCatCollarTag(parameters).length === 0 ? { notes: catCollarTagNotes(parameters) } : {}) };
+  },
+} satisfies ModelDefinition;
+
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

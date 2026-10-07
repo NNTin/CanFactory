@@ -14,6 +14,7 @@
  * centre prints base down (light base, then the dark modules and logo on top) and sits in the border's seat the same way up.
  */
 import { encode, QrCodeDataType } from 'uqr';
+import { embedCavity, toLayers } from './printPause.ts';
 
 export const QR_TEXT_MAX_LENGTH = 200;
 export const QR_ECC_LEVELS = ['L', 'M', 'Q', 'H'] as const;
@@ -236,9 +237,6 @@ export const QR_TAG = {
 export const QR_TAG_MOUNTS = ['pockets', 'embedded'] as const;
 export type QrTagMount = typeof QR_TAG_MOUNTS[number];
 
-/** A height rounded up to whole layers (to the micrometre, as the SCAD file's `layers`). */
-export const toLayers = (height: number, layerHeight: number): number =>
-  Math.round(Math.ceil(height / layerHeight - 1e-9) * layerHeight * 1e6) / 1e6;
 
 export const QR_TAG_JOINTS = ['crush-ribs', 'detent', 'twist-lock', 'magnets'] as const;
 export type QrTagJoint = typeof QR_TAG_JOINTS[number];
@@ -270,8 +268,9 @@ export function qrTagLayout(p: QrTagShapeSettings) {
   // over the back face up to the pause height; the floor closes over it. The centre's joint magnet still stands out of the centre
   // into an open pocket above that floor.
   const embedded = p.magnetMount === 'embedded';
-  const skin = embedded ? toLayers(t.embedSkin, p.layerHeight) : 0;
-  const pauseHeight = embedded ? toLayers(skin + pocketDepth + t.embedHeadroom, p.layerHeight) : 0;
+  const cavity = embedCavity(t.embedSkin, pocketDepth, t.embedHeadroom, p.layerHeight);
+  const skin = embedded ? cavity.skin : 0;
+  const pauseHeight = embedded ? cavity.pause : 0;
   const floor = embedded ? pauseHeight + t.floorWall + (p.joint === 'magnets' ? protrusion + t.magnetGap : 0)
     : Math.max(pocketDepth + t.floorWall, p.joint === 'magnets' ? jointPocket + t.jointBackWall : 0);
   const backMagnetZ = skin;
