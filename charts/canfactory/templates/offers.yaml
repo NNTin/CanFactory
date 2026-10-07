@@ -1,0 +1,59 @@
+{{- /*
+The offers service: hourly, stores the Awin feed rows of the curated offers (packages/contracts/src/parts/offers.ts).
+Suspended by default: enable it once the `offers.secret` Secret holds AWIN_DATAFEED_KEY and the network policy lets the
+pod reach productdata.awin.com and datafeed.api.productserve.com over HTTPS. See docs/affiliate-offers.md.
+*/ -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}-offers
+  labels: {{ include "canfactory.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.offers.schedule | quote }}
+  suspend: {{ .Values.offers.suspend }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      # Up to 2 min of jitter, one 5 min retry of a failed download, then the downloads themselves.
+      activeDeadlineSeconds: 1200
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: canfactory
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/component: offers
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ .Release.Name }}
+          automountServiceAccountToken: false
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: ingest-awin
+              image: {{ printf "%s@%s" .Values.images.api.repository .Values.images.api.digest | quote }}
+              command: [node, --import, tsx, tools/offers.ts, ingest-awin]
+              securityContext: {{ include "canfactory.security" . | nindent 16 }}
+              resources: {{ toYaml .Values.offers.resources | nindent 16 }}
+              env:
+                {{- include "canfactory.env" (dict "root" . "role" "maintenance") | nindent 16 }}
+                - name: AWIN_DATAFEED_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.offers.secret | quote }}
+                      key: AWIN_DATAFEED_KEY
+              volumeMounts:
+                - {name: scratch, mountPath: /tmp}
+          volumes:
+            - name: scratch
+              emptyDir: {sizeLimit: 128Mi}

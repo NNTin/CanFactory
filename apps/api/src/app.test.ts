@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { aiRubberDuck, AI_DUCK_VARIANTS, cigaretteCase, ErrorSchema, LOGO_MAX_LENGTH, LOGO_MAX_POINTS, fruitFlyTrap, litterShovel, ModelDetailSchema, mossPlanter, PartDetailSchema, PartFamilyDetailSchema, PartFamilySummarySchema, partFamilies, parts, plankConnector, RenderSchema } from '@canfactory/contracts';
+import { aiRubberDuck, AI_DUCK_VARIANTS, cigaretteCase, ErrorSchema, LOGO_MAX_LENGTH, LOGO_MAX_POINTS, fruitFlyTrap, litterShovel, MarketInfoSchema, ModelDetailSchema, mossPlanter, offers, OffersSchema, PartDetailSchema, PartFamilyDetailSchema, PartFamilySummarySchema, partFamilies, parts, plankConnector, RenderSchema, type Offer } from '@canfactory/contracts';
 import { CACHE_TTL_MS, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from './app.ts';
 
@@ -244,5 +244,52 @@ describe('model and render API', () => {
     const other = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { ...mossPayload, parameters: { ...mossPlanter.defaults, towerDiameter: 77 } } });
     expect(other.statusCode).toBe(202);
     expect(Value.Parse(RenderSchema, other.json<unknown>()).id).not.toBe(Value.Parse(RenderSchema, one.json<unknown>()).id);
+  });
+});
+
+describe('offers API', () => {
+  const accounts = { amazon: { DE: 'canfactory-21', US: 'canfactory-20' }, awin: { publisherId: 12345 } };
+  const shopOffer: Offer = {
+    id: 'awin-de-test', market: 'DE', network: 'awin', advertiserId: 777, shop: 'Test Shop', merchantProductId: 'SKU-1', productUrl: 'https://shop.example/m3',
+    title: 'Test shop M3 inserts, pack of 25', covers: [{ partId: 'ruthex-rx-m3x5-7', quantity: 25 }], rank: 0, checkedOn: '2026-10-06', note: null, sameAsProduct: false,
+  };
+
+  it('picks the market from Cloudflare’s country and says which networks link (CanFactory’s accounts by default)', async () => {
+    const market = async (country?: string) => Value.Parse(MarketInfoSchema, (await app.inject({ url: '/api/v1/market', headers: country ? { 'cf-ipcountry': country } : {} })).json<unknown>());
+    expect(await market('AT')).toEqual({ market: 'DE', country: 'AT', source: 'geo', networks: { DE: { amazon: true, awin: true }, US: { amazon: true, awin: true } } });
+    expect(await market('fr')).toMatchObject({ market: 'US', country: 'FR', source: 'geo' });
+    expect(await market('XX')).toMatchObject({ market: 'US', country: null, source: 'default' });
+    expect(await market()).toMatchObject({ market: 'US', country: null, source: 'default' });
+    expect((await app.inject('/api/v1/market')).headers['cache-control']).toBe('private, no-store');
+  });
+
+  it('links nothing without accounts, and rejects unknown parts and malformed queries', async () => {
+    const unlinked = await createApp(store, false, { accounts: { amazon: { DE: null, US: null }, awin: { publisherId: null } } });
+    try {
+      const response = await unlinked.inject('/api/v1/offers?market=DE&parts=ruthex-rx-m3x5-7:4');
+      expect(response.statusCode).toBe(200);
+      expect(Value.Parse(OffersSchema, response.json<unknown>())).toEqual({ market: 'DE', networks: { amazon: false, awin: false }, matches: [{ partId: 'ruthex-rx-m3x5-7', quantity: 4, offers: [] }], shops: [] });
+    } finally { await unlinked.close(); }
+    expect((await app.inject('/api/v1/offers?market=DE&parts=no-such-part')).statusCode).toBe(404);
+    for (const query of ['market=FR&parts=ruthex-rx-m3x5-7', 'market=DE&parts=Bad', 'market=DE&parts=ruthex-rx-m3x5-7:0', 'market=DE']) {
+      expect((await app.inject(`/api/v1/offers?${query}`)).statusCode, query).toBeGreaterThanOrEqual(400);
+    }
+  });
+
+  it('serves curated Amazon links, the Awin price of a fresh feed, and searches for the rest', async () => {
+    const lastImported = time - 3_600_000;
+    store.saveAwinFeed({ feedId: 42, advertiserId: 777, lastImported }, [{ advertiserId: 777, merchantProductId: 'SKU-1', market: 'DE',
+      deepLink: 'https://www.awin1.com/pclick.php?p=1', name: 'M3', price: 4.99, currency: 'EUR', deliveryCost: 3.95, inStock: true, lastImported }]);
+    const linked = await createApp(store, false, { accounts, now: () => time, catalogue: [shopOffer, ...offers] });
+    try {
+      const response = await linked.inject('/api/v1/offers?market=DE&parts=ruthex-rx-m3x5-7:30,iso-4762-m3x10:4');
+      const result = Value.Parse(OffersSchema, response.json<unknown>());
+      expect(result.networks).toEqual({ amazon: true, awin: true });
+      expect(result.matches[0]?.offers.map(offer => offer.shopKey)).toEqual(['amazon-DE', 'awin-777', 'amazon-DE']);
+      expect(result.matches[0]?.offers[1]).toMatchObject({ url: 'https://www.awin1.com/pclick.php?p=1', packs: 2, price: { amount: 4.99, currency: 'EUR', deliveryCost: 3.95, asOf: new Date(lastImported).toISOString() } });
+      expect(result.matches[1]?.offers[0]).toMatchObject({ kind: 'search', url: 'https://www.amazon.de/s?k=ISO%204762%20M3%20%C3%97%2010&tag=canfactory-21' });
+      expect(result.shops.map(shop => shop.shopKey)).toEqual(['amazon-DE']);
+      expect(response.headers['cache-control']).toBe('public, max-age=300');
+    } finally { await linked.close(); }
   });
 });

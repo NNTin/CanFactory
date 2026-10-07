@@ -4,14 +4,26 @@ import swaggerUi from '@fastify/swagger-ui';
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import { Type } from 'typebox';
 import {
-  DownloadQuerySchema, ErrorSchema, IdParamsSchema, ModelDetailSchema, ModelSummarySchema, PartDetailSchema, PartFamilyDetailSchema,
-  PartFamilySummarySchema, RenderRequestSchema, RenderSchema, findModel, findPart, findPartFamily, findPartSource, partFamilies,
-  partUsage, partsOfFamily, validateParameters, type Part, type PartSource,
+  AFFILIATE_ACCOUNTS, DownloadQuerySchema, ErrorSchema, IdParamsSchema, MarketInfoSchema, ModelDetailSchema, ModelSummarySchema, OffersQuerySchema, OffersSchema,
+  PartDetailSchema, PartFamilyDetailSchema, PartFamilySummarySchema, RenderRequestSchema, RenderSchema, enabledNetworks, findModel, findPart, findPartFamily,
+  findPartSource, marketOfCountry, matchOffers, offers, parseOfferParts, partFamilies, partUsage, partsOfFamily, validateParameters,
+  type AffiliateAccounts, type AwinLive, type Offer, type Part, type PartSource,
 } from '@canfactory/contracts';
 import { AppError, asyncStorage, publicRender, type ArtifactFormat, type Storage, type Store } from '@canfactory/server';
 
+export interface AppOptions {
+  /** The affiliate accounts links carry (default: packages/contracts/src/parts/affiliateAccounts.ts). */
+  accounts?: AffiliateAccounts;
+  /** The clock Awin prices are judged by (default: now). */
+  now?: () => number;
+  /** The curated offers (default: packages/contracts/src/parts/offers.ts). */
+  catalogue?: readonly Offer[];
+}
+
 /** Build routes without side effects; omitting storage supports offline OpenAPI generation. */
-export async function createApp(storage?: Store | Storage, logging = false) {
+export async function createApp(storage?: Store | Storage, logging = false, options: AppOptions = {}) {
+  const accounts = options.accounts ?? AFFILIATE_ACCOUNTS;
+  const catalogue = options.catalogue ?? offers;
   const app = Fastify({
     logger: logging, bodyLimit: 32_768,
     ajv: { customOptions: { coerceTypes: false, removeAdditional: false, useDefaults: false, multipleOfPrecision: 8 } },
@@ -39,7 +51,7 @@ export async function createApp(storage?: Store | Storage, logging = false) {
       openapi: '3.0.3',
       info: { title: 'CanFactory API', version: '1.0.0', description: 'Local parametric STL generation. Dimensions are millimetres. Generated jobs and files expire one hour after creation; there are no saved user designs.' },
       servers: [{ url: '/' }],
-      tags: [{ name: 'Models', description: 'Provided, versioned model catalogue.' }, { name: 'Parts', description: 'The parts library: real-world parts that models are made to fit.' }, { name: 'Renders', description: 'Temporary render jobs and their STL artifacts.' }],
+      tags: [{ name: 'Models', description: 'Provided, versioned model catalogue.' }, { name: 'Parts', description: 'The parts library: real-world parts that models are made to fit.' }, { name: 'Renders', description: 'Temporary render jobs and their STL artifacts.' }, { name: 'Offers', description: 'Where to buy the parts: affiliate links of Amazon and Awin advertisers, by market.' }],
     },
   });
   await app.register(swaggerUi, { routePrefix: '/api/docs' });
@@ -112,6 +124,36 @@ export async function createApp(storage?: Store | Storage, logging = false) {
     const family = part && findPartFamily(part.family);
     if (!part || !family) throw new AppError(404, 'PART_NOT_FOUND', 'This part is not in the library.');
     return { part, family, sources: sourcesOf([part]), usage: partUsage(part) };
+  });
+
+  // Offers: curated listings of the parts (contracts), with the Awin feed rows the offers service stored (see docs/affiliate-offers.md).
+  app.get('/api/v1/market', {
+    schema: { operationId: 'getMarket', tags: ['Offers'], summary: 'The visitor’s market (by country) and the networks that link in each market',
+      description: 'DE, AT and CH shop in the DE market (amazon.de); every other or unknown country in the US market (amazon.com). The country is Cloudflare’s CF-IPCountry header; it is not stored.',
+      response: { 200: MarketInfoSchema } },
+  }, (request, reply) => {
+    const header = request.headers['cf-ipcountry'];
+    const country = typeof header === 'string' && /^[A-Za-z]{2}$/.test(header) && !['XX', 'T1'].includes(header.toUpperCase()) ? header.toUpperCase() : null;
+    reply.header('Cache-Control', 'private, no-store').header('Vary', 'CF-IPCountry');
+    return { market: marketOfCountry(country), country, source: country ? 'geo' as const : 'default' as const,
+      networks: { DE: enabledNetworks('DE', accounts), US: enabledNetworks('US', accounts) } };
+  });
+
+  app.get('/api/v1/offers', {
+    schema: { operationId: 'getOffers', tags: ['Offers'], summary: 'Where to buy parts: ranked affiliate offers per part, and the buy list grouped by shop',
+      description: 'Curated offers of the market’s networks with an account, best first, in packs that cover each quantity; a search of the market’s Amazon for a part with none. Amazon offers never carry a price; an Awin offer carries its feed’s price for 72 hours after Awin imported the feed.',
+      querystring: OffersQuerySchema, response: { 200: OffersSchema, 404: ErrorSchema } },
+  }, async (request, reply) => {
+    const requirements = parseOfferParts(request.query.parts);
+    const unknown = requirements.find(requirement => !findPart(requirement.partId));
+    if (unknown) throw new AppError(404, 'PART_NOT_FOUND', `${unknown.partId} is not in the library.`);
+    const { market } = request.query;
+    const wanted = new Set(requirements.map(requirement => requirement.partId));
+    const keys = accounts.awin.publisherId === null ? [] : catalogue.flatMap(offer => offer.network === 'awin' && offer.market === market && offer.covers.some(cover => wanted.has(cover.partId))
+      ? [{ advertiserId: offer.advertiserId, merchantProductId: offer.merchantProductId, market }] : []);
+    const live: AwinLive[] = keys.length > 0 ? await store().awinOffers(keys) : [];
+    reply.header('Cache-Control', 'public, max-age=300');
+    return matchOffers(requirements, market, { accounts, live, catalogue, now: options.now?.() ?? Date.now(), findPart });
   });
 
   app.post('/api/v1/renders', {

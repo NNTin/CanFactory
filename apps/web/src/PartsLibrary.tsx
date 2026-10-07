@@ -4,6 +4,8 @@ import { api } from '@canfactory/client';
 import type { Part, PartFamilyDetail, PartFamilySummary, PartSource } from '@canfactory/contracts';
 import { PartsViewer, VIEWER_LIMIT } from './PartsViewer.tsx';
 import { formatHash, type Route } from './route.ts';
+import { OfferLink, WhereToBuy } from './Shopping.tsx';
+import { useMarket, useOffers } from './shopping.ts';
 
 type PartsRoute = Extract<Route, { view: 'parts' }>;
 
@@ -47,12 +49,18 @@ function PartDetails({ detail, part }: { detail: PartFamilyDetail; part: Part })
   const sources = new Map<string, PartSource>(detail.sources.map(source => [source.id, source]));
   const usage = detail.usage[part.id] ?? [];
   const attributes = Object.entries(part.attributes);
+  const { market, linking, choose } = useMarket();
+  const offers = useOffers([{ partId: part.id, quantity: 1 }], market, linking);
+  // The listing of the part's own product, when it is an affiliate offer, replaces the plain product page link.
+  const own = offers?.matches[0]?.offers.find(offer => offer.sameAsProduct);
   return <article className="part-details" aria-label={`${part.title} details`}>
     <div className="eyebrow">{part.designation}</div>
     <h2>{part.title}</h2>
     <p className="part-description">{part.description}</p>
     {part.aliases.length > 0 && <p className="part-aliases">Also: {part.aliases.join(', ')}</p>}
-    {part.product && <p className="part-product">{part.product.manufacturer} · {part.product.sku} · <a href={part.product.url} target="_blank" rel="noreferrer">Product page <ExternalLink size={11} /></a></p>}
+    {part.product && <p className="part-product">{part.product.manufacturer} · {part.product.sku} · {own
+      ? <OfferLink offer={own}>Product page at {own.shop} (affiliate link)</OfferLink>
+      : <a href={part.product.url} target="_blank" rel="noreferrer">Product page <ExternalLink size={11} /></a>}</p>}
     <table className="part-dimensions">
       <caption>Dimensions in mm</caption>
       <thead><tr><th scope="col">Dimension</th><th scope="col">Nominal</th><th scope="col">Min</th><th scope="col">Max</th><th scope="col">Basis</th></tr></thead>
@@ -68,6 +76,7 @@ function PartDetails({ detail, part }: { detail: PartFamilyDetail; part: Part })
     {attributes.length > 0 && <dl className="part-attributes">{attributes.map(([key, value]) =>
       <div key={key}><dt>{detail.family.attributes.find(attribute => attribute.key === key)?.label ?? key.replace(/([A-Z])/g, ' $1').toLowerCase()}</dt><dd>{value.replace(/^([a-z]+)-([a-z])/, '$1 $2')}</dd></div>)}</dl>}
     {part.notes && <p className="part-notes">{part.notes}</p>}
+    {market && linking && <WhereToBuy key={part.id} partId={part.id} offers={offers} market={market} choose={choose} />}
     <h3>Sources</h3>
     <ul className="part-sources">{part.sources.flatMap(id => { const source = sources.get(id); return source ? [source] : []; }).map(source =>
       <li key={source.id}><span className={`source-kind source-${source.kind}`}>{source.kind}</span>{source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : source.title}

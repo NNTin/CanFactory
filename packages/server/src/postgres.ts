@@ -4,14 +4,15 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Pool, type PoolClient } from 'pg';
-import { artifactFormat, models, type ApiError, type ModelDefinition, type ModelDetail, type ParameterValues } from '@canfactory/contracts';
+import { artifactFormat, models, type ApiError, type AwinLive, type ModelDefinition, type ModelDetail, type ParameterValues } from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS, QUEUE_LIMIT, RENDERER_FINGERPRINT } from './config.ts';
 import { AppError } from './errors.ts';
 import type { AssemblyInfo, MeshInfo } from './mesh.ts';
 import { ObjectStorage, ORPHAN_GRACE_MS } from './objects.ts';
 import type { RenderJob } from './schema.ts';
 import type { CatalogueEntry, Storage } from './storage.ts';
-import { sourceFingerprint, type ArtifactFormat } from './store.ts';
+import { AWIN_COLUMNS, awinLive, sourceFingerprint, type ArtifactFormat, type AwinOfferRow } from './store.ts';
+import type { AwinFeedState, AwinOfferKey } from './awin.ts';
 
 const CONTENT_TYPES: Record<ArtifactFormat, string> = { stl: 'model/stl', zip: 'application/zip' };
 
@@ -25,7 +26,7 @@ const LIVE_CLAIM = `id = $1 AND lease_token = $2 AND status = 'running' AND leas
 const ADMISSION_LOCK = 716301;
 const MIGRATION_LOCK = 716302;
 const MAINTENANCE_LOCK = 716303;
-const SCHEMA_VERSION = '0001_initial.sql';
+const SCHEMA_VERSION = '0002_awin_offers.sql';
 interface JobRow extends RenderJob { objectKey: string | null }
 
 /** PostgreSQL is the sole authority for admission, leases, expiry and publication. */
@@ -260,6 +261,31 @@ export class PostgresStorage implements Storage {
     const current = await this.getJob(job.id);
     if (!current?.objectKey || current.status !== 'succeeded') throw new AppError(410, 'RENDER_EXPIRED', 'This render is no longer available. Generate it again.');
     return this.objects.read(this.objects.config.generatedBucket, current.objectKey);
+  }
+  async awinOffers(keys: readonly AwinOfferKey[]): Promise<AwinLive[]> {
+    if (keys.length === 0) return [];
+    const result = await this.pool.query<AwinOfferRow>(`SELECT ${AWIN_COLUMNS.replace('advertiser_id AS', 'advertiser_id::float8 AS').replace('last_imported AS', 'last_imported::float8 AS')}
+      FROM awin_offers WHERE (advertiser_id, merchant_product_id, market) IN (SELECT * FROM unnest($1::bigint[], $2::text[], $3::text[]))`,
+    [keys.map(key => key.advertiserId), keys.map(key => key.merchantProductId), keys.map(key => key.market)]);
+    return result.rows.map(awinLive);
+  }
+  async awinFeeds(): Promise<AwinFeedState[]> {
+    return (await this.pool.query<AwinFeedState>('SELECT feed_id::float8 AS "feedId", advertiser_id::float8 AS "advertiserId", last_imported::float8 AS "lastImported" FROM awin_feeds')).rows;
+  }
+  async saveAwinFeed(feed: AwinFeedState, rows: readonly AwinLive[]): Promise<void> {
+    await this.transaction(async client => {
+      await client.query('DELETE FROM awin_offers WHERE feed_id=$1', [feed.feedId]);
+      for (const row of rows) {
+        await client.query(`INSERT INTO awin_offers(advertiser_id,merchant_product_id,market,feed_id,deep_link,name,price,currency,delivery_cost,in_stock,last_imported,fetched_at)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,${CLOCK}) ON CONFLICT(advertiser_id,merchant_product_id,market) DO UPDATE SET feed_id=excluded.feed_id,
+          deep_link=excluded.deep_link,name=excluded.name,price=excluded.price,currency=excluded.currency,delivery_cost=excluded.delivery_cost,
+          in_stock=excluded.in_stock,last_imported=excluded.last_imported,fetched_at=excluded.fetched_at`,
+        [row.advertiserId, row.merchantProductId, row.market, feed.feedId, row.deepLink, row.name, row.price, row.currency, row.deliveryCost, row.inStock, row.lastImported]);
+      }
+      await client.query(`INSERT INTO awin_feeds(feed_id,advertiser_id,last_imported,fetched_at) VALUES($1,$2,$3,${CLOCK})
+        ON CONFLICT(feed_id) DO UPDATE SET advertiser_id=excluded.advertiser_id,last_imported=excluded.last_imported,fetched_at=excluded.fetched_at`,
+      [feed.feedId, feed.advertiserId, feed.lastImported]);
+    });
   }
   async metrics(): Promise<string> {
     const result = await this.pool.query<{ status: string; count: number }>(`SELECT status,count(*)::int AS count FROM render_jobs WHERE expires_at > ${CLOCK} GROUP BY status`);

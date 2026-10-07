@@ -3,6 +3,7 @@
  * `#/models` (the model library), `#/models/<id>` (a model's editor), `#/parts` (the parts library's families),
  * `#/parts/<family>` and `#/parts/<family>/<part>`, each optionally with filters as a query, e.g. `#/parts/screw?thread=M3`.
  * `#/concepts/catio` is the whole catio concept and `#/concepts/catio/<sub-assembly>` one of its sub-assemblies' own pages.
+ * `#/buy-list` is the buy list, `#/disclosure` the affiliate disclosure and `#/privacy` the privacy page.
  */
 export const CATIO_SUBASSEMBLIES = ['window-insert', 'insert-tunnel-coupling', 'tunnel', 'tunnel-tunnel-coupling'] as const;
 export type CatioSubassembly = typeof CATIO_SUBASSEMBLIES[number];
@@ -11,7 +12,10 @@ const isSubassembly = (value: string | undefined): value is CatioSubassembly => 
 export type Route =
   | { view: 'concepts'; concept: 'catio'; subassembly: CatioSubassembly | null }
   | { view: 'models'; model: string | null }
-  | { view: 'parts'; family: string | null; part: string | null; filters: Record<string, string> };
+  | { view: 'parts'; family: string | null; part: string | null; filters: Record<string, string> }
+  | { view: 'buy-list' | 'disclosure' | 'privacy' };
+
+const PAGES = ['buy-list', 'disclosure', 'privacy'] as const;
 
 const segment = (value: string | undefined): string | null => value ? decodeURIComponent(value) : null;
 
@@ -24,6 +28,8 @@ export function parseHash(hash: string): Route | null {
     if (isSubassembly(second)) return { view: 'concepts', concept: 'catio', subassembly: second };
   }
   if (view === 'models') return { view: 'models', model: segment(first) };
+  const page = PAGES.find(candidate => candidate === view);
+  if (page && !first) return { view: page };
   if (view === 'parts') {
     const filters = Object.fromEntries([...new URLSearchParams(query)].filter(([, value]) => value !== ''));
     return { view: 'parts', family: segment(first), part: segment(second), filters };
@@ -34,6 +40,7 @@ export function parseHash(hash: string): Route | null {
 export function formatHash(route: Route): string {
   if (route.view === 'concepts') return route.subassembly ? `#/concepts/catio/${route.subassembly}` : '#/concepts/catio';
   if (route.view === 'models') return route.model ? `#/models/${encodeURIComponent(route.model)}` : '#/models';
+  if (route.view !== 'parts') return `#/${route.view}`;
   const family = route.family ? `/${encodeURIComponent(route.family)}` : '';
   const path = `#/parts${family}${family && route.part ? `/${encodeURIComponent(route.part)}` : ''}`;
   const query = new URLSearchParams(Object.entries(route.filters).filter(([, value]) => value !== '')).toString();

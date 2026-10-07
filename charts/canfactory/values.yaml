@@ -41,6 +41,14 @@ maintenance:
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
+# The offers service (templates/offers.yaml): Awin feed ingestion, hourly at minute 17. `secret` holds AWIN_DATAFEED_KEY.
+offers:
+  schedule: "17 * * * *"
+  suspend: true
+  secret: canfactory-offers
+  resources:
+    requests: {cpu: 100m, memory: 192Mi}
+    limits: {cpu: 500m, memory: 512Mi}
 release:
   resources:
     requests: {cpu: 100m, memory: 128Mi}

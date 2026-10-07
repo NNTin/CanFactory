@@ -7,3 +7,4 @@ export * from './storage.ts';
 export * from './objects.ts';
 export * from './postgres.ts';
 export * from './runtime.ts';
+export * from './awin.ts';

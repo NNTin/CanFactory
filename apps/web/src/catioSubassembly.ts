@@ -1,3 +1,4 @@
+import type { BomLine } from '@canfactory/contracts';
 import type * as THREE from 'three';
 import type { CatioLayer, CatioView } from './catioDesign.ts';
 import type { CatioState } from './catioScene.ts';
@@ -50,22 +51,8 @@ export function inRange(range: NumberRange, value: unknown): value is number {
   return Math.abs(steps - Math.round(steps)) < 1e-6;
 }
 
-export const BOM_GROUPS = ['Timber', 'Mesh', 'Hardware', 'Groundwork'] as const;
-export type BomGroup = typeof BOM_GROUPS[number];
-/** One line of the parts list. A library part links to the parts library; other lines are cut or made for the catio. */
-export interface BomLine {
-  id: string;
-  group: BomGroup;
-  name: string;
-  quantity: number;
-  /** Size, e.g. a cut length and section, or a part's key dimensions, in millimetres. */
-  size: string;
-  /** Where it goes. */
-  use: string;
-  partId?: string;
-  /** A part printed from a model of the library (e.g. `toggle-latch`): links to the model. */
-  modelId?: string;
-}
+/** The parts list's lines are shared with the API's buy list (`@canfactory/contracts`). */
+export { BOM_GROUPS, type BomGroup, type BomLine } from '@canfactory/contracts';
 
 export interface SubassemblyPreset<C> { id: string; label: string; description: string; config: () => C }
 
