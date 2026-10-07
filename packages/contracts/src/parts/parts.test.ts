@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
 import { cigaretteCase, models, partUsage, plankConnector } from '../models.ts';
-import { findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, type Part } from './index.ts';
+import { findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, springRate, type Part } from './index.ts';
 
 const root = (path: string) => new URL(`../../../../${path}`, import.meta.url);
 const dimension = (part: Part, key: string) => part.dimensions[key]?.value ?? Number.NaN;
@@ -106,6 +106,25 @@ describe('parts library', () => {
         expect(dimension(part, 't'), message).toBeGreaterThan(0);
         expect(dimension(part, 'x2'), message).toBeGreaterThan(dimension(part, 'x1'));
         expect(dimension(part, 'l'), message).toBeGreaterThan(dimension(part, 'h'));
+      }
+      if (part.family === 'set-screw') {
+        // a flat point narrower than the thread, a socket narrower than the point, shallower than the screw is long
+        expect(METRIC_THREADS[part.attributes['thread'] as keyof typeof METRIC_THREADS], message).toBe(dimension(part, 'pitch'));
+        expect(dimension(part, 'dp'), message).toBeLessThan(d);
+        expect(dimension(part, 's'), message).toBeLessThan(dimension(part, 'dp'));
+        expect(dimension(part, 't'), message).toBeLessThan(dimension(part, 'l'));
+      }
+      if (part.family === 'ball') expect(part.attributes['diameter'], message).toBe(`${d} mm`);
+      if (part.family === 'spring') {
+        // a coil wider than its wire, a least length shorter than the free one and longer than its active coils' wire, and the
+        // maker's largest force equal to its rate times its greatest deflection
+        expect(dimension(part, 'De'), message).toBeGreaterThan(4 * d);
+        expect(dimension(part, 'Ln'), message).toBeLessThan(dimension(part, 'L0'));
+        expect(dimension(part, 'Lndyn'), message).toBeGreaterThanOrEqual(dimension(part, 'Ln'));
+        const coils = Number(/with ([\d.]+) active coils/.exec(part.description)?.[1]);
+        expect(dimension(part, 'Ln'), message).toBeGreaterThan(coils * d);
+        const force = Number(/Fn = ([\d.]+) N/.exec(part.notes ?? '')?.[1]);
+        expect(springRate(part) * (dimension(part, 'L0') - dimension(part, 'Ln')), message).toBeCloseTo(force, 0);
       }
       if (part.family === 'bearing') expect(dimension(part, 'D'), message).toBeGreaterThan(d);
       if (part.family === 'magnet' && part.attributes['shape'] !== 'block') expect(dimension(part, 'diameter'), message).toBeGreaterThan(dimension(part, 'innerDiameter') || 0);

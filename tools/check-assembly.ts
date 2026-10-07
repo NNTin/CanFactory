@@ -57,6 +57,12 @@ const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part) => Re
     scad: 'parts/nuts/nut.scad',
     defines: part => ({ SQUARE: String(part.attributes['shape']?.startsWith('square') === true), S: size(part, 's'), H: part.dimensions['h'] ? size(part, 'h') : size(part, 'm'), D: size(part, 'd', 'value') }),
   },
+  // a set screw's thread at its minor diameter, which the tap drill of its hole clears
+  'set-screw': {
+    scad: 'parts/set-screws/set-screw.scad',
+    defines: part => ({ D: size(part, 'd', 'value'), PITCH: size(part, 'pitch', 'value'), L: size(part, 'l', 'value') }),
+  },
+  ball: { scad: 'parts/balls/ball.scad', defines: part => ({ D: size(part, 'd') }) },
   'threaded-insert': {
     scad: 'parts/inserts/insert.scad',
     defines: part => ({ HOLE: size(part, 'hole', 'value'), L: size(part, 'l', 'value'), D: part.attributes['thread']?.slice(1) ?? '0' }),
