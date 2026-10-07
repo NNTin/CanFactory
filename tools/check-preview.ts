@@ -147,7 +147,7 @@ function print(r: Report): void {
   const newest = r.live.newestChart;
   if (newest && newest.version !== r.live.chart && r.live.state !== 'match') {
     lines.push(`             newest ${channel} chart is ${newest.version} (${short(newest.commit)}${newest.branch ? `, ${newest.branch}` : ''}), published ${minutesAgo(newest.publishedAt)} min ago and not served yet${
-      minutesAgo(newest.publishedAt) > 20 ? ': Flux may be stuck, check the cluster' : ''}`);
+      minutesAgo(newest.publishedAt) > 20 ? ': Flux has not deployed it (the release may have failed and been rolled back, or Flux is stuck): check the cluster' : ''}`);
   }
   console.log(lines.join('\n'));
 }

@@ -21,7 +21,7 @@ A commit travels through four stages. The tool reports each one:
 | 3. Chart | `publish` pushes chart `oci://ghcr.io/nntin/charts/canfactory` version `0.2.0-<pr\|dev>.<run number>`, with the image digests embedded | GHCR package `charts/canfactory` |
 | 4. Live | Flux, in the infrastructure cluster, deploys the newest chart of its channel and rolls web, API and worker | the site's main bundle: the footer's `__COMMIT_SHA__` (`BuildCommit` in `apps/web/src/App.tsx`) |
 
-Typical timing: `validate` takes about 15 min, `publish` a few minutes, then Flux. A newer push to the same PR cancels the
+Typical timing: `validate` takes about 15 min, `publish` a few minutes, and Flux about a minute after the chart is published. A newer push to the same PR cancels the
 running build. **A later build of another PR takes the preview over.** The API has no commit endpoint, but it ships in the
 same chart, so the web commit stands for the release. Pods roll one at a time: allow a minute after the web flips before
 judging API behaviour.
@@ -45,7 +45,7 @@ Sample report:
   2. Images  web … not yet · api … not yet · worker … not yet
   3. Chart   0.2.0-pr.167 … not yet
   4. Live    860b83c (chart 0.2.0-pr.164): serves an older commit of this history: not deployed yet
-             newest pr chart is 0.2.0-pr.165 (28bfa7a, feat/printed-corner-bracket-screen-hook), published 710 min ago and not served yet: Flux may be stuck, check the cluster
+             newest pr chart is 0.2.0-pr.165 (28bfa7a, feat/printed-corner-bracket-screen-hook), published 710 min ago and not served yet: Flux has not deployed it (the release may have failed and been rolled back, or Flux is stuck): check the cluster
 ```
 
 Reading it:
@@ -56,8 +56,10 @@ Reading it:
   it: follow the newer commit. Failed: `gh run view <id> --log-failed`, fix, push again.
 - **“serves another branch’s build”**: another PR's newer chart took the preview. Your commit shows again only after your
   next push builds. Ask before re-running your workflow just to take the preview back.
-- **“newest … chart … not served yet: Flux may be stuck”**: a published chart has waited over 20 min. That is the cluster,
-  not your change: tell the owner instead of waiting.
+- **“newest … chart … not served yet”** after 20 min: Flux normally deploys a new chart within a minute or two of
+  publishing (observed: `0.2.0-pr.167` was live about a minute after it was published). A chart still not served after that
+  failed its release (Helm upgrade or health checks, then rolled back) or Flux is stuck. Either way it is the cluster, not
+  the wait: tell the owner instead of waiting.
 
 For long waits, run it in the background (`run_in_background`), so that you are notified when it exits, instead of
 polling yourself.
