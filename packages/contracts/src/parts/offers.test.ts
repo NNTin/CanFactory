@@ -43,8 +43,8 @@ describe('curated offers', () => {
     for (const offer of offers.filter(candidate => candidate.network === 'awin')) expect(new URL(offer.productUrl).protocol).toBe('https:');
   });
 
-  it('ships with no account, so that no affiliate link appears until the owner adds one', () => {
-    expect(AFFILIATE_ACCOUNTS).toEqual({ amazon: { DE: null, US: null }, awin: { publisherId: null } });
+  it('links with CanFactory’s own accounts: an Amazon store id per market and the Awin publisher id', () => {
+    expect(AFFILIATE_ACCOUNTS).toEqual({ amazon: { DE: 'canfactory-21', US: 'canfactory-20' }, awin: { publisherId: 3117065 } });
   });
 });
 
@@ -69,7 +69,7 @@ describe('product matcher', () => {
   const now = Date.parse('2026-10-06T12:00:00Z');
 
   it('offers nothing while the market has no account', () => {
-    const result = matchOffers([{ partId: 'ruthex-rx-m3x5-7', quantity: 4 }], 'DE', { findPart, now });
+    const result = matchOffers([{ partId: 'ruthex-rx-m3x5-7', quantity: 4 }], 'DE', { findPart, now, accounts: { amazon: { DE: null, US: null }, awin: { publisherId: null } } });
     expect(result.networks).toEqual({ amazon: false, awin: false });
     expect(result.matches).toEqual([{ partId: 'ruthex-rx-m3x5-7', quantity: 4, offers: [] }]);
     expect(result.shops).toEqual([]);

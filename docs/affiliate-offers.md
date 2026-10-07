@@ -23,8 +23,9 @@ flowchart TB
 ## Accounts
 
 `packages/contracts/src/parts/affiliateAccounts.ts` holds the Amazon tracking ids per market and the Awin publisher id.
-They are public (every link shows them). **A `null` account turns its network off**, and with every account `null`, as
-shipped, no affiliate link appears anywhere: no offer block, no buy-list link in the header, no Buy column.
+They are public (every link shows them): `canfactory-21` (amazon.de), `canfactory-20` (amazon.com) and Awin publisher
+`3117065`. **A `null` account turns its network off**, and with every account `null` no affiliate link appears anywhere:
+no offer block, no buy-list link in the header, no Buy column.
 
 - Amazon: sign up for Associates on **amazon.de** (PartnerNet) and **amazon.com** separately, and set `amazon.DE` and
   `amazon.US` to the tracking ids. Each account is reviewed only after **3 qualifying sales within 180 days**, and is

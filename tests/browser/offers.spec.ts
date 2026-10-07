@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { findPart, marketOfCountry, matchOffers, offers, parseOfferParts, type AffiliateAccounts, type AwinLive, type Offer } from '@canfactory/contracts';
 
 /**
- * Affiliate offers (docs/affiliate-offers.md). The shipped accounts are all null, so the real API links nothing; the other tests
+ * Affiliate offers (docs/affiliate-offers.md). The first test answers /api/v1/market with every network off; the others
  * answer /api/v1/market and /api/v1/offers with the real matcher and test accounts, plus one Awin offer with a fresh feed price.
  */
 const accounts: AffiliateAccounts = { amazon: { DE: 'canfactory-21', US: 'canfactory-20' }, awin: { publisherId: 12345 } };
@@ -24,6 +24,8 @@ async function mockShops(page: Page, country = 'DE') {
 }
 
 test('shows no affiliate link while no account is set, but always the disclosure and privacy pages', async ({ page }) => {
+  const off = { amazon: false, awin: false };
+  await page.route(url => url.pathname === '/api/v1/market', route => route.fulfill({ json: { market: 'DE', country: 'DE', source: 'geo', networks: { DE: off, US: off } } }));
   await page.goto('/#/parts/threaded-insert/ruthex-rx-m3x5-7');
   await expect(page.getByRole('heading', { name: 'Heat-set insert M3 × 5.7 (ruthex)' })).toBeVisible();
   await expect(page.getByRole('link', { name: /Product page/ })).toHaveAttribute('href', /ruthex\.de/);

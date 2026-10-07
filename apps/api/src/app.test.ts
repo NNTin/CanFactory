@@ -254,9 +254,9 @@ describe('offers API', () => {
     title: 'Test shop M3 inserts, pack of 25', covers: [{ partId: 'ruthex-rx-m3x5-7', quantity: 25 }], rank: 0, checkedOn: '2026-10-06', note: null, sameAsProduct: false,
   };
 
-  it('picks the market from Cloudflare’s country and says which networks link (none by default)', async () => {
+  it('picks the market from Cloudflare’s country and says which networks link (CanFactory’s accounts by default)', async () => {
     const market = async (country?: string) => Value.Parse(MarketInfoSchema, (await app.inject({ url: '/api/v1/market', headers: country ? { 'cf-ipcountry': country } : {} })).json<unknown>());
-    expect(await market('AT')).toEqual({ market: 'DE', country: 'AT', source: 'geo', networks: { DE: { amazon: false, awin: false }, US: { amazon: false, awin: false } } });
+    expect(await market('AT')).toEqual({ market: 'DE', country: 'AT', source: 'geo', networks: { DE: { amazon: true, awin: true }, US: { amazon: true, awin: true } } });
     expect(await market('fr')).toMatchObject({ market: 'US', country: 'FR', source: 'geo' });
     expect(await market('XX')).toMatchObject({ market: 'US', country: null, source: 'default' });
     expect(await market()).toMatchObject({ market: 'US', country: null, source: 'default' });
@@ -264,9 +264,12 @@ describe('offers API', () => {
   });
 
   it('links nothing without accounts, and rejects unknown parts and malformed queries', async () => {
-    const response = await app.inject('/api/v1/offers?market=DE&parts=ruthex-rx-m3x5-7:4');
-    expect(response.statusCode).toBe(200);
-    expect(Value.Parse(OffersSchema, response.json<unknown>())).toEqual({ market: 'DE', networks: { amazon: false, awin: false }, matches: [{ partId: 'ruthex-rx-m3x5-7', quantity: 4, offers: [] }], shops: [] });
+    const unlinked = await createApp(store, false, { accounts: { amazon: { DE: null, US: null }, awin: { publisherId: null } } });
+    try {
+      const response = await unlinked.inject('/api/v1/offers?market=DE&parts=ruthex-rx-m3x5-7:4');
+      expect(response.statusCode).toBe(200);
+      expect(Value.Parse(OffersSchema, response.json<unknown>())).toEqual({ market: 'DE', networks: { amazon: false, awin: false }, matches: [{ partId: 'ruthex-rx-m3x5-7', quantity: 4, offers: [] }], shops: [] });
+    } finally { await unlinked.close(); }
     expect((await app.inject('/api/v1/offers?market=DE&parts=no-such-part')).statusCode).toBe(404);
     for (const query of ['market=FR&parts=ruthex-rx-m3x5-7', 'market=DE&parts=Bad', 'market=DE&parts=ruthex-rx-m3x5-7:0', 'market=DE']) {
       expect((await app.inject(`/api/v1/offers?${query}`)).statusCode, query).toBeGreaterThanOrEqual(400);

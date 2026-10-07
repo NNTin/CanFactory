@@ -9,4 +9,4 @@ export interface AffiliateAccounts {
   amazon: Record<Market, string | null>;
   awin: { publisherId: number | null };
 }
-export const AFFILIATE_ACCOUNTS: AffiliateAccounts = { amazon: { DE: null, US: null }, awin: { publisherId: null } };
+export const AFFILIATE_ACCOUNTS: AffiliateAccounts = { amazon: { DE: 'canfactory-21', US: 'canfactory-20' }, awin: { publisherId: 3117065 } };
