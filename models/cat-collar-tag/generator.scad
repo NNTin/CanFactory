@@ -89,9 +89,9 @@ MIN_MIDDLE = 8;           //   and leaves at least this much face between them (
 TEXT_MARGIN = 0.5;        // text: margin inside its area,
 LINE_PITCH = 1.35;        //   and the distance between baselines per mm of text size
 CORNER_ROUND = 1;         // the outline's corners, inner and outer, are rounded to this
-EDGE_STEP = 0.1;          // the rounded edges are built of steps this high (or a little less) on each face,
-INSET_GRID = 0.02;        //   each inset by a multiple of this
-OVERLAP = 0.01;           // how far a step reaches into the next
+EDGE_STEP = 0.1;          // the rounded edges are built of slices this high (or a little less) on each face,
+INSET_GRID = 0.02;        //   each inset by a multiple of this,
+OVERLAP = 0.01;           //   reaching this far into the next
 
 // --- derived layout (collarTagLayout) ---
 HANGING = ATTACHMENT == "hanging";
@@ -183,24 +183,33 @@ module outline() {
   }
 }
 
-// The tag's body: the outline, its front and back edges rounded to EDGE_R in steps of about EDGE_STEP
-module slab() {
-  if (EDGE_R <= 0) linear_extrude(THICKNESS) outline();
-  else {
-    if (THICKNESS > 2 * EDGE_R) translate([0, 0, EDGE_R]) linear_extrude(THICKNESS - 2 * EDGE_R) outline();
-    steps = ceil(EDGE_R / EDGE_STEP - 1e-9);
-    for (i = [0 : steps - 1]) {
-      z0 = EDGE_R * i / steps;
-      z1 = EDGE_R * (i + 1) / steps;
-      zm = (z0 + z1) / 2;
-      // on a 0.02 mm grid, so that neighbouring steps are the same or clearly apart (no float32 slivers between them)
-      inset = round((EDGE_R - sqrt(EDGE_R * EDGE_R - (EDGE_R - zm) * (EDGE_R - zm))) / INSET_GRID) * INSET_GRID;
-      // each step reaches a little into the wider one towards the middle, so that they fuse rather than touch
-      translate([0, 0, z0]) linear_extrude(z1 - z0 + OVERLAP) offset(r = -inset) outline();
-      translate([0, 0, THICKNESS - z1 - OVERLAP]) linear_extrude(z1 - z0 + OVERLAP) offset(r = -inset) outline();
-    }
+// A 2D shape extruded `h` high with its bottom and top edges rounded to `r`: slices of at most EDGE_STEP, each inset to the round
+// profile on an INSET_GRID grid. Slices with the same inset are merged (two equal prisms overlapping leave collinear vertices that
+// float32 turns into zero-area triangles), and each reaches OVERLAP into the wider one towards the middle, so that they fuse.
+function edge_slices(r, h) =
+  let(steps = ceil(r / EDGE_STEP - 1e-9),
+      insets = [for (i = [0 : steps - 1]) let(zm = r * (i + 0.5) / steps) round((r - sqrt(r * r - (r - zm) * (r - zm))) / INSET_GRID) * INSET_GRID],
+      raw = concat([for (i = [0 : steps - 1]) [r * i / steps, r * (i + 1) / steps, insets[i]]],
+        h > 2 * r ? [[r, h - r, 0]] : [],
+        [for (i = [steps - 1 : -1 : 0]) [h - r * (i + 1) / steps, h - r * i / steps, insets[i]]]))
+  merge_slices(raw);
+function merge_slices(s, i = 0, acc = []) = i >= len(s) ? acc
+  : len(acc) > 0 && acc[len(acc) - 1][2] == s[i][2]
+    ? merge_slices(s, i + 1, concat(len(acc) > 1 ? [for (k = [0 : len(acc) - 2]) acc[k]] : [], [[acc[len(acc) - 1][0], s[i][1], s[i][2]]]))
+    : merge_slices(s, i + 1, concat(acc, [s[i]]));
+module rounded_extrude(h, r) {
+  slices = r > 0 ? edge_slices(r, h) : [[0, h, 0]];
+  widest = min([for (s = slices) s[2]]);
+  middle = [for (k = [0 : len(slices) - 1]) if (slices[k][2] == widest) k][0];
+  for (k = [0 : len(slices) - 1]) {
+    lo = slices[k][0] - (k > middle ? OVERLAP : 0);
+    hi = slices[k][1] + (k < middle ? OVERLAP : 0);
+    translate([0, 0, lo]) linear_extrude(hi - lo) offset(r = -slices[k][2]) children();
   }
 }
+
+// The tag's body: the outline, its front and back edges rounded to EDGE_R
+module slab() { rounded_extrude(THICKNESS, EDGE_R) outline(); }
 
 // ---------------------------------------------------------------
 // The marks
