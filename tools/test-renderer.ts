@@ -724,6 +724,8 @@ try {
     { name: 'widest, thickest, 6 mm screws', overrides: { legA: 140, legB: 140, width: 40, thickness: 10, holesPerLeg: 2, holeSpacing: 30, firstHole: 60, woodScrewDiameter: '6 mm', woodScrew: 'din-7997-6x60' } },
     { name: 'smallest, 3 mm screws, fine', overrides: { legA: 40, legB: 40, width: 10, thickness: 3, holesPerLeg: 1, firstHole: 20, woodScrewDiameter: '3 mm', woodScrew: 'din-7997-3x12', holeFit: 'fine' } },
     { name: 'five holes a leg, coarse', overrides: { legA: 250, legB: 250, holesPerLeg: 5, holeSpacing: 25, holeFit: 'coarse' } },
+    { name: 'straight holes', overrides: { holeLayout: 'straight' } },
+    { name: 'staggered on the narrowest leg a 4 mm screw takes', overrides: { width: 16.5, holesPerLeg: 4, holeSpacing: 12, firstHole: 30, legA: 80, legB: 80 } },
   ];
   for (const { name, overrides } of only && only !== 'printed-corner-bracket' ? [] : bracketRuns) {
     const started = Date.now();

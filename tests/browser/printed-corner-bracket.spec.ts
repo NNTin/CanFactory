@@ -30,4 +30,12 @@ test('the editor names the window insert that uses it, and its screws link to th
   // holes that do not fit the legs are refused before anything is rendered
   await page.getByRole('spinbutton', { name: 'Leg A' }).fill('80');
   await expect(page.getByRole('alert')).toContainText('need the leg at least 96 mm long');
+  await page.getByRole('spinbutton', { name: 'Leg A' }).fill('100');
+  // staggered holes by default; a leg too narrow for them names the width they need, and straight holes are the way out
+  const layout = page.getByRole('combobox', { name: 'Hole layout', exact: true });
+  await expect(layout).toHaveValue('staggered');
+  await page.getByRole('spinbutton', { name: 'Width' }).fill('16');
+  await expect(page.getByRole('alert')).toContainText('need the legs at least 16.35 mm wide');
+  await layout.selectOption('straight');
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });

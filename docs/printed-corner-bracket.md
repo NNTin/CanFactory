@@ -13,12 +13,19 @@ The window catio uses it by default, across each corner of the [window insert](c
 
 - **Two legs**, A and B, each **Width** wide, meeting square at the outer corner. Leg A runs along +X, leg B along +Y; the
   plate's back (against the timber) lies on z = 0 and its face at z = **Thickness**. Its outer corners are rounded 1 mm.
-- **Holes**: **Holes per leg** on each leg's middle line, **Hole spacing** apart, the first **First hole** from the outer
-  corner, measured along the leg. Each is the chosen screw's clearance hole, countersunk from the face so that the head sits
+- **Holes**: **Holes per leg** on each leg, **Hole spacing** apart, the first **First hole** from the outer corner, measured
+  along the leg. Each is the chosen screw's clearance hole, countersunk from the face so that the head sits
   flush: the head's cylindrical rim, then a 90° cone down to the hole, 0.4 mm wider than the head, as the
   [toggle latch](toggle-latch.md)'s plates have it.
 - **Where the holes go.** Put the first hole past the member the other leg lies on: then every screw holds the member its leg
   runs along, and none sits in the joint. The defaults do this for a 40 mm member.
+- **Hole layout.** **Staggered** (the default) puts every other hole a sixth of the width either side of the leg's middle line,
+  so the holes lie on the leg's two thirds: the first hole of each leg (and the third, the fifth) towards its inner edge, further
+  from the timber's outer edge, the second and fourth towards its outer edge. The two legs mirror each other across the corner's
+  diagonal. A row of screws on one line along a member's grain acts like a perforation and can split the timber along it; two
+  rows a third of the width apart (6.7 mm on the default 20 mm leg, more than a 4 mm screw) spread them over two grain lines.
+  **Straight** puts every hole on the middle line, as a bought bracket's are; choose it only on purpose (a leg too narrow to
+  stagger, or to match an existing pattern). With one hole a leg the layout makes no difference: it sits on the middle line.
 
 ## Screws and holes
 
@@ -35,9 +42,10 @@ diameter from the library. The screw's length does not change the bracket; choos
 | Leg A, Leg B | 100 mm | 40–250 mm | Each leg's length over the outer corner |
 | Width | 20 mm | 10–40 mm | Both legs' width |
 | Thickness | 5 mm | 3–10 mm | Plate thickness: also how deep it is let in to lie flush |
-| Holes per leg | 3 | 1–5 | On each leg's middle line |
+| Holes per leg | 3 | 1–5 | On each leg |
 | Hole spacing | 20 mm | 8–80 mm | Between neighbouring holes |
 | First hole | 50 mm | 10–240 mm | From the outer corner, along the leg |
+| Hole layout | Staggered | Staggered, straight | Staggered: alternately on the leg's thirds; straight: all on its middle line |
 | Wood screw diameter, Wood screw | 4 mm, DIN 7997 4 × 35 | every DIN 7997 screw in the library | The screw the holes and countersinks are sized for |
 | Hole fit (advanced) | Medium | Fine, medium, coarse | Play over the screw's diameter |
 
@@ -49,7 +57,8 @@ The defaults are not a generic size: they follow the catio insert's 40 mm collar
 - **Legs** of 2.5 members, 100 mm: as long as the 100 × 100 steel bracket it replaces.
 - **Width** half a member, 20 mm: the bracket lies on the member's outer half, beside a hung insert's screen hooks on the
   stiles' inner half.
-- **Holes** three a leg, spread over the part of the leg past the other member (40–100 mm): 20 mm apart from 50 mm.
+- **Holes** three a leg, spread over the part of the leg past the other member (40–100 mm): 20 mm apart from 50 mm, staggered
+  13.3, 6.7 and 13.3 mm from the leg's outer edge.
 - **Thickness** 5 mm of PETG for the steel's 2 mm; a DIN 7997 4 × 35 through it bites 30 mm into the timber, as the steel
   bracket's 5 × 35 does through 2 mm.
 
@@ -63,6 +72,9 @@ The editor refuses, before anything is rendered:
 - a head too high for the plate (it must leave 1 mm of hole under the countersink), a countersink too wide for the leg (1.5 mm
   of plate either side), or a screw that does not reach 4 mm past the plate;
 - holes closer than two countersinks and their walls;
+- staggered holes on a leg too narrow for them: on the leg's thirds each countersink still needs its 1.5 mm wall to the leg's
+  edge, so the legs must be at least three times the countersink's radius plus wall wide (16.35 mm for a 4 mm screw, 21.6 mm
+  for a 6 mm one). The message names that width, and the ways out: a wider leg, a thinner screw, or **Hole layout: straight**;
 - a first hole inside the corner square, where it would meet the other leg's holes;
 - holes that run off a leg, with the length the leg needs.
 

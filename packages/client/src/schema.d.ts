@@ -2011,10 +2011,17 @@ export interface operations {
                         thickness: number;
                         /**
                          * Holes per leg
-                         * @description Screw holes along each leg’s middle line.
+                         * @description Screw holes along each leg.
                          * @default 3
                          */
                         holesPerLeg: number;
+                        /**
+                         * Hole layout
+                         * @description How each leg’s holes lie across it: staggered either side of its middle line, so that the screws do not line up along the timber’s grain, or in a straight line on it.
+                         * @default staggered
+                         * @enum {unknown}
+                         */
+                        holeLayout: "staggered" | "straight";
                         /**
                          * Hole spacing
                          * @description Distance between neighbouring holes on a leg, in mm.
