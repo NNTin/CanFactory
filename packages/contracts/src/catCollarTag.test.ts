@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { artifactFormat, catCollarTag, catCollarTagSettings, COLLAR_TAG_COLLARS, COLLAR_TAG_MAGNETS, COLLAR_TAG_NFC_TAGS, COLLAR_TAG_SPLIT_RINGS, collarTagMagnetFits, DEFAULT_CAT_COLLAR_TAG, findModel, linkedPartData, partUsage, scadDefines, validateParameters, type ParameterValues } from './models.ts';
 import { RenderRequestSchema } from './index.ts';
 import { findPart, parts, partsOfFamily } from './parts/index.ts';
+import { activeParts } from './models.ts';
 import { COLLAR_TAG, COLLAR_TAG_SHAPES, collarTagLayout, insideShape, outlineHeight, shapeArea, shapeGeometry, textBlock } from './catCollarTag.ts';
 import { toLayers } from './printPause.ts';
 import { TEXT_EXTENTS } from './textMetrics.ts';
@@ -37,6 +38,8 @@ describe('cat collar tag contract', () => {
       NFC_GAP: t.nfcGap, HOLE_PLAY: t.holePlay, HOLE_MIN: t.holeMin, HANG_GAP: t.hangGap, RING_PLAY: t.ringPlay, RING_CLEARANCE: t.ringClearance,
       SLOT_LENGTH_PLAY: t.slotLengthPlay, MIN_MIDDLE: t.minMiddle, TEXT_MARGIN: t.textMargin, LINE_PITCH: t.linePitch, CORNER_ROUND: t.cornerRound,
       EDGE_STEP: t.edgeStep, INSET_GRID: t.insetGrid, OVERLAP: t.overlap,
+      CARRIER_ROUND: t.carrierRound, CARRIER_EDGE: t.carrierEdge, TAB_GAP: t.tabGap, TAB_T: t.tabThickness, MIN_OPENING: t.minOpening,
+      FLAP_GAP: t.flapGap, BUMP: t.bump, BUMP_PLAY: t.bumpPlay, HINGE: t.hinge,
     };
     expect(Object.keys(fixed)).toHaveLength(Object.keys(t).length);
     for (const [name, value] of Object.entries(fixed)) expect(source, name).toMatch(new RegExp(`^${name} = ${value};`, 'm'));
@@ -153,6 +156,46 @@ describe('cat collar tag contract', () => {
     expect(block.height).toBeCloseTo(COLLAR_TAG.linePitch * 4 + (1.031 + 0.309) * 4, 6);
     // a blank line is no line, and a blank face is no mark
     expect(layoutFor({ frontLine1: ' ', frontLine2: '' }).frontDepth).toBe(0);
+  });
+
+  it('hangs the tag from a clip or a sleeve on the strap, a second part sized for the collar', () => {
+    for (const attachment of ['clip', 'sleeve'] as const) {
+      expect(issues({ attachment })).toEqual([]);
+      expect(activeParts(catCollarTag, { ...defaults, attachment }).map(part => part.id)).toEqual(['tag', attachment]);
+      const layout = layoutFor({ attachment });
+      // the tag keeps its bail; the carrier's channel takes the strap with the fit on each side, its tab the ring
+      expect(layout.hanging).toBe(true);
+      const c = layout.carrier ?? (() => { throw new Error('no carrier'); })();
+      expect(c.channelW).toBeCloseTo(10 + 2 * 0.2, 6);
+      expect(c.channelT).toBeCloseTo(1.18 + 2 * 0.2, 6);
+      expect(c.tabR).toBeCloseTo(layout.holeD / 2 + 2, 6);
+      expect(c.hole[0] - c.tabR).toBeCloseTo(-1.6, 6);
+      expect(c.bounds.z).toBe(8);
+    }
+    expect(activeParts(catCollarTag, defaults).map(part => part.id)).toEqual(['tag']);
+    expect(layoutFor({}).carrier).toBeNull();
+    // the clip's lips must leave room for the strap; a wrap sleeve's flaps overlap by the lips and the click
+    expect(said({ attachment: 'clip', lipDepth: 4 }, 'lipDepth')).toContain('leave only 2.4 mm between them');
+    const wrap = layoutFor({ attachment: 'sleeve', sleeveStyle: 'wrap' }).carrier;
+    expect(wrap?.overlap).toBeCloseTo(1.2 + 2 * (COLLAR_TAG.bump + COLLAR_TAG.bumpPlay), 6);
+    expect(wrap?.bounds.x).toBeCloseTo(Math.max(1.58 + 3 * 1.6 + COLLAR_TAG.flapGap, (wrap?.tabR ?? NaN) * 2), 6);
+    expect(said({ attachment: 'sleeve', sleeveStyle: 'wrap', collar: 'rogz-kiddycat-8mm', lipDepth: 4 }, 'lipDepth')).toBe('');
+    // the ring goes round the tag's bail and the tab, and holds both side by side
+    expect(said({ attachment: 'clip', bailWall: 4, splitRing: 'avco-kr-90920' }, 'splitRing')).toContain('the clip’s tab side by side');
+    expect(issues({ attachment: 'clip', splitRing: 'avco-kr-90920', thickness: 2.4 })).toEqual([]);
+    expect(notes({ attachment: 'clip' }).join(' ')).toContain('Snap it onto the strap from the outside');
+    expect(notes({ attachment: 'sleeve', sleeveStyle: 'wrap' }).join(' ')).toContain('until it clicks');
+    // in the preview the ring hangs from the tab, through the tab's hole at its top and the tag's at its bottom
+    const p = { ...defaults, attachment: 'clip' };
+    const assembly = catCollarTag.assemblyForParameters(p);
+    const ring = catCollarTag.linkedReferences(p).find(reference => reference.id === 'split-ring');
+    const layout = layoutFor({ attachment: 'clip' });
+    const mean = (17.018 + 12.954) / 4, base = assembly.poses['clip']?.position[2] ?? NaN;
+    expect(ring?.pose.position[1]).toBeCloseTo((layout.carrier?.hole[1] ?? NaN) - mean, 6);
+    expect(ring?.pose.position[2]).toBeCloseTo(base + COLLAR_TAG.tabThickness / 2, 6);
+    const tag = assembly.poses['tag']?.position ?? [];
+    expect((tag[1] ?? NaN) + layout.hole[1]).toBeCloseTo((layout.carrier?.hole[1] ?? NaN) - 2 * mean, 6);
+    expect(assembly.steps[0]?.parts).toEqual(['clip', 'tag']);
   });
 
   it('says where to pause and change filament, and what the tag weighs', () => {

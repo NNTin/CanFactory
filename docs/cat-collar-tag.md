@@ -3,8 +3,9 @@
 `cat-collar-tag` is a name tag for a cat's collar (issue #63). It carries your own text or SVG logo on each face, an optional NFC tag
 that a phone reads, and optional magnets to stick it to a fridge or a board. You choose how it goes on the collar (`attachment`). It
 is an original design (CC BY 4.0, see [models/cat-collar-tag/ATTRIBUTION.md](../models/cat-collar-tag/ATTRIBUTION.md)). One file,
-`models/cat-collar-tag/generator.scad`, makes the one printed part, the **tag**. It prints back down, in PETG or PLA, without
-supports.
+`models/cat-collar-tag/generator.scad`, makes the printed parts: the **tag**, printed back down, and for the clip-on and sleeve
+attachments a **clip** or **sleeve** round the strap, printed standing on an end. Neither needs supports; PETG suits the clip and
+the sleeve, which flex onto the strap.
 
 The split ring, the collar, the NFC tag and the magnets are products from the [parts library](adding-parts.md): their real sizes size
 the bail's hole, the slots, the pockets and the cavities, and they show in the assembly preview and on the hardware list.
@@ -28,8 +29,10 @@ useful without the others. A collar clip without its tag face is not.
 |---|---|---|
 | `hanging` | A | A bail at the top, round a hole for a split ring, which hangs it from the collar's D-ring or O-ring. |
 | `slide-on` | B | A slot near each end. The strap runs in front of the end bars and behind the middle, through both. |
+| `clip` | C | A clip that snaps onto the strap from the outside; the tag hangs from a tab under it on the split ring. |
+| `sleeve` | D | A sleeve round the strap, closed or wrapping round it; the tag hangs from a tab under it on the split ring. |
 
-The clip-on (C) and sleeve (D) attachments follow in #66.
+The tag face is the same for all four. A hanging, clip-on or sleeve tag has the bail; a slide-on tag has the slots.
 
 ## Parameters
 
@@ -55,6 +58,9 @@ The clip-on (C) and sleeve (D) attachments follow in #66.
 | `dRingWire`, `bailWall` | 2, 2 mm | 1–4, 1.2–4 | Hanging: the collar's D-ring wire (no maker publishes it: measure yours), and the wall round the hole. |
 | `collar` | TRIXIE 4180 (10 mm) | the library's cat collars | Slide-on: the strap the slots are cut for. |
 | `slotFit`, `barWidth` | 0.3, 3 mm | 0–1, 2–8 | Slide-on: the slots' play over the strap's thickness, and the bars outside them. |
+| `sleeveStyle` | `closed` | `closed` `wrap` | Sleeve: a closed loop, or one that wraps round the strap and clicks shut. |
+| `carrierLength`, `carrierWall`, `carrierFit` | 8, 1.6, 0.2 mm | 5–20, 1.2–3, 0–0.8 | Clip and sleeve: the length along the strap, the wall, and the play round the strap per side (advice: 0.05–0.25 for a clip, 0.2–0.5 for a sleeve). |
+| `lipDepth` | 1.2 mm | 0.6–4 | How far a clip's lips reach over the strap's edges; a wrap sleeve's flaps overlap by as much, plus the click. |
 | `engraveDepth`, `embossHeight` | 0.6, 0.6 mm | 0.3–1.2, 0.4–1.5 | |
 | `layerHeight` | 0.2 mm | 0.08–0.32 | Puts the print pause and the filament change on a layer boundary. |
 
@@ -144,13 +150,44 @@ maker publishes it), and the slot is cut for the estimate's greatest value. Rais
 
 **Keep the collar's breakaway buckle free**: the tag must never sit across it.
 
+## Clip-on (C) and sleeve (D)
+
+Both are a second printed part, the *carrier*: a profile round the strap, extruded along it by `carrierLength`. It prints standing
+on an end, so every feature is in the profile and nothing overhangs.
+
+- **The channel** is the collar's width and thickness plus `carrierFit` on each side, inside walls `carrierWall` thick. The
+  thickness is the library's estimate, at its greatest value.
+- **Rounding:** the outer corners are rounded to 0.5 mm and the ends to 0.3 mm. The cat's side is a plain wall.
+- **The tab** under the channel carries the split ring the tag hangs from, as a hanging tag hangs from the D-ring. It is flush
+  with the cat's side, at the end on the bed, and its hole is the same size as the bail's. It is only 2.4 mm thick: a split ring
+  cannot pass through a long hole, because over 8 mm its curve leaves the hole's axis by more than a millimetre.
+- **The ring checks** are those of a hanging tag. The ring must go round the tag's bail and round the tab (its wall, 2.4 mm
+  thick), and its opening must hold the bail and the tab side by side (`bailWall` twice, plus 0.5 mm).
+
+The three carriers:
+
+- **Clip (C).** The front is open between two lips that reach `lipDepth` over the strap's edges, with 45° lead-ins.
+  - **On and off:** bow the strap a little and press the clip onto it from the outside until both lips are past its edges. Pull
+    it off the same way.
+  - **Limits:** the lips must leave at least 3 mm between them. A tight `carrierFit` keeps the clip in place.
+- **Closed sleeve (D).** A closed loop: open the collar, thread its end through, and slide the sleeve where you want it.
+- **Wrap-around sleeve (D).** The front is two flaps, each on a 0.8 mm hinge next to its wall.
+  - **The flaps:** the inner one comes from the bottom wall, the outer one from the top wall, 0.3 mm outside the inner one. They
+    are printed 0.3 mm apart, so they never fuse.
+  - **The click:** the flaps overlap by `lipDepth` plus the click, a 0.5 mm bump on the outer flap that drops into a notch
+    0.15 mm larger in the inner one.
+  - **On:** open both flaps, lay the strap in, close the inner flap, and press the outer one over it until it clicks. The collar
+    stays on.
+
 ## Assembly preview
 
 The tag is the base, standing as high as it must for nothing to hang below the floor. Embedded items are in their cavities from
 the start. Pocketed ones are pressed or stuck in from the back as a step. The split ring stands across the bail, its band through
 the hole. A slide-on tag shows the collar's strap as five pieces of the library's strap (scaled to length), touching end to end:
-in front of each end bar, through each slot and behind the middle. `npm run check:assembly -- cat-collar-tag --parameters '…'`
-finds no collisions for both attachments, with embedded and pocketed hardware.
+in front of each end bar, through each slot and behind the middle. A clip or sleeve stands on an end round a piece of the strap.
+The ring hangs from its tab, through the tab's hole at the ring's top and the tag's hole at its bottom, and the tag lies under it.
+`npm run check:assembly -- cat-collar-tag --parameters '…'` finds no collisions for every attachment, with embedded and pocketed
+hardware.
 
 ## Checks
 
@@ -159,11 +196,29 @@ finds no collisions for both attachments, with embedded and pocketed hardware.
   - the part lists match the library;
   - each free area lies inside its outline;
   - the thickness rule and its messages, the one-embedded and pocket rules, and the NFC gap;
-  - the bail and ring checks, the slots, the text fit, the notes;
+  - the bail and ring checks, the slots, the clip's and sleeve's layout and checks, the text fit, the notes;
   - the preview's hardware sits where the generator cuts for it.
-- `npm run test:renderer` (`TEST_ONLY=cat-collar-tag`) renders 28 cases:
+- `npm run test:renderer` (`TEST_ONLY=cat-collar-tag`) renders 36 cases:
   - every shape hanging and slid on, and the widest collar;
   - the hardware in pockets, embedded, and side by side;
-  - logos, two lines in each font, the thinnest tag, the roundest edges, and the smallest ring.
+  - logos, two lines in each font, the thinnest tag, the roundest edges, and the smallest ring;
+  - clips and sleeves (closed and wrap-around) on the narrowest and widest collars, at the extremes of their length, wall, fit
+    and lips.
 
-  Each must be one closed solid of the layout's size, with a sealed cavity per embedded item.
+  Each part must be one closed solid of the layout's size, with a sealed cavity per embedded item. The rounded edges are built so
+  that both the pinned renderer image (OpenSCAD 2026.01.19) and newer builds give clean meshes.
+
+## Testing on a real collar
+
+The collars' thickness and D-rings are not published. Before relying on a tag, print one and check it on the collar it is for:
+
+- [ ] **Slide-on:** the strap goes through both slots without forcing, and the tag does not slide along by itself. Raise `slotFit`
+  if it is too tight; lower it if the tag slides.
+- [ ] **Clip:** it snaps on and off by hand and stays put when the collar is flexed. Adjust `carrierFit` and `lipDepth` to suit.
+- [ ] **Closed sleeve:** it slides along the strap.
+- [ ] **Wrap sleeve:** it closes over the strap and clicks, and opens again by hand.
+- [ ] **Hanging:** the split ring winds through the bail (and the clip's or sleeve's tab) and holds the D-ring, and the tag hangs
+  free.
+- [ ] **NFC:** a phone reads the tag through the plastic, also next to the magnets.
+- [ ] **Breakaway:** the collar's safety buckle still opens with the tag on, and nothing sits across it.
+- [ ] **Safety:** no edge or point catches the skin or the fur.

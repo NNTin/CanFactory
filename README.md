@@ -40,7 +40,7 @@ ball and spring go in through, where the spring holds itself and the ball. The s
 so that the spring never goes solid and every wall prints.
 
 The [cat collar tag](docs/cat-collar-tag.md) is a name tag with your own text or SVG logo on each face, hung from the collar's
-D-ring on a split ring or slid onto the strap. An NFC tag or magnets can go in pockets in its back, or be sealed in at a print
+D-ring on a split ring, slid onto the strap, or hung from a printed clip or sleeve on the strap. An NFC tag or magnets can go in pockets in its back, or be sealed in at a print
 pause; the tag is checked to be thick enough for them, and sized for real split rings, collars, NFC tags and magnets from the
 parts library.
 

@@ -476,6 +476,15 @@ try {
     { name: 'edges rounded by half the thickness', overrides: { thickness: 1.6, edgeRadius: 0.8, frontMark: 'none', backMark: 'none' } },
     { name: 'heart, roundest thick edges', overrides: { shape: 'heart', width: 40, height: 36, thickness: 4, edgeRadius: 1.3, frontTextSize: 4.5, backTextSize: 2.5 } },
     { name: 'smallest split ring', overrides: { splitRing: 'avco-kr-90920', bailWall: 1.2, thickness: 1.6, backMark: 'none' } },
+    // clip and sleeve: a second part round the strap, at the narrowest and widest collars and the extremes of its length, wall and fit
+    { name: 'clip', overrides: { attachment: 'clip' } },
+    { name: 'shortest, thinnest clip on the narrowest collar', overrides: { attachment: 'clip', collar: 'rogz-kiddycat-8mm', carrierLength: 5, carrierWall: 1.2, carrierFit: 0, lipDepth: 0.6 } },
+    { name: 'longest, thickest clip on the widest collar', overrides: { attachment: 'clip', collar: 'lupinepet-original-designs-safety-cat-collar', carrierLength: 20, carrierWall: 3, lipDepth: 3 } },
+    { name: 'closed sleeve', overrides: { attachment: 'sleeve' } },
+    { name: 'loose closed sleeve on the widest collar', overrides: { attachment: 'sleeve', collar: 'lupinepet-original-designs-safety-cat-collar', carrierFit: 0.8 } },
+    { name: 'wrap sleeve', overrides: { attachment: 'sleeve', sleeveStyle: 'wrap' } },
+    { name: 'wrap sleeve, deepest overlap on the narrowest collar', overrides: { attachment: 'sleeve', sleeveStyle: 'wrap', collar: 'rogz-kiddycat-8mm', lipDepth: 4, carrierWall: 1.2 } },
+    { name: 'wrap sleeve, thick walls, smallest ring', overrides: { attachment: 'sleeve', sleeveStyle: 'wrap', collar: 'lupinepet-original-designs-safety-cat-collar', carrierWall: 3, splitRing: 'avco-kr-90920', bailWall: 1.4, thickness: 1.6, backMark: 'none' } },
   ];
   for (const { name, overrides } of only && only !== 'cat-collar-tag' ? [] : collarRuns) {
     const started = Date.now();
@@ -488,14 +497,20 @@ try {
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `cat collar tag ${name}`); }
     finally { clearInterval(heartbeat); }
     const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `cat collar tag ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
-    assert.deepEqual(result.artifact.parts.map(part => part.id), ['tag']);
     const layout = collarTagLayout(catCollarTagSettings(parameters));
-    const [tag] = result.artifact.parts;
+    const carrierId = parameters['attachment'] === 'clip' || parameters['attachment'] === 'sleeve' ? parameters['attachment'] : null;
+    assert.deepEqual(result.artifact.parts.map(part => part.id), carrierId ? ['tag', carrierId] : ['tag']);
+    const [tag, carrier] = result.artifact.parts;
     const near = (actual: number | undefined, expected: number, what: string, tolerance = 0.05) => assert.ok(Math.abs((actual ?? NaN) - expected) < tolerance, `cat collar tag ${name} ${what}: ${actual} != ${expected}`);
     near(tag?.dimensions.x, layout.bounds.x, 'width');
     if (parameters['shape'] === 'heart') assert.ok((tag?.dimensions.y ?? NaN) <= layout.bounds.y + 0.05 && (tag?.dimensions.y ?? NaN) > layout.bounds.y - 1.5, `cat collar tag ${name} height: ${tag?.dimensions.y}`);
     else near(tag?.dimensions.y, layout.bounds.y, 'height');
     near(tag?.dimensions.z, layout.bounds.z, 'thickness');
+    if (carrierId && layout.carrier) {
+      near(carrier?.dimensions.x, layout.carrier.bounds.x, `${carrierId} depth`);
+      near(carrier?.dimensions.y, layout.carrier.bounds.y, `${carrierId} height`);
+      near(carrier?.dimensions.z, layout.carrier.bounds.z, `${carrierId} length`);
+    }
     const entries = unzipSync(new Uint8Array(await readFile(store.artifacts.path(job.id, 'zip'))));
     const stl = entries['tag.stl']; assert.ok(stl, 'tag.stl');
     const cavities = layout.embedded === 'nfc' ? 1 : layout.embedded === 'magnet' ? layout.magnets.length : 0;
