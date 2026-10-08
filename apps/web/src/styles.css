@@ -1032,6 +1032,18 @@ main {
   max-width: 1000px;
   margin-bottom: 60px;
 }
+/* The models page packs its cards as masonry: CSS columns, so each card keeps its own height (grid masonry isn't widely shipped). */
+.model-masonry {
+  display: block;
+  columns: 3;
+  column-gap: 24px;
+  margin-bottom: 36px;
+}
+.model-masonry > * {
+  width: 100%;
+  break-inside: avoid;
+  margin-bottom: 24px;
+}
 .model-card {
   display: block;
   background: #fffefa;
@@ -1529,6 +1541,9 @@ main {
   .model-library {
     grid-template-columns: 1fr 1fr;
   }
+  .model-masonry {
+    columns: 2;
+  }
   .card-art {
     height: 200px;
   }
@@ -1610,6 +1625,9 @@ main {
   }
   .model-library {
     grid-template-columns: 1fr;
+  }
+  .model-masonry {
+    columns: 1;
   }
   .library-heading h1 {
     font-size: 38px;
@@ -1725,6 +1743,10 @@ main {
 .library-link[aria-current="page"] {
   color: var(--accent);
   font-weight: 600;
+}
+/* Each card as tall as its own content: a card (a button) stretched to its row centres its content, moving the icon down. */
+.part-families {
+  align-items: start;
 }
 .family-card .card-art {
   color: #7b8e6b;
