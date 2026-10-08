@@ -68,6 +68,11 @@ const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part) => Re
     scad: 'parts/springs/spring.scad',
     defines: part => ({ D_WIRE: size(part, 'd', 'value'), DE: size(part, 'De'), L0: size(part, 'L0'), COILS: String(Number(/with ([\d.]+) active coils/.exec(part.description)?.[1] ?? 5) + 2) }),
   },
+  // a split ring as one closed ring of its outer and inner diameter and its thickness over both turns
+  'split-ring': { scad: 'parts/split-rings/split-ring.scad', defines: part => ({ D_OUT: size(part, 'D'), D_IN: size(part, 'd'), THICKNESS: size(part, 'b') }) },
+  'nfc-tag': { scad: 'parts/nfc-tags/nfc-tag.scad', defines: part => ({ D: size(part, 'D'), H: size(part, 'h') }) },
+  // a 60 mm piece of the strap, at its greatest thickness
+  'cat-collar': { scad: 'parts/cat-collars/strap.scad', defines: part => ({ WIDTH: size(part, 'width'), THICKNESS: size(part, 'thickness') }) },
   'threaded-insert': {
     scad: 'parts/inserts/insert.scad',
     defines: part => ({ HOLE: size(part, 'hole', 'value'), L: size(part, 'l', 'value'), D: part.attributes['thread']?.slice(1) ?? '0' }),

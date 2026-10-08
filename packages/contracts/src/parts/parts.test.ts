@@ -126,6 +126,27 @@ describe('parts library', () => {
         const force = Number(/Fn = ([\d.]+) N/.exec(part.notes ?? '')?.[1]);
         expect(springRate(part) * (dimension(part, 'L0') - dimension(part, 'Ln')), message).toBeCloseTo(force, 0);
       }
+      if (part.family === 'split-ring') {
+        // the band is the ring's radial width (one maker's A is 0.25 mm off it), of wire no thicker than the band, two turns thick
+        expect(dimension(part, 'D'), message).toBeGreaterThan(d);
+        expect(Math.abs(dimension(part, 'a') - (dimension(part, 'D') - d) / 2), message).toBeLessThan(0.3);
+        expect(dimension(part, 'w'), message).toBeLessThanOrEqual(dimension(part, 'a'));
+        expect(dimension(part, 'b'), message).toBeGreaterThan(dimension(part, 'w'));
+        expect(dimension(part, 'b'), message).toBeLessThan(2 * dimension(part, 'w') + 0.5);
+      }
+      if (part.family === 'nfc-tag') {
+        // a flat disc, its antenna inside it
+        expect(dimension(part, 'h'), message).toBeLessThan(dimension(part, 'D') / 10);
+        if ('antenna' in part.dimensions) expect(dimension(part, 'antenna'), message).toBeLessThan(dimension(part, 'D'));
+        expect(part.attributes['memory'], message).toBe({ NTAG213: '144 bytes', NTAG215: '504 bytes', NTAG216: '888 bytes' }[part.attributes['chip'] ?? '']);
+      }
+      if (part.family === 'cat-collar') {
+        // a strap far thinner than it is wide, for a cat's neck (about 15 to 35 cm)
+        expect(part.dimensions['thickness']?.max ?? dimension(part, 'thickness'), message).toBeLessThan(dimension(part, 'width') / 4);
+        expect(dimension(part, 'neckMax'), message).toBeGreaterThan(150);
+        expect(dimension(part, 'neckMax'), message).toBeLessThan(350);
+        if ('neckMin' in part.dimensions) expect(dimension(part, 'neckMin'), message).toBeLessThan(dimension(part, 'neckMax'));
+      }
       if (part.family === 'bearing') expect(dimension(part, 'D'), message).toBeGreaterThan(d);
       if (part.family === 'magnet' && part.attributes['shape'] !== 'block') expect(dimension(part, 'diameter'), message).toBeGreaterThan(dimension(part, 'innerDiameter') || 0);
     }

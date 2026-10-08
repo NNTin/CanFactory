@@ -70,8 +70,11 @@ fitting magnets):
 | Magnet | Size (±0.1 mm) | Grade | Pull force | Pocket |
 |---|---|---|---|---|
 | supermagnete S-04-02-N | Ø 4 × 2 mm | N45 | approx. 420 g | 4.2 × 2.1 mm |
+| supermagnete S-05-01-N | Ø 5 × 1 mm | N45 | approx. 320 g | 5.2 × 1.1 mm |
 | supermagnete S-05-02-N52N | Ø 5 × 2 mm | N52 | approx. 680 g | 5.2 × 2.1 mm |
+| supermagnete S-06-01-N | Ø 6 × 1 mm | N45 | approx. 400 g | 6.2 × 1.1 mm |
 | supermagnete S-06-02-N (default) | Ø 6 × 2 mm | N45 | approx. 740 g | 6.2 × 2.1 mm, the original pocket |
+| supermagnete S-08-01-N | Ø 8 × 1 mm | N45 | approx. 540 g | 8.2 × 1.1 mm |
 | supermagnete S-08-02-N | Ø 8 × 2 mm | N45 | approx. 1.1 kg | 8.2 × 2.1 mm |
 
 The 3 mm discs are too high, the 10 and 12 mm discs too wide, and the blocks and the ring are not round. Glue the magnets in, and

@@ -1064,7 +1064,8 @@ main {
 .toggle-latch-illustration,
 .pressure-pad-illustration,
 .window-cat-guard-illustration,
-.qr-magnet-tag-illustration {
+.qr-magnet-tag-illustration,
+.cat-collar-tag-illustration {
   width: 250px;
   height: 210px;
 }

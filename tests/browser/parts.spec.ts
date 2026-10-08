@@ -99,7 +99,7 @@ test('sizes the cigarette case’s magnet pockets for a library magnet, and show
   await expect(page.getByLabel('Magnets', { exact: true })).toHaveCount(0);
   await page.getByLabel('Case lid snap').selectOption('magnet');
   const magnets = page.getByLabel('Magnets', { exact: true });
-  await expect(magnets.locator('option')).toHaveText([/S-04-02-N/, /S-05-02-N52N/, /S-06-02-N/, /S-08-02-N/]);
+  await expect(magnets.locator('option')).toHaveText([/S-04-02-N/, /S-05-01-N/, /S-05-02-N52N/, /S-06-01-N/, /S-06-02-N/, /S-08-01-N/, /S-08-02-N/]);
   await expect(magnets).toHaveValue('supermagnete-s-06-02-n');
   await magnets.selectOption('supermagnete-s-08-02-n');
   await expect(page.getByText(findPart('supermagnete-s-08-02-n')?.description ?? 'missing')).toBeVisible();

@@ -17,7 +17,7 @@ afterEach(() => { store.close(); rmSync(directory, { recursive: true, force: tru
 
 describe('temporary render queue', () => {
   it('seeds idempotently and reuses equivalent normalized parameters', () => {
-    store.seed(); expect(store.listModels()).toHaveLength(13);
+    store.seed(); expect(store.listModels()).toHaveLength(14);
     const first = store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
     const reordered = Object.fromEntries(Object.entries(fruitFlyTrap.defaults).reverse());
     expect(store.enqueue(fruitFlyTrap, reordered).id).toBe(first.id);
@@ -152,7 +152,7 @@ describe('temporary render queue', () => {
     time += CACHE_TTL_MS + 1; store.cleanup();
     expect(store.getJob(job.id)).toBeUndefined();
     expect(existsSync(store.artifacts.path(job.id))).toBe(false);
-    expect(store.listModels()).toHaveLength(13);
+    expect(store.listModels()).toHaveLength(14);
     expect(existsSync(join(store.artifacts.catalogDir, 'fruit-fly-trap-1.stl'))).toBe(true);
   });
 

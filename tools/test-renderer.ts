@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { activeParts, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { activeParts, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
@@ -63,7 +63,7 @@ const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
 store.migrate(); store.seed();
 const app = await createApp(store);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = selectRunner(directory);
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -403,6 +403,9 @@ try {
     { name: 'thickest centre', overrides: { baseThickness: 3, reliefHeight: 2, joint: 'detent', fit: 0.6 } },
     // embedded magnets: sealed cavities in the border, at the pause height for the layer height
     ...QR_TAG_JOINTS.map(joint => ({ name: `embedded magnets, ${joint}`, overrides: { magnetMount: 'embedded', joint } })),
+    // the thinnest magnets: the shallowest pockets, and the joint magnet standing least out of the centre
+    { name: '1 mm magnets, magnet joint', overrides: { joint: 'magnets', magnet: 'supermagnete-s-08-01-n' } },
+    { name: 'embedded 1 mm magnets, magnet joint', overrides: { magnetMount: 'embedded', joint: 'magnets', magnet: 'supermagnete-s-10-01-n' } },
     { name: 'embedded magnets, round magnet joint, 2 pairs of 10 × 3 mm', overrides: { magnetMount: 'embedded', shape: 'round', size: 80, joint: 'magnets', magnetCount: 2, magnet: 'supermagnete-s-10-03-n' } },
     { name: 'embedded magnets at the finest layers', overrides: { magnetMount: 'embedded', layerHeight: 0.08 } },
     { name: 'embedded magnets at the coarsest layers', overrides: { magnetMount: 'embedded', layerHeight: 0.32, reliefHeight: 0.7 } },
@@ -443,6 +446,76 @@ try {
     const decoded = decodeTop(parseStl(Buffer.from(stl.buffer, stl.byteOffset, stl.byteLength)), p.baseThickness + p.reliefHeight / 2, layout.centreWidth / 2 + 3);
     assert.equal(decoded, p.qrText, `QR tag ${name}: the rendered centre decodes to ${JSON.stringify(decoded)}`);
     console.log(`PASS QR tag ${name}: ${result.artifact.triangles} triangles, decodes, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+  // Cat collar tag: every shape hanging and slid on; the NFC tag and the magnets in pockets and embedded (one at a time), beside
+  // each other, at the finest layers; an embossed logo on the front and a logo on the back; two lines in each font; the thinnest
+  // tag without marks; sharp edges; the smallest split ring and the widest collar. Each tag must be one closed solid of the
+  // layout's size (a heart's tip is rounded off, so it is a little shorter), with a sealed cavity per embedded item.
+  const slideOn = { attachment: 'slide-on', backMark: 'none', frontTextSize: 4 };
+  const collarRuns: { name: string; overrides: ParameterValues }[] = [
+    ...COLLAR_TAG_SHAPES.map(shape => ({ name: `${shape}, hanging`, overrides: { shape, width: shape === 'round' ? 30 : 40, height: shape === 'bone' ? 22 : shape === 'heart' ? 36 : 28, backTextSize: 2.5 } })),
+    { name: 'round, slide-on', overrides: { ...slideOn, width: 44 } },
+    { name: 'rounded rectangle, slide-on', overrides: { ...slideOn, shape: 'rounded-rectangle', width: 45, height: 20 } },
+    { name: 'bone, slide-on', overrides: { ...slideOn, shape: 'bone', width: 50, height: 28 } },
+    { name: 'heart, slide-on', overrides: { ...slideOn, shape: 'heart', width: 60, height: 45 } },
+    { name: 'fish, slide-on', overrides: { ...slideOn, shape: 'fish', width: 60, height: 30 } },
+    { name: 'widest collar, slide-on', overrides: { ...slideOn, shape: 'rounded-rectangle', width: 45, height: 22, collar: 'lupinepet-original-designs-safety-cat-collar', slotFit: 0 } },
+    { name: 'embedded 1 mm magnets, two', overrides: { magnetMount: 'embedded', magnetCount: 2, magnet: 'supermagnete-s-05-01-n', width: 36, thickness: 3.4 } },
+    { name: 'embedded 2 mm magnet, blank back', overrides: { magnetMount: 'embedded', magnet: 'supermagnete-s-08-02-n', backMark: 'none', thickness: 3.8 } },
+    { name: 'magnet pockets', overrides: { magnetMount: 'pocket', magnetCount: 2, backMark: 'none', width: 36, thickness: 2.4 } },
+    { name: 'embedded NFC tag, thinnest', overrides: { nfc: 'embedded', backMark: 'none', frontMark: 'none', thickness: 1.4, edgeRadius: 0.4 } },
+    { name: 'embedded NFC tag under both texts', overrides: { nfc: 'embedded', thickness: 2.6 } },
+    { name: 'NFC pocket', overrides: { nfc: 'pocket', backMark: 'none', thickness: 1.6 } },
+    { name: 'embedded NFC tag beside magnet pockets', overrides: { nfc: 'embedded', nfcTag: 'gototags-gml7cqg3v7', magnetMount: 'pocket', magnetCount: 2, magnet: 'supermagnete-s-04-02-n', backMark: 'none', shape: 'rounded-rectangle', width: 60, height: 36, thickness: 3.4 } },
+    { name: 'embedded magnets beside an NFC pocket', overrides: { nfc: 'pocket', nfcTag: 'core-electronics-ce08496', magnetMount: 'embedded', magnet: 'supermagnete-s-05-01-n', backMark: 'none', shape: 'rounded-rectangle', width: 60, height: 34, thickness: 3 } },
+    { name: 'embedded at the finest layers', overrides: { magnetMount: 'embedded', thickness: 3.5, layerHeight: 0.08 } },
+    { name: 'embossed logo front, logo back', overrides: { frontMark: 'logo', frontLogo: QR_LEAF.logo, frontStyle: 'emboss', backMark: 'logo', backLogo: WIDE_BAR.logo, backLogoSize: 6 } },
+    ...(['serif', 'mono', 'wide'] as const).map(font => ({ name: `two lines in ${font}`, overrides: { shape: 'rounded-rectangle', width: 40, height: 26, frontFont: font, backFont: font, frontLine1: 'Mochi', frontLine2: 'Indoor cat', frontTextSize: 4, backTextSize: 3 } })),
+    { name: 'thinnest, blank, sharp edges', overrides: { thickness: 1, edgeRadius: 0, frontMark: 'none', backMark: 'none' } },
+    // rounded edges are steps that must fuse: the roundest edges a thickness allows, on a straight and a curved outline
+    { name: 'edges rounded by half the thickness', overrides: { thickness: 1.6, edgeRadius: 0.8, frontMark: 'none', backMark: 'none' } },
+    { name: 'heart, roundest thick edges', overrides: { shape: 'heart', width: 40, height: 36, thickness: 4, edgeRadius: 1.3, frontTextSize: 4.5, backTextSize: 2.5 } },
+    { name: 'smallest split ring', overrides: { splitRing: 'avco-kr-90920', bailWall: 1.2, thickness: 1.6, backMark: 'none' } },
+    // clip and sleeve: a second part round the strap, at the narrowest and widest collars and the extremes of its length, wall and fit
+    { name: 'clip', overrides: { attachment: 'clip' } },
+    { name: 'shortest, thinnest clip on the narrowest collar', overrides: { attachment: 'clip', collar: 'rogz-kiddycat-8mm', carrierLength: 5, carrierWall: 1.2, carrierFit: 0, lipDepth: 0.6 } },
+    { name: 'longest, thickest clip on the widest collar', overrides: { attachment: 'clip', collar: 'lupinepet-original-designs-safety-cat-collar', carrierLength: 20, carrierWall: 3, lipDepth: 3 } },
+    { name: 'closed sleeve', overrides: { attachment: 'sleeve' } },
+    { name: 'loose closed sleeve on the widest collar', overrides: { attachment: 'sleeve', collar: 'lupinepet-original-designs-safety-cat-collar', carrierFit: 0.8 } },
+    { name: 'wrap sleeve', overrides: { attachment: 'sleeve', sleeveStyle: 'wrap' } },
+    { name: 'wrap sleeve, deepest overlap on the narrowest collar', overrides: { attachment: 'sleeve', sleeveStyle: 'wrap', collar: 'rogz-kiddycat-8mm', lipDepth: 4, carrierWall: 1.2 } },
+    { name: 'wrap sleeve, thick walls, smallest ring', overrides: { attachment: 'sleeve', sleeveStyle: 'wrap', collar: 'lupinepet-original-designs-safety-cat-collar', carrierWall: 3, splitRing: 'avco-kr-90920', bailWall: 1.4, thickness: 1.6, backMark: 'none' } },
+  ];
+  for (const { name, overrides } of only && only !== 'cat-collar-tag' ? [] : collarRuns) {
+    const started = Date.now();
+    const parameters = { ...catCollarTag.defaults, ...overrides };
+    assert.deepEqual(validateParameters(catCollarTag, parameters), [], `cat collar tag ${name}`);
+    const queued = store.enqueue(catCollarTag, parameters);
+    const job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken;
+    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `cat collar tag ${name}`); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `cat collar tag ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const layout = collarTagLayout(catCollarTagSettings(parameters));
+    const carrierId = parameters['attachment'] === 'clip' || parameters['attachment'] === 'sleeve' ? parameters['attachment'] : null;
+    assert.deepEqual(result.artifact.parts.map(part => part.id), carrierId ? ['tag', carrierId] : ['tag']);
+    const [tag, carrier] = result.artifact.parts;
+    const near = (actual: number | undefined, expected: number, what: string, tolerance = 0.05) => assert.ok(Math.abs((actual ?? NaN) - expected) < tolerance, `cat collar tag ${name} ${what}: ${actual} != ${expected}`);
+    near(tag?.dimensions.x, layout.bounds.x, 'width');
+    if (parameters['shape'] === 'heart') assert.ok((tag?.dimensions.y ?? NaN) <= layout.bounds.y + 0.05 && (tag?.dimensions.y ?? NaN) > layout.bounds.y - 1.5, `cat collar tag ${name} height: ${tag?.dimensions.y}`);
+    else near(tag?.dimensions.y, layout.bounds.y, 'height');
+    near(tag?.dimensions.z, layout.bounds.z, 'thickness');
+    if (carrierId && layout.carrier) {
+      near(carrier?.dimensions.x, layout.carrier.bounds.x, `${carrierId} depth`);
+      near(carrier?.dimensions.y, layout.carrier.bounds.y, `${carrierId} height`);
+      near(carrier?.dimensions.z, layout.carrier.bounds.z, `${carrierId} length`);
+    }
+    const entries = unzipSync(new Uint8Array(await readFile(store.artifacts.path(job.id, 'zip'))));
+    const stl = entries['tag.stl']; assert.ok(stl, 'tag.stl');
+    const cavities = layout.embedded === 'nfc' ? 1 : layout.embedded === 'magnet' ? layout.magnets.length : 0;
+    assert.equal(shells(parseStl(Buffer.from(stl.buffer, stl.byteOffset, stl.byteLength))), 1 + cavities, `cat collar tag ${name}: the tag's shells`);
+    console.log(`PASS cat collar tag ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   // Litter shovel: every sieve texture, the sieve extremes (most gaps, fewest gaps), the scraping tip's extremes, both grip ends,
   // the shortest and longest scoop, no dam and the widest, the fewest and most, thinnest and thickest grip supports, and both snap modes of both

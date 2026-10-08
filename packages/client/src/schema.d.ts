@@ -1206,7 +1206,7 @@ export interface operations {
                          * @default supermagnete-s-06-02-n
                          * @enum {unknown}
                          */
-                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-02-n" | "supermagnete-s-08-02-n";
+                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-01-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-01-n" | "supermagnete-s-06-02-n" | "supermagnete-s-08-01-n" | "supermagnete-s-08-02-n";
                         /**
                          * Mini box lid
                          * @description How the mini lid holds in the mini box: the original pads (a clearance fit), a detent or crush ribs.
@@ -1960,7 +1960,7 @@ export interface operations {
                          * @default supermagnete-s-08-02-n
                          * @enum {unknown}
                          */
-                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-02-n" | "supermagnete-s-08-03-n" | "supermagnete-s-10-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
+                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-01-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-01-n" | "supermagnete-s-06-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-01-n" | "supermagnete-s-08-02-n" | "supermagnete-s-08-03-n" | "supermagnete-s-10-01-n" | "supermagnete-s-10-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
                         /**
                          * Magnet mounting
                          * @description Open pockets that the magnets are pressed or glued into after printing, or sealed cavities that they are dropped into when the print pauses.
@@ -2242,6 +2242,271 @@ export interface operations {
                          * @default 0.2
                          */
                         capInterference: number;
+                    };
+                } | {
+                    /** @enum {string} */
+                    modelId: "cat-collar-tag";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Cat collar tag parameters. All fields are required; dimensions are in millimetres; the parts are parts-library ids. */
+                    parameters: {
+                        /**
+                         * Attachment
+                         * @description How the tag goes on the collar.
+                         * @default hanging
+                         * @enum {unknown}
+                         */
+                        attachment: "hanging" | "slide-on" | "clip" | "sleeve";
+                        /**
+                         * Shape
+                         * @description The tag’s outline.
+                         * @default round
+                         * @enum {unknown}
+                         */
+                        shape: "round" | "rounded-rectangle" | "bone" | "heart" | "fish";
+                        /**
+                         * Width
+                         * @description The tag’s width (a round tag’s diameter), in mm, without a hanging tag’s bail.
+                         * @default 30
+                         */
+                        width: number;
+                        /**
+                         * Height
+                         * @description The tag’s height, in mm, without a hanging tag’s bail. A round tag is as high as it is wide.
+                         * @default 22
+                         */
+                        height: number;
+                        /**
+                         * Thickness
+                         * @description The tag’s thickness, in mm, without an embossed mark. Embedded magnets or an NFC tag need a minimum, which the editor names.
+                         * @default 2.4
+                         */
+                        thickness: number;
+                        /**
+                         * Edge rounding
+                         * @description How far the front and back edges are rounded, in mm: a soft edge against the cat. At most half the thickness.
+                         * @default 0.6
+                         */
+                        edgeRadius: number;
+                        /**
+                         * Front
+                         * @description What the front carries: text, a logo or nothing.
+                         * @default text
+                         * @enum {unknown}
+                         */
+                        frontMark: "none" | "text" | "logo";
+                        /**
+                         * Front text, line 1
+                         * @description The front’s first line, e.g. the cat’s name. Up to 16 characters of printable ASCII (letters, digits, spaces and punctuation, no accents).
+                         * @default Luna
+                         */
+                        frontLine1: string;
+                        /**
+                         * Front text, line 2
+                         * @description An optional second line on the front. Up to 16 characters of printable ASCII (letters, digits, spaces and punctuation, no accents).
+                         * @default
+                         */
+                        frontLine2: string;
+                        /**
+                         * Front font
+                         * @description The front text’s font. All are bold, so that the strokes print cleanly.
+                         * @default sans
+                         * @enum {unknown}
+                         */
+                        frontFont: "sans" | "serif" | "mono" | "wide";
+                        /**
+                         * Front text size
+                         * @description Letter height of the front text in mm (the height of a capital). Longer text needs a smaller size.
+                         * @default 5.5
+                         */
+                        frontTextSize: number;
+                        /**
+                         * Front logo
+                         * @description An SVG file whose filled shapes go on the front. Strokes, text, pictures and style sheets in the file are left out. The file itself is never uploaded, only its outline.
+                         * @default
+                         */
+                        frontLogo: string;
+                        /**
+                         * Front logo size
+                         * @description Height of the front logo in mm; a wide logo is made smaller to fit the free width.
+                         * @default 10
+                         */
+                        frontLogoSize: number;
+                        /**
+                         * Front style
+                         * @description Whether the front’s text or logo is carved in or raised.
+                         * @default engrave
+                         * @enum {unknown}
+                         */
+                        frontStyle: "engrave" | "emboss";
+                        /**
+                         * Back
+                         * @description What the back carries: text, a logo or nothing. The back lies on the print bed, so its mark is engraved, mirrored to read when the tag is turned over.
+                         * @default text
+                         * @enum {unknown}
+                         */
+                        backMark: "none" | "text" | "logo";
+                        /**
+                         * Back text, line 1
+                         * @description The back’s first line. Up to 16 characters of printable ASCII (letters, digits, spaces and punctuation, no accents).
+                         * @default If found:
+                         */
+                        backLine1: string;
+                        /**
+                         * Back text, line 2
+                         * @description The back’s second line, e.g. a phone number. Up to 16 characters of printable ASCII (letters, digits, spaces and punctuation, no accents).
+                         * @default 555 0100
+                         */
+                        backLine2: string;
+                        /**
+                         * Back font
+                         * @description The back text’s font.
+                         * @default sans
+                         * @enum {unknown}
+                         */
+                        backFont: "sans" | "serif" | "mono" | "wide";
+                        /**
+                         * Back text size
+                         * @description Letter height of the back text in mm.
+                         * @default 3
+                         */
+                        backTextSize: number;
+                        /**
+                         * Back logo
+                         * @description An SVG file whose filled shapes are engraved in the back. Strokes, text, pictures and style sheets in the file are left out. The file itself is never uploaded, only its outline.
+                         * @default
+                         */
+                        backLogo: string;
+                        /**
+                         * Back logo size
+                         * @description Height of the back logo in mm; a wide logo is made smaller to fit the free width.
+                         * @default 10
+                         */
+                        backLogoSize: number;
+                        /**
+                         * NFC tag
+                         * @description An NFC tag that a phone reads (e.g. a web page with your phone number): none, in a pocket in the back, or embedded at a print pause.
+                         * @default none
+                         * @enum {unknown}
+                         */
+                        nfc: "none" | "pocket" | "embedded";
+                        /**
+                         * NFC tag product
+                         * @description The NFC tag, a real product from the parts library; its pocket or cavity is cut to its size.
+                         * @default gototags-bgrduhnvrl
+                         * @enum {unknown}
+                         */
+                        nfcTag: "gototags-bgrduhnvrl" | "gototags-gml7cqg3v7" | "gototags-hg5w9byet8" | "gototags-fjz3am6fjz" | "gototags-bzkx3zlhxx" | "core-electronics-ce08496";
+                        /**
+                         * Magnets
+                         * @description Disc magnets, to stick the tag to a fridge or a board when the cat is not wearing it: none, in pockets in the back, or embedded at a print pause. Only one of the NFC tag and the magnets can be embedded.
+                         * @default none
+                         * @enum {unknown}
+                         */
+                        magnetMount: "none" | "pocket" | "embedded";
+                        /**
+                         * Magnet
+                         * @description The disc magnet, a real product from the parts library; its pockets are cut to its greatest size.
+                         * @default supermagnete-s-06-01-n
+                         * @enum {unknown}
+                         */
+                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-01-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-01-n" | "supermagnete-s-06-02-n" | "supermagnete-s-08-01-n" | "supermagnete-s-08-02-n" | "supermagnete-s-10-01-n" | "supermagnete-s-10-02-n";
+                        /**
+                         * Magnet count
+                         * @description One magnet (in the middle, or beside an NFC tag) or two (at the ends of the free area).
+                         * @default 1
+                         */
+                        magnetCount: number;
+                        /**
+                         * Split ring
+                         * @description The split ring that hangs the tag on the collar, a real product from the parts library. The bail’s hole is sized for its band, and the ring is checked to go round the bail and the D-ring.
+                         * @default avco-kr-9335
+                         * @enum {unknown}
+                         */
+                        splitRing: "avco-kr-90920" | "avco-kr-90930" | "avco-kr-92000" | "avco-kr-92100" | "avco-kr-92200" | "avco-kr-9335" | "avco-kr-9337" | "avco-kr-93400";
+                        /**
+                         * D-ring wire
+                         * @description The thickness of the collar’s D-ring or O-ring wire, in mm, which the split ring must hold beside the bail. Makers do not publish it: measure yours.
+                         * @default 2
+                         */
+                        dRingWire: number;
+                        /**
+                         * Bail wall
+                         * @description The wall round the bail’s hole, in mm. Thicker is stronger.
+                         * @default 2
+                         */
+                        bailWall: number;
+                        /**
+                         * Collar
+                         * @description The collar the tag slides onto, a real product from the parts library: the slots are cut for its strap’s width and (estimated) thickness.
+                         * @default trixie-4180
+                         * @enum {unknown}
+                         */
+                        collar: "rogz-kiddycat-8mm" | "rogz-kiddycat-11mm" | "rogz-alleycat-11mm" | "coastal-safe-cat-fashion-3-8in" | "trixie-4180" | "lupinepet-original-designs-safety-cat-collar";
+                        /**
+                         * Slot fit
+                         * @description Play of the slots over the strap’s thickness, in mm. Less holds the tag in place more firmly; more slides more easily.
+                         * @default 0.3
+                         */
+                        slotFit: number;
+                        /**
+                         * End bar width
+                         * @description The width of the bar outside each slot, in mm.
+                         * @default 3
+                         */
+                        barWidth: number;
+                        /**
+                         * Sleeve style
+                         * @description A closed sleeve the collar’s end is threaded through, or one that wraps round the strap and clicks shut.
+                         * @default closed
+                         * @enum {unknown}
+                         */
+                        sleeveStyle: "closed" | "wrap";
+                        /**
+                         * Clip or sleeve length
+                         * @description How long the clip or sleeve is along the strap, in mm. The split ring goes round its tab, so a long one needs a large ring.
+                         * @default 8
+                         */
+                        carrierLength: number;
+                        /**
+                         * Clip or sleeve wall
+                         * @description The wall round the strap, in mm. Thinner flexes more easily onto the strap.
+                         * @default 1.6
+                         */
+                        carrierWall: number;
+                        /**
+                         * Clip or sleeve fit
+                         * @description Play round the strap per side, in mm: little for a clip, so that it stays put; more for a sleeve, so that it slides along.
+                         * @default 0.2
+                         */
+                        carrierFit: number;
+                        /**
+                         * Lip depth
+                         * @description How far a clip’s lips reach over the strap’s edges (a wrap sleeve’s flaps overlap by as much), in mm. More holds better; less snaps on more easily.
+                         * @default 1.2
+                         */
+                        lipDepth: number;
+                        /**
+                         * Engraving depth
+                         * @description How deep engraved text and logos are carved, in mm.
+                         * @default 0.6
+                         */
+                        engraveDepth: number;
+                        /**
+                         * Emboss height
+                         * @description How high an embossed front stands, in mm.
+                         * @default 0.6
+                         */
+                        embossHeight: number;
+                        /**
+                         * Layer height
+                         * @description Your slicer’s layer height, in mm: the print pause and the filament change are put on a layer boundary.
+                         * @default 0.2
+                         */
+                        layerHeight: number;
                     };
                 };
             };

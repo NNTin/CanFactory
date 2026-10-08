@@ -11,6 +11,7 @@ import { Viewer } from './Viewer.tsx';
 import { ToggleLatchIllustration } from './ToggleLatchIllustration.tsx';
 import { WindowCatGuardIllustration } from './WindowCatGuardIllustration.tsx';
 import { QrMagnetTagIllustration } from './QrMagnetTagIllustration.tsx';
+import { CatCollarTagIllustration } from './CatCollarTagIllustration.tsx';
 import { PrintedCornerBracketIllustration } from './PrintedCornerBracketIllustration.tsx';
 import { PrintedScreenHookIllustration } from './PrintedScreenHookIllustration.tsx';
 import { SpringBallDetentIllustration } from './SpringBallDetentIllustration.tsx';
@@ -288,6 +289,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'printed-corner-bracket': PrintedCornerBracketIllustration,
   'printed-screen-hook': PrintedScreenHookIllustration,
   'spring-ball-detent': SpringBallDetentIllustration,
+  'cat-collar-tag': CatCollarTagIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names

@@ -3186,8 +3186,11 @@
                           "magnet": {
                             "enum": [
                               "supermagnete-s-04-02-n",
+                              "supermagnete-s-05-01-n",
                               "supermagnete-s-05-02-n52n",
+                              "supermagnete-s-06-01-n",
                               "supermagnete-s-06-02-n",
+                              "supermagnete-s-08-01-n",
                               "supermagnete-s-08-02-n"
                             ],
                             "title": "Magnets",
@@ -4771,11 +4774,15 @@
                           "magnet": {
                             "enum": [
                               "supermagnete-s-04-02-n",
+                              "supermagnete-s-05-01-n",
                               "supermagnete-s-05-02-n52n",
+                              "supermagnete-s-06-01-n",
                               "supermagnete-s-06-02-n",
                               "supermagnete-s-06-03-n",
+                              "supermagnete-s-08-01-n",
                               "supermagnete-s-08-02-n",
                               "supermagnete-s-08-03-n",
+                              "supermagnete-s-10-01-n",
                               "supermagnete-s-10-02-n",
                               "supermagnete-s-10-03-n",
                               "supermagnete-s-12-02-n"
@@ -5403,6 +5410,466 @@
                         },
                         "additionalProperties": false,
                         "description": "Spring ball detent parameters. All fields are required; dimensions are in millimetres; the ball, spring and set screw are parts-library ids."
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "modelId",
+                      "modelVersion",
+                      "parameters"
+                    ],
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "enum": [
+                          "cat-collar-tag"
+                        ]
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
+                        "enum": [
+                          "1"
+                        ]
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "required": [
+                          "attachment",
+                          "shape",
+                          "width",
+                          "height",
+                          "thickness",
+                          "edgeRadius",
+                          "frontMark",
+                          "frontLine1",
+                          "frontLine2",
+                          "frontFont",
+                          "frontTextSize",
+                          "frontLogo",
+                          "frontLogoSize",
+                          "frontStyle",
+                          "backMark",
+                          "backLine1",
+                          "backLine2",
+                          "backFont",
+                          "backTextSize",
+                          "backLogo",
+                          "backLogoSize",
+                          "nfc",
+                          "nfcTag",
+                          "magnetMount",
+                          "magnet",
+                          "magnetCount",
+                          "splitRing",
+                          "dRingWire",
+                          "bailWall",
+                          "collar",
+                          "slotFit",
+                          "barWidth",
+                          "sleeveStyle",
+                          "carrierLength",
+                          "carrierWall",
+                          "carrierFit",
+                          "lipDepth",
+                          "engraveDepth",
+                          "embossHeight",
+                          "layerHeight"
+                        ],
+                        "properties": {
+                          "attachment": {
+                            "enum": [
+                              "hanging",
+                              "slide-on",
+                              "clip",
+                              "sleeve"
+                            ],
+                            "title": "Attachment",
+                            "description": "How the tag goes on the collar.",
+                            "default": "hanging"
+                          },
+                          "shape": {
+                            "enum": [
+                              "round",
+                              "rounded-rectangle",
+                              "bone",
+                              "heart",
+                              "fish"
+                            ],
+                            "title": "Shape",
+                            "description": "The tag’s outline.",
+                            "default": "round"
+                          },
+                          "width": {
+                            "type": "number",
+                            "title": "Width",
+                            "description": "The tag’s width (a round tag’s diameter), in mm, without a hanging tag’s bail.",
+                            "default": 30,
+                            "minimum": 15,
+                            "maximum": 60,
+                            "multipleOf": 0.5
+                          },
+                          "height": {
+                            "type": "number",
+                            "title": "Height",
+                            "description": "The tag’s height, in mm, without a hanging tag’s bail. A round tag is as high as it is wide.",
+                            "default": 22,
+                            "minimum": 10,
+                            "maximum": 45,
+                            "multipleOf": 0.5
+                          },
+                          "thickness": {
+                            "type": "number",
+                            "title": "Thickness",
+                            "description": "The tag’s thickness, in mm, without an embossed mark. Embedded magnets or an NFC tag need a minimum, which the editor names.",
+                            "default": 2.4,
+                            "minimum": 1,
+                            "maximum": 6,
+                            "multipleOf": 0.1
+                          },
+                          "edgeRadius": {
+                            "type": "number",
+                            "title": "Edge rounding",
+                            "description": "How far the front and back edges are rounded, in mm: a soft edge against the cat. At most half the thickness.",
+                            "default": 0.6,
+                            "minimum": 0,
+                            "maximum": 2,
+                            "multipleOf": 0.1
+                          },
+                          "frontMark": {
+                            "enum": [
+                              "none",
+                              "text",
+                              "logo"
+                            ],
+                            "title": "Front",
+                            "description": "What the front carries: text, a logo or nothing.",
+                            "default": "text"
+                          },
+                          "frontLine1": {
+                            "type": "string",
+                            "title": "Front text, line 1",
+                            "description": "The front’s first line, e.g. the cat’s name. Up to 16 characters of printable ASCII (letters, digits, spaces and punctuation, no accents).",
+                            "default": "Luna",
+                            "maxLength": 16,
+                            "pattern": "^[ -~]*$"
+                          },
+                          "frontLine2": {
+                            "type": "string",
+                            "title": "Front text, line 2",
+                            "description": "An optional second line on the front. Up to 16 characters of printable ASCII (letters, digits, spaces and punctuation, no accents).",
+                            "default": "",
+                            "maxLength": 16,
+                            "pattern": "^[ -~]*$"
+                          },
+                          "frontFont": {
+                            "enum": [
+                              "sans",
+                              "serif",
+                              "mono",
+                              "wide"
+                            ],
+                            "title": "Front font",
+                            "description": "The front text’s font. All are bold, so that the strokes print cleanly.",
+                            "default": "sans"
+                          },
+                          "frontTextSize": {
+                            "type": "number",
+                            "title": "Front text size",
+                            "description": "Letter height of the front text in mm (the height of a capital). Longer text needs a smaller size.",
+                            "default": 5.5,
+                            "minimum": 2.5,
+                            "maximum": 12,
+                            "multipleOf": 0.5
+                          },
+                          "frontLogo": {
+                            "type": "string",
+                            "title": "Front logo",
+                            "description": "An SVG file whose filled shapes go on the front. Strokes, text, pictures and style sheets in the file are left out. The file itself is never uploaded, only its outline.",
+                            "default": "",
+                            "maxLength": 26000,
+                            "pattern": "^[MLZ0-9 ]*$"
+                          },
+                          "frontLogoSize": {
+                            "type": "number",
+                            "title": "Front logo size",
+                            "description": "Height of the front logo in mm; a wide logo is made smaller to fit the free width.",
+                            "default": 10,
+                            "minimum": 3,
+                            "maximum": 30,
+                            "multipleOf": 0.5
+                          },
+                          "frontStyle": {
+                            "enum": [
+                              "engrave",
+                              "emboss"
+                            ],
+                            "title": "Front style",
+                            "description": "Whether the front’s text or logo is carved in or raised.",
+                            "default": "engrave"
+                          },
+                          "backMark": {
+                            "enum": [
+                              "none",
+                              "text",
+                              "logo"
+                            ],
+                            "title": "Back",
+                            "description": "What the back carries: text, a logo or nothing. The back lies on the print bed, so its mark is engraved, mirrored to read when the tag is turned over.",
+                            "default": "text"
+                          },
+                          "backLine1": {
+                            "type": "string",
+                            "title": "Back text, line 1",
+                            "description": "The back’s first line. Up to 16 characters of printable ASCII (letters, digits, spaces and punctuation, no accents).",
+                            "default": "If found:",
+                            "maxLength": 16,
+                            "pattern": "^[ -~]*$"
+                          },
+                          "backLine2": {
+                            "type": "string",
+                            "title": "Back text, line 2",
+                            "description": "The back’s second line, e.g. a phone number. Up to 16 characters of printable ASCII (letters, digits, spaces and punctuation, no accents).",
+                            "default": "555 0100",
+                            "maxLength": 16,
+                            "pattern": "^[ -~]*$"
+                          },
+                          "backFont": {
+                            "enum": [
+                              "sans",
+                              "serif",
+                              "mono",
+                              "wide"
+                            ],
+                            "title": "Back font",
+                            "description": "The back text’s font.",
+                            "default": "sans"
+                          },
+                          "backTextSize": {
+                            "type": "number",
+                            "title": "Back text size",
+                            "description": "Letter height of the back text in mm.",
+                            "default": 3,
+                            "minimum": 2.5,
+                            "maximum": 12,
+                            "multipleOf": 0.5
+                          },
+                          "backLogo": {
+                            "type": "string",
+                            "title": "Back logo",
+                            "description": "An SVG file whose filled shapes are engraved in the back. Strokes, text, pictures and style sheets in the file are left out. The file itself is never uploaded, only its outline.",
+                            "default": "",
+                            "maxLength": 26000,
+                            "pattern": "^[MLZ0-9 ]*$"
+                          },
+                          "backLogoSize": {
+                            "type": "number",
+                            "title": "Back logo size",
+                            "description": "Height of the back logo in mm; a wide logo is made smaller to fit the free width.",
+                            "default": 10,
+                            "minimum": 3,
+                            "maximum": 30,
+                            "multipleOf": 0.5
+                          },
+                          "nfc": {
+                            "enum": [
+                              "none",
+                              "pocket",
+                              "embedded"
+                            ],
+                            "title": "NFC tag",
+                            "description": "An NFC tag that a phone reads (e.g. a web page with your phone number): none, in a pocket in the back, or embedded at a print pause.",
+                            "default": "none"
+                          },
+                          "nfcTag": {
+                            "enum": [
+                              "gototags-bgrduhnvrl",
+                              "gototags-gml7cqg3v7",
+                              "gototags-hg5w9byet8",
+                              "gototags-fjz3am6fjz",
+                              "gototags-bzkx3zlhxx",
+                              "core-electronics-ce08496"
+                            ],
+                            "title": "NFC tag product",
+                            "description": "The NFC tag, a real product from the parts library; its pocket or cavity is cut to its size.",
+                            "default": "gototags-bgrduhnvrl"
+                          },
+                          "magnetMount": {
+                            "enum": [
+                              "none",
+                              "pocket",
+                              "embedded"
+                            ],
+                            "title": "Magnets",
+                            "description": "Disc magnets, to stick the tag to a fridge or a board when the cat is not wearing it: none, in pockets in the back, or embedded at a print pause. Only one of the NFC tag and the magnets can be embedded.",
+                            "default": "none"
+                          },
+                          "magnet": {
+                            "enum": [
+                              "supermagnete-s-04-02-n",
+                              "supermagnete-s-05-01-n",
+                              "supermagnete-s-05-02-n52n",
+                              "supermagnete-s-06-01-n",
+                              "supermagnete-s-06-02-n",
+                              "supermagnete-s-08-01-n",
+                              "supermagnete-s-08-02-n",
+                              "supermagnete-s-10-01-n",
+                              "supermagnete-s-10-02-n"
+                            ],
+                            "title": "Magnet",
+                            "description": "The disc magnet, a real product from the parts library; its pockets are cut to its greatest size.",
+                            "default": "supermagnete-s-06-01-n"
+                          },
+                          "magnetCount": {
+                            "type": "integer",
+                            "title": "Magnet count",
+                            "description": "One magnet (in the middle, or beside an NFC tag) or two (at the ends of the free area).",
+                            "default": 1,
+                            "minimum": 1,
+                            "maximum": 2
+                          },
+                          "splitRing": {
+                            "enum": [
+                              "avco-kr-90920",
+                              "avco-kr-90930",
+                              "avco-kr-92000",
+                              "avco-kr-92100",
+                              "avco-kr-92200",
+                              "avco-kr-9335",
+                              "avco-kr-9337",
+                              "avco-kr-93400"
+                            ],
+                            "title": "Split ring",
+                            "description": "The split ring that hangs the tag on the collar, a real product from the parts library. The bail’s hole is sized for its band, and the ring is checked to go round the bail and the D-ring.",
+                            "default": "avco-kr-9335"
+                          },
+                          "dRingWire": {
+                            "type": "number",
+                            "title": "D-ring wire",
+                            "description": "The thickness of the collar’s D-ring or O-ring wire, in mm, which the split ring must hold beside the bail. Makers do not publish it: measure yours.",
+                            "default": 2,
+                            "minimum": 1,
+                            "maximum": 4,
+                            "multipleOf": 0.1
+                          },
+                          "bailWall": {
+                            "type": "number",
+                            "title": "Bail wall",
+                            "description": "The wall round the bail’s hole, in mm. Thicker is stronger.",
+                            "default": 2,
+                            "minimum": 1.2,
+                            "maximum": 4,
+                            "multipleOf": 0.1
+                          },
+                          "collar": {
+                            "enum": [
+                              "rogz-kiddycat-8mm",
+                              "rogz-kiddycat-11mm",
+                              "rogz-alleycat-11mm",
+                              "coastal-safe-cat-fashion-3-8in",
+                              "trixie-4180",
+                              "lupinepet-original-designs-safety-cat-collar"
+                            ],
+                            "title": "Collar",
+                            "description": "The collar the tag slides onto, a real product from the parts library: the slots are cut for its strap’s width and (estimated) thickness.",
+                            "default": "trixie-4180"
+                          },
+                          "slotFit": {
+                            "type": "number",
+                            "title": "Slot fit",
+                            "description": "Play of the slots over the strap’s thickness, in mm. Less holds the tag in place more firmly; more slides more easily.",
+                            "default": 0.3,
+                            "minimum": 0,
+                            "maximum": 1,
+                            "multipleOf": 0.05
+                          },
+                          "barWidth": {
+                            "type": "number",
+                            "title": "End bar width",
+                            "description": "The width of the bar outside each slot, in mm.",
+                            "default": 3,
+                            "minimum": 2,
+                            "maximum": 8,
+                            "multipleOf": 0.5
+                          },
+                          "sleeveStyle": {
+                            "enum": [
+                              "closed",
+                              "wrap"
+                            ],
+                            "title": "Sleeve style",
+                            "description": "A closed sleeve the collar’s end is threaded through, or one that wraps round the strap and clicks shut.",
+                            "default": "closed"
+                          },
+                          "carrierLength": {
+                            "type": "number",
+                            "title": "Clip or sleeve length",
+                            "description": "How long the clip or sleeve is along the strap, in mm. The split ring goes round its tab, so a long one needs a large ring.",
+                            "default": 8,
+                            "minimum": 5,
+                            "maximum": 20,
+                            "multipleOf": 0.5
+                          },
+                          "carrierWall": {
+                            "type": "number",
+                            "title": "Clip or sleeve wall",
+                            "description": "The wall round the strap, in mm. Thinner flexes more easily onto the strap.",
+                            "default": 1.6,
+                            "minimum": 1.2,
+                            "maximum": 3,
+                            "multipleOf": 0.1
+                          },
+                          "carrierFit": {
+                            "type": "number",
+                            "title": "Clip or sleeve fit",
+                            "description": "Play round the strap per side, in mm: little for a clip, so that it stays put; more for a sleeve, so that it slides along.",
+                            "default": 0.2,
+                            "minimum": 0,
+                            "maximum": 0.8,
+                            "multipleOf": 0.05
+                          },
+                          "lipDepth": {
+                            "type": "number",
+                            "title": "Lip depth",
+                            "description": "How far a clip’s lips reach over the strap’s edges (a wrap sleeve’s flaps overlap by as much), in mm. More holds better; less snaps on more easily.",
+                            "default": 1.2,
+                            "minimum": 0.6,
+                            "maximum": 4,
+                            "multipleOf": 0.1
+                          },
+                          "engraveDepth": {
+                            "type": "number",
+                            "title": "Engraving depth",
+                            "description": "How deep engraved text and logos are carved, in mm.",
+                            "default": 0.6,
+                            "minimum": 0.3,
+                            "maximum": 1.2,
+                            "multipleOf": 0.1
+                          },
+                          "embossHeight": {
+                            "type": "number",
+                            "title": "Emboss height",
+                            "description": "How high an embossed front stands, in mm.",
+                            "default": 0.6,
+                            "minimum": 0.4,
+                            "maximum": 1.5,
+                            "multipleOf": 0.1
+                          },
+                          "layerHeight": {
+                            "type": "number",
+                            "title": "Layer height",
+                            "description": "Your slicer’s layer height, in mm: the print pause and the filament change are put on a layer boundary.",
+                            "default": 0.2,
+                            "minimum": 0.08,
+                            "maximum": 0.32,
+                            "multipleOf": 0.02
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Cat collar tag parameters. All fields are required; dimensions are in millimetres; the parts are parts-library ids."
                       }
                     },
                     "additionalProperties": false
