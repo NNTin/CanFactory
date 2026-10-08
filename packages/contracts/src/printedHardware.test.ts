@@ -36,13 +36,39 @@ describe('printed corner bracket contract', () => {
     expect(modelSourcePaths(printedCornerBracket)).toEqual(['models/printed-corner-bracket/generator.scad']);
     expect(printedCornerBracket.license).toBe('CC BY 4.0');
     expect(WINDOW_INSERT_MEMBER).toBe(40);
-    // legs of 2.5 members, half a member wide, three holes on each leg past the joint
-    expect(printedCornerBracketFor(40)).toEqual({ legA: 100, legB: 100, width: 20, thickness: 5, holesPerLeg: 3, holeSpacing: 20, firstHole: 50 });
+    // legs of 2.5 members, half a member wide, three staggered holes on each leg past the joint
+    expect(printedCornerBracketFor(40)).toEqual({ legA: 100, legB: 100, width: 20, thickness: 5, holesPerLeg: 3, holeSpacing: 20, firstHole: 50, holeLayout: 'staggered' });
     expect(defaults).toEqual({ ...PRINTED_CORNER_BRACKET_DEFAULT, woodScrewDiameter: '4 mm', woodScrew: 'din-7997-4x35', holeFit: 'medium' });
     expect(printedCornerBracketHoles(PRINTED_CORNER_BRACKET_DEFAULT).map(hole => `${hole.leg} ${hole.along}`)).toEqual(['a 50', 'a 70', 'a 90', 'b 50', 'b 70', 'b 90']);
     expect(validateParameters(printedCornerBracket, defaults)).toEqual([]);
     expect(Value.Check(RenderRequestSchema, { modelId: 'printed-corner-bracket', modelVersion: '1', parameters: defaults })).toBe(true);
     expect(Value.Check(RenderRequestSchema, { modelId: 'printed-corner-bracket', modelVersion: '1', parameters: { ...defaults, extra: 1 } })).toBe(false);
+  });
+
+  it('staggers the holes across each leg by default, and keeps them in a straight line only when asked', () => {
+    const across = (size: typeof PRINTED_CORNER_BRACKET_DEFAULT) => printedCornerBracketHoles(size).map(hole => Math.round(hole.across * 1000) / 1000);
+    // on the 20 mm leg's thirds: the first hole of each leg towards its inner edge, then alternating
+    expect(across(PRINTED_CORNER_BRACKET_DEFAULT)).toEqual([13.333, 6.667, 13.333, 13.333, 6.667, 13.333]);
+    for (const leg of ['a', 'b'] as const) {
+      const holes = printedCornerBracketHoles(PRINTED_CORNER_BRACKET_DEFAULT).filter(hole => hole.leg === leg);
+      // neighbouring holes never share a grain line, and the rows are clear of each other by more than a hole
+      for (let i = 1; i < holes.length; i++) expect(Math.abs((holes[i]?.across ?? 0) - (holes[i - 1]?.across ?? 0))).toBeGreaterThan(dimensionOf(part('din-7997-4x35'), 'd'));
+    }
+    expect(across({ ...PRINTED_CORNER_BRACKET_DEFAULT, holeLayout: 'straight' })).toEqual([10, 10, 10, 10, 10, 10]);
+    // a single hole stays on the middle line either way
+    expect(across({ ...PRINTED_CORNER_BRACKET_DEFAULT, holesPerLeg: 1 })).toEqual([10, 10]);
+    expect(validateParameters(printedCornerBracket, { ...defaults, holeLayout: 'straight' })).toEqual([]);
+  });
+
+  it('refuses staggered holes on a leg too narrow for their countersinks, and names the width that takes them', () => {
+    // a 4 mm screw's countersink (7.9 mm) and its 1.5 mm walls: 5.45 mm round each hole, so the thirds need 16.35 mm
+    expect(validateParameters(printedCornerBracket, { ...defaults, width: 16 })).toEqual([{ field: 'width', message: 'Staggered holes for a DIN 7997 4 × 35 lie on the leg\'s thirds, and their countersinks need the legs at least 16.35 mm wide: make them wider, choose a thinner screw, or put the holes in a straight line (Hole layout).' }]);
+    expect(validateParameters(printedCornerBracket, { ...defaults, width: 16.5 })).toEqual([]);
+    expect(validateParameters(printedCornerBracket, { ...defaults, width: 16, holeLayout: 'straight' })).toEqual([]);
+    // one hole a leg is not staggered; a 6 mm screw (11.4 mm countersink) needs 21.6 mm
+    expect(validateParameters(printedCornerBracket, { ...defaults, width: 12, holesPerLeg: 1, legA: 60, legB: 60, firstHole: 40 })).toEqual([]);
+    expect(fields(printedCornerBracket, { ...defaults, woodScrewDiameter: '6 mm', woodScrew: 'din-7997-6x40' })).toEqual(['width']);
+    expect(fields(printedCornerBracket, { ...defaults, width: 22, woodScrewDiameter: '6 mm', woodScrew: 'din-7997-6x40' })).toEqual([]);
   });
 
   it('keeps every SCAD default equal to the contract default it is mapped from', () => {
@@ -72,8 +98,12 @@ describe('printed corner bracket contract', () => {
     const assembly = resolveAssembly(printedCornerBracket, printedCornerBracket.assembly, defaults);
     expect(assembly?.steps.map(step => step.title)).toEqual(['Lay the bracket across the corner', 'Drive the screws in']);
     const screw = part('din-7997-4x35');
-    expect(assembly?.poses['screw-1']).toEqual({ position: [50, 10, 5 - dimensionOf(screw, 'l')], rotation: [0, 0, 0] });
-    expect(assembly?.poses['screw-6']?.position).toEqual([10, 90, 5 - dimensionOf(screw, 'l')]);
+    // staggered: the first and last holes of each leg on its inner third
+    expect(assembly?.poses['screw-1']).toEqual({ position: [50, 40 / 3, 5 - dimensionOf(screw, 'l')], rotation: [0, 0, 0] });
+    expect(assembly?.poses['screw-2']?.position).toEqual([70, 10 - 20 / 6, 5 - dimensionOf(screw, 'l')]);
+    expect(assembly?.poses['screw-6']?.position).toEqual([40 / 3, 90, 5 - dimensionOf(screw, 'l')]);
+    const straight = resolveAssembly(printedCornerBracket, printedCornerBracket.assembly, { ...defaults, holeLayout: 'straight' });
+    expect(straight?.poses['screw-2']?.position).toEqual([70, 10, 5 - dimensionOf(screw, 'l')]);
     expect(partUsage(screw).filter(use => use.modelId === 'printed-corner-bracket').map(use => use.via)).toEqual(['Wood screw diameter', 'Wood screw']);
     expect(linkedPartData(printedCornerBracket).map(entry => entry.id)).toEqual([...PRINTED_WOOD_SCREWS]);
     expect(modelUsage('printed-corner-bracket').map(use => use.pageId)).toEqual([windowInsertConcept.id]);

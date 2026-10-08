@@ -8,7 +8,7 @@ import { PRESSURE_PAD, PRESSURE_PAD_SURFACES, PRESSURE_PAD_TYPES, pressurePadExt
 import { leastRibSpacing, SEGMENT_JOINT_VALUES, sideJointWidth, sideWidth, WINDOW_CAT_GUARD_MAX_SEGMENTS, WINDOW_CAT_GUARD_SPLICE, windowCatGuardBolts, windowCatGuardLayout, windowCatGuardPieces, type SegmentJoints } from './windowCatGuard.ts';
 import { eccAllowsLogo, filamentChangeHeight, QR_TAG_MOUNTS, type QrTagMount, knockoutFits, magnetPocketIssues, maxLogoSize, moduleSize, QR_ECC_LEVELS, QR_LOGO_MIN_ECC, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, QR_TEXT_MAX_LENGTH, qrScad, qrTagCode, qrTagLayout, type QrEcc, type QrTagJoint, type QrTagShape, type QrTagShapeSettings } from './qrMagnetTag.ts';
 import { clearanceHoles, PRINTED_WOOD_DIAMETERS, PRINTED_WOOD_SCREWS } from './screwHoles.ts';
-import { PRINTED_CORNER_BRACKET_DEFAULT, PRINTED_CORNER_BRACKET_SCREW, printedCornerBracketBite, printedCornerBracketHoles, printedCornerBracketIssues } from './printedCornerBracket.ts';
+import { PRINTED_CORNER_BRACKET_DEFAULT, PRINTED_CORNER_BRACKET_HOLE_LAYOUTS, PRINTED_CORNER_BRACKET_SCREW, type PrintedCornerBracketHoleLayout, printedCornerBracketBite, printedCornerBracketHoles, printedCornerBracketIssues } from './printedCornerBracket.ts';
 import { PRINTED_BARB_MIN, PRINTED_SCREEN_HOOK_DEFAULT, PRINTED_SCREEN_HOOK_SCREW, printedScreenHookIssues, printedScreenHookShape } from './printedScreenHook.ts';
 import { DETENT_BALLS, DETENT_BODIES, DETENT_RETENTIONS, DETENT_SET_SCREWS, DETENT_SPRINGS, DETENT_THREAD_PITCH, DETENT_THREADS, DETENT_TOOL_FEATURES, SPRING_BALL_DETENT_DEFAULT, springBallDetentIssues, springBallDetentLayout, type DetentBody, type DetentParts, type DetentRetention, type DetentToolFeature } from './springBallDetent.ts';
 import { COLLAR_TAG, COLLAR_TAG_ATTACHMENTS, COLLAR_TAG_FRONT_STYLES, COLLAR_TAG_SLEEVE_STYLES, type CollarTagSleeveStyle, COLLAR_TAG_MARKS, COLLAR_TAG_MOUNTS, COLLAR_TAG_SHAPES, collarTagIssues, collarTagLayout, collarTagWeight, embossChangeHeight, type CollarTagAttachment, type CollarTagFace, type CollarTagFrontStyle, type CollarTagMark, type CollarTagMount, type CollarTagSettings, type CollarTagShape } from './catCollarTag.ts';
@@ -2612,7 +2612,8 @@ export const PrintedCornerBracketParametersSchema = Type.Object({
   legB: dimension('Leg B', 'Length of the other leg, over the outer corner, in mm: the one along the stile.', PCB.legB, 40, 250, 1),
   width: dimension('Width', 'Width of both legs in mm. On a 40 mm member, 20 mm keeps to its outer half.', PCB.width, 10, 40, 0.5),
   thickness: dimension('Thickness', 'Plate thickness in mm: also how deep it is let into the timber to lie flush.', PCB.thickness, 3, 10, 0.5),
-  holesPerLeg: Type.Integer({ title: 'Holes per leg', description: 'Screw holes along each leg’s middle line.', default: PCB.holesPerLeg, minimum: 1, maximum: 5 }),
+  holesPerLeg: Type.Integer({ title: 'Holes per leg', description: 'Screw holes along each leg.', default: PCB.holesPerLeg, minimum: 1, maximum: 5 }),
+  holeLayout: Type.Enum(PRINTED_CORNER_BRACKET_HOLE_LAYOUTS, { title: 'Hole layout', description: 'How each leg’s holes lie across it: staggered either side of its middle line, so that the screws do not line up along the timber’s grain, or in a straight line on it.', default: PCB.holeLayout }),
   holeSpacing: dimension('Hole spacing', 'Distance between neighbouring holes on a leg, in mm.', PCB.holeSpacing, 8, 80, 0.5),
   firstHole: dimension('First hole', 'Distance from the outer corner, along each leg, to its first hole, in mm. Past the member the other leg lies on, every screw holds the member its leg runs along.', PCB.firstHole, 10, 240, 0.5),
   woodScrewDiameter: Type.Enum(PRINTED_WOOD_DIAMETERS, { title: 'Wood screw diameter', description: 'The wood screws’ diameter; the screws below are those of this diameter.', default: PRINTED_CORNER_BRACKET_SCREW.diameter }),
@@ -2620,6 +2621,11 @@ export const PrintedCornerBracketParametersSchema = Type.Object({
   holeFit: Type.Enum(HOLE_FIT_VALUES, { title: 'Hole fit', description: 'How much play the screws have in their holes: 0.3 / 0.5 / 0.8 mm over the screw’s diameter, DIN EN 20273’s allowances for M4 and M5.', default: 'medium' }),
 }, { additionalProperties: false, description: 'Printed corner bracket parameters. All fields are required; dimensions are in millimetres; the screw is a parts-library id.' });
 export type PrintedCornerBracketParameters = Static<typeof PrintedCornerBracketParametersSchema>;
+
+const HOLE_LAYOUT_TEXT: Record<PrintedCornerBracketHoleLayout, { label: string; description: string }> = {
+  staggered: { label: 'Staggered', description: 'Every other hole either side of the leg’s middle line, on its thirds: no two screws on one grain line, so the timber is less likely to split along them.' },
+  straight: { label: 'Straight', description: 'Every hole on the leg’s middle line, as a bought bracket’s are: the screws lie on one grain line, where a row of them can split the timber.' },
+};
 
 const printedCornerBracketControls = [
   control(PrintedCornerBracketParametersSchema, 'legA', 'basic'),
@@ -2629,6 +2635,7 @@ const printedCornerBracketControls = [
   control(PrintedCornerBracketParametersSchema, 'holesPerLeg', 'basic', null, null),
   control(PrintedCornerBracketParametersSchema, 'holeSpacing', 'basic'),
   control(PrintedCornerBracketParametersSchema, 'firstHole', 'basic'),
+  enumControl(PrintedCornerBracketParametersSchema, 'holeLayout', 'basic', PRINTED_CORNER_BRACKET_HOLE_LAYOUTS.map(value => ({ value, ...HOLE_LAYOUT_TEXT[value] }))),
   ...printedScrewControls(PrintedCornerBracketParametersSchema),
   enumControl(PrintedCornerBracketParametersSchema, 'holeFit', 'advanced', HOLE_FIT_VALUES.map(value => ({ value, ...HOLE_FIT_TEXT[value] }))),
 ];
@@ -2648,7 +2655,7 @@ export const printedCornerBracket = {
   printNotes: 'Print in PETG as generated, back down; no supports. 100 % infill or at least five walls round the holes.',
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   parts: [{ id: 'bracket', title: 'Bracket', sourcePath: 'models/printed-corner-bracket/generator.scad',
-    scadMapping: { legA: 'LEG_A', legB: 'LEG_B', width: 'WIDTH', thickness: 'THICKNESS', holesPerLeg: 'HOLES_PER_LEG', holeSpacing: 'HOLE_SPACING', firstHole: 'FIRST_HOLE', holeFit: 'HOLE_FIT', woodScrew: 'WOOD_HOLES' },
+    scadMapping: { legA: 'LEG_A', legB: 'LEG_B', width: 'WIDTH', thickness: 'THICKNESS', holesPerLeg: 'HOLES_PER_LEG', holeSpacing: 'HOLE_SPACING', firstHole: 'FIRST_HOLE', holeLayout: 'HOLE_LAYOUT', holeFit: 'HOLE_FIT', woodScrew: 'WOOD_HOLES' },
     partDefines: PRINTED_SCREW_DEFINES }],
   assembly: { partColors: { bracket: '#5f7350' }, poses: { bracket: { position: [0, 0, 0] } }, steps: [{ title: 'Lay the bracket across the corner', parts: ['bracket'], from: [0, 0, 20] }], lift: 10 },
   linkedReferences: printedCornerBracketScrews,

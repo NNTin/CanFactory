@@ -6,12 +6,14 @@
 //
 // Geometry: the outer corner at the origin, leg A along +X, leg B along +Y, both WIDTH wide; the plate's back (against the
 // timber) on z = 0, its face at z = THICKNESS. It prints as it lies, back down, with no supports. Each leg has HOLES_PER_LEG
-// holes on its middle line, HOLE_SPACING apart, the first FIRST_HOLE from the outer corner (along the leg). Each hole is the
+// holes, HOLE_SPACING apart, the first FIRST_HOLE from the outer corner (along the leg). HOLE_LAYOUT "staggered" (the default)
+// puts every other hole a sixth of the width either side of the leg's middle line, the first towards its inner edge, so that the
+// screws do not line up along the timber's grain and split it; "straight" puts them all on the middle line. Each hole is the
 // chosen wood screw's clearance hole, countersunk from the face so that its head sits flush.
 //
 // Nothing scales implicitly: every size is exactly the millimetres given. The defaults follow the catio insert's 40 mm collar
 // member (packages/contracts/src/printedCornerBracket.ts, printedCornerBracketFor): 100 mm legs, 20 mm wide, 5 mm thick, three
-// holes 20 mm apart on the part of each leg past the joint.
+// holes 20 mm apart on the part of each leg past the joint, staggered.
 
 // Facets around a full circle.
 ROUNDNESS = 64; //[32:8:192]
@@ -23,6 +25,7 @@ THICKNESS = 5;        //[3:0.5:10]
 HOLES_PER_LEG = 3;    //[1:1:5]
 HOLE_SPACING = 20;    //[8:0.5:80]
 FIRST_HOLE = 50;      //[10:0.5:240]
+HOLE_LAYOUT = "staggered"; //[staggered,straight]
 
 // The wood screw (DIN 7997, from the parts library; see packages/contracts/src/models.ts, printedCornerBracket): its clearance
 // holes (fine, medium, coarse: d + 0.3 / 0.5 / 0.8 mm, DIN EN 20273's allowances for M4 and M5), diameter and head.
@@ -44,6 +47,9 @@ SINK_RIM = max(0, WOOD_K - (WOOD_DK - WOOD_D) / 2);
 
 assert(THICKNESS >= WOOD_K + 1 - 1e-6, "THICKNESS must leave 1 mm of hole under the screw's countersunk head");
 assert(WIDTH >= SINK_D + 3 - 1e-6, "WIDTH must leave 1.5 mm round the countersinks");
+// how far a hole lies off the leg's middle line (packages/contracts/src/printedCornerBracket.ts, printedCornerBracketStagger)
+STAGGER = HOLE_LAYOUT == "staggered" && HOLES_PER_LEG > 1 ? WIDTH / 6 : 0;
+assert(WIDTH / 2 - STAGGER >= SINK_D / 2 + 1.5 - 1e-6, "staggered, WIDTH must leave 1.5 mm round the countersinks on the leg's thirds");
 LAST_HOLE = FIRST_HOLE + (HOLES_PER_LEG - 1) * HOLE_SPACING;
 assert(LAST_HOLE + SINK_D / 2 + 1.5 <= min(LEG_A, LEG_B) + 1e-6, "the holes must lie on the legs");
 assert(FIRST_HOLE - SINK_D / 2 - 1.5 >= WIDTH - 1e-6, "the first hole must lie past the corner square");
@@ -64,7 +70,8 @@ difference() {
     linear_extrude(THICKNESS) outline();
     for (i = [0 : HOLES_PER_LEG - 1]) {
         along = FIRST_HOLE + i * HOLE_SPACING;
-        translate([along, WIDTH / 2, 0]) screw_hole();
-        translate([WIDTH / 2, along, 0]) screw_hole();
+        across = WIDTH / 2 + (i % 2 == 0 ? STAGGER : -STAGGER);
+        translate([along, across, 0]) screw_hole();
+        translate([across, along, 0]) screw_hole();
     }
 }

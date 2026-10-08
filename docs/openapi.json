@@ -4845,6 +4845,7 @@
                           "width",
                           "thickness",
                           "holesPerLeg",
+                          "holeLayout",
                           "holeSpacing",
                           "firstHole",
                           "woodScrewDiameter",
@@ -4891,10 +4892,19 @@
                           "holesPerLeg": {
                             "type": "integer",
                             "title": "Holes per leg",
-                            "description": "Screw holes along each leg’s middle line.",
+                            "description": "Screw holes along each leg.",
                             "default": 3,
                             "minimum": 1,
                             "maximum": 5
+                          },
+                          "holeLayout": {
+                            "enum": [
+                              "staggered",
+                              "straight"
+                            ],
+                            "title": "Hole layout",
+                            "description": "How each leg’s holes lie across it: staggered either side of its middle line, so that the screws do not line up along the timber’s grain, or in a straight line on it.",
+                            "default": "staggered"
                           },
                           "holeSpacing": {
                             "type": "number",

@@ -166,7 +166,8 @@ before; the printed hooks are no reason to leave the feet out or make them small
    - **Printed, by default:** the [printed-corner-bracket](../../printed-corner-bracket.md) model in PETG, sized from the 40 mm
      member: legs of 2.5 members (100 mm, as the steel bracket it replaces), half a member wide (20 mm) and 5 mm thick, let in
      5 mm. Each leg's three holes lie past the joint (50, 70 and 90 mm from the corner), on the member the leg runs along, so
-     every DIN 7997 4 × 35 screw holds that member and bites 30 mm into it. Its strength is not rated.
+     every DIN 7997 4 × 35 screw holds that member and bites 30 mm into it; they are staggered on the leg's thirds, so that
+     they do not line up along the member's grain and split it. Its strength is not rated.
    - **Or bought:** a GAH Alberts Stuhlwinkel, 100 × 100 × 19 the one the printed bracket replaces, 2 mm sendzimir-galvanised
      steel, let in 2 mm and screwed through its six countersunk 5.3 mm holes with DIN 7997 5 × 35 screws. Alberts gives each
      bracket's hole count and size but not where the holes are: the page spaces them evenly along each leg beyond the corner
