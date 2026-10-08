@@ -2259,7 +2259,7 @@ export interface operations {
                          * @default hanging
                          * @enum {unknown}
                          */
-                        attachment: "hanging" | "slide-on";
+                        attachment: "hanging" | "slide-on" | "clip" | "sleeve";
                         /**
                          * Shape
                          * @description The tag’s outline.
@@ -2458,6 +2458,37 @@ export interface operations {
                          * @default 3
                          */
                         barWidth: number;
+                        /**
+                         * Sleeve style
+                         * @description A closed sleeve the collar’s end is threaded through, or one that wraps round the strap and clicks shut.
+                         * @default closed
+                         * @enum {unknown}
+                         */
+                        sleeveStyle: "closed" | "wrap";
+                        /**
+                         * Clip or sleeve length
+                         * @description How long the clip or sleeve is along the strap, in mm. The split ring goes round its tab, so a long one needs a large ring.
+                         * @default 8
+                         */
+                        carrierLength: number;
+                        /**
+                         * Clip or sleeve wall
+                         * @description The wall round the strap, in mm. Thinner flexes more easily onto the strap.
+                         * @default 1.6
+                         */
+                        carrierWall: number;
+                        /**
+                         * Clip or sleeve fit
+                         * @description Play round the strap per side, in mm: little for a clip, so that it stays put; more for a sleeve, so that it slides along.
+                         * @default 0.2
+                         */
+                        carrierFit: number;
+                        /**
+                         * Lip depth
+                         * @description How far a clip’s lips reach over the strap’s edges (a wrap sleeve’s flaps overlap by as much), in mm. More holds better; less snaps on more easily.
+                         * @default 1.2
+                         */
+                        lipDepth: number;
                         /**
                          * Engraving depth
                          * @description How deep engraved text and logos are carved, in mm.

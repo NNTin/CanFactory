@@ -17,9 +17,9 @@
 // ---------------------------------------------------------------
 
 // Which part to make
-PART = "tag"; //[tag]
+PART = "tag"; //[tag,clip,sleeve]
 // How the tag goes on the collar
-ATTACHMENT = "hanging"; //[hanging,slide-on]
+ATTACHMENT = "hanging"; //[hanging,slide-on,clip,sleeve]
 // The tag's outline
 SHAPE = "round"; //[round,rounded-rectangle,bone,heart,fish]
 // Width (a round tag's diameter)
@@ -68,6 +68,13 @@ BAIL_WALL = 2; //[1.2:0.1:4]
 // Slide-on: the slots' play over the strap's thickness, and the end bars' width
 SLOT_FIT = 0.3; //[0:0.05:1]
 BAR_WIDTH = 3; //[2:0.5:8]
+// Clip and sleeve: the sleeve's style, the length along the strap, the wall, the play round the strap per side, and the clip's lips
+// (a wrap sleeve's flaps' overlap)
+SLEEVE_STYLE = "closed"; //[closed,wrap]
+CARRIER_L = 8; //[5:0.5:20]
+CARRIER_WALL = 1.6; //[1.2:0.1:3]
+CARRIER_FIT = 0.2; //[0:0.05:0.8]
+LIP = 1.2; //[0.6:0.1:4]
 // The slicer's layer height: the pause height of an embedded item is on a layer boundary
 LAYER = 0.2; //[0.08:0.02:0.32]
 
@@ -89,12 +96,21 @@ MIN_MIDDLE = 8;           //   and leaves at least this much face between them (
 TEXT_MARGIN = 0.5;        // text: margin inside its area,
 LINE_PITCH = 1.35;        //   and the distance between baselines per mm of text size
 CORNER_ROUND = 1;         // the outline's corners, inner and outer, are rounded to this
+CARRIER_ROUND = 0.5;      // clip and sleeve: their outer corners are rounded to this,
+CARRIER_EDGE = 0.3;       //   their ends to this;
+TAB_GAP = 0.8;            //   the ring's hole is this far below the channel's wall,
+TAB_T = 2.4;              //   in a tab this thick at the end on the bed (a ring cannot pass through a long hole);
+MIN_OPENING = 3;          //   a clip's lips leave at least this between them (checked by the contract);
+FLAP_GAP = 0.3;           //   a wrap sleeve's flaps are this far apart,
+BUMP = 0.5;               //   its click a bump of this radius,
+BUMP_PLAY = 0.15;         //   in a notch this much larger,
+HINGE = 0.8;              //   and its hinges this thick
 EDGE_STEP = 0.1;          // the rounded edges are built of slices this high (or a little less) on each face,
 INSET_GRID = 0.02;        //   each inset by a multiple of this,
 OVERLAP = 0.01;           //   reaching this far into the next
 
 // --- derived layout (collarTagLayout) ---
-HANGING = ATTACHMENT == "hanging";
+HANGING = ATTACHMENT != "slide-on";
 H = SHAPE == "round" ? WIDTH : HEIGHT;
 // The heart: a square turned 45° (half-diagonal √½) with a circle of diameter 1 on each upper side, in units of the square's side
 HEART_C = sqrt(0.5) / 2;
@@ -112,7 +128,7 @@ BOX = SHAPE == "round" ? [0, 0, WIDTH * sqrt(0.5), WIDTH * sqrt(0.5)]
   : [-0.14 * WIDTH, 0, 0.72 * WIDTH * sqrt(0.5), H * sqrt(0.5)];
 HANG = SHAPE == "bone" ? [0, 0.3 * H] : SHAPE == "heart" ? [0, (sqrt(0.5) - HEART_SHIFT) * H / HEART_H]
   : SHAPE == "fish" ? [-0.14 * WIDTH, H / 2] : [0, H / 2];
-// Hanging: the bail round the hole for the split ring
+// The bail round the hole for the split ring (a hanging tag, or one hung from a clip or sleeve)
 HOLE_D = HANGING ? max(HOLE_MIN, ceil((sqrt(RING_A * RING_A + RING_B * RING_B) + HOLE_PLAY) * 10 - 1e-9) / 10) : 0;
 HOLE = [HANG[0], HANG[1] + HOLE_D / 2 + HANG_GAP];
 EAR_R = HOLE_D / 2 + BAIL_WALL;
@@ -143,6 +159,16 @@ SPREAD = AREA[2] / 2 - MAGNET_POCKET / 2 - SIDE_WALL;
 MAGNETS = MAGNET_MOUNT == "none" ? []
   : NFC != "none" && MAGNET_COUNT == 1 ? [[AREA[0] + SPREAD, AREA[1]]]
   : MAGNET_COUNT == 1 ? [[AREA[0], AREA[1]]] : [[AREA[0] - SPREAD, AREA[1]], [AREA[0] + SPREAD, AREA[1]]];
+
+// Clip and sleeve (the carrier): its profile round the strap, x through the strap's thickness (the cat's side at x < 0), y across its
+// width, extruded along it (z); a tab below, flush with the cat's side, round the ring's hole
+CHANNEL_T = COLLAR_T + 2 * CARRIER_FIT;
+CHANNEL_W = COLLAR_W + 2 * CARRIER_FIT;
+WRAP = ATTACHMENT == "sleeve" && SLEEVE_STYLE == "wrap";
+// a wrap sleeve's flaps overlap by the lip depth, plus room for the click in the middle of the overlap
+FLAP_OVERLAP = LIP + 2 * (BUMP + BUMP_PLAY);
+TAB_R = HOLE_D / 2 + BAIL_WALL;
+TAB_HOLE = [-CARRIER_WALL + TAB_R, -CHANNEL_W / 2 - CARRIER_WALL - TAB_GAP - HOLE_D / 2];
 
 $fa = 2;
 $fs = 0.25;
@@ -251,6 +277,68 @@ module front_2d() { mark_2d(FRONT_MARK, FRONT_LINE_A, FRONT_LINE_B, FRONT_FONT, 
 module back_2d() { mark_2d(BACK_MARK, BACK_LINE_A, BACK_LINE_B, BACK_FONT, BACK_SIZE, BACK_LOGO, BACK_LOGO_SIZE, true); }
 
 // ---------------------------------------------------------------
+// The clip and the sleeve
+
+module rounded_rect(x0, y0, x1, y1, r = CARRIER_ROUND) { translate([x0 + r, y0 + r]) offset(r = r) square([x1 - x0 - 2 * r, y1 - y0 - 2 * r]); }
+
+// The profile (without the tab): walls round the channel; a clip's front is open between two lips, with lead-in chamfers; a wrap sleeve's front is two
+// flaps on thin hinges, the upper one outside the lower, overlapping by LIP, with a bump on the upper that clicks into a notch in the
+// lower. Only the outer corners are rounded, so that the flaps' gap and the hinges stay as drawn.
+module carrier_2d() {
+  w = CARRIER_WALL; t = CHANNEL_T; h = CHANNEL_W / 2; e = 0.01;
+  o = h - LIP;                                   // half the clip's opening
+  upper_x = t + w + FLAP_GAP;                    // a wrap sleeve's upper flap, outside the lower one
+  difference() {
+    union() {
+      rounded_rect(-w, -h - w, t + w, h + w);
+      if (WRAP) {
+        rounded_rect(t, h, upper_x + w, h + w);                         // the top wall, out over both flaps
+        rounded_rect(upper_x, -FLAP_OVERLAP / 2, upper_x + w, h + w);   // the upper flap
+      }
+    }
+    translate([0, -h]) square([t, 2 * h]);
+    if (ATTACHMENT == "clip") {
+      translate([t - e, -o]) square([w + 2 * e, 2 * o]);
+      polygon([[t + 0.4 * w, o], [t + w + e, o + 0.6 * w], [t + w + e, -o - 0.6 * w], [t + 0.4 * w, -o]]);
+    }
+    if (WRAP) {
+      // the lower flap: the front from the bottom wall up to the overlap, thinned to its hinge just above the wall
+      translate([t - e, FLAP_OVERLAP / 2]) square([w + 2 * e, h - FLAP_OVERLAP / 2 + e]);
+      translate([t + HINGE, -h]) square([w - HINGE + e, 1.5]);
+      // the notch for the click, in the lower flap only
+      intersection() {
+        translate([upper_x, 0]) circle(r = BUMP + BUMP_PLAY);
+        translate([t, -h]) square([w, 2 * h]);
+      }
+      // the upper flap's hinge, just below the top wall
+      translate([upper_x + HINGE, h - 1.5]) square([w - HINGE + e, 1.5]);
+    }
+  }
+  // the click: a bump on the upper flap's inside, in the middle of the overlap
+  if (WRAP) intersection() {
+    translate([upper_x, 0]) circle(r = BUMP);
+    translate([t + w + e, -h]) square([FLAP_GAP + w, 2 * h]);
+  }
+}
+
+// The tab, flush with the cat's side, round the ring's hole, joined to the bottom wall
+module tab_2d() {
+  difference() {
+    hull() {
+      translate(TAB_HOLE) circle(r = TAB_R);
+      translate([-CARRIER_WALL, -CHANNEL_W / 2 - CARRIER_WALL]) square([2 * TAB_R, CARRIER_WALL]);
+    }
+    translate(TAB_HOLE) circle(d = HOLE_D);
+  }
+}
+
+// The carrier stands on an end: the profile along the strap, the tab at the end on the bed
+module carrier() {
+  rounded_extrude(CARRIER_L, CARRIER_EDGE) carrier_2d();
+  rounded_extrude(TAB_T, CARRIER_EDGE) tab_2d();
+}
+
+// ---------------------------------------------------------------
 // The tag
 
 module tag() {
@@ -274,3 +362,4 @@ module tag() {
 }
 
 if (PART == "tag") tag();
+if (PART == "clip" || PART == "sleeve") carrier();

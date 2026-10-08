@@ -12,8 +12,11 @@
 import { embedCavity, toLayers } from './printPause.ts';
 import { TEXT_ADVANCES, TEXT_EXTENTS } from './textMetrics.ts';
 
-export const COLLAR_TAG_ATTACHMENTS = ['hanging', 'slide-on'] as const;
+export const COLLAR_TAG_ATTACHMENTS = ['hanging', 'slide-on', 'clip', 'sleeve'] as const;
 export type CollarTagAttachment = typeof COLLAR_TAG_ATTACHMENTS[number];
+/** A sleeve that the collar's end is threaded through, or one that opens and wraps round the strap, closed by two flaps that click. */
+export const COLLAR_TAG_SLEEVE_STYLES = ['closed', 'wrap'] as const;
+export type CollarTagSleeveStyle = typeof COLLAR_TAG_SLEEVE_STYLES[number];
 export const COLLAR_TAG_SHAPES = ['round', 'rounded-rectangle', 'bone', 'heart', 'fish'] as const;
 export type CollarTagShape = typeof COLLAR_TAG_SHAPES[number];
 /** What a face carries. */
@@ -53,6 +56,10 @@ export const COLLAR_TAG = {
   textMargin: 0.5, linePitch: 1.35,
   /** The outline's corners, inner and outer, are rounded to this radius. */
   cornerRound: 1,
+  /** Clip and sleeve (the carrier): its profile's corners are rounded to this, its ends to `carrierEdge`; the ring's hole is
+   * `tabGap` below the channel's wall, in a tab `tabThickness` thick at the end on the bed (a ring cannot pass through a long hole); a clip's opening between its lips is at least `minOpening`; a wrap sleeve's flaps are
+   * `flapGap` apart, its click a bump of radius `bump` in a notch `bumpPlay` larger, and its hinges `hinge` thick. */
+  carrierRound: 0.5, carrierEdge: 0.3, tabGap: 0.8, tabThickness: 2.4, minOpening: 3, flapGap: 0.3, bump: 0.5, bumpPlay: 0.15, hinge: 0.8,
   /** The rounded edges are built of steps this high (or a little less) on each face, each inset by a multiple of `insetGrid`. */
   edgeStep: 0.1, insetGrid: 0.02,
   /** How far each step of a rounded edge reaches into the next, so that they fuse. */
@@ -172,8 +179,11 @@ export interface CollarTagSettings {
   /** Hanging: the split ring's inner diameter, outer diameter, band width (A) and thickness over both turns (B); the D-ring's wire
    * and the bail's wall. */
   ringInner: number; ringOuter: number; ringBand: number; ringThickness: number; dRingWire: number; bailWall: number;
-  /** Slide-on: the collar's width and greatest thickness, the slots' play and the end bars' width. */
+  /** Slide-on, clip and sleeve: the collar's width and greatest thickness; slide-on: the slots' play and the end bars' width. */
   collarWidth: number; collarThickness: number; slotFit: number; barWidth: number;
+  /** Clip and sleeve: the sleeve's style, the carrier's length along the strap, its wall, its play round the strap per side, and
+   * the clip's lips (a wrap sleeve's flaps' overlap). */
+  sleeveStyle: CollarTagSleeveStyle; carrierLength: number; carrierWall: number; carrierFit: number; lipDepth: number;
 }
 
 export const hasMark = (face: CollarTagFace): boolean =>
@@ -192,7 +202,8 @@ export function collarTagLayout(p: CollarTagSettings) {
   const t = COLLAR_TAG;
   const H = outlineHeight(p.shape, p.width, p.height);
   const { box, hang } = shapeGeometry(p.shape, p.width, p.height);
-  const hanging = p.attachment === 'hanging';
+  // a hanging tag, or one hung from a clip or a sleeve, has the bail; only a slide-on tag has slots
+  const hanging = p.attachment !== 'slide-on';
   // Hanging: the bail at the outline's top, round the hole for the split ring
   const holeD = hanging ? bailHole(p.ringBand, p.ringThickness) : 0;
   const hole: Point = [hang[0], hang[1] + holeD / 2 + t.hangGap];
@@ -231,16 +242,42 @@ export function collarTagLayout(p: CollarTagSettings) {
   const magnetsClear = p.nfc === 'none' || spread >= nfcReach + t.nfcGap + r - 1e-9;
   const magnetZ = p.magnetMount === 'embedded' ? skin : 0;
   const nfcZ = p.nfc === 'embedded' ? skin : 0;
+  // Clip and sleeve: the carrier's profile round the strap (x through the strap's thickness, the cat's side at x < 0; y across its
+  // width; extruded along the strap, z, by its length), with a tab below for the split ring
+  const carrier = p.attachment === 'clip' || p.attachment === 'sleeve' ? carrierLayout(p, holeD) : null;
   // The outline's bounding box, with the bail
   const earTop = hanging ? hole[1] + earR : -Infinity;
   const top = Math.max(H / 2, earTop);
   return {
     H, box, hang, hanging, holeD, hole, earR, slots, slotWidth, slotLength, slotX, area, backDepth, frontDepth, emboss, embedded, skin, pauseHeight,
     pocketDepth, minThickness, thicknessSetBy, nfcPocket, magnetPocket, nfcAt, nfcReach, magnets, magnetsClear, magnetZ, nfcZ,
-    bounds: { x: p.width, y: top + H / 2, z: p.thickness + emboss, top },
+    bounds: { x: p.width, y: top + H / 2, z: p.thickness + emboss, top }, carrier,
   };
 }
 export type CollarTagLayout = ReturnType<typeof collarTagLayout>;
+
+/**
+ * The clip's or sleeve's profile (CARRIER_* in the SCAD file): the channel for the strap (`channelT` through its thickness, from
+ * x = 0, and `channelW` across its width, centred on y = 0) inside walls `carrierWall` thick, and below it a tab round the ring's
+ * hole, flush with the cat's side. A wrap sleeve's front is two flaps: the lower from the bottom wall, the upper from the top wall, outside it, overlapping
+ * by `overlap`.
+ */
+export function carrierLayout(p: CollarTagSettings, holeD: number) {
+  const t = COLLAR_TAG, w = p.carrierWall;
+  const channelT = p.collarThickness + 2 * p.carrierFit;
+  const channelW = p.collarWidth + 2 * p.carrierFit;
+  const wrap = p.attachment === 'sleeve' && p.sleeveStyle === 'wrap';
+  const front = channelT + w + (wrap ? w + t.flapGap : 0);
+  // the tab is flush with the cat's side and stands out on the outside
+  const tabR = holeD / 2 + p.bailWall;
+  const hole: Point = [-w + tabR, -channelW / 2 - w - t.tabGap - holeD / 2];
+  return {
+    channelT, channelW, wrap, hole, tabR, opening: channelW - 2 * p.lipDepth,
+    // a wrap sleeve's flaps overlap by the lip depth, plus room for the click in the middle
+    overlap: p.lipDepth + 2 * (t.bump + t.bumpPlay),
+    bounds: { x: Math.max(front + w, 2 * tabR), y: channelW / 2 + w - (hole[1] - tabR), z: p.carrierLength, top: channelW / 2 + w, left: -w },
+  };
+}
 
 const mm = (value: number) => `${Number(value.toFixed(1))} mm`;
 
@@ -265,17 +302,29 @@ export function collarTagIssues(p: CollarTagSettings, layout: CollarTagLayout = 
     if (L.area.w < t.minMiddle - 1e-9)
       issues.push({ field: 'width', message: `Between the slots only ${mm(Math.max(L.area.w, 0))} of the face is left; at least ${mm(t.minMiddle)}. Make the tag wider or the end bars narrower.` });
   }
-  // Hanging: the split ring goes round the bail, and holds the D-ring too
+  // Hanging (from the D-ring, a clip or a sleeve): the split ring goes round the bail, and round the D-ring or the carrier's tab
   if (L.hanging) {
     const ri = p.ringInner / 2, rm = (p.ringInner + p.ringOuter) / 4;
-    // the ring's circle passes through the hole's centre; the bail (from the hole's edge out by its wall, the tag's full thickness)
-    // must lie inside the ring's opening
-    const near = L.holeD / 2 - rm, far = L.holeD / 2 + p.bailWall - rm;
-    const reach = Math.hypot(Math.max(Math.abs(near), Math.abs(far)), p.thickness / 2);
-    if (reach > ri - t.ringClearance + 1e-9)
+    // the ring's circle passes through a hole's centre; the wall beside it (from the hole's edge out by its width, through its
+    // full thickness) must lie inside the ring's opening
+    const goesRound = (wall: number, thickness: number) => {
+      const near = L.holeD / 2 - rm, far = L.holeD / 2 + wall - rm;
+      return Math.hypot(Math.max(Math.abs(near), Math.abs(far)), thickness / 2) <= ri - t.ringClearance + 1e-9;
+    };
+    const other = L.carrier ? { name: `the ${p.attachment}’s tab`, wall: p.bailWall } : { name: `the collar’s ${mm(p.dRingWire)} D-ring`, wall: p.dRingWire };
+    if (!goesRound(p.bailWall, p.thickness))
       issues.push({ field: 'splitRing', message: `This split ring’s ${mm(p.ringInner)} opening is too small to go round the tag’s bail (${mm(p.bailWall)} of wall round a ${mm(L.holeD)} hole, ${mm(p.thickness)} thick). Choose a larger ring, or a thinner bail or tag.` });
-    else if (p.ringInner < p.bailWall + p.dRingWire + t.ringPlay - 1e-9)
-      issues.push({ field: 'splitRing', message: `The ring must hold the bail (${mm(p.bailWall)}) and the collar’s ${mm(p.dRingWire)} D-ring side by side: its opening must be at least ${mm(p.bailWall + p.dRingWire + t.ringPlay)}. Choose a larger ring.` });
+    else if (L.carrier && !goesRound(p.bailWall, t.tabThickness))
+      issues.push({ field: 'bailWall', message: `The split ring’s ${mm(p.ringInner)} opening is too small to go round the ${p.attachment}’s tab (${mm(p.bailWall)} of wall round the hole, ${mm(t.tabThickness)} thick). Choose a larger ring or a thinner bail wall.` });
+    else if (p.ringInner < p.bailWall + other.wall + t.ringPlay - 1e-9)
+      issues.push({ field: 'splitRing', message: `The ring must hold the bail (${mm(p.bailWall)}) and ${other.name} side by side: its opening must be at least ${mm(p.bailWall + other.wall + t.ringPlay)}. Choose a larger ring${L.carrier ? ' or a thinner bail' : ''}.` });
+  }
+  // Clip and sleeve: room for the strap to go in, and for a wrap sleeve's flaps to overlap clear of the walls
+  if (L.carrier) {
+    if (p.attachment === 'clip' && L.carrier.opening < t.minOpening - 1e-9)
+      issues.push({ field: 'lipDepth', message: `The clip’s lips leave only ${mm(L.carrier.opening)} between them for the ${mm(p.collarWidth)} strap to go in; at least ${mm(t.minOpening)}. Make the lips shorter.` });
+    if (L.carrier.wrap && L.carrier.overlap / 2 + t.flapGap + t.hinge > L.carrier.channelW / 2 + 1e-9)
+      issues.push({ field: 'lipDepth', message: `The flaps overlap by ${mm(L.carrier.overlap)} (the lip depth and the click), which leaves them no room to close over the ${mm(p.collarWidth)} strap. Make the lips at most ${mm(2 * (L.carrier.channelW / 2 - t.flapGap - t.hinge) - (L.carrier.overlap - p.lipDepth))} deep.` });
   }
   // The marks fit their area
   for (const [face, f] of [['front', p.front], ['back', p.back]] as const) {

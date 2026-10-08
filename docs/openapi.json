@@ -5470,6 +5470,11 @@
                           "collar",
                           "slotFit",
                           "barWidth",
+                          "sleeveStyle",
+                          "carrierLength",
+                          "carrierWall",
+                          "carrierFit",
+                          "lipDepth",
                           "engraveDepth",
                           "embossHeight",
                           "layerHeight"
@@ -5478,7 +5483,9 @@
                           "attachment": {
                             "enum": [
                               "hanging",
-                              "slide-on"
+                              "slide-on",
+                              "clip",
+                              "sleeve"
                             ],
                             "title": "Attachment",
                             "description": "How the tag goes on the collar.",
@@ -5787,6 +5794,51 @@
                             "minimum": 2,
                             "maximum": 8,
                             "multipleOf": 0.5
+                          },
+                          "sleeveStyle": {
+                            "enum": [
+                              "closed",
+                              "wrap"
+                            ],
+                            "title": "Sleeve style",
+                            "description": "A closed sleeve the collar’s end is threaded through, or one that wraps round the strap and clicks shut.",
+                            "default": "closed"
+                          },
+                          "carrierLength": {
+                            "type": "number",
+                            "title": "Clip or sleeve length",
+                            "description": "How long the clip or sleeve is along the strap, in mm. The split ring goes round its tab, so a long one needs a large ring.",
+                            "default": 8,
+                            "minimum": 5,
+                            "maximum": 20,
+                            "multipleOf": 0.5
+                          },
+                          "carrierWall": {
+                            "type": "number",
+                            "title": "Clip or sleeve wall",
+                            "description": "The wall round the strap, in mm. Thinner flexes more easily onto the strap.",
+                            "default": 1.6,
+                            "minimum": 1.2,
+                            "maximum": 3,
+                            "multipleOf": 0.1
+                          },
+                          "carrierFit": {
+                            "type": "number",
+                            "title": "Clip or sleeve fit",
+                            "description": "Play round the strap per side, in mm: little for a clip, so that it stays put; more for a sleeve, so that it slides along.",
+                            "default": 0.2,
+                            "minimum": 0,
+                            "maximum": 0.8,
+                            "multipleOf": 0.05
+                          },
+                          "lipDepth": {
+                            "type": "number",
+                            "title": "Lip depth",
+                            "description": "How far a clip’s lips reach over the strap’s edges (a wrap sleeve’s flaps overlap by as much), in mm. More holds better; less snaps on more easily.",
+                            "default": 1.2,
+                            "minimum": 0.6,
+                            "maximum": 4,
+                            "multipleOf": 0.1
                           },
                           "engraveDepth": {
                             "type": "number",

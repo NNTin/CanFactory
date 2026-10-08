@@ -11,7 +11,7 @@ import { clearanceHoles, PRINTED_WOOD_DIAMETERS, PRINTED_WOOD_SCREWS } from './s
 import { PRINTED_CORNER_BRACKET_DEFAULT, PRINTED_CORNER_BRACKET_SCREW, printedCornerBracketBite, printedCornerBracketHoles, printedCornerBracketIssues } from './printedCornerBracket.ts';
 import { PRINTED_BARB_MIN, PRINTED_SCREEN_HOOK_DEFAULT, PRINTED_SCREEN_HOOK_SCREW, printedScreenHookIssues, printedScreenHookShape } from './printedScreenHook.ts';
 import { DETENT_BALLS, DETENT_BODIES, DETENT_RETENTIONS, DETENT_SET_SCREWS, DETENT_SPRINGS, DETENT_THREAD_PITCH, DETENT_THREADS, DETENT_TOOL_FEATURES, SPRING_BALL_DETENT_DEFAULT, springBallDetentIssues, springBallDetentLayout, type DetentBody, type DetentParts, type DetentRetention, type DetentToolFeature } from './springBallDetent.ts';
-import { COLLAR_TAG_ATTACHMENTS, COLLAR_TAG_FRONT_STYLES, COLLAR_TAG_MARKS, COLLAR_TAG_MOUNTS, COLLAR_TAG_SHAPES, collarTagIssues, collarTagLayout, collarTagWeight, embossChangeHeight, type CollarTagAttachment, type CollarTagFace, type CollarTagFrontStyle, type CollarTagMark, type CollarTagMount, type CollarTagSettings, type CollarTagShape } from './catCollarTag.ts';
+import { COLLAR_TAG, COLLAR_TAG_ATTACHMENTS, COLLAR_TAG_FRONT_STYLES, COLLAR_TAG_SLEEVE_STYLES, type CollarTagSleeveStyle, COLLAR_TAG_MARKS, COLLAR_TAG_MOUNTS, COLLAR_TAG_SHAPES, collarTagIssues, collarTagLayout, collarTagWeight, embossChangeHeight, type CollarTagAttachment, type CollarTagFace, type CollarTagFrontStyle, type CollarTagMark, type CollarTagMount, type CollarTagSettings, type CollarTagShape } from './catCollarTag.ts';
 import { layerAbove } from './printPause.ts';
 import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, type LatchMovement } from './toggleLatchMechanism.ts';
 
@@ -2959,6 +2959,12 @@ export const springBallDetent = {
 const COLLAR_TAG_ATTACHMENT_TEXT: Record<CollarTagAttachment, { label: string; description: string }> = {
   hanging: { label: 'Hanging (split ring)', description: 'A traditional hanging tag: a bail at the top with a hole for a split ring, which hangs it from the collar’s D-ring or O-ring.' },
   'slide-on': { label: 'Slide-on (collar through it)', description: 'A flat tag with a slot near each end: the strap runs through both, in front of the end bars and behind the middle, so that it lies flat on the collar and does not slide easily. No hardware; thread the collar’s free end through it.' },
+  clip: { label: 'Clip-on', description: 'A clip that snaps onto the strap from the outside, its lips over the strap’s edges, tool-free on and off; the tag hangs from a tab under it on the split ring. A second printed part.' },
+  sleeve: { label: 'Sleeve', description: 'A sleeve round the strap, closed (thread the collar’s end through it) or wrapping round it and clicking shut; the tag hangs from a tab under it on the split ring. A second printed part.' },
+};
+const COLLAR_TAG_SLEEVE_STYLE_TEXT: Record<CollarTagSleeveStyle, { label: string; description: string }> = {
+  closed: { label: 'Closed', description: 'A closed loop round the strap: open the collar and thread its free end through, then slide it along.' },
+  wrap: { label: 'Wrap-around', description: 'Two flaps on the outside that open on thin hinges: lay the strap in, close the inner flap, then the outer one over it until it clicks. The collar stays on.' },
 };
 const COLLAR_TAG_SHAPE_TEXT: Record<CollarTagShape, { label: string; description: string }> = {
   round: { label: 'Round', description: 'A disc, as wide as it is high.' },
@@ -3012,6 +3018,7 @@ export const DEFAULT_CAT_COLLAR_TAG = {
   nfc: 'none', nfcTag: 'gototags-bgrduhnvrl', magnetMount: 'none', magnet: 'supermagnete-s-06-01-n', magnetCount: 1,
   splitRing: 'avco-kr-9335', dRingWire: 2, bailWall: 2,
   collar: 'trixie-4180', slotFit: 0.3, barWidth: 3,
+  sleeveStyle: 'closed', carrierLength: 8, carrierWall: 1.6, carrierFit: 0.2, lipDepth: 1.2,
   engraveDepth: 0.6, embossHeight: 0.6, layerHeight: 0.2,
 } as const;
 const ct = DEFAULT_CAT_COLLAR_TAG;
@@ -3049,6 +3056,11 @@ export const CatCollarTagParametersSchema = Type.Object({
   collar: Type.Enum(COLLAR_TAG_COLLARS, { title: 'Collar', description: 'The collar the tag slides onto, a real product from the parts library: the slots are cut for its strap’s width and (estimated) thickness.', default: ct.collar }),
   slotFit: dimension('Slot fit', 'Play of the slots over the strap’s thickness, in mm. Less holds the tag in place more firmly; more slides more easily.', ct.slotFit, 0, 1, 0.05),
   barWidth: dimension('End bar width', 'The width of the bar outside each slot, in mm.', ct.barWidth, 2, 8, 0.5),
+  sleeveStyle: Type.Enum(COLLAR_TAG_SLEEVE_STYLES, { title: 'Sleeve style', description: 'A closed sleeve the collar’s end is threaded through, or one that wraps round the strap and clicks shut.', default: ct.sleeveStyle }),
+  carrierLength: dimension('Clip or sleeve length', 'How long the clip or sleeve is along the strap, in mm. The split ring goes round its tab, so a long one needs a large ring.', ct.carrierLength, 5, 20, 0.5),
+  carrierWall: dimension('Clip or sleeve wall', 'The wall round the strap, in mm. Thinner flexes more easily onto the strap.', ct.carrierWall, 1.2, 3, 0.1),
+  carrierFit: dimension('Clip or sleeve fit', 'Play round the strap per side, in mm: little for a clip, so that it stays put; more for a sleeve, so that it slides along.', ct.carrierFit, 0, 0.8, 0.05),
+  lipDepth: dimension('Lip depth', 'How far a clip’s lips reach over the strap’s edges (a wrap sleeve’s flaps overlap by as much), in mm. More holds better; less snaps on more easily.', ct.lipDepth, 0.6, 4, 0.1),
   engraveDepth: dimension('Engraving depth', 'How deep engraved text and logos are carved, in mm.', ct.engraveDepth, 0.3, 1.2, 0.1),
   embossHeight: dimension('Emboss height', 'How high an embossed front stands, in mm.', ct.embossHeight, 0.4, 1.5, 0.1),
   layerHeight: dimension('Layer height', 'Your slicer’s layer height, in mm: the print pause and the filament change are put on a layer boundary.', ct.layerHeight, 0.08, 0.32, 0.02),
@@ -3072,6 +3084,7 @@ export function catCollarTagSettings(parameters: ParameterValues): CollarTagSett
     layerHeight: p.layerHeight,
     ringInner: dimensionOf(ring, 'd'), ringOuter: dimensionOf(ring, 'D'), ringBand: dimensionOf(ring, 'a', 'max'), ringThickness: dimensionOf(ring, 'b', 'max'), dRingWire: p.dRingWire, bailWall: p.bailWall,
     collarWidth: dimensionOf(collar, 'width', 'max'), collarThickness: dimensionOf(collar, 'thickness', 'max'), slotFit: p.slotFit, barWidth: p.barWidth,
+    sleeveStyle: p.sleeveStyle, carrierLength: p.carrierLength, carrierWall: p.carrierWall, carrierFit: p.carrierFit, lipDepth: p.lipDepth,
   };
 }
 
@@ -3090,7 +3103,14 @@ function catCollarTagNotes(p: CatCollarTagParameters): string[] {
   const settings = catCollarTagSettings(p);
   const layout = collarTagLayout(settings);
   const notes = [`A ${COLLAR_TAG_SHAPE_TEXT[p.shape].label.toLowerCase()} tag, ${ctmm(p.width)} × ${ctmm(layout.bounds.y)} × ${ctmm(layout.bounds.z)}${layout.hanging ? ' with its bail' : ''}: about ${(Math.round(collarTagWeight(settings, layout) * 10) / 10).toFixed(1)} g in PLA, before the hardware.`];
-  if (layout.hanging) notes.push(`The bail’s hole is ${ctmm(layout.holeD)} across, for the split ring (${libraryPart(p.splitRing).title}): open the ring with a fingernail or a ring opener and wind it through.`);
+  if (layout.hanging) notes.push(`The bail’s hole is ${ctmm(layout.holeD)} across, for the split ring (${libraryPart(p.splitRing).title}): open the ring with a fingernail or a ring opener and wind it through${layout.carrier ? ` the tag and the ${p.attachment}’s tab` : ''}.`);
+  if (layout.carrier) {
+    const c = layout.carrier;
+    const on = p.attachment === 'clip' ? `Snap it onto the strap from the outside: bow the strap a little and press it in past both lips (they leave ${ctmm(c.opening)} for it)`
+      : c.wrap ? 'Open both flaps on their hinges, lay the strap in, close the inner flap and press the outer one over it until it clicks'
+      : 'Open the collar, thread its free end through the sleeve and slide it along';
+    notes.push(`The ${p.attachment} is ${ctmm(c.bounds.x)} × ${ctmm(c.bounds.y)} × ${ctmm(c.bounds.z)}, round a ${ctmm(c.channelW)} × ${ctmm(c.channelT)} channel for the ${ctmm(settings.collarWidth)} strap; print it standing on an end. ${on}, clear of the safety buckle.`);
+  }
   else notes.push(`The slots are ${ctmm(layout.slotWidth)} × ${ctmm(layout.slotLength)}, for the ${ctmm(settings.collarWidth)} strap: open the collar, run its free end down through one slot and up through the other, so that it lies in front of the end bars and behind the middle, and close it again, clear of the safety buckle.`);
   if (layout.embedded) {
     const what = layout.embedded === 'nfc' ? 'the NFC tag into its cavity' : layout.magnets.length === 1 ? 'the magnet into its cavity' : `the ${layout.magnets.length} magnets into their cavities`;
@@ -3119,7 +3139,18 @@ function catCollarTagReferences(parameters: ParameterValues): LinkedReference[] 
   layout.magnets.forEach(([x, y], i) => references.push(p.magnetMount === 'embedded'
     ? { id: `magnet-${i + 1}`, part: p.magnet, label: `embedded, ${i + 1}`, pose: { position: [x, y, layout.magnetZ] }, movesWith: 'tag' }
     : { id: `magnet-${i + 1}`, part: p.magnet, label: `in the back, pocket ${i + 1}`, pose: { position: [x, y, 0] }, step: { title: 'Press the magnets into the back', from: [0, 0, -10] } }));
-  if (layout.hanging) {
+  if (layout.carrier) {
+    // the carrier stands on an end, the strap through it along z; the ring hangs from the carrier's tab (at the end on the bed) in the yz plane, through the
+    // tab's hole (its top) and the tag's hole (its bottom); the tag lies under it (catCollarTagAssembly)
+    const c = layout.carrier;
+    const ring = libraryPart(p.splitRing), collar = libraryPart(p.collar);
+    const b = dimensionOf(ring, 'b', 'max'), mean = (dimensionOf(ring, 'D') + dimensionOf(ring, 'd')) / 4;
+    const t = dimensionOf(collar, 'thickness', 'max'), STRAP = 60;
+    references.push(
+      { id: 'split-ring', part: ring.id, label: `through the ${p.attachment}’s tab and the bail`, pose: { position: [c.hole[0] - b / 2, c.hole[1] - mean, COLLAR_TAG.tabThickness / 2], rotation: [0, 90, 0] }, movesWith: p.attachment },
+      { id: 'strap', part: collar.id, label: `strap, through the ${p.attachment}`, pose: { position: [(c.channelT - t) / 2, 0, p.carrierLength / 2], rotation: [0, 90, 0], scale: [(p.carrierLength + 24) / STRAP, 1, 1] }, movesWith: p.attachment },
+    );
+  } else if (layout.hanging) {
     // the ring stands across the bail, its band through the hole: its axis along x, its circle through the hole's centre
     const ring = libraryPart(p.splitRing);
     const b = dimensionOf(ring, 'b', 'max'), mean = (dimensionOf(ring, 'D') + dimensionOf(ring, 'd')) / 4;
@@ -3142,22 +3173,43 @@ function catCollarTagReferences(parameters: ParameterValues): LinkedReference[] 
       piece('strap-right', 'strap, in front of the right end bar', right[0] + t / 2, outer, p.thickness),
     );
   }
+  // the NFC tag and magnets sit in the tag, wherever it is; the rest stands on the base
+  const [tx = 0, ty = 0, tz = 0] = catCollarTagAssembly(p).poses['tag']?.position ?? [];
   const base = catCollarTagBase(p);
-  return references.map(reference => ({ ...reference, pose: { ...reference.pose, position: [reference.pose.position[0], reference.pose.position[1], reference.pose.position[2] + base] } }));
+  const onTag = (id: string) => id === 'nfc-tag' || id.startsWith('magnet-');
+  return references.map(reference => {
+    const [x, y, z] = reference.pose.position;
+    const position: [number, number, number] = onTag(reference.id) ? [x + tx, y + ty, z + tz] : [x, y, z + base];
+    return { ...reference, pose: { ...reference.pose, position } };
+  });
 }
 
 /** How high the tag stands in the preview, so that nothing hangs below the floor: the split ring standing across the bail, or the
  * strap behind the tag. */
 function catCollarTagBase(p: CatCollarTagParameters): number {
   if (p.attachment === 'hanging') return Math.max(0, dimensionOf(libraryPart(p.splitRing), 'D', 'max') / 2 - p.thickness / 2);
+  // the carrier stands on an end with 12 mm of strap below it, and the ring hangs round its tab, at that end
+  if (p.attachment === 'clip' || p.attachment === 'sleeve') return Math.max(12, dimensionOf(libraryPart(p.splitRing), 'D', 'max') / 2 - COLLAR_TAG.tabThickness / 2);
   return dimensionOf(libraryPart(p.collar), 'thickness', 'max');
 }
 
 /** The tag is the base: the hardware is shown in place round it and moves with it (embedded items, the ring through the bail, the strap
- * through the slots), and only what goes in after printing has a step of its own (`catCollarTagReferences`). */
+ * through the slots), and only what goes in after printing has a step of its own (`catCollarTagReferences`). With a clip or a sleeve,
+ * that stands on an end round the strap, and the tag lies under it, its bail's hole at the bottom of the ring that hangs from the tab. */
 export function catCollarTagAssembly(parameters: ParameterValues): Assembly {
   const p = { ...DEFAULT_CAT_COLLAR_TAG, ...parameters } as CatCollarTagParameters;
-  return { partColors: { tag: '#e8a33d' }, poses: { tag: { position: [0, 0, catCollarTagBase(p)] } },
+  const base = catCollarTagBase(p);
+  const colors = { tag: '#e8a33d', clip: '#5f7350', sleeve: '#5f7350' };
+  if (p.attachment === 'clip' || p.attachment === 'sleeve') {
+    const layout = collarTagLayout(catCollarTagSettings(p));
+    const c = layout.carrier ?? (() => { throw new Error('A clip or sleeve has a carrier.'); })();
+    const ring = libraryPart(p.splitRing);
+    const mean = (dimensionOf(ring, 'D') + dimensionOf(ring, 'd')) / 4;
+    const tag: [number, number, number] = [c.hole[0] - layout.hole[0], c.hole[1] - 2 * mean - layout.hole[1], base + COLLAR_TAG.tabThickness / 2 - p.thickness / 2];
+    return { partColors: colors, poses: { [p.attachment]: { position: [0, 0, base] }, tag: { position: tag } },
+      steps: [{ title: `The ${p.attachment} on the collar, the tag on its split ring`, parts: [p.attachment, 'tag'], from: [0, 0, 15] }], lift: 10 };
+  }
+  return { partColors: colors, poses: { tag: { position: [0, 0, base] } },
     steps: [{ title: p.attachment === 'hanging' ? 'The tag on its split ring' : 'The tag on the collar', parts: ['tag'], from: [0, 0, 15] }], lift: 10 };
 }
 
@@ -3191,12 +3243,17 @@ const catCollarTagControls = [
   enumControl(CatCollarTagParametersSchema, 'magnetMount', 'basic', COLLAR_TAG_MOUNTS.map(value => ({ value, ...COLLAR_TAG_MAGNET_TEXT[value] }))),
   ...[partControl(CatCollarTagParametersSchema, 'magnet', 'basic', 'magnet', COLLAR_TAG_MAGNETS), control(CatCollarTagParametersSchema, 'magnetCount', 'basic', null, null)]
     .map(c => ({ ...c, visibleWhen: { control: 'magnetMount', values: ['pocket', 'embedded'] } })),
-  { ...partControl(CatCollarTagParametersSchema, 'splitRing', 'basic', 'split-ring', COLLAR_TAG_SPLIT_RINGS), visibleWhen: { control: 'attachment', values: ['hanging'] } },
-  ...[control(CatCollarTagParametersSchema, 'dRingWire', 'advanced'), control(CatCollarTagParametersSchema, 'bailWall', 'advanced')]
-    .map(c => ({ ...c, visibleWhen: { control: 'attachment', values: ['hanging'] } })),
-  { ...partControl(CatCollarTagParametersSchema, 'collar', 'basic', 'cat-collar', COLLAR_TAG_COLLARS), visibleWhen: { control: 'attachment', values: ['slide-on'] } },
+  { ...partControl(CatCollarTagParametersSchema, 'splitRing', 'basic', 'split-ring', COLLAR_TAG_SPLIT_RINGS), visibleWhen: { control: 'attachment', values: ['hanging', 'clip', 'sleeve'] } },
+  { ...control(CatCollarTagParametersSchema, 'dRingWire', 'advanced'), visibleWhen: { control: 'attachment', values: ['hanging'] } },
+  { ...control(CatCollarTagParametersSchema, 'bailWall', 'advanced'), visibleWhen: { control: 'attachment', values: ['hanging', 'clip', 'sleeve'] } },
+  { ...partControl(CatCollarTagParametersSchema, 'collar', 'basic', 'cat-collar', COLLAR_TAG_COLLARS), visibleWhen: { control: 'attachment', values: ['slide-on', 'clip', 'sleeve'] } },
   ...[control(CatCollarTagParametersSchema, 'slotFit', 'advanced'), control(CatCollarTagParametersSchema, 'barWidth', 'advanced')]
     .map(c => ({ ...c, visibleWhen: { control: 'attachment', values: ['slide-on'] } })),
+  { ...enumControl(CatCollarTagParametersSchema, 'sleeveStyle', 'basic', COLLAR_TAG_SLEEVE_STYLES.map(value => ({ value, ...COLLAR_TAG_SLEEVE_STYLE_TEXT[value] }))), visibleWhen: { control: 'attachment', values: ['sleeve'] } },
+  ...[control(CatCollarTagParametersSchema, 'carrierLength', 'basic'), control(CatCollarTagParametersSchema, 'carrierWall', 'advanced'),
+    { ...control(CatCollarTagParametersSchema, 'carrierFit', 'advanced'), recommended: [{ control: 'attachment', ranges: [{ value: 'clip', minimum: 0.05, maximum: 0.25 }, { value: 'sleeve', minimum: 0.2, maximum: 0.5 }] }] },
+    control(CatCollarTagParametersSchema, 'lipDepth', 'advanced')]
+    .map(c => ({ ...c, visibleWhen: { control: 'attachment', values: ['clip', 'sleeve'] } })),
   control(CatCollarTagParametersSchema, 'edgeRadius', 'advanced'),
   control(CatCollarTagParametersSchema, 'engraveDepth', 'advanced'),
   { ...control(CatCollarTagParametersSchema, 'embossHeight', 'advanced'), visibleWhen: { control: 'frontStyle', values: ['emboss'] } },
@@ -3208,6 +3265,7 @@ const CAT_COLLAR_TAG_MAPPING = {
   frontMark: 'FRONT_MARK', frontLine1: 'FRONT_LINE_A', frontLine2: 'FRONT_LINE_B', frontFont: 'FRONT_FONT', frontTextSize: 'FRONT_SIZE', frontLogo: 'FRONT_LOGO', frontLogoSize: 'FRONT_LOGO_SIZE', frontStyle: 'FRONT_STYLE',
   backMark: 'BACK_MARK', backLine1: 'BACK_LINE_A', backLine2: 'BACK_LINE_B', backFont: 'BACK_FONT', backTextSize: 'BACK_SIZE', backLogo: 'BACK_LOGO', backLogoSize: 'BACK_LOGO_SIZE',
   engraveDepth: 'ENGRAVE', embossHeight: 'EMBOSS', nfc: 'NFC', magnetMount: 'MAGNET_MOUNT', magnetCount: 'MAGNET_COUNT', bailWall: 'BAIL_WALL', slotFit: 'SLOT_FIT', barWidth: 'BAR_WIDTH', layerHeight: 'LAYER',
+  sleeveStyle: 'SLEEVE_STYLE', carrierLength: 'CARRIER_L', carrierWall: 'CARRIER_WALL', carrierFit: 'CARRIER_FIT', lipDepth: 'LIP',
 };
 const CAT_COLLAR_TAG_DEFINES: PartDefines = {
   nfcTag: { NFC_D: ['D', 'max'], NFC_T: ['h', 'max'] }, magnet: { MAGNET_D: ['diameter', 'max'], MAGNET_T: ['thickness', 'max'] },
@@ -3216,12 +3274,16 @@ const CAT_COLLAR_TAG_DEFINES: PartDefines = {
 
 export const catCollarTag = {
   id: 'cat-collar-tag' as const, version: '1' as const, title: 'Cat collar tag',
-  description: 'A name tag for a cat’s collar, with your own text or SVG logo on each face, an optional NFC tag that a phone reads, and optional magnets to stick it to the fridge. Choose how it goes on the collar (a hanging tag on a split ring, or a slide-on tag the strap runs through), its shape, size and thickness; the split ring, the collar, the NFC tag and the magnets are real products from the parts library, and the tag is checked to fit them.',
+  description: 'A name tag for a cat’s collar, with your own text or SVG logo on each face, an optional NFC tag that a phone reads, and optional magnets to stick it to the fridge. Choose how it goes on the collar (a hanging tag on a split ring, a slide-on tag the strap runs through, or a tag hung from a clip or a sleeve on the strap), its shape, size and thickness; the split ring, the collar, the NFC tag and the magnets are real products from the parts library, and the tag is checked to fit them.',
   attribution: 'CanFactory (original design)',
-  printNotes: 'Print back down, as generated, in PETG or PLA; no supports. With an embedded NFC tag or magnets, pause at the height shown under the settings and drop them in. For an embossed front in another colour, change filament where shown. Keep the collar’s breakaway buckle free: never put the tag across it.',
+  printNotes: 'Print the tag back down, as generated, in PETG or PLA; no supports. A clip or sleeve prints standing on an end, as generated, best in PETG, which flexes onto the strap. With an embedded NFC tag or magnets, pause at the height shown under the settings and drop them in. For an embossed front in another colour, change filament where shown. Keep the collar’s breakaway buckle free: never put the tag across it.',
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   // with an embedded NFC tag or magnets, the tag encloses their sealed cavities
-  parts: [{ id: 'tag', title: 'Tag', sourcePath: 'models/cat-collar-tag/generator.scad', scadConstants: { PART: 'tag' }, scadMapping: CAT_COLLAR_TAG_MAPPING, partDefines: CAT_COLLAR_TAG_DEFINES, sealedVoids: true }],
+  parts: [
+    { id: 'tag', title: 'Tag', sourcePath: 'models/cat-collar-tag/generator.scad', scadConstants: { PART: 'tag' }, scadMapping: CAT_COLLAR_TAG_MAPPING, partDefines: CAT_COLLAR_TAG_DEFINES, sealedVoids: true },
+    ...(['clip', 'sleeve'] as const).map((part): ModelPart => ({ id: part, title: part === 'clip' ? 'Clip' : 'Sleeve', sourcePath: 'models/cat-collar-tag/generator.scad', scadConstants: { PART: part },
+      scadMapping: CAT_COLLAR_TAG_MAPPING, partDefines: CAT_COLLAR_TAG_DEFINES, includedWhen: parameters => parameters['attachment'] === part })),
+  ],
   assetPaths: ['LiberationSans-Bold.ttf', 'LiberationSerif-Bold.ttf', 'LiberationMono-Bold.ttf', 'DejaVuSans-Bold.ttf'].map(name => `${FONTS_DIR}/${name}`),
   assembly: catCollarTagAssembly(DEFAULT_CAT_COLLAR_TAG),
   assemblyForParameters: catCollarTagAssembly,
