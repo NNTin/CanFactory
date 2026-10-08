@@ -2477,7 +2477,7 @@ function validateQrMagnetTag(p: QrMagnetTagParameters): ParameterIssue[] {
 /** What the editor shows under the settings: where to change filament, and the code's size. */
 function qrMagnetTagNotes(p: QrMagnetTagParameters): string[] {
   const change = filamentChangeHeight(p.baseThickness, p.layerHeight);
-  const notes = [`Change to the dark filament at ${change} mm, before layer ${Math.round(change / p.layerHeight) + 1} at ${p.layerHeight} mm layers: the modules and the logo print above it. Slice the centre with a ${p.nozzle} mm nozzle and Precise wall off.`];
+  const notes = [`Change to the dark filament at ${change} mm, before layer ${Math.round(change / p.layerHeight) + 1} at ${p.layerHeight} mm layers: the modules and the logo print above it. Slice the centre with a ${p.nozzle} mm nozzle and a minimum wall width of 60 %.`];
   const settings = qrTagSettings(p);
   const layout = qrTagLayout(settings);
   if (layout.embedded) {
@@ -2568,7 +2568,7 @@ export const qrMagnetTag = {
   id: 'qr-magnet-tag' as const, version: '1' as const, title: 'Magnetic QR code tag',
   description: 'A flat tag for the fridge or a whiteboard: a border with magnets in its back, and a centre piece with a QR code of your text and, if you like, your SVG logo, printed in two colours with a single filament change. Choose a square or round tile, its size, and how the centre is held in the border: crush ribs, a detent, a twist lock or magnets.',
   attribution: 'CanFactory (original design)',
-  printNotes: 'Border: back down, no supports; press or glue the magnets into its back, or with embedded magnets pause at the height shown under the settings and drop them in. Centre: base down in the light filament; change to the dark filament at the height shown under the settings (the base’s top, rounded up to a layer). In OrcaSlicer or Bambu Studio turn Precise wall off (Quality › Precise wall), or small dark modules can print as rings with the light base showing through their middle. With the magnet joint, set each centre magnet onto its seat magnet first, so that they attract.',
+  printNotes: 'Border: back down, no supports; press or glue the magnets into its back, or with embedded magnets pause at the height shown under the settings and drop them in. Centre: base down in the light filament; change to the dark filament at the height shown under the settings (the base’s top, rounded up to a layer). In the slicer set the minimum wall width to 60 % of the nozzle (OrcaSlicer: Quality › Wall generator › Minimum wall width; PrusaSlicer: Layers and perimeters › Arachne › Minimum perimeter width), or small dark modules can print as rings with the light base showing through their middle. With the magnet joint, set each centre magnet onto its seat magnet first, so that they attract.',
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   parts: qrMagnetTagParts,
   assembly: qrMagnetTagAssembly(DEFAULT_QR_MAGNET_TAG),

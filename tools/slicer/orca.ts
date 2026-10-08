@@ -4,7 +4,7 @@
  *
  * Orca's command line does not resolve a profile's `inherits`, so the profiles are flattened here from Orca's own bundled ones: its
  * generic Klipper printer, its 0.20 mm Standard process and its Generic PLA, with only the nozzle and the layer height changed. That
- * is what a user who picks a generic printer in Orca gets, with Precise wall off as the tag's print notes ask (writeProfiles).
+ * is what a user who picks a generic printer in Orca gets, with the minimum wall width the tag's print notes ask for (writeProfiles).
  */
 import { execFile } from 'node:child_process';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
@@ -68,13 +68,12 @@ export async function writeProfiles(install: OrcaInstall, directory: string, set
   };
   return {
     machine: await write('machine', { ...await flatten(install.resources, machineName), nozzle_diameter: [String(settings.nozzle)] }),
-    // Precise wall off, as the print notes ask: with it on, Orca pulls the inner walls away from the outer one, and a small dark
-    // island (an isolated module 3 to 4 lines wide) is left as a ring with the light base showing through its middle. Arc fitting
-    // off, since it writes G2/G3 arcs the check does not read. Every other setting is Orca's own.
+    // Minimum wall width (Arachne's min_bead_width) 60 % of the nozzle instead of 85 %, as the print notes ask: at 85 % an isolated
+    // dark module 3 to 4 lines wide got only its outer wall, and the light base showed through the empty square in its middle,
+    // whatever the gap fill. Arc fitting off, since it writes G2/G3 arcs the check does not read. Every other setting is Orca's own.
     process: await write('process', {
       ...await flatten(install.resources, ORCA_PRESETS.process), layer_height: String(settings.layerHeight), initial_layer_print_height: String(settings.layerHeight),
-      precise_outer_wall: '0', enable_arc_fitting: '0', compatible_printers: [machineName],
-      // for investigating a failure: other process settings, as JSON (e.g. '{"wall_loops":"2"}')
+      min_bead_width: '60%', enable_arc_fitting: '0', compatible_printers: [machineName],
       ...JSON.parse(process.env['ORCA_PROCESS_OVERRIDES'] ?? '{}') as Profile,
     }),
     filament: await write('filament', { ...await flatten(install.resources, ORCA_PRESETS.filament), compatible_printers: [] }),

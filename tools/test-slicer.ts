@@ -106,7 +106,7 @@ function report(o: Outcome): string {
     const rings = check.errors.filter(error => error.shouldBe === 'dark' && error.whole >= 0.6).length, thin = check.errors.length - light - rings;
     const causes = [
       light > 0 ? `${light} light modules fill in (the lines plus the bleed close the gaps)` : '',
-      rings > 0 ? `${rings} dark modules print as rings (mostly dark, but the walls leave their middle empty: see Precise wall in tools/slicer/orca.ts)` : '',
+      rings > 0 ? `${rings} dark modules print as rings (mostly dark, but the walls leave their middle empty: see min_bead_width in tools/slicer/orca.ts)` : '',
       thin > 0 ? `${thin} dark modules thin out or vanish (narrower than the slicer prints)` : '',
     ].filter(Boolean);
     if (c.expect === 'pass' && check.errors.length > 0)

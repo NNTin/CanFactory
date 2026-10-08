@@ -92,8 +92,9 @@ heights, so one pause serves them all.
 
 ### The colour change
 
-Slice the centre with your nozzle (`nozzle`) and, in OrcaSlicer or Bambu Studio, **Precise wall off** (Quality › Precise wall): see
-[Slicer check](#slicer-check) for what it does to small modules.
+Slice the centre with your nozzle (`nozzle`) and the **minimum wall width at 60 %** of the nozzle (OrcaSlicer: Quality › Wall
+generator › Minimum wall width; PrusaSlicer: Layers and perimeters › Arachne › Minimum perimeter width): see
+[Slicer check](#slicer-check) for what the default does to small modules.
 
 Change to the dark filament at the base's top, rounded up to a layer boundary: `ceil(baseThickness / layerHeight) ×
 layerHeight` (`filamentChangeHeight`). At the defaults: **1.6 mm, before layer 9** at 0.2 mm layers. The editor shows it under
@@ -176,10 +177,12 @@ integration workflow, on every pull request); without `ORCA_SLICER` it skips loc
    light modules. Slicing only looks a few modules round each module, so every situation a real code can hold is sliced.
 3. It slices with Orca's own generic presets (`MyKlipper 0.4 nozzle`, `0.20mm Standard @MyKlipper`, `Generic PLA @System`, which
    `tools/slicer/orca.ts` flattens, since Orca's command line does not follow `inherits`), with the nozzle and the layer height
-   (0.2 mm, or 0.1 mm for nozzles up to 0.25 mm) changed, arc fitting off, and **Precise wall off**, which the print notes and the
-   editor ask for. With Precise wall on (that preset's default), Orca pulls the inner walls in from the outer one, and an isolated
-   dark module 3 to 4 lines wide (1.3 to 1.5 mm at a 0.4 mm nozzle, about 2.2 mm at 0.6 mm) printed as a ring: nothing filled the
-   1 mm square left in its middle, whatever the gap-fill setting, and the light base showed through where a scanner samples.
+   (0.2 mm, or 0.1 mm for nozzles up to 0.25 mm) changed, arc fitting off, and the **minimum wall width at 60 %** of the nozzle
+   (Arachne's `min_bead_width`, 85 % in Orca's presets), which the print notes and the editor ask for. At 85 %, an isolated dark
+   module 3 to 4 lines wide (1.3 to 1.5 mm at a 0.4 mm nozzle, 2.2 mm at 0.6 mm, 2.9 mm at 0.8 mm) got only its outer wall: the
+   square left in its middle (0.5 to 1.3 mm) was never filled, whatever the gap fill (`gap_fill_target` is `nowhere` by default,
+   but `everywhere` did not fill it either), and the light base showed through where a scanner samples. Precise wall made it
+   worse; at 60 % it does not matter. One wall loop, or the classic wall generator with gap fill everywhere, also fill it.
    `ORCA_PROCESS_OVERRIDES` (JSON) changes further process settings when investigating a failure.
 4. It reads every extrusion above the filament change from the G-code (`tools/slicer/gcode.ts`) and draws it from above at its
    planned width plus the bleed on each side (`tools/slicer/check.ts`). A dark module reads right when at least half its middle
