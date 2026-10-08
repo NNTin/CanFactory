@@ -21,17 +21,23 @@ export const QR_ECC_LEVELS = ['L', 'M', 'Q', 'H'] as const;
 export type QrEcc = typeof QR_ECC_LEVELS[number];
 
 /** A QR symbol: `dark[row][column]`, row 0 at the top; `fixed` marks the function patterns (finders, timing, alignment, format and
- * version information), which carry no data. No quiet zone. */
-export interface QrSymbol { version: number; size: number; mask: number; dark: boolean[][]; fixed: boolean[][] }
+ * version information), which carry no data; `solid` the finder and alignment patterns among them, which a scanner finds the code
+ * by and which therefore print solid in every module style. No quiet zone. */
+export interface QrSymbol { version: number; size: number; mask: number; dark: boolean[][]; fixed: boolean[][]; solid: boolean[][] }
+
+const symbolOf = (qr: ReturnType<typeof encode>): QrSymbol => ({
+  version: qr.version, size: qr.size, mask: qr.maskPattern, dark: qr.data,
+  // uqr marks every function module with a type other than Data
+  fixed: qr.types.map(row => row.map(type => type !== QrCodeDataType.Data)),
+  solid: qr.types.map(row => row.map(type => type === QrCodeDataType.Position || type === QrCodeDataType.Alignment)),
+});
 
 /** The text as a QR symbol: byte mode (one byte per printable ASCII character), at exactly this error correction (never raised), in
  * the smallest version that holds it. Throws for characters outside printable ASCII. */
 export function encodeQr(text: string, ecc: QrEcc): QrSymbol {
   if (!/^[ -~]*$/.test(text)) throw new Error('Only printable ASCII characters can be encoded.');
   const bytes = Array.from(text, char => char.charCodeAt(0));
-  const qr = encode(bytes, { ecc, border: 0, boostEcc: false });
-  // uqr marks every function module with a type other than Data
-  return { version: qr.version, size: qr.size, mask: qr.maskPattern, dark: qr.data, fixed: qr.types.map(row => row.map(type => type !== QrCodeDataType.Data)) };
+  return symbolOf(encode(bytes, { ecc, border: 0, boostEcc: false }));
 }
 
 /**
@@ -106,8 +112,7 @@ function symbolFor(version: number, ecc: QrEcc): QrSymbol {
   const key = `${version}${ecc}`;
   let symbol = symbols.get(key);
   if (!symbol) {
-    const qr = encode([], { ecc, border: 0, boostEcc: false, minVersion: version, maxVersion: version });
-    symbol = { version: qr.version, size: qr.size, mask: qr.maskPattern, dark: qr.data, fixed: qr.types.map(row => row.map(type => type !== QrCodeDataType.Data)) };
+    symbol = symbolOf(encode([], { ecc, border: 0, boostEcc: false, minVersion: version, maxVersion: version }));
     symbols.set(key, symbol);
   }
   return symbol;
@@ -171,8 +176,45 @@ export function mergeModules(dark: readonly (readonly boolean[])[]): ModuleRect[
   return done.sort((a, b) => a[1] - b[1] || a[0] - b[0]);
 }
 
-/** The code the centre carries: the symbol, its knockout pad (0 without a logo) and the dark modules left, as rectangles. */
-export interface QrTagCode { symbol: QrSymbol; pad: number; dark: boolean[][]; rects: ModuleRect[] }
+/** The dark modules as vertical runs of at least two, one per column's run: `[x, y, h]` in modules (row 0 at the top). With the rows
+ * of `mergeModules`' rectangles (each a whole run of its row) they say which dark modules touch, for the connected dots. */
+export function moduleColumns(dark: readonly (readonly boolean[])[]): [x: number, y: number, h: number][] {
+  const runs: [number, number, number][] = [];
+  const size = dark.length;
+  for (let x = 0; x < size; x++) for (let y = 0; y < size;) {
+    if (!dark[y]?.[x]) { y++; continue; }
+    const start = y;
+    while (y < size && dark[y]?.[x]) y++;
+    if (y - start > 1) runs.push([x, start, y - start]);
+  }
+  return runs.sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+}
+
+/**
+ * How the dark modules are drawn (docs/qr-magnet-tag.md#module-styles). The finder and alignment patterns, which a scanner finds the
+ * code by, stay solid in every style (as rounded blobs outside `square`): drawn as dots, no scanner we tried finds them.
+ * - `square`: squares, edge to edge, as the standard draws them (the default).
+ * - `rounded-blobs`: the squares' union, its outer corners rounded: neighbours still touch along whole edges.
+ * - `rounded-squares`: each module a separate rounded square, a gap between neighbours.
+ * - `dots`: each module a separate dot.
+ * - `connected-dots`: dots joined to their dark neighbours above, below and beside by bars as wide as the dots.
+ */
+export const QR_MODULE_STYLES = ['square', 'rounded-blobs', 'rounded-squares', 'dots', 'connected-dots'] as const;
+export type QrModuleStyle = typeof QR_MODULE_STYLES[number];
+/** The styles' sizes, as shares of the module pitch; a test compares them with the SCAD file. Separate shapes never touch: they keep
+ * a gap of 1 − side (shapes that only just touch slice with holes in them). */
+export const QR_MODULE_SHAPE = {
+  /** rounded blobs (and the solid patterns of the other styles): the radius of their rounded outer corners */
+  blobRadius: 0.3,
+  /** rounded squares: the side and the corner radius */
+  roundedSide: 0.85, roundedRadius: 0.25,
+  /** dots and connected dots: the diameter, and the bars' width */
+  dotDiameter: 0.85,
+} as const;
+
+/** The code the centre carries: the symbol, its knockout pad (0 without a logo), the dark modules left, as rectangles (`rects`, all of
+ * them; `dataRects` without, `solidRects` only, the finder and alignment patterns) and the data modules' vertical runs. */
+export interface QrTagCode { symbol: QrSymbol; pad: number; dark: boolean[][]; rects: ModuleRect[]; dataRects: ModuleRect[]; solidRects: ModuleRect[]; columns: [number, number, number][] }
 
 export interface QrCodeSettings { qrText: string; errorCorrection: QrEcc; logo: string; logoSize: number }
 
@@ -181,17 +223,47 @@ export function qrTagCode(p: QrCodeSettings): QrTagCode {
   const pad = p.logo === '' ? 0 : knockoutModules(symbol.size, p.logoSize);
   const from = (symbol.size - pad) / 2, to = from + pad;
   const dark = symbol.dark.map((row, y) => row.map((value, x) => value && !(y >= from && y < to && x >= from && x < to)));
-  return { symbol, pad, dark, rects: mergeModules(dark) };
+  const data = dark.map((row, y) => row.map((value, x) => value && !symbol.solid[y]?.[x]));
+  const solid = dark.map((row, y) => row.map((value, x) => value && Boolean(symbol.solid[y]?.[x])));
+  return { symbol, pad, dark, rects: mergeModules(dark), dataRects: mergeModules(data), solidRects: mergeModules(solid), columns: moduleColumns(data) };
 }
 
 /**
- * The code as an OpenSCAD vector for `-D QR=`: `[modules, pad, [[x, y, w, h], ...]]`, every entry an integer. Only numbers and
- * brackets reach OpenSCAD; the text itself never does. Throws if the settings cannot be encoded.
+ * The code as an OpenSCAD vector for `-D QR=`: `[modules, pad, [[x, y, w, h], ...], [[x, y, w, h], ...], [[x, y, h], ...]]`: the
+ * data modules' rectangles, the finder and alignment patterns' rectangles, and (for connected dots only, else empty) the data
+ * modules' vertical runs. Every entry an integer: only numbers and brackets reach OpenSCAD; the text itself never does. Throws if
+ * the settings cannot be encoded.
  */
-export function qrScad(p: QrCodeSettings): string {
+export function qrScad(p: QrCodeSettings & { moduleStyle?: QrModuleStyle }): string {
   const code = qrTagCode(p);
-  return JSON.stringify([code.symbol.size, code.pad, code.rects]);
+  return JSON.stringify([code.symbol.size, code.pad, code.dataRects, code.solidRects, p.moduleStyle === 'connected-dots' ? code.columns : []]);
 }
+
+/** The nozzles the tag is checked for (diameters in mm, as the editor's choices): the smallest module it allows depends on the nozzle,
+ * and CI slices every one of them (tools/test-slicer.ts). */
+export const QR_NOZZLES = ['0.2', '0.25', '0.4', '0.5', '0.6', '0.8'] as const;
+export type QrNozzle = typeof QR_NOZZLES[number];
+/** How much wider (per side, mm) the dark filament prints than the slicer plans its lines: squish, over-extrusion and the dark
+ * colour showing through at the edges. CI checks the code with its lines widened by this much. */
+export const QR_BLEED = { minimum: 0, maximum: 0.2, default: 0.1, step: 0.01 } as const;
+
+/**
+ * The smallest module (mm) that slices and scans reliably in this style with this nozzle and bleed: `nozzle × nozzle factor + bleed ×
+ * bleed factor`, never under the floor. Found by slicing with OrcaSlicer; CI slices every style and nozzle at this size, at no bleed,
+ * the default bleed and the most bleed, and fails if a single module comes out the wrong colour (tools/test-slicer.ts,
+ * docs/qr-magnet-tag.md#slicer-check).
+ */
+export const QR_MIN_MODULE: Record<QrModuleStyle, { nozzle: number; bleed: number; floor: number }> = {
+  square: { nozzle: 2, bleed: 2, floor: 0.6 },
+  'rounded-blobs': { nozzle: 2, bleed: 2, floor: 0.6 },
+  'rounded-squares': { nozzle: 2.5, bleed: 3, floor: 0.8 },
+  dots: { nozzle: 2.5, bleed: 3, floor: 0.8 },
+  'connected-dots': { nozzle: 2.5, bleed: 3, floor: 0.8 },
+};
+export const minModuleSize = (style: QrModuleStyle, nozzle: number, bleed: number): number => {
+  const f = QR_MIN_MODULE[style];
+  return Math.ceil(Math.max(f.floor, f.nozzle * nozzle + f.bleed * bleed) * 100 - 1e-6) / 100;
+};
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tag's layout
@@ -223,8 +295,6 @@ export const QR_TAG = {
   detentEngage: 0.2, detentSpan: 0.4,
   /** The least room above and below a detent bump on the centre's edge. */
   detentMargin: 0.2,
-  /** The smallest module the tag allows: smaller ones do not print or scan reliably. */
-  minModule: 1,
   /** The smallest seat (the inside of the border). */
   minSeat: 20,
   /** Embedded magnets: the least skin between a magnet and the back face (rounded up to whole layers), and the least headroom over

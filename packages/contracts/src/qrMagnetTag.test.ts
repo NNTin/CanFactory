@@ -7,7 +7,7 @@ import { resolveAssembly } from './assembly.ts';
 import { RenderRequestSchema } from './index.ts';
 import { findPart, parts } from './parts/index.ts';
 import { decodeLogo, LOGO_GRID, svgToLogo } from './svgLogo.ts';
-import { encodeQr, filamentChangeHeight, knockoutDamage, knockoutFits, knockoutModules, maxLogoSize, mergeModules, QR_ECC_LEVELS, QR_LOGO_AREA_LIMIT, QR_TAG, QR_TAG_JOINTS, qrScad, qrTagCode, qrTagLayout, type QrEcc, type QrTagCode } from './qrMagnetTag.ts';
+import { encodeQr, filamentChangeHeight, knockoutDamage, knockoutFits, knockoutModules, maxLogoSize, mergeModules, minModuleSize, moduleColumns, QR_BLEED, QR_ECC_LEVELS, QR_LOGO_AREA_LIMIT, QR_MIN_MODULE, QR_MODULE_SHAPE, QR_MODULE_STYLES, QR_NOZZLES, QR_TAG, QR_TAG_JOINTS, qrScad, qrTagCode, qrTagLayout, type QrEcc, type QrModuleStyle, type QrTagCode } from './qrMagnetTag.ts';
 
 /** A leaf with a vein cut out of it (an even-odd hole): a solid logo with curves and a hole, as a user's file might be. */
 const LEAF = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill-rule="evenodd" d="M50 4 C82 18 96 58 50 96 C4 58 18 18 50 4Z M47 30 L53 30 L53 82 L47 82Z"/></svg>').logo;
@@ -100,8 +100,9 @@ describe('QR encoding', () => {
 
   it('writes only integers to OpenSCAD, whatever the text holds', () => {
     const literal = qrScad({ qrText: '"); import("/etc/passwd"); //', errorCorrection: 'M', logo: '', logoSize: 20 });
-    expect(literal).toMatch(/^\[\d+,\d+,\[(\[\d+,\d+,\d+,\d+\],?)+\]\]$/);
-    expect(JSON.parse(literal)).toHaveLength(3);
+    expect(literal).toMatch(/^\[\d+,\d+,\[(\[\d+,\d+,\d+,\d+\],?)+\],\[(\[\d+,\d+,\d+,\d+\],?)+\],\[\]\]$/);
+    expect(JSON.parse(literal)).toHaveLength(5);
+    expect(qrScad({ qrText: '"); //', errorCorrection: 'M', logo: '', logoSize: 20, moduleStyle: 'connected-dots' })).toMatch(/^\[\d+,\d+,(\[(\[[\d,]+\],?)*\],?){3}\]$/);
   });
 
   it('knocks out a centred, odd pad of whole modules for the logo, clear of the finder patterns and timing lines', () => {
@@ -184,6 +185,88 @@ describe('QR decode round-trip (jsQR)', () => {
   });
 });
 
+/**
+ * Whether a point of the code (in modules from its top left corner) is dark in this module style, as the generator draws it
+ * (modules_2d): the rounded blobs are the cells' union with its outer corners rounded (BLOB_RADIUS ≤ ½ module, so only corners whose
+ * two edge neighbours are both light round off), dots and rounded squares sit in their own cell, and connected dots add a bar to
+ * each dark neighbour's centre. The finder and alignment patterns are blobs in every style but squares.
+ */
+function darkInStyle(code: QrTagCode, style: QrModuleStyle, mx: number, my: number): boolean {
+  const x = Math.floor(mx), y = Math.floor(my), u = mx - x, v = my - y;
+  if (!code.dark[y]?.[x]) return false;
+  if (style === 'square') return true;
+  const solid = Boolean(code.symbol.solid[y]?.[x]);
+  const S = QR_MODULE_SHAPE;
+  const same = (dx: number, dy: number) => Boolean(code.dark[y + dy]?.[x + dx]) && Boolean(code.symbol.solid[y + dy]?.[x + dx]) === solid;
+  if (style === 'rounded-blobs' || solid) {
+    const blob = (dx: number, dy: number) => style === 'rounded-blobs' ? Boolean(code.dark[y + dy]?.[x + dx]) : same(dx, dy);
+    const r = S.blobRadius;
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+      const cu = sx < 0 ? u : 1 - u, cv = sy < 0 ? v : 1 - v;
+      if (cu < r && cv < r && !blob(sx, 0) && !blob(0, sy) && Math.hypot(r - cu, r - cv) > r) return false;
+    }
+    return true;
+  }
+  const du = Math.abs(u - 0.5), dv = Math.abs(v - 0.5);
+  if (style === 'rounded-squares') {
+    const half = S.roundedSide / 2, r = S.roundedRadius;
+    return du <= half && dv <= half && Math.hypot(Math.max(0, du - (half - r)), Math.max(0, dv - (half - r))) <= r;
+  }
+  const radius = S.dotDiameter / 2;
+  if (Math.hypot(du, dv) <= radius) return true;
+  if (style !== 'connected-dots') return false;
+  return (dv <= radius && ((u >= 0.5 && same(1, 0)) || (u <= 0.5 && same(-1, 0)))) || (du <= radius && ((v >= 0.5 && same(0, 1)) || (v <= 0.5 && same(0, -1))));
+}
+
+function decodeStyle(text: string, ecc: QrEcc, style: QrModuleStyle, scale = 10) {
+  const code = qrTagCode({ qrText: text, errorCorrection: ecc, logo: '', logoSize: 20 });
+  const n = code.symbol.size, quietZone = 2, border = 3;
+  const side = (n + 2 * quietZone + 2 * border) * scale;
+  const data = new Uint8ClampedArray(side * side * 4);
+  for (let py = 0; py < side; py++) for (let px = 0; px < side; px++) {
+    const mx = (px + 0.5) / scale - border - quietZone, my = (py + 0.5) / scale - border - quietZone;
+    const inside = mx >= -quietZone && my >= -quietZone && mx < n + quietZone && my < n + quietZone;
+    data.set([...(!inside ? BORDER : darkInStyle(code, style, mx, my) ? DARK : LIGHT), 255], (py * side + px) * 4);
+  }
+  return jsQR(data, side, side, { inversionAttempts: 'dontInvert' })?.data;
+}
+
+describe('module styles', () => {
+  it('splits the dark modules into data and the solid finder and alignment patterns, and lists the columns', () => {
+    const code = qrTagCode({ qrText: 'https://github.com/NNTin/CanFactory', errorCorrection: 'H', logo: '', logoSize: 20 });
+    const covered = code.dark.map(row => row.map(() => 0));
+    for (const [x, y, w, h] of [...code.dataRects, ...code.solidRects]) for (let r = y; r < y + h; r++) for (let c = x; c < x + w; c++) { const row = covered[r] ?? []; row[c] = (row[c] ?? 0) + 1; }
+    expect(covered).toEqual(code.dark.map(row => row.map(value => value ? 1 : 0)));
+    // the finder patterns' corners and centres are solid; the timing line and the data are not; version 4 has one alignment pattern
+    expect([code.symbol.solid[0]?.[0], code.symbol.solid[3]?.[3], code.symbol.solid[6]?.[code.symbol.size - 1], code.symbol.solid[code.symbol.size - 7]?.[6]]).toEqual([true, true, true, true]);
+    expect([code.symbol.solid[6]?.[10], code.symbol.solid[12]?.[12]]).toEqual([false, false]);
+    // 8 × 8 per finder pattern, its light separator included, and the 5 × 5 alignment pattern
+    expect(code.symbol.solid.flat().filter(Boolean)).toHaveLength(3 * 64 + 25);
+    expect(moduleColumns([[true, false], [true, true], [false, true]])).toEqual([[0, 0, 2], [1, 1, 2]]);
+    // the columns reach OpenSCAD only for connected dots
+    const vector = (moduleStyle: QrModuleStyle) => JSON.parse(qrScad({ qrText: 'https://example.com', errorCorrection: 'H', logo: '', logoSize: 20, moduleStyle })) as unknown[];
+    expect((vector('connected-dots')[4] as unknown[]).length).toBeGreaterThan(10);
+    for (const style of QR_MODULE_STYLES.filter(style => style !== 'connected-dots')) expect(vector(style)[4]).toEqual([]);
+  });
+
+  it('decodes in every style, as the generator draws it, at every error correction and up to version 10', () => {
+    for (const style of QR_MODULE_STYLES) {
+      for (const ecc of QR_ECC_LEVELS) for (const text of ['A', 'https://example.com', 'x'.repeat(100)]) expect(decodeStyle(text, ecc, style), `${style} ${ecc} ${text.length}`).toBe(text);
+      for (const version of [1, 5, 10]) { const text = longestFor(version, 'H'); expect(decodeStyle(text, 'H', style), `${style} v${version}`).toBe(text); }
+    }
+  });
+
+  it('needs larger modules for wider nozzles, more bleed and separate shapes', () => {
+    expect(minModuleSize('square', 0.4, QR_BLEED.default)).toBe(1);
+    for (const style of QR_MODULE_STYLES) for (let i = 1; i < QR_NOZZLES.length; i++) {
+      expect(minModuleSize(style, Number(QR_NOZZLES[i]), 0.1)).toBeGreaterThanOrEqual(minModuleSize(style, Number(QR_NOZZLES[i - 1]), 0.1));
+      expect(minModuleSize(style, Number(QR_NOZZLES[i]), 0.2)).toBeGreaterThanOrEqual(minModuleSize(style, Number(QR_NOZZLES[i]), 0));
+    }
+    for (const style of ['rounded-squares', 'dots', 'connected-dots'] as const) expect(minModuleSize(style, 0.4, 0.1)).toBeGreaterThan(minModuleSize('square', 0.4, 0.1));
+    expect(Object.keys(QR_MIN_MODULE)).toEqual([...QR_MODULE_STYLES]);
+  });
+});
+
 const source = readFileSync(new URL('../../../models/qr-magnet-tag/generator.scad', import.meta.url), 'utf8');
 const defaults = qrMagnetTag.defaults;
 const issues = (parameters: ParameterValues) => validateParameters(qrMagnetTag, { ...defaults, ...parameters });
@@ -213,6 +296,7 @@ describe('QR magnet tag contract', () => {
       PUSH_HOLE: t.pushHole, SEAT_RADIUS: t.seatRadius, LUG_DEPTH: t.lugDepth, LUG_ANGLE: t.lugAngle, LUG_HEIGHT: t.lugHeight, LUGS: t.lugs, LOCK_ANGLE: t.lockAngle,
       TWIST_ENGAGE: t.twistEngage, RIDGE_ANGLE: t.ridgeAngle, STOP_ANGLE: t.stopAngle, RIB_RADIUS: t.ribRadius, RIB_SQUEEZE: t.ribSqueeze, RIBS_PER_SIDE: t.ribsPerSide,
       RIBS_ROUND: t.ribsRound, DETENT_ENGAGE: t.detentEngage, DETENT_SPAN: t.detentSpan, EMBED_SKIN: t.embedSkin, EMBED_HEADROOM: t.embedHeadroom,
+      BLOB_RADIUS: QR_MODULE_SHAPE.blobRadius, ROUNDED_SIDE: QR_MODULE_SHAPE.roundedSide, ROUNDED_RADIUS: QR_MODULE_SHAPE.roundedRadius, DOT_DIAMETER: QR_MODULE_SHAPE.dotDiameter,
     };
     for (const [name, value] of Object.entries(fixed)) expect(source, name).toMatch(new RegExp(`^${name} = ${String(value).replace('.', '\\.')};`, 'm'));
   });
@@ -229,13 +313,13 @@ describe('QR magnet tag contract', () => {
     expect(Object.keys(qrMagnetTag.parts[0]?.scadMapping ?? {})).not.toContain('qrText');
   });
 
-  it('refuses modules smaller than a millimetre, with what to do', () => {
-    expect(said({ qrText: 'x'.repeat(200) }, 'qrText')).toMatch(/only 0\.\d+ mm wide; at least 1 mm .* Shorten the text, lower the error correction or enlarge the tile\./);
+  it('refuses modules smaller than the style, the nozzle and the bleed allow, with what to do', () => {
+    expect(said({ qrText: 'x'.repeat(200) }, 'qrText')).toMatch(/only 0\.\d+ mm wide; squares with a 0\.4 mm nozzle and 0\.1 mm of bleed need at least 1\.00 mm .* Shorten the text, lower the error correction, enlarge the tile or choose a finer nozzle\./);
     expect(issues({ qrText: 'x'.repeat(200), errorCorrection: 'L', size: 120 })).toEqual([]);
     expect(said({ qrText: '' }, 'qrText')).toContain('Enter the text');
     // the round twist lock's inscribed code is smaller: the same text needs a larger tile
     expect(issues({ joint: 'twist-lock' })).toEqual([]);
-    expect(said({ joint: 'twist-lock', size: 45 }, 'qrText')).toContain('at least 1 mm');
+    expect(said({ joint: 'twist-lock', size: 45 }, 'qrText')).toContain('need at least 1.00 mm');
   });
 
   it('allows a logo only at Q or H, and only as large as the code can lose', () => {

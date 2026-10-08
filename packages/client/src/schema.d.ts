@@ -1974,6 +1974,26 @@ export interface operations {
                          * @default 4
                          */
                         magnetCount: number;
+                        /**
+                         * Module style
+                         * @description How the dark modules are drawn. The corner squares stay solid in every style. Styles other than squares need larger modules.
+                         * @default square
+                         * @enum {unknown}
+                         */
+                        moduleStyle: "square" | "rounded-blobs" | "rounded-squares" | "dots" | "connected-dots";
+                        /**
+                         * Nozzle
+                         * @description Your printer’s nozzle diameter, in mm. A wider nozzle cannot print small modules or the gaps between them: the smallest module allowed grows with it.
+                         * @default 0.4
+                         * @enum {unknown}
+                         */
+                        nozzle: "0.2" | "0.25" | "0.4" | "0.5" | "0.6" | "0.8";
+                        /**
+                         * Bleed
+                         * @description How much wider, per side, your printer prints the dark lines than the slicer plans them, in mm: squish, over-extrusion and the dark colour spreading into the light. It makes the light gaps between dark modules narrower, so a larger bleed needs larger modules. 0.1 mm suits a well-tuned printer; raise it if your prints come out bold.
+                         * @default 0.1
+                         */
+                        bleed: number;
                     };
                 } | {
                     /** @enum {string} */

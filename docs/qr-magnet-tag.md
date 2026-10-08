@@ -32,11 +32,16 @@ The centre is held in the border by the chosen `joint`. An original CanFactory d
 | `magnet` | S-08-02-N (8 × 2 mm) | the library's disc magnets up to 12 × 3 mm | Back pockets, and the `magnets` joint. |
 | `magnetCount` | 4 | 2 or 4 | Back pockets: two on one diagonal, or one in each corner. |
 | `magnetMount` | `pockets` | `pockets` `embedded` | Open pockets (press or glue the magnets in after printing), or sealed cavities (drop them in at a print pause). |
+| `moduleStyle` | `square` | `square` `rounded-blobs` `rounded-squares` `dots` `connected-dots` | How the dark modules are drawn ([Module styles](#module-styles)). The corner patterns stay solid in every style. |
+| `nozzle` | 0.4 mm | 0.2 0.25 0.4 0.5 0.6 0.8 | Your nozzle. Only the smallest module allowed depends on it ([Slicer check](#slicer-check)). |
+| `bleed` | 0.1 mm | 0–0.2 | How much wider, per side, the dark lines print than the slicer plans them ([Bleed](#bleed)). |
 
 The module size is `codeWidth / (modules + 2 × quietZone)`, where `codeWidth` is the largest square on the centre's face (a
-rounded square loses its corner arcs; a disc's inscribed square is its diameter / √2). Validation refuses modules under
-**1.0 mm**: "Shorten the text, lower the error correction or enlarge the tile." The default code is version 3 (29 × 29
-modules), 1.43 mm per module. The 200-character limit fits a 120 mm tile at `L`; at `H` it needs a code of version 15.
+rounded square loses its corner arcs; a disc's inscribed square is its diameter / √2). Validation refuses modules smaller than
+the module style, the nozzle and the bleed allow (`minModuleSize`, [Slicer check](#slicer-check)): **1.0 mm** for squares with
+the default 0.4 mm nozzle and 0.1 mm of bleed. The message names the minimum and what to change ("Shorten the text, lower the
+error correction, enlarge the tile or choose a finer nozzle"). The default code is version 3 (29 × 29 modules), 1.43 mm per
+module. The 200-character limit fits a 120 mm tile at `L`; at `H` it needs a code of version 15.
 
 ## How it is built
 
@@ -87,6 +92,9 @@ heights, so one pause serves them all.
 
 ### The colour change
 
+Slice the centre with your nozzle (`nozzle`) and, in OrcaSlicer or Bambu Studio, **Precise wall off** (Quality › Precise wall): see
+[Slicer check](#slicer-check) for what it does to small modules.
+
 Change to the dark filament at the base's top, rounded up to a layer boundary: `ceil(baseThickness / layerHeight) ×
 layerHeight` (`filamentChangeHeight`). At the defaults: **1.6 mm, before layer 9** at 0.2 mm layers. The editor shows it under
 the settings (the generic `ModelDefinition.derived(...).notes`), together with the code's version and module size, and the print
@@ -109,10 +117,95 @@ exposes what the tag needs:
 - **The module types**: which modules are function patterns, which the logo knockout and its check use.
 
 `qrTagCode` clears the logo's knockout pad and merges the dark modules into rectangles (`mergeModules`: each row's runs, then
-equal runs in consecutive rows), and `qrScad` writes `[modules, pad, [[x, y, w, h], ...]]` for `-D QR=`: integers only. The
-generator scales them to the module size and grows each by 0.01 mm, so that modules that touch only at a corner overlap rather
-than share an edge. The SCAD file's default `QR` is the default text's code, so the file renders on its own; a test keeps it
+equal runs in consecutive rows), separately for the data modules and for the finder and alignment patterns (`solid`), and
+`qrScad` writes `[modules, pad, data, solid, columns]` for `-D QR=`: integers only. `columns` (the data modules' vertical runs,
+`moduleColumns`) is only filled for connected dots. In squares the generator scales the rectangles to the module size and grows
+each by 0.01 mm, so that modules that touch only at a corner overlap rather than share an edge; the other styles are below. The SCAD file's default `QR` is the default text's code, so the file renders on its own; a test keeps it
 equal to the contract.
+
+## Module styles
+
+`moduleStyle` changes how the dark data modules are drawn; squares stay the default. The rectangles are still the transport
+format (no new data reaches OpenSCAD), and the generator draws each style from them (`modules_2d`). The sizes are shares of the
+module (`QR_MODULE_SHAPE`, kept equal to the SCAD file by a test):
+
+| Style | Drawn as | Neighbours |
+|---|---|---|
+| `square` | the rectangles, edge to edge | touch along whole edges |
+| `rounded-blobs` | the rectangles' union, its outer corners rounded by 0.3 module (`offset(r) offset(delta = −r)`) | still touch along whole edges; modules that met only at a corner come apart |
+| `rounded-squares` | each module a 0.85-module square with 0.25-module corners | separate, 0.15 module apart |
+| `dots` | each module a dot 0.85 module across | separate, 0.15 module apart |
+| `connected-dots` | dots of 0.85 module, joined to each dark neighbour beside, above and below by a bar as wide (each row's run and each column's run is one hull of its two end dots) | joined by bars |
+
+Two rules come from slicing, not from looks:
+
+- **The finder patterns (the three corner squares, with their light separators) and the alignment pattern stay solid in every
+  style**, drawn as rounded blobs outside `square` (`QrSymbol.solid`, from the encoder's module types). Drawn as dots, jsQR found
+  no code at any size, however well every module printed: scanners find a code by the 1 : 1 : 3 : 1 : 1 runs of those squares.
+- **Separate shapes never just touch.** Rounded squares that met their neighbours edge to edge sliced with holes in them even at
+  1.2 mm modules (PrusaSlicer); shapes either keep a clear gap (0.15 module) or overlap.
+
+`decodeStyle` in the contract tests draws every style exactly as the generator does and decodes it with jsQR at every error
+correction and up to version 10; the slicer check then slices every style.
+
+## Bleed
+
+The slicer plans each line of the dark filament at a width (its `;WIDTH:`), but a real printer lays it a little wider: the nozzle
+squishes it onto the layer below, a printer that over-extrudes adds more, and at the edges the dark colour shows through the
+light. That widening, per side, is `bleed`. It does not change the model: it is how much the check widens every dark line before it
+reads the code, and so how much larger validation wants the modules. It mostly closes the light gaps between dark modules, which
+is what makes small printed codes fail.
+
+- **0.1 mm** (the default) suits a well-tuned printer with a 0.4 mm nozzle.
+- Raise it (up to 0.2 mm) if your prints come out bold: lines visibly wider than planned, holes smaller than drawn, light
+  modules that look narrow between dark ones. The modules must then be larger.
+- 0 assumes the lines print exactly as planned: only for a finely calibrated printer.
+
+## Slicer check
+
+`npm run test:slicer` (`tools/test-slicer.ts`) proves that the smallest module validation allows still reads **after slicing**:
+the decode tests above only draw the ideal module grid, which no printer makes. It runs **only in CI** (the `slicer` job of the
+integration workflow, on every pull request); without `ORCA_SLICER` it skips locally and fails in CI.
+
+1. `tools/install-orca-slicer.sh` installs OrcaSlicer **2.4.2**, pinned by its SHA-256 (the Ubuntu 24.04 AppImage, unpacked
+   without FUSE, with the system libraries its command line links against). OrcaSlicer is AGPL-3.0: CI runs it as a separate
+   program and never ships it in an image.
+2. For every module style, every nozzle the tag offers and the bleeds 0, 0.1 and 0.2 mm, it renders the centre through the pinned
+   OpenSCAD image with the module **exactly at `minModuleSize`**, twice: with the code of `https://example.com` at H, and with
+   the **neighbourhood coupon** (`tools/slicer/coupon.ts`), a 32 × 32 grid holding all 512 possible 3 × 3 patterns of dark and
+   light modules. Slicing only looks a few modules round each module, so every situation a real code can hold is sliced.
+3. It slices with Orca's own generic presets (`MyKlipper 0.4 nozzle`, `0.20mm Standard @MyKlipper`, `Generic PLA @System`, which
+   `tools/slicer/orca.ts` flattens, since Orca's command line does not follow `inherits`), with the nozzle and the layer height
+   (0.2 mm, or 0.1 mm for nozzles up to 0.25 mm) changed, arc fitting off, and **Precise wall off**, which the print notes and the
+   editor ask for. With Precise wall on (that preset's default), Orca pulls the inner walls in from the outer one, and an isolated
+   dark module 3 to 4 lines wide (1.3 to 1.5 mm at a 0.4 mm nozzle, about 2.2 mm at 0.6 mm) printed as a ring: nothing filled the
+   1 mm square left in its middle, whatever the gap-fill setting, and the light base showed through where a scanner samples.
+   `ORCA_PROCESS_OVERRIDES` (JSON) changes further process settings when investigating a failure.
+4. It reads every extrusion above the filament change from the G-code (`tools/slicer/gcode.ts`) and draws it from above at its
+   planned width plus the bleed on each side (`tools/slicer/check.ts`). A dark module reads right when at least half its middle
+   (the middle half of its width, where a scanner samples) is dark; a light one when at most half its middle and at most half of
+   it all is. **One module read wrong fails the case**, though the error correction would repair it: that is left for the
+   print's own flaws. The real code must also decode with jsQR.
+5. **Negative controls**: for every style, the coupon at 60 % of the minimum must fail, so a check that no longer sees what slicing
+   does cannot pass.
+6. Validation must agree: at the minimum (the tile rounded up to a whole millimetre) it accepts the code; a millimetre less, it
+   refuses it.
+
+On a failure the log has everything needed to find the cause without rerunning: the case, the module size against the minimum
+and the factors it comes from, the settings that differ from the defaults, the number of dark lines and layers, every wrong module
+(row, column, what it should be, how dark its middle and its whole are), a module map (`X` a dark module that came out light, `O`
+a light one that came out dark), the likely cause, the Orca command and how to reproduce the case. A GitHub annotation names the
+case, and the job uploads `slicer-artifacts/` with each failing case's STL, G-code, profiles, a picture of the sliced code with the
+wrong modules framed, and the report.
+
+The nightly geometry sweep also runs it with `SLICER_SWEEP=1`: every style and nozzle at the default bleed from the minimum to
+twice it in 10 % steps, since a slicer does not get steadily better as the lines get wider (Arachne changes how many lines fill a
+width).
+
+**The minimum module** (`QR_MIN_MODULE`): `nozzle × nozzle factor + bleed × bleed factor`, never under the floor, rounded up to
+0.01 mm. The factors come from `tools/slicer/calibrate.ts`, which slices the code and the coupon at module widths 5 % apart from
+large to small and reports, per bleed, the smallest width from which every larger width reads right; run it again after
+upgrading OrcaSlicer. CALIBRATION_TABLE
 
 ## Logo
 
@@ -230,8 +323,8 @@ and with reduced motion, it shows the finished tag. `data-tag-stage` names the s
 
 ## Scanning limits
 
-- The 1.0 mm minimum module is the validation's floor; larger modules (a shorter text, a lower error correction or a larger
-  tile) are more forgiving of print defects and scan from further away.
+- The minimum module is the validation's floor for your style, nozzle and bleed, checked by slicing; larger modules (a shorter
+  text, a lower error correction or a larger tile) are more forgiving of print defects and scan from further away.
 - Dark modules on a light base is the polarity every scanner reads; do not swap the filaments.
 - Use a matte, light base filament and a dark, matte relief; glossy or silk filaments reflect and can stop a scan at an angle.
 - Keep the quiet zone at 2 modules or more if the border's colour is dark: it frames the code.
@@ -254,7 +347,7 @@ checked character by character, which reaches OpenSCAD as numbers.
   fullest code of every version from 1 to 10 at every error correction, the largest allowed logo at `Q` and `H` for versions 2
   to 12, and the codeword count at full capacity for versions 2 to 9; and the contract (validation messages, SCAD defaults and
   fixed sizes, the magnet list, the assembly).
-- `TEST_ONLY=qr-magnet-tag npm run test:renderer`: 33 real renders, eight of them with embedded magnets (every joint, a round magnet
+- `TEST_ONLY=qr-magnet-tag npm run test:renderer`: 38 real renders, eight of them with embedded magnets (every joint, a round magnet
   joint with 10 × 3 mm magnets, the finest and coarsest layers, the smallest tile), the border counted as one shell plus a cavity
   per magnet; the 25 others (every joint on both shapes, the smallest and largest tiles,
   the longest text at `L`, a logo at `H` and the largest logo at `Q`, the fit's extremes for every joint, the thinnest and
@@ -262,6 +355,7 @@ checked character by character, which reaches OpenSCAD as numbers.
   centre's STL**, seen from above (dark where the relief stands), must decode to the text with jsQR.
 - `TEST_ONLY=qr-magnet-tag npm run test:sweep`: boundaries and random settings; 78 renders (seed 1), 118 (seed 7) and 119
   (seed 11, 42 of them with embedded magnets), no repairs, no failures.
+- `npm run test:slicer` (CI only): every module style and nozzle sliced with OrcaSlicer at its minimum module, as above.
 - `npm run test:browser -- qr-magnet-tag`: the editor's preview of both parts, the slider, new text and an SVG logo re-rendering,
   and the card's animation.
 
@@ -273,3 +367,5 @@ checked character by character, which reaches OpenSCAD as numbers.
 | `packages/contracts/src/qrMagnetTag.ts` | Encoding, knockout, module rectangles, the layout, the fixed sizes |
 | `packages/contracts/src/models.ts` | Parameters, validation, parts, assembly, magnets |
 | `apps/web/src/QrMagnetTagIllustration.tsx` | The library card |
+| `tools/test-slicer.ts`, `tools/slicer/` | The slicer check: OrcaSlicer, the G-code, the module check, the coupon, the calibration |
+| `tools/install-orca-slicer.sh` | Installs the pinned OrcaSlicer in CI |
