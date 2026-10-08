@@ -6,7 +6,9 @@
  * - dark: at least half of its middle (the middle half of its width, where a scanner samples it) is dark;
  * - light: at most half of its middle is dark, and at most half of the whole module, so that it still shows as a light gap.
  * One module read wrong fails the check, though the code's error correction would repair it: the print's own flaws need that.
- * Real codes are also decoded with jsQR, which finds the code by its corner patterns.
+ * Real codes are also decoded with jsQR, which finds the code by its corner patterns, at several resolutions: it must read the text
+ * at one of them. jsQR alone is no check of the print: at H it still reads codes with a hundred modules wrong, and it misses dot
+ * codes at some resolutions whose every module is right.
  */
 import { zlibSync } from 'fflate';
 import jsQR from 'jsqr';
@@ -29,13 +31,16 @@ export interface PrintCheck {
   modules: number; errors: ModuleError[];
   /** the least dark middle of a dark module, and the darkest light module (middle or whole), as shares */
   worstDark: number; worstLight: number;
-  decoded: string | undefined;
+  /** what jsQR reads at any of DECODE_SCALES, and at each */
+  decoded: string | undefined; decodes: [perModule: number, text: string | undefined][];
   extrusions: number; layers: number[];
   /** the picture of the dark lines, with the wrong modules marked, as PNG */
   png: Uint8Array;
 }
 
 const THRESHOLD = 0.5;
+/** The resolutions (pixels per module) the code is decoded at; it must decode at one of them. */
+export const DECODE_SCALES = [3, 4, 5, 6, 8, 10] as const;
 
 /** `lines`: the G-code's extrusions, X and Y relative to the code's centre. `changeHeight`: the top of the light base. */
 export function checkPrint(lines: Extrusion[], changeHeight: number, grid: Grid, bleed: number): PrintCheck {
@@ -83,18 +88,24 @@ export function checkPrint(lines: Extrusion[], changeHeight: number, grid: Grid,
       if (middle > THRESHOLD || whole > THRESHOLD) errors.push({ row, column, shouldBe: 'light', middle, whole });
     }
   }
-  // what a scanner sees: about 6 pixels per module, the border's blue beyond the quiet zone
-  const k = Math.max(1, Math.round(m / px / 6)), small = Math.floor(side / k);
-  const rgba = new Uint8ClampedArray(small * small * 4);
+  // what a scanner sees, at several resolutions (jsQR finds dot codes at some and not at others, though every module is right):
+  // the border's blue beyond the quiet zone
   const quiet = codeHalf + grid.quietZone * m;
-  for (let j = 0; j < small; j++) for (let i = 0; i < small; i++) {
-    let sum = 0;
-    for (let b = 0; b < k; b++) for (let a = 0; a < k; a++) sum += ink[(j * k + b) * side + i * k + a] ?? 0;
-    const wx = (i + 0.5) * k * px - half, wy = half - (j + 0.5) * k * px;
-    const grey = Math.round(238 - (238 - 20) * sum / (k * k));
-    rgba.set(Math.abs(wx) > quiet || Math.abs(wy) > quiet ? [47, 111, 214, 255] : [grey, grey, grey + 2 > 255 ? 255 : grey + 2, 255], (j * small + i) * 4);
-  }
-  const decoded = jsQR(rgba, small, small, { inversionAttempts: 'dontInvert' })?.data;
+  const view = (perModule: number) => {
+    const k = Math.max(1, Math.round(m / px / perModule)), small = Math.floor(side / k);
+    const rgba = new Uint8ClampedArray(small * small * 4);
+    for (let j = 0; j < small; j++) for (let i = 0; i < small; i++) {
+      let sum = 0;
+      for (let b = 0; b < k; b++) for (let a = 0; a < k; a++) sum += ink[(j * k + b) * side + i * k + a] ?? 0;
+      const wx = (i + 0.5) * k * px - half, wy = half - (j + 0.5) * k * px;
+      const grey = Math.round(238 - (238 - 20) * sum / (k * k));
+      rgba.set(Math.abs(wx) > quiet || Math.abs(wy) > quiet ? [47, 111, 214, 255] : [grey, grey, Math.min(255, grey + 2), 255], (j * small + i) * 4);
+    }
+    return { rgba, small, k };
+  };
+  const decodes: [number, string | undefined][] = DECODE_SCALES.map(perModule => { const v = view(perModule); return [perModule, jsQR(v.rgba, v.small, v.small, { inversionAttempts: 'dontInvert' })?.data]; });
+  const decoded = decodes.find(([, text]) => text !== undefined)?.[1];
+  const { rgba, small, k } = view(6);
   // the picture for the CI artefacts: wrong modules framed, red where a dark module came out light, orange the other way
   const picture = new Uint8Array(small * small * 3);
   for (let p = 0; p < small * small; p++) picture.set([rgba[p * 4] ?? 0, rgba[p * 4 + 1] ?? 0, rgba[p * 4 + 2] ?? 0], p * 3);
@@ -104,7 +115,7 @@ export function checkPrint(lines: Extrusion[], changeHeight: number, grid: Grid,
     for (let t = 0; t <= size; t++) for (const [i, j] of [[left + t, top], [left + t, top + size], [left, top + t], [left + size, top + t]] as const)
       if (i >= 0 && j >= 0 && i < small && j < small) picture.set(colour, (j * small + i) * 3);
   }
-  return { modules, errors, worstDark, worstLight, decoded, extrusions: dark.length, layers: [...new Set(dark.map(line => line.z))].sort((a, b) => a - b), png: png(picture, small, small) };
+  return { modules, errors, worstDark, worstLight, decoded, decodes, extrusions: dark.length, layers: [...new Set(dark.map(line => line.z))].sort((a, b) => a - b), png: png(picture, small, small) };
 }
 
 /** The grid as text, for the log: `#` dark and `.` light as they should be, `X` a dark module printed light, `O` a light one dark. */

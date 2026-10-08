@@ -38,7 +38,7 @@ The centre is held in the border by the chosen `joint`. An original CanFactory d
 
 The module size is `codeWidth / (modules + 2 × quietZone)`, where `codeWidth` is the largest square on the centre's face (a
 rounded square loses its corner arcs; a disc's inscribed square is its diameter / √2). Validation refuses modules smaller than
-the module style, the nozzle and the bleed allow (`minModuleSize`, [Slicer check](#slicer-check)): **1.0 mm** for squares with
+the module style, the nozzle and the bleed allow (`minModuleSize`, [Slicer check](#slicer-check)): **0.91 mm** for squares with
 the default 0.4 mm nozzle and 0.1 mm of bleed. The message names the minimum and what to change ("Shorten the text, lower the
 error correction, enlarge the tile or choose a finer nozzle"). The default code is version 3 (29 × 29 modules), 1.43 mm per
 module. The 200-character limit fits a 120 mm tile at `L`; at `H` it needs a code of version 15.
@@ -160,7 +160,8 @@ is what makes small printed codes fail.
 - **0.1 mm** (the default) suits a well-tuned printer with a 0.4 mm nozzle.
 - Raise it (up to 0.2 mm) if your prints come out bold: lines visibly wider than planned, holes smaller than drawn, light
   modules that look narrow between dark ones. The modules must then be larger.
-- 0 assumes the lines print exactly as planned: only for a finely calibrated printer.
+- 0 assumes the lines print exactly as planned. It needs *larger* modules than a little bleed: with nothing spreading the lines,
+  small isolated modules print hollow (see the table under [Slicer check](#slicer-check)).
 
 ## Slicer check
 
@@ -171,7 +172,7 @@ integration workflow, on every pull request); without `ORCA_SLICER` it skips loc
 1. `tools/install-orca-slicer.sh` installs OrcaSlicer **2.4.2**, pinned by its SHA-256 (the Ubuntu 24.04 AppImage, unpacked
    without FUSE, with the system libraries its command line links against). OrcaSlicer is AGPL-3.0: CI runs it as a separate
    program and never ships it in an image.
-2. For every module style, every nozzle the tag offers and the bleeds 0, 0.1 and 0.2 mm, it renders the centre through the pinned
+2. For every module style, every nozzle the tag offers and the bleeds 0, 0.05, 0.1, 0.15 and 0.2 mm, it renders the centre through the pinned
    OpenSCAD image with the module **exactly at `minModuleSize`**, twice: with the code of `https://example.com` at H, and with
    the **neighbourhood coupon** (`tools/slicer/coupon.ts`), a 32 × 32 grid holding all 512 possible 3 × 3 patterns of dark and
    light modules. Slicing only looks a few modules round each module, so every situation a real code can hold is sliced.
@@ -188,7 +189,9 @@ integration workflow, on every pull request); without `ORCA_SLICER` it skips loc
    planned width plus the bleed on each side (`tools/slicer/check.ts`). A dark module reads right when at least half its middle
    (the middle half of its width, where a scanner samples) is dark; a light one when at most half its middle and at most half of
    it all is. **One module read wrong fails the case**, though the error correction would repair it: that is left for the
-   print's own flaws. The real code must also decode with jsQR.
+   print's own flaws. The real code must also decode with jsQR at one of several resolutions (3 to 10 pixels per module):
+   jsQR alone proves little about the print (at H it reads codes with a hundred modules wrong), and on sliced dot codes whose
+   every module was right it read the text at 3, 4 and 8 pixels per module but not at 5 to 7, 10 or 12.
 5. **Negative controls**: for every style, the coupon at 60 % of the minimum must fail, so a check that no longer sees what slicing
    does cannot pass.
 6. Validation must agree: at the minimum (the tile rounded up to a whole millimetre) it accepts the code; a millimetre less, it
@@ -201,14 +204,58 @@ a light one that came out dark), the likely cause, the Orca command and how to r
 case, and the job uploads `slicer-artifacts/` with each failing case's STL, G-code, profiles, a picture of the sliced code with the
 wrong modules framed, and the report.
 
-The nightly geometry sweep also runs it with `SLICER_SWEEP=1`: every style and nozzle at the default bleed from the minimum to
-twice it in 10 % steps, since a slicer does not get steadily better as the lines get wider (Arachne changes how many lines fill a
-width).
+The nightly geometry sweep also runs it with `SLICER_SWEEP=1`: for every style, nozzle and measured bleed, the coupon from the
+minimum to twice it in 5 % steps, starting a different fraction of a step up each night (`SLICER_SWEEP_SEED`, the run number), so
+that over the nights the widths between the steps are sliced too. A slicer does not get steadily better as modules grow: a module a
+few lines wide can print hollow where a slightly smaller one does not, and the editor allows every width above the minimum.
 
-**The minimum module** (`QR_MIN_MODULE`): `nozzle × nozzle factor + bleed × bleed factor`, never under the floor, rounded up to
-0.01 mm. The factors come from `tools/slicer/calibrate.ts`, which slices the code and the coupon at module widths 5 % apart from
-large to small and reports, per bleed, the smallest width from which every larger width reads right; run it again after
-upgrading OrcaSlicer. CALIBRATION_TABLE
+**The minimum module** (`QR_MIN_MODULE`, `minModuleSize`) is a measured table, per style and nozzle, at the bleeds 0, 0.05, 0.1,
+0.15 and 0.2 mm. `tools/slicer/calibrate.ts` slices the code and the coupon at module widths 5 % apart from large to small and
+reports, per bleed, the smallest width from which every larger width reads right; `tools/slicer/min-module-table.ts` keeps a
+wider nozzle's no smaller than a finer one's and writes the table. It does not round: a width rounded up to 0.05 mm (0.65 mm for
+connected dots at a 0.25 mm nozzle and no bleed) fell between two widths that read right (0.613 and 0.645 mm) and printed one
+module hollow. Run both again after upgrading
+OrcaSlicer. Between two measured bleeds the minimum is the larger of the two: more bleed only adds dark, so a width whose light
+modules stay light at the larger bleed stays so below it, and one whose dark modules fill at the smaller bleed fill above it.
+
+It is no straight line. Too little bleed leaves small isolated modules hollow (the walls of a module 3 to 4 lines wide do not
+meet), which is why no bleed needs larger modules than 0.05 mm; too much bleed fills the light gaps, which is why 0.2 mm needs
+larger modules again. Separate shapes (rounded squares, dots) leave wider light gaps and so cope better with bleed than squares.
+
+| Style | Nozzle | bleed 0 | bleed 0.05 | bleed 0.1 | bleed 0.15 | bleed 0.2 |
+|---|---|---|---|---|---|---|
+| `square` | 0.2 | 0.343 | 0.492 | 0.821 | 1.176 | 1.520 |
+| `square` | 0.25 | 1.257 | 0.613 | 0.834 | 1.194 | 1.543 |
+| `square` | 0.4 | 1.297 | 0.701 | 0.906 | 1.194 | 1.592 |
+| `square` | 0.5 | 1.593 | 1.232 | 1.232 | 1.232 | 1.593 |
+| `square` | 0.6 | 2.017 | 1.729 | 1.232 | 1.271 | 1.593 |
+| `square` | 0.8 | 2.654 | 2.053 | 2.053 | 1.434 | 1.593 |
+| `rounded-blobs` | 0.2 | 0.669 | 0.492 | 0.821 | 1.176 | 1.520 |
+| `rounded-blobs` | 0.25 | 0.669 | 0.613 | 0.834 | 1.194 | 1.543 |
+| `rounded-blobs` | 0.4 | 1.003 | 0.701 | 0.906 | 1.194 | 1.543 |
+| `rounded-blobs` | 0.5 | 1.593 | 1.232 | 1.232 | 1.194 | 1.593 |
+| `rounded-blobs` | 0.6 | 2.017 | 1.729 | 1.232 | 1.194 | 1.593 |
+| `rounded-blobs` | 0.8 | 2.654 | 2.053 | 2.053 | 1.434 | 1.593 |
+| `rounded-squares` | 0.2 | 0.780 | 0.361 | 0.467 | 0.741 | 0.958 |
+| `rounded-squares` | 0.25 | 0.780 | 0.613 | 0.474 | 0.741 | 0.973 |
+| `rounded-squares` | 0.4 | 1.003 | 0.701 | 0.701 | 0.741 | 0.973 |
+| `rounded-squares` | 0.5 | 1.955 | 1.955 | 1.232 | 0.777 | 0.973 |
+| `rounded-squares` | 0.6 | 2.123 | 2.123 | 2.123 | 0.934 | 0.973 |
+| `rounded-squares` | 0.8 | 3.095 | 3.095 | 3.095 | 1.229 | 1.229 |
+| `dots` | 0.2 | 0.636 | 0.361 | 0.467 | 0.636 | 0.865 |
+| `dots` | 0.25 | 0.636 | 0.613 | 0.499 | 0.645 | 0.865 |
+| `dots` | 0.4 | 1.003 | 0.701 | 0.701 | 0.666 | 0.865 |
+| `dots` | 0.5 | 1.232 | 1.232 | 1.232 | 0.818 | 0.865 |
+| `dots` | 0.6 | 1.729 | 1.232 | 1.232 | 0.934 | 0.934 |
+| `dots` | 0.8 | 2.654 | 2.053 | 2.053 | 1.229 | 1.229 |
+| `connected-dots` | 0.2 | 0.518 | 0.381 | 0.545 | 0.741 | 1.008 |
+| `connected-dots` | 0.25 | 0.613 | 0.613 | 0.553 | 0.792 | 1.008 |
+| `connected-dots` | 0.4 | 1.112 | 0.701 | 0.701 | 0.817 | 1.008 |
+| `connected-dots` | 0.5 | 1.232 | 1.232 | 1.232 | 0.818 | 1.008 |
+| `connected-dots` | 0.6 | 1.729 | 1.729 | 1.232 | 0.934 | 1.008 |
+| `connected-dots` | 0.8 | 2.654 | 2.053 | 2.053 | 1.229 | 1.229 |
+
+Squares with the default 0.4 mm nozzle and 0.1 mm bleed need **0.906 mm**; the default tag's modules are 1.43 mm.
 
 ## Logo
 

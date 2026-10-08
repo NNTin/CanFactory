@@ -7,7 +7,7 @@ import { resolveAssembly } from './assembly.ts';
 import { RenderRequestSchema } from './index.ts';
 import { findPart, parts } from './parts/index.ts';
 import { decodeLogo, LOGO_GRID, svgToLogo } from './svgLogo.ts';
-import { encodeQr, filamentChangeHeight, knockoutDamage, knockoutFits, knockoutModules, maxLogoSize, mergeModules, minModuleSize, moduleColumns, QR_BLEED, QR_ECC_LEVELS, QR_LOGO_AREA_LIMIT, QR_MIN_MODULE, QR_MODULE_SHAPE, QR_MODULE_STYLES, QR_NOZZLES, QR_TAG, QR_TAG_JOINTS, qrScad, qrTagCode, qrTagLayout, type QrEcc, type QrModuleStyle, type QrTagCode } from './qrMagnetTag.ts';
+import { encodeQr, filamentChangeHeight, knockoutDamage, knockoutFits, knockoutModules, maxLogoSize, mergeModules, minModuleSize, moduleColumns, QR_BLEED, QR_BLEED_POINTS, QR_ECC_LEVELS, QR_LOGO_AREA_LIMIT, QR_MIN_MODULE, QR_MODULE_SHAPE, QR_MODULE_STYLES, QR_NOZZLES, QR_TAG, QR_TAG_JOINTS, qrScad, qrTagCode, qrTagLayout, type QrEcc, type QrModuleStyle, type QrTagCode } from './qrMagnetTag.ts';
 
 /** A leaf with a vein cut out of it (an even-odd hole): a solid logo with curves and a hole, as a user's file might be. */
 const LEAF = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill-rule="evenodd" d="M50 4 C82 18 96 58 50 96 C4 58 18 18 50 4Z M47 30 L53 30 L53 82 L47 82Z"/></svg>').logo;
@@ -256,13 +256,17 @@ describe('module styles', () => {
     }
   });
 
-  it('needs larger modules for wider nozzles, more bleed and separate shapes', () => {
-    expect(minModuleSize('square', 0.4, QR_BLEED.default)).toBe(1);
-    for (const style of QR_MODULE_STYLES) for (let i = 1; i < QR_NOZZLES.length; i++) {
-      expect(minModuleSize(style, Number(QR_NOZZLES[i]), 0.1)).toBeGreaterThanOrEqual(minModuleSize(style, Number(QR_NOZZLES[i - 1]), 0.1));
-      expect(minModuleSize(style, Number(QR_NOZZLES[i]), 0.2)).toBeGreaterThanOrEqual(minModuleSize(style, Number(QR_NOZZLES[i]), 0));
+  it('takes the smallest module from the calibrated table, the larger of the two measured bleeds round the chosen one', () => {
+    expect(minModuleSize('square', '0.4', QR_BLEED.default)).toBe(QR_MIN_MODULE.square['0.4'][2]);
+    for (const style of QR_MODULE_STYLES) for (const nozzle of QR_NOZZLES) {
+      const row = QR_MIN_MODULE[style][nozzle];
+      expect(row).toHaveLength(QR_BLEED_POINTS.length);
+      QR_BLEED_POINTS.forEach((bleed, b) => expect(minModuleSize(style, nozzle, bleed)).toBe(row[b]));
+      expect(minModuleSize(style, nozzle, 0.07)).toBe(Math.max(row[1] ?? 0, row[2] ?? 0));
+      // a wider nozzle never allows smaller modules
+      const finer = QR_NOZZLES[QR_NOZZLES.indexOf(nozzle) - 1];
+      if (finer) row.forEach((value, b) => expect(value).toBeGreaterThanOrEqual(QR_MIN_MODULE[style][finer][b] ?? 0));
     }
-    for (const style of ['rounded-squares', 'dots', 'connected-dots'] as const) expect(minModuleSize(style, 0.4, 0.1)).toBeGreaterThan(minModuleSize('square', 0.4, 0.1));
     expect(Object.keys(QR_MIN_MODULE)).toEqual([...QR_MODULE_STYLES]);
   });
 });
@@ -314,12 +318,12 @@ describe('QR magnet tag contract', () => {
   });
 
   it('refuses modules smaller than the style, the nozzle and the bleed allow, with what to do', () => {
-    expect(said({ qrText: 'x'.repeat(200) }, 'qrText')).toMatch(/only 0\.\d+ mm wide; squares with a 0\.4 mm nozzle and 0\.1 mm of bleed need at least 1\.00 mm .* Shorten the text, lower the error correction, enlarge the tile or choose a finer nozzle\./);
+    expect(said({ qrText: 'x'.repeat(200) }, 'qrText')).toMatch(/only 0\.\d+ mm wide; squares with a 0\.4 mm nozzle and 0\.1 mm of bleed need at least 0\.91 mm .* Shorten the text, lower the error correction, enlarge the tile or choose a finer nozzle\./);
     expect(issues({ qrText: 'x'.repeat(200), errorCorrection: 'L', size: 120 })).toEqual([]);
     expect(said({ qrText: '' }, 'qrText')).toContain('Enter the text');
     // the round twist lock's inscribed code is smaller: the same text needs a larger tile
     expect(issues({ joint: 'twist-lock' })).toEqual([]);
-    expect(said({ joint: 'twist-lock', size: 45 }, 'qrText')).toContain('need at least 1.00 mm');
+    expect(said({ joint: 'twist-lock', size: 45 }, 'qrText')).toContain('need at least 0.91 mm');
   });
 
   it('allows a logo only at Q or H, and only as large as the code can lose', () => {

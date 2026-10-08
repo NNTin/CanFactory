@@ -2446,7 +2446,7 @@ function validateQrMagnetTag(p: QrMagnetTagParameters): ParameterIssue[] {
     const code = qrTagCode(p);
     const size = code.symbol.size;
     const module = moduleSize(layout, size, p.quietZone);
-    const least = minModuleSize(p.moduleStyle, Number(p.nozzle), p.bleed);
+    const least = minModuleSize(p.moduleStyle, p.nozzle, p.bleed);
     if (module < least - 1e-9)
       issues.push({ field: 'qrText', message: `The code needs ${size} × ${size} modules (version ${code.symbol.version}) plus the quiet zone, so each module would be only ${module.toFixed(2)} mm wide; ${QR_MODULE_STYLE_TEXT[p.moduleStyle].label.toLowerCase()} with a ${p.nozzle} mm nozzle and ${p.bleed} mm of bleed need at least ${least.toFixed(2)} mm to print and scan reliably. ${sentence(['Shorten the text', 'lower the error correction', 'enlarge the tile', ...p.moduleStyle === 'square' ? [] : ['choose squares'], ...p.nozzle === QR_NOZZLES[0] ? [] : ['choose a finer nozzle']])}.` });
     if (p.logo !== '' && eccAllowsLogo(p.errorCorrection) && !knockoutFits(size, code.pad, p.errorCorrection)) {
@@ -2487,7 +2487,7 @@ function qrMagnetTagNotes(p: QrMagnetTagParameters): string[] {
   if (p.qrText === '') return notes;
   const code = qrTagCode(p);
   const module = moduleSize(layout, code.symbol.size, p.quietZone);
-  notes.push(`QR version ${code.symbol.version}: ${code.symbol.size} × ${code.symbol.size} modules of ${module.toFixed(2)} mm (at least ${minModuleSize(p.moduleStyle, Number(p.nozzle), p.bleed).toFixed(2)} mm with a ${p.nozzle} mm nozzle), error correction ${p.errorCorrection}${code.pad > 0 ? `, a ${code.pad} × ${code.pad} module pad for the logo` : ''}.`);
+  notes.push(`QR version ${code.symbol.version}: ${code.symbol.size} × ${code.symbol.size} modules of ${module.toFixed(2)} mm (at least ${minModuleSize(p.moduleStyle, p.nozzle, p.bleed).toFixed(2)} mm with a ${p.nozzle} mm nozzle), error correction ${p.errorCorrection}${code.pad > 0 ? `, a ${code.pad} × ${code.pad} module pad for the logo` : ''}.`);
   return notes;
 }
 

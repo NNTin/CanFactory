@@ -247,23 +247,69 @@ export type QrNozzle = typeof QR_NOZZLES[number];
  * colour showing through at the edges. CI checks the code with its lines widened by this much. */
 export const QR_BLEED = { minimum: 0, maximum: 0.2, default: 0.1, step: 0.01 } as const;
 
+/** The bleeds QR_MIN_MODULE is measured at (mm). */
+export const QR_BLEED_POINTS = [0, 0.05, 0.1, 0.15, 0.2] as const;
 /**
- * The smallest module (mm) that slices and scans reliably in this style with this nozzle and bleed: `nozzle × nozzle factor + bleed ×
- * bleed factor`, never under the floor. Found by slicing with OrcaSlicer; CI slices every style and nozzle at this size, at no bleed,
- * the default bleed and the most bleed, and fails if a single module comes out the wrong colour (tools/test-slicer.ts,
- * docs/qr-magnet-tag.md#slicer-check).
+ * The smallest module (mm) that slices and reads right in each style with each nozzle, at each of QR_BLEED_POINTS: measured by slicing
+ * with OrcaSlicer 2.4.2 (tools/slicer/calibrate.ts: the smallest of module widths 5 % apart from which every larger width read right),
+ * never smaller than a finer nozzle's. Not rounded: a rounded width can fall between two measured ones, where small modules print hollow. CI slices every entry exactly (tools/test-slicer.ts).
+ * It is no straight line: too little bleed leaves small isolated modules hollow, too much fills the light gaps.
+ * Written by tools/slicer/min-module-table.ts from calibrate.ts's output.
  */
-export const QR_MIN_MODULE: Record<QrModuleStyle, { nozzle: number; bleed: number; floor: number }> = {
-  square: { nozzle: 2, bleed: 2, floor: 0.6 },
-  'rounded-blobs': { nozzle: 2, bleed: 2, floor: 0.6 },
-  'rounded-squares': { nozzle: 2.5, bleed: 3, floor: 0.8 },
-  dots: { nozzle: 2.5, bleed: 3, floor: 0.8 },
-  'connected-dots': { nozzle: 2.5, bleed: 3, floor: 0.8 },
+export const QR_MIN_MODULE: Record<QrModuleStyle, Record<QrNozzle, readonly number[]>> = {
+  'square': {
+    '0.2': [0.343, 0.492, 0.821, 1.176, 1.52],
+    '0.25': [1.257, 0.613, 0.834, 1.194, 1.543],
+    '0.4': [1.297, 0.701, 0.906, 1.194, 1.592],
+    '0.5': [1.593, 1.232, 1.232, 1.232, 1.593],
+    '0.6': [2.017, 1.729, 1.232, 1.271, 1.593],
+    '0.8': [2.654, 2.053, 2.053, 1.434, 1.593],
+  },
+  'rounded-blobs': {
+    '0.2': [0.669, 0.492, 0.821, 1.176, 1.52],
+    '0.25': [0.669, 0.613, 0.834, 1.194, 1.543],
+    '0.4': [1.003, 0.701, 0.906, 1.194, 1.543],
+    '0.5': [1.593, 1.232, 1.232, 1.194, 1.593],
+    '0.6': [2.017, 1.729, 1.232, 1.194, 1.593],
+    '0.8': [2.654, 2.053, 2.053, 1.434, 1.593],
+  },
+  'rounded-squares': {
+    '0.2': [0.78, 0.361, 0.467, 0.741, 0.958],
+    '0.25': [0.78, 0.613, 0.474, 0.741, 0.973],
+    '0.4': [1.003, 0.701, 0.701, 0.741, 0.973],
+    '0.5': [1.955, 1.955, 1.232, 0.777, 0.973],
+    '0.6': [2.123, 2.123, 2.123, 0.934, 0.973],
+    '0.8': [3.095, 3.095, 3.095, 1.229, 1.229],
+  },
+  'dots': {
+    '0.2': [0.636, 0.361, 0.467, 0.636, 0.865],
+    '0.25': [0.636, 0.613, 0.499, 0.645, 0.865],
+    '0.4': [1.003, 0.701, 0.701, 0.666, 0.865],
+    '0.5': [1.232, 1.232, 1.232, 0.818, 0.865],
+    '0.6': [1.729, 1.232, 1.232, 0.934, 0.934],
+    '0.8': [2.654, 2.053, 2.053, 1.229, 1.229],
+  },
+  'connected-dots': {
+    '0.2': [0.518, 0.381, 0.545, 0.741, 1.008],
+    '0.25': [0.613, 0.613, 0.553, 0.792, 1.008],
+    '0.4': [1.112, 0.701, 0.701, 0.817, 1.008],
+    '0.5': [1.232, 1.232, 1.232, 0.818, 1.008],
+    '0.6': [1.729, 1.729, 1.232, 0.934, 1.008],
+    '0.8': [2.654, 2.053, 2.053, 1.229, 1.229],
+  },
 };
-export const minModuleSize = (style: QrModuleStyle, nozzle: number, bleed: number): number => {
-  const f = QR_MIN_MODULE[style];
-  return Math.ceil(Math.max(f.floor, f.nozzle * nozzle + f.bleed * bleed) * 100 - 1e-6) / 100;
-};
+/**
+ * The smallest module allowed. Between two measured bleeds, the larger of their minimums: more bleed only darkens, so a width whose
+ * light modules stay light at the larger bleed stays so below it, and one whose dark modules fill at the smaller bleed fill above it.
+ */
+export function minModuleSize(style: QrModuleStyle, nozzle: QrNozzle, bleed: number): number {
+  const row = QR_MIN_MODULE[style][nozzle];
+  const points: readonly number[] = QR_BLEED_POINTS;
+  let below = 0;
+  for (let i = 0; i < points.length; i++) if ((points[i] ?? 0) <= bleed + 1e-9) below = i;
+  const above = (points[below] ?? 0) >= bleed - 1e-9 ? below : Math.min(below + 1, points.length - 1);
+  return Math.max(row[below] ?? Infinity, row[above] ?? Infinity);
+}
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tag's layout

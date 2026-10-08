@@ -69,11 +69,12 @@ jobs:
           path: geometry-sweep.md
 
   slicer-sweep:
-    # The QR tag's slicer check between each style and nozzle's minimum module and twice it: slicers do not get steadily better as
-    # lines get wider (Arachne changes how many lines fill a width), so a pass at the minimum does not prove the sizes above it.
+    # The QR tag's slicer check between each style, nozzle and bleed's minimum module and twice it, a different fraction of a step
+    # each night: slicers do not get steadily better as modules grow (a module a few lines wide can print hollow), so a pass at the
+    # minimum does not prove the sizes above it.
     name: QR tag slicer sweep (OrcaSlicer)
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 240
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -106,6 +107,7 @@ jobs:
         run: npm run test:slicer
         env:
           SLICER_SWEEP: '1'
+          SLICER_SWEEP_SEED: ${{ inputs.seed || github.run_number }}
           SLICER_CONCURRENCY: '3'
           SLICER_ARTIFACTS: slicer-artifacts
 
