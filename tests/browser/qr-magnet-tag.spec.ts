@@ -62,9 +62,9 @@ test('the preview shows both parts and plays the assembly; new text and an SVG l
   await page.getByLabel('Error correction').selectOption('H');
 
   // The twist lock drops the centre in and turns it. Its round centre's inscribed code is smaller: this text's modules would be
-  // under a millimetre on a 60 mm tile, so the editor says so until the tile is larger.
+  // under the minimum on a 60 mm tile, so the editor says so until the tile is larger.
   await page.getByLabel('Joint').selectOption('twist-lock');
-  await expect(page.locator('#parameter-qrText-error')).toContainText('at least 1 mm print and scan reliably');
+  await expect(page.locator('#parameter-qrText-error')).toContainText('squares with a 0.4 mm nozzle and 0.1 mm of bleed need at least 0.91 mm');
   await page.getByRole('spinbutton', { name: 'Size', exact: true }).fill('80');
   await expect(page.locator('#parameter-qrText-error')).toHaveCount(0);
   await expect(download).toBeEnabled({ timeout: 180_000 });

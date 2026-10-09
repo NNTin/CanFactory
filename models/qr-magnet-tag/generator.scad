@@ -21,8 +21,9 @@
 // A push-out hole through the middle of the floor lets the centre be pushed out again.
 //
 // QR is the code, written by the contract (packages/contracts/src/qrMagnetTag.ts, qrScad) from the validated text: [modules,
-// pad, [[x, y, w, h], ...]], the dark modules as rectangles of whole modules, row 0 at the top, with the logo's knockout pad
-// already cleared. Only numbers: the text itself never reaches OpenSCAD. LOGO is the logo's outline (svgLogo.ts, logoScad).
+// pad, data, solid, columns]: the dark data modules and the dark finder and alignment patterns as rectangles of whole modules
+// [x, y, w, h], row 0 at the top, with the logo's knockout pad already cleared, and (for connected dots) the data modules'
+// vertical runs [x, y, h]. MODULE_STYLE draws the data modules; the finder and alignment patterns stay solid in every style. Only numbers: the text itself never reaches OpenSCAD. LOGO is the logo's outline (svgLogo.ts, logoScad).
 // The code and its QUIET_ZONE fill the largest square on the centre's face; a module is CODE_W / (modules + 2 QUIET_ZONE).
 //
 // Frame: millimetres, both parts centred on the Z axis, z up from the face on the print bed. The layout below is repeated by
@@ -59,8 +60,10 @@ MAGNET_D = 8.1;
 MAGNET_T = 2.1;
 // Light margin round the code, in modules
 QUIET_ZONE = 2; //[1:1:4]
-// The code: [modules, logo pad, [[x, y, w, h], ...]] (here: https://example.com at H)
-QR = [29,0,[[0,0,7,1],[10,0,4,1],[16,0,1,1],[22,0,7,1],[0,1,1,5],[6,1,1,5],[9,1,5,1],[17,1,1,1],[22,1,1,5],[28,1,1,5],[2,2,3,3],[9,2,1,1],[11,2,1,1],[13,2,1,1],[15,2,1,1],[18,2,2,1],[24,2,3,3],[10,3,2,1],[13,3,5,1],[8,4,3,1],[12,4,1,1],[14,4,3,1],[19,4,1,1],[11,5,2,1],[14,5,1,2],[16,5,4,1],[0,6,7,1],[8,6,1,2],[10,6,1,1],[12,6,1,1],[16,6,1,1],[18,6,1,1],[20,6,1,2],[22,6,7,1],[11,7,3,1],[15,7,2,1],[2,8,2,1],[6,8,6,1],[13,8,3,1],[18,8,1,1],[21,8,2,1],[24,8,1,1],[2,9,1,1],[4,9,1,1],[7,9,1,1],[9,9,2,1],[17,9,2,1],[20,9,7,1],[28,9,1,1],[1,10,1,1],[5,10,3,1],[11,10,1,1],[13,10,1,1],[18,10,3,1],[22,10,1,1],[24,10,1,1],[26,10,2,1],[1,11,2,2],[4,11,1,1],[10,11,3,1],[14,11,5,1],[20,11,1,1],[23,11,2,1],[28,11,1,1],[5,12,5,1],[13,12,2,1],[17,12,5,1],[23,12,1,1],[26,12,3,1],[0,13,3,1],[9,13,2,1],[12,13,1,1],[16,13,1,1],[18,13,2,1],[22,13,2,1],[25,13,2,1],[28,13,1,1],[0,14,1,1],[5,14,2,1],[8,14,1,1],[10,14,4,1],[15,14,1,1],[18,14,4,1],[23,14,3,1],[27,14,2,1],[1,15,1,1],[3,15,2,1],[8,15,3,1],[14,15,2,1],[20,15,1,1],[24,15,2,1],[27,15,1,1],[0,16,5,1],[6,16,1,1],[11,16,1,1],[15,16,2,1],[23,16,3,1],[5,17,1,1],[7,17,4,1],[12,17,4,1],[17,17,1,1],[19,17,1,1],[22,17,2,2],[0,18,1,1],[5,18,4,1],[10,18,2,1],[17,18,2,1],[20,18,1,1],[25,18,1,1],[3,19,3,1],[7,19,5,1],[13,19,1,1],[17,19,1,1],[20,19,4,1],[26,19,3,1],[1,20,2,1],[6,20,2,1],[10,20,1,1],[15,20,2,2],[18,20,9,1],[28,20,1,2],[8,21,2,1],[13,21,1,1],[18,21,1,1],[20,21,1,1],[24,21,2,1],[0,22,7,1],[8,22,1,1],[10,22,4,1],[16,22,1,1],[18,22,3,1],[22,22,1,1],[24,22,1,2],[26,22,2,1],[0,23,1,5],[6,23,1,5],[10,23,1,1],[13,23,2,1],[17,23,1,1],[20,23,1,1],[27,23,2,1],[2,24,3,3],[9,24,1,1],[11,24,1,1],[13,24,5,1],[20,24,7,1],[28,24,1,1],[8,25,1,1],[10,25,6,1],[17,25,3,1],[24,25,2,1],[27,25,1,1],[8,26,3,1],[13,26,2,1],[16,26,3,1],[20,26,1,1],[23,26,1,1],[25,26,2,1],[28,26,1,1],[9,27,4,1],[15,27,1,1],[18,27,1,1],[22,27,1,1],[24,27,2,1],[27,27,1,2],[0,28,7,1],[10,28,1,1],[12,28,1,1],[14,28,1,1],[16,28,4,1],[22,28,2,1]]];
+// The code: [modules, logo pad, data, solid, columns] (here: https://example.com at H)
+QR = [29,0,[[10,0,4,1],[16,0,1,1],[9,1,5,1],[17,1,1,1],[9,2,1,1],[11,2,1,1],[13,2,1,1],[15,2,1,1],[18,2,2,1],[10,3,2,1],[13,3,5,1],[8,4,3,1],[12,4,1,1],[14,4,3,1],[19,4,1,1],[11,5,2,1],[14,5,1,2],[16,5,4,1],[8,6,1,2],[10,6,1,1],[12,6,1,1],[16,6,1,1],[18,6,1,1],[20,6,1,2],[11,7,3,1],[15,7,2,1],[2,8,2,1],[6,8,6,1],[13,8,3,1],[18,8,1,1],[21,8,2,1],[24,8,1,1],[2,9,1,1],[4,9,1,1],[7,9,1,1],[9,9,2,1],[17,9,2,1],[20,9,7,1],[28,9,1,1],[1,10,1,1],[5,10,3,1],[11,10,1,1],[13,10,1,1],[18,10,3,1],[22,10,1,1],[24,10,1,1],[26,10,2,1],[1,11,2,2],[4,11,1,1],[10,11,3,1],[14,11,5,1],[20,11,1,1],[23,11,2,1],[28,11,1,1],[5,12,5,1],[13,12,2,1],[17,12,5,1],[23,12,1,1],[26,12,3,1],[0,13,3,1],[9,13,2,1],[12,13,1,1],[16,13,1,1],[18,13,2,1],[22,13,2,1],[25,13,2,1],[28,13,1,1],[0,14,1,1],[5,14,2,1],[8,14,1,1],[10,14,4,1],[15,14,1,1],[18,14,4,1],[23,14,3,1],[27,14,2,1],[1,15,1,1],[3,15,2,1],[8,15,3,1],[14,15,2,1],[20,15,1,1],[24,15,2,1],[27,15,1,1],[0,16,5,1],[6,16,1,1],[11,16,1,1],[15,16,2,1],[23,16,3,1],[5,17,1,1],[7,17,4,1],[12,17,4,1],[17,17,1,1],[19,17,1,1],[22,17,2,2],[0,18,1,1],[5,18,4,1],[10,18,2,1],[17,18,2,1],[20,18,1,1],[25,18,1,1],[3,19,3,1],[7,19,5,1],[13,19,1,1],[17,19,1,1],[20,19,4,1],[26,19,3,1],[1,20,2,1],[6,20,2,1],[10,20,1,1],[15,20,2,2],[18,20,2,1],[25,20,2,1],[28,20,1,2],[8,21,2,1],[13,21,1,1],[18,21,1,1],[25,21,1,1],[8,22,1,1],[10,22,4,1],[16,22,1,1],[18,22,2,1],[26,22,2,1],[10,23,1,1],[13,23,2,1],[17,23,1,1],[27,23,2,1],[9,24,1,1],[11,24,1,1],[13,24,5,1],[25,24,2,1],[28,24,1,1],[8,25,1,1],[10,25,6,1],[17,25,3,1],[24,25,2,1],[27,25,1,1],[8,26,3,1],[13,26,2,1],[16,26,3,1],[20,26,1,1],[23,26,1,1],[25,26,2,1],[28,26,1,1],[9,27,4,1],[15,27,1,1],[18,27,1,1],[22,27,1,1],[24,27,2,1],[27,27,1,2],[10,28,1,1],[12,28,1,1],[14,28,1,1],[16,28,4,1],[22,28,2,1]],[[0,0,7,1],[22,0,7,1],[0,1,1,5],[6,1,1,5],[22,1,1,5],[28,1,1,5],[2,2,3,3],[24,2,3,3],[0,6,7,1],[22,6,7,1],[20,20,5,1],[20,21,1,3],[24,21,1,3],[0,22,7,1],[22,22,1,1],[0,23,1,5],[6,23,1,5],[2,24,3,3],[20,24,5,1],[0,28,7,1]],[]];
+// How the dark modules are drawn (the finder and alignment patterns stay solid)
+MODULE_STYLE = "square"; //[square,rounded-blobs,rounded-squares,dots,connected-dots]
 // The logo: rings of [x, y] points on a 0..2000 grid (y up) that fill even-odd; empty for none
 LOGO = [];
 // The logo's width as a share of the code's width, in %
@@ -92,6 +95,10 @@ DETENT_SPAN = 0.4;      //   and how much of each side they span
 EMBED_SKIN = 0.4;       // embedded magnets: the least skin under them (whole layers),
 EMBED_HEADROOM = 0.05;  //   and over them before the pause
 GROW = 0.01;            // every module is grown by this, so that touching modules overlap rather than share an edge
+BLOB_RADIUS = 0.3;      // module styles, as shares of the module (QR_MODULE_SHAPE): rounded blobs' corner radius,
+ROUNDED_SIDE = 0.85;    //   a rounded square's side
+ROUNDED_RADIUS = 0.25;  //   and corner radius,
+DOT_DIAMETER = 0.85;    //   a dot's diameter (and the width of the bars joining connected dots)
 
 // --- derived layout (qrTagLayout) ---
 POCKET_D = MAGNET_D + POCKET_PLAY;
@@ -247,10 +254,28 @@ module logo_2d() {
   scale(s) translate(-(lo + hi) / 2) polygon(points, [for (i = [0 : len(LOGO) - 1]) [for (j = [0 : len(LOGO[i]) - 1]) starts[i] + j]]);
 }
 
-// The dark modules: QR's rectangles, row 0 at the top, so that the code reads from the front.
-module modules_2d() {
+// The dark modules in MODULE_STYLE, row 0 at the top, so that the code reads from the front.
+function module_centre(x, y) = [-QR_N * MODULE / 2 + (x + 0.5) * MODULE, QR_N * MODULE / 2 - (y + 0.5) * MODULE];
+module rects_2d(rects) {
   half = QR_N * MODULE / 2;
-  for (r = QR[2]) translate([-half + r[0] * MODULE - GROW, half - (r[1] + r[3]) * MODULE - GROW]) square([r[2] * MODULE + 2 * GROW, r[3] * MODULE + 2 * GROW]);
+  for (r = rects) translate([-half + r[0] * MODULE - GROW, half - (r[1] + r[3]) * MODULE - GROW]) square([r[2] * MODULE + 2 * GROW, r[3] * MODULE + 2 * GROW]);
+}
+// the rectangles' union with its outer corners rounded; modules that touch only at a corner come apart
+module blobs_2d(rects) offset(r = BLOB_RADIUS * MODULE, $fn = 16) offset(delta = -BLOB_RADIUS * MODULE) rects_2d(rects);
+module modules_2d() {
+  if (MODULE_STYLE == "square") rects_2d(concat(QR[2], QR[3]));
+  else if (MODULE_STYLE == "rounded-blobs") blobs_2d(concat(QR[2], QR[3]));
+  else {
+    blobs_2d(QR[3]);
+    if (MODULE_STYLE == "connected-dots") {
+      // each row's run of dark modules, and each column's, as a bar with round ends
+      for (r = QR[2], j = [0 : r[3] - 1]) hull() for (x = [r[0], r[0] + r[2] - 1]) translate(module_centre(x, r[1] + j)) circle(d = DOT_DIAMETER * MODULE, $fn = 24);
+      for (c = QR[4]) hull() for (y = [c[1], c[1] + c[2] - 1]) translate(module_centre(c[0], y)) circle(d = DOT_DIAMETER * MODULE, $fn = 24);
+    }
+    else for (r = QR[2], i = [0 : r[2] - 1], j = [0 : r[3] - 1]) translate(module_centre(r[0] + i, r[1] + j))
+      if (MODULE_STYLE == "dots") circle(d = DOT_DIAMETER * MODULE, $fn = 24);
+      else offset(r = ROUNDED_RADIUS * MODULE, $fn = 16) square((ROUNDED_SIDE - 2 * ROUNDED_RADIUS) * MODULE, center = true);
+  }
 }
 
 module centre() {

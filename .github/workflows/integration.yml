@@ -86,3 +86,49 @@ jobs:
       - name: Stop Compose services
         if: always()
         run: docker compose down -v --remove-orphans
+
+  slicer:
+    # The QR tag's codes, sliced with OrcaSlicer at the smallest module validation allows, for every module style and nozzle; fails
+    # if a single module comes out the wrong colour (tools/test-slicer.ts, docs/qr-magnet-tag.md#slicer-check).
+    name: QR tag slicer check (OrcaSlicer)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.3
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache the OrcaSlicer AppImage
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/orca-slicer
+          key: orca-slicer-${{ hashFiles('tools/install-orca-slicer.sh') }}
+
+      - name: Install OrcaSlicer
+        run: echo "ORCA_SLICER=$(tools/install-orca-slicer.sh)" >> "$GITHUB_ENV"
+
+      - name: Pull the pinned renderer image
+        run: docker pull "$(npx tsx -e "import { RENDERER_IMAGE } from '@canfactory/server'; console.log(RENDERER_IMAGE)")"
+
+      - name: Run the slicer check
+        run: npm run test:slicer
+        env:
+          SLICER_CONCURRENCY: '3'
+          SLICER_ARTIFACTS: slicer-artifacts
+
+      - name: Upload the failing cases (STL, G-code, profiles, picture, report)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slicer-artifacts-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: slicer-artifacts/

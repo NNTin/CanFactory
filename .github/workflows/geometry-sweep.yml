@@ -67,3 +67,54 @@ jobs:
           name: geometry-sweep-${{ github.run_id }}
           if-no-files-found: ignore
           path: geometry-sweep.md
+
+  slicer-sweep:
+    # The QR tag's slicer check between each style, nozzle and bleed's minimum module and twice it, a different fraction of a step
+    # each night: slicers do not get steadily better as modules grow (a module a few lines wide can print hollow), so a pass at the
+    # minimum does not prove the sizes above it.
+    name: QR tag slicer sweep (OrcaSlicer)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.3
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache the OrcaSlicer AppImage
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/orca-slicer
+          key: orca-slicer-${{ hashFiles('tools/install-orca-slicer.sh') }}
+
+      - name: Install OrcaSlicer
+        run: echo "ORCA_SLICER=$(tools/install-orca-slicer.sh)" >> "$GITHUB_ENV"
+
+      - name: Pull the pinned renderer image
+        run: docker pull "$(npx tsx -e "import { RENDERER_IMAGE } from '@canfactory/server'; console.log(RENDERER_IMAGE)")"
+
+      - name: Run the slicer sweep
+        run: npm run test:slicer
+        env:
+          SLICER_SWEEP: '1'
+          SLICER_SWEEP_SEED: ${{ inputs.seed || github.run_number }}
+          SLICER_CONCURRENCY: '3'
+          SLICER_ARTIFACTS: slicer-artifacts
+
+      - name: Upload the failing cases
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slicer-sweep-artifacts-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: slicer-artifacts/

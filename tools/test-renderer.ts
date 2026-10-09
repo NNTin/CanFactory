@@ -409,6 +409,12 @@ try {
     { name: 'embedded magnets, round magnet joint, 2 pairs of 10 × 3 mm', overrides: { magnetMount: 'embedded', shape: 'round', size: 80, joint: 'magnets', magnetCount: 2, magnet: 'supermagnete-s-10-03-n' } },
     { name: 'embedded magnets at the finest layers', overrides: { magnetMount: 'embedded', layerHeight: 0.08 } },
     { name: 'embedded magnets at the coarsest layers', overrides: { magnetMount: 'embedded', layerHeight: 0.32, reliefHeight: 0.7 } },
+    // every module style (the finder and alignment patterns stay solid), one with a logo, one at a wide nozzle's larger minimum
+    { name: 'rounded blobs', overrides: { moduleStyle: 'rounded-blobs' } },
+    { name: 'rounded squares', overrides: { moduleStyle: 'rounded-squares', size: 70 } },
+    { name: 'dots, logo at H', overrides: { moduleStyle: 'dots', size: 70, logo: QR_LEAF.logo } },
+    { name: 'connected dots, round twist lock', overrides: { moduleStyle: 'connected-dots', shape: 'round', size: 90, joint: 'twist-lock' } },
+    { name: 'connected dots, longest text at L, 0.25 mm nozzle', overrides: { moduleStyle: 'connected-dots', nozzle: '0.25', qrText: 'x'.repeat(200), errorCorrection: 'L', size: 120 } },
     { name: 'embedded magnets, smallest tile', overrides: { magnetMount: 'embedded', size: 30, borderWidth: 3, quietZone: 1, qrText: 'hi', errorCorrection: 'L', cornerRadius: 0 } },
   ];
   for (const { name, overrides } of only && only !== 'qr-magnet-tag' ? [] : tagRuns) {

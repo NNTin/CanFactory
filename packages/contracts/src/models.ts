@@ -6,7 +6,7 @@ import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
 import { PRESSURE_PAD, PRESSURE_PAD_SURFACES, PRESSURE_PAD_TYPES, pressurePadExtenderTravel, pressurePadLeg, pressurePadMinDiameter, pressurePadMinExtenderDiameter, pressurePadMinExtenderLength, pressurePadMinHeight, type PressurePadSurface, type PressurePadType } from './pressurePad.ts';
 import { leastRibSpacing, SEGMENT_JOINT_VALUES, sideJointWidth, sideWidth, WINDOW_CAT_GUARD_MAX_SEGMENTS, WINDOW_CAT_GUARD_SPLICE, windowCatGuardBolts, windowCatGuardLayout, windowCatGuardPieces, type SegmentJoints } from './windowCatGuard.ts';
-import { eccAllowsLogo, filamentChangeHeight, QR_TAG_MOUNTS, type QrTagMount, knockoutFits, magnetPocketIssues, maxLogoSize, moduleSize, QR_ECC_LEVELS, QR_LOGO_MIN_ECC, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, QR_TEXT_MAX_LENGTH, qrScad, qrTagCode, qrTagLayout, type QrEcc, type QrTagJoint, type QrTagShape, type QrTagShapeSettings } from './qrMagnetTag.ts';
+import { eccAllowsLogo, filamentChangeHeight, QR_TAG_MOUNTS, type QrTagMount, knockoutFits, magnetPocketIssues, maxLogoSize, moduleSize, QR_ECC_LEVELS, QR_LOGO_MIN_ECC, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, QR_TEXT_MAX_LENGTH, QR_MODULE_STYLES, QR_NOZZLES, QR_BLEED, minModuleSize, type QrModuleStyle, qrScad, qrTagCode, qrTagLayout, type QrEcc, type QrTagJoint, type QrTagShape, type QrTagShapeSettings } from './qrMagnetTag.ts';
 import { clearanceHoles, PRINTED_WOOD_DIAMETERS, PRINTED_WOOD_SCREWS } from './screwHoles.ts';
 import { PRINTED_CORNER_BRACKET_DEFAULT, PRINTED_CORNER_BRACKET_HOLE_LAYOUTS, PRINTED_CORNER_BRACKET_SCREW, type PrintedCornerBracketHoleLayout, printedCornerBracketBite, printedCornerBracketHoles, printedCornerBracketIssues } from './printedCornerBracket.ts';
 import { PRINTED_BARB_MIN, PRINTED_SCREEN_HOOK_DEFAULT, PRINTED_SCREEN_HOOK_SCREW, printedScreenHookIssues, printedScreenHookShape } from './printedScreenHook.ts';
@@ -2340,6 +2340,13 @@ const QR_TAG_MOUNT_TEXT: Record<QrTagMount, { label: string; description: string
   pockets: { label: 'Pockets (press or glue in)', description: 'Open pockets in the border’s back: press or glue the magnets in after printing. The magnets touch the steel, for the strongest hold.' },
   embedded: { label: 'Embedded (print pause)', description: 'Sealed cavities: the print pauses at the height shown under the settings, you drop the magnets in, and the print closes over them. No glue, nothing to fall out; a thin skin between magnet and steel holds a little less.' },
 };
+const QR_MODULE_STYLE_TEXT: Record<QrModuleStyle, { label: string; description: string }> = {
+  square: { label: 'Squares', description: 'Square modules, edge to edge, as the standard draws them. The easiest to print and to scan.' },
+  'rounded-blobs': { label: 'Rounded blobs', description: 'The squares’ outer corners rounded: neighbouring modules still join along whole edges, so it prints almost as reliably as squares.' },
+  'rounded-squares': { label: 'Rounded squares', description: 'Each module a separate rounded square with a small gap round it. Needs larger modules than squares.' },
+  dots: { label: 'Dots', description: 'Each module a separate dot. Needs larger modules than squares. The three corner squares stay solid, or scanners would not find the code.' },
+  'connected-dots': { label: 'Connected dots', description: 'Dots joined to their dark neighbours by bars as wide as the dots, like beads on a string.' },
+};
 const QR_ECC_TEXT: Record<QrEcc, { label: string; description: string }> = {
   L: { label: 'L (7 %)', description: 'Low: the smallest code; it survives about 7 % damage. No logo.' },
   M: { label: 'M (15 %)', description: 'Medium: survives about 15 % damage. No logo.' },
@@ -2376,7 +2383,7 @@ export const DEFAULT_QR_TAG_MAGNET = 'supermagnete-s-08-02-n';
 export const DEFAULT_QR_MAGNET_TAG = {
   qrText: 'https://example.com', errorCorrection: 'H', shape: 'square', size: 60, cornerRadius: 4, borderWidth: 6, quietZone: 2,
   logo: '', logoSize: 20, baseThickness: 1.6, reliefHeight: 0.6, layerHeight: 0.2, joint: 'crush-ribs', fit: QR_TAG_FIT_RANGE.default,
-  magnet: DEFAULT_QR_TAG_MAGNET, magnetCount: 4, magnetMount: 'pockets',
+  magnet: DEFAULT_QR_TAG_MAGNET, magnetCount: 4, magnetMount: 'pockets', moduleStyle: 'square', nozzle: '0.4', bleed: QR_BLEED.default,
 } as const;
 const qr = DEFAULT_QR_MAGNET_TAG;
 
@@ -2398,6 +2405,9 @@ export const QrMagnetTagParametersSchema = Type.Object({
   magnet: Type.Enum(QR_TAG_MAGNETS, { title: 'Magnets', description: 'The round magnets in the back of the border (and, with the magnet joint, in the seat and the centre). Each is a real product from the parts library; its pockets are cut to its greatest size.', default: qr.magnet }),
   magnetMount: Type.Enum(QR_TAG_MOUNTS, { title: 'Magnet mounting', description: 'Open pockets that the magnets are pressed or glued into after printing, or sealed cavities that they are dropped into when the print pauses.', default: qr.magnetMount }),
   magnetCount: Type.Number({ title: 'Magnets in the back', description: 'How many magnets the back holds: two on one diagonal, or four in the corners. The magnet joint uses as many again, twice.', default: qr.magnetCount, minimum: 2, maximum: 4, multipleOf: 2 }),
+  moduleStyle: Type.Enum(QR_MODULE_STYLES, { title: 'Module style', description: 'How the dark modules are drawn. The corner squares stay solid in every style. Styles other than squares need larger modules.', default: qr.moduleStyle }),
+  nozzle: Type.Enum(QR_NOZZLES, { title: 'Nozzle', description: 'Your printer’s nozzle diameter, in mm. A wider nozzle cannot print small modules or the gaps between them: the smallest module allowed grows with it.', default: qr.nozzle }),
+  bleed: dimension('Bleed', 'How much wider, per side, your printer prints the dark lines than the slicer plans them, in mm: squish, over-extrusion and the dark colour spreading into the light. It makes the light gaps between dark modules narrower, so a larger bleed needs larger modules. 0.1 mm suits a well-tuned printer; raise it if your prints come out bold.', qr.bleed, QR_BLEED.minimum, QR_BLEED.maximum, QR_BLEED.step),
 }, { additionalProperties: false, description: 'Magnetic QR code tag parameters. All fields are required; dimensions are in millimetres.' });
 export type QrMagnetTagParameters = Static<typeof QrMagnetTagParametersSchema>;
 
@@ -2414,6 +2424,8 @@ export function qrTagSettings(parameters: ParameterValues): QrTagShapeSettings {
 }
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
+/** "a, b or c" */
+const sentence = (items: string[]) => items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} or ${items.at(-1)}`;
 
 function validateQrMagnetTag(p: QrMagnetTagParameters): ParameterIssue[] {
   const issues: ParameterIssue[] = [];
@@ -2434,8 +2446,9 @@ function validateQrMagnetTag(p: QrMagnetTagParameters): ParameterIssue[] {
     const code = qrTagCode(p);
     const size = code.symbol.size;
     const module = moduleSize(layout, size, p.quietZone);
-    if (module < t.minModule - 1e-9)
-      issues.push({ field: 'qrText', message: `The code needs ${size} × ${size} modules (version ${code.symbol.version}) plus the quiet zone, so each module would be only ${module.toFixed(2)} mm wide; at least ${t.minModule} mm print and scan reliably. Shorten the text, lower the error correction or enlarge the tile.` });
+    const least = minModuleSize(p.moduleStyle, p.nozzle, p.bleed);
+    if (module < least - 1e-9)
+      issues.push({ field: 'qrText', message: `The code needs ${size} × ${size} modules (version ${code.symbol.version}) plus the quiet zone, so each module would be only ${module.toFixed(2)} mm wide; ${QR_MODULE_STYLE_TEXT[p.moduleStyle].label.toLowerCase()} with a ${p.nozzle} mm nozzle and ${p.bleed} mm of bleed need at least ${least.toFixed(2)} mm to print and scan reliably. ${sentence(['Shorten the text', 'lower the error correction', 'enlarge the tile', ...p.moduleStyle === 'square' ? [] : ['choose squares'], ...p.nozzle === QR_NOZZLES[0] ? [] : ['choose a finer nozzle']])}.` });
     if (p.logo !== '' && eccAllowsLogo(p.errorCorrection) && !knockoutFits(size, code.pad, p.errorCorrection)) {
       const most = maxLogoSize(size, p.errorCorrection);
       issues.push({ field: 'logoSize', message: most > 0
@@ -2464,7 +2477,7 @@ function validateQrMagnetTag(p: QrMagnetTagParameters): ParameterIssue[] {
 /** What the editor shows under the settings: where to change filament, and the code's size. */
 function qrMagnetTagNotes(p: QrMagnetTagParameters): string[] {
   const change = filamentChangeHeight(p.baseThickness, p.layerHeight);
-  const notes = [`Change to the dark filament at ${change} mm, before layer ${Math.round(change / p.layerHeight) + 1} at ${p.layerHeight} mm layers: the modules and the logo print above it.`];
+  const notes = [`Change to the dark filament at ${change} mm, before layer ${Math.round(change / p.layerHeight) + 1} at ${p.layerHeight} mm layers: the modules and the logo print above it. Slice the centre with a ${p.nozzle} mm nozzle and a minimum wall width of 60 %.`];
   const settings = qrTagSettings(p);
   const layout = qrTagLayout(settings);
   if (layout.embedded) {
@@ -2474,7 +2487,7 @@ function qrMagnetTagNotes(p: QrMagnetTagParameters): string[] {
   if (p.qrText === '') return notes;
   const code = qrTagCode(p);
   const module = moduleSize(layout, code.symbol.size, p.quietZone);
-  notes.push(`QR version ${code.symbol.version}: ${code.symbol.size} × ${code.symbol.size} modules of ${module.toFixed(2)} mm, error correction ${p.errorCorrection}${code.pad > 0 ? `, a ${code.pad} × ${code.pad} module pad for the logo` : ''}.`);
+  notes.push(`QR version ${code.symbol.version}: ${code.symbol.size} × ${code.symbol.size} modules of ${module.toFixed(2)} mm (at least ${minModuleSize(p.moduleStyle, p.nozzle, p.bleed).toFixed(2)} mm with a ${p.nozzle} mm nozzle), error correction ${p.errorCorrection}${code.pad > 0 ? `, a ${code.pad} × ${code.pad} module pad for the logo` : ''}.`);
   return notes;
 }
 
@@ -2530,6 +2543,9 @@ const qrMagnetTagControls = [
   partControl(QrMagnetTagParametersSchema, 'magnet', 'basic', 'magnet', QR_TAG_MAGNETS),
   control(QrMagnetTagParametersSchema, 'magnetCount', 'basic', null, null),
   enumControl(QrMagnetTagParametersSchema, 'magnetMount', 'basic', QR_TAG_MOUNTS.map(value => ({ value, ...QR_TAG_MOUNT_TEXT[value] }))),
+  enumControl(QrMagnetTagParametersSchema, 'moduleStyle', 'basic', QR_MODULE_STYLES.map(value => ({ value, ...QR_MODULE_STYLE_TEXT[value] }))),
+  enumControl(QrMagnetTagParametersSchema, 'nozzle', 'basic', QR_NOZZLES.map(value => ({ value, label: `${value} mm`, description: value === '0.4' ? 'The most common nozzle.' : Number(value) < 0.4 ? 'A fine nozzle: smaller modules, a slower print.' : 'A wide nozzle: larger modules only.' }))),
+  control(QrMagnetTagParametersSchema, 'bleed', 'advanced'),
   control(QrMagnetTagParametersSchema, 'quietZone', 'advanced', null, null),
   control(QrMagnetTagParametersSchema, 'baseThickness', 'advanced'),
   control(QrMagnetTagParametersSchema, 'reliefHeight', 'advanced'),
@@ -2545,14 +2561,14 @@ const qrMagnetTagParts: ModelPart[] = [
   // with embedded magnets, the border encloses their sealed cavities
   { id: 'border', title: 'Border', sourcePath: QR_TAG_SOURCE, scadConstants: { PART: 'border' }, scadMapping: QR_TAG_SHARED, partDefines: QR_TAG_MAGNET_DEFINES, sealedVoids: true },
   { id: 'centre', title: 'Centre with the QR code', sourcePath: QR_TAG_SOURCE, scadConstants: { PART: 'centre' },
-    scadMapping: { ...QR_TAG_SHARED, qrText: 'QR', quietZone: 'QUIET_ZONE', logo: 'LOGO', logoSize: 'LOGO_SIZE' }, partDefines: QR_TAG_MAGNET_DEFINES },
+    scadMapping: { ...QR_TAG_SHARED, qrText: 'QR', quietZone: 'QUIET_ZONE', logo: 'LOGO', logoSize: 'LOGO_SIZE', moduleStyle: 'MODULE_STYLE' }, partDefines: QR_TAG_MAGNET_DEFINES },
 ];
 
 export const qrMagnetTag = {
   id: 'qr-magnet-tag' as const, version: '1' as const, title: 'Magnetic QR code tag',
   description: 'A flat tag for the fridge or a whiteboard: a border with magnets in its back, and a centre piece with a QR code of your text and, if you like, your SVG logo, printed in two colours with a single filament change. Choose a square or round tile, its size, and how the centre is held in the border: crush ribs, a detent, a twist lock or magnets.',
   attribution: 'CanFactory (original design)',
-  printNotes: 'Border: back down, no supports; press or glue the magnets into its back, or with embedded magnets pause at the height shown under the settings and drop them in. Centre: base down in the light filament; change to the dark filament at the height shown under the settings (the base’s top, rounded up to a layer). With the magnet joint, set each centre magnet onto its seat magnet first, so that they attract.',
+  printNotes: 'Border: back down, no supports; press or glue the magnets into its back, or with embedded magnets pause at the height shown under the settings and drop them in. Centre: base down in the light filament; change to the dark filament at the height shown under the settings (the base’s top, rounded up to a layer). In the slicer set the minimum wall width to 60 % of the nozzle (OrcaSlicer: Quality › Wall generator › Minimum wall width; PrusaSlicer: Layers and perimeters › Arachne › Minimum perimeter width), or small dark modules can print as rings with the light base showing through their middle. With the magnet joint, set each centre magnet onto its seat magnet first, so that they attract.',
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   parts: qrMagnetTagParts,
   assembly: qrMagnetTagAssembly(DEFAULT_QR_MAGNET_TAG),
@@ -2564,7 +2580,7 @@ export const qrMagnetTag = {
   scadMapping: {},
   // Only numbers reach OpenSCAD: the code as rectangles of modules, encoded again from the validated text, and the logo's outline.
   scadEncode: {
-    qrText: (text: string, parameters: ParameterValues) => qrScad({ qrText: text, errorCorrection: parameters['errorCorrection'] as QrEcc, logo: String(parameters['logo'] ?? ''), logoSize: Number(parameters['logoSize']) }),
+    qrText: (text: string, parameters: ParameterValues) => qrScad({ qrText: text, errorCorrection: parameters['errorCorrection'] as QrEcc, logo: String(parameters['logo'] ?? ''), logoSize: Number(parameters['logoSize']), moduleStyle: parameters['moduleStyle'] as QrModuleStyle }),
     logo: logoScad,
   },
   validate(parameters: unknown): ParameterIssue[] {
