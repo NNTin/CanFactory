@@ -15,7 +15,7 @@ import { PRINTED_BARB_MIN, PRINTED_SCREEN_HOOK_DEFAULT, PRINTED_SCREEN_HOOK_SCRE
 import { DETENT_BALLS, DETENT_BODIES, DETENT_RETENTIONS, DETENT_SET_SCREWS, DETENT_SPRINGS, DETENT_THREAD_PITCH, DETENT_THREADS, DETENT_TOOL_FEATURES, SPRING_BALL_DETENT_DEFAULT, springBallDetentIssues, springBallDetentLayout, type DetentBody, type DetentParts, type DetentRetention, type DetentToolFeature } from './springBallDetent.ts';
 import { COLLAR_TAG, COLLAR_TAG_ATTACHMENTS, COLLAR_TAG_FRONT_STYLES, COLLAR_TAG_SLEEVE_STYLES, type CollarTagSleeveStyle, COLLAR_TAG_MARKS, COLLAR_TAG_MOUNTS, COLLAR_TAG_SHAPES, collarTagIssues, collarTagLayout, collarTagWeight, embossChangeHeight, type CollarTagAttachment, type CollarTagFace, type CollarTagFrontStyle, type CollarTagMark, type CollarTagMount, type CollarTagSettings, type CollarTagShape } from './catCollarTag.ts';
 import { layerAbove } from './printPause.ts';
-import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, type LatchMovement } from './toggleLatchMechanism.ts';
+import { latchPoses, latchState, OPEN as LATCH_OPEN, SWING as LATCH_SWING, TOGGLE_LATCH_MOVEMENTS, toggleLatchPhysics, type LatchMovement } from './toggleLatchMechanism.ts';
 
 /** A field-level, user-readable validation failure. Paths are parameter names. */
 export interface ParameterIssue { field: string; message: string }
@@ -1832,6 +1832,7 @@ export const toggleLatch = {
   license: 'CC BY-NC 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
   parts: toggleLatchParts,
   assembly: toggleLatchAssembly(),
+  physics: () => toggleLatchPhysics(),
   parameterSchema: ToggleLatchParametersSchema,
   controls: toggleLatchControls,
   defaults: Object.fromEntries(toggleLatchControls.map(c => [c.key, c.default])),

@@ -217,6 +217,6 @@ scenario passes: the ball rests 6 µm under the lip, and pushed in flush the spr
 | Mechanism spec in contracts | Done: `packages/contracts/src/physics.ts` (`PhysicsSpec`, `ModelDefinition.physics`, cited `PHYSICS_MATERIALS`) |
 | Scene compiler (spec → MJCF) | Done: `build.ts` (spec + poses + geometry → SI scene), `mjcf.ts`; scenario runner `scenario.ts` |
 | Spike 2: decomposers | Both built and measured; given pieces for mechanism surfaces (above); choice between V-HACD and CoACD for the rest pending CoACD's numbers |
-| Spike 3: test cases, `check:physics` | `npm run check:physics` done; spring-ball detent passes (4 scenarios); toggle latch and cigarette case next |
+| Spike 3: test cases, `check:physics` | `npm run check:physics` done. Spring-ball detent: 4 scenarios pass. Toggle latch: 3 pass (locked under a 10 N pull; draws the catch in 0.322 mm at dead centre, table 0.32; lets it go 1.249 mm at 60°, table 1.25). Cigarette case next |
 | Spike 4: gears | Not started |
 | Spike 5: interactive mode | Not started |

@@ -84,8 +84,10 @@ function drive(simulation: Simulation, input: BuildInput, drives: readonly Physi
         return;
       }
       case 'force': {
-        if (t >= item.from && t < item.to) simulation.addForce(key, item.body, simulation.pose(item.body).pos, [item.force[0] ?? 0, item.force[1] ?? 0, item.force[2] ?? 0]);
-        else simulation.removeForce(key);
+        // fixed to the body at the point where it was at the start (`origins`), and moving with it
+        if (t >= item.from && t < item.to) {
+          if (!simulation.hasForce(key)) simulation.addForce(key, item.body, origins.get(index) ?? [0, 0, 0], [item.force[0] ?? 0, item.force[1] ?? 0, item.force[2] ?? 0]);
+        } else simulation.removeForce(key);
         return;
       }
     }
@@ -108,6 +110,7 @@ export function runScenario(engine: Engine, input: BuildInput, scenario: Physics
     const start = new Map(simulation.bodies.map(name => [name, simulation.pose(name).pos]));
     const origins = new Map<number, Vec3>();
     drives.forEach((item, index) => {
+      if (item.kind === 'force') origins.set(index, [(item.point[0] ?? 0) * MM, (item.point[1] ?? 0) * MM, (item.point[2] ?? 0) * MM]);
       if (item.kind !== 'push') return;
       // the fingertip's centre starts a radius behind the point, against the direction of its first move
       const point: Vec3 = [(item.point[0] ?? 0) * MM, (item.point[1] ?? 0) * MM, (item.point[2] ?? 0) * MM];

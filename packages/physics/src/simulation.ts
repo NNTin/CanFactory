@@ -188,6 +188,8 @@ export class Simulation {
 
   removeForce(key: string): void { this.loads.delete(key); }
 
+  hasForce(key: string): boolean { return this.loads.has(key); }
+
   /** Moves a fingertip (`Scene.fingers`) to `pos` (world, metres): a mocap body, moved as the scenario says, not by the physics. */
   moveFinger(name: string, pos: Vec3): void {
     const mocap = this.model.body_mocapid[this.id(OBJ.body, name)] ?? -1;
