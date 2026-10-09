@@ -23,7 +23,7 @@ done. Read it again before continuing the work.
 | When it builds | Only when the interactive mode is opened (and for each CI scenario). A parameter change while it is open makes the physics stale until it is rebuilt. |
 | Joints | Ideal joints (hinge, slide, ball, fixed) by default. A joint may opt into **contact**: then the part's real pin and hole collide, with their clearance. |
 | Collision geometry | In order of preference: (1) parts-library hardware as exact primitives from its dimensions; (2) convex pieces that the geometry side outputs (each gear tooth, cut at its root circle, and the hub); (3) convex decomposition of the part's STL, in the browser and in CI. |
-| Decomposer | Spike both [V-HACD 4](https://github.com/kmammou/v-hacd) and [CoACD](https://github.com/SarahWeiii/CoACD) compiled to WebAssembly, evaluate, settle on one. |
+| Decomposer | Both [V-HACD 4](https://github.com/kmammou/v-hacd) and [CoACD](https://github.com/SarahWeiii/CoACD) were compiled to WebAssembly and measured (spike 2); **V-HACD** is kept. |
 | Gears | No gear constraint. Gears are hinges, coupled by the contact of their teeth. Tooth contact is required. |
 | Materials | Per-material data (density, friction) is enough; print orientation is not modelled. Values come from cited primary sources. |
 | Mobile | Nice to have and strongly encouraged; desktop first. |
@@ -245,17 +245,30 @@ scene's state hash is the same as in Node.
 
 ## Spike 2: decomposition is not enough
 
-The decomposers were compiled to WebAssembly (`packages/physics/decomposers/build.sh`: pinned commits, Emscripten 4.0.10, one
-single-file ES module each: V-HACD 200 KB, CoACD 955 KB; CoACD without its OpenVDB preprocessing, which the rendered closed meshes
-do not need). `tools/physics/decomposers.ts` runs them on the test parts and measures each result with `pieceFit`: how deep the
-pieces reach out of the part into free space (where they stop another part short) and how far the part's surface lies outside
-them.
+Both decomposers were compiled to WebAssembly (Emscripten 4.0.10, pinned commits, one single-file ES module each: V-HACD 200 KB,
+CoACD 955 KB, CoACD without its OpenVDB preprocessing, which the rendered closed meshes do not need). `tools/physics/decomposers.ts`
+ran them on the test parts in Node and measured each result with `pieceFit`: how deep the pieces reach out of the part into free
+space (where they stop another part short) and how far the part's surface lies outside them.
 
 | Part | Triangles | Decomposer | Time | Pieces | Deepest intrusion | 99 % intrusion | Widest gap |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | BIC Mini lighter | 5042 | V-HACD, defaults | 4.6 s | 64 | 1.946 mm | 0.857 mm | 0.323 mm |
-| BIC Mini lighter | 5042 | V-HACD, 2M voxels, 128 hulls | 15.1 s | 128 | 1.285 mm | 0.473 mm | 0.190 mm |
-| BIC Mini lighter | 5042 | CoACD, defaults | 37.8 s | 22 | (pending) | | |
+| | | V-HACD, 2M voxels, 128 hulls | 17.8 s | 128 | 1.285 mm | 0.473 mm | 0.190 mm |
+| | | CoACD, defaults | 39.8 s | 22 | 1.500 mm | 1.163 mm | 0.012 mm |
+| Cigarette case box | 50936 | V-HACD, defaults | 22.0 s | 64 | 3.874 mm | 2.220 mm | 0.429 mm |
+| | | V-HACD, 2M voxels, 128 hulls | 66.4 s | 128 | 2.904 mm | 1.888 mm | 0.215 mm |
+| | | CoACD, defaults | crashed (an uncaught C++ exception) | | | | |
+| Mini holder | 4790 | V-HACD, defaults | 9.4 s | 64 | 1.537 mm | 0.941 mm | 0.124 mm |
+| | | V-HACD, 2M voxels, 128 hulls | 29.6 s | 128 | 0.808 mm | 0.410 mm | 0.074 mm |
+| | | CoACD, defaults | 53.7 s | 45 | 0.815 mm | 0.561 mm | 0.004 mm |
+| Detent body | 133280 | V-HACD, defaults | 15.4 s | 64 | 1.116 mm | 0.666 mm | 0.070 mm |
+| | | V-HACD, 2M voxels, 128 hulls | 47.0 s | 128 | 0.680 mm | 0.588 mm | 0.035 mm |
+| | | CoACD, defaults | not finished after 25 minutes | | | | |
+
+**Decision: V-HACD.** Neither decomposer comes near the clearances (below), so mechanism surfaces get given pieces whichever is
+used; for the rest, CoACD's only advantage is its small gaps, while it is 3 to 8 times slower, 5 times larger, crashed on the
+honeycomb box and did not finish the threaded detent body. CoACD's shim and module were removed; `decomposers/build.sh` builds V-HACD
+only (and reproduces the committed module byte for byte).
 
 The models are built with 0.1 to 0.3 mm clearances. On the detent, V-HACD's pieces filled the bore and the lip, and the ball was
 shoved 2.8 mm down the bore before anything else happened. A generic decomposition is good enough for the outside of a part, but
@@ -284,7 +297,7 @@ scenario passes: the ball rests 6 µm under the lip, and pushed in flush the spr
 | Spike 1: reference scene, determinism hash | Done: Node and Chromium give the same hash, `8f74ba0ac93ddcdf` (@mujoco/mujoco 3.14.0) |
 | Mechanism spec in contracts | Done: `packages/contracts/src/physics.ts` (`PhysicsSpec`, `ModelDefinition.physics`, cited `PHYSICS_MATERIALS`) |
 | Scene compiler (spec → MJCF) | Done: `build.ts` (spec + poses + geometry → SI scene), `mjcf.ts`; scenario runner `scenario.ts` |
-| Spike 2: decomposers | Both built and measured; given pieces for mechanism surfaces (above); choice between V-HACD and CoACD for the rest pending CoACD's numbers |
+| Spike 2: decomposers | Done: V-HACD kept (see [Spike 2](#spike-2-decomposition-is-not-enough)); given pieces for mechanism surfaces |
 | Spike 3: test cases, `check:physics` | Done: all 11 scenarios of the three test cases pass (see [Test cases](#test-cases)) |
 | Spike 4: gears | Done: involute teeth given tooth by tooth (see [Spike 4: gears](#spike-4-gears)) |
 | Spike 5: interactive mode | Done: the editor viewer's Simulate mode (see [Interactive mode](#interactive-mode)); `tests/browser/physics.spec.ts` drags the toggle latch's lever open |

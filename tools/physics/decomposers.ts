@@ -1,9 +1,9 @@
 /**
- * Spike 2 (docs/physics-plan.md): runs the convex decomposers on the test candidates' parts and reports, per part and decomposer,
+ * Spike 2 (docs/physics-plan.md): runs the convex decomposer (V-HACD; CoACD was measured too, and dropped) on the test candidates' parts and reports, per part and decomposer,
  * how long it took, how many pieces it made, and how well they fit (packages/physics/src/pieceFit.ts): how deep the pieces reach
  * into free space, and how far the part's surface lies outside them.
  *
- *   npx tsx tools/physics/decomposers.ts [--only vhacd|coacd] [--parts lighter,case-box,...]
+ *   npx tsx tools/physics/decomposers.ts [--parts lighter,case-box,...]
  *
  * Needs an OpenSCAD runtime (see tools/stl-to-scad/openscad.ts).
  */
@@ -15,12 +15,11 @@ import { pieceFit } from '../../packages/physics/src/pieceFit.ts';
 import { renderAssemblyMeshes } from '../assembly-meshes.ts';
 import { parseStl, type Mesh } from '../stl-to-scad/stl.ts';
 
-const { values } = parseArgs({ options: { only: { type: 'string' }, parts: { type: 'string' } } });
+const { values } = parseArgs({ options: { parts: { type: 'string' } } });
 
 const SETTINGS: { name: string; settings: DecomposeSettings }[] = [
   { name: 'V-HACD (defaults)', settings: { decomposer: 'vhacd' } },
   { name: 'V-HACD (2M voxels, 128 hulls)', settings: { decomposer: 'vhacd', resolution: 2_000_000, maxHulls: 128 } },
-  { name: 'CoACD (defaults)', settings: { decomposer: 'coacd' } },
 ];
 
 async function modelMeshes(id: string, parts: string[]): Promise<[string, Mesh][]> {
@@ -47,13 +46,11 @@ const rows: string[] = ['| Part | Triangles | Decomposer | Time | Pieces | Deepe
 for (const [name, mesh] of candidates) {
   if (wanted && !wanted.some(part => name.endsWith(part))) continue;
   for (const { name: setting, settings } of SETTINGS) {
-    if (values.only && settings.decomposer !== values.only) continue;
     const start = performance.now();
     let pieces;
     try {
       pieces = await decompose(mesh.tris, settings);
     } catch (error) {
-      // CoACD throws an uncaught C++ exception on some meshes (the honeycomb case box): record it and go on
       const row = `| ${name} | ${mesh.tris.length / 9} | ${setting} | failed: ${error instanceof Error ? error.message : String(error)} | | | | | |`;
       rows.push(row);
       console.log(row);

@@ -1,4 +1,4 @@
-// The shared C ABI of the decomposer shims (packages/physics/src/decompose.ts reads it): a call to `decompose` stores the convex
+// The C ABI of the decomposer shim (packages/physics/src/decompose.ts reads it): a call to `decompose` stores the convex
 // hulls it found here, and the getters hand out pointers into this storage until the next call.
 #pragma once
 #include <cstdint>

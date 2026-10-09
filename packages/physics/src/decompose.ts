@@ -1,7 +1,8 @@
 /**
- * Convex decomposition of a part's mesh into the pieces MuJoCo collides (it collides a mesh as its convex hull). Two decomposers
- * are compiled to WebAssembly (decomposers/build.sh) for spike 2 (docs/physics-plan.md); one will be kept. Both run
- * single-threaded, with fixed settings and seed, so that the browser and CI get the same pieces from the same mesh.
+ * Convex decomposition of a part's mesh into the pieces MuJoCo collides (it collides a mesh as its convex hull), for the parts
+ * whose mechanism gives no pieces of its own: V-HACD 4, compiled to WebAssembly (decomposers/build.sh). Spike 2
+ * (docs/physics-plan.md) chose it over CoACD. It runs single-threaded with fixed settings, so that the browser and CI get the
+ * same pieces from the same mesh.
  */
 
 /** The Emscripten module of a decomposer: the C ABI of decomposers/results.h. */
@@ -19,7 +20,7 @@ export interface DecomposerModule {
   _release(): void;
 }
 
-export type DecomposerId = 'vhacd' | 'coacd';
+export type DecomposerId = 'vhacd';
 
 /** V-HACD 4's settings (its defaults, with at most 64 hulls of 64 vertices). */
 export interface VhacdSettings {
@@ -30,25 +31,15 @@ export const VHACD_DEFAULTS: VhacdSettings = {
   maxHulls: 64, resolution: 400000, minVolumePercentError: 1, maxRecursionDepth: 10, maxVerticesPerHull: 64, shrinkWrap: true, minEdgeLength: 2, findBestPlane: false,
 };
 
-/** CoACD's settings (its defaults: concavity 0.05, merging, seed 0). */
-export interface CoacdSettings {
-  threshold: number; maxHulls: number; sampleResolution: number; mctsNodes: number; mctsIterations: number; mctsMaxDepth: number;
-  pca: boolean; merge: boolean; decimate: boolean; maxVerticesPerHull: number; seed: number;
-}
-export const COACD_DEFAULTS: CoacdSettings = {
-  threshold: 0.05, maxHulls: -1, sampleResolution: 2000, mctsNodes: 20, mctsIterations: 150, mctsMaxDepth: 3, pca: false, merge: true, decimate: false, maxVerticesPerHull: 256, seed: 0,
-};
-
-export type DecomposeSettings = { decomposer: 'vhacd' } & Partial<VhacdSettings> | { decomposer: 'coacd' } & Partial<CoacdSettings>;
+export type DecomposeSettings = { decomposer: 'vhacd' } & Partial<VhacdSettings>;
 
 const modules = new Map<DecomposerId, Promise<DecomposerModule>>();
 
 function loadModule(id: DecomposerId): Promise<DecomposerModule> {
   let module = modules.get(id);
   if (!module) {
-    // CoACD built without spdlog prints its progress unformatted: drop the modules' output
     const quiet = { print: () => undefined, printErr: () => undefined };
-    module = id === 'vhacd' ? import('./wasm/vhacd.mjs').then(m => m.default(quiet)) : import('./wasm/coacd.mjs').then(m => m.default(quiet));
+    module = import('./wasm/vhacd.mjs').then(m => m.default(quiet));
     modules.set(id, module);
   }
   return module;
@@ -73,12 +64,8 @@ export function indexMesh(soup: ArrayLike<number>): IndexedMesh {
 }
 
 function parameters(settings: DecomposeSettings): number[] {
-  if (settings.decomposer === 'vhacd') {
-    const s = { ...VHACD_DEFAULTS, ...settings };
-    return [s.maxHulls, s.resolution, s.minVolumePercentError, s.maxRecursionDepth, s.maxVerticesPerHull, Number(s.shrinkWrap), s.minEdgeLength, Number(s.findBestPlane)];
-  }
-  const s = { ...COACD_DEFAULTS, ...settings };
-  return [s.threshold, s.maxHulls, s.sampleResolution, s.mctsNodes, s.mctsIterations, s.mctsMaxDepth, Number(s.pca), Number(s.merge), Number(s.decimate), s.maxVerticesPerHull, s.seed];
+  const s = { ...VHACD_DEFAULTS, ...settings };
+  return [s.maxHulls, s.resolution, s.minVolumePercentError, s.maxRecursionDepth, s.maxVerticesPerHull, Number(s.shrinkWrap), s.minEdgeLength, Number(s.findBestPlane)];
 }
 
 /** A convex piece: its hull's vertices and triangles, in the mesh's units and frame. */

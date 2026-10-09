@@ -3,7 +3,7 @@
  * as the worker does, decomposes them into convex pieces, simulates each scenario with packages/physics, and checks its outcome.
  * Exits 1 if any check fails. docs/physics-plan.md.
  *
- *   npm run check:physics -- [model-id ... | spur-gear-pair] [--parameters '<json>'] [--decomposer vhacd|coacd] [--fit]
+ *   npm run check:physics -- [model-id ... | spur-gear-pair] [--parameters '<json>'] [--fit]
  *
  * --fit also reports how well each decomposed part's pieces fit it. Decompositions are cached in node_modules/.cache by the mesh's
  * hash and the settings. Needs an OpenSCAD runtime (see tools/stl-to-scad/openscad.ts).
@@ -21,10 +21,9 @@ import { parseStl } from '../stl-to-scad/stl.ts';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
-  options: { parameters: { type: 'string' }, decomposer: { type: 'string', default: 'vhacd' }, fit: { type: 'boolean', default: false } },
+  options: { parameters: { type: 'string' }, fit: { type: 'boolean', default: false } },
 });
-const decomposer = values.decomposer === 'coacd' ? 'coacd' : 'vhacd';
-const SETTINGS: DecomposeSettings = { decomposer };
+const SETTINGS: DecomposeSettings = { decomposer: 'vhacd' };
 const CACHE = 'node_modules/.cache/canfactory-physics';
 
 async function piecesOf(triangles: Float64Array): Promise<ConvexPiece[]> {
@@ -66,7 +65,7 @@ async function checkModel(model: ModelDefinition, parameters: ParameterValues): 
     const pieces = await piecesOf(mesh.tris);
     const vertices = pieces.map(piece => piece.vertices);
     geometry[body.id] = { triangles: mesh.tris, pieces: vertices };
-    let line = `decomposed ${body.id}: ${pieces.length} pieces (${decomposer}, ${((performance.now() - start) / 1000).toFixed(1)} s)`;
+    let line = `decomposed ${body.id}: ${pieces.length} pieces (V-HACD, ${((performance.now() - start) / 1000).toFixed(1)} s)`;
     if (values.fit) {
       const fit = pieceFit(mesh.tris, pieces);
       line += `; deepest intrusion ${fit.intrusion.toFixed(3)} mm (99 %: ${fit.intrusion99.toFixed(3)}), widest gap ${fit.gap.toFixed(3)} mm`;
