@@ -4,7 +4,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { activeParts, dimensionOf, findPart, partAssetPath, scadDefines, type Assembly, type ParameterValues, type Part } from '../packages/contracts/src/index.ts';
+import { activeParts, devBoardLayout, dimensionOf, findPart, partAssetPath, scadDefines, type Assembly, type ParameterValues, type Part } from '../packages/contracts/src/index.ts';
 import { renderScad } from './stl-to-scad/openscad.ts';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
 
@@ -58,6 +58,21 @@ export const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part
   'threaded-insert': {
     scad: 'parts/inserts/insert.scad',
     defines: part => ({ HOLE: size(part, 'hole', 'value'), L: size(part, 'l', 'value'), D: part.attributes['thread']?.slice(1) ?? '0' }),
+  },
+  // a board as its layout places everything: the PCB with its holes, the USB-C receptacle and each component as a box
+  'dev-board': {
+    scad: 'parts/dev-boards/dev-board.scad',
+    defines: part => {
+      const layout = devBoardLayout(part);
+      if (!layout) throw new Error(`${part.id} has no layout.`);
+      const { usb } = layout;
+      return {
+        L: size(part, 'L', 'value'), W: size(part, 'W', 'value'), T: size(part, 't', 'value'), R: size(part, 'r', 'value'), HOLE: size(part, 'd', 'value'),
+        CASTELLATED: String(layout.castellated), PINS: JSON.stringify(layout.pins.map(pin => [pin.x, pin.y])),
+        USB: JSON.stringify([usb.x0, usb.y0, usb.x1, usb.y1, usb.height]),
+        COMPONENTS: JSON.stringify(layout.components.map(c => [c.x, c.y, c.width, c.length, c.height, c.rotation])),
+      };
+    },
   },
 };
 

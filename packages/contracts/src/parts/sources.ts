@@ -5,6 +5,7 @@ const ACCESSED = '2026-09-27';
 const CATIO_ACCESSED = '2026-10-02';
 const DETENT_ACCESSED = '2026-10-07';
 const COLLAR_ACCESSED = '2026-10-07';
+const BOARD_ACCESSED = '2026-10-09';
 
 const iso = (number: string, title: string): PartSource => ({
   id: `iso-${number.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, title: `ISO ${number}: ${title}`, publisher: 'ISO',
@@ -105,6 +106,12 @@ export const PART_SOURCES: readonly PartSource[] = [
   { id: '4imprint-j25', title: 'BIC J25 Standard Lighter: 22 × 62 × 11 mm', publisher: '4imprint UK', url: 'https://www.4imprint.co.uk/product/502972/BIC-J25-Standard-Lighter', kind: 'reference', accessed: '2026-09-25' },
   { id: 'wemag-j25', title: 'BIC Mini lighter J25: 22 × 62 × 11 mm', publisher: 'WE MAG', url: 'https://wemag.gr/en/product/bic-mini-lighter-j25-2360/', kind: 'reference', accessed: '2026-09-25' },
   { id: 'canfactory-lighter-estimate', title: 'Estimated from photographs and proportions (docs/cigarette-case-assembly.md, “Reference objects”)', publisher: 'CanFactory', url: 'https://github.com/NNTin/CanFactory/blob/develop/docs/cigarette-case-assembly.md#reference-objects', kind: 'reference', accessed: '2026-09-25' },
+  // Development boards (ESP32-C3 SuperMini and ESP32-C3-Zero), read 2026-10-09.
+  { id: 'nologo-esp32c3-supermini', title: 'ESP32C3SuperMini 入门 (getting started): 产品参数 22.52 × 18 mm, ESP32C3FN4, single-sided components, blue LED on GPIO8; 引脚图 (pinout) and 尺寸图 (to-scale top-view dimension render: 18.00, 15.24 and 22.52 mm)', publisher: 'Nologo (wmnologo)', url: 'https://wiki.nologo.tech/product/esp32/esp32c3/esp32c3supermini/esp32C3SuperMini.html', kind: 'manufacturer', accessed: BOARD_ACCESSED },
+  { id: 'waveshare-esp32-c3-zero', title: 'ESP32-C3-Zero wiki: dimension drawing (18.00 × 23.50 mm, R1.00, 2.54 pitch, 1.59, 1.38 and 4.67 mm), onboard components, schematic', publisher: 'Waveshare Electronics', url: 'https://www.waveshare.com/wiki/ESP32-C3-Zero', kind: 'manufacturer', accessed: BOARD_ACCESSED },
+  { id: 'waveshare-esp32-c3-zero-product', title: 'ESP32-C3-Zero product page: pinout (pins 1–18), onboard resources, US$3.49 (ESP32-C3-Zero-M with headers US$4.49)', publisher: 'Waveshare Electronics', url: 'https://www.waveshare.com/esp32-c3-zero.htm', kind: 'manufacturer', accessed: BOARD_ACCESSED },
+  { id: 'xinglight-xl-0807rgbc-ws2812b', title: 'XL-0807RGBC-WS2812B data sheet: appearance dimension (L/W/H) 2.0 × 1.8 × 0.8 mm', publisher: 'XINGLIGHT (published by Waveshare with the ESP32-C3-Zero)', url: 'https://files.waveshare.com/wiki/ESP32-C3-Zero/XL-0807RGBC-WS2812B.pdf', kind: 'manufacturer', accessed: BOARD_ACCESSED },
+  { id: 'canfactory-dev-board-estimate', title: 'Read off the makers’ to-scale drawings and photographs, or the usual size of the package (docs/adding-parts.md, “Development boards”)', publisher: 'CanFactory', url: 'https://github.com/NNTin/CanFactory/blob/develop/docs/adding-parts.md#development-boards', kind: 'reference', accessed: BOARD_ACCESSED },
 ];
 
 export function findPartSource(id: string): PartSource | undefined { return PART_SOURCES.find(source => source.id === id); }

@@ -1,7 +1,7 @@
 # The parts library
 
 The parts library is a catalogue of real-world parts that models are made to fit: screws, nuts, washers, magnets, threaded
-inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, and everyday objects such as the BIC
+inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, development boards, and everyday objects such as the BIC
 Mini lighter the cigarette case holds. Every entry is one real
 item, a size of a standard part (ISO 4762 M3 × 10) or a named product (supermagnete S-06-02-N), with its dimensions, their
 tolerances where the source gives them, and the source of every value.
@@ -77,6 +77,41 @@ whole catalogue:
 
 `npm run check:assembly` renders them from generic models in `parts/balls/`, `parts/springs/` and `parts/set-screws/`. The set
 screw's thread is drawn at its minor diameter, so that it clears its tap-drill hole.
+
+### Development boards
+
+The **`dev-board`** family (`dev-boards.ts`) holds small microcontroller boards that a print holds (a smart lamp's controller):
+the ESP32-C3 SuperMini (Nologo) and the Waveshare ESP32-C3-Zero. A case is designed around more than a board's size, so besides its
+dimensions (board `L` × `W` × `t`, corner `r`, pitch `e`, row spacing `e1`, first pin `a` from the USB end, hole `d`, the USB-C
+receptacle's width, height and overhang, and the overall height `H`) each board has a layout, `devBoardLayout(part)`:
+
+- **Frame:** millimetres, the PCB's underside on z = 0 with its corner at the origin, the width along X and the length along Y,
+  the USB-C receptacle at the +Y end and the antenna at y = 0, seen from the component side.
+- **`pins`:** each pin's name and hole centre (`castellated`: a half hole at the edge beside each).
+- **`usb`:** the receptacle's box, past the board's end.
+- **`components`:** every component taller than the small 0402 parts, as a box with its height above the PCB: the chip, the
+  buttons, the regulator, the crystal, the LEDs and the antenna.
+- **`antennaKeepout`:** where to keep metal, PCBs and thick walls away.
+- **`bareUnderside`:** whether the board can lie flat.
+
+What the makers publish is `manufacturer`: Nologo gives the SuperMini's 22.52 × 18 mm, its 15.24 mm row spacing and its pinout.
+Waveshare's drawing gives the Zero's 23.5 × 18 mm, R1 corners, 2.54 mm pitch, first pin (1.59 mm) and row inset (1.38 mm), and
+the RGB LED's data sheet gives its size. Neither publishes the rest, so it is `estimated` (source
+`canfactory-dev-board-estimate`):
+
+- **Read off the drawings:** the components' places and the receptacle, from the makers' to-scale drawings (Nologo's render at
+  39.4 px/mm, Waveshare's photograph at 14.6 px/mm). Expect about ±0.2 mm.
+- **Usual package sizes:** QFN32 5 × 5, SOT23-5, a 3.16–3.26 mm high top-mount USB-C receptacle, 3 × 4 mm tact switches about
+  2 mm high.
+- **Assumed:** a 1.0 mm PCB and 1.0 mm holes.
+
+Measure a board before a tight fit, and correct the value under the same id. Copies of the SuperMini from other shops may place
+components slightly differently.
+
+The parts library draws a board from its layout (`partGeometry.ts`), and `npm run check:assembly` renders it from
+`parts/dev-boards/dev-board.scad` with the layout as `-D` overrides (`GENERIC_MODELS`), so a case's assembly can check its walls
+and openings against the receptacle and the components. The test checks the layout: the pins on their grid, the receptacle
+centred at the USB end, every component inside the outline and clear of the holes, and the antenna inside its keep-out.
 
 ## Previews
 

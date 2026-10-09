@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
 import { cigaretteCase, models, partUsage, plankConnector } from '../models.ts';
-import { findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, springRate, type Part } from './index.ts';
+import { devBoardLayout, findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, springRate, type Part } from './index.ts';
 
 const root = (path: string) => new URL(`../../../../${path}`, import.meta.url);
 const dimension = (part: Part, key: string) => part.dimensions[key]?.value ?? Number.NaN;
@@ -149,6 +149,51 @@ describe('parts library', () => {
       }
       if (part.family === 'bearing') expect(dimension(part, 'D'), message).toBeGreaterThan(d);
       if (part.family === 'magnet' && part.attributes['shape'] !== 'block') expect(dimension(part, 'diameter'), message).toBeGreaterThan(dimension(part, 'innerDiameter') || 0);
+    }
+  });
+
+  it('lays out every development board inside its outline: pins on their grid, the receptacle at the USB end, components clear of the holes', () => {
+    const boards = parts.filter(part => part.family === 'dev-board');
+    expect(boards.map(part => part.id)).toEqual(['nologo-esp32-c3-supermini', 'waveshare-esp32-c3-zero']);
+    for (const part of boards) {
+      const layout = devBoardLayout(part); const message = part.id;
+      if (!layout) throw new Error(`${part.id} has no layout`);
+      const [L, W, t, e, e1, a, d] = ['L', 'W', 't', 'e', 'e1', 'a', 'd'].map(key => dimension(part, key)) as [number, number, number, number, number, number, number];
+      // two rows e1 apart, centred across the board, at the pitch from the first pin down, every name once
+      expect(layout.pins.length, message).toBe(Number(part.attributes['pins']));
+      expect(new Set(layout.pins.map(pin => pin.name)).size, message).toBe(layout.pins.length);
+      expect([...new Set(layout.pins.map(pin => pin.x))].sort((p, q) => p - q), message).toEqual([(W - e1) / 2, (W + e1) / 2]);
+      for (const x of new Set(layout.pins.map(pin => pin.x))) {
+        const ys = layout.pins.filter(pin => pin.x === x).map(pin => pin.y);
+        expect(ys[0], message).toBeCloseTo(L - a, 2);
+        for (let i = 1; i < ys.length; i++) expect((ys[i - 1] ?? 0) - (ys[i] ?? 0), message).toBeCloseTo(e, 2);
+        expect(Math.min(...ys), message).toBeGreaterThan(d);
+      }
+      for (const name of ['5V', 'GND', '3V3']) expect(layout.pins.map(pin => pin.name), message).toContain(name);
+      // the receptacle across the middle of the USB end, overhanging it
+      const { usb } = layout;
+      expect(usb.x1 - usb.x0, message).toBeCloseTo(dimension(part, 'usbW'), 2);
+      expect(usb.y1 - L, message).toBeCloseTo(dimension(part, 'usbOverhang'), 2);
+      expect(usb.x0, message).toBeGreaterThan(0); expect(usb.x1, message).toBeLessThan(W); expect(usb.y0, message).toBeLessThan(L);
+      expect(Math.abs((usb.x0 + usb.x1) / 2 - W / 2), message).toBeLessThan(0.5);
+      // each component inside the outline (by its turned footprint's bounds) and clear of every pin hole
+      for (const component of layout.components) {
+        const turn = component.rotation * Math.PI / 180;
+        const halfX = (Math.abs(Math.cos(turn)) * component.width + Math.abs(Math.sin(turn)) * component.length) / 2;
+        const halfY = (Math.abs(Math.sin(turn)) * component.width + Math.abs(Math.cos(turn)) * component.length) / 2;
+        const where = `${message}: ${component.name}`;
+        expect(component.x - halfX, where).toBeGreaterThanOrEqual(0); expect(component.x + halfX, where).toBeLessThanOrEqual(W);
+        expect(component.y - halfY, where).toBeGreaterThanOrEqual(0); expect(component.y + halfY, where).toBeLessThanOrEqual(L);
+        for (const pin of layout.pins) expect(Math.max(Math.abs(pin.x - component.x) - halfX, Math.abs(pin.y - component.y) - halfY), `${where} × ${pin.name}`).toBeGreaterThan(d / 2);
+        expect(component.height, where).toBeLessThanOrEqual(usb.height);
+      }
+      // the antenna keep-out lies on the board, at the end away from the receptacle, round the antenna
+      const antenna = layout.components.find(component => /antenna/i.test(component.name));
+      const keepout = layout.antennaKeepout;
+      expect(antenna && keepout.x0 <= antenna.x && antenna.x <= keepout.x1 && keepout.y0 <= antenna.y && antenna.y <= keepout.y1, message).toBe(true);
+      expect(keepout.y1, message).toBeLessThan(L / 2);
+      // the overall height is the PCB and the tallest thing on it
+      expect(dimension(part, 'H'), message).toBeCloseTo(t + usb.height, 2);
     }
   });
 
