@@ -29,11 +29,23 @@ export const devBoardFamily: PartFamily = {
 /** A pin: its name and the centre of its hole. */
 export interface DevBoardPin { name: string; x: number; y: number }
 /**
- * A component on top of the board, as a box: its centre (`x`, `y`), its size along X (`width`) and Y (`length`) before it is
- * turned by `rotation` degrees about Z, and its `height` above the PCB. `sized` says where the size comes from: the part's own
- * data sheet (`manufacturer`) or the drawing and the package's usual size (`estimated`); every position is read off the drawing.
+ * What stands on a component's body, centred on it: a button's plunger or an LED's lens. `shape` is its plan (`round`: a disc of
+ * diameter `width`; `oval`: a stadium of `width` × `length`; `rectangle`), and `height` is its top above the PCB.
  */
-export interface DevBoardComponent { name: string; x: number; y: number; width: number; length: number; height: number; rotation: number; sized: Dimension['basis'] }
+export interface DevBoardComponentTop { shape: 'round' | 'oval' | 'rectangle'; width: number; length: number; height: number }
+/**
+ * A component on top of the board: its body as a box, centred at (`x`, `y`), its size along X (`width`) and Y (`length`) before
+ * it is turned by `rotation` degrees about Z, and its `height` above the PCB; on a button or an LED, its plunger or lens (`top`).
+ * A button's plunger moves down by `travel` when pressed: a printed actuator rests on the plunger's top and pushes it that far.
+ * `sized` says where the size comes from (`source`: the part's own data sheet, `manufacturer`, or the drawing and the package's
+ * usual size, `estimated`); every position is read off the board maker's drawing.
+ */
+export interface DevBoardComponent {
+  name: string; kind: 'button' | 'led' | 'chip' | 'regulator' | 'crystal' | 'diode' | 'antenna' | 'other';
+  x: number; y: number; width: number; length: number; height: number; rotation: number;
+  top?: DevBoardComponentTop; travel?: number;
+  sized: Dimension['basis']; source: string;
+}
 /** A rectangle in the board's plane, from `x0, y0` to `x1, y1`. */
 export interface DevBoardArea { x0: number; y0: number; x1: number; y1: number }
 /**
@@ -76,9 +88,9 @@ const BOARDS: Board[] = [
   {
     id: 'nologo-esp32-c3-supermini', manufacturer: 'Nologo', sku: 'ESP32C3 SuperMini', url: 'https://wiki.nologo.tech/product/esp32/esp32c3/esp32c3supermini/esp32C3SuperMini.html',
     title: 'ESP32-C3 SuperMini', designation: 'ESP32-C3 SuperMini (Nologo ESP32C3SuperMini)', aliases: ['ESP32C3 SuperMini', 'ESP32-C3 Super Mini'], chip: 'ESP32-C3FN4',
-    source: 'nologo-esp32c3-supermini', sources: ['nologo-esp32c3-supermini', ESTIMATE],
+    source: 'nologo-esp32c3-supermini', sources: ['nologo-esp32c3-supermini', 'xunpu-ts-1088', ESTIMATE],
     description: 'A 22.52 × 18 mm ESP32-C3FN4 board with two rows of 8 pins 15.24 mm apart, castellated as well as drilled, a USB-C receptacle that overhangs one end, BOOT and RST buttons, a blue LED on GPIO8 and a chip antenna at the other end; components on top only.',
-    notes: 'Board size, row spacing, pinout and the single-sided assembly are Nologo’s; everything else (the pitch and first pin, the holes, the receptacle and every component) is read off Nologo’s to-scale top-view render (39.4 px/mm) or is the usual size of its package, and the PCB thickness is assumed: measure a board before a tight fit. Many shops sell copies of this board (TENSTAR and others) whose components may sit slightly differently; the “Plus” version has a WS2812 LED and an antenna connector and is a different board. Small 0402 resistors and capacitors (under 0.5 mm high) are left out of the layout.',
+    notes: 'Board size, row spacing, pinout and the single-sided assembly are Nologo’s, and its schematic names the buttons (3 × 4 × 2 mm, two pins: drawn as XUNPU’s TS-1088 of that size, Ø1.8 mm plunger 2.0 mm high, 0.2 mm travel), the crystal (3225), the regulator (SOT23-5) and the diode (SOD-323); everything else (the pitch and first pin, the holes, the receptacle and every component) is read off Nologo’s to-scale top-view render (39.4 px/mm) or is the usual size of its package, and the PCB thickness is assumed: measure a board before a tight fit. Its schematic lists the two LEDs as 0603, but the render draws smaller ones (0402), which the layout follows. Many shops sell copies of this board (TENSTAR and others) whose components may sit slightly differently; the “Plus” version has a WS2812 LED and an antenna connector and is a different board. Small 0402 resistors and capacitors (under 0.5 mm high) are left out of the layout.',
     published: ['L', 'W', 'e1'],
     dimensions: { L: 22.52, W: 18, t: 1, e: 2.54, e1: 15.24, a: 1.57, d: 1, usbW: 9.25, usbH: USB_C_HEIGHT, usbOverhang: 1.93 },
     columns: [['GPIO5', 'GPIO6', 'GPIO7', 'GPIO8', 'GPIO9', 'GPIO10', 'GPIO20', 'GPIO21'], ['5V', 'GND', '3V3', 'GPIO4', 'GPIO3', 'GPIO2', 'GPIO1', 'GPIO0']],
@@ -87,16 +99,18 @@ const BOARDS: Board[] = [
       castellated: true, bareUnderside: true, solderMask: 'black',
       usb: { x0: 4.14, y0: 16.71 },
       components: [
-        { name: 'ESP32-C3FN4 (QFN32 5 × 5 mm)', x: 9.71, y: 7.89, width: 5, length: 5, height: 0.9, rotation: 45, sized: 'estimated' },
-        { name: 'BOOT button', x: 6.19, y: 13.76, width: 4.1, length: 3.1, height: 2, rotation: 0, sized: 'estimated' },
-        { name: 'RST button', x: 11.69, y: 13.76, width: 4.1, length: 3.1, height: 2, rotation: 0, sized: 'estimated' },
-        { name: '3.3 V regulator (SOT23-5)', x: 3.73, y: 9.69, width: 2.9, length: 1.6, height: 1.3, rotation: 0, sized: 'estimated' },
-        { name: 'Crystal (3.2 × 2.5 mm class)', x: 4.55, y: 4.97, width: 3.2, length: 2.1, height: 0.8, rotation: 0, sized: 'estimated' },
-        { name: 'Diode (SOD-323)', x: 2.92, y: 20.73, width: 1.27, length: 1.7, height: 1, rotation: 0, sized: 'estimated' },
-        { name: 'Red power LED', x: 2.99, y: 17.31, width: 0.6, length: 1, height: 0.5, rotation: 0, sized: 'estimated' },
-        { name: 'Blue LED (GPIO8)', x: 13.56, y: 11.44, width: 1, length: 0.5, height: 0.5, rotation: 0, sized: 'estimated' },
-        { name: 'Small SMD part (unmarked)', x: 13.86, y: 4.75, width: 0.85, length: 1.7, height: 0.7, rotation: 0, sized: 'estimated' },
-        { name: 'Chip antenna', x: 8.98, y: 1.29, width: 7, length: 2.1, height: 1, rotation: 0, sized: 'estimated' },
+        { name: 'ESP32-C3FN4 (QFN32 5 × 5 mm)', kind: 'chip', x: 9.71, y: 7.89, width: 5, length: 5, height: 0.9, rotation: 45, sized: 'estimated', source: ESTIMATE },
+        // 3 × 4 × 2 mm two-pin tact switches (Nologo's schematic), drawn as XUNPU's TS-1088 of that size: the body 3.9 × 3.0 × 1.5 with
+        // its terminals across X (5.0 over them), the round plunger Ø1.8 up to 2.0, 0.2 mm travel
+        { name: 'BOOT button (GPIO9)', kind: 'button', x: 6.11, y: 13.77, width: 3.9, length: 3, height: 1.5, rotation: 0, top: { shape: 'round', width: 1.8, length: 1.8, height: 2 }, travel: 0.2, sized: 'estimated', source: 'xunpu-ts-1088' },
+        { name: 'RST button (CHIP_EN)', kind: 'button', x: 11.66, y: 13.77, width: 3.9, length: 3, height: 1.5, rotation: 0, top: { shape: 'round', width: 1.8, length: 1.8, height: 2 }, travel: 0.2, sized: 'estimated', source: 'xunpu-ts-1088' },
+        { name: '3.3 V regulator (ME6211, SOT23-5)', kind: 'regulator', x: 3.73, y: 9.69, width: 2.9, length: 1.6, height: 1.3, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'Crystal (40 MHz, 3225)', kind: 'crystal', x: 4.55, y: 4.97, width: 3.2, length: 2.1, height: 0.8, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'Diode (BAT60J, SOD-323)', kind: 'diode', x: 2.92, y: 20.73, width: 1.27, length: 1.7, height: 1, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'Red power LED', kind: 'led', x: 2.99, y: 17.31, width: 0.6, length: 1, height: 0.5, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'Blue LED (GPIO8)', kind: 'led', x: 13.56, y: 11.44, width: 1, length: 0.5, height: 0.5, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'Small SMD part (unmarked)', kind: 'other', x: 13.86, y: 4.75, width: 0.85, length: 1.7, height: 0.7, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'Chip antenna', kind: 'antenna', x: 8.98, y: 1.29, width: 7, length: 2.1, height: 1, rotation: 0, sized: 'estimated', source: ESTIMATE },
       ],
       antennaKeepout: { x0: 4.45, y0: 0, x1: 13.51, y1: 3.3 },
     },
@@ -106,7 +120,7 @@ const BOARDS: Board[] = [
     title: 'Waveshare ESP32-C3-Zero', designation: 'Waveshare ESP32-C3-Zero', aliases: ['ESP32-C3-Zero-M (with pin headers)'], chip: 'ESP32-C3FH4',
     source: 'waveshare-esp32-c3-zero', sources: ['waveshare-esp32-c3-zero', 'waveshare-esp32-c3-zero-product', 'xinglight-xl-0807rgbc-ws2812b', ESTIMATE],
     description: 'A 23.5 × 18 mm ESP32-C3FH4 board with rounded corners and two rows of 9 castellated, drilled pins 15.24 mm apart, a USB-C receptacle that overhangs one end, BOOT and RESET buttons, a WS2812 RGB LED on GPIO10 and a ceramic antenna at the other end.',
-    notes: 'Outline, corner radius, pitch, first pin, row inset (1.38 mm from each edge) and pinout are Waveshare’s drawing and pinout; the RGB LED is its data sheet’s 2.0 × 1.8 × 0.8 mm. The receptacle (Waveshare dimensions it 4.67 mm from one edge; its photograph shows a standard 8.94 mm wide receptacle, centred), the other components’ places and the PCB thickness are read off Waveshare’s to-scale photograph (14.6 px/mm) or assumed: measure a board before a tight fit. The ESP32-C3-Zero-M is the same board with pin headers soldered on. Waveshare: keep PCBs, metal and plastic off the ceramic antenna. Small 0402 resistors and capacitors (under 0.5 mm high) are left out of the layout.',
+    notes: 'Outline, corner radius, pitch, first pin, row inset (1.38 mm from each edge) and pinout are Waveshare’s drawing and pinout; the RGB LED is its data sheet’s (a 2.0 × 1.8 mm base under a 1.34 mm lens, 0.8 mm high). No data sheet names the buttons: their white body (3.5 × 4.2 × 1.5 mm) and beige oval plunger (2.4 × 3.2 mm, its top 1.8 mm above the PCB) are read off Waveshare’s photographs, so measure them before printing an actuator that rests on them. The receptacle (Waveshare dimensions it 4.67 mm from one edge; its photograph shows a standard 8.94 mm wide receptacle, centred), the other components’ places and the PCB thickness are read off Waveshare’s to-scale photograph (14.6 px/mm) or assumed: measure a board before a tight fit. The ESP32-C3-Zero-M is the same board with pin headers soldered on. Waveshare: keep PCBs, metal and plastic off the ceramic antenna. Small 0402 resistors and capacitors (under 0.5 mm high) are left out of the layout.',
     published: ['L', 'W', 'r', 'e', 'e1', 'a'],
     dimensions: { L: 23.5, W: 18, t: 1, r: 1, e: 2.54, e1: 15.24, a: 1.59, d: 1, usbW: 8.94, usbH: USB_C_HEIGHT, usbOverhang: 1.58 },
     columns: [['5V', 'GND', '3V3', 'GPIO0', 'GPIO1', 'GPIO2', 'GPIO3', 'GPIO4', 'GPIO5'], ['GPIO21', 'GPIO20', 'GPIO19', 'GPIO18', 'GPIO10', 'GPIO9', 'GPIO8', 'GPIO7', 'GPIO6']],
@@ -115,13 +129,17 @@ const BOARDS: Board[] = [
       castellated: true, bareUnderside: true, solderMask: 'blue',
       usb: { x0: 4.53, y0: 17.73 },
       components: [
-        { name: 'ESP32-C3FH4 (QFN32 5 × 5 mm)', x: 8.4, y: 10.52, width: 5, length: 5, height: 0.9, rotation: 0, sized: 'estimated' },
-        { name: 'BOOT button', x: 3.85, y: 12.51, width: 3.6, length: 4.1, height: 2, rotation: 0, sized: 'estimated' },
-        { name: 'RESET button', x: 14.29, y: 12.51, width: 3.6, length: 4.1, height: 2, rotation: 0, sized: 'estimated' },
-        { name: 'WS2812 RGB LED (XL-0807RGBC, GPIO10)', x: 8.76, y: 14.78, width: 2, length: 1.8, height: 0.8, rotation: 0, sized: 'manufacturer' },
-        { name: '3.3 V regulator (SOT23-5)', x: 13.74, y: 7.39, width: 2.9, length: 1.6, height: 1.3, rotation: 0, sized: 'estimated' },
-        { name: 'Crystal (2.5 × 2.0 mm class)', x: 3.5, y: 8.49, width: 2.5, length: 2, height: 0.6, rotation: 0, sized: 'estimated' },
-        { name: 'Ceramic antenna', x: 8.93, y: 1.14, width: 6.6, length: 1.7, height: 1, rotation: 0, sized: 'estimated' },
+        { name: 'ESP32-C3FH4 (QFN32 5 × 5 mm)', kind: 'chip', x: 8.4, y: 10.52, width: 5, length: 5, height: 0.9, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        // white two-pin tact switches with their terminals along Y and a beige oval plunger, read off Waveshare's photographs (the
+        // plunger stands about 0.3 mm proud of the body, which is about half as high as the USB-C receptacle); no data sheet names them
+        { name: 'BOOT button (GPIO9)', kind: 'button', x: 3.81, y: 12.78, width: 3.5, length: 4.2, height: 1.5, rotation: 0, top: { shape: 'oval', width: 2.4, length: 3.2, height: 1.8 }, travel: 0.2, sized: 'estimated', source: ESTIMATE },
+        { name: 'RESET button (CHIP_EN)', kind: 'button', x: 14.22, y: 12.78, width: 3.5, length: 4.2, height: 1.5, rotation: 0, top: { shape: 'oval', width: 2.4, length: 3.2, height: 1.8 }, travel: 0.2, sized: 'estimated', source: ESTIMATE },
+        // its data sheet: a 2.0 × 1.8 mm base, 0.28 mm thick, under a clear lens 1.34 mm wide (1.29 at its top) across the full 1.8 mm,
+        // 0.80 mm high overall; its pads (on the 2.0 mm sides) lie along Y on the board, the lens is centred
+        { name: 'WS2812 RGB LED (XL-0807RGBC-WS2812B, GPIO10)', kind: 'led', x: 8.93, y: 14.2, width: 1.8, length: 2, height: 0.28, rotation: 0, top: { shape: 'rectangle', width: 1.8, length: 1.34, height: 0.8 }, sized: 'manufacturer', source: 'xinglight-xl-0807rgbc-ws2812b' },
+        { name: '3.3 V regulator (SOT23-5)', kind: 'regulator', x: 13.74, y: 7.39, width: 2.9, length: 1.6, height: 1.3, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'Crystal (2.5 × 2.0 mm class)', kind: 'crystal', x: 3.5, y: 8.49, width: 2.5, length: 2, height: 0.6, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'Ceramic antenna', kind: 'antenna', x: 8.93, y: 1.14, width: 6.6, length: 1.7, height: 1, rotation: 0, sized: 'estimated', source: ESTIMATE },
       ],
       antennaKeepout: { x0: 2.4, y0: 0, x1: 15.6, y1: 3.85 },
     },
@@ -137,8 +155,11 @@ function layoutOf(board: Board): DevBoardLayout {
   return { ...rest, pins, usb: { x0: usb.x0, y0: usb.y0, x1: round(usb.x0 + usbW), y1: round(L + usbOverhang), height: usbH } };
 }
 
+/** The top of a component above the PCB: its plunger's or lens's, else its body's. */
+export const componentTop = (component: DevBoardComponent) => component.top?.height ?? component.height;
+
 /** The tallest thing on the board above the PCB: the receptacle or a component. */
-const tallest = (layout: DevBoardLayout) => Math.max(layout.usb.height, ...layout.components.map(component => component.height));
+const tallest = (layout: DevBoardLayout) => Math.max(layout.usb.height, ...layout.components.map(componentTop));
 
 export const devBoardParts: Part[] = BOARDS.map((board): Part => {
   const confirmed = measured('manufacturer', board.source); const estimated = measured('estimated', ESTIMATE);

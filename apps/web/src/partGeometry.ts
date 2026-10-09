@@ -1,4 +1,4 @@
-import { cornerBracketHoles, devBoardLayout, METRIC_THREADS, type MetricThread, type Part } from '@canfactory/contracts';
+import { cornerBracketHoles, devBoardLayout, METRIC_THREADS, type DevBoardComponent, type MetricThread, type Part } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -316,6 +316,11 @@ function catCollar(part: Part): Piece[] {
 }
 
 const SOLDER_MASK = { black: 0x1f2124, blue: 0x24539c } as const;
+const COMPONENT_COLOURS: Record<DevBoardComponent['kind'], number> = {
+  button: 0xf1efe9, led: 0xf3f3f1, chip: DARK, regulator: DARK, crystal: NICKEL, diode: DARK, antenna: 0xc8473f, other: DARK,
+};
+const PLUNGER = 0xe6cf9e;
+const LENS = 0xfbf7e8;
 const GOLD = 0xd4a93c;
 
 /** A board's outline in its plane: a rectangle with rounded corners and, for a castellated board, a half hole at each pin's edge. */
@@ -354,12 +359,26 @@ function devBoard(part: Part): Piece[] {
   stadium.lineTo(usb.x0 + rr, usb.height); stadium.absarc(usb.x0 + rr, rr, rr, Math.PI / 2, Math.PI * 1.5, false);
   const shell = new THREE.ExtrudeGeometry(stadium, { depth: usb.y1 - usb.y0, bevelEnabled: false, curveSegments: 16 });
   shell.rotateX(Math.PI / 2); shell.translate(0, usb.y1, t);
-  const components = layout.components.map(component => {
+  const components = layout.components.flatMap(component => {
+    const turn = component.rotation * Math.PI / 180;
     const box = new THREE.BoxGeometry(component.width, component.length, component.height);
-    box.rotateZ(component.rotation * Math.PI / 180); box.translate(component.x, component.y, t + component.height / 2);
-    const name = component.name.toLowerCase();
-    const colour = name.includes('button') ? NYLON : name.includes('antenna') ? 0xc8473f : name.includes('led') ? 0xf3f3f1 : name.includes('crystal') ? NICKEL : DARK;
-    return paint(box, colour);
+    box.rotateZ(turn); box.translate(component.x, component.y, t + component.height / 2);
+    const pieces = [paint(box, COMPONENT_COLOURS[component.kind])];
+    const { top } = component;
+    if (top) {
+      // a button's plunger or an LED's lens, centred on the body up to its own height
+      const plan = new THREE.Shape(); const [w, l] = [top.width, top.length];
+      if (top.shape === 'round') plan.absarc(0, 0, w / 2, 0, Math.PI * 2, false);
+      else if (top.shape === 'oval') {
+        const r = Math.min(w, l) / 2; const [dx, dy] = w < l ? [0, l / 2 - r] : [w / 2 - r, 0];
+        plan.absarc(dx, dy, r, w < l ? 0 : -Math.PI / 2, w < l ? Math.PI : Math.PI / 2, false);
+        plan.absarc(-dx, -dy, r, w < l ? Math.PI : Math.PI / 2, w < l ? Math.PI * 2 : Math.PI * 1.5, false);
+      } else { plan.moveTo(-w / 2, -l / 2); plan.lineTo(w / 2, -l / 2); plan.lineTo(w / 2, l / 2); plan.lineTo(-w / 2, l / 2); }
+      const cap = prism(plan, 0, top.height - component.height, component.kind === 'led' ? LENS : component.kind === 'button' ? PLUNGER : DARK);
+      cap.rotateZ(turn); cap.translate(component.x, component.y, t + component.height);
+      pieces.push(cap);
+    }
+    return pieces;
   });
   return [prism(outline, 0, t, SOLDER_MASK[layout.solderMask]), ...pads, paint(shell, NICKEL), ...components];
 }

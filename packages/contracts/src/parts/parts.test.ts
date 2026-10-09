@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
 import { cigaretteCase, models, partUsage, plankConnector } from '../models.ts';
-import { devBoardLayout, findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, springRate, type Part } from './index.ts';
+import { componentTop, devBoardLayout, findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, springRate, type Part } from './index.ts';
 
 const root = (path: string) => new URL(`../../../../${path}`, import.meta.url);
 const dimension = (part: Part, key: string) => part.dimensions[key]?.value ?? Number.NaN;
@@ -185,13 +185,34 @@ describe('parts library', () => {
         expect(component.x - halfX, where).toBeGreaterThanOrEqual(0); expect(component.x + halfX, where).toBeLessThanOrEqual(W);
         expect(component.y - halfY, where).toBeGreaterThanOrEqual(0); expect(component.y + halfY, where).toBeLessThanOrEqual(L);
         for (const pin of layout.pins) expect(Math.max(Math.abs(pin.x - component.x) - halfX, Math.abs(pin.y - component.y) - halfY), `${where} × ${pin.name}`).toBeGreaterThan(d / 2);
-        expect(component.height, where).toBeLessThanOrEqual(usb.height);
+        expect(componentTop(component), where).toBeLessThanOrEqual(usb.height);
+        expect(part.sources, `${where}: its size's source`).toContain(component.source);
+        // a plunger or lens stands on its body, inside its footprint
+        if (component.top) {
+          expect(component.top.height, where).toBeGreaterThan(component.height);
+          expect(component.top.width, where).toBeLessThanOrEqual(component.width);
+          expect(component.top.length, where).toBeLessThanOrEqual(component.length);
+        }
+      }
+      // two buttons (BOOT and reset), each with a plunger to press and its travel, standing above everything round them
+      const buttons = layout.components.filter(component => component.kind === 'button');
+      expect(buttons.map(button => button.name.split(' ')[0]), message).toEqual([expect.stringMatching(/^BOOT$/), expect.stringMatching(/^RE?S(ET|T)$/)]);
+      for (const button of buttons) {
+        expect(button.top && button.travel && button.travel > 0, `${message}: ${button.name}`).toBeTruthy();
+        const near = layout.components.filter(other => other !== button && Math.hypot(other.x - button.x, other.y - button.y) < 4);
+        for (const other of near) expect(componentTop(other), `${message}: ${other.name} beside ${button.name}`).toBeLessThan(componentTop(button));
       }
       // the antenna keep-out lies on the board, at the end away from the receptacle, round the antenna
       const antenna = layout.components.find(component => /antenna/i.test(component.name));
       const keepout = layout.antennaKeepout;
       expect(antenna && keepout.x0 <= antenna.x && antenna.x <= keepout.x1 && keepout.y0 <= antenna.y && antenna.y <= keepout.y1, message).toBe(true);
       expect(keepout.y1, message).toBeLessThan(L / 2);
+      // the Zero's RGB LED is its data sheet's: a 2.0 × 1.8 mm base under a 1.34 mm lens, 0.8 mm high
+      if (part.id === 'waveshare-esp32-c3-zero') {
+        const led = layout.components.find(component => component.kind === 'led');
+        expect(led && [led.width, led.length, led.height, led.top?.width, led.top?.length, led.top?.height, led.sized, led.source])
+          .toEqual([1.8, 2, 0.28, 1.8, 1.34, 0.8, 'manufacturer', 'xinglight-xl-0807rgbc-ws2812b']);
+      }
       // the overall height is the PCB and the tallest thing on it
       expect(dimension(part, 'H'), message).toBeCloseTo(t + usb.height, 2);
     }

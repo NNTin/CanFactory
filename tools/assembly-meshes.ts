@@ -14,6 +14,8 @@ import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
  * it turns into (see each SCAD file), and an insert as the hole it is melted into.
  */
 const size = (part: Part, key: string, limit: 'value' | 'max' = 'max') => part.dimensions[key] ? String(dimensionOf(part, key, limit)) : '0';
+/** dev-board.scad's code for the shape on a component's body (0: none). */
+const TOP_SHAPES = { round: 1, oval: 2, rectangle: 3 } as const;
 export const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part) => Record<string, string> }> = {
   magnet: {
     scad: 'parts/magnets/magnet.scad',
@@ -70,7 +72,7 @@ export const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part
         L: size(part, 'L', 'value'), W: size(part, 'W', 'value'), T: size(part, 't', 'value'), R: size(part, 'r', 'value'), HOLE: size(part, 'd', 'value'),
         CASTELLATED: String(layout.castellated), PINS: JSON.stringify(layout.pins.map(pin => [pin.x, pin.y])),
         USB: JSON.stringify([usb.x0, usb.y0, usb.x1, usb.y1, usb.height]),
-        COMPONENTS: JSON.stringify(layout.components.map(c => [c.x, c.y, c.width, c.length, c.height, c.rotation])),
+        COMPONENTS: JSON.stringify(layout.components.map(c => [c.x, c.y, c.width, c.length, c.height, c.rotation, c.top ? TOP_SHAPES[c.top.shape] : 0, c.top?.width ?? 0, c.top?.length ?? 0, c.top?.height ?? 0])),
       };
     },
   },

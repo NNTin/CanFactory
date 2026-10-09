@@ -28,7 +28,7 @@ export * from './affiliateAccounts.ts';
 export * from './matcher.ts';
 export { PART_SOURCES, findPartSource } from './sources.ts';
 export { cornerBracketHoles } from './corner-brackets.ts';
-export { devBoardLayout, type DevBoardArea, type DevBoardComponent, type DevBoardLayout, type DevBoardPin } from './dev-boards.ts';
+export { componentTop, devBoardLayout, type DevBoardArea, type DevBoardComponent, type DevBoardComponentTop, type DevBoardLayout, type DevBoardPin } from './dev-boards.ts';
 export { springRate } from './springs.ts';
 
 /**
