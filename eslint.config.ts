@@ -3,7 +3,7 @@ import tseslint from 'typescript-eslint';
 import { defineConfig } from 'eslint/config';
 
 export default defineConfig(
-  { ignores: ['**/dist/**', '**/node_modules/**', 'coverage/**', 'playwright-report/**', 'test-results/**', 'packages/client/src/schema.d.ts'] },
+  { ignores: ['packages/physics/src/wasm/**', '**/dist/**', '**/node_modules/**', 'coverage/**', 'playwright-report/**', 'test-results/**', 'packages/client/src/schema.d.ts'] },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   {

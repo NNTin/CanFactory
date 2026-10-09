@@ -14,70 +14,16 @@
  *
  * Needs an OpenSCAD runtime (see tools/stl-to-scad/openscad.ts). Exits 1 if any check fails.
  */
-import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
-import { resolve } from 'node:path';
-import { activeParts, assemblyOffset, assemblyScale, dimensionOf, motionFrames, findPart, isAssembly, models, partAssetPath, resolveAssembly, scadDefines, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues, type Part } from '../packages/contracts/src/index.ts';
+import { assemblyOffset, assemblyScale, motionFrames, isAssembly, models, resolveAssembly, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '../packages/contracts/src/index.ts';
+import { renderAssemblyMeshes } from './assembly-meshes.ts';
 import { intersectionVolume } from './stl-to-scad/compare.ts';
-import { renderScad } from './stl-to-scad/openscad.ts';
-import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
+import { bounds, g, type Mesh } from './stl-to-scad/stl.ts';
 
 const SAMPLES = 16;
 /** The last millimetres of each step's travel, sampled every CLOSING_STEP mm and held to the snap tolerance. */
 const CLOSING = 10;
 const CLOSING_STEP = 0.25;
-/**
- * The generic models of the families the preview builds from their dimensions (magnets, screws, nuts, threaded inserts), so that
- * they have no STL of their own: each is rendered at the part's sizes. A thread is drawn so that a screw clears the nut or insert
- * it turns into (see each SCAD file), and an insert as the hole it is melted into.
- */
-const size = (part: Part, key: string, limit: 'value' | 'max' = 'max') => part.dimensions[key] ? String(dimensionOf(part, key, limit)) : '0';
-const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part) => Record<string, string> }> = {
-  magnet: {
-    scad: 'parts/magnets/magnet.scad',
-    defines: part => {
-      const shape = part.attributes['shape'] === 'block' ? 'block' : part.attributes['shape'] === 'ring' ? 'ring' : 'disc';
-      return { SHAPE: JSON.stringify(shape), DIAMETER: size(part, 'diameter'), HOLE: size(part, 'innerDiameter'), LENGTH: size(part, 'length'), WIDTH: size(part, 'width'), HEIGHT: size(part, 'thickness') };
-    },
-  },
-  screw: {
-    scad: 'parts/screws/screw.scad',
-    defines: part => ({
-      COUNTERSUNK: String(part.attributes['head'] === 'countersunk'), D: size(part, 'd', 'value'), PITCH: size(part, 'pitch', 'value'), L: size(part, 'l', 'value'),
-      HEAD_D: part.dimensions['dk'] ? size(part, 'dk') : size(part, 'e'), HEAD_K: size(part, 'k'),
-      HEX: String(part.attributes['head'] === 'hex'), HEAD_S: part.attributes['head'] === 'hex' ? size(part, 's') : '0',
-    }),
-  },
-  // a wood screw cuts its own thread: drawn at its nominal diameter, which its clearance hole clears
-  'wood-screw': {
-    scad: 'parts/screws/screw.scad',
-    defines: part => ({ COUNTERSUNK: String(part.attributes['head'] === 'countersunk'), D: size(part, 'd', 'value'), PITCH: '0', L: size(part, 'l', 'value'), HEAD_D: size(part, 'dk'), HEAD_K: size(part, 'k'), HEX: 'false', HEAD_S: '0' }),
-  },
-  nut: {
-    scad: 'parts/nuts/nut.scad',
-    defines: part => ({ SQUARE: String(part.attributes['shape']?.startsWith('square') === true), S: size(part, 's'), H: part.dimensions['h'] ? size(part, 'h') : size(part, 'm'), D: size(part, 'd', 'value') }),
-  },
-  // a set screw's thread at its minor diameter, which the tap drill of its hole clears
-  'set-screw': {
-    scad: 'parts/set-screws/set-screw.scad',
-    defines: part => ({ D: size(part, 'd', 'value'), PITCH: size(part, 'pitch', 'value'), L: size(part, 'l', 'value') }),
-  },
-  ball: { scad: 'parts/balls/ball.scad', defines: part => ({ D: size(part, 'd') }) },
-  // a spring at its free length, its total coils being the active ones and a closed end each
-  spring: {
-    scad: 'parts/springs/spring.scad',
-    defines: part => ({ D_WIRE: size(part, 'd', 'value'), DE: size(part, 'De'), L0: size(part, 'L0'), COILS: String(Number(/with ([\d.]+) active coils/.exec(part.description)?.[1] ?? 5) + 2) }),
-  },
-  // a split ring as one closed ring of its outer and inner diameter and its thickness over both turns
-  'split-ring': { scad: 'parts/split-rings/split-ring.scad', defines: part => ({ D_OUT: size(part, 'D'), D_IN: size(part, 'd'), THICKNESS: size(part, 'b') }) },
-  'nfc-tag': { scad: 'parts/nfc-tags/nfc-tag.scad', defines: part => ({ D: size(part, 'D'), H: size(part, 'h') }) },
-  // a 60 mm piece of the strap, at its greatest thickness
-  'cat-collar': { scad: 'parts/cat-collars/strap.scad', defines: part => ({ WIDTH: size(part, 'width'), THICKNESS: size(part, 'thickness') }) },
-  'threaded-insert': {
-    scad: 'parts/inserts/insert.scad',
-    defines: part => ({ HOLE: size(part, 'hole', 'value'), L: size(part, 'l', 'value'), D: part.attributes['thread']?.slice(1) ?? '0' }),
-  },
-};
 const CELL = 0.25;
 
 /** Scales (per axis), then rotates about X, then Y, then Z (degrees), then translates. */
@@ -120,38 +66,7 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
   if (issues.length > 0) throw new Error(`Invalid parameters for ${model.id}: ${issues.map(issue => issue.message).join(' ')}`);
   // With the reference objects these parameters add (e.g. the magnets of a magnet snap).
   const assembly = resolveAssembly(model, model.assembly, parameters) ?? model.assembly;
-  const parts = new Map<string, Mesh>();
-  for (const part of activeParts(model, parameters)) {
-    // As apps/worker/src/render.ts: each part gets only its own mapped parameters and chosen parts' dimensions.
-    const defines = { ...Object.fromEntries(scadDefines(model, part, parameters)), ...overrides };
-    const render = await renderScad(resolve(part.sourcePath), defines);
-    parts.set(part.id, parseStl(render.stl));
-    console.log(`rendered ${part.id} (${render.runner}, ${(render.milliseconds / 1000).toFixed(1)} s)`);
-  }
-  // Reference objects (e.g. a lighter in its bay) are checked like parts, rendered from their SCAD source; the preview uses the
-  // STL rendered from it, so it must match.
-  for (const reference of assembly.references ?? []) {
-    const part = findPart(reference.part);
-    if (!part) throw new Error(`${model.id}: reference ${reference.id} is not in the parts library.`);
-    // A part the preview builds from its dimensions (a magnet, a screw, ...) is rendered from its family's generic model.
-    const generic = GENERIC_MODELS[part.family];
-    if (generic) {
-      const render = await renderScad(resolve(generic.scad), generic.defines(part));
-      parts.set(reference.id, parseStl(render.stl));
-      console.log(`rendered reference ${reference.id} (${part.id}, ${render.runner}, ${(render.milliseconds / 1000).toFixed(1)} s)`);
-      continue;
-    }
-    const [scad, stl] = [partAssetPath(part, 'scad'), partAssetPath(part, 'stl')];
-    if (!scad || !stl) throw new Error(`${model.id}: reference ${reference.id} has neither an STL preview nor a generic model.`);
-    const render = await renderScad(resolve(scad), {});
-    const mesh = parseStl(render.stl);
-    const committed = parseStl(await readFile(resolve(stl)));
-    const [fresh, stored] = [bounds(mesh), bounds(committed)];
-    if ([...fresh.min, ...fresh.max].some((value, index) => Math.abs(value - g([...stored.min, ...stored.max], index)) > 0.01))
-      throw new Error(`${stl} is out of date: render ${scad} again.`);
-    parts.set(reference.id, mesh);
-    console.log(`rendered reference ${reference.id} (${render.runner}, ${(render.milliseconds / 1000).toFixed(1)} s)`);
-  }
+  const parts = await renderAssemblyMeshes(model, assembly, parameters, overrides);
   const ids = [...model.parts.map(part => part.id), ...(assembly.references ?? []).map(reference => reference.id)];
   const unknown = [...Object.keys(assembly.poses), ...assembly.steps.flatMap(step => step.parts)].filter(id => !ids.includes(id));
   if (unknown.length > 0) throw new Error(`${model.id}: the assembly names parts that do not exist: ${unknown.join(', ')}`);
