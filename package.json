@@ -37,6 +37,7 @@
     "@fastify/swagger": "9.8.1",
     "@fastify/swagger-ui": "6.1.1",
     "@fastify/type-provider-typebox": "6.1.0",
+    "@mujoco/mujoco": "3.14.0",
     "better-sqlite3": "13.0.3",
     "clipper-lib": "6.4.2",
     "drizzle-orm": "0.45.2",

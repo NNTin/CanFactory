@@ -105,12 +105,25 @@ from them (as `toggleLatchMechanism.ts` does).
 
 MuJoCo has no units. The scene compiler converts the spec's millimetres to **metres** and grams to **kilograms**, so that
 gravity is 9.81 and forces are in newtons. Clearances of 0.1 mm become 1e-4 m, so the time step, contact margin and soft
-contact parameters (`solref`, `solimp`) are tuned for that scale; spike 1 and spike 3 establish them and record them here.
+contact parameters (`solref`, `solimp`) are tuned for that scale.
+
+Spike 1 measured how far small parts sink into a floor at rest (`DEFAULT_OPTIONS` in `packages/physics/src/scene.ts`):
+
+| Time step | `solref` | `solimp` | 10 g box, 20 mm | 4.5 mm steel ball | Cost per simulated second |
+| --- | --- | --- | --- | --- | --- |
+| 2 ms (MuJoCo's default) | 0.02 1 | 0.9 0.95 0.001 | 108 µm | 367 µm | 43 ms |
+| 0.5 ms | 0.002 1 | 0.9 0.95 0.001 | 1.1 µm | 4.4 µm | 51 ms |
+| **0.5 ms (chosen)** | **0.002 1** | **0.99 0.999 0.0001** | **0.10 µm** | **0.40 µm** | **31 ms** |
+| 0.2 ms | 0.001 1 | 0.99 0.999 0.0001 | 0.02 µm | 0.10 µm | 81 ms |
+
+MuJoCo's defaults let parts sink as far as the models' clearances, so they cannot be used. The chosen row keeps contact well
+under a micron and still runs about 30 times faster than real time on this host (Node, single-threaded).
 
 ## Determinism
 
-The same pinned `.wasm` runs in Node and the browser, single-threaded. A test runs a reference scene in Node and compares a
-hash of the state after N steps with a recorded value. CI assertions use tolerances rather than exact values, so a later
+The same pinned `.wasm` runs in Node and the browser, single-threaded. A test runs a reference scene in Node
+(`referenceScene.ts`: a mesh cube, a steel ball, a sprung hinge and a slide with dry friction) and compares a hash of the state
+after 2000 steps with a recorded value. CI assertions use tolerances rather than exact values, so a later
 engine upgrade only needs the recorded hash renewed, not every scenario.
 
 ## Test cases
@@ -121,6 +134,15 @@ engine upgrade only needs the recorded hash renewed, not every scenario.
 | Spring-ball detent | Body fixed; ball (sphere) on a slide, with the library spring's rate and installed length | The ball rests on the lip with the installed preload; pushed in by the travel, the force matches the spring's rate. |
 | Toggle latch | Base fixed; lever, link and catch on ideal hinges and a slide from `toggleLatchMechanism.ts`; optional contact pins | Driving the lever reproduces `TOGGLE_LATCH_HOOKED` within tolerance; closed and pulled, the lever stays closed (over centre). |
 | Gears (later) | Hinges on the axes; authored tooth pieces | Turning one gear turns the other at the tooth ratio; backlash matches the geometry. |
+
+## Engine notes
+
+- `@mujoco/mujoco` is pinned to 3.14.0. Its typings return `any` for arrays, so `packages/physics/src/engine.ts` narrows the part
+  of the API the package uses; nothing else touches the bindings.
+- Reading `MjData.eq_active` throws a binding error in 3.14.0, so equality constraints cannot be switched on and off at run time.
+  Dragging therefore applies a spring force (`xfrc_applied`) instead of a mocap body on a switchable constraint, the same way as
+  MuJoCo's own `mjv_applyPerturbForce`, with the point's velocity from `mj_objectVelocity`.
+- `DoubleBuffer` is constructed with its size (`new DoubleBuffer(n)`), not with an array as the package's README shows.
 
 ## Spikes
 
@@ -137,8 +159,8 @@ engine upgrade only needs the recorded hash renewed, not every scenario.
 | Step | State |
 | --- | --- |
 | Plan (this file) | Done |
-| `packages/physics` skeleton, MuJoCo loading in Node | Not started |
-| Spike 1: reference scene, determinism hash | Not started |
+| `packages/physics` skeleton, MuJoCo loading in Node | Done: `engine.ts` (typed facade), `scene.ts`, `mjcf.ts`, `massProperties.ts`, `simulation.ts` (drag spring, state hash) |
+| Spike 1: reference scene, determinism hash | Node done (hash `89da2a25e70bfbfd`, @mujoco/mujoco 3.14.0); browser comparison pending (with spike 5) |
 | Mechanism spec in contracts | Not started |
 | Scene compiler (spec → MJCF) | Not started |
 | Spike 2: decomposers | Not started |
