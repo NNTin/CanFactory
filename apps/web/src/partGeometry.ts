@@ -316,12 +316,12 @@ function catCollar(part: Part): Piece[] {
 }
 
 const SOLDER_MASK = { black: 0x1f2124, blue: 0x24539c } as const;
+const GOLD = 0xd4a93c;
 const COMPONENT_COLOURS: Record<DevBoardComponent['kind'], number> = {
-  button: 0xf1efe9, led: 0xf3f3f1, chip: DARK, regulator: DARK, crystal: NICKEL, diode: DARK, antenna: 0xc8473f, other: DARK,
+  button: 0xf1efe9, led: 0xf3f3f1, chip: DARK, regulator: DARK, crystal: NICKEL, diode: DARK, antenna: 0xc8473f, connector: GOLD, shield: NICKEL, other: DARK,
 };
 const PLUNGER = 0xe6cf9e;
 const LENS = 0xfbf7e8;
-const GOLD = 0xd4a93c;
 
 /** A board's outline in its plane: a rectangle with rounded corners and, for a castellated board, a half hole at each pin's edge. */
 function boardOutline(width: number, length: number, radius: number, notches: { x: number; y: number }[], notch: number): THREE.Shape {
@@ -380,7 +380,12 @@ function devBoard(part: Part): Piece[] {
     }
     return pieces;
   });
-  return [prism(outline, 0, t, SOLDER_MASK[layout.solderMask]), ...pads, paint(shell, NICKEL), ...components];
+  // the pads underneath, as thin gold discs under the PCB
+  const bottomPads = layout.bottomPads.map(pad => {
+    const disc = new THREE.Shape(); disc.absarc(pad.x, pad.y, 0.55, 0, Math.PI * 2, false);
+    return prism(disc, -0.04, 0.04, GOLD);
+  });
+  return [prism(outline, 0, t, SOLDER_MASK[layout.solderMask]), ...pads, ...bottomPads, paint(shell, NICKEL), ...components];
 }
 
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {

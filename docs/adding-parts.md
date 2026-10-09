@@ -81,52 +81,85 @@ screw's thread is drawn at its minor diameter, so that it clears its tap-drill h
 ### Development boards
 
 The **`dev-board`** family (`dev-boards.ts`) holds small microcontroller boards that a print holds (a smart lamp's controller):
-the ESP32-C3 SuperMini (Nologo) and the Waveshare ESP32-C3-Zero. A case is designed around more than a board's size, so besides its
-dimensions (board `L` × `W` × `t`, corner `r`, pitch `e`, row spacing `e1`, first pin `a` from the USB end, hole `d`, the USB-C
-receptacle's width, height and overhang, and the overall height `H`) each board has a layout, `devBoardLayout(part)`:
+
+- **ESP32-C3:** the ESP32-C3 SuperMini (Nologo) and the Waveshare ESP32-C3-Zero.
+- **ESP32-C6:** the Waveshare ESP32-C6-Zero and the Seeed Studio XIAO ESP32C6.
+
+Besides its dimensions (board `L` × `W` × `t`, corner `r`, pitch `e`, row spacing `e1`, first pin `a` from the USB end, hole `d`,
+the USB-C receptacle's width, height and overhang, and the overall height `H`), each board has a layout, `devBoardLayout(part)`:
 
 - **Frame:** millimetres, the PCB's underside on z = 0 with its corner at the origin, the width along X and the length along Y,
   the USB-C receptacle at the +Y end and the antenna at y = 0, seen from the component side.
 - **`pins`:** each pin's name and hole centre (`castellated`: a half hole at the edge beside each).
 - **`usb`:** the receptacle's box, past the board's end.
-- **`components`:** every component taller than the small 0402 parts (the chip, the buttons, the regulator, the crystal, the LEDs
-  and the antenna): its `kind`, its body as a box with its height above the PCB, and the source of its size.
+- **`components`:** every component taller than the small 0201 and 0402 parts: its `kind`, its body as a box with its height
+  above the PCB, and the source of its size.
   - **Buttons:** each has its plunger (`top`: shape, size and the height of its top) and its `travel`. A printed actuator rests
     on the plunger's top and pushes it down by the travel.
   - **LEDs:** an LED with a lens has the lens as its `top`, which is where a light pipe or a thin window goes.
+  - **Connectors and shields:** a U.FL receptacle has its post as its `top`; a shield can is one box.
   - `componentTop(component)` is the highest point of any component.
+- **`externalAntenna`:** how an external antenna reaches the radio, so that a case leaves room for it and a way out for its
+  cable. It is one of:
+  - **A `connector`:** the XIAO's U.FL. Its position and the height a mated plug reaches (2.5 mm at most), and `select`, the GPIO
+    that switches to it.
+  - **`solder points`:** the C3 SuperMini, where Nologo shows a coax core soldered to the chip antenna's feed pad and its shield
+    to a ground pad.
+  - **`null`:** the maker documents no way (the two Zeros).
+- **`bottomPads`:** flat pads on the underside (the C6-Zero's extra GPIO, the XIAO's JTAG, BOOT and battery pads). A floor under
+  the board leaves them free to reach.
 - **`antennaKeepout`:** where to keep metal, PCBs and thick walls away.
 - **`bareUnderside`:** whether the board can lie flat.
 
-What the makers publish is `manufacturer`: Nologo gives the SuperMini's 22.52 × 18 mm, its 15.24 mm row spacing and its pinout.
-Waveshare's drawing gives the Zero's 23.5 × 18 mm, R1 corners, 2.54 mm pitch, first pin (1.59 mm) and row inset (1.38 mm).
-The Zero's RGB LED (XL-0807RGBC-WS2812B) comes from its data sheet: a 2.0 × 1.8 mm base, 0.28 mm thick, under a 1.34 mm lens,
-0.8 mm high.
+Each board's own data:
 
-The buttons:
-- **SuperMini:** its schematic names 3 × 4 × 2 mm two-pin tact switches. They are drawn as XUNPU's TS-1088 of that size: a
-  3.9 × 3.0 × 1.5 mm body and a Ø1.8 mm plunger, 2.0 mm high, with 0.2 mm travel.
-- **Zero:** no data sheet names its buttons. Their body (3.5 × 4.2 × 1.5 mm) and beige oval plunger (2.4 × 3.2 mm, top 1.8 mm)
-  are read off Waveshare's photographs. Neither publishes the rest, so it is `estimated` (source
-`canfactory-dev-board-estimate`):
+- **ESP32-C3 SuperMini (Nologo):**
+  - Nologo gives 22.52 × 18 mm, the 15.24 mm row spacing and the pinout.
+  - Its schematic names 3 × 4 × 2 mm two-pin tact switches. They are drawn as XUNPU's TS-1088 of that size: a 3.9 × 3.0 × 1.5 mm
+    body and a Ø1.8 mm plunger, 2.0 mm high, with 0.2 mm travel.
+  - The rest is read off Nologo's to-scale render (39.4 px/mm) and is `estimated`.
+- **Waveshare ESP32-C3-Zero:**
+  - Waveshare's drawing gives 23.5 × 18 mm, R1 corners, 2.54 mm pitch, first pin (1.59 mm) and row inset (1.38 mm).
+  - The RGB LED (XL-0807RGBC-WS2812B) is its data sheet's: a 2.0 × 1.8 mm base, 0.28 mm thick, under a 1.34 mm lens, 0.8 mm high.
+  - No data sheet names the buttons. Their body (3.5 × 4.2 × 1.5 mm) and beige oval plunger (2.4 × 3.2 mm, top 1.8 mm) are read
+    off Waveshare's photographs (14.6 px/mm).
+- **Waveshare ESP32-C6-Zero:**
+  - Waveshare publishes a dimensioned drawing, a DXF and a STEP model. Everything comes from them, moved into the layout's frame:
+    the 1.6 mm PCB, 4.85 mm overall, the Ø0.9 mm holes, the seven Ø1.15 mm pads underneath, the mid-mounted receptacle, and the
+    buttons (4.12 × 2.5 × 1.4 mm, Ø1.5 mm plunger to 1.75 mm).
+  - The exceptions are the RGB LED (its data sheet), the regulator (missing from the model, placed from the photographs) and the
+    buttons' travel (assumed).
+- **Seeed Studio XIAO ESP32C6:**
+  - Seeed publishes its KiCad design, which gives the outline (20.955 × 17.78 mm, R1.905), the 1.6 mm stack-up, the pins and every
+    footprint's place.
+  - The parts' sizes are their makers' data sheets:
+    - the GCT USB4105 receptacle: 8.94 × 7.35 × 3.31 mm;
+    - the Alps SKTAAAE010 buttons: 2.6 × 1.6 × 0.53 mm, 0.11 mm travel;
+    - the Hirose U.FL-R-SMT-1: a Ø2 mm post 1.25 mm high, 2.5 mm mated.
+  - The shield can over the radio is not in the KiCad design. It is estimated from Seeed's rendered pinout.
 
-- **Read off the drawings:** the components' places and the receptacle, from the makers' to-scale drawings (Nologo's render at
-  39.4 px/mm, Waveshare's photograph at 14.6 px/mm). Expect about ±0.2 mm.
+Where the makers give nothing, values are `estimated` (source `canfactory-dev-board-estimate`):
+
+- **Read off the drawings:** places read off the makers' to-scale drawings. Expect about ±0.2 mm.
 - **Usual package sizes:** QFN32 5 × 5, SOT23-5, a 3.16–3.26 mm high top-mount USB-C receptacle.
-- **Assumed:** a 1.0 mm PCB and 1.0 mm holes.
+- **Assumed:** the C3 boards' 1.0 mm PCB and 1.0 mm holes.
 
 Measure a board before a tight fit, and correct the value under the same id. Copies of the SuperMini from other shops may place
-components slightly differently.
+components slightly differently. There is no ESP32-C6 SuperMini: no maker publishes a drawing of one, and the third-party figures
+disagree.
 
 The parts library draws a board from its layout (`partGeometry.ts`), and `npm run check:assembly` renders it from
 `parts/dev-boards/dev-board.scad` with the layout as `-D` overrides (`GENERIC_MODELS`), so a case's assembly can check its walls
-and openings against the receptacle and the components, the plungers and the lens included. The test checks the layout:
+and openings against the receptacle and the components, the plungers, the lens and the U.FL post included. The test checks the
+layout:
 - the pins on their grid;
 - the receptacle centred at the USB end;
 - every component inside the outline and clear of the holes;
 - each plunger and lens inside its body;
 - the two buttons standing above everything round them;
 - the Zero's LED as its data sheet gives it;
+- the pads underneath clear of the holes;
+- the external antenna consistent with its connector or near the antenna;
 - the antenna inside its keep-out.
 
 ## Previews
