@@ -19,6 +19,7 @@ export * from './catCollarTag.ts';
 export * from './physics.ts';
 export * from './physicsPieces.ts';
 export * from './cigaretteCasePhysics.ts';
+export * from './spurGear.ts';
 /** The toggle latch's mechanism, shared by the catalogue card's side view and the assembly preview. */
 export * as toggleLatchMechanism from './toggleLatchMechanism.ts';
 

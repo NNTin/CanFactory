@@ -140,7 +140,7 @@ export function buildScene(input: BuildInput): Scene {
   const poses: Record<string, PartPose> = { ...input.poses, ...spec.poses, ...input.startPoses };
   const ids = new Set(spec.bodies.map(body => body.id));
   const world = new Map(spec.bodies.map(body => [body.id, worldPose(body.id, poses)]));
-  const timestep = input.options?.timestep ?? DEFAULT_OPTIONS.timestep;
+  const timestep = Math.min(input.options?.timestep ?? DEFAULT_OPTIONS.timestep, spec.maxStep ?? Infinity);
   const bodies: SceneBody[] = spec.bodies.map(body => {
     const joint = body.joint;
     if (joint?.parent !== undefined && !ids.has(joint.parent)) throw new Error(`Physics body ${body.id}: its joint's parent ${joint.parent} is not a body.`);
@@ -177,7 +177,7 @@ export function buildScene(input: BuildInput): Scene {
   const g = Math.hypot(...gravity);
   if (g === 0) throw new Error('Gravity needs a direction.');
   return {
-    options: { ...DEFAULT_OPTIONS, ...input.options, gravity: scale(gravity, 9.81 / g) },
+    options: { ...DEFAULT_OPTIONS, ...input.options, timestep, gravity: scale(gravity, 9.81 / g) },
     bodies,
     exclude: (spec.exclude ?? []).map(([a = '', b = '']) => [a, b] as [string, string]),
     ...(input.drives && input.drives.length > 0 ? { drives: input.drives.map(body => driveOf(spec, body)) } : {}),

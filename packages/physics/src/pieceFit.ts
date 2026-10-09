@@ -173,8 +173,8 @@ const percentile = (values: number[], q: number): number => {
   return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0;
 };
 
-/** The fit of these pieces to this closed mesh (a triangle soup). */
-export function pieceFit(soup: ArrayLike<number>, pieces: readonly ConvexPiece[], spacing = 0.25): PieceFit {
+/** The fit of these pieces to this closed mesh (a triangle soup); `gaps: false` measures only the intrusion, which is much quicker. */
+export function pieceFit(soup: ArrayLike<number>, pieces: readonly ConvexPiece[], spacing = 0.25, { gaps: measureGaps = true } = {}): PieceFit {
   const tris = triangles(soup);
   // grid cells of a few triangles' size: about 4 mean edge lengths, from 0.25 to 2 mm
   const edge = tris.reduce((sum, t) => sum + Math.hypot(...sub(t.b, t.a)), 0) / Math.max(1, tris.length);
@@ -192,7 +192,7 @@ export function pieceFit(soup: ArrayLike<number>, pieces: readonly ConvexPiece[]
   }
   const hulls = pieces.map(hullOf);
   const gaps: number[] = [];
-  for (const t of mesh.tris) {
+  for (const t of measureGaps ? mesh.tris : []) {
     for (const p of samples(t.a, t.b, t.c, spacing)) {
       count++;
       let best = Infinity;

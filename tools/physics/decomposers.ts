@@ -49,7 +49,16 @@ for (const [name, mesh] of candidates) {
   for (const { name: setting, settings } of SETTINGS) {
     if (values.only && settings.decomposer !== values.only) continue;
     const start = performance.now();
-    const pieces = await decompose(mesh.tris, settings);
+    let pieces;
+    try {
+      pieces = await decompose(mesh.tris, settings);
+    } catch (error) {
+      // CoACD throws an uncaught C++ exception on some meshes (the honeycomb case box): record it and go on
+      const row = `| ${name} | ${mesh.tris.length / 9} | ${setting} | failed: ${error instanceof Error ? error.message : String(error)} | | | | | |`;
+      rows.push(row);
+      console.log(row);
+      continue;
+    }
     const seconds = (performance.now() - start) / 1000;
     const fit = pieceFit(mesh.tris, pieces);
     const row = `| ${name} | ${mesh.tris.length / 9} | ${setting} | ${seconds.toFixed(1)} s | ${pieces.length} | ${fit.intrusion.toFixed(3)} mm | ${fit.intrusion99.toFixed(3)} mm | ${fit.gap.toFixed(3)} mm | ${fit.gap99.toFixed(3)} mm |`;

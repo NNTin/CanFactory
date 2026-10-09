@@ -199,6 +199,28 @@ The holder's fit is an assumption (2 N; `HOLDER_HOLD`): how firmly a printed fri
 Each mechanism lives next to its geometry in contracts: `springBallDetentPhysics` (models.ts), `toggleLatchPhysics`
 (toggleLatchMechanism.ts) and `cigaretteCasePhysics` (cigaretteCasePhysics.ts, whose SCAD values a test keeps equal).
 
+## Spike 4: gears
+
+No catalogue model has gears yet, so the spike uses a fixture: `spurGear.ts` in contracts draws an involute spur gear (ISO 53 basic
+rack, 20°) and gives its pieces tooth by tooth, each tooth cut at the root circle and extruded (an external involute tooth is
+convex), plus the hub; `tools/physics/fixtures/spur-gear.scad` draws the same gear with the same formulas. Transport format: the
+pieces are computed on the geometry side from the same values as the SCAD file, as the other models' given pieces are, and
+`check:physics` renders the SCAD gear and checks that no piece reaches out of it (both gears: under 1 µm).
+
+The pair (m 1.5, z 20 and z 40, each tooth thinned 0.05 mm) is coupled only by its teeth:
+
+| Scenario | Result | Geometry |
+| --- | --- | --- |
+| The driver turned 90° | the driven gear turns −44.994° | −45° less half the backlash (0.095°) |
+| The driven gear held, the driver turned by ±10 N·mm | 0.369° of play between its teeth's flanks | 0.382° (0.1 mm over a 15 mm pitch radius) |
+
+Found on the way:
+- Teeth need a shorter time step: at 0.5 ms the gears skipped teeth within a few degrees, at 0.25 ms after 20°, and 0.2 ms was
+  on the edge. A mechanism can now say how short a step it needs (`PhysicsSpec.maxStep`); the pair asks for 0.1 ms.
+- Dry friction in the driven gear's bearing set the pair rattling (its stick-slip kicks the teeth apart); it is damped instead.
+- Driven round by a torque, the driver is damped so that its teeth meet the other gear's at a few mm/s, as in
+  [Quasi-static](#quasi-static).
+
 ## Interactive mode
 
 The editor's viewer has a **Simulate** button (an atom) for every model with a mechanism, once its parts have loaded. It opens
@@ -264,5 +286,5 @@ scenario passes: the ball rests 6 µm under the lip, and pushed in flush the spr
 | Scene compiler (spec → MJCF) | Done: `build.ts` (spec + poses + geometry → SI scene), `mjcf.ts`; scenario runner `scenario.ts` |
 | Spike 2: decomposers | Both built and measured; given pieces for mechanism surfaces (above); choice between V-HACD and CoACD for the rest pending CoACD's numbers |
 | Spike 3: test cases, `check:physics` | Done: all 11 scenarios of the three test cases pass (see [Test cases](#test-cases)) |
-| Spike 4: gears | Not started |
+| Spike 4: gears | Done: involute teeth given tooth by tooth (see [Spike 4: gears](#spike-4-gears)) |
 | Spike 5: interactive mode | Done: the editor viewer's Simulate mode (see [Interactive mode](#interactive-mode)); `tests/browser/physics.spec.ts` drags the toggle latch's lever open |

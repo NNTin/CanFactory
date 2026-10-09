@@ -3,7 +3,7 @@
  * as the worker does, decomposes them into convex pieces, simulates each scenario with packages/physics, and checks its outcome.
  * Exits 1 if any check fails. docs/physics-plan.md.
  *
- *   npm run check:physics -- [model-id ...] [--parameters '<json>'] [--decomposer vhacd|coacd] [--fit]
+ *   npm run check:physics -- [model-id ... | spur-gear-pair] [--parameters '<json>'] [--decomposer vhacd|coacd] [--fit]
  *
  * --fit also reports how well each decomposed part's pieces fit it. Decompositions are cached in node_modules/.cache by the mesh's
  * hash and the settings. Needs an OpenSCAD runtime (see tools/stl-to-scad/openscad.ts).
@@ -12,9 +12,12 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { isAssembly, models, resolveAssembly, validateParameters, type ModelDefinition, type ParameterValues } from '../../packages/contracts/src/index.ts';
+import { resolve } from 'node:path';
+import { isAssembly, models, resolveAssembly, spurGearPairPhysics, spurGearPieces, validateParameters, type ModelDefinition, type ParameterValues, type SpurGear } from '../../packages/contracts/src/index.ts';
 import { decompose, hullTriangles, loadEngine, pieceFit, runScenario, type BodyGeometry, type ConvexPiece, type DecomposeSettings } from '../../packages/physics/src/index.ts';
 import { renderAssemblyMeshes } from '../assembly-meshes.ts';
+import { renderScad } from '../stl-to-scad/openscad.ts';
+import { parseStl } from '../stl-to-scad/stl.ts';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -82,7 +85,34 @@ async function checkModel(model: ModelDefinition, parameters: ParameterValues): 
   return pass;
 }
 
-const selected = positionals.length > 0 ? positionals.map(id => {
+/**
+ * Spike 4's fixture, not a catalogue model: the involute gear the geometry side gives tooth by tooth. Its SCAD render
+ * (fixtures/spur-gear.scad) must lie within a micron of the convex pieces spurGearPieces() gives, and the pair's scenarios must pass.
+ */
+async function checkGears(): Promise<boolean> {
+  const driver: SpurGear = { module: 1.5, teeth: 20, width: 6, backlash: 0.05 };
+  const driven: SpurGear = { module: 1.5, teeth: 40, width: 6, backlash: 0.05 };
+  let pass = true;
+  for (const gear of [driver, driven]) {
+    const render = await renderScad(resolve('tools/physics/fixtures/spur-gear.scad'), { MODULE: String(gear.module), TEETH: String(gear.teeth), WIDTH: String(gear.width), BACKLASH: String(gear.backlash ?? 0) });
+    const pieces = spurGearPieces(gear).map(vertices => ({ vertices, triangles: hullTriangles(vertices) }));
+    const fit = pieceFit(parseStl(render.stl).tris, pieces, 0.25, { gaps: false });
+    const ok = fit.intrusion < 0.001;
+    console.log(`${ok ? 'PASS' : 'FAIL'} spur gear z${gear.teeth}: ${pieces.length} pieces, reaching at most ${(fit.intrusion * 1000).toFixed(2)} µm out of its render`);
+    pass &&= ok;
+  }
+  const spec = spurGearPairPhysics(driver, driven);
+  const engine = await loadEngine();
+  for (const scenario of spec.scenarios ?? []) {
+    const result = runScenario(engine, { spec, poses: {}, geometry: {} }, scenario);
+    console.log(`${result.pass ? 'PASS' : 'FAIL'} spur gear pair › ${scenario.title}`);
+    for (const check of result.checks) console.log(`  ${check.pass ? 'ok  ' : 'FAIL'} ${check.description}`);
+    pass &&= result.pass;
+  }
+  return pass;
+}
+
+const selected = positionals.length > 0 ? positionals.filter(id => id !== 'spur-gear-pair').map(id => {
   const model = models.find(candidate => candidate.id === id);
   if (!model) throw new Error(`No model ${id}.`);
   return model;
@@ -92,4 +122,5 @@ for (const model of selected) {
   const parameters: ParameterValues = { ...model.defaults, ...(values.parameters ? JSON.parse(values.parameters) as ParameterValues : {}) };
   pass = await checkModel(model, parameters) && pass;
 }
+if (positionals.length === 0 || positionals.includes('spur-gear-pair')) pass = await checkGears() && pass;
 process.exit(pass ? 0 : 1);

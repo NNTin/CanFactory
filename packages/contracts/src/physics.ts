@@ -130,6 +130,7 @@ export const PhysicsSpecSchema = Type.Object({
   bodies: Type.Array(PhysicsBodySchema, { minItems: 1 }),
   poses: Type.Optional(Type.Record(Type.String(), PhysicsPoseSchema, { description: 'The poses the mechanism starts from (and its joints are measured from), where they differ from the assembly’s: e.g. a latch closed, where the assembly shows it open.' })),
   exclude: Type.Optional(Type.Array(Type.Array(Type.String(), { minItems: 2, maxItems: 2 }), { description: 'Pairs of bodies that never collide.' })),
+  maxStep: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: 'The longest time step (s) the mechanism simulates faithfully with, where it needs a shorter one than the default 0.5 ms: e.g. gears meshing by their teeth (0.1 ms; with longer steps their teeth skip).' })),
   scenarios: Type.Optional(Type.Array(PhysicsScenarioSchema)),
 }, { additionalProperties: false });
 export type PhysicsSpec = Static<typeof PhysicsSpecSchema>;
