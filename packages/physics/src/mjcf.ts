@@ -41,6 +41,7 @@ function jointXml(name: string, joint: SceneJoint): string {
     stiffness: joint.stiffness === undefined ? undefined : num(joint.stiffness),
     springref: joint.springRef === undefined ? undefined : num(joint.springRef),
     damping: joint.damping === undefined ? undefined : num(joint.damping),
+    armature: joint.armature === undefined ? undefined : num(joint.armature),
     frictionloss: joint.frictionLoss === undefined ? undefined : num(joint.frictionLoss),
   })}/>`;
 }
@@ -91,6 +92,7 @@ export function toMjcf(scene: Scene): string {
     meshes.length > 0 ? ['  <asset>', ...meshes, '  </asset>'].join('\n') : '',
     '  <worldbody>',
     ...scene.bodies.filter(body => body.parent === null).map(body => bodyXml(scene, body, 2)),
+    ...(scene.fingers ?? []).map(finger => `    <body${attrs({ name: finger.name, mocap: 'true', pos: '0 0 10' })}><geom${attrs({ name: geomName(finger.name, 0), type: 'sphere', size: num(finger.radius), friction: '0.5 0.005 0.0001' })}/></body>`),
     '  </worldbody>',
     contactXml(scene, parentCollisions),
     driveXml(scene),

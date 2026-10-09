@@ -104,3 +104,15 @@ describe('scenarios', () => {
     }
   });
 });
+
+describe('hullTriangles', () => {
+  it('gives a cube 12 outward triangles', async () => {
+    const { hullTriangles } = await import('./hull.ts');
+    const { massProperties } = await import('./massProperties.ts');
+    const vertices = cube(2);
+    const triangles = hullTriangles([...vertices, 1, 1, 1]);
+    expect(triangles).toHaveLength(36);
+    const soup = triangles.flatMap(index => vertices.slice(3 * index, 3 * index + 3));
+    expect(massProperties(soup).volume).toBeCloseTo(8, 9);
+  });
+});

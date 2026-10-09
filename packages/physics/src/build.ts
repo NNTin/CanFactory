@@ -26,8 +26,12 @@ export interface BuildInput {
   /** The direction gravity pulls in, in the assembled frame; down (−Z) by default. */
   gravity?: Vec3;
   options?: Partial<SceneOptions>;
+  /** Poses that override the spec's and the assembly's (a scenario's start). */
+  startPoses?: Record<string, PartPose>;
   /** Bodies whose joint is driven (`Scene.drives`). */
   drives?: string[];
+  /** Fingertips (`Scene.fingers`). */
+  fingers?: { name: string; radius: number }[];
 }
 
 /** Torsional and rolling friction, which the materials do not give: MuJoCo's defaults for a body of a few centimetres. */
@@ -41,6 +45,17 @@ function worldPose(id: string, poses: Record<string, PartPose>): Transform {
   if (!pose) throw new Error(`Physics body ${id} has no pose in the assembly.`);
   if (pose.scale && pose.scale.some(value => value !== 1)) throw new Error(`Physics body ${id} is scaled in the assembly; a rigid body cannot be.`);
   return { pos: toSI(pose.position), quat: quatFromPoseRotation(pose.rotation) };
+}
+
+/**
+ * The inertia a sprung or damped joint gets added (MuJoCo's armature), from its stiffness k and damping c at time step h:
+ * - at least 10 h c, because MuJoCo integrates joint damping implicitly, which dilutes the contact forces on the joint's body by
+ *   its mass over (its mass + h c): a 0.4 g ball damped to the quasi-static time constant passed through its lip;
+ * - at least k (h / 0.2)², so that the spring's oscillation takes 30 steps or more.
+ * Neither changes anything at rest; both slow the motion, which the physics is quasi-static about (docs/physics-plan.md).
+ */
+export function jointArmature(stiffness: number, damping: number, timestep: number): number {
+  return Math.max(10 * timestep * damping, stiffness * (timestep / 0.2) ** 2);
 }
 
 /** A joint's spring, damping, friction, range and initial value in SI units: radians for a hinge, metres for a slide. */
@@ -105,9 +120,10 @@ function inertialFor(body: PhysicsBody, geometry: BodyGeometry | undefined, geom
 }
 
 function collisionGeoms(body: PhysicsBody, geometry: BodyGeometry | undefined): SceneGeom[] {
-  const kind = body.collision?.kind ?? 'decompose';
+  const collision = body.collision ?? { kind: 'decompose' };
+  const kind = collision.kind;
   if (kind !== 'decompose' && kind !== 'pieces') return primitive(body);
-  const pieces = geometry?.pieces;
+  const pieces = collision.kind === 'pieces' && collision.pieces ? collision.pieces : geometry?.pieces;
   if (!pieces) throw new Error(`Physics body ${body.id} needs its convex pieces (${kind}).`);
   return pieces.filter(piece => piece.length >= 12).map(piece => ({ type: 'mesh', vertices: piece.map(value => value * MM) }));
 }
@@ -120,9 +136,11 @@ function driveOf(spec: PhysicsSpec, body: string): { body: string; type: 'hinge'
 
 /** The scene for this spec, these poses and this geometry. */
 export function buildScene(input: BuildInput): Scene {
-  const { spec, poses, geometry } = input;
+  const { spec, geometry } = input;
+  const poses: Record<string, PartPose> = { ...input.poses, ...spec.poses, ...input.startPoses };
   const ids = new Set(spec.bodies.map(body => body.id));
   const world = new Map(spec.bodies.map(body => [body.id, worldPose(body.id, poses)]));
+  const timestep = input.options?.timestep ?? DEFAULT_OPTIONS.timestep;
   const bodies: SceneBody[] = spec.bodies.map(body => {
     const joint = body.joint;
     if (joint?.parent !== undefined && !ids.has(joint.parent)) throw new Error(`Physics body ${body.id}: its joint's parent ${joint.parent} is not a body.`);
@@ -137,11 +155,14 @@ export function buildScene(input: BuildInput): Scene {
     else {
       const inverse: Transform['quat'] = [pose.quat[0], -pose.quat[1], -pose.quat[2], -pose.quat[3]];
       const axis = joint.axis ?? [0, 0, 1];
+      const values = jointValues(joint);
+      const armature = jointArmature(values.stiffness ?? 0, values.damping ?? 0, timestep);
       motion = {
         type: joint.type,
         pos: rotate(inverse, sub(toSI(joint.anchor), pose.pos)),
         axis: rotate(inverse, [axis[0] ?? 0, axis[1] ?? 0, axis[2] ?? 0]),
-        ...jointValues(joint),
+        ...values,
+        ...(armature > 0 ? { armature } : {}),
       };
     }
     const geoms = collisionGeoms(body, geometry[body.id]);
@@ -160,5 +181,6 @@ export function buildScene(input: BuildInput): Scene {
     bodies,
     exclude: (spec.exclude ?? []).map(([a = '', b = '']) => [a, b] as [string, string]),
     ...(input.drives && input.drives.length > 0 ? { drives: input.drives.map(body => driveOf(spec, body)) } : {}),
+    ...(input.fingers && input.fingers.length > 0 ? { fingers: input.fingers } : {}),
   };
 }

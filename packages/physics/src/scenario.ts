@@ -6,14 +6,11 @@ import type { PhysicsCheck, PhysicsDrive, PhysicsScenario } from '@canfactory/co
 import { buildScene, type BuildInput } from './build.ts';
 import type { Engine } from './engine.ts';
 import { DEG, MM, type Vec3 } from './scene.ts';
-import { Simulation, type HoldOptions } from './simulation.ts';
-import { add } from './transform.ts';
+import { Simulation } from './simulation.ts';
+import { add, scale, sub } from './transform.ts';
 
-/**
- * A scenario's push: a finger, stiffer than the pointer's drag (ω·Δt = 0.5 at the 0.5 ms step) since it scripts a position,
- * capped at 30 N unless the drive says otherwise.
- */
-const PUSH: HoldOptions = { omega: 1000, damping: 1, maxForce: 30, spinDamping: 100 };
+/** A push's fingertip: a ball of 1 mm radius, touching the pushed point from outside at the start. */
+const FINGER_RADIUS = 1 * MM;
 
 export interface CheckResult { check: PhysicsCheck; value: number | boolean; pass: boolean; description: string }
 export interface ScenarioResult { scenario: PhysicsScenario; pass: boolean; checks: CheckResult[] }
@@ -50,6 +47,11 @@ function measure(simulation: Simulation, input: BuildInput, start: Map<string, V
       const value = simulation.jointValue(check.body) / jointUnit(input, check.body);
       return { value, description: `${check.body}'s joint at ${value.toFixed(3)}` };
     }
+    case 'force': {
+      const hinge = jointUnit(input, check.body) === DEG;
+      const value = simulation.jointConstraintForce(check.body) * (hinge ? 1 / MM : 1);
+      return { value, description: `${check.body}'s joint holds ${value.toFixed(3)} ${hinge ? 'N·mm' : 'N'}` };
+    }
     case 'contact': {
       const [a = '', b = ''] = check.bodies;
       const touching = simulation.touching(a, b);
@@ -75,8 +77,10 @@ function drive(simulation: Simulation, input: BuildInput, drives: readonly Physi
       }
       case 'push': {
         const origin = origins.get(index) ?? [0, 0, 0];
+        // taken away: a metre back
+        if (item.until !== undefined && t > item.until) { simulation.moveFinger(key, add(origin, [0, 0, 1])); return; }
         const [x = 0, y = 0, z = 0] = interpolate(item.timeline, t);
-        simulation.moveHold(key, add(origin, [x * MM, y * MM, z * MM]));
+        simulation.moveFinger(key, add(origin, [x * MM, y * MM, z * MM]));
         return;
       }
       case 'force': {
@@ -95,7 +99,9 @@ export function runScenario(engine: Engine, input: BuildInput, scenario: Physics
   const simulation = new Simulation(engine, buildScene({
     ...input,
     ...(gravity ? { gravity: [gravity[0] ?? 0, gravity[1] ?? 0, gravity[2] ?? 0] } : {}),
+    ...(scenario.poses ? { startPoses: scenario.poses } : {}),
     drives: [...new Set(drives.flatMap(item => item.kind === 'joint' ? [item.body] : []))],
+    fingers: drives.flatMap((item, index) => item.kind === 'push' ? [{ name: `drive-${index}`, radius: FINGER_RADIUS }] : []),
   }));
   try {
     const dt = simulation.scene.options.timestep;
@@ -103,9 +109,10 @@ export function runScenario(engine: Engine, input: BuildInput, scenario: Physics
     const origins = new Map<number, Vec3>();
     drives.forEach((item, index) => {
       if (item.kind !== 'push') return;
+      // the fingertip's centre starts a radius behind the point, against the direction of its first move
       const point: Vec3 = [(item.point[0] ?? 0) * MM, (item.point[1] ?? 0) * MM, (item.point[2] ?? 0) * MM];
-      origins.set(index, point);
-      simulation.hold(`drive-${index}`, item.body, point, { ...PUSH, maxForce: item.maxForce ?? PUSH.maxForce });
+      const move = item.timeline.map(([, x = 0, y = 0, z = 0]) => [x, y, z] as Vec3).find(step => Math.hypot(...step) > 0) ?? [0, 0, -1];
+      origins.set(index, sub(point, scale(move, FINGER_RADIUS / Math.hypot(...move))));
     });
     const checks = [...scenario.checks].sort((a, b) => a.at - b.at);
     const results: CheckResult[] = [];

@@ -1,5 +1,6 @@
 import { conceptPages } from './concepts.ts';
-import type { PhysicsSpec } from './physics.ts';
+import { QUASI_STATIC, type PhysicsSpec } from './physics.ts';
+import { revolvedPieces, type Point2 } from './physicsPieces.ts';
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
@@ -2918,6 +2919,67 @@ export function springBallDetentAssembly(parameters: ParameterValues): Assembly 
     lift: Math.ceil(closerDrop - closerTop + closer + 2), motion,
   };
 }
+/**
+ * The detent's mechanism for the physics subsystem (docs/physics-plan.md): the body fixed, nose up, as convex pieces revolved from its
+ * profile (a decomposition of its mesh bridges the bore); the ball on an ideal slide along
+ * the bore, sprung by the library spring's rate towards its free length, and stopped by its contact with the printed lip (the ball
+ * collides with the body, so the lip and the bore are what hold it). Joint values are mm from the ball on the lip. The scenarios
+ * check that it rests on the lip, upright and upside down; that pushed in flush it takes the force the layout gives; and that let
+ * go it comes back.
+ */
+export function springBallDetentPhysics(parameters: ParameterValues): PhysicsSpec {
+  const p = { ...springBallDetent.defaults, ...parameters } as SpringBallDetentParameters;
+  const parts = detentParts(p);
+  const layout = springBallDetentLayout(p, parts);
+  // the layout sits the ball on the lip at its nominal size (a G100 ball of the largest size sits 0.05 mm lower); its pose places
+  // the largest size's bottom
+  const d = dimensionOf(parts.ball, 'd'), dMax = dimensionOf(parts.ball, 'd', 'max');
+  // quasi-static (docs/physics-plan.md, "Quasi-static"): damped to a 50 ms time constant, so that let go the ball creeps back onto
+  // the lip instead of striking it at metres per second
+  const damping = layout.rate * QUASI_STATIC;
+  const top = layout.centre + d / 2;
+  const settle = 0.3;
+  // the body round the ball, as generator.scad revolves it: from the spring's seat up the bore, the 45° cone and the lip to the
+  // nose, out to the thread's root
+  const L = p.bodyLength;
+  const profile: Point2[] = [[layout.bore / 2, layout.seat], [layout.thread.minor / 2, layout.seat], [layout.thread.minor / 2, L], [layout.opening / 2, L], [layout.opening / 2, layout.contact], [layout.bore / 2, layout.coneBottom]];
+  return {
+    bodies: [
+      { id: 'body', material: 'petg', fixed: true, collision: { kind: 'pieces', pieces: revolvedPieces(profile, 48) } },
+      {
+        id: 'ball', material: 'steel', collision: { kind: 'sphere', centre: [0, 0, dMax / 2], diameter: d },
+        joint: { type: 'slide', parent: 'body', anchor: [0, 0, layout.centre], axis: [0, 0, 1], spring: { stiffness: layout.rate, rest: layout.free - layout.installed }, damping, collideWithParent: true },
+      },
+    ],
+    scenarios: [
+      {
+        id: 'rests-on-lip', title: 'The spring holds the ball on the lip', duration: settle,
+        checks: [{ kind: 'joint', at: settle, body: 'ball', min: -0.02, max: 0.02 }, { kind: 'contact', at: settle, bodies: ['ball', 'body'], touching: true }],
+      },
+      {
+        id: 'upside-down', title: 'Upside down, it still holds the ball on the lip', gravity: [0, 0, 1], duration: settle,
+        checks: [{ kind: 'joint', at: settle, body: 'ball', min: -0.02, max: 0.02 }],
+      },
+      {
+        id: 'pushed-flush', title: `Pushed in by the travel, the spring pushes back ${layout.force.in.toFixed(1)} N`, duration: 0.5,
+        drives: [{ kind: 'joint', body: 'ball', timeline: [[0, 0], [0.2, -p.travel]] }],
+        checks: [
+          { kind: 'joint', at: 0.5, body: 'ball', min: -p.travel - 0.01, max: -p.travel + 0.01 },
+          { kind: 'force', at: 0.5, body: 'ball', min: -1.03 * layout.force.in, max: -0.97 * layout.force.in },
+        ],
+      },
+      {
+        id: 'let-go', title: 'Pushed in flush and let go, it springs back onto the lip', duration: 0.8,
+        drives: [{ kind: 'push', body: 'ball', point: [0, 0, top], timeline: [[0, 0, 0, 0], [0.2, 0, 0, -p.protrusion]], until: 0.4 }],
+        checks: [
+          { kind: 'joint', at: 0.4, body: 'ball', max: -0.8 * p.protrusion },
+          { kind: 'joint', at: 0.8, body: 'ball', min: -0.02, max: 0.02 },
+        ],
+      },
+    ],
+  };
+}
+
 /** The ball on the lip, the spring compressed to its installed length between its seat and the ball, and the set screw at its nominal
  * preload, point up. Each is a line of the model's hardware list. */
 function springBallDetentReferences(parameters: ParameterValues): LinkedReference[] {
@@ -2946,6 +3008,7 @@ export const springBallDetent = {
   get assembly() { return springBallDetentAssembly(this.defaults); },
   assemblyForParameters: springBallDetentAssembly,
   linkedReferences: springBallDetentReferences,
+  physics: springBallDetentPhysics,
   parameterSchema: SpringBallDetentParametersSchema,
   controls: springBallDetentControls,
   defaults: Object.fromEntries(springBallDetentControls.map(c => [c.key, c.default])),

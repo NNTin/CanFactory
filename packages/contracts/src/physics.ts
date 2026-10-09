@@ -9,6 +9,12 @@ import { Type, type Static } from 'typebox';
 
 const Vec3 = (description: string) => Type.Array(Type.Number(), { minItems: 3, maxItems: 3, description });
 
+/** A part's pose, as the assembly's (`Assembly['poses']`): its STL turned (degrees, about X, then Y, then Z), then moved (mm). */
+const PhysicsPoseSchema = Type.Object({
+  position: Vec3('mm.'),
+  rotation: Type.Optional(Vec3('Degrees about X, then Y, then Z.')),
+}, { additionalProperties: false });
+
 /** What a body is made of: its density and friction (`PHYSICS_MATERIALS`). */
 export const PHYSICS_MATERIAL_IDS = ['petg', 'pla', 'steel', 'pom'] as const;
 export type PhysicsMaterialId = typeof PHYSICS_MATERIAL_IDS[number];
@@ -33,7 +39,10 @@ export type PhysicsJoint = Static<typeof PhysicsJointSchema>;
 
 export const PhysicsCollisionSchema = Type.Union([
   Type.Object({ kind: Type.Literal('decompose') }, { additionalProperties: false, description: 'Its rendered mesh, split into convex pieces (the default).' }),
-  Type.Object({ kind: Type.Literal('pieces') }, { additionalProperties: false, description: 'Convex pieces the geometry side renders for it (e.g. each tooth of a gear).' }),
+  Type.Object({
+    kind: Type.Literal('pieces'),
+    pieces: Type.Optional(Type.Array(Type.Array(Type.Number(), { minItems: 12 }), { description: 'Each piece’s vertices (x, y, z, ...), mm, in the part’s own frame; the physics side collides their convex hull. Computed from the values the part’s SCAD file is built from (physicsPieces.ts). Without them, the geometry side renders the pieces.' })),
+  }, { additionalProperties: false, description: 'Convex pieces the geometry side gives for it, exact where a decomposition of its mesh is not (e.g. a bore the ball slides in, each tooth of a gear).' }),
   Type.Object({ kind: Type.Literal('sphere'), centre: Vec3('mm, in the part’s own frame.'), diameter: Type.Number({ exclusiveMinimum: 0 }) }, { additionalProperties: false }),
   Type.Object({ kind: Type.Literal('cylinder'), centre: Vec3('mm, in the part’s own frame.'), axis: Vec3('In the part’s own frame.'), diameter: Type.Number({ exclusiveMinimum: 0 }), length: Type.Number({ exclusiveMinimum: 0 }) }, { additionalProperties: false }),
   Type.Object({ kind: Type.Literal('box'), centre: Vec3('mm, in the part’s own frame.'), size: Vec3('mm, along the part’s own axes.') }, { additionalProperties: false }),
@@ -62,9 +71,9 @@ export const PhysicsDriveSchema = Type.Union([
     kind: Type.Literal('push'),
     body: Type.String(),
     point: Vec3('The point of the body that is pushed, in mm, assembled frame (at the start).'),
-    timeline: Type.Array(Type.Array(Type.Number(), { minItems: 4, maxItems: 4 }), { minItems: 1, description: '[s, x, y, z]: the point’s displacement from where it starts, in mm.' }),
-    maxForce: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: 'The most the push can exert, in N (as a finger: 30 N by default).' })),
-  }, { additionalProperties: false, description: 'A point of the body is led along the timeline by a stiff spring, as a finger would.' }),
+    timeline: Type.Array(Type.Array(Type.Number(), { minItems: 4, maxItems: 4 }), { minItems: 2, description: '[s, x, y, z]: where the fingertip has moved from the point, in mm. It pushes in the direction of its first move.' }),
+    until: Type.Optional(Type.Number({ minimum: 0, description: 'When the finger is taken away, in s; it stays to the end by default.' })),
+  }, { additionalProperties: false, description: 'A fingertip (a 1 mm ball) touching the point from outside is moved along the timeline, pushing whatever it meets.' }),
   Type.Object({
     kind: Type.Literal('force'),
     body: Type.String(),
@@ -92,6 +101,12 @@ export const PhysicsCheckSchema = Type.Union([
     min: Type.Optional(Type.Number()), max: Type.Optional(Type.Number()),
   }, { additionalProperties: false, description: 'The body’s joint value, in mm or degrees from the assembled pose.' }),
   Type.Object({
+    kind: Type.Literal('force'),
+    at: Type.Number({ minimum: 0 }),
+    body: Type.String(),
+    min: Type.Optional(Type.Number()), max: Type.Optional(Type.Number()),
+  }, { additionalProperties: false, description: 'The constraint force on the body’s joint along or about its axis (N for a slide, N·mm for a hinge): what its drive, contacts and limits exert together. With only the drive acting, the force it takes to hold the joint where it is (e.g. against a spring).' }),
+  Type.Object({
     kind: Type.Literal('contact'),
     at: Type.Number({ minimum: 0 }),
     bodies: Type.Array(Type.String(), { minItems: 2, maxItems: 2 }),
@@ -104,6 +119,7 @@ export const PhysicsScenarioSchema = Type.Object({
   id: Type.String({ pattern: '^[a-z0-9-]+$' }),
   title: Type.String({ description: 'What it shows, e.g. “Upright, the lighter rests on the tab”.' }),
   gravity: Type.Optional(Vec3('The direction gravity pulls in, in the assembled frame; [0, 0, −1] by default. [0, 0, 1] turns the assembly upside down.')),
+  poses: Type.Optional(Type.Record(Type.String(), PhysicsPoseSchema, { description: 'Where free bodies start, instead of their pose in `PhysicsSpec.poses` or the assembly (e.g. a lighter turned over above its bay).' })),
   duration: Type.Number({ exclusiveMinimum: 0, description: 's.' }),
   drives: Type.Optional(Type.Array(PhysicsDriveSchema)),
   checks: Type.Array(PhysicsCheckSchema, { minItems: 1 }),
@@ -112,10 +128,19 @@ export type PhysicsScenario = Static<typeof PhysicsScenarioSchema>;
 
 export const PhysicsSpecSchema = Type.Object({
   bodies: Type.Array(PhysicsBodySchema, { minItems: 1 }),
+  poses: Type.Optional(Type.Record(Type.String(), PhysicsPoseSchema, { description: 'The poses the mechanism starts from (and its joints are measured from), where they differ from the assembly’s: e.g. a latch closed, where the assembly shows it open.' })),
   exclude: Type.Optional(Type.Array(Type.Array(Type.String(), { minItems: 2, maxItems: 2 }), { description: 'Pairs of bodies that never collide.' })),
   scenarios: Type.Optional(Type.Array(PhysicsScenarioSchema)),
 }, { additionalProperties: false });
 export type PhysicsSpec = Static<typeof PhysicsSpecSchema>;
+
+/**
+ * The time constant (s) a sprung joint is damped to, as damping = stiffness × QUASI_STATIC. The physics is quasi-static: printed
+ * mechanisms are judged at rest and in slow motion, and the engine's soft contacts stop a part over about its speed times their
+ * 2 ms time constant, so a steel ball snapping back at metres per second would sink millimetres into its lip. Damped, the parts
+ * arrive at tens of millimetres per second and the forces at rest are unchanged. docs/physics-plan.md, "Quasi-static".
+ */
+export const QUASI_STATIC = 0.05;
 
 export interface PhysicsSource { title: string; publisher: string; url: string; accessed: string; read: string }
 

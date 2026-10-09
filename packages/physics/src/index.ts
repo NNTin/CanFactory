@@ -6,3 +6,6 @@ export * from './massProperties.ts';
 export * from './simulation.ts';
 export * from './build.ts';
 export * from './scenario.ts';
+export * from './decompose.ts';
+export * from './pieceFit.ts';
+export * from './hull.ts';

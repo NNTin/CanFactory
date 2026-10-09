@@ -125,9 +125,12 @@ class MeshIndex {
   }
 }
 
-/** Points spread over a triangle about `spacing` apart, its corners and edge midpoints included. */
+/** Points spread over a triangle about `spacing` apart, its corners included. */
 function samples(a: V, b: V, c: V, spacing: number): V[] {
-  const n = Math.max(1, Math.ceil(Math.max(Math.hypot(...sub(b, a)), Math.hypot(...sub(c, a)), Math.hypot(...sub(c, b))) / spacing));
+  const longest = Math.max(Math.hypot(...sub(b, a)), Math.hypot(...sub(c, a)), Math.hypot(...sub(c, b)));
+  // a triangle smaller than the spacing (a fine thread's) is sampled once, at its centre
+  if (longest < spacing) return [[(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3]];
+  const n = Math.ceil(longest / spacing);
   const points: V[] = [];
   for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) {
     const u = i / n, v = j / n, w = 1 - u - v;
@@ -172,7 +175,10 @@ const percentile = (values: number[], q: number): number => {
 
 /** The fit of these pieces to this closed mesh (a triangle soup). */
 export function pieceFit(soup: ArrayLike<number>, pieces: readonly ConvexPiece[], spacing = 0.25): PieceFit {
-  const mesh = new MeshIndex(triangles(soup), 2);
+  const tris = triangles(soup);
+  // grid cells of a few triangles' size: about 4 mean edge lengths, from 0.25 to 2 mm
+  const edge = tris.reduce((sum, t) => sum + Math.hypot(...sub(t.b, t.a)), 0) / Math.max(1, tris.length);
+  const mesh = new MeshIndex(tris, Math.min(2, Math.max(0.25, 4 * edge)));
   const intrusions: number[] = [];
   let count = 0;
   for (const piece of pieces) {

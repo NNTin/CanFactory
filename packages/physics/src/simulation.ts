@@ -54,6 +54,7 @@ export class Simulation {
     this.bodies = scene.bodies.map(body => body.name);
     for (const name of this.bodies) this.bodyIds.set(name, this.id(OBJ.body, name));
     for (const body of scene.bodies) body.geoms.forEach((_, index) => { this.geomBody[this.id(OBJ.geom, geomName(body.name, index))] = body.name; });
+    for (const finger of scene.fingers ?? []) this.geomBody[this.id(OBJ.geom, geomName(finger.name, 0))] = finger.name;
     this.setInitialJoints();
     engine.mj_forward(this.model, this.data);
   }
@@ -117,6 +118,14 @@ export class Simulation {
     this.model.eq_data[NEQDATA * this.id(OBJ.equality, driveName(name))] = value;
   }
 
+  /**
+   * The constraint force on the joint of this body (N along a slide, N·m about a hinge): its drive's, its limits' and its
+   * contacts' together.
+   */
+  jointConstraintForce(name: string): number {
+    return this.data.qfrc_constraint[this.model.jnt_dofadr[this.id(OBJ.joint, name)] ?? -1] ?? Number.NaN;
+  }
+
   /** The contacts at this moment, by body. */
   contacts(): Contact[] {
     return contacts(this.data).map(contact => ({
@@ -178,6 +187,13 @@ export class Simulation {
   }
 
   removeForce(key: string): void { this.loads.delete(key); }
+
+  /** Moves a fingertip (`Scene.fingers`) to `pos` (world, metres): a mocap body, moved as the scenario says, not by the physics. */
+  moveFinger(name: string, pos: Vec3): void {
+    const mocap = this.model.body_mocapid[this.id(OBJ.body, name)] ?? -1;
+    if (mocap < 0) throw new Error(`${name} is not a finger.`);
+    this.data.mocap_pos.set(pos, 3 * mocap);
+  }
 
   /** Starts dragging with the pointer (`DRAG`). */
   grab(body: string, point: Vec3): void { this.hold('pointer', body, point); }

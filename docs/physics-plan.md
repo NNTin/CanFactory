@@ -125,6 +125,21 @@ Spike 1 measured how far small parts sink into a floor at rest (`DEFAULT_OPTIONS
 MuJoCo's defaults let parts sink as far as the models' clearances, so they cannot be used. The chosen row keeps contact well
 under a micron and still runs about 30 times faster than real time on this host (Node, single-threaded).
 
+## Quasi-static
+
+The engine's contacts are soft: a part striking another is stopped over about its speed times the contact time constant (2 ms).
+A 0.4 g steel ball let go 0.8 mm into its 4.6 N/mm spring reaches about 3 m/s and passed millimetres into, and through, the
+printed lip. So the physics is quasi-static: printed mechanisms are judged at rest and in slow motion.
+
+- A sprung joint is damped to a 50 ms time constant (`QUASI_STATIC` in contracts: damping = stiffness × 0.05).
+- The physics side adds inertia (MuJoCo's armature) to every sprung or damped joint (`jointArmature` in build.ts): at least 10 Δt c,
+  because MuJoCo integrates joint damping implicitly and that dilutes the contact forces on a light body by its mass over its mass
+  plus Δt c (the damped ball crept through its lip without it); and at least k (Δt / 0.2)², so that a spring's oscillation takes
+  30 steps or more.
+
+Neither changes anything at rest, which is what the scenarios check; both slow the motion. Setting a joint's position before each
+step does not hold it either (the spring moves it within the step): joint drives are constraints (below).
+
 ## Determinism
 
 The same pinned `.wasm` runs in Node and the browser, single-threaded. A test runs a reference scene in Node
@@ -148,6 +163,9 @@ engine upgrade only needs the recorded hash renewed, not every scenario.
 - Reading `MjData.eq_active` throws a binding error in 3.14.0, so equality constraints cannot be switched on and off at run time.
   Dragging therefore applies a spring force (`xfrc_applied`) instead of a mocap body on a switchable constraint, the same way as
   MuJoCo's own `mjv_applyPerturbForce`, with the point's velocity from `mj_objectVelocity`.
+- A scenario's push is a fingertip: a 1 mm sphere on a mocap body, moved along the timeline and taken away when it lets go. A
+  spring on the pushed point, scaled to the body's mass like the pointer's drag, was far too weak for a 0.4 g ball on a 12 N
+  spring, and an explicit spring stiff enough would be unstable.
 - Joint drives (scenarios) are joint equality constraints whose target the simulation moves (`eq_data`), with a 1 ms time
   constant and impedance 0.9999: MuJoCo scales a constraint's stiffness by the body's mass, so a light part on a stiff spring
   pulls a softer one off its target (a 0.4 g ball on 2 N/mm gave way 0.09 mm). Setting the joint's position before each step
@@ -156,6 +174,28 @@ engine upgrade only needs the recorded hash renewed, not every scenario.
 - Whether two bodies touch is measured with `mj_geomDistance` (within 10 µm), not from the contact list, which only holds pairs
   that already overlap. A contact margin and gap would report near pairs too, but they changed where parts rest by 20 µm.
 - `DoubleBuffer` is constructed with its size (`new DoubleBuffer(n)`), not with an array as the package's README shows.
+
+## Spike 2: decomposition is not enough
+
+The decomposers were compiled to WebAssembly (`packages/physics/decomposers/build.sh`: pinned commits, Emscripten 4.0.10, one
+single-file ES module each: V-HACD 200 KB, CoACD 955 KB; CoACD without its OpenVDB preprocessing, which the rendered closed meshes
+do not need). `tools/physics/decomposers.ts` runs them on the test parts and measures each result with `pieceFit`: how deep the
+pieces reach out of the part into free space (where they stop another part short) and how far the part's surface lies outside
+them.
+
+| Part | Triangles | Decomposer | Time | Pieces | Deepest intrusion | 99 % intrusion | Widest gap |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| BIC Mini lighter | 5042 | V-HACD, defaults | 4.6 s | 64 | 1.946 mm | 0.857 mm | 0.323 mm |
+| BIC Mini lighter | 5042 | V-HACD, 2M voxels, 128 hulls | 15.1 s | 128 | 1.285 mm | 0.473 mm | 0.190 mm |
+| BIC Mini lighter | 5042 | CoACD, defaults | 37.8 s | 22 | (pending) | | |
+
+The models are built with 0.1 to 0.3 mm clearances. On the detent, V-HACD's pieces filled the bore and the lip, and the ball was
+shoved 2.8 mm down the bore before anything else happened. A generic decomposition is good enough for the outside of a part, but
+not for the surfaces a mechanism slides on. So the geometry side gives exact convex pieces for those
+(`packages/contracts/src/physicsPieces.ts`): a part revolved or extruded from a 2D profile in its SCAD file has the same profile
+split into convex polygons (ear clipping, then merging across shared edges while convex) and each revolved in thin segments
+or extruded. The detent's body is 96 such pieces, whose chords lie at most 0.005 mm off the bore. With them every detent
+scenario passes: the ball rests 6 µm under the lip, and pushed in flush the spring holds 16.400 N, as the layout gives.
 
 ## Spikes
 
@@ -176,7 +216,7 @@ engine upgrade only needs the recorded hash renewed, not every scenario.
 | Spike 1: reference scene, determinism hash | Node done (hash `97aa7205e6d866e8`, @mujoco/mujoco 3.14.0); browser comparison pending (with spike 5) |
 | Mechanism spec in contracts | Done: `packages/contracts/src/physics.ts` (`PhysicsSpec`, `ModelDefinition.physics`, cited `PHYSICS_MATERIALS`) |
 | Scene compiler (spec → MJCF) | Done: `build.ts` (spec + poses + geometry → SI scene), `mjcf.ts`; scenario runner `scenario.ts` |
-| Spike 2: decomposers | Not started |
-| Spike 3: test cases, `check:physics` | Not started |
+| Spike 2: decomposers | Both built and measured; given pieces for mechanism surfaces (above); choice between V-HACD and CoACD for the rest pending CoACD's numbers |
+| Spike 3: test cases, `check:physics` | `npm run check:physics` done; spring-ball detent passes (4 scenarios); toggle latch and cigarette case next |
 | Spike 4: gears | Not started |
 | Spike 5: interactive mode | Not started |

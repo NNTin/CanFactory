@@ -32,6 +32,8 @@ export interface SceneJoint {
   /** The joint value at which the spring is relaxed (the assembled pose is 0). */
   springRef?: number;
   damping?: number;
+  /** Inertia added to the joint (kg or kg·m²): see `jointArmature` in build.ts. */
+  armature?: number;
   /** Dry friction: N (slide) or N·m (hinge). */
   frictionLoss?: number;
   /** The joint's value at the start (the assembled pose is 0). */
@@ -81,6 +83,8 @@ export interface Scene {
    * (`Simulation.driveJoint`). It is always active, since equality constraints cannot be switched at run time (engine.ts).
    */
   drives?: { body: string; type: 'hinge' | 'slide' }[];
+  /** Fingertips: spheres a scenario moves (mocap bodies), pushing what they meet. They start out of the way. */
+  fingers?: { name: string; radius: number }[];
 }
 
 /**
