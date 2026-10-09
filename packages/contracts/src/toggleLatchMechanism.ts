@@ -21,7 +21,7 @@
  * rest on the catch's hook (`OPEN`), carrying the link's nose out of the dip, and the link swings up off the hook (`SWING`).
  */
 
-import { QUASI_STATIC, type PhysicsSpec } from './physics.ts';
+import type { PhysicsSpec } from './physics.ts';
 import { convexParts, extrudedPieces } from './physicsPieces.ts';
 
 export type Vec2 = [number, number];
@@ -521,7 +521,8 @@ function clipToBox(polygon: readonly Vec2[], min: Vec2, max: Vec2): Vec2[] {
  * The latch's mechanism for the physics subsystem, starting closed and hooked (`CLOSED`): the base fixed; the lever on an ideal hinge
  * on the base's pivot; the link on an ideal hinge on the lever's pins; the catch on an ideal slide along the pull (u), as the part it is
  * screwed to would carry it. The link holds the catch only by contact: its nose in the dip under the hook, its side bars on the base's
- * plate. Joint values are degrees and mm from closed; the slide and the hinges are damped quasi-statically. The scenarios check the
+ * plate. Joint values are degrees and mm from closed. Its joints are undamped, so that a lever let go falls as a real one does (with
+ * the quasi-static damping it crept, which looked nothing like gravity); nothing in its scenarios strikes anything fast. The scenarios check the
  * over-centre lock under a pull, and that turning the lever draws the catch in to `DEAD_CENTRE` and lets it go by `RELEASED` as the
  * mechanism's table says.
  */
@@ -534,14 +535,13 @@ export function toggleLatchPhysics(): PhysicsSpec {
   // the catch's travel (+u, mm) from closed, as the mechanism's table gives it
   const drawn = (angle: number) => latchState(angle).offset - closed.offset;
   const pull = 10;
-  const hinge = { damping: 0.05 };
   return {
     poses,
     bodies: [
       { id: 'base', material: 'petg', fixed: true, collision: { kind: 'pieces', pieces: pieces.base } },
-      { id: 'lever', material: 'petg', collision: { kind: 'pieces', pieces: pieces.lever }, joint: { type: 'hinge', parent: 'base', anchor: anchor(PIVOT), axis, ...hinge } },
-      { id: 'link', material: 'petg', collision: { kind: 'pieces', pieces: pieces.link }, joint: { type: 'hinge', parent: 'lever', anchor: anchor(closed.pin), axis, ...hinge } },
-      { id: 'catch', material: 'petg', collision: { kind: 'pieces', pieces: pieces.catch }, joint: { type: 'slide', anchor: [0, 0, 0], axis: [0, 1, 0], damping: pull * QUASI_STATIC } },
+      { id: 'lever', material: 'petg', collision: { kind: 'pieces', pieces: pieces.lever }, joint: { type: 'hinge', parent: 'base', anchor: anchor(PIVOT), axis } },
+      { id: 'link', material: 'petg', collision: { kind: 'pieces', pieces: pieces.link }, joint: { type: 'hinge', parent: 'lever', anchor: anchor(closed.pin), axis } },
+      { id: 'catch', material: 'petg', collision: { kind: 'pieces', pieces: pieces.catch }, joint: { type: 'slide', anchor: [0, 0, 0], axis: [0, 1, 0] } },
     ],
     scenarios: [
       {

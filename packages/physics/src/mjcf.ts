@@ -93,6 +93,7 @@ export function toMjcf(scene: Scene): string {
     '  </default>',
     meshes.length > 0 ? ['  <asset>', ...meshes, '  </asset>'].join('\n') : '',
     '  <worldbody>',
+    ...(scene.floor === undefined ? [] : [`    <geom${attrs({ name: 'floor', type: 'plane', size: '0 0 1', pos: list([0, 0, scene.floor]), friction: '0.5 0.005 0.0001' })}/>`]),
     ...scene.bodies.filter(body => body.parent === null).map(body => bodyXml(scene, body, 2)),
     ...(scene.fingers ?? []).map(finger => `    <body${attrs({ name: finger.name, mocap: 'true', pos: '0 0 10' })}><geom${attrs({ name: geomName(finger.name, 0), type: 'sphere', size: num(finger.radius), friction: '0.5 0.005 0.0001' })}/></body>`),
     '  </worldbody>',

@@ -24,6 +24,8 @@ export interface MjModel extends Handle {
   /** Per body: its inertia matrix's diagonal (principal moments about its centre of mass). */
   readonly body_inertia: Float64Array;
   readonly body_parentid: Int32Array;
+  /** Per body: its mass with every body below it in the tree (e.g. parts welded to it). */
+  readonly body_subtreemass: Float64Array;
   readonly body_mocapid: Int32Array;
   readonly geom_bodyid: Int32Array;
   readonly jnt_qposadr: Int32Array;

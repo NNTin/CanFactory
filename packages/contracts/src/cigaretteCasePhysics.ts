@@ -4,7 +4,8 @@ import { clipConvex, extrudedPieces, offsetConvex, wallPieces, type Point2 } fro
 /**
  * The cigarette case's lighter in its round bay, for the physics subsystem (docs/physics-plan.md, docs/cigarette-case-assembly.md):
  * the box fixed; the mini holder on an ideal slide up the round bay, its upper limit the clip tab that stops it, held by friction;
- * the BIC Mini lighter free. Its scenarios are the orientation the push-out depends on: upright, the lighter rests on the tab;
+ * the BIC Mini lighter free; the case lid on an ideal slide up the box's sleeve, held by its friction fit, its ceiling trapping the
+ * lighter in the closed case. Its scenarios are the orientation the push-out depends on: upright, the lighter rests on the tab;
  * turned over about X (wheel side towards the tab), its hood passes the tab and pushes the holder out until the lever lands on the
  * tab; turned over about Y (the hood's front end towards the tab), it lands on the tab and nothing moves.
  *
@@ -18,6 +19,12 @@ export const BIC_J25 = {
   /** The lighter's mass, BIC's own figure (BIC Graphic, product 3460002360: 13 g). */
   mass: 13,
 } as const;
+
+/**
+ * The case lid (11_v11.3__-_honeycomb_-_top.scad): where it sits closed (its pose's height, the box's BASE_TOP), and its sleeve's
+ * ceiling and the top of its solid cap, in its own frame (CAVITY_TOP, BASE_TOP).
+ */
+export const CIGARETTE_LID = { closedZ: 60.38, ceiling: 37.85, capTop: 39.15 } as const;
 
 export const CIGARETTE_BOX = {
   topZ: 77.171, tabChord: -6.32, holderBayX: -16.84, lighterLead: 0.4,
@@ -142,6 +149,20 @@ export function holderPieces(clearance: number): number[][] {
   return pieces;
 }
 
+/**
+ * The lid's ceiling over the round bay as one convex piece, in the lid's own frame: the bay's outline (the lighter's plan pushed out
+ * by the clearance) grown by 3 mm, from the sleeve's ceiling to the top of the solid cap. Closed, it is 1.1 mm above the lighter's
+ * top: the lid traps the lighter. Left out: the sleeve and the honeycomb, which only the box's shell meets (the lid slides on an
+ * ideal joint instead).
+ */
+export function lidPieces(clearance: number): number[][] {
+  const over = offsetConvex(lighterPlan(0, 96), clearance + 3).map(([x, y]): Point2 => [x + CIGARETTE_BOX.holderBayX, y]);
+  return extrudedPieces(over, [0, 1], CIGARETTE_LID.ceiling, CIGARETTE_LID.capTop);
+}
+
+/** How far the lid slides up off the box (mm): far enough to clear a lighter lifted out of its bay. */
+const LID_TRAVEL = 70;
+
 /** Turned over about X, and about Y, with the lighter's lowest point (its hood's top) at `z`, centred over the round bay. */
 const overX = (z: number) => ({ position: [CIGARETTE_BOX.holderBayX, 0, z + L.height], rotation: [180, 0, 0] });
 const overY = (z: number) => ({ position: [CIGARETTE_BOX.holderBayX, 0, z + L.height], rotation: [0, 180, 0] });
@@ -160,6 +181,13 @@ export const LIGHTER_STOPS = { leverOnTab: 27.34, hoodOnDome: 32.52, frontOnTab:
  */
 export const HOLDER_HOLD = 2;
 
+/**
+ * How firmly the lid's friction fit (its default snap) holds it on the box, in N: an assumption, as `HOLDER_HOLD`. It holds the lid
+ * (24 g with the mini box hanging in it) and the lighter when the case is upside down, and it is between what the editor's pointer
+ * pulls the lighter (1.3 N) and the lid (2.4 N) with, ten times their weights: the lid can be pulled off, the lighter cannot force it.
+ */
+export const LID_HOLD = 1.5;
+
 export function cigaretteCasePhysics(clearance: number): PhysicsSpec {
   const start = 37;
   // the finger presses 0.3 mm past where the lighter should stop, so that a lighter that settles a little lower still reaches its stop
@@ -169,11 +197,22 @@ export function cigaretteCasePhysics(clearance: number): PhysicsSpec {
   // lighter settles up to 0.25 mm sideways in its bay, its lever landing a little lower on the tab
   const pushOut = LIGHTER_STOPS.hoodOnDome - LIGHTER_STOPS.leverOnTab;
   const base = (z: number): number[] => [CIGARETTE_BOX.holderBayX, 0, z + L.height];
+  // the lid slid up off the box, with the mini box hanging in it (for the turned-over lighter, which goes in from the top)
+  const lidOff = {
+    'case-lid': { position: [0, 0, CIGARETTE_LID.closedZ + LID_TRAVEL] },
+    'mini-box': { position: [6.43, 0, 98.23 + LID_TRAVEL], rotation: [180, 0, 0] },
+    'mini-lid': { position: [6.43, 0, 83.839 + LID_TRAVEL], rotation: [0, 0, 180] },
+  };
+  const centre = (z: number): number[] => [CIGARETTE_BOX.holderBayX, 0, z + L.height / 2];
   return {
     bodies: [
       { id: 'case-box', material: 'petg', fixed: true, collision: { kind: 'pieces', pieces: cigaretteBoxPieces(clearance) } },
       { id: 'mini-holder', material: 'petg', collision: { kind: 'pieces', pieces: holderPieces(clearance) }, joint: { type: 'slide', parent: 'case-box', anchor: [CIGARETTE_BOX.holderBayX, 0, 0], axis: [0, 0, 1], range: [-40, 0], friction: HOLDER_HOLD } },
       { id: 'mini-bic-lighter', material: 'pom', mass: L.mass, collision: { kind: 'pieces', pieces: lighterPieces() } },
+      // the lid slides up off the box along its sleeve, held by its friction fit; the mini box and its lid hang in it
+      { id: 'case-lid', material: 'petg', collision: { kind: 'pieces', pieces: lidPieces(clearance) }, joint: { type: 'slide', parent: 'case-box', anchor: [0, 0, CIGARETTE_LID.closedZ], axis: [0, 0, 1], range: [0, LID_TRAVEL], friction: LID_HOLD } },
+      { id: 'mini-box', material: 'petg', fixed: true, collision: { kind: 'none' }, joint: { type: 'slide', parent: 'case-lid', anchor: [0, 0, 0] } },
+      { id: 'mini-lid', material: 'petg', fixed: true, collision: { kind: 'none' }, joint: { type: 'slide', parent: 'case-lid', anchor: [0, 0, 0] } },
     ],
     scenarios: [
       {
@@ -187,7 +226,7 @@ export function cigaretteCasePhysics(clearance: number): PhysicsSpec {
       },
       {
         id: 'wheel-side-to-tab', title: 'Turned over, wheel side towards the tab, it pushes the holder out until its lever lands on the tab',
-        poses: { 'mini-bic-lighter': overX(start) }, duration: 1.4,
+        poses: { ...lidOff, 'mini-bic-lighter': overX(start) }, duration: 1.4,
         drives: [{ kind: 'push', body: 'mini-bic-lighter', point: base(start), timeline: push(LIGHTER_STOPS.leverOnTab) }],
         checks: [
           { kind: 'joint', at: 1.4, body: 'mini-holder', min: -pushOut - 0.5, max: -pushOut + 0.5 },
@@ -196,7 +235,7 @@ export function cigaretteCasePhysics(clearance: number): PhysicsSpec {
       },
       {
         id: 'front-to-tab', title: 'Turned over the other way, the hood’s front end lands on the tab and the holder stays',
-        poses: { 'mini-bic-lighter': overY(start) }, duration: 1.4,
+        poses: { ...lidOff, 'mini-bic-lighter': overY(start) }, duration: 1.4,
         drives: [{ kind: 'push', body: 'mini-bic-lighter', point: base(start), timeline: push(LIGHTER_STOPS.frontOnTab) }],
         checks: [
           { kind: 'joint', at: 1.4, body: 'mini-holder', min: -0.05, max: 0.01 },
@@ -204,8 +243,29 @@ export function cigaretteCasePhysics(clearance: number): PhysicsSpec {
         ],
       },
       {
-        id: 'case-upside-down', title: 'With the case upside down, the holder’s fit keeps it in', gravity: [0, 0, 1], duration: 0.5,
-        checks: [{ kind: 'joint', at: 0.5, body: 'mini-holder', min: -0.01, max: 0.01 }],
+        id: 'case-upside-down', title: 'With the case upside down, the holder’s and the lid’s fits keep them on, and the lid keeps the lighter in', gravity: [0, 0, 1], duration: 0.5,
+        checks: [
+          { kind: 'joint', at: 0.5, body: 'mini-holder', min: -0.01, max: 0.01 },
+          // dry friction creeps a little under load in the engine (docs/physics-plan.md, "Engine notes")
+          { kind: 'joint', at: 0.5, body: 'case-lid', min: -0.05, max: 0.05 },
+          { kind: 'position', at: 0.5, body: 'mini-bic-lighter', axis: 2, min: 0.9, max: 1.3 },
+          { kind: 'contact', at: 0.5, bodies: ['mini-bic-lighter', 'case-lid'], touching: true },
+        ],
+      },
+      {
+        // pulled up by 0.3 N, about twice its weight: over its 1.1 mm to the ceiling, a harder pull strikes the lid hard enough to nudge it
+        id: 'closed', title: 'With the lid closed, the lighter cannot be pulled out', duration: 0.6,
+        drives: [{ kind: 'force', body: 'mini-bic-lighter', point: centre(35.12), force: [0, 0, 0.3], from: 0, to: 0.6 }],
+        checks: [
+          { kind: 'position', at: 0.6, body: 'mini-bic-lighter', axis: 2, max: 1.3 },
+          { kind: 'contact', at: 0.6, bodies: ['mini-bic-lighter', 'case-lid'], touching: true },
+          { kind: 'joint', at: 0.6, body: 'case-lid', min: -0.05, max: 0.05 },
+        ],
+      },
+      {
+        id: 'open', title: 'With the lid slid off, the lighter comes out', poses: lidOff, duration: 0.6,
+        drives: [{ kind: 'force', body: 'mini-bic-lighter', point: centre(35.12), force: [0, 0, 0.3], from: 0, to: 0.6 }],
+        checks: [{ kind: 'position', at: 0.6, body: 'mini-bic-lighter', axis: 2, min: 10 }],
       },
     ],
   };

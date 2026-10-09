@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { toggleLatch } from '@canfactory/contracts';
+import { pressurePad, toggleLatch } from '@canfactory/contracts';
 
 /** The bodies' poses the viewer last reported (`data-physics-poses`): id → [x, y, z, qw, qx, qy, qz]. */
 async function poses(page: Page): Promise<Record<string, number[]>> {
@@ -13,11 +13,14 @@ async function poses(page: Page): Promise<Record<string, number[]>> {
 /** The angle (degrees) between two orientations (w, x, y, z). */
 const angle = (a: number[], b: number[]) => 2 * Math.acos(Math.min(1, Math.abs(a.slice(3).reduce((sum, value, index) => sum + value * (b[index + 3] ?? 0), 0)))) * 180 / Math.PI;
 
-test('simulates the toggle latch: the physics starts closed, a dragged lever swings on its hinge, gravity turns over', async ({ page }) => {
+test('marks the models with physics, and simulates the toggle latch: it starts closed, a dragged lever swings on its hinge, upside down it falls open', async ({ page }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/#/models');
+  // the cards of models with a mechanism say so
+  await expect(page.locator('.model-card', { hasText: toggleLatch.title }).locator('.card-physics')).toHaveText('Physics');
+  await expect(page.locator('.model-card', { hasText: pressurePad.title }).locator('.card-physics')).toHaveCount(0);
   await page.locator('.model-card', { hasText: toggleLatch.title }).click();
   await expect(page.getByRole('button', { name: 'Download ZIP', exact: true })).toBeEnabled({ timeout: 180_000 });
   const viewer = page.getByTestId('stl-viewer');
@@ -32,7 +35,7 @@ test('simulates the toggle latch: the physics starts closed, a dragged lever swi
   await expect.poll(async () => Number(await viewer.getAttribute('data-physics-time')), { timeout: 10_000 }).toBeGreaterThan(started + 0.5);
   await expect.poll(async () => Object.keys(await poses(page)).sort()).toEqual(['base', 'catch', 'lever', 'link']);
 
-  // find the lever under the pointer, and drag it up and away: it swings open on its hinge, and stays where it is let go
+  // find the lever under the pointer, and drag it up and away: it swings open on its hinge
   const over = async (x: number, y: number) => { await page.mouse.move(x, y); return viewer.getAttribute('data-physics-hover'); };
   // the lever's thumb end on the screen: from its centre towards the catch, the furthest point still on the lever
   const screen = Object.fromEntries((await viewer.getAttribute('data-physics-screen') ?? '').split(';').map(entry => {
@@ -66,10 +69,13 @@ test('simulates the toggle latch: the physics starts closed, a dragged lever swi
   const fixed = toggleLatch.physics().poses?.['base']?.position ?? [];
   base.slice(0, 3).forEach((value, axis) => { expect(value).toBeCloseTo(fixed[axis] ?? Number.NaN, 2); });
 
-  // gravity turned over, then a fresh start
+  // gravity turned over: the parts start again from closed, and the lever, nothing holding it, falls open under its own weight
   await bar.getByRole('button', { name: 'Upright' }).click();
   await expect(bar.getByRole('button', { name: 'Upside down' })).toHaveAttribute('aria-pressed', 'true');
   await expect(viewer).toHaveAttribute('data-physics', 'running');
+  await expect.poll(async () => angle((await poses(page))['lever'] ?? [], closed), { timeout: 10_000 }).toBeGreaterThan(30);
+  // upright again, and a fresh start: closed, where it stays
+  await bar.getByRole('button', { name: 'Upside down' }).click();
   await bar.getByRole('button', { name: 'Restart' }).click();
   await expect.poll(async () => angle((await poses(page))['lever'] ?? [], closed), { timeout: 10_000 }).toBeLessThan(2);
 

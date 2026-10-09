@@ -83,6 +83,11 @@ export interface Scene {
    * (`Simulation.driveJoint`). It is always active, since equality constraints cannot be switched at run time (engine.ts).
    */
   drives?: { body: string; type: 'hinge' | 'slide' }[];
+  /**
+   * A floor, the plane z = `floor` (metres), as the viewer's print bed is: a free part let go lands on it instead of falling for ever.
+   * None by default.
+   */
+  floor?: number;
   /** Fingertips: spheres a scenario moves (mocap bodies), pushing what they meet. They start out of the way. */
   fingers?: { name: string; radius: number }[];
 }

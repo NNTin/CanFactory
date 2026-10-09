@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BIC_J25, CIGARETTE_BOX, HOLDER_DOME, cigaretteBoxPieces, holderPieces, lighterPieces } from './cigaretteCasePhysics.ts';
+import { BIC_J25, CIGARETTE_BOX, CIGARETTE_LID, HOLDER_DOME, cigaretteBoxPieces, cigaretteCasePhysics, holderPieces, lidPieces, lighterPieces } from './cigaretteCasePhysics.ts';
+import { cigaretteCase } from './models.ts';
 import { isConvex, offsetConvex, signedArea } from './physicsPieces.ts';
 
 const read = (path: string) => readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8');
 const lighter = read('parts/everyday-objects/bic-j25-mini-lighter.scad');
 const box = read('models/cigarette-case/reference/11_v11.3__-_honeycomb_-_box.scad');
 const holder = read('models/cigarette-case/reference/11_-_Honeycomb_-_minibox.scad');
+const lid = read('models/cigarette-case/reference/11_v11.3__-_honeycomb_-_top.scad');
 const number = (source: string, name: string) => Number(new RegExp(`^${name} *= *([-\\d.]+);`, 'm').exec(source)?.[1]);
 const array = (source: string, name: string) => JSON.parse(new RegExp(`^${name} *= (\\[[\\s\\S]*?\\]\\]);`, 'm').exec(source)?.[1] ?? 'null') as unknown;
 
@@ -30,8 +32,20 @@ describe('cigarette case physics', () => {
     expect([Math.min(...heights), Math.max(...heights)]).toEqual([CIGARETTE_BOX.tabBottom, 34.91]);
   });
 
+  it('closes the lid where the assembly does, and slides the mini box off with it', () => {
+    expect([number(lid, 'CAVITY_TOP'), number(lid, 'BASE_TOP'), number(box, 'BASE_TOP')]).toEqual([CIGARETTE_LID.ceiling, CIGARETTE_LID.capTop, CIGARETTE_LID.closedZ]);
+    const poses = cigaretteCase.assembly.poses;
+    expect(poses['case-lid']?.position[2]).toBe(CIGARETTE_LID.closedZ);
+    const off = cigaretteCasePhysics(0.2).scenarios?.find(scenario => scenario.id === 'open')?.poses ?? {};
+    const lift = (off['case-lid']?.position[2] ?? 0) - CIGARETTE_LID.closedZ;
+    for (const id of ['mini-box', 'mini-lid']) {
+      expect(off[id]?.position).toEqual(poses[id]?.position.map((value, axis) => axis === 2 ? expect.closeTo(value + lift, 9) as number : value));
+      expect(off[id]?.rotation).toEqual(poses[id]?.rotation);
+    }
+  });
+
   it('builds convex pieces of four or more points', () => {
-    for (const pieces of [lighterPieces(), cigaretteBoxPieces(0.2), holderPieces(0.2)]) for (const piece of pieces) {
+    for (const pieces of [lighterPieces(), cigaretteBoxPieces(0.2), holderPieces(0.2), lidPieces(0.2)]) for (const piece of pieces) {
       expect(piece.length % 3).toBe(0);
       expect(piece.length).toBeGreaterThanOrEqual(12);
       expect(piece.every(Number.isFinite)).toBe(true);

@@ -1085,12 +1085,30 @@ main {
   box-shadow: 0 8px 30px #45533410;
 }
 .card-art {
+  position: relative;
   height: 240px;
   background: #e9ece0;
   display: flex;
   justify-content: center;
   align-items: center;
   color: #7b8e6b;
+}
+/* a model whose mechanism the editor simulates (ModelDefinition.physics) */
+.card-physics {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid #c76743;
+  border-radius: 999px;
+  background: #fffefa;
+  color: #a4502f;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .funnel-illustration,
 .moss-planter-illustration,

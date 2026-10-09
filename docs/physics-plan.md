@@ -131,7 +131,9 @@ The engine's contacts are soft: a part striking another is stopped over about it
 A 0.4 g steel ball let go 0.8 mm into its 4.6 N/mm spring reaches about 3 m/s and passed millimetres into, and through, the
 printed lip. So the physics is quasi-static: printed mechanisms are judged at rest and in slow motion.
 
-- A sprung joint is damped to a 50 ms time constant (`QUASI_STATIC` in contracts: damping = stiffness × 0.05).
+- A sprung joint is damped to a 50 ms time constant (`QUASI_STATIC` in contracts: damping = stiffness × 0.05). Only joints whose
+  scenarios strike something fast are damped: the toggle latch's hinges and slide are not, since damped they made its lever creep
+  back under gravity, which looked nothing like a real latch; its scenarios drive the lever and pull the catch, and still pass.
 - The physics side adds inertia (MuJoCo's armature) to every sprung or damped joint (`jointArmature` in build.ts): at least 10 Δt c,
   because MuJoCo integrates joint damping implicitly and that dilutes the contact forces on a light body by its mass over its mass
   plus Δt c (the damped ball crept through its lip without it); and at least k (Δt / 0.2)², so that a spring's oscillation takes
@@ -193,9 +195,14 @@ engine upgrade only needs the recorded hash renewed, not every scenario.
 | Cigarette case | Upright | the lighter rests on the tab, 2.4 mm clear of the holder |
 | | Turned over about X (wheel side to the tab) | its hood pushes the holder out about 5.5 mm until its lever lands on the tab (documented: 5.2 mm; the hood is solid between its thumb rings here and the lighter settles 0.25 mm sideways, so the window is ±0.5 mm) |
 | | Turned over about Y (front end to the tab) | it lands on the tab; the holder stays |
-| | Case upside down | the holder's fit keeps it in |
+| | Case upside down | the holder's and the lid's fits keep them on; the lighter falls 1.1 mm onto the lid's ceiling |
+| | Lid closed, the lighter pulled up | it stops at the lid's ceiling, 1.1 mm up; the lid stays |
+| | Lid slid off, the lighter pulled up | it comes out |
 
-The holder's fit is an assumption (2 N; `HOLDER_HOLD`): how firmly a printed friction fit holds is not known without printing.
+The holder's fit and the lid's are assumptions (2 N, `HOLDER_HOLD`; 1.5 N, `LID_HOLD`): how firmly a printed friction fit holds
+is not known without printing. The lid slides up the box on an ideal joint, carrying the mini box and mini lid (welded to it); its
+ceiling over the bay is its collision piece. Its hold lies between the editor's pull on the lighter (1.3 N) and on the lid (2.4 N),
+so the lid can be pulled off but the lighter cannot force it.
 Each mechanism lives next to its geometry in contracts: `springBallDetentPhysics` (models.ts), `toggleLatchPhysics`
 (toggleLatchMechanism.ts) and `cigaretteCasePhysics` (cigaretteCasePhysics.ts, whose SCAD values a test keeps equal).
 
@@ -233,8 +240,12 @@ the physics bar in place of the assembly slider:
 - The viewer sends the meshes it already shows; bodies without given pieces are decomposed in the worker with V-HACD and cached
   in IndexedDB.
 - Dragging: the pointer takes a part by the point it hits (the cursor shows a hand over a part, and the camera stops orbiting).
-  The point is pulled on a plane facing the camera by the drag spring; for a jointed part, that spring is for the mass the pull
-  moves, the part's own plus its joint's armature over the squared lever arm.
+  The point is pulled on a plane facing the camera by the drag spring, sized for the effective mass at the point: a free part held
+  away from its centre turns as well as moves (1 / (1/m + r²/I)), and a jointed part adds its joint's armature. Sized for the whole
+  mass, the spring set a lighter held by its top spinning at 100 rad/s, and it flew off when let go. The pull is capped at ten
+  times the weight of what is held (with what is welded to it): a pointer lifts and swings any part but cannot wrench a trapped one
+  free. The scene has a floor at the print bed, so a part let go lands on it.
+- The model library marks the models with a mechanism with a **Physics** badge on their card.
 - **Upright / Upside down** turns gravity over; **Restart** starts again from the mechanism's poses. Closing the mode puts the
   slider's poses back.
 - For the page's tests the viewer reports `data-physics` (starting, running, error), `data-physics-time`, and every tenth frame

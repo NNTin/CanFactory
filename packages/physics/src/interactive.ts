@@ -100,7 +100,7 @@ export class InteractiveSession {
     const start = this.start;
     if (!start) return;
     this.simulation?.dispose();
-    this.simulation = new Simulation(this.engine, buildScene({ spec: start.spec, poses: start.poses, geometry: this.geometry, gravity: this.gravity }));
+    this.simulation = new Simulation(this.engine, buildScene({ spec: start.spec, poses: start.poses, geometry: this.geometry, gravity: this.gravity, floor: true }));
     this.lag = 0;
     this.report({ type: 'ready', bodies: [...this.simulation.bodies] });
     this.report(this.poses(1));

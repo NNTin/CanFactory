@@ -30,6 +30,8 @@ export interface BuildInput {
   startPoses?: Record<string, PartPose>;
   /** Bodies whose joint is driven (`Scene.drives`). */
   drives?: string[];
+  /** A floor at z = 0 (`Scene.floor`), as the viewer's print bed. */
+  floor?: boolean;
   /** Fingertips (`Scene.fingers`). */
   fingers?: { name: string; radius: number }[];
 }
@@ -182,5 +184,6 @@ export function buildScene(input: BuildInput): Scene {
     exclude: (spec.exclude ?? []).map(([a = '', b = '']) => [a, b] as [string, string]),
     ...(input.drives && input.drives.length > 0 ? { drives: input.drives.map(body => driveOf(spec, body)) } : {}),
     ...(input.fingers && input.fingers.length > 0 ? { fingers: input.fingers } : {}),
+    ...(input.floor === true ? { floor: 0 } : {}),
   };
 }

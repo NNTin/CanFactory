@@ -18,18 +18,23 @@ export interface Contact { body1: string; body2: string; dist: number; pos: Vec3
 /**
  * How a held point follows its target: a spring of natural frequency `omega` (rad/s) for the held body's own mass, damped at
  * `damping` (1 is critical), its force capped at `maxForce` (N), and the body's spin damped at `spinDamping` (rad/s) so that a part
- * held by one point does not whirl about it. The spring is explicit (a force each step), so ω·Δt must stay well under 2.
+ * held by one point does not whirl about it. The spring is explicit (a force each step), so ω·Δt must stay well under 2. Its force is
+ * also capped at `weights` times what the held part weighs (with what is welded to it): a pointer lifts and swings any part, but
+ * does not wrench a trapped one free (a lighter through the closed lid of its case) or fling a light one.
  */
-export interface HoldOptions { omega: number; damping: number; maxForce: number; spinDamping: number }
+export interface HoldOptions { omega: number; damping: number; maxForce: number; spinDamping: number; weights: number }
 
 /**
  * Dragging with the pointer: 300 rad/s is ω·Δt = 0.15 at the 0.5 ms step, and 20 N is about what a finger presses with. Tuned in
  * spike 5 (docs/physics-plan.md).
  */
-export const DRAG: HoldOptions = { omega: 300, damping: 1, maxForce: 20, spinDamping: 100 };
+export const DRAG: HoldOptions = { omega: 300, damping: 1, maxForce: 20, spinDamping: 100, weights: 10 };
 
-/** A held body point: its body, the point in the body's frame, its target (world frame, metres), and the mass its spring is for. */
-interface Hold { name: string; body: number; local: Vec3; target: Vec3; options: HoldOptions; mass: number }
+/**
+ * A held body point: its body, the point in the body's frame, its target (world frame, metres), the mass its spring is for (the
+ * effective mass at the point), and the most force it pulls with.
+ */
+interface Hold { name: string; body: number; local: Vec3; target: Vec3; options: HoldOptions; mass: number; maxForce: number }
 
 /** A force (N, world frame) at a body point (body frame, metres). */
 interface Load { name: string; body: number; local: Vec3; force: Vec3 }
@@ -163,25 +168,35 @@ export class Simulation {
   /** Holds `body` by the world point `point` (metres) under `key`: the point then follows the target set by `moveHold`. */
   hold(key: string, body: string, point: Vec3, options: HoldOptions = DRAG): void {
     const id = this.bodyId(body);
-    this.holds.set(key, { name: body, body: id, local: this.local(body, point), target: point, options, mass: this.massAt(body, id, point) });
+    const { mass, weight } = this.massAt(body, id, point);
+    this.holds.set(key, { name: body, body: id, local: this.local(body, point), target: point, options, mass, maxForce: Math.min(options.maxForce, options.weights * 9.81 * weight) });
   }
 
   /**
-   * The mass a pull at `point` moves: the body's own, plus its joint's armature (build.ts adds it for quasi-static joints): as a mass
-   * on a slide, and as an inertia over the point's squared distance from a hinge's axis. Without it a hinged lever, light but turning
-   * against a heavy armature, barely followed the pointer.
+   * The effective mass at `point`: what a pull there accelerates. A free part pulled away from its centre of mass turns as well as
+   * moves, so it gives way more easily than its mass says: 1 / (1 / m + r² / I) with r the point's distance from the centre and I
+   * the part's smallest principal inertia (a lower bound, so that the spring stays stable). A spring scaled to the whole 13 g of a
+   * lighter held 30 mm from its centre (an effective 0.7 g) was too stiff and too damped for the time step, and set it spinning at
+   * 100 rad/s. To that, a joint's armature (build.ts adds it for quasi-static joints): as a mass on a slide, and as an inertia over
+   * the squared distance from a hinge's axis. `weight` is the mass that gravity and the pull's cap go by: the part's own, plus a
+   * slide's armature or a hinge's over that distance, with the parts welded to it.
    */
-  private massAt(name: string, id: number, point: Vec3): number {
+  private massAt(name: string, id: number, point: Vec3): { mass: number; weight: number } {
     const mass = this.model.body_mass[id] ?? 0;
+    const carried = this.model.body_subtreemass[id] ?? mass;
+    const inertia = Math.min(...[0, 1, 2].map(k => this.model.body_inertia[3 * id + k] ?? 0).filter(value => value > 0));
+    const com: Vec3 = [this.data.xipos[3 * id] ?? 0, this.data.xipos[3 * id + 1] ?? 0, this.data.xipos[3 * id + 2] ?? 0];
+    const r = sub(point, com);
+    const free = Number.isFinite(inertia) && mass > 0 ? 1 / (1 / mass + (r[0] ** 2 + r[1] ** 2 + r[2] ** 2) / inertia) : mass;
     const motion = this.scene.bodies.find(body => body.name === name)?.motion;
-    if (typeof motion !== 'object' || !motion.armature) return mass;
-    if (motion.type === 'slide') return mass + motion.armature;
+    if (typeof motion !== 'object' || !motion.armature) return { mass: free, weight: carried };
+    if (motion.type === 'slide') return { mass: free + motion.armature, weight: carried + motion.armature };
     const pose = this.pose(name);
     const anchor = add(pose.pos, rotate(pose.quat, motion.pos)), axis = rotate(pose.quat, motion.axis);
     const arm = sub(point, anchor);
     const along = (arm[0] * axis[0] + arm[1] * axis[1] + arm[2] * axis[2]) / Math.hypot(...axis);
     const r2 = Math.max(1e-6, arm[0] ** 2 + arm[1] ** 2 + arm[2] ** 2 - along ** 2);
-    return mass + motion.armature / r2;
+    return { mass: free + motion.armature / r2, weight: carried + motion.armature / r2 };
   }
 
   moveHold(key: string, target: Vec3): void {
@@ -240,7 +255,7 @@ export class Simulation {
     };
     for (const load of this.loads.values()) addAt(load.body, this.world(load.name, load.local), load.force);
     for (const hold of this.holds.values()) {
-      const id = hold.body, { omega, damping, maxForce, spinDamping } = hold.options;
+      const id = hold.body, { omega, damping, spinDamping } = hold.options, maxForce = hold.maxForce;
       const point = this.world(hold.name, hold.local);
       this.engine.mj_objectVelocity(this.model, this.data, OBJ.body, id, this.velocity, 0);
       const v = this.velocity.GetView();
