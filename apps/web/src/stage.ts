@@ -21,6 +21,8 @@ export interface Stage {
   camera: THREE.PerspectiveCamera;
   /** Meshes keep their SCAD frame (Z up) inside `group`, which turns it to the scene's Y up. */
   group: THREE.Group;
+  /** The camera's orbit controls: switched off while the physics drags a part with the pointer. */
+  controls: OrbitControls;
   /**
    * Frames content `extent` wide and `height` tall around `focus`: the camera moves only the first time, or when the size
    * changes a lot, so that small changes keep the user's view.
@@ -92,7 +94,7 @@ export function createStage(element: HTMLElement, label: string, options: { scal
   };
   loop();
   return {
-    renderer, camera, group, reset, invalidate,
+    renderer, camera, group, controls, reset, invalidate,
     lookAt(position, target) {
       camera.position.copy(group.localToWorld(position.clone()));
       controls.target.copy(group.localToWorld(target.clone()));

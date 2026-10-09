@@ -21,6 +21,9 @@
  * rest on the catch's hook (`OPEN`), carrying the link's nose out of the dip, and the link swings up off the hook (`SWING`).
  */
 
+import type { PhysicsSpec } from './physics.ts';
+import { convexParts, extrudedPieces } from './physicsPieces.ts';
+
 export type Vec2 = [number, number];
 /** A profile point (x, y) goes to (m[0] x + m[1] y + t[0], m[2] x + m[3] y + t[1]) in the plane (u, v). */
 export interface Placement2D { m: [number, number, number, number]; t: Vec2 }
@@ -459,5 +462,116 @@ export function latchPoses(state: LatchState): Record<'base' | 'lever' | 'link' 
     lever: pose3D(state.lever, [0, 2], 1, G.lever.middle),
     link: pose3D(state.link, [0, 2], 1, G.link.middle),
     catch: pose3D(state.catch, [1, 2], 0, G.catch.middle),
+  };
+}
+
+// ---- physics -------------------------------------------------------------------------------------------------------------------
+
+/**
+ * Each part's convex collision pieces, in its own frame, from the profiles above and the extents its SCAD file extrudes them over
+ * (docs/physics-plan.md, "Collision geometry"): the plates (their sections across their length), the base's knuckle and the
+ * catch's hook (across their own lengths, clipped as the SCAD files clip them), and the lever's and link's side plates and bridges
+ * (across their widths). Left out: the pivot and pin holes, the pins and the screw holes, where ideal joints (whose bodies do not
+ * collide) hold the parts; the 0.6 mm chamfers of the side plates' outer faces and the hook's 1 mm end chamfers (the hook is
+ * extruded only between them), which only make a piece smaller than the part.
+ */
+export function toggleLatchPieces(): Record<'base' | 'lever' | 'link' | 'catch', number[][]> {
+  const clip = (height: number, front: number) => (polygon: readonly Vec2[]) => clipToBox(polygon, [-1, -1], [front + 2, height + 1]);
+  const L = G.lever, K = G.link;
+  return {
+    base: [
+      ...extrudedPieces(BASE_PLATE_SECTION, [1, 2], 0, G.base.length),
+      ...convexParts(TOGGLE_LATCH_PROFILES.baseKnuckle).map(clip(G.base.height, G.base.front)).flatMap(part => extrudedPieces(part, [1, 2], G.base.knuckle[0], G.base.knuckle[1])),
+    ],
+    catch: [
+      ...extrudedPieces(CATCH_PLATE_SECTION, [1, 2], 0, G.catch.length),
+      ...convexParts(TOGGLE_LATCH_PROFILES.catchHook).map(clip(G.catch.height, G.catch.front)).flatMap(part => extrudedPieces(part, [1, 2], G.catch.hook[0] + 1, G.catch.hook[1] - 1)),
+    ],
+    lever: [
+      ...extrudedPieces(TOGGLE_LATCH_PROFILES.leverSide, [0, 2], L.pinLength, L.pinLength + L.side),
+      ...extrudedPieces(TOGGLE_LATCH_PROFILES.leverSide, [0, 2], L.width - L.pinLength - L.side, L.width - L.pinLength),
+      ...extrudedPieces(TOGGLE_LATCH_PROFILES.leverBridge, [0, 2], L.pinLength + L.side, L.width - L.pinLength - L.side),
+    ],
+    link: [
+      ...extrudedPieces(TOGGLE_LATCH_PROFILES.linkSide, [0, 2], 0, K.side),
+      ...extrudedPieces(TOGGLE_LATCH_PROFILES.linkSide, [0, 2], K.width - K.side, K.width),
+      ...extrudedPieces(TOGGLE_LATCH_PROFILES.linkBar, [0, 2], K.side, K.width - K.side),
+    ],
+  };
+}
+
+/** The convex polygon clipped to the box from `min` to `max` (Sutherland–Hodgman); empty when nothing is left. */
+function clipToBox(polygon: readonly Vec2[], min: Vec2, max: Vec2): Vec2[] {
+  let points = [...polygon];
+  const edges: [(p: Vec2) => number, number][] = [[p => p[0] - min[0], 0], [p => max[0] - p[0], 0], [p => p[1] - min[1], 1], [p => max[1] - p[1], 1]];
+  for (const [inside] of edges) {
+    const next: Vec2[] = [];
+    points.forEach((p, i) => {
+      const q = points[(i + 1) % points.length] ?? p;
+      const [a, b] = [inside(p), inside(q)];
+      if (a >= 0) next.push(p);
+      if ((a >= 0) !== (b >= 0)) { const f = a / (a - b); next.push([p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f]); }
+    });
+    points = next;
+  }
+  return points;
+}
+
+/**
+ * The latch's mechanism for the physics subsystem, starting closed and hooked (`CLOSED`): the base fixed; the lever on an ideal hinge
+ * on the base's pivot; the link on an ideal hinge on the lever's pins; the catch on an ideal slide along the pull (u), as the part it is
+ * screwed to would carry it. The link holds the catch only by contact: its nose in the dip under the hook, its side bars on the base's
+ * plate. Joint values are degrees and mm from closed. Its joints are undamped, so that a lever let go falls as a real one does (with
+ * the quasi-static damping it crept, which looked nothing like gravity); nothing in its scenarios strikes anything fast. The scenarios check the
+ * over-centre lock under a pull, and that turning the lever draws the catch in to `DEAD_CENTRE` and lets it go by `RELEASED` as the
+ * mechanism's table says.
+ */
+export function toggleLatchPhysics(): PhysicsSpec {
+  const closed = latchState(CLOSED);
+  const poses = latchPoses(closed);
+  const pieces = toggleLatchPieces();
+  const axis = [1, 0, 0];
+  const anchor = (point: Vec2) => [0, point[0], point[1]];
+  // the catch's travel (+u, mm) from closed, as the mechanism's table gives it
+  const drawn = (angle: number) => latchState(angle).offset - closed.offset;
+  const pull = 10;
+  return {
+    poses,
+    bodies: [
+      { id: 'base', material: 'petg', fixed: true, collision: { kind: 'pieces', pieces: pieces.base } },
+      { id: 'lever', material: 'petg', collision: { kind: 'pieces', pieces: pieces.lever }, joint: { type: 'hinge', parent: 'base', anchor: anchor(PIVOT), axis } },
+      { id: 'link', material: 'petg', collision: { kind: 'pieces', pieces: pieces.link }, joint: { type: 'hinge', parent: 'lever', anchor: anchor(closed.pin), axis } },
+      { id: 'catch', material: 'petg', collision: { kind: 'pieces', pieces: pieces.catch }, joint: { type: 'slide', anchor: [0, 0, 0], axis: [0, 1, 0] } },
+    ],
+    scenarios: [
+      {
+        id: 'locked', title: `Closed and pulled with ${pull} N, the latch stays locked`, duration: 0.6,
+        drives: [{ kind: 'force', body: 'catch', point: poses.catch.position, force: [0, -pull, 0], from: 0, to: 0.6 }],
+        checks: [
+          { kind: 'joint', at: 0.6, body: 'lever', min: -1, max: 1 },
+          { kind: 'joint', at: 0.6, body: 'catch', min: -0.05, max: 0.05 },
+          { kind: 'contact', at: 0.6, bodies: ['link', 'catch'], touching: true },
+        ],
+      },
+      {
+        id: 'draws-in', title: `Turned to dead centre against a ${pull} N pull, the lever draws the catch in ${drawn(DEAD_CENTRE).toFixed(2)} mm`, duration: 1,
+        drives: [
+          { kind: 'force', body: 'catch', point: poses.catch.position, force: [0, -pull, 0], from: 0, to: 1 },
+          { kind: 'joint', body: 'lever', timeline: [[0, 0], [0.6, DEAD_CENTRE - CLOSED]] },
+        ],
+        checks: [
+          { kind: 'joint', at: 1, body: 'catch', min: drawn(DEAD_CENTRE) - 0.03, max: drawn(DEAD_CENTRE) + 0.03 },
+          { kind: 'contact', at: 1, bodies: ['link', 'catch'], touching: true },
+        ],
+      },
+      {
+        id: 'releases', title: `Opened to ${RELEASED}°, the catch is let go ${(-drawn(RELEASED)).toFixed(2)} mm`, duration: 1.2,
+        drives: [
+          { kind: 'force', body: 'catch', point: poses.catch.position, force: [0, -pull, 0], from: 0, to: 1.2 },
+          { kind: 'joint', body: 'lever', timeline: [[0, 0], [0.8, RELEASED - CLOSED]] },
+        ],
+        checks: [{ kind: 'joint', at: 1.2, body: 'catch', min: drawn(RELEASED) - 0.05, max: drawn(RELEASED) + 0.05 }],
+      },
+    ],
   };
 }

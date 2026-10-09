@@ -17,5 +17,9 @@ export default defineConfig({
   plugins: [react()],
   define: { __COMMIT_SHA__: JSON.stringify(commitSha()) },
   server: { proxy: { '/api': 'http://127.0.0.1:3001' } },
+  // The physics worker (src/physicsWorker.ts) loads the decomposers on demand, which needs ES module workers.
+  worker: { format: 'es' },
+  // MuJoCo's Emscripten module finds its .wasm next to itself; pre-bundling would move it (the worker passes the URL anyway).
+  optimizeDeps: { exclude: ['@mujoco/mujoco'] },
   build: { rollupOptions: { output: { manualChunks: { three: ['three', 'three/addons/loaders/STLLoader.js', 'three/addons/controls/OrbitControls.js', 'three/addons/utils/BufferGeometryUtils.js'] } } } },
 });

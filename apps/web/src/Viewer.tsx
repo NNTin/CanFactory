@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Box, Eye, EyeOff, Grid2X2, Pause, Play, RotateCcw } from 'lucide-react';
-import { assemblyOffset, assemblyScale, assemblyState, assemblyStops, motionFrames, motionPose, type Assembly, type AssemblyState } from '@canfactory/contracts';
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { Atom, Box, Eye, EyeOff, FlipVertical2, Grid2X2, Pause, Play, RotateCcw } from 'lucide-react';
+import { assemblyOffset, assemblyScale, assemblyState, assemblyStops, motionFrames, motionPose, type Assembly, type AssemblyState, type PhysicsSpec } from '@canfactory/contracts';
+import type { PhysicsRequest, PhysicsUpdate } from '@canfactory/physics';
 import { unzipSync } from 'fflate';
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
@@ -25,6 +26,20 @@ interface SceneController {
   setProgress: (t: number) => void;
   reset: () => void;
   wireframe: (enabled: boolean) => void;
+  /** The physics: each body's mesh as triangles in its part's frame (mm), as the interactive mode's worker takes them. */
+  physicsMeshes: (ids: readonly string[]) => Record<string, Float32Array>;
+  /** Places the parts at these poses (the physics' start), leaving the others where they are. */
+  placeAt: (poses: Record<string, Pose>) => void;
+  /** Moves the bodies to the physics' poses: per body, its position (mm) and orientation (w, x, y, z). */
+  setBodyPoses: (bodies: readonly string[], poses: Float64Array) => void;
+  /** The body under the pointer and the point hit (mm, the parts' frame); it also fixes the plane `dragPoint` moves in. */
+  pick: (clientX: number, clientY: number, bodies: readonly string[]) => { id: string; point: [number, number, number] } | undefined;
+  /** Where the pointer is on the plane through the picked point, facing the camera (mm, the parts' frame). */
+  dragPoint: (clientX: number, clientY: number) => [number, number, number] | undefined;
+  /** Switches the camera's orbit controls on and off (off while a part is dragged). */
+  setOrbit: (enabled: boolean) => void;
+  /** Where each of these parts' bounding-box centres is on the screen (client pixels), for the page's tests. */
+  screenCentres: (ids: readonly string[]) => Record<string, [number, number]>;
 }
 
 /** A part as the viewer shows it, for the parts list: its id (the STL name without `.stl`) and whether it is a reference object. */
@@ -99,7 +114,7 @@ const PLAY_SECONDS = 2.4;
  * parts from the print bed to the finished assembly, together with its reference objects (`references`), which are not in the file.
  * Every part is shown by default; the parts list under the slider hides or shows each one (`partTitles` names them).
  */
-export function Viewer({ url, format, assembly, references = [], partTitles = {}, onError, onLoaded }: { url: string | null; format: 'stl' | 'zip'; assembly?: Assembly | undefined; references?: ReferenceObject[]; partTitles?: Record<string, string>; onError: (message: string) => void; onLoaded: (url: string) => void }) {
+export function Viewer({ url, format, assembly, references = [], partTitles = {}, physics, onError, onLoaded }: { url: string | null; format: 'stl' | 'zip'; assembly?: Assembly | undefined; references?: ReferenceObject[]; partTitles?: Record<string, string>; physics?: PhysicsSpec | undefined; onError: (message: string) => void; onLoaded: (url: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const scene = useRef<SceneController | null>(null);
   const [wireframe, setWireframe] = useState(false);
@@ -113,6 +128,15 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
   const referencesRef = useRef(references); referencesRef.current = references;
   const onErrorRef = useRef(onError); onErrorRef.current = onError;
   const onLoadedRef = useRef(onLoaded); onLoadedRef.current = onLoaded;
+  const physicsRef = useRef(physics); physicsRef.current = physics;
+  const progressRef = useRef(0);
+  // The interactive mode (docs/physics-plan.md): the physics runs in its own worker, built when the mode is opened
+  const [simulating, setSimulating] = useState(false);
+  const [physicsStatus, setPhysicsStatus] = useState('');
+  const [upsideDown, setUpsideDown] = useState(false);
+  const worker = useRef<Worker | undefined>(undefined);
+  const bodies = useRef<string[]>([]);
+  const dragging = useRef(false);
 
   useEffect(() => {
     const element = container.current;
@@ -141,6 +165,14 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
       stage.invalidate();
     };
     let geometries: THREE.BufferGeometry[] = [];
+    // Picking and dragging for the physics: the pointer in normalised device coordinates, and points in the parts' frame (mm)
+    const raycaster = new THREE.Raycaster();
+    const dragPlane = new THREE.Plane();
+    const pointer = (clientX: number, clientY: number) => {
+      const rect = stage.renderer.domElement.getBoundingClientRect();
+      return new THREE.Vector2((clientX - rect.left) / rect.width * 2 - 1, -(clientY - rect.top) / rect.height * 2 + 1);
+    };
+    const toParts = (point: THREE.Vector3): [number, number, number] => group.worldToLocal(point.clone()).toArray();
     scene.current = {
       reset: stage.reset,
       wireframe(enabled) {
@@ -202,6 +234,64 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
       },
       setProgress: place,
       setHidden(ids) { hiddenIds = ids; showParts(); },
+      physicsMeshes(ids) {
+        const meshes: Record<string, Float32Array> = {};
+        for (const placement of placements) {
+          if (!ids.includes(placement.id)) continue;
+          const geometry = placement.mesh.geometry;
+          const soup = geometry.index ? geometry.toNonIndexed() : geometry;
+          meshes[placement.id] = Float32Array.from(soup.getAttribute('position').array);
+          if (soup !== geometry) soup.dispose();
+        }
+        return meshes;
+      },
+      placeAt(poses) {
+        for (const placement of placements) {
+          const pose = poses[placement.id];
+          if (!pose) continue;
+          poseRotation(pose, placement.mesh.quaternion);
+          placement.mesh.position.fromArray(pose.position);
+          placement.mesh.scale.fromArray(pose.scale ?? UNIT);
+        }
+        stage.invalidate();
+      },
+      setBodyPoses(bodies, poses) {
+        bodies.forEach((id, index) => {
+          const mesh = placements.find(placement => placement.id === id)?.mesh;
+          if (!mesh) return;
+          const at = (k: number) => poses[7 * index + k] ?? 0;
+          mesh.position.set(at(0), at(1), at(2));
+          mesh.quaternion.set(at(4), at(5), at(6), at(3));
+        });
+        stage.invalidate();
+      },
+      pick(clientX, clientY, bodies) {
+        raycaster.setFromCamera(pointer(clientX, clientY), stage.camera);
+        const meshes = placements.filter(placement => bodies.includes(placement.id) && placement.mesh.visible).map(placement => placement.mesh);
+        const hit = raycaster.intersectObjects(meshes, false)[0];
+        const id = hit && placements.find(placement => placement.mesh === hit.object)?.id;
+        if (!hit || !id) return undefined;
+        dragPlane.setFromNormalAndCoplanarPoint(stage.camera.getWorldDirection(new THREE.Vector3()).negate(), hit.point);
+        return { id, point: toParts(hit.point) };
+      },
+      dragPoint(clientX, clientY) {
+        raycaster.setFromCamera(pointer(clientX, clientY), stage.camera);
+        const target = raycaster.ray.intersectPlane(dragPlane, new THREE.Vector3());
+        return target ? toParts(target) : undefined;
+      },
+      setOrbit(enabled) { stage.controls.enabled = enabled; },
+      screenCentres(ids) {
+        const rect = stage.renderer.domElement.getBoundingClientRect();
+        const centres: Record<string, [number, number]> = {};
+        for (const placement of placements) {
+          if (!ids.includes(placement.id)) continue;
+          const box = placement.mesh.geometry.boundingBox;
+          if (!box) continue;
+          const point = placement.mesh.localToWorld(box.getCenter(new THREE.Vector3())).project(stage.camera);
+          centres[placement.id] = [rect.left + (point.x + 1) / 2 * rect.width, rect.top + (1 - point.y) / 2 * rect.height];
+        }
+        return centres;
+      },
     };
     return () => {
       scene.current = null;
@@ -243,7 +333,85 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     return () => abort.abort();
   }, [url, format]);
 
-  useEffect(() => { scene.current?.setProgress(progress); }, [progress]);
+  useEffect(() => { progressRef.current = progress; scene.current?.setProgress(progress); }, [progress]);
+  // The physics session, while the mode is open and the parts are loaded: it starts from the mechanism's poses (the assembly's
+  // where it gives none) with the meshes the viewer shows. Closing the mode, or new parts, ends it and puts the slider's poses back.
+  useEffect(() => {
+    const spec = physicsRef.current, controller = scene.current, element = container.current;
+    if (!simulating || !spec || !shownAssembly || !controller || !element) return;
+    const start = { ...shownAssembly.poses, ...spec.poses };
+    controller.placeAt(start);
+    const meshes = controller.physicsMeshes(spec.bodies.map(body => body.id));
+    const thread = new Worker(new URL('./physicsWorker.ts', import.meta.url), { type: 'module' });
+    worker.current = thread;
+    const send = (request: PhysicsRequest, transfer: Transferable[] = []) => { thread.postMessage(request, transfer); };
+    element.dataset['physics'] = 'starting';
+    setPhysicsStatus('Starting the physics');
+    let frames = 0;
+    thread.onmessage = (event: MessageEvent<PhysicsUpdate>) => {
+      const update = event.data;
+      if (update.type === 'status') setPhysicsStatus(update.text);
+      else if (update.type === 'error') { element.dataset['physics'] = 'error'; setPhysicsStatus(update.message); }
+      else if (update.type === 'ready') { bodies.current = update.bodies; element.dataset['physics'] = 'running'; setPhysicsStatus('Drag a part to move it'); }
+      else {
+        scene.current?.setBodyPoses(bodies.current, update.poses);
+        // for the page's tests: the simulated time, and every tenth frame the bodies' poses (id: x y z qw qx qy qz, mm) and where
+        // their centres are on the screen
+        element.dataset['physicsTime'] = update.time.toFixed(3);
+        if (frames++ % 10 === 0) {
+          element.dataset['physicsPoses'] = bodies.current.map((id, index) => `${id}:${Array.from(update.poses.subarray(7 * index, 7 * index + 7), value => value.toFixed(4)).join(' ')}`).join(';');
+          element.dataset['physicsScreen'] = Object.entries(scene.current?.screenCentres(bodies.current) ?? {}).map(([id, [x, y]]) => `${id}:${x.toFixed(0)} ${y.toFixed(0)}`).join(';');
+        }
+      }
+    };
+    thread.onerror = () => { element.dataset['physics'] = 'error'; setPhysicsStatus('The physics could not start in this browser.'); };
+    send({ type: 'start', spec, poses: start, meshes }, Object.values(meshes).map(mesh => mesh.buffer));
+    return () => {
+      thread.terminate();
+      worker.current = undefined; bodies.current = []; dragging.current = false;
+      for (const attribute of ['data-physics', 'data-physics-time', 'data-physics-poses', 'data-physics-screen', 'data-physics-hover']) element.removeAttribute(attribute);
+      element.style.cursor = '';
+      scene.current?.setOrbit(true);
+      scene.current?.setProgress(progressRef.current);
+    };
+  }, [simulating, shownAssembly]);
+  useEffect(() => { setSimulating(false); setUpsideDown(false); }, [url]);
+  const turnOver = () => {
+    const next = !upsideDown;
+    setUpsideDown(next);
+    worker.current?.postMessage({ type: 'gravity', direction: [0, 0, next ? 1 : -1] } satisfies PhysicsRequest);
+  };
+  // Dragging a part: the pointer takes the part by the point it hits; the camera does not orbit meanwhile.
+  const grab = (event: PointerEvent<HTMLDivElement>) => {
+    const controller = scene.current;
+    if (!simulating || !worker.current || !controller || event.button !== 0) return;
+    const hit = controller.pick(event.clientX, event.clientY, bodies.current);
+    if (!hit) return;
+    controller.setOrbit(false);
+    dragging.current = true;
+    event.currentTarget.style.cursor = 'grabbing';
+    event.currentTarget.setPointerCapture(event.pointerId);
+    worker.current.postMessage({ type: 'grab', body: hit.id, point: hit.point } satisfies PhysicsRequest);
+  };
+  const drag = (event: PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) {
+      // over a part, the pointer offers to take it
+      if (!simulating || bodies.current.length === 0) return;
+      const over = scene.current?.pick(event.clientX, event.clientY, bodies.current)?.id;
+      event.currentTarget.style.cursor = over ? 'grab' : '';
+      if (over) event.currentTarget.dataset['physicsHover'] = over; else delete event.currentTarget.dataset['physicsHover'];
+      return;
+    }
+    const point = scene.current?.dragPoint(event.clientX, event.clientY);
+    if (point) worker.current?.postMessage({ type: 'drag', point } satisfies PhysicsRequest);
+  };
+  const letGo = (event: PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    event.currentTarget.style.cursor = 'grab';
+    scene.current?.setOrbit(true);
+    worker.current?.postMessage({ type: 'release' } satisfies PhysicsRequest);
+  };
   useEffect(() => { scene.current?.setHidden(hidden); }, [hidden]);
   const toggle = (id: string) => setHidden(current => {
     const next = new Set(current);
@@ -284,17 +452,28 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
 
   return <>
     <div className="viewer-content">
-      <div ref={container} className="canvas-container" data-testid="stl-viewer" />
+      <div ref={container} className="canvas-container" data-testid="stl-viewer" onPointerDownCapture={grab} onPointerMove={drag} onPointerUp={letGo} onPointerCancel={letGo} />
       {!url && !unsupported && <div className="viewer-placeholder"><Box size={32} strokeWidth={1} /><span>Preparing your first preview</span></div>}
       {unsupported && <div className="viewer-placeholder"><span>3D preview is unavailable in this browser.</span></div>}
       <div className="viewer-tools">
         <button type="button" onClick={() => scene.current?.reset()} title="Reset camera" aria-label="Reset camera"><RotateCcw size={17} /></button>
         <button type="button" aria-label="Toggle wireframe" aria-pressed={wireframe} title="Toggle wireframe" onClick={() => { setWireframe(value => !value); scene.current?.wireframe(!wireframe); }}><Grid2X2 size={17} /></button>
+        {physics && displayedAssembly && format === 'zip' && url && <button type="button" aria-label="Simulate" aria-pressed={simulating} title={simulating ? 'Stop the physics' : 'Simulate: drag the parts and see them move'}
+          onClick={() => { setPlaying(false); setSimulating(value => !value); }}><Atom size={17} /></button>}
       </div>
       <div className="viewer-instructions"><span>Drag to orbit</span><i /><span>Scroll to zoom</span><i /><span>Right-drag to pan</span></div>
       <div className="axis-label"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
     </div>
-    {displayedAssembly && format === 'zip' && url && <div className="assembly-bar">
+    {simulating && <div className="assembly-bar physics-bar" role="group" aria-label="Physics">
+      <div className="assembly-caption"><span>PHYSICS</span><strong role="status">{physicsStatus}</strong></div>
+      <button type="button" aria-pressed={upsideDown} title={upsideDown ? 'Turn it upright again' : 'Turn it upside down (gravity pulls the other way)'} onClick={turnOver}>
+        <FlipVertical2 size={15} aria-hidden="true" />{upsideDown ? 'Upside down' : 'Upright'}
+      </button>
+      <button type="button" title="Start again from the assembled parts" onClick={() => worker.current?.postMessage({ type: 'restart' } satisfies PhysicsRequest)}>
+        <RotateCcw size={15} aria-hidden="true" />Restart
+      </button>
+    </div>}
+    {!simulating && displayedAssembly && format === 'zip' && url && <div className="assembly-bar">
       <div className="assembly-caption"><span>ASSEMBLY</span><strong aria-hidden="true">{assemblyCaption(displayedAssembly, progress)}</strong></div>
       <button type="button" className="assembly-play" aria-label={playing ? 'Pause assembly' : 'Play assembly'} aria-pressed={playing} title={playing ? 'Pause' : 'Play the assembly'} onClick={togglePlay}>
         {playing ? <Pause size={15} aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
