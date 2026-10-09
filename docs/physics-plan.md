@@ -69,6 +69,8 @@ flowchart LR
 
 ## Mechanism spec (contracts)
 
+Implemented as `packages/contracts/src/physics.ts`; a model provides it as `ModelDefinition.physics(parameters)`.
+
 A model's assembly may carry a `physics` section (engine-neutral; units mm, g, s, N, degrees):
 
 - **bodies**: one per part or reference object (by its id in the assembly's poses), its **material** (density from
@@ -85,6 +87,10 @@ A model's assembly may carry a `physics` section (engine-neutral; units mm, g, s
 
 The spec is TypeBox, like the rest of contracts, and validated by tests that compare it with the SCAD files where values come
 from them (as `toggleLatchMechanism.ts` does).
+
+Materials (`PHYSICS_MATERIALS`) carry each value's source and what was read there. No published figure was found for printed
+plastic sliding on printed plastic; the nearest is printed PETG and PLA sliding on acrylic (0.28–0.30, natural surfaces), which
+is used for both. Printed parts are taken as solid; a body whose real mass is known (the lighter, 13 g) gives it.
 
 ## Collision geometry
 
@@ -142,6 +148,13 @@ engine upgrade only needs the recorded hash renewed, not every scenario.
 - Reading `MjData.eq_active` throws a binding error in 3.14.0, so equality constraints cannot be switched on and off at run time.
   Dragging therefore applies a spring force (`xfrc_applied`) instead of a mocap body on a switchable constraint, the same way as
   MuJoCo's own `mjv_applyPerturbForce`, with the point's velocity from `mj_objectVelocity`.
+- Joint drives (scenarios) are joint equality constraints whose target the simulation moves (`eq_data`), with a 1 ms time
+  constant and impedance 0.9999: MuJoCo scales a constraint's stiffness by the body's mass, so a light part on a stiff spring
+  pulls a softer one off its target (a 0.4 g ball on 2 N/mm gave way 0.09 mm). Setting the joint's position before each step
+  does not hold it: the spring moves it within the step.
+- The integrator is `implicitfast`, so that joint springs and damping are integrated implicitly.
+- Whether two bodies touch is measured with `mj_geomDistance` (within 10 µm), not from the contact list, which only holds pairs
+  that already overlap. A contact margin and gap would report near pairs too, but they changed where parts rest by 20 µm.
 - `DoubleBuffer` is constructed with its size (`new DoubleBuffer(n)`), not with an array as the package's README shows.
 
 ## Spikes
@@ -160,9 +173,9 @@ engine upgrade only needs the recorded hash renewed, not every scenario.
 | --- | --- |
 | Plan (this file) | Done |
 | `packages/physics` skeleton, MuJoCo loading in Node | Done: `engine.ts` (typed facade), `scene.ts`, `mjcf.ts`, `massProperties.ts`, `simulation.ts` (drag spring, state hash) |
-| Spike 1: reference scene, determinism hash | Node done (hash `89da2a25e70bfbfd`, @mujoco/mujoco 3.14.0); browser comparison pending (with spike 5) |
-| Mechanism spec in contracts | Not started |
-| Scene compiler (spec → MJCF) | Not started |
+| Spike 1: reference scene, determinism hash | Node done (hash `97aa7205e6d866e8`, @mujoco/mujoco 3.14.0); browser comparison pending (with spike 5) |
+| Mechanism spec in contracts | Done: `packages/contracts/src/physics.ts` (`PhysicsSpec`, `ModelDefinition.physics`, cited `PHYSICS_MATERIALS`) |
+| Scene compiler (spec → MJCF) | Done: `build.ts` (spec + poses + geometry → SI scene), `mjcf.ts`; scenario runner `scenario.ts` |
 | Spike 2: decomposers | Not started |
 | Spike 3: test cases, `check:physics` | Not started |
 | Spike 4: gears | Not started |

@@ -1,4 +1,5 @@
 import { conceptPages } from './concepts.ts';
+import type { PhysicsSpec } from './physics.ts';
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
@@ -380,6 +381,8 @@ export interface ModelDefinition {
   assembly?: Assembly;
   /** Geometry-derived poses, steps and colors for these settings; assembly remains the catalogue default. */
   assemblyForParameters?: (parameters: ParameterValues) => Assembly;
+  /** Only for an assembly: its mechanism for these settings, for the physics subsystem (docs/physics-plan.md). */
+  physics?: (parameters: ParameterValues) => PhysicsSpec;
   /** Other files whose content changes the geometry (e.g. fonts), so that they are part of the cache fingerprint. */
   assetPaths?: string[];
   parameterSchema: TSchema;

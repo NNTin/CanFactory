@@ -85,6 +85,8 @@ export interface Engine {
   mj_stateSize(model: MjModel, signature: number): number;
   mj_getState(model: MjModel, data: MjData, state: DoubleBuffer, signature: number): void;
   mj_contactForce(model: MjModel, data: MjData, index: number, result: DoubleBuffer): void;
+  /** The smallest distance between two geoms, up to `distmax` (returned when they are further apart); negative where they overlap. */
+  mj_geomDistance(model: MjModel, data: MjData, geom1: number, geom2: number, distmax: number, fromto: null): number;
   /** The object's 6D velocity (angular, then linear) about its centre (a body's centre of mass), in world axes when `local` is 0. */
   mj_objectVelocity(model: MjModel, data: MjData, type: number, id: number, result: DoubleBuffer, local: number): void;
   mj_versionString(): string;

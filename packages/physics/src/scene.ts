@@ -76,6 +76,11 @@ export interface Scene {
   bodies: SceneBody[];
   /** Pairs of bodies that never collide. */
   exclude: [string, string][];
+  /**
+   * Bodies whose joint a scenario drives: each gets an equality constraint holding its joint at a target the simulation moves
+   * (`Simulation.driveJoint`). It is always active, since equality constraints cannot be switched at run time (engine.ts).
+   */
+  drives?: { body: string; type: 'hinge' | 'slide' }[];
 }
 
 /**

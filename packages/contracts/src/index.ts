@@ -16,6 +16,7 @@ export * from './printedCornerBracket.ts';
 export * from './printedScreenHook.ts';
 export * from './springBallDetent.ts';
 export * from './catCollarTag.ts';
+export * from './physics.ts';
 /** The toggle latch's mechanism, shared by the catalogue card's side view and the assembly preview. */
 export * as toggleLatchMechanism from './toggleLatchMechanism.ts';
 

@@ -9,7 +9,7 @@ import { IDENTITY, quatFromPoseRotation, rotate } from './transform.ts';
 
 /** The reference scene's state hash after REFERENCE_STEPS steps with @mujoco/mujoco 3.14.0 (single-threaded). Renew it only
  * after an engine upgrade, and check the browser gives the same (docs/physics-plan.md, "Determinism"). */
-const REFERENCE_HASH = '89da2a25e70bfbfd';
+const REFERENCE_HASH = '97aa7205e6d866e8';
 
 /** A closed axis-aligned box mesh, outward-wound, from (0, 0, 0) to (a, b, c). */
 function boxTriangles(a: number, b: number, c: number): number[] {

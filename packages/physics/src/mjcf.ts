@@ -13,6 +13,9 @@ const escape = (text: string): string => text.replace(/&/g, '&amp;').replace(/</
 const attrs = (values: Record<string, string | undefined>): string =>
   Object.entries(values).flatMap(([key, value]) => value === undefined ? [] : [` ${key}="${escape(value)}"`]).join('');
 
+/** How close two bodies are when they touch, in metres: 10 µm, a tenth of the smallest clearance the models are built with. */
+export const TOUCH = 1e-5;
+
 /** The name of a body's geom and mesh assets. */
 export const geomName = (body: string, index: number): string => `${body}#${index}`;
 
@@ -76,7 +79,8 @@ export function toMjcf(scene: Scene): string {
     '<mujoco model="canfactory">',
     // Explicit inertials win; geoms of a body without one take their mass from the density (kg/m³ of PETG by default).
     '  <compiler angle="radian" inertiafromgeom="auto" boundmass="1e-6" boundinertia="1e-12"/>',
-    `  <option${attrs({ timestep: num(options.timestep), gravity: list(options.gravity) })}>`,
+    // implicitfast integrates joint springs and damping implicitly: a steel ball on a stiff spring oscillates at ω·Δt above 1.
+    `  <option${attrs({ timestep: num(options.timestep), gravity: list(options.gravity), integrator: 'implicitfast' })}>`,
     // MuJoCo leaves out contacts between a body and its parent; a body that should collide with its parent adds the pair below.
     `    <flag${attrs({ filterparent: parentCollisions ? 'disable' : undefined })}/>`,
     '  </option>',
@@ -89,8 +93,25 @@ export function toMjcf(scene: Scene): string {
     ...scene.bodies.filter(body => body.parent === null).map(body => bodyXml(scene, body, 2)),
     '  </worldbody>',
     contactXml(scene, parentCollisions),
+    driveXml(scene),
     '</mujoco>',
   ].filter(line => line !== '').join('\n');
+}
+
+/** The name of the equality constraint that drives a body's joint. */
+export const driveName = (body: string): string => `drive:${body}`;
+
+/**
+ * A joint equality per driven joint: with no second joint, it holds the joint at its first coefficient (from its reference, 0).
+ * MuJoCo's constraints are mass-normalised: one gives way under a force F by about F (1 − d) / (d m k), with d the impedance and
+ * k = 1 / timeconst². A 0.4 g ball pushed by its 2 N/mm spring at 4 N gave way 0.09 mm with the contacts' settings, so a drive is
+ * twice as stiff (the shortest time constant MuJoCo allows, 2 time steps) at ten times the impedance: about 1 µm.
+ */
+function driveXml(scene: Scene): string {
+  const drives = scene.drives ?? [];
+  if (drives.length === 0) return '';
+  const solref = list([2 * scene.options.timestep, 1]);
+  return ['  <equality>', ...drives.map(({ body }) => `    <joint${attrs({ name: driveName(body), joint1: body, polycoef: '0 0 0 0 0', solref, solimp: '0.9999 0.9999 0.0001' })}/>`), '  </equality>'].join('\n');
 }
 
 /** Exclusions: the scene's own, and, when parent filtering is off for some bodies, every other body–parent pair. */
