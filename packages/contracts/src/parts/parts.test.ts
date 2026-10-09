@@ -155,6 +155,8 @@ describe('parts library', () => {
   it('lays out every development board inside its outline: pins on their grid, the receptacle at the USB end, components clear of the holes', () => {
     const boards = parts.filter(part => part.family === 'dev-board');
     expect(boards.map(part => part.id)).toEqual(['nologo-esp32-c3-supermini', 'waveshare-esp32-c3-zero', 'waveshare-esp32-c6-zero', 'seeed-xiao-esp32c6']);
+    // the chip filter groups boards by chip family, whatever the flash variant (the C3 boards carry an ESP32-C3FN4 and an ESP32-C3FH4)
+    expect(boards.map(part => part.attributes['chip'])).toEqual(['ESP32-C3', 'ESP32-C3', 'ESP32-C6', 'ESP32-C6']);
     for (const part of boards) {
       const layout = devBoardLayout(part); const message = part.id;
       if (!layout) throw new Error(`${part.id} has no layout`);

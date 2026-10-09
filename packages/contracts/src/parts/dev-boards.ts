@@ -86,7 +86,10 @@ export interface DevBoardLayout {
 }
 
 interface Board {
-  id: string; manufacturer: string; sku: string; url: string; title: string; designation: string; aliases: string[]; chip: string;
+  id: string; manufacturer: string; sku: string; url: string; title: string; designation: string; aliases: string[];
+  /** The chip family, which the library filters by (ESP32-C3); the exact chip (its flash variant, e.g. ESP32-C3FN4) is in the
+   * description and the components. */
+  chip: string;
   sources: string[]; description: string; notes: string;
   /** The dimensions a maker publishes, each with the source it is read from (the others are estimated); `H` when the maker gives
    * the overall height. */
@@ -106,7 +109,7 @@ const round = (value: number) => Math.round(value * 100) / 100;
 const BOARDS: Board[] = [
   {
     id: 'nologo-esp32-c3-supermini', manufacturer: 'Nologo', sku: 'ESP32C3 SuperMini', url: 'https://wiki.nologo.tech/product/esp32/esp32c3/esp32c3supermini/esp32C3SuperMini.html',
-    title: 'ESP32-C3 SuperMini', designation: 'ESP32-C3 SuperMini (Nologo ESP32C3SuperMini)', aliases: ['ESP32C3 SuperMini', 'ESP32-C3 Super Mini'], chip: 'ESP32-C3FN4',
+    title: 'ESP32-C3 SuperMini', designation: 'ESP32-C3 SuperMini (Nologo ESP32C3SuperMini)', aliases: ['ESP32C3 SuperMini', 'ESP32-C3 Super Mini'], chip: 'ESP32-C3',
     sources: ['nologo-esp32c3-supermini', 'xunpu-ts-1088', ESTIMATE],
     description: 'A 22.52 × 18 mm ESP32-C3FN4 board with two rows of 8 pins 15.24 mm apart, castellated as well as drilled, a USB-C receptacle that overhangs one end, BOOT and RST buttons, a blue LED on GPIO8 and a chip antenna at the other end; components on top only.',
     notes: 'Board size, row spacing, pinout and the single-sided assembly are Nologo’s, and its schematic names the buttons (3 × 4 × 2 mm, two pins: drawn as XUNPU’s TS-1088 of that size, Ø1.8 mm plunger 2.0 mm high, 0.2 mm travel), the crystal (3225), the regulator (SOT23-5) and the diode (SOD-323); everything else (the pitch and first pin, the holes, the receptacle and every component) is read off Nologo’s to-scale top-view render (39.4 px/mm) or is the usual size of its package, and the PCB thickness is assumed: measure a board before a tight fit. Its schematic lists the two LEDs as 0603, but the render draws smaller ones (0402), which the layout follows. Many shops sell copies of this board (TENSTAR and others) whose components may sit slightly differently; the “Plus” version has a WS2812 LED and an antenna connector and is a different board. Small 0402 resistors and capacitors (under 0.5 mm high) are left out of the layout.',
@@ -143,7 +146,7 @@ const BOARDS: Board[] = [
   },
   {
     id: 'waveshare-esp32-c3-zero', manufacturer: 'Waveshare', sku: 'ESP32-C3-Zero', url: 'https://www.waveshare.com/esp32-c3-zero.htm',
-    title: 'Waveshare ESP32-C3-Zero', designation: 'Waveshare ESP32-C3-Zero', aliases: ['ESP32-C3-Zero-M (with pin headers)'], chip: 'ESP32-C3FH4',
+    title: 'Waveshare ESP32-C3-Zero', designation: 'Waveshare ESP32-C3-Zero', aliases: ['ESP32-C3-Zero-M (with pin headers)'], chip: 'ESP32-C3',
     sources: ['waveshare-esp32-c3-zero', 'waveshare-esp32-c3-zero-product', 'xinglight-xl-0807rgbc-ws2812b', ESTIMATE],
     description: 'A 23.5 × 18 mm ESP32-C3FH4 board with rounded corners and two rows of 9 castellated, drilled pins 15.24 mm apart, a USB-C receptacle that overhangs one end, BOOT and RESET buttons, a WS2812 RGB LED on GPIO10 and a ceramic antenna at the other end.',
     notes: 'Outline, corner radius, pitch, first pin, row inset (1.38 mm from each edge) and pinout are Waveshare’s drawing and pinout; the RGB LED is its data sheet’s (a 2.0 × 1.8 mm base under a 1.34 mm lens, 0.8 mm high). No data sheet names the buttons: their white body (3.5 × 4.2 × 1.5 mm) and beige oval plunger (2.4 × 3.2 mm, its top 1.8 mm above the PCB) are read off Waveshare’s photographs, so measure them before printing an actuator that rests on them. The receptacle (Waveshare dimensions it 4.67 mm from one edge; its photograph shows a standard 8.94 mm wide receptacle, centred), the other components’ places and the PCB thickness are read off Waveshare’s to-scale photograph (14.6 px/mm) or assumed: measure a board before a tight fit. The ESP32-C3-Zero-M is the same board with pin headers soldered on. Waveshare: keep PCBs, metal and plastic off the ceramic antenna. Small 0402 resistors and capacitors (under 0.5 mm high) are left out of the layout.',
@@ -173,7 +176,7 @@ const BOARDS: Board[] = [
   },
   {
     id: 'waveshare-esp32-c6-zero', manufacturer: 'Waveshare', sku: 'ESP32-C6-Zero', url: 'https://www.waveshare.com/esp32-c6-zero.htm',
-    title: 'Waveshare ESP32-C6-Zero', designation: 'Waveshare ESP32-C6-Zero', aliases: ['ESP32-C6-Zero-M (with pin headers)'], chip: 'ESP32-C6FH4',
+    title: 'Waveshare ESP32-C6-Zero', designation: 'Waveshare ESP32-C6-Zero', aliases: ['ESP32-C6-Zero-M (with pin headers)'], chip: 'ESP32-C6',
     sources: ['waveshare-esp32-c6-zero', 'waveshare-esp32-c6-zero-product', 'xinglight-xl-0807rgbc-ws2812b', ESTIMATE],
     description: 'A 23.5 × 18 mm ESP32-C6FH4 board (Wi-Fi 6, Bluetooth LE, Zigbee and Thread) on a 1.6 mm PCB with rounded corners, two rows of 9 castellated, drilled pins and 7 more GPIO pads underneath, a USB-C receptacle that overhangs one end, RST and BOOT buttons either side of a WS2812 RGB LED on GPIO8, and a ceramic antenna at the other end.',
     notes: 'Outline, PCB thickness, pins, holes, the pads underneath, the receptacle and every component’s place and size are Waveshare’s own drawing, DXF and STEP model (4.85 mm overall); the RGB LED (WS2812B-0807 in the schematic) is its data sheet’s 2.0 × 1.8 mm base under a 1.34 mm lens, 0.8 mm high (Waveshare’s model draws a plain 1.5 × 1.8 × 1.0 mm block). Waveshare’s model leaves out the 3.3 V regulator (ME6217, SOT23-5), which is placed from its photographs, and the buttons’ travel, which is assumed. The receptacle is mid-mounted: its shell reaches 0.9 mm into a cut-out in the PCB. Waveshare documents no external antenna: the ceramic antenna (CA-C03) is fed through a 0 Ω resistor. The ESP32-C6-Zero-M is the same board with pin headers soldered on. Small 0201 and 0402 resistors and capacitors (under 0.6 mm high) are left out of the layout.',
@@ -203,7 +206,7 @@ const BOARDS: Board[] = [
   },
   {
     id: 'seeed-xiao-esp32c6', manufacturer: 'Seeed Studio', sku: '113991254', url: 'https://wiki.seeedstudio.com/xiao_esp32c6_getting_started/',
-    title: 'Seeed Studio XIAO ESP32C6', designation: 'Seeed Studio XIAO ESP32C6', aliases: ['XIAO ESP32-C6'], chip: 'ESP32-C6FH4',
+    title: 'Seeed Studio XIAO ESP32C6', designation: 'Seeed Studio XIAO ESP32C6', aliases: ['XIAO ESP32-C6'], chip: 'ESP32-C6',
     sources: ['seeed-xiao-esp32c6', 'seeed-xiao-esp32c6-kicad', 'gct-usb4105', 'alps-sktaaae010', 'hirose-u-fl', ESTIMATE],
     description: 'A 21 × 17.8 mm ESP32-C6FH4 board (Wi-Fi 6, Bluetooth LE, Zigbee and Thread) with two rows of 7 castellated, drilled pins, a USB-C receptacle that overhangs one end with tiny RESET and BOOT buttons beside it, a metal shield over the radio, and a ceramic antenna next to a U.FL connector for an external antenna.',
     notes: 'Outline, PCB thickness, pins and every component’s place come from Seeed’s own KiCad design (v1.0); the USB-C receptacle (GCT USB4105), the buttons (Alps SKTAAAE010: 2.6 × 1.6 mm, a dome 0.53 mm high, 0.11 mm travel) and the U.FL receptacle (Hirose U.FL-R-SMT-1: a Ø2 mm post 1.25 mm high on a 2.6 mm base; 2.5 mm at most with a plug on it) are their makers’ data sheets. The receptacle’s overhang (from the GCT drawing against Seeed’s footprint), the buttons’ body height and dome size (from Alps’s drawing), the LEDs’ height and the shield can (from Seeed’s rendered pinout; it is not in the KiCad design) are estimated. Seeed’s KiCad design also carries a 1.27 mm wide outline under the shield’s lower edge on its board outline layer, which no photograph shows; it is left out. The antenna is chosen in firmware: GPIO3 low enables the RF switch, then GPIO14 high selects the U.FL connector (low, the default: the ceramic antenna). Pads underneath: JTAG (MTDO, MTDI, MTCK, MTMS), EN, BOOT, 3V3, GND and the battery (BAT+ and BAT−, charged by the board). Small 0201 and 0402 resistors and capacitors are left out of the layout.',
