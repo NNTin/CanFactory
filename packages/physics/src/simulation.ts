@@ -28,8 +28,8 @@ export interface HoldOptions { omega: number; damping: number; maxForce: number;
  */
 export const DRAG: HoldOptions = { omega: 300, damping: 1, maxForce: 20, spinDamping: 100 };
 
-/** A held body point: its body, the point in the body's frame, and its target (world frame, metres). */
-interface Hold { name: string; body: number; local: Vec3; target: Vec3; options: HoldOptions }
+/** A held body point: its body, the point in the body's frame, its target (world frame, metres), and the mass its spring is for. */
+interface Hold { name: string; body: number; local: Vec3; target: Vec3; options: HoldOptions; mass: number }
 
 /** A force (N, world frame) at a body point (body frame, metres). */
 interface Load { name: string; body: number; local: Vec3; force: Vec3 }
@@ -162,7 +162,26 @@ export class Simulation {
 
   /** Holds `body` by the world point `point` (metres) under `key`: the point then follows the target set by `moveHold`. */
   hold(key: string, body: string, point: Vec3, options: HoldOptions = DRAG): void {
-    this.holds.set(key, { name: body, body: this.bodyId(body), local: this.local(body, point), target: point, options });
+    const id = this.bodyId(body);
+    this.holds.set(key, { name: body, body: id, local: this.local(body, point), target: point, options, mass: this.massAt(body, id, point) });
+  }
+
+  /**
+   * The mass a pull at `point` moves: the body's own, plus its joint's armature (build.ts adds it for quasi-static joints): as a mass
+   * on a slide, and as an inertia over the point's squared distance from a hinge's axis. Without it a hinged lever, light but turning
+   * against a heavy armature, barely followed the pointer.
+   */
+  private massAt(name: string, id: number, point: Vec3): number {
+    const mass = this.model.body_mass[id] ?? 0;
+    const motion = this.scene.bodies.find(body => body.name === name)?.motion;
+    if (typeof motion !== 'object' || !motion.armature) return mass;
+    if (motion.type === 'slide') return mass + motion.armature;
+    const pose = this.pose(name);
+    const anchor = add(pose.pos, rotate(pose.quat, motion.pos)), axis = rotate(pose.quat, motion.axis);
+    const arm = sub(point, anchor);
+    const along = (arm[0] * axis[0] + arm[1] * axis[1] + arm[2] * axis[2]) / Math.hypot(...axis);
+    const r2 = Math.max(1e-6, arm[0] ** 2 + arm[1] ** 2 + arm[2] ** 2 - along ** 2);
+    return mass + motion.armature / r2;
   }
 
   moveHold(key: string, target: Vec3): void {
@@ -227,7 +246,7 @@ export class Simulation {
       const v = this.velocity.GetView();
       const spin: Vec3 = [v[0] ?? 0, v[1] ?? 0, v[2] ?? 0];
       const velocity = add([v[3] ?? 0, v[4] ?? 0, v[5] ?? 0], cross(spin, sub(point, com(id))));
-      const mass = this.model.body_mass[id] ?? 0;
+      const mass = hold.mass;
       let force = sub(scale(sub(hold.target, point), mass * omega ** 2), scale(velocity, 2 * damping * mass * omega));
       const magnitude = Math.hypot(...force);
       if (magnitude > maxForce) force = scale(force, maxForce / magnitude);

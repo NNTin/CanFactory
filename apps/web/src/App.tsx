@@ -496,6 +496,7 @@ function Editor({ model }: { model: ModelDetail }) {
   const displayedParameters = rendering.completed?.parameters ?? model.defaults;
   const assembly = useMemo(() => resolveAssembly(definition, model.assembly, displayedParameters), [definition, model, displayedParameters]);
   const references = useMemo(() => referenceObjects(assembly), [assembly]);
+  const physics = useMemo(() => definition?.physics?.(displayedParameters), [definition, displayedParameters]);
   const partTitles = useMemo(() => Object.fromEntries([...(model.parts ?? []), ...(assembly?.references ?? [])].map(part => [part.id, part.title])), [model, assembly]);
   const render = rendering.completed?.render;
   const artifact = render?.artifact;
@@ -585,7 +586,7 @@ function Editor({ model }: { model: ModelDetail }) {
         <div className="preview-heading"><span className="eyebrow"><Box size={15} /> LIVE PREVIEW</span><span className={`status ${ready && !error ? 'status-ready' : ''}`} role="status">
           {ready && !error ? <Check size={13} /> : error || !valid ? <CircleAlert size={13} /> : <LoaderCircle size={13} className="spin" />}{status}
         </span></div>
-        <Viewer url={url} format={model.artifactFormat} assembly={assembly} references={references} partTitles={partTitles} onError={setViewerError} onLoaded={setLoadedUrl} />
+        <Viewer url={url} format={model.artifactFormat} assembly={assembly} references={references} partTitles={partTitles} physics={physics} onError={setViewerError} onLoaded={setLoadedUrl} />
         {!ready && url && !error && <div className="previous-preview">Showing the previous preview while your changes are prepared.</div>}
         {!ready && url && rendering.problem && <div className="previous-preview previous-preview-stale">This is the last preview that rendered. It does not match your current settings.</div>}
         {rendering.problem ? <RenderProblemBanner problem={rendering.problem} retry={retry} />

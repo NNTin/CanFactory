@@ -199,6 +199,28 @@ The holder's fit is an assumption (2 N; `HOLDER_HOLD`): how firmly a printed fri
 Each mechanism lives next to its geometry in contracts: `springBallDetentPhysics` (models.ts), `toggleLatchPhysics`
 (toggleLatchMechanism.ts) and `cigaretteCasePhysics` (cigaretteCasePhysics.ts, whose SCAD values a test keeps equal).
 
+## Interactive mode
+
+The editor's viewer has a **Simulate** button (an atom) for every model with a mechanism, once its parts have loaded. It opens
+the physics bar in place of the assembly slider:
+
+- `apps/web/src/physicsWorker.ts` is the Web Worker. It loads MuJoCo (the single-threaded build; the `.wasm` is 10.3 MB, 2.6 MB
+  gzipped, fetched only when the mode opens) and runs an `InteractiveSession` (`packages/physics/src/interactive.ts`), posting the
+  bodies' poses about 60 times a second. A slow device runs in slow motion rather than falling behind (at most 50 ms of
+  simulation per tick).
+- The viewer sends the meshes it already shows; bodies without given pieces are decomposed in the worker with V-HACD and cached
+  in IndexedDB.
+- Dragging: the pointer takes a part by the point it hits (the cursor shows a hand over a part, and the camera stops orbiting).
+  The point is pulled on a plane facing the camera by the drag spring; for a jointed part, that spring is for the mass the pull
+  moves, the part's own plus its joint's armature over the squared lever arm.
+- **Upright / Upside down** turns gravity over; **Restart** starts again from the mechanism's poses. Closing the mode puts the
+  slider's poses back.
+- For the page's tests the viewer reports `data-physics` (starting, running, error), `data-physics-time`, and every tenth frame
+  `data-physics-poses` and `data-physics-screen` (each body's centre on the screen).
+
+Checked in Chromium (software WebGL): the toggle latch starts closed, its lever swings open when dragged, and the reference
+scene's state hash is the same as in Node.
+
 ## Spike 2: decomposition is not enough
 
 The decomposers were compiled to WebAssembly (`packages/physics/decomposers/build.sh`: pinned commits, Emscripten 4.0.10, one
@@ -237,10 +259,10 @@ scenario passes: the ball rests 6 µm under the lip, and pushed in flush the spr
 | --- | --- |
 | Plan (this file) | Done |
 | `packages/physics` skeleton, MuJoCo loading in Node | Done: `engine.ts` (typed facade), `scene.ts`, `mjcf.ts`, `massProperties.ts`, `simulation.ts` (drag spring, state hash) |
-| Spike 1: reference scene, determinism hash | Node done (hash `8f74ba0ac93ddcdf`, @mujoco/mujoco 3.14.0); browser comparison pending (with spike 5) |
+| Spike 1: reference scene, determinism hash | Done: Node and Chromium give the same hash, `8f74ba0ac93ddcdf` (@mujoco/mujoco 3.14.0) |
 | Mechanism spec in contracts | Done: `packages/contracts/src/physics.ts` (`PhysicsSpec`, `ModelDefinition.physics`, cited `PHYSICS_MATERIALS`) |
 | Scene compiler (spec → MJCF) | Done: `build.ts` (spec + poses + geometry → SI scene), `mjcf.ts`; scenario runner `scenario.ts` |
 | Spike 2: decomposers | Both built and measured; given pieces for mechanism surfaces (above); choice between V-HACD and CoACD for the rest pending CoACD's numbers |
 | Spike 3: test cases, `check:physics` | Done: all 11 scenarios of the three test cases pass (see [Test cases](#test-cases)) |
 | Spike 4: gears | Not started |
-| Spike 5: interactive mode | Not started |
+| Spike 5: interactive mode | Done: the editor viewer's Simulate mode (see [Interactive mode](#interactive-mode)); `tests/browser/physics.spec.ts` drags the toggle latch's lever open |
