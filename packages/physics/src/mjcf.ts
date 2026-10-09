@@ -87,7 +87,9 @@ export function toMjcf(scene: Scene): string {
     '  </option>',
     '  <default>',
     `    <geom${attrs({ solref: list(options.solref), solimp: list(options.solimp), density: '1270', margin: '0', condim: '3' })}/>`,
-    `    <joint${attrs({ solreflimit: list(options.solref), solimplimit: list(options.solimp) })}/>`,
+    // dry joint friction is a soft constraint too, so a body held by it creeps: with MuJoCo's defaults a holder held by 2 N crept
+    // down under its own 0.02 N weight at 10 mm/s, with the contacts' settings at 0.1 mm/s; with these at 0.01 mm/s
+    `    <joint${attrs({ solreflimit: list(options.solref), solimplimit: list(options.solimp), solreffriction: list(options.solref), solimpfriction: '0.9999 0.9999 0.0001' })}/>`,
     '  </default>',
     meshes.length > 0 ? ['  <asset>', ...meshes, '  </asset>'].join('\n') : '',
     '  <worldbody>',

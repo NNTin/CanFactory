@@ -125,3 +125,50 @@ export function extrudedPieces(profile: readonly Point2[], plane: [0 | 1 | 2, 0 
     return point;
   })));
 }
+
+/** The convex polygon pushed out by `delta` (in by a negative one), its corners mitred: as OpenSCAD's `offset(delta)`. */
+export function offsetConvex(polygon: readonly Point2[], delta: number): Point2[] {
+  const points = signedArea(polygon) < 0 ? [...polygon].reverse() : [...polygon];
+  const lines = points.map((p, i) => {
+    const q = at(points, i + 1);
+    const length = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    // outward normal of a counter-clockwise edge
+    const n: Point2 = [(q[1] - p[1]) / length, -(q[0] - p[0]) / length];
+    return { p: [p[0] + n[0] * delta, p[1] + n[1] * delta] as Point2, d: [q[0] - p[0], q[1] - p[1]] as Point2, length };
+  }).filter(line => line.length > 1e-12);
+  return lines.map((line, i) => {
+    const previous = at(lines, i - 1);
+    // where the previous edge's line meets this one's
+    const denominator = previous.d[0] * line.d[1] - previous.d[1] * line.d[0];
+    if (Math.abs(denominator) < 1e-12) return line.p;
+    const t = ((line.p[0] - previous.p[0]) * line.d[1] - (line.p[1] - previous.p[1]) * line.d[0]) / denominator;
+    return [previous.p[0] + previous.d[0] * t, previous.p[1] + previous.d[1] * t];
+  });
+}
+
+/** The convex polygon cut by the half-plane a x + b y ≤ c (Sutherland–Hodgman). */
+export function clipConvex(polygon: readonly Point2[], [a, b, c]: [number, number, number]): Point2[] {
+  const result: Point2[] = [];
+  polygon.forEach((p, i) => {
+    const q = at(polygon, i + 1);
+    const fp = c - a * p[0] - b * p[1], fq = c - a * q[0] - b * q[1];
+    if (fp >= 0) result.push(p);
+    if ((fp >= 0) !== (fq >= 0)) { const t = fp / (fp - fq); result.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); }
+  });
+  return result;
+}
+
+/**
+ * The wall round a convex hole, as convex pieces: one slab per edge of its outline (in XY), `thickness` thick outwards, from z
+ * `from` to `to`. The hole's surface is exact; the slabs leave thin wedges open at the outline's corners, outside it.
+ */
+export function wallPieces(outline: readonly Point2[], thickness: number, from: number, to: number): number[][] {
+  const points = signedArea(outline) < 0 ? [...outline].reverse() : [...outline];
+  return points.map((p, i) => {
+    const q = at(points, i + 1);
+    const length = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    const n: Point2 = [(q[1] - p[1]) / length * thickness, -(q[0] - p[0]) / length * thickness];
+    const quad: Point2[] = [p, q, [q[0] + n[0], q[1] + n[1]], [p[0] + n[0], p[1] + n[1]]];
+    return [from, to].flatMap(z => quad.flatMap(([x, y]) => [x, y, z]));
+  });
+}

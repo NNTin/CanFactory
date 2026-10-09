@@ -173,7 +173,31 @@ engine upgrade only needs the recorded hash renewed, not every scenario.
 - The integrator is `implicitfast`, so that joint springs and damping are integrated implicitly.
 - Whether two bodies touch is measured with `mj_geomDistance` (within 10 µm), not from the contact list, which only holds pairs
   that already overlap. A contact margin and gap would report near pairs too, but they changed where parts rest by 20 µm.
+- Dry joint friction (`frictionloss`) is a soft constraint as well: with MuJoCo's defaults a holder held by 2 N crept down
+  under its own 0.02 N weight at 10 mm/s. Its `solreffriction` is the contacts' and its `solimpfriction` 0.9999, which stops it.
 - `DoubleBuffer` is constructed with its size (`new DoubleBuffer(n)`), not with an array as the package's README shows.
+
+## Test case results
+
+`npm run check:physics` (all with given pieces; see below why):
+
+| Model | Scenario | Result |
+| --- | --- | --- |
+| Spring-ball detent | Rests on the lip | 6 µm under the lip, touching it |
+| | Upside down | still on the lip |
+| | Pushed in by the travel | the spring pushes back 16.400 N (layout: 16.4 N) |
+| | Pushed in flush, let go | back on the lip |
+| Toggle latch | Closed, pulled with 10 N | lever and catch stay put (over-centre lock) |
+| | Lever turned to dead centre against the pull | catch drawn in 0.322 mm (table: 0.32) |
+| | Lever opened to 60° | catch let go 1.249 mm (table: 1.25) |
+| Cigarette case | Upright | the lighter rests on the tab, 2.4 mm clear of the holder |
+| | Turned over about X (wheel side to the tab) | its hood pushes the holder out about 5.5 mm until its lever lands on the tab (documented: 5.2 mm; the hood is solid between its thumb rings here and the lighter settles 0.25 mm sideways, so the window is ±0.5 mm) |
+| | Turned over about Y (front end to the tab) | it lands on the tab; the holder stays |
+| | Case upside down | the holder's fit keeps it in |
+
+The holder's fit is an assumption (2 N; `HOLDER_HOLD`): how firmly a printed friction fit holds is not known without printing.
+Each mechanism lives next to its geometry in contracts: `springBallDetentPhysics` (models.ts), `toggleLatchPhysics`
+(toggleLatchMechanism.ts) and `cigaretteCasePhysics` (cigaretteCasePhysics.ts, whose SCAD values a test keeps equal).
 
 ## Spike 2: decomposition is not enough
 
@@ -213,10 +237,10 @@ scenario passes: the ball rests 6 µm under the lip, and pushed in flush the spr
 | --- | --- |
 | Plan (this file) | Done |
 | `packages/physics` skeleton, MuJoCo loading in Node | Done: `engine.ts` (typed facade), `scene.ts`, `mjcf.ts`, `massProperties.ts`, `simulation.ts` (drag spring, state hash) |
-| Spike 1: reference scene, determinism hash | Node done (hash `97aa7205e6d866e8`, @mujoco/mujoco 3.14.0); browser comparison pending (with spike 5) |
+| Spike 1: reference scene, determinism hash | Node done (hash `8f74ba0ac93ddcdf`, @mujoco/mujoco 3.14.0); browser comparison pending (with spike 5) |
 | Mechanism spec in contracts | Done: `packages/contracts/src/physics.ts` (`PhysicsSpec`, `ModelDefinition.physics`, cited `PHYSICS_MATERIALS`) |
 | Scene compiler (spec → MJCF) | Done: `build.ts` (spec + poses + geometry → SI scene), `mjcf.ts`; scenario runner `scenario.ts` |
 | Spike 2: decomposers | Both built and measured; given pieces for mechanism surfaces (above); choice between V-HACD and CoACD for the rest pending CoACD's numbers |
-| Spike 3: test cases, `check:physics` | `npm run check:physics` done. Spring-ball detent: 4 scenarios pass. Toggle latch: 3 pass (locked under a 10 N pull; draws the catch in 0.322 mm at dead centre, table 0.32; lets it go 1.249 mm at 60°, table 1.25). Cigarette case next |
+| Spike 3: test cases, `check:physics` | Done: all 11 scenarios of the three test cases pass (see [Test cases](#test-cases)) |
 | Spike 4: gears | Not started |
 | Spike 5: interactive mode | Not started |

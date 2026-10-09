@@ -1,6 +1,7 @@
 import { conceptPages } from './concepts.ts';
 import { QUASI_STATIC, type PhysicsSpec } from './physics.ts';
 import { revolvedPieces, type Point2 } from './physicsPieces.ts';
+import { cigaretteCasePhysics } from './cigaretteCasePhysics.ts';
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
@@ -965,6 +966,7 @@ export const cigaretteCase = {
   license: 'CC BY-NC 4.0 (non-commercial)', licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
   parts: cigaretteCaseParts,
   assembly: cigaretteCaseAssembly,
+  physics: (parameters: ParameterValues) => cigaretteCasePhysics(typeof parameters['clearance'] === 'number' ? parameters['clearance'] : CLEARANCE_RANGE.default),
   linkedReferences: caseMagnets,
   assetPaths: ['LiberationSans-Bold.ttf', 'LiberationSerif-Bold.ttf', 'LiberationMono-Bold.ttf', 'DejaVuSans-Bold.ttf'].map(name => `${FONTS_DIR}/${name}`),
   parameterSchema: CigaretteCaseParametersSchema,
