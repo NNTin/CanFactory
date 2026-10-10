@@ -1,7 +1,7 @@
 # The parts library
 
 The parts library is a catalogue of real-world parts that models are made to fit: screws, nuts, washers, magnets, threaded
-inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, development boards, and everyday objects such as the BIC
+inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, cat entrances, development boards, and everyday objects such as the BIC
 Mini lighter the cigarette case holds. Every entry is one real
 item, a size of a standard part (ISO 4762 M3 × 10) or a named product (supermagnete S-06-02-N), with its dimensions, their
 tolerances where the source gives them, and the source of every value.
@@ -166,10 +166,45 @@ layout:
 - the external antenna consistent with its connector or near the antenna;
 - the antenna inside its keep-out.
 
+### Retail cat entrances
+
+The **`cat-entrance`** family (`cat-entrances.ts`, `#/parts/cat-entrance`) is a comparison catalogue for
+[investigation #43](https://github.com/NNTin/CanFactory/issues/43), **not a catio integration or a product recommendation**.
+It includes eight white retail products across five brands:
+
+| Candidate | Why include it? | Manufacturer information |
+| --- | --- | --- |
+| TRIXIE 44211 | Inexpensive rotary four-way lock; thin-panel version | [Product and dimensions](https://trixie.shop/products/4-wege-freilauftur) |
+| TRIXIE 44231 | Same front sizes, different installation range; tunnel included | [Product and dimensions](https://trixie.shop/products/4-wege-freilauftur-mit-tunnel) |
+| Cat Mate 221 | Larger opening; double-point four-way lock | [Product and dimensions](https://closerpets.co.uk/collections/door-range/products/large-cat-flap) |
+| PetSafe Staywell 715EF / 740EF / 760EF | Small, medium and large two-way doors with closing panels; size comparators, not all cat-specific | [Manufacturer sizing chart](https://www.petsafe.com/gb/p/staywell-original-2-way-pet-door/715EF/) |
+| Ferplast SWING 1 | Simple two-way control; no Wind Stopper system on this model | [Product and dimensions](https://www.ferplast.fr/products/swing-1) |
+| SureFlap Microchip Cat Flap | Higher-cost electronic comparator; selective entry, not selective exit | [Product](https://www.surepetcare.com/en-gb/pet-doors/microchip-cat-flap), [dimensions](https://www.surepetcare.com/en-gb/support/microchip-cat-flap) |
+
+Published dimensions retain their meaning: frame envelope, installation cut-out, opening, physical flap, installation
+thickness range, tunnel depth and interior frame depth are separate keys. All dimensions are in mm; PetSafe's H × W × D chart
+is explicitly reordered to width/height/depth. Unknown values are **omitted**, not copied from packaging, inferred from another
+size or silently estimated. In particular, TRIXIE publishes flap sizes, not guaranteed clear passages. Ferplast's rectangular
+cut-out remains unknown here; use its supplied template. No mounting hole patterns or perimeter profiles have been measured.
+
+Both retention directions are recorded. **Unlocked/free-swinging is not held open**; the cited sources do not document a
+built-in hold-open retainer. Lock strength, cat resistance and draught leakage are untested. Dated price references in notes
+are research snapshots, not live offers, stock guarantees or cross-market landed-cost comparisons. No fabricated shop offers
+or affiliate product identifiers are added.
+
+The preview is deliberately a **front-size diagram**, not a 3D fit model: white outer frame, grey cut-out and blue published
+opening (TRIXIE: physical flap). Rectangles and centring are illustrative; its uniform 2 mm display thickness is **not product
+depth**, even where actual depth is tabulated. Missing cut-outs are not drawn. The family description and preview heading say
+so before selection. Do not use these diagrams as cutting templates or for clearance/collision checks.
+
+No model or concept links to these candidates. Catio gate selection, universal adapters, held-open hardware, coupling/window
+clearance and whole-catio scenes remain undecided, outside this catalogue addition.
+
 ## Previews
 
 Most parts are built in the browser from their dimensions (`partGeometry.ts`): simplified shapes, but every size is the part's
-own. A part whose shape cannot be built that way, such as an everyday object, has an STL preview: a SCAD file under `parts/`
+own. The explicitly labelled cat-entrance front-size diagrams above are an exception, not depth/fit models. A part whose shape
+cannot be built that way, such as an everyday object, has an STL preview: a SCAD file under `parts/`
 with the real dimensions as named values, and the STL beside it, rendered with
 `openscad --backend Manifold --export-format binstl <file>.scad -o <file>.stl`. Render the STL again after changing the SCAD file;
 for a reference object, `npm run check:assembly` fails until you do.

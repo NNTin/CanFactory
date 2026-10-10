@@ -1,6 +1,7 @@
 import { ballFamily, ballParts } from './balls.ts';
 import { bearingFamily, bearingParts } from './bearings.ts';
 import { catCollarFamily, catCollarParts } from './cat-collars.ts';
+import { catEntranceFamily, catEntranceParts } from './cat-entrances.ts';
 import { cornerBracketFamily, cornerBracketParts } from './corner-brackets.ts';
 import { devBoardFamily, devBoardParts } from './dev-boards.ts';
 import { everydayObjectFamily, everydayObjectParts } from './everyday-objects.ts';
@@ -42,13 +43,13 @@ export { springRate } from './springs.ts';
 export const partFamilies: readonly PartFamily[] = [
   magnetFamily, screwFamily, nutFamily, washerFamily, insertFamily, bearingFamily, pinFamily, everydayObjectFamily,
   woodScrewFamily, nailFamily, insertNutFamily, levellingFootFamily, toggleLatchFamily, screenHookFamily, cornerBracketFamily,
-  setScrewFamily, ballFamily, springFamily, splitRingFamily, nfcTagFamily, catCollarFamily, devBoardFamily, heatsinkFamily,
+  setScrewFamily, ballFamily, springFamily, splitRingFamily, nfcTagFamily, catCollarFamily, devBoardFamily, heatsinkFamily, catEntranceFamily,
 ];
 
 export const parts: readonly Part[] = [
   ...magnetParts, ...screwParts, ...nutParts, ...washerParts, ...insertParts, ...bearingParts, ...pinParts, ...everydayObjectParts,
   ...woodScrewParts, ...nailParts, ...insertNutParts, ...levellingFootParts, ...toggleLatchParts, ...screenHookParts, ...cornerBracketParts,
-  ...setScrewParts, ...ballParts, ...springParts, ...splitRingParts, ...nfcTagParts, ...catCollarParts, ...devBoardParts, ...heatsinkParts,
+  ...setScrewParts, ...ballParts, ...springParts, ...splitRingParts, ...nfcTagParts, ...catCollarParts, ...devBoardParts, ...heatsinkParts, ...catEntranceParts,
 ];
 
 export function findPart(id: string): Part | undefined { return parts.find(part => part.id === id); }

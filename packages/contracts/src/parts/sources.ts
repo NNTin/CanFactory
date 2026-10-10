@@ -6,6 +6,7 @@ const CATIO_ACCESSED = '2026-10-02';
 const DETENT_ACCESSED = '2026-10-07';
 const COLLAR_ACCESSED = '2026-10-07';
 const BOARD_ACCESSED = '2026-10-09';
+const ENTRANCE_ACCESSED = '2026-10-10';
 
 const iso = (number: string, title: string): PartSource => ({
   id: `iso-${number.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, title: `ISO ${number}: ${title}`, publisher: 'ISO',
@@ -130,6 +131,18 @@ export const PART_SOURCES: readonly PartSource[] = [
   { id: 'alps-sktaaae010', title: 'SKTAAAE010 TACT switch, 2.6 × 1.6 mm compact type with projection: 2.6 × 1.6 × 0.53 mm (3 over the terminals), 0.11 mm travel, 1.6 N, top push', publisher: 'Alps Alpine', url: 'https://tech.alpsalpine.com/e/products/detail/SKTAAAE010/', kind: 'manufacturer', accessed: BOARD_ACCESSED },
   { id: 'hirose-u-fl', title: 'U.FL Series, ultra small surface mount coaxial connectors: U.FL-R-SMT-1 receptacle 2.6 × 2.6 mm (3 over the ground tabs), 0.35 mm base, Ø2 mm post 1.25 mm high; mated height 2.4 mm (2.5 max)', publisher: 'Hirose Electric (catalog published by RS)', url: 'https://docs.rs-online.com/3355/0900766b8105243f.pdf', kind: 'manufacturer', accessed: BOARD_ACCESSED },
   { id: 'canfactory-dev-board-estimate', title: 'Read off the makers’ to-scale drawings and photographs, or the usual size of the package (docs/adding-parts.md, “Development boards”)', publisher: 'CanFactory', url: 'https://github.com/NNTin/CanFactory/blob/develop/docs/adding-parts.md#development-boards', kind: 'reference', accessed: BOARD_ACCESSED },
+  // Retail cat entrances: dimensions are manufacturer values; missing dimensions remain absent.
+  { id: 'trixie-44211', title: '44211 4-way cat flap: frame, cut-out, flap size and minimum installation thickness', publisher: 'TRIXIE Heimtierbedarf GmbH & Co. KG', url: 'https://trixie.shop/products/4-wege-freilauftur', kind: 'manufacturer', accessed: ENTRANCE_ACCESSED },
+  { id: 'trixie-44231', title: '44231 4-way cat flap with tunnel: frame, cut-out, flap size and installation range', publisher: 'TRIXIE Heimtierbedarf GmbH & Co. KG', url: 'https://trixie.shop/products/4-wege-freilauftur-mit-tunnel', kind: 'manufacturer', accessed: ENTRANCE_ACCESSED },
+  { id: 'closer-pets-221', title: 'Cat Mate 221 large cat flap: opening, frame, cut-out, locking and self-lining thickness', publisher: 'Closer Pets', url: 'https://closerpets.co.uk/collections/door-range/products/large-cat-flap', kind: 'manufacturer', accessed: ENTRANCE_ACCESSED },
+  { id: 'ferplast-swing-1', title: 'SWING 1 (72101011): overall size, opening and model-specific feature exceptions', publisher: 'Ferplast France', url: 'https://www.ferplast.fr/products/swing-1', kind: 'manufacturer', accessed: ENTRANCE_ACCESSED },
+  { id: 'ferplast-swing-controls', title: 'Choosing a SWING cat flap: SWING 1 two-way control versus four-way models', publisher: 'Ferplast', url: 'https://blog.ferplast.com/en/which-is-the-best-cat-flap-door/amp/', kind: 'manufacturer', accessed: ENTRANCE_ACCESSED },
+  { id: 'sureflap-microchip-dimensions', title: 'Microchip Cat Flap support: passage, door/wall cut-out, exterior frame, tunnel and interior frame depths', publisher: 'Sure Petcare', url: 'https://www.surepetcare.com/en-gb/support/microchip-cat-flap', kind: 'manufacturer', accessed: ENTRANCE_ACCESSED },
+  { id: 'sureflap-microchip-product', title: 'SureFlap Microchip Cat Flap (non-Connect): selective entry, manual lock and batteries', publisher: 'Sure Petcare', url: 'https://www.surepetcare.com/en-gb/pet-doors/microchip-cat-flap', kind: 'manufacturer', accessed: ENTRANCE_ACCESSED },
+  ...['715EF', '740EF', '760EF'].map(sku => ({
+    id: `petsafe-staywell-${sku.toLowerCase()}`, title: `Staywell Original 2-Way Pet Door ${sku}: sizing chart (H × W × D), closing panel and tunnels`,
+    publisher: 'PetSafe', url: `https://www.petsafe.com/gb/p/staywell-original-2-way-pet-door/${sku}/`, kind: 'manufacturer' as const, accessed: ENTRANCE_ACCESSED,
+  })),
 ];
 
 export function findPartSource(id: string): PartSource | undefined { return PART_SOURCES.find(source => source.id === id); }

@@ -4,8 +4,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
  * Builds a part of the library from its dimensions, for the parts library's preview: millimetres, Z up, standing on z = 0. The
- * shapes are simplified (a thread is drawn as rings at its pitch, knurls as bands) but every size in them is the part's own,
- * so that parts can be compared. Colours are vertex colours, so that one mesh (one hover target) can have a dark socket.
+ * shapes are simplified (a thread is drawn as rings at its pitch, knurls as bands) so that parts can be compared. Cat entrances
+ * are explicitly labelled front-size diagrams, not depth/fit models. Colours are vertex colours, so that one mesh (one hover
+ * target) can have a dark socket.
  */
 
 const STEEL = 0xa3a8ad;
@@ -315,6 +316,35 @@ function catCollar(part: Part): Piece[] {
   return [paint(strap, COLLAR)];
 }
 
+/**
+ * A front-size diagram lying in XY. The outlines and their centring are illustrative, not installation templates; Z = 2 mm is
+ * display thickness only. Never substitute an installation range or tunnel depth for an unknown overall depth. Grey marks a
+ * published cut-out; blue marks a published opening, or TRIXIE's flap size (not a clear passage). Missing cut-outs are not drawn.
+ */
+function catEntrance(part: Part): Piece[] {
+  const rectangle = (width: number, height: number) => {
+    const shape = new THREE.Shape();
+    shape.moveTo(-width / 2, -height / 2); shape.lineTo(width / 2, -height / 2);
+    shape.lineTo(width / 2, height / 2); shape.lineTo(-width / 2, height / 2); shape.closePath();
+    return shape;
+  };
+  const width = value(part, 'frameWidth'); const height = value(part, 'frameHeight');
+  const innerWidth = value(part, 'passageWidth', value(part, 'flapWidth'));
+  const innerHeight = value(part, 'passageHeight', value(part, 'flapHeight'));
+  const cutWidth = value(part, 'cutoutWidth'); const cutHeight = value(part, 'cutoutHeight');
+  const hasInner = innerWidth > 0 && innerHeight > 0; const hasCutout = cutWidth > 0 && cutHeight > 0;
+  const frame = rectangle(width, height);
+  if (hasCutout || hasInner) frame.holes.push(rectangle(hasCutout ? cutWidth : innerWidth, hasCutout ? cutHeight : innerHeight));
+  const pieces = [prism(frame, 0, 2, 0xf0f0ea)];
+  if (hasCutout) {
+    const cutout = rectangle(cutWidth, cutHeight);
+    if (hasInner) cutout.holes.push(rectangle(innerWidth, innerHeight));
+    pieces.push(prism(cutout, 0, 2, SHIELD));
+  }
+  if (hasInner) pieces.push(prism(rectangle(innerWidth, innerHeight), 0, 2, 0x86b8d0));
+  return pieces;
+}
+
 const SOLDER_MASK = { black: 0x1f2124, blue: 0x24539c } as const;
 const GOLD = 0xd4a93c;
 const COMPONENT_COLOURS: Record<DevBoardComponent['kind'], number> = {
@@ -400,6 +430,7 @@ function heatsink(part: Part): Piece[] {
 }
 
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
+  'cat-entrance': catEntrance,
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
   'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, heatsink,
 };

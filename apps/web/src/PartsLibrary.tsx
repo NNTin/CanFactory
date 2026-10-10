@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, BookOpen, Bolt, CircleAlert, CircleDot, Cog, Disc, ExternalLink, Flame, Hexagon, LoaderCircle, Magnet, Pin, Search, Footprints, Paperclip, Drill, Lock, Anchor, SquareDashedBottom, Circle, WavesVertical, KeyRound, Nfc, Cat, Cpu, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BookOpen, Bolt, CircleAlert, CircleDot, Cog, Disc, DoorOpen, ExternalLink, Flame, Hexagon, LoaderCircle, Magnet, Pin, Search, Footprints, Paperclip, Drill, Lock, Anchor, SquareDashedBottom, Circle, WavesVertical, KeyRound, Nfc, Cat, Cpu, type LucideIcon } from 'lucide-react';
 import { api } from '@canfactory/client';
 import type { Part, PartFamilyDetail, PartFamilySummary, PartSource } from '@canfactory/contracts';
 import { facetLabel } from './facetLabel.ts';
@@ -13,7 +13,7 @@ type PartsRoute = Extract<Route, { view: 'parts' }>;
 const FAMILY_ICONS: Record<string, LucideIcon> = {
   magnet: Magnet, screw: Bolt, nut: Hexagon, washer: Disc, 'threaded-insert': CircleDot, bearing: Cog, pin: Pin, 'everyday-object': Flame,
   'wood-screw': Drill, nail: Paperclip, 'insert-nut': CircleDot, 'levelling-foot': Footprints, 'toggle-latch': Lock, 'screen-hook': Anchor, 'corner-bracket': SquareDashedBottom,
-  'set-screw': Bolt, ball: Circle, spring: WavesVertical, 'split-ring': KeyRound, 'nfc-tag': Nfc, 'cat-collar': Cat, 'dev-board': Cpu, heatsink: Flame,
+  'set-screw': Bolt, ball: Circle, spring: WavesVertical, 'split-ring': KeyRound, 'nfc-tag': Nfc, 'cat-collar': Cat, 'dev-board': Cpu, heatsink: Flame, 'cat-entrance': DoorOpen,
 };
 const BASIS_TEXT: Record<string, string> = { standard: 'Standard', manufacturer: 'Manufacturer', estimated: 'Estimated' };
 /** Search text is kept with the filters, under this key. */
@@ -141,7 +141,7 @@ function FamilyPage({ route, navigate }: { route: PartsRoute & { family: string 
           </button></li>)}</ul>
       </aside>
       <section className="preview-panel parts-preview" aria-label="Parts preview and details">
-        <div className="preview-heading"><span className="eyebrow">LIVE PREVIEW · TRUE TO SIZE</span></div>
+        <div className="preview-heading"><span className="eyebrow">{detail.family.id === 'cat-entrance' ? 'FRONT-SIZE DIAGRAMS · NOT FIT MODELS' : 'LIVE PREVIEW · TRUE TO SIZE'}</span></div>
         <PartsViewer parts={shown} hovered={hovered} selected={route.part} onHover={setHovered} onSelect={select} />
         {selected ? <PartDetails detail={detail} part={selected} /> : <p className="part-hint">Select a part for its dimensions, tolerances and sources.</p>}
       </section>

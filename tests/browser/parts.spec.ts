@@ -24,6 +24,39 @@ async function hoverSomePart(page: Page): Promise<string> {
   throw new Error('No part found under the pointer');
 }
 
+test('compares retail cat entrances without linking them to the catio', async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/#/parts');
+  await page.getByRole('button', { name: /PARTS Cat entrances/ }).click();
+  await expect(page.getByRole('heading', { name: 'Cat entrances', exact: true })).toBeVisible();
+  expect(await shownParts(page)).toHaveLength(8);
+  await expect(page.getByText('FRONT-SIZE DIAGRAMS · NOT FIT MODELS', { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('retail-cat-entrances.png'), fullPage: true });
+
+  await page.getByLabel('Brand', { exact: true }).selectOption('TRIXIE');
+  await expect(page).toHaveURL(/#\/parts\/cat-entrance\?brand=TRIXIE$/);
+  await expect.poll(() => shownParts(page)).toEqual(['trixie-44211', 'trixie-44231']);
+  await page.getByRole('button', { name: /TRIXIE 44231/ }).click();
+  const details = page.getByRole('article', { name: 'TRIXIE 44231 4-way cat flap with tunnel details' });
+  await expect(details.getByRole('row', { name: /Wf Flap width \(not clear passage\) 140/ })).toBeVisible();
+  await expect(details.getByRole('row', { name: /Tmax Maximum installation thickness 52/ })).toBeVisible();
+  await expect(details.getByText('Not documented; unlocked is free-swinging', { exact: true })).toBeVisible();
+  await expect(details.getByRole('link', { name: 'Product page', exact: true })).toHaveAttribute('href', 'https://trixie.shop/products/4-wege-freilauftur-mit-tunnel');
+  await expect(details.getByText('No model links to this part yet.', { exact: true })).toBeVisible();
+  await expect(details.getByRole('link', { name: /catio/i })).toHaveCount(0);
+
+  // A bookmarked electronic comparator preserves its filter and separates tunnel depth from overall depth.
+  await page.goto('/#/parts/cat-entrance/sureflap-microchip-cat-flap?brand=Sure+Petcare');
+  expect(await shownParts(page)).toEqual(['sureflap-microchip-cat-flap']);
+  await expect(page.getByLabel('Brand', { exact: true })).toHaveValue('Sure Petcare');
+  const electronic = page.getByRole('article', { name: 'Sure Petcare SureFlap Microchip Cat Flap details' });
+  await expect(electronic.getByRole('row', { name: /Dt Tunnel depth \(not overall depth\) 70/ })).toBeVisible();
+  await expect(electronic.getByRole('row', { name: /^D Overall depth/ })).toHaveCount(0);
+  await expect(electronic.getByRole('link', { name: /Microchip Cat Flap support:/ })).toHaveAttribute('href', 'https://www.surepetcare.com/en-gb/support/microchip-cat-flap');
+  expect(errors).toEqual([]);
+});
+
 test('browses the parts library: families, filters in the link, a hovered part named in the preview, and its details', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
