@@ -44,6 +44,11 @@ D-ring on a split ring, slid onto the strap, or hung from a printed clip or slee
 pause; the tag is checked to be thick enough for them, and sized for real split rings, collars, NFC tags and magnets from the
 parts library.
 
+The [XIAO Sense camera housing](docs/xiao-sense-camera-housing.md) holds a Seeed Studio
+XIAO ESP32-S3 Sense camera stack, with customizable camera, USB-C, battery-wire and
+antenna openings, heat-set insert or captive-nut mounts, an optional automatically
+sized 5 V fan bay, an assembled/exploded SVG card and a live assembly preview. Camera recognition and feeding-tracker software are out of scope.
+
 ## Run with Docker
 
 Requires Docker Engine/Desktop and Docker Compose.

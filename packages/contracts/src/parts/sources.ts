@@ -22,6 +22,10 @@ const fastenersEu = (standard: string, path: string): PartSource => ({
 
 /** Every source of the parts library, by id. Parts and dimensions refer to these ids; a test checks that each one exists. */
 export const PART_SOURCES: readonly PartSource[] = [
+  { id: 'sunon-dc-fan-catalogue', title: 'DC fan catalogue: 30 × 30 × 10 mm (2024)', publisher: 'SUNON', kind: 'manufacturer', accessed: '2026-10-10',
+    url: 'https://www.sunon.com/eu/MANAGE/Docs/WEBCONT/Files/1236/DC_20240630%28255-E%29_web.pdf' },
+  { id: 'noctua-nf-a4x10-5v-pwm', title: 'NF-A4x10 5V PWM: extended specifications', publisher: 'Noctua', kind: 'manufacturer', accessed: '2026-10-10',
+    url: 'https://www.noctua.at/en/products/nf-a4x10-5v-pwm/specifications' },
   iso('261', 'ISO general purpose metric screw threads — General plan'),
   iso('286-2', 'Geometrical product specifications — ISO code system for tolerances on linear sizes — Part 2: Tables of standard tolerance classes and limit deviations'),
   iso('4762', 'Hexagon socket head cap screws'),
@@ -106,6 +110,8 @@ export const PART_SOURCES: readonly PartSource[] = [
   { id: '4imprint-j25', title: 'BIC J25 Standard Lighter: 22 × 62 × 11 mm', publisher: '4imprint UK', url: 'https://www.4imprint.co.uk/product/502972/BIC-J25-Standard-Lighter', kind: 'reference', accessed: '2026-09-25' },
   { id: 'wemag-j25', title: 'BIC Mini lighter J25: 22 × 62 × 11 mm', publisher: 'WE MAG', url: 'https://wemag.gr/en/product/bic-mini-lighter-j25-2360/', kind: 'reference', accessed: '2026-09-25' },
   { id: 'canfactory-lighter-estimate', title: 'Estimated from photographs and proportions (docs/cigarette-case-assembly.md, “Reference objects”)', publisher: 'CanFactory', url: 'https://github.com/NNTin/CanFactory/blob/develop/docs/cigarette-case-assembly.md#reference-objects', kind: 'reference', accessed: '2026-09-25' },
+  { id: 'seeed-xiao-esp32s3-sense', title: 'XIAO ESP32-S3 Sense: specification (21 × 17.8 × 15 mm), camera variants, USB charging, BAT pads and U.FL antenna', publisher: 'Seeed Studio', url: 'https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/', kind: 'manufacturer', accessed: '2026-10-10' },
+  { id: 'seeed-xiao-esp32s3-sense-cad', title: 'XIAO ESP32-S3 Sense STEP assembly (2023-05-29): 1.25 mm main PCB; camera and expansion stack', publisher: 'Seeed Studio', url: 'https://files.seeedstudio.com/wiki/SeeedStudio-XIAO-ESP32S3/res/seeed-studio-xiao-esp32s3-sense-3d_model.zip', kind: 'manufacturer', accessed: '2026-10-10' },
   // Development boards (ESP32-C3 SuperMini and ESP32-C3-Zero), read 2026-10-09.
   { id: 'nologo-esp32c3-supermini', title: 'ESP32C3SuperMini 入门 (getting started): 产品参数 22.52 × 18 mm, ESP32C3FN4, single-sided components, blue LED on GPIO8; 引脚图 (pinout), 原理图 (schematic: SMD KEY 3*4*2 2P buttons, SMD 3325 40M crystal, SOT23-5 ME6211, SOD323 BAT60J, 0603 LEDs) and 尺寸图 (to-scale top-view dimension render: 18.00, 15.24 and 22.52 mm)', publisher: 'Nologo (wmnologo)', url: 'https://wiki.nologo.tech/product/esp32/esp32c3/esp32c3supermini/esp32C3SuperMini.html', kind: 'manufacturer', accessed: BOARD_ACCESSED },
   { id: 'waveshare-esp32-c3-zero', title: 'ESP32-C3-Zero wiki: dimension drawing (18.00 × 23.50 mm, R1.00, 2.54 pitch, 1.59, 1.38 and 4.67 mm), onboard components, schematic', publisher: 'Waveshare Electronics', url: 'https://www.waveshare.com/wiki/ESP32-C3-Zero', kind: 'manufacturer', accessed: BOARD_ACCESSED },

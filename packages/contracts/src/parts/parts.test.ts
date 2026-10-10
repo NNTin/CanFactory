@@ -154,9 +154,9 @@ describe('parts library', () => {
 
   it('lays out every development board inside its outline: pins on their grid, the receptacle at the USB end, components clear of the holes', () => {
     const boards = parts.filter(part => part.family === 'dev-board');
-    expect(boards.map(part => part.id)).toEqual(['nologo-esp32-c3-supermini', 'waveshare-esp32-c3-zero', 'waveshare-esp32-c6-zero', 'seeed-xiao-esp32c6']);
+    expect(boards.map(part => part.id)).toEqual(['seeed-xiao-esp32s3-sense', 'nologo-esp32-c3-supermini', 'waveshare-esp32-c3-zero', 'waveshare-esp32-c6-zero', 'seeed-xiao-esp32c6']);
     // the chip filter groups boards by chip family, whatever the flash variant (the C3 boards carry an ESP32-C3FN4 and an ESP32-C3FH4)
-    expect(boards.map(part => part.attributes['chip'])).toEqual(['ESP32-C3', 'ESP32-C3', 'ESP32-C6', 'ESP32-C6']);
+    expect(boards.map(part => part.attributes['chip'])).toEqual(['ESP32-S3', 'ESP32-C3', 'ESP32-C3', 'ESP32-C6', 'ESP32-C6']);
     for (const part of boards) {
       const layout = devBoardLayout(part); const message = part.id;
       if (!layout) throw new Error(`${part.id} has no layout`);
@@ -188,8 +188,8 @@ describe('parts library', () => {
         const where = `${message}: ${component.name}`;
         expect(component.x - halfX, where).toBeGreaterThanOrEqual(0); expect(component.x + halfX, where).toBeLessThanOrEqual(W);
         expect(component.y - halfY, where).toBeGreaterThanOrEqual(0); expect(component.y + halfY, where).toBeLessThanOrEqual(L);
-        for (const pin of layout.pins) expect(Math.max(Math.abs(pin.x - component.x) - halfX, Math.abs(pin.y - component.y) - halfY), `${where} × ${pin.name}`).toBeGreaterThan(d / 2);
-        expect(componentTop(component), where).toBeLessThanOrEqual(usb.height);
+        for (const pin of layout.pins.filter(() => (component.base ?? 0) === 0)) expect(Math.max(Math.abs(pin.x - component.x) - halfX, Math.abs(pin.y - component.y) - halfY), `${where} × ${pin.name}`).toBeGreaterThan(d / 2);
+        expect(componentTop(component), where).toBeLessThanOrEqual(dimension(part, 'H') - t + 1e-9);
         expect(part.sources, `${where}: its size's source`).toContain(component.source);
         // a plunger or lens stands on its body, inside its footprint
         if (component.top) {
@@ -203,7 +203,7 @@ describe('parts library', () => {
       expect(buttons.map(button => button.name.split(' ')[0]).sort(), message).toEqual([expect.stringMatching(/^BOOT$/), expect.stringMatching(/^RE?S(ET|T)$/)]);
       for (const button of buttons) {
         expect(button.top && button.travel && button.travel > 0, `${message}: ${button.name}`).toBeTruthy();
-        const near = layout.components.filter(other => other !== button && Math.hypot(other.x - button.x, other.y - button.y) < 4);
+        const near = layout.components.filter(other => other !== button && (other.base ?? 0) === 0 && Math.hypot(other.x - button.x, other.y - button.y) < 4);
         for (const other of near) expect(componentTop(other), `${message}: ${other.name} beside ${button.name}`).toBeLessThan(componentTop(button));
       }
       // the antenna keep-out lies on the board, at the end away from the receptacle, round the antenna
@@ -241,7 +241,7 @@ describe('parts library', () => {
           .toEqual([1.8, 2, 0.28, 1.8, 1.34, 0.8, 'manufacturer', 'xinglight-xl-0807rgbc-ws2812b']);
       }
       // the overall height is the PCB and the tallest thing on it
-      expect(dimension(part, 'H'), message).toBeCloseTo(t + usb.height, 2);
+      expect(dimension(part, 'H'), message).toBeCloseTo(t + Math.max(usb.height, ...layout.components.map(componentTop)), 2);
     }
   });
 

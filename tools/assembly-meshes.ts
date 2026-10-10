@@ -4,7 +4,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { activeParts, devBoardLayout, dimensionOf, findPart, partAssetPath, scadDefines, type Assembly, type ParameterValues, type Part } from '../packages/contracts/src/index.ts';
+import { activeParts, devBoardLayout, dimensionOf, findPart, fanMounts, partAssetPath, scadDefines, type Assembly, type ParameterValues, type Part } from '../packages/contracts/src/index.ts';
 import { renderScad } from './stl-to-scad/openscad.ts';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
 
@@ -37,6 +37,7 @@ export const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part
     scad: 'parts/screws/screw.scad',
     defines: part => ({ COUNTERSUNK: String(part.attributes['head'] === 'countersunk'), D: size(part, 'd', 'value'), PITCH: '0', L: size(part, 'l', 'value'), HEAD_D: size(part, 'dk'), HEAD_K: size(part, 'k'), HEX: 'false', HEAD_S: '0' }),
   },
+  fan: { scad: 'parts/fans/fan.scad', defines: part => ({ W: size(part, 'W'), L: size(part, 'L'), H: size(part, 'H'), HOLE: size(part, 'hole', 'value'), MOUNTS: JSON.stringify(fanMounts(part)) }) },
   nut: {
     scad: 'parts/nuts/nut.scad',
     defines: part => ({ SQUARE: String(part.attributes['shape']?.startsWith('square') === true), S: size(part, 's'), H: part.dimensions['h'] ? size(part, 'h') : size(part, 'm'), D: size(part, 'd', 'value') }),
@@ -72,7 +73,7 @@ export const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part
         L: size(part, 'L', 'value'), W: size(part, 'W', 'value'), T: size(part, 't', 'value'), R: size(part, 'r', 'value'), HOLE: size(part, 'd', 'value'),
         CASTELLATED: String(layout.castellated), PINS: JSON.stringify(layout.pins.map(pin => [pin.x, pin.y])),
         USB: JSON.stringify([usb.x0, usb.y0, usb.x1, usb.y1, usb.height]),
-        COMPONENTS: JSON.stringify(layout.components.map(c => [c.x, c.y, c.width, c.length, c.height, c.rotation, c.top ? TOP_SHAPES[c.top.shape] : 0, c.top?.width ?? 0, c.top?.length ?? 0, c.top?.height ?? 0])),
+        COMPONENTS: JSON.stringify(layout.components.map(c => [c.x, c.y, c.width, c.length, c.height, c.rotation, c.top ? TOP_SHAPES[c.top.shape] : 0, c.top?.width ?? 0, c.top?.length ?? 0, c.top?.height ?? 0, c.base ?? 0])),
       };
     },
   },

@@ -5920,6 +5920,271 @@
                       }
                     },
                     "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "modelId",
+                      "modelVersion",
+                      "parameters"
+                    ],
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "enum": [
+                          "xiao-sense-camera-housing"
+                        ]
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "enum": [
+                          "2"
+                        ]
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "required": [
+                          "board",
+                          "width",
+                          "length",
+                          "mountRetention",
+                          "mountNut",
+                          "mountInsert",
+                          "mountSpacing",
+                          "cameraDiameter",
+                          "cameraOffsetX",
+                          "cameraOffsetY",
+                          "antennaDiameter",
+                          "batteryDiameter",
+                          "chargeWindow",
+                          "fanEnabled",
+                          "fan",
+                          "ventilation",
+                          "wall",
+                          "standoff",
+                          "headroom",
+                          "boardFit",
+                          "seamFit",
+                          "usbRecess",
+                          "usbWidth",
+                          "usbHeight"
+                        ],
+                        "properties": {
+                          "board": {
+                            "enum": [
+                              "seeed-xiao-esp32s3-sense"
+                            ],
+                            "title": "Camera board",
+                            "description": "Sense stack without pin headers or an upgraded heatsink.",
+                            "default": "seeed-xiao-esp32s3-sense"
+                          },
+                          "width": {
+                            "type": "number",
+                            "title": "Housing width",
+                            "description": "Minimum outside width in mm; leave room for the rear mounts. Fan mode may widen it automatically.",
+                            "default": 48,
+                            "minimum": 42,
+                            "maximum": 80,
+                            "multipleOf": 1
+                          },
+                          "length": {
+                            "type": "number",
+                            "title": "Housing length",
+                            "description": "Compact outside length in mm. Fan mode appends a rear bay; board and USB positions stay fixed when cooling is toggled.",
+                            "default": 46,
+                            "minimum": 40,
+                            "maximum": 80,
+                            "multipleOf": 1
+                          },
+                          "mountRetention": {
+                            "enum": [
+                              "heat-set",
+                              "nut"
+                            ],
+                            "title": "Rear mounting",
+                            "description": "Blind heat-set inserts or side-loaded captive nuts. The four lid fasteners remain M2 heat-set inserts.",
+                            "default": "heat-set"
+                          },
+                          "mountNut": {
+                            "enum": [
+                              "iso-4032-m3",
+                              "iso-4032-m4",
+                              "din-562-m3",
+                              "din-562-m4"
+                            ],
+                            "title": "Mounting nuts",
+                            "description": "Slide two nuts into the tray pockets from inside before fitting the camera. Floor and roof capture the nuts; flats prevent rotation.",
+                            "default": "iso-4032-m3"
+                          },
+                          "mountInsert": {
+                            "enum": [
+                              "ruthex-rx-m3x5-7",
+                              "cnc-kitchen-m3x3",
+                              "cnc-kitchen-m4x4",
+                              "ruthex-rx-m4x8-1"
+                            ],
+                            "title": "Mounting inserts",
+                            "description": "Two blind, rear-facing heat-set inserts for attaching the enclosure to your own bracket.",
+                            "default": "ruthex-rx-m3x5-7"
+                          },
+                          "mountSpacing": {
+                            "type": "number",
+                            "title": "Mount spacing",
+                            "description": "Centre distance of the two rear mounting fasteners, in mm.",
+                            "default": 34,
+                            "minimum": 28,
+                            "maximum": 60,
+                            "multipleOf": 1
+                          },
+                          "cameraDiameter": {
+                            "type": "number",
+                            "title": "Camera opening",
+                            "description": "Through-hole diameter in mm. Measure your lens and check the field of view before printing.",
+                            "default": 12,
+                            "minimum": 10,
+                            "maximum": 20,
+                            "multipleOf": 0.2
+                          },
+                          "cameraOffsetX": {
+                            "type": "number",
+                            "title": "Camera alignment X",
+                            "description": "Aperture offset from the nominal lens centre, across the board, in mm.",
+                            "default": 0,
+                            "minimum": -3,
+                            "maximum": 3,
+                            "multipleOf": 0.1
+                          },
+                          "cameraOffsetY": {
+                            "type": "number",
+                            "title": "Camera alignment Y",
+                            "description": "Aperture offset towards the USB end, in mm.",
+                            "default": 0,
+                            "minimum": -3,
+                            "maximum": 3,
+                            "multipleOf": 0.1
+                          },
+                          "antennaDiameter": {
+                            "type": "number",
+                            "title": "Antenna exit",
+                            "description": "Split cable opening on the left side, in mm. Lay the pre-connected U.FL lead in before closing.",
+                            "default": 5,
+                            "minimum": 3,
+                            "maximum": 8,
+                            "multipleOf": 0.2
+                          },
+                          "batteryDiameter": {
+                            "type": "number",
+                            "title": "Battery wire exit",
+                            "description": "Split opening on the right side for wires to the underside BAT pads, in mm. Battery remains external.",
+                            "default": 4,
+                            "minimum": 2,
+                            "maximum": 8,
+                            "multipleOf": 0.2
+                          },
+                          "chargeWindow": {
+                            "type": "boolean",
+                            "title": "Charge LED window",
+                            "description": "A 2.4 mm side sight hole towards the red charge LED; not a light pipe.",
+                            "default": true
+                          },
+                          "fanEnabled": {
+                            "type": "boolean",
+                            "title": "Cooling fan",
+                            "description": "Extend the rear of the housing for one roof-exhaust fan, with an integral grille and mandatory lower air intakes. Fan and its screws/nuts appear in the assembly; they are not printed.",
+                            "default": false
+                          },
+                          "fan": {
+                            "enum": [
+                              "sunon-mf30100v2-1000u-a99",
+                              "noctua-nf-a4x10-5v-pwm"
+                            ],
+                            "title": "Fan",
+                            "description": "5 V fan choice; the shell grows automatically to fit the maximum installed frame. Verify power budget and physical fit before use.",
+                            "default": "noctua-nf-a4x10-5v-pwm"
+                          },
+                          "ventilation": {
+                            "type": "boolean",
+                            "title": "Ventilation",
+                            "description": "Passive roof slots when no fan is fitted. Fan mode always adds its grille and air intakes regardless of this setting. Indoor only, not waterproof.",
+                            "default": true
+                          },
+                          "wall": {
+                            "type": "number",
+                            "title": "Wall thickness",
+                            "description": "Shell and roof thickness, in mm.",
+                            "default": 2,
+                            "minimum": 1.6,
+                            "maximum": 3.6,
+                            "multipleOf": 0.2
+                          },
+                          "standoff": {
+                            "type": "number",
+                            "title": "Under-board clearance",
+                            "description": "Distance from floor to PCB underside, leaving room for components and battery solder joints.",
+                            "default": 4,
+                            "minimum": 3,
+                            "maximum": 8,
+                            "multipleOf": 0.2
+                          },
+                          "headroom": {
+                            "type": "number",
+                            "title": "Camera headroom",
+                            "description": "Space from the published 15 mm stack envelope to the roof underside.",
+                            "default": 1.2,
+                            "minimum": 0.8,
+                            "maximum": 4,
+                            "multipleOf": 0.2
+                          },
+                          "boardFit": {
+                            "type": "number",
+                            "title": "Board clearance",
+                            "description": "Lateral play per side in the PCB guides, in mm.",
+                            "default": 0.3,
+                            "minimum": 0.2,
+                            "maximum": 0.8,
+                            "multipleOf": 0.1
+                          },
+                          "seamFit": {
+                            "type": "number",
+                            "title": "Lid seam clearance",
+                            "description": "Vertical gap between the tray and hood, in mm; the four screws locate and secure the hood.",
+                            "default": 0.2,
+                            "minimum": 0.15,
+                            "maximum": 0.45,
+                            "multipleOf": 0.05
+                          },
+                          "usbRecess": {
+                            "type": "number",
+                            "title": "USB recess",
+                            "description": "Additional distance of the socket behind the inner front wall, in mm. Total recess includes the wall.",
+                            "default": 2,
+                            "minimum": 0,
+                            "maximum": 6,
+                            "multipleOf": 0.2
+                          },
+                          "usbWidth": {
+                            "type": "number",
+                            "title": "USB plug opening width",
+                            "description": "Clear width for your USB-C cable moulding, in mm.",
+                            "default": 14,
+                            "minimum": 12,
+                            "maximum": 20,
+                            "multipleOf": 0.2
+                          },
+                          "usbHeight": {
+                            "type": "number",
+                            "title": "USB plug opening height",
+                            "description": "Clear height for your USB-C cable moulding, in mm.",
+                            "default": 8,
+                            "minimum": 6,
+                            "maximum": 12,
+                            "multipleOf": 0.2
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 ],
                 "description": "Complete, uncoerced settings for one model version."

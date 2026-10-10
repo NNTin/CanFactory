@@ -74,6 +74,8 @@ const RUTHEX_BOX: Offer['covers'] = [
  * - 11330 Zooplus DE: cat nets and catio accessories.
  */
 export const offers: readonly Offer[] = [
+  { ...amazon('DE', 'B0C69FFVHH', 'Seeed Studio XIAO ESP32-S3 Sense', [{ partId: 'seeed-xiao-esp32s3-sense', quantity: 1 }], { sameAsProduct: true }),
+    checkedOn: '2026-10-10', note: 'Product link supplied by the project owner; Amazon could not be fetched automatically. Check the selected Sense variant and camera before ordering.' },
   amazon('DE', 'B088QJG676', 'ruthex RX-M2x4, pack of 70', [{ partId: 'ruthex-rx-m2x4', quantity: 70 }], { sameAsProduct: true }),
   amazon('DE', 'B08BCRZZS3', 'ruthex RX-M3x5.7, pack of 100', [{ partId: 'ruthex-rx-m3x5-7', quantity: 100 }], { sameAsProduct: true }),
   amazon('DE', 'B07YSV66Y5', 'ruthex RX-M4x8.1, pack of 50', [{ partId: 'ruthex-rx-m4x8-1', quantity: 50 }], { sameAsProduct: true }),

@@ -23,7 +23,7 @@ describe('model and render API', () => {
   it('serves the catalogue, reference STL, and OpenAPI', async () => {
     const catalogue = await app.inject('/api/v1/models');
     expect(catalogue.statusCode).toBe(200);
-    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['ai-rubber-duck', 'cat-collar-tag', 'cigarette-case', 'fruit-fly-trap', 'litter-shovel', 'moss-planter', 'plank-connector', 'pressure-pad', 'printed-corner-bracket', 'printed-screen-hook', 'qr-magnet-tag', 'spring-ball-detent', 'toggle-latch', 'window-cat-guard']);
+    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['ai-rubber-duck', 'cat-collar-tag', 'cigarette-case', 'fruit-fly-trap', 'litter-shovel', 'moss-planter', 'plank-connector', 'pressure-pad', 'printed-corner-bracket', 'printed-screen-hook', 'qr-magnet-tag', 'spring-ball-detent', 'toggle-latch', 'window-cat-guard', 'xiao-sense-camera-housing']);
     const detail = await app.inject('/api/v1/models/fruit-fly-trap');
     const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
     expect(model.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false, properties: { trapDiameter: { type: 'number', minimum: 20, maximum: 200 } } });

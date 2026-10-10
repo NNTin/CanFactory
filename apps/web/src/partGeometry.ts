@@ -1,4 +1,4 @@
-import { cornerBracketHoles, devBoardLayout, METRIC_THREADS, type DevBoardComponent, type MetricThread, type Part } from '@canfactory/contracts';
+import { cornerBracketHoles, devBoardLayout, fanMounts, METRIC_THREADS, type DevBoardComponent, type MetricThread, type Part } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -318,7 +318,7 @@ function catCollar(part: Part): Piece[] {
 const SOLDER_MASK = { black: 0x1f2124, blue: 0x24539c } as const;
 const GOLD = 0xd4a93c;
 const COMPONENT_COLOURS: Record<DevBoardComponent['kind'], number> = {
-  button: 0xf1efe9, led: 0xf3f3f1, chip: DARK, regulator: DARK, crystal: NICKEL, diode: DARK, antenna: 0xc8473f, connector: GOLD, shield: NICKEL, other: DARK,
+  camera: 0x23282b, pcb: 0x273f36, button: 0xf1efe9, led: 0xf3f3f1, chip: DARK, regulator: DARK, crystal: NICKEL, diode: DARK, antenna: 0xc8473f, connector: GOLD, shield: NICKEL, other: DARK,
 };
 const PLUNGER = 0xe6cf9e;
 const LENS = 0xfbf7e8;
@@ -362,7 +362,7 @@ function devBoard(part: Part): Piece[] {
   const components = layout.components.flatMap(component => {
     const turn = component.rotation * Math.PI / 180;
     const box = new THREE.BoxGeometry(component.width, component.length, component.height);
-    box.rotateZ(turn); box.translate(component.x, component.y, t + component.height / 2);
+    box.rotateZ(turn); box.translate(component.x, component.y, t + (component.base ?? 0) + component.height / 2);
     const pieces = [paint(box, COMPONENT_COLOURS[component.kind])];
     const { top } = component;
     if (top) {
@@ -375,7 +375,7 @@ function devBoard(part: Part): Piece[] {
         plan.absarc(-dx, -dy, r, w < l ? Math.PI : Math.PI / 2, w < l ? Math.PI * 2 : Math.PI * 1.5, false);
       } else { plan.moveTo(-w / 2, -l / 2); plan.lineTo(w / 2, -l / 2); plan.lineTo(w / 2, l / 2); plan.lineTo(-w / 2, l / 2); }
       const cap = prism(plan, 0, top.height - component.height, component.kind === 'led' ? LENS : component.kind === 'button' ? PLUNGER : DARK);
-      cap.rotateZ(turn); cap.translate(component.x, component.y, t + component.height);
+      cap.rotateZ(turn); cap.translate(component.x, component.y, t + (component.base ?? 0) + component.height);
       pieces.push(cap);
     }
     return pieces;
@@ -388,9 +388,29 @@ function devBoard(part: Part): Piece[] {
   return [prism(outline, 0, t, SOLDER_MASK[layout.solderMask]), ...pads, ...bottomPads, paint(shell, NICKEL), ...components];
 }
 
+/** Centred fan frame, exhaust +Z. Frame/mounts are dimensioned; rotor and struts are illustrative. */
+function fan(part: Part): Piece[] {
+  const w = largest(part, 'W'), l = largest(part, 'L'), h = largest(part, 'H'), radius = Math.min(w, l) / 2 - 2;
+  const frame = new THREE.Shape(); frame.moveTo(-w / 2, -l / 2); frame.lineTo(w / 2, -l / 2); frame.lineTo(w / 2, l / 2); frame.lineTo(-w / 2, l / 2); frame.closePath();
+  frame.holes.push(circle(radius));
+  for (const [x, y] of fanMounts(part)) { const hole = new THREE.Path(); hole.absarc(x, y, value(part, 'hole') / 2, 0, Math.PI * 2, false); frame.holes.push(hole); }
+  const color = part.product?.manufacturer === 'Noctua' ? 0xc3b298 : 0x32393b;
+  const hub = new THREE.Shape(); hub.absarc(0, 0, radius * 0.35, 0, Math.PI * 2, false);
+  const pieces = [prism(frame, 0, h, color), prism(hub, 0, h, DARK)];
+  for (let i = 0; i < 7; i++) {
+    const blade = new THREE.BoxGeometry(radius * 0.72, 2.2, 1.2);
+    blade.translate(radius * 0.6, 0, h / 2); blade.rotateZ(i * Math.PI * 2 / 7); pieces.push(paint(blade, DARK));
+  }
+  for (let i = 0; i < 4; i++) {
+    const strut = new THREE.BoxGeometry(radius + 0.5, 1.2, 1);
+    strut.translate(radius / 2, 0, 0.5); strut.rotateZ(i * Math.PI / 2); pieces.push(paint(strut, color));
+  }
+  return pieces;
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
-  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard,
+  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, fan,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */

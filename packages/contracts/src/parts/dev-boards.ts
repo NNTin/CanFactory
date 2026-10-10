@@ -2,14 +2,14 @@ import type { Dimension, Part, PartFamily } from './schema.ts';
 import { measured } from './sources.ts';
 
 /**
- * Development boards: small microcontroller boards (ESP32-C3, ESP32-C6) that a print holds, such as a smart lamp's controller. A
+ * Development boards: small microcontroller boards (ESP32-C3, ESP32-C6, ESP32-S3) that a print holds, such as a smart lamp's controller. A
  * case or carrier is designed around the board's outline, its pins, the USB-C receptacle at one end, the components on top and the
  * way to an external antenna, so each board has its layout (`devBoardLayout`) besides its dimensions. See docs/adding-parts.md,
  * “Development boards”.
  */
 export const devBoardFamily: PartFamily = {
   id: 'dev-board', title: 'Development boards',
-  description: 'Microcontroller boards by product (ESP32-C3, ESP32-C6), with the board outline, the pin holes, the USB-C receptacle, the components on top and the external antenna access, as their makers draw them.',
+  description: 'Microcontroller boards by product (ESP32-C3, ESP32-C6, ESP32-S3), with the board outline, the pin holes, the USB-C receptacle, the components on top and the external antenna access, as their makers draw them.',
   attributes: [{ key: 'chip', label: 'Chip' }, { key: 'pins', label: 'Pins' }, { key: 'edge', label: 'Pin edge' }, { key: 'usb', label: 'USB' }, { key: 'externalAntenna', label: 'External antenna' }, { key: 'manufacturer', label: 'Manufacturer' }],
   dimensions: [
     { key: 'L', label: 'Board length, along the pin rows (without the USB-C overhang)', symbol: 'L', required: true },
@@ -33,19 +33,21 @@ export interface DevBoardPin { name: string; x: number; y: number }
 export interface DevBoardPoint { x: number; y: number }
 /**
  * What stands on a component's body, centred on it: a button's plunger or an LED's lens. `shape` is its plan (`round`: a disc of
- * diameter `width`; `oval`: a stadium of `width` × `length`; `rectangle`), and `height` is its top above the PCB.
+ * diameter `width`; `oval`: a stadium of `width` × `length`; `rectangle`), and `height` is its top above the component’s optional base (the main PCB top when omitted).
  */
 export interface DevBoardComponentTop { shape: 'round' | 'oval' | 'rectangle'; width: number; length: number; height: number }
 /**
  * A component on top of the board: its body as a box, centred at (`x`, `y`), its size along X (`width`) and Y (`length`) before
- * it is turned by `rotation` degrees about Z, and its `height` above the PCB; on a button or an LED, its plunger or lens (`top`).
+ * it is turned by `rotation` degrees about Z, and its body `height` above its optional base; on a button or an LED, its plunger or lens (`top`).
  * A button's plunger moves down by `travel` when pressed: a printed actuator rests on the plunger's top and pushes it that far.
  * `sized` says where the size comes from (`source`: the part's own data sheet, `manufacturer`, or the drawing and the package's
  * usual size, `estimated`); every position is read off the board maker's drawing.
  */
 export interface DevBoardComponent {
-  name: string; kind: 'button' | 'led' | 'chip' | 'regulator' | 'crystal' | 'diode' | 'antenna' | 'connector' | 'shield' | 'other';
+  name: string; kind: 'camera' | 'pcb' | 'button' | 'led' | 'chip' | 'regulator' | 'crystal' | 'diode' | 'antenna' | 'connector' | 'shield' | 'other';
   x: number; y: number; width: number; length: number; height: number; rotation: number;
+  /** Body bottom above the main PCB top (default 0); stacked boards/components may start higher. Top heights are local to this base. */
+  base?: number;
   top?: DevBoardComponentTop; travel?: number;
   sized: Dimension['basis']; source: string;
 }
@@ -107,6 +109,36 @@ const ESTIMATE = 'canfactory-dev-board-estimate';
 const round = (value: number) => Math.round(value * 100) / 100;
 
 const BOARDS: Board[] = [
+  {
+    id: 'seeed-xiao-esp32s3-sense', manufacturer: 'Seeed Studio', sku: '113991115', url: 'https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html',
+    title: 'Seeed Studio XIAO ESP32-S3 Sense', designation: 'Seeed Studio XIAO ESP32-S3 Sense (with camera expansion board)', aliases: ['XIAO ESP32S3 Sense', 'B0C69FFVHH'], chip: 'ESP32-S3',
+    sources: ['seeed-xiao-esp32s3-sense', 'seeed-xiao-esp32s3-sense-cad', 'alps-sktaaae010', 'hirose-u-fl', ESTIMATE],
+    description: 'A 21 × 17.8 × 15 mm camera stack: XIAO ESP32-S3 with the Sense expansion PCB, camera, microphone and microSD socket. USB-C supplies power/data and charges a battery wired to BAT+/BAT−; an external antenna plugs into U.FL. No soldered headers included in the envelope.',
+    notes: 'Seeed publishes the 21 × 17.8 × 15 mm assembled envelope. The simplified layout follows its 2023 STEP assembly and v1.5 KiCad placements, in the usual USB-at-+Y frame; the PCB thickness (1.25 mm) is read from the STEP. Camera body/lens, expansion board, SD socket and interconnect are conservative estimated envelopes, not a detailed electrical CAD model. The early OV2640 and later OV3660 lenses differ: measure your delivered camera and adjust the housing aperture/alignment. The battery is external; no battery or upgraded heatsink is included. A U.FL antenna is required (no onboard ceramic antenna or GPIO antenna switch). Measure a board before a close fit.',
+    published: { L: 'seeed-xiao-esp32s3-sense', W: 'seeed-xiao-esp32s3-sense', H: 'seeed-xiao-esp32s3-sense', t: 'seeed-xiao-esp32s3-sense-cad' },
+    dimensions: { L: 21, W: 17.8, t: 1.25, r: 1.9, e: 2.54, e1: 15.24, a: 2.9, d: 1, usbW: 8.94, usbH: 3.31, usbOverhang: 1.54 },
+    columns: [['GPIO1', 'GPIO2', 'GPIO3', 'GPIO4', 'GPIO5', 'GPIO6', 'GPIO7'], ['5V', 'GND', '3V3', 'GPIO43', 'GPIO44', 'GPIO9', 'GPIO8']],
+    edge: 'castellated, drilled',
+    layout: {
+      castellated: true, bareUnderside: false, solderMask: 'black', usb: { x0: 4.43, y0: 15.2 },
+      components: [
+        { name: 'Radio shield / underside envelope', kind: 'shield', x: 8.9, y: 9, width: 12, length: 10, base: -2.75, height: 1.5, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'RESET button (CHIP_EN)', kind: 'button', x: 3.05, y: 19.48, width: 1.6, length: 2.6, height: 0.35, rotation: 0, top: { shape: 'round', width: 1.1, length: 1.1, height: 0.53 }, travel: 0.11, sized: 'manufacturer', source: 'alps-sktaaae010' },
+        { name: 'BOOT button (GPIO0)', kind: 'button', x: 14.73, y: 19.48, width: 1.6, length: 2.6, height: 0.35, rotation: 0, top: { shape: 'round', width: 1.1, length: 1.1, height: 0.53 }, travel: 0.11, sized: 'manufacturer', source: 'alps-sktaaae010' },
+        { name: 'Red charge LED', kind: 'led', x: 3.05, y: 17.27, width: 0.5, length: 1, height: 0.45, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'Yellow user LED (GPIO21)', kind: 'led', x: 14.78, y: 17.27, width: 0.5, length: 1, height: 0.45, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'U.FL external antenna receptacle', kind: 'connector', x: 4.04, y: 1.73, width: 2.6, length: 2.6, height: 0.35, rotation: 0, top: { shape: 'round', width: 2, length: 2, height: 1.25 }, sized: 'manufacturer', source: 'hirose-u-fl' },
+        { name: 'Sense board-to-board connector', kind: 'connector', x: 11.05, y: 1.73, width: 7.52, length: 2.97, height: 2.95, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'Sense expansion PCB', kind: 'pcb', x: 8.9, y: 7.55, width: 16.8, length: 14.7, base: 2.95, height: 1.25, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'microSD socket / microphone envelope', kind: 'other', x: 8.9, y: 3, width: 14, length: 5.5, base: 4.2, height: 2.2, rotation: 0, sized: 'estimated', source: ESTIMATE },
+        { name: 'Sense camera and lens (OV2640 / OV3660 envelope)', kind: 'camera', x: 8.25, y: 17, width: 8, length: 8, base: 6.75, height: 2, rotation: 0,
+          top: { shape: 'round', width: 8, length: 8, height: 7 }, sized: 'estimated', source: ESTIMATE },
+      ],
+      antennaKeepout: { x0: 2.5, y0: 0, x1: 5.6, y1: 3.3 },
+      externalAntenna: { kind: 'connector', name: 'U.FL', x: 4.04, y: 1.73, matedHeight: 2.5, select: 'Always connected to U.FL; no GPIO antenna switch.', source: 'seeed-xiao-esp32s3-sense' },
+      bottomPads: [{ name: 'BAT+', x: 4.45, y: 10.98 }, { name: 'BAT− (GND)', x: 4.45, y: 12.88 }],
+    },
+  },
   {
     id: 'nologo-esp32-c3-supermini', manufacturer: 'Nologo', sku: 'ESP32C3 SuperMini', url: 'https://wiki.nologo.tech/product/esp32/esp32c3/esp32c3supermini/esp32C3SuperMini.html',
     title: 'ESP32-C3 SuperMini', designation: 'ESP32-C3 SuperMini (Nologo ESP32C3SuperMini)', aliases: ['ESP32C3 SuperMini', 'ESP32-C3 Super Mini'], chip: 'ESP32-C3',
@@ -250,7 +282,7 @@ function layoutOf(board: Board): DevBoardLayout {
 }
 
 /** The top of a component above the PCB: its plunger's or lens's, else its body's. */
-export const componentTop = (component: DevBoardComponent) => component.top?.height ?? component.height;
+export const componentTop = (component: DevBoardComponent) => (component.base ?? 0) + (component.top?.height ?? component.height);
 
 /** The tallest thing on the board above the PCB: the receptacle or a component. */
 const tallest = (layout: DevBoardLayout) => Math.max(layout.usb.height, ...layout.components.map(componentTop));
