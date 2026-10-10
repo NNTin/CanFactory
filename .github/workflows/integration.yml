@@ -163,6 +163,8 @@ jobs:
 
       # Renders each model's parts with the pinned OpenSCAD, then simulates its mechanism's scenarios (docs/physics-plan.md).
       - name: Run the physics scenarios
-        run: npm run check:physics
+        run: |
+          npm run check:physics
+          npm run check:physics -- magnetic-cat-toy --parameters '{"magnetPlacement":"eccentric","layout":"cluster"}'
         env:
           OPENSCAD_RUNNER: docker

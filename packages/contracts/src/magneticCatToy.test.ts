@@ -91,3 +91,49 @@ describe('original magnetic cat toy', () => {
     expect(model.printNotes).toMatch(/Bond each holder cap and both ball halves/);
   });
 });
+
+it('provides a fully assembled magnetic mechanism with switchable real grid locations and a welded, offset-aware ball', async () => {
+  const { magneticCatToyPhysics, PhysicsSpecSchema, toyDipole, toyCoverPieces } = await import('./index.ts');
+  for (const layout of ['corners', 'zigzag', 'cluster'] as const) for (const magnetPlacement of ['centred', 'eccentric'] as const) {
+    const p = { ...P, layout, magnetPlacement }, l = magneticCatToyLayout(p), spec = magneticCatToyPhysics(p);
+    expect(Value.Check(PhysicsSpecSchema, spec)).toBe(true);
+    const assembly = resolveAssembly(model, model.assembly, p); assert.ok(assembly);
+    expect(spec.bodies.map(b => b.id).sort()).toEqual(Object.keys(assembly.poses).sort());
+    expect(spec.bodies.filter(b => !b.fixed).map(b => b.id)).toEqual(['ball-lower']);
+    expect(spec.bodies.find(b => b.id === 'ball-upper')?.joint?.parent).toBe('ball-lower');
+    expect(spec.bodies.find(b => b.id === 'ball-magnet')?.mass).toBe(0.64);
+    expect(spec.magnets).toHaveLength(5);
+    expect(spec.magnets?.filter(m => m.switchable).map(m => m.id)).toEqual([1, 2, 3, 4].map(i => `grid-magnet-${i}`));
+    expect(spec.magnets?.at(-1)?.switchable).toBeUndefined();
+    l.holders.forEach(([x, y], i) => expect(assembly.poses[`grid-magnet-${i + 1}`]?.position.slice(0, 2)).toEqual([x, y]));
+    expect(assembly.poses['ball-magnet']?.position[0]).toBe(l.offset);
+    expect(spec.scenarios?.map(s => s.id)).toContain('switch-on');
+    expect(toyCoverPieces(p).every(piece => piece.length >= 12 && piece.length % 3 === 0 && piece.every(Number.isFinite))).toBe(true);
+  }
+  expect(toyDipole(TOY_GRID_MAGNETS[1]).moment).toBeCloseTo(0.2446875, 8);
+  expect(toyDipole(TOY_BALL_MAGNETS[2]).mass).toBe(1.1);
+  expect(toyDipole(TOY_BALL_MAGNETS[2]).moment).toBeGreaterThan(toyDipole(TOY_BALL_MAGNETS[0]).moment);
+});
+
+it('keeps the rounded paw openings empty in the physics roof, with solid webs and closed slot ends', async () => {
+  const { toyCoverPieces } = await import('./index.ts');
+  const l = magneticCatToyLayout(P), pieces = toyCoverPieces(P);
+  const roofContains = (x: number, y: number) => pieces.some(piece => {
+    // Every authored prism has its first profile at minZ and the same profile at maxZ.
+    const half = piece.length / 2, z0 = piece[2] ?? 0, z1 = piece[half + 2] ?? 0;
+    if (Math.min(z0, z1) > 1.5 || Math.max(z0, z1) < 1.5) return false;
+    for (let i = 0; i < half; i += 3) {
+      const next = (i + 3) % half, ax = piece[i] ?? 0, ay = piece[i + 1] ?? 0, bx = piece[next] ?? 0, by = piece[next + 1] ?? 0;
+      if ((bx - ax) * (y - ay) - (by - ay) * (x - ax) < -1e-9) return false;
+    }
+    return true;
+  });
+  for (const x of l.slotCentres) {
+    expect(roofContains(x, 0)).toBe(false);
+    expect(roofContains(x + P.slotWidth / 2 + 0.2, 0)).toBe(true);
+    expect(roofContains(x, l.slotLength / 2 - 0.2)).toBe(false);
+    expect(roofContains(x, l.slotLength / 2 + 0.2)).toBe(true);
+  }
+  expect(roofContains(0, 0)).toBe(true);
+  expect(roofContains(P.width / 2 - 1, P.length / 2 - 1)).toBe(false);
+});

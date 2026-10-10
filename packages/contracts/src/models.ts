@@ -1,3 +1,4 @@
+import { magneticCatToyPhysics } from './magneticCatToyPhysics.ts';
 import { DEFAULT_MAGNETIC_CAT_TOY, MagneticCatToyParametersSchema, TOY_BALL_MAGNETS, TOY_GRID_MAGNETS, magneticCatToyAssembly, magneticCatToyIssues, magneticCatToyLayout, magneticCatToyReferences, type MagneticCatToyParameters } from './magneticCatToy.ts';
 import { CAMERA_HARDWARE, CAMERA_LID_INSERT, CAMERA_MOUNT_INSERTS, CAMERA_MOUNT_NUTS, CAMERA_HEATSINKS, CAMERA_HEATSINK_GAP, cameraNutScad, CameraHousingParametersSchema, DEFAULT_CAMERA_HOUSING, cameraHardwarePart, cameraHousingAssembly, cameraHousingIssues, cameraHousingLayout, cameraHousingReferences, type CameraHousingParameters } from './cameraHousing.ts';
 import { conceptPages } from './concepts.ts';
@@ -3499,6 +3500,7 @@ export const magneticCatToy = {
     control(toySchema, 'slotWidth', 'basic'), control(toySchema, 'fieldThickness', 'advanced'),
     control(toySchema, 'clearance', 'advanced'), control(toySchema, 'detentEngage', 'advanced'),
   ],
+  physics: parameters => magneticCatToyPhysics(parameters as MagneticCatToyParameters),
   assembly: magneticCatToyAssembly(DEFAULT_MAGNETIC_CAT_TOY),
   assemblyForParameters: parameters => magneticCatToyAssembly(parameters as MagneticCatToyParameters),
   linkedReferences: parameters => magneticCatToyReferences(parameters as MagneticCatToyParameters),

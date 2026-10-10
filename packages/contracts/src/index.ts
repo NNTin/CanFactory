@@ -200,3 +200,5 @@ export type Render = Static<typeof RenderSchema>;
 
 export const IdParamsSchema = Type.Object({ id: Type.String({ minLength: 1, maxLength: 100, pattern: '^[a-zA-Z0-9-]+$' }) }, { additionalProperties: false });
 export const DownloadQuerySchema = Type.Object({ download: Type.Optional(Type.Literal('true')) }, { additionalProperties: false });
+
+export * from './magneticCatToyPhysics.ts';

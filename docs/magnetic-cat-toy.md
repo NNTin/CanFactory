@@ -133,6 +133,65 @@ in each exported STL:
    ears. Verify the ball rolls freely and cannot pass any opening; verify the
    field stays seated and the holders cannot lift out of their sockets.
 
+## Interactive physics
+
+Select **Simulate** to start with all four layers fully assembled and the cover
+secured. The grid, sealed holders, field, cover and hardware are fixed; only the
+bonded ball moves. Drag either ball half (or its magnet) to move the entire ball.
+The two rendered halves and the sourced magnet contribute their own mass and
+inertia to a welded rigid body. The eccentric seat therefore moves both the
+magnetic force's application point and the centre of mass; this is not a wobble
+animation. A smooth analytic sphere supplies the collision surface, avoiding
+artificial faceted rolling. Full-density PETG and the library magnet's listed
+mass are assumed; adhesive, print porosity, anisotropy and wear are omitted.
+
+The **Grid magnets** top-view map shows the **four occupied sockets**, numbered
+like the holders, with +X right and +Y up and millimetre coordinates in each
+button's accessible label/tooltip. Toggle each magnet independently, or use
+**All on / All off**, while the ball continues moving. Disabling a magnet
+removes its pairwise forces and torques, **not** its mesh, mass or enclosure.
+The sealed ball magnet stays on. Restart and reversing gravity retain the
+switch states; leaving/reopening simulation restores the initial all-on state.
+The selected corners/zigzag/cluster layout changes the actual control locations;
+empty sockets are not additional simulated magnets. Repositioning holders is
+still an assembly operation, not dragging them through the secured field.
+
+These are **virtual switches for experimentation**: the physical toy contains
+permanent magnets, not electromagnets. Hide the cover in Visible parts to inspect
+and drag the ball easily; hiding geometry never disables its collisions. The
+slotted roof and rounded inner walls remain active and retain the intact sphere,
+including with gravity reversed. Slots are not replaced by a solid roof hull.
+
+### Magnetic approximation and sources
+
+Each selected library disc is an axial point dipole. Its nominal product
+volume and grade give the estimate `m = Br × volume / μ₀` (A·m²); mass comes
+from the same library product record. `Br` is the midpoint of
+[supermagnete's remanence ranges](https://www.supermagnete.de/eng/physical-magnet-data)
+(read 2026-10-10): N42 1.29–1.32 T, N45 1.32–1.37 T. All grid moments initially
+point +Z and the ball starts +Z, so coaxial magnets attract; the ball's moment
+rotates with it, allowing alignment torque and repulsion when reversed. The
+manufacturer's steel-plate pull force is **not** treated as a magnet-to-magnet
+force or fitted to an invented inverse-distance curve.
+
+The shared Node/browser engine applies equal/opposite, position- and
+orientation-dependent forces and `m × B` torques at each step, including the
+lever-arm torque from an eccentric seat. The point-dipole limit follows the
+[Feynman lectures' dipole field](https://www.feynmanlectures.caltech.edu/II_14.html#Ch14-S5)
+and [mechanical energy/torque](https://www.feynmanlectures.caltech.edu/II_15.html#Ch15-S1).
+For stability near coincidence we **derive** forces and torques from one
+softened potential:
+
+`U = 10⁻⁷ [(a·b)/s³ − 3(a·r)(b·r)/s⁵]`,
+`s² = |r|² + radiusA² + radiusB²`, with SI units throughout.
+
+This radius-based regularisation is an explicit modelling choice, not
+manufacturer calibration. The dipole approximation is best far from a magnet;
+it does not solve the finite-disc near field, demagnetisation, steel fastener
+attraction, eddy currents or shielding. Results show qualitative interaction,
+not measured forces, guaranteed rolling smoothness, retention strength or pet
+safety. Rigid contact also cannot predict field/slot flex or bond failure.
+
 ## Limits and verification
 
 **Not physically fit-tested or safety-certified. Supervised prototype only.**
@@ -145,8 +204,9 @@ Static magnets bias/retain a **paw-driven** ball; they cannot continuously power
 it. Centre placement keeps the ball magnet about half a ball diameter above the
 sheet, so a thin field alone does not guarantee a strong response. Actual force,
 rolling friction, polarity effects, paw loading, print tolerances and bond life
-need physical prototype testing. No magnetic field or animal-interaction
-simulation is claimed. Do not promise smooth autonomous motion.
+need physical prototype testing. The approximate magnetic preview below is not
+a calibrated field solver or animal-interaction simulation. Do not promise
+smooth autonomous motion.
 
 Automated coverage: contract registration/invalid combinations, sourced sizes,
 all three holder layouts, central/eccentric pockets, slot retention rules,
@@ -158,5 +218,7 @@ npm run check
 TEST_ONLY=magnetic-cat-toy npm run test:renderer
 npm run check:assembly -- magnetic-cat-toy
 npm run check:assembly -- magnetic-cat-toy --parameters '{"magnetPlacement":"eccentric","layout":"cluster"}'
-npm run test:browser -- tests/browser/magnetic-cat-toy.spec.ts
+npm run check:physics -- magnetic-cat-toy
+npm run check:physics -- magnetic-cat-toy --parameters '{"magnetPlacement":"eccentric","layout":"cluster"}'
+npm run test:browser -- tests/browser/magnetic-cat-toy*.spec.ts
 ```

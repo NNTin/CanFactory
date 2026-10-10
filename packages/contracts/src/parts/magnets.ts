@@ -72,3 +72,10 @@ export const magnetParts: Part[] = MAGNETS.map((magnet): Part => {
     preview: { kind: 'procedural' },
   };
 });
+
+/** Structured product data already sourced above, for physics without parsing display text or inventing generic magnets. */
+export function magnetProduct(id: string) {
+  const magnet = MAGNETS.find(magnet => `supermagnete-${magnet.sku.toLowerCase()}` === id);
+  if (!magnet) throw new Error(`No sourced magnet ${id}.`);
+  return { ...magnet, size: { ...magnet.size } };
+}

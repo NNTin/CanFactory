@@ -1,6 +1,6 @@
 # Physics plan
 
-How CanFactory simulates the motion of printed assemblies: joints, springs, gravity, contact (collision), and gear teeth.
+How CanFactory simulates the motion of printed assemblies: joints, springs, gravity, contact (collision), gear teeth, and approximate permanent-magnet dipoles.
 It serves two goals with one engine:
 
 - **CI tests.** `npm run check:physics` runs scripted scenarios on the rendered parts and checks their outcomes within
@@ -312,3 +312,32 @@ scenario passes: the ball rests 6 µm under the lip, and pushed in flush the spr
 | Spike 3: test cases, `check:physics` | Done: all 11 scenarios of the three test cases pass (see [Test cases](#test-cases)) |
 | Spike 4: gears | Done: involute teeth given tooth by tooth (see [Spike 4: gears](#spike-4-gears)) |
 | Spike 5: interactive mode | Done: the editor viewer's Simulate mode (see [Interactive mode](#interactive-mode)); `tests/browser/physics.spec.ts` drags the toggle latch's lever open |
+
+
+## Permanent magnets (magnetic cat toy)
+
+`PhysicsSpec.magnets` adds body-local centres (mm), moment vectors (A·m²), a
+positive regularisation length (mm), initial enabled states and optional virtual
+switches. `buildScene` checks body/id references and converts lengths to SI.
+`Simulation` transforms each centre/moment with its body at **every timestep**,
+applies pairwise forces and intrinsic torques through `xfrc_applied`, and adds
+the application-point moment about each body's COM. `magnets.ts` derives both
+forces and torques from one softened dipole potential so action/reaction and
+angular momentum are consistent. This is an external force extension of MuJoCo,
+not a native magnetic-field solver. The numerical choice, source grade data,
+polarity and limitations are detailed in [the toy documentation](magnetic-cat-toy.md#magnetic-approximation-and-sources).
+
+`InteractiveSession` accepts `magnet` requests without rebuilding or resetting
+the simulation, acknowledges enabled states, retains them over Restart/gravity
+rebuilds and resets them for a new session. The viewer maps switchable magnets
+at their actual assembled XY positions; visibility controls stay independent.
+Scenario initial `magnets` overrides and discrete `magnet` drives use the same
+force code in CI. A position check can measure a **body-local point** (e.g. a
+rolling sphere's geometric centre rather than its rotating pole-frame origin).
+
+Bonded pieces use the existing fixed-to-parent pattern. The compiler now keeps
+welded children's mesh-derived inertials: fixed **to a moving parent** is not
+massless. Pointer picking excludes fixed-to-world enclosures and dragging a
+welded child targets its movable ancestor. The cat toy's sphere is analytical,
+its split printed masses and sourced magnet form one rigid assembly, and its
+roof retains its actual slot openings through authored convex pieces.

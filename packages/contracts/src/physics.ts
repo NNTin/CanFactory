@@ -4,7 +4,7 @@ import { Type, type Static } from 'typebox';
  * A model's mechanism, for the physics subsystem (packages/physics, docs/physics-plan.md): which parts move, how they are jointed,
  * what they are made of, where their collision shapes come from, and the scenarios CI runs. It is engine-neutral: nothing here
  * knows the engine (MuJoCo) or how it is driven. Units: millimetres, grams, degrees, newtons and seconds, in the assembled frame
- * of the model's `Assembly` (Z up, parts at their `poses`).
+ * of the model's `Assembly` (Z up, parts at their `poses`). Dipole moments are already SI (A·m²).
  */
 
 const Vec3 = (description: string) => Type.Array(Type.Number(), { minItems: 3, maxItems: 3, description });
@@ -60,8 +60,25 @@ export const PhysicsBodySchema = Type.Object({
 }, { additionalProperties: false, description: 'A rigid body. Without a joint and not fixed it moves freely.' });
 export type PhysicsBody = Static<typeof PhysicsBodySchema>;
 
-/** A scripted input of a scenario. Timelines are [time in s, value] pairs, interpolated linearly and held after the last. */
+/** A permanent point dipole attached to a body; its vector rotates with the body. */
+export const PhysicsMagnetSchema = Type.Object({
+  id: Type.String(),
+  title: Type.String(),
+  body: Type.String(),
+  position: Vec3('Dipole centre in mm, in the body’s own frame.'),
+  moment: Vec3('Magnetic moment in A·m², in the body’s own frame; its direction sets polarity.'),
+  softening: Type.Number({ exclusiveMinimum: 0, description: 'Regularisation length in mm (typically the magnet radius). Pair lengths combine in quadrature; prevents the point approximation diverging at contact.' }),
+  enabled: Type.Optional(Type.Boolean({ description: 'Initially enabled, true by default.' })),
+  switchable: Type.Optional(Type.Boolean({ description: 'Offer a virtual on/off control in the viewer. Does not imply a real permanent magnet can be switched.' })),
+}, { additionalProperties: false });
+export type PhysicsMagnet = Static<typeof PhysicsMagnetSchema>;
+
+/** A scripted input of a scenario. Joint/push timelines are interpolated linearly and held after the last; magnet switches are discrete. */
 export const PhysicsDriveSchema = Type.Union([
+  Type.Object({
+    kind: Type.Literal('magnet'), id: Type.String(),
+    timeline: Type.Array(Type.Tuple([Type.Number({ minimum: 0 }), Type.Union([Type.Literal(0), Type.Literal(1)])]), { minItems: 1, description: '[s, enabled (0/1)]; discrete changes, not interpolated. Before the first entry the initial state is retained.' }),
+  }, { additionalProperties: false }),
   Type.Object({
     kind: Type.Literal('joint'),
     body: Type.String({ description: 'The body whose joint is driven.' }),
@@ -89,6 +106,7 @@ export type PhysicsDrive = Static<typeof PhysicsDriveSchema>;
 export const PhysicsCheckSchema = Type.Union([
   Type.Object({
     kind: Type.Literal('position'),
+    point: Type.Optional(Vec3('Optional body-local point in mm; otherwise measures the body origin. Useful for the geometric centre of a rolling ball.')),
     at: Type.Number({ minimum: 0 }),
     body: Type.String(),
     axis: Type.Union([Type.Literal(0), Type.Literal(1), Type.Literal(2)]),
@@ -120,6 +138,7 @@ export const PhysicsScenarioSchema = Type.Object({
   title: Type.String({ description: 'What it shows, e.g. “Upright, the lighter rests on the tab”.' }),
   gravity: Type.Optional(Vec3('The direction gravity pulls in, in the assembled frame; [0, 0, −1] by default. [0, 0, 1] turns the assembly upside down.')),
   poses: Type.Optional(Type.Record(Type.String(), PhysicsPoseSchema, { description: 'Where free bodies start, instead of their pose in `PhysicsSpec.poses` or the assembly (e.g. a lighter turned over above its bay).' })),
+  magnets: Type.Optional(Type.Record(Type.String(), Type.Boolean(), { description: 'Initial enabled states by magnet id, overriding the spec for this scenario.' })),
   duration: Type.Number({ exclusiveMinimum: 0, description: 's.' }),
   drives: Type.Optional(Type.Array(PhysicsDriveSchema)),
   checks: Type.Array(PhysicsCheckSchema, { minItems: 1 }),
@@ -127,6 +146,7 @@ export const PhysicsScenarioSchema = Type.Object({
 export type PhysicsScenario = Static<typeof PhysicsScenarioSchema>;
 
 export const PhysicsSpecSchema = Type.Object({
+  magnets: Type.Optional(Type.Array(PhysicsMagnetSchema)),
   bodies: Type.Array(PhysicsBodySchema, { minItems: 1 }),
   poses: Type.Optional(Type.Record(Type.String(), PhysicsPoseSchema, { description: 'The poses the mechanism starts from (and its joints are measured from), where they differ from the assembly’s: e.g. a latch closed, where the assembly shows it open.' })),
   exclude: Type.Optional(Type.Array(Type.Array(Type.String(), { minItems: 2, maxItems: 2 }), { description: 'Pairs of bodies that never collide.' })),

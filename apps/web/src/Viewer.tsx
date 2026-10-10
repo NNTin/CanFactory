@@ -6,6 +6,7 @@ import { unzipSync } from 'fflate';
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import type { ReferenceObject } from './referenceObjects.ts';
+import { MagnetControls } from './MagnetControls.tsx';
 import { viewerGrid } from './viewerLayout.ts';
 import { createStage, smoothNormals } from './stage.ts';
 
@@ -30,7 +31,7 @@ interface SceneController {
   /** The physics: each body's mesh as triangles in its part's frame (mm), as the interactive mode's worker takes them. */
   physicsMeshes: (ids: readonly string[]) => Record<string, Float32Array>;
   /** Places the parts at these poses (the physics' start), leaving the others where they are. */
-  placeAt: (poses: Record<string, Pose>) => void;
+  placeAt: (poses: Record<string, Pose>) => () => void;
   /** Moves the bodies to the physics' poses: per body, its position (mm) and orientation (w, x, y, z). */
   setBodyPoses: (bodies: readonly string[], poses: Float64Array) => void;
   /** The body under the pointer and the point hit (mm, the parts' frame); it also fixes the plane `dragPoint` moves in. */
@@ -134,6 +135,9 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
   // The interactive mode (docs/physics-plan.md): the physics runs in its own worker, built when the mode is opened
   const [simulating, setSimulating] = useState(false);
   const [physicsStatus, setPhysicsStatus] = useState('');
+  const [activePhysics, setActivePhysics] = useState<PhysicsSpec>();
+  const [enabledMagnets, setEnabledMagnets] = useState<Record<string, boolean>>({});
+  const movableBodies = useRef<string[]>([]);
   const [upsideDown, setUpsideDown] = useState(false);
   const worker = useRef<Worker | undefined>(undefined);
   const bodies = useRef<string[]>([]);
@@ -152,6 +156,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     let placements: Placement[] = []; let currentAssembly: Assembly | undefined; let sliderValue = 0;
     let frames: ReturnType<typeof motionFrames> = [];
     let hiddenIds: ReadonlySet<string> = new Set();
+    let restoreLayoutFrame = () => {};
     // The visible parts, also on the container (`data-visible-parts`), so the page's tests can see what the scene shows.
     const showParts = () => {
       for (const placement of placements) placement.mesh.visible = !hiddenIds.has(placement.id);
@@ -226,7 +231,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         const frameSize = frame.getSize(new THREE.Vector3());
         const focus = new THREE.Vector3();
         if (assembly) { frame.getCenter(focus); focus.y = 0; }
-        stage.frame(Math.max(bed.width, bed.length, frameSize.x, frameSize.y, frameSize.z), frame.max.y, focus);
+        restoreLayoutFrame = () => stage.frame(Math.max(bed.width, bed.length, frameSize.x, frameSize.y, frameSize.z), frame.max.y, focus);
+        restoreLayoutFrame();
         showParts();
         return prepared.map(part => ({ id: part.id, reference: part.reference }));
       },
@@ -251,7 +257,13 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
           placement.mesh.position.fromArray(pose.position);
           placement.mesh.scale.fromArray(pose.scale ?? UNIT);
         }
+        // Physics uses the assembled envelope, not the much larger print-bed/exploded layout: make the ball easy to pick.
+        group.updateMatrixWorld(true);
+        const bounds = new THREE.Box3().setFromObject(group), size = bounds.getSize(new THREE.Vector3()), focus = bounds.getCenter(new THREE.Vector3());
+        focus.y = 0;
+        stage.frame(Math.max(size.x, size.y, size.z), bounds.max.y, focus);
         stage.invalidate();
+        return restoreLayoutFrame;
       },
       setBodyPoses(bodies, poses) {
         bodies.forEach((id, index) => {
@@ -338,19 +350,26 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     const spec = physicsRef.current, controller = scene.current, element = container.current;
     if (!simulating || !spec || !shownAssembly || !controller || !element) return;
     const start = { ...shownAssembly.poses, ...spec.poses };
-    controller.placeAt(start);
+    const restoreFrame = controller.placeAt(start);
     const meshes = controller.physicsMeshes(spec.bodies.map(body => body.id));
     const thread = new Worker(new URL('./physicsWorker.ts', import.meta.url), { type: 'module' });
     worker.current = thread;
     const send = (request: PhysicsRequest, transfer: Transferable[] = []) => { thread.postMessage(request, transfer); };
     element.dataset['physics'] = 'starting';
     setPhysicsStatus('Starting the physics');
-    let frames = 0;
+    setActivePhysics(spec);
+    setEnabledMagnets({});
+    let frames = 0, generation = 0;
     thread.onmessage = (event: MessageEvent<PhysicsUpdate>) => {
       const update = event.data;
       if (update.type === 'status') setPhysicsStatus(update.text);
       else if (update.type === 'error') { element.dataset['physics'] = 'error'; setPhysicsStatus(update.message); }
-      else if (update.type === 'ready') { bodies.current = update.bodies; element.dataset['physics'] = 'running'; setPhysicsStatus('Drag a part to move it'); }
+      else if (update.type === 'magnets') { setEnabledMagnets(update.enabled); element.dataset['physicsMagnets'] = JSON.stringify(update.enabled); }
+      else if (update.type === 'ready') {
+        element.dataset['physicsGeneration'] = String(++generation);
+        bodies.current = update.bodies; movableBodies.current = update.movable; element.dataset['physics'] = 'running';
+        setPhysicsStatus(spec.magnets?.some(magnet => magnet.switchable) ? 'Drag the ball or toggle grid magnets below' : 'Drag a part to move it');
+      }
       else {
         scene.current?.setBodyPoses(bodies.current, update.poses);
         // for the page's tests: the simulated time, and every tenth frame the bodies' poses (id: x y z qw qx qy qz, mm) and where
@@ -366,11 +385,12 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     send({ type: 'start', spec, poses: start, meshes }, Object.values(meshes).map(mesh => mesh.buffer));
     return () => {
       thread.terminate();
-      worker.current = undefined; bodies.current = []; dragging.current = false;
-      for (const attribute of ['data-physics', 'data-physics-time', 'data-physics-poses', 'data-physics-screen', 'data-physics-hover']) element.removeAttribute(attribute);
+      worker.current = undefined; bodies.current = []; movableBodies.current = []; dragging.current = false;
+      for (const attribute of ['data-physics', 'data-physics-time', 'data-physics-poses', 'data-physics-screen', 'data-physics-hover', 'data-physics-magnets', 'data-physics-generation']) element.removeAttribute(attribute);
       element.style.cursor = '';
       scene.current?.setOrbit(true);
       scene.current?.setProgress(progressRef.current);
+      restoreFrame();
     };
   }, [simulating, shownAssembly]);
   useEffect(() => { setSimulating(false); setUpsideDown(false); }, [url]);
@@ -383,7 +403,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
   const grab = (event: PointerEvent<HTMLDivElement>) => {
     const controller = scene.current;
     if (!simulating || !worker.current || !controller || event.button !== 0) return;
-    const hit = controller.pick(event.clientX, event.clientY, bodies.current);
+    const hit = controller.pick(event.clientX, event.clientY, movableBodies.current);
     if (!hit) return;
     controller.setOrbit(false);
     dragging.current = true;
@@ -395,7 +415,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     if (!dragging.current) {
       // over a part, the pointer offers to take it
       if (!simulating || bodies.current.length === 0) return;
-      const over = scene.current?.pick(event.clientX, event.clientY, bodies.current)?.id;
+      const over = scene.current?.pick(event.clientX, event.clientY, movableBodies.current)?.id;
       event.currentTarget.style.cursor = over ? 'grab' : '';
       if (over) event.currentTarget.dataset['physicsHover'] = over; else delete event.currentTarget.dataset['physicsHover'];
       return;
@@ -471,6 +491,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         <RotateCcw size={15} aria-hidden="true" />Restart
       </button>
     </div>}
+    {simulating && activePhysics?.magnets?.some(magnet => magnet.switchable) && displayedAssembly && <MagnetControls spec={activePhysics} poses={displayedAssembly.poses} enabled={enabledMagnets}
+      onChange={(id, enabled) => worker.current?.postMessage({ type: 'magnet', id, enabled } satisfies PhysicsRequest)} />}
     {!simulating && displayedAssembly && format === 'zip' && url && <div className="assembly-bar">
       <div className="assembly-caption"><span>ASSEMBLY</span><strong aria-hidden="true">{assemblyCaption(displayedAssembly, progress)}</strong></div>
       <button type="button" className="assembly-play" aria-label={playing ? 'Pause assembly' : 'Play assembly'} aria-pressed={playing} title={playing ? 'Pause' : 'Play the assembly'} onClick={togglePlay}>

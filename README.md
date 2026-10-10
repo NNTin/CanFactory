@@ -54,6 +54,8 @@ are out of scope.
 The [magnetic cat toy](docs/magnetic-cat-toy.md) is an original four-layer paw puzzle: sealed
 repositionable grid magnets, a thin smooth playing field, a centred/eccentric magnetic ball,
 and a screw-secured slotted cover. Its SVG card and live assembly preview show all four layers.
+Interactive physics starts fully assembled: drag the ball and toggle each mapped grid magnet
+without resetting it (approximate dipole forces/torques; virtual switches, not switchable hardware).
 
 ## Run with Docker
 
