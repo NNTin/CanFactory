@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
@@ -82,7 +82,7 @@ const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
 const store = new Store(directory, repositoryRoot);
 store.migrate(); store.seed();
 const app = await createApp(store);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = selectRunner(directory);
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -916,6 +916,61 @@ try {
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
     console.log(`PASS camera housing ${name}: two closed prints, dimensioned through-openings and blind mounting holes`);
+  }
+  // Original magnetic cat toy: each print is connected, magnet seats really move, slots are through-open,
+  // sockets are blind, crowns are sealed and all three physical layouts fit the same grid.
+  const toyCases: { name: string; overrides: ParameterValues }[] = [
+    { name: 'default centred / zigzag', overrides: {} },
+    { name: 'eccentric / cluster', overrides: { magnetPlacement: 'eccentric', layout: 'cluster' } },
+    { name: 'small / corners', overrides: { width: 120, length: 120, ballDiameter: 28, slotWidth: 16, layout: 'corners', gridMagnet: 'supermagnete-s-08-02-n', ballMagnet: 'supermagnete-s-04-02-n' } },
+    { name: 'large / loose fits', overrides: { width: 200, length: 200, ballDiameter: 44, slotWidth: 24, fieldThickness: 2, clearance: 0.4, detentEngage: 0.25, gridMagnet: 'supermagnete-s-12-02-n', ballMagnet: 'supermagnete-s-08-03-n', magnetPlacement: 'eccentric', eccentricOffset: 8 } },
+  ];
+  for (const { name, overrides } of only && only !== magneticCatToy.id ? [] : toyCases) {
+    const parameters = { ...magneticCatToy.defaults, ...overrides };
+    assert.deepEqual(validateParameters(magneticCatToy, parameters), [], name);
+    const l = magneticCatToyLayout(parameters);
+    const queued = store.enqueue(magneticCatToy, parameters), job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken, heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, name); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', name); assert.ok(result.artifact && 'parts' in result.artifact);
+    const bytes = await readFile(store.artifacts.path(job.id, 'zip')), entries = unzipSync(new Uint8Array(bytes));
+    assert.deepEqual(Object.keys(entries), magneticCatToy.parts.map(p => `${p.id}.stl`));
+    const meshes = new Map<string, Mesh>();
+    for (const part of result.artifact.parts) {
+      const entry = entries[`${part.id}.stl`]; assert.ok(entry);
+      inspectStl(Buffer.from(entry)); const mesh = parseStl(Buffer.from(entry));
+      assert.equal(shells(mesh), 1, `${name} ${part.id}: one connected watertight solid`);
+      assert.ok(part.volume > 0); meshes.set(part.id, mesh);
+      const expected = part.id === 'grid' ? [parameters.width + 22, parameters.length, l.fieldZ]
+        : part.id === 'field' ? [parameters.width - 8, parameters.length - 8, parameters.fieldThickness]
+        : part.id === 'cover' ? [parameters.width + 22, parameters.length, l.top - TOY.base]
+        : part.id.startsWith('ball') ? [parameters.ballDiameter, parameters.ballDiameter, l.radius + TOY.pinLength]
+        : part.id.startsWith('holder-cap') ? [l.holderDiameter, l.holderDiameter, TOY.plug + TOY.cap + TOY.pegLength]
+        : [l.holderDiameter, l.holderDiameter, l.holderHeight];
+      [part.dimensions.x, part.dimensions.y, part.dimensions.z].forEach((d, i) => assert.ok(Math.abs(d - (expected[i] ?? NaN)) < 0.02, `${name} ${part.id} bounds ${d} != ${expected[i]}`));
+    }
+    const mesh = (id: string) => { const m = meshes.get(id); assert.ok(m); return m; };
+    const grid = mesh('grid'), holder = mesh('holder-1'), ball = mesh('ball-lower'), cover = mesh('cover');
+    for (const [x, y] of l.sockets) {
+      assert.equal(housingSolid(grid, [x, y, TOY.base - 0.5]), false, `${name}: removable peg socket`);
+      assert.equal(housingSolid(grid, [x, y, 1]), true, `${name}: blind socket floor`);
+    }
+    assert.equal(housingSolid(grid, [0, 0, l.fieldZ - 0.3]), true, `${name}: sheet support ribs`);
+    assert.equal(housingSolid(holder, [0, 0, TOY.crown / 2]), true, `${name}: closed crown`);
+    assert.equal(housingSolid(holder, [0, 0, TOY.crown + 0.3]), false, `${name}: magnet cavity`);
+    assert.equal(housingSolid(mesh('field'), [0, 0, parameters.fieldThickness / 2]), true, `${name}: uninterrupted rolling face`);
+    assert.equal(housingSolid(ball, [l.offset, 0, l.radius - 0.4]), false, `${name}: selected split magnet seat`);
+    assert.equal(housingSolid(ball, [-l.radius * 0.4, 0, l.radius - 0.4]), true, `${name}: solid balanced ball`);
+    if (parameters.magnetPlacement === 'eccentric') assert.equal(housingSolid(ball, [0, 0, l.radius - 0.4]), true, `${name}: centre no longer cut away`);
+    for (const x of l.slotCentres) assert.equal(housingSolid(cover, [x, 0, TOY.roof / 2]), false, `${name}: open paw slot`);
+    const web = ((l.slotCentres[0] ?? 0) + (l.slotCentres[1] ?? 0)) / 2;
+    assert.equal(housingSolid(cover, [web, 0, TOY.roof / 2]), true, `${name}: continuous retaining web`);
+    assert.equal(housingSolid(cover, [parameters.width / 2 - 1, 0, (l.top - TOY.base) / 2]), true, `${name}: closed sidewall`);
+    const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
+    assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
+    assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
+    console.log(`PASS magnetic cat toy ${name}: 13 connected prints, sealed crowns, blind sockets, real offset seats, ball-retaining slots`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

@@ -2849,6 +2849,160 @@
                       "modelId": {
                         "type": "string",
                         "enum": [
+                          "magnetic-cat-toy"
+                        ]
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "enum": [
+                          "1"
+                        ]
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "required": [
+                          "width",
+                          "length",
+                          "gridMagnet",
+                          "ballMagnet",
+                          "layout",
+                          "fieldThickness",
+                          "ballDiameter",
+                          "magnetPlacement",
+                          "eccentricOffset",
+                          "slotWidth",
+                          "clearance",
+                          "detentEngage"
+                        ],
+                        "properties": {
+                          "width": {
+                            "type": "number",
+                            "title": "Toy width",
+                            "description": "Body width, excluding the four external screw ears, in mm.",
+                            "default": 160,
+                            "minimum": 120,
+                            "maximum": 200,
+                            "multipleOf": 1
+                          },
+                          "length": {
+                            "type": "number",
+                            "title": "Toy length",
+                            "description": "Body length in mm.",
+                            "default": 140,
+                            "minimum": 120,
+                            "maximum": 200,
+                            "multipleOf": 1
+                          },
+                          "gridMagnet": {
+                            "enum": [
+                              "supermagnete-s-08-02-n",
+                              "supermagnete-s-10-03-n",
+                              "supermagnete-s-12-02-n"
+                            ],
+                            "title": "Grid magnets",
+                            "description": "Four sourced axial disc magnets, one in each repositionable sealed holder.",
+                            "default": "supermagnete-s-10-03-n"
+                          },
+                          "ballMagnet": {
+                            "enum": [
+                              "supermagnete-s-04-02-n",
+                              "supermagnete-s-06-03-n",
+                              "supermagnete-s-08-03-n"
+                            ],
+                            "title": "Ball magnet",
+                            "description": "One sourced axial disc captured between the ball halves.",
+                            "default": "supermagnete-s-06-03-n"
+                          },
+                          "layout": {
+                            "enum": [
+                              "corners",
+                              "zigzag",
+                              "cluster"
+                            ],
+                            "title": "Holder layout",
+                            "description": "Preview arrangement of four holders on the 4 × 4 socket grid. Physically move them to any four sockets with the cover and field removed.",
+                            "default": "zigzag"
+                          },
+                          "fieldThickness": {
+                            "type": "number",
+                            "title": "Playing field thickness",
+                            "description": "Smooth solid planar sheet; thinner reduces the magnetic gap but may flex. Print solid, smooth face on the bed.",
+                            "default": 1.2,
+                            "minimum": 1,
+                            "maximum": 2,
+                            "multipleOf": 0.2
+                          },
+                          "ballDiameter": {
+                            "type": "number",
+                            "title": "Ball diameter",
+                            "description": "Finished spherical diameter in mm. Both halves must be printed solid and bonded.",
+                            "default": 36,
+                            "minimum": 28,
+                            "maximum": 44,
+                            "multipleOf": 1
+                          },
+                          "magnetPlacement": {
+                            "enum": [
+                              "centred",
+                              "eccentric"
+                            ],
+                            "title": "Ball magnet placement",
+                            "description": "Centred puts the magnet at the geometric/mass centre of solid mirrored halves; eccentric shifts the split pocket radially for a deliberate wobble.",
+                            "default": "centred"
+                          },
+                          "eccentricOffset": {
+                            "type": "number",
+                            "title": "Eccentric offset",
+                            "description": "Radial displacement of the ball magnet from the sphere centre in mm; only used in eccentric mode.",
+                            "default": 6,
+                            "minimum": 2,
+                            "maximum": 8,
+                            "multipleOf": 0.5
+                          },
+                          "slotWidth": {
+                            "type": "number",
+                            "title": "Paw slot width",
+                            "description": "Rounded elongated roof slots in mm. At most 60% of ball diameter; length alone does not retain a sphere.",
+                            "default": 18,
+                            "minimum": 12,
+                            "maximum": 24,
+                            "multipleOf": 0.5
+                          },
+                          "clearance": {
+                            "type": "number",
+                            "title": "Joint clearance",
+                            "description": "Gap per side around locating pegs, cap plugs and ball pins. Following the litter-shovel detent convention.",
+                            "default": 0.2,
+                            "minimum": 0.2,
+                            "maximum": 0.4,
+                            "multipleOf": 0.05
+                          },
+                          "detentEngage": {
+                            "type": "number",
+                            "title": "Ball detent engagement",
+                            "description": "Radial interference beyond the socket wall, independent of clearance (cigarette-case/litter-shovel tuning pattern). Adhesive is still mandatory.",
+                            "default": 0.15,
+                            "minimum": 0.05,
+                            "maximum": 0.25,
+                            "multipleOf": 0.05
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "modelId",
+                      "modelVersion",
+                      "parameters"
+                    ],
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "enum": [
                           "ai-rubber-duck"
                         ]
                       },

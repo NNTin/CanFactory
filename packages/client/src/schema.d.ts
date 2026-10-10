@@ -1041,6 +1041,89 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
+                    modelId: "magnetic-cat-toy";
+                    /** @enum {string} */
+                    modelVersion: "1";
+                    parameters: {
+                        /**
+                         * Toy width
+                         * @description Body width, excluding the four external screw ears, in mm.
+                         * @default 160
+                         */
+                        width: number;
+                        /**
+                         * Toy length
+                         * @description Body length in mm.
+                         * @default 140
+                         */
+                        length: number;
+                        /**
+                         * Grid magnets
+                         * @description Four sourced axial disc magnets, one in each repositionable sealed holder.
+                         * @default supermagnete-s-10-03-n
+                         * @enum {unknown}
+                         */
+                        gridMagnet: "supermagnete-s-08-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
+                        /**
+                         * Ball magnet
+                         * @description One sourced axial disc captured between the ball halves.
+                         * @default supermagnete-s-06-03-n
+                         * @enum {unknown}
+                         */
+                        ballMagnet: "supermagnete-s-04-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-03-n";
+                        /**
+                         * Holder layout
+                         * @description Preview arrangement of four holders on the 4 × 4 socket grid. Physically move them to any four sockets with the cover and field removed.
+                         * @default zigzag
+                         * @enum {unknown}
+                         */
+                        layout: "corners" | "zigzag" | "cluster";
+                        /**
+                         * Playing field thickness
+                         * @description Smooth solid planar sheet; thinner reduces the magnetic gap but may flex. Print solid, smooth face on the bed.
+                         * @default 1.2
+                         */
+                        fieldThickness: number;
+                        /**
+                         * Ball diameter
+                         * @description Finished spherical diameter in mm. Both halves must be printed solid and bonded.
+                         * @default 36
+                         */
+                        ballDiameter: number;
+                        /**
+                         * Ball magnet placement
+                         * @description Centred puts the magnet at the geometric/mass centre of solid mirrored halves; eccentric shifts the split pocket radially for a deliberate wobble.
+                         * @default centred
+                         * @enum {unknown}
+                         */
+                        magnetPlacement: "centred" | "eccentric";
+                        /**
+                         * Eccentric offset
+                         * @description Radial displacement of the ball magnet from the sphere centre in mm; only used in eccentric mode.
+                         * @default 6
+                         */
+                        eccentricOffset: number;
+                        /**
+                         * Paw slot width
+                         * @description Rounded elongated roof slots in mm. At most 60% of ball diameter; length alone does not retain a sphere.
+                         * @default 18
+                         */
+                        slotWidth: number;
+                        /**
+                         * Joint clearance
+                         * @description Gap per side around locating pegs, cap plugs and ball pins. Following the litter-shovel detent convention.
+                         * @default 0.2
+                         */
+                        clearance: number;
+                        /**
+                         * Ball detent engagement
+                         * @description Radial interference beyond the socket wall, independent of clearance (cigarette-case/litter-shovel tuning pattern). Adhesive is still mandatory.
+                         * @default 0.15
+                         */
+                        detentEngage: number;
+                    };
+                } | {
+                    /** @enum {string} */
                     modelId: "ai-rubber-duck";
                     /** @enum {string} */
                     modelVersion: "1";

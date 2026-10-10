@@ -1,3 +1,4 @@
+import { DEFAULT_MAGNETIC_CAT_TOY, MagneticCatToyParametersSchema, TOY_BALL_MAGNETS, TOY_GRID_MAGNETS, magneticCatToyAssembly, magneticCatToyIssues, magneticCatToyLayout, magneticCatToyReferences, type MagneticCatToyParameters } from './magneticCatToy.ts';
 import { CAMERA_HARDWARE, CAMERA_LID_INSERT, CAMERA_MOUNT_INSERTS, CAMERA_MOUNT_NUTS, CAMERA_HEATSINKS, CAMERA_HEATSINK_GAP, cameraNutScad, CameraHousingParametersSchema, DEFAULT_CAMERA_HOUSING, cameraHardwarePart, cameraHousingAssembly, cameraHousingIssues, cameraHousingLayout, cameraHousingReferences, type CameraHousingParameters } from './cameraHousing.ts';
 import { conceptPages } from './concepts.ts';
 import { QUASI_STATIC, type PhysicsSpec } from './physics.ts';
@@ -3461,7 +3462,63 @@ export const cameraHousing = {
   },
 } satisfies ModelDefinition;
 
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing];
+/** Original magnetic toy: four functional layers, exported as thirteen independently printable components. */
+const toyNut = findPart('iso-4032-m3');
+if (!toyNut) throw new Error('Missing magnetic cat toy cover nut.');
+const toySchema = MagneticCatToyParametersSchema;
+const toyMapping = { width: 'WIDTH', length: 'LENGTH', fieldThickness: 'FIELD_T', ballDiameter: 'BALL_D', magnetPlacement: 'PLACEMENT', eccentricOffset: 'OFFSET', slotWidth: 'SLOT_W', clearance: 'CLEARANCE', detentEngage: 'DETENT_ENGAGE' };
+const toyParts = [
+  { id: 'grid', title: 'Socket grid base', part: 'grid' },
+  ...Array.from({ length: 4 }, (_, i) => ({ id: `holder-${i + 1}`, title: `Magnet holder ${i + 1}`, part: 'holder' })),
+  ...Array.from({ length: 4 }, (_, i) => ({ id: `holder-cap-${i + 1}`, title: `Holder cap ${i + 1}`, part: 'cap' })),
+  { id: 'field', title: 'Thin playing field', part: 'field' },
+  { id: 'ball-lower', title: 'Ball lower half', part: 'ball' },
+  { id: 'ball-upper', title: 'Ball upper half', part: 'ball' },
+  { id: 'cover', title: 'Protective slotted cover', part: 'cover' },
+];
+export const magneticCatToy = {
+  id: 'magnetic-cat-toy' as const, version: '1' as const, title: 'Magnetic cat toy',
+  description: 'An original four-layer paw puzzle: four sealed, repositionable magnet holders on a socket grid, a thin smooth playing field, a magnetic ball with a centred or eccentric internal seat, and a screw-secured cover with long ball-retaining paw slots. Static magnets alter resistance and attract the paw-driven ball; no motor or autonomous motion is included.',
+  attribution: 'CanFactory (original design)', license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  printNotes: 'PETG, 0.2 mm layers, at least four perimeters. Print the grid bottom down (bridge the captive-nut pockets), holder crowns down, field smooth-face down and cover roof down. Caps need local support under their annular shoulders; cover ears need local supports. Ball halves print pole down, equators up, with external supports and a raft; print both at 100% infill, remove supports and sand the sphere and seam smooth without reducing the ball diameter materially. Bond each holder cap and both ball halves with a PETG-compatible adhesive after checking magnet polarity; detents only locate during curing. Keep adhesive out of the ball surface. Use four ISO 4762 M3 × 8 screws and four ISO 4032 M3 nuts in the underside recesses to secure the cover. Do not substitute longer screws. Remove cover and field to relocate holders. Not physically fit-tested: validate joints, magnetic response, field flex and ball retention before supervised use. Loose magnets are an ingestion hazard; do not use if any bond, print, fastener or slot is damaged. Not a certified pet product; no unattended use.',
+  parts: toyParts.map(({ id, title, part }): ModelPart => ({ id, title, sourcePath: 'models/magnetic-cat-toy/generator.scad', scadMapping: toyMapping,
+    scadConstants: { PART: part, NUT_S: dimensionOf(toyNut, 's', 'max'), NUT_T: dimensionOf(toyNut, 'm', 'max'), SCREW_D: ISO_273_CLEARANCE_HOLES['M3'].medium },
+    partDefines: { gridMagnet: { GRID_D: ['diameter', 'max'], GRID_T: ['thickness', 'max'] }, ballMagnet: { BALL_MAGNET_D: ['diameter', 'max'], BALL_MAGNET_T: ['thickness', 'max'] } },
+  })),
+  parameterSchema: toySchema, defaults: DEFAULT_MAGNETIC_CAT_TOY, scadMapping: {},
+  controls: [
+    control(toySchema, 'width', 'basic'), control(toySchema, 'length', 'basic'),
+    partControl(toySchema, 'gridMagnet', 'basic', 'magnet', TOY_GRID_MAGNETS), partControl(toySchema, 'ballMagnet', 'basic', 'magnet', TOY_BALL_MAGNETS),
+    enumControl(toySchema, 'layout', 'basic', ['corners', 'zigzag', 'cluster'].map(value => ({ value, label: value, description: `Four holders in the ${value} arrangement; reposition physically to any sockets.` }))),
+    control(toySchema, 'ballDiameter', 'basic'),
+    enumControl(toySchema, 'magnetPlacement', 'basic', [
+      { value: 'centred', label: 'Centred · smooth rolling', description: 'Magnet and mass centre coincide in solid mirrored halves.' },
+      { value: 'eccentric', label: 'Eccentric · wobble', description: 'Radially displaced magnet pocket for an unbalanced response.' },
+    ]),
+    { ...control(toySchema, 'eccentricOffset', 'basic'), visibleWhen: { control: 'magnetPlacement', values: ['eccentric'] } },
+    control(toySchema, 'slotWidth', 'basic'), control(toySchema, 'fieldThickness', 'advanced'),
+    control(toySchema, 'clearance', 'advanced'), control(toySchema, 'detentEngage', 'advanced'),
+  ],
+  assembly: magneticCatToyAssembly(DEFAULT_MAGNETIC_CAT_TOY),
+  assemblyForParameters: parameters => magneticCatToyAssembly(parameters as MagneticCatToyParameters),
+  linkedReferences: parameters => magneticCatToyReferences(parameters as MagneticCatToyParameters),
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(toySchema, parameters) ? magneticCatToyIssues(parameters) : [{ field: '', message: 'Parameters do not match the magnetic cat toy schema.' }];
+  },
+  derived(parameters: unknown) {
+    if (!Value.Check(toySchema, parameters) || magneticCatToyIssues(parameters).length) return { slotCount: null };
+    const l = magneticCatToyLayout(parameters);
+    return { slotCount: l.slotCount, notes: [
+      `Four functional layers / thirteen printed components. 16 sockets, 4 repositionable holders; ${parameters.layout} preview layout.`,
+      `Grid magnet to field top: ${l.magnetToField.toFixed(2)} mm including crown, headroom, air and sheet. Centred ball magnet remains half a ball diameter above the playing field: magnetic response needs physical testing.`,
+      `Ball seat: ${parameters.magnetPlacement}, ${l.offset} mm radial offset. Use solid (100% infill), equally printed mirrored halves for centred mass balance.`,
+      `${l.slotCount} rounded paw slots, ${parameters.slotWidth} × ${l.slotLength} mm; slot width ≤ 60% of the ${parameters.ballDiameter} mm ball. Long slots cannot pass an intact rigid sphere through their narrower width.`,
+      'Hardware: four grid magnets, one ball magnet, four ISO 4762 M3 × 8 screws and four ISO 4032 M3 nuts. Bond magnet enclosures permanently; reposition the sealed holders, never loose magnets.',
+      'Static magnetic puzzle, not a self-moving toy. Not physically fit-tested or safety certified. Supervise play and stop immediately if the ball, cover, bonded caps or fasteners are damaged.',
+    ] };
+  },
+} satisfies ModelDefinition;
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

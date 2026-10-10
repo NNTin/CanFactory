@@ -51,6 +51,10 @@ antenna openings, heat-set insert or captive-nut mounts, optional backside heats
 SVG card and a live assembly preview. Camera recognition and feeding-tracker software
 are out of scope.
 
+The [magnetic cat toy](docs/magnetic-cat-toy.md) is an original four-layer paw puzzle: sealed
+repositionable grid magnets, a thin smooth playing field, a centred/eccentric magnetic ball,
+and a screw-secured slotted cover. Its SVG card and live assembly preview show all four layers.
+
 ## Run with Docker
 
 Requires Docker Engine/Desktop and Docker Compose.
