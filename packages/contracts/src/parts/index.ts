@@ -2,6 +2,7 @@ import { ballFamily, ballParts } from './balls.ts';
 import { bearingFamily, bearingParts } from './bearings.ts';
 import { catCollarFamily, catCollarParts } from './cat-collars.ts';
 import { cornerBracketFamily, cornerBracketParts } from './corner-brackets.ts';
+import { devBoardFamily, devBoardParts } from './dev-boards.ts';
 import { everydayObjectFamily, everydayObjectParts } from './everyday-objects.ts';
 import { insertFamily, insertParts } from './inserts.ts';
 import { insertNutFamily, insertNutParts } from './insert-nuts.ts';
@@ -27,6 +28,7 @@ export * from './affiliateAccounts.ts';
 export * from './matcher.ts';
 export { PART_SOURCES, findPartSource } from './sources.ts';
 export { cornerBracketHoles } from './corner-brackets.ts';
+export { componentTop, devBoardLayout, type DevBoardArea, type DevBoardComponent, type DevBoardComponentTop, type DevBoardExternalAntenna, type DevBoardLayout, type DevBoardPin, type DevBoardPoint } from './dev-boards.ts';
 export { springRate } from './springs.ts';
 
 /**
@@ -39,13 +41,13 @@ export { springRate } from './springs.ts';
 export const partFamilies: readonly PartFamily[] = [
   magnetFamily, screwFamily, nutFamily, washerFamily, insertFamily, bearingFamily, pinFamily, everydayObjectFamily,
   woodScrewFamily, nailFamily, insertNutFamily, levellingFootFamily, toggleLatchFamily, screenHookFamily, cornerBracketFamily,
-  setScrewFamily, ballFamily, springFamily, splitRingFamily, nfcTagFamily, catCollarFamily,
+  setScrewFamily, ballFamily, springFamily, splitRingFamily, nfcTagFamily, catCollarFamily, devBoardFamily,
 ];
 
 export const parts: readonly Part[] = [
   ...magnetParts, ...screwParts, ...nutParts, ...washerParts, ...insertParts, ...bearingParts, ...pinParts, ...everydayObjectParts,
   ...woodScrewParts, ...nailParts, ...insertNutParts, ...levellingFootParts, ...toggleLatchParts, ...screenHookParts, ...cornerBracketParts,
-  ...setScrewParts, ...ballParts, ...springParts, ...splitRingParts, ...nfcTagParts, ...catCollarParts,
+  ...setScrewParts, ...ballParts, ...springParts, ...splitRingParts, ...nfcTagParts, ...catCollarParts, ...devBoardParts,
 ];
 
 export function findPart(id: string): Part | undefined { return parts.find(part => part.id === id); }

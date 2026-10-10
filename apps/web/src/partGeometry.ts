@@ -1,4 +1,4 @@
-import { cornerBracketHoles, METRIC_THREADS, type MetricThread, type Part } from '@canfactory/contracts';
+import { cornerBracketHoles, devBoardLayout, METRIC_THREADS, type DevBoardComponent, type MetricThread, type Part } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -315,9 +315,82 @@ function catCollar(part: Part): Piece[] {
   return [paint(strap, COLLAR)];
 }
 
+const SOLDER_MASK = { black: 0x1f2124, blue: 0x24539c } as const;
+const GOLD = 0xd4a93c;
+const COMPONENT_COLOURS: Record<DevBoardComponent['kind'], number> = {
+  button: 0xf1efe9, led: 0xf3f3f1, chip: DARK, regulator: DARK, crystal: NICKEL, diode: DARK, antenna: 0xc8473f, connector: GOLD, shield: NICKEL, other: DARK,
+};
+const PLUNGER = 0xe6cf9e;
+const LENS = 0xfbf7e8;
+
+/** A board's outline in its plane: a rectangle with rounded corners and, for a castellated board, a half hole at each pin's edge. */
+function boardOutline(width: number, length: number, radius: number, notches: { x: number; y: number }[], notch: number): THREE.Shape {
+  const shape = new THREE.Shape();
+  const r = Math.max(radius, 0.001);
+  const left = notches.filter(pin => pin.x < width / 2).map(pin => pin.y).sort((a, b) => b - a);
+  const right = notches.filter(pin => pin.x >= width / 2).map(pin => pin.y).sort((a, b) => a - b);
+  shape.moveTo(r, 0);
+  shape.lineTo(width - r, 0); shape.absarc(width - r, r, r, -Math.PI / 2, 0, false);
+  for (const y of right) { shape.lineTo(width, y - notch); shape.absarc(width, y, notch, -Math.PI / 2, Math.PI / 2, true); }
+  shape.lineTo(width, length - r); shape.absarc(width - r, length - r, r, 0, Math.PI / 2, false);
+  shape.lineTo(r, length); shape.absarc(r, length - r, r, Math.PI / 2, Math.PI, false);
+  for (const y of left) { shape.lineTo(0, y + notch); shape.absarc(0, y, notch, Math.PI / 2, -Math.PI / 2, true); }
+  shape.lineTo(0, r); shape.absarc(r, r, r, Math.PI, Math.PI * 1.5, false);
+  return shape;
+}
+
+function devBoard(part: Part): Piece[] {
+  // the board lying component side up, as its layout places everything: corner at the origin, USB-C towards +Y
+  const layout = devBoardLayout(part);
+  if (!layout) return [];
+  const w = value(part, 'W'); const l = value(part, 'L'); const t = value(part, 't'); const d = value(part, 'd');
+  const outline = boardOutline(w, l, value(part, 'r'), layout.castellated ? layout.pins : [], d / 2);
+  const hole = (x: number, y: number) => { const path = new THREE.Path(); path.absarc(x, y, d / 2, 0, Math.PI * 2, true); return path; };
+  outline.holes.push(...layout.pins.map(pin => hole(pin.x, pin.y)));
+  // a gold ring round each hole on top
+  const pads = layout.pins.map(pin => {
+    const pad = new THREE.Shape(); pad.absarc(pin.x, pin.y, d / 2 + 0.35, 0, Math.PI * 2, false); pad.holes.push(hole(pin.x, pin.y));
+    return prism(pad, t, 0.04, GOLD);
+  });
+  const { usb } = layout;
+  // the receptacle's shell: a stadium across X and up Z, run along Y from y0 to y1
+  const stadium = new THREE.Shape(); const rr = usb.height / 2;
+  stadium.moveTo(usb.x0 + rr, 0); stadium.lineTo(usb.x1 - rr, 0); stadium.absarc(usb.x1 - rr, rr, rr, -Math.PI / 2, Math.PI / 2, false);
+  stadium.lineTo(usb.x0 + rr, usb.height); stadium.absarc(usb.x0 + rr, rr, rr, Math.PI / 2, Math.PI * 1.5, false);
+  const shell = new THREE.ExtrudeGeometry(stadium, { depth: usb.y1 - usb.y0, bevelEnabled: false, curveSegments: 16 });
+  shell.rotateX(Math.PI / 2); shell.translate(0, usb.y1, t);
+  const components = layout.components.flatMap(component => {
+    const turn = component.rotation * Math.PI / 180;
+    const box = new THREE.BoxGeometry(component.width, component.length, component.height);
+    box.rotateZ(turn); box.translate(component.x, component.y, t + component.height / 2);
+    const pieces = [paint(box, COMPONENT_COLOURS[component.kind])];
+    const { top } = component;
+    if (top) {
+      // a button's plunger or an LED's lens, centred on the body up to its own height
+      const plan = new THREE.Shape(); const [w, l] = [top.width, top.length];
+      if (top.shape === 'round') plan.absarc(0, 0, w / 2, 0, Math.PI * 2, false);
+      else if (top.shape === 'oval') {
+        const r = Math.min(w, l) / 2; const [dx, dy] = w < l ? [0, l / 2 - r] : [w / 2 - r, 0];
+        plan.absarc(dx, dy, r, w < l ? 0 : -Math.PI / 2, w < l ? Math.PI : Math.PI / 2, false);
+        plan.absarc(-dx, -dy, r, w < l ? Math.PI : Math.PI / 2, w < l ? Math.PI * 2 : Math.PI * 1.5, false);
+      } else { plan.moveTo(-w / 2, -l / 2); plan.lineTo(w / 2, -l / 2); plan.lineTo(w / 2, l / 2); plan.lineTo(-w / 2, l / 2); }
+      const cap = prism(plan, 0, top.height - component.height, component.kind === 'led' ? LENS : component.kind === 'button' ? PLUNGER : DARK);
+      cap.rotateZ(turn); cap.translate(component.x, component.y, t + component.height);
+      pieces.push(cap);
+    }
+    return pieces;
+  });
+  // the pads underneath, as thin gold discs under the PCB
+  const bottomPads = layout.bottomPads.map(pad => {
+    const disc = new THREE.Shape(); disc.absarc(pad.x, pad.y, 0.55, 0, Math.PI * 2, false);
+    return prism(disc, -0.04, 0.04, GOLD);
+  });
+  return [prism(outline, 0, t, SOLDER_MASK[layout.solderMask]), ...pads, ...bottomPads, paint(shell, NICKEL), ...components];
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
-  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar,
+  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */

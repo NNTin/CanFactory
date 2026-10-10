@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, BookOpen, Bolt, CircleAlert, CircleDot, Cog, Disc, ExternalLink, Flame, Hexagon, LoaderCircle, Magnet, Pin, Search, Footprints, Paperclip, Drill, Lock, Anchor, SquareDashedBottom, Circle, WavesVertical, KeyRound, Nfc, Cat, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BookOpen, Bolt, CircleAlert, CircleDot, Cog, Disc, ExternalLink, Flame, Hexagon, LoaderCircle, Magnet, Pin, Search, Footprints, Paperclip, Drill, Lock, Anchor, SquareDashedBottom, Circle, WavesVertical, KeyRound, Nfc, Cat, Cpu, type LucideIcon } from 'lucide-react';
 import { api } from '@canfactory/client';
 import type { Part, PartFamilyDetail, PartFamilySummary, PartSource } from '@canfactory/contracts';
+import { facetLabel } from './facetLabel.ts';
 import { PartsViewer, VIEWER_LIMIT } from './PartsViewer.tsx';
 import { formatHash, type Route } from './route.ts';
 import { OfferLink, WhereToBuy } from './Shopping.tsx';
@@ -12,7 +13,7 @@ type PartsRoute = Extract<Route, { view: 'parts' }>;
 const FAMILY_ICONS: Record<string, LucideIcon> = {
   magnet: Magnet, screw: Bolt, nut: Hexagon, washer: Disc, 'threaded-insert': CircleDot, bearing: Cog, pin: Pin, 'everyday-object': Flame,
   'wood-screw': Drill, nail: Paperclip, 'insert-nut': CircleDot, 'levelling-foot': Footprints, 'toggle-latch': Lock, 'screen-hook': Anchor, 'corner-bracket': SquareDashedBottom,
-  'set-screw': Bolt, ball: Circle, spring: WavesVertical, 'split-ring': KeyRound, 'nfc-tag': Nfc, 'cat-collar': Cat,
+  'set-screw': Bolt, ball: Circle, spring: WavesVertical, 'split-ring': KeyRound, 'nfc-tag': Nfc, 'cat-collar': Cat, 'dev-board': Cpu,
 };
 const BASIS_TEXT: Record<string, string> = { standard: 'Standard', manufacturer: 'Manufacturer', estimated: 'Estimated' };
 /** Search text is kept with the filters, under this key. */
@@ -126,7 +127,7 @@ function FamilyPage({ route, navigate }: { route: PartsRoute & { family: string 
         <div className="part-facets">{facets.map(facet => <div className="select-field" key={facet.key}>
           <label htmlFor={`facet-${facet.key}`}>{facet.label}</label>
           <select id={`facet-${facet.key}`} value={route.filters[facet.key] ?? ''} onChange={event => filter(facet.key, event.currentTarget.value)}>
-            <option value="">All</option>{facet.values.map(value => <option key={value} value={value}>{value.replace(/-/g, ' ')}</option>)}
+            <option value="">All</option>{facet.values.map(value => <option key={value} value={value}>{facetLabel(value)}</option>)}
           </select>
         </div>)}</div>
         <div className="part-count" role="status">{filtered.length} of {detail.parts.length} {filtered.length > VIEWER_LIMIT ? `· the first ${VIEWER_LIMIT} are shown; filter to see others` : ''}

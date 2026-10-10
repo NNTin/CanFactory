@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
 import { cigaretteCase, models, partUsage, plankConnector } from '../models.ts';
-import { findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, springRate, type Part } from './index.ts';
+import { componentTop, devBoardLayout, findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, springRate, type Part } from './index.ts';
 
 const root = (path: string) => new URL(`../../../../${path}`, import.meta.url);
 const dimension = (part: Part, key: string) => part.dimensions[key]?.value ?? Number.NaN;
@@ -149,6 +149,99 @@ describe('parts library', () => {
       }
       if (part.family === 'bearing') expect(dimension(part, 'D'), message).toBeGreaterThan(d);
       if (part.family === 'magnet' && part.attributes['shape'] !== 'block') expect(dimension(part, 'diameter'), message).toBeGreaterThan(dimension(part, 'innerDiameter') || 0);
+    }
+  });
+
+  it('lays out every development board inside its outline: pins on their grid, the receptacle at the USB end, components clear of the holes', () => {
+    const boards = parts.filter(part => part.family === 'dev-board');
+    expect(boards.map(part => part.id)).toEqual(['nologo-esp32-c3-supermini', 'waveshare-esp32-c3-zero', 'waveshare-esp32-c6-zero', 'seeed-xiao-esp32c6']);
+    // the chip filter groups boards by chip family, whatever the flash variant (the C3 boards carry an ESP32-C3FN4 and an ESP32-C3FH4)
+    expect(boards.map(part => part.attributes['chip'])).toEqual(['ESP32-C3', 'ESP32-C3', 'ESP32-C6', 'ESP32-C6']);
+    for (const part of boards) {
+      const layout = devBoardLayout(part); const message = part.id;
+      if (!layout) throw new Error(`${part.id} has no layout`);
+      const [L, W, t, e, e1, a, d] = ['L', 'W', 't', 'e', 'e1', 'a', 'd'].map(key => dimension(part, key)) as [number, number, number, number, number, number, number];
+      // two rows e1 apart, centred across the board, at the pitch from the first pin down, every name once
+      expect(layout.pins.length, message).toBe(Number(part.attributes['pins']));
+      expect(new Set(layout.pins.map(pin => pin.name)).size, message).toBe(layout.pins.length);
+      const columns = [...new Set(layout.pins.map(pin => pin.x))].sort((p, q) => p - q);
+      expect(columns.length, message).toBe(2);
+      expect(columns[0], message).toBeCloseTo((W - e1) / 2, 2); expect(columns[1], message).toBeCloseTo((W + e1) / 2, 2);
+      for (const x of new Set(layout.pins.map(pin => pin.x))) {
+        const ys = layout.pins.filter(pin => pin.x === x).map(pin => pin.y);
+        expect(ys[0], message).toBeCloseTo(L - a, 2);
+        for (let i = 1; i < ys.length; i++) expect((ys[i - 1] ?? 0) - (ys[i] ?? 0), message).toBeCloseTo(e, 2);
+        expect(Math.min(...ys), message).toBeGreaterThan(d);
+      }
+      for (const name of ['5V', 'GND', '3V3']) expect(layout.pins.map(pin => pin.name), message).toContain(name);
+      // the receptacle across the middle of the USB end, overhanging it
+      const { usb } = layout;
+      expect(usb.x1 - usb.x0, message).toBeCloseTo(dimension(part, 'usbW'), 2);
+      expect(usb.y1 - L, message).toBeCloseTo(dimension(part, 'usbOverhang'), 2);
+      expect(usb.x0, message).toBeGreaterThan(0); expect(usb.x1, message).toBeLessThan(W); expect(usb.y0, message).toBeLessThan(L);
+      expect(Math.abs((usb.x0 + usb.x1) / 2 - W / 2), message).toBeLessThan(0.5);
+      // each component inside the outline (by its turned footprint's bounds) and clear of every pin hole
+      for (const component of layout.components) {
+        const turn = component.rotation * Math.PI / 180;
+        const halfX = (Math.abs(Math.cos(turn)) * component.width + Math.abs(Math.sin(turn)) * component.length) / 2;
+        const halfY = (Math.abs(Math.sin(turn)) * component.width + Math.abs(Math.cos(turn)) * component.length) / 2;
+        const where = `${message}: ${component.name}`;
+        expect(component.x - halfX, where).toBeGreaterThanOrEqual(0); expect(component.x + halfX, where).toBeLessThanOrEqual(W);
+        expect(component.y - halfY, where).toBeGreaterThanOrEqual(0); expect(component.y + halfY, where).toBeLessThanOrEqual(L);
+        for (const pin of layout.pins) expect(Math.max(Math.abs(pin.x - component.x) - halfX, Math.abs(pin.y - component.y) - halfY), `${where} × ${pin.name}`).toBeGreaterThan(d / 2);
+        expect(componentTop(component), where).toBeLessThanOrEqual(usb.height);
+        expect(part.sources, `${where}: its size's source`).toContain(component.source);
+        // a plunger or lens stands on its body, inside its footprint
+        if (component.top) {
+          expect(component.top.height, where).toBeGreaterThan(component.height);
+          expect(component.top.width, where).toBeLessThanOrEqual(component.width);
+          expect(component.top.length, where).toBeLessThanOrEqual(component.length);
+        }
+      }
+      // two buttons (BOOT and reset), each with a plunger to press and its travel, standing above everything round them
+      const buttons = layout.components.filter(component => component.kind === 'button');
+      expect(buttons.map(button => button.name.split(' ')[0]).sort(), message).toEqual([expect.stringMatching(/^BOOT$/), expect.stringMatching(/^RE?S(ET|T)$/)]);
+      for (const button of buttons) {
+        expect(button.top && button.travel && button.travel > 0, `${message}: ${button.name}`).toBeTruthy();
+        const near = layout.components.filter(other => other !== button && Math.hypot(other.x - button.x, other.y - button.y) < 4);
+        for (const other of near) expect(componentTop(other), `${message}: ${other.name} beside ${button.name}`).toBeLessThan(componentTop(button));
+      }
+      // the antenna keep-out lies on the board, at the end away from the receptacle, round the antenna
+      const antenna = layout.components.find(component => /antenna/i.test(component.name));
+      const keepout = layout.antennaKeepout;
+      expect(antenna && keepout.x0 <= antenna.x && antenna.x <= keepout.x1 && keepout.y0 <= antenna.y && antenna.y <= keepout.y1, message).toBe(true);
+      expect(keepout.y1, message).toBeLessThan(L / 2);
+      // the pads underneath lie on the board, clear of the pin holes and of each other
+      for (const pad of layout.bottomPads) {
+        expect(pad.x > 1 && pad.x < W - 1 && pad.y > 1 && pad.y < L - 1, `${message}: pad ${pad.name}`).toBe(true);
+        for (const pin of layout.pins) expect(Math.hypot(pad.x - pin.x, pad.y - pin.y), `${message}: pad ${pad.name} × ${pin.name}`).toBeGreaterThan(d);
+      }
+      expect(new Set(layout.bottomPads.map(pad => pad.name)).size, message).toBe(layout.bottomPads.length);
+      // an external antenna: a connector that is one of the components, a mated plug standing above it, and the attribute saying so;
+      // or two solder points on the board, near the antenna
+      const external = layout.externalAntenna;
+      expect(part.attributes['externalAntenna'], message).toBe(external?.kind === 'connector' ? 'U.FL connector' : external ? 'coax solder points' : 'none');
+      if (external?.kind === 'connector') {
+        const connector = layout.components.find(component => component.kind === 'connector');
+        expect(connector && [connector.x, connector.y], message).toEqual([external.x, external.y]);
+        expect(external.matedHeight, message).toBeGreaterThan(connector ? componentTop(connector) : Infinity);
+        expect(external.select, message).toMatch(/GPIO/);
+        expect(part.sources, message).toContain(external.source);
+      }
+      if (external?.kind === 'solder points') {
+        for (const point of [external.signal, external.ground]) {
+          expect(point.x > 0 && point.x < W && point.y > 0 && point.y < L / 2, message).toBe(true);
+          expect(Math.hypot(point.x - (antenna?.x ?? 0), point.y - (antenna?.y ?? 0)), message).toBeLessThan(5);
+        }
+      }
+      // the Zero's RGB LED is its data sheet's: a 2.0 × 1.8 mm base under a 1.34 mm lens, 0.8 mm high
+      if (part.id === 'waveshare-esp32-c3-zero') {
+        const led = layout.components.find(component => component.kind === 'led');
+        expect(led && [led.width, led.length, led.height, led.top?.width, led.top?.length, led.top?.height, led.sized, led.source])
+          .toEqual([1.8, 2, 0.28, 1.8, 1.34, 0.8, 'manufacturer', 'xinglight-xl-0807rgbc-ws2812b']);
+      }
+      // the overall height is the PCB and the tallest thing on it
+      expect(dimension(part, 'H'), message).toBeCloseTo(t + usb.height, 2);
     }
   });
 
