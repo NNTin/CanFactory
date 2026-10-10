@@ -1,4 +1,4 @@
-import { cornerBracketHoles, devBoardLayout, fanMounts, METRIC_THREADS, type DevBoardComponent, type MetricThread, type Part } from '@canfactory/contracts';
+import { cornerBracketHoles, devBoardLayout, METRIC_THREADS, type DevBoardComponent, type MetricThread, type Part } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -388,29 +388,20 @@ function devBoard(part: Part): Piece[] {
   return [prism(outline, 0, t, SOLDER_MASK[layout.solderMask]), ...pads, ...bottomPads, paint(shell, NICKEL), ...components];
 }
 
-/** Centred fan frame, exhaust +Z. Frame/mounts are dimensioned; rotor and struts are illustrative. */
-function fan(part: Part): Piece[] {
-  const w = largest(part, 'W'), l = largest(part, 'L'), h = largest(part, 'H'), radius = Math.min(w, l) / 2 - 2;
-  const frame = new THREE.Shape(); frame.moveTo(-w / 2, -l / 2); frame.lineTo(w / 2, -l / 2); frame.lineTo(w / 2, l / 2); frame.lineTo(-w / 2, l / 2); frame.closePath();
-  frame.holes.push(circle(radius));
-  for (const [x, y] of fanMounts(part)) { const hole = new THREE.Path(); hole.absarc(x, y, value(part, 'hole') / 2, 0, Math.PI * 2, false); frame.holes.push(hole); }
-  const color = part.product?.manufacturer === 'Noctua' ? 0xc3b298 : 0x32393b;
-  const hub = new THREE.Shape(); hub.absarc(0, 0, radius * 0.35, 0, Math.PI * 2, false);
-  const pieces = [prism(frame, 0, h, color), prism(hub, 0, h, DARK)];
-  for (let i = 0; i < 7; i++) {
-    const blade = new THREE.BoxGeometry(radius * 0.72, 2.2, 1.2);
-    blade.translate(radius * 0.6, 0, h / 2); blade.rotateZ(i * Math.PI * 2 / 7); pieces.push(paint(blade, DARK));
-  }
-  for (let i = 0; i < 4; i++) {
-    const strut = new THREE.BoxGeometry(radius + 0.5, 1.2, 1);
-    strut.translate(radius / 2, 0, 0.5); strut.rotateZ(i * Math.PI / 2); pieces.push(paint(strut, color));
-  }
-  return pieces;
+/** Centred XY, adhesive face at z=0, fins +Z. Fin/base details are illustrative; the maximum envelope is dimensioned. */
+function heatsink(part: Part): Piece[] {
+  const w = largest(part, 'W'), l = largest(part, 'L'), h = largest(part, 'H');
+  const slab = (width: number, length: number, height: number, x: number, z: number) => {
+    const geometry = new THREE.BoxGeometry(width, length, height);
+    geometry.translate(x, 0, z + height / 2); return paint(geometry, DARK);
+  };
+  const base = Math.min(1.8, h / 4), fin = w / 12;
+  return [slab(w, l, base, 0, 0), ...Array.from({ length: 4 }, (_, i) => slab(fin, l, h - base, -w / 2 + fin / 2 + i * (w - fin) / 3, base))];
 }
 
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
-  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, fan,
+  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, heatsink,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */

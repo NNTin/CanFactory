@@ -22,10 +22,14 @@ const fastenersEu = (standard: string, path: string): PartSource => ({
 
 /** Every source of the parts library, by id. Parts and dimensions refer to these ids; a test checks that each one exists. */
 export const PART_SOURCES: readonly PartSource[] = [
-  { id: 'sunon-dc-fan-catalogue', title: 'DC fan catalogue: 30 × 30 × 10 mm (2024)', publisher: 'SUNON', kind: 'manufacturer', accessed: '2026-10-10',
-    url: 'https://www.sunon.com/eu/MANAGE/Docs/WEBCONT/Files/1236/DC_20240630%28255-E%29_web.pdf' },
-  { id: 'noctua-nf-a4x10-5v-pwm', title: 'NF-A4x10 5V PWM: extended specifications', publisher: 'Noctua', kind: 'manufacturer', accessed: '2026-10-10',
-    url: 'https://www.noctua.at/en/products/nf-a4x10-5v-pwm/specifications' },
+  { id: 'seeed-xiao-heatsink', title: 'Aluminum Heat Sink for Seeed Studio XIAO (2pcs), SKU 114010001', publisher: 'Seeed Studio', kind: 'manufacturer', accessed: '2026-10-10',
+    url: 'https://files.seeedstudio.com/Bazaar/product_pdf/114010001.pdf' },
+  { id: 'seeed-xiao-heatsink-installation', title: 'XIAO ESP32-S3: installing the upgraded heat sink', publisher: 'Seeed Studio', kind: 'manufacturer', accessed: '2026-10-10',
+    url: 'https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/#installing-the-upgraded-heat-sink' },
+  { id: 'same-sky-hsb02-101007', title: 'HSB02-101007 drawing, revision 1.03 (2025-12-12)', publisher: 'Same Sky', kind: 'manufacturer', accessed: '2026-10-10',
+    url: 'https://www.sameskydevices.com/product/resource/hsb02-101007.pdf' },
+  { id: 'canfactory-heatsink-estimate', title: 'Unpublished Seeed heatsink height: 10 mm modelling estimate; measure before printing', publisher: 'CanFactory', kind: 'reference', accessed: '2026-10-10',
+    url: 'https://github.com/NNTin/CanFactory/blob/develop/docs/xiao-sense-camera-housing.md#optional-passive-cooling-default-on' },
   iso('261', 'ISO general purpose metric screw threads — General plan'),
   iso('286-2', 'Geometrical product specifications — ISO code system for tolerances on linear sizes — Part 2: Tables of standard tolerance classes and limit deviations'),
   iso('4762', 'Hexagon socket head cap screws'),

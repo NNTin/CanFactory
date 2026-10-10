@@ -1,13 +1,13 @@
 import { Type, type Static } from 'typebox';
-import { devBoardLayout, dimensionOf, findPart, fanMounts, ISO_273_CLEARANCE_HOLES, parts } from './parts/index.ts';
-import type { Assembly, LinkedReference, ParameterIssue, ParameterValues } from './models.ts';
+import { devBoardLayout, dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, parts } from './parts/index.ts';
+import type { Assembly, LinkedReference, ParameterIssue } from './models.ts';
 
 export const CAMERA_BOARD_ID = 'seeed-xiao-esp32s3-sense';
 export const CAMERA_LID_INSERT = 'ruthex-rx-m2x4';
 export const CAMERA_MOUNT_INSERTS = ['ruthex-rx-m3x5-7', 'cnc-kitchen-m3x3', 'cnc-kitchen-m4x4', 'ruthex-rx-m4x8-1'] as const;
 export const CAMERA_MOUNT_NUTS = ['iso-4032-m3', 'iso-4032-m4', 'din-562-m3', 'din-562-m4'] as const;
-export const CAMERA_FANS = ['sunon-mf30100v2-1000u-a99', 'noctua-nf-a4x10-5v-pwm'] as const;
-export const CAMERA_FAN_GAP = 2;
+export const CAMERA_HEATSINKS = ['seeed-xiao-aluminium-heatsink', 'same-sky-hsb02-101007'] as const;
+export const CAMERA_HEATSINK_GAP = 2;
 export function cameraHardwarePart(id: string) {
   const part = findPart(id);
   if (!part) throw new Error(`Missing camera housing hardware: ${id}`);
@@ -30,14 +30,15 @@ export const CAMERA_HARDWARE = {
   expansionTop: dimensionOf(board, 't') + (expansion.base ?? 0) + expansion.height,
   chargeY: charge.y, chargeZ: dimensionOf(board, 't') + charge.height / 2,
   antennaY: layout.externalAntenna?.kind === 'connector' ? layout.externalAntenna.y : 0,
+  heatsinkX: 10.5, heatsinkY: 5.5, // estimated backside placement, away from BAT pads and locating pegs
   lidBossRadius: 4, lidCornerInset: 5.1, lidHoleDepth: 7.5, screwHole: ISO_273_CLEARANCE_HOLES['M2'].medium, seamAbovePcb: 5,
 } as const;
 const mm = (title: string, description: string, value: number, min: number, max: number, step = 0.2) =>
   Type.Number({ title, description, default: value, minimum: min, maximum: max, multipleOf: step });
 export const CameraHousingParametersSchema = Type.Object({
   board: Type.Enum([CAMERA_BOARD_ID], { title: 'Camera board', description: 'Sense stack without pin headers or an upgraded heatsink.', default: CAMERA_BOARD_ID }),
-  width: mm('Housing width', 'Minimum outside width in mm; leave room for the rear mounts. Fan mode may widen it automatically.', 48, 42, 80, 1),
-  length: mm('Housing length', 'Compact outside length in mm. Fan mode appends a rear bay; board and USB positions stay fixed when cooling is toggled.', 46, 40, 80, 1),
+  width: mm('Housing width', 'Outside width in mm; leave room for the rear mounts.', 48, 42, 80, 1),
+  length: mm('Housing length', 'Outside length in mm. Heatsinks grow the housing in height, not length.', 46, 40, 80, 1),
   mountRetention: Type.Enum(['heat-set', 'nut'], { title: 'Rear mounting', description: 'Blind heat-set inserts or side-loaded captive nuts. The four lid fasteners remain M2 heat-set inserts.', default: 'heat-set' }),
   mountNut: Type.Enum(CAMERA_MOUNT_NUTS, { title: 'Mounting nuts', description: 'Slide two nuts into the tray pockets from inside before fitting the camera. Floor and roof capture the nuts; flats prevent rotation.', default: 'iso-4032-m3' }),
   mountInsert: Type.Enum(CAMERA_MOUNT_INSERTS, { title: 'Mounting inserts', description: 'Two blind, rear-facing heat-set inserts for attaching the enclosure to your own bracket.', default: CAMERA_MOUNT_INSERTS[0] }),
@@ -48,11 +49,13 @@ export const CameraHousingParametersSchema = Type.Object({
   antennaDiameter: mm('Antenna exit', 'Split cable opening on the left side, in mm. Lay the pre-connected U.FL lead in before closing.', 5, 3, 8),
   batteryDiameter: mm('Battery wire exit', 'Split opening on the right side for wires to the underside BAT pads, in mm. Battery remains external.', 4, 2, 8),
   chargeWindow: Type.Boolean({ title: 'Charge LED window', description: 'A 2.4 mm side sight hole towards the red charge LED; not a light pipe.', default: true }),
-  fanEnabled: Type.Boolean({ title: 'Cooling fan', description: 'Extend the rear of the housing for one roof-exhaust fan, with an integral grille and mandatory lower air intakes. Fan and its screws/nuts appear in the assembly; they are not printed.', default: false }),
-  fan: Type.Enum(CAMERA_FANS, { title: 'Fan', description: '5 V fan choice; the shell grows automatically to fit the maximum installed frame. Verify power budget and physical fit before use.', default: 'noctua-nf-a4x10-5v-pwm' }),
-  ventilation: Type.Boolean({ title: 'Ventilation', description: 'Passive roof slots when no fan is fitted. Fan mode always adds its grille and air intakes regardless of this setting. Indoor only, not waterproof.', default: true }),
+  heatsinkEnabled: Type.Boolean({ title: 'Heatsink', description: 'One adhesive heatsink on the backside thermal pad, away from the camera. Enabled by default. Automatically raises the board, USB and roof to leave space underneath.', default: true }),
+  heatsink: Type.Enum(CAMERA_HEATSINKS, { title: 'Heatsink part', description: 'Seeed’s XIAO-specific sink or a dimensionally suitable 10 mm alternative. Check electrical isolation and actual fit before bonding.', default: CAMERA_HEATSINKS[0] }),
+  heatsinkAllowance: mm('Extra heatsink height', 'Additional clearance above the selected sink height, in mm. Seeed’s unpublished height is estimated at 10 mm: measure yours and increase this allowance if taller.', 0, 0, 10),
+  adhesiveThickness: mm('Thermal adhesive thickness', 'Installed adhesive thickness in mm, excluding the sink. Use suitable electrically insulating thermal adhesive; check BAT pad clearance.', 0.2, 0.1, 1, 0.1),
+  ventilation: Type.Boolean({ title: 'Ventilation', description: 'Passive roof slots and lower side intakes. Keep these open for convection; temperature testing is still required. Indoor only, not waterproof.', default: true }),
   wall: mm('Wall thickness', 'Shell and roof thickness, in mm.', 2, 1.6, 3.6),
-  standoff: mm('Under-board clearance', 'Distance from floor to PCB underside, leaving room for components and battery solder joints.', 4, 3, 8),
+  standoff: mm('Under-board clearance', 'Minimum distance from floor to PCB underside. Automatically increased for heatsink height, adhesive and 2 mm fin clearance.', 4, 3, 8),
   headroom: mm('Camera headroom', 'Space from the published 15 mm stack envelope to the roof underside.', 1.2, 0.8, 4),
   boardFit: mm('Board clearance', 'Lateral play per side in the PCB guides, in mm.', 0.3, 0.2, 0.8, 0.1),
   seamFit: mm('Lid seam clearance', 'Vertical gap between the tray and hood, in mm; the four screws locate and secure the hood.', 0.2, 0.15, 0.45, 0.05),
@@ -66,32 +69,24 @@ export const DEFAULT_CAMERA_HOUSING = Object.fromEntries(Object.entries(CameraHo
 /** Same centred XY / Z-up frame as generator.scad. The roof prints down and is rotated 180° about X for assembly. */
 export function cameraHousingLayout(p: CameraHousingParameters) {
   const h = CAMERA_HARDWARE;
-  const insert = cameraHardwarePart(p.mountInsert), nut = cameraHardwarePart(p.mountNut), fan = cameraHardwarePart(p.fan);
+  const insert = cameraHardwarePart(p.mountInsert), nut = cameraHardwarePart(p.mountNut), heatsink = cameraHardwarePart(p.heatsink);
   const nutS = dimensionOf(nut, 's', 'max') + 0.4, nutHeight = dimensionOf(nut, 'm', 'max');
   const squareNut = nut.attributes['shape']?.startsWith('square') === true;
   const mountHole = ISO_273_CLEARANCE_HOLES[nut.attributes['thread'] === 'M4' ? 'M4' : 'M3'].medium;
-  const fanW = dimensionOf(fan, 'W', 'max'), fanL = dimensionOf(fan, 'L', 'max'), fanH = dimensionOf(fan, 'H', 'max');
-  const extension = p.fanEnabled ? fanL + p.wall + 15 : 0;
-  const width = p.fanEnabled ? Math.max(p.width, fanW + 2 * p.wall + 2) : p.width;
-  const length = p.length + extension, back = -p.length / 2 - extension;
-  const fanY = -p.length / 2 - 4 - fanL / 2;
-  const fanNut = cameraHardwarePart(fan.attributes['mounting'] === '3-corner' ? 'iso-4032-m2-5' : 'iso-4032-m3');
-  const fanNutH = dimensionOf(fanNut, 'm', 'max');
+  const width = p.width, length = p.length, back = -length / 2;
+  const heatsinkW = dimensionOf(heatsink, 'W', 'max'), heatsinkL = dimensionOf(heatsink, 'L', 'max'), heatsinkH = dimensionOf(heatsink, 'H', 'max');
+  const clearance = p.heatsinkEnabled ? Math.max(p.standoff, heatsinkH + p.heatsinkAllowance + p.adhesiveThickness + CAMERA_HEATSINK_GAP) : p.standoff;
   const boardY = p.length / 2 - p.wall - h.usbOverhang - p.usbRecess - h.length;
-  const boardZ = p.wall + p.standoff;
+  const boardZ = p.wall + clearance;
   const seam = boardZ + h.thickness + h.seamAbovePcb;
-  const fanGrip = p.wall + CAMERA_FAN_GAP + fanH + fanNutH;
-  const fanScrew = parts.find(part => part.family === 'screw' && part.attributes['standard'] === 'ISO 4762' && part.attributes['thread'] === fanNut.attributes['thread']
-    && dimensionOf(part, 'l') >= fanGrip - 0.5 - 1e-9);
-  // At minimum stack settings, raise the roof just enough that a stocked fan bolt cannot reach the floor.
-  const roof = Math.max(boardZ + h.height + p.headroom, p.fanEnabled && fanScrew ? dimensionOf(fanScrew, 'l') + 0.8 : 0);
+  const roof = boardZ + h.height + p.headroom;
   const top = roof + p.wall;
   const grip = top - seam;
   const screw = parts.find(part => part.family === 'screw' && part.attributes['standard'] === 'ISO 4762' && part.attributes['thread'] === 'M2'
     && dimensionOf(part, 'l') >= grip + 3 - 1e-9 && dimensionOf(part, 'l') <= grip + h.lidHoleDepth - 0.3 + 1e-9);
   return {
-    width, length, back, extension, fanY, fanW, fanL, fanH, fanNut, fanNutH, fanScrew, fanGrip,
-    fanBottom: roof - CAMERA_FAN_GAP - fanH, fanMounts: fanMounts(fan),
+    width, length, back, clearance, heatsinkW, heatsinkL, heatsinkH,
+    heatsinkX: h.heatsinkX - h.width / 2, heatsinkY: boardY + h.heatsinkY, heatsinkTop: boardZ - p.adhesiveThickness,
     nutS, nutHeight, squareNut, mountHole,
     boardY, boardZ, seam, roof, top, grip, screw,
     lens: [h.cameraX - h.width / 2, boardY + h.cameraY] as [number, number],
@@ -132,7 +127,6 @@ export function cameraHousingIssues(p: CameraHousingParameters): ParameterIssue[
   if (l.usbZ + p.usbHeight / 2 > l.roof - 0.8)
     issue('usbHeight', 'The USB opening must leave material below the roof.');
   if (!l.screw) issue('headroom', 'No library M2 lid screw reaches the inserts without bottoming out; reduce headroom or wall thickness.');
-  if (p.fanEnabled && !l.fanScrew) issue('fan', 'No library fan screw has enough nut engagement; reduce wall thickness.');
   return issues;
 }
 
@@ -141,8 +135,8 @@ export function cameraHousingAssembly(p: CameraHousingParameters): Assembly {
   return {
     poses: { base: { position: [0, 0, 0] }, lid: { position: [0, 0, l.top], rotation: [180, 0, 0] } },
     steps: [
-      { title: 'Seat the camera stack in the guides; route battery and antenna leads', parts: ['camera-board'], from: [0, 0, 32] },
-      { title: p.fanEnabled ? 'Lower the hood with its pre-bolted exhaust fan; keep leads clear of the blades' : 'Lower the camera hood over the stack', parts: ['lid'], from: [0, 0, 64] },
+      { title: p.heatsinkEnabled ? 'Bond the heatsink to the backside thermal pad, then seat the camera stack and route leads' : 'Seat the camera stack in the guides; route battery and antenna leads', parts: ['camera-board'], from: [0, 0, 32] },
+      { title: 'Lower the camera hood over the stack', parts: ['lid'], from: [0, 0, 64] },
     ],
     lift: 6, partColors: { base: '#537d78', lid: '#e5d9bb' },
   };
@@ -153,13 +147,8 @@ export function cameraHousingReferences(p: CameraHousingParameters): LinkedRefer
     { id: 'camera-board', part: p.board, label: 'camera stack (not printed)', pose: { position: [-h.width / 2, l.boardY, l.boardZ] } },
     ...[-1, 1].map((sign, i): LinkedReference => ({ id: `mount-insert-${i}`, part: p.mountRetention === 'nut' ? p.mountNut : p.mountInsert, label: 'rear mount', movesWith: 'base',
       pose: p.mountRetention === 'nut' ? { position: [sign * p.mountSpacing / 2, 0, p.wall + 0.15] } : { position: [sign * p.mountSpacing / 2, 0, dimensionOf(cameraHardwarePart(p.mountInsert), 'l')], rotation: [180, 0, 0] } })),
-    ...(p.fanEnabled ? [
-      { id: 'cooling-fan', part: p.fan, label: 'roof exhaust (not printed)', movesWith: 'lid', pose: { position: [0, l.fanY, l.fanBottom] as [number, number, number] } },
-      ...l.fanMounts.flatMap(([x, y], i): LinkedReference[] => [
-        { id: `fan-nut-${i}`, part: l.fanNut.id, label: 'fan mounting', movesWith: 'lid', pose: { position: [x, l.fanY + y, l.fanBottom - l.fanNutH] } },
-        ...(l.fanScrew ? [{ id: `fan-screw-${i}`, part: l.fanScrew.id, label: 'fan mounting', movesWith: 'lid', pose: { position: [x, l.fanY + y, l.top - dimensionOf(l.fanScrew, 'l')] as [number, number, number] } }] : []),
-      ]),
-    ] : []),
+    ...(p.heatsinkEnabled ? [{ id: 'cooling-heatsink', part: p.heatsink, label: 'backside thermal pad (not printed)', movesWith: 'camera-board',
+      pose: { position: [l.heatsinkX, l.heatsinkY, l.heatsinkTop] as [number, number, number], rotation: [180, 0, 0] as [number, number, number] } }] : []),
     ...l.corners.flatMap(([x, y], i): LinkedReference[] => [
       { id: `lid-insert-${i}`, part: CAMERA_LID_INSERT, label: 'lid closure', movesWith: 'base', pose: { position: [x, y, l.seam - dimensionOf(cameraHardwarePart(CAMERA_LID_INSERT), 'l')] } },
       ...(l.screw ? [{ id: `lid-screw-${i}`, part: l.screw.id, label: 'lid closure', pose: { position: [x, y, l.top - dimensionOf(l.screw, 'l')] as [number, number, number] },
@@ -168,11 +157,6 @@ export function cameraHousingReferences(p: CameraHousingParameters): LinkedRefer
   ];
 }
 
-/** [max width, max length, max height, mounting XY array, clearance bore, bolt length]; used by both print generators. */
-export function cameraFanScad(id: string, parameters: ParameterValues): string {
-  const part = cameraHardwarePart(id), l = cameraHousingLayout(parameters as CameraHousingParameters);
-  return JSON.stringify([dimensionOf(part, 'W', 'max'), dimensionOf(part, 'L', 'max'), dimensionOf(part, 'H', 'max'), fanMounts(part), part.attributes['mounting'] === '3-corner' ? 3.4 : 3.8, l.fanScrew ? dimensionOf(l.fanScrew, 'l') : 0]);
-}
 export function cameraNutScad(id: string): string {
   const part = cameraHardwarePart(id);
   return JSON.stringify([dimensionOf(part, 's', 'max'), dimensionOf(part, 'm', 'max'), part.attributes['shape']?.startsWith('square') === true,

@@ -10,10 +10,10 @@ bracket are outside this model's scope.
 
 ## Parts and access
 
-Download a ZIP containing **only `base.stl` and `lid.stl`**. The board, selected fasteners and optional fan are reference hardware in the
+Download a ZIP containing **only `base.stl` and `lid.stl`**. The board, selected fasteners and optional heatsink are reference hardware in the
 live preview, not prints.
-The library card's SVG shows assembled and exploded views of the optional
-fan-bay variant, labelled as such (fan mode defaults off). The live STL
+The library card's SVG shows assembled and exploded views with the default
+backside heatsink. Heatsinks are optional but **enabled by default**. The live STL
 preview has the existing assembly slider, Play and individual part visibility:
 seat the stack, lower the hood, then tighten the four screws. Hide the hood to
 inspect the board in place.
@@ -31,14 +31,14 @@ inspect the board in place.
   Attach the connector first, then lay the lead into the notch before closing
   the hood: the tiny connector need not be threaded through a closed hole.
 - **Retention:** edge ledges and guides support the main PCB clear of its
-  underside components and solder joints. Two Ø0.6 mm locating pegs enter the
+  underside thermal pad, heatsink and battery solder joints. Two Ø0.6 mm locating pegs enter the
   **unsoldered GPIO4 and GPIO43 holes** to prevent sliding; hood retainers limit
   lift at the expansion PCB's free side edges, not at the camera or SD socket.
   Boards with soldered pin headers/wires in these holes are not supported.
 
 ## Mounting and fasteners
 
-The default assembled envelope is **48 × 46 × 24.2 mm**, excluding screw heads.
+The default assembled envelope is **48 × 46 × 32.4 mm** (with the default heatsink), excluding screw heads.
 Two blind rear-facing mount pockets are **34 mm** apart, centred across the
 width on Y = 0. Select ruthex M3 × 5.7 (default), CNC Kitchen short M3 × 3,
 CNC Kitchen short M4 × 4, or ruthex M4 × 8.1 inserts. The pockets take their
@@ -70,54 +70,64 @@ Rear nut mounting screws must reach through the floor and nut but stop below
 the blind cap. The live notes give the maximum penetration **from the outer
 floor**, excluding your bracket. Bracket thickness is not guessed.
 
-## Optional active cooling
+## Optional passive cooling (default on)
 
-Enable **Cooling fan**, then choose one of the new parts-library fans:
+**Heatsink** is enabled by default. There are no fan options, bays or fan
+parts. Fit **one** small heatsink to the **backside thermal pad** of the main
+PCB, fins towards the floor, before seating the stack. Do not insert a sink
+between the main PCB and the Sense expansion board: the camera, SD socket and
+board-to-board connector leave very limited space there.
 
-| Fan | Envelope used | Mounts | Published free-air rating | Power |
-| --- | --- | --- | --- | --- |
-| [Sunon MF30100V2-1000U-A99](https://www.sunon.com/eu/MANAGE/Docs/WEBCONT/Files/1236/DC_20240630%28255-E%29_web.pdf) | 30.5 × 30.5 × 10.5 mm tolerance maximum | 3, 24 mm pitch | 4.7 CFM; 21 dB(A) | 5 V; 0.08 A; 0.4 W |
-| [Noctua NF-A4x10 5V PWM](https://www.noctua.at/en/products/nf-a4x10-5v-pwm/specifications) | 40 × 40 × **12 mm with pads** | 4, 32 mm pitch | 5.24 CFM; 19.6 dB(A) maximum | 5 V; 0.07 A / 0.35 W maximum |
+| Part | Envelope used, excluding adhesive | Compatibility / limits |
+| --- | --- | --- |
+| [Seeed XIAO aluminium sink, SKU 114010001](https://files.seeedstudio.com/Bazaar/product_pdf/114010001.pdf) (default) | Published 10 × 10 mm footprint; **10 mm height estimate, not published** | Seeed-designed for XIAO ESP32S3 (Sense), includes thermal adhesive; sold in packs of two, but this housing uses one. Measure height before printing. |
+| [Same Sky HSB02-101007](https://www.sameskydevices.com/product/resource/hsb02-101007.pdf) | 10 × 10 × 7 mm nominal, ±0.38 mm general tolerance; **10.38 × 10.38 × 7.38 mm maximum** | Dimensional alternative, not Seeed-approved or thermally validated on this board. Supply separate electrically insulating thermal adhesive. Drawing rev. 1.03, 2025-12-12. |
 
-The 30 mm option is more compact; the 40 mm option has a lower published noise
-rating and a USB power adaptor. These are manufacturer free-air figures, **not
-predicted enclosure performance**. Re-check the delivered fan: Sunon's 3-hole
-frame needs the missing corner/leads oriented at −X/−Y. Noctua's mounting-hole
-diameter is estimated; pitch and 12 mm installed thickness are published.
+Seeed's [installation guide](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/#installing-the-upgraded-heat-sink)
+prioritizes the backside thermal pad and keeping BAT pads unobstructed. Its
+single-sink layout preserves GPIO access; the dual layout can obstruct pins.
+This housing deliberately supports only **one** sink to preserve the battery
+connections and unsoldered locating holes. The estimated placement is centred
+at PCB X=10.5, Y=5.5 mm in the USB-at-+Y frame. Check alignment on your delivered
+board **before bonding**, keep solder joints/lead insulation clear, and prevent
+metal or conductive adhesive bridging any pads. Do not rely on anodizing as
+electrical insulation. Larger 14–15 mm Raspberry Pi sinks and dual sinks are
+not supported simply by increasing the height setting.
 
-The shell grows **rearwards**, preserving board position, USB front plane,
-optical alignment and rear-mount pitch. Actual length is `length + fan max
-length + wall + 15`; width is `max(width, fan max width + 2*wall + 2)`. Thus the
-default 40 mm fan grows **48 × 46 × 24.2** to **48 × 103 × 24.2 mm**; the 30 mm
-option becomes **48 × 93.5 × 24.2 mm**. Disabling the fan restores the compact
-shell with no fan holes or hardware. At the minimum stack settings the roof
-also rises just enough to keep the selected fan bolt 0.8 mm above the floor.
-The derived notes show actual dimensions.
+The housing grows **vertically**, not in footprint. Effective floor-to-PCB
+clearance is:
 
-A circular roof grille with 1.8 mm gaps / 1.4 mm bridges guards the exhaust.
-Six lower side intake slots provide a separate air path near the board. These
-are mandatory in fan mode, even when **Ventilation** (passive roof slots) is
-off. Pre-bolt the fan to the hood's 2 mm spacers, exhaust towards the roof,
-using the listed ISO 4762 screws and ISO 4032 nuts (M2.5 Sunon, M3 Noctua).
-The preview moves this preassembled fan/fastener group with the hood. Keep the
-lead above the floor, below the rotor sweep and restrained; the existing split
-battery exit can also route fan power wires when sized for both bundles.
+```
+heatsink on: max(standoff, sink maximum height + extra height + adhesive thickness + 2 mm air gap)
+heatsink off: standoff
+```
 
-**Power and thermal limits:** do not power a fan from GPIO or 3V3. Provide a
-regulated 5 V supply with verified current/start-up margin for the fan **and**
-board; a battery's voltage is not regulated 5 V. Wiring, drivers, PWM and
-firmware are out of scope. Cooling has not been thermally tested. Seeed's
-[getting-started guide](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/)
-discusses board heat and an upgraded heatsink; that heatsink is **not** included
-in this fit envelope. Measure sustained streaming/charging temperatures in the
-real enclosure, choose heat-appropriate print material, and keep dust/food,
-paws and cables away from the vents. This is not a fire-safe or unattended-use
-certification.
+The default estimated 10 mm sink and 0.2 mm adhesive raise the PCB clearance
+from 4 to **12.2 mm**, giving **48 × 46 × 32.4 mm** overall. Same Sky gives
+**48 × 46 × 29.78 mm**; disabling the sink restores **48 × 46 × 24.2 mm**.
+Board supports, seam, USB opening, cable exits and roof rise together, keeping
+the camera headroom unchanged. **Extra heatsink height** adds 0–10 mm clearance
+for measured height differences; **Thermal adhesive thickness** allows
+0.1–1 mm. Extra clearance is empty space, not a scaled reference part. Seeed's
+unpublished height must be measured; the 10 mm estimate is not a guaranteed
+maximum. Derived notes report the actual shell height and clearance.
+
+**Ventilation** adds lower side intakes and passive roof outlets; both default
+on. Disabling ventilation removes both and requires particular attention to
+heat buildup. No power wiring, rotor, fan fasteners or extended rear bay remain.
+The sink appears in the parts library, SVG exploded view and live assembly,
+and moves with the camera stack; it is never included in the printable ZIP.
+
+**Thermal limits:** Seeed's guide reports improvements in its own open-board
+camera test, not in this printed enclosure. Those measurements do not predict
+this housing's operating temperature. Test sustained streaming and charging
+in the assembled housing at the intended ambient temperature, keep vents free
+of dust/food, and choose a heat-appropriate material. There is **no thermal-performance guarantee**, fire-safe certification or unattended-use approval.
 
 ## Customization and printing
 
 Adjust outside dimensions, wall thickness, board clearances, under-board
-clearance, camera headroom, seam clearance, mounting retention/fastener/pitch, optional fan, camera
+clearance, camera headroom, seam clearance, mounting retention/fastener/pitch, optional heatsink/extra height/adhesive, camera
 alignment, USB plug envelope/recess, antenna/battery exits, ventilation and
 charge window. Validation keeps mounting bosses clear of guides, preserves
 blind ends and the floor under USB, and keeps the nominal lens, roof retainers
@@ -135,7 +145,7 @@ sealed food-contact enclosure. Keep it away from wet food/water and protect
 cables and small hardware from cats. Check screw length, electrical isolation,
 USB cable fit, camera field of view and operating temperature on the real
 assembly before leaving it unattended. Optional ventilation slots are not a
-thermal guarantee. An upgraded heatsink is not included in the envelope.
+thermal guarantee. The selected sink is included in the clearance envelope, subject to its stated dimension estimates.
 
 ## Hardware provenance and coordinate frame
 
@@ -154,10 +164,11 @@ Development-board components now support an optional `base` height above the
 main PCB top (default zero). Body and top heights are local to that base;
 negative bases represent underside components. The procedural web preview and
 generic SCAD reference renderer apply the same offset. Existing boards retain
-their original geometry.
+their original geometry. The Sense underside is bare (apart from flat pads);
+its shield is on top below the expansion PCB, not underneath the thermal pad.
 
-The compact housing frame is centred XY, Z up; fan mode extends the −Y end; USB points towards +Y. PCB underside is
-at `wall + standoff`, with its Y origin derived from the USB recess. The seam
+The housing frame is centred XY, Z up; USB points towards +Y. PCB underside is
+at `wall + effective clearance`, with its Y origin derived from the USB recess. The seam
 is 5 mm above the main PCB top. The roof underside is the PCB underside plus
 the 15 mm stack and headroom. The hood prints roof down; its assembled pose
 rotates it 180° about X and translates by the overall housing height. Reference
@@ -171,8 +182,8 @@ npm run build
 TEST_ONLY=xiao-sense-camera-housing npm run test:renderer
 TEST_ONLY=xiao-sense-camera-housing SWEEP_SAMPLES=100 npm run test:sweep
 npm run check:assembly -- xiao-sense-camera-housing
-npm run check:assembly -- xiao-sense-camera-housing --parameters '{"fanEnabled":true,"mountRetention":"nut"}'
-npm run check:assembly -- xiao-sense-camera-housing --parameters '{"fanEnabled":true,"fan":"sunon-mf30100v2-1000u-a99"}'
+npm run check:assembly -- xiao-sense-camera-housing --parameters '{"heatsinkEnabled":false,"mountRetention":"nut"}'
+npm run check:assembly -- xiao-sense-camera-housing --parameters '{"heatsink":"same-sky-hsb02-101007","heatsinkAllowance":4}'
 npx playwright test tests/browser/camera-housing.spec.ts tests/browser/parts.spec.ts
 ```
 

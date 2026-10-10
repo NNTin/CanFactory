@@ -2539,7 +2539,7 @@ export interface operations {
                     /** @enum {string} */
                     modelId: "xiao-sense-camera-housing";
                     /** @enum {string} */
-                    modelVersion: "2";
+                    modelVersion: "3";
                     parameters: {
                         /**
                          * Camera board
@@ -2550,13 +2550,13 @@ export interface operations {
                         board: "seeed-xiao-esp32s3-sense";
                         /**
                          * Housing width
-                         * @description Minimum outside width in mm; leave room for the rear mounts. Fan mode may widen it automatically.
+                         * @description Outside width in mm; leave room for the rear mounts.
                          * @default 48
                          */
                         width: number;
                         /**
                          * Housing length
-                         * @description Compact outside length in mm. Fan mode appends a rear bay; board and USB positions stay fixed when cooling is toggled.
+                         * @description Outside length in mm. Heatsinks grow the housing in height, not length.
                          * @default 46
                          */
                         length: number;
@@ -2624,21 +2624,33 @@ export interface operations {
                          */
                         chargeWindow: boolean;
                         /**
-                         * Cooling fan
-                         * @description Extend the rear of the housing for one roof-exhaust fan, with an integral grille and mandatory lower air intakes. Fan and its screws/nuts appear in the assembly; they are not printed.
-                         * @default false
+                         * Heatsink
+                         * @description One adhesive heatsink on the backside thermal pad, away from the camera. Enabled by default. Automatically raises the board, USB and roof to leave space underneath.
+                         * @default true
                          */
-                        fanEnabled: boolean;
+                        heatsinkEnabled: boolean;
                         /**
-                         * Fan
-                         * @description 5 V fan choice; the shell grows automatically to fit the maximum installed frame. Verify power budget and physical fit before use.
-                         * @default noctua-nf-a4x10-5v-pwm
+                         * Heatsink part
+                         * @description Seeed’s XIAO-specific sink or a dimensionally suitable 10 mm alternative. Check electrical isolation and actual fit before bonding.
+                         * @default seeed-xiao-aluminium-heatsink
                          * @enum {unknown}
                          */
-                        fan: "sunon-mf30100v2-1000u-a99" | "noctua-nf-a4x10-5v-pwm";
+                        heatsink: "seeed-xiao-aluminium-heatsink" | "same-sky-hsb02-101007";
+                        /**
+                         * Extra heatsink height
+                         * @description Additional clearance above the selected sink height, in mm. Seeed’s unpublished height is estimated at 10 mm: measure yours and increase this allowance if taller.
+                         * @default 0
+                         */
+                        heatsinkAllowance: number;
+                        /**
+                         * Thermal adhesive thickness
+                         * @description Installed adhesive thickness in mm, excluding the sink. Use suitable electrically insulating thermal adhesive; check BAT pad clearance.
+                         * @default 0.2
+                         */
+                        adhesiveThickness: number;
                         /**
                          * Ventilation
-                         * @description Passive roof slots when no fan is fitted. Fan mode always adds its grille and air intakes regardless of this setting. Indoor only, not waterproof.
+                         * @description Passive roof slots and lower side intakes. Keep these open for convection; temperature testing is still required. Indoor only, not waterproof.
                          * @default true
                          */
                         ventilation: boolean;
@@ -2650,7 +2662,7 @@ export interface operations {
                         wall: number;
                         /**
                          * Under-board clearance
-                         * @description Distance from floor to PCB underside, leaving room for components and battery solder joints.
+                         * @description Minimum distance from floor to PCB underside. Automatically increased for heatsink height, adhesive and 2 mm fin clearance.
                          * @default 4
                          */
                         standoff: number;

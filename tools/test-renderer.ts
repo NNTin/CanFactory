@@ -857,11 +857,11 @@ try {
     { name: 'M4 hex captive nuts', overrides: { mountRetention: 'nut', mountNut: 'iso-4032-m4', width: 50, mountSpacing: 35 } },
     { name: 'M3 square captive nuts', overrides: { mountRetention: 'nut', mountNut: 'din-562-m3', width: 50, mountSpacing: 35 } },
     { name: 'M4 square captive nuts', overrides: { mountRetention: 'nut', mountNut: 'din-562-m4', width: 54, mountSpacing: 36 } },
-    { name: '40 mm fan, passive ventilation off', overrides: { fanEnabled: true, ventilation: false } },
-    { name: '30 mm fan and captive nuts', overrides: { fanEnabled: true, fan: 'sunon-mf30100v2-1000u-a99', mountRetention: 'nut' } },
-    { name: 'fan auto-width expansion, thin walls', overrides: { fanEnabled: true, width: 44, mountSpacing: 32, wall: 1.6, length: 40 } },
-    { name: 'fan automatic roof clearance', overrides: { fanEnabled: true, width: 44, length: 40, wall: 1.6, mountSpacing: 32, standoff: 3, headroom: 0.8 } },
-    { name: 'fan thick walls', overrides: { fanEnabled: true, wall: 3.6, width: 60, mountSpacing: 38 } },
+    { name: 'heatsink disabled', overrides: { heatsinkEnabled: false } },
+    { name: '7 mm heatsink alternative', overrides: { heatsink: 'same-sky-hsb02-101007' } },
+    { name: 'extra heatsink height and adhesive', overrides: { heatsinkAllowance: 10, adhesiveThickness: 1 } },
+    { name: 'heatsink, no ventilation', overrides: { ventilation: false } },
+    { name: 'no heatsink, minimum clearance', overrides: { heatsinkEnabled: false, width: 44, length: 40, wall: 1.6, mountSpacing: 32, standoff: 3, headroom: 0.8 } },
     { name: 'small, thin walls', overrides: { width: 44, length: 40, wall: 1.6, mountSpacing: 32 } },
     { name: 'largest envelope', overrides: { width: 80, length: 80, mountSpacing: 60, wall: 3.6, standoff: 8, headroom: 4 } },
     { name: 'short M3 mounting inserts', overrides: { mountInsert: 'cnc-kitchen-m3x3' } },
@@ -895,14 +895,9 @@ try {
     assert.equal(housingSolid(base, [0, parameters.length / 2 - parameters.wall / 2, l.usbZ]), false, `${name}: USB access`);
     assert.equal(housingSolid(base, [0, parameters.length / 2 - parameters.wall / 2, parameters.wall / 2]), true, `${name}: floor below USB`);
     assert.equal(hoodSolid(l.aperture[0], l.aperture[1], l.roof + parameters.wall / 2), false, `${name}: camera aperture`);
-    assert.equal(hoodSolid(0, -parameters.length / 2 + 7, l.roof + parameters.wall / 2), parameters.fanEnabled || !parameters.ventilation, `${name}: passive roof vents`);
-    if (parameters.fanEnabled) {
-      const slotX = -l.fanW / 2 + Math.floor(l.fanW / 6.4) * 3.2 + 0.9;
-      assert.equal(hoodSolid(slotX, l.fanY, l.roof + parameters.wall / 2), false, `${name}: exhaust grille opening`);
-      assert.equal(hoodSolid(slotX + 1.6, l.fanY, l.roof + parameters.wall / 2), true, `${name}: grille bridge`);
-      for (const [x, y] of l.fanMounts) assert.equal(hoodSolid(x, l.fanY + y, l.roof - 1), false, `${name}: fan bolt passage`);
-      for (const sign of [-1, 1]) assert.equal(housingSolid(base, [sign * (l.width / 2 - parameters.wall / 2), l.boardY + 9, parameters.wall + 2]), false, `${name}: mandatory intake`);
-    }
+    assert.equal(hoodSolid(0, -parameters.length / 2 + 7, l.roof + parameters.wall / 2), !parameters.ventilation, `${name}: passive roof vents`);
+    for (const side of [-1, 1]) assert.equal(housingSolid(base, [side * (l.width / 2 - parameters.wall / 2), l.boardY + 7, parameters.wall + 1.2]), !parameters.ventilation, `${name}: low passive intake`);
+    assert.equal(housingSolid(base, [l.heatsinkX, l.heatsinkY, parameters.wall + 0.4]), false, `${name}: heatsink floor clearance`);
     for (const [side, y] of [[-1, l.boardY + h.antennaY], [1, l.boardY + 11]] as [number, number][]) {
       const x = side * (l.width / 2 - parameters.wall / 2);
       assert.equal(housingSolid(base, [x, y, l.seam - 0.4]), false, `${name}: split cable exit in tray`);

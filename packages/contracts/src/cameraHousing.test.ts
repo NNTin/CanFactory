@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { activeParts, artifactFormat, cameraHousing, CAMERA_BOARD_ID, CAMERA_HARDWARE, CAMERA_LID_INSERT, CAMERA_MOUNT_INSERTS, CAMERA_MOUNT_NUTS, CAMERA_FANS, CAMERA_FAN_GAP, DEFAULT_CAMERA_HOUSING as P,
+import { activeParts, artifactFormat, cameraHousing, CAMERA_BOARD_ID, CAMERA_HARDWARE, CAMERA_LID_INSERT, CAMERA_MOUNT_INSERTS, CAMERA_MOUNT_NUTS, CAMERA_HEATSINKS, CAMERA_HEATSINK_GAP, DEFAULT_CAMERA_HOUSING as P,
   cameraHousingLayout, devBoardLayout, dimensionOf, findPart, partUsage, RenderRequestSchema, resolveAssembly, scadDefines, validateParameters, cameraHardwarePart, controlShown } from './index.ts';
 
 describe('XIAO Sense camera housing', () => {
@@ -21,7 +21,7 @@ describe('XIAO Sense camera housing', () => {
     expect(dimensionOf(board, 'H')).toBe(15);
     expect(layout.components.filter(c => ['pcb', 'camera'].includes(c.kind))).toHaveLength(2);
     expect(layout.components.find(c => c.kind === 'camera')?.top?.shape).toBe('round');
-    expect(layout.bareUnderside).toBe(false);
+    expect(layout.bareUnderside).toBe(true);
     expect(layout.externalAntenna).toMatchObject({ kind: 'connector', x: 4.04, y: 1.73 });
     expect(layout.bottomPads.map(p => p.name)).toEqual(['BAT+', 'BAT− (GND)']);
     expect(board.dimensions['H']?.basis).toBe('manufacturer');
@@ -44,7 +44,7 @@ describe('XIAO Sense camera housing', () => {
       { cameraOffsetX: 3, cameraDiameter: 10 }, { cameraOffsetY: 3, cameraDiameter: 20 },
       { standoff: 3, usbHeight: 12 }, { standoff: 3, mountInsert: 'ruthex-rx-m4x8-1' },
     ];
-    for (const overrides of bad) expect(validateParameters(cameraHousing, { ...P, ...overrides }), JSON.stringify(overrides)).not.toEqual([]);
+    for (const overrides of bad) expect(validateParameters(cameraHousing, { ...P, heatsinkEnabled: false, ...overrides }), JSON.stringify(overrides)).not.toEqual([]);
   });
   it('accepts each insert, custom alignment, small and large envelopes and switchable openings', () => {
     for (const mountInsert of CAMERA_MOUNT_INSERTS) expect(validateParameters(cameraHousing, { ...P, mountInsert })).toEqual([]);
@@ -94,48 +94,42 @@ describe('XIAO Sense camera housing', () => {
     }
     expect(validateParameters(cameraHousing, { ...P, mountRetention: 'nut', mountNut: 'iso-4032-m4' }).some(i => i.field === 'mountSpacing')).toBe(true);
   });
-  it('grows a rear bay for each fan without moving the board or USB plane, and pre-bolts the fan to the hood', () => {
-    for (const fan of CAMERA_FANS) {
-      const p = { ...P, fanEnabled: true, fan, ventilation: false, width: 44, mountSpacing: 32 };
-      const l = cameraHousingLayout(p), off = cameraHousingLayout({ ...p, fanEnabled: false });
+  it('enables one backside heatsink by default and automatically raises the board, USB, seam and roof', () => {
+    expect(P.heatsinkEnabled).toBe(true);
+    for (const heatsink of CAMERA_HEATSINKS) {
+      const p = { ...P, heatsink, standoff: 3, heatsinkAllowance: 1.2, adhesiveThickness: 0.4 };
+      const l = cameraHousingLayout(p), off = cameraHousingLayout({ ...p, heatsinkEnabled: false });
       expect(validateParameters(cameraHousing, p)).toEqual([]);
       expect(l.boardY).toBe(off.boardY);
-      expect(l.length).toBe(p.length + l.extension);
-      expect(l.width).toBeGreaterThanOrEqual(p.width);
-      expect(l.width - 2 * p.wall).toBeGreaterThan(l.fanW);
-      expect(l.fanY - l.fanL / 2).toBeGreaterThan(l.back + p.wall + 4);
-      expect(l.fanY + l.fanL / 2).toBeLessThan(-p.length / 2);
-      expect(l.fanBottom - l.fanNutH).toBeGreaterThan(p.wall);
-      assert.ok(l.fanScrew);
-      expect(l.top - dimensionOf(l.fanScrew, 'l')).toBeGreaterThan(p.wall);
-      expect(l.roof - l.fanBottom - l.fanH).toBe(CAMERA_FAN_GAP);
+      expect(l.width).toBe(off.width);
+      expect(l.length).toBe(off.length);
+      expect(l.clearance).toBeCloseTo(l.heatsinkH + p.heatsinkAllowance + p.adhesiveThickness + CAMERA_HEATSINK_GAP);
+      expect(l.heatsinkTop - l.heatsinkH - p.wall).toBeCloseTo(CAMERA_HEATSINK_GAP + p.heatsinkAllowance);
+      for (const key of ['boardZ', 'usbZ', 'seam', 'roof', 'top'] as const) expect(l[key] - off[key]).toBeCloseTo(l.clearance - p.standoff);
+      expect(l.roof - l.boardZ).toBeCloseTo(CAMERA_HARDWARE.height + p.headroom);
       const assembly = resolveAssembly(cameraHousing, cameraHousing.assembly, p); assert.ok(assembly);
-      const mounts = fan.startsWith('sunon') ? 3 : 4;
-      expect(l.fanMounts).toHaveLength(mounts);
-      expect(assembly.references?.filter(r => r.part === fan)).toHaveLength(1);
-      expect(assembly.references?.filter(r => r.id.startsWith('fan-screw-'))).toHaveLength(mounts);
-      expect(assembly.references?.filter(r => r.id.startsWith('fan-nut-'))).toHaveLength(mounts);
-      expect(assembly.steps[1]?.parts).toContain('cooling-fan');
-      expect(assembly.steps[1]?.parts.filter(id => id.startsWith('fan-'))).toHaveLength(mounts * 2);
-      expect(assembly.poses['cooling-fan']?.position).toEqual([0, l.fanY, l.fanBottom]);
+      expect(assembly.references?.filter(r => r.part === heatsink)).toHaveLength(1);
+      expect(assembly.poses['cooling-heatsink']).toEqual({ position: [l.heatsinkX, l.heatsinkY, l.heatsinkTop], rotation: [180, 0, 0] });
+      expect(assembly.steps[0]?.parts).toContain('cooling-heatsink');
+      expect(assembly.steps[1]?.parts).not.toContain('cooling-heatsink');
       expect(cameraHousing.derived(p).notes?.join(' ')).toMatch(/no thermal-performance guarantee/);
       const print = cameraHousing.parts[0]; assert.ok(print);
       const defines = Object.fromEntries(scadDefines(cameraHousing, print, p));
-      expect(JSON.parse(defines['FAN'] ?? 'null')).toEqual([l.fanW, l.fanL, l.fanH, l.fanMounts, mounts === 3 ? 3.4 : 3.8, dimensionOf(l.fanScrew, 'l')]);
-      const disabled = resolveAssembly(cameraHousing, cameraHousing.assembly, { ...p, fanEnabled: false });
-      expect(disabled?.references?.some(r => r.id === 'cooling-fan')).toBe(false);
-      expect(off.length).toBe(p.length);
-      expect(off.width).toBe(p.width);
+      expect(Number(defines['HEATSINK_H'])).toBe(l.heatsinkH);
+      expect(Number(defines['HEATSINK_ALLOWANCE'])).toBe(p.heatsinkAllowance);
+      const disabled = resolveAssembly(cameraHousing, cameraHousing.assembly, { ...p, heatsinkEnabled: false });
+      expect(disabled?.references?.some(r => r.id === 'cooling-heatsink')).toBe(false);
+      expect(off.clearance).toBe(p.standoff);
     }
   });
-
-  it('raises the roof automatically when a fan bolt needs extra floor clearance at minimum stack settings', () => {
-    const p = { ...P, fanEnabled: true, width: 44, length: 40, wall: 1.6, mountSpacing: 32, standoff: 3, headroom: 0.8 };
-    const l = cameraHousingLayout(p), compact = cameraHousingLayout({ ...p, fanEnabled: false });
-    expect(validateParameters(cameraHousing, p)).toEqual([]);
-    expect(l.roof).toBeGreaterThan(compact.roof);
-    assert.ok(l.fanScrew);
-    expect(l.top - dimensionOf(l.fanScrew, 'l')).toBeCloseTo(p.wall + 0.8);
+  it('leaves the backside BAT pads and unsoldered locating holes clear at the largest sink envelope', () => {
+    const h = CAMERA_HARDWARE, l = cameraHousingLayout({ ...P, heatsink: 'same-sky-hsb02-101007' });
+    const board = cameraHardwarePart(CAMERA_BOARD_ID), boardLayout = devBoardLayout(board); assert.ok(boardLayout);
+    const left = h.heatsinkX - l.heatsinkW / 2, right = h.heatsinkX + l.heatsinkW / 2;
+    expect(left - Math.max(...boardLayout.bottomPads.map(p => p.x)) - 0.55).toBeGreaterThan(0.3);
+    expect(h.width / 2 + h.locatorX - 0.6 - right).toBeGreaterThan(0.2);
+    expect(h.heatsinkY - l.heatsinkL / 2).toBeGreaterThan(0);
+    expect(l.heatsinkTop).toBeLessThan(l.boardZ);
+    expect(l.heatsinkTop - l.heatsinkH).toBeGreaterThan(P.wall);
   });
-
 });

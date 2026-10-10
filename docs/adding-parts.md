@@ -195,19 +195,19 @@ A part can link to shops: add a curated offer for it to `packages/contracts/src/
 Awin advertiser's product, one row per market, with the pieces per pack). Without one, the part links to a search of the
 visitor's Amazon for its designation. See [affiliate-offers.md](affiliate-offers.md).
 
-### Compact cooling fans
+### Compact adhesive heatsinks
 
-The **`fan`** family (`fans.ts`) adds manufacturer-sourced 5 V axial fans. `W`,
-`L` and `H` are frame dimensions in mm, with tolerance maxima used for fit.
-`pitch` is nominal mounting pitch; `hole` describes the frame hole, not a printed
-clearance bore. `fanMounts` supplies the centred XY pattern: the Sunon 30 mm
-frame has **three** holes (orient its lead/missing corner at −X/−Y); the Noctua
-40 mm has four. Exhaust is +Z. The Noctua envelope uses the published **12 mm
-installed thickness with pads**, not the advertised 10 mm form factor. Its
-unpublished hole diameter is explicitly estimated. Electrical/airflow/noise
-ratings are in the descriptions, never mislabelled as millimetre dimensions.
+The **`heatsink`** family (`heatsinks.ts`) contains Seeed's XIAO-specific
+10 × 10 mm sink and Same Sky's HSB02-101007 dimensional alternative. `W`, `L`
+and `H` exclude thermal adhesive. Seeed publishes the footprint but **not the
+height**: the 10 mm height is explicitly estimated. Same Sky's drawing supplies
+10 × 10 × 7 mm with ±0.38 mm general tolerance. Never silently promote an
+estimated dimension into a manufacturer value.
 
-Both the procedural web preview and `parts/fans/fan.scad` use this frame and
-pattern. Rotor/struts are schematic, pads and leads are omitted. The housing
-uses clearance bores with pitch allowance and bolts/nuts rather than the fan's
-bundled self-tapping screws. A reference mesh is not a thermal simulation.
+The procedural preview and `parts/heatsinks/heatsink.scad` share a centred XY
+frame, adhesive face at Z=0, fins towards +Z, using tolerance maxima. Fin/base
+shapes are illustrative, not thermal simulation geometry. A library instance
+means **one sink**, even when its SKU is a two-piece retail pack. The XIAO
+housing rotates the sink under the PCB, moves it with the camera stack and
+raises the housing automatically for height, adhesive and an air gap. Its
+extra-height parameter accommodates measured variation; no fan parts remain.

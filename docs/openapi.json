@@ -5938,7 +5938,7 @@
                       "modelVersion": {
                         "type": "string",
                         "enum": [
-                          "2"
+                          "3"
                         ]
                       },
                       "parameters": {
@@ -5957,8 +5957,10 @@
                           "antennaDiameter",
                           "batteryDiameter",
                           "chargeWindow",
-                          "fanEnabled",
-                          "fan",
+                          "heatsinkEnabled",
+                          "heatsink",
+                          "heatsinkAllowance",
+                          "adhesiveThickness",
                           "ventilation",
                           "wall",
                           "standoff",
@@ -5981,7 +5983,7 @@
                           "width": {
                             "type": "number",
                             "title": "Housing width",
-                            "description": "Minimum outside width in mm; leave room for the rear mounts. Fan mode may widen it automatically.",
+                            "description": "Outside width in mm; leave room for the rear mounts.",
                             "default": 48,
                             "minimum": 42,
                             "maximum": 80,
@@ -5990,7 +5992,7 @@
                           "length": {
                             "type": "number",
                             "title": "Housing length",
-                            "description": "Compact outside length in mm. Fan mode appends a rear bay; board and USB positions stay fixed when cooling is toggled.",
+                            "description": "Outside length in mm. Heatsinks grow the housing in height, not length.",
                             "default": 46,
                             "minimum": 40,
                             "maximum": 80,
@@ -6087,25 +6089,43 @@
                             "description": "A 2.4 mm side sight hole towards the red charge LED; not a light pipe.",
                             "default": true
                           },
-                          "fanEnabled": {
+                          "heatsinkEnabled": {
                             "type": "boolean",
-                            "title": "Cooling fan",
-                            "description": "Extend the rear of the housing for one roof-exhaust fan, with an integral grille and mandatory lower air intakes. Fan and its screws/nuts appear in the assembly; they are not printed.",
-                            "default": false
+                            "title": "Heatsink",
+                            "description": "One adhesive heatsink on the backside thermal pad, away from the camera. Enabled by default. Automatically raises the board, USB and roof to leave space underneath.",
+                            "default": true
                           },
-                          "fan": {
+                          "heatsink": {
                             "enum": [
-                              "sunon-mf30100v2-1000u-a99",
-                              "noctua-nf-a4x10-5v-pwm"
+                              "seeed-xiao-aluminium-heatsink",
+                              "same-sky-hsb02-101007"
                             ],
-                            "title": "Fan",
-                            "description": "5 V fan choice; the shell grows automatically to fit the maximum installed frame. Verify power budget and physical fit before use.",
-                            "default": "noctua-nf-a4x10-5v-pwm"
+                            "title": "Heatsink part",
+                            "description": "Seeed’s XIAO-specific sink or a dimensionally suitable 10 mm alternative. Check electrical isolation and actual fit before bonding.",
+                            "default": "seeed-xiao-aluminium-heatsink"
+                          },
+                          "heatsinkAllowance": {
+                            "type": "number",
+                            "title": "Extra heatsink height",
+                            "description": "Additional clearance above the selected sink height, in mm. Seeed’s unpublished height is estimated at 10 mm: measure yours and increase this allowance if taller.",
+                            "default": 0,
+                            "minimum": 0,
+                            "maximum": 10,
+                            "multipleOf": 0.2
+                          },
+                          "adhesiveThickness": {
+                            "type": "number",
+                            "title": "Thermal adhesive thickness",
+                            "description": "Installed adhesive thickness in mm, excluding the sink. Use suitable electrically insulating thermal adhesive; check BAT pad clearance.",
+                            "default": 0.2,
+                            "minimum": 0.1,
+                            "maximum": 1,
+                            "multipleOf": 0.1
                           },
                           "ventilation": {
                             "type": "boolean",
                             "title": "Ventilation",
-                            "description": "Passive roof slots when no fan is fitted. Fan mode always adds its grille and air intakes regardless of this setting. Indoor only, not waterproof.",
+                            "description": "Passive roof slots and lower side intakes. Keep these open for convection; temperature testing is still required. Indoor only, not waterproof.",
                             "default": true
                           },
                           "wall": {
@@ -6120,7 +6140,7 @@
                           "standoff": {
                             "type": "number",
                             "title": "Under-board clearance",
-                            "description": "Distance from floor to PCB underside, leaving room for components and battery solder joints.",
+                            "description": "Minimum distance from floor to PCB underside. Automatically increased for heatsink height, adhesive and 2 mm fin clearance.",
                             "default": 4,
                             "minimum": 3,
                             "maximum": 8,
