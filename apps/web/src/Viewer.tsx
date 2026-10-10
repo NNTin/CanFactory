@@ -6,6 +6,7 @@ import { unzipSync } from 'fflate';
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import type { ReferenceObject } from './referenceObjects.ts';
+import { viewerGrid } from './viewerLayout.ts';
 import { createStage, smoothNormals } from './stage.ts';
 
 /**
@@ -197,12 +198,9 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         geometries = prepared.map(part => part.geometry);
         // Arrange parts on an auto-sized grid, one cell per part, each centred in its cell and standing on the floor (z = 0
         // in the parts' frame); a single part sits centred at the origin.
-        const columns = Math.ceil(Math.sqrt(prepared.length));
-        const rows = Math.ceil(prepared.length / columns);
-        const cell = Math.max(...prepared.map(part => Math.max(part.size.x, part.size.y))) * 1.4;
-        const footprintX = columns * cell; const footprintY = rows * cell;
+        const bed = viewerGrid(prepared.map(part => part.size));
         placements = prepared.map((part, index) => {
-          const column = index % columns; const row = Math.floor(index / columns);
+          const [cx, cy] = bed.centres[index] ?? [0, 0];
           const color = assembly?.partColors?.[part.id];
           let partMaterial = part.reference ? referenceMaterial : material;
           if (!part.reference && color) {
@@ -211,8 +209,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
           }
           const partMesh = new THREE.Mesh(part.geometry, partMaterial); partMesh.castShadow = true;
           const grid = new THREE.Vector3(
-            (column + 0.5) * cell - footprintX / 2 - (part.bounds.min.x + part.bounds.max.x) / 2,
-            footprintY / 2 - (row + 0.5) * cell - (part.bounds.min.y + part.bounds.max.y) / 2,
+            cx - (part.bounds.min.x + part.bounds.max.x) / 2,
+            cy - (part.bounds.min.y + part.bounds.max.y) / 2,
             -part.bounds.min.z);
           partMesh.position.copy(grid);
           group.add(partMesh);
@@ -228,7 +226,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         const frameSize = frame.getSize(new THREE.Vector3());
         const focus = new THREE.Vector3();
         if (assembly) { frame.getCenter(focus); focus.y = 0; }
-        stage.frame(Math.max(footprintX, footprintY, frameSize.x, frameSize.y, frameSize.z), frame.max.y, focus);
+        stage.frame(Math.max(bed.width, bed.length, frameSize.x, frameSize.y, frameSize.z), frame.max.y, focus);
         showParts();
         return prepared.map(part => ({ id: part.id, reference: part.reference }));
       },

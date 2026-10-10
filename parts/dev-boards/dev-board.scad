@@ -15,7 +15,7 @@ CASTELLATED = false;    // a half hole at the board's edge beside each pin
 PINS = [];              // [x, y] of each pin hole
 USB = [4.14, 16.71, 13.39, 24.45, 3.2];      // [x0, y0, x1, y1, height above the PCB]
 // [x, y, width (X), length (Y), height above the PCB, rotation about Z in degrees, top shape (0 none, 1 round, 2 oval,
-// 3 rectangle), top width, top length, top's height above the PCB]: the body, and a button's plunger or an LED's lens on it
+// 3 rectangle), top width, top length, top's height above the local base, optional base above the PCB top]: the body, and a button's plunger or an LED's lens on it
 COMPONENTS = [];
 
 $fn = 24;
@@ -43,7 +43,7 @@ module top_plan(shape, width, length) {
   else square([width, length], center = true);
 }
 
-for (c = COMPONENTS) translate([c[0], c[1], T]) rotate([0, 0, c[5]]) {
+for (c = COMPONENTS) translate([c[0], c[1], T + (len(c) > 10 ? c[10] : 0)]) rotate([0, 0, c[5]]) {
   translate([-c[2] / 2, -c[3] / 2, 0]) cube([c[2], c[3], c[4]]);
   if (len(c) > 6 && c[6] > 0) translate([0, 0, c[4] - 0.01]) linear_extrude(c[9] - c[4] + 0.01) top_plan(c[6], c[7], c[8]);
 }

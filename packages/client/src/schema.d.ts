@@ -2535,6 +2535,174 @@ export interface operations {
                          */
                         layerHeight: number;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "xiao-sense-camera-housing";
+                    /** @enum {string} */
+                    modelVersion: "3";
+                    parameters: {
+                        /**
+                         * Camera board
+                         * @description Sense stack without pin headers or an upgraded heatsink.
+                         * @default seeed-xiao-esp32s3-sense
+                         * @enum {unknown}
+                         */
+                        board: "seeed-xiao-esp32s3-sense";
+                        /**
+                         * Housing width
+                         * @description Outside width in mm; leave room for the rear mounts.
+                         * @default 48
+                         */
+                        width: number;
+                        /**
+                         * Housing length
+                         * @description Outside length in mm. Heatsinks grow the housing in height, not length.
+                         * @default 46
+                         */
+                        length: number;
+                        /**
+                         * Rear mounting
+                         * @description Blind heat-set inserts or side-loaded captive nuts. The four lid fasteners remain M2 heat-set inserts.
+                         * @default heat-set
+                         * @enum {unknown}
+                         */
+                        mountRetention: "heat-set" | "nut";
+                        /**
+                         * Mounting nuts
+                         * @description Slide two nuts into the tray pockets from inside before fitting the camera. Floor and roof capture the nuts; flats prevent rotation.
+                         * @default iso-4032-m3
+                         * @enum {unknown}
+                         */
+                        mountNut: "iso-4032-m3" | "iso-4032-m4" | "din-562-m3" | "din-562-m4";
+                        /**
+                         * Mounting inserts
+                         * @description Two blind, rear-facing heat-set inserts for attaching the enclosure to your own bracket.
+                         * @default ruthex-rx-m3x5-7
+                         * @enum {unknown}
+                         */
+                        mountInsert: "ruthex-rx-m3x5-7" | "cnc-kitchen-m3x3" | "cnc-kitchen-m4x4" | "ruthex-rx-m4x8-1";
+                        /**
+                         * Mount spacing
+                         * @description Centre distance of the two rear mounting fasteners, in mm.
+                         * @default 34
+                         */
+                        mountSpacing: number;
+                        /**
+                         * Camera opening
+                         * @description Through-hole diameter in mm. Measure your lens and check the field of view before printing.
+                         * @default 12
+                         */
+                        cameraDiameter: number;
+                        /**
+                         * Camera alignment X
+                         * @description Aperture offset from the nominal lens centre, across the board, in mm.
+                         * @default 0
+                         */
+                        cameraOffsetX: number;
+                        /**
+                         * Camera alignment Y
+                         * @description Aperture offset towards the USB end, in mm.
+                         * @default 0
+                         */
+                        cameraOffsetY: number;
+                        /**
+                         * Antenna exit
+                         * @description Split cable opening on the left side, in mm. Lay the pre-connected U.FL lead in before closing.
+                         * @default 5
+                         */
+                        antennaDiameter: number;
+                        /**
+                         * Battery wire exit
+                         * @description Split opening on the right side for wires to the underside BAT pads, in mm. Battery remains external.
+                         * @default 4
+                         */
+                        batteryDiameter: number;
+                        /**
+                         * Charge LED window
+                         * @description A 2.4 mm side sight hole towards the red charge LED; not a light pipe.
+                         * @default true
+                         */
+                        chargeWindow: boolean;
+                        /**
+                         * Heatsink
+                         * @description One adhesive heatsink on the backside thermal pad, away from the camera. Enabled by default. Automatically raises the board, USB and roof to leave space underneath.
+                         * @default true
+                         */
+                        heatsinkEnabled: boolean;
+                        /**
+                         * Heatsink part
+                         * @description Seeed’s XIAO-specific sink or a dimensionally suitable 10 mm alternative. Check electrical isolation and actual fit before bonding.
+                         * @default seeed-xiao-aluminium-heatsink
+                         * @enum {unknown}
+                         */
+                        heatsink: "seeed-xiao-aluminium-heatsink" | "same-sky-hsb02-101007";
+                        /**
+                         * Extra heatsink height
+                         * @description Additional clearance above the selected sink height, in mm. Seeed’s unpublished height is estimated at 10 mm: measure yours and increase this allowance if taller.
+                         * @default 0
+                         */
+                        heatsinkAllowance: number;
+                        /**
+                         * Thermal adhesive thickness
+                         * @description Installed adhesive thickness in mm, excluding the sink. Use suitable electrically insulating thermal adhesive; check BAT pad clearance.
+                         * @default 0.2
+                         */
+                        adhesiveThickness: number;
+                        /**
+                         * Ventilation
+                         * @description Passive roof slots and lower side intakes. Keep these open for convection; temperature testing is still required. Indoor only, not waterproof.
+                         * @default true
+                         */
+                        ventilation: boolean;
+                        /**
+                         * Wall thickness
+                         * @description Shell and roof thickness, in mm.
+                         * @default 2
+                         */
+                        wall: number;
+                        /**
+                         * Under-board clearance
+                         * @description Minimum distance from floor to PCB underside. Automatically increased for heatsink height, adhesive and 2 mm fin clearance.
+                         * @default 4
+                         */
+                        standoff: number;
+                        /**
+                         * Camera headroom
+                         * @description Space from the published 15 mm stack envelope to the roof underside.
+                         * @default 1.2
+                         */
+                        headroom: number;
+                        /**
+                         * Board clearance
+                         * @description Lateral play per side in the PCB guides, in mm.
+                         * @default 0.3
+                         */
+                        boardFit: number;
+                        /**
+                         * Lid seam clearance
+                         * @description Vertical gap between the tray and hood, in mm; the four screws locate and secure the hood.
+                         * @default 0.2
+                         */
+                        seamFit: number;
+                        /**
+                         * USB recess
+                         * @description Additional distance of the socket behind the inner front wall, in mm. Total recess includes the wall.
+                         * @default 2
+                         */
+                        usbRecess: number;
+                        /**
+                         * USB plug opening width
+                         * @description Clear width for your USB-C cable moulding, in mm.
+                         * @default 14
+                         */
+                        usbWidth: number;
+                        /**
+                         * USB plug opening height
+                         * @description Clear height for your USB-C cable moulding, in mm.
+                         * @default 8
+                         */
+                        usbHeight: number;
+                    };
                 };
             };
         };

@@ -318,7 +318,7 @@ function catCollar(part: Part): Piece[] {
 const SOLDER_MASK = { black: 0x1f2124, blue: 0x24539c } as const;
 const GOLD = 0xd4a93c;
 const COMPONENT_COLOURS: Record<DevBoardComponent['kind'], number> = {
-  button: 0xf1efe9, led: 0xf3f3f1, chip: DARK, regulator: DARK, crystal: NICKEL, diode: DARK, antenna: 0xc8473f, connector: GOLD, shield: NICKEL, other: DARK,
+  camera: 0x23282b, pcb: 0x273f36, button: 0xf1efe9, led: 0xf3f3f1, chip: DARK, regulator: DARK, crystal: NICKEL, diode: DARK, antenna: 0xc8473f, connector: GOLD, shield: NICKEL, other: DARK,
 };
 const PLUNGER = 0xe6cf9e;
 const LENS = 0xfbf7e8;
@@ -362,7 +362,7 @@ function devBoard(part: Part): Piece[] {
   const components = layout.components.flatMap(component => {
     const turn = component.rotation * Math.PI / 180;
     const box = new THREE.BoxGeometry(component.width, component.length, component.height);
-    box.rotateZ(turn); box.translate(component.x, component.y, t + component.height / 2);
+    box.rotateZ(turn); box.translate(component.x, component.y, t + (component.base ?? 0) + component.height / 2);
     const pieces = [paint(box, COMPONENT_COLOURS[component.kind])];
     const { top } = component;
     if (top) {
@@ -375,7 +375,7 @@ function devBoard(part: Part): Piece[] {
         plan.absarc(-dx, -dy, r, w < l ? Math.PI : Math.PI / 2, w < l ? Math.PI * 2 : Math.PI * 1.5, false);
       } else { plan.moveTo(-w / 2, -l / 2); plan.lineTo(w / 2, -l / 2); plan.lineTo(w / 2, l / 2); plan.lineTo(-w / 2, l / 2); }
       const cap = prism(plan, 0, top.height - component.height, component.kind === 'led' ? LENS : component.kind === 'button' ? PLUNGER : DARK);
-      cap.rotateZ(turn); cap.translate(component.x, component.y, t + component.height);
+      cap.rotateZ(turn); cap.translate(component.x, component.y, t + (component.base ?? 0) + component.height);
       pieces.push(cap);
     }
     return pieces;
@@ -388,9 +388,20 @@ function devBoard(part: Part): Piece[] {
   return [prism(outline, 0, t, SOLDER_MASK[layout.solderMask]), ...pads, ...bottomPads, paint(shell, NICKEL), ...components];
 }
 
+/** Centred XY, adhesive face at z=0, fins +Z. Fin/base details are illustrative; the maximum envelope is dimensioned. */
+function heatsink(part: Part): Piece[] {
+  const w = largest(part, 'W'), l = largest(part, 'L'), h = largest(part, 'H');
+  const slab = (width: number, length: number, height: number, x: number, z: number) => {
+    const geometry = new THREE.BoxGeometry(width, length, height);
+    geometry.translate(x, 0, z + height / 2); return paint(geometry, DARK);
+  };
+  const base = Math.min(1.8, h / 4), fin = w / 12;
+  return [slab(w, l, base, 0, 0), ...Array.from({ length: 4 }, (_, i) => slab(fin, l, h - base, -w / 2 + fin / 2 + i * (w - fin) / 3, base))];
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
-  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard,
+  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, heatsink,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */

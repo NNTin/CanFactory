@@ -1,3 +1,4 @@
+import { CAMERA_HARDWARE, CAMERA_LID_INSERT, CAMERA_MOUNT_INSERTS, CAMERA_MOUNT_NUTS, CAMERA_HEATSINKS, CAMERA_HEATSINK_GAP, cameraNutScad, CameraHousingParametersSchema, DEFAULT_CAMERA_HOUSING, cameraHardwarePart, cameraHousingAssembly, cameraHousingIssues, cameraHousingLayout, cameraHousingReferences, type CameraHousingParameters } from './cameraHousing.ts';
 import { conceptPages } from './concepts.ts';
 import { QUASI_STATIC, type PhysicsSpec } from './physics.ts';
 import { revolvedPieces, type Point2 } from './physicsPieces.ts';
@@ -3394,7 +3395,73 @@ export const catCollarTag = {
   },
 } satisfies ModelDefinition;
 
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag];
+const cameraHousingControls = [
+  partControl(CameraHousingParametersSchema, 'board', 'basic', 'dev-board', [DEFAULT_CAMERA_HOUSING.board]),
+  ...(['width', 'length', 'mountSpacing', 'cameraDiameter', 'cameraOffsetX', 'cameraOffsetY', 'antennaDiameter', 'batteryDiameter', 'chargeWindow', 'ventilation'] as const)
+    .map(key => control(CameraHousingParametersSchema, key, 'basic')),
+  enumControl(CameraHousingParametersSchema, 'mountRetention', 'basic', [
+    { value: 'heat-set', label: 'Heat-set inserts', description: 'Two blind, rear-facing inserts; fit with electronics removed.' },
+    { value: 'nut', label: 'Captive nuts', description: 'Slide hex or square nuts into the tray pockets before fitting the board.' },
+  ]),
+  { ...partControl(CameraHousingParametersSchema, 'mountInsert', 'basic', 'threaded-insert', CAMERA_MOUNT_INSERTS), visibleWhen: { control: 'mountRetention', values: ['heat-set'] } },
+  { ...partControl(CameraHousingParametersSchema, 'mountNut', 'basic', 'nut', CAMERA_MOUNT_NUTS), visibleWhen: { control: 'mountRetention', values: ['nut'] } },
+  control(CameraHousingParametersSchema, 'heatsinkEnabled', 'basic'),
+  { ...partControl(CameraHousingParametersSchema, 'heatsink', 'basic', 'heatsink', CAMERA_HEATSINKS), enabledWhen: 'heatsinkEnabled' },
+  ...(['heatsinkAllowance', 'adhesiveThickness'] as const).map(key => ({ ...control(CameraHousingParametersSchema, key, 'advanced'), enabledWhen: 'heatsinkEnabled' })),
+  ...(['wall', 'standoff', 'headroom', 'boardFit', 'seamFit', 'usbRecess', 'usbWidth', 'usbHeight'] as const)
+    .map(key => control(CameraHousingParametersSchema, key, 'advanced')),
+];
+const CAMERA_HOUSING_MAPPING = {
+  width: 'WIDTH', length: 'LENGTH', wall: 'WALL', standoff: 'STANDOFF', headroom: 'HEADROOM', boardFit: 'BOARD_FIT', seamFit: 'SEAM_FIT',
+  usbRecess: 'USB_RECESS', usbWidth: 'USB_W', usbHeight: 'USB_H', cameraDiameter: 'CAMERA_D', cameraOffsetX: 'CAMERA_DX', cameraOffsetY: 'CAMERA_DY',
+  antennaDiameter: 'ANTENNA_D', batteryDiameter: 'BATTERY_D', chargeWindow: 'CHARGE_WINDOW', ventilation: 'VENTILATION', mountSpacing: 'MOUNT_SPACING', mountRetention: 'MOUNT_RETENTION', mountNut: 'MOUNT_NUT', heatsinkEnabled: 'HEATSINK_ENABLED', heatsinkAllowance: 'HEATSINK_ALLOWANCE', adhesiveThickness: 'ADHESIVE_T',
+};
+const CAMERA_HOUSING_CONSTANTS = {
+  HEATSINK_GAP: CAMERA_HEATSINK_GAP,
+  LOCATOR_X: CAMERA_HARDWARE.locatorX, LOCATOR_Y: CAMERA_HARDWARE.locatorY,
+  LENS_X: CAMERA_HARDWARE.cameraX, LENS_Y: CAMERA_HARDWARE.cameraY, EXPANSION_TOP: CAMERA_HARDWARE.expansionTop,
+  CHARGE_Y: CAMERA_HARDWARE.chargeY, CHARGE_Z: CAMERA_HARDWARE.chargeZ, ANTENNA_Y: CAMERA_HARDWARE.antennaY,
+  LID_HOLE: dimensionOf(cameraHardwarePart(CAMERA_LID_INSERT), 'hole'), LID_DEPTH: CAMERA_HARDWARE.lidHoleDepth,
+  LID_R: CAMERA_HARDWARE.lidBossRadius, CORNER_INSET: CAMERA_HARDWARE.lidCornerInset, SCREW_HOLE: CAMERA_HARDWARE.screwHole, SEAM_ABOVE_PCB: CAMERA_HARDWARE.seamAbovePcb,
+};
+export const cameraHousing = {
+  id: 'xiao-sense-camera-housing' as const, version: '3' as const, title: 'XIAO Sense camera housing',
+  description: 'A mountable indoor camera enclosure for the Seeed Studio XIAO ESP32-S3 Sense. A guided tray and screw-on camera hood leave access for the lens, USB-C charging/data, battery wires and the external antenna. Customize the openings, fit and rear heat-set insert or captive-nut mounts. An optional backside heatsink is enabled by default; the housing automatically grows taller to clear the fins without crowding the camera. Cat recognition and feeding-tracker software are not included.',
+  attribution: 'CanFactory (original design); board envelope from Seeed Studio',
+  attributionLinks: [{ text: 'Seeed Studio', url: 'https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/' }],
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  printNotes: 'Print the tray floor down and the hood roof down, as generated, in PETG (0.2 mm layers, 3–4 perimeters). Bridge the USB/window openings or add local supports if needed. Heat-set four ruthex M2 × 4 lid inserts with electronics removed. For the rear mounts, fit two heat-set inserts or slide the selected nuts into the pockets from inside before seating the board. Nut slots need a short bridge or local support; remove it before fitting the nuts. Use the M2 lid screw length listed below. The rear mount screws are not supplied: follow the selected rear-fastener penetration limit below. Leave the GPIO4/GPIO43 pin holes unsoldered for the locating pegs. Attach the U.FL lead and solder battery wires before seating the board; route them through the split side exits. Bond one heatsink to the backside thermal pad with electrically insulating thermal adhesive before seating the board. Keep BAT pads, solder joints and locating holes clear. Seeed publishes only the 10 × 10 mm footprint: its height is estimated at 10 mm; measure yours and increase Extra heatsink height if necessary. The alternative requires separate adhesive. Do not fit a sink between the camera expansion board and the main PCB. No battery bay, cable strain relief or weather seal. Cooling is not thermally validated; measure operating temperatures and choose a heat-appropriate print material. Keep cables and small hardware out of cats’ reach. Measure your camera, cable and board, then test-print and check the field of view before deployment.',
+  parts: (['base', 'lid'] as const).map((part): ModelPart => ({ id: part, title: part === 'base' ? 'Guided tray' : 'Camera hood',
+    sourcePath: 'models/xiao-sense-camera-housing/generator.scad', scadConstants: { ...CAMERA_HOUSING_CONSTANTS, PART: part }, scadMapping: CAMERA_HOUSING_MAPPING,
+    partDefines: {
+      board: { BOARD_W: ['W', 'value'], BOARD_L: ['L', 'value'], BOARD_T: ['t', 'value'], BOARD_H: ['H', 'value'], USB_OVERHANG: ['usbOverhang', 'value'], USB_HEIGHT: ['usbH', 'value'] },
+      mountInsert: { MOUNT_HOLE: ['hole', 'value'], MOUNT_DEPTH: ['holeDepth', 'value'], MOUNT_WALL: ['wall', 'value'] },
+      heatsink: { HEATSINK_H: ['H', 'max'] },
+    },
+  })),
+  parameterSchema: CameraHousingParametersSchema, controls: cameraHousingControls, defaults: DEFAULT_CAMERA_HOUSING, scadMapping: {},
+  scadEncode: { mountNut: cameraNutScad },
+  assembly: cameraHousingAssembly(DEFAULT_CAMERA_HOUSING),
+  assemblyForParameters: parameters => cameraHousingAssembly(parameters as CameraHousingParameters),
+  linkedReferences: parameters => cameraHousingReferences(parameters as CameraHousingParameters),
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(CameraHousingParametersSchema, parameters) ? cameraHousingIssues(parameters) : [{ field: '', message: 'Parameters do not match the camera housing schema.' }];
+  },
+  derived(parameters: unknown) {
+    if (!Value.Check(CameraHousingParametersSchema, parameters) || cameraHousingIssues(parameters).length) return { slotCount: null };
+    const l = cameraHousingLayout(parameters);
+    if (!l.screw) return { slotCount: null };
+    return { slotCount: null, notes: [
+      `Assembled envelope: ${l.width.toFixed(1)} × ${l.length.toFixed(1)} × ${l.top.toFixed(2)} mm (excluding screw heads); rear mount centres ${parameters.mountSpacing} mm apart.`,
+      `Hardware: two ${cameraHardwarePart(parameters.mountRetention === 'nut' ? parameters.mountNut : parameters.mountInsert).designation} rear ${parameters.mountRetention === 'nut' ? 'nuts' : 'inserts'}, four ruthex RX-M2x4 lid inserts, four ${l.screw.designation} lid screws. Rear screw penetration: at most ${parameters.mountRetention === 'nut' ? (l.mountDepth - 0.4).toFixed(1) : dimensionOf(cameraHardwarePart(parameters.mountInsert), 'l')} mm from the outer floor.`,
+      ...(parameters.heatsinkEnabled ? [`Passive cooling: one ${cameraHardwarePart(parameters.heatsink).designation} on the backside thermal pad, fins towards the floor; under-board clearance automatically ${l.clearance.toFixed(2)} mm, including ${parameters.adhesiveThickness} mm adhesive, ${parameters.heatsinkAllowance} mm extra height and ${CAMERA_HEATSINK_GAP} mm air gap. Seeed sink height is estimated, not published: measure before printing. Keep BAT pads clear; no thermal-performance guarantee.`] : ['Heatsink disabled: compact under-board clearance restored; verify operating temperature before use.']),
+      `USB-C is the charging and data port (${(parameters.wall + parameters.usbRecess).toFixed(1)} mm socket recess); the separate battery-wire exit is for an external battery, not a second charging socket.`,
+      'Nominal OV2640 / OV3660 camera envelope only: measure your delivered lens, check alignment and field of view, and make a test print. Not physically fit-tested.',
+    ] };
+  },
+} satisfies ModelDefinition;
+
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

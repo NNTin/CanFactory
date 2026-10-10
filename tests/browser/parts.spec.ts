@@ -120,7 +120,7 @@ test('sizes the cigarette case’s magnet pockets for a library magnet, and show
 test('filters the development boards by chip family, whatever the flash variant', async ({ page }) => {
   await page.goto('/#/parts/dev-board');
   const chip = page.getByLabel('Chip');
-  await expect(chip.locator('option')).toHaveText(['All', 'ESP32-C3', 'ESP32-C6']);
+  await expect(chip.locator('option')).toHaveText(['All', 'ESP32-C3', 'ESP32-C6', 'ESP32-S3']);
   await chip.selectOption('ESP32-C3');
   await expect(page).toHaveURL(/#\/parts\/dev-board\?chip=ESP32-C3$/);
   expect((await shownParts(page)).sort()).toEqual(['nologo-esp32-c3-supermini', 'waveshare-esp32-c3-zero']);

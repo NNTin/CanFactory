@@ -14,6 +14,7 @@ import { QrMagnetTagIllustration } from './QrMagnetTagIllustration.tsx';
 import { CatCollarTagIllustration } from './CatCollarTagIllustration.tsx';
 import { PrintedCornerBracketIllustration } from './PrintedCornerBracketIllustration.tsx';
 import { PrintedScreenHookIllustration } from './PrintedScreenHookIllustration.tsx';
+import { CameraHousingIllustration } from './CameraHousingIllustration.tsx';
 import { SpringBallDetentIllustration } from './SpringBallDetentIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { CatioConcept } from './CatioConcept.tsx';
@@ -290,6 +291,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'printed-screen-hook': PrintedScreenHookIllustration,
   'spring-ball-detent': SpringBallDetentIllustration,
   'cat-collar-tag': CatCollarTagIllustration,
+  'xiao-sense-camera-housing': CameraHousingIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names
