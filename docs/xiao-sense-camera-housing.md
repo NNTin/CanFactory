@@ -55,6 +55,41 @@ bracket's thickness: **do not penetrate farther than the chosen insert's
 length**, as listed under the settings. They are intentionally not selected
 or shown as if a bracket thickness were known.
 
+### Self-locating seam
+
+An **open-sided alignment groove (perimeter rabbet)** in the tray rim receives
+a matching downward tongue on the hood. The opposed faces locate the hood in
+X/Y before tightening the screws; the screws clamp it rather than providing
+the only lateral location. This is a clearance fit, not a snap or press fit.
+Lower the hood squarely until the tongue enters the groove, check the cable
+notches, then tighten the four M2 screws evenly. Do not use them to force a
+tight or misaligned tongue into place.
+
+| Setting / dimension | Default | Convention |
+| --- | --- | --- |
+| **Alignment overlap** (`seamDepth`) | 1.2 mm | 0.8–2.4 mm, in 0.2 mm steps; overlap below the tray rim. |
+| **Lid seam clearance** (`seamFit`) | 0.2 mm | Existing 0.15–0.45 mm range, in 0.05 mm steps; now also the gap **per side** at the tongue and beneath its tip. Larger is looser, as with this repo's other mating-part clearances. |
+| Tongue / remaining outer rim thickness | 1.0 mm each | Each is `wall / 2`, at least 0.8 mm with the minimum 1.6 mm wall. The tongue shifts inward by `seamFit`, keeping its thickness rather than thinning it to add clearance. |
+| Groove depth below the tray rim | 1.4 mm | `seamDepth + seamFit`; the hood's main rim still starts `seamFit` above the tray. |
+
+The groove is open towards the cavity so thin walls do not need two fragile
+groove cheeks. Both profiles follow offsets of the existing rounded inner
+wall. Full-radius corner insert bosses remain intact; tongue reliefs clear
+each boss by `seamFit`. The USB and split cable openings cut through the
+tongue too; cable notches stay open to its tip so lowering the hood does not
+catch pre-routed leads. The groove and tongue do not change the outside envelope, board
+position, camera headroom, screw grid, insert depth or screw-length selection.
+Validation keeps the rear mounting pockets' blind caps below the groove floor;
+deep overlaps in a compact housing may require more under-board clearance or
+a shallower overlap.
+
+The overlapping seam removes a direct path through most of the former flat
+gap and may reduce dust/draught ingress. It is **not a weather seal**: the
+boss reliefs, cable/USB openings and optional vents interrupt it, and there is
+no gasket or waterproof rating. Test-print the fit for your printer/material;
+remove burrs and increase `seamFit` if the hood binds. Model version 4 parts
+are a matched pair: reprint both tray and hood rather than mixing seam revisions.
+
 ### Captive nuts instead of rear heat-set inserts
 
 Set **Rear mounting → Captive nuts** and select ISO 4032 M3/M4 hex nuts or
@@ -127,11 +162,12 @@ of dust/food, and choose a heat-appropriate material. There is **no thermal-perf
 ## Customization and printing
 
 Adjust outside dimensions, wall thickness, board clearances, under-board
-clearance, camera headroom, seam clearance, mounting retention/fastener/pitch, optional heatsink/extra height/adhesive, camera
+clearance, camera headroom, seam clearance/alignment overlap, mounting retention/fastener/pitch, optional heatsink/extra height/adhesive, camera
 alignment, USB plug envelope/recess, antenna/battery exits, ventilation and
 charge window. Validation keeps mounting bosses clear of guides, preserves
 blind ends and the floor under USB, and keeps the nominal lens, roof retainers
-and lid screw ligaments clear of the camera aperture.
+and lid screw ligaments clear of the camera aperture, and keeps mounting caps
+below the alignment groove.
 
 Print the generated tray floor down and hood roof down, preferably in PETG,
 with 0.2 mm layers and 3–4 perimeters. Local supports/bridging may be needed at
@@ -184,11 +220,18 @@ TEST_ONLY=xiao-sense-camera-housing SWEEP_SAMPLES=100 npm run test:sweep
 npm run check:assembly -- xiao-sense-camera-housing
 npm run check:assembly -- xiao-sense-camera-housing --parameters '{"heatsinkEnabled":false,"mountRetention":"nut"}'
 npm run check:assembly -- xiao-sense-camera-housing --parameters '{"heatsink":"same-sky-hsb02-101007","heatsinkAllowance":4}'
+npm run check:assembly -- xiao-sense-camera-housing --parameters '{"wall":1.6,"seamFit":0.45,"seamDepth":2.4}'
+npm run check:assembly -- xiao-sense-camera-housing --parameters '{"width":54,"mountSpacing":36,"wall":3.6,"seamFit":0.15,"seamDepth":2.4}'
 npx playwright test tests/browser/camera-housing.spec.ts tests/browser/parts.spec.ts
 ```
 
 Renderer cases inspect both connected closed solids, dimensions, actual
 through-openings and blind pockets, and identical preview/download ZIP bytes.
+They probe the groove, tongue, lateral/bottom/vertical gaps, preserved screw
+bosses and openings through the tongue, including thin/thick walls and the
+clearance/overlap extremes. Contract tests check the same derived dimensions,
+SCAD mappings and compact-housing blind-cap validation without changing
+headroom or fastener layout.
 The sweep also fails on float32 sliver repairs. The assembly checker verifies
 clearances of the printed parts against the board stack and linked hardware,
 including the exploded layout and assembly paths. It does not simulate flexible

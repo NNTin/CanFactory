@@ -31,12 +31,46 @@ describe('XIAO Sense camera housing', () => {
     const scad = readFileSync(new URL('../../../models/xiao-sense-camera-housing/generator.scad', import.meta.url), 'utf8');
     for (const part of activeParts(cameraHousing, P)) {
       const defines = Object.fromEntries(scadDefines(cameraHousing, part, P));
-      expect(defines).toMatchObject({ BOARD_W: '17.8', BOARD_H: '15', BOARD_T: '1.25', MOUNT_HOLE: '4', MOUNT_DEPTH: '6.7', MOUNT_WALL: '1.6', LID_HOLE: '3.2' });
+      expect(defines).toMatchObject({ BOARD_W: '17.8', BOARD_H: '15', BOARD_T: '1.25', MOUNT_HOLE: '4', MOUNT_DEPTH: '6.7', MOUNT_WALL: '1.6', LID_HOLE: '3.2', SEAM_FIT: '0.2', SEAM_DEPTH: '1.2' });
       for (const [key, value] of Object.entries(part.scadConstants ?? {})) {
         expect(scad).toMatch(new RegExp(`^${key} = `, 'm'));
         if (typeof value === 'number') expect(Number(new RegExp(`^${key} = ([\\d.]+);`, 'm').exec(scad)?.[1]), key).toBeCloseTo(value, 8);
       }
     }
+  });
+  it('sizes the alignment rabbet with per-side clearance without changing headroom or screw engagement', () => {
+    for (const wall of [1.6, 2, 3.6]) for (const seamFit of [0.15, 0.2, 0.45]) for (const seamDepth of [0.8, 1.2, 2.4]) {
+      const p = { ...P, width: 54, mountSpacing: 36, wall, seamFit, seamDepth }, l = cameraHousingLayout(p);
+      const before = cameraHousingLayout({ ...p, seamFit: P.seamFit, seamDepth: P.seamDepth });
+      expect(validateParameters(cameraHousing, p)).toEqual([]);
+      expect(l.seamShoulder).toBeGreaterThanOrEqual(0.8);
+      expect(l.tongueThickness).toBe(wall / 2);
+      expect(l.tongueBottom).toBeCloseTo(l.seam - seamDepth);
+      expect(l.tongueBottom - l.grooveFloor).toBeCloseTo(seamFit);
+      // On every straight side the tongue is translated inward, not shrunk in thickness; the rebate is open on the inside.
+      const grooveEdge = p.width / 2 - l.seamShoulder, tongueEdge = grooveEdge - seamFit;
+      expect(grooveEdge - tongueEdge).toBeCloseTo(seamFit);
+      expect(tongueEdge - l.tongueThickness).toBeCloseTo(p.width / 2 - wall - seamFit);
+      expect(l.tongueThickness - seamFit).toBeGreaterThan(0); // overlap with the hood wall above the seam
+      expect(l.mountDepth + wall).toBeLessThan(l.grooveFloor);
+      for (const key of ['boardZ', 'seam', 'roof', 'top', 'grip', 'screw', 'corners'] as const) expect(l[key]).toEqual(before[key]);
+      for (const part of activeParts(cameraHousing, p)) {
+        const defines = Object.fromEntries(scadDefines(cameraHousing, part, p));
+        expect(Number(defines['SEAM_FIT'])).toBe(seamFit);
+        expect(Number(defines['SEAM_DEPTH'])).toBe(seamDepth);
+      }
+    }
+    expect(cameraHousing.derived(P).notes?.join(' ')).toMatch(/Alignment rabbet: 1.2 mm overlap.*0.20 mm clearance per side/);
+    for (const seamDepth of [0.6, 1.3, 2.6]) expect(validateParameters(cameraHousing, { ...P, seamDepth })).not.toEqual([]);
+  });
+  it('keeps blind rear mounting caps below the groove, including compact housings', () => {
+    const p = { ...P, heatsinkEnabled: false, standoff: 3 };
+    expect(validateParameters(cameraHousing, p)).toEqual([]);
+    expect(validateParameters(cameraHousing, { ...p, seamDepth: 2.4 })).toContainEqual({
+      field: 'standoff', message: 'Increase under-board clearance or reduce alignment overlap: the mounting pockets need a blind cap below the alignment groove.',
+    });
+    expect(validateParameters(cameraHousing, { ...p, seamDepth: 2.4, standoff: 3.2 })).toEqual([]);
+    expect(validateParameters(cameraHousing, { ...P, heatsinkEnabled: false, mountInsert: 'ruthex-rx-m4x8-1' }).some(i => /alignment groove/.test(i.message))).toBe(true);
   });
   it('rejects colliding mounts, insufficient roof rim, obscured lenses and floor-breaking USB openings', () => {
     const bad = [
