@@ -1,6 +1,8 @@
 // Original CanFactory indoor camera housing. mm, centred XY, Z up. See docs/xiao-sense-camera-housing.md.
 // Width/length resize the shell and lid screw grid; board dimensions never scale. The USB end stays at +Y.
 // Mount pockets use library hole/depth/wall dimensions, not the insert's knurl diameter.
+// The open inner rabbet retains half the wall; the lid tongue is half-wall thick, shifted inward by SEAM_FIT.
+// SEAM_DEPTH is the overlap below SEAM; SEAM_FIT clears each mating side and the groove floor (no press fit).
 // Each PART is one connected manifold print. Lid is roof down, with its exact inverse assembly transform.
 PART = "base";
 WIDTH = 48;
@@ -10,6 +12,7 @@ STANDOFF = 4;
 HEADROOM = 1.2;
 BOARD_FIT = 0.3;
 SEAM_FIT = 0.2;
+SEAM_DEPTH = 1.2;
 USB_RECESS = 2;
 USB_W = 14;
 USB_H = 8;
@@ -57,6 +60,8 @@ BY = LENGTH / 2 - WALL - USB_OVERHANG - USB_RECESS - BOARD_L;
 CLEARANCE = HEATSINK_ENABLED ? max(STANDOFF, HEATSINK_H + HEATSINK_ALLOWANCE + ADHESIVE_T + HEATSINK_GAP) : STANDOFF;
 BZ = WALL + CLEARANCE;
 SEAM = BZ + BOARD_T + SEAM_ABOVE_PCB;
+TONGUE_BOTTOM = SEAM - SEAM_DEPTH;
+GROOVE_FLOOR = TONGUE_BOTTOM - SEAM_FIT;
 ROOF = BZ + BOARD_H + HEADROOM;
 TOP = ROOF + WALL;
 NUT_MODE = MOUNT_RETENTION == "nut";
@@ -80,19 +85,46 @@ module shell() {
     translate([0, 0, WALL]) rounded(W - 2*WALL, L - 2*WALL, ROOF - WALL, 1.4);
   }
 }
+// Offsets of the shell's exact inner rounded outline, not scaled copies: clearance stays constant at corners too.
+module seam_outline(inset = 0) {
+  offset(r = 1.4 + WALL/2 - inset) square([W - 2*WALL - 2.8, L - 2*WALL - 2.8], center = true);
+}
+module alignment_groove() {
+  translate([0, 0, GROOVE_FLOOR]) linear_extrude(SEAM_DEPTH + SEAM_FIT + EPS) seam_outline();
+}
+module alignment_tongue() {
+  translate([0, 0, TONGUE_BOTTOM]) linear_extrude(SEAM_DEPTH + SEAM_FIT + EPS) difference() {
+    seam_outline(SEAM_FIT);
+    seam_outline(WALL/2 + SEAM_FIT);
+    corner_positions() circle(r = LID_R + SEAM_FIT);
+  }
+}
 // Cable moulding clearance, split antenna/battery channels at the seam, and a side sight line to the charge LED.
 module access_cuts() {
-  translate([-USB_W/2, LENGTH/2 - WALL - EPS, BZ + BOARD_T + USB_HEIGHT/2 - USB_H/2]) cube([USB_W, WALL + 2*EPS, USB_H]);
-  translate([-W/2 - EPS, BY + ANTENNA_Y, SEAM]) rotate([0, 90, 0]) cylinder(d = ANTENNA_D, h = WALL + 2*EPS);
-  translate([W/2 - WALL - EPS, BY + 11, SEAM]) rotate([0, 90, 0]) cylinder(d = BATTERY_D, h = WALL + 2*EPS);
+  // Extend through the tongue's inward SEAM_FIT offset, so it never bridges a cable/USB opening.
+  translate([-USB_W/2, LENGTH/2 - WALL - SEAM_FIT - EPS, BZ + BOARD_T + USB_HEIGHT/2 - USB_H/2]) cube([USB_W, WALL + SEAM_FIT + 2*EPS, USB_H]);
+  translate([-W/2 - EPS, BY + ANTENNA_Y, SEAM]) rotate([0, 90, 0]) cylinder(d = ANTENNA_D, h = WALL + SEAM_FIT + 2*EPS);
+  translate([W/2 - WALL - SEAM_FIT - EPS, BY + 11, SEAM]) rotate([0, 90, 0]) cylinder(d = BATTERY_D, h = WALL + SEAM_FIT + 2*EPS);
   if (CHARGE_WINDOW) translate([-W/2 - EPS, BY + CHARGE_Y, BZ + CHARGE_Z]) rotate([0, 90, 0]) cylinder(d = 2.4, h = WALL + 2*EPS);
+}
+// A closed hole in the downward tongue would catch a pre-routed lead while lowering the hood.
+// Open each notch all the way to the tongue tip, even when SEAM_DEPTH exceeds the cable radius.
+module tongue_cable_cuts() {
+  translate([-W/2 - EPS, BY + ANTENNA_Y - ANTENNA_D/2, TONGUE_BOTTOM - EPS])
+    cube([WALL + SEAM_FIT + 2*EPS, ANTENNA_D, SEAM_DEPTH + 2*EPS]);
+  translate([W/2 - WALL - SEAM_FIT - EPS, BY + 11 - BATTERY_D/2, TONGUE_BOTTOM - EPS])
+    cube([WALL + SEAM_FIT + 2*EPS, BATTERY_D, SEAM_DEPTH + 2*EPS]);
 }
 module base() {
   difference() {
     union() {
-      intersection() { shell(); translate([-W, BACK - 1, 0]) cube([2*W, L + 2, SEAM]); }
+      difference() {
+        intersection() { shell(); translate([-W, BACK - 1, 0]) cube([2*W, L + 2, SEAM]); }
+        alignment_groove(); // open to the cavity, leaving the outer half-wall intact
+      }
       // Blind mount bores face the rear; the floor ties their bosses into the tray.
       for (x = [-1, 1]) translate([x * MOUNT_SPACING/2, 0, 0]) cylinder(r = MR + EPS, h = MDEPTH + WALL); // overlap a tangent inner wall by EPS; never reduce the required pocket wall
+      // Add full bosses AFTER the shell rabbet: no coincident circle cuts or weakened insert walls.
       corner_positions() cylinder(r = LID_R, h = SEAM);
       // Narrow ledges support the PCB edges, not its underside components or battery pads.
       for (s = [-1, 1]) {
@@ -132,6 +164,7 @@ module lid_assembled() {
   difference() {
     union() {
       intersection() { shell(); translate([-W, BACK - 1, SEAM + SEAM_FIT]) cube([2*W, L + 2, TOP]); }
+      alignment_tongue();
       // Screw tubes connect to the roof; side walls need no support when printed roof down.
       corner_positions() translate([0, 0, SEAM + SEAM_FIT]) cylinder(r = LID_R, h = TOP - SEAM - SEAM_FIT);
       // Two retainers limit lift to 0.2 mm, bearing on free edges of the expansion PCB, not on the lens or SD socket.
@@ -139,6 +172,7 @@ module lid_assembled() {
         cube([0.6, 2, ROOF - BZ - EXPANSION_TOP - 0.2 + EPS]);
     }
     access_cuts();
+    tongue_cable_cuts();
     corner_positions() translate([0, 0, SEAM - EPS]) cylinder(d = SCREW_HOLE, h = TOP - SEAM + 2*EPS);
     translate([LENS_X - BOARD_W/2 + CAMERA_DX, BY + LENS_Y + CAMERA_DY, ROOF - EPS]) cylinder(d = CAMERA_D, h = WALL + 2*EPS);
     if (VENTILATION) for (x = [-5, 0, 5]) translate([x - 0.7, -LENGTH/2 + 5, ROOF - EPS]) cube([1.4, 8, WALL + 2*EPS]);
