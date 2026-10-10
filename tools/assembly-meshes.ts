@@ -72,7 +72,7 @@ export const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part
         L: size(part, 'L', 'value'), W: size(part, 'W', 'value'), T: size(part, 't', 'value'), R: size(part, 'r', 'value'), HOLE: size(part, 'd', 'value'),
         CASTELLATED: String(layout.castellated), PINS: JSON.stringify(layout.pins.map(pin => [pin.x, pin.y])),
         USB: JSON.stringify([usb.x0, usb.y0, usb.x1, usb.y1, usb.height]),
-        COMPONENTS: JSON.stringify(layout.components.map(c => [c.x, c.y, c.width, c.length, c.height, c.rotation, c.top ? TOP_SHAPES[c.top.shape] : 0, c.top?.width ?? 0, c.top?.length ?? 0, c.top?.height ?? 0])),
+        COMPONENTS: JSON.stringify(layout.components.map(c => [c.x, c.y, c.width, c.length, c.height, c.rotation, c.top ? TOP_SHAPES[c.top.shape] : 0, c.top?.width ?? 0, c.top?.length ?? 0, c.top?.height ?? 0, c.base ?? 0])),
       };
     },
   },

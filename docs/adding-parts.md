@@ -84,6 +84,10 @@ The **`dev-board`** family (`dev-boards.ts`) holds small microcontroller boards 
 
 - **ESP32-C3:** the ESP32-C3 SuperMini (Nologo) and the Waveshare ESP32-C3-Zero.
 - **ESP32-C6:** the Waveshare ESP32-C6-Zero and the Seeed Studio XIAO ESP32C6.
+- **ESP32-S3:** the Seeed Studio XIAO ESP32-S3 Sense, with expansion PCB and camera; see the
+  [camera housing](xiao-sense-camera-housing.md#hardware-provenance-and-coordinate-frame). Components can carry a `base`
+  height relative to the main PCB top, for stacked boards and underside components (zero when omitted); top heights are local
+  to that base. This board is 15 mm tall including its camera, not a flat MCU board.
 
 Besides its dimensions (board `L` × `W` × `t`, corner `r`, pitch `e`, row spacing `e1`, first pin `a` from the USB end, hole `d`,
 the USB-C receptacle's width, height and overhang, and the overall height `H`), each board has a layout, `devBoardLayout(part)`:

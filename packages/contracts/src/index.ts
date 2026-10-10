@@ -1,5 +1,5 @@
 import { Type, type Static } from 'typebox';
-import { aiRubberDuck, AssemblySchema, catCollarTag, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector, pressurePad, printedCornerBracket, printedScreenHook, qrMagnetTag, springBallDetent, toggleLatch, windowCatGuard } from './models.ts';
+import { aiRubberDuck, AssemblySchema, cameraHousing, catCollarTag, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector, pressurePad, printedCornerBracket, printedScreenHook, qrMagnetTag, springBallDetent, toggleLatch, windowCatGuard } from './models.ts';
 import { PartFamilySchema, PartSchema, PartSourceSchema } from './parts/index.ts';
 export * from './models.ts';
 export * from './assembly.ts';
@@ -16,6 +16,7 @@ export * from './printedCornerBracket.ts';
 export * from './printedScreenHook.ts';
 export * from './springBallDetent.ts';
 export * from './catCollarTag.ts';
+export * from './cameraHousing.ts';
 export * from './physics.ts';
 export * from './physicsPieces.ts';
 export * from './cigaretteCasePhysics.ts';
@@ -131,6 +132,9 @@ export const RenderRequestSchema = Type.Union([
     modelId: Type.Literal(catCollarTag.id),
     modelVersion: Type.Literal(catCollarTag.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
     parameters: catCollarTag.parameterSchema,
+  }, { additionalProperties: false }),
+  Type.Object({
+    modelId: Type.Literal(cameraHousing.id), modelVersion: Type.Literal(cameraHousing.version), parameters: cameraHousing.parameterSchema,
   }, { additionalProperties: false }),
 ], { description: 'Complete, uncoerced settings for one model version.' });
 export type RenderRequest = Static<typeof RenderRequestSchema>;

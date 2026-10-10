@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { activeParts, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
@@ -57,6 +57,25 @@ function shells(mesh: Mesh): number {
     parent[b] = a; parent[c] = a; parent[find(b)] = a;
   }
   return new Set(parent.map((_, i) => find(i))).size;
+}
+/** Odd ray-crossing parity, used to prove that enclosure openings are actually open in the delivered STL. */
+function housingSolid(mesh: Mesh, p: [number, number, number]): boolean {
+  type V = [number, number, number];
+  const sub = (a: V, b: V): V => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const cross = (a: V, b: V): V => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const dot = (a: V, b: V) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const vertex = (i: number): V => [mesh.tris[i] ?? 0, mesh.tris[i + 1] ?? 0, mesh.tris[i + 2] ?? 0];
+  const direction: V = [1, 0.3183, 0.1291];
+  let hits = 0;
+  for (let i = 0; i < mesh.tris.length; i += 9) {
+    const a = vertex(i), e1 = sub(vertex(i + 3), a), e2 = sub(vertex(i + 6), a), h = cross(direction, e2), det = dot(e1, h);
+    if (Math.abs(det) < 1e-12) continue;
+    const from = sub(p, a), u = dot(from, h) / det;
+    if (u < 0 || u > 1) continue;
+    const q = cross(from, e1), v = dot(direction, q) / det;
+    if (v >= 0 && u + v <= 1 && dot(e2, q) / det > 0) hits++;
+  }
+  return hits % 2 === 1;
 }
 const WIDE_BAR = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg"><rect width="80" height="20" rx="5"/></svg>');
 const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
@@ -831,6 +850,56 @@ try {
     for (const across of [body.dimensions.x, body.dimensions.y]) assert.ok(across <= layout.thread.major + 0.01 && across > layout.thread.major - 0.1, `spring ball detent ${name}: ${across} across, thread ${layout.thread.major}`);
     if (press) { assert.ok(cap && Math.abs(cap.dimensions.z - layout.cap.length) < 0.01, `spring ball detent ${name}: cap ${cap?.dimensions.z} != ${layout.cap.length}`); }
     console.log(`PASS spring ball detent ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+  const housingRuns: { name: string; overrides: Partial<CameraHousingParameters> }[] = [
+    { name: 'default', overrides: {} },
+    { name: 'small, thin walls', overrides: { width: 44, length: 40, wall: 1.6, mountSpacing: 32 } },
+    { name: 'largest envelope', overrides: { width: 80, length: 80, mountSpacing: 60, wall: 3.6, standoff: 8, headroom: 4 } },
+    { name: 'short M3 mounting inserts', overrides: { mountInsert: 'cnc-kitchen-m3x3' } },
+    { name: 'short M4 mounting inserts', overrides: { mountInsert: 'cnc-kitchen-m4x4' } },
+    { name: 'long M4 mounting inserts', overrides: { mountInsert: 'ruthex-rx-m4x8-1' } },
+    { name: 'large exits, no vents/window', overrides: { antennaDiameter: 8, batteryDiameter: 8, chargeWindow: false, ventilation: false } },
+    { name: 'adjusted camera, deep USB', overrides: { cameraDiameter: 14, cameraOffsetX: 1.2, cameraOffsetY: -0.5, usbRecess: 4, usbWidth: 20, usbHeight: 12 } },
+    { name: 'former tangent hole/wall regression', overrides: { width: 68, length: 64, wall: 3.4, mountSpacing: 37, mountInsert: 'ruthex-rx-m4x8-1' } },
+  ];
+  for (const { name, overrides } of only && only !== cameraHousing.id ? [] : housingRuns) {
+    const parameters = { ...DEFAULT_CAMERA_HOUSING, ...overrides };
+    assert.deepEqual(validateParameters(cameraHousing, parameters), [], name);
+    const l = cameraHousingLayout(parameters), h = CAMERA_HARDWARE;
+    const queued = store.enqueue(cameraHousing, parameters), job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken;
+    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, name); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', name); assert.ok(result.artifact && 'parts' in result.artifact);
+    const bytes = await readFile(store.artifacts.path(job.id, 'zip')), entries = unzipSync(new Uint8Array(bytes));
+    assert.deepEqual(Object.keys(entries), ['base.stl', 'lid.stl']); // Hardware must never be in the printable download.
+    for (const part of result.artifact.parts) {
+      const expected = [parameters.width, parameters.length, part.id === 'base' ? l.seam : Math.max(l.top - l.seam - parameters.seamFit, l.top - l.boardZ - h.expansionTop - 0.2)];
+      [part.dimensions.x, part.dimensions.y, part.dimensions.z].forEach((d, i) => assert.ok(Math.abs(d - (expected[i] ?? NaN)) < 0.01, `${name} ${part.id} bounds`));
+      const entry = entries[`${part.id}.stl`]; assert.ok(entry); inspectStl(Buffer.from(entry));
+    }
+    const baseBytes = entries['base.stl'], lidBytes = entries['lid.stl']; assert.ok(baseBytes && lidBytes);
+    const base = parseStl(Buffer.from(baseBytes)), lid = parseStl(Buffer.from(lidBytes));
+    const hoodSolid = (x: number, y: number, z: number) => housingSolid(lid, [x, -y, l.top - z]);
+    assert.equal(housingSolid(base, [0, parameters.length / 2 - parameters.wall / 2, l.usbZ]), false, `${name}: USB access`);
+    assert.equal(housingSolid(base, [0, parameters.length / 2 - parameters.wall / 2, parameters.wall / 2]), true, `${name}: floor below USB`);
+    assert.equal(hoodSolid(l.aperture[0], l.aperture[1], l.roof + parameters.wall / 2), false, `${name}: camera aperture`);
+    assert.equal(hoodSolid(0, -parameters.length / 2 + 7, l.roof + parameters.wall / 2), !parameters.ventilation, `${name}: roof vents`);
+    for (const [side, y] of [[-1, l.boardY + h.antennaY], [1, l.boardY + 11]] as [number, number][]) {
+      const x = side * (parameters.width / 2 - parameters.wall / 2);
+      assert.equal(housingSolid(base, [x, y, l.seam - 0.4]), false, `${name}: split cable exit in tray`);
+      assert.equal(hoodSolid(x, y, l.seam + 0.6), false, `${name}: split cable exit in hood`);
+    }
+    assert.equal(housingSolid(base, [-parameters.width / 2 + parameters.wall / 2, l.boardY + h.chargeY, l.boardZ + h.chargeZ]), !parameters.chargeWindow, `${name}: LED window`);
+    for (const sign of [-1, 1]) {
+      assert.equal(housingSolid(base, [sign * parameters.mountSpacing / 2, 0, l.mountDepth / 2]), false, `${name}: rear insert bore`);
+      assert.equal(housingSolid(base, [sign * parameters.mountSpacing / 2, 0, l.mountDepth + 0.4]), true, `${name}: blind insert end`);
+    }
+    const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
+    assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
+    assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
+    console.log(`PASS camera housing ${name}: two closed prints, dimensioned through-openings and blind mounting holes`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

@@ -1,3 +1,4 @@
+import { CAMERA_HARDWARE, CAMERA_LID_INSERT, CAMERA_MOUNT_INSERTS, CameraHousingParametersSchema, DEFAULT_CAMERA_HOUSING, cameraHardwarePart, cameraHousingAssembly, cameraHousingIssues, cameraHousingLayout, cameraHousingReferences, type CameraHousingParameters } from './cameraHousing.ts';
 import { conceptPages } from './concepts.ts';
 import { QUASI_STATIC, type PhysicsSpec } from './physics.ts';
 import { revolvedPieces, type Point2 } from './physicsPieces.ts';
@@ -3394,7 +3395,61 @@ export const catCollarTag = {
   },
 } satisfies ModelDefinition;
 
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag];
+const cameraHousingControls = [
+  partControl(CameraHousingParametersSchema, 'board', 'basic', 'dev-board', [DEFAULT_CAMERA_HOUSING.board]),
+  ...(['width', 'length', 'mountSpacing', 'cameraDiameter', 'cameraOffsetX', 'cameraOffsetY', 'antennaDiameter', 'batteryDiameter', 'chargeWindow', 'ventilation'] as const)
+    .map(key => control(CameraHousingParametersSchema, key, 'basic')),
+  partControl(CameraHousingParametersSchema, 'mountInsert', 'basic', 'threaded-insert', CAMERA_MOUNT_INSERTS),
+  ...(['wall', 'standoff', 'headroom', 'boardFit', 'seamFit', 'usbRecess', 'usbWidth', 'usbHeight'] as const)
+    .map(key => control(CameraHousingParametersSchema, key, 'advanced')),
+];
+const CAMERA_HOUSING_MAPPING = {
+  width: 'WIDTH', length: 'LENGTH', wall: 'WALL', standoff: 'STANDOFF', headroom: 'HEADROOM', boardFit: 'BOARD_FIT', seamFit: 'SEAM_FIT',
+  usbRecess: 'USB_RECESS', usbWidth: 'USB_W', usbHeight: 'USB_H', cameraDiameter: 'CAMERA_D', cameraOffsetX: 'CAMERA_DX', cameraOffsetY: 'CAMERA_DY',
+  antennaDiameter: 'ANTENNA_D', batteryDiameter: 'BATTERY_D', chargeWindow: 'CHARGE_WINDOW', ventilation: 'VENTILATION', mountSpacing: 'MOUNT_SPACING',
+};
+const CAMERA_HOUSING_CONSTANTS = {
+  LOCATOR_X: CAMERA_HARDWARE.locatorX, LOCATOR_Y: CAMERA_HARDWARE.locatorY,
+  LENS_X: CAMERA_HARDWARE.cameraX, LENS_Y: CAMERA_HARDWARE.cameraY, EXPANSION_TOP: CAMERA_HARDWARE.expansionTop,
+  CHARGE_Y: CAMERA_HARDWARE.chargeY, CHARGE_Z: CAMERA_HARDWARE.chargeZ, ANTENNA_Y: CAMERA_HARDWARE.antennaY,
+  LID_HOLE: dimensionOf(cameraHardwarePart(CAMERA_LID_INSERT), 'hole'), LID_DEPTH: CAMERA_HARDWARE.lidHoleDepth,
+  LID_R: CAMERA_HARDWARE.lidBossRadius, CORNER_INSET: CAMERA_HARDWARE.lidCornerInset, SCREW_HOLE: CAMERA_HARDWARE.screwHole, SEAM_ABOVE_PCB: CAMERA_HARDWARE.seamAbovePcb,
+};
+export const cameraHousing = {
+  id: 'xiao-sense-camera-housing' as const, version: '1' as const, title: 'XIAO Sense camera housing',
+  description: 'A mountable indoor camera enclosure for the Seeed Studio XIAO ESP32-S3 Sense. A guided tray and screw-on camera hood leave access for the lens, USB-C charging/data, battery wires and the external antenna. Customize the openings, fit and rear heat-set insert mounts. Cat recognition and feeding-tracker software are not included.',
+  attribution: 'CanFactory (original design); board envelope from Seeed Studio',
+  attributionLinks: [{ text: 'Seeed Studio', url: 'https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/' }],
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  printNotes: 'Print the tray floor down and the hood roof down, as generated, in PETG (0.2 mm layers, 3–4 perimeters). Bridge the USB/window openings or add local supports if needed. Heat-set two rear mounting inserts and four ruthex M2 × 4 lid inserts with electronics removed. Use the M2 lid screw length listed below. The rear mount screws are not supplied: limit penetration to the insert length. Leave the GPIO4/GPIO43 pin holes unsoldered for the locating pegs. Attach the U.FL lead and solder battery wires before seating the board; route them through the split side exits. No battery bay, heatsink allowance, cable strain relief or weather seal. Keep cables and small hardware out of cats’ reach. Measure your camera, cable and board, then test-print and check the field of view before deployment.',
+  parts: (['base', 'lid'] as const).map((part): ModelPart => ({ id: part, title: part === 'base' ? 'Guided tray' : 'Camera hood',
+    sourcePath: 'models/xiao-sense-camera-housing/generator.scad', scadConstants: { ...CAMERA_HOUSING_CONSTANTS, PART: part }, scadMapping: CAMERA_HOUSING_MAPPING,
+    partDefines: {
+      board: { BOARD_W: ['W', 'value'], BOARD_L: ['L', 'value'], BOARD_T: ['t', 'value'], BOARD_H: ['H', 'value'], USB_OVERHANG: ['usbOverhang', 'value'], USB_HEIGHT: ['usbH', 'value'] },
+      mountInsert: { MOUNT_HOLE: ['hole', 'value'], MOUNT_DEPTH: ['holeDepth', 'value'], MOUNT_WALL: ['wall', 'value'] },
+    },
+  })),
+  parameterSchema: CameraHousingParametersSchema, controls: cameraHousingControls, defaults: DEFAULT_CAMERA_HOUSING, scadMapping: {},
+  assembly: cameraHousingAssembly(DEFAULT_CAMERA_HOUSING),
+  assemblyForParameters: parameters => cameraHousingAssembly(parameters as CameraHousingParameters),
+  linkedReferences: parameters => cameraHousingReferences(parameters as CameraHousingParameters),
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(CameraHousingParametersSchema, parameters) ? cameraHousingIssues(parameters) : [{ field: '', message: 'Parameters do not match the camera housing schema.' }];
+  },
+  derived(parameters: unknown) {
+    if (!Value.Check(CameraHousingParametersSchema, parameters) || cameraHousingIssues(parameters).length) return { slotCount: null };
+    const l = cameraHousingLayout(parameters);
+    if (!l.screw) return { slotCount: null };
+    return { slotCount: null, notes: [
+      `Assembled envelope: ${parameters.width} × ${parameters.length} × ${l.top.toFixed(2)} mm (excluding screw heads); rear mount centres ${parameters.mountSpacing} mm apart.`,
+      `Hardware: two ${cameraHardwarePart(parameters.mountInsert).designation} rear inserts, four ruthex RX-M2x4 lid inserts, four ${l.screw.designation} lid screws. Rear screw penetration: at most ${dimensionOf(cameraHardwarePart(parameters.mountInsert), 'l')} mm.`,
+      `USB-C is the charging and data port (${(parameters.wall + parameters.usbRecess).toFixed(1)} mm socket recess); the separate battery-wire exit is for an external battery, not a second charging socket.`,
+      'Nominal OV2640 / OV3660 camera envelope only: measure your delivered lens, check alignment and field of view, and make a test print. Not physically fit-tested.',
+    ] };
+  },
+} satisfies ModelDefinition;
+
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 
