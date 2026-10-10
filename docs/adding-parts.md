@@ -194,3 +194,20 @@ Either way the library lists the model under the part's “Used by” (`partUsag
 A part can link to shops: add a curated offer for it to `packages/contracts/src/parts/offers.ts` (an Amazon ASIN or an
 Awin advertiser's product, one row per market, with the pieces per pack). Without one, the part links to a search of the
 visitor's Amazon for its designation. See [affiliate-offers.md](affiliate-offers.md).
+
+### Compact cooling fans
+
+The **`fan`** family (`fans.ts`) adds manufacturer-sourced 5 V axial fans. `W`,
+`L` and `H` are frame dimensions in mm, with tolerance maxima used for fit.
+`pitch` is nominal mounting pitch; `hole` describes the frame hole, not a printed
+clearance bore. `fanMounts` supplies the centred XY pattern: the Sunon 30 mm
+frame has **three** holes (orient its lead/missing corner at −X/−Y); the Noctua
+40 mm has four. Exhaust is +Z. The Noctua envelope uses the published **12 mm
+installed thickness with pads**, not the advertised 10 mm form factor. Its
+unpublished hole diameter is explicitly estimated. Electrical/airflow/noise
+ratings are in the descriptions, never mislabelled as millimetre dimensions.
+
+Both the procedural web preview and `parts/fans/fan.scad` use this frame and
+pattern. Rotor/struts are schematic, pads and leads are omitted. The housing
+uses clearance bores with pitch allowance and bolts/nuts rather than the fan's
+bundled self-tapping screws. A reference mesh is not a thermal simulation.

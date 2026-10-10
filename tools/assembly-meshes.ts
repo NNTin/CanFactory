@@ -4,7 +4,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { activeParts, devBoardLayout, dimensionOf, findPart, partAssetPath, scadDefines, type Assembly, type ParameterValues, type Part } from '../packages/contracts/src/index.ts';
+import { activeParts, devBoardLayout, dimensionOf, findPart, fanMounts, partAssetPath, scadDefines, type Assembly, type ParameterValues, type Part } from '../packages/contracts/src/index.ts';
 import { renderScad } from './stl-to-scad/openscad.ts';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
 
@@ -37,6 +37,7 @@ export const GENERIC_MODELS: Record<string, { scad: string; defines: (part: Part
     scad: 'parts/screws/screw.scad',
     defines: part => ({ COUNTERSUNK: String(part.attributes['head'] === 'countersunk'), D: size(part, 'd', 'value'), PITCH: '0', L: size(part, 'l', 'value'), HEAD_D: size(part, 'dk'), HEAD_K: size(part, 'k'), HEX: 'false', HEAD_S: '0' }),
   },
+  fan: { scad: 'parts/fans/fan.scad', defines: part => ({ W: size(part, 'W'), L: size(part, 'L'), H: size(part, 'H'), HOLE: size(part, 'hole', 'value'), MOUNTS: JSON.stringify(fanMounts(part)) }) },
   nut: {
     scad: 'parts/nuts/nut.scad',
     defines: part => ({ SQUARE: String(part.attributes['shape']?.startsWith('square') === true), S: size(part, 's'), H: part.dimensions['h'] ? size(part, 'h') : size(part, 'm'), D: size(part, 'd', 'value') }),

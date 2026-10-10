@@ -46,8 +46,8 @@ parts library.
 
 The [XIAO Sense camera housing](docs/xiao-sense-camera-housing.md) holds a Seeed Studio
 XIAO ESP32-S3 Sense camera stack, with customizable camera, USB-C, battery-wire and
-antenna openings, rear heat-set insert mounts, an assembled/exploded SVG card and
-a live assembly preview. Camera recognition and feeding-tracker software are out of scope.
+antenna openings, heat-set insert or captive-nut mounts, an optional automatically
+sized 5 V fan bay, an assembled/exploded SVG card and a live assembly preview. Camera recognition and feeding-tracker software are out of scope.
 
 ## Run with Docker
 

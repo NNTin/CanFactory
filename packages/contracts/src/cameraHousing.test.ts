@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { activeParts, artifactFormat, cameraHousing, CAMERA_BOARD_ID, CAMERA_HARDWARE, CAMERA_LID_INSERT, CAMERA_MOUNT_INSERTS, DEFAULT_CAMERA_HOUSING as P,
-  cameraHousingLayout, devBoardLayout, dimensionOf, findPart, partUsage, RenderRequestSchema, resolveAssembly, scadDefines, validateParameters } from './index.ts';
+import { activeParts, artifactFormat, cameraHousing, CAMERA_BOARD_ID, CAMERA_HARDWARE, CAMERA_LID_INSERT, CAMERA_MOUNT_INSERTS, CAMERA_MOUNT_NUTS, CAMERA_FANS, CAMERA_FAN_GAP, DEFAULT_CAMERA_HOUSING as P,
+  cameraHousingLayout, devBoardLayout, dimensionOf, findPart, partUsage, RenderRequestSchema, resolveAssembly, scadDefines, validateParameters, cameraHardwarePart, controlShown } from './index.ts';
 
 describe('XIAO Sense camera housing', () => {
   it('registers a customizable two-print assembly and a typed render request', () => {
@@ -76,4 +76,66 @@ describe('XIAO Sense camera housing', () => {
     expect(partUsage(board).map(u => u.modelId)).toContain(cameraHousing.id);
     expect(cameraHousing.derived(P).notes?.join(' ')).toMatch(/Not physically fit-tested/);
   });
+  it('supports hex and square captive nuts, selecting only the active rear fastener in the assembly', () => {
+    for (const mountNut of CAMERA_MOUNT_NUTS) {
+      const p = { ...P, mountRetention: 'nut' as const, mountNut, width: 54, mountSpacing: 36 };
+      expect(validateParameters(cameraHousing, p)).toEqual([]);
+      const l = cameraHousingLayout(p), nut = cameraHardwarePart(mountNut);
+      const assembly = resolveAssembly(cameraHousing, cameraHousing.assembly, p); assert.ok(assembly);
+      expect(assembly.references?.filter(r => r.part === mountNut)).toHaveLength(2);
+      expect(assembly.references?.some(r => r.part === p.mountInsert)).toBe(false);
+      expect(l.mountRadius).toBeGreaterThan(dimensionOf(nut, 's', 'max') / 2);
+      expect(l.mountDepth).toBeGreaterThan(p.wall + dimensionOf(nut, 'm', 'max'));
+      expect(assembly.poses['mount-insert-0']?.position[2]).toBeCloseTo(p.wall + 0.15);
+      for (const key of ['mountNut', 'mountInsert']) {
+        const c = cameraHousing.controls.find(c => c.key === key); assert.ok(c);
+        expect(controlShown(c, p)).toBe(key === 'mountNut');
+      }
+    }
+    expect(validateParameters(cameraHousing, { ...P, mountRetention: 'nut', mountNut: 'iso-4032-m4' }).some(i => i.field === 'mountSpacing')).toBe(true);
+  });
+  it('grows a rear bay for each fan without moving the board or USB plane, and pre-bolts the fan to the hood', () => {
+    for (const fan of CAMERA_FANS) {
+      const p = { ...P, fanEnabled: true, fan, ventilation: false, width: 44, mountSpacing: 32 };
+      const l = cameraHousingLayout(p), off = cameraHousingLayout({ ...p, fanEnabled: false });
+      expect(validateParameters(cameraHousing, p)).toEqual([]);
+      expect(l.boardY).toBe(off.boardY);
+      expect(l.length).toBe(p.length + l.extension);
+      expect(l.width).toBeGreaterThanOrEqual(p.width);
+      expect(l.width - 2 * p.wall).toBeGreaterThan(l.fanW);
+      expect(l.fanY - l.fanL / 2).toBeGreaterThan(l.back + p.wall + 4);
+      expect(l.fanY + l.fanL / 2).toBeLessThan(-p.length / 2);
+      expect(l.fanBottom - l.fanNutH).toBeGreaterThan(p.wall);
+      assert.ok(l.fanScrew);
+      expect(l.top - dimensionOf(l.fanScrew, 'l')).toBeGreaterThan(p.wall);
+      expect(l.roof - l.fanBottom - l.fanH).toBe(CAMERA_FAN_GAP);
+      const assembly = resolveAssembly(cameraHousing, cameraHousing.assembly, p); assert.ok(assembly);
+      const mounts = fan.startsWith('sunon') ? 3 : 4;
+      expect(l.fanMounts).toHaveLength(mounts);
+      expect(assembly.references?.filter(r => r.part === fan)).toHaveLength(1);
+      expect(assembly.references?.filter(r => r.id.startsWith('fan-screw-'))).toHaveLength(mounts);
+      expect(assembly.references?.filter(r => r.id.startsWith('fan-nut-'))).toHaveLength(mounts);
+      expect(assembly.steps[1]?.parts).toContain('cooling-fan');
+      expect(assembly.steps[1]?.parts.filter(id => id.startsWith('fan-'))).toHaveLength(mounts * 2);
+      expect(assembly.poses['cooling-fan']?.position).toEqual([0, l.fanY, l.fanBottom]);
+      expect(cameraHousing.derived(p).notes?.join(' ')).toMatch(/no thermal-performance guarantee/);
+      const print = cameraHousing.parts[0]; assert.ok(print);
+      const defines = Object.fromEntries(scadDefines(cameraHousing, print, p));
+      expect(JSON.parse(defines['FAN'] ?? 'null')).toEqual([l.fanW, l.fanL, l.fanH, l.fanMounts, mounts === 3 ? 3.4 : 3.8, dimensionOf(l.fanScrew, 'l')]);
+      const disabled = resolveAssembly(cameraHousing, cameraHousing.assembly, { ...p, fanEnabled: false });
+      expect(disabled?.references?.some(r => r.id === 'cooling-fan')).toBe(false);
+      expect(off.length).toBe(p.length);
+      expect(off.width).toBe(p.width);
+    }
+  });
+
+  it('raises the roof automatically when a fan bolt needs extra floor clearance at minimum stack settings', () => {
+    const p = { ...P, fanEnabled: true, width: 44, length: 40, wall: 1.6, mountSpacing: 32, standoff: 3, headroom: 0.8 };
+    const l = cameraHousingLayout(p), compact = cameraHousingLayout({ ...p, fanEnabled: false });
+    expect(validateParameters(cameraHousing, p)).toEqual([]);
+    expect(l.roof).toBeGreaterThan(compact.roof);
+    assert.ok(l.fanScrew);
+    expect(l.top - dimensionOf(l.fanScrew, 'l')).toBeCloseTo(p.wall + 0.8);
+  });
+
 });

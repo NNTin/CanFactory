@@ -22,6 +22,10 @@ const fastenersEu = (standard: string, path: string): PartSource => ({
 
 /** Every source of the parts library, by id. Parts and dimensions refer to these ids; a test checks that each one exists. */
 export const PART_SOURCES: readonly PartSource[] = [
+  { id: 'sunon-dc-fan-catalogue', title: 'DC fan catalogue: 30 × 30 × 10 mm (2024)', publisher: 'SUNON', kind: 'manufacturer', accessed: '2026-10-10',
+    url: 'https://www.sunon.com/eu/MANAGE/Docs/WEBCONT/Files/1236/DC_20240630%28255-E%29_web.pdf' },
+  { id: 'noctua-nf-a4x10-5v-pwm', title: 'NF-A4x10 5V PWM: extended specifications', publisher: 'Noctua', kind: 'manufacturer', accessed: '2026-10-10',
+    url: 'https://www.noctua.at/en/products/nf-a4x10-5v-pwm/specifications' },
   iso('261', 'ISO general purpose metric screw threads — General plan'),
   iso('286-2', 'Geometrical product specifications — ISO code system for tolerances on linear sizes — Part 2: Tables of standard tolerance classes and limit deviations'),
   iso('4762', 'Hexagon socket head cap screws'),

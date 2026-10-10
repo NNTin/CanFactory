@@ -853,6 +853,15 @@ try {
   }
   const housingRuns: { name: string; overrides: Partial<CameraHousingParameters> }[] = [
     { name: 'default', overrides: {} },
+    { name: 'M3 hex captive nuts', overrides: { mountRetention: 'nut' } },
+    { name: 'M4 hex captive nuts', overrides: { mountRetention: 'nut', mountNut: 'iso-4032-m4', width: 50, mountSpacing: 35 } },
+    { name: 'M3 square captive nuts', overrides: { mountRetention: 'nut', mountNut: 'din-562-m3', width: 50, mountSpacing: 35 } },
+    { name: 'M4 square captive nuts', overrides: { mountRetention: 'nut', mountNut: 'din-562-m4', width: 54, mountSpacing: 36 } },
+    { name: '40 mm fan, passive ventilation off', overrides: { fanEnabled: true, ventilation: false } },
+    { name: '30 mm fan and captive nuts', overrides: { fanEnabled: true, fan: 'sunon-mf30100v2-1000u-a99', mountRetention: 'nut' } },
+    { name: 'fan auto-width expansion, thin walls', overrides: { fanEnabled: true, width: 44, mountSpacing: 32, wall: 1.6, length: 40 } },
+    { name: 'fan automatic roof clearance', overrides: { fanEnabled: true, width: 44, length: 40, wall: 1.6, mountSpacing: 32, standoff: 3, headroom: 0.8 } },
+    { name: 'fan thick walls', overrides: { fanEnabled: true, wall: 3.6, width: 60, mountSpacing: 38 } },
     { name: 'small, thin walls', overrides: { width: 44, length: 40, wall: 1.6, mountSpacing: 32 } },
     { name: 'largest envelope', overrides: { width: 80, length: 80, mountSpacing: 60, wall: 3.6, standoff: 8, headroom: 4 } },
     { name: 'short M3 mounting inserts', overrides: { mountInsert: 'cnc-kitchen-m3x3' } },
@@ -860,6 +869,7 @@ try {
     { name: 'long M4 mounting inserts', overrides: { mountInsert: 'ruthex-rx-m4x8-1' } },
     { name: 'large exits, no vents/window', overrides: { antennaDiameter: 8, batteryDiameter: 8, chargeWindow: false, ventilation: false } },
     { name: 'adjusted camera, deep USB', overrides: { cameraDiameter: 14, cameraOffsetX: 1.2, cameraOffsetY: -0.5, usbRecess: 4, usbWidth: 20, usbHeight: 12 } },
+    { name: 'former tangent mounting boss regression', overrides: { width: 51, length: 73, mountSpacing: 37, wall: 3.4, standoff: 3.4, mountInsert: 'cnc-kitchen-m3x3', cameraDiameter: 17.8, cameraOffsetX: -2.5, cameraOffsetY: 1.2, antennaDiameter: 4.2, batteryDiameter: 3.6, chargeWindow: false, ventilation: false, boardFit: 0.8, seamFit: 0.35, usbRecess: 4.6, usbWidth: 19.8, usbHeight: 10.6 } },
     { name: 'former tangent hole/wall regression', overrides: { width: 68, length: 64, wall: 3.4, mountSpacing: 37, mountInsert: 'ruthex-rx-m4x8-1' } },
   ];
   for (const { name, overrides } of only && only !== cameraHousing.id ? [] : housingRuns) {
@@ -875,7 +885,7 @@ try {
     const bytes = await readFile(store.artifacts.path(job.id, 'zip')), entries = unzipSync(new Uint8Array(bytes));
     assert.deepEqual(Object.keys(entries), ['base.stl', 'lid.stl']); // Hardware must never be in the printable download.
     for (const part of result.artifact.parts) {
-      const expected = [parameters.width, parameters.length, part.id === 'base' ? l.seam : Math.max(l.top - l.seam - parameters.seamFit, l.top - l.boardZ - h.expansionTop - 0.2)];
+      const expected = [l.width, l.length, part.id === 'base' ? l.seam : Math.max(l.top - l.seam - parameters.seamFit, l.top - l.boardZ - h.expansionTop - 0.2)];
       [part.dimensions.x, part.dimensions.y, part.dimensions.z].forEach((d, i) => assert.ok(Math.abs(d - (expected[i] ?? NaN)) < 0.01, `${name} ${part.id} bounds`));
       const entry = entries[`${part.id}.stl`]; assert.ok(entry); inspectStl(Buffer.from(entry));
     }
@@ -885,15 +895,26 @@ try {
     assert.equal(housingSolid(base, [0, parameters.length / 2 - parameters.wall / 2, l.usbZ]), false, `${name}: USB access`);
     assert.equal(housingSolid(base, [0, parameters.length / 2 - parameters.wall / 2, parameters.wall / 2]), true, `${name}: floor below USB`);
     assert.equal(hoodSolid(l.aperture[0], l.aperture[1], l.roof + parameters.wall / 2), false, `${name}: camera aperture`);
-    assert.equal(hoodSolid(0, -parameters.length / 2 + 7, l.roof + parameters.wall / 2), !parameters.ventilation, `${name}: roof vents`);
+    assert.equal(hoodSolid(0, -parameters.length / 2 + 7, l.roof + parameters.wall / 2), parameters.fanEnabled || !parameters.ventilation, `${name}: passive roof vents`);
+    if (parameters.fanEnabled) {
+      const slotX = -l.fanW / 2 + Math.floor(l.fanW / 6.4) * 3.2 + 0.9;
+      assert.equal(hoodSolid(slotX, l.fanY, l.roof + parameters.wall / 2), false, `${name}: exhaust grille opening`);
+      assert.equal(hoodSolid(slotX + 1.6, l.fanY, l.roof + parameters.wall / 2), true, `${name}: grille bridge`);
+      for (const [x, y] of l.fanMounts) assert.equal(hoodSolid(x, l.fanY + y, l.roof - 1), false, `${name}: fan bolt passage`);
+      for (const sign of [-1, 1]) assert.equal(housingSolid(base, [sign * (l.width / 2 - parameters.wall / 2), l.boardY + 9, parameters.wall + 2]), false, `${name}: mandatory intake`);
+    }
     for (const [side, y] of [[-1, l.boardY + h.antennaY], [1, l.boardY + 11]] as [number, number][]) {
-      const x = side * (parameters.width / 2 - parameters.wall / 2);
+      const x = side * (l.width / 2 - parameters.wall / 2);
       assert.equal(housingSolid(base, [x, y, l.seam - 0.4]), false, `${name}: split cable exit in tray`);
       assert.equal(hoodSolid(x, y, l.seam + 0.6), false, `${name}: split cable exit in hood`);
     }
-    assert.equal(housingSolid(base, [-parameters.width / 2 + parameters.wall / 2, l.boardY + h.chargeY, l.boardZ + h.chargeZ]), !parameters.chargeWindow, `${name}: LED window`);
+    assert.equal(housingSolid(base, [-l.width / 2 + parameters.wall / 2, l.boardY + h.chargeY, l.boardZ + h.chargeZ]), !parameters.chargeWindow, `${name}: LED window`);
     for (const sign of [-1, 1]) {
-      assert.equal(housingSolid(base, [sign * parameters.mountSpacing / 2, 0, l.mountDepth / 2]), false, `${name}: rear insert bore`);
+      assert.equal(housingSolid(base, [sign * parameters.mountSpacing / 2, 0, l.mountDepth / 2]), false, `${name}: rear mounting bore`);
+      if (parameters.mountRetention === 'nut') {
+        assert.equal(housingSolid(base, [sign * parameters.mountSpacing / 2 + l.nutS / 2 - 0.2, 0, parameters.wall + l.nutHeight / 2]), false, `${name}: nut flats clearance`);
+        assert.equal(housingSolid(base, [sign * parameters.mountSpacing / 2, l.mountRadius - 0.2, parameters.wall + l.nutHeight / 2]), false, `${name}: side-loadable nut slot`);
+      }
       assert.equal(housingSolid(base, [sign * parameters.mountSpacing / 2, 0, l.mountDepth + 0.4]), true, `${name}: blind insert end`);
     }
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);

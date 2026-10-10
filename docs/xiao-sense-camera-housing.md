@@ -10,9 +10,10 @@ bracket are outside this model's scope.
 
 ## Parts and access
 
-Download a ZIP containing **only `base.stl` and `lid.stl`**. The board, six inserts
-and four lid screws are reference hardware in the live preview, not prints.
-The library card's SVG shows both assembled and exploded views. The live STL
+Download a ZIP containing **only `base.stl` and `lid.stl`**. The board, selected fasteners and optional fan are reference hardware in the
+live preview, not prints.
+The library card's SVG shows assembled and exploded views of the optional
+fan-bay variant, labelled as such (fan mode defaults off). The live STL
 preview has the existing assembly slider, Play and individual part visibility:
 seat the stack, lower the hood, then tighten the four screws. Hide the hood to
 inspect the board in place.
@@ -54,10 +55,69 @@ bracket's thickness: **do not penetrate farther than the chosen insert's
 length**, as listed under the settings. They are intentionally not selected
 or shown as if a bracket thickness were known.
 
+### Captive nuts instead of rear heat-set inserts
+
+Set **Rear mounting → Captive nuts** and select ISO 4032 M3/M4 hex nuts or
+DIN 562 M3/M4 thin square nuts. Each pocket has a bottom screw-clearance bore,
+a side-loading slot opening into the tray, flats to prevent rotation, a floor
+and a closed roof. Slide nuts in from +Y **before seating the board**; the
+mounting screw secures them against sliding back out. Do not heat-set nuts.
+The four M2 **lid** inserts are unchanged. Enlarge the width/spacing as the
+validator requires for larger nuts. Pocket fit is 0.2 mm per flat side and
+0.3 mm total height clearance; test-print the pocket for your printer.
+
+Rear nut mounting screws must reach through the floor and nut but stop below
+the blind cap. The live notes give the maximum penetration **from the outer
+floor**, excluding your bracket. Bracket thickness is not guessed.
+
+## Optional active cooling
+
+Enable **Cooling fan**, then choose one of the new parts-library fans:
+
+| Fan | Envelope used | Mounts | Published free-air rating | Power |
+| --- | --- | --- | --- | --- |
+| [Sunon MF30100V2-1000U-A99](https://www.sunon.com/eu/MANAGE/Docs/WEBCONT/Files/1236/DC_20240630%28255-E%29_web.pdf) | 30.5 × 30.5 × 10.5 mm tolerance maximum | 3, 24 mm pitch | 4.7 CFM; 21 dB(A) | 5 V; 0.08 A; 0.4 W |
+| [Noctua NF-A4x10 5V PWM](https://www.noctua.at/en/products/nf-a4x10-5v-pwm/specifications) | 40 × 40 × **12 mm with pads** | 4, 32 mm pitch | 5.24 CFM; 19.6 dB(A) maximum | 5 V; 0.07 A / 0.35 W maximum |
+
+The 30 mm option is more compact; the 40 mm option has a lower published noise
+rating and a USB power adaptor. These are manufacturer free-air figures, **not
+predicted enclosure performance**. Re-check the delivered fan: Sunon's 3-hole
+frame needs the missing corner/leads oriented at −X/−Y. Noctua's mounting-hole
+diameter is estimated; pitch and 12 mm installed thickness are published.
+
+The shell grows **rearwards**, preserving board position, USB front plane,
+optical alignment and rear-mount pitch. Actual length is `length + fan max
+length + wall + 15`; width is `max(width, fan max width + 2*wall + 2)`. Thus the
+default 40 mm fan grows **48 × 46 × 24.2** to **48 × 103 × 24.2 mm**; the 30 mm
+option becomes **48 × 93.5 × 24.2 mm**. Disabling the fan restores the compact
+shell with no fan holes or hardware. At the minimum stack settings the roof
+also rises just enough to keep the selected fan bolt 0.8 mm above the floor.
+The derived notes show actual dimensions.
+
+A circular roof grille with 1.8 mm gaps / 1.4 mm bridges guards the exhaust.
+Six lower side intake slots provide a separate air path near the board. These
+are mandatory in fan mode, even when **Ventilation** (passive roof slots) is
+off. Pre-bolt the fan to the hood's 2 mm spacers, exhaust towards the roof,
+using the listed ISO 4762 screws and ISO 4032 nuts (M2.5 Sunon, M3 Noctua).
+The preview moves this preassembled fan/fastener group with the hood. Keep the
+lead above the floor, below the rotor sweep and restrained; the existing split
+battery exit can also route fan power wires when sized for both bundles.
+
+**Power and thermal limits:** do not power a fan from GPIO or 3V3. Provide a
+regulated 5 V supply with verified current/start-up margin for the fan **and**
+board; a battery's voltage is not regulated 5 V. Wiring, drivers, PWM and
+firmware are out of scope. Cooling has not been thermally tested. Seeed's
+[getting-started guide](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/)
+discusses board heat and an upgraded heatsink; that heatsink is **not** included
+in this fit envelope. Measure sustained streaming/charging temperatures in the
+real enclosure, choose heat-appropriate print material, and keep dust/food,
+paws and cables away from the vents. This is not a fire-safe or unattended-use
+certification.
+
 ## Customization and printing
 
 Adjust outside dimensions, wall thickness, board clearances, under-board
-clearance, camera headroom, seam clearance, mounting insert/pitch, camera
+clearance, camera headroom, seam clearance, mounting retention/fastener/pitch, optional fan, camera
 alignment, USB plug envelope/recess, antenna/battery exits, ventilation and
 charge window. Validation keeps mounting bosses clear of guides, preserves
 blind ends and the floor under USB, and keeps the nominal lens, roof retainers
@@ -96,7 +156,7 @@ negative bases represent underside components. The procedural web preview and
 generic SCAD reference renderer apply the same offset. Existing boards retain
 their original geometry.
 
-The housing frame is centred XY, Z up; USB points towards +Y. PCB underside is
+The compact housing frame is centred XY, Z up; fan mode extends the −Y end; USB points towards +Y. PCB underside is
 at `wall + standoff`, with its Y origin derived from the USB recess. The seam
 is 5 mm above the main PCB top. The roof underside is the PCB underside plus
 the 15 mm stack and headroom. The hood prints roof down; its assembled pose
@@ -111,6 +171,8 @@ npm run build
 TEST_ONLY=xiao-sense-camera-housing npm run test:renderer
 TEST_ONLY=xiao-sense-camera-housing SWEEP_SAMPLES=100 npm run test:sweep
 npm run check:assembly -- xiao-sense-camera-housing
+npm run check:assembly -- xiao-sense-camera-housing --parameters '{"fanEnabled":true,"mountRetention":"nut"}'
+npm run check:assembly -- xiao-sense-camera-housing --parameters '{"fanEnabled":true,"fan":"sunon-mf30100v2-1000u-a99"}'
 npx playwright test tests/browser/camera-housing.spec.ts tests/browser/parts.spec.ts
 ```
 
