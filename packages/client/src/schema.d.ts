@@ -1041,6 +1041,100 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
+                    modelId: "magnetic-cat-toy";
+                    /** @enum {string} */
+                    modelVersion: "1";
+                    parameters: {
+                        /**
+                         * Toy width
+                         * @description Body width, excluding the four external screw ears, in mm.
+                         * @default 160
+                         */
+                        width: number;
+                        /**
+                         * Toy length
+                         * @description Body length in mm.
+                         * @default 140
+                         */
+                        length: number;
+                        /**
+                         * Grid magnets
+                         * @description Sourced axial discs for whichever sockets you choose to populate; exposed and nominally flush until the field is fitted. Socket/rim height follows the selected thickness, with no unused height for thicker magnets.
+                         * @default supermagnete-s-10-02-n
+                         * @enum {unknown}
+                         */
+                        gridMagnet: "supermagnete-s-08-01-n" | "supermagnete-s-08-02-n" | "supermagnete-s-10-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
+                        /**
+                         * Ball magnet
+                         * @description Two matching sourced discs, one retained in each hollow half. Rear-loaded pockets put thin contacting printed floors between the magnets; small staggered push-out holes do not face each other. Install opposite facing poles; attraction seats each disc against its floor. Magnet thickness only changes the internal pocket, not ball diameter, shell or floor thickness.
+                         * @default supermagnete-s-08-01-n
+                         * @enum {unknown}
+                         */
+                        ballMagnet: "supermagnete-s-06-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-01-n" | "supermagnete-s-08-03-n" | "supermagnete-s-10-02-n";
+                        /**
+                         * Socket spacing
+                         * @description Centre-to-centre pitch in both directions, in mm. The centred array fits as many sockets as possible with at least 20 mm from each centre to the outer edge. Choose magnet positions yourself, not a layout preset.
+                         * @default 30
+                         */
+                        socketSpacing: number;
+                        /**
+                         * Playing field thickness
+                         * @description Smooth solid planar sheet; thinner reduces the magnetic gap but may flex. Print solid, smooth face on the bed.
+                         * @default 1.2
+                         */
+                        fieldThickness: number;
+                        /**
+                         * Ball diameter
+                         * @description Outer spherical envelope in mm. Hollow perforated halves close magnetically and remain separable.
+                         * @default 36
+                         */
+                        ballDiameter: number;
+                        /**
+                         * Ball shell thickness
+                         * @description Hollow shell wall in mm. Seven radial grip holes per half; print walls solid.
+                         * @default 2
+                         */
+                        ballShellThickness: number;
+                        /**
+                         * Ball grip hole diameter
+                         * @description Diameter of the fourteen through-holes in mm, including one at each pole. Larger holes improve access and reduce mass; at least 1.2 mm of inner-shell web must remain.
+                         * @default 8
+                         */
+                        ballGripHoleDiameter: number;
+                        /**
+                         * Ball magnet floor thickness
+                         * @description Bearing floor between each magnet and the seam, in mm, with a small staggered push-out hole. The two flat floors touch with no intentional air gap, so face separation is twice this thickness. Solid layers, not sparse infill.
+                         * @default 0.6
+                         */
+                        ballMagnetFloorThickness: number;
+                        /**
+                         * Ball magnet placement
+                         * @description Centred balances the two magnet seats symmetrically about the sphere centre; eccentric shifts both seats radially for a deliberate wobble.
+                         * @default centred
+                         * @enum {unknown}
+                         */
+                        magnetPlacement: "centred" | "eccentric";
+                        /**
+                         * Eccentric offset
+                         * @description Radial displacement of both ball magnets from the sphere centre in mm; only used in eccentric mode.
+                         * @default 6
+                         */
+                        eccentricOffset: number;
+                        /**
+                         * Paw slot width
+                         * @description Rounded elongated roof slots in mm. At most 60% of ball diameter; length alone does not retain a sphere.
+                         * @default 18
+                         */
+                        slotWidth: number;
+                        /**
+                         * Joint clearance
+                         * @description Gap per side around non-locking ball alignment pins and cover ear reliefs, following the existing clearance-fit convention.
+                         * @default 0.2
+                         */
+                        clearance: number;
+                    };
+                } | {
+                    /** @enum {string} */
                     modelId: "ai-rubber-duck";
                     /** @enum {string} */
                     modelVersion: "1";

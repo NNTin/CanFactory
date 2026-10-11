@@ -6,8 +6,8 @@ import type { PhysicsCheck, PhysicsDrive, PhysicsScenario } from '@canfactory/co
 import { buildScene, type BuildInput } from './build.ts';
 import type { Engine } from './engine.ts';
 import { DEG, MM, type Vec3 } from './scene.ts';
-import { Simulation } from './simulation.ts';
-import { add, scale, sub } from './transform.ts';
+import { Simulation, type BodyPose } from './simulation.ts';
+import { add, rotate, scale, sub } from './transform.ts';
 
 /** A push's fingertip: a ball of 1 mm radius, touching the pushed point from outside at the start. */
 const FINGER_RADIUS = 1 * MM;
@@ -37,10 +37,13 @@ function jointUnit(input: BuildInput, body: string): number {
   return joint.type === 'hinge' ? DEG : MM;
 }
 
-function measure(simulation: Simulation, input: BuildInput, start: Map<string, Vec3>, check: PhysicsCheck): { value: number | boolean; description: string } {
+function measure(simulation: Simulation, input: BuildInput, start: Map<string, BodyPose>, check: PhysicsCheck): { value: number | boolean; description: string } {
   switch (check.kind) {
     case 'position': {
-      const displacement = (simulation.pose(check.body).pos[check.axis] - (start.get(check.body)?.[check.axis] ?? 0)) / MM;
+      const before = start.get(check.body), now = simulation.pose(check.body);
+      if (!before) throw new Error(`Unknown checked body ${check.body}.`);
+      const point = (check.point ?? [0, 0, 0]).map(v => v * MM) as Vec3;
+      const displacement = (add(now.pos, rotate(now.quat, point))[check.axis] - add(before.pos, rotate(before.quat, point))[check.axis]) / MM;
       return { value: displacement, description: `${check.body} moved ${displacement.toFixed(3)} mm along ${'XYZ'[check.axis] ?? '?'}` };
     }
     case 'joint': {
@@ -71,6 +74,11 @@ function drive(simulation: Simulation, input: BuildInput, drives: readonly Physi
   drives.forEach((item, index) => {
     const key = `drive-${index}`;
     switch (item.kind) {
+      case 'magnet': {
+        const entry = [...item.timeline].reverse().find(([at]) => at <= t);
+        if (entry) simulation.setMagnetEnabled(item.id, entry[1] === 1);
+        return;
+      }
       case 'joint': {
         simulation.driveJoint(item.body, (interpolate(item.timeline, t)[0] ?? 0) * jointUnit(input, item.body));
         return;
@@ -106,8 +114,9 @@ export function runScenario(engine: Engine, input: BuildInput, scenario: Physics
     fingers: drives.flatMap((item, index) => item.kind === 'push' ? [{ name: `drive-${index}`, radius: FINGER_RADIUS }] : []),
   }));
   try {
+    for (const [id, enabled] of Object.entries(scenario.magnets ?? {})) simulation.setMagnetEnabled(id, enabled);
     const dt = simulation.scene.options.timestep;
-    const start = new Map(simulation.bodies.map(name => [name, simulation.pose(name).pos]));
+    const start = new Map(simulation.bodies.map(name => [name, simulation.pose(name)]));
     const origins = new Map<number, Vec3>();
     drives.forEach((item, index) => {
       if (item.kind === 'force') origins.set(index, [(item.point[0] ?? 0) * MM, (item.point[1] ?? 0) * MM, (item.point[2] ?? 0) * MM]);

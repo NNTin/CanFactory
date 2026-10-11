@@ -1,5 +1,5 @@
 import { Type, type Static } from 'typebox';
-import { aiRubberDuck, AssemblySchema, cameraHousing, catCollarTag, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector, pressurePad, printedCornerBracket, printedScreenHook, qrMagnetTag, springBallDetent, toggleLatch, windowCatGuard } from './models.ts';
+import { aiRubberDuck, AssemblySchema, magneticCatToy, cameraHousing, catCollarTag, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector, pressurePad, printedCornerBracket, printedScreenHook, qrMagnetTag, springBallDetent, toggleLatch, windowCatGuard } from './models.ts';
 import { PartFamilySchema, PartSchema, PartSourceSchema } from './parts/index.ts';
 export * from './models.ts';
 export * from './assembly.ts';
@@ -17,6 +17,7 @@ export * from './printedScreenHook.ts';
 export * from './springBallDetent.ts';
 export * from './catCollarTag.ts';
 export * from './cameraHousing.ts';
+export * from './magneticCatToy.ts';
 export * from './physics.ts';
 export * from './physicsPieces.ts';
 export * from './cigaretteCasePhysics.ts';
@@ -63,6 +64,7 @@ export type ModelDetail = Static<typeof ModelDetailSchema>;
 
 /** Register a typed branch for each provided model; preserve the tuple for precise inference. */
 export const RenderRequestSchema = Type.Union([
+  Type.Object({ modelId: Type.Literal(magneticCatToy.id), modelVersion: Type.Literal(magneticCatToy.version), parameters: magneticCatToy.parameterSchema }, { additionalProperties: false }),
   Type.Object({
     modelId: Type.Literal(aiRubberDuck.id),
     modelVersion: Type.Literal(aiRubberDuck.version),
@@ -198,3 +200,5 @@ export type Render = Static<typeof RenderSchema>;
 
 export const IdParamsSchema = Type.Object({ id: Type.String({ minLength: 1, maxLength: 100, pattern: '^[a-zA-Z0-9-]+$' }) }, { additionalProperties: false });
 export const DownloadQuerySchema = Type.Object({ download: Type.Optional(Type.Literal('true')) }, { additionalProperties: false });
+
+export * from './magneticCatToyPhysics.ts';

@@ -170,10 +170,19 @@ export function buildScene(input: BuildInput): Scene {
     const geoms = collisionGeoms(body, geometry[body.id]);
     const friction = physicsMaterial(body.material).friction;
     const result: SceneBody = { name: body.id, parent, pos: local.pos, quat: local.quat, motion, geoms, friction: [friction, TORSION, ROLLING] };
-    const inertial = body.fixed === true ? undefined : inertialFor(body, geometry[body.id], geoms);
+    // A welded child still contributes mass/inertia to its moving parent (e.g. the bonded upper ball half).
+    const inertial = body.fixed === true && parent === null ? undefined : inertialFor(body, geometry[body.id], geoms);
     if (inertial) result.inertial = inertial;
     if (joint?.collideWithParent === true && parent !== null) result.collideWithParent = true;
     return result;
+  });
+  const magnetIds = new Set<string>();
+  const magnets = spec.magnets?.map(magnet => {
+    if (magnetIds.has(magnet.id)) throw new Error(`Duplicate magnet ${magnet.id}.`);
+    magnetIds.add(magnet.id);
+    if (!ids.has(magnet.body)) throw new Error(`Magnet ${magnet.id}: unknown body ${magnet.body}.`);
+    if (!(magnet.softening > 0) || !Number.isFinite(magnet.softening) || ![...magnet.position, ...magnet.moment].every(Number.isFinite)) throw new Error(`Invalid magnet ${magnet.id}.`);
+    return { id: magnet.id, body: magnet.body, pos: toSI(magnet.position), moment: [...magnet.moment] as Vec3, softening: magnet.softening * MM, enabled: magnet.enabled ?? true };
   });
   const gravity = input.gravity ?? [0, 0, -1];
   const g = Math.hypot(...gravity);
@@ -181,6 +190,7 @@ export function buildScene(input: BuildInput): Scene {
   return {
     options: { ...DEFAULT_OPTIONS, ...input.options, timestep, gravity: scale(gravity, 9.81 / g) },
     bodies,
+    ...(magnets ? { magnets } : {}),
     exclude: (spec.exclude ?? []).map(([a = '', b = '']) => [a, b] as [string, string]),
     ...(input.drives && input.drives.length > 0 ? { drives: input.drives.map(body => driveOf(spec, body)) } : {}),
     ...(input.fingers && input.fingers.length > 0 ? { fingers: input.fingers } : {}),

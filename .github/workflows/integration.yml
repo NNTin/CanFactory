@@ -51,6 +51,13 @@ jobs:
       - name: Run renderer geometry checks
         run: npm run test:renderer
 
+      - name: Check magnetic cat toy assembly paths (centred and eccentric)
+        run: |
+          npm run check:assembly -- magnetic-cat-toy
+          npm run check:assembly -- magnetic-cat-toy --parameters '{"magnetPlacement":"eccentric","socketSpacing":40}'
+        env:
+          OPENSCAD_RUNNER: docker
+
       # A fixed-seed sample of every model's parameter space; the nightly Geometry sweep looks much wider with a rotating seed.
       - name: Run geometry sweep (sample)
         run: npm run test:sweep
@@ -156,6 +163,8 @@ jobs:
 
       # Renders each model's parts with the pinned OpenSCAD, then simulates its mechanism's scenarios (docs/physics-plan.md).
       - name: Run the physics scenarios
-        run: npm run check:physics
+        run: |
+          npm run check:physics
+          npm run check:physics -- magnetic-cat-toy --parameters '{"magnetPlacement":"eccentric","socketSpacing":40}'
         env:
           OPENSCAD_RUNNER: docker

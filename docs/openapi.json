@@ -2849,6 +2849,183 @@
                       "modelId": {
                         "type": "string",
                         "enum": [
+                          "magnetic-cat-toy"
+                        ]
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "enum": [
+                          "1"
+                        ]
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "required": [
+                          "width",
+                          "length",
+                          "gridMagnet",
+                          "ballMagnet",
+                          "socketSpacing",
+                          "fieldThickness",
+                          "ballDiameter",
+                          "ballShellThickness",
+                          "ballGripHoleDiameter",
+                          "ballMagnetFloorThickness",
+                          "magnetPlacement",
+                          "eccentricOffset",
+                          "slotWidth",
+                          "clearance"
+                        ],
+                        "properties": {
+                          "width": {
+                            "type": "number",
+                            "title": "Toy width",
+                            "description": "Body width, excluding the four external screw ears, in mm.",
+                            "default": 160,
+                            "minimum": 120,
+                            "maximum": 200,
+                            "multipleOf": 1
+                          },
+                          "length": {
+                            "type": "number",
+                            "title": "Toy length",
+                            "description": "Body length in mm.",
+                            "default": 140,
+                            "minimum": 120,
+                            "maximum": 200,
+                            "multipleOf": 1
+                          },
+                          "gridMagnet": {
+                            "enum": [
+                              "supermagnete-s-08-01-n",
+                              "supermagnete-s-08-02-n",
+                              "supermagnete-s-10-02-n",
+                              "supermagnete-s-10-03-n",
+                              "supermagnete-s-12-02-n"
+                            ],
+                            "title": "Grid magnets",
+                            "description": "Sourced axial discs for whichever sockets you choose to populate; exposed and nominally flush until the field is fitted. Socket/rim height follows the selected thickness, with no unused height for thicker magnets.",
+                            "default": "supermagnete-s-10-02-n"
+                          },
+                          "ballMagnet": {
+                            "enum": [
+                              "supermagnete-s-06-02-n",
+                              "supermagnete-s-06-03-n",
+                              "supermagnete-s-08-01-n",
+                              "supermagnete-s-08-03-n",
+                              "supermagnete-s-10-02-n"
+                            ],
+                            "title": "Ball magnet",
+                            "description": "Two matching sourced discs, one retained in each hollow half. Rear-loaded pockets put thin contacting printed floors between the magnets; small staggered push-out holes do not face each other. Install opposite facing poles; attraction seats each disc against its floor. Magnet thickness only changes the internal pocket, not ball diameter, shell or floor thickness.",
+                            "default": "supermagnete-s-08-01-n"
+                          },
+                          "socketSpacing": {
+                            "type": "number",
+                            "title": "Socket spacing",
+                            "description": "Centre-to-centre pitch in both directions, in mm. The centred array fits as many sockets as possible with at least 20 mm from each centre to the outer edge. Choose magnet positions yourself, not a layout preset.",
+                            "default": 30,
+                            "minimum": 20,
+                            "maximum": 60,
+                            "multipleOf": 1
+                          },
+                          "fieldThickness": {
+                            "type": "number",
+                            "title": "Playing field thickness",
+                            "description": "Smooth solid planar sheet; thinner reduces the magnetic gap but may flex. Print solid, smooth face on the bed.",
+                            "default": 1.2,
+                            "minimum": 1,
+                            "maximum": 2,
+                            "multipleOf": 0.2
+                          },
+                          "ballDiameter": {
+                            "type": "number",
+                            "title": "Ball diameter",
+                            "description": "Outer spherical envelope in mm. Hollow perforated halves close magnetically and remain separable.",
+                            "default": 36,
+                            "minimum": 28,
+                            "maximum": 44,
+                            "multipleOf": 1
+                          },
+                          "ballShellThickness": {
+                            "type": "number",
+                            "title": "Ball shell thickness",
+                            "description": "Hollow shell wall in mm. Seven radial grip holes per half; print walls solid.",
+                            "default": 2,
+                            "minimum": 1.6,
+                            "maximum": 2.4,
+                            "multipleOf": 0.2
+                          },
+                          "ballGripHoleDiameter": {
+                            "type": "number",
+                            "title": "Ball grip hole diameter",
+                            "description": "Diameter of the fourteen through-holes in mm, including one at each pole. Larger holes improve access and reduce mass; at least 1.2 mm of inner-shell web must remain.",
+                            "default": 8,
+                            "minimum": 6,
+                            "maximum": 12,
+                            "multipleOf": 0.5
+                          },
+                          "ballMagnetFloorThickness": {
+                            "type": "number",
+                            "title": "Ball magnet floor thickness",
+                            "description": "Bearing floor between each magnet and the seam, in mm, with a small staggered push-out hole. The two flat floors touch with no intentional air gap, so face separation is twice this thickness. Solid layers, not sparse infill.",
+                            "default": 0.6,
+                            "minimum": 0.4,
+                            "maximum": 1,
+                            "multipleOf": 0.2
+                          },
+                          "magnetPlacement": {
+                            "enum": [
+                              "centred",
+                              "eccentric"
+                            ],
+                            "title": "Ball magnet placement",
+                            "description": "Centred balances the two magnet seats symmetrically about the sphere centre; eccentric shifts both seats radially for a deliberate wobble.",
+                            "default": "centred"
+                          },
+                          "eccentricOffset": {
+                            "type": "number",
+                            "title": "Eccentric offset",
+                            "description": "Radial displacement of both ball magnets from the sphere centre in mm; only used in eccentric mode.",
+                            "default": 6,
+                            "minimum": 2,
+                            "maximum": 8,
+                            "multipleOf": 0.5
+                          },
+                          "slotWidth": {
+                            "type": "number",
+                            "title": "Paw slot width",
+                            "description": "Rounded elongated roof slots in mm. At most 60% of ball diameter; length alone does not retain a sphere.",
+                            "default": 18,
+                            "minimum": 12,
+                            "maximum": 24,
+                            "multipleOf": 0.5
+                          },
+                          "clearance": {
+                            "type": "number",
+                            "title": "Joint clearance",
+                            "description": "Gap per side around non-locking ball alignment pins and cover ear reliefs, following the existing clearance-fit convention.",
+                            "default": 0.2,
+                            "minimum": 0.2,
+                            "maximum": 0.4,
+                            "multipleOf": 0.05
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "modelId",
+                      "modelVersion",
+                      "parameters"
+                    ],
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "enum": [
                           "ai-rubber-duck"
                         ]
                       },

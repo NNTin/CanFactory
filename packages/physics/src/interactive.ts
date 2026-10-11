@@ -17,13 +17,15 @@ export type PhysicsRequest =
   | { type: 'drag'; point: Vec3 }
   | { type: 'release' }
   | { type: 'gravity'; direction: Vec3 }
+  | { type: 'magnet'; id: string; enabled: boolean }
   | { type: 'restart' }
   | { type: 'stop' };
 
 /** Poses: per body in `bodies` order, its position (mm) and orientation (w, x, y, z). */
 export type PhysicsUpdate =
   | { type: 'status'; text: string }
-  | { type: 'ready'; bodies: string[] }
+  | { type: 'ready'; bodies: string[]; movable: string[] }
+  | { type: 'magnets'; enabled: Record<string, boolean> }
   | { type: 'poses'; poses: Float64Array; time: number; realtime: number }
   | { type: 'error'; message: string };
 
@@ -53,6 +55,7 @@ export class InteractiveSession {
   private geometry: Record<string, BodyGeometry> = {};
   private gravity: Vec3 = [0, 0, -1];
   private lag = 0;
+  private magnetStates: Record<string, boolean> = {};
 
   constructor(private readonly engine: Engine, private readonly report: (update: PhysicsUpdate) => void, private readonly cache?: PieceCache) {}
 
@@ -65,6 +68,11 @@ export class InteractiveSession {
       case 'drag': this.simulation?.dragTo(toMetres(request.point)); return;
       case 'release': this.simulation?.release(); return;
       case 'gravity': this.gravity = request.direction; this.rebuild(); return;
+      case 'magnet': {
+        this.simulation?.setMagnetEnabled(request.id, request.enabled);
+        this.reportMagnets();
+        break;
+      }
       case 'restart': this.rebuild(); return;
       case 'stop': this.simulation?.dispose(); this.simulation = undefined; return;
     }
@@ -74,6 +82,7 @@ export class InteractiveSession {
     this.simulation?.dispose();
     this.simulation = undefined;
     this.start = request;
+    this.magnetStates = Object.fromEntries((request.spec.magnets ?? []).map(magnet => [magnet.id, magnet.enabled ?? true]));
     this.gravity = request.gravity ?? [0, 0, -1];
     const geometry: Record<string, BodyGeometry> = {};
     const bodies = request.spec.bodies;
@@ -102,7 +111,10 @@ export class InteractiveSession {
     this.simulation?.dispose();
     this.simulation = new Simulation(this.engine, buildScene({ spec: start.spec, poses: start.poses, geometry: this.geometry, gravity: this.gravity, floor: true }));
     this.lag = 0;
-    this.report({ type: 'ready', bodies: [...this.simulation.bodies] });
+    const simulation = this.simulation;
+    for (const [id, enabled] of Object.entries(this.magnetStates)) simulation.setMagnetEnabled(id, enabled);
+    this.report({ type: 'ready', bodies: [...simulation.bodies], movable: simulation.bodies.filter(id => simulation.movableBody(id)) });
+    this.reportMagnets();
     this.report(this.poses(1));
   }
 
@@ -117,6 +129,11 @@ export class InteractiveSession {
     simulation.step(steps);
     const spent = (performance.now() - begun) / 1000;
     this.report(this.poses(spent > 0 ? steps * simulation.scene.options.timestep / spent : 1));
+  }
+
+  private reportMagnets(): void {
+    this.magnetStates = this.simulation?.magnetStates() ?? this.magnetStates;
+    this.report({ type: 'magnets', enabled: { ...this.magnetStates } });
   }
 
   private poses(realtime: number): Extract<PhysicsUpdate, { type: 'poses' }> {

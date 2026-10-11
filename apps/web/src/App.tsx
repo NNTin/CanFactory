@@ -1,3 +1,4 @@
+import { MagneticCatToyIllustration } from './MagneticCatToyIllustration.tsx';
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Atom, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, ShoppingBasket, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from '@canfactory/client';
@@ -284,6 +285,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'plank-connector': PlankConnectorIllustration,
   'litter-shovel': LitterShovelIllustration,
   'toggle-latch': ToggleLatchIllustration,
+  'magnetic-cat-toy': MagneticCatToyIllustration,
   'pressure-pad': PressurePadIllustration,
   'window-cat-guard': WindowCatGuardIllustration,
   'qr-magnet-tag': QrMagnetTagIllustration,

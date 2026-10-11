@@ -6,6 +6,7 @@
 import { contacts, OBJ, STATE_PHYSICS, type DoubleBuffer, type Engine, type MjData, type MjModel } from './engine.ts';
 import { driveName, geomName, toMjcf, TOUCH } from './mjcf.ts';
 import type { Quat, Scene, Vec3 } from './scene.ts';
+import { dipoleInteraction } from './magnets.ts';
 import { add, cross, rotate, scale, sub } from './transform.ts';
 
 /** `mjNEQDATA`: numbers per equality constraint in `eq_data`. */
@@ -50,6 +51,8 @@ export class Simulation {
   private readonly loads = new Map<string, Load>();
   private readonly velocity: DoubleBuffer;
   private disposed = false;
+  private readonly enabledMagnets = new Map<string, boolean>();
+  private readonly magnetRoots = new Map<string, string | undefined>();
 
   constructor(private readonly engine: Engine, readonly scene: Scene) {
     this.xml = toMjcf(scene);
@@ -60,6 +63,10 @@ export class Simulation {
     for (const name of this.bodies) this.bodyIds.set(name, this.id(OBJ.body, name));
     for (const body of scene.bodies) body.geoms.forEach((_, index) => { this.geomBody[this.id(OBJ.geom, geomName(body.name, index))] = body.name; });
     for (const finger of scene.fingers ?? []) this.geomBody[this.id(OBJ.geom, geomName(finger.name, 0))] = finger.name;
+    for (const magnet of scene.magnets ?? []) {
+      this.enabledMagnets.set(magnet.id, magnet.enabled);
+      this.magnetRoots.set(magnet.id, this.movableBody(magnet.body));
+    }
     this.setInitialJoints();
     engine.mj_forward(this.model, this.data);
   }
@@ -231,8 +238,26 @@ export class Simulation {
     this.data.mocap_pos.set(pos, 3 * mocap);
   }
 
+  /** Dynamic ancestor of a welded component, or undefined for the fixed enclosure. */
+  movableBody(name: string): string | undefined {
+    const seen = new Set<string>();
+    let body = this.scene.bodies.find(body => body.name === name);
+    while (body && !seen.has(body.name)) {
+      seen.add(body.name);
+      if (body.motion !== 'weld') return body.name;
+      body = this.scene.bodies.find(candidate => candidate.name === body?.parent);
+    }
+    return undefined;
+  }
+
+  magnetStates(): Record<string, boolean> { return Object.fromEntries(this.enabledMagnets); }
+  setMagnetEnabled(id: string, enabled: boolean): void {
+    if (!this.enabledMagnets.has(id)) throw new Error(`Unknown magnet ${id}.`);
+    this.enabledMagnets.set(id, enabled);
+  }
+
   /** Starts dragging with the pointer (`DRAG`). */
-  grab(body: string, point: Vec3): void { this.hold('pointer', body, point); }
+  grab(body: string, point: Vec3): void { const movable = this.movableBody(body); if (movable) this.hold('pointer', movable, point); }
   dragTo(target: Vec3): void { this.moveHold('pointer', target); }
   release(): void { this.releaseHold('pointer'); }
   get dragging(): string | undefined { return this.held('pointer'); }
@@ -253,6 +278,19 @@ export class Simulation {
         applied[6 * id + 3 + k] = (applied[6 * id + 3 + k] ?? 0) + (moment[k] ?? 0);
       }
     };
+    const magnets = (this.scene.magnets ?? []).filter(magnet => this.enabledMagnets.get(magnet.id)).map(magnet => ({
+      ...magnet, pos: this.world(magnet.body, magnet.pos), moment: rotate(this.pose(magnet.body).quat, magnet.moment),
+    }));
+    for (let i = 0; i < magnets.length; i++) for (let j = i + 1; j < magnets.length; j++) {
+      const a = magnets[i], b = magnets[j];
+      if (!a || !b || a.body === b.body) continue;
+      // Fixed/fixed pairs cannot move anything; dipoles on one welded root exert only internal forces.
+      // Important for dense optional grids: evaluate ball/grid interactions, not thousands of support reactions.
+      if (this.magnetRoots.get(a.id) === this.magnetRoots.get(b.id)) continue;
+      const interaction = dipoleInteraction(a, b);
+      addAt(this.bodyId(a.body), a.pos, scale(interaction.force, -1), interaction.torqueA);
+      addAt(this.bodyId(b.body), b.pos, interaction.force, interaction.torqueB);
+    }
     for (const load of this.loads.values()) addAt(load.body, this.world(load.name, load.local), load.force);
     for (const hold of this.holds.values()) {
       const id = hold.body, { omega, damping, spinDamping } = hold.options, maxForce = hold.maxForce;

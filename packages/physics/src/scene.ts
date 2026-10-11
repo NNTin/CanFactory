@@ -73,7 +73,11 @@ export interface SceneOptions {
   solimp: [number, number, number];
 }
 
+/** Body-local dipole, metres and A·m² (the moment is already SI in contracts). */
+export interface SceneMagnet { id: string; body: string; pos: Vec3; moment: Vec3; softening: number; enabled: boolean }
+
 export interface Scene {
+  magnets?: SceneMagnet[];
   options: SceneOptions;
   bodies: SceneBody[];
   /** Pairs of bodies that never collide. */
