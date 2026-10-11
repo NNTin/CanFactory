@@ -324,13 +324,21 @@ applies pairwise forces and intrinsic torques through `xfrc_applied`, and adds
 the application-point moment about each body's COM. `magnets.ts` derives both
 forces and torques from one softened dipole potential so action/reaction and
 angular momentum are consistent. This is an external force extension of MuJoCo,
-not a native magnetic-field solver. The numerical choice, source grade data,
+not a native magnetic-field solver. Fixed/fixed pairs and pairs on the same
+welded movable ancestor are skipped: their internal/support reactions cannot
+move the assembly. The numerical choice, source grade data,
 polarity and limitations are detailed in [the toy documentation](magnetic-cat-toy.md#magnetic-approximation-and-sources).
 
 `InteractiveSession` accepts `magnet` requests without rebuilding or resetting
 the simulation, acknowledges enabled states, retains them over Restart/gravity
 rebuilds and resets them for a new session. The viewer maps switchable magnets
-at their actual assembled XY positions; visibility controls stay independent.
+at their actual assembled XY positions, with non-overlapping scrollable controls
+even for a dense array. Optional `hideWhenDisabled` metadata hides an absent
+fixed magnet's mesh (it does not remove its body/mass from the engine); other
+switches keep force-only semantics. Ordinary visibility controls never disable
+forces or collisions. The cat toy exposes **every socket**, initially empty/off,
+so users can try any placement rather than choosing a layout preset. Enabling
+a socket reveals its virtual disc and applies its field without resetting the ball.
 Scenario initial `magnets` overrides and discrete `magnet` drives use the same
 force code in CI. A position check can measure a **body-local point** (e.g. a
 rolling sphere's geometric centre rather than its rotating pole-frame origin).

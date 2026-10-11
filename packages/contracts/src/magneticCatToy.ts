@@ -6,7 +6,7 @@ import type { Assembly, LinkedReference, ParameterIssue } from './models.ts';
 export const TOY_GRID_MAGNETS = ['supermagnete-s-08-02-n', 'supermagnete-s-10-03-n', 'supermagnete-s-12-02-n'] as const;
 export const TOY_BALL_MAGNETS = ['supermagnete-s-04-02-n', 'supermagnete-s-06-03-n', 'supermagnete-s-08-03-n'] as const;
 export const TOY = {
-  floor: 1.2, socketWall: 1.2, rim: 5, mountBase: 6, pocketPlay: 0.2, air: 0.2,
+  floor: 1.2, socketWall: 1.2, edgeMargin: 20, pushHole: 3, rim: 5, mountBase: 6, pocketPlay: 0.2, air: 0.2,
   wall: 3, roof: 3, fieldLip: 3, fieldRetainGap: 0.2, pin: 1.6, pinLength: 2.4, ballHeadroom: 3,
 } as const;
 const mm = (title: string, description: string, value: number, minimum: number, maximum: number, multipleOf = 0.1) =>
@@ -14,9 +14,9 @@ const mm = (title: string, description: string, value: number, minimum: number, 
 export const MagneticCatToyParametersSchema = Type.Object({
   width: mm('Toy width', 'Body width, excluding the four external screw ears, in mm.', 160, 120, 200, 1),
   length: mm('Toy length', 'Body length in mm.', 140, 120, 200, 1),
-  gridMagnet: Type.Enum(TOY_GRID_MAGNETS, { title: 'Grid magnets', description: 'Four sourced axial discs, directly seated flush in any four sockets; exposed until the field is fitted.', default: TOY_GRID_MAGNETS[1] }),
+  gridMagnet: Type.Enum(TOY_GRID_MAGNETS, { title: 'Grid magnets', description: 'Sourced axial discs for whichever sockets you choose to populate; exposed and nominally flush until the field is fitted.', default: TOY_GRID_MAGNETS[1] }),
   ballMagnet: Type.Enum(TOY_BALL_MAGNETS, { title: 'Ball magnet', description: 'One sourced axial disc captured between the ball halves.', default: TOY_BALL_MAGNETS[1] }),
-  layout: Type.Enum(['corners', 'zigzag', 'cluster'], { title: 'Magnet layout', description: 'Preview arrangement of four magnets on the 4 × 4 socket array. Move the bare magnets between sockets with the cover and field removed; no holders or caps.', default: 'zigzag' }),
+  socketSpacing: mm('Socket spacing', 'Centre-to-centre pitch in both directions, in mm. The centred array fits as many sockets as possible with at least 20 mm from each centre to the outer edge. Choose magnet positions yourself, not a layout preset.', 30, 20, 60, 1),
   fieldThickness: mm('Playing field thickness', 'Smooth solid planar sheet; thinner reduces the magnetic gap but may flex. Print solid, smooth face on the bed.', 1.2, 1, 2, 0.2),
   ballDiameter: mm('Ball diameter', 'Finished spherical diameter in mm. Both halves must be printed solid and bonded.', 36, 28, 44, 1),
   magnetPlacement: Type.Enum(['centred', 'eccentric'], { title: 'Ball magnet placement', description: 'Centred puts the magnet at the geometric/mass centre of solid mirrored halves; eccentric shifts the split pocket radially for a deliberate wobble.', default: 'centred' }),
@@ -40,9 +40,12 @@ export function magneticCatToyLayout(p: MagneticCatToyParameters) {
   const fieldZ = socketTop + TOY.air;
   const fieldTop = fieldZ + p.fieldThickness, radius = p.ballDiameter / 2;
   const roofZ = fieldTop + p.ballDiameter + TOY.ballHeadroom, top = roofZ + TOY.roof;
-  const sockets: [number, number][] = Array.from({ length: 16 }, (_, i) => [((i % 4) - 1.5) * (p.width - 40) / 3, (Math.floor(i / 4) - 1.5) * (p.length - 40) / 3]);
-  const indices = { corners: [0, 3, 12, 15], zigzag: [1, 6, 9, 14], cluster: [5, 6, 9, 10] }[p.layout];
-  const magnets = indices.map(i => sockets[i] as [number, number]);
+  const columns = Math.floor((p.width - 2 * TOY.edgeMargin) / p.socketSpacing) + 1;
+  const rows = Math.floor((p.length - 2 * TOY.edgeMargin) / p.socketSpacing) + 1;
+  const sockets: [number, number][] = Array.from({ length: columns * rows }, (_, i) => [
+    ((i % columns) - (columns - 1) / 2) * p.socketSpacing,
+    (Math.floor(i / columns) - (rows - 1) / 2) * p.socketSpacing,
+  ]);
   const ears: [number, number][] = [-1, 1].flatMap(x => [-1, 1].map(y => [x * (p.width / 2 + 5), y * (p.length / 2 - 12)] as [number, number]));
   const slotLength = Math.min(3 * p.ballDiameter, p.length - 24);
   const slotCount = Math.floor((p.width - 24 + 4) / (p.slotWidth + 4));
@@ -50,7 +53,7 @@ export function magneticCatToyLayout(p: MagneticCatToyParameters) {
   const slotCentres = Array.from({ length: slotCount }, (_, i) => (i - (slotCount - 1) / 2) * slotPitch);
   const offset = p.magnetPlacement === 'eccentric' ? p.eccentricOffset : 0;
   const magnetToField = TOY.air + p.fieldThickness;
-  return { magnetToField, grid, ball, socketDiameter, socketOuterDiameter, socketTop, fieldZ, fieldTop, radius, roofZ, top, sockets, magnets, ears, slotLength, slotCount, slotCentres, offset };
+  return { magnetToField, grid, ball, socketDiameter, socketOuterDiameter, socketTop, fieldZ, fieldTop, radius, roofZ, top, columns, rows, sockets, ears, slotLength, slotCount, slotCentres, offset };
 }
 export function magneticCatToyIssues(p: MagneticCatToyParameters): ParameterIssue[] {
   const l = magneticCatToyLayout(p), issues: ParameterIssue[] = [];
@@ -64,7 +67,6 @@ export function magneticCatToyIssues(p: MagneticCatToyParameters): ParameterIssu
     issues.push({ field: 'ballMagnet', message: 'The ball magnet pocket crowds the joint pins. Reduce magnet size/offset or enlarge the ball.' });
   return issues;
 }
-const gridMagnetIds = Array.from({ length: 4 }, (_, i) => `grid-magnet-${i + 1}`);
 export function magneticCatToyAssembly(p: MagneticCatToyParameters): Assembly {
   const l = magneticCatToyLayout(p);
   return {
@@ -77,7 +79,7 @@ export function magneticCatToyAssembly(p: MagneticCatToyParameters): Assembly {
       cover: { position: [0, 0, l.top], rotation: [180, 0, 0] },
     },
     steps: [
-      { title: 'Place four bare magnets flush in the chosen sockets', parts: gridMagnetIds, from: [0, 0, 30] },
+      { title: 'Place bare magnets in your chosen sockets (full capacity illustrated)', parts: l.sockets.map((_, i) => `grid-magnet-${i + 1}`), from: [0, 0, 30] },
       { title: 'Seat the thin playing field, smooth face up', parts: ['field'], from: [0, 0, 65] },
       { title: 'Bond the ball halves around the selected magnet mount', parts: ['ball-upper'], from: [0, 0, 16] },
       { title: 'Place the magnetic ball on the playing field', parts: ['ball-lower', 'ball-upper'], from: [0, 0, 95] },
@@ -89,7 +91,7 @@ export function magneticCatToyAssembly(p: MagneticCatToyParameters): Assembly {
 export function magneticCatToyReferences(p: MagneticCatToyParameters): LinkedReference[] {
   const l = magneticCatToyLayout(p);
   return [
-    ...l.magnets.map(([x, y], i): LinkedReference => ({ id: `grid-magnet-${i + 1}`, part: p.gridMagnet, label: 'flush exposed socket',
+    ...l.sockets.map(([x, y], i): LinkedReference => ({ id: `grid-magnet-${i + 1}`, part: p.gridMagnet, label: `optional flush socket ${i + 1}`,
       pose: { position: [x, y, TOY.floor] } })),
     ...l.ears.flatMap(([x, y], i): LinkedReference[] => [
       { id: `cover-screw-${i + 1}`, part: 'iso-4762-m3x8', label: 'cover fastener', pose: { position: [x, y, 0] }, movesWith: 'cover' },

@@ -54,7 +54,7 @@ jobs:
       - name: Check magnetic cat toy assembly paths (centred and eccentric)
         run: |
           npm run check:assembly -- magnetic-cat-toy
-          npm run check:assembly -- magnetic-cat-toy --parameters '{"magnetPlacement":"eccentric","layout":"cluster"}'
+          npm run check:assembly -- magnetic-cat-toy --parameters '{"magnetPlacement":"eccentric","socketSpacing":40}'
         env:
           OPENSCAD_RUNNER: docker
 
@@ -165,6 +165,6 @@ jobs:
       - name: Run the physics scenarios
         run: |
           npm run check:physics
-          npm run check:physics -- magnetic-cat-toy --parameters '{"magnetPlacement":"eccentric","layout":"cluster"}'
+          npm run check:physics -- magnetic-cat-toy --parameters '{"magnetPlacement":"eccentric","socketSpacing":40}'
         env:
           OPENSCAD_RUNNER: docker

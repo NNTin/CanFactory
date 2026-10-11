@@ -89,6 +89,23 @@ it('compiles dipoles to SI, retains welded inertia, rejects invalid ids and rota
   } finally { reversed.dispose(); }
 });
 
+it('ignores fixed/fixed support reactions and internal pairs on one welded moving assembly', async () => {
+  const engine = await loadEngine(), grid = spec.magnets?.[0], internal = spec.magnets?.[1];
+  assert.ok(grid); assert.ok(internal);
+  const cases: PhysicsSpec[] = [
+    { ...spec, bodies: [...spec.bodies, { id: 'fixed2', fixed: true, material: 'petg', collision: { kind: 'none' } }],
+      magnets: [grid, { ...grid, id: 'other-grid', body: 'fixed2' }] },
+    { ...spec, magnets: [{ ...grid, enabled: false }, internal, { ...internal, id: 'welded', body: 'upper' }] },
+  ];
+  for (const candidate of cases) {
+    const sim = new Simulation(engine, buildScene({ spec: candidate, poses: { ...poses, fixed2: { position: [10, 0, 0] } }, geometry: {} }));
+    try {
+      sim.step();
+      expect(Array.from(sim.data.xfrc_applied).every(v => v === 0)).toBe(true);
+    } finally { sim.dispose(); }
+  }
+});
+
 /** Outward-wound tetrahedron, mm; sufficient mesh to exercise the same interactive path as the browser. */
 const tetra = Float32Array.from([0, 0, 0, 0, 10, 0, 10, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 10, 0, 10, 0, 10, 0, 0, 0, 10, 0, 0, 0, 10]);
 it('switches fields without resetting time/poses, preserves states across restart/gravity, resets on a new session', async () => {

@@ -2337,13 +2337,14 @@ main {
   .hardware table { font-size: 11px; }
 }
 
-.magnet-controls { display: flex; gap: 1rem; padding: 1rem; border-top: 1px solid var(--line); align-items: center; }
-.magnet-map { position: relative; flex: 0 0 180px; height: 160px; border: 1px solid var(--line); border-radius: 8px; background: repeating-linear-gradient(0deg, transparent, transparent 39px, #78918b20 39px, #78918b20 40px), repeating-linear-gradient(90deg, transparent, transparent 44px, #78918b20 44px, #78918b20 45px); }
+.magnet-controls { display: flex; flex-wrap: wrap; gap: 1rem; padding: 1rem; border-top: 1px solid var(--line); align-items: center; }
+.magnet-map-scroll { max-width: 100%; overflow: auto; }
+.magnet-map { position: relative; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 8px; background: repeating-linear-gradient(0deg, transparent, transparent 47px, #78918b20 47px, #78918b20 48px), repeating-linear-gradient(90deg, transparent, transparent 47px, #78918b20 47px, #78918b20 48px); }
 .magnet-map-axis { position: absolute; right: 5px; bottom: 3px; font-size: 10px; color: var(--muted); }
 .magnet-map button { display: flex; flex-direction: column; justify-content: center; align-items: center; position: absolute; transform: translate(-50%, -50%); width: 34px; height: 34px; border: 1px solid #78918b; border-radius: 50%; background: var(--surface); color: var(--muted); font-size: 12px; line-height: 1; cursor: pointer; }
 .magnet-map button[aria-pressed="true"] { background: #366f63; color: #fff; border-color: #366f63; }
 .magnet-map button small { display: block; font-size: 8px; margin-top: 2px; }
-.magnet-controls-caption { font-size: 12px; }
+.magnet-controls-caption { font-size: 12px; flex: 1 1 180px; }
 .magnet-controls-caption p { margin: 0.4rem 0; }
 .magnet-controls-caption > small { display: block; font-size: 10px; color: var(--muted); margin-top: 0.5rem; max-width: 48em; }
 .magnet-controls-caption button { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; margin-right: 6px; cursor: pointer; color: inherit; }

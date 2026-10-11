@@ -1059,7 +1059,7 @@ export interface operations {
                         length: number;
                         /**
                          * Grid magnets
-                         * @description Four sourced axial discs, directly seated flush in any four sockets; exposed until the field is fitted.
+                         * @description Sourced axial discs for whichever sockets you choose to populate; exposed and nominally flush until the field is fitted.
                          * @default supermagnete-s-10-03-n
                          * @enum {unknown}
                          */
@@ -1072,12 +1072,11 @@ export interface operations {
                          */
                         ballMagnet: "supermagnete-s-04-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-03-n";
                         /**
-                         * Magnet layout
-                         * @description Preview arrangement of four magnets on the 4 × 4 socket array. Move the bare magnets between sockets with the cover and field removed; no holders or caps.
-                         * @default zigzag
-                         * @enum {unknown}
+                         * Socket spacing
+                         * @description Centre-to-centre pitch in both directions, in mm. The centred array fits as many sockets as possible with at least 20 mm from each centre to the outer edge. Choose magnet positions yourself, not a layout preset.
+                         * @default 30
                          */
-                        layout: "corners" | "zigzag" | "cluster";
+                        socketSpacing: number;
                         /**
                          * Playing field thickness
                          * @description Smooth solid planar sheet; thinner reduces the magnetic gap but may flex. Print solid, smooth face on the bed.

@@ -918,12 +918,12 @@ try {
     console.log(`PASS camera housing ${name}: two closed prints, dimensioned through-openings and blind mounting holes`);
   }
   // Original magnetic cat toy: each print is connected, magnet seats really move, slots are through-open,
-  // direct sockets are blind and open-topped, no ribs/holders/caps waste material, and all layouts fit.
+  // direct sockets are open-topped with push-out holes, no ribs/holders/caps waste material, and pitch changes the array.
   const toyCases: { name: string; overrides: ParameterValues }[] = [
-    { name: 'default centred / zigzag', overrides: {} },
-    { name: 'eccentric / cluster', overrides: { magnetPlacement: 'eccentric', layout: 'cluster' } },
-    { name: 'small / corners', overrides: { width: 120, length: 120, ballDiameter: 28, slotWidth: 16, layout: 'corners', gridMagnet: 'supermagnete-s-08-02-n', ballMagnet: 'supermagnete-s-04-02-n' } },
-    { name: 'large / loose fits', overrides: { width: 200, length: 200, ballDiameter: 44, slotWidth: 24, fieldThickness: 2, clearance: 0.4, detentEngage: 0.25, gridMagnet: 'supermagnete-s-12-02-n', ballMagnet: 'supermagnete-s-08-03-n', magnetPlacement: 'eccentric', eccentricOffset: 8 } },
+    { name: 'default centred / 30 mm pitch', overrides: {} },
+    { name: 'eccentric / dense grid', overrides: { magnetPlacement: 'eccentric', socketSpacing: 20 } },
+    { name: 'small / sparse grid', overrides: { width: 120, length: 120, ballDiameter: 28, slotWidth: 16, socketSpacing: 60, gridMagnet: 'supermagnete-s-08-02-n', ballMagnet: 'supermagnete-s-04-02-n' } },
+    { name: 'large / loose fits / 81 sockets', overrides: { width: 200, length: 200, socketSpacing: 20, ballDiameter: 44, slotWidth: 24, fieldThickness: 2, clearance: 0.4, detentEngage: 0.25, gridMagnet: 'supermagnete-s-12-02-n', ballMagnet: 'supermagnete-s-08-03-n', magnetPlacement: 'eccentric', eccentricOffset: 8 } },
   ];
   for (const { name, overrides } of only && only !== magneticCatToy.id ? [] : toyCases) {
     const parameters = { ...magneticCatToy.defaults, ...overrides };
@@ -953,14 +953,17 @@ try {
     for (const [x, y] of l.sockets) {
       assert.equal(housingSolid(grid, [x, y, TOY.floor + 0.3]), false, `${name}: direct magnet pocket`);
       assert.equal(housingSolid(grid, [x, y, l.socketTop - 0.05]), false, `${name}: no crown above magnet face`);
-      assert.equal(housingSolid(grid, [x, y, TOY.floor / 2]), true, `${name}: thin blind socket floor`);
+      assert.equal(housingSolid(grid, [x, y, TOY.floor / 2]), false, `${name}: through-floor push-out hole`);
+      assert.equal(housingSolid(grid, [x + TOY.pushHole / 2 - 0.2, y, TOY.floor / 2]), false, `${name}: push-out bore radius`);
+      assert.equal(housingSolid(grid, [x + TOY.pushHole / 2 + 0.4, y, TOY.floor / 2]), true, `${name}: annular magnet support`);
       assert.equal(housingSolid(grid, [x + l.socketDiameter / 2 + TOY.socketWall / 2, y, l.socketTop - 0.1]), true, `${name}: socket wall`);
       assert.equal(housingSolid(grid, [x + l.socketDiameter / 2 + TOY.socketWall + 0.3, y, l.socketTop - 0.1]), false, `${name}: no redundant holder material`);
     }
-    // The original raised cross-grid lines ran through these points. Only the thin floor remains.
-    for (const k of [-1, 0, 1]) for (const [x = 0, y = 0] of [[k * (parameters.width - 40) / 3, 0], [0, k * (parameters.length - 40) / 3]])
-      assert.equal(housingSolid(grid, [x, y, TOY.floor + 0.3]), false, `${name}: no raised grid lines`);
-    assert.equal(housingSolid(grid, [0, 0, TOY.floor / 2]), true, `${name}: connected lightweight tray`);
+    const [sx = 0, sy = 0] = l.sockets[0] ?? [];
+    // Midway between four neighbouring sockets: floor only, no raised cross-grid.
+    const gap: [number, number] = [sx + parameters.socketSpacing / 2, sy + parameters.socketSpacing / 2];
+    assert.equal(housingSolid(grid, [...gap, TOY.floor + 0.3]), false, `${name}: no raised grid lines`);
+    assert.equal(housingSolid(grid, [...gap, TOY.floor / 2]), true, `${name}: connected lightweight tray`);
     assert.equal(housingSolid(grid, [parameters.width / 2 - TOY.rim / 2, 0, l.fieldZ - 0.1]), true, `${name}: narrow field-supporting rim`);
     const gridPart = result.artifact.parts.find(p => p.id === 'grid'); assert.ok(gridPart);
     assert.ok(gridPart.volume < parameters.width * parameters.length * 2.5, `${name}: lightweight tray material budget`);
@@ -979,7 +982,7 @@ try {
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log(`PASS magnetic cat toy ${name}: 5 connected prints, direct open flush sockets, thin tray without ribs, real offset seats, ball-retaining slots`);
+    console.log(`PASS magnetic cat toy ${name}: 5 connected prints, ${l.columns} × ${l.rows} flush sockets with push-out holes, no raised ribs, real offset seats, ball-retaining slots`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

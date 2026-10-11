@@ -52,6 +52,7 @@ export class Simulation {
   private readonly velocity: DoubleBuffer;
   private disposed = false;
   private readonly enabledMagnets = new Map<string, boolean>();
+  private readonly magnetRoots = new Map<string, string | undefined>();
 
   constructor(private readonly engine: Engine, readonly scene: Scene) {
     this.xml = toMjcf(scene);
@@ -62,7 +63,10 @@ export class Simulation {
     for (const name of this.bodies) this.bodyIds.set(name, this.id(OBJ.body, name));
     for (const body of scene.bodies) body.geoms.forEach((_, index) => { this.geomBody[this.id(OBJ.geom, geomName(body.name, index))] = body.name; });
     for (const finger of scene.fingers ?? []) this.geomBody[this.id(OBJ.geom, geomName(finger.name, 0))] = finger.name;
-    for (const magnet of scene.magnets ?? []) this.enabledMagnets.set(magnet.id, magnet.enabled);
+    for (const magnet of scene.magnets ?? []) {
+      this.enabledMagnets.set(magnet.id, magnet.enabled);
+      this.magnetRoots.set(magnet.id, this.movableBody(magnet.body));
+    }
     this.setInitialJoints();
     engine.mj_forward(this.model, this.data);
   }
@@ -280,6 +284,9 @@ export class Simulation {
     for (let i = 0; i < magnets.length; i++) for (let j = i + 1; j < magnets.length; j++) {
       const a = magnets[i], b = magnets[j];
       if (!a || !b || a.body === b.body) continue;
+      // Fixed/fixed pairs cannot move anything; dipoles on one welded root exert only internal forces.
+      // Important for dense optional grids: evaluate ball/grid interactions, not thousands of support reactions.
+      if (this.magnetRoots.get(a.id) === this.magnetRoots.get(b.id)) continue;
       const interaction = dipoleInteraction(a, b);
       addAt(this.bodyId(a.body), a.pos, scale(interaction.force, -1), interaction.torqueA);
       addAt(this.bodyId(b.body), b.pos, interaction.force, interaction.torqueB);

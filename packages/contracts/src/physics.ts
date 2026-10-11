@@ -70,6 +70,7 @@ export const PhysicsMagnetSchema = Type.Object({
   softening: Type.Number({ exclusiveMinimum: 0, description: 'Regularisation length in mm (typically the magnet radius). Pair lengths combine in quadrature; prevents the point approximation diverging at contact.' }),
   enabled: Type.Optional(Type.Boolean({ description: 'Initially enabled, true by default.' })),
   switchable: Type.Optional(Type.Boolean({ description: 'Offer a virtual on/off control in the viewer. Does not imply a real permanent magnet can be switched.' })),
+  hideWhenDisabled: Type.Optional(Type.Boolean({ description: 'Hide this optional magnet body while all its dipoles are disabled, representing an empty socket. Fixed body mass/geometry stay in the engine; dynamic bodies should use force-only switches instead.' })),
 }, { additionalProperties: false });
 export type PhysicsMagnet = Static<typeof PhysicsMagnetSchema>;
 

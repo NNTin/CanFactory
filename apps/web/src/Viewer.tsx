@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { Atom, Box, Eye, EyeOff, FlipVertical2, Grid2X2, Pause, Play, RotateCcw } from 'lucide-react';
 import { assemblyOffset, assemblyScale, assemblyState, assemblyStops, motionFrames, motionPose, type Assembly, type AssemblyState, type PhysicsSpec } from '@canfactory/contracts';
 import type { PhysicsRequest, PhysicsUpdate } from '@canfactory/physics';
@@ -430,7 +430,12 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     scene.current?.setOrbit(true);
     worker.current?.postMessage({ type: 'release' } satisfies PhysicsRequest);
   };
-  useEffect(() => { scene.current?.setHidden(hidden); }, [hidden]);
+  const absentMagnets = useMemo(() => {
+    const magnets = simulating ? activePhysics?.magnets ?? [] : [];
+    const present = new Set(magnets.filter(m => enabledMagnets[m.id] ?? m.enabled ?? true).map(m => m.body));
+    return new Set(magnets.filter(m => m.hideWhenDisabled && !present.has(m.body)).map(m => m.body));
+  }, [simulating, activePhysics, enabledMagnets]);
+  useEffect(() => { scene.current?.setHidden(new Set([...hidden, ...absentMagnets])); }, [hidden, absentMagnets]);
   const toggle = (id: string) => setHidden(current => {
     const next = new Set(current);
     if (!next.delete(id)) next.add(id);
@@ -507,10 +512,11 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     {displayedAssembly && format === 'zip' && url && loadedParts.length > 0 && <div className="assembly-parts" role="group" aria-label="Visible parts">
       <span>PARTS</span>
       <div>{loadedParts.map(part => {
-        const visible = !hidden.has(part.id);
+        const absent = absentMagnets.has(part.id);
+        const visible = !hidden.has(part.id) && !absent;
         const title = partTitles[part.id] ?? part.id;
         return <button key={part.id} type="button" className={part.reference ? 'reference' : undefined} aria-pressed={visible}
-          title={`${visible ? 'Hide' : 'Show'} ${title}`} onClick={() => toggle(part.id)}>
+          disabled={absent} title={absent ? `Enable ${title} with magnet controls` : `${visible ? 'Hide' : 'Show'} ${title}`} onClick={() => toggle(part.id)}>
           {visible ? <Eye size={13} aria-hidden="true" /> : <EyeOff size={13} aria-hidden="true" />}{title}
           {displayedAssembly.partColors?.[part.id] && <span className="part-color" style={{ backgroundColor: displayedAssembly.partColors[part.id] }} title={`Suggested filament: ${displayedAssembly.partColors[part.id]}`} aria-hidden="true" />}
         </button>;

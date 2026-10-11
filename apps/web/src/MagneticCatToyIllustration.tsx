@@ -16,7 +16,7 @@ export function MagneticCatToyIllustration() {
     <g data-layer="grid">
       <polygon points={polygon(0)} fill="#4f716b" stroke="#344e48" />
       {l.sockets.map(([x, y], i) => <g key={i}>{circle(x, y, 1, l.socketOuterDiameter / 2, '#77908a')}{circle(x, y, 1, l.socketDiameter / 2, '#263f3b')}</g>)}
-      {l.magnets.map(([x, y], i) => <g key={i}>{circle(x, y, 1, l.grid.diameter / 2, '#cfd2d6')}</g>)}
+      {l.sockets.map(([x, y], i) => <g key={i}>{circle(x, y, 1, l.grid.diameter / 2, '#cfd2d6')}</g>)}
     </g>
     <g data-layer="field"><polygon points={polygon(l.fieldZ + 12)} fill="#e5cf9b" fillOpacity=".83" stroke="#9e8756" /></g>
     <g data-layer="ball">

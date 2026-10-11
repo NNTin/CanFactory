@@ -2865,7 +2865,7 @@
                           "length",
                           "gridMagnet",
                           "ballMagnet",
-                          "layout",
+                          "socketSpacing",
                           "fieldThickness",
                           "ballDiameter",
                           "magnetPlacement",
@@ -2900,7 +2900,7 @@
                               "supermagnete-s-12-02-n"
                             ],
                             "title": "Grid magnets",
-                            "description": "Four sourced axial discs, directly seated flush in any four sockets; exposed until the field is fitted.",
+                            "description": "Sourced axial discs for whichever sockets you choose to populate; exposed and nominally flush until the field is fitted.",
                             "default": "supermagnete-s-10-03-n"
                           },
                           "ballMagnet": {
@@ -2913,15 +2913,14 @@
                             "description": "One sourced axial disc captured between the ball halves.",
                             "default": "supermagnete-s-06-03-n"
                           },
-                          "layout": {
-                            "enum": [
-                              "corners",
-                              "zigzag",
-                              "cluster"
-                            ],
-                            "title": "Magnet layout",
-                            "description": "Preview arrangement of four magnets on the 4 × 4 socket array. Move the bare magnets between sockets with the cover and field removed; no holders or caps.",
-                            "default": "zigzag"
+                          "socketSpacing": {
+                            "type": "number",
+                            "title": "Socket spacing",
+                            "description": "Centre-to-centre pitch in both directions, in mm. The centred array fits as many sockets as possible with at least 20 mm from each centre to the outer edge. Choose magnet positions yourself, not a layout preset.",
+                            "default": 30,
+                            "minimum": 20,
+                            "maximum": 60,
+                            "multipleOf": 1
                           },
                           "fieldThickness": {
                             "type": "number",

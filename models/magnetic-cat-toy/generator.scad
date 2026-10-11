@@ -4,6 +4,7 @@
 PART = "grid";
 WIDTH = 160;
 LENGTH = 140;
+SOCKET_SPACING = 30;
 GRID_D = 10.1;
 GRID_T = 3;
 BALL_MAGNET_D = 6.1;
@@ -23,6 +24,8 @@ $fn = ROUNDNESS;
 EPS = 0.01;
 FLOOR = 1.2;
 SOCKET_WALL = 1.2;
+EDGE_MARGIN = 20;
+PUSH_HOLE = 3;
 RIM = 5;
 MOUNT_BASE = 6;
 PLAY = 0.2;
@@ -33,6 +36,8 @@ FIELD_LIP = 3;
 FIELD_RETAIN_GAP = 0.2;
 PIN = 1.6;
 PIN_L = 2.4;
+COLUMNS = floor((WIDTH-2*EDGE_MARGIN)/SOCKET_SPACING)+1;
+ROWS = floor((LENGTH-2*EDGE_MARGIN)/SOCKET_SPACING)+1;
 SOCKET_D = GRID_D + PLAY;
 SOCKET_TOP = FLOOR + GRID_T;
 BASE = SOCKET_TOP + AIR;
@@ -47,6 +52,11 @@ SLOTS = floor((WIDTH - 24 + 4) / (SLOT_W + 4));
 SLOT_PITCH = (WIDTH - 24 - SLOT_W) / (SLOTS - 1);
 
 assert(SLOT_W <= 0.6 * BALL_D, "Slot width exceeds retention rule");
+assert(SOCKET_SPACING >= SOCKET_D+2*SOCKET_WALL+2, "Socket walls need at least 2 mm between them");
+assert(COLUMNS >= 1 && ROWS >= 1, "Socket pitch does not fit this tray");
+module at_sockets() {
+    for(i=[0:COLUMNS-1],j=[0:ROWS-1]) translate([(i-(COLUMNS-1)/2)*SOCKET_SPACING,(j-(ROWS-1)/2)*SOCKET_SPACING,0]) children();
+}
 module rounded(w, l, h, r=6) {
     linear_extrude(h) hull() for (x=[-1,1], y=[-1,1]) translate([x*(w/2-r), y*(l/2-r)]) circle(r=r);
 }
@@ -69,7 +79,7 @@ module grid() {
             rounded(WIDTH,LENGTH,FLOOR);
             ears(MOUNT_BASE,3);
             // Only socket walls rise around magnets. Their top faces remain exposed and nominally flush.
-            for(i=[0:3],j=[0:3]) translate([(i-1.5)*(WIDTH-40)/3,(j-1.5)*(LENGTH-40)/3,0])
+            at_sockets()
                 cylinder(d=SOCKET_D+2*SOCKET_WALL,h=SOCKET_TOP);
             // Field rests on a narrow perimeter rim, 0.2 mm above the magnet faces.
             difference() {
@@ -77,8 +87,11 @@ module grid() {
                 translate([0,0,-EPS]) rounded(WIDTH-2*RIM,LENGTH-2*RIM,BASE+2*EPS,r=3);
             }
         }
-        for(i=[0:3],j=[0:3]) translate([(i-1.5)*(WIDTH-40)/3,(j-1.5)*(LENGTH-40)/3,FLOOR])
-            cylinder(d=SOCKET_D,h=GRID_T+EPS);
+        // A small through-floor ejector hole leaves an annular bearing seat under each disc.
+        at_sockets() {
+            translate([0,0,FLOOR]) cylinder(d=SOCKET_D,h=GRID_T+EPS);
+            translate([0,0,-EPS]) cylinder(d=PUSH_HOLE,h=FLOOR+2*EPS);
+        }
         ear_holes(MOUNT_BASE,true);
     }
 }

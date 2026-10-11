@@ -44,18 +44,20 @@ export function toyCoverPieces(p: MagneticCatToyParameters): number[][] {
   return pieces;
 }
 
-/** Fully assembled, screwed/bonded toy. Only the composite ball moves; switches change fields, never bodies or geometry. */
+/** Fully assembled, screwed/bonded toy. Only the composite ball moves; switches change fields/mesh presence without rebuilding engine bodies. */
 export function magneticCatToyPhysics(p: MagneticCatToyParameters): PhysicsSpec {
   const l = magneticCatToyLayout(p), grid = toyDipole(p.gridMagnet), ball = toyDipole(p.ballMagnet);
   const weld = (id: string, parent?: string): PhysicsBody => ({ id, material: 'petg', fixed: true, collision: { kind: 'none' },
     ...(parent ? { joint: { type: 'slide', parent, anchor: [0, 0, 0] } } : {}) });
   const magnets: PhysicsMagnet[] = [
-    ...l.magnets.map((_, i): PhysicsMagnet => ({ id: `grid-magnet-${i + 1}`, title: `Grid magnet ${i + 1}`, body: `grid-magnet-${i + 1}`,
-      position: [0, 0, l.grid.nominalThickness / 2], moment: [0, 0, grid.moment], softening: grid.radius, switchable: true })),
+    ...l.sockets.map((_, i): PhysicsMagnet => ({ id: `grid-magnet-${i + 1}`, title: `Grid magnet ${i + 1}`, body: `grid-magnet-${i + 1}`,
+      position: [0, 0, l.grid.nominalThickness / 2], moment: [0, 0, grid.moment], softening: grid.radius, switchable: true, enabled: false, hideWhenDisabled: true })),
     { id: 'ball-magnet', title: 'Sealed ball magnet (always on)', body: 'ball-magnet', position: [0, 0, l.ball.thickness / 2], moment: [0, 0, ball.moment], softening: ball.radius },
   ];
-  const disabled = Object.fromEntries(l.magnets.map((_, i) => [`grid-magnet-${i + 1}`, false]));
-  const [hx = 0, hy = 0] = l.magnets[1] ?? [];
+  const disabled = Object.fromEntries(l.sockets.map((_, i) => [`grid-magnet-${i + 1}`, false]));
+  const targetIndex = Math.floor((l.rows - 1) / 2) * l.columns + Math.floor((l.columns - 1) / 2);
+  const target = `grid-magnet-${targetIndex + 1}`;
+  const [hx = 0, hy = 0] = l.sockets[targetIndex] ?? [];
   const at = (x: number, y: number) => ({
     'ball-lower': { position: [x, y, l.fieldTop] },
     'ball-upper': { position: [x, y, l.fieldTop + p.ballDiameter], rotation: [180, 0, 0] },
@@ -64,7 +66,7 @@ export function magneticCatToyPhysics(p: MagneticCatToyParameters): PhysicsSpec 
   return {
     bodies: [
       weld('grid'),
-      ...l.magnets.map((_, i) => weld(`grid-magnet-${i + 1}`)),
+      ...l.sockets.map((_, i) => weld(`grid-magnet-${i + 1}`)),
       { ...weld('field'), collision: { kind: 'box', centre: [0, 0, p.fieldThickness / 2], size: [p.width - 8, p.length - 8, p.fieldThickness] } },
       { id: 'ball-lower', material: 'petg', collision: { kind: 'sphere', centre: [0, 0, l.radius], diameter: p.ballDiameter } },
       weld('ball-upper', 'ball-lower'),
@@ -79,12 +81,12 @@ export function magneticCatToyPhysics(p: MagneticCatToyParameters): PhysicsSpec 
         { kind: 'position', at: 0.25, body: 'ball-lower', point: [0, 0, l.radius], axis: 2, min: -0.02, max: 2 },
         { kind: 'contact', at: 0.25, bodies: ['ball-lower', 'field'], touching: true },
       ] },
-      { id: 'magnet-on', title: 'A selected grid magnet attracts and turns the ball', duration: 0.5, magnets: { ...disabled, 'grid-magnet-2': true }, poses: at(hx + 8, hy), checks: [
+      { id: 'magnet-on', title: 'A selected grid magnet attracts and turns the ball', duration: 0.5, magnets: { ...disabled, [target]: true }, poses: at(hx + 8, hy), checks: [
         { kind: 'position', at: 0.5, body: 'ball-lower', point: [0, 0, l.radius], axis: 0, max: -0.5 },
         { kind: 'position', at: 0.5, body: 'ball-lower', point: [0, 0, l.radius], axis: 2, min: -0.02, max: 2 },
       ] },
       { id: 'switch-on', title: 'Switching a grid magnet on moves the already assembled ball without resetting it', duration: 0.75, magnets: disabled, poses: at(hx + 8, hy),
-        drives: [{ kind: 'magnet', id: 'grid-magnet-2', timeline: [[0.25, 1]] }], checks: [
+        drives: [{ kind: 'magnet', id: target, timeline: [[0.25, 1]] }], checks: [
           { kind: 'position', at: 0.2, body: 'ball-lower', point: [0, 0, l.radius], axis: 0, min: -2, max: 2 },
           { kind: 'position', at: 0.75, body: 'ball-lower', point: [0, 0, l.radius], axis: 0, max: -0.5 },
         ] },
