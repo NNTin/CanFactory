@@ -3410,11 +3410,11 @@ const cameraHousingControls = [
   control(CameraHousingParametersSchema, 'heatsinkEnabled', 'basic'),
   { ...partControl(CameraHousingParametersSchema, 'heatsink', 'basic', 'heatsink', CAMERA_HEATSINKS), enabledWhen: 'heatsinkEnabled' },
   ...(['heatsinkAllowance', 'adhesiveThickness'] as const).map(key => ({ ...control(CameraHousingParametersSchema, key, 'advanced'), enabledWhen: 'heatsinkEnabled' })),
-  ...(['wall', 'standoff', 'headroom', 'boardFit', 'seamFit', 'usbRecess', 'usbWidth', 'usbHeight'] as const)
+  ...(['wall', 'standoff', 'headroom', 'boardFit', 'seamFit', 'seamDepth', 'usbRecess', 'usbWidth', 'usbHeight'] as const)
     .map(key => control(CameraHousingParametersSchema, key, 'advanced')),
 ];
 const CAMERA_HOUSING_MAPPING = {
-  width: 'WIDTH', length: 'LENGTH', wall: 'WALL', standoff: 'STANDOFF', headroom: 'HEADROOM', boardFit: 'BOARD_FIT', seamFit: 'SEAM_FIT',
+  width: 'WIDTH', length: 'LENGTH', wall: 'WALL', standoff: 'STANDOFF', headroom: 'HEADROOM', boardFit: 'BOARD_FIT', seamFit: 'SEAM_FIT', seamDepth: 'SEAM_DEPTH',
   usbRecess: 'USB_RECESS', usbWidth: 'USB_W', usbHeight: 'USB_H', cameraDiameter: 'CAMERA_D', cameraOffsetX: 'CAMERA_DX', cameraOffsetY: 'CAMERA_DY',
   antennaDiameter: 'ANTENNA_D', batteryDiameter: 'BATTERY_D', chargeWindow: 'CHARGE_WINDOW', ventilation: 'VENTILATION', mountSpacing: 'MOUNT_SPACING', mountRetention: 'MOUNT_RETENTION', mountNut: 'MOUNT_NUT', heatsinkEnabled: 'HEATSINK_ENABLED', heatsinkAllowance: 'HEATSINK_ALLOWANCE', adhesiveThickness: 'ADHESIVE_T',
 };
@@ -3427,8 +3427,8 @@ const CAMERA_HOUSING_CONSTANTS = {
   LID_R: CAMERA_HARDWARE.lidBossRadius, CORNER_INSET: CAMERA_HARDWARE.lidCornerInset, SCREW_HOLE: CAMERA_HARDWARE.screwHole, SEAM_ABOVE_PCB: CAMERA_HARDWARE.seamAbovePcb,
 };
 export const cameraHousing = {
-  id: 'xiao-sense-camera-housing' as const, version: '3' as const, title: 'XIAO Sense camera housing',
-  description: 'A mountable indoor camera enclosure for the Seeed Studio XIAO ESP32-S3 Sense. A guided tray and screw-on camera hood leave access for the lens, USB-C charging/data, battery wires and the external antenna. Customize the openings, fit and rear heat-set insert or captive-nut mounts. An optional backside heatsink is enabled by default; the housing automatically grows taller to clear the fins without crowding the camera. Cat recognition and feeding-tracker software are not included.',
+  id: 'xiao-sense-camera-housing' as const, version: '4' as const, title: 'XIAO Sense camera housing',
+  description: 'A mountable indoor camera enclosure for the Seeed Studio XIAO ESP32-S3 Sense. A guided tray and screw-on camera hood leave access for the lens, USB-C charging/data, battery wires and the external antenna. An alignment rabbet locates the hood independently of its four screws. Customize the openings, fit and rear heat-set insert or captive-nut mounts. An optional backside heatsink is enabled by default; the housing automatically grows taller to clear the fins without crowding the camera. Cat recognition and feeding-tracker software are not included.',
   attribution: 'CanFactory (original design); board envelope from Seeed Studio',
   attributionLinks: [{ text: 'Seeed Studio', url: 'https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/' }],
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
@@ -3455,6 +3455,7 @@ export const cameraHousing = {
     if (!l.screw) return { slotCount: null };
     return { slotCount: null, notes: [
       `Assembled envelope: ${l.width.toFixed(1)} × ${l.length.toFixed(1)} × ${l.top.toFixed(2)} mm (excluding screw heads); rear mount centres ${parameters.mountSpacing} mm apart.`,
+      `Alignment rabbet: ${parameters.seamDepth.toFixed(1)} mm overlap, ${l.tongueThickness.toFixed(2)} mm tongue and outer rim, ${parameters.seamFit.toFixed(2)} mm clearance per side and below the tongue. Seat the hood before tightening the screws. Interrupted at screw bosses and access openings; not a weather seal.`,
       `Hardware: two ${cameraHardwarePart(parameters.mountRetention === 'nut' ? parameters.mountNut : parameters.mountInsert).designation} rear ${parameters.mountRetention === 'nut' ? 'nuts' : 'inserts'}, four ruthex RX-M2x4 lid inserts, four ${l.screw.designation} lid screws. Rear screw penetration: at most ${parameters.mountRetention === 'nut' ? (l.mountDepth - 0.4).toFixed(1) : dimensionOf(cameraHardwarePart(parameters.mountInsert), 'l')} mm from the outer floor.`,
       ...(parameters.heatsinkEnabled ? [`Passive cooling: one ${cameraHardwarePart(parameters.heatsink).designation} on the backside thermal pad, fins towards the floor; under-board clearance automatically ${l.clearance.toFixed(2)} mm, including ${parameters.adhesiveThickness} mm adhesive, ${parameters.heatsinkAllowance} mm extra height and ${CAMERA_HEATSINK_GAP} mm air gap. Seeed sink height is estimated, not published: measure before printing. Keep BAT pads clear; no thermal-performance guarantee.`] : ['Heatsink disabled: compact under-board clearance restored; verify operating temperature before use.']),
       `USB-C is the charging and data port (${(parameters.wall + parameters.usbRecess).toFixed(1)} mm socket recess); the separate battery-wire exit is for an external battery, not a second charging socket.`,

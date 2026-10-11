@@ -58,7 +58,8 @@ export const CameraHousingParametersSchema = Type.Object({
   standoff: mm('Under-board clearance', 'Minimum distance from floor to PCB underside. Automatically increased for heatsink height, adhesive and 2 mm fin clearance.', 4, 3, 8),
   headroom: mm('Camera headroom', 'Space from the published 15 mm stack envelope to the roof underside.', 1.2, 0.8, 4),
   boardFit: mm('Board clearance', 'Lateral play per side in the PCB guides, in mm.', 0.3, 0.2, 0.8, 0.1),
-  seamFit: mm('Lid seam clearance', 'Vertical gap between the tray and hood, in mm; the four screws locate and secure the hood.', 0.2, 0.15, 0.45, 0.05),
+  seamFit: mm('Lid seam clearance', 'Gap per side at the alignment rabbet and below the tongue, and vertical gap between tray and hood, in mm. Larger is looser; the tongue locates the hood and the four screws secure it.', 0.2, 0.15, 0.45, 0.05),
+  seamDepth: mm('Alignment overlap', 'Depth of the lid tongue below the tray rim, in mm. The open-sided groove is this deep plus seam clearance; tongue and remaining outer rim are each half the wall thickness.', 1.2, 0.8, 2.4),
   usbRecess: mm('USB recess', 'Additional distance of the socket behind the inner front wall, in mm. Total recess includes the wall.', 2, 0, 6),
   usbWidth: mm('USB plug opening width', 'Clear width for your USB-C cable moulding, in mm.', 14, 12, 20),
   usbHeight: mm('USB plug opening height', 'Clear height for your USB-C cable moulding, in mm.', 8, 6, 12),
@@ -79,6 +80,8 @@ export function cameraHousingLayout(p: CameraHousingParameters) {
   const boardY = p.length / 2 - p.wall - h.usbOverhang - p.usbRecess - h.length;
   const boardZ = p.wall + clearance;
   const seam = boardZ + h.thickness + h.seamAbovePcb;
+  const seamShoulder = p.wall / 2, tongueThickness = p.wall / 2;
+  const tongueBottom = seam - p.seamDepth, grooveFloor = tongueBottom - p.seamFit;
   const roof = boardZ + h.height + p.headroom;
   const top = roof + p.wall;
   const grip = top - seam;
@@ -88,7 +91,7 @@ export function cameraHousingLayout(p: CameraHousingParameters) {
     width, length, back, clearance, heatsinkW, heatsinkL, heatsinkH,
     heatsinkX: h.heatsinkX - h.width / 2, heatsinkY: boardY + h.heatsinkY, heatsinkTop: boardZ - p.adhesiveThickness,
     nutS, nutHeight, squareNut, mountHole,
-    boardY, boardZ, seam, roof, top, grip, screw,
+    boardY, boardZ, seam, seamShoulder, tongueThickness, tongueBottom, grooveFloor, roof, top, grip, screw,
     lens: [h.cameraX - h.width / 2, boardY + h.cameraY] as [number, number],
     aperture: [h.cameraX - h.width / 2 + p.cameraOffsetX, boardY + h.cameraY + p.cameraOffsetY] as [number, number],
     usbZ: boardZ + h.thickness + h.usbHeight / 2,
@@ -105,8 +108,8 @@ export function cameraHousingIssues(p: CameraHousingParameters): ParameterIssue[
     issue('mountSpacing', 'Widen the housing or reduce mount spacing to leave the mounting pocket’s required wall.');
   if (p.mountSpacing / 2 - l.mountRadius < h.width / 2 + p.boardFit + 2)
     issue('mountSpacing', 'Increase mount spacing: the mounting bosses must clear the board guides.');
-  if (l.mountDepth + p.wall >= l.seam - p.seamFit)
-    issue('standoff', 'Increase under-board clearance: the mounting holes need a blind end below the lid seam.');
+  if (l.mountDepth + p.wall >= l.grooveFloor)
+    issue('standoff', 'Increase under-board clearance or reduce alignment overlap: the mounting pockets need a blind cap below the alignment groove.');
   if (p.cameraDiameter / 2 < h.lensDiameter / 2 + Math.hypot(p.cameraOffsetX, p.cameraOffsetY) + p.boardFit + 0.4 - 1e-9)
     issue('cameraDiameter', 'Enlarge the camera opening or reduce alignment offsets to keep the nominal lens unobstructed.');
   if (Math.abs(l.aperture[0]) + p.cameraDiameter / 2 > l.width / 2 - 1.2 || l.aperture[1] + p.cameraDiameter / 2 > p.length / 2 - 1.2 || l.aperture[1] - p.cameraDiameter / 2 < l.back + 1.2)

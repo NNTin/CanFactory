@@ -2621,7 +2621,7 @@ export interface operations {
                     /** @enum {string} */
                     modelId: "xiao-sense-camera-housing";
                     /** @enum {string} */
-                    modelVersion: "3";
+                    modelVersion: "4";
                     parameters: {
                         /**
                          * Camera board
@@ -2762,10 +2762,16 @@ export interface operations {
                         boardFit: number;
                         /**
                          * Lid seam clearance
-                         * @description Vertical gap between the tray and hood, in mm; the four screws locate and secure the hood.
+                         * @description Gap per side at the alignment rabbet and below the tongue, and vertical gap between tray and hood, in mm. Larger is looser; the tongue locates the hood and the four screws secure it.
                          * @default 0.2
                          */
                         seamFit: number;
+                        /**
+                         * Alignment overlap
+                         * @description Depth of the lid tongue below the tray rim, in mm. The open-sided groove is this deep plus seam clearance; tongue and remaining outer rim are each half the wall thickness.
+                         * @default 1.2
+                         */
+                        seamDepth: number;
                         /**
                          * USB recess
                          * @description Additional distance of the socket behind the inner front wall, in mm. Total recess includes the wall.

@@ -863,6 +863,11 @@ try {
     { name: 'heatsink, no ventilation', overrides: { ventilation: false } },
     { name: 'no heatsink, minimum clearance', overrides: { heatsinkEnabled: false, width: 44, length: 40, wall: 1.6, mountSpacing: 32, standoff: 3, headroom: 0.8 } },
     { name: 'small, thin walls', overrides: { width: 44, length: 40, wall: 1.6, mountSpacing: 32 } },
+    { name: 'thin rim, tight shallow alignment', overrides: { wall: 1.6, seamFit: 0.15, seamDepth: 0.8 } },
+    { name: 'thin rim, loose deep alignment, smallest cables', overrides: { wall: 1.6, seamFit: 0.45, seamDepth: 2.4, antennaDiameter: 3, batteryDiameter: 2 } },
+    { name: 'thick rim, loose deep alignment', overrides: { width: 54, mountSpacing: 36, wall: 3.6, seamFit: 0.45, seamDepth: 2.4 } },
+    { name: 'battery radius equals tongue overlap', overrides: { batteryDiameter: 2.4 } },
+    { name: 'both cable radii equal tongue overlap', overrides: { seamDepth: 2, antennaDiameter: 4 } },
     { name: 'largest envelope', overrides: { width: 80, length: 80, mountSpacing: 60, wall: 3.6, standoff: 8, headroom: 4 } },
     { name: 'short M3 mounting inserts', overrides: { mountInsert: 'cnc-kitchen-m3x3' } },
     { name: 'short M4 mounting inserts', overrides: { mountInsert: 'cnc-kitchen-m4x4' } },
@@ -885,13 +890,48 @@ try {
     const bytes = await readFile(store.artifacts.path(job.id, 'zip')), entries = unzipSync(new Uint8Array(bytes));
     assert.deepEqual(Object.keys(entries), ['base.stl', 'lid.stl']); // Hardware must never be in the printable download.
     for (const part of result.artifact.parts) {
-      const expected = [l.width, l.length, part.id === 'base' ? l.seam : Math.max(l.top - l.seam - parameters.seamFit, l.top - l.boardZ - h.expansionTop - 0.2)];
+      const expected = [l.width, l.length, part.id === 'base' ? l.seam : Math.max(l.top - l.tongueBottom, l.top - l.boardZ - h.expansionTop - 0.2)];
       [part.dimensions.x, part.dimensions.y, part.dimensions.z].forEach((d, i) => assert.ok(Math.abs(d - (expected[i] ?? NaN)) < 0.01, `${name} ${part.id} bounds`));
       const entry = entries[`${part.id}.stl`]; assert.ok(entry); inspectStl(Buffer.from(entry));
     }
     const baseBytes = entries['base.stl'], lidBytes = entries['lid.stl']; assert.ok(baseBytes && lidBytes);
     const base = parseStl(Buffer.from(baseBytes)), lid = parseStl(Buffer.from(lidBytes));
     const hoodSolid = (x: number, y: number, z: number) => housingSolid(lid, [x, -y, l.top - z]);
+    assert.equal(shells(base), 1, `${name}: connected tray`);
+    assert.equal(shells(lid), 1, `${name}: connected hood/tongue`);
+    // Probe all four straight rabbets, away from access openings and the relieved corner bosses.
+    for (const axis of [0, 1]) for (const sign of [-1, 1]) {
+      const half = (axis === 0 ? l.width : l.length) / 2;
+      const cableY = l.boardY + (sign < 0 ? h.antennaY : 11), cableRadius = (sign < 0 ? parameters.antennaDiameter : parameters.batteryDiameter) / 2;
+      const sideY = [-l.length / 2 + 10, l.length / 2 - 10].find(y => Math.abs(y - cableY) > cableRadius + 0.5);
+      assert.ok(sideY !== undefined);
+      const solid = (distance: number, z: number, hood = false, shift = 0) => {
+        const xy: [number, number] = axis === 0 ? [sign * (half - distance), sideY] : [-l.width / 2 + 10, sign * (half - distance)];
+        // Query the same assembly point in the frame of a hood shifted outwards along this axis.
+        if (axis === 0) xy[0] -= sign * shift; else xy[1] -= sign * shift;
+        return hood ? hoodSolid(...xy, z) : housingSolid(base, [...xy, z]);
+      };
+      const z = l.seam - parameters.seamDepth / 2;
+      assert.equal(solid(l.seamShoulder / 2, z), true, `${name}: outer rim remains`);
+      assert.equal(solid(l.seamShoulder + parameters.seamFit + l.tongueThickness / 2, z), false, `${name}: open alignment groove`);
+      assert.equal(solid(l.seamShoulder + parameters.seamFit + l.tongueThickness / 2, z, true), true, `${name}: mating tongue`);
+      assert.equal(solid(l.seamShoulder + parameters.seamFit / 2, z), false, `${name}: lateral clearance in tray`);
+      assert.equal(solid(l.seamShoulder + parameters.seamFit / 2, z, true), false, `${name}: lateral clearance to tongue`);
+      assert.equal(solid(l.seamShoulder - 0.05, z), true, `${name}: locating shoulder`);
+      assert.equal(solid(l.seamShoulder - 0.05, z, true, parameters.seamFit + 0.1), true, `${name}: shifting hood beyond clearance hits shoulder`);
+      const tongueMiddle = l.seamShoulder + parameters.seamFit + l.tongueThickness / 2;
+      assert.equal(solid(tongueMiddle, l.tongueBottom - parameters.seamFit / 2), false, `${name}: groove bottom clearance`);
+      assert.equal(solid(tongueMiddle, l.tongueBottom - parameters.seamFit / 2, true), false, `${name}: tongue bottom clearance`);
+      assert.equal(solid(l.seamShoulder + (parameters.wall - l.seamShoulder) / 2, l.grooveFloor - 0.1), true, `${name}: material below groove`);
+      assert.equal(solid(l.seamShoulder / 2, l.seam + parameters.seamFit / 2), false, `${name}: vertical seam clearance in tray`);
+      assert.equal(solid(l.seamShoulder / 2, l.seam + parameters.seamFit / 2, true), false, `${name}: vertical seam clearance in hood`);
+    }
+    for (const [x, y] of l.corners) {
+      assert.equal(housingSolid(base, [x, y, l.seam - 0.4]), false, `${name}: closure insert bore`);
+      assert.equal(housingSolid(base, [x + h.lidBossRadius - 0.3, y, l.seam - 0.4]), true, `${name}: intact insert boss`);
+      assert.equal(hoodSolid(x + h.lidBossRadius - 0.3, y, l.seam - 0.4), false, `${name}: tongue relief at insert boss`);
+      assert.equal(hoodSolid(x, y, l.seam + parameters.seamFit + 0.4), false, `${name}: lid screw hole`);
+    }
     assert.equal(housingSolid(base, [0, parameters.length / 2 - parameters.wall / 2, l.usbZ]), false, `${name}: USB access`);
     assert.equal(housingSolid(base, [0, parameters.length / 2 - parameters.wall / 2, parameters.wall / 2]), true, `${name}: floor below USB`);
     assert.equal(hoodSolid(l.aperture[0], l.aperture[1], l.roof + parameters.wall / 2), false, `${name}: camera aperture`);
@@ -902,7 +942,10 @@ try {
       const x = side * (l.width / 2 - parameters.wall / 2);
       assert.equal(housingSolid(base, [x, y, l.seam - 0.4]), false, `${name}: split cable exit in tray`);
       assert.equal(hoodSolid(x, y, l.seam + 0.6), false, `${name}: split cable exit in hood`);
+      assert.equal(hoodSolid(side * (l.width / 2 - parameters.wall - parameters.seamFit / 2), y, l.seam - 0.4), false, `${name}: cable exit through inward tongue`);
+      assert.equal(hoodSolid(side * (l.width / 2 - parameters.wall - parameters.seamFit / 2), y, l.tongueBottom + 0.1), false, `${name}: cable notch open to tongue tip for assembly`);
     }
+    assert.equal(hoodSolid(0, l.length / 2 - parameters.wall - parameters.seamFit / 2, l.seam - 0.1), false, `${name}: USB access through inward tongue`);
     assert.equal(housingSolid(base, [-l.width / 2 + parameters.wall / 2, l.boardY + h.chargeY, l.boardZ + h.chargeZ]), !parameters.chargeWindow, `${name}: LED window`);
     for (const sign of [-1, 1]) {
       assert.equal(housingSolid(base, [sign * parameters.mountSpacing / 2, 0, l.mountDepth / 2]), false, `${name}: rear mounting bore`);
@@ -915,7 +958,7 @@ try {
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log(`PASS camera housing ${name}: two closed prints, dimensioned through-openings and blind mounting holes`);
+    console.log(`PASS camera housing ${name}: two closed prints, alignment rabbet/clearances, through-openings and blind mounting holes`);
   }
   // Original magnetic cat toy: each print is connected, magnet seats really move, slots are through-open,
   // direct sockets are open-topped with push-out holes, no ribs/holders/caps waste material, and pitch changes the array.

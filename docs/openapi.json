@@ -6091,7 +6091,7 @@
                       "modelVersion": {
                         "type": "string",
                         "enum": [
-                          "3"
+                          "4"
                         ]
                       },
                       "parameters": {
@@ -6120,6 +6120,7 @@
                           "headroom",
                           "boardFit",
                           "seamFit",
+                          "seamDepth",
                           "usbRecess",
                           "usbWidth",
                           "usbHeight"
@@ -6320,11 +6321,20 @@
                           "seamFit": {
                             "type": "number",
                             "title": "Lid seam clearance",
-                            "description": "Vertical gap between the tray and hood, in mm; the four screws locate and secure the hood.",
+                            "description": "Gap per side at the alignment rabbet and below the tongue, and vertical gap between tray and hood, in mm. Larger is looser; the tongue locates the hood and the four screws secure it.",
                             "default": 0.2,
                             "minimum": 0.15,
                             "maximum": 0.45,
                             "multipleOf": 0.05
+                          },
+                          "seamDepth": {
+                            "type": "number",
+                            "title": "Alignment overlap",
+                            "description": "Depth of the lid tongue below the tray rim, in mm. The open-sided groove is this deep plus seam clearance; tongue and remaining outer rim are each half the wall thickness.",
+                            "default": 1.2,
+                            "minimum": 0.8,
+                            "maximum": 2.4,
+                            "multipleOf": 0.2
                           },
                           "usbRecess": {
                             "type": "number",
