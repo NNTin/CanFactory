@@ -9,13 +9,14 @@ GRID_D = 10.1;
 GRID_T = 3;
 BALL_MAGNET_D = 6.1;
 BALL_MAGNET_T = 3.1;
+BALL_MAGNET_MIN_D = 5.9;
+BALL_SHELL = 2;
 FIELD_T = 1.2;
 BALL_D = 36;
 PLACEMENT = "centred";
 OFFSET = 6;
 SLOT_W = 18;
 CLEARANCE = 0.2;
-DETENT_ENGAGE = 0.15;
 NUT_S = 5.5;
 NUT_T = 2.4;
 SCREW_D = 3.4;
@@ -34,8 +35,14 @@ WALL = 3;
 ROOF = 3;
 FIELD_LIP = 3;
 FIELD_RETAIN_GAP = 0.2;
-PIN = 1.6;
-PIN_L = 2.4;
+PIN = 1;
+PIN_L = 1.6;
+BALL_LIP = 0.4;
+BALL_SEAT_FLOOR = 1.2;
+BALL_SEAT_WALL = 1.2;
+BALL_PUSH_HOLE = 2.5;
+GRIP_HOLE = 4;
+SPOKE_W = 2;
 COLUMNS = floor((WIDTH-2*EDGE_MARGIN)/SOCKET_SPACING)+1;
 ROWS = floor((LENGTH-2*EDGE_MARGIN)/SOCKET_SPACING)+1;
 SOCKET_D = GRID_D + PLAY;
@@ -95,35 +102,54 @@ module grid() {
         ear_holes(MOUNT_BASE,true);
     }
 }
-// Both identical halves print pole-down, equator up, with external supports/raft; remove and sand the support marks.
-// Three pins and three mirrored sockets balance the centred solid ball. Turning the upper half 180 degrees about X mates them.
-// Clearance + independent engagement follows litter-shovel/cigarette-case; triangular detent flanks have 45 degree lead-ins.
-module ridge(radius,z,amount) {
-    // One revolved profile, overlapping its bore/core: no coincident cone faces at the ridge peak.
-    rotate_extrude() polygon([[radius-EPS,z-amount-EPS],[radius+amount,z],[radius-EPS,z+amount+EPS]]);
+// Identical hollow halves. Print equator down on short supports under rim/pin seats and central spokes.
+// Straight, lead-in alignment pins reuse the clearance-fit pattern, but do NOT latch the halves: two magnets close them.
+BALL_SEAT = BALL_LIP + BALL_MAGNET_T;
+BOSS_R = (BALL_MAGNET_D+PLAY)/2 + BALL_SEAT_WALL;
+PIN_R = R-BALL_SHELL-1;
+module hemisphere(radius) {
+    rotate_extrude() polygon(concat([[0,0]],
+        [for(i=[0:ROUNDNESS/4]) [radius*cos(i*360/ROUNDNESS),radius*sin(i*360/ROUNDNESS)]]));
 }
-module ball() {
+module ball_core() {
     difference() {
         union() {
-            // Explicit pole/equator samples give a true bed-plane pole and full nominal diameter;
-            // OpenSCAD sphere() places its latitude rings half a facet away from the equator.
-            rotate_extrude() polygon(concat([[0,R],[0,0]],
-                [for(i=[1:ROUNDNESS/2]) [R*cos(-90+i*180/ROUNDNESS),R+R*sin(-90+i*180/ROUNDNESS)]]));
-            for(a=[30,150,270]) translate([0.72*R*cos(a),0.72*R*sin(a),R-EPS]) {
-                cylinder(r=PIN,h=PIN_L+EPS-0.4);
-                translate([0,0,PIN_L-0.4]) cylinder(r1=PIN,r2=PIN-0.4,h=0.4);
-                ridge(PIN,1.3,CLEARANCE+DETENT_ENGAGE);
+            difference() {
+                hemisphere(R);
+                translate([0,0,-EPS]) hemisphere(R-BALL_SHELL);
+            }
+            // Four slender spokes connect a central/eccentric magnet seat to the shell, not a solid hemisphere.
+            intersection() {
+                hemisphere(R);
+                translate([0,0,BALL_SEAT]) linear_extrude(BALL_SEAT_FLOOR) union() {
+                    translate([-R,-SPOKE_W/2]) square([2*R,SPOKE_W]);
+                    translate([MX-SPOKE_W/2,-R]) square([SPOKE_W,2*R]);
+                }
+            }
+            translate([MX,0,0]) cylinder(r=BOSS_R,h=BALL_SEAT+BALL_SEAT_FLOOR);
+            // Locally supported alignment seats at the equator, balanced in threefold mirrored pairs.
+            for(a=[30,90,150,210,270,330])
+                translate([PIN_R*cos(a),PIN_R*sin(a),0]) cylinder(r=PIN+CLEARANCE+0.6,h=3);
+            for(a=[30,150,270]) translate([PIN_R*cos(a),PIN_R*sin(a),-PIN_L]) {
+                cylinder(r1=PIN-0.3,r2=PIN,h=0.3);
+                translate([0,0,0.3]) cylinder(r=PIN,h=PIN_L-0.3+EPS);
             }
         }
-        // Half of a single split seat; opposite half traps the disc, with 0.1 mm axial headroom per half.
-        translate([MX,0,R-BALL_MAGNET_T/2-0.1]) cylinder(d=BALL_MAGNET_D+PLAY,h=BALL_MAGNET_T/2+0.1+EPS);
-        for(a=[-30,-150,-270]) translate([0.72*R*cos(a),0.72*R*sin(a),R]) {
-            translate([0,0,-PIN_L-CLEARANCE]) cylinder(r=PIN+CLEARANCE,h=PIN_L+CLEARANCE+EPS);
-            // The receiving relief is larger than the ridge when seated, so only insertion flexes the fit.
-            ridge(PIN+CLEARANCE,-1.3,DETENT_ENGAGE+CLEARANCE);
-        }
+        // Open face + 45-degree retaining lip. Four radial reliefs let the rim flex during insertion/removal.
+        translate([MX,0,-EPS]) cylinder(d1=BALL_MAGNET_MIN_D-0.3,d2=BALL_MAGNET_D+PLAY,h=BALL_LIP+EPS);
+        translate([MX,0,BALL_LIP]) cylinder(d=BALL_MAGNET_D+PLAY,h=BALL_MAGNET_T);
+        for(a=[0,90,180,270]) translate([MX,0,-EPS]) rotate([0,0,a])
+            translate([(BALL_MAGNET_D+PLAY)/2-0.1,-0.3,0]) cube([BALL_SEAT_WALL+0.2,0.6,BALL_SEAT+EPS]);
+        // Straight tool access from the outside, through shell and seat floor, after separating the halves.
+        translate([MX,0,BALL_SEAT-EPS]) cylinder(d=BALL_PUSH_HOLE,h=R+EPS);
+        for(a=[-30,-150,-270]) translate([PIN_R*cos(a),PIN_R*sin(a),-EPS])
+            cylinder(r=PIN+CLEARANCE,h=PIN_L+CLEARANCE+EPS);
+        // Twelve radial grip windows per half, smaller than every supported ball magnet.
+        for(lat=[35,65],a=[30:60:330]) rotate([0,90-lat,a])
+            translate([0,0,R-BALL_SHELL-1]) cylinder(d=GRIP_HOLE,h=BALL_SHELL+2);
     }
 }
+module ball() { translate([0,0,PIN_L]) ball_core(); }
 module cover_upright() {
     difference() {
         union() {

@@ -36,7 +36,7 @@ export function MagnetControls({ spec, poses, enabled, onChange }: {
     </div></div>
     <div className="magnet-controls-caption">
       <strong>Grid magnets</strong>
-      <p>{optional ? 'Every socket is available: on places a virtual magnet, off leaves it empty.' : 'Toggle a numbered location while dragging the ball.'} The sealed ball magnet stays on.</p>
+      <p>{optional ? 'Every socket is available: on places a virtual magnet, off leaves it empty.' : 'Toggle a numbered location while dragging the ball.'} The ball closure magnets stay on.</p>
       <div><button type="button" disabled={!ready} onClick={() => magnets.forEach(magnet => onChange(magnet.id, true))}>All on</button>
         <button type="button" disabled={!ready} onClick={() => magnets.forEach(magnet => onChange(magnet.id, false))}>All off</button></div>
       <small>Approximate magnetic forces · virtual switches, not switchable hardware. Restart keeps these settings; reopening restores the initial states. Hide the cover to inspect inside; its collisions remain active.</small>

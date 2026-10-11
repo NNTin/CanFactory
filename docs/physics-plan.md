@@ -343,9 +343,14 @@ Scenario initial `magnets` overrides and discrete `magnet` drives use the same
 force code in CI. A position check can measure a **body-local point** (e.g. a
 rolling sphere's geometric centre rather than its rotating pole-frame origin).
 
-Bonded pieces use the existing fixed-to-parent pattern. The compiler now keeps
+Rigidly attached pieces use the existing fixed-to-parent pattern. The compiler now keeps
 welded children's mesh-derived inertials: fixed **to a moving parent** is not
 massless. Pointer picking excludes fixed-to-world enclosures and dragging a
 welded child targets its movable ancestor. The cat toy's sphere is analytical,
-its split printed masses and sourced magnet form one rigid assembly, and its
-roof retains its actual slot openings through authored convex pieces.
+its two hollow perforated shell masses and both sourced magnet masses form one
+rigid assembly, and its roof retains actual slot openings through authored
+convex pieces. The magnetic closure is **assumed closed**, not simulated or
+strength-certified: no seam separation, magnet pull-out or claw/hole contact.
+Both closure dipoles act on grid magnets, but their internal welded pair is
+skipped. Near-field closure strength requires a physical test, not this softened
+point-dipole approximation.

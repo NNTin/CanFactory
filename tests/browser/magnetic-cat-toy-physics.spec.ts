@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, expect, type Page } from '@playwright/test';
-import { magneticCatToy, DEFAULT_MAGNETIC_CAT_TOY, magneticCatToyLayout } from '@canfactory/contracts';
+import { magneticCatToy, DEFAULT_MAGNETIC_CAT_TOY, magneticCatToyLayout, TOY } from '@canfactory/contracts';
 
 async function poses(page: Page): Promise<Record<string, number[]>> {
   return Object.fromEntries((await page.getByTestId('stl-viewer').getAttribute('data-physics-poses') ?? '').split(';').filter(Boolean).map(entry => {
@@ -30,7 +30,7 @@ test('simulates the fully closed toy: drag the composite ball, switch individual
   }
   await expect(viewer).not.toHaveAttribute('data-visible-parts', /grid-magnet-/);
   const selected = Math.floor((l.rows - 1) / 2) * l.columns + Math.floor((l.columns - 1) / 2);
-  await expect.poll(async () => Object.keys(await poses(page)).length).toBe(l.sockets.length + 14);
+  await expect.poll(async () => Object.keys(await poses(page)).length).toBe(l.sockets.length + 15);
   const physics = page.getByRole('group', { name: 'Physics', exact: true });
   const restart = async () => {
     const generation = Number(await viewer.getAttribute('data-physics-generation'));
@@ -49,7 +49,7 @@ test('simulates the fully closed toy: drag the composite ball, switch individual
   await expect(viewer).toHaveAttribute('data-visible-parts', new RegExp(`grid-magnet-${selected + 1}( |$)`));
   // Field toggle does not reset the running ball or time.
   expect(Number(await viewer.getAttribute('data-physics-time'))).toBeGreaterThanOrEqual(before);
-  await expect.poll(async () => distance((await poses(page))['ball-lower'] ?? [], [0, 0, l.fieldTop]), { timeout: 15_000 }).toBeGreaterThan(1);
+  await expect.poll(async () => distance((await poses(page))['ball-lower'] ?? [], [0, 0, l.fieldTop + l.radius + TOY.pinLength]), { timeout: 15_000 }).toBeGreaterThan(1);
   await restart();
   await expect(magnets.nth(selected)).toHaveAttribute('aria-pressed', 'true');
   await controls.getByRole('button', { name: 'All off', exact: true }).click();
@@ -74,13 +74,14 @@ test('simulates the fully closed toy: drag the composite ball, switch individual
   for (let i = 1; i <= 20; i++) { await page.mouse.move(x + i, y - i / 2); await page.waitForTimeout(40); }
   await expect.poll(async () => distance((await poses(page))['ball-lower'] ?? [], stationary)).toBeGreaterThan(3);
   await page.mouse.up();
-  // The halves and internal magnet move together, while field/cover stay fixed and off grid positions stay empty.
+  // The halves and both closure magnets move together, while field/cover stay fixed and off grid positions stay empty.
   const moving = await poses(page);
-  expect(distance(moving['ball-upper'] ?? [], moving['ball-lower'] ?? [])).toBeCloseTo(DEFAULT_MAGNETIC_CAT_TOY.ballDiameter, 2);
+  expect(distance(moving['ball-upper'] ?? [], moving['ball-lower'] ?? [])).toBeCloseTo(2 * TOY.pinLength, 2);
+  expect(distance(moving['ball-magnet-upper'] ?? [], moving['ball-magnet-lower'] ?? [])).toBeCloseTo(2 * l.ballSeatDepth, 2);
   expect(moving['cover']?.[2]).toBeCloseTo(l.top, 2);
   expect(moving['field']?.[2]).toBeCloseTo(l.fieldTop, 2);
   await physics.getByRole('button', { name: 'Upright', exact: true }).click();
-  await expect.poll(async () => (await poses(page))['ball-lower']?.[2], { timeout: 10_000 }).toBeGreaterThan(l.fieldTop + 2.5);
+  await expect.poll(async () => (await poses(page))['ball-lower']?.[2], { timeout: 10_000 }).toBeGreaterThan(l.fieldTop + l.radius + TOY.pinLength + 2.5);
   expect((await poses(page))['ball-lower']?.[2]).toBeLessThan(l.top);
   await expect(magnets.nth(selected)).toHaveAttribute('aria-pressed', 'false');
   await controls.getByRole('button', { name: 'All on', exact: true }).click();

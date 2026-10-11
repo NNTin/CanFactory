@@ -1066,11 +1066,11 @@ export interface operations {
                         gridMagnet: "supermagnete-s-08-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
                         /**
                          * Ball magnet
-                         * @description One sourced axial disc captured between the ball halves.
+                         * @description Two matching sourced discs, one retained in each hollow half. Exposed mating faces attract to close the ball; install opposite facing poles.
                          * @default supermagnete-s-06-03-n
                          * @enum {unknown}
                          */
-                        ballMagnet: "supermagnete-s-04-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-03-n";
+                        ballMagnet: "supermagnete-s-06-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-03-n";
                         /**
                          * Socket spacing
                          * @description Centre-to-centre pitch in both directions, in mm. The centred array fits as many sockets as possible with at least 20 mm from each centre to the outer edge. Choose magnet positions yourself, not a layout preset.
@@ -1085,20 +1085,26 @@ export interface operations {
                         fieldThickness: number;
                         /**
                          * Ball diameter
-                         * @description Finished spherical diameter in mm. Both halves must be printed solid and bonded.
+                         * @description Outer spherical envelope in mm. Hollow perforated halves close magnetically and remain separable.
                          * @default 36
                          */
                         ballDiameter: number;
                         /**
+                         * Ball shell thickness
+                         * @description Hollow shell wall in mm. Twelve 4 mm grip holes per half and rear magnet push-out holes are always included; print walls solid.
+                         * @default 2
+                         */
+                        ballShellThickness: number;
+                        /**
                          * Ball magnet placement
-                         * @description Centred puts the magnet at the geometric/mass centre of solid mirrored halves; eccentric shifts the split pocket radially for a deliberate wobble.
+                         * @description Centred balances the two magnet seats symmetrically about the sphere centre; eccentric shifts both seats radially for a deliberate wobble.
                          * @default centred
                          * @enum {unknown}
                          */
                         magnetPlacement: "centred" | "eccentric";
                         /**
                          * Eccentric offset
-                         * @description Radial displacement of the ball magnet from the sphere centre in mm; only used in eccentric mode.
+                         * @description Radial displacement of both ball magnets from the sphere centre in mm; only used in eccentric mode.
                          * @default 6
                          */
                         eccentricOffset: number;
@@ -1110,16 +1116,10 @@ export interface operations {
                         slotWidth: number;
                         /**
                          * Joint clearance
-                         * @description Gap per side around ball pins and cover ear reliefs. Following the litter-shovel detent convention.
+                         * @description Gap per side around non-locking ball alignment pins and cover ear reliefs, following the existing clearance-fit convention.
                          * @default 0.2
                          */
                         clearance: number;
-                        /**
-                         * Ball detent engagement
-                         * @description Radial interference beyond the socket wall, independent of clearance (cigarette-case/litter-shovel tuning pattern). Adhesive is still mandatory.
-                         * @default 0.15
-                         */
-                        detentEngage: number;
                     };
                 } | {
                     /** @enum {string} */

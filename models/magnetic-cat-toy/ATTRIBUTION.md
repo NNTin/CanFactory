@@ -13,7 +13,8 @@ products, including their stated dimensional tolerances. Cover fastening uses
 library ISO 4762 M3 × 8 screws and ISO 4032 M3 nuts. Product dimensions do not
 make this model a manufacturer-endorsed product.
 
-The fit convention (per-side clearance plus independently tuned detent
-engagement) follows the repository's cigarette-case and litter-shovel patterns;
-the geometry is newly authored. These model terms do not relicense unrelated
+The alignment fit convention (per-side clearance with lead-ins) follows the
+repository's cigarette-case/litter-shovel and printed hook/bracket patterns.
+The hollow perforated ball, relieved magnet-retaining lips, rear ejector channels
+and magnetic seam are newly authored; no locking seam detent or source STL is used. These model terms do not relicense unrelated
 application code.

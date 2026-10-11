@@ -2868,11 +2868,11 @@
                           "socketSpacing",
                           "fieldThickness",
                           "ballDiameter",
+                          "ballShellThickness",
                           "magnetPlacement",
                           "eccentricOffset",
                           "slotWidth",
-                          "clearance",
-                          "detentEngage"
+                          "clearance"
                         ],
                         "properties": {
                           "width": {
@@ -2905,12 +2905,12 @@
                           },
                           "ballMagnet": {
                             "enum": [
-                              "supermagnete-s-04-02-n",
+                              "supermagnete-s-06-02-n",
                               "supermagnete-s-06-03-n",
                               "supermagnete-s-08-03-n"
                             ],
                             "title": "Ball magnet",
-                            "description": "One sourced axial disc captured between the ball halves.",
+                            "description": "Two matching sourced discs, one retained in each hollow half. Exposed mating faces attract to close the ball; install opposite facing poles.",
                             "default": "supermagnete-s-06-03-n"
                           },
                           "socketSpacing": {
@@ -2934,11 +2934,20 @@
                           "ballDiameter": {
                             "type": "number",
                             "title": "Ball diameter",
-                            "description": "Finished spherical diameter in mm. Both halves must be printed solid and bonded.",
+                            "description": "Outer spherical envelope in mm. Hollow perforated halves close magnetically and remain separable.",
                             "default": 36,
                             "minimum": 28,
                             "maximum": 44,
                             "multipleOf": 1
+                          },
+                          "ballShellThickness": {
+                            "type": "number",
+                            "title": "Ball shell thickness",
+                            "description": "Hollow shell wall in mm. Twelve 4 mm grip holes per half and rear magnet push-out holes are always included; print walls solid.",
+                            "default": 2,
+                            "minimum": 1.6,
+                            "maximum": 2.4,
+                            "multipleOf": 0.2
                           },
                           "magnetPlacement": {
                             "enum": [
@@ -2946,13 +2955,13 @@
                               "eccentric"
                             ],
                             "title": "Ball magnet placement",
-                            "description": "Centred puts the magnet at the geometric/mass centre of solid mirrored halves; eccentric shifts the split pocket radially for a deliberate wobble.",
+                            "description": "Centred balances the two magnet seats symmetrically about the sphere centre; eccentric shifts both seats radially for a deliberate wobble.",
                             "default": "centred"
                           },
                           "eccentricOffset": {
                             "type": "number",
                             "title": "Eccentric offset",
-                            "description": "Radial displacement of the ball magnet from the sphere centre in mm; only used in eccentric mode.",
+                            "description": "Radial displacement of both ball magnets from the sphere centre in mm; only used in eccentric mode.",
                             "default": 6,
                             "minimum": 2,
                             "maximum": 8,
@@ -2970,19 +2979,10 @@
                           "clearance": {
                             "type": "number",
                             "title": "Joint clearance",
-                            "description": "Gap per side around ball pins and cover ear reliefs. Following the litter-shovel detent convention.",
+                            "description": "Gap per side around non-locking ball alignment pins and cover ear reliefs, following the existing clearance-fit convention.",
                             "default": 0.2,
                             "minimum": 0.2,
                             "maximum": 0.4,
-                            "multipleOf": 0.05
-                          },
-                          "detentEngage": {
-                            "type": "number",
-                            "title": "Ball detent engagement",
-                            "description": "Radial interference beyond the socket wall, independent of clearance (cigarette-case/litter-shovel tuning pattern). Adhesive is still mandatory.",
-                            "default": 0.15,
-                            "minimum": 0.05,
-                            "maximum": 0.25,
                             "multipleOf": 0.05
                           }
                         },

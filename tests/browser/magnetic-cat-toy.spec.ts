@@ -21,7 +21,7 @@ test('shows an original four-layer SVG card and a live bottom-to-top assembly in
   for (const caption of ['Lift and lay out the parts',
     'Step 1 of 5 · Place bare magnets in your chosen sockets (full capacity illustrated)',
     'Step 2 of 5 · Seat the thin playing field, smooth face up',
-    'Step 3 of 5 · Bond the ball halves around the selected magnet mount',
+    'Step 3 of 5 · Magnetically close the hollow ball with opposite facing poles',
     'Step 4 of 5 · Place the magnetic ball on the playing field', 'Assembled']) {
     await slider.press('ArrowRight'); await expect(slider).toHaveAttribute('aria-valuetext', caption);
   }
@@ -32,7 +32,8 @@ test('shows an original four-layer SVG card and a live bottom-to-top assembly in
   await slider.press('End');
   await expect(page.getByTitle('Hide Protective slotted cover')).toBeVisible();
   await expect(page.getByTitle('Hide Ball lower half')).toBeVisible();
-  await expect(page.locator('[data-visible-parts]')).toHaveAttribute('data-visible-parts', /ball-magnet/);
+  await expect(page.locator('[data-visible-parts]')).toHaveAttribute('data-visible-parts', /ball-magnet-lower/);
+  await expect(page.locator('[data-visible-parts]')).toHaveAttribute('data-visible-parts', /ball-magnet-upper/);
   const pending = page.waitForEvent('download'); await download.click();
   const file = await pending, path = await file.path(); if (!path) throw new Error('Expected ZIP path');
   expect(Object.keys(unzipSync(new Uint8Array(await readFile(path))))).toEqual(magneticCatToy.parts.map(p => `${p.id}.stl`));
@@ -44,6 +45,7 @@ test('configures real library magnets, eccentric seat and real socket pitch, rej
   await page.goto('/#/models/magnetic-cat-toy');
   const download = page.getByRole('button', { name: 'Download ZIP' });
   await expect(download).toBeEnabled();
+  await expect(page.getByRole('spinbutton', { name: 'Ball shell thickness', exact: true })).toHaveValue('2');
   await expect(page.getByRole('spinbutton', { name: 'Eccentric offset', exact: true })).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Ball magnet placement', exact: true }).selectOption('eccentric');
   await expect(page.getByRole('spinbutton', { name: 'Eccentric offset', exact: true })).toBeVisible();
@@ -60,6 +62,8 @@ test('configures real library magnets, eccentric seat and real socket pitch, rej
   await page.getByRole('spinbutton', { name: 'Ball diameter', exact: true }).fill('44');
   await expect(download).toBeEnabled();
   await expect(page.getByText(/24 × 116 mm/)).toBeVisible();
+  await page.getByRole('spinbutton', { name: 'Ball shell thickness', exact: true }).fill('1.6');
+  await expect(page.getByText(/Hollow ball: 1.6 mm shell, 24 round 4 mm grip holes/)).toBeVisible();
   // Verify the preview's real visibility control, not just a static illustration.
   await page.getByTitle('Hide Protective slotted cover').click();
   await expect(page.getByTitle('Show Protective slotted cover')).toBeVisible();

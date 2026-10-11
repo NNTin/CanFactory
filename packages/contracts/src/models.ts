@@ -3467,7 +3467,7 @@ export const cameraHousing = {
 const toyNut = findPart('iso-4032-m3');
 if (!toyNut) throw new Error('Missing magnetic cat toy cover nut.');
 const toySchema = MagneticCatToyParametersSchema;
-const toyMapping = { width: 'WIDTH', length: 'LENGTH', socketSpacing: 'SOCKET_SPACING', fieldThickness: 'FIELD_T', ballDiameter: 'BALL_D', magnetPlacement: 'PLACEMENT', eccentricOffset: 'OFFSET', slotWidth: 'SLOT_W', clearance: 'CLEARANCE', detentEngage: 'DETENT_ENGAGE' };
+const toyMapping = { width: 'WIDTH', length: 'LENGTH', socketSpacing: 'SOCKET_SPACING', ballShellThickness: 'BALL_SHELL', fieldThickness: 'FIELD_T', ballDiameter: 'BALL_D', magnetPlacement: 'PLACEMENT', eccentricOffset: 'OFFSET', slotWidth: 'SLOT_W', clearance: 'CLEARANCE' };
 const toyParts = [
   { id: 'grid', title: 'Socket grid base', part: 'grid' },
   { id: 'field', title: 'Thin playing field', part: 'field' },
@@ -3477,26 +3477,26 @@ const toyParts = [
 ];
 export const magneticCatToy = {
   id: 'magnetic-cat-toy' as const, version: '1' as const, title: 'Magnetic cat toy',
-  description: 'An original four-layer paw puzzle: bare magnets of your choice flush in pitch-configurable direct sockets on a thin tray, with no holders, caps or raised grid lines, a thin smooth playing field, a magnetic ball with a centred or eccentric internal seat, and a screw-secured cover with long ball-retaining paw slots. Static magnets alter resistance and attract the paw-driven ball; no motor or autonomous motion is included.',
+  description: 'An original four-layer paw puzzle: bare magnets of your choice flush in pitch-configurable direct sockets on a thin tray, with no holders, caps or raised grid lines, a thin smooth playing field, a lightweight hollow perforated ball with two exposed closure magnets in centred or eccentric seats, and a screw-secured cover with long ball-retaining paw slots. Static magnets alter resistance and attract the paw-driven ball; no motor or autonomous motion is included.',
   attribution: 'CanFactory (original design)', license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
-  printNotes: 'PETG, 0.2 mm layers, at least four perimeters. Print the thin tray bottom down (bridge the captive-nut pockets), field smooth-face down and cover roof down. No socket supports; cover ears need local supports. Ball halves print pole down, equators up, with external supports and a raft; print both at 100% infill, remove supports and sand the sphere and seam smooth without reducing the ball diameter materially. Permanently bond both ball halves with a PETG-compatible adhesive after checking magnet polarity; detents only locate during curing. Keep adhesive off the ball surface. Grid magnets sit bare in direct sockets: nominal source thickness makes the top flush, greatest source diameter plus 0.2 mm gives diametral play. Measure actual magnet height and dry-fit before assembly; adjust seat floors for flush fit if necessary. No glue, printed holders or caps around grid magnets. Use four ISO 4762 M3 × 8 screws and four ISO 4032 M3 nuts to secure the cover; its tapered edge lips retain the field over the magnets with 0.2 mm lift clearance. Do not substitute longer screws. Remove cover and field to move bare magnets between sockets, away from animals and children. Push discs out from underneath through their 3 mm ejector holes with a blunt nonmagnetic tool; do not damage the coating. Never play without the secured field and cover. Not physically fit-tested: validate magnetic response, field flex and magnet/ball retention before supervised use. Loose magnets are an ingestion hazard; stop for any damaged bond, print, fastener or slot. Not a certified pet product; no unattended use.',
+  printNotes: 'PETG, 0.2 mm layers, at least four perimeters. Tray bottom down, field smooth-face down, cover roof down with local ear supports. Ball halves are identical hollow shells, equator down with alignment pin tips at bed level; use a brim/raft and removable supports under the equatorial rim, spokes, magnet seat and dome as needed. Open halves allow support cleanup before magnet insertion. Print shell/spokes solid (100% infill), not a filled sphere. Remove support marks and round every grip-hole and paw-contact edge. Dry-fit the non-locking clearance pins; do not glue the seam. Two matching sourced ball discs attract across exposed mating faces, one per half. Four relieved retaining lips hold each disc; check polarity before pressing them past the lips. Test both magnet retention and seam holding force: the discs must not pull out when the halves separate. To remove a magnet, first separate the ball away from pets/children, capture the disc, then push with a blunt nonmagnetic tool through its 2.5 mm external rear hole and seat floor. Never pry against nickel coating or use a cracked lip. Grip holes are 4 mm, smaller than the supported ball discs; inspect for claw entrapment. Magnetic closure is not safety-certified; if the seam opens, separate halves or small components may escape the slotted cover. The physics preview assumes the ball remains closed; it does not validate separation strength or claw interaction. Grid magnets remain exposed and nominally flush in direct sockets; use their 3 mm underside push-out holes only with field and cover removed. Secure cover with four ISO 4762 M3 × 8 screws / ISO 4032 M3 nuts; edge lips retain the field. Never play without the secured field and cover. Supervised prototype only: physically test closure, retention, field flex and magnetic response before use; stop immediately for any loose magnet, damaged shell/lip, rough hole or loose fastener. No unattended use.',
   parts: toyParts.map(({ id, title, part }): ModelPart => ({ id, title, sourcePath: 'models/magnetic-cat-toy/generator.scad', scadMapping: toyMapping,
     scadConstants: { PART: part, NUT_S: dimensionOf(toyNut, 's', 'max'), NUT_T: dimensionOf(toyNut, 'm', 'max'), SCREW_D: ISO_273_CLEARANCE_HOLES['M3'].medium },
-    partDefines: { gridMagnet: { GRID_D: ['diameter', 'max'], GRID_T: ['thickness', 'value'] }, ballMagnet: { BALL_MAGNET_D: ['diameter', 'max'], BALL_MAGNET_T: ['thickness', 'max'] } },
+    partDefines: { gridMagnet: { GRID_D: ['diameter', 'max'], GRID_T: ['thickness', 'value'] }, ballMagnet: { BALL_MAGNET_D: ['diameter', 'max'], BALL_MAGNET_MIN_D: ['diameter', 'min'], BALL_MAGNET_T: ['thickness', 'max'] } },
   })),
   parameterSchema: toySchema, defaults: DEFAULT_MAGNETIC_CAT_TOY, scadMapping: {},
   controls: [
     control(toySchema, 'width', 'basic'), control(toySchema, 'length', 'basic'),
     partControl(toySchema, 'gridMagnet', 'basic', 'magnet', TOY_GRID_MAGNETS), partControl(toySchema, 'ballMagnet', 'basic', 'magnet', TOY_BALL_MAGNETS),
     control(toySchema, 'socketSpacing', 'basic'),
-    control(toySchema, 'ballDiameter', 'basic'),
+    control(toySchema, 'ballDiameter', 'basic'), control(toySchema, 'ballShellThickness', 'basic'),
     enumControl(toySchema, 'magnetPlacement', 'basic', [
-      { value: 'centred', label: 'Centred · smooth rolling', description: 'Magnet and mass centre coincide in solid mirrored halves.' },
-      { value: 'eccentric', label: 'Eccentric · wobble', description: 'Radially displaced magnet pocket for an unbalanced response.' },
+      { value: 'centred', label: 'Centred · smooth rolling', description: 'Two mirrored seats centre the magnet pair and balance the hollow shell.' },
+      { value: 'eccentric', label: 'Eccentric · wobble', description: 'Both magnet seats shift radially for an unbalanced response.' },
     ]),
     { ...control(toySchema, 'eccentricOffset', 'basic'), visibleWhen: { control: 'magnetPlacement', values: ['eccentric'] } },
     control(toySchema, 'slotWidth', 'basic'), control(toySchema, 'fieldThickness', 'advanced'),
-    control(toySchema, 'clearance', 'advanced'), control(toySchema, 'detentEngage', 'advanced'),
+    control(toySchema, 'clearance', 'advanced'),
   ],
   physics: parameters => magneticCatToyPhysics(parameters as MagneticCatToyParameters),
   assembly: magneticCatToyAssembly(DEFAULT_MAGNETIC_CAT_TOY),
@@ -3510,10 +3510,11 @@ export const magneticCatToy = {
     const l = magneticCatToyLayout(parameters);
     return { slotCount: l.slotCount, notes: [
       `Four functional layers / five printed components. ${l.columns} × ${l.rows} direct sockets at ${parameters.socketSpacing} mm centre spacing. Choose which to populate; no layout presets. Each has a ${TOY.pushHole} mm push-out hole.`,
-      `Grid magnet to field top: ${l.magnetToField.toFixed(2)} mm including only air and sheet; magnets are exposed and flush with socket tops. Centred ball magnet remains half a ball diameter above the playing field: magnetic response needs physical testing.`,
-      `Ball seat: ${parameters.magnetPlacement}, ${l.offset} mm radial offset. Use solid (100% infill), equally printed mirrored halves for centred mass balance.`,
+      `Grid magnet to field top: ${l.magnetToField.toFixed(2)} mm including only air and sheet; magnets are exposed and flush with socket tops. Centred closure magnet pair remains near the sphere centre: magnetic response needs physical testing.`,
+      `Ball seat: ${parameters.magnetPlacement}, ${l.offset} mm radial offset. Two exposed discs close identical hollow halves; print the shell and spokes solid, not a filled sphere. Do not glue the seam.`,
       `${l.slotCount} rounded paw slots, ${parameters.slotWidth} × ${l.slotLength} mm; slot width ≤ 60% of the ${parameters.ballDiameter} mm ball. Long slots cannot pass an intact rigid sphere through their narrower width.`,
-      `Hardware: up to ${l.sockets.length} grid magnets (one per chosen socket), one ball magnet, four ISO 4762 M3 × 8 screws and four ISO 4032 M3 nuts. Preview/BOM illustrate full capacity, not a required layout. Bond the ball seam permanently. Move bare grid magnets only with animals absent; the secured field retains them during play.`,
+      `Hardware: up to ${l.sockets.length} grid magnets (one per chosen socket), two ball closure magnets, four ISO 4762 M3 × 8 screws and four ISO 4032 M3 nuts. Preview/BOM illustrate full capacity, not a required layout. Test magnetic seam holding and individual magnet retention physically. Move bare grid magnets only with animals absent; the secured field retains them during play.`,
+      `Hollow ball: ${parameters.ballShellThickness} mm shell, 24 round ${TOY.gripHole} mm grip holes, and a ${TOY.ballPushHole} mm rear push-out hole per magnet. Retaining lips leave faces exposed. Simulation assumes a closed rigid ball; closure strength and claw grip are not simulated.`,
       'Static magnetic puzzle, not a self-moving toy. Not physically fit-tested or safety certified. Supervise play and stop immediately if the ball, field, cover or fasteners are damaged.',
     ] };
   },

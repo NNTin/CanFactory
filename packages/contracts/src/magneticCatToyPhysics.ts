@@ -44,7 +44,7 @@ export function toyCoverPieces(p: MagneticCatToyParameters): number[][] {
   return pieces;
 }
 
-/** Fully assembled, screwed/bonded toy. Only the composite ball moves; switches change fields/mesh presence without rebuilding engine bodies. */
+/** Fully assembled, screwed toy, assuming its magnetically closed ball remains assembled. Only the composite ball moves; switches change fields/mesh presence without rebuilding engine bodies. */
 export function magneticCatToyPhysics(p: MagneticCatToyParameters): PhysicsSpec {
   const l = magneticCatToyLayout(p), grid = toyDipole(p.gridMagnet), ball = toyDipole(p.ballMagnet);
   const weld = (id: string, parent?: string): PhysicsBody => ({ id, material: 'petg', fixed: true, collision: { kind: 'none' },
@@ -52,46 +52,56 @@ export function magneticCatToyPhysics(p: MagneticCatToyParameters): PhysicsSpec 
   const magnets: PhysicsMagnet[] = [
     ...l.sockets.map((_, i): PhysicsMagnet => ({ id: `grid-magnet-${i + 1}`, title: `Grid magnet ${i + 1}`, body: `grid-magnet-${i + 1}`,
       position: [0, 0, l.grid.nominalThickness / 2], moment: [0, 0, grid.moment], softening: grid.radius, switchable: true, enabled: false, hideWhenDisabled: true })),
-    { id: 'ball-magnet', title: 'Sealed ball magnet (always on)', body: 'ball-magnet', position: [0, 0, l.ball.thickness / 2], moment: [0, 0, ball.moment], softening: ball.radius },
+    ...['lower', 'upper'].map((half): PhysicsMagnet => ({ id: `ball-magnet-${half}`, title: `${half} closure magnet (always on)`, body: `ball-magnet-${half}`,
+      position: [0, 0, l.ball.nominalThickness / 2], moment: [0, 0, half === 'lower' ? ball.moment : -ball.moment], softening: ball.radius })),
   ];
   const disabled = Object.fromEntries(l.sockets.map((_, i) => [`grid-magnet-${i + 1}`, false]));
   const targetIndex = Math.floor((l.rows - 1) / 2) * l.columns + Math.floor((l.columns - 1) / 2);
   const target = `grid-magnet-${targetIndex + 1}`;
   const [hx = 0, hy = 0] = l.sockets[targetIndex] ?? [];
-  const at = (x: number, y: number) => ({
-    'ball-lower': { position: [x, y, l.fieldTop] },
-    'ball-upper': { position: [x, y, l.fieldTop + p.ballDiameter], rotation: [180, 0, 0] },
-    'ball-magnet': { position: [x + l.offset, y, l.fieldTop + l.radius - l.ball.thickness / 2] },
-  });
+  // An eccentric lightweight ball rolls under gravity from the assembly's sideways-heavy pose.
+  // Start off/on comparisons with its heavy axis down, so gravitational settling is not mistaken for a magnetic response.
+  const at = (x: number, y: number) => l.offset ? {
+    'ball-lower': { position: [x + TOY.pinLength, y, l.fieldTop + l.radius], rotation: [180, 90, 0] },
+    'ball-upper': { position: [x - TOY.pinLength, y, l.fieldTop + l.radius], rotation: [0, 90, 0] },
+    'ball-magnet-lower': { position: [x - l.ballSeatDepth, y, l.fieldTop + l.radius - l.offset], rotation: [0, 90, 0] },
+    'ball-magnet-upper': { position: [x + l.ballSeatDepth, y, l.fieldTop + l.radius - l.offset], rotation: [180, 90, 0] },
+  } : {
+    'ball-lower': { position: [x, y, l.fieldTop + l.radius + TOY.pinLength], rotation: [180, 0, 0] },
+    'ball-upper': { position: [x, y, l.fieldTop + l.radius - TOY.pinLength] },
+    'ball-magnet-lower': { position: [x, y, l.fieldTop + l.radius - l.ballSeatDepth] },
+    'ball-magnet-upper': { position: [x, y, l.fieldTop + l.radius + l.ballSeatDepth], rotation: [180, 0, 0] },
+  };
   return {
     bodies: [
       weld('grid'),
       ...l.sockets.map((_, i) => weld(`grid-magnet-${i + 1}`)),
       { ...weld('field'), collision: { kind: 'box', centre: [0, 0, p.fieldThickness / 2], size: [p.width - 8, p.length - 8, p.fieldThickness] } },
-      { id: 'ball-lower', material: 'petg', collision: { kind: 'sphere', centre: [0, 0, l.radius], diameter: p.ballDiameter } },
+      { id: 'ball-lower', material: 'petg', collision: { kind: 'sphere', centre: [0, 0, TOY.pinLength], diameter: p.ballDiameter } },
       weld('ball-upper', 'ball-lower'),
-      { ...weld('ball-magnet', 'ball-lower'), material: 'steel', mass: ball.mass }, // actual NdFeB product mass overrides density
+      { ...weld('ball-magnet-lower', 'ball-lower'), material: 'steel', mass: ball.mass },
+      { ...weld('ball-magnet-upper', 'ball-upper'), material: 'steel', mass: ball.mass }, // sourced mass for each disc
       { ...weld('cover'), collision: { kind: 'pieces', pieces: toyCoverPieces(p) } },
       ...l.ears.flatMap((_, i) => [weld(`cover-screw-${i + 1}`), weld(`cover-nut-${i + 1}`)]),
     ],
     magnets,
     scenarios: [
       { id: 'magnets-off', title: 'All grid magnets off: the ball rests on the field', duration: 0.25, magnets: disabled, poses: at(hx + 8, hy), checks: [
-        { kind: 'position', at: 0.25, body: 'ball-lower', point: [0, 0, l.radius], axis: 0, min: -2, max: 2 },
-        { kind: 'position', at: 0.25, body: 'ball-lower', point: [0, 0, l.radius], axis: 2, min: -0.02, max: 2 },
+        { kind: 'position', at: 0.25, body: 'ball-lower', point: [0, 0, TOY.pinLength], axis: 0, min: -2, max: 2 },
+        { kind: 'position', at: 0.25, body: 'ball-lower', point: [0, 0, TOY.pinLength], axis: 2, min: -0.02, max: 2 },
         { kind: 'contact', at: 0.25, bodies: ['ball-lower', 'field'], touching: true },
       ] },
       { id: 'magnet-on', title: 'A selected grid magnet attracts and turns the ball', duration: 0.5, magnets: { ...disabled, [target]: true }, poses: at(hx + 8, hy), checks: [
-        { kind: 'position', at: 0.5, body: 'ball-lower', point: [0, 0, l.radius], axis: 0, max: -0.5 },
-        { kind: 'position', at: 0.5, body: 'ball-lower', point: [0, 0, l.radius], axis: 2, min: -0.02, max: 2 },
+        { kind: 'position', at: 0.5, body: 'ball-lower', point: [0, 0, TOY.pinLength], axis: 0, max: -0.5 },
+        { kind: 'position', at: 0.5, body: 'ball-lower', point: [0, 0, TOY.pinLength], axis: 2, min: -0.02, max: 2 },
       ] },
       { id: 'switch-on', title: 'Switching a grid magnet on moves the already assembled ball without resetting it', duration: 0.75, magnets: disabled, poses: at(hx + 8, hy),
         drives: [{ kind: 'magnet', id: target, timeline: [[0.25, 1]] }], checks: [
-          { kind: 'position', at: 0.2, body: 'ball-lower', point: [0, 0, l.radius], axis: 0, min: -2, max: 2 },
-          { kind: 'position', at: 0.75, body: 'ball-lower', point: [0, 0, l.radius], axis: 0, max: -0.5 },
+          { kind: 'position', at: 0.2, body: 'ball-lower', point: [0, 0, TOY.pinLength], axis: 0, min: -2, max: 2 },
+          { kind: 'position', at: 0.75, body: 'ball-lower', point: [0, 0, TOY.pinLength], axis: 0, max: -0.5 },
         ] },
       { id: 'cover-retains-ball', title: 'With the toy upside down, the slotted cover retains the ball', duration: 0.5, gravity: [0, 0, 1], magnets: disabled, checks: [
-        { kind: 'position', at: 0.5, body: 'ball-lower', point: [0, 0, l.radius], axis: 2, min: 2.5, max: TOY.ballHeadroom + l.radius },
+        { kind: 'position', at: 0.5, body: 'ball-lower', point: [0, 0, TOY.pinLength], axis: 2, min: 2.5, max: TOY.ballHeadroom + l.radius },
         { kind: 'contact', at: 0.5, bodies: ['ball-lower', 'cover'], touching: true },
         { kind: 'position', at: 0.5, body: 'cover', axis: 2, min: 0, max: 0 },
       ] },

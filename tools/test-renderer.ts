@@ -922,8 +922,8 @@ try {
   const toyCases: { name: string; overrides: ParameterValues }[] = [
     { name: 'default centred / 30 mm pitch', overrides: {} },
     { name: 'eccentric / dense grid', overrides: { magnetPlacement: 'eccentric', socketSpacing: 20 } },
-    { name: 'small / sparse grid', overrides: { width: 120, length: 120, ballDiameter: 28, slotWidth: 16, socketSpacing: 60, gridMagnet: 'supermagnete-s-08-02-n', ballMagnet: 'supermagnete-s-04-02-n' } },
-    { name: 'large / loose fits / 81 sockets', overrides: { width: 200, length: 200, socketSpacing: 20, ballDiameter: 44, slotWidth: 24, fieldThickness: 2, clearance: 0.4, detentEngage: 0.25, gridMagnet: 'supermagnete-s-12-02-n', ballMagnet: 'supermagnete-s-08-03-n', magnetPlacement: 'eccentric', eccentricOffset: 8 } },
+    { name: 'small / sparse grid', overrides: { width: 120, length: 120, ballDiameter: 28, slotWidth: 16, socketSpacing: 60, gridMagnet: 'supermagnete-s-08-02-n', ballMagnet: 'supermagnete-s-06-02-n' } },
+    { name: 'large / loose fits / 81 sockets', overrides: { width: 200, length: 200, socketSpacing: 20, ballDiameter: 44, slotWidth: 24, fieldThickness: 2, clearance: 0.4, ballShellThickness: 2.4, gridMagnet: 'supermagnete-s-12-02-n', ballMagnet: 'supermagnete-s-08-03-n', magnetPlacement: 'eccentric', eccentricOffset: 8 } },
   ];
   for (const { name, overrides } of only && only !== magneticCatToy.id ? [] : toyCases) {
     const parameters = { ...magneticCatToy.defaults, ...overrides };
@@ -946,7 +946,8 @@ try {
         : part.id === 'field' ? [parameters.width - 8, parameters.length - 8, parameters.fieldThickness]
         : part.id === 'cover' ? [parameters.width + 22, parameters.length, l.top - l.fieldZ]
         : [parameters.ballDiameter, parameters.ballDiameter, l.radius + TOY.pinLength];
-      [part.dimensions.x, part.dimensions.y, part.dimensions.z].forEach((d, i) => assert.ok(Math.abs(d - (expected[i] ?? NaN)) < 0.02, `${name} ${part.id} bounds ${d} != ${expected[i]}`));
+      // The centred rear ejector bore removes the spherical pole tip (less than 0.15 mm at these diameters).
+      [part.dimensions.x, part.dimensions.y, part.dimensions.z].forEach((d, i) => assert.ok(Math.abs(d - (expected[i] ?? NaN)) < (part.id.startsWith('ball-') && i === 2 ? 0.15 : 0.02), `${name} ${part.id} bounds ${d} != ${expected[i]}`));
     }
     const mesh = (id: string) => { const m = meshes.get(id); assert.ok(m); return m; };
     const grid = mesh('grid'), ball = mesh('ball-lower'), cover = mesh('cover');
@@ -968,9 +969,28 @@ try {
     const gridPart = result.artifact.parts.find(p => p.id === 'grid'); assert.ok(gridPart);
     assert.ok(gridPart.volume < parameters.width * parameters.length * 2.5, `${name}: lightweight tray material budget`);
     assert.equal(housingSolid(mesh('field'), [0, 0, parameters.fieldThickness / 2]), true, `${name}: uninterrupted rolling face`);
-    assert.equal(housingSolid(ball, [l.offset, 0, l.radius - 0.4]), false, `${name}: selected split magnet seat`);
-    assert.equal(housingSolid(ball, [-l.radius * 0.4, 0, l.radius - 0.4]), true, `${name}: solid balanced ball`);
-    if (parameters.magnetPlacement === 'eccentric') assert.equal(housingSolid(ball, [0, 0, l.radius - 0.4]), true, `${name}: centre no longer cut away`);
+    const z0 = TOY.pinLength;
+    assert.equal(housingSolid(ball, [l.offset, 0, z0 + TOY.ballLip + 0.2]), false, `${name}: exposed magnet seat`);
+    assert.equal(housingSolid(ball, [l.offset, 0, z0 + l.ballSeatDepth + TOY.ballSeatFloor / 2]), false, `${name}: rear push-out through seat floor`);
+    assert.equal(housingSolid(ball, [l.offset + TOY.ballPushHole / 2 + 0.3, 0, z0 + l.ballSeatDepth + TOY.ballSeatFloor / 2]), true, `${name}: annular magnet bearing floor`);
+    assert.equal(housingSolid(ball, [-l.radius * 0.35, l.radius * 0.35, z0 + l.radius * 0.35]), false, `${name}: genuinely hollow interior`);
+    const toolEntryZ = z0 + Math.sqrt((l.radius - parameters.ballShellThickness / 2) ** 2 - l.offset ** 2);
+    assert.equal(housingSolid(ball, [l.offset, 0, toolEntryZ]), false, `${name}: rear tool entry actually pierces the outer shell`);
+    const lipRadius = l.ball.minDiameter / 2 - 0.05;
+    assert.equal(housingSolid(ball, [l.offset + lipRadius / Math.SQRT2, lipRadius / Math.SQRT2, z0 + 0.05]), true, `${name}: lip retains the smallest sourced disc`);
+    assert.equal(housingSolid(ball, [l.offset, 0, z0 + 0.05]), false, `${name}: retaining lip leaves magnet face exposed`);
+    const rimRadius = (l.ball.diameter + TOY.pocketPlay) / 2 + TOY.ballSeatWall / 2;
+    assert.equal(housingSolid(ball, [l.offset + rimRadius, 0, z0 + 0.2]), false, `${name}: flexible socket rim relief`);
+    assert.equal(housingSolid(ball, [l.offset + rimRadius / Math.SQRT2, rimRadius / Math.SQRT2, z0 + 0.2]), true, `${name}: connected socket rim between reliefs`);
+    for (const lat of [35, 65]) for (const angle of [30, 90, 150, 210, 270, 330]) {
+      const r = l.radius - parameters.ballShellThickness / 2, rad = Math.PI / 180;
+      const point: [number, number, number] = [r * Math.cos(lat * rad) * Math.cos(angle * rad), r * Math.cos(lat * rad) * Math.sin(angle * rad), z0 + r * Math.sin(lat * rad)];
+      assert.equal(housingSolid(ball, point), false, `${name}: through grip hole ${lat}/${angle}`);
+    }
+    const a = Math.PI / 4, outer = l.radius - parameters.ballShellThickness / 2;
+    assert.equal(housingSolid(ball, [outer * Math.cos(a), 0, z0 + outer * Math.sin(a)]), true, `${name}: solid shell between grip holes`);
+    const ballVolume = result.artifact.parts.filter(p => p.id.startsWith('ball-')).reduce((sum, p) => sum + p.volume, 0);
+    assert.ok(ballVolume < 0.5 * 4 / 3 * Math.PI * l.radius ** 3, `${name}: printed ball uses less than half a solid sphere's material`);
     for (const x of l.slotCentres) assert.equal(housingSolid(cover, [x, 0, TOY.roof / 2]), false, `${name}: open paw slot`);
     const web = ((l.slotCentres[0] ?? 0) + (l.slotCentres[1] ?? 0)) / 2;
     assert.equal(housingSolid(cover, [web, 0, TOY.roof / 2]), true, `${name}: continuous retaining web`);
@@ -982,7 +1002,7 @@ try {
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log(`PASS magnetic cat toy ${name}: 5 connected prints, ${l.columns} × ${l.rows} flush sockets with push-out holes, no raised ribs, real offset seats, ball-retaining slots`);
+    console.log(`PASS magnetic cat toy ${name}: 5 connected prints, ${l.columns} × ${l.rows} flush sockets with push-out holes, no raised ribs, hollow grip shells, retained exposed magnet pairs, rear ejector channels, ball-retaining slots`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {
