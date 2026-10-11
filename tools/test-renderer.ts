@@ -964,6 +964,8 @@ try {
   // direct sockets are open-topped with push-out holes, no ribs/holders/caps waste material, and pitch changes the array.
   const toyCases: { name: string; overrides: ParameterValues }[] = [
     { name: 'default centred / 30 mm pitch', overrides: {} },
+    { name: 'owned thin grid / larger ball disc', overrides: { gridMagnet: 'supermagnete-s-08-01-n', ballMagnet: 'supermagnete-s-10-02-n' } },
+    { name: 'legacy 3 mm grid / longer screws', overrides: { gridMagnet: 'supermagnete-s-10-03-n', ballMagnet: 'supermagnete-s-08-03-n' } },
     { name: 'eccentric / dense grid', overrides: { magnetPlacement: 'eccentric', socketSpacing: 20 } },
     { name: 'small / sparse grid', overrides: { width: 120, length: 120, ballDiameter: 28, slotWidth: 16, ballGripHoleDiameter: 6, ballMagnetFloorThickness: 0.4, socketSpacing: 60, gridMagnet: 'supermagnete-s-08-02-n', ballMagnet: 'supermagnete-s-06-02-n' } },
     { name: 'large / loose fits / 81 sockets', overrides: { width: 200, length: 200, socketSpacing: 20, ballDiameter: 44, slotWidth: 24, fieldThickness: 2, clearance: 0.4, ballShellThickness: 2.4, ballGripHoleDiameter: 12, ballMagnetFloorThickness: 1, gridMagnet: 'supermagnete-s-12-02-n', ballMagnet: 'supermagnete-s-08-03-n', magnetPlacement: 'eccentric', eccentricOffset: 8 } },
@@ -985,7 +987,7 @@ try {
       inspectStl(Buffer.from(entry)); const mesh = parseStl(Buffer.from(entry));
       assert.equal(shells(mesh), 1, `${name} ${part.id}: one connected watertight solid`);
       assert.ok(part.volume > 0); meshes.set(part.id, mesh);
-      const expected = part.id === 'grid' ? [parameters.width + 22, parameters.length, TOY.mountBase]
+      const expected = part.id === 'grid' ? [parameters.width + 22, parameters.length, l.mountBase]
         : part.id === 'field' ? [parameters.width - 8, parameters.length - 8, parameters.fieldThickness]
         : part.id === 'cover' ? [parameters.width + 22, parameters.length, l.top - l.fieldZ]
         : [parameters.ballDiameter, parameters.ballDiameter, Math.sqrt(l.radius ** 2 - (parameters.ballGripHoleDiameter / 2) ** 2) + TOY.pinLength];
@@ -1009,6 +1011,12 @@ try {
     assert.equal(housingSolid(grid, [...gap, TOY.floor + 0.3]), false, `${name}: no raised grid lines`);
     assert.equal(housingSolid(grid, [...gap, TOY.floor / 2]), true, `${name}: connected lightweight tray`);
     assert.equal(housingSolid(grid, [parameters.width / 2 - TOY.rim / 2, 0, l.fieldZ - 0.1]), true, `${name}: narrow field-supporting rim`);
+    for (const [x, y] of l.ears) {
+      assert.equal(housingSolid(grid, [x + 2, y, l.nutDepth + TOY.mountRoof / 2]), true, `${name}: nut pocket retains its bearing roof`);
+      assert.equal(housingSolid(grid, [x + 2, y, l.mountBase + 0.1]), false, `${name}: no redundant ear height`);
+      assert.equal(housingSolid(cover, [x + 2, -y, l.top - l.mountBase - l.coverFlange / 2]), true, `${name}: matching screw-length flange`);
+      assert.equal(housingSolid(cover, [x + 2, -y, l.top - l.mountBase + 0.1]), false, `${name}: cover clears the adapted base ear`);
+    }
     const gridPart = result.artifact.parts.find(p => p.id === 'grid'); assert.ok(gridPart);
     assert.ok(gridPart.volume < parameters.width * parameters.length * 2.5, `${name}: lightweight tray material budget`);
     assert.equal(housingSolid(mesh('field'), [0, 0, parameters.fieldThickness / 2]), true, `${name}: uninterrupted rolling face`);
@@ -1068,7 +1076,7 @@ try {
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log(`PASS magnetic cat toy ${name}: 5 connected prints, ${l.columns} × ${l.rows} flush sockets with push-out holes, no raised ribs, hollow grip shells, rear-loaded magnet pairs, thin touching bearing floors, staggered push-out bores and adjustable grip holes, ball-retaining slots`);
+    console.log(`PASS magnetic cat toy ${name}: 5 connected prints, ${l.mountBase} mm tray / M3×${l.screwLength} screws, ${l.columns} × ${l.rows} flush sockets with push-out holes, no raised ribs, hollow grip shells, rear-loaded magnet pairs, thin touching bearing floors, staggered push-out bores and adjustable grip holes, ball-retaining slots`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

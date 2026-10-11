@@ -1059,18 +1059,18 @@ export interface operations {
                         length: number;
                         /**
                          * Grid magnets
-                         * @description Sourced axial discs for whichever sockets you choose to populate; exposed and nominally flush until the field is fitted.
-                         * @default supermagnete-s-10-03-n
+                         * @description Sourced axial discs for whichever sockets you choose to populate; exposed and nominally flush until the field is fitted. Socket/rim height follows the selected thickness, with no unused height for thicker magnets.
+                         * @default supermagnete-s-10-02-n
                          * @enum {unknown}
                          */
-                        gridMagnet: "supermagnete-s-08-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
+                        gridMagnet: "supermagnete-s-08-01-n" | "supermagnete-s-08-02-n" | "supermagnete-s-10-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
                         /**
                          * Ball magnet
-                         * @description Two matching sourced discs, one retained in each hollow half. Rear-loaded pockets put thin contacting printed floors between the magnets; small staggered push-out holes do not face each other. Install opposite facing poles; attraction seats each disc against its floor.
-                         * @default supermagnete-s-06-03-n
+                         * @description Two matching sourced discs, one retained in each hollow half. Rear-loaded pockets put thin contacting printed floors between the magnets; small staggered push-out holes do not face each other. Install opposite facing poles; attraction seats each disc against its floor. Magnet thickness only changes the internal pocket, not ball diameter, shell or floor thickness.
+                         * @default supermagnete-s-08-01-n
                          * @enum {unknown}
                          */
-                        ballMagnet: "supermagnete-s-06-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-03-n";
+                        ballMagnet: "supermagnete-s-06-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-01-n" | "supermagnete-s-08-03-n" | "supermagnete-s-10-02-n";
                         /**
                          * Socket spacing
                          * @description Centre-to-centre pitch in both directions, in mm. The centred array fits as many sockets as possible with at least 20 mm from each centre to the outer edge. Choose magnet positions yourself, not a layout preset.

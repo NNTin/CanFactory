@@ -10,8 +10,8 @@ Attribution 4.0 International (CC BY 4.0)**:
 
 Magnet seats use the repository parts library's sourced supermagnete disc
 products, including their stated dimensional tolerances. Cover fastening uses
-library ISO 4762 M3 × 8 screws and ISO 4032 M3 nuts. Product dimensions do not
-make this model a manufacturer-endorsed product.
+library ISO 4762 M3 × 6 / M3 × 8 screws and ISO 4032 M3 nuts. Product dimensions
+do not make this model a manufacturer-endorsed product.
 
 The alignment fit convention (per-side clearance with lead-ins) follows the
 repository's cigarette-case/litter-shovel and printed hook/bracket patterns.

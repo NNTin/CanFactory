@@ -27,8 +27,8 @@ halves and cover. Magnets and fasteners are purchased library parts.
    halves. Each floor has a **1.2 mm off-centre push-out hole**, staggered from
    the other half's hole. No seam glue or separate magnet caps.
 4. **Slotted cover**: a full perimeter skirt and 3 mm roof, 3 mm above the ball.
-   Four M3 × 8 screws into captive underside nuts secure it. Internal tapered
-   lips overlap field edges by 2 mm, limiting lift to 0.2 mm. The cover retains
+   Four automatically sized M3 × 6 or × 8 screws into captive underside nuts
+   secure it. Internal tapered lips overlap field edges by 2 mm, limiting lift to 0.2 mm. The cover retains
    the **closed intact ball**; it is not independent containment of loose discs
    or a ball half if the seam opens.
 
@@ -155,6 +155,45 @@ friction alone—retains them during play: maximum lift clearance is smaller tha
 even the thinnest supported disc. This assumes an intact, seated field. Thin
 unsupported sheet spans and tray flex still need physical paw-load tests.
 
+## Thin magnets and minimum print layers
+
+The owner's **Ø10 × 2 mm** and **Ø8 × 1 mm** discs are existing sourced library
+products, supported in **both** selectors. Defaults now use **10 × 2 in the
+grid / two 8 × 1 in the ball**. Measure your actual magnets before printing;
+matching nominal dimensions does not verify your stock's grade or pull force.
+
+The grid does not retain spare height for thicker magnets. Socket height is
+`1.2 mm floor + selected nominal thickness`; the field-support rim adds only
+`0.2 mm air`. The previously fixed **6 mm screw ears are removed** as a height
+constraint. Their minimum is the greater of rim height and `maximum sourced M3
+nut height + 0.2 mm pocket play + 1.2 mm bearing roof`, rounded up to whole
+**0.2 mm layers**. The nut pocket prevents thinning the ears below **3.8 mm**.
+
+| Grid disc thickness | Socket top | Body / field-support rim | Overall tray incl. ears | Tray layers at 0.2 mm | Screw / cover flange |
+| --- | --- | --- | --- | --- | --- |
+| **1 mm** (8 × 1) | 2.2 mm | **2.4 mm** | **3.8 mm** | **19** | M3 × 6 / 2.2 mm |
+| **2 mm** (10 × 2 default, 8 × 2, 12 × 2) | 3.2 mm | **3.4 mm** | **3.8 mm** | **19** | M3 × 6 / 2.2 mm |
+| **3 mm** (10 × 3) | 4.2 mm | **4.4 mm** | **4.4 mm** | **22** | M3 × 8 / 3.6 mm |
+
+The shortest supported library screw that spans the minimum ear plus a
+**≥2 mm cover flange** is selected automatically. Its exact sourced length
+sizes the flange: `ear height + flange = screw length`, with full nut
+engagement and no projecting tip. This reduces the former 30-layer/6 mm tray
+to **19 layers** for the owner's magnets, retaining the specified 1.2 mm
+bearing roof and keeping the field close to the magnets. The roof thickness
+matches the connected tray floor; test its strength and fastener fit physically.
+The 1.2 mm connected structural floor, smooth field thickness and ball containment headroom are not scaled down just
+because a magnet is thin. The cover's print height is unchanged; its assembled
+position follows the lowered field.
+
+**Ball magnet thickness does not control the ball envelope.** Ball diameter,
+shell thickness, grip holes and the thin touching mating floors remain the
+chosen values, including the default 36 mm outer ball / 2 mm shell / 0.6 mm
+floors. Only the internal pocket depth/boss height follows the real disc
+thickness so a thin disc is retained instead of rattling in a thick socket.
+Physics still uses each selected disc's real nominal volume and sourced mass;
+thinner magnets are not assumed to have the same strength or mass.
+
 ## Slots and retention
 
 Slot length is `min(3 × ball diameter, toy length − 24 mm)`, default **108 mm**.
@@ -171,9 +210,12 @@ paw comfort or freedom from claw entrapment. No unattended use.
 ## Purchased parts and printing
 
 - Grid: one disc per chosen socket, up to 20 by default; library supermagnete
-  **S-08-02-N**, **S-10-03-N** (default), **S-12-02-N**.
-- Ball: **two matching discs**, **S-06-02-N**, **S-06-03-N** (default), **S-08-03-N**.
-- Cover: four library **ISO 4762 M3 × 8** screws and four **ISO 4032 M3** nuts.
+  **S-08-01-N**, **S-08-02-N**, **S-10-02-N** (default), **S-10-03-N**, **S-12-02-N**.
+- Ball: **two matching discs**, **S-06-02-N**, **S-06-03-N**, **S-08-01-N** (default),
+  **S-08-03-N**, **S-10-02-N**.
+- Cover: four library **ISO 4762 M3 × 6** screws for 1/2 mm grid discs, or
+  **M3 × 8** for 3 mm grid discs; four **ISO 4032 M3** nuts in either case.
+  Read the current BOM/derived notes, not the former fixed M3 × 8 specification.
 
 Both selectors reuse the existing `magnet` family. Minimum/maximum dimensions
 and nominal grid thickness come from `packages/contracts/src/parts/magnets.ts`,
@@ -193,9 +235,10 @@ Dry-fit pins and rear magnet seats, test polarity, insert one disc behind each
 floor, then close with floors touching. Physically test floor durability, seam
 pull/impact resistance, individual retention and repeatable removal first.
 Place chosen grid magnets and nuts, fit the smooth field, place the closed ball,
-and secure the cover with all four specified screws. Six-millimetre base ears
-plus 2 mm cover flanges give full M3 × 8 nut engagement and flush tips; do not
-substitute longer screws. Never assemble/reposition magnets with animals nearby,
+and secure the cover with all four specified screws. Grid magnet thickness
+automatically selects screw length and mating flange thickness for full nut
+engagement and flush tips; do not substitute longer screws. Never assemble/reposition
+magnets with animals nearby,
 and never play without the screwed cover and retained field.
 
 ## Interactive physics
@@ -264,7 +307,9 @@ near its centre. Real force, friction, floor/field flex, polarity, claw comfort
 and long-term closure durability require physical testing.
 
 Coverage includes sourced dimensions/poses/polarity, adjustable holes and web
-validation, thin contacting bearing floors, rear insertion and staggered
+validation, both owned magnet sizes in either role, minimum nut-safe grid
+height and automatically matched screw/flange lengths, thickness-independent
+ball envelope, thin contacting bearing floors, rear insertion and staggered
 push-out access without aligned bores, actual hollow interiors, material budget,
 sockets/ejector holes, intact alignment seats, through-slots, live assembly, ZIP downloads and browser physics
 with all-socket placement. Commands:

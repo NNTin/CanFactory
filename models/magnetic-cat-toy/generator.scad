@@ -1,15 +1,15 @@
 // CanFactory original, CC BY 4.0. Four functional layers; individual print-oriented components.
-// Magnet defaults below are sourced supermagnete S-10-03-N / S-06-03-N, NOT generic magnets.
+// Magnet defaults below are sourced supermagnete S-10-02-N / S-08-01-N, NOT generic magnets.
 // Flush grid depth uses nominal thickness; pocket diameters and ball dimensions use greatest sizes.
 PART = "grid";
 WIDTH = 160;
 LENGTH = 140;
 SOCKET_SPACING = 30;
 GRID_D = 10.1;
-GRID_T = 3;
-BALL_MAGNET_D = 6.1;
-BALL_MAGNET_T = 3.1;
-BALL_MAGNET_MIN_D = 5.9;
+GRID_T = 2;
+BALL_MAGNET_D = 8.1;
+BALL_MAGNET_T = 1.1;
+BALL_MAGNET_MIN_D = 7.9;
 BALL_SHELL = 2;
 GRIP_HOLE = 8;
 BALL_FLOOR = 0.6;
@@ -30,7 +30,12 @@ SOCKET_WALL = 1.2;
 EDGE_MARGIN = 20;
 PUSH_HOLE = 3;
 RIM = 5;
-MOUNT_BASE = 6;
+MOUNT_ROOF = 1.2;
+NUT_PLAY = 0.2;
+MIN_FLANGE = 2;
+LAYER = 0.2;
+SCREW_SHORT = 6;
+SCREW_LONG = 8;
 PLAY = 0.2;
 AIR = 0.2;
 WALL = 3;
@@ -52,6 +57,10 @@ ROWS = floor((LENGTH-2*EDGE_MARGIN)/SOCKET_SPACING)+1;
 SOCKET_D = GRID_D + PLAY;
 SOCKET_TOP = FLOOR + GRID_T;
 BASE = SOCKET_TOP + AIR;
+NUT_DEPTH = NUT_T + NUT_PLAY;
+MOUNT_BASE = LAYER*ceil((max(BASE,NUT_DEPTH+MOUNT_ROOF)-0.000000001)/LAYER);
+SCREW_L = MOUNT_BASE+MIN_FLANGE <= SCREW_SHORT+0.000000001 ? SCREW_SHORT : SCREW_LONG;
+COVER_FLANGE = SCREW_L-MOUNT_BASE;
 FIELD_Z = BASE;
 FIELD_TOP = FIELD_Z + FIELD_T;
 R = BALL_D / 2;
@@ -68,6 +77,7 @@ assert(GRIP_WEB >= 1.2-0.000001, "Grip holes need at least 1.2 mm inner-shell we
 // Stagger ejectors even for the three allowed centred-ball clockings; each faces the other half's solid floor.
 assert(BALL_PUSH_OFFSET >= BALL_PUSH_HOLE+0.4, "Mirrored push-out holes must not overlap");
 assert(BALL_PUSH_OFFSET+BALL_PUSH_HOLE/2+0.6 <= BALL_MAGNET_MIN_D/2, "Push-out hole needs bearing under the smallest sourced disc");
+assert(COVER_FLANGE >= MIN_FLANGE-0.000000001, "Cover flange needs the shortest suitable library screw");
 assert(SLOT_W <= 0.6 * BALL_D, "Slot width exceeds retention rule");
 assert(SOCKET_SPACING >= SOCKET_D+2*SOCKET_WALL+2, "Socket walls need at least 2 mm between them");
 assert(COLUMNS >= 1 && ROWS >= 1, "Socket pitch does not fit this tray");
@@ -86,7 +96,7 @@ module ears(h, inset=-3, play=0) {
 module ear_holes(h, nuts=false) {
     for (x=[-1,1], y=[-1,1]) translate([x*(WIDTH/2+5),y*(LENGTH/2-12),-EPS]) {
         cylinder(d=SCREW_D,h=h+2*EPS);
-        if(nuts) rotate([0,0,30]) cylinder(d=(NUT_S+0.3)/cos(30),h=NUT_T+0.2+EPS,$fn=6);
+        if(nuts) rotate([0,0,30]) cylinder(d=(NUT_S+0.3)/cos(30),h=NUT_DEPTH+EPS,$fn=6);
     }
 }
 module grid() {
@@ -187,8 +197,8 @@ module cover_upright() {
                     rotate([90,0,0]) linear_extrude(WIDTH-24,center=true)
                         polygon([[0,0],[FIELD_LIP+0.5,0],[FIELD_LIP+0.5,FIELD_LIP+0.5]]);
             }
-            // 2 mm flange + 6 mm base = 8 mm screw grip; full nut engagement, flush tip.
-            translate([0,0,MOUNT_BASE-BASE]) ears(2,3);
+            // Shortest library screw spans the nut-safe base and a >=2 mm flange, with a flush tip.
+            translate([0,0,MOUNT_BASE-BASE]) ears(COVER_FLANGE,3);
         }
         // Taller mounting ears lie outside the field; relieve the skirt where it seats over them.
         translate([0,0,-EPS]) ears(MOUNT_BASE-BASE+EPS,3,CLEARANCE);

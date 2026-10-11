@@ -53,10 +53,13 @@ are out of scope.
 
 The [magnetic cat toy](docs/magnetic-cat-toy.md) is an original four-layer paw puzzle: bare
 repositionable magnets in direct flush sockets on a thin tray (no holders/caps or raised grid
-lines), configurable socket spacing and underside push-out holes, a thin smooth playing field,
+lines), configurable socket spacing and underside push-out holes, thickness-optimised ears
+with matching screws, a thin smooth playing field,
 a hollow ball with adjustable large grip holes and two rear-loaded magnets in centred/eccentric seats
 behind thin touching printed floors with staggered magnet push-out holes,
-and a screw-secured slotted cover. Its SVG card and live assembly preview show all four layers.
+and a screw-secured slotted cover. Both selectors support 10 × 2 and 8 × 1 mm discs
+(default grid / ball); magnet thickness does not change the ball envelope. Its SVG card
+and live assembly preview show all four layers.
 Interactive physics starts fully assembled with empty sockets: drag the ball and toggle any grid position
 without resetting it (approximate dipole forces/torques; virtual switches, not switchable hardware).
 Physics assumes the ball stays closed; seam strength and grip-hole interaction require physical tests.
