@@ -965,7 +965,8 @@ try {
   const toyCases: { name: string; overrides: ParameterValues }[] = [
     { name: 'default centred / 30 mm pitch', overrides: {} },
     { name: 'owned thin grid / larger ball disc', overrides: { gridMagnet: 'supermagnete-s-08-01-n', ballMagnet: 'supermagnete-s-10-02-n' } },
-    { name: 'legacy 3 mm grid / longer screws', overrides: { gridMagnet: 'supermagnete-s-10-03-n', ballMagnet: 'supermagnete-s-08-03-n' } },
+    // Regression: flush 4.4 mm ears must not subtract a zero-height skirt relief (pinned OpenSCAD float32 slivers).
+    { name: 'flush-ear 3 mm grid / pinned-renderer sliver regression', overrides: { gridMagnet: 'supermagnete-s-10-03-n', ballMagnet: 'supermagnete-s-08-03-n' } },
     { name: 'eccentric / dense grid', overrides: { magnetPlacement: 'eccentric', socketSpacing: 20 } },
     { name: 'small / sparse grid', overrides: { width: 120, length: 120, ballDiameter: 28, slotWidth: 16, ballGripHoleDiameter: 6, ballMagnetFloorThickness: 0.4, socketSpacing: 60, gridMagnet: 'supermagnete-s-08-02-n', ballMagnet: 'supermagnete-s-06-02-n' } },
     { name: 'large / loose fits / 81 sockets', overrides: { width: 200, length: 200, socketSpacing: 20, ballDiameter: 44, slotWidth: 24, fieldThickness: 2, clearance: 0.4, ballShellThickness: 2.4, ballGripHoleDiameter: 12, ballMagnetFloorThickness: 1, gridMagnet: 'supermagnete-s-12-02-n', ballMagnet: 'supermagnete-s-08-03-n', magnetPlacement: 'eccentric', eccentricOffset: 8 } },

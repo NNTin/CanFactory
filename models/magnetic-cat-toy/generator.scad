@@ -200,8 +200,10 @@ module cover_upright() {
             // Shortest library screw spans the nut-safe base and a >=2 mm flange, with a flush tip.
             translate([0,0,MOUNT_BASE-BASE]) ears(COVER_FLANGE,3);
         }
-        // Taller mounting ears lie outside the field; relieve the skirt where it seats over them.
-        translate([0,0,-EPS]) ears(MOUNT_BASE-BASE+EPS,3,CLEARANCE);
+        // Taller mounting ears lie outside the field; relieve the skirt only where it seats over them.
+        // Flush ears need no cut: a cutter ending on z=0 leaves float32 slivers in the pinned renderer.
+        if(MOUNT_BASE > BASE+EPS)
+            translate([0,0,-EPS]) ears(MOUNT_BASE-BASE+EPS,3,CLEARANCE);
         ear_holes(TOP-BASE);
         for(i=[0:SLOTS-1]) translate([(i-(SLOTS-1)/2)*SLOT_PITCH,0,ROOF_Z-BASE-EPS])
             linear_extrude(ROOF+2*EPS) hull() for(y=[-1,1]) translate([0,y*(SLOT_L-SLOT_W)/2]) circle(d=SLOT_W);
