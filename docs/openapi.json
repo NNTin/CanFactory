@@ -2900,7 +2900,7 @@
                               "supermagnete-s-12-02-n"
                             ],
                             "title": "Grid magnets",
-                            "description": "Four sourced axial disc magnets, one in each repositionable sealed holder.",
+                            "description": "Four sourced axial discs, directly seated flush in any four sockets; exposed until the field is fitted.",
                             "default": "supermagnete-s-10-03-n"
                           },
                           "ballMagnet": {
@@ -2919,8 +2919,8 @@
                               "zigzag",
                               "cluster"
                             ],
-                            "title": "Holder layout",
-                            "description": "Preview arrangement of four holders on the 4 × 4 socket grid. Physically move them to any four sockets with the cover and field removed.",
+                            "title": "Magnet layout",
+                            "description": "Preview arrangement of four magnets on the 4 × 4 socket array. Move the bare magnets between sockets with the cover and field removed; no holders or caps.",
                             "default": "zigzag"
                           },
                           "fieldThickness": {
@@ -2971,7 +2971,7 @@
                           "clearance": {
                             "type": "number",
                             "title": "Joint clearance",
-                            "description": "Gap per side around locating pegs, cap plugs and ball pins. Following the litter-shovel detent convention.",
+                            "description": "Gap per side around ball pins and cover ear reliefs. Following the litter-shovel detent convention.",
                             "default": 0.2,
                             "minimum": 0.2,
                             "maximum": 0.4,

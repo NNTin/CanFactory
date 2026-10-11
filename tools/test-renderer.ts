@@ -918,7 +918,7 @@ try {
     console.log(`PASS camera housing ${name}: two closed prints, dimensioned through-openings and blind mounting holes`);
   }
   // Original magnetic cat toy: each print is connected, magnet seats really move, slots are through-open,
-  // sockets are blind, crowns are sealed and all three physical layouts fit the same grid.
+  // direct sockets are blind and open-topped, no ribs/holders/caps waste material, and all layouts fit.
   const toyCases: { name: string; overrides: ParameterValues }[] = [
     { name: 'default centred / zigzag', overrides: {} },
     { name: 'eccentric / cluster', overrides: { magnetPlacement: 'eccentric', layout: 'cluster' } },
@@ -942,23 +942,28 @@ try {
       inspectStl(Buffer.from(entry)); const mesh = parseStl(Buffer.from(entry));
       assert.equal(shells(mesh), 1, `${name} ${part.id}: one connected watertight solid`);
       assert.ok(part.volume > 0); meshes.set(part.id, mesh);
-      const expected = part.id === 'grid' ? [parameters.width + 22, parameters.length, l.fieldZ]
+      const expected = part.id === 'grid' ? [parameters.width + 22, parameters.length, TOY.mountBase]
         : part.id === 'field' ? [parameters.width - 8, parameters.length - 8, parameters.fieldThickness]
-        : part.id === 'cover' ? [parameters.width + 22, parameters.length, l.top - TOY.base]
-        : part.id.startsWith('ball') ? [parameters.ballDiameter, parameters.ballDiameter, l.radius + TOY.pinLength]
-        : part.id.startsWith('holder-cap') ? [l.holderDiameter, l.holderDiameter, TOY.plug + TOY.cap + TOY.pegLength]
-        : [l.holderDiameter, l.holderDiameter, l.holderHeight];
+        : part.id === 'cover' ? [parameters.width + 22, parameters.length, l.top - l.fieldZ]
+        : [parameters.ballDiameter, parameters.ballDiameter, l.radius + TOY.pinLength];
       [part.dimensions.x, part.dimensions.y, part.dimensions.z].forEach((d, i) => assert.ok(Math.abs(d - (expected[i] ?? NaN)) < 0.02, `${name} ${part.id} bounds ${d} != ${expected[i]}`));
     }
     const mesh = (id: string) => { const m = meshes.get(id); assert.ok(m); return m; };
-    const grid = mesh('grid'), holder = mesh('holder-1'), ball = mesh('ball-lower'), cover = mesh('cover');
+    const grid = mesh('grid'), ball = mesh('ball-lower'), cover = mesh('cover');
     for (const [x, y] of l.sockets) {
-      assert.equal(housingSolid(grid, [x, y, TOY.base - 0.5]), false, `${name}: removable peg socket`);
-      assert.equal(housingSolid(grid, [x, y, 1]), true, `${name}: blind socket floor`);
+      assert.equal(housingSolid(grid, [x, y, TOY.floor + 0.3]), false, `${name}: direct magnet pocket`);
+      assert.equal(housingSolid(grid, [x, y, l.socketTop - 0.05]), false, `${name}: no crown above magnet face`);
+      assert.equal(housingSolid(grid, [x, y, TOY.floor / 2]), true, `${name}: thin blind socket floor`);
+      assert.equal(housingSolid(grid, [x + l.socketDiameter / 2 + TOY.socketWall / 2, y, l.socketTop - 0.1]), true, `${name}: socket wall`);
+      assert.equal(housingSolid(grid, [x + l.socketDiameter / 2 + TOY.socketWall + 0.3, y, l.socketTop - 0.1]), false, `${name}: no redundant holder material`);
     }
-    assert.equal(housingSolid(grid, [0, 0, l.fieldZ - 0.3]), true, `${name}: sheet support ribs`);
-    assert.equal(housingSolid(holder, [0, 0, TOY.crown / 2]), true, `${name}: closed crown`);
-    assert.equal(housingSolid(holder, [0, 0, TOY.crown + 0.3]), false, `${name}: magnet cavity`);
+    // The original raised cross-grid lines ran through these points. Only the thin floor remains.
+    for (const k of [-1, 0, 1]) for (const [x = 0, y = 0] of [[k * (parameters.width - 40) / 3, 0], [0, k * (parameters.length - 40) / 3]])
+      assert.equal(housingSolid(grid, [x, y, TOY.floor + 0.3]), false, `${name}: no raised grid lines`);
+    assert.equal(housingSolid(grid, [0, 0, TOY.floor / 2]), true, `${name}: connected lightweight tray`);
+    assert.equal(housingSolid(grid, [parameters.width / 2 - TOY.rim / 2, 0, l.fieldZ - 0.1]), true, `${name}: narrow field-supporting rim`);
+    const gridPart = result.artifact.parts.find(p => p.id === 'grid'); assert.ok(gridPart);
+    assert.ok(gridPart.volume < parameters.width * parameters.length * 2.5, `${name}: lightweight tray material budget`);
     assert.equal(housingSolid(mesh('field'), [0, 0, parameters.fieldThickness / 2]), true, `${name}: uninterrupted rolling face`);
     assert.equal(housingSolid(ball, [l.offset, 0, l.radius - 0.4]), false, `${name}: selected split magnet seat`);
     assert.equal(housingSolid(ball, [-l.radius * 0.4, 0, l.radius - 0.4]), true, `${name}: solid balanced ball`);
@@ -966,11 +971,15 @@ try {
     for (const x of l.slotCentres) assert.equal(housingSolid(cover, [x, 0, TOY.roof / 2]), false, `${name}: open paw slot`);
     const web = ((l.slotCentres[0] ?? 0) + (l.slotCentres[1] ?? 0)) / 2;
     assert.equal(housingSolid(cover, [web, 0, TOY.roof / 2]), true, `${name}: continuous retaining web`);
-    assert.equal(housingSolid(cover, [parameters.width / 2 - 1, 0, (l.top - TOY.base) / 2]), true, `${name}: closed sidewall`);
+    assert.equal(housingSolid(cover, [parameters.width / 2 - 1, 0, (l.top - l.fieldZ) / 2]), true, `${name}: closed sidewall`);
+    const lipX = parameters.width / 2 - TOY.wall - 1.5;
+    const lipBottom = l.top - l.fieldTop - TOY.fieldRetainGap; // roof-down frame: underside has greatest Z
+    assert.equal(housingSolid(cover, [lipX, 0, lipBottom - 0.2]), true, `${name}: field retaining lip`);
+    assert.equal(housingSolid(cover, [lipX, 0, lipBottom + 0.1]), false, `${name}: clearance above seated field`);
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log(`PASS magnetic cat toy ${name}: 13 connected prints, sealed crowns, blind sockets, real offset seats, ball-retaining slots`);
+    console.log(`PASS magnetic cat toy ${name}: 5 connected prints, direct open flush sockets, thin tray without ribs, real offset seats, ball-retaining slots`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

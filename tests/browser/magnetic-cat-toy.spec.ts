@@ -19,11 +19,10 @@ test('shows an original four-layer SVG card and a live bottom-to-top assembly in
   await expect(slider).toBeVisible();
   await slider.press('Home');
   for (const caption of ['Lift and lay out the parts',
-    'Step 1 of 6 · Bond the caps over the four grid magnets',
-    'Step 2 of 6 · Seat the repositionable holders in the socket grid',
-    'Step 3 of 6 · Seat the thin playing field, smooth face up',
-    'Step 4 of 6 · Bond the ball halves around the selected magnet mount',
-    'Step 5 of 6 · Place the magnetic ball on the playing field', 'Assembled']) {
+    'Step 1 of 5 · Place four bare magnets flush in the chosen sockets',
+    'Step 2 of 5 · Seat the thin playing field, smooth face up',
+    'Step 3 of 5 · Bond the ball halves around the selected magnet mount',
+    'Step 4 of 5 · Place the magnetic ball on the playing field', 'Assembled']) {
     await slider.press('ArrowRight'); await expect(slider).toHaveAttribute('aria-valuetext', caption);
   }
   await slider.press('Home');
@@ -48,7 +47,7 @@ test('configures real library magnets, eccentric seat and modular layout, reject
   await expect(page.getByRole('spinbutton', { name: 'Eccentric offset', exact: true })).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Ball magnet placement', exact: true }).selectOption('eccentric');
   await expect(page.getByRole('spinbutton', { name: 'Eccentric offset', exact: true })).toBeVisible();
-  await page.getByRole('combobox', { name: 'Holder layout', exact: true }).selectOption('cluster');
+  await page.getByRole('combobox', { name: 'Magnet layout', exact: true }).selectOption('cluster');
   await page.getByRole('combobox', { name: 'Grid magnets', exact: true }).selectOption('supermagnete-s-12-02-n');
   await page.getByRole('combobox', { name: 'Ball magnet', exact: true }).selectOption('supermagnete-s-08-03-n');
   await expect(page.getByText(/Ball seat: eccentric, 6 mm radial offset/)).toBeVisible();

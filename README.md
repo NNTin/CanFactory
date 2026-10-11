@@ -51,8 +51,9 @@ antenna openings, heat-set insert or captive-nut mounts, optional backside heats
 SVG card and a live assembly preview. Camera recognition and feeding-tracker software
 are out of scope.
 
-The [magnetic cat toy](docs/magnetic-cat-toy.md) is an original four-layer paw puzzle: sealed
-repositionable grid magnets, a thin smooth playing field, a centred/eccentric magnetic ball,
+The [magnetic cat toy](docs/magnetic-cat-toy.md) is an original four-layer paw puzzle: bare
+repositionable magnets in direct flush sockets on a thin tray (no holders/caps or raised grid
+lines), a thin smooth playing field, a centred/eccentric magnetic ball,
 and a screw-secured slotted cover. Its SVG card and live assembly preview show all four layers.
 Interactive physics starts fully assembled: drag the ball and toggle each mapped grid magnet
 without resetting it (approximate dipole forces/torques; virtual switches, not switchable hardware).

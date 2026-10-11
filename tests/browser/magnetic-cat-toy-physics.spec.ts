@@ -23,11 +23,11 @@ test('simulates the fully closed toy: drag the composite ball, switch individual
   const magnets = controls.getByRole('button', { name: /^Grid magnet/ });
   await expect(magnets).toHaveCount(4);
   const l = magneticCatToyLayout(DEFAULT_MAGNETIC_CAT_TOY);
-  for (const [i, xy] of l.holders.entries()) {
+  for (const [i, xy] of l.magnets.entries()) {
     await expect(magnets.nth(i)).toHaveAccessibleName(`Grid magnet ${i + 1} at X ${xy[0].toFixed(1)}, Y ${xy[1].toFixed(1)} mm`);
     await expect(magnets.nth(i)).toHaveAttribute('aria-pressed', 'true');
   }
-  await expect.poll(async () => Object.keys(await poses(page)).length).toBe(26);
+  await expect.poll(async () => Object.keys(await poses(page)).length).toBe(18);
   const physics = page.getByRole('group', { name: 'Physics', exact: true });
   const restart = async () => {
     const generation = Number(await viewer.getAttribute('data-physics-generation'));
@@ -64,7 +64,7 @@ test('simulates the fully closed toy: drag the composite ball, switch individual
   for (let i = 1; i <= 20; i++) { await page.mouse.move(x + i, y - i / 2); await page.waitForTimeout(40); }
   await expect.poll(async () => distance((await poses(page))['ball-lower'] ?? [], stationary)).toBeGreaterThan(3);
   await page.mouse.up();
-  // The halves and internal magnet move together, while field/cover/holders cannot be dragged apart.
+  // The halves and internal magnet move together, while field/cover/grid magnets cannot be dragged apart.
   const moving = await poses(page);
   expect(distance(moving['ball-upper'] ?? [], moving['ball-lower'] ?? [])).toBeCloseTo(DEFAULT_MAGNETIC_CAT_TOY.ballDiameter, 2);
   expect(moving['cover']?.[2]).toBeCloseTo(l.top, 2);

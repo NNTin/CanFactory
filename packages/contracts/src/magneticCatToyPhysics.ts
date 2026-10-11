@@ -23,11 +23,11 @@ function roundedPlan(w: number, h: number, r: number): Point2[] {
 }
 
 /** Roof-down source frame. Exact slot webs and sampled round ends, not a hull that seals the paw openings.
- * Exterior ears/holes are omitted: the captive ball cannot reach them. Wall slabs follow the inner rounded shell.
+ * Exterior ears/holes and the low field-retaining lip are omitted: the captive sphere cannot reach them. Wall slabs follow the inner rounded shell.
  */
 export function toyCoverPieces(p: MagneticCatToyParameters): number[][] {
   const l = magneticCatToyLayout(p), outer = roundedPlan(p.width, p.length, 6), r = p.slotWidth / 2;
-  const pieces = wallPieces(roundedPlan(p.width - 2 * TOY.wall, p.length - 2 * TOY.wall, 3), TOY.wall, TOY.roof, l.top - TOY.base);
+  const pieces = wallPieces(roundedPlan(p.width - 2 * TOY.wall, p.length - 2 * TOY.wall, 3), TOY.wall, TOY.roof, l.top - l.fieldZ);
   const cuts = [-p.width / 2, ...l.slotCentres.flatMap(x => [x - r, x + r]), p.width / 2];
   for (let i = 0; i + 1 < cuts.length; i += 2) {
     const left = cuts[i] ?? 0, right = cuts[i + 1] ?? 0;
@@ -50,12 +50,12 @@ export function magneticCatToyPhysics(p: MagneticCatToyParameters): PhysicsSpec 
   const weld = (id: string, parent?: string): PhysicsBody => ({ id, material: 'petg', fixed: true, collision: { kind: 'none' },
     ...(parent ? { joint: { type: 'slide', parent, anchor: [0, 0, 0] } } : {}) });
   const magnets: PhysicsMagnet[] = [
-    ...l.holders.map((_, i): PhysicsMagnet => ({ id: `grid-magnet-${i + 1}`, title: `Grid magnet ${i + 1}`, body: `grid-magnet-${i + 1}`,
-      position: [0, 0, l.grid.thickness / 2], moment: [0, 0, grid.moment], softening: grid.radius, switchable: true })),
+    ...l.magnets.map((_, i): PhysicsMagnet => ({ id: `grid-magnet-${i + 1}`, title: `Grid magnet ${i + 1}`, body: `grid-magnet-${i + 1}`,
+      position: [0, 0, l.grid.nominalThickness / 2], moment: [0, 0, grid.moment], softening: grid.radius, switchable: true })),
     { id: 'ball-magnet', title: 'Sealed ball magnet (always on)', body: 'ball-magnet', position: [0, 0, l.ball.thickness / 2], moment: [0, 0, ball.moment], softening: ball.radius },
   ];
-  const disabled = Object.fromEntries(l.holders.map((_, i) => [`grid-magnet-${i + 1}`, false]));
-  const [hx = 0, hy = 0] = l.holders[1] ?? [];
+  const disabled = Object.fromEntries(l.magnets.map((_, i) => [`grid-magnet-${i + 1}`, false]));
+  const [hx = 0, hy = 0] = l.magnets[1] ?? [];
   const at = (x: number, y: number) => ({
     'ball-lower': { position: [x, y, l.fieldTop] },
     'ball-upper': { position: [x, y, l.fieldTop + p.ballDiameter], rotation: [180, 0, 0] },
@@ -64,7 +64,7 @@ export function magneticCatToyPhysics(p: MagneticCatToyParameters): PhysicsSpec 
   return {
     bodies: [
       weld('grid'),
-      ...l.holders.flatMap((_, i) => [weld(`holder-${i + 1}`), weld(`holder-cap-${i + 1}`), weld(`grid-magnet-${i + 1}`)]),
+      ...l.magnets.map((_, i) => weld(`grid-magnet-${i + 1}`)),
       { ...weld('field'), collision: { kind: 'box', centre: [0, 0, p.fieldThickness / 2], size: [p.width - 8, p.length - 8, p.fieldThickness] } },
       { id: 'ball-lower', material: 'petg', collision: { kind: 'sphere', centre: [0, 0, l.radius], diameter: p.ballDiameter } },
       weld('ball-upper', 'ball-lower'),

@@ -1059,7 +1059,7 @@ export interface operations {
                         length: number;
                         /**
                          * Grid magnets
-                         * @description Four sourced axial disc magnets, one in each repositionable sealed holder.
+                         * @description Four sourced axial discs, directly seated flush in any four sockets; exposed until the field is fitted.
                          * @default supermagnete-s-10-03-n
                          * @enum {unknown}
                          */
@@ -1072,8 +1072,8 @@ export interface operations {
                          */
                         ballMagnet: "supermagnete-s-04-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-03-n";
                         /**
-                         * Holder layout
-                         * @description Preview arrangement of four holders on the 4 × 4 socket grid. Physically move them to any four sockets with the cover and field removed.
+                         * Magnet layout
+                         * @description Preview arrangement of four magnets on the 4 × 4 socket array. Move the bare magnets between sockets with the cover and field removed; no holders or caps.
                          * @default zigzag
                          * @enum {unknown}
                          */
@@ -1111,7 +1111,7 @@ export interface operations {
                         slotWidth: number;
                         /**
                          * Joint clearance
-                         * @description Gap per side around locating pegs, cap plugs and ball pins. Following the litter-shovel detent convention.
+                         * @description Gap per side around ball pins and cover ear reliefs. Following the litter-shovel detent convention.
                          * @default 0.2
                          */
                         clearance: number;
