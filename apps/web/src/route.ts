@@ -4,6 +4,7 @@
  * `#/parts/<family>` and `#/parts/<family>/<part>`, each optionally with filters as a query, e.g. `#/parts/screw?thread=M3`.
  * `#/concepts/catio` is the whole catio concept and `#/concepts/catio/<sub-assembly>` one of its sub-assemblies' own pages.
  * `#/buy-list` is the buy list, `#/disclosure` the affiliate disclosure and `#/privacy` the privacy page.
+ * A URL without a hash, or with one that names no page, opens the model library.
  */
 export const CATIO_SUBASSEMBLIES = ['window-insert', 'insert-tunnel-coupling', 'tunnel', 'tunnel-tunnel-coupling'] as const;
 export type CatioSubassembly = typeof CATIO_SUBASSEMBLIES[number];
@@ -19,7 +20,7 @@ const PAGES = ['buy-list', 'disclosure', 'privacy'] as const;
 
 const segment = (value: string | undefined): string | null => value ? decodeURIComponent(value) : null;
 
-/** The route in a hash, or null for an empty or unknown hash (the app then opens its default page). */
+/** The route in a hash, or null for an empty or unknown hash (the app then opens the model library). */
 export function parseHash(hash: string): Route | null {
   const [path = '', query = ''] = hash.replace(/^#\/?/, '').split('?');
   const [view, first, second] = path.split('/');

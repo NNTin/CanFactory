@@ -8,7 +8,7 @@ import { inspectStl } from '@canfactory/server';
 test('customize, inspect, download identical geometry, and restore local settings', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/#/models/fruit-fly-trap');
   await expect(page.getByRole('heading', { name: 'Fruit fly trap', exact: true })).toBeVisible();
   const downloadButton = page.getByRole('button', { name: 'Download STL', exact: true });
   await expect(downloadButton).toBeEnabled({ timeout: 90_000 });
@@ -48,7 +48,7 @@ test('keeps stale results out of the viewer and coalesces pending edits', async 
   const previews: string[] = [];
   await page.route('**/api/v1/renders', route => { pending.push(route); });
   page.on('request', request => { if (request.url().includes('reference.stl')) previews.push(request.url()); });
-  await page.goto('/');
+  await page.goto('/#/models/fruit-fly-trap');
   await expect.poll(() => pending.length).toBe(1);
   await page.getByRole('spinbutton', { name: 'Funnel height', exact: true }).fill('75');
   await page.getByRole('spinbutton', { name: 'Funnel height', exact: true }).fill('80');
@@ -79,7 +79,7 @@ test('shows validation and render errors with a working retry', async ({ page })
   await page.route('**/api/v1/renders', async route => {
     await route.fulfill({ status: 429, json: { code: 'QUEUE_FULL', message: 'The render queue is full. Wait a moment and try again.', issues: [] } });
   });
-  await page.goto('/');
+  await page.goto('/#/models/fruit-fly-trap');
   await expect(page.getByRole('alert')).toContainText('queue is full');
   await page.unroute('**/api/v1/renders');
   await page.getByRole('button', { name: 'Try again' }).click();
@@ -100,7 +100,7 @@ test('shows validation and render errors with a working retry', async ({ page })
 
 test('renders a usable mobile layout and model library', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/#/models/fruit-fly-trap');
   await expect(page.getByRole('button', { name: 'Download STL', exact: true })).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('mobile.png'), fullPage: true });
@@ -453,7 +453,7 @@ test('states a model defect plainly, with its reference and detail and no pointl
   page.on('console', message => { if (message.type() === 'error') logged.push(message.text()); });
   await page.route('**/api/v1/renders', route => route.fulfill({ status: 202, json: { ...answer, status: 'queued', error: null } }));
   await page.route('**/api/v1/renders/job-*', route => route.fulfill({ status: 200, json: answer }));
-  await page.goto('/');
+  await page.goto('/#/models/fruit-fly-trap');
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('This model failed to render.', { timeout: 15_000 });
   await expect(alert).toContainText('defect in the model');
@@ -469,4 +469,15 @@ test('states a model defect plainly, with its reference and detail and no pointl
   await expect(alert).toContainText('The preview could not be rendered.', { timeout: 15_000 });
   await expect(alert).toContainText('120-second limit');
   await expect(alert.getByRole('button', { name: 'Try again' })).toBeVisible();
+});
+
+test('opens the model library when the URL names no page', async ({ page }) => {
+  for (const path of ['/', '/#/somewhere']) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: 'Useful things. Made to fit.' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /CUSTOMIZABLE · STL Fruit fly trap/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Make it yours', exact: true })).toHaveCount(0);
+  }
+  await page.goto('/');
+  await expect(page).toHaveURL(/#\/models$/);
 });

@@ -14,7 +14,7 @@ describe('hash routes', () => {
     expect(formatHash({ view: 'parts', family: 'screw', part: null, filters: { thread: 'M2.5', head: '' } })).toBe('#/parts/screw?thread=M2.5');
   });
 
-  it('opens the default page for an empty or unknown hash', () => {
+  it('names no page for an empty or unknown hash (the app then opens the model library)', () => {
     expect(parseHash('')).toBeNull();
     expect(parseHash('#/somewhere')).toBeNull();
     expect(parseHash('#/concepts/catio/unknown')).toBeNull();
