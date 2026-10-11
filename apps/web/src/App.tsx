@@ -615,23 +615,29 @@ function Editor({ model }: { model: ModelDetail }) {
   </>;
 }
 
+const LIBRARY: Route = { view: 'models', model: null };
+/** The page a hash names; an empty or unknown hash is the model library. */
+const routeOf = (hash: string): Route => parseHash(hash) ?? LIBRARY;
+
 export function App() {
   const [models, setModels] = useState<ModelCard[]>([]);
   const [families, setFamilies] = useState<PartFamilySummary[]>([]);
-  const [route, setRoute] = useState<Route | null>(() => parseHash(window.location.hash));
+  const [route, setRoute] = useState<Route>(() => routeOf(window.location.hash));
   const [model, setModel] = useState<ModelDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   /** Goes to a page by changing the hash (the `hashchange` listener follows); filters replace the history entry instead of adding one. */
   const navigate = useCallback((next: Route, replace = false) => {
     const hash = formatHash(next);
-    if (replace) { window.history.replaceState(null, '', hash); setRoute(parseHash(hash)); }
+    if (replace) { window.history.replaceState(null, '', hash); setRoute(routeOf(hash)); }
     else window.location.hash = hash;
   }, []);
-  const openLibrary = () => { navigate({ view: 'models', model: null }); setError(null); };
+  const openLibrary = () => { navigate(LIBRARY); setError(null); };
   const openParts = () => { navigate({ view: 'parts', family: null, part: null, filters: {} }); setError(null); };
   useEffect(() => {
-    const follow = () => setRoute(parseHash(window.location.hash));
+    // Without a page in the URL, the app opens the model library.
+    if (!parseHash(window.location.hash)) window.history.replaceState(null, '', formatHash(LIBRARY));
+    const follow = () => setRoute(routeOf(window.location.hash));
     window.addEventListener('hashchange', follow);
     return () => window.removeEventListener('hashchange', follow);
   }, []);
@@ -640,14 +646,11 @@ export function App() {
     void api.GET('/api/v1/models', { signal: abort.signal }).then(response => {
       if (!response.data) throw new Error('The model catalogue is unavailable.');
       setModels(response.data); setLoading(false);
-      // Without a page in the URL, the app opens the first model.
-      const first = response.data[0]?.id ?? null;
-      setRoute(current => current ?? (window.history.replaceState(null, '', formatHash({ view: 'models', model: first })), { view: 'models', model: first }));
     }).catch((caught: unknown) => { if (!abort.signal.aborted) { setError(caught instanceof Error ? caught.message : 'Cannot load models.'); setLoading(false); } });
     void api.GET('/api/v1/part-families', { signal: abort.signal }).then(response => { if (response.data) setFamilies(response.data); }).catch(() => { /* The header count is optional. */ });
     return () => abort.abort();
   }, []);
-  const selectedId = route?.view === 'models' ? route.model : null;
+  const selectedId = route.view === 'models' ? route.model : null;
   useEffect(() => {
     setModel(null);
     if (!selectedId) return;
@@ -658,7 +661,7 @@ export function App() {
     }).catch((caught: unknown) => { if (!abort.signal.aborted) { setError(caught instanceof Error ? caught.message : 'Cannot load this model.'); setLoading(false); } });
     return () => abort.abort();
   }, [selectedId]);
-  const partsRoute = route?.view === 'parts' ? route : null;
+  const partsRoute = route.view === 'parts' ? route : null;
   const family = partsRoute?.family ? families.find(candidate => candidate.id === partsRoute.family) : undefined;
   const partCount = families.reduce((sum, candidate) => sum + candidate.count, 0);
   const shopping = useMarket();
@@ -667,17 +670,17 @@ export function App() {
   return <div className="app-shell">
     <header className="site-header"><button className="brand" type="button" aria-label="CanFactory model library" onClick={openLibrary}><span className="brand-mark"><Layers3 size={24} strokeWidth={1.7} /></span>CanFactory<span className="brand-dot">.</span></button>
       <span className="header-tagline">A little factory for useful things.</span><div className="header-right">
-        <button type="button" className="library-link" aria-current={route?.view === 'models' ? 'page' : undefined} onClick={openLibrary}>Model library <span>{models.length.toString().padStart(2, '0')}</span></button>
+        <button type="button" className="library-link" aria-current={route.view === 'models' ? 'page' : undefined} onClick={openLibrary}>Model library <span>{models.length.toString().padStart(2, '0')}</span></button>
         <button type="button" className="library-link" aria-current={partsRoute ? 'page' : undefined} onClick={openParts}>Parts library <span>{partCount.toString().padStart(2, '0')}</span></button>
-        <button type="button" className="library-link" aria-current={route?.view === 'concepts' ? 'page' : undefined} onClick={() => navigate({ view: 'concepts', concept: 'catio', subassembly: null })}>Catio concept</button>
-        {(shopping.enabled || buyList.length > 0) && <button type="button" className="library-link" aria-current={route?.view === 'buy-list' ? 'page' : undefined} onClick={() => navigate({ view: 'buy-list' })}><ShoppingBasket size={13} aria-hidden="true" /> Buy list <span>{new Set(buyList.map(item => item.partId)).size.toString().padStart(2, '0')}</span></button>}
+        <button type="button" className="library-link" aria-current={route.view === 'concepts' ? 'page' : undefined} onClick={() => navigate({ view: 'concepts', concept: 'catio', subassembly: null })}>Catio concept</button>
+        {(shopping.enabled || buyList.length > 0) && <button type="button" className="library-link" aria-current={route.view === 'buy-list' ? 'page' : undefined} onClick={() => navigate({ view: 'buy-list' })}><ShoppingBasket size={13} aria-hidden="true" /> Buy list <span>{new Set(buyList.map(item => item.partId)).size.toString().padStart(2, '0')}</span></button>}
         <span className="local-badge"><i /> Local workspace</span></div>
     </header>
     <main>
-      {route?.view === 'buy-list' || route?.view === 'disclosure' || route?.view === 'privacy' ? <>
+      {route.view === 'buy-list' || route.view === 'disclosure' || route.view === 'privacy' ? <>
         <div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button><span>/</span><span>{{ 'buy-list': 'Buy list', disclosure: 'Disclosure', privacy: 'Privacy' }[route.view]}</span></div>
         {route.view === 'buy-list' ? <BuyListPage /> : route.view === 'disclosure' ? <DisclosurePage /> : <PrivacyPage />}</>
-        : route?.view === 'concepts' ? <><div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button><span>/</span>
+        : route.view === 'concepts' ? <><div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button><span>/</span>
         {route.subassembly ? <><button type="button" onClick={() => navigate({ view: 'concepts', concept: 'catio', subassembly: null })}>Catio concept</button><span>/</span><span>{CATIO_SUBASSEMBLY_TITLES[route.subassembly]}</span></> : <span>Catio concept</span>}</div>
         {route.subassembly ? <CatioSubassemblyRoute key={route.subassembly} id={route.subassembly} /> : <CatioConcept />}</> : partsRoute ? <>
         <div className="breadcrumb"><button type="button" onClick={openParts}><ArrowLeft size={13} /> Parts library</button>
