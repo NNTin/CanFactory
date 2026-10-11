@@ -42,6 +42,8 @@ PIN_L = 1.6;
 BALL_LIP = 0.4;
 BALL_SEAT_WALL = 1.2;
 BALL_REMOVAL_NOTCH = 3.2;
+BALL_PUSH_HOLE = 1.2;
+BALL_PUSH_OFFSET = 1.7;
 GRIP_LAT = 35;
 GRIP_COUNT = 6;
 SPOKE_W = 2;
@@ -63,6 +65,9 @@ SLOT_PITCH = (WIDTH - 24 - SLOT_W) / (SLOTS - 1);
 GRIP_ANGLE = acos(pow(sin(GRIP_LAT),2)+pow(cos(GRIP_LAT),2)*cos(360/GRIP_COUNT));
 GRIP_WEB = (R-BALL_SHELL)*(GRIP_ANGLE-2*asin(GRIP_HOLE/(2*(R-BALL_SHELL))))*PI/180;
 assert(GRIP_WEB >= 1.2-0.000001, "Grip holes need at least 1.2 mm inner-shell web");
+// Stagger ejectors even for the three allowed centred-ball clockings; each faces the other half's solid floor.
+assert(BALL_PUSH_OFFSET >= BALL_PUSH_HOLE+0.4, "Mirrored push-out holes must not overlap");
+assert(BALL_PUSH_OFFSET+BALL_PUSH_HOLE/2+0.6 <= BALL_MAGNET_MIN_D/2, "Push-out hole needs bearing under the smallest sourced disc");
 assert(SLOT_W <= 0.6 * BALL_D, "Slot width exceeds retention rule");
 assert(SOCKET_SPACING >= SOCKET_D+2*SOCKET_WALL+2, "Socket walls need at least 2 mm between them");
 assert(COLUMNS >= 1 && ROWS >= 1, "Socket pitch does not fit this tray");
@@ -140,14 +145,16 @@ module ball_core() {
                 translate([0,0,0.3]) cylinder(r=PIN,h=PIN_L-0.3+EPS);
             }
         }
-        // Load from the hollow/rear side, NOT the equator. Attraction bears on a continuous floor.
-        // The two seam-facing floors touch; no ejector bore or front opening exposes the opposed faces.
+        // Load from the hollow/rear side, NOT the equator. Attraction bears on a thin contacting floor.
+        // Small off-centre ejectors mirror to opposite sides: no aligned openings between the two magnets.
+        // After splitting the ball, push from the seam face towards the open rear of each seat.
+        translate([MX,BALL_PUSH_OFFSET,-EPS]) cylinder(d=BALL_PUSH_HOLE,h=BALL_FLOOR+2*EPS);
         translate([MX,0,BALL_FLOOR]) cylinder(d=BALL_MAGNET_D+PLAY,h=BALL_MAGNET_T+EPS);
         translate([MX,0,BALL_FLOOR+BALL_MAGNET_T])
             cylinder(d1=BALL_MAGNET_D+PLAY,d2=BALL_MAGNET_MIN_D-0.3,h=BALL_LIP+EPS);
         for(a=[0,90,180,270]) translate([MX,0,BALL_FLOOR+EPS]) rotate([0,0,a])
             translate([(BALL_MAGNET_D+PLAY)/2-0.1,-0.3,0]) cube([BALL_SEAT_WALL+0.2,0.6,BALL_MAGNET_T+BALL_LIP]);
-        // Rear finger/tool scallops expose disc edges for withdrawal without puncturing the mating floor.
+        // Rear scallops help capture the disc as it is pushed out through the relieved rear lip.
         for(side=[-1,1]) translate([MX+side*((BALL_MAGNET_D+PLAY)/2+BALL_SEAT_WALL/2),0,BALL_FLOOR+0.2])
             cylinder(d=BALL_REMOVAL_NOTCH,h=BALL_MAGNET_T+BALL_LIP+EPS);
         for(a=[-30,-150,-270]) translate([PIN_R*cos(a),PIN_R*sin(a),-EPS])

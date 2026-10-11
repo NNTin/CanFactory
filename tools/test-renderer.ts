@@ -1013,11 +1013,24 @@ try {
     assert.ok(gridPart.volume < parameters.width * parameters.length * 2.5, `${name}: lightweight tray material budget`);
     assert.equal(housingSolid(mesh('field'), [0, 0, parameters.fieldThickness / 2]), true, `${name}: uninterrupted rolling face`);
     const z0 = TOY.pinLength, floor = parameters.ballMagnetFloorThickness;
-    // Entire magnet front is covered, including its centre: no push bore or open opposed face.
+    // A small off-centre ejector leaves the centre and outer bearing floor covered.
     for (const r of [0, l.ball.diameter / 2 - 0.1]) for (const angle of [0, 45, 90, 135, 180, 225, 270, 315]) {
       const a = angle * Math.PI / 180;
-      assert.equal(housingSolid(ball, [l.offset + r * Math.cos(a), r * Math.sin(a), z0 + floor / 2]), true, `${name}: continuous joint-facing magnet floor`);
+      assert.equal(housingSolid(ball, [l.offset + r * Math.cos(a), r * Math.sin(a), z0 + floor / 2]), true, `${name}: solid joint-facing bearing outside push-out bore`);
     }
+    // Prove the bore passes through the whole floor and its tool line reaches the rear opening.
+    for (const z of [floor * 0.1, floor * 0.5, floor * 0.9, l.ballSeatDepth - 0.05]) {
+      assert.equal(housingSolid(ball, [l.offset, TOY.ballPushOffset, z0 + z]), false, `${name}: accessible magnet push-out path`);
+      for (const side of [-1, 1]) assert.equal(housingSolid(ball, [l.offset + side * (TOY.ballPushHole / 2 - 0.1), TOY.ballPushOffset, z0 + z]), false, `${name}: push-out bore width`);
+    }
+    // Mirroring staggers the holes, including all three centred-ball clockings. Each faces solid floor.
+    for (const clocking of [0, 120, 240]) {
+      const a = (-90 + clocking) * Math.PI / 180;
+      assert.equal(housingSolid(ball, [l.offset + TOY.ballPushOffset * Math.cos(a), TOY.ballPushOffset * Math.sin(a), z0 + floor / 2]), true, `${name}: opposed push-out opening faces solid plastic`);
+    }
+    const bearing = l.ball.minDiameter / 2 - TOY.ballPushOffset - TOY.ballPushHole / 2;
+    assert.ok(bearing >= 0.6, `${name}: push-out bore leaves a bearing ligament under the smallest disc`);
+    assert.equal(housingSolid(ball, [l.offset, TOY.ballPushOffset + TOY.ballPushHole / 2 + bearing / 2, z0 + floor / 2]), true, `${name}: solid outer bearing ligament`);
     assert.equal(housingSolid(ball, [l.offset, 0, z0 + floor + 0.15]), false, `${name}: rear-loaded magnet pocket`);
     assert.equal(housingSolid(ball, [-l.radius * 0.35, l.radius * 0.35, z0 + l.radius * 0.35]), false, `${name}: genuinely hollow interior`);
     const lipRadius = l.ball.minDiameter / 2 - 0.05;
@@ -1055,7 +1068,7 @@ try {
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log(`PASS magnetic cat toy ${name}: 5 connected prints, ${l.columns} × ${l.rows} flush sockets with push-out holes, no raised ribs, hollow grip shells, rear-loaded magnet pairs, continuous thin mating floors, adjustable grip holes and rear removal access, ball-retaining slots`);
+    console.log(`PASS magnetic cat toy ${name}: 5 connected prints, ${l.columns} × ${l.rows} flush sockets with push-out holes, no raised ribs, hollow grip shells, rear-loaded magnet pairs, thin touching bearing floors, staggered push-out bores and adjustable grip holes, ball-retaining slots`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

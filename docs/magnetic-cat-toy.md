@@ -21,10 +21,11 @@ halves and cover. Magnets and fasteners are purchased library parts.
    default (1.6–2.4 mm). **Fourteen 8 mm grip holes** by default, with diameter
    adjustable **6–12 mm**, subject to the web-clearance rule below. One sourced
    disc per half loads from the **rear/interior side** of its socket, not the
-   seam. Two **continuous 0.6 mm printed floors** face one another and **touch**
+   seam. Two **0.6 mm printed bearing floors** face one another and **touch**
    when assembled. Magnets attract through these floors; they cannot jump
    towards each other out of their seats. Straight pins align, not latch, the
-   halves. No seam glue or separate magnet caps.
+   halves. Each floor has a **1.2 mm off-centre push-out hole**, staggered from
+   the other half's hole. No seam glue or separate magnet caps.
 4. **Slotted cover**: a full perimeter skirt and 3 mm roof, 3 mm above the ball.
    Four M3 × 8 screws into captive underside nuts secure it. Internal tapered
    lips overlap field edges by 2 mm, limiting lift to 0.2 mm. The cover retains
@@ -43,13 +44,14 @@ One identical half flips 180° about X.
 
 ### Load path and magnetic gap
 
-Each socket has its **closed floor at the equator** and its insertion opening
+Each socket has its **bearing floor at the equator** and its insertion opening
 facing away from the seam, into the hollow half. Insert the magnet from that
 rear side. With opposite facing poles, attraction presses the discs **into**
 their bearing floors, transmitting the closing force to the printed halves.
 It does not pull them towards the rear opening or rely on a small retaining
-lip to carry the seam load. The joint-facing magnet faces are fully covered,
-not directly exposed to each other.
+lip to carry the seam load. The floors cover the joint-facing magnet surfaces
+except for small staggered push-out bores. **Each bore faces solid floor in the
+other half**, not an aligned opening to the opposed magnet.
 
 `Ball magnet floor thickness` is an advanced control, **0.6 mm** by default,
 range **0.4–1 mm** in 0.2 mm steps. The two flat floor faces and equatorial rims
@@ -57,10 +59,12 @@ meet at the same split plane: **no deliberate air gap, recess or intervening
 cap**. With discs seated against the floors, face separation is exactly twice
 floor thickness: **1.2 mm default**, range 0.8–2 mm. This gap does not depend on
 magnet thickness tolerance. Keep both floors flat and fully dense; 0.6 mm is
-three 0.2 mm layers. Do not sand them thinner or leave support residue between
-them. Thinner floors reduce magnetic separation but also reduce durability;
-choose whole layers and physically test them. Geometry alone cannot guarantee
-holding force, floor strength or a safe pet toy.
+three 0.2 mm layers. The small ejector bores interrupt only the local bearing
+area, not the floor-to-floor contact or nominal magnet separation. Do not sand
+the floors thinner or leave support residue between them. Thinner floors reduce
+magnetic separation but also reduce durability; choose whole layers and
+physically test them. Geometry alone cannot guarantee holding force, floor
+strength or a safe pet toy.
 
 The sourced **maximum diameter + 0.2 mm** sizes the pocket; sourced maximum
 thickness sizes its depth. A 1.2 mm wall, four relief cuts and a **rear** tapered
@@ -70,19 +74,31 @@ spokes, as thick as the floor, join the boss to the shell. No loose mount insert
 Check polarity before insertion and test that discs cannot rattle or withdraw
 unintentionally, including when the halves are separated.
 
-### Removal without puncturing the floors
+### Push the magnets out after disassembly
 
-Two opposed **3.2 mm rear finger/tool scallops** expose each disc's edges for
-withdrawal. Separate the ball away from pets/children, reach into the open half,
-and grip the edges with a blunt nonmagnetic tool through these cutouts. Capture
-the magnet and gently withdraw it past the relieved rear lip. Do not pry against
-its coating, puncture the thin floor, or use damaged lips.
+Each floor has a **1.2 mm through-hole**, **1.7 mm off-centre along local +Y**.
+After separating the ball away from pets/children, insert a **blunt nonmagnetic
+pin no wider than 1 mm from the exposed seam face**. Push the disc away from the
+seam and out through its rear insertion opening, gently flexing the relieved
+rear lip. Capture it through the existing rear scallops. Do not lever against
+the magnet coating, enlarge the bore or puncture the remaining thin floor.
+Clear support residue from the bore before inserting magnets; a small printed
+hole may need careful cleanup. Physically test the intended tool, retention
+and repeated ejection. This is genuine push-through removal, not a pull-only
+notch or a removable cap.
 
-This deliberately replaces the previous through-floor push-out channel:
-**continuous mating floors and rear removal access**, rather than exposing the
-opposed faces through ejector bores. The tray's 3 mm underside ejector holes
-are unchanged. Access must be physically fit-tested with the intended tool;
-small rear seats may need nonmagnetic tweezers rather than fingers.
+The halves are identical; flipping one 180° about X puts their holes at
+**opposite ±Y positions**, 3.4 mm apart in the intended assembly pose. The
+threefold alignment also allows centred halves to be clocked 120°/240°: the
+closest hole-centre separation is still **1.7 mm**, leaving **0.5 mm between the
+1.2 mm bore outlines**. Thus no aligned open path exposes the two magnets
+directly to one another. The sourced smallest supported disc is 5.9 mm across,
+leaving **0.65 mm radial bearing** beyond the bore's far edge. SCAD assertions,
+contract tests and renderer probes check the bore, remaining bearing and
+staggering for all allowed clockings. The thin floor faces still touch around
+the bores; discs cannot pass through these small openings or jump out towards
+the seam. The rear lip retains each disc while the ball is apart. Grid ejector
+holes remain **3 mm** and are unchanged.
 
 ### Centred / eccentric
 
@@ -248,9 +264,9 @@ near its centre. Real force, friction, floor/field flex, polarity, claw comfort
 and long-term closure durability require physical testing.
 
 Coverage includes sourced dimensions/poses/polarity, adjustable holes and web
-validation, continuous thin floors/contacting seam, rear insertion/removal
-access, actual hollow interiors, material budget, sockets/ejector holes, intact
-alignment seats, through-slots, live assembly, ZIP downloads and browser physics
+validation, thin contacting bearing floors, rear insertion and staggered
+push-out access without aligned bores, actual hollow interiors, material budget,
+sockets/ejector holes, intact alignment seats, through-slots, live assembly, ZIP downloads and browser physics
 with all-socket placement. Commands:
 
 ```sh

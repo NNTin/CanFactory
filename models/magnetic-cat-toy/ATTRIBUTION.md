@@ -16,5 +16,6 @@ make this model a manufacturer-endorsed product.
 The alignment fit convention (per-side clearance with lead-ins) follows the
 repository's cigarette-case/litter-shovel and printed hook/bracket patterns.
 The hollow perforated ball, rear-loaded relieved magnet seats, thin contacting
-mating floors, removal scallops and magnetic seam are newly authored; no locking seam detent or source STL is used. These model terms do not relicense unrelated
-application code.
+mating bearing floors, staggered push-out bores, rear scallops and magnetic seam
+are newly authored; no locking seam detent or source STL is used. These model
+terms do not relicense unrelated application code.

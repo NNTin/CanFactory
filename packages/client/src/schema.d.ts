@@ -1066,7 +1066,7 @@ export interface operations {
                         gridMagnet: "supermagnete-s-08-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
                         /**
                          * Ball magnet
-                         * @description Two matching sourced discs, one retained in each hollow half. Rear-loaded pockets put continuous thin printed floors between the magnets. Install opposite facing poles; attraction seats each disc against its floor.
+                         * @description Two matching sourced discs, one retained in each hollow half. Rear-loaded pockets put thin contacting printed floors between the magnets; small staggered push-out holes do not face each other. Install opposite facing poles; attraction seats each disc against its floor.
                          * @default supermagnete-s-06-03-n
                          * @enum {unknown}
                          */
@@ -1103,7 +1103,7 @@ export interface operations {
                         ballGripHoleDiameter: number;
                         /**
                          * Ball magnet floor thickness
-                         * @description Continuous wall between each magnet and the seam, in mm. The two flat floors touch with no intentional air gap, so face separation is twice this thickness. Solid layers, not sparse infill.
+                         * @description Bearing floor between each magnet and the seam, in mm, with a small staggered push-out hole. The two flat floors touch with no intentional air gap, so face separation is twice this thickness. Solid layers, not sparse infill.
                          * @default 0.6
                          */
                         ballMagnetFloorThickness: number;

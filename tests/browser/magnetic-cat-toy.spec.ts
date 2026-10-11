@@ -13,6 +13,7 @@ test('shows an original four-layer SVG card and a live bottom-to-top assembly in
   await card.click();
   await expect(page).toHaveURL(/#\/models\/magnetic-cat-toy/);
   await expect(page.getByText(/Static magnetic puzzle, not a self-moving toy/)).toBeVisible();
+  await expect(page.getByText(/Each half has a 1.2 mm off-centre push-out hole; mirrored holes are staggered, not facing one another/)).toBeVisible();
   const download = page.getByRole('button', { name: 'Download ZIP' });
   await expect(download).toBeEnabled();
   const slider = page.getByRole('slider', { name: 'Assembly' });

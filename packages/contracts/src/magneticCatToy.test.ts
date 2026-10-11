@@ -83,7 +83,7 @@ describe('original magnetic cat toy', () => {
     expect(controlShown(control, P)).toBe(false);
     expect(controlShown(control, { ...P, magnetPlacement: 'eccentric' })).toBe(true);
   });
-  it('rear-loads magnets against continuous thin touching floors, with configurable larger grip holes', () => {
+  it('rear-loads magnets against thin touching bearing floors, with configurable larger grip holes', () => {
     expect(model.controls.some(c => c.key === 'detentEngage')).toBe(false);
     const half = model.parts.find(part => part.id === 'ball-lower'); assert.ok(half);
     expect(P.ballGripHoleDiameter).toBe(8);
@@ -102,6 +102,27 @@ describe('original magnetic cat toy', () => {
     }
     expect(validateParameters(model, { ...P, ballDiameter: 28, slotWidth: 16, ballGripHoleDiameter: 12 })).toContainEqual(expect.objectContaining({ field: 'ballGripHoleDiameter' }));
     expect(validateParameters(model, { ...P, ballDiameter: 44, ballGripHoleDiameter: 12 })).toEqual([]);
+  });
+  it('provides push-out access from each separated seam face without aligned holes between the magnets', () => {
+    expect(TOY.ballPushHole).toBe(1.2);
+    expect(TOY.ballPushOffset).toBe(1.7);
+    for (const ballMagnet of TOY_BALL_MAGNETS) {
+      const { ball } = magneticCatToyLayout({ ...P, ballMagnet });
+      // Even the smallest tolerated disc retains >=0.6 mm radial bearing outside the bore.
+      expect(ball.minDiameter / 2 - TOY.ballPushOffset - TOY.ballPushHole / 2).toBeGreaterThanOrEqual(0.6);
+      // A 1 mm blunt tool reaches the disc, then exits the open rear lip without obstruction.
+      expect(TOY.ballPushHole).toBeGreaterThan(1);
+      expect(TOY.ballPushOffset + TOY.ballPushHole / 2).toBeLessThan((ball.minDiameter - 0.3) / 2);
+    }
+    // Threefold alignment allows 0/120/240 degree clockings in centred mode. No pair of bores overlaps.
+    for (const clocking of [0, 120, 240]) {
+      const lowerAngle = (-90 + clocking) * Math.PI / 180;
+      const dx = TOY.ballPushOffset * Math.cos(lowerAngle);
+      const dy = TOY.ballPushOffset * Math.sin(lowerAngle) - TOY.ballPushOffset;
+      expect(Math.hypot(dx, dy) - TOY.ballPushHole).toBeGreaterThanOrEqual(0.4);
+    }
+    expect(model.printNotes).toMatch(/push the disc towards the rear opening/);
+    expect(model.derived(P).notes?.join(' ')).toMatch(/1.2 mm off-centre push-out hole/);
   });
   it('bounds long paw slots by sphere width, leaves webs and rejects unsafe diameter/width combinations', () => {
     for (const ballDiameter of [28, 36, 44]) for (const width of [120, 200]) {
@@ -154,13 +175,13 @@ describe('original magnetic cat toy', () => {
   });
   it('keeps fixed SCAD dimensions synchronized with the TypeScript layout', () => {
     const scad = readFileSync(new URL('../../../models/magnetic-cat-toy/generator.scad', import.meta.url), 'utf8');
-    for (const [key, value] of Object.entries({ FLOOR: TOY.floor, SOCKET_WALL: TOY.socketWall, EDGE_MARGIN: TOY.edgeMargin, PUSH_HOLE: TOY.pushHole, RIM: TOY.rim, MOUNT_BASE: TOY.mountBase, PLAY: TOY.pocketPlay, AIR: TOY.air, WALL: TOY.wall, ROOF: TOY.roof, FIELD_LIP: TOY.fieldLip, FIELD_RETAIN_GAP: TOY.fieldRetainGap, PIN: TOY.pin, PIN_L: TOY.pinLength, BALL_LIP: TOY.ballLip, BALL_SEAT_WALL: TOY.ballSeatWall, BALL_REMOVAL_NOTCH: TOY.ballRemovalNotch, GRIP_LAT: TOY.gripLatitude, GRIP_COUNT: TOY.gripCount, SPOKE_W: TOY.spokeWidth }))
+    for (const [key, value] of Object.entries({ FLOOR: TOY.floor, SOCKET_WALL: TOY.socketWall, EDGE_MARGIN: TOY.edgeMargin, PUSH_HOLE: TOY.pushHole, RIM: TOY.rim, MOUNT_BASE: TOY.mountBase, PLAY: TOY.pocketPlay, AIR: TOY.air, WALL: TOY.wall, ROOF: TOY.roof, FIELD_LIP: TOY.fieldLip, FIELD_RETAIN_GAP: TOY.fieldRetainGap, PIN: TOY.pin, PIN_L: TOY.pinLength, BALL_LIP: TOY.ballLip, BALL_SEAT_WALL: TOY.ballSeatWall, BALL_REMOVAL_NOTCH: TOY.ballRemovalNotch, BALL_PUSH_HOLE: TOY.ballPushHole, BALL_PUSH_OFFSET: TOY.ballPushOffset, GRIP_LAT: TOY.gripLatitude, GRIP_COUNT: TOY.gripCount, SPOKE_W: TOY.spokeWidth }))
       expect(scad).toContain(`${key} = ${value};`);
     expect(scad).not.toContain('DETENT_ENGAGE');
     expect(model.printNotes).toMatch(/100% infill/);
     expect(model.printNotes).toMatch(/do not glue the seam/);
-    expect(model.printNotes).toMatch(/mating floors unbroken/);
-    expect(scad).not.toContain('BALL_PUSH_HOLE');
+    expect(model.printNotes).toMatch(/are staggered by the mirrored halves/);
+    expect(scad).toContain('translate([MX,BALL_PUSH_OFFSET,-EPS]) cylinder(d=BALL_PUSH_HOLE,h=BALL_FLOOR+2*EPS);');
     expect(model.parts.map(p => p.id)).toEqual(['grid', 'field', 'ball-lower', 'ball-upper', 'cover']);
     expect(scad).not.toMatch(/module (holder|cap)\(/);
   });
