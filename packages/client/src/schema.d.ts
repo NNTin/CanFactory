@@ -1066,7 +1066,7 @@ export interface operations {
                         gridMagnet: "supermagnete-s-08-02-n" | "supermagnete-s-10-03-n" | "supermagnete-s-12-02-n";
                         /**
                          * Ball magnet
-                         * @description Two matching sourced discs, one retained in each hollow half. Exposed mating faces attract to close the ball; install opposite facing poles.
+                         * @description Two matching sourced discs, one retained in each hollow half. Rear-loaded pockets put continuous thin printed floors between the magnets. Install opposite facing poles; attraction seats each disc against its floor.
                          * @default supermagnete-s-06-03-n
                          * @enum {unknown}
                          */
@@ -1091,10 +1091,22 @@ export interface operations {
                         ballDiameter: number;
                         /**
                          * Ball shell thickness
-                         * @description Hollow shell wall in mm. Twelve 4 mm grip holes per half and rear magnet push-out holes are always included; print walls solid.
+                         * @description Hollow shell wall in mm. Seven radial grip holes per half; print walls solid.
                          * @default 2
                          */
                         ballShellThickness: number;
+                        /**
+                         * Ball grip hole diameter
+                         * @description Diameter of the fourteen through-holes in mm, including one at each pole. Larger holes improve access and reduce mass; at least 1.2 mm of inner-shell web must remain.
+                         * @default 8
+                         */
+                        ballGripHoleDiameter: number;
+                        /**
+                         * Ball magnet floor thickness
+                         * @description Continuous wall between each magnet and the seam, in mm. The two flat floors touch with no intentional air gap, so face separation is twice this thickness. Solid layers, not sparse infill.
+                         * @default 0.6
+                         */
+                        ballMagnetFloorThickness: number;
                         /**
                          * Ball magnet placement
                          * @description Centred balances the two magnet seats symmetrically about the sphere centre; eccentric shifts both seats radially for a deliberate wobble.

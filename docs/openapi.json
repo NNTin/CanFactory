@@ -2869,6 +2869,8 @@
                           "fieldThickness",
                           "ballDiameter",
                           "ballShellThickness",
+                          "ballGripHoleDiameter",
+                          "ballMagnetFloorThickness",
                           "magnetPlacement",
                           "eccentricOffset",
                           "slotWidth",
@@ -2910,7 +2912,7 @@
                               "supermagnete-s-08-03-n"
                             ],
                             "title": "Ball magnet",
-                            "description": "Two matching sourced discs, one retained in each hollow half. Exposed mating faces attract to close the ball; install opposite facing poles.",
+                            "description": "Two matching sourced discs, one retained in each hollow half. Rear-loaded pockets put continuous thin printed floors between the magnets. Install opposite facing poles; attraction seats each disc against its floor.",
                             "default": "supermagnete-s-06-03-n"
                           },
                           "socketSpacing": {
@@ -2943,10 +2945,28 @@
                           "ballShellThickness": {
                             "type": "number",
                             "title": "Ball shell thickness",
-                            "description": "Hollow shell wall in mm. Twelve 4 mm grip holes per half and rear magnet push-out holes are always included; print walls solid.",
+                            "description": "Hollow shell wall in mm. Seven radial grip holes per half; print walls solid.",
                             "default": 2,
                             "minimum": 1.6,
                             "maximum": 2.4,
+                            "multipleOf": 0.2
+                          },
+                          "ballGripHoleDiameter": {
+                            "type": "number",
+                            "title": "Ball grip hole diameter",
+                            "description": "Diameter of the fourteen through-holes in mm, including one at each pole. Larger holes improve access and reduce mass; at least 1.2 mm of inner-shell web must remain.",
+                            "default": 8,
+                            "minimum": 6,
+                            "maximum": 12,
+                            "multipleOf": 0.5
+                          },
+                          "ballMagnetFloorThickness": {
+                            "type": "number",
+                            "title": "Ball magnet floor thickness",
+                            "description": "Continuous wall between each magnet and the seam, in mm. The two flat floors touch with no intentional air gap, so face separation is twice this thickness. Solid layers, not sparse infill.",
+                            "default": 0.6,
+                            "minimum": 0.4,
+                            "maximum": 1,
                             "multipleOf": 0.2
                           },
                           "magnetPlacement": {

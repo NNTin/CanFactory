@@ -21,7 +21,7 @@ test('shows an original four-layer SVG card and a live bottom-to-top assembly in
   for (const caption of ['Lift and lay out the parts',
     'Step 1 of 5 · Place bare magnets in your chosen sockets (full capacity illustrated)',
     'Step 2 of 5 · Seat the thin playing field, smooth face up',
-    'Step 3 of 5 · Magnetically close the hollow ball with opposite facing poles',
+    'Step 3 of 5 · Close the rear-loaded ball with its thin mating floors touching',
     'Step 4 of 5 · Place the magnetic ball on the playing field', 'Assembled']) {
     await slider.press('ArrowRight'); await expect(slider).toHaveAttribute('aria-valuetext', caption);
   }
@@ -46,6 +46,7 @@ test('configures real library magnets, eccentric seat and real socket pitch, rej
   const download = page.getByRole('button', { name: 'Download ZIP' });
   await expect(download).toBeEnabled();
   await expect(page.getByRole('spinbutton', { name: 'Ball shell thickness', exact: true })).toHaveValue('2');
+  await expect(page.getByRole('spinbutton', { name: 'Ball grip hole diameter', exact: true })).toHaveValue('8');
   await expect(page.getByRole('spinbutton', { name: 'Eccentric offset', exact: true })).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Ball magnet placement', exact: true }).selectOption('eccentric');
   await expect(page.getByRole('spinbutton', { name: 'Eccentric offset', exact: true })).toBeVisible();
@@ -63,7 +64,16 @@ test('configures real library magnets, eccentric seat and real socket pitch, rej
   await expect(download).toBeEnabled();
   await expect(page.getByText(/24 × 116 mm/)).toBeVisible();
   await page.getByRole('spinbutton', { name: 'Ball shell thickness', exact: true }).fill('1.6');
-  await expect(page.getByText(/Hollow ball: 1.6 mm shell, 24 round 4 mm grip holes/)).toBeVisible();
+  await expect(page.getByText(/Hollow ball: 1.6 mm shell, 14 round 8 mm grip holes/)).toBeVisible();
+  await page.getByRole('spinbutton', { name: 'Ball grip hole diameter', exact: true }).fill('12');
+  await expect(page.getByText(/14 round 12 mm grip holes/)).toBeVisible();
+  await expect(download).toBeEnabled();
+  await page.getByRole('button', { name: 'Advanced settings' }).click();
+  const floor = page.getByRole('spinbutton', { name: 'Ball magnet floor thickness', exact: true });
+  await expect(floor).toHaveValue('0.6');
+  await floor.fill('0.4');
+  await expect(page.getByText(/Two 0.4 mm solid mating floors touch: 0.8 mm total plastic gap, no intentional air gap/)).toBeVisible();
+  await expect(download).toBeEnabled();
   // Verify the preview's real visibility control, not just a static illustration.
   await page.getByTitle('Hide Protective slotted cover').click();
   await expect(page.getByTitle('Show Protective slotted cover')).toBeVisible();

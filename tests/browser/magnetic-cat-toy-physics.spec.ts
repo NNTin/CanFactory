@@ -77,7 +77,7 @@ test('simulates the fully closed toy: drag the composite ball, switch individual
   // The halves and both closure magnets move together, while field/cover stay fixed and off grid positions stay empty.
   const moving = await poses(page);
   expect(distance(moving['ball-upper'] ?? [], moving['ball-lower'] ?? [])).toBeCloseTo(2 * TOY.pinLength, 2);
-  expect(distance(moving['ball-magnet-upper'] ?? [], moving['ball-magnet-lower'] ?? [])).toBeCloseTo(2 * l.ballSeatDepth, 2);
+  expect(distance(moving['ball-magnet-upper'] ?? [], moving['ball-magnet-lower'] ?? [])).toBeCloseTo(2 * DEFAULT_MAGNETIC_CAT_TOY.ballMagnetFloorThickness, 2);
   expect(moving['cover']?.[2]).toBeCloseTo(l.top, 2);
   expect(moving['field']?.[2]).toBeCloseTo(l.fieldTop, 2);
   await physics.getByRole('button', { name: 'Upright', exact: true }).click();

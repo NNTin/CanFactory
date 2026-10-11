@@ -15,7 +15,7 @@ describe('original magnetic cat toy', () => {
     expect(model.controls.map(c => c.key).sort()).toEqual(Object.keys(P).sort());
     expect(validateParameters(model, P)).toEqual([]);
     expect(Value.Check(RenderRequestSchema, { modelId: model.id, modelVersion: '1', parameters: P })).toBe(true);
-    for (const overrides of [{ ballDiameter: '36' }, { extra: true }, { gridMagnet: 'generic-magnet' }, { ballMagnet: 'supermagnete-q-05-05-02-n' }, { clearance: 0.1 }, { layout: 'corners' }, { socketSpacing: 19 }, { socketSpacing: 61 }, { detentEngage: 0.15 }, { ballShellThickness: 1.4 }, { ballShellThickness: 2.6 }])
+    for (const overrides of [{ ballDiameter: '36' }, { extra: true }, { gridMagnet: 'generic-magnet' }, { ballMagnet: 'supermagnete-q-05-05-02-n' }, { clearance: 0.1 }, { layout: 'corners' }, { socketSpacing: 19 }, { socketSpacing: 61 }, { detentEngage: 0.15 }, { ballShellThickness: 1.4 }, { ballShellThickness: 2.6 }, { ballGripHoleDiameter: 5.5 }, { ballGripHoleDiameter: 12.5 }, { ballMagnetFloorThickness: 0.2 }, { ballMagnetFloorThickness: 1.2 }])
       expect(validateParameters(model, { ...P, ...overrides })).not.toEqual([]);
     expect(Value.Check(RenderRequestSchema, { modelId: model.id, modelVersion: '2', parameters: P })).toBe(false);
   });
@@ -83,18 +83,25 @@ describe('original magnetic cat toy', () => {
     expect(controlShown(control, P)).toBe(false);
     expect(controlShown(control, { ...P, magnetPlacement: 'eccentric' })).toBe(true);
   });
-  it('uses a hollow shell with removable, mechanically retained exposed magnets, not a bonded solid ball', () => {
+  it('rear-loads magnets against continuous thin touching floors, with configurable larger grip holes', () => {
     expect(model.controls.some(c => c.key === 'detentEngage')).toBe(false);
     const half = model.parts.find(part => part.id === 'ball-lower'); assert.ok(half);
+    expect(P.ballGripHoleDiameter).toBe(8);
+    expect(P.ballMagnetFloorThickness).toBe(0.6);
     for (const ballMagnet of TOY_BALL_MAGNETS) {
       const l = magneticCatToyLayout({ ...P, ballMagnet });
-      expect(TOY.gripHole).toBeLessThan(l.ball.minDiameter);
-      expect(TOY.ballPushHole).toBeLessThan(l.ball.minDiameter);
-      expect(l.ballSeatDepth).toBeCloseTo(TOY.ballLip + l.ball.thickness);
+      expect(l.gripHoles).toHaveLength(7);
+      expect(l.gripWeb).toBeGreaterThanOrEqual(1.2);
+      expect(l.ballSeatDepth).toBeCloseTo(P.ballMagnetFloorThickness + l.ball.thickness + TOY.ballLip);
       expect(l.offset + l.ballBossRadius).toBeLessThan(l.radius - P.ballShellThickness);
-      expect(l.ballSeatDepth + TOY.ballSeatFloor).toBeLessThan(l.radius - P.ballShellThickness);
-      expect(Object.fromEntries(scadDefines(model, half, { ...P, ballMagnet }))['BALL_SHELL']).toBe(String(P.ballShellThickness));
+      expect(l.ballSeatDepth).toBeLessThan(l.radius - P.ballShellThickness);
+      const defines = Object.fromEntries(scadDefines(model, half, { ...P, ballMagnet, ballGripHoleDiameter: 10, ballMagnetFloorThickness: 0.4 }));
+      expect(defines['BALL_SHELL']).toBe(String(P.ballShellThickness));
+      expect(defines['GRIP_HOLE']).toBe('10');
+      expect(defines['BALL_FLOOR']).toBe('0.4');
     }
+    expect(validateParameters(model, { ...P, ballDiameter: 28, slotWidth: 16, ballGripHoleDiameter: 12 })).toContainEqual(expect.objectContaining({ field: 'ballGripHoleDiameter' }));
+    expect(validateParameters(model, { ...P, ballDiameter: 44, ballGripHoleDiameter: 12 })).toEqual([]);
   });
   it('bounds long paw slots by sphere width, leaves webs and rejects unsafe diameter/width combinations', () => {
     for (const ballDiameter of [28, 36, 44]) for (const width of [120, 200]) {
@@ -108,8 +115,8 @@ describe('original magnetic cat toy', () => {
     expect(validateParameters(model, { ...P, ballDiameter: 28, slotWidth: 18 })).toContainEqual(expect.objectContaining({ field: 'slotWidth' }));
   });
   it('animates bare magnet insertion, field, ball closure/placement, then cover and fasteners', () => {
-    for (const magnetPlacement of ['centred', 'eccentric'] as const) {
-      const p = { ...P, magnetPlacement }, l = magneticCatToyLayout(p), a = resolveAssembly(model, model.assembly, p); assert.ok(a);
+    for (const ballMagnetFloorThickness of [0.4, 0.6, 1]) for (const magnetPlacement of ['centred', 'eccentric'] as const) {
+      const p = { ...P, magnetPlacement, ballMagnetFloorThickness }, l = magneticCatToyLayout(p), a = resolveAssembly(model, model.assembly, p); assert.ok(a);
       expect(a.steps).toHaveLength(5);
       expect(a.references).toHaveLength(l.sockets.length + 10);
       expect(Object.keys(a.poses)).toHaveLength(l.sockets.length + 15);
@@ -118,9 +125,14 @@ describe('original magnetic cat toy', () => {
       expect(a.steps[3]?.parts).toContain('ball-magnet-lower');
       expect(a.steps[4]?.parts).toContain('cover-screw-1');
       expect(a.poses['cover-screw-1']?.position[2]).toBe(0); // 6 mm base + 2 mm flange − 8 mm shaft: full nut engagement, flush tip.
-      expect(a.poses['ball-magnet-lower']?.position).toEqual([l.offset, 0, l.fieldTop + l.radius - l.ballSeatDepth]);
-      expect(a.poses['ball-magnet-upper']?.position).toEqual([l.offset, 0, l.fieldTop + l.radius + l.ballSeatDepth]);
-      expect(a.poses['ball-magnet-upper']?.rotation).toEqual([180, 0, 0]);
+      expect(a.poses['ball-magnet-lower']?.position).toEqual([l.offset, 0, l.fieldTop + l.radius - p.ballMagnetFloorThickness]);
+      expect(a.poses['ball-magnet-upper']?.position).toEqual([l.offset, 0, l.fieldTop + l.radius + p.ballMagnetFloorThickness]);
+      expect(a.poses['ball-magnet-lower']?.rotation).toEqual([180, 0, 0]);
+      expect(a.poses['ball-magnet-upper']?.rotation).toBeUndefined();
+      expect((a.poses['ball-lower']?.position[2] ?? 0) - TOY.pinLength).toBe(l.fieldTop + l.radius);
+      expect((a.poses['ball-upper']?.position[2] ?? 0) + TOY.pinLength).toBe(l.fieldTop + l.radius);
+      // Pocket fronts sit at ±floor thickness: their printed faces coincide at the equator.
+      expect((a.poses['ball-magnet-upper']?.position[2] ?? 0) - (a.poses['ball-magnet-lower']?.position[2] ?? 0)).toBeCloseTo(2 * p.ballMagnetFloorThickness);
       expect(a.poses['grid-magnet-1']?.position[2]).toBe(TOY.floor);
       expect((a.poses['grid-magnet-1']?.position[2] ?? 0) + l.grid.nominalThickness).toBe(l.socketTop);
       expect(Object.keys(a.poses).some(id => id.startsWith('holder'))).toBe(false);
@@ -142,12 +154,13 @@ describe('original magnetic cat toy', () => {
   });
   it('keeps fixed SCAD dimensions synchronized with the TypeScript layout', () => {
     const scad = readFileSync(new URL('../../../models/magnetic-cat-toy/generator.scad', import.meta.url), 'utf8');
-    for (const [key, value] of Object.entries({ FLOOR: TOY.floor, SOCKET_WALL: TOY.socketWall, EDGE_MARGIN: TOY.edgeMargin, PUSH_HOLE: TOY.pushHole, RIM: TOY.rim, MOUNT_BASE: TOY.mountBase, PLAY: TOY.pocketPlay, AIR: TOY.air, WALL: TOY.wall, ROOF: TOY.roof, FIELD_LIP: TOY.fieldLip, FIELD_RETAIN_GAP: TOY.fieldRetainGap, PIN: TOY.pin, PIN_L: TOY.pinLength, BALL_LIP: TOY.ballLip, BALL_SEAT_FLOOR: TOY.ballSeatFloor, BALL_SEAT_WALL: TOY.ballSeatWall, BALL_PUSH_HOLE: TOY.ballPushHole, GRIP_HOLE: TOY.gripHole, SPOKE_W: TOY.spokeWidth }))
+    for (const [key, value] of Object.entries({ FLOOR: TOY.floor, SOCKET_WALL: TOY.socketWall, EDGE_MARGIN: TOY.edgeMargin, PUSH_HOLE: TOY.pushHole, RIM: TOY.rim, MOUNT_BASE: TOY.mountBase, PLAY: TOY.pocketPlay, AIR: TOY.air, WALL: TOY.wall, ROOF: TOY.roof, FIELD_LIP: TOY.fieldLip, FIELD_RETAIN_GAP: TOY.fieldRetainGap, PIN: TOY.pin, PIN_L: TOY.pinLength, BALL_LIP: TOY.ballLip, BALL_SEAT_WALL: TOY.ballSeatWall, BALL_REMOVAL_NOTCH: TOY.ballRemovalNotch, GRIP_LAT: TOY.gripLatitude, GRIP_COUNT: TOY.gripCount, SPOKE_W: TOY.spokeWidth }))
       expect(scad).toContain(`${key} = ${value};`);
     expect(scad).not.toContain('DETENT_ENGAGE');
     expect(model.printNotes).toMatch(/100% infill/);
     expect(model.printNotes).toMatch(/do not glue the seam/);
-    expect(model.printNotes).toMatch(/2.5 mm external rear hole/);
+    expect(model.printNotes).toMatch(/mating floors unbroken/);
+    expect(scad).not.toContain('BALL_PUSH_HOLE');
     expect(model.parts.map(p => p.id)).toEqual(['grid', 'field', 'ball-lower', 'ball-upper', 'cover']);
     expect(scad).not.toMatch(/module (holder|cap)\(/);
   });
@@ -164,8 +177,8 @@ it('provides a fully assembled magnetic mechanism with switchable real grid loca
     expect(spec.bodies.find(b => b.id === 'ball-upper')?.joint?.parent).toBe('ball-lower');
     for (const half of ['lower', 'upper']) expect(spec.bodies.find(b => b.id === `ball-magnet-${half}`)?.mass).toBe(0.64);
     expect(spec.bodies.find(b => b.id === 'ball-magnet-upper')?.joint?.parent).toBe('ball-upper');
-    expect(spec.magnets?.at(-2)?.moment[2]).toBeGreaterThan(0);
-    expect(spec.magnets?.at(-1)?.moment[2]).toBeLessThan(0); // upper reference is rotated: global moments align
+    expect(spec.magnets?.at(-2)?.moment[2]).toBeLessThan(0);
+    expect(spec.magnets?.at(-1)?.moment[2]).toBeGreaterThan(0); // lower reference is rotated: global moments align
     expect(spec.magnets).toHaveLength(l.sockets.length + 2);
     expect(spec.magnets?.filter(m => m.switchable).map(m => m.id)).toEqual(l.sockets.map((_, i) => `grid-magnet-${i + 1}`));
     expect(spec.magnets?.at(-1)?.switchable).toBeUndefined();

@@ -22,8 +22,8 @@ export function MagneticCatToyIllustration() {
     <g data-layer="ball">
       <circle cx={bx} cy={by} r={l.radius * 0.66} fill="#efb95f" stroke="#976936" />
       <path d={`M${bx - l.radius * 0.66} ${by} Q${bx} ${by + 7} ${bx + l.radius * 0.66} ${by}`} fill="none" stroke="#b47f42" />
-      {[-1, 1].flatMap(x => [-1, 1].map(y => <ellipse key={`${x}:${y}`} cx={bx + x * 5} cy={by + y * 5} rx="2" ry="2.6" fill="#716542" />))}
-      <path d={`M${bx - 2} ${by - 1}h4m-4 2h4`} stroke="#626c79" strokeWidth="1.5" />
+      {[-1, 1].flatMap(x => [-1, 1].map(y => <ellipse key={`${x}:${y}`} cx={bx + x * 5} cy={by + y * 5} rx={p.ballGripHoleDiameter * 0.36} ry={p.ballGripHoleDiameter * 0.4} fill="#716542" />))}
+      <path d={`M${bx - 2} ${by - 2}h4m-4 4h4`} stroke="#626c79" strokeWidth="1.5" /><path d={`M${bx - 3} ${by}h6`} stroke="#b47f42" strokeWidth="1.5" />
     </g>
     <g data-layer="cover">
       {/* Raised front walls make the containment volume visible without hiding the field and ball. */}

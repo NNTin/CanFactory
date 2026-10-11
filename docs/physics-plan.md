@@ -351,6 +351,7 @@ its two hollow perforated shell masses and both sourced magnet masses form one
 rigid assembly, and its roof retains actual slot openings through authored
 convex pieces. The magnetic closure is **assumed closed**, not simulated or
 strength-certified: no seam separation, magnet pull-out or claw/hole contact.
-Both closure dipoles act on grid magnets, but their internal welded pair is
+Both closure dipoles sit behind the configurable thin contacting floors and
+act on grid magnets, but their internal welded pair is
 skipped. Near-field closure strength requires a physical test, not this softened
 point-dipole approximation.

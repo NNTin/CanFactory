@@ -11,6 +11,8 @@ BALL_MAGNET_D = 6.1;
 BALL_MAGNET_T = 3.1;
 BALL_MAGNET_MIN_D = 5.9;
 BALL_SHELL = 2;
+GRIP_HOLE = 8;
+BALL_FLOOR = 0.6;
 FIELD_T = 1.2;
 BALL_D = 36;
 PLACEMENT = "centred";
@@ -38,10 +40,10 @@ FIELD_RETAIN_GAP = 0.2;
 PIN = 1;
 PIN_L = 1.6;
 BALL_LIP = 0.4;
-BALL_SEAT_FLOOR = 1.2;
 BALL_SEAT_WALL = 1.2;
-BALL_PUSH_HOLE = 2.5;
-GRIP_HOLE = 4;
+BALL_REMOVAL_NOTCH = 3.2;
+GRIP_LAT = 35;
+GRIP_COUNT = 6;
 SPOKE_W = 2;
 COLUMNS = floor((WIDTH-2*EDGE_MARGIN)/SOCKET_SPACING)+1;
 ROWS = floor((LENGTH-2*EDGE_MARGIN)/SOCKET_SPACING)+1;
@@ -58,6 +60,9 @@ SLOT_L = min(3 * BALL_D, LENGTH - 24);
 SLOTS = floor((WIDTH - 24 + 4) / (SLOT_W + 4));
 SLOT_PITCH = (WIDTH - 24 - SLOT_W) / (SLOTS - 1);
 
+GRIP_ANGLE = acos(pow(sin(GRIP_LAT),2)+pow(cos(GRIP_LAT),2)*cos(360/GRIP_COUNT));
+GRIP_WEB = (R-BALL_SHELL)*(GRIP_ANGLE-2*asin(GRIP_HOLE/(2*(R-BALL_SHELL))))*PI/180;
+assert(GRIP_WEB >= 1.2-0.000001, "Grip holes need at least 1.2 mm inner-shell web");
 assert(SLOT_W <= 0.6 * BALL_D, "Slot width exceeds retention rule");
 assert(SOCKET_SPACING >= SOCKET_D+2*SOCKET_WALL+2, "Socket walls need at least 2 mm between them");
 assert(COLUMNS >= 1 && ROWS >= 1, "Socket pitch does not fit this tray");
@@ -104,7 +109,7 @@ module grid() {
 }
 // Identical hollow halves. Print equator down on short supports under rim/pin seats and central spokes.
 // Straight, lead-in alignment pins reuse the clearance-fit pattern, but do NOT latch the halves: two magnets close them.
-BALL_SEAT = BALL_LIP + BALL_MAGNET_T;
+BALL_SEAT = BALL_FLOOR + BALL_MAGNET_T + BALL_LIP;
 BOSS_R = (BALL_MAGNET_D+PLAY)/2 + BALL_SEAT_WALL;
 PIN_R = R-BALL_SHELL-1;
 module hemisphere(radius) {
@@ -121,12 +126,12 @@ module ball_core() {
             // Four slender spokes connect a central/eccentric magnet seat to the shell, not a solid hemisphere.
             intersection() {
                 hemisphere(R);
-                translate([0,0,BALL_SEAT]) linear_extrude(BALL_SEAT_FLOOR) union() {
+                linear_extrude(BALL_FLOOR) union() {
                     translate([-R,-SPOKE_W/2]) square([2*R,SPOKE_W]);
                     translate([MX-SPOKE_W/2,-R]) square([SPOKE_W,2*R]);
                 }
             }
-            translate([MX,0,0]) cylinder(r=BOSS_R,h=BALL_SEAT+BALL_SEAT_FLOOR);
+            translate([MX,0,0]) cylinder(r=BOSS_R,h=BALL_SEAT);
             // Locally supported alignment seats at the equator, balanced in threefold mirrored pairs.
             for(a=[30,90,150,210,270,330])
                 translate([PIN_R*cos(a),PIN_R*sin(a),0]) cylinder(r=PIN+CLEARANCE+0.6,h=3);
@@ -135,18 +140,25 @@ module ball_core() {
                 translate([0,0,0.3]) cylinder(r=PIN,h=PIN_L-0.3+EPS);
             }
         }
-        // Open face + 45-degree retaining lip. Four radial reliefs let the rim flex during insertion/removal.
-        translate([MX,0,-EPS]) cylinder(d1=BALL_MAGNET_MIN_D-0.3,d2=BALL_MAGNET_D+PLAY,h=BALL_LIP+EPS);
-        translate([MX,0,BALL_LIP]) cylinder(d=BALL_MAGNET_D+PLAY,h=BALL_MAGNET_T);
-        for(a=[0,90,180,270]) translate([MX,0,-EPS]) rotate([0,0,a])
-            translate([(BALL_MAGNET_D+PLAY)/2-0.1,-0.3,0]) cube([BALL_SEAT_WALL+0.2,0.6,BALL_SEAT+EPS]);
-        // Straight tool access from the outside, through shell and seat floor, after separating the halves.
-        translate([MX,0,BALL_SEAT-EPS]) cylinder(d=BALL_PUSH_HOLE,h=R+EPS);
+        // Load from the hollow/rear side, NOT the equator. Attraction bears on a continuous floor.
+        // The two seam-facing floors touch; no ejector bore or front opening exposes the opposed faces.
+        translate([MX,0,BALL_FLOOR]) cylinder(d=BALL_MAGNET_D+PLAY,h=BALL_MAGNET_T+EPS);
+        translate([MX,0,BALL_FLOOR+BALL_MAGNET_T])
+            cylinder(d1=BALL_MAGNET_D+PLAY,d2=BALL_MAGNET_MIN_D-0.3,h=BALL_LIP+EPS);
+        for(a=[0,90,180,270]) translate([MX,0,BALL_FLOOR+EPS]) rotate([0,0,a])
+            translate([(BALL_MAGNET_D+PLAY)/2-0.1,-0.3,0]) cube([BALL_SEAT_WALL+0.2,0.6,BALL_MAGNET_T+BALL_LIP]);
+        // Rear finger/tool scallops expose disc edges for withdrawal without puncturing the mating floor.
+        for(side=[-1,1]) translate([MX+side*((BALL_MAGNET_D+PLAY)/2+BALL_SEAT_WALL/2),0,BALL_FLOOR+0.2])
+            cylinder(d=BALL_REMOVAL_NOTCH,h=BALL_MAGNET_T+BALL_LIP+EPS);
         for(a=[-30,-150,-270]) translate([PIN_R*cos(a),PIN_R*sin(a),-EPS])
             cylinder(r=PIN+CLEARANCE,h=PIN_L+CLEARANCE+EPS);
-        // Twelve radial grip windows per half, smaller than every supported ball magnet.
-        for(lat=[35,65],a=[30:60:330]) rotate([0,90-lat,a])
-            translate([0,0,R-BALL_SHELL-1]) cylinder(d=GRIP_HOLE,h=BALL_SHELL+2);
+        // Six evenly spaced grip holes plus a pole hole. Diameter is user-configurable.
+        // Start at the inner sphere's bore edge, so even large holes pass fully through the shell.
+        for(hole=concat([for(i=[0:GRIP_COUNT-1]) [GRIP_LAT,i*360/GRIP_COUNT]],[[90,0]]))
+            rotate([0,90-hole[0],hole[1]])
+                translate([0,0,sqrt(pow(R-BALL_SHELL,2)-pow(GRIP_HOLE/2,2))-EPS])
+                    cylinder(d=GRIP_HOLE,h=R+EPS);
+
     }
 }
 module ball() { translate([0,0,PIN_L]) ball_core(); }

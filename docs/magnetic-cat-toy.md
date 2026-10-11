@@ -1,334 +1,262 @@
 # Magnetic cat toy
 
-An original hand-authored CC BY 4.0 design. Open `#/models/magnetic-cat-toy`. The SVG card shows all four functional
-layers; the live STL assembly slider demonstrates placing bare magnets directly
-in sockets, adding the playing field, closing/placing the ball, then lowering
-the cover with its screws. Download ZIP contains **5 prints**, not magnets,
-screws or nuts. There are no printed magnet holders or caps.
+Original hand-authored CC BY 4.0 design. Open `#/models/magnetic-cat-toy`.
+The SVG card shows four functional layers; live assembly demonstrates bare
+magnets into sockets → thin field → ball closure → ball placement → cover and
+screws. The ZIP contains **5 prints**: tray, field, two identical hollow ball
+halves and cover. Magnets and fasteners are purchased library parts.
 
 ## Bottom to top
 
-1. **Modular magnet socket tray**: a 1.2 mm connected floor, pitch-configurable open-topped
-   circular sockets (default 5 × 4 at 30 mm centre spacing) and a narrow perimeter rim. Each socket has a
-   1.2 mm radial wall and directly holds a sourced disc, with its **top face
-   exposed and nominally flush with the socket top**. No crown, separate holder,
-   cap, locating peg or raised cross-grid lines. The socket depth is the chosen
-   product's **nominal thickness**; diameter is its greatest manufacturer size
-   plus 0.2 mm diametral play. Remove the cover and field and move the **bare
-   magnets**, not printed holders, to whichever sockets you choose. No adhesive
-   on the grid magnets. Each socket has a **3 mm underside push-out hole**;
-   use a blunt nonmagnetic tool to remove a disc without damaging its coating.
-   `Socket spacing` changes the printed array, not the magnet placement.
-   Reposition only away from animals and children; magnets are loose during
-   maintenance. The secured field, not an individual enclosure, retains them
-   during play. There is no powered movement mechanism.
-2. **Thin playing field**: an uninterrupted 1.2 mm sheet by default. Its bed
-   face becomes the upper rolling surface. No texture, relief, screw holes or
-   joins in the playing area. A 5 mm perimeter rim supports the sheet 0.2 mm
-   above the flush magnet faces; socket rims limit downward flex after that
-   gap. No ribs are printed between sockets. Range 1–2 mm; the unsupported
-   spans and thin tray need physical paw-load/flex testing. The default
-   grid-magnet-to-field-top separation is **1.4 mm**: only 0.2 mm air plus the
-   1.2 mm sheet, with no printed crown or cap in the magnetic path. Source
-   magnet thickness changes socket/cover heights automatically, not this gap.
-3. **Magnetic ball**: two identical **hollow, perforated hemispheres**, with one
-   sourced disc retained in each half. Their exposed internal faces attract
-   across the equator and hold the halves together; **no seam glue or locking
-   detent**. Six straight pin/socket seats only align the halves. Select
-   `Centred` (zero radial offset) or `Eccentric` (default 6 mm, adjustable 2–8 mm).
-   Both seats move together. Twelve radial **4 mm round grip holes per half**
-   lighten the shell and offer purchase; each magnet has a **2.5 mm rear
-   push-out channel** from the exterior through its bearing floor. Shell wall
-   thickness is adjustable **1.6–2.4 mm**, default 2 mm. Changing placement
-   requires printing new halves, but magnets can be removed and reused.
-4. **Protective cover**: a full perimeter skirt and 3 mm slotted roof with
-   3 mm clearance over the ball. Four external ears take M3 × 8 screws into
-   underside captive hex nuts. The cover surrounds and captures the playing
-   field, grid magnets and ball. An internal 3 mm lip overlaps the field edges
-   by 2 mm and limits upward sheet travel to 0.2 mm. Its 45° ramp prints without
-   internal supports roof-down. Solid side walls offer no secondary exit.
+1. **Magnet socket tray**: a connected 1.2 mm floor, open-topped direct sockets,
+   narrow perimeter rim and four screw ears. Each sourced disc sits **exposed
+   and nominally flush** at the socket top. No holder/cap prints, locating pegs
+   or raised cross-grid lines. Move bare magnets between sockets after removing
+   field and cover. Every socket has a **3 mm underside push-out hole**.
+2. **Playing field**: an uninterrupted smooth sheet, **1.2 mm** by default,
+   adjustable 1–2 mm. Its bed face becomes the rolling surface. The perimeter
+   rim holds it **0.2 mm above the magnets**; socket rims limit downward flex.
+   No intermediate ribs. The default magnet-to-field-top gap is **1.4 mm**.
+3. **Hollow magnetic ball**: two perforated hemispheres, **2 mm shell** by
+   default (1.6–2.4 mm). **Fourteen 8 mm grip holes** by default, with diameter
+   adjustable **6–12 mm**, subject to the web-clearance rule below. One sourced
+   disc per half loads from the **rear/interior side** of its socket, not the
+   seam. Two **continuous 0.6 mm printed floors** face one another and **touch**
+   when assembled. Magnets attract through these floors; they cannot jump
+   towards each other out of their seats. Straight pins align, not latch, the
+   halves. No seam glue or separate magnet caps.
+4. **Slotted cover**: a full perimeter skirt and 3 mm roof, 3 mm above the ball.
+   Four M3 × 8 screws into captive underside nuts secure it. Internal tapered
+   lips overlap field edges by 2 mm, limiting lift to 0.2 mm. The cover retains
+   the **closed intact ball**; it is not independent containment of loose discs
+   or a ball half if the seam opens.
 
-## Deliberate design choices
+## Ball: rear loading and thin contacting floors
 
-### Hollow magnetic closure and mass balance
+The cigarette-case `SNAP_TUNING`, litter-shovel friction/detent implementation
+and printed-screen-hook/corner-bracket fits were inspected first. This ball
+reuses **per-side clearance and lead-ins** for alignment only: three 2 mm pins
+at 30°, 150°, 270° and three mirrored sockets per half. Default clearance is
+0.2 mm per side, adjustable to 0.4 mm. Pins are 1.6 mm long and sockets are
+slightly deeper, so they do not bottom out before the mating faces touch.
+One identical half flips 180° about X.
 
-The cigarette-case `SNAP_TUNING`, litter-shovel friction/detent implementation,
-and printed-screen-hook/corner-bracket clearance conventions were inspected
-first. The owner-requested magnetic closure now uses their **clearance-fit**
-principle for alignment only, not a latching seam. Three 2 mm-diameter pins at
-30°, 150°, 270° mate with the other half's three mirrored sockets; 0.2 mm
-per-side clearance is the default, tunable to 0.4 mm. Pins are 1.6 mm long with
-45° lead-ins. The halves are identical and one flips 180° about X when closing.
+### Load path and magnetic gap
 
-Each disc sits against its own 1.2 mm annular bearing floor, held by a 1.2 mm
-socket wall and a **0.4 mm-high tapered retaining lip**. The lip's exposed
-opening is the sourced **minimum diameter minus 0.3 mm**, while its pocket uses
-the sourced **maximum diameter plus 0.2 mm**. Four 0.6 mm radial relief cuts
-let the rim flex; the floor remains connected to the shell by four 2 mm-wide,
-1.2 mm-thick spokes. There is **no separate magnet cap or closure fastener**.
-When seated against their floors, default S-06-03-N faces are nominally 0.5 mm
-behind their respective equators (1 mm face-to-face gap), leaving central faces uncovered
-while separating brittle coated magnets. Published thickness tolerances give
-0.8–1.2 mm floor-seated gap for that product; attraction may take up the pocket's
-axial play against the lips. Check opposite facing poles **before** insertion.
-These are not measured retention or holding-force values.
+Each socket has its **closed floor at the equator** and its insertion opening
+facing away from the seam, into the hollow half. Insert the magnet from that
+rear side. With opposite facing poles, attraction presses the discs **into**
+their bearing floors, transmitting the closing force to the printed halves.
+It does not pull them towards the rear opening or rely on a small retaining
+lip to carry the seam load. The joint-facing magnet faces are fully covered,
+not directly exposed to each other.
 
-The two opposed seats are mirrored axially about the sphere centre. Identical
-solid-printed walls/spokes, symmetric hole patterns and matching magnets balance
-the centred pair's nominal centre of mass. The magnets themselves sit just to
-either side of the centre, rather than one magnet occupying the centre. The
-eccentric option moves **both seats radially**, shifting mass and magnetic-force
-application points for a wobble. Validation keeps the complete boss inside the
-shell with 0.5 mm clearance and away from alignment seats. Print and source
-tolerances, support cleanup and layer anisotropy still affect physical balance.
-At default dimensions, native SCAD mesh volume for both printed halves drops
-from **24,224 to 7,426 mm³** versus the prior solid ball: **69.3% less printed
-material**, excluding supports. At the preview's assumed 1.27 g/cm³ PETG density,
-this is about 9.43 g printed plus two sourced 0.64 g discs, or **10.71 g total**
-(vs 31.40 g for the previous solid ball with one disc). These are model-derived
-estimates, not weighed prints.
+`Ball magnet floor thickness` is an advanced control, **0.6 mm** by default,
+range **0.4–1 mm** in 0.2 mm steps. The two flat floor faces and equatorial rims
+meet at the same split plane: **no deliberate air gap, recess or intervening
+cap**. With discs seated against the floors, face separation is exactly twice
+floor thickness: **1.2 mm default**, range 0.8–2 mm. This gap does not depend on
+magnet thickness tolerance. Keep both floors flat and fully dense; 0.6 mm is
+three 0.2 mm layers. Do not sand them thinner or leave support residue between
+them. Thinner floors reduce magnetic separation but also reduce durability;
+choose whole layers and physically test them. Geometry alone cannot guarantee
+holding force, floor strength or a safe pet toy.
 
-Grip holes are at latitudes 35° and 65°, six per ring; the **24 holes are 4 mm**
-across, below the smallest supported ball magnet's 5.9 mm minimum diameter.
-The smaller S-04-02-N option is intentionally removed for this reason; S-06-02-N
-is the lightest selectable disc. Each **2.5 mm rear hole** lines up with the
-magnet seat even in eccentric mode. After separating the halves, insert a blunt
-nonmagnetic tool from the outside and push through the floor's bore, releasing
-the disc past the lip towards the open equator. Capture it; do not pry its coating.
+The sourced **maximum diameter + 0.2 mm** sizes the pocket; sourced maximum
+thickness sizes its depth. A 1.2 mm wall, four relief cuts and a **rear** tapered
+0.4 mm lip (opening: minimum sourced diameter − 0.3 mm) retain each disc during
+handling. These rear features do not carry the attraction load. Four 2 mm-wide
+spokes, as thick as the floor, join the boss to the shell. No loose mount insert.
+Check polarity before insertion and test that discs cannot rattle or withdraw
+unintentionally, including when the halves are separated.
 
-**Physically test the closure before animal use.** Each disc must remain in its
-own socket when the halves pull apart; test individual seat retention against
-magnet-pair attraction, repeated opening/removal and realistic paw impacts. The
-magnetic seam must not open during play. Do not infer disc-to-disc holding force
-from a manufacturer's steel-plate pull specification. If the fit is loose or a
-lip cracks, retire/reprint the half, not glue the ball shut to mask the failure.
-Never leave magnets loose during maintenance. The holes help grip but do not
-certify claw comfort: round edges, inspect for entrapment and stop if claws catch.
+### Removal without puncturing the floors
 
-### Repositioning
+Two opposed **3.2 mm rear finger/tool scallops** expose each disc's edges for
+withdrawal. Separate the ball away from pets/children, reach into the open half,
+and grip the edges with a blunt nonmagnetic tool through these cutouts. Capture
+the magnet and gently withdraw it past the relieved rear lip. Do not pry against
+its coating, puncture the thin floor, or use damaged lips.
 
-The owner-directed simplified base retains only material with a purpose: a
-thin connected floor, direct socket walls, the field-supporting perimeter rim
-and four screw ears. The original full-height slab, raised grid lines and eight
-holder/cap prints are removed. A thin floor keeps the socket array one printable
-part rather than an array of loose rings. The rim supports the sheet without
-reinstating a cross-grid. This saves material but gives up the independently
-sealed holders and stiff intermediate ribs; field flex must be tested rather
-than assumed safe. The part count falls from 13 to 5. Increasing socket density
-adds only socket walls, not a full-height slab or separate holders.
+This deliberately replaces the previous through-floor push-out channel:
+**continuous mating floors and rear removal access**, rather than exposing the
+opposed faces through ejector bores. The tray's 3 mm underside ejector holes
+are unchanged. Access must be physically fit-tested with the intended tool;
+small rear seats may need nonmagnetic tweezers rather than fingers.
 
-**Socket spacing** is a square-array centre-to-centre pitch, adjustable from
-20 to 60 mm (default 30 mm). For each axis, the count is
-`floor((outer size − 40 mm) / pitch) + 1`; the array is centred, with at least
-20 mm from outermost socket centres to the tray edge. Default 160 × 140 mm gives
-5 × 4 sockets; supported dimensions/pitch allow 2 × 2 through 9 × 9. Even the
-largest selected magnet leaves over 5 mm between socket walls at minimum pitch.
-No corners/zigzag/cluster presets or prescribed magnet quantity remain. The
-assembly preview and BOM illustrate **full capacity**, not a placement
-recommendation or a mandatory purchase quantity. Populate only the sockets you
-want; the simulation lets you try any combination.
+### Centred / eccentric
 
-Each 3 mm ejector hole passes through the 1.2 mm floor at the socket centre,
-leaving an annular bearing seat. The smallest supported disc's minimum diameter
-is 7.9 mm: it cannot pass through the hole, and leaves 2.45 mm of centred
-radial bearing before fit/print tolerances. Print the tray floor-down: the hole is vertical, needs no
-supports and does not cover or recess the exposed magnet face. Remove the cover
-and field before pushing a magnet out from beneath; work away from pets/children
-and capture the released magnet. The small underside hole is not a safety
-closure or access for maintenance during play.
+Both seats are mirrored axially about the sphere centre. `Centred` places the
+pair's midpoint and nominal centre of mass at the sphere centre, using identical
+shells and matching magnets. The two magnets lie just either side of the centre.
+`Eccentric` shifts **both seats radially**: 6 mm default, adjustable 2–8 mm.
+This moves both magnetic application points and mass for a wobble. Validation
+keeps the complete boss inside the shell and clear of alignment seats. Changing
+mode requires new halves, but magnets can be removed and reused. Support cleanup,
+print/source tolerances and layer anisotropy still affect real balance.
 
-Nominal-height sourced discs sit flush, with no plastic covering their faces.
-The source's ±0.1 mm height tolerance can leave actual faces slightly recessed
-or proud; the 0.2 mm field gap clears the maximum height. Measure the delivered
-magnets and dry-fit: correct print/depth error by carefully adjusting the socket
-floor or using a secured nonmagnetic shim if an exactly flush fit is required.
-Do not glue magnets in place or add a crown/cap. The default 3 mm nominal disc
-has at most 0.5 mm lift beneath the retained field (0.2 mm air + 0.1 mm source
-minimum-height tolerance + 0.2 mm field-retainer clearance), far less than its
-2.9 mm minimum height. This also
-holds for both supported 2 mm discs: they cannot clear a socket while the
-intact field stays seated. That geometric check does **not** account for a
-flexed, broken or incorrectly assembled field. Never operate the toy without
-the screwed cover and the field; removing either is a maintenance operation.
+### Larger configurable grip holes
 
-### Slot width versus ball diameter
+Each half has **six radial holes at 35° latitude, 60° apart, plus one pole hole**.
+The lower ring is staggered 30° from the alignment seats. This replaces twelve
+smaller holes per half: fewer, larger holes preserve shell webs and alignment
+seats while improving access. Default diameter is **8 mm**, formerly 4 mm;
+choose **6–12 mm**. The shell remains hollow, not a solid sphere.
 
-Slot length is `min(3 × ball diameter, toy length − 24 mm)`: long enough for broad
-paw access. Slot **width must be ≤ 0.60 × ball diameter** (default 18 mm versus
-36 mm); neighbouring webs are at least 4 mm and roof margins at least 12 mm.
-An intact rigid sphere must present its full diameter to pass through a planar
-opening, irrespective of slot length. Thus width, **not shorter slot length**,
-retains it. The 40% nominal margin allows some print error but is not a claim
-that an arbitrarily flexed/broken cover is safe. Check actual dimensions and
-load-test the roof. **This retention rule applies only to the closed intact ball.**
-If its magnetic seam opens, a hemisphere or released component could escape;
-the slotted cover is not an independent enclosure for every small component.
-Round/sand all paw-contact edges; do not enlarge the slots.
-Slot width does not prove paw comfort or freedom from claw entrapment for every
-cat; inspect with the intended animal and stop if it catches.
+Both TypeScript validation and standalone SCAD require **at least 1.2 mm of
+inner-shell web** between adjacent apertures. For inner radius `r`, nearest
+hole-axis angle `a`, and hole diameter `d`, the web is
+`r × (a − 2 asin(d / (2r)))` (angles in radians). For the six-hole ring,
+`a = acos(sin(35°)² + cos(35°)² cos(60°))`; the pole-to-ring spacing is larger.
+Large holes on a small/thick-walled ball are rejected rather than merged into
+weak slots. Enlarge the ball or reduce hole diameter/wall thickness if needed.
+Round every rim and check claw comfort/entrapment with the intended animal.
 
-## Purchased hardware (parts library)
+**Grip holes are not magnet containment.** Large holes can pass a loose disc.
+The intact seats, floors and tested closure must retain the magnets. Retire
+immediately for a released magnet, cracked floor/lip or seam that opens in play.
 
-- Grid discs, **one per socket you choose to populate** (up to 20 by default):
-  selectable supermagnete **S-08-02-N**, **S-10-03-N** (default), or **S-12-02-N**.
-- **Two matching ball discs**: **S-06-02-N**, **S-06-03-N** (default), or **S-08-03-N**.
-- Four **ISO 4762 M3 × 8** socket-head screws and four **ISO 4032 M3** nuts.
+## Repositionable grid, not layout presets
 
-Both magnet selectors link to the existing `magnet` family. `partDefines` passes
-**greatest manufacturer diameters**, minimum ball diameter for the retaining
-lips, and greatest ball-magnet depth (including
-±0.1 mm tolerance) to every SCAD render. The direct grid seat instead uses the
-**sourced nominal thickness** so the preview disc sits flush; no generic magnet
-dimensions are invented. Standalone SCAD defaults
-are explicitly the same two sourced default products. Product links/data live
-in `packages/contracts/src/parts/magnets.ts`. Block/ring/pot magnets are not
-silently accepted by cylindrical disc pockets.
+`Socket spacing` is a square-array centre pitch, **20–60 mm**, default 30 mm.
+Each axis gets `floor((outer size − 40 mm) / pitch) + 1` sockets, centred with
+at least 20 mm from the outermost centre to the edge. Default 160 × 140 mm gives
+**5 × 4**; supported sizes span **2 × 2 to 9 × 9**. Minimum pitch leaves over
+5 mm between the largest socket walls. No corners/zigzag/cluster presets or
+prescribed quantity. Assembly/BOM show **full capacity**, not a recommended
+layout or mandatory purchase. Populate whichever sockets you choose.
 
-The screw shaft ends flush with the underside; 2 mm cover ears sit on the 6 mm
-mounting ears (only these stay 6 mm high, independent of the thin tray), giving
-the M3 × 8 screw full engagement through the recessed nut. Nut recesses include
-0.3 mm across-flats and 0.2 mm depth allowance.
-Secure nuts during assembly, then inspect all four screws for adequate engagement.
-Do not use longer screws or leave loose spare hardware nearby.
+Direct socket diameter is the product's greatest diameter + 0.2 mm play; depth
+uses its **nominal thickness**. Source ±0.1 mm height tolerance can leave a face
+slightly recessed/proud; the 0.2 mm field gap clears the maximum. Measure and
+dry-fit actual discs, adjusting a seat floor or secured nonmagnetic shim if
+needed for exact flushness. Do not glue grid magnets or add a crown/cap.
 
-## Printing and assembly
+The 3 mm push-out holes leave annular bearing floors under even the smallest
+7.9 mm minimum-diameter grid discs. Remove field/cover, use a blunt nonmagnetic
+tool from underneath and capture each released magnet. The secured field—not
+friction alone—retains them during play: maximum lift clearance is smaller than
+even the thinnest supported disc. This assumes an intact, seated field. Thin
+unsupported sheet spans and tray flex still need physical paw-load tests.
 
-Use PETG, 0.2 mm layers, at least four perimeters. Orientation is already encoded
-in each exported STL:
+## Slots and retention
 
-| Prints | Orientation / supports |
+Slot length is `min(3 × ball diameter, toy length − 24 mm)`, default **108 mm**.
+Width must be **≤60% of ball diameter**, default 18 mm versus a 36 mm ball;
+webs are at least 4 mm, roof margins at least 12 mm. An intact rigid sphere
+cannot pass a planar opening narrower than its diameter, regardless of length.
+Width—not making the slots short—provides retention and broad paw access.
+
+This rule applies only to a **closed intact ball and intact cover**. A separated
+half, released magnet or deformed/broken cover is not covered by it. Load-test
+the roof, inspect actual widths and round paw-contact edges. It does not certify
+paw comfort or freedom from claw entrapment. No unattended use.
+
+## Purchased parts and printing
+
+- Grid: one disc per chosen socket, up to 20 by default; library supermagnete
+  **S-08-02-N**, **S-10-03-N** (default), **S-12-02-N**.
+- Ball: **two matching discs**, **S-06-02-N**, **S-06-03-N** (default), **S-08-03-N**.
+- Cover: four library **ISO 4762 M3 × 8** screws and four **ISO 4032 M3** nuts.
+
+Both selectors reuse the existing `magnet` family. Minimum/maximum dimensions
+and nominal grid thickness come from `packages/contracts/src/parts/magnets.ts`,
+not invented generic sizes. Standalone SCAD defaults name the same sourced
+products. Blocks/rings/pots are not accepted by disc sockets.
+
+Use PETG, 0.2 mm layers, at least four perimeters, solid walls/floors/spokes.
+
+| Print | Orientation / supports |
 | --- | --- |
-| `grid.stl` | Thin floor down. Direct magnet sockets open up, 3 mm ejector holes through the floor; underside nut recess roofs need short bridges. No socket supports, caps or raised cross-grid. |
-| `field.stl` | Flat on a smooth bed, solid skin throughout. The assembly turns the bed face upward. |
-| `ball-lower`, `ball-upper` | Dome up / equator down, pin tips at bed level. **Brim/raft and removable short supports** under the equatorial rim, spokes, seat and dome as needed. Open halves allow cleanup before inserting magnets. Solid shell/spokes (100% infill), not filled hemispheres. Round hole edges and remove all internal support debris. |
-| `cover.stl` | Slotted roof down, walls up; local supports under the external screw ears. No roof bridges or internal support forest. |
+| `grid` | Floor down; vertical ejector bores need no supports. Short bridges over underside nut recesses. |
+| `field` | Smooth bed face down; turn it up in assembly. Fully solid sheet. |
+| `ball-lower`, `ball-upper` | Identical dome-up/equator-down shells, pin tips at bed level. Brim/raft and removable supports under rim, thin floor/spokes and dome as needed. Clean the open halves before inserting magnets; don't damage thin mating floors. |
+| `cover` | Roof down/walls up; local supports under external screw ears. Tapered field-retaining lips need no internal supports. |
 
-1. Dry-fit the bare sourced discs in the direct sockets and calibrate ball
-   alignment clearance and retaining-lip fit. Measure actual magnet height and check flushness;
-   confirm the field sits flat on its perimeter rim without rocking.
-2. Clean supports from both hollow halves. Check opposite facing magnet poles,
-   press **one disc into each seat**, then close the halves on their alignment
-   pins. No seam adhesive is used. Test the individual lip retention and
-   magnetic seam holding force, including repeated opening and a sample impact.
-   Both rear holes must accept the removal tool when the halves are separated.
-   Keep animals and children away throughout. Grid magnets stay bare/removable.
-3. Fit the nuts in the tray's underside recesses. Place any desired number of bare grid discs in
-   chosen sockets; their top faces remain exposed until the field is fitted.
-   The library references in the preview are purchased parts, not prints.
-4. Add the playing field, smooth bed face up. Place the closed ball on it.
-5. Lower the cover and tighten all four specified screws without cracking the
-   ears. Verify free rolling and ball retention; load-test the field and check
-   that no grid magnet can lift out of its socket or become accessible. Never
-   let an animal near the toy during assembly or magnet repositioning.
+Dry-fit pins and rear magnet seats, test polarity, insert one disc behind each
+floor, then close with floors touching. Physically test floor durability, seam
+pull/impact resistance, individual retention and repeatable removal first.
+Place chosen grid magnets and nuts, fit the smooth field, place the closed ball,
+and secure the cover with all four specified screws. Six-millimetre base ears
+plus 2 mm cover flanges give full M3 × 8 nut engagement and flush tips; do not
+substitute longer screws. Never assemble/reposition magnets with animals nearby,
+and never play without the screwed cover and retained field.
 
 ## Interactive physics
 
-Select **Simulate** to start with all four layers fully assembled and the cover
-secured. The socket tray, bare grid magnets, field, cover and hardware are fixed; only the
-magnetically closed ball moves. Drag either half (or either magnet) to move
-it. The two **hollow rendered shells** and **both sourced magnet masses**
-contribute their own mass and inertia to a composite rigid body. The eccentric seat therefore moves both the
-magnetic force's application point and the centre of mass; this is not a wobble
-animation. A smooth analytic sphere supplies the collision surface, avoiding
-artificial faceted rolling. Full-density PETG walls/spokes and each library magnet's listed mass are
-assumed; empty interiors and through-holes reduce the mesh-derived printed
-mass. Print porosity, anisotropy, surface friction changes and wear are omitted.
+**Simulate** starts fully assembled, with every grid socket available but
+initially **empty/off**. Drag either ball half or magnet to move the composite
+ball. The two actual hollow meshes contribute printed PETG mass/inertia; both
+selected product records contribute sourced magnet mass. The two dipoles are
+behind the floors at their real nominal centres. World +Z moments give opposite
+facing poles in the assembly pose; they rotate with the ball.
 
-**The preview assumes the magnetic seam stays closed**, welding the halves and
-magnets together for assembled play. It does **not** simulate halves separating,
-magnet pull-out, claws engaging holes, or the closure's holding strength. The
-smooth sphere collision envelope intentionally ignores grip-hole edge contact.
-A successful simulation is not a closure test. The on/off comparison scenarios
-start eccentric balls with the heavy axis down, avoiding gravitational settling
-being mistaken for a magnetic response. Interactive play still starts in the
-assembly pose and may settle/roll under gravity even with all grid magnets off.
+The top-view **Grid magnets** map labels every socket, coordinates included,
+with +X right/+Y up. On reveals a virtual disc and enables its field; off hides
+it and disables its magnetic interaction. Individual and All on/off switches
+keep time/poses running. Dense maps scroll without overlapping controls. Both
+closure magnets stay on. Restart/gravity preserve choices, reopening restores
+empty, returning to assembly restores full-capacity illustration. These are
+virtual placement controls for permanent magnets, not switchable hardware.
+Visibility never disables collisions: hide the cover to inspect/drag inside.
 
-The **Grid magnets** top-view map shows **every socket**, including unoccupied
-spaces, with +X right, +Y up and millimetre coordinates in each button's
-accessible label/tooltip. Start with **all grid sockets empty/off**. Enable any
-location to place a virtual sourced disc there and apply its forces/torques;
-disable it to remove both the virtual disc mesh and its magnetic interaction.
-Both ball closure magnets stay on. Toggle each independently or use **All on /
-All off**, while the ball continues moving, without resetting time or poses.
-Dense grids retain non-overlapping numbered controls and scroll when necessary.
-
-Restart and reversing gravity retain your placement choices. Leaving/reopening
-simulation restores all-empty; returning to the assembly animation restores the
-full-capacity illustration. Fixed optional magnet bodies remain in the engine
-with no collision shape; their mass cannot affect the moving ball. Pairs of
-fixed magnets are skipped, so they do not generate unnecessary support-reaction
-calculations. This is a virtual placement/field control, not a mechanism to
-extract magnets through the secured field in real life.
-
-These are **virtual switches for experimentation**: the physical toy contains
-permanent magnets, not electromagnets. Hide the cover in Visible parts to inspect
-and drag the ball easily; hiding geometry never disables its collisions. The
-slotted roof and rounded inner walls remain active and retain the intact sphere,
-including with gravity reversed. Slots are not replaced by a solid roof hull. The low field-retaining lip, like
-the external screw ears, lies outside the intact sphere's reachable contact
-region and is omitted from its collision pieces.
+**Closed-ball assumption:** halves and discs are welded for assembled play,
+with mesh-derived mass/inertia and a smooth spherical collision envelope.
+No seam separation, magnet pull-out, floor deformation, claw grip or hole-edge
+contact is simulated. The internal welded pair is excluded from force evaluation,
+not used to validate closure strength. Eccentric comparison scenarios start
+heavy-axis down to isolate fields from gravity settling; interactive play starts
+in the assembly pose and may settle even with all grid magnets off. The authored
+slotted roof remains open in collision geometry and retains the intact sphere
+under reversed gravity. Low field lips/external ears are outside its reach and
+omitted from collision pieces.
 
 ### Magnetic approximation and sources
 
-Each selected library disc is an axial point dipole. Its nominal product
-volume and grade give the estimate `m = Br × volume / μ₀` (A·m²); mass comes
-from the same library product record. `Br` is the midpoint of
-[supermagnete's remanence ranges](https://www.supermagnete.de/eng/physical-magnet-data)
-(read 2026-10-10): N42 1.29–1.32 T, N45 1.32–1.37 T. All grid moments initially
-point +Z and both ball dipoles start world +Z (opposite facing poles);
-the pair's midpoint is centred or radially offset. Each ball moment rotates
-with it, allowing alignment torque and repulsion when reversed. The
-manufacturer's steel-plate pull force is **not** treated as a magnet-to-magnet
-force or fitted to an invented inverse-distance curve.
+Each axial library disc uses `m = Br × nominal volume / μ₀` (A·m²) and its listed
+mass. `Br` is the midpoint of [supermagnete's published remanence ranges](https://www.supermagnete.de/eng/physical-magnet-data)
+(read 2026-10-10): N42 1.29–1.32 T, N45 1.32–1.37 T. Manufacturer steel-plate pull
+force is **not** used as pair force. Equal/opposite forces, `m × B` torques and
+eccentric lever-arm torques come from the shared Node/browser engine.
 
-The shared Node/browser engine applies equal/opposite, position- and
-orientation-dependent forces and `m × B` torques at each step, including the
-lever-arm torque from an eccentric seat. The point-dipole limit follows the
-[Feynman lectures' dipole field](https://www.feynmanlectures.caltech.edu/II_14.html#Ch14-S5)
+The point-dipole limit follows [Feynman's dipole field](https://www.feynmanlectures.caltech.edu/II_14.html#Ch14-S5)
 and [mechanical energy/torque](https://www.feynmanlectures.caltech.edu/II_15.html#Ch15-S1).
-For stability near coincidence we **derive** forces and torques from one
-softened potential:
+For stability, one radius-softened potential supplies consistent derivatives:
 
 `U = 10⁻⁷ [(a·b)/s³ − 3(a·r)(b·r)/s⁵]`,
-`s² = |r|² + radiusA² + radiusB²`, with SI units throughout.
+`s² = |r|² + radiusA² + radiusB²`, in SI units.
 
-This radius-based regularisation is an explicit modelling choice, not
-manufacturer calibration. The dipole approximation is best far from a magnet;
-it does not solve the finite-disc near field, demagnetisation, steel fastener
-attraction, eddy currents or shielding. Results show qualitative interaction,
-not measured forces, guaranteed rolling smoothness, retention strength or pet
-safety. Rigid contact also cannot predict field/slot flex. The ball's internal pair is
-on one welded root and is excluded from pair-force evaluation. In particular,
-this softened point-dipole model is **not suitable for validating the very-close
-closure pair**; that requires a physical pull test (or a calibrated finite-disc
-solver plus separate contact bodies).
+This regularisation is a modelling choice, not calibration. It does not solve
+the finite-disc near field, shielding, steel fasteners, eddy currents or
+material flex. In particular it is **not suitable for predicting very-close
+closure strength**. Use physical pull tests, or a calibrated finite-disc solver
+with separate contact bodies. Actual print porosity, wear and friction differ
+from the full-density PETG approximation. Results are qualitative, not measured
+holding-force or pet-safety guarantees.
 
-## Limits and verification
+## Verification and limits
 
 **Not physically fit-tested or safety-certified. Supervised prototype only.**
-Loose magnets and small hardware are ingestion hazards. Inspect before every
-session; retire immediately for cracks, damaged retaining lips, loose fasteners,
-a seam that opens during play, released magnets, rough holes or enlarged slots. No unattended use; keep children away from loose
-parts. Digital watertightness and collision checks are not a safety certification.
+Loose magnets/hardware are ingestion hazards. Inspect before every session and
+stop immediately for any released magnet, opening seam, damaged floor/lip,
+loose screw, rough hole or enlarged slot. Keep children away from loose parts.
+Digital watertightness and collision checks do not certify safety.
 
-Static magnets bias/retain a **paw-driven** ball; they cannot continuously power
-it. Centre placement keeps the ball magnet about half a ball diameter above the
-sheet, so a thin field alone does not guarantee a strong response. Actual force,
-rolling friction, polarity effects, paw loading, print tolerances and closure life
-need physical prototype testing. The approximate magnetic preview below is not
-a calibrated field solver or animal-interaction simulation. Do not promise
-smooth autonomous motion.
+Static magnets only bias a **paw-driven** ball; no motor or autonomous motion.
+A thin field alone does not guarantee strong control when ball magnets remain
+near its centre. Real force, friction, floor/field flex, polarity, claw comfort
+and long-term closure durability require physical testing.
 
-Automated coverage: contract registration/invalid combinations, sourced sizes,
-socket pitch/count/edge margins, all-socket toggles (including 81-socket density),
-central/eccentric paired seats, hollow interiors, all grip holes, retaining lips,
-ejector-hole/annular-seat probes, material reduction, slot retention rules,
-component topology and material probes in the renderer, real ZIP/browser
-controls and assembly stops. Run:
+Coverage includes sourced dimensions/poses/polarity, adjustable holes and web
+validation, continuous thin floors/contacting seam, rear insertion/removal
+access, actual hollow interiors, material budget, sockets/ejector holes, intact
+alignment seats, through-slots, live assembly, ZIP downloads and browser physics
+with all-socket placement. Commands:
 
 ```sh
 npm run check
 TEST_ONLY=magnetic-cat-toy npm run test:renderer
+TEST_ONLY=magnetic-cat-toy npm run test:sweep
 npm run check:assembly -- magnetic-cat-toy
 npm run check:assembly -- magnetic-cat-toy --parameters '{"magnetPlacement":"eccentric","socketSpacing":40}'
 npm run check:physics -- magnetic-cat-toy

@@ -53,7 +53,7 @@ export function magneticCatToyPhysics(p: MagneticCatToyParameters): PhysicsSpec 
     ...l.sockets.map((_, i): PhysicsMagnet => ({ id: `grid-magnet-${i + 1}`, title: `Grid magnet ${i + 1}`, body: `grid-magnet-${i + 1}`,
       position: [0, 0, l.grid.nominalThickness / 2], moment: [0, 0, grid.moment], softening: grid.radius, switchable: true, enabled: false, hideWhenDisabled: true })),
     ...['lower', 'upper'].map((half): PhysicsMagnet => ({ id: `ball-magnet-${half}`, title: `${half} closure magnet (always on)`, body: `ball-magnet-${half}`,
-      position: [0, 0, l.ball.nominalThickness / 2], moment: [0, 0, half === 'lower' ? ball.moment : -ball.moment], softening: ball.radius })),
+      position: [0, 0, l.ball.nominalThickness / 2], moment: [0, 0, half === 'lower' ? -ball.moment : ball.moment], softening: ball.radius })),
   ];
   const disabled = Object.fromEntries(l.sockets.map((_, i) => [`grid-magnet-${i + 1}`, false]));
   const targetIndex = Math.floor((l.rows - 1) / 2) * l.columns + Math.floor((l.columns - 1) / 2);
@@ -64,13 +64,13 @@ export function magneticCatToyPhysics(p: MagneticCatToyParameters): PhysicsSpec 
   const at = (x: number, y: number) => l.offset ? {
     'ball-lower': { position: [x + TOY.pinLength, y, l.fieldTop + l.radius], rotation: [180, 90, 0] },
     'ball-upper': { position: [x - TOY.pinLength, y, l.fieldTop + l.radius], rotation: [0, 90, 0] },
-    'ball-magnet-lower': { position: [x - l.ballSeatDepth, y, l.fieldTop + l.radius - l.offset], rotation: [0, 90, 0] },
-    'ball-magnet-upper': { position: [x + l.ballSeatDepth, y, l.fieldTop + l.radius - l.offset], rotation: [180, 90, 0] },
+    'ball-magnet-lower': { position: [x - p.ballMagnetFloorThickness, y, l.fieldTop + l.radius - l.offset], rotation: [180, 90, 0] },
+    'ball-magnet-upper': { position: [x + p.ballMagnetFloorThickness, y, l.fieldTop + l.radius - l.offset], rotation: [0, 90, 0] },
   } : {
     'ball-lower': { position: [x, y, l.fieldTop + l.radius + TOY.pinLength], rotation: [180, 0, 0] },
     'ball-upper': { position: [x, y, l.fieldTop + l.radius - TOY.pinLength] },
-    'ball-magnet-lower': { position: [x, y, l.fieldTop + l.radius - l.ballSeatDepth] },
-    'ball-magnet-upper': { position: [x, y, l.fieldTop + l.radius + l.ballSeatDepth], rotation: [180, 0, 0] },
+    'ball-magnet-lower': { position: [x, y, l.fieldTop + l.radius - p.ballMagnetFloorThickness], rotation: [180, 0, 0] },
+    'ball-magnet-upper': { position: [x, y, l.fieldTop + l.radius + p.ballMagnetFloorThickness] },
   };
   return {
     bodies: [
