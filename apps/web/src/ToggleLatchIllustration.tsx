@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { toggleLatchMechanism as M } from '@canfactory/contracts';
+import { DEFAULT_CORNER_LATCH, cornerLatchLayout, toggleLatchMechanism as M } from '@canfactory/contracts';
 
 /** Seconds for one cycle: locked, open (back over centre), unhook, hook, close (over centre), locked. */
 const CYCLE_SECONDS = 7;
-/** Pixels per millimetre, and where the plane's origin (the base plate's bottom edge on the mounting surface) is drawn. */
-const SCALE = 3.4, ORIGIN_X = 128, ORIGIN_Y = 160;
+const CORNER_LAYOUT = cornerLatchLayout(DEFAULT_CORNER_LATCH);
 
 const toPath = (points: M.Vec2[]) => `M${points.map(([x, y]) => `${x} ${y}`).join('L')}Z`;
 const circle = ([x, y]: M.Vec2, r: number) => `M${x + r} ${y}a${r} ${r} 0 1 0 ${-2 * r} 0a${r} ${r} 0 1 0 ${2 * r} 0Z`;
@@ -22,12 +21,6 @@ const PATHS = {
   linkBar: toPath(P.linkBar),
 };
 
-/** The SVG transform that draws a part placed in the plane by `placement`, the plane mirrored so that the base is on the left. */
-function transform({ m, t }: M.Placement2D): string {
-  return `matrix(${-SCALE * m[0]} ${-SCALE * m[2]} ${-SCALE * m[1]} ${-SCALE * m[3]} ${ORIGIN_X - SCALE * t[0]} ${ORIGIN_Y - SCALE * t[1]})`;
-}
-const x = (u: number) => ORIGIN_X - SCALE * u, y = (v: number) => ORIGIN_Y - SCALE * v;
-
 /**
  * The toggle latch from the side, drawn from its parts' real profiles and moved by the shared mechanism (`toggleLatchMechanism`):
  * the base fixed on its board, the lever turning on the base's pins, the link hanging on the lever's pins and hooked under the
@@ -36,7 +29,15 @@ const x = (u: number) => ORIGIN_X - SCALE * u, y = (v: number) => ORIGIN_Y - SCA
  * it shows the latch locked. The dashed line is the link's pull, from the dip in the hook through the lever's pins: the lever locks
  * once the line has passed the pivot.
  */
-export function ToggleLatchIllustration() {
+export function ToggleLatchIllustration({ corner = false }: { corner?: boolean } = {}) {
+  // Pixels per mm and the mounting-plane origin; leave room below it for the corner's upright foot.
+  const SCALE = corner ? 1.65 : 3.4, ORIGIN_X = corner ? 138 : 128, ORIGIN_Y = corner ? 85 : 160;
+  /** The SVG transform that draws a part placed in the plane by `placement`, the plane mirrored so that the base is on the left. */
+  function transform({ m, t }: M.Placement2D): string {
+    return `matrix(${-SCALE * m[0]} ${-SCALE * m[2]} ${-SCALE * m[1]} ${-SCALE * m[3]} ${ORIGIN_X - SCALE * t[0]} ${ORIGIN_Y - SCALE * t[1]})`;
+  }
+  const x = (u: number) => ORIGIN_X - SCALE * u, y = (v: number) => ORIGIN_Y - SCALE * v;
+
   const svg = useRef<SVGSVGElement>(null);
   // null at rest: the latch locked
   const [t, setT] = useState<number | null>(null);
@@ -60,10 +61,23 @@ export function ToggleLatchIllustration() {
   const nose = M.placePoint(state.link, G.link.nose.centre);
   const along: M.Vec2 = [state.pin[0] - nose[0], state.pin[1] - nose[1]];
   const reach = 1.25;
-  return <svg ref={svg} viewBox="0 0 240 190" aria-hidden="true" className="toggle-latch-illustration" data-latch-state={state.title}>
+  const { legLength, holeAt, bite } = CORNER_LAYOUT;
+  const thickness = DEFAULT_CORNER_LATCH.plankThickness;
+  const closedOffset = M.latchState(M.CLOSED).offset;
+  const section = (points: M.Vec2[]) => toPath(points.map(([u, v]) => [x(u), y(v)]));
+  return <svg ref={svg} viewBox="0 0 240 190" aria-hidden="true" className="toggle-latch-illustration" data-latch-mount={corner ? 'outside-corner' : 'flat'} data-latch-state={state.title}>
     <ellipse cx="120" cy="176" rx="104" ry="8" fill="#c8cec1" opacity=".35" />
-    <rect x={x(42)} y={ORIGIN_Y} width={SCALE * 42} height="14" rx="2" fill="#b9946b" />
-    <rect x={x(state.offset)} y={ORIGIN_Y} width={SCALE * 42} height="14" rx="2" fill="#a9845d" />
+    {corner ? <g className="tl-corner-mounts">
+      {/* Upright plank covers the horizontal plank's end; both screws enter broad faces, beyond the joint. */}
+      <path d={section([[closedOffset + thickness, 0], [legLength + 12, 0], [legLength + 12, -thickness], [closedOffset + thickness, -thickness]])} fill="#b9946b" />
+      <path d={section([[state.offset, 0], [state.offset + thickness, 0], [state.offset + thickness, -legLength - 6], [state.offset, -legLength - 6]])} fill="#a9845d" />
+      <path d={section([[0, 0], [legLength, 0], [legLength, 4], [0, 4]])} fill="#7b8e6b" />
+      <path d={section([[state.offset, 4], [state.offset, -legLength], [state.offset - 4, -legLength], [state.offset - 4, -12], [state.offset - 12, 0], [state.offset - 12, 4]])} fill="#7b8e6b" />
+      <path d={`M${x(holeAt)} ${y(4)}V${y(-bite)}M${x(state.offset - 4)} ${y(-holeAt)}H${x(state.offset + bite)}`} stroke="#686b6b" strokeWidth="2.5" />
+    </g> : <>
+      <rect x={x(42)} y={ORIGIN_Y} width={SCALE * 42} height="14" rx="2" fill="#b9946b" />
+      <rect x={x(state.offset)} y={ORIGIN_Y} width={SCALE * 42} height="14" rx="2" fill="#a9845d" />
+    </>}
     <path d={PATHS.base} transform={transform(M.BASE_PLACEMENT)} fill="#7b8e6b" />
     <path d={PATHS.basePin} transform={transform(M.BASE_PLACEMENT)} fill="#5f7350" />
     <path d={PATHS.catch} transform={transform(state.catch)} fill="#7b8e6b" />
@@ -79,3 +93,6 @@ export function ToggleLatchIllustration() {
     <circle cx={x(state.pin[0])} cy={y(state.pin[1])} r="1.6" fill="#f4f1e6" />
   </svg>;
 }
+
+/** The same mechanism, with its actual perpendicular mounting feet and a wooden outside corner. */
+export function OutsideCornerToggleLatchIllustration() { return <ToggleLatchIllustration corner />; }

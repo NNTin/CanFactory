@@ -9,7 +9,7 @@ import { useBuyList, useMarket } from './shopping.ts';
 import { referenceObjects } from './referenceObjects.ts';
 import { formatHash, parseHash, partLink, type Route } from './route.ts';
 import { Viewer } from './Viewer.tsx';
-import { ToggleLatchIllustration } from './ToggleLatchIllustration.tsx';
+import { ToggleLatchIllustration, OutsideCornerToggleLatchIllustration } from './ToggleLatchIllustration.tsx';
 import { WindowCatGuardIllustration } from './WindowCatGuardIllustration.tsx';
 import { QrMagnetTagIllustration } from './QrMagnetTagIllustration.tsx';
 import { CatCollarTagIllustration } from './CatCollarTagIllustration.tsx';
@@ -285,6 +285,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'plank-connector': PlankConnectorIllustration,
   'litter-shovel': LitterShovelIllustration,
   'toggle-latch': ToggleLatchIllustration,
+  'outside-corner-toggle-latch': OutsideCornerToggleLatchIllustration,
   'magnetic-cat-toy': MagneticCatToyIllustration,
   'pressure-pad': PressurePadIllustration,
   'window-cat-guard': WindowCatGuardIllustration,

@@ -5,6 +5,9 @@ knuckle that carries the lever), the **lever**, the **link** that the lever swin
 plate with the hook). It is an adaptation of “Toggle Latch” on MakerWorld, a remix of Hacky97's “M3 toggle corner latch”
 (CC BY-NC 4.0; see [models/toggle-latch/ATTRIBUTION.md](../models/toggle-latch/ATTRIBUTION.md)).
 
+**For perpendicular wooden plank faces**, use the separate [outside-corner toggle latch](outside-corner-toggle-latch.md).
+It retains this linkage but changes the mounting feet and screw axes for a 90° outside butt joint.
+
 ## Files
 
 | Part | Source | What it is |

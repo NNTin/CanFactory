@@ -58,6 +58,14 @@ jobs:
         env:
           OPENSCAD_RUNNER: docker
 
+      - name: Check outside-corner latch motion (default, shortest and longest feet)
+        run: |
+          npm run check:assembly -- outside-corner-toggle-latch --snap-tolerance 50
+          npm run check:assembly -- outside-corner-toggle-latch --snap-tolerance 50 --parameters '{"plankThickness":10,"edgeDistance":12,"woodScrewDiameter":"3 mm","woodScrew":"din-7997-3x12"}'
+          npm run check:assembly -- outside-corner-toggle-latch --snap-tolerance 50 --parameters '{"plankThickness":40,"edgeDistance":30,"highTolerance":true}'
+        env:
+          OPENSCAD_RUNNER: docker
+
       # A fixed-seed sample of every model's parameter space; the nightly Geometry sweep looks much wider with a rotating seed.
       - name: Run geometry sweep (sample)
         run: npm run test:sweep

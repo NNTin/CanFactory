@@ -19,9 +19,9 @@ test('marks the models with physics, and simulates the toggle latch: it starts c
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/#/models');
   // the cards of models with a mechanism say so
-  await expect(page.locator('.model-card', { hasText: toggleLatch.title }).locator('.card-physics')).toHaveText('Physics');
+  await expect(page.locator('.model-card', { has: page.getByRole('heading', { name: toggleLatch.title, exact: true }) }).locator('.card-physics')).toHaveText('Physics');
   await expect(page.locator('.model-card', { hasText: pressurePad.title }).locator('.card-physics')).toHaveCount(0);
-  await page.locator('.model-card', { hasText: toggleLatch.title }).click();
+  await page.locator('.model-card', { has: page.getByRole('heading', { name: toggleLatch.title, exact: true }) }).click();
   await expect(page.getByRole('button', { name: 'Download ZIP', exact: true })).toBeEnabled({ timeout: 180_000 });
   const viewer = page.getByTestId('stl-viewer');
 
