@@ -74,6 +74,8 @@ level and suggests the level setting.
 | Turns and bends | Angle collar | Angle collar; mitred ends, bolted | Joints |
 | Mesh | Soft cat netting (TRIXIE 44294, 3 cm meshes) | Soft cat netting; welded wire mesh (KrapTrap, 19 mm meshes of 1.45 mm wire) | Sections |
 | Longest section | 75 cm | 50, 75, 100 cm | Sections |
+| Side access | One panel, near the middle | None; one panel near the middle; a panel in every section that takes one | Sections |
+| Access side | Right | Left; right (looking along the tunnel from the window) | Sections |
 | Feet | Printed feet on M8 × 80 screws | Printed feet; Ganter GN 343.2 levelling feet | Supports |
 | Foot height | 27.5 mm | 13 to 40 mm, in 0.5 mm steps (printed feet) | Supports |
 | Foot sole | Grooved | Flat; grooved; domed (printed feet) | Supports |
@@ -215,6 +217,24 @@ scene, the parts list and the tests.
 8. **75 cm longest section.** One person can carry it, and runs split into equal sections. With a support at every
    coupling, no span exceeds a section.
 
+## Side access
+
+**Side access** puts a removable mesh panel in place of one side's mesh, kept in by door turn buttons on the rails:
+one panel near the middle (the default for a new tunnel), one in every section that takes one, or none (what a tunnel
+saved before the setting keeps). [removable-doors.md](removable-doors.md) has the construction, what the reference product
+shows, what is unverified and the checks to make on a built panel.
+
+- **Where.** A section takes a panel if both its ends are square and it is at least 36 cm long, so mitred sections and
+  collars take none. Held on the supports by a rubber strap, the first, the last and the sloped sections take none either:
+  a strap would cross the panel there.
+- **What stays the same.** The route, the sections' lengths, the flanges, every coupling and every support. The panel lies
+  between its section's flanges, in the depth of the rails: clear of the latches on the flanges' sides, of the supports
+  and what holds the tunnel on them, and of the roof. The roof mesh, its staples and its parts-list lines do not change.
+  Under a net, the hood of such a section ends 10 mm down that side's top rail instead of running down the side.
+- **Not the same turn buttons.** These door turn buttons keep a panel in. **Held on the supports by → Turn buttons** is
+  another part (a button on a post over a keeper on a flange) and is unchanged; so are the couplings' toggle latches.
+- **Use.** Opening a panel opens the tunnel to the garden. Secure the cats elsewhere first, with both ends' ports shut.
+
 ## Assembly
 
 1. **Bed the slabs and build the supports.**
@@ -244,7 +264,11 @@ scene, the parts list and the tests.
      buttons on their posts, went onto the levelled supports in stage 2; the keepers onto the flanges while framing.
    - Close the latches between the first flange and the insert's docking frame (the coupling page).
    - Bolt the last flange to the enclosure's port flange.
-   - Open the gates.
+   - Open the cat ports at both ends: turn every button clear and lift each panel out, or slide the gates up, as the
+     catio concept page's **Cat-port closure** sets.
+   - Before any part of the tunnel is uncoupled again, shut both ends' ports first.
+   - A side-access panel is for reaching in from outside. Opening one opens the tunnel to the garden: secure the cats
+     elsewhere first, with both ends' ports shut.
 
 Every piece moves along the direction it is really fitted:
 
@@ -261,8 +285,10 @@ No new families were needed. The tunnel uses existing parts:
 - **ISO 7093-1** M8
 - **ISO 4032** M8
 - **DIN 7965** M8 × 18
-- **DIN 7997**: 4 × 25 (the printed latches' plates, the turn buttons' pivots), 4 × 35, 4 × 40 (also strap cleats,
-  keepers and turn buttons' posts), 5 × 50, 5 × 70, 6 × 100 (also soles into legs)
+- **DIN 7997**: 4 × 25 (the printed latches' plates, the turn buttons' pivots, the door turn buttons' pivots), 4 × 35,
+  4 × 40 (also strap cleats, keepers and turn buttons' posts), 5 × 50, 5 × 70, 6 × 100 (also soles into legs); for the
+  side-access panels also 3 × 25 (stops), 3.5 × 25 (cover strips) and 4 × 50 (panel frames)
+- **ISO 7093-1** M4 (under each door turn button)
 - **ISO 4017** M8 × 60 (printed feet, for ±10 mm of uneven ground)
 - **ISO 2338** 8 × 40 parallel pins (dowels in the bearers)
 - **DIN 1159** 2.5 × 25
@@ -279,8 +305,10 @@ that list identical.
 The mesh is one roll of the parts library (the net, or the welded mesh), linked to a shop; the list does not plan the cuts,
 so more rolls may be needed.
 
-Custom lines (not library parts): the timber cut list (with soles, strap cleats and keepers), the net hoods or mesh panels cut from that roll, the couplings'
-E-profile seals, the straps, the turn buttons with their posts, and the paving slabs.
+Custom lines (not library parts): the timber cut list (with soles, strap cleats and keepers, and the side-access panels'
+frames, cover strips and stops), the net hoods or mesh panels cut from that roll, the couplings'
+E-profile seals, the straps, the turn buttons with their posts, the side-access panels' printed door turn buttons, and the
+paving slabs.
 The printed latches link to their model (`#/models/toggle-latch`). The window end's seal and latches are listed on the
 insert–tunnel coupling page.
 

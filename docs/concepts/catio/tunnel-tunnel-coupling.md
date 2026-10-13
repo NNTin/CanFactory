@@ -193,7 +193,8 @@ and the printed latches, which link to their model (`#/models/toggle-latch`).
   tunnel page
 - **Cross-page wiring** (`follows` in [catioSubassemblies.ts](../../../apps/web/src/catioSubassemblies.ts)): the tunnel
   follows this page's **Coupling**, **Latches per side**, **Bolts per coupling** and **Seal**; this page follows the
-  tunnel's **Longest section**, its feet and ground (**Feet**, **Foot height**, **Foot sole**, **Foot diameter**,
+  tunnel's **Longest section**, its **Side access** and **Access side** (a panel beside the joint lies between its own
+  section's flanges, clear of the latches), its feet and ground (**Feet**, **Foot height**, **Foot sole**, **Foot diameter**,
   **Ground falls away**, **Uneven by up to**). It shares the tunnel's **Held on the supports by** and **Supports stand**
   (`shares`), set on either page.
 - [Tests](../../../apps/web/src/catioTunnelCoupling.test.ts) check:

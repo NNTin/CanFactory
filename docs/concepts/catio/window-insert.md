@@ -1,7 +1,7 @@
 # Window insert
 
 The window insert is the removable timber collar that sits in the exterior window recess. It carries the cat's way out
-(the open passage of the original design, or the small gated cat port of the modular design). **Nothing is drilled into the
+(the open passage of the original design, or the small cat port of the modular design, shut by a removable panel or a sliding gate). **Nothing is drilled into the
 wall or the window**: by default the insert hangs on the window's fixed frame like an insect screen (see
 [Hung on the window frame](#hung-on-the-window-frame)), so the window still closes with the insert in place; it can instead be
 pressed into the recess by spreader feet or folding wedges.
@@ -91,8 +91,9 @@ its face runs flat from the frame's seal to the glass.
   parts list gives both): each turn reaches into the window just inside the lip's tip, and its barb stands in the middle of the
   seal gap, 0.75 mm clear of the lip's back and of the closed sash on the default window. Nothing is bent on site. The 2 mm barb
   needs a seal gap of 3 mm; in a narrower one the page says to choose the bought hooks. The seal is pressed locally at the four
-  hooks, as with any hooked insect screen. With the tunnel, the cat gate's latch also stands 12 mm behind the collar's back, in
-  front of the sash, and the page checks there is room for it.
+  hooks, as with any hooked insect screen. With the tunnel, what closes the cat port also stands behind the collar's back, in
+  front of the sash (a removable panel's turn buttons and pull 5 mm, a sliding gate's latch 12 mm), and the page checks
+  there is room for it.
 - **Or bought hooks, bent** (**Screen hooks → Windhager 03651**): two long and two short stainless strips (in the parts
   library as `screen-hook`), screwed on with two DIN 7997 3 × 16 screws each, their 15 mm and 7 mm tips behind the lips. Each
   strip is bent so that its tip lies in the middle of the seal gap, 0.5 mm clear of the lip's back and of the closed sash (16 mm
@@ -195,7 +196,18 @@ before; the printed hooks are no reason to leave the feet out or make them small
    - The parts list names one roll, linked to a shop, and the panels cut from it; more rolls may be needed.
 8. **The modular cat port.** A full-width transom over the port and two jambs give every infill mesh panel timber on all
    four edges. They sit in 10 mm housings (or butt joints), the jambs screwed from under the sill rail with DIN 7997 6 × 90.
-   The sliding gate runs in tracks on the room side of the port.
+   What closes the port is set on the catio concept page (**Cat-port closure**), for every cat port, and named in this
+   page's brief:
+   - **A removable panel** (the default): solid 12 mm plywood on the port frame's room side, lapping 13 mm onto the jambs
+     and the transom, pressed onto an E-profile seal that runs round that seat and over a 12 × 10 stop strip across the
+     port's floor. It stands on the threshold between 25 × 14 locating strips on the jambs and transom. Six printed door
+     turn buttons on those strips (two on each jamb, two on the transom at the default size) lie 12 mm over its edge. To
+     open the port every button is turned a quarter turn clear and the panel is drawn into the room by its pull. The page
+     checks the panel's fit, that nothing of the collar (hooks, brackets, clamp studs) stands in its way, and that it
+     clears the closed sash. See [removable-doors.md](removable-doors.md): the construction is this design's proposal and
+     is unverified.
+   - **A sliding gate**: it runs in tracks on the room side of the port, and needs its own height again above the port,
+     inside the collar. Designs saved before the choice existed keep it.
 9. **The cat port ends at its frame.** Nothing of the insert continues the port out to the wall face. The
    [insert–tunnel coupling](window-insert-tunnel-coupling.md) screws a docking frame onto the jambs and transom, which
    carries the passage on to the tunnel. The frame **stays on the insert from then on**, also when it is lifted out. Its
@@ -216,7 +228,8 @@ before; the printed hooks are no reason to leave the feet out or make them small
 4. **Set it into the recess** from the garden, standing on the bearing feet, clear of the closed sash.
 5. **Tighten from inside** in opposite pairs until the pads bear, then run the lock nuts up to the collar (or drive the
    wedges).
-6. **Docking brackets** (direct) or **gate tracks, gate and latch** (with tunnel); open and close the window to check.
+6. **Docking brackets** (direct); with tunnel, what closes the port: **stop, strips, seal, turn buttons and panel**, or
+   **gate tracks, gate and latch**; open and close the window to check.
 
 Hung on the window frame, steps 2, 4 and 5 change: **fit the feet and hooks** (insert nuts and feet under the sill rail only;
 the four hooks, printed for the window or bent to the page's size, screwed to the stiles' backs), **hang it on the window frame** (open the sash, lift
@@ -242,7 +255,10 @@ group and how it goes in ("Now: 8 × Countersunk wood screw 4 × 50: driven from
     run onto the stud's inner end from inside.
 - Stage 5 turns each spreader screw or stud so the pad or foot moves out to the reveal. A printed thrust pad moves out
   without turning. Wedges are driven along the member instead.
-- With tunnel, the gate tracks come from the room side and the gate is lowered into them from above.
+- With tunnel, a removable panel's stop and strips, their screws, the seal, the buttons (pointing clear) and the panel come
+  from the room side, and the buttons are turned over the panel last. **Cat port open** then turns them clear again, draws
+  the panel into the room and stows it on the wall beside the window. With a sliding gate, the tracks come from the room
+  side and the gate is lowered into them from above; the toggle slides it up.
 
 Stages 1–3 happen on a bench in the garden, and the cameras follow the insert there. The exploded view is the same
 assembly frozen: each piece waits on its own way in, with the insert on the bench, clear of the wall.

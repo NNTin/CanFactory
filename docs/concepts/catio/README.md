@@ -36,6 +36,12 @@ The preview provides six camera presets, orbit/pan/zoom, a window open/closed to
 The window insert has its own live page, `#/concepts/catio/window-insert`, linked from the page heading: its pieces, parametrised timber joints, mesh fixing
 and the no-drilling clamps, a staged assembly and a parts list, for both designs. See [window-insert.md](window-insert.md).
 
+## Removable doors
+
+Every cat port is shut by a panel that is lifted out once its turn buttons are turned clear, and the tunnel has such a panel
+in its side for access; the sliding gate remains selectable. [removable-doors.md](removable-doors.md) keeps apart what the
+reference product shows, what this design proposes and what is unverified, and lists the checks to make on a built door.
+
 ## Insert–tunnel coupling
 
 The joint between the window insert's cat port and the tunnel's first flange has its own live page,
@@ -158,7 +164,8 @@ The [exact modular prompts and correction passes](modular-prompts.md) record use
 | Glass width / height | 80 / 80 cm | 40–140 cm each |
 | Sash width / height | 91 / 91 cm | 50–160 cm each; at least 3 cm border around glass |
 | Each enclosure W / D / H | 120 / 100 / 120 cm | W and D 80–240 cm; H 90–220 cm |
-| Tunnel clear W / H | 30 / 30 cm | 20–45 cm each, subject to gate and ramp clearance |
+| Tunnel clear W / H | 30 / 30 cm | 20–45 cm each, subject to ramp clearance and, with sliding gates, to their travel |
+| Cat-port closure | Removable panel with turn buttons | Removable panel with turn buttons; vertical sliding gate (what a design saved before the choice keeps) |
 | Straight module length | 50 cm | Fixed |
 | Approach modules | 2 | 1–6 |
 | Offset lateral / final modules | 2 / 1 | 1–6 each; two corner modules added automatically |
@@ -168,26 +175,29 @@ The [exact modular prompts and correction passes](modular-prompts.md) record use
 | Fixed-frame allowance | 45 mm per side of sash | Fixed concept assumption |
 | Collar outside dimensions | Sash dimensions + 70 mm | 10 mm margin inside fixed frame per side |
 
-Sheets 07–10 and 12 depict the default one-enclosure straight configuration. Sheet 10 opens the human maintenance door; each connected cat gate can be opened or closed independently. Sheet 11 compares the default straight layout, mirrored offsets with one approach + two lateral + one final straight modules, and two enclosures. In its two-enclosure example B is 140 × 120 × 140 cm; A stays 120 × 100 × 120 cm, with a two-module side link. Corner modules have an outside square footprint equal to tunnel clear width + 80 mm, so a two-module lateral run shifts the enclosure by 138 cm at the default width.
+Sheets 07–10 and 12 depict the default one-enclosure straight configuration. Sheet 10 opens the human maintenance door; each connected cat port can be opened or closed independently. The sheets were drawn with sliding gates, which remain selectable; the live concept now closes every cat port with a removable panel by default (see [removable-doors.md](removable-doors.md)). Sheet 11 compares the default straight layout, mirrored offsets with one approach + two lateral + one final straight modules, and two enclosures. In its two-enclosure example B is 140 × 120 × 140 cm; A stays 120 × 100 × 120 cm, with a two-module side link. Corner modules have an outside square footprint equal to tunnel clear width + 80 mm, so a two-module lateral run shifts the enclosure by 138 cm at the default width.
 
 ### Connections and access
 
-The original large window passage is replaced, in modular mode, by mesh infill and a small sliding gate at the bottom of the removable collar. Window and enclosure ports share the tunnel's clear dimensions. Timber collars, shallow metal flanges and schematic removable clamps show the docking interfaces; these are conceptual hardware, not fabricated part specifications. The window insert is tightened from inside; tunnels and enclosure couplings are assembled outside. All installed geometry clears the inward sash sweep.
+The original large window passage is replaced, in modular mode, by mesh infill and a small cat port at the bottom of the removable collar, shut by a removable panel behind turn buttons (the default) or by a sliding gate. Window and enclosure ports share the tunnel's clear dimensions. Timber collars, shallow metal flanges and schematic removable clamps show the docking interfaces; these are conceptual hardware, not fabricated part specifications. The window insert is tightened from inside; tunnels and enclosure couplings are assembled outside. All installed geometry clears the inward sash sweep.
 
 Tunnels have solid timber floors, mesh sides and roof, and short supports at section ends. Straight and 90° corner modules form a continuous enclosed route at sill height. Enclosures have a continuous grass-level mesh floor, four short supports and low mesh skirts. A full-width rear landing meets rear and side cat ports; one cleated ramp descends toward the front inside each enclosure. Different enclosure depths share the same rear edge and side-port location, leaving the human doors free.
 
-Each enclosure has a full-front outward hinged maintenance door. At the default 120 cm enclosure height, access is by crouching or reaching; increase height for a larger opening. Small manual sliding gates close the rear and side cat ports. Connected gates can be toggled independently in the completed scene. Unused ports remain shut, and all gates stay shut through the coupling stage. Gate travel, frame borders and room for the internal ramp are validated together with numeric ranges.
+Each enclosure has a full-front outward hinged maintenance door. At the default 120 cm enclosure height, access is by crouching or reaching; increase height for a larger opening. **Cat-port closure** sets what shuts every cat port, the window's and the enclosures': a panel lifted out once its turn buttons are turned clear (solid and sealed at the window, framed mesh at the enclosures' rear and side ports), or a small manual sliding gate. Connected ports can be opened and shut independently in the completed scene: a panel's buttons turn and it comes out; a gate slides up. Unused ports remain shut and retained, and every port stays shut through the coupling stage. Frame borders and room for the internal ramp are validated together with numeric ranges; a sliding gate's travel (its own height again above its port) only when sliding gates are chosen, a panel's fit, buttons and withdrawal instead when panels are. The enclosures' hinged maintenance doors and all roofs are the same either way. [removable-doors.md](removable-doors.md) has the construction, what is unverified, and how saved designs are kept.
 
 ### Modular assembly
 
-1. Fit the window insert and padded clamps from inside; keep its cat gate shut.
+1. Fit the window insert from inside; keep its cat port shut (panel seated, every turn button over it; or gate closed).
 2. Position the enclosures, feet, floor skirts, walls, roof and maintenance doors.
-3. Fit rear landings, ramps and the small sliding gates.
+3. Fit rear landings, ramps and what closes the rear and side ports: the removable panels, or the small sliding gates.
 4. Lay straight and corner tunnel modules on their supports.
-5. Couple every section and the end connections while both end gates remain shut.
-6. Open the connected gates after coupling; leave unused ports and human doors latched.
+5. Couple every section and the end connections while the ports at both ends remain shut.
+6. Open the connected ports after coupling (turn every button clear, lift each panel out and stow it clear of the route; or
+   slide the gates up); leave unused ports and human doors shut.
 
-Before disconnecting a tunnel, close and latch the gates at both ends. The assembly slider, exploded view, layer controls and written instructions follow these six stages.
+Before disconnecting a tunnel, shut the ports at both of its ends: reseat the panels and turn every button back over them,
+or close and latch the gates. Opening a maintenance door, or any panel on the outside, opens the catio: secure the cats
+elsewhere first. The assembly slider, exploded view, layer controls and written instructions follow these six stages.
 
 ### Implementation and validation
 
@@ -195,9 +205,10 @@ Before disconnecting a tunnel, close and latch the gates at both ends. The assem
 - [Modular scene builders](../../../apps/web/src/catioModularScene.ts)
 - [Shared geometry primitives](../../../apps/web/src/catioParts.ts)
 - [Versioned local settings](../../../apps/web/src/catioSettings.ts)
+- [Cat-port closures and removable doors](../../../apps/web/src/catioDoor.ts), with [their tests](../../../apps/web/src/catioDoor.test.ts)
 - [Geometry and persistence tests](../../../apps/web/src/catioModular.test.ts)
 - [Browser interaction tests](../../../tests/browser/catio.spec.ts)
 
-The implementation tests exact glass/sash sizes and sweep clearance, mirrored routes, independent enclosure placement, cat-port mesh cutouts, gate travel, outward door clearance, floor/skirt containment, supported walkway levels, boundary sizes, assembly visibility and settings restoration. Existing direct-design geometry tests also remain in place.
+The implementation tests exact glass/sash sizes and sweep clearance, mirrored routes, independent enclosure placement, cat-port mesh cutouts, gate travel (for sliding gates only), removable panels' seating and withdrawal, outward door clearance, floor/skirt containment, supported walkway levels, boundary sizes, assembly visibility and settings restoration. Existing direct-design geometry tests also remain in place.
 
 Session validation: 183 unit tests passed (19 pre-existing skips); type checking, lint, contract verification and production build passed. The usual `npm run check` wrapper was blocked at the `tsx` IPC listener, so contract verification ran equivalently as `node --import tsx tools/generate-openapi.ts --check` and `npm test` ran separately. Browser tests were added/updated but could not execute here: the sandbox denied the Vite listening socket and Chromium startup. Git branch creation also failed because the repository metadata is read-only; no commits or PR could be created in this environment.

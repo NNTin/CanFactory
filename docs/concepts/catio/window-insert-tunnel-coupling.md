@@ -172,9 +172,12 @@ the scene, the parts list and the tests.
      the lip lies on the threshold.
    - Fix it down and couple the rest of the tunnel as the tunnel page describes.
 5. **Dock.** Hook each latch over its catch and press the lever down over centre. With GN 831 latches, type S's safety
-   catch clicks over the lever; type SV takes a padlock. Then open the cat gate.
+   catch clicks over the lever; type SV takes a padlock. Then open the cat port from the room: turn every
+   button clear and draw its panel into the room, or slide its gate up. Nothing of the coupling is in the panel's way: the
+   docking frame, the seal and the latches are all on the port's outdoor face, and the frame's screws are kept 12 mm clear
+   of the panel's screws in the same jambs and transom.
 
-**To undock:** lift the levers and unhook them. The insert can come out of its recess and the tunnel stays on its supports.
+**To undock:** first shut the port at this end and the enclosure's port at the other. Then lift the levers and unhook them. The insert can come out of its recess and the tunnel stays on its supports.
 No tools either way.
 
 The scene shows stages 1–2 at the window. In stage 3 the first section arrives raised (it was framed on the tunnel page) to
