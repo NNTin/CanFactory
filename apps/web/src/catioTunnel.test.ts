@@ -419,7 +419,8 @@ describe('tunnel parts list', () => {
       expect(latches).toBe(l.couplings.filter(c => c.kind === 'latched').length * 2 * TUNNEL_COUPLING_DEFAULT.latchesPerSide);
       if (latches) expect(lines.find(line => line.modelId === 'toggle-latch')).toMatchObject({ quantity: latches, name: 'Toggle latch, printed' });
       expect(l.fasteners.filter(f => f.component === 'latch-screws' || f.component === 'catch-screws')).toHaveLength(4 * latches);
-      expect(count('din-7997-4x25')).toBe(l.fasteners.filter(f => f.partId === 'din-7997-4x25').length);
+      // the latches' screws, and the pivots of the side-access panels' door turn buttons, which are the same screw
+      expect(count('din-7997-4x25')).toBe(l.fasteners.filter(f => f.partId === 'din-7997-4x25').length + l.access.reduce((n, a) => n + a.door.fasteners.filter(f => f.partId === 'din-7997-4x25').length, 0));
       expect(lines.find(line => line.id === 'coupling-seal')?.quantity ?? 0).toBe(l.couplings.filter(c => c.seal).length);
       // a printed foot's screw and lock nut are the coupling's M8 × 80 and nut
       const feet = l.supports.reduce((n, s) => n + s.feet.length, 0);
@@ -454,7 +455,8 @@ describe('tunnel parts list', () => {
       // the hood passes over the top rails uncut: only the roof's staples hold it there, and its sides have none of their own
       const top = l.panels.flatMap(panel => panel.edges.filter(edge => edge.use === 'Onto the top rail').map(edge => ({ side: panel.name.includes('side'), cut: edge.cut })));
       if (mesh === 'netting') expect(top.every(edge => !edge.side && !edge.cut)).toBe(true);
-      else expect(top.filter(edge => edge.side)).toHaveLength(2 * l.pieces.length);
+      // (a side-access panel takes the place of one side's mesh)
+      else expect(top.filter(edge => edge.side)).toHaveLength(2 * l.pieces.length - l.access.length);
       const lines = tunnelBom('modular', { ...route, mesh }, site).filter(line => line.group === 'Mesh');
       expect(lines[0]).toMatchObject({ id: 'mesh-roll', quantity: 1, partId: CATIO_MESH_PARTS[mesh] });
       expect(lines[0]?.use).toContain('more rolls may be needed');

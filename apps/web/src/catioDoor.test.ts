@@ -694,6 +694,19 @@ describe('tunnel side access', () => {
         const piece = l.pieces.find(p => p.id === a.piece); if (!piece) throw new Error('piece');
         const middle = vec.mul(vec.add(piece.start.at, piece.end.at), 0.5); const half = piece.length / 2 - TUNNEL.flange.thickness;
         const along = (point: [number, number, number]) => Math.abs(vec.dot(vec.sub(point, middle), piece.frame.y));
+        // the space the panel, its stops and its buttons take, and the panel's way out, in the door's own frame
+        const reachOut = a.door.depth + a.door.withdraw;
+        /** Whether a box of a support (`size` across, along and up it) reaches into that space. */
+        const inZone = (s: { across: [number, number, number]; along: [number, number, number] }, box: { center: [number, number, number]; size: [number, number, number] }) => {
+          const d = vec.sub(box.center, a.frame.origin);
+          const half = (e: [number, number, number]) => (Math.abs(vec.dot(s.across, e)) * box.size[0] + Math.abs(vec.dot(s.along, e)) * box.size[1] + Math.abs(e[2]) * box.size[2]) / 2;
+          const [u, v, n] = [vec.dot(d, a.frame.u), vec.dot(d, a.frame.v), vec.dot(d, a.frame.n)]; const [hu, hv, hn] = [half(a.frame.u), half(a.frame.v), half(a.frame.n)];
+          if (Math.abs(u) >= a.door.opening.width / 2 + hu - 1e-6) return false;
+          // the opening, from the stops out to where the panel is clear; and the rails' faces above and below it, where the buttons turn
+          const way = v > -hv + 1e-6 && v < l.h + hv - 1e-6 && n > -DOOR.stop.depth - hn + 1e-6 && n < reachOut + hn - 1e-6;
+          const buttons = v > -TUNNEL.floor - TUNNEL.rail - hv + 1e-6 && v < l.h + TUNNEL.rail + hv - 1e-6 && n > a.door.mount - hn + 1e-6 && n < a.door.buttonUnder + DOOR.button.thickness + 2 + hn - 1e-6;
+          return way || buttons;
+        };
         // every latch and bolt of its section's couplings is at a flange, beyond the panel's ends; so the latches stay in reach
         for (const c of l.couplings.filter(q => q.before === piece.id || q.after === piece.id)) {
           for (const latch of c.latches) expect(along(latch.at), `${a.id} ${latch.id}`).toBeGreaterThan(half);
@@ -701,7 +714,10 @@ describe('tunnel side access', () => {
         }
         // what holds the tunnel on its supports (dowels, straps and cleats, keepers, posts and the support fixings' own turn buttons)
         for (const s of l.supports) {
-          for (const button of s.hold.buttons) for (const b of [button.keeper, button.post, button.button]) if (button.piece === piece.id) expect(along(b.center) + Math.max(...b.size) / 2, `${a.id} ${s.id}`).toBeGreaterThan(half);
+          // none of them stands where the panel is, where it comes out, or where its buttons turn
+          for (const button of s.hold.buttons) for (const box of [button.keeper, button.post, button.button]) expect(inZone(s, box), `${a.id} ${s.id}`).toBe(false);
+          for (const cleat of s.hold.strap?.cleats ?? []) expect(inZone(s, cleat), `${a.id} ${s.id} strap cleat`).toBe(false);
+          for (const point of s.hold.dowels) expect(inZone(s, { center: point, size: [8, 8, 40] }), `${a.id} ${s.id} dowel`).toBe(false);
           // a strap goes over the tunnel at a support: over the flanges, never over the panel
           const beside = (point: [number, number, number]) => { const d = vec.sub(point, middle); return vec.len(vec.sub(d, vec.mul(piece.frame.y, vec.dot(d, piece.frame.y)))) < l.w + 2 * TUNNEL.flange.width; };
           for (const point of s.hold.strap?.path ?? []) if (beside(point) && along(point) < piece.length / 2 + 100) expect(along(point), `${a.id} strap`).toBeGreaterThan(half);
