@@ -1,3 +1,4 @@
+import { CAT_DOOR_WARNING } from './catioCatDoor.ts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Box, RotateCcw } from 'lucide-react';
 import * as THREE from 'three';
@@ -49,7 +50,10 @@ export function CatioConcept() {
   const stateRef = useRef<CatioState & { doors: Record<string, boolean> }>({ ...viewing, hidden });
   stateRef.current = { ...viewing, hidden };
   // the insert's step follows how the window insert page holds it: hung on the window frame (the default) or clamped in the recess
-  const hung = useMemo(() => savedWindowInsert().attachment === 'frame-hooks', []);
+  const insert = useMemo(() => savedWindowInsert(), []);
+  const hung = insert.attachment === 'frame-hooks';
+  const contextErrors = validateModular(config, insert.catClosure);
+  const previewConfig = contextErrors.length ? MODULAR_DEFAULT : config;
   const steps = (mode === 'modular' ? MODULAR_STEPS : CATIO_STEPS).map((step, i) => i === 1 && hung ? (mode === 'modular' ? MODULAR_HUNG_STEP : CATIO_HUNG_STEP) : step);
   const index = Math.ceil(progress); const step = steps[index] ?? CATIO_STEPS[6];
   const editView = (patch: Partial<CatioViewing>) => setSettings(current => ({ ...current, views: { ...current.views, [mode]: { ...current.views[mode], ...patch } } }));
@@ -58,7 +62,7 @@ export function CatioConcept() {
   const setWindowOpen = (value: boolean) => editView({ windowOpen: value });
   const setCutaway = (value: boolean) => editView({ cutaway: value });
   const camera = (name: CatioView) => {
-    const preset = mode === 'modular' ? modularCamera(config, name, stateRef.current.exploded) : CATIO_VIEWS[name];
+    const preset = mode === 'modular' ? modularCamera(previewConfig, name, stateRef.current.exploded) : CATIO_VIEWS[name];
     const target = new THREE.Vector3(...preset.target);
     const position = new THREE.Vector3(...preset.position);
     if (mode === 'direct' && stateRef.current.exploded) position.sub(target).multiplyScalar(1.3).add(target);
@@ -71,14 +75,14 @@ export function CatioConcept() {
   const otherIssues = useOtherPageIssues(CATIO_SUBASSEMBLIES, JSON.stringify(settings.config));
   useEffect(() => {
     const element = container.current; if (!element) return;
-    const bounds = modularLayout(config).bounds;
+    const bounds = modularLayout(previewConfig).bounds;
     const scale = mode === 'direct' ? 12 : Math.max(12, (bounds.maxX - bounds.minX + bounds.maxY) / 220);
     const stage = createStage(element, 'Interactive catio concept. Drag to orbit, scroll to zoom, right-drag to pan.', { scale, workshopFloor: false });
     if (!stage) { setUnsupported(true); return; }
     setUnsupported(false);
-    const model = mode === 'direct' ? createCatioScene() : createModularCatio(config);
+    const model = mode === 'direct' ? createCatioScene() : createModularCatio(previewConfig, insert);
     stage.group.add(model.root); controller.current = { stage, model };
-    setDoors('doors' in model ? model.doors : []);
+    setDoors('doors' in model ? model.doors as CatioDoor[] : []);
     model.update(stateRef.current); camera(view); stage.invalidate();
     element.dataset['ready'] = 'true';
     element.dataset['visibleParts'] = model.components.filter(part => part.group.visible).map(part => part.id).join(' ');
@@ -97,7 +101,7 @@ export function CatioConcept() {
   const toggleLayer = (id: CatioLayer) => editView({ hidden: hidden.has(id) ? viewing.hidden.filter(layer => layer !== id) : [...viewing.hidden, id] });
   const changeConfig = (next: ModularConfig) => {
     setDraft(next);
-    if (!validateModular(next).length) setSettings(current => ({ ...current, config: next }));
+    if (!validateModular(next, insert.catClosure).length) setSettings(current => ({ ...current, config: next }));
   };
 
   return <>
@@ -114,7 +118,8 @@ export function CatioConcept() {
           <div><dt>Glass · measured</dt><dd>80 × 80 <small>cm</small></dd></div>
           <div><dt>Opening sash · measured</dt><dd>91 × 91 <small>cm</small></dd></div>
           <div><dt>Sill above grass · assumed</dt><dd>20 <small>cm</small></dd></div>
-        </dl> : <CatioParameters draft={draft} change={changeConfig} reset={() => changeConfig(structuredClone(MODULAR_DEFAULT))} />}
+        </dl> : <CatioParameters windowClosure={insert.catClosure} draft={draft} change={changeConfig} reset={() => changeConfig(structuredClone(MODULAR_DEFAULT))} />}
+        {mode === 'modular' && contextErrors.length > 0 && <p role="alert">The saved window closure no longer fits these dimensions. Showing the recommended preview until the dimensions or window closure are adjusted; your saved design is unchanged.</p>}
         {mode === 'modular' && <OtherPageIssues issues={otherIssues}>These sizes do not fit a sub-assembly.</OtherPageIssues>}
         <p>The collar is tightened from inside the open window. The enclosure stands on four feet; its mesh floor rests at grass level.</p>
         <p>The window can close with the attachment installed. A latched front door gives access for maintenance.</p>
@@ -139,7 +144,7 @@ export function CatioConcept() {
           <label><input type="checkbox" checked={exploded} onChange={event => setExploded(event.target.checked)} disabled={unsupported} /> Exploded view</label>
           <span>Drag to orbit · Scroll to zoom</span>
         </div>
-        {mode === 'modular' && <div className="catio-door-controls" role="group" aria-label="Doors and gates"><strong>Doors &amp; gates</strong><p>Checked means open. Cat gates open only at the completed stage; unused ports stay closed.</p>{doors.map(door => <label key={door.id}><input type="checkbox" checked={door.connected && (door.kind === 'human' || progress >= 6) && (viewing.doors[door.id] ?? door.kind === 'cat')} disabled={unsupported || !door.connected || (door.kind === 'cat' && progress < 6)} onChange={event => editView({ doors: { ...viewing.doors, [door.id]: event.target.checked } })} />{door.label}{!door.connected && <small>Unused · closed</small>}</label>)}<p>Close and latch both end gates before disconnecting a tunnel. The default 120 cm high maintenance door gives crouching or reaching access.</p></div>}
+        {mode === 'modular' && <div className="catio-door-controls" role="group" aria-label="Doors and gates"><strong>Doors &amp; gates</strong><p>Checked means open or removed. Cat/access panels operate only at the completed stage; unused ports stay closed. Open the sash before removing the window panel.</p>{doors.map(door => <label key={door.id}><input type="checkbox" checked={door.connected && (door.kind === 'human' || progress >= 6) && (door.id !== 'window-cat' || windowOpen) && (viewing.doors[door.id] ?? door.kind === 'cat')} disabled={unsupported || !door.connected || (door.kind !== 'human' && progress < 6) || (door.id === 'window-cat' && !windowOpen)} onChange={event => editView({ doors: { ...viewing.doors, [door.id]: event.target.checked } })} />{door.label}{!door.connected && <small>Unused · closed</small>}</label>)}<p>{CAT_DOOR_WARNING} The default 120 cm high maintenance door gives crouching or reaching access.</p></div>}
         <div className="catio-assembly">
           <div className="catio-step-title"><span className="eyebrow">{index === 0 ? 'BEFORE ASSEMBLY' : `STAGE ${index} / 6`}</span><strong aria-live="polite">{step.title}</strong></div>
           <div className="catio-slider"><button type="button" aria-label="Previous assembly stage" disabled={progress === 0} onClick={() => setProgress(Math.max(0, Math.ceil(progress) - 1))}><ArrowLeft size={16} /></button>

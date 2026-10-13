@@ -251,7 +251,7 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await expect(viewer).toHaveAttribute('data-visible-parts', /docking-brackets/);
   await page.getByRole('button', { name: 'Modular · with tunnel', exact: true }).click();
   await expect(viewer).toHaveAttribute('data-variant', 'modular');
-  await expect(viewer).toHaveAttribute('data-visible-parts', /cat-gate/);
+  await expect(viewer).toHaveAttribute('data-visible-parts', /window-cat-gate/);
   await expect(page.getByRole('combobox', { name: 'Port transom & jambs' })).toBeVisible();
   await expect(page.getByRole('table', { name: 'Mesh parts' }).getByRole('row')).toHaveCount(5);
   // the pages fitted to the insert, and the settings that change them

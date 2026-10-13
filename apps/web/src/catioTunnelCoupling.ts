@@ -176,7 +176,7 @@ export const TUNNEL_COUPLING_DECISIONS: DesignDecision[] = [
 ];
 
 /** The cross-page settings of the tunnel this page is built from: its sections’ length, and the support's feet and ground. */
-export const TUNNEL_SETTINGS_FOLLOWED = ['mesh', 'sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
+export const TUNNEL_SETTINGS_FOLLOWED = ['accessPanels', 'mesh', 'sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
 /** The tunnel's settings this page shows and sets too: how the tunnel is held on its supports. */
 export const TUNNEL_SETTINGS_SHARED = ['supportFixing', 'supportBase'];
 

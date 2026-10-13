@@ -1,3 +1,4 @@
+import { buildCatDoor, type CatioDoor } from './catioCatDoor.ts';
 import * as THREE from 'three';
 import { dimensionOf, findPart, PRESSURE_PAD, pressurePadSeat, type Part } from '@canfactory/contracts';
 import { createCatioParts } from './catioParts.ts';
@@ -27,12 +28,14 @@ export interface PieceMotion {
 }
 
 /** The installed insert as fixed context on another page: its timber, corner brackets, hooks and feet when hung, and its mesh on the mesh layer. */
-export function buildInsertContext(p: ReturnType<typeof createCatioParts>, layout: WindowInsertLayout) {
+export function buildInsertContext(p: ReturnType<typeof createCatioParts>, layout: WindowInsertLayout, doors: CatioDoor[] = []) {
   const insert = p.component('window-insert', 0, undefined);
   for (const t of layout.timber) for (const b of t.boxes) p.box(insert, b.size, b.center, t.component === 'threshold' || t.component === 'cover-battens' ? p.materials.endgrain : p.materials.timber);
   for (const b of layout.brackets) for (const plate of b.boxes) p.box(insert, plate.size, plate.center, b.spec.part ? p.materials.hardware : p.materials.printed);
   buildHungHardware(p, layout, insert, insert);
   for (const q of layout.panels) p.panel(`insert-${q.id}`, 0, q.width, q.height, q.center, q.plane, [0, 0, 0]);
+  if (layout.port) doors.push(buildCatDoor(p, { id: 'window-cat', label: 'Window cat panel', step: 0, width: layout.port.width, height: layout.port.height,
+    y: layout.yIn + (layout.config.catClosure === 'removable' ? 20 : INSERT.gate.y), bottom: layout.floor, normal: -1, solid: true, closure: layout.config.catClosure }));
   return insert;
 }
 
@@ -69,6 +72,7 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
     mesh.position.copy(a.add(b).multiplyScalar(0.5)); mesh.scale.set(radius, v.length(), radius);
     mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize()); mesh.castShadow = true; parent.add(mesh); return mesh;
   };
+  const doors: CatioDoor[] = [];
   const motions: PieceMotion[] = [];
   const move = (object: THREE.Object3D, stage: number, window: [number, number], approach: V3, action: string, spin?: { axis: V3; turns: number }, meta: Pick<PieceMotion, 'role' | 'of' | 'drive'> = {}) => {
     motions.push({ object, stage, window, approach: new THREE.Vector3(...approach), action, ...(spin ? { axis: new THREE.Vector3(...spin.axis).normalize(), turns: spin.turns } : {}), ...meta });
@@ -288,18 +292,10 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
     for (const child of parent.children.slice()) move(child, 3, stage3Windows['mesh'] ?? [0, 1], [0, 320, 0], `${layout.panels.length} × Mesh panel: offered up from outdoors`);
   });
 
-  // Stage 6: docking brackets (direct), or the gate tracks from the room side and the gate dropped into them from above.
+  // Stage 6: selected closure, built once for every page that shows it.
   if (layout.port) {
-    const { width: w, height: h } = layout.port; const yGate = layout.yIn + INSERT.gate.y; const [lx, ly, lz] = INSERT.gate.latch;
-    const tracks = group('gate-tracks', 6, 'hardware');
-    for (const sx of [-1, 1]) {
-      const g = piece(tracks); box(g, [12, 12, 2 * h + 45], [sx * (w / 2 + 16), yGate, layout.floor + h + 22.5], m.hardware);
-      move(g, 6, [0, 0.3], [0, -220, 0], '2 × Gate track: fixed on the room side of the port');
-    }
-    const gate = piece(group('cat-gate', 6, 'timber')); box(gate, [w + 20, 12, h + 20], [0, yGate, layout.floor + (h + 20) / 2], m.endgrain);
-    move(gate, 6, [0.4, 0.7], [0, 0, h + 30], 'Cat gate: lowered into its tracks from above');
-    const latch = piece(group('gate-latch', 6, 'hardware')); box(latch, [lx, ly, lz], [0, yGate - INSERT.gate.latchY, layout.floor + h - 35], m.hardware);
-    move(latch, 6, [0.75, 0.95], [0, -140, 0], 'Gate latch: fitted from the room side');
+    doors.push(buildCatDoor(p, { id: 'window-cat', label: 'Window cat panel', step: 6, width: layout.port.width, height: layout.port.height,
+      bottom: layout.floor, y: layout.yIn + (config.catClosure === 'removable' ? 20 : INSERT.gate.y), normal: -1, solid: true, closure: config.catClosure }));
   } else {
     const brackets = group('docking-brackets', 6, 'hardware');
     for (const sx of [-1, 1]) for (const f of [0.25, 0.75]) {
@@ -358,12 +354,14 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
       : config.attachment === 'spreader-feet'
       ? 'Each spreader stud is turned by its jammed nuts from inside: the foot moves out until its pad bears on the reveal'
       : 'Each inner wedge is driven along the member until the pair fills the gap';
+    for (const door of doors) door.setOpen?.(state.progress < 6 ? 1 - along(state.progress, 6) : state.windowOpen && state.doors?.[door.id] ? 1 : 0);
+    if (layout.port && state.progress > 5 && state.progress < 6) action = config.catClosure === 'removable' ? 'Seat the panel from the room, rotate the turn buttons over it, then engage their captive locking pins' : 'Lower the gate into its tracks and fit its latch';
     currentAction = action;
     hinge.rotation.z = state.windowOpen ? -Math.PI / 2 : 0;
     p.root.updateMatrixWorld(true);
   }
   function dispose() { p.dispose(); hexGeometry.dispose(); discGeometry.dispose(); }
-  return { root: p.root, hinge, tilt, components: p.components, update, dispose, layout, insert, motions, caption: () => currentAction, focusOffset: () => focus };
+  return { root: p.root, hinge, tilt, components: p.components, doors, update, dispose, layout, insert, motions, caption: () => currentAction, focusOffset: () => focus };
 }
 
 /** How a fastener is driven, in words: from which face. */

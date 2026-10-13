@@ -36,7 +36,7 @@ export const tunnelDefinition: SubassemblyDefinition<TunnelConfig> = {
   variants: ['modular'], briefLabel: 'THE TUNNEL', assemblyHeading: 'From the slabs to the enclosure.', stageScale: 20,
   // the window port's floor, which the tunnel starts from, follows the insert's clamp gap; every section and collar coupling is the
   // tunnel–tunnel coupling page's (latched across a gap, or bolted)
-  follows: [{ page: 'window-insert', settings: WINDOW_FLOOR_SETTINGS }, { page: 'tunnel-tunnel-coupling', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal'] }],
+  follows: [{ page: 'window-insert', settings: [...WINDOW_FLOOR_SETTINGS, 'catClosure'] }, { page: 'tunnel-tunnel-coupling', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal'] }],
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the climb', Top: 'Top · the turns', Mounting: 'Support detail' },
   toggles: { cutaway: 'Wall cutaway' }, layerLabels: { hardware: 'Bolts, feet & fixings', environment: 'Ground, wall & slabs' },
   defaults: TUNNEL_DEFAULT, presets: TUNNEL_PRESETS, controls: TUNNEL_CONTROLS, parse: parseTunnel,
@@ -52,7 +52,7 @@ export const couplingDefinition: SubassemblyDefinition<CouplingConfig> = {
   variants: ['modular'], briefLabel: 'THE JOINT', assemblyHeading: 'From the port to a docked tunnel.', 
   // the docking frame fits the insert's port face (battens or not, its floor, its screws); the tunnel's first section and wall
   // support are only shown
-  follows: [{ page: 'window-insert', settings: ['meshFixing', 'fixingPitch', ...WINDOW_FLOOR_SETTINGS] }, { page: 'tunnel', settings: [] }],
+  follows: [{ page: 'window-insert', settings: ['meshFixing', 'fixingPitch', ...WINDOW_FLOOR_SETTINGS, 'catClosure'] }, { page: 'tunnel', settings: [] }],
   cutawayViews: ['Interior', 'Side', 'Top', 'Mounting'],
   viewLabels: { Side: 'Side · the joint', Mounting: 'Latch detail' },
   toggles: { windowOpen: 'Released · latches open', cutaway: 'Wall cutaway' }, defaultViewing: { windowOpen: false },

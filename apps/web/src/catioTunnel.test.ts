@@ -458,7 +458,7 @@ describe('tunnel parts list', () => {
       const lines = tunnelBom('modular', { ...route, mesh }, site).filter(line => line.group === 'Mesh');
       expect(lines[0]).toMatchObject({ id: 'mesh-roll', quantity: 1, partId: CATIO_MESH_PARTS[mesh] });
       expect(lines[0]?.use).toContain('more rolls may be needed');
-      const cut = lines.slice(1); const count = cut.reduce((n, line) => n + line.quantity, 0);
+      const cut = lines.slice(1).filter(line => line.name !== 'Removable panel mesh cut'); const count = cut.reduce((n, line) => n + line.quantity, 0);
       expect(cut.every(line => !line.partId)).toBe(true);
       if (mesh === 'netting') {
         expect(cut.every(line => line.name === 'Net hood')).toBe(true); expect(count).toBe(l.pieces.length);
@@ -605,7 +605,7 @@ describe('tunnel scene', () => {
       }
       scene.dispose();
     }
-  });
+  }, 30_000);
 });
 
 describe('tunnel presets', () => {

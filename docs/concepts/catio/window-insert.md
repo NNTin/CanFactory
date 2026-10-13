@@ -21,6 +21,7 @@ a parts list with every piece's dimensions, and the design decisions below. Choi
 | Collar corners | Butt joint + 2 screws + flat corner bracket | Corner bracket; half-lap, glued + 2 screws; butt joint + 2 screws | Both |
 | Corner bracket | Printed (model), 100 × 100 × 20 mm | Printed ([printed-corner-bracket](../../printed-corner-bracket.md)); GAH Alberts Stuhlwinkel 75, 90, 100, 125, 150 mm | Corner bracket (hung: up to 100 mm, clear of the hooks) |
 | Port transom & jambs | Housed 10 mm + screw | Housed; butt joint + screws | With tunnel |
+| Cat-port closure | Removable solid panel with locked turn buttons | Removable panel; vertical sliding gate | Modular |
 | Mesh | Soft cat netting (TRIXIE 44294, 3 cm meshes) | Soft cat netting; welded wire mesh (KrapTrap, 19 mm meshes of 1.45 mm wire) | Both |
 | Mesh to timber | Staples under cover battens | Staples + battens; staples only (welded mesh only); battens only | Both |
 | Fixing spacing | 15 cm | 10, 15, 20 cm | Both |
@@ -91,7 +92,7 @@ its face runs flat from the frame's seal to the glass.
   parts list gives both): each turn reaches into the window just inside the lip's tip, and its barb stands in the middle of the
   seal gap, 0.75 mm clear of the lip's back and of the closed sash on the default window. Nothing is bent on site. The 2 mm barb
   needs a seal gap of 3 mm; in a narrower one the page says to choose the bought hooks. The seal is pressed locally at the four
-  hooks, as with any hooked insect screen. With the tunnel, the cat gate's latch also stands 12 mm behind the collar's back, in
+  hooks, as with any hooked insect screen. With the sliding gate option, its latch also stands 12 mm behind the collar's back, in
   front of the sash, and the page checks there is room for it.
 - **Or bought hooks, bent** (**Screen hooks → Windhager 03651**): two long and two short stainless strips (in the parts
   library as `screen-hook`), screwed on with two DIN 7997 3 × 16 screws each, their 15 mm and 7 mm tips behind the lips. Each
@@ -195,7 +196,7 @@ before; the printed hooks are no reason to leave the feet out or make them small
    - The parts list names one roll, linked to a shop, and the panels cut from it; more rolls may be needed.
 8. **The modular cat port.** A full-width transom over the port and two jambs give every infill mesh panel timber on all
    four edges. They sit in 10 mm housings (or butt joints), the jambs screwed from under the sill rail with DIN 7997 6 × 90.
-   The sliding gate runs in tracks on the room side of the port.
+   The default is a solid gasketed removable panel with a continuous backstop, locating surround and four positively locked turn buttons, withdrawn into the room. Vertical sliding gates and their tracks remain selectable. See [removable-doors.md](removable-doors.md) for dimensions, the lower surround notch, compatibility and physical checks.
 9. **The cat port ends at its frame.** Nothing of the insert continues the port out to the wall face. The
    [insert–tunnel coupling](window-insert-tunnel-coupling.md) screws a docking frame onto the jambs and transom, which
    carries the passage on to the tunnel. The frame **stays on the insert from then on**, also when it is lifted out. Its
@@ -216,7 +217,7 @@ before; the printed hooks are no reason to leave the feet out or make them small
 4. **Set it into the recess** from the garden, standing on the bearing feet, clear of the closed sash.
 5. **Tighten from inside** in opposite pairs until the pads bear, then run the lock nuts up to the collar (or drive the
    wedges).
-6. **Docking brackets** (direct) or **gate tracks, gate and latch** (with tunnel); open and close the window to check.
+6. **Docking brackets** (direct) or **selected cat-port closure** (with tunnel); open and close the window to check.
 
 Hung on the window frame, steps 2, 4 and 5 change: **fit the feet and hooks** (insert nuts and feet under the sill rail only;
 the four hooks, printed for the window or bent to the page's size, screwed to the stiles' backs), **hang it on the window frame** (open the sash, lift
@@ -242,7 +243,7 @@ group and how it goes in ("Now: 8 × Countersunk wood screw 4 × 50: driven from
     run onto the stud's inner end from inside.
 - Stage 5 turns each spreader screw or stud so the pad or foot moves out to the reveal. A printed thrust pad moves out
   without turning. Wedges are driven along the member instead.
-- With tunnel, the gate tracks come from the room side and the gate is lowered into them from above.
+- With tunnel, the removable panel seats from the room side, then its tabs turn over it and their pins lock. The optional sliding gate instead lowers into tracks from above.
 
 Stages 1–3 happen on a bench in the garden, and the cameras follow the insert there. The exploded view is the same
 assembly frozen: each piece waits on its own way in, with the insert on the bench, clear of the wall.

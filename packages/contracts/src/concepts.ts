@@ -62,6 +62,12 @@ const MESH_LINKS: ConceptPartLink[] = [
   { partId: CATIO_MESH_PARTS.welded, via: 'Mesh (welded wire mesh)' },
 ];
 
+const DOOR_LINKS: ConceptPartLink[] = [
+  { partId: 'din-7997-3x25', via: 'Removable cat panels (backstops and locating surrounds)' },
+  { partId: 'iso-7093-m4', via: 'Removable cat panels (turn-button pivot washers)' },
+];
+const ACCESS_LINKS: ConceptPartLink[] = [...DOOR_LINKS, { partId: 'din-7997-3x12', via: 'Removable mesh panels (edge battens)' }];
+
 /** The window insert's clamp feet: Ganter GN 343.2 KR on an M8 stud, in these diameters. */
 export const WINDOW_INSERT_FOOT = { thread: 'M8', diameters: [25, 32, 40], member: 40, travel: 8 } as const;
 
@@ -127,6 +133,7 @@ const h = WINDOW_INSERT_HARDWARE;
 export const windowInsertConcept: ConceptPage = {
   id: 'catio/window-insert', title: 'Window catio: window insert',
   parts: [
+    ...DOOR_LINKS,
     { partId: h.halfLapScrew, via: 'Collar corners (half-lap)' },
     { partId: h.buttScrew, via: 'Collar corners (butt joint)' },
     { partId: h.transomScrew, via: 'Port transom (with tunnel)' },
@@ -202,6 +209,7 @@ const t = TUNNEL_HARDWARE;
 export const tunnelConcept: ConceptPage = {
   id: 'catio/tunnel', title: 'Window catio: tunnel',
   parts: [
+    ...ACCESS_LINKS,
     { partId: t.couplingBolt, via: 'Flange couplings' },
     { partId: t.couplingWasher, via: 'Flange couplings (both sides)' },
     { partId: t.couplingNut, via: 'Flange couplings' },
@@ -265,6 +273,7 @@ export const insertTunnelCouplingConcept: ConceptPage = {
 export const tunnelTunnelCouplingConcept: ConceptPage = {
   id: 'catio/tunnel-tunnel-coupling', title: 'Window catio: tunnel–tunnel coupling',
   parts: [
+    ...ACCESS_LINKS,
     { partId: t.latchScrew, via: 'Printed toggle latches (base and catch plates)' },
     { partId: t.couplingBolt, via: 'Bolted couplings' },
     { partId: t.couplingWasher, via: 'Bolted couplings (both sides)' },

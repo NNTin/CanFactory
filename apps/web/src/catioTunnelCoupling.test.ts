@@ -143,7 +143,7 @@ describe('tunnel–tunnel coupling parts list', () => {
       const roll = lines.filter(line => line.group === 'Mesh' && line.partId);
       expect(roll).toMatchObject([{ quantity: 1, partId: CATIO_MESH_PARTS[s.tunnel.mesh] }]);
       expect(roll[0]?.use).toContain('more rolls may be needed');
-      expect(lines.filter(line => line.group === 'Mesh' && !line.partId).reduce((n, line) => n + line.quantity, 0)).toBe(s.tunnel.mesh === 'netting' ? 2 : 6);
+      expect(lines.filter(line => line.group === 'Mesh' && !line.partId && line.name !== 'Removable panel mesh cut').reduce((n, line) => n + line.quantity, 0)).toBe(s.tunnel.mesh === 'netting' ? 2 : 6);
       expect(lines.some(line => line.name === 'Net hood')).toBe(s.tunnel.mesh === 'netting');
       expect(lines.find(line => line.name === 'Floor board')?.size).toContain(`${Math.round(l.sectionLength - 2 * TUNNEL.flange.thickness)}`);
     }
@@ -435,7 +435,7 @@ describe('tunnel–tunnel coupling page settings', () => {
       // with nothing saved on the tunnel page yet, it is started with just these
       store.clear();
       saveShared<TunnelCouplingConfig>(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'strap' });
-      expect(loadSubassemblySettings(tunnelDefinition).config).toEqual({ ...TUNNEL_DEFAULT, supportFixing: 'strap' });
+      expect(loadSubassemblySettings(tunnelDefinition).config).toEqual({ ...TUNNEL_DEFAULT, accessPanels: false, supportFixing: 'strap' });
       // an invalid value saved on the tunnel page is not taken
       store.set(subassemblyStorageKey('tunnel'), JSON.stringify({ version: 1, config: { supportFixing: 'glue' } }));
       expect(loadSubassemblySettings(tunnelCouplingDefinition).config.supportFixing).toBe('screws');

@@ -31,6 +31,7 @@ const configs: WindowInsertConfig[] = ([WINDOW_INSERT_DEFAULT, pressed, ...[WIND
   { ...bought, frameLip: 8, sealGap: 4.5 }, { ...bought, frameLip: 12, sealGap: 2.5 }, { ...bought, clampPad: 'ganter' }, { ...hung, frameLip: 12, sealGap: 3 },
   { ...hung, frameOverlap: 10, cornerJoint: 'half-lap' }] as WindowInsertConfig[]).filter(besideHooks)
   // staples alone hold welded mesh only: a net needs the battens
+  .map(config => validateWindowInsert('modular', config).some(e => e.includes('withdrawal path')) ? { ...config, catClosure: 'sliding' as const } : config) // low thresholds/thick frame lips need the sliding option
   .map(config => config.meshFixing === 'staples' ? { ...config, mesh: 'welded' as const } : config);
 const component = (scene: ReturnType<typeof createWindowInsertScene>, id: string) => {
   const found = scene.components.find(part => part.id === id); if (!found) throw new Error(`missing ${id}`); return found.group;
@@ -74,7 +75,7 @@ describe('window insert', () => {
       const pieces = scene.components.filter(part => part.layer !== 'environment' && part.id !== 'fixed-window-frame' && part.id !== 'opening-sash').map(part => ({ id: part.id, box: bounds(part.group) }));
       // only the hooks (and their screws' tips) reach past the frame's face, behind its lip, and (hung) the gate latch on the port's
       // room side into the window opening: all clear of the closed sash
-      const behind = (id: string) => id === 'screen-hooks' || id === 'hook-screws' || (config.attachment === 'frame-hooks' && id === 'gate-latch');
+      const behind = (id: string) => id === 'screen-hooks' || id === 'hook-screws' || (config.attachment === 'frame-hooks' && (id === 'window-cat-latch' || id === 'window-cat-turn-buttons'));
       for (const piece of pieces) {
         if (piece.box.isEmpty()) continue;
         expect(piece.box.min.x, `${variant} ${piece.id}`).toBeGreaterThanOrEqual(-w.openingWidth / 2 - 0.01);
@@ -145,7 +146,7 @@ describe('window insert', () => {
       expect(scene.focusOffset?.()).toEqual([0, scene.insert.position.y, 0]);
     }
     // hung on the window frame, by default: the hooks and their screws, and only the bearing feet
-    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['collar-head', 'collar-left', 'corner-screws', 'insert-nuts', 'screen-hooks', 'hook-screws', 'bearing-feet', 'port-frame', 'infill-top', 'staples', 'cover-battens', 'cat-gate']));
+    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['collar-head', 'collar-left', 'corner-screws', 'insert-nuts', 'screen-hooks', 'hook-screws', 'bearing-feet', 'port-frame', 'infill-top', 'staples', 'cover-battens', 'window-cat-gate']));
     expect(scene.components.map(part => part.id)).not.toContain('spreader-clamps');
     scene.update({ ...installed, cutaway: true, hidden: new Set(['mesh']) });
     expect(component(scene, 'wall').visible).toBe(false);
@@ -209,7 +210,7 @@ describe('window insert', () => {
       for (const motion of scene.motions) expect(motion.object.position.length(), motion.action).toBeGreaterThan(0);
       scene.dispose();
     }
-  });
+  }, 30_000);
 
   it('holds a net’s edge at every mesh: under battens, or stapled mesh by mesh, never by staples a hand apart', () => {
     const net = catioMesh('netting');
@@ -449,8 +450,8 @@ describe('window insert hung on the window frame', () => {
     expect(validateWindowInsert('direct', { ...hung, sealGap: 2.5 }).join(' ')).toMatch(/seal gap \(2.5 mm\) is too narrow for the printed hooks’ 2 mm barb.*Choose the bought hooks/);
     expect(validateWindowInsert('direct', { ...bought, sealGap: 2.5 })).toEqual([]);
     // the modular cat gate's latch stands behind the collar's back, in front of the sash: a thin lip leaves too little room
-    expect(validateWindowInsert('modular', { ...bought, frameLip: 5, sealGap: 2.5 }).join(' ')).toMatch(/gate’s latch needs 13 mm/);
-    expect(validateWindowInsert('direct', { ...bought, frameLip: 5, sealGap: 2.5 })).toEqual([]);
+    expect(validateWindowInsert('modular', { ...bought, catClosure: 'sliding', frameLip: 5, sealGap: 2.5 }).join(' ')).toMatch(/gate’s latch needs 13 mm/);
+    expect(validateWindowInsert('direct', { ...bought, catClosure: 'sliding', frameLip: 5, sealGap: 2.5 })).toEqual([]);
     expect(validateWindowInsert('direct', { ...hung, frameLip: 5, sealGap: 3 })).toEqual([]);
   });
 

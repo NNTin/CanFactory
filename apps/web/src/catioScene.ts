@@ -6,7 +6,7 @@ import { savedWindowInsert, windowFor, windowInsertLayout, type WindowInsertConf
 import { buildHungHardware } from './catioWindowInsertScene.ts';
 
 type V3 = [number, number, number];
-export interface CatioState { progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: ReadonlySet<CatioLayer> }
+export interface CatioState { progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: ReadonlySet<CatioLayer>; doors?: Readonly<Record<string, boolean>> }
 export interface MeshPanel { id: string; width: number; height: number; center: V3; plane: 'xy' | 'xz' | 'yz' }
 
 /**

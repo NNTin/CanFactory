@@ -1,3 +1,4 @@
+import type { CatioDoor } from './catioCatDoor.ts';
 import type { BomLine } from '@canfactory/contracts';
 import type * as THREE from 'three';
 import type { CatioLayer, CatioView } from './catioDesign.ts';
@@ -67,6 +68,7 @@ export interface DesignDecision {
 
 export interface SubassemblyComponent { id: string; group: THREE.Group; step: number; layer?: CatioLayer }
 export interface SubassemblyModel {
+  doors?: CatioDoor[];
   root: THREE.Group;
   hinge: THREE.Group;
   components: SubassemblyComponent[];
@@ -131,14 +133,14 @@ export interface SubassemblyDefinition<C extends object> {
   defaultViewing?: Partial<Pick<SubassemblyViewing, 'windowOpen' | 'cutaway' | 'view'>>;
 }
 
-export interface SubassemblyViewing { progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: CatioLayer[]; view: CatioView }
+export interface SubassemblyViewing { doors: Record<string, boolean>; progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: CatioLayer[]; view: CatioView }
 export interface SubassemblySettings<C> { version: 1; variant: CatioMode; config: C; views: Record<CatioMode, SubassemblyViewing> }
 
 export const subassemblyStorageKey = (id: CatioSubassembly) => `canfactory.catio.${id}.v1`;
 
 export function defaultSubassemblySettings<C extends object>(definition: SubassemblyDefinition<C>): SubassemblySettings<C> {
   const view = (variant: CatioMode): SubassemblyViewing => ({
-    progress: definition.steps(variant, definition.defaults).length - 1, exploded: false, windowOpen: true, cutaway: false, hidden: [], view: 'Exterior', ...definition.defaultViewing,
+    doors: {}, progress: definition.steps(variant, definition.defaults).length - 1, exploded: false, windowOpen: true, cutaway: false, hidden: [], view: 'Exterior', ...definition.defaultViewing,
   });
   return { version: 1, variant: definition.variants?.[0] ?? 'direct', config: structuredClone(definition.defaults), views: { direct: view('direct'), modular: view('modular') } };
 }
@@ -161,6 +163,7 @@ export function parseSubassemblySettings<C extends object>(definition: Subassemb
     if (record(views)) for (const variant of ['direct', 'modular'] as const) {
       const saved = views[variant]; if (!record(saved)) continue;
       const target = settings.views[variant];
+      if (record(saved['doors'])) target.doors = Object.fromEntries(Object.entries(saved['doors']).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean'));
       const last = definition.steps(variant, settings.config).length - 1;
       if (typeof saved['progress'] === 'number' && saved['progress'] >= 0 && saved['progress'] <= last) target.progress = saved['progress'];
       for (const key of ['exploded', 'windowOpen', 'cutaway'] as const) if (typeof saved[key] === 'boolean') target[key] = saved[key];

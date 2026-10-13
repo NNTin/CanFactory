@@ -1,3 +1,4 @@
+import type { CatioDoor } from './catioCatDoor.ts';
 import * as THREE from 'three';
 import { dimensionOf, findPart } from '@canfactory/contracts';
 import { createCatioParts } from './catioParts.ts';
@@ -95,6 +96,7 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
   const start = p.components.length;
   const draw = tunnelDrawing(p, tl.mesh); const { vector, cylinder } = draw;
 
+  const doors: CatioDoor[] = [];
   const motions: PieceMotion[] = [];
   const move = (object: THREE.Object3D, stage: number, window: [number, number], approach: V3, action: string, meta: Partial<Omit<PieceMotion, 'object' | 'stage' | 'window' | 'approach' | 'action'>> = {}) => {
     motions.push({ object, stage, window, approach: vector(approach), action, ...meta });
@@ -107,7 +109,7 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
   };
 
   // Stage 0: the insert in its recess (timber and mesh) and the tunnel's wall support, levelled.
-  buildInsertContext(p, insert);
+  buildInsertContext(p, insert, doors);
   const supportGroup = component('wall-support', 0, undefined);
   const s = layout.wallSupport;
   if (s) {
@@ -158,6 +160,13 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
     const section = buildSectionPieces(p, draw, tl, [first.id]);
     for (const { group: g } of [...section.members, ...section.cleats]) timber.add(g);
     for (const { group: g } of section.panels) mesh.add(g);
+    for (const a of section.access) {
+      doors.push(a.door);
+      for (const part of a.parts) {
+        const g = piece(group(part.id, 3, part.layer === 'mesh' ? 'mesh' : part.layer === 'hardware' ? 'hardware' : 'timber'));
+        g.add(part.group); move(g, 3, [0, 0], [0, 0, 0], 'Retained tunnel maintenance panel', { role: 'timber', carried: true });
+      }
+    }
     // it is already built: it arrives whole at the start of the stage and only travels with the lift
     for (const g of [timber, mesh]) move(g, 3, [0, 0], [0, 0, 0], 'The first section, framed and meshed on the tunnel page', { role: 'timber', carried: true });
   }
@@ -207,9 +216,10 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
     if (!action && state.progress > 4 && closing > 0 && closing < 1) action = `${layout.latches.length} × ${latchTitle}: hooked over its catch, lever pressed down over centre`;
     currentAction = action;
     // the window stays open: the cat goes through it into the port
+    for (const door of doors) door.setOpen?.(state.progress >= 6 && state.doors?.[door.id] && (door.id !== 'window-cat' || !state.windowOpen) ? 1 : 0);
     hinge.rotation.z = -Math.PI / 2;
     p.root.updateMatrixWorld(true);
   }
   function dispose() { p.dispose(); pieces.dispose(); draw.dispose(); }
-  return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers, lift: () => currentLift, caption: () => currentAction };
+  return { root: p.root, hinge, components: p.components, doors, update, dispose, layout, motions, levers, lift: () => currentLift, caption: () => currentAction };
 }

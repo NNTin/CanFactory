@@ -1,10 +1,11 @@
+import { buildCatDoor } from './catioCatDoor.ts';
 import type { CatioMeshSpec } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { dimensionOf, findPart, type Part } from '@canfactory/contracts';
 import type { createCatioParts } from './catioParts.ts';
 import { buildPrintedLatches } from './catioPrintedLatchScene.ts';
 import type { V3 } from './catioSubassembly.ts';
-import { facePoint, TUNNEL, vec, type Coupling, type Face, type Fastener, type Member, type MeshPanel, type Rect, type Support, type SupportBox, type TunnelLayout } from './catioTunnel.ts';
+import { accessMeshQuads, facePoint, TUNNEL, vec, type Coupling, type Face, type Fastener, type Member, type MeshPanel, type Rect, type Support, type SupportBox, type TunnelLayout } from './catioTunnel.ts';
 
 /**
  * The tunnel's pieces as 3D groups, drawn once for every page that shows them: the tunnel page stages all of them, the tunnel–tunnel
@@ -103,13 +104,33 @@ export function buildSectionPieces(p: ReturnType<typeof createCatioParts>, draw:
     return { cleat, group };
   });
   const panels = layout.panels.filter(panel => of(panel.piece)).map(panel => {
-    const c = draw.centroid(panel.corners); const group = draw.group(c); draw.meshQuad(group, panel.corners, c);
+    const c = draw.centroid(panel.corners); const group = draw.group(c);
+    const access = layout.accessPanels.find(a => a.panel === panel.id);
+    if (!access) draw.meshQuad(group, panel.corners, c);
+    else {
+      const piece = layout.pieces.find(p => p.id === access.piece); if (!piece) throw new Error('Missing access-panel section');
+      for (const corners of accessMeshQuads(piece, panel, access)) draw.meshQuad(group, corners, c);
+    }
     return { panel, group };
   });
   const built: Fastener['component'][] = ['rail-screws', 'floor-screws', 'cleat-screws', 'staples'];
   const fasteners = layout.fasteners.filter(f => built.includes(f.component) && (!pieces || (f.piece !== undefined && pieces.includes(f.piece))))
     .flatMap(f => { const drawn = draw.fastener(f); return drawn ? [{ fastener: f, ...drawn }] : []; });
-  return { members, cleats, panels, fasteners };
+  const access = layout.accessPanels.filter(a => of(a.piece)).map(a => {
+    const piece = layout.pieces.find(p => p.id === a.piece); if (!piece) throw new Error('Missing access-panel section');
+    const first = p.components.length;
+    const door = buildCatDoor(p, { id: a.id, label: `${piece.name} maintenance panel`, kind: 'access', step: 0, width: a.width, height: a.height, bottom: 0, y: 0, closure: 'removable' });
+    const fixed = p.component(`${a.id}-jambs`, 0, 'timber');
+    for (const x of [-1, 1]) p.box(fixed, [16, 40, layout.h + 80], [x * (a.width / 2 + 20), -20, layout.h / 2 - a.bottom]);
+    const parts = p.components.splice(first).map(part => {
+      const pose = new THREE.Group(); pose.position.set(...a.center);
+      pose.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(draw.vector(vec.mul(piece.frame.y, -1)), draw.vector(piece.frame.x), draw.vector(piece.frame.z)));
+      pose.add(...part.group.children.slice()); part.group.add(pose);
+      return part;
+    });
+    return { access: a, door, parts };
+  });
+  return { members, cleats, panels, fasteners, access };
 }
 export type SectionPieces = ReturnType<typeof buildSectionPieces>;
 export type { Member, MeshPanel };

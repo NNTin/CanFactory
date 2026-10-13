@@ -172,17 +172,17 @@ Sheets 07–10 and 12 depict the default one-enclosure straight configuration. S
 
 ### Connections and access
 
-The original large window passage is replaced, in modular mode, by mesh infill and a small sliding gate at the bottom of the removable collar. Window and enclosure ports share the tunnel's clear dimensions. Timber collars, shallow metal flanges and schematic removable clamps show the docking interfaces; these are conceptual hardware, not fabricated part specifications. The window insert is tightened from inside; tunnels and enclosure couplings are assembled outside. All installed geometry clears the inward sash sweep.
+The original large window passage is replaced, in modular mode, by mesh infill and a selectable cat-port closure at the bottom of the removable collar. Window and enclosure ports share the tunnel's clear dimensions. Timber collars, shallow metal flanges and schematic removable clamps show the docking interfaces; these are conceptual hardware, not fabricated part specifications. The window insert is tightened from inside; tunnels and enclosure couplings are assembled outside. All installed geometry clears the inward sash sweep.
 
 Tunnels have solid timber floors, mesh sides and roof, and short supports at section ends. Straight and 90° corner modules form a continuous enclosed route at sill height. Enclosures have a continuous grass-level mesh floor, four short supports and low mesh skirts. A full-width rear landing meets rear and side cat ports; one cleated ramp descends toward the front inside each enclosure. Different enclosure depths share the same rear edge and side-port location, leaving the human doors free.
 
-Each enclosure has a full-front outward hinged maintenance door. At the default 120 cm enclosure height, access is by crouching or reaching; increase height for a larger opening. Small manual sliding gates close the rear and side cat ports. Connected gates can be toggled independently in the completed scene. Unused ports remain shut, and all gates stay shut through the coupling stage. Gate travel, frame borders and room for the internal ramp are validated together with numeric ranges.
+Each enclosure has a full-front outward hinged maintenance door. At the default 120 cm enclosure height, access is by crouching or reaching; increase height for a larger opening. Removable mesh panels with positively locked turn buttons close the rear and side cat ports by default; vertical sliding gates remain selectable. The window uses a solid gasketed removable panel. See [removable-doors.md](removable-doors.md) for operation, side maintenance access and physical validation requirements. Roofs remain unchanged. Connected gates can be toggled independently in the completed scene. Unused ports remain shut, and all gates stay shut through the coupling stage. Sliding-gate travel or removable-panel clearance, frame borders and room for the internal ramp are validated together with numeric ranges.
 
 ### Modular assembly
 
 1. Fit the window insert and padded clamps from inside; keep its cat gate shut.
 2. Position the enclosures, feet, floor skirts, walls, roof and maintenance doors.
-3. Fit rear landings, ramps and the small sliding gates.
+3. Fit rear landings, ramps and the selected cat-port closures.
 4. Lay straight and corner tunnel modules on their supports.
 5. Couple every section and the end connections while both end gates remain shut.
 6. Open the connected gates after coupling; leave unused ports and human doors latched.

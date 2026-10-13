@@ -1,3 +1,4 @@
+import type { CatioDoor } from './catioCatDoor.ts';
 import * as THREE from 'three';
 import { toggleLatchMechanism as TL } from '@canfactory/contracts';
 import { createCatioParts } from './catioParts.ts';
@@ -39,6 +40,7 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
   const hinge = new THREE.Group(); p.root.add(hinge);
   const draw = tunnelDrawing(p); const { vector } = draw;
   const geometries: THREE.BufferGeometry[] = [];
+  const doors: CatioDoor[] = [];
   const motions: PieceMotion[] = [];
   const move = (object: THREE.Object3D, stage: number, window: [number, number], approach: V3, action: string, meta: Partial<Omit<PieceMotion, 'object' | 'stage' | 'window' | 'approach' | 'action'>> = {}) => {
     motions.push({ object, stage, window, approach: vector(approach), action, ...meta });
@@ -79,6 +81,14 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
   const sections = buildSectionPieces(p, draw, tl, layout.pieces);
   const entry = ENTRY(layout);
   const entering = `The second section, identical (${Math.round(after.length)} mm): in along the tunnel’s axis onto the same bearer, ${layout.gap ? `stopping ${layout.gap} mm short of the first` : 'flange to flange against the first'}`;
+  for (const a of sections.access) {
+    doors.push(a.door);
+    for (const part of a.parts) {
+      const second = a.access.piece === after.id;
+      group(`${second ? 'second' : 'first'}-access-${part.layer}`, second ? 3 : 1, part.layer === 'mesh' ? 'mesh' : part.layer === 'hardware' ? 'hardware' : 'timber').add(part.group);
+      move(part.group, second ? 3 : 1, second ? [0, 0.8] : [0.46, 0.72], second ? ENTRY(layout) : [0, 0, 0], second ? entering : 'Removable maintenance panel, retained shut', { role: second ? 'section' : 'timber', of: a.access.id, ...(!second ? { lifted: true } : {}) });
+    }
+  }
   const rails = sections.members.filter(q => q.member.piece === before.id && q.member.kind === 'rail').length;
   const firstWindows = { flange: [0, 0.12], rail: [0.12, 0.24], 'rail-screws': [0.24, 0.32], floor: [0.32, 0.4], 'floor-screws': [0.4, 0.46], mesh: [0.46, 0.6], staples: [0.6, 0.72] } as const;
   for (const { member, group: g } of sections.members) {
@@ -209,11 +219,12 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     currentAction = action;
     // the cameras follow the second section in from beyond the first while it comes, then the joint again
     focus = state.progress > 2 && state.progress < 3 && !state.exploded ? vec.mul(coupling.face.n, 0.5 * L) : [0, 0, 0];
+    for (const door of doors) door.setOpen?.(state.progress >= 5 && state.doors?.[door.id] ? 1 : 0);
     p.root.updateMatrixWorld(true);
   }
   function dispose() { p.dispose(); draw.dispose(); jointPieces.dispose(); for (const g of geometries) g.dispose(); }
   return {
-    root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers: jointPieces.latches, hold,
+    root: p.root, hinge, components: p.components, doors, update, dispose, layout, motions, levers: jointPieces.latches, hold,
     lift: () => currentLift, entry: () => currentEntry, caption: () => currentAction, focusOffset: () => focus,
   };
 }

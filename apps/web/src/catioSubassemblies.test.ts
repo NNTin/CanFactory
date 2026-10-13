@@ -12,7 +12,7 @@ const withInsert = (insert: WindowInsertConfig): TunnelSite => ({ ...base, inser
 const builds = {
   tunnel: (site: TunnelSite, joint: TunnelCouplingConfig = TUNNEL_COUPLING_DEFAULT) => {
     const l = tunnelLayout(TUNNEL_DEFAULT, site, joint);
-    return JSON.stringify([l.S, l.pieces, l.couplings, l.supports, tunnelBom('modular', TUNNEL_DEFAULT, site, joint), l.errors]);
+    return JSON.stringify([site.insert.catClosure, l.S, l.pieces, l.couplings, l.supports, tunnelBom('modular', TUNNEL_DEFAULT, site, joint), l.errors]);
   },
   tunnelCoupling: (tunnel: TunnelConfig, site: TunnelSite = base, own: TunnelCouplingConfig = TUNNEL_COUPLING_DEFAULT) => {
     // the settings it shares with the tunnel page come from there, as the page loads them
@@ -22,7 +22,7 @@ const builds = {
   },
   coupling: (site: TunnelSite, tunnel: TunnelConfig = TUNNEL_DEFAULT) => {
     const l = couplingLayout(COUPLING_DEFAULT, { tunnel, site });
-    return JSON.stringify([l.frame, l.fasteners, l.floor, couplingBom('modular', COUPLING_DEFAULT, { tunnel, site }), l.errors]);
+    return JSON.stringify([site.insert.catClosure, l.frame, l.fasteners, l.floor, couplingBom('modular', COUPLING_DEFAULT, { tunnel, site }), l.errors]);
   },
 };
 
@@ -85,12 +85,12 @@ describe('catio pages that follow each other', () => {
 
   it('finds the pages fitted to each page, with the settings they follow', () => {
     expect(dependentsOf('window-insert')).toEqual([
-      { page: 'tunnel', settings: ['attachment', 'clampPad', 'padHeight', 'footDiameter'] },
-      { page: 'insert-tunnel-coupling', settings: ['meshFixing', 'fixingPitch', 'attachment', 'clampPad', 'padHeight', 'footDiameter'] },
+      { page: 'tunnel', settings: ['attachment', 'clampPad', 'padHeight', 'footDiameter', 'catClosure'] },
+      { page: 'insert-tunnel-coupling', settings: ['meshFixing', 'fixingPitch', 'attachment', 'clampPad', 'padHeight', 'footDiameter', 'catClosure'] },
     ]);
     expect(dependentsOf('tunnel')).toEqual([
       { page: 'insert-tunnel-coupling', settings: [] },
-      { page: 'tunnel-tunnel-coupling', settings: ['mesh', 'sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance', 'supportFixing', 'supportBase'] },
+      { page: 'tunnel-tunnel-coupling', settings: ['accessPanels', 'mesh', 'sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance', 'supportFixing', 'supportBase'] },
     ]);
     expect(dependentsOf('insert-tunnel-coupling')).toEqual([]);
     expect(dependentsOf('tunnel-tunnel-coupling')).toEqual([{ page: 'tunnel', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal'] }]);

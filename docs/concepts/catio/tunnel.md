@@ -58,6 +58,10 @@ The brief shows the **window port floor** with a link to the window insert setti
 by**, **Spreader feet**, **Pad height**, **Foot diameter**). With an own height less than 3 cm off the window port's floor, the rise says it is nearly
 level and suggests the level setting.
 
+## Maintenance access
+
+New designs include removable right-side mesh panels in sufficiently long straight sections, with locked turn buttons and full-height fixing jambs. Short sections/collars stay fixed. The **Tunnel maintenance access** control retains the original fixed-mesh option. Secure cats elsewhere before removing any panel. [Door operation, settings migration and physical checks](removable-doors.md) apply; roofs are unchanged.
+
 ## Parameters
 
 | Parameter | Default | Options | Group |
@@ -72,6 +76,7 @@ level and suggests the level setting.
 | Climb in | The middle run | Run out from the wall; middle run; run into the port | Route |
 | Steepest slope | 20° | 10°, 15°, 20°, 25° | Route |
 | Turns and bends | Angle collar | Angle collar; mitred ends, bolted | Joints |
+| Tunnel maintenance access | Removable mesh panels | Removable panels; original fixed side mesh | Sections |
 | Mesh | Soft cat netting (TRIXIE 44294, 3 cm meshes) | Soft cat netting; welded wire mesh (KrapTrap, 19 mm meshes of 1.45 mm wire) | Sections |
 | Longest section | 75 cm | 50, 75, 100 cm | Sections |
 | Feet | Printed feet on M8 × 80 screws | Printed feet; Ganter GN 343.2 levelling feet | Supports |

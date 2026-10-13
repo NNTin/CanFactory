@@ -1,9 +1,10 @@
 import { CATIO_MESH_DEFAULT, CATIO_MESHES, catioMesh, type CatioMesh, type CatioMeshSpec, dimensionOf, findPart, hexScrew, PRESSURE_PAD, PRESSURE_PAD_SURFACES, pressurePadMinDiameter, pressurePadMinHeight, TUNNEL_FOOT, TUNNEL_HARDWARE as HW, TUNNEL_PAD, tunnelFoot, type Part, type PressurePadSurface } from '@canfactory/contracts';
 import { toggleLatchMechanism as TL } from '@canfactory/contracts';
+import { CAT_DOOR_WARNING, catDoorBom, type CatClosure } from './catioCatDoor.ts';
 import { MESH_LABELS, meshCut, meshRollLine } from './catioMesh.ts';
 import { type CatioView } from './catioDesign.ts';
 import { E_PROFILE_SEAL, latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine, printedLatchScrews, type LatchMount } from './catioPrintedLatch.ts';
-import type { CatioMode } from './catioSettings.ts';
+import { loadCatioSettings, type CatioMode } from './catioSettings.ts';
 import { couplingGap, savedTunnelCoupling, SUPPORT_FIXING_LABELS, SUPPORT_SOLE, supportControls, type SupportBase, type SupportFixing, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { fastenerClashes, fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type SubassemblyPreset, type V3 } from './catioSubassembly.ts';
 import { parseWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertLayout, type WindowInsertConfig, type WindowSpec } from './catioWindowInsert.ts';
@@ -20,6 +21,7 @@ import { parseWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_DEFAULT, window
  * `jointSetback`). The layout below is the one source for the 3D scene, the parts list and the tests.
  */
 export interface TunnelConfig {
+  accessPanels: boolean;
   /** The enclosure port's centre along the wall from the window's centre (+ to the right, seen from the garden). */
   portX: number;
   /** How far the enclosure port's face is from the wall. */
@@ -65,6 +67,7 @@ export interface TunnelConfig {
 export { SUPPORT_FIXINGS, SUPPORT_FIXING_LABELS, type SupportFixing } from './catioTunnelJoint.ts';
 
 export const TUNNEL_DEFAULT: TunnelConfig = {
+  accessPanels: true,
   portX: 1200, portY: 3000, portFacing: 0, portLevel: 'own', portHeight: 500, approach: 700, final: 700, slopeLeg: 'middle', maxSlope: 20,
   angleJoint: 'angle-collar', mesh: CATIO_MESH_DEFAULT, sectionLength: 750, footPad: 'printed', padHeight: 27.5, padSurface: 'grooved', footDiameter: 40, groundFall: 2, groundTolerance: 15,
   supportFixing: 'screws', supportBase: 'trestle',
@@ -113,14 +116,14 @@ export const TUNNEL = {
 } as const;
 
 /** The fixed interfaces: the window insert's port (where the tunnel starts) and the tunnel's clear size. */
-export interface TunnelSite { w: number; h: number; floorZ: number; window: WindowSpec; insert: WindowInsertConfig }
+export interface TunnelSite { w: number; h: number; floorZ: number; window: WindowSpec; insert: WindowInsertConfig; enclosureClosure?: CatClosure }
 
 /** The window insert as saved on its own page (or its defaults), in the modular window saved on the catio concept page. */
 export function tunnelSite(): TunnelSite {
   const insert = loadSubassemblyConfig('window-insert', parseWindowInsert, WINDOW_INSERT_DEFAULT);
   const window = windowFor('modular', insert);
   const tunnel = window.tunnel ?? { width: 300, height: 300 };
-  return { w: tunnel.width, h: tunnel.height, floorZ: windowInsertLayout('modular', insert, window).floor, window, insert };
+  return { enclosureClosure: loadCatioSettings().config.catClosure, w: tunnel.width, h: tunnel.height, floorZ: windowInsertLayout('modular', insert, window).floor, window, insert };
 }
 
 // Vectors
@@ -527,6 +530,17 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
       }
     }
   }
+  // A right-side maintenance opening only in sections with enough room, clear of flanges, latches and the roof rails.
+  const accessPanels = config.accessPanels ? pieces.filter(p => p.kind === 'section').flatMap(p => {
+    const panel = panels.find(q => q.id === `${p.id}-mesh-right`);
+    if (!panel) return [];
+    const [a, b, c, d] = panel.corners;
+    const at = (q: V3) => dot(sub(q, p.start.at), p.frame.y);
+    const low = Math.max(at(a), at(d)); const high = Math.min(at(b), at(c)); const usable = high - low;
+    const width = Math.min(300, usable - 160); const height = h - 100;
+    return width >= 160 && height >= 100 ? [{ id: `${p.id}-access`, piece: p.id, panel: panel.id, width, height, usable,
+      bottom: 50, center: add(add(p.start.at, mul(p.frame.y, (low + high) / 2)), add(mul(p.frame.x, outer), mul(p.frame.z, 50))) }] : [];
+  }) : [];
   // Cleats across the floor of every sloped section, for grip.
   const cleats: { id: string; piece: string; center: V3; frame: Frame; length: number }[] = [];
   for (const p of pieces.filter(p => p.kind === 'section' && Math.abs(p.pitch) > 0.01)) {
@@ -788,10 +802,22 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   const totalLength = pieces.reduce((sum, p) => sum + p.length, 0);
   return {
     config, site, w, h, S, E, dE, V1, V2, turns: turns.map(deg), rise, slope: slope ? { pitch: deg(slope.pitch), run: slope.run, footprint: slope.footprint } : null,
-    joint, gap, mesh, pieces, joints, interfaces, couplings, members, panels, cleats, fasteners, supports, foot, pad, footHeight: l3, stud, insertNut, lockNut, travel, errors, totalLength,
+    joint, gap, mesh, pieces, joints, interfaces, couplings, members, panels, accessPanels, cleats, fasteners, supports, foot, pad, footHeight: l3, stud, insertNut, lockNut, travel, errors, totalLength,
   };
 }
 export type TunnelLayout = ReturnType<typeof tunnelLayout>;
+
+/** Exact rectangular side cut, including trapezoidal mitred section ends. The roof is never cut or retessellated. */
+export function accessMeshQuads(piece: Piece, panel: MeshPanel, access: TunnelLayout['accessPanels'][number]): [V3, V3, V3, V3][] {
+  const [a, b, c, d] = panel.corners;
+  const coordinate = (q: V3) => dot(sub(q, piece.start.at), piece.frame.y);
+  const center = coordinate(access.center); const left = center - access.width / 2; const right = center + access.width / 2;
+  const on = (from: V3, to: V3, x: number) => add(from, mul(sub(to, from), (x - coordinate(from)) / (coordinate(to) - coordinate(from))));
+  const lb = on(a, b, left); const rb = on(a, b, right); const lt = on(d, c, left); const rt = on(d, c, right);
+  const point = (x: number, z: number) => add(access.center, add(mul(piece.frame.y, x - center), mul(piece.frame.z, z)));
+  const bl = point(left, 0); const br = point(right, 0); const tl = point(left, access.height); const tr = point(right, access.height);
+  return [[a, lb, lt, d], [rb, b, c, rt], [lb, rb, br, bl], [tl, tr, rt, lt]];
+}
 
 export function validateTunnel(_variant: CatioMode, config: TunnelConfig, site: TunnelSite = tunnelSite()): string[] {
   return tunnelLayout(config, site).errors;
@@ -856,7 +882,7 @@ export function tunnelSteps(_variant: CatioMode, config: TunnelConfig): readonly
     { title: 'Bed the slabs, build the supports', detail: `Bed a 30 × 30 cm paving slab in the grass under every foot position (${l.supports.length * 2}). For each support: screw an M8 insert nut into each leg’s foot end (or into the underside of a low bearer), ${foot}, screw the bearer down onto the legs and, on tall ones, the diagonal brace across. ${legs} trestles, ${blocks} low bearers.${sole}` },
     { title: 'Level the supports', detail: `Stretch a string line (or use a laser) at each bearer’s design height from the window floor. ${level} The feet, not the ground, set the heights.${fixing.support ? ` ${fixing.support}` : ''}` },
     { title: collar ? 'Frame the sections and collars' : 'Frame the sections', detail: `On trestles beside the line (shown raised over it): screw the four rails between each section’s two flange rings, then screw the floor board down onto the bottom rails. ${collar ? 'Each angle collar is built the same way between two flanges set at its angle.' : 'Sections at a joint have their flanges on the mitre: cut the rails and floor to the mitre angle.'} Sloped sections get cleats across the floor.${plates}${fixing.pieces ? ` ${fixing.pieces}` : ''}` },
-    { title: l.mesh.soft ? 'Net the sections' : 'Mesh the sections', detail: meshingStep(l.mesh) },
+    { title: l.mesh.soft ? 'Net the sections' : 'Mesh the sections', detail: meshingStep(l.mesh) + (config.accessPanels ? ' In each eligible section, screw full-height fixing jambs to the side rails, cut only the right-side aperture, clamp its edges under the fixed surround, then seat the removable mesh panel and positively lock all four turn buttons. Keep maintenance panels shut; secure cats elsewhere before opening them.' : '') },
     { title: 'Lay and couple', detail: `Lay the pieces onto the supports${fixing.lay} from the window end: ${joints}. ${couple} (The tunnel–tunnel coupling page sets how.)` },
     { title: 'Fix down and dock', detail: `${fixing.hold} Close the latches between the first flange and the window insert’s docking frame (the insert–tunnel coupling page); nothing of the tunnel rests on the wall or the insert. Bolt the last flange to the enclosure’s port flange: always bolted, whatever the couplings are. Open the gates.` },
   ];
@@ -949,6 +975,15 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
     const size = `${long === short ? long : `${short}–${long}`} × ${across} · ${meshCut(l.mesh)}`;
     const same = lines.find(line => line.group === 'Mesh' && line.name === kind && line.size === size);
     if (same) same.quantity++; else lines.push({ id: `mesh-${lines.length}`, group: 'Mesh', name: kind, quantity: 1, size, use: kind === 'Roof mesh' ? 'Over the top rails, ends turned onto the flanges' : 'Down each side, rail to rail' });
+  }
+  const accessLine = (line: BomLine) => {
+    const same = lines.find(l => l.group === line.group && l.name === line.name && l.size === line.size && l.partId === line.partId);
+    if (same) same.quantity += line.quantity; else lines.push(line);
+  };
+  for (const a of l.accessPanels.filter(a => of(a.piece))) {
+    for (const line of catDoorBom(a.id, a.width, a.height, false)) accessLine(line);
+    accessLine({ id: `${a.id}-jambs`, group: 'Timber', name: 'Access-panel fixing jamb', quantity: 2, size: `16 × 40 · ${l.h + 80} long`, use: 'Screwed to the section’s bottom and top rails; carries the locating surround, not the roof' });
+    accessLine({ id: `${a.id}-jamb-screws`, group: 'Hardware', name: 'Access-jamb screws', quantity: 8, size: 'Countersunk 3 × 35, pilot drilled', use: 'Two per jamb end into the existing side rails' });
   }
   // the cut list by kind of member, then longest first
   const kinds = ['Flange stile', 'Flange head or sill', 'Section rail', 'Collar rail', 'Floor board', 'Collar floor', 'Floor cleat', 'Bearer', 'Low bearer', 'Low bearer, wide', 'Leg', 'Sole', 'Brace', 'Strap cleat', 'Keeper'];
@@ -1044,6 +1079,7 @@ export function tunnelViews(_variant: CatioMode, config: TunnelConfig): Record<C
 
 const mm = (label: string) => ({ unit: label, scale: label === 'cm' ? 10 : 1 });
 export const TUNNEL_CONTROLS: SubassemblyControl<TunnelConfig>[] = [
+  { key: 'accessPanels', label: 'Tunnel maintenance access', group: 'Sections', help: `Removable mesh panels on the right of sections with at least 32 cm between flanges; short sections and angle collars stay fully meshed. ${CAT_DOOR_WARNING}`, options: [{ value: true, label: 'Removable mesh panels' }, { value: false, label: 'Fixed side mesh (original)' }] },
   { key: 'portX', label: 'Port along the wall', group: 'Enclosure port (fixed interface)', help: 'Its centre from the window’s centre; + is to the right, seen from the garden.', options: [], range: { min: -4000, max: 4000, step: 10, ...mm('cm') } },
   { key: 'portY', label: 'Port out from the wall', group: 'Enclosure port (fixed interface)', help: 'From the wall face to the port’s face, where the last flange bolts on.', options: [], range: { min: 800, max: 8000, step: 10, ...mm('cm') } },
   { key: 'portFacing', label: 'Port faces', group: 'Enclosure port (fixed interface)', help: 'The way the tunnel runs into it, from straight out of the wall; + turned to the right. The turns follow.', options: [], range: { min: -120, max: 120, step: 1, ...mm('°') } },
@@ -1096,9 +1132,14 @@ export function meshingStep(mesh: CatioMeshSpec): string {
     : `Staple the side and roof mesh to the rails and turn its ends onto the flanges, stapling every ${TUNNEL.staplePitch / 10} cm.`;
 }
 
-export const parseTunnel = (raw: unknown) => parseControlled(TUNNEL_DEFAULT, TUNNEL_CONTROLS, raw);
+export const parseTunnel = (raw: unknown) => {
+  const config = parseControlled(TUNNEL_DEFAULT, TUNNEL_CONTROLS, raw);
+  if (config && typeof raw === 'object' && raw !== null && !Object.hasOwn(raw, 'accessPanels')) config.accessPanels = false;
+  return config;
+};
 
 export const TUNNEL_DECISIONS: DesignDecision[] = [
+  { title: 'Removable side access', parameter: 'Tunnel maintenance access', choice: 'A framed mesh panel with a continuous stop, four locked turn buttons and full-height fixing jambs in sufficiently long straight sections.', why: 'Cut only a side opening in the existing hood or welded side sheet, clamp its cut edges under the fixed surround and clamp the removable panel mesh under cover battens. Never open maintenance access with cats inside. Short sections and collars stay intact; roof geometry, stock cuts, supports and couplings are unchanged. Physical retention and clearance checks remain necessary.' },
   { title: 'A net hood over every section', parameter: 'Mesh',
     choice: `Soft cat netting (${catioMesh('netting').part.title}), one piece a section: down one side, over both top rails and down the other. Its cut edges, along the bottom rails and on the flanges, get a staple over every mesh; over the top rails it is stapled every ${TUNNEL.staplePitch / 10} cm. Welded wire mesh, in three stapled panels, remains selectable.`,
     why: 'A net cannot span a roof like stiff mesh: laid as a flat panel it would sag between the rails. As one hood it is pulled taut over the two top rails by its own sides, has no seam at the roof for a paw to open, and takes two cuts instead of six. Its edge opens between fixings a hand apart, so every mesh of a cut edge is stapled.' },

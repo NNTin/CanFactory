@@ -1,3 +1,4 @@
+import { CAT_DOOR_WARNING, type CatioDoor } from './catioCatDoor.ts';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, Box, RotateCcw } from 'lucide-react';
 import * as THREE from 'three';
@@ -35,6 +36,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   const container = useRef<HTMLDivElement>(null);
   const controller = useRef<{ stage: Stage; model: SubassemblyModel } | null>(null);
   const [settings, setSettings] = useState(() => loadSubassemblySettings(definition));
+  const [doors, setDoors] = useState<CatioDoor[]>([]);
   const [unsupported, setUnsupported] = useState(false);
   const [action, setAction] = useState<string | null>(null);
   const { variant, config } = settings;
@@ -51,6 +53,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   const bom = definition.bom(variant, config);
   const controls = definition.controls.filter(control => (!control.variants || control.variants.includes(variant)) && (!control.when || control.when(config)));
   const groups = [...new Set(controls.map(control => control.group))];
+  const doorAllowed = (door: CatioDoor) => progress >= last && (door.id !== 'window-cat' || (definition.id === 'insert-tunnel-coupling' ? !windowOpen : toggles.windowOpen !== 'Window open' || windowOpen));
   const editView = (patch: Partial<SubassemblyViewing>) => setSettings(current => ({ ...current, views: { ...current.views, [current.variant]: { ...current.views[current.variant], ...patch } } }));
   const focus = useRef('');
   const camera = (name: CatioView) => {
@@ -74,6 +77,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
     if (!stage) { setUnsupported(true); return; }
     setUnsupported(false);
     const model = definition.build(variant, config);
+    setDoors(model.doors ?? []);
     stage.group.add(model.root); controller.current = { stage, model };
     model.update(stateRef.current); camera(stateRef.current.view); stage.invalidate(); setAction(model.caption?.() ?? null);
     element.dataset['ready'] = 'true'; element.dataset['visibleParts'] = visibleParts();
@@ -145,6 +149,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
           <label><input type="checkbox" checked={exploded} onChange={event => editView({ exploded: event.target.checked })} disabled={unsupported} /> Exploded view</label>
           <span>Drag to orbit · Scroll to zoom</span>
         </div>
+        {doors.length > 0 && <div className="catio-door-controls" role="group" aria-label="Doors and access panels"><strong>Doors &amp; access panels</strong><p>Checked means open or removed. Only operate after assembly; open the sash to remove the window panel.</p>{doors.map(door => <label key={door.id}><input type="checkbox" checked={doorAllowed(door) && !!viewing.doors[door.id]} disabled={unsupported || !doorAllowed(door)} onChange={event => editView({ doors: { ...viewing.doors, [door.id]: event.target.checked } })} />{door.label}</label>)}<p>{CAT_DOOR_WARNING}</p></div>}
         <div className="catio-assembly">
           <div className="catio-step-title"><span className="eyebrow">{index === 0 ? 'BEFORE ASSEMBLY' : `STAGE ${index} / ${last}`}</span><strong aria-live="polite">{step?.title}</strong></div>
           <div className="catio-slider"><button type="button" aria-label="Previous assembly stage" disabled={progress === 0} onClick={() => editView({ progress: Math.max(0, Math.ceil(progress) - 1) })}><ArrowLeft size={16} /></button>

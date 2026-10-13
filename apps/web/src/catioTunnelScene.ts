@@ -1,3 +1,4 @@
+import { buildCatDoor, type CatioDoor } from './catioCatDoor.ts';
 import * as THREE from 'three';
 import { dimensionOf, findPart } from '@canfactory/contracts';
 import { createCatioParts } from './catioParts.ts';
@@ -55,6 +56,7 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
   const draw = tunnelDrawing(p); const { vector, hexahedron, corners, beam, meshQuad } = draw;
   const geometries: THREE.BufferGeometry[] = [];
 
+  const doors: CatioDoor[] = [];
   const motions: PieceMotion[] = [];
   const move = (object: THREE.Object3D, stage: number, window: [number, number], approach: V3, action: string, meta: Partial<Omit<PieceMotion, 'object' | 'stage' | 'window' | 'approach' | 'action'>> = {}) => {
     motions.push({ object, stage, window, approach: vector(approach), action, ...meta });
@@ -77,7 +79,7 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
   }
   ground.computeVertexNormals();
   const turf = new THREE.Mesh(ground, m.grass); turf.receiveShadow = true; terrain.add(turf);
-  buildInsertContext(p, windowInsertLayout('modular', site.insert, site.window));
+  buildInsertContext(p, windowInsertLayout('modular', site.insert, site.window), doors);
   // the coupling as set on its page, docked to this tunnel: its frame, seal and catches are on the insert from the start; the
   // latch bodies and lip come with the first section and are closed in the last stage (the coupling page shows how)
   const couplingConfig = savedCoupling();
@@ -94,8 +96,16 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     // the enclosure's rear wall round its port, for scale only: the enclosure is not designed here
     const back = vec.add(layout.E, vec.mul(layout.dE, TUNNEL.flange.thickness + 25)); const across = last.end.frame.x;
     const z0 = groundAt(config, back[0], back[1], false); const top = layout.E[2] + h + 500;
-    const quad: [V3, V3, V3, V3] = [vec.add([back[0], back[1], z0], vec.mul(across, -650)), vec.add([back[0], back[1], z0], vec.mul(across, 650)), vec.add([back[0], back[1], top], vec.mul(across, 650)), vec.add([back[0], back[1], top], vec.mul(across, -650))];
-    meshQuad(port, quad, [0, 0, 0]);
+    const planePoint = (x: number, z: number): V3 => vec.add([back[0], back[1], z], vec.mul(across, x));
+    for (const [x0, x1, lo, hi] of [[-650, -w / 2, z0, top], [w / 2, 650, z0, top], [-w / 2, w / 2, z0, layout.E[2]], [-w / 2, w / 2, layout.E[2] + h, top]])
+      meshQuad(port, [planePoint(x0 ?? 0, lo ?? 0), planePoint(x1 ?? 0, lo ?? 0), planePoint(x1 ?? 0, hi ?? 0), planePoint(x0 ?? 0, hi ?? 0)], [0, 0, 0]);
+    const first = p.components.length;
+    doors.push(buildCatDoor(p, { id: 'enclosure-cat', label: 'Enclosure rear cat panel', step: 0, width: w, height: h, bottom: 0, y: 0, closure: site.enclosureClosure ?? 'removable', floorSeated: true }));
+    for (const part of p.components.slice(first)) {
+      const pose = new THREE.Group(); pose.position.set(back[0], back[1], layout.E[2]);
+      pose.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(vector(across), vector(layout.dE), new THREE.Vector3(0, 0, 1)));
+      pose.add(...part.group.children.slice()); part.group.add(pose);
+    }
     for (const s of [-1, 1]) beam(port, vec.add([back[0], back[1], z0], vec.mul(across, s * 650)), vec.add([back[0], back[1], top], vec.mul(across, s * 650)), 45, 45, m.timber, [0, 0, 0]);
   }
 
@@ -189,6 +199,13 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
   // Stages 3–4: every piece framed and meshed, raised over its place.
   const sections = layout.pieces.filter(q => q.kind === 'section').length; const collars = layout.pieces.length - sections;
   const built = buildSectionPieces(p, draw, layout);
+  for (const a of built.access) {
+    doors.push(a.door);
+    for (const part of a.parts) {
+      group(part.id, 4, part.layer === 'mesh' ? 'mesh' : part.layer === 'hardware' ? 'hardware' : 'timber').add(part.group);
+      move(part.group, 4, [0.5, 1], [0, 0, 0], 'Fit the side access surround, seat its mesh panel and positively lock all four turn buttons', { role: 'fitting', carrier: a.access.piece });
+    }
+  }
   for (const { member: mem, group: g } of built.members) {
     const id = mem.kind === 'flange' ? 'flanges' : mem.kind === 'rail' ? 'rails' : 'floor-boards';
     group(id, 3, 'timber').add(g);
@@ -314,9 +331,10 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
       action = `Lowering ${piece?.name.toLowerCase() ?? 'the pieces'} onto its supports, from the window end`;
     }
     currentAction = action;
+    for (const door of doors) door.setOpen?.(state.progress >= 6 && state.doors?.[door.id] && (door.id !== 'window-cat' || state.windowOpen) ? 1 : 0);
     hinge.rotation.z = state.windowOpen ? -Math.PI / 2 : 0;
     p.root.updateMatrixWorld(true);
   }
   function dispose() { p.dispose(); dock.dispose(); draw.dispose(); for (const j of joints) j.dispose(); for (const g of geometries) g.dispose(); }
-  return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, carriers, drops, levers, holds, caption: () => currentAction };
+  return { root: p.root, hinge, components: p.components, doors, update, dispose, layout, motions, carriers, drops, levers, holds, caption: () => currentAction };
 }

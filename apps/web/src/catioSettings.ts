@@ -16,6 +16,8 @@ export function parseCatioSettings(raw: string | null): CatioSettings {
     if (!record(value) || value['version'] !== 1) return defaults;
     const config = value['config'];
     if (!record(config)) return defaults;
+    if (!Object.hasOwn(config, 'catClosure')) config['catClosure'] = 'sliding';
+    if (!Object.hasOwn(config, 'tunnelAccess')) config['tunnelAccess'] = false;
     // Require the entire shape before invoking dimensional validation on untrusted local storage.
     for (const key of Object.keys(defaults.config) as (keyof ModularConfig)[]) {
       if (key === 'enclosure' || key === 'second') {

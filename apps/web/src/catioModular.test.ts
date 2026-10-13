@@ -30,7 +30,7 @@ describe('modular catio layout and validation', () => {
   });
   it('rejects impossible sash, gate, ramp and module combinations without clamping', () => {
     expect(validateModular(defaults)).toEqual([]);
-    for (const patch of [{ glassWidth: 910 }, { second: { width: NaN, depth: 1000, height: 1200 } }, { sashHeight: 600, glassHeight: 500 }, { tunnelHeight: NaN }, { approach: 0 }, { lateral: 1.5 }, { tunnelWidth: 450, enclosure: { width: 800, depth: 800, height: 1200 } }, { tunnelHeight: 450, enclosure: { width: 1200, depth: 1000, height: 900 } }]) {
+    for (const patch of [{ glassWidth: 910 }, { second: { width: NaN, depth: 1000, height: 1200 } }, { sashHeight: 500, glassHeight: 400, tunnelHeight: 450 }, { tunnelHeight: NaN }, { approach: 0 }, { lateral: 1.5 }, { tunnelWidth: 450, enclosure: { width: 800, depth: 800, height: 1200 } }, { tunnelHeight: 450, catClosure: 'sliding' as const, enclosure: { width: 1200, depth: 1000, height: 900 } }]) {
       const config = { ...defaults, ...patch }; const before = structuredClone(config);
       expect(validateModular(config).length).toBeGreaterThan(0); expect(config).toEqual(before);
       expect(() => createModularCatio(config)).toThrow();
@@ -80,7 +80,7 @@ describe('modular scene geometry', () => {
   });
 
   it('keeps all cat apertures free of fixed mesh and each small gate independently closable', () => {
-    const scene = createModularCatio({ ...defaults, secondEnabled: true }); scene.update(assembled);
+    const scene = createModularCatio({ ...defaults, catClosure: 'sliding', secondEnabled: true }, { ...WINDOW_INSERT_DEFAULT, catClosure: 'sliding' }); scene.update({ ...assembled, windowOpen: true });
     for (const door of scene.doors.filter(d => d.kind === 'cat')) {
       const gate = bounds(part(scene, `${door.id}-gate`));
       expect(gate.min.z).toBeCloseTo(door.connected ? 520 : 190);
@@ -91,7 +91,7 @@ describe('modular scene geometry', () => {
       const meshParts = scene.components.filter(p => p.layer === 'mesh').map(p => p.group);
       expect(ray.intersectObjects(meshParts, true), `${door.id} blocked by mesh`).toHaveLength(0);
     }
-    scene.update({ ...assembled, doors: { 'window-cat': false, 'a-rear': true, 'a-human': true } });
+    scene.update({ ...assembled, windowOpen: true, doors: { 'window-cat': false, 'a-rear': true, 'a-human': true } });
     expect(bounds(part(scene, 'window-cat-gate')).min.z).toBeCloseTo(190);
     expect(bounds(part(scene, 'a-rear-gate')).min.z).toBeCloseTo(520);
     const door = bounds(part(scene, 'a-human-door'));
@@ -110,7 +110,7 @@ describe('modular scene geometry', () => {
       expect(hits[0]?.point.z).toBeCloseTo(200);
       expect(bounds(part(scene, `${section.id}-feet`)).min.z).toBe(0);
       for (const side of ['back', 'front', 'left', 'right'] as const) {
-        if (!section.openings.includes(side)) expect(ids).toContain(`${section.id}-${side}`);
+        if (!section.openings.includes(side)) expect(ids).toContain(side === 'right' && section.kind === 'straight' ? `${section.id}-access-gate` : `${section.id}-${side}`);
         else expect(ids).toContain(`${section.id}-${side}-coupling`);
       }
     }
@@ -146,7 +146,7 @@ describe('modular scene geometry', () => {
         expect(p.group.visible).toBe(p.step <= progress);
         if (p.step === 0) expect(p.group.position.toArray()).toEqual([0, 0, 0]);
       }
-      const gate = scene.doors.find(d => d.id === 'window-cat'); expect(gate?.moving[0]?.position.z).toBe(progress === 6 ? 330 : 0);
+      const gate = scene.doors.find(d => d.id === 'window-cat'); expect(gate?.moving[0]?.position.z).toBe(0); // removable panel never slides upwards
     }
     scene.update({ ...assembled, cutaway: true, hidden: new Set(['mesh']) });
     expect(part(scene, 'wall').visible).toBe(false);

@@ -2,6 +2,7 @@ import { CATIO_MESH_DEFAULT, CATIO_MESHES, catioMesh, type CatioMesh, cornerBrac
 import { CATIO, CATIO_DERIVED, type CatioView } from './catioDesign.ts';
 import { validateWindowProfile, WINDOW_PROFILE_DEFAULT, WINDOW_PROFILE_RANGES, windowFrame, type WindowProfile } from './catioWindow.ts';
 import { loadCatioSettings, type CatioMode } from './catioSettings.ts';
+import { CAT_CLOSURES, CAT_DOOR_WARNING, catDoorBom, catDoorLayout, doorPocket, type CatClosure } from './catioCatDoor.ts';
 import { MESH_LABELS, meshCut, meshRollLine } from './catioMesh.ts';
 import { fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type V3 } from './catioSubassembly.ts';
 
@@ -11,6 +12,7 @@ import { fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblySt
  * catioDesign.ts. The layout below is the one source for the 3D scene, the parts list and the tests.
  */
 export interface WindowInsertConfig {
+  catClosure: CatClosure;
   /** How the collar's four members meet at its corners: butt joints held by a flat corner bracket, half-laps, or butt joints alone. */
   cornerJoint: 'corner-bracket' | 'half-lap' | 'butt-screwed';
   /** The flat corner bracket across each corner, with a corner-bracket joint: printed (the `printed-corner-bracket` model) or bought (a library part). */
@@ -44,7 +46,7 @@ export interface WindowInsertConfig {
 }
 
 export const WINDOW_INSERT_DEFAULT: WindowInsertConfig = {
-  cornerJoint: 'corner-bracket', cornerBracket: 'printed', junctionJoint: 'housed', mesh: CATIO_MESH_DEFAULT, meshFixing: 'staples-and-battens', fixingPitch: 150,
+  catClosure: 'removable', cornerJoint: 'corner-bracket', cornerBracket: 'printed', junctionJoint: 'housed', mesh: CATIO_MESH_DEFAULT, meshFixing: 'staples-and-battens', fixingPitch: 150,
   attachment: 'frame-hooks', screenHook: 'printed', frameOverlap: 15, clampsPerSide: 2, clampPad: 'printed', padHeight: 24.5, padSurface: 'grooved', footDiameter: 32,
   ...WINDOW_PROFILE_DEFAULT,
 };
@@ -429,6 +431,13 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     }
   }
 
+  if (port && config.catClosure === 'removable') {
+    const half = catDoorLayout(port.width, port.height).outerWidth / 2;
+    for (const t of timber.filter(t => t.component === 'threshold' || t.id === 'collar-sill')) {
+      t.boxes = t.boxes.flatMap(b => doorPocket(b, { size: [2 * half, 20, 28], center: [0, yIn + 10, floor - 14] }));
+      t.cut += `; room-side panel-surround notch: ${2 * half} wide × 20 mm deep, down to 28 mm below the port floor`;
+    }
+  }
   return {
     variant, config, window, frame: frameOf, gap, W, H, Wi, Hi, x0, z0, yIn, yOut, floor, port, mesh, timber, panels, fasteners, clamps, hooks, hookFit, brackets,
     spreaderFoot, bearingFoot, pad, nut, insertNut: part(HW.insertNut),
@@ -467,14 +476,20 @@ export function validateWindowInsert(variant: CatioMode, config: WindowInsertCon
     if (l.frame.lip.bottom - l.z0 < 8) errors.push('Standing on these feet, the collar does not reach over the frame below the lip’s tip: choose lower feet or pads.');
     // the cat gate's latch stands behind the collar's back, in front of the closed sash
     const latchBack = l.yIn + INSERT.gate.y - INSERT.gate.latchY - INSERT.gate.latch[1] / 2;
-    if (l.port && latchBack - l.frame.sashFace < HOOK_FIT.gap) errors.push(`The cat gate’s latch needs ${Math.ceil(l.yIn - latchBack + HOOK_FIT.gap)} mm between the frame’s face and the closed sash; this window has ${l.frame.face - l.frame.sashFace} mm.`);
+    if (config.catClosure === 'sliding' && l.port && latchBack - l.frame.sashFace < HOOK_FIT.gap) errors.push(`The cat gate’s latch needs ${Math.ceil(l.yIn - latchBack + HOOK_FIT.gap)} mm between the frame’s face and the closed sash; this window has ${l.frame.face - l.frame.sashFace} mm.`);
     if (INSERT.member - config.frameOverlap < spec.width + 4) errors.push('The collar overlaps the frame too far: the hooks need the stiles’ inner part over the window opening.');
   }
   if (l.W - 2 * INSERT.member < window.sashWidth * 0.6) errors.push('The collar opening is too narrow for this window.');
   if (l.port) {
     const { width: w, height: h } = l.port;
+    if (config.catClosure === 'removable') {
+      const door = catDoorLayout(w, h);
+      if (door.outerWidth > l.Wi - 2 * 60 || l.floor + h + 28 > l.z0 + l.H - INSERT.member) errors.push('The removable panel and its locating surround must fit inside the collar clear of the hooks and clamps.');
+      if (l.yIn - 5 < l.frame.sashFace + HOOK_FIT.gap) errors.push('The removable panel’s locked turn buttons would foul the closed sash.');
+      if (door.leafWidth > window.sashWidth - 80 || l.floor - 10 < l.frame.lip.bottom + HOOK_FIT.gap || l.floor + h + 10 > l.frame.sash.top - 40) errors.push('The removable panel needs a clear withdrawal path through the open window.');
+    }
     if (w + 2 * INSERT.portMember > l.Wi - 2 * 60) errors.push('The cat port and its jambs must fit between the collar stiles and their clamps.');
-    if (l.floor + 2 * h + 50 > l.z0 + l.H - INSERT.member - 40) errors.push('The sliding gate needs room above the port for its full travel inside the collar.');
+    if (config.catClosure === 'sliding' && l.floor + 2 * h + 50 > l.z0 + l.H - INSERT.member - 40) errors.push('The sliding gate needs room above the port for its full travel inside the collar.');
   }
   const stud = dimensionOf(l.spreaderFoot, 'l1');
   if (config.attachment === 'spreader-feet' && !l.pad && stud < INSERT.member + INSERT.travel + 2 * dimensionOf(l.nut, 'm')) errors.push('No stud of this foot is long enough to pass the collar and take two nuts.');
@@ -541,6 +556,8 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
     { title: hung ? 'Level it and close the window' : config.attachment === 'spreader-feet' ? 'Tighten from inside' : 'Drive the wedges', detail: tighten },
     { title: variant === 'direct' ? 'Brackets and check' : 'Gate and check', detail: variant === 'direct'
       ? 'Offer the removable docking brackets to the collar face from outdoors, ready for the enclosure’s rear portal. Open and close the window: it clears the insert.'
+      : config.catClosure === 'removable'
+      ? `Fit the continuous stop and locating surround on the room side. Notch the threshold and sill’s room-side edge for the lower surround (28 mm below the port floor, 20 mm into the insert), leaving the outdoor bearing timber intact. Open the sash, seat the solid gasketed panel, then rotate and positively lock all four buttons. ${CAT_DOOR_WARNING} The insert carries no tunnel load; verify the sash closes without contact.`
       : 'Fix the gate tracks on the room side of the port. Lower the sliding cat gate into them from above, then fit the latch. Keep the gate shut until a tunnel is docked: the insert–tunnel coupling page screws a docking frame onto the port’s face, which then stays on the insert. Open and close the window: it clears the insert.' },
   ];
 }
@@ -575,7 +592,7 @@ export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, 
     const { length, width, thickness } = INSERT.wedge;
     lines.push({ id: 'folding-wedges', group: 'Timber', name: 'Folding wedge', quantity: 2 * l.clamps.length, size: `${length} × ${width}, ${thickness} mm to 0`, use: `Pairs: ${config.clampsPerSide} on each side of the collar` });
   }
-  if (variant === 'modular' && l.port) lines.push({ id: 'cat-gate', group: 'Timber', name: 'Sliding cat gate', quantity: 1, size: `${l.port.width + 20} × ${l.port.height + 20} × 12 exterior plywood`, use: 'Slides up in its tracks on the room side of the port' });
+  if (variant === 'modular' && l.port && config.catClosure === 'sliding') lines.push({ id: 'cat-gate', group: 'Timber', name: 'Sliding cat gate', quantity: 1, size: `${l.port.width + 20} × ${l.port.height + 20} × 12 exterior plywood`, use: 'Slides up in its tracks on the room side of the port' });
   lines.push(meshRollLine(l.mesh));
   for (const panel of l.panels) lines.push({ id: panel.id, group: 'Mesh', name: panel.name, quantity: 1, size: `${Math.round(panel.width)} × ${Math.round(panel.height)} · ${meshCut(l.mesh)}`, use: [...new Set(panel.edges.map(e => e.use))].join('; ') });
   const counts = new Map<string, { quantity: number; uses: Set<string> }>();
@@ -623,7 +640,9 @@ export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, 
     if (spreaders > 0) lines.push({ id: 'thrust-pads', group: 'Hardware', name: 'Pressure pad, thrust pad', quantity: spreaders, modelId: 'pressure-pad', size: `${size} · for an ${l.pad.thrustNut.designation} nut`, use: 'On each spreader screw’s tip: presses on the reveal without turning' });
     lines.push({ id: 'foot-pads', group: 'Hardware', name: 'Pressure pad, foot', quantity: l.clamps.length - spreaders, modelId: 'pressure-pad', size: `${size} · for an ${l.pad.bearingScrew.designation} head`, use: 'Under the sill rail: stands on the recess floor; turned by hand to set the height' });
   }
-  if (variant === 'modular' && l.port) {
+  if (variant === 'modular' && l.port && config.catClosure === 'removable') {
+    lines.push(...catDoorBom('window-cat', l.port.width, l.port.height, true));
+  } else if (variant === 'modular' && l.port) {
     lines.push({ id: 'gate-tracks', group: 'Hardware', name: 'Gate track (custom)', quantity: 2, size: `12 × 12 × ${2 * l.port.height + 45} channel`, use: 'Room side of the port, screwed to the threshold and transom' });
     lines.push({ id: 'gate-latch', group: 'Hardware', name: 'Gate latch (custom)', quantity: 1, size: 'Spring bolt, schematic', use: 'Holds the gate shut' });
   } else lines.push({ id: 'docking-brackets', group: 'Hardware', name: 'Docking bracket (custom, from the original concept)', quantity: 4, size: '55 × 108 × 5 steel angle, schematic', use: 'Collar face to the enclosure’s rear portal; removable' });
@@ -671,6 +690,7 @@ const NET = catioMesh('netting'); const WELDED = catioMesh('welded');
 const PAD_SOLE: Record<PressurePadSurface, string> = { flat: 'Flat', grooved: 'Grooved', domed: 'Domed' };
 
 export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = [
+  { key: 'catClosure', label: 'Cat-port closure', group: 'Cat port', variants: ['modular'], help: CAT_DOOR_WARNING, options: [...CAT_CLOSURES] },
   { key: 'cornerJoint', label: 'Collar corners', group: 'Timber joints', help: 'A flat corner bracket across each butt joint keeps the corner square and closed, the stiffest of the three. Half-laps lock the corners on glue and timber shoulders; butt joints alone hold only by screws in end grain.',
     options: [{ value: 'corner-bracket', label: 'Butt joint + 2 screws + flat corner bracket' }, { value: 'half-lap', label: 'Half-lap, glued + 2 screws' }, { value: 'butt-screwed', label: 'Butt joint + 2 screws' }] },
   { key: 'cornerBracket', label: 'Corner bracket', group: 'Timber joints', when: c => c.cornerJoint === 'corner-bracket',
@@ -718,7 +738,12 @@ export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = 
     help: 'The window’s depth from outside to the room (Bautiefe): 82 mm for VEKA Softline 82, 70 mm for many older windows. It only changes the drawing.' },
 ];
 
-export const parseWindowInsert = (raw: unknown) => parseControlled(WINDOW_INSERT_DEFAULT, WINDOW_INSERT_CONTROLS, raw);
+export const parseWindowInsert = (raw: unknown) => {
+  const config = parseControlled(WINDOW_INSERT_DEFAULT, WINDOW_INSERT_CONTROLS, raw);
+  // A stored pre-door config must keep its original sliding mechanism, not inherit the fresh default.
+  if (config && typeof raw === 'object' && raw !== null && !Object.hasOwn(raw, 'catClosure')) config.catClosure = 'sliding';
+  return config;
+};
 /** The window insert as saved on its page (or its defaults), for the pages and scenes that draw it. */
 export const savedWindowInsert = () => loadSubassemblyConfig('window-insert', parseWindowInsert, WINDOW_INSERT_DEFAULT);
 
@@ -727,6 +752,7 @@ const PRINTED_BRACKET = windowInsertBracket('printed');
 const PRINTED_HOOKS = windowInsertHooks({ screenHook: 'printed' }, WINDOW_PROFILE_DEFAULT);
 
 export const WINDOW_INSERT_DECISIONS: DesignDecision[] = [
+  { title: 'Removable cat-port panel', parameter: 'Cat-port closure', choice: 'A solid gasketed panel withdrawn into the room after retracting captive locking pins and turning four tabs. Vertical sliding gates remain selectable.', why: 'PawHut’s removable mesh panels inspire the mechanism, not its unmeasured dimensions. A continuous backstop prevents inward push-through, four locked tabs retain outwards, and a locating surround prevents tilt. The window needs a solid panel for draughts, unlike outdoor mesh panels. No upward travel is needed. The lower surround is recessed into the threshold/sill’s room-side edge; check this notch and all fastenings physically. The pins and pivots are custom schematic hardware, not certified cat-proof parts. Roofs and couplings are unchanged.' },
   { title: 'Held by pressure, not fixings', parameter: 'Held in the recess by',
     choice: 'Spreaders turned out of M8 insert nuts in the collar: two or three on each stile and the head press on the reveals; those under the sill rail stand on the recess floor and carry the weight.',
     why: 'This formalises the concept’s “padded clamps against the solid exterior recess”. Nothing is drilled or glued to the building; releasing the studs frees the insert. The pads’ grooved or domed soles (or the Ganter feet’s 15° swivel and elastomer caps) follow an uneven render reveal; tightening from inside the open window keeps the original concept’s reach-through adjustment. Folding wedges are offered as the low-cost alternative, but they are driven and loosened from outside. Rejected: a bar across the inside of the frame (stops the sash closing), tension straps through the open sash (same), and adhesive or suction mounts (unreliable outdoors).' },
