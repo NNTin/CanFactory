@@ -21,7 +21,8 @@ a parts list with every piece's dimensions, and the design decisions below. Choi
 | Collar corners | Butt joint + 2 screws + flat corner bracket | Corner bracket; half-lap, glued + 2 screws; butt joint + 2 screws | Both |
 | Corner bracket | Printed (model), 100 × 100 × 20 mm | Printed ([printed-corner-bracket](../../printed-corner-bracket.md)); GAH Alberts Stuhlwinkel 75, 90, 100, 125, 150 mm | Corner bracket (hung: up to 100 mm, clear of the hooks) |
 | Port transom & jambs | Housed 10 mm + screw | Housed; butt joint + screws | With tunnel |
-| Mesh to timber | Staples under cover battens | Staples + battens; staples only; battens only | Both |
+| Mesh | Soft cat netting (TRIXIE 44294, 3 cm meshes) | Soft cat netting; welded wire mesh (KrapTrap, 19 mm meshes of 1.45 mm wire) | Both |
+| Mesh to timber | Staples under cover battens | Staples + battens; staples only (welded mesh only); battens only | Both |
 | Fixing spacing | 15 cm | 10, 15, 20 cm | Both |
 | Held in the recess by | Hooks on the window frame + feet | Hooks on the window frame + feet; spreader feet; folding timber wedges | Both |
 | Screen hooks | Printed screen hooks (model) | Printed ([printed-screen-hook](../../printed-screen-hook.md), made for the window below); Windhager 03651, bent | Hooks on the window frame |
@@ -181,10 +182,17 @@ before; the printed hooks are no reason to leave the feet out or make them small
 6. **Half-lapped collar corners (option).** The spreaders push the corners apart; a glued half-lap (30 mm, half the 60 mm depth)
    with two DIN 7997 4 × 50 screws carries that on long grain and timber shoulders. A butt joint (two DIN 7997 5 × 70 screws
    through the stile into the rail's end grain) remains selectable.
-7. **Mesh clamped under battens.** DIN 1159 2.5 × 25 staples locate the tensioned mesh every 15 cm; 40 × 15 cover battens,
-   screwed through the mesh with DIN 7997 4 × 35 screws, clamp the whole edge and cover the cut wire ends. Where the direct
-   variant's passage sleeve meets a threshold edge there is no face for a batten, so it is stapled in every option; the
-   modular insert's mesh lies only on faces, so "battens only" needs no staples there.
+7. **Soft cat netting, clamped under battens.** The mesh is a soft net by default (**Mesh**): light, cut with scissors and
+   kind to paws, one roll from the parts library. A net keeps a cat in only where its edge is held at every mesh, so:
+   - DIN 1159 2.5 × 25 staples hold it taut every 15 cm, then 40 × 15 cover battens, screwed through it with DIN 7997
+     4 × 35 screws, clamp the whole edge and cover the cut ends.
+   - "Staples only" is refused for a net: between staples 15 cm apart its edge would open.
+   - Where the direct variant's passage sleeve meets a threshold edge there is no face for a batten: a net gets a staple
+     over every mesh (3 cm) there, welded mesh one every 15 cm.
+   - The modular insert's mesh lies only on faces, so "battens only" needs no staples there.
+   - Welded wire mesh remains selectable, with all three fixings. Either mesh lies in the same 2 mm layer under the
+     battens, so the timber and the coupling's docking frame do not change with it.
+   - The parts list names one roll, linked to a shop, and the panels cut from it; more rolls may be needed.
 8. **The modular cat port.** A full-width transom over the port and two jambs give every infill mesh panel timber on all
    four edges. They sit in 10 mm housings (or butt joints), the jambs screwed from under the sill rail with DIN 7997 6 × 90.
    The sliding gate runs in tracks on the room side of the port.

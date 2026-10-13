@@ -90,10 +90,10 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
 } {
   const layout = couplingLayout(config, site);
   const { insert, tl, first } = layout;
-  const p = createCatioParts(); const { component, box, rod, materials: m } = p;
+  const p = createCatioParts(insert.mesh); const { component, box, rod, materials: m } = p;
   const { hinge } = buildWindowContext(p, site.site.window);
   const start = p.components.length;
-  const draw = tunnelDrawing(p); const { vector, cylinder } = draw;
+  const draw = tunnelDrawing(p, tl.mesh); const { vector, cylinder } = draw;
 
   const motions: PieceMotion[] = [];
   const move = (object: THREE.Object3D, stage: number, window: [number, number], approach: V3, action: string, meta: Partial<Omit<PieceMotion, 'object' | 'stage' | 'window' | 'approach' | 'action'>> = {}) => {

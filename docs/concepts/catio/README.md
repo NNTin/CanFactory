@@ -100,7 +100,8 @@ placed with `clearOf` and checked with `fastenerClashes` ([catioSubassembly.ts](
 | Fixed window frame | 1000 × 1000 mm | Illustrative estimate |
 | Wall thickness / exterior recess depth | 300 / 150 mm | Illustrative estimates |
 | Timber members | 45 × 45 mm | Concept default |
-| Mesh openings / wire thickness | Nominal 20 / 2 mm | Concept defaults |
+| Mesh | Soft cat netting, 30 mm meshes (TRIXIE 44294) | A product of the parts library; welded wire mesh (19 mm meshes of 1.45 mm wire) on the sub-assembly pages |
+| Net roof | Cross rails 30 × 30 under it, at most 400 mm apart | Concept default: a net sags and bags where it is not carried |
 | Floor mesh plane | 4 mm above lawn datum | Concept depiction of mesh touching grass |
 | Ramp width / horizontal run | 300 / 700 mm | Concept defaults |
 | Hinges | Left, viewed from indoors | Assumed orientation |

@@ -7,6 +7,8 @@ import { addToBuyList, clearBuyList, removeFromBuyList, setBuyListQuantity, useB
 const MARKET_TEXT: Record<Market, string> = { DE: 'Germany · amazon.de', US: 'United States · amazon.com' };
 const LOCALE: Record<Market, string> = { DE: 'de-DE', US: 'en-US' };
 const partHref = (partId: string) => formatHash({ view: 'parts', family: findPart(partId)?.family ?? null, part: partId, filters: {} });
+/** Mesh by the roll, cut to size: the pages that use it list one roll and do not plan the cuts. */
+const cutToSize = (partId: string) => findPart(partId)?.family === 'mesh';
 const partName = (partId: string) => findPart(partId)?.title ?? partId;
 
 /** Says the links are affiliate links, wherever offers are shown (Amazon: “clearly and prominently”). */
@@ -102,6 +104,7 @@ export function BuyListPage() {
         <ul className="offer-list">{shop.lines.map(line => <li className="offer-row" key={line.offer.offerId ?? line.offer.url}>
           <div><span className="offer-title">{line.offer.kind === 'curated' ? `${line.packs} × ${line.offer.title}` : line.offer.title}</span>
             <small>For {line.partIds.map(partId => `${requirements.filter(requirement => requirement.partId === partId).reduce((sum, requirement) => sum + requirement.quantity, 0)} × ${partName(partId)}`).join(', ')}</small>
+            {line.partIds.some(cutToSize) && <small className="offer-notice">Cut to size: each catio page lists one roll, so more rolls may be needed. Add up the mesh panels on those pages before ordering.</small>}
             {market && <Price offer={line.offer} market={market} />}</div>
           <OfferLink offer={line.offer}>{line.offer.kind === 'search' ? `Search ${line.offer.shop}` : `View at ${line.offer.shop}`}</OfferLink></li>)}</ul>
         {shop.cartUrl && <a className="primary-button cart-link" href={shop.cartUrl} target="_blank" rel="sponsored noopener">Add all to the {shop.shop} basket</a>}</div>)}

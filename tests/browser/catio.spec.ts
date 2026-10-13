@@ -26,9 +26,9 @@ test('explores the catio and its assembly without a catalogue or render service'
   }
   await page.getByRole('checkbox', { name: 'Exploded view' }).check();
   await expect(viewer).toHaveAttribute('data-exploded', 'true');
-  await page.getByRole('button', { name: 'Metal mesh', exact: true }).click();
+  await page.getByRole('button', { name: 'Mesh', exact: true }).click();
   await expect(viewer).not.toHaveAttribute('data-visible-parts', /continuous-floor/);
-  await page.getByRole('button', { name: 'Metal mesh', exact: true }).click();
+  await page.getByRole('button', { name: 'Mesh', exact: true }).click();
   await expect(viewer).toHaveAttribute('data-visible-parts', /continuous-floor/);
   await page.getByRole('checkbox', { name: 'Exploded view' }).uncheck();
   await page.getByRole('button', { name: 'Reset catio view' }).click();
@@ -253,7 +253,7 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await expect(viewer).toHaveAttribute('data-variant', 'modular');
   await expect(viewer).toHaveAttribute('data-visible-parts', /cat-gate/);
   await expect(page.getByRole('combobox', { name: 'Port transom & jambs' })).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Mesh parts' }).getByRole('row')).toHaveCount(4);
+  await expect(page.getByRole('table', { name: 'Mesh parts' }).getByRole('row')).toHaveCount(5);
   // the pages fitted to the insert, and the settings that change them
   const brief = page.getByRole('complementary', { name: 'Window insert parameters' });
   await expect(brief.getByText(/is fitted to this one|are fitted to this one/)).toContainText('The tunnel and the insert–tunnel coupling are fitted to this one');

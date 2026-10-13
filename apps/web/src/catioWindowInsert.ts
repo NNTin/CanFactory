@@ -1,7 +1,8 @@
-import { cornerBracketHoles, cornerBracketScrew, dimensionOf, findPart, PRESSURE_PAD_SURFACES, PRINTED_CORNER_BRACKET_SCREW, printedCornerBracket, printedCornerBracketFor, printedCornerBracketHoles, printedScreenHook, printedScreenHookShape, SCREEN_HOOK_FIT, validateParameters, WINDOW_INSERT_BRACKETS, type WindowInsertBracket, pressurePadMinDiameter, pressurePadMinHeight, WINDOW_INSERT_FOOT, WINDOW_INSERT_HARDWARE as HW, WINDOW_INSERT_PAD, windowInsertFeet, windowInsertPadScrews, type Part, type PressurePadSurface } from '@canfactory/contracts';
+import { CATIO_MESH_DEFAULT, CATIO_MESHES, catioMesh, type CatioMesh, cornerBracketHoles, cornerBracketScrew, dimensionOf, findPart, PRESSURE_PAD_SURFACES, PRINTED_CORNER_BRACKET_SCREW, printedCornerBracket, printedCornerBracketFor, printedCornerBracketHoles, printedScreenHook, printedScreenHookShape, SCREEN_HOOK_FIT, validateParameters, WINDOW_INSERT_BRACKETS, type WindowInsertBracket, pressurePadMinDiameter, pressurePadMinHeight, WINDOW_INSERT_FOOT, WINDOW_INSERT_HARDWARE as HW, WINDOW_INSERT_PAD, windowInsertFeet, windowInsertPadScrews, type Part, type PressurePadSurface } from '@canfactory/contracts';
 import { CATIO, CATIO_DERIVED, type CatioView } from './catioDesign.ts';
 import { validateWindowProfile, WINDOW_PROFILE_DEFAULT, WINDOW_PROFILE_RANGES, windowFrame, type WindowProfile } from './catioWindow.ts';
 import { loadCatioSettings, type CatioMode } from './catioSettings.ts';
+import { MESH_LABELS, meshCut, meshRollLine } from './catioMesh.ts';
 import { fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type V3 } from './catioSubassembly.ts';
 
 /**
@@ -16,7 +17,9 @@ export interface WindowInsertConfig {
   cornerBracket: 'printed' | WindowInsertBracket;
   /** How the cat port's transom and jambs meet the collar (with tunnel only). */
   junctionJoint: 'housed' | 'butt-screwed';
-  /** How the wire mesh is held on the timber. */
+  /** What the insert is meshed with: soft cat netting or welded wire mesh (`CATIO_MESHES`). */
+  mesh: CatioMesh;
+  /** How the mesh is held on the timber. A net needs the battens: staples alone leave its edge open between them. */
   meshFixing: 'staples-and-battens' | 'staples' | 'battens';
   /** Greatest spacing of staples and batten screws along a fixed edge. */
   fixingPitch: 100 | 150 | 200;
@@ -41,7 +44,7 @@ export interface WindowInsertConfig {
 }
 
 export const WINDOW_INSERT_DEFAULT: WindowInsertConfig = {
-  cornerJoint: 'corner-bracket', cornerBracket: 'printed', junctionJoint: 'housed', meshFixing: 'staples-and-battens', fixingPitch: 150,
+  cornerJoint: 'corner-bracket', cornerBracket: 'printed', junctionJoint: 'housed', mesh: CATIO_MESH_DEFAULT, meshFixing: 'staples-and-battens', fixingPitch: 150,
   attachment: 'frame-hooks', screenHook: 'printed', frameOverlap: 15, clampsPerSide: 2, clampPad: 'printed', padHeight: 24.5, padSurface: 'grooved', footDiameter: 32,
   ...WINDOW_PROFILE_DEFAULT,
 };
@@ -71,7 +74,8 @@ export const INSERT = {
   housing: 10,
   /** With tunnel: the cat gate's middle this far out from the collar's back, and its latch box (x, y, z) this far behind the gate. */
   gate: { y: 14, latchY: 16, latch: [42, 20, 12] },
-  mesh: { opening: CATIO.meshOpening, wire: CATIO.wire, overlap: 30 },
+  /** The mesh lies in a `layer` this thick between the timber and a cover batten (a net's knots, a welded mesh's wires bedded in), and laps `overlap` onto the timber. */
+  mesh: { layer: 2, overlap: 30 },
 } as const;
 
 /**
@@ -295,7 +299,8 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     boxes: [box([Wi, thresholdEnd - yIn, INSERT.threshold], [0, (yIn + thresholdEnd) / 2, z0 + m + INSERT.threshold / 2])] });
   for (const x of spaced(Wi - 80, 3)) fasteners.push({ partId: HW.thresholdScrew, component: 'threshold-screws', at: [x, yc, floor], direction: [0, 0, -1], use: 'Threshold into the sill rail' });
 
-  const o = INSERT.mesh.overlap; const faceY = yOut + INSERT.mesh.wire / 2;
+  const mesh = catioMesh(config.mesh);
+  const o = INSERT.mesh.overlap; const faceY = yOut + INSERT.mesh.layer / 2;
   const edge = (from: V3, to: V3, face: boolean, use: string): FixedEdge => ({ from, to, face, use });
   const frameEdges = (left: number, right: number, bottom: number, top: number, use: string) => [
     edge([left, faceY, bottom], [right, faceY, bottom], true, use), edge([left, faceY, top], [right, faceY, top], true, use),
@@ -341,7 +346,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
 
   // Cover battens over the face edges: a frame round the collar, plus the transom and port jambs.
   const battens = config.meshFixing !== 'staples';
-  const bt = INSERT.batten.thickness; const bw = INSERT.batten.width; const by = yOut + INSERT.mesh.wire + bt / 2;
+  const bt = INSERT.batten.thickness; const bw = INSERT.batten.width; const by = yOut + INSERT.mesh.layer + bt / 2;
   if (battens) {
     for (const [id, z] of [['head', z0 + H - m / 2], ['sill', z0 + m / 2]] as const) timber.push({ id: `batten-${id}`, component: 'cover-battens', name: `Cover batten, ${id}`, section: `${bw} × ${bt}`, length: W, cut: `${W} long`, use: `Over the mesh edge on the collar ${id}`, boxes: [box([W, bt, bw], [0, by, z])] });
     for (const side of [-1, 1]) timber.push({ id: `batten-${side < 0 ? 'left' : 'right'}`, component: 'cover-battens', name: `Cover batten, ${side < 0 ? 'left' : 'right'}`, section: `${bw} × ${bt}`, length: Hi, cut: `${Hi} long`, use: 'Over the mesh edge on the stile, between the head and sill battens', boxes: [box([bw, bt, Hi], [side * (W - m) / 2, by, z0 + H / 2])] });
@@ -364,7 +369,8 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
   const staple = part(HW.staple);
   for (const panel of panels) for (const e of panel.edges) if (!e.face || config.meshFixing !== 'battens') {
     const length = Math.hypot(e.to[0] - e.from[0], e.to[1] - e.from[1], e.to[2] - e.from[2]);
-    const count = fastenersAlong(length, config.fixingPitch);
+    // A net's edge is held at every mesh: where no batten clamps it, a staple goes over each one.
+    const count = fastenersAlong(length, mesh.soft && !(e.face && battens) ? Math.min(config.fixingPitch, mesh.opening) : config.fixingPitch);
     const direction: V3 = e.face ? [0, -1, 0] : [0, 0, -1];
     const unit = [e.to[0] - e.from[0], e.to[1] - e.from[1], e.to[2] - e.from[2]].map(v => v / length) as V3;
     const across: V3 = [unit[1] * direction[2] - unit[2] * direction[1], unit[2] * direction[0] - unit[0] * direction[2], unit[0] * direction[1] - unit[1] * direction[0]];
@@ -424,7 +430,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
   }
 
   return {
-    variant, config, window, frame: frameOf, gap, W, H, Wi, Hi, x0, z0, yIn, yOut, floor, port, timber, panels, fasteners, clamps, hooks, hookFit, brackets,
+    variant, config, window, frame: frameOf, gap, W, H, Wi, Hi, x0, z0, yIn, yOut, floor, port, mesh, timber, panels, fasteners, clamps, hooks, hookFit, brackets,
     spreaderFoot, bearingFoot, pad, nut, insertNut: part(HW.insertNut),
   };
 }
@@ -438,6 +444,7 @@ function spaced(length: number, count: number): number[] {
 
 export function validateWindowInsert(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant, config)): string[] {
   const errors: string[] = [...validateWindowProfile(window)];
+  if (config.mesh === 'netting' && config.meshFixing === 'staples') errors.push('Soft netting needs the cover battens: staples alone leave its edge open between them. Choose a fixing with battens, or welded wire mesh.');
   const l = windowInsertLayout(variant, config, window);
   // the corner brackets lie on the room-side face, like the hooks' screwed legs: they must not overlap there
   const face = (b: Box) => ({ x0: b.center[0] - b.size[0] / 2, x1: b.center[0] + b.size[0] / 2, z0: b.center[2] - b.size[2] / 2, z1: b.center[2] + b.size[2] / 2 });
@@ -506,10 +513,14 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
     : config.attachment === 'spreader-feet'
     ? 'In this order, at every clamp: (1) screw an M8 insert nut into the outer face of the collar; (2) screw the levelling foot’s stud through it from outside until the foot’s hexagon touches the collar. Short studs go under the sill rail, long ones in the stiles and head. (3) On each long stud’s inner end, run on the foot’s own nut from inside, then (4) a second M8 nut, and jam the two together.'
     : 'At every clamp, set the inner wedge against the collar from outside, then lay the outer wedge loosely on it, thin end to thick end. Tape each pair so none can fall when the insert is lifted in.';
-  const mesh = config.meshFixing === 'staples' ? 'staple its edges' : config.meshFixing === 'battens' ? 'press the cover battens over its edges and screw them on from the outdoor face' : 'staple its edges, then press the cover battens over them and screw them on from the outdoor face';
+  const soft = catioMesh(config.mesh).soft;
+  const mesh = config.meshFixing === 'staples' ? 'staple its edges' : config.meshFixing === 'battens' ? 'press the cover battens over its edges and screw them on from the outdoor face' : `${soft ? 'tack its edges with a few staples' : 'staple its edges'}, then press the cover battens over them and screw them on from the outdoor face`;
+  // a net is cut with scissors and pulled taut before it is clamped; welded mesh is cut with side cutters and holds its shape
+  const cut = soft ? 'Cut the net with scissors, along a row of meshes; pull each piece taut, so that no mesh hangs slack, and ' : '';
+  const loose = soft && variant === 'direct' ? ' Along the threshold edge, where no batten fits, put a staple over every mesh.' : '';
   const fill = variant === 'direct'
-    ? `Lower the threshold onto the sill rail and screw it down from above. Slide the passage sleeve mesh on from outdoors and ${mesh}.`
-    : `Lower the threshold onto the sill rail and screw it down from above. Slide the transom into its stile housings from outdoors, then each jamb up into the transom. Screw the transom through the stiles and the jambs up from under the sill rail. Offer the infill mesh from outdoors and ${mesh}.`;
+    ? `Lower the threshold onto the sill rail and screw it down from above. ${soft ? `${cut}slide the passage sleeve on from outdoors, then ${mesh}.` : `Slide the passage sleeve mesh on from outdoors and ${mesh}.`}${loose}`
+    : `Lower the threshold onto the sill rail and screw it down from above. Slide the transom into its stile housings from outdoors, then each jamb up into the transom. Screw the transom through the stiles and the jambs up from under the sill rail. ${soft ? `${cut}offer the infill from outdoors, then ${mesh}.` : `Offer the infill mesh from outdoors and ${mesh}.`}`;
   const tighten = hung
     ? `${printed ? 'Turn each printed foot by hand' : 'Turn each foot’s hexagon with a 13 mm spanner'} until the short hooks stand ${fit?.spec.clearance ?? HOOK_FIT.clearance} mm clear of the sill lip: the feet carry the insert, the hooks only keep it on the frame. Close the sash: the hooks’ tips lie in the seal gap, so it closes and locks as over an insect screen; the seal is pressed locally at the four hooks.`
     : printed
@@ -565,7 +576,8 @@ export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, 
     lines.push({ id: 'folding-wedges', group: 'Timber', name: 'Folding wedge', quantity: 2 * l.clamps.length, size: `${length} × ${width}, ${thickness} mm to 0`, use: `Pairs: ${config.clampsPerSide} on each side of the collar` });
   }
   if (variant === 'modular' && l.port) lines.push({ id: 'cat-gate', group: 'Timber', name: 'Sliding cat gate', quantity: 1, size: `${l.port.width + 20} × ${l.port.height + 20} × 12 exterior plywood`, use: 'Slides up in its tracks on the room side of the port' });
-  for (const panel of l.panels) lines.push({ id: panel.id, group: 'Mesh', name: panel.name, quantity: 1, size: `${Math.round(panel.width)} × ${Math.round(panel.height)} · ${INSERT.mesh.opening} mm openings, ${INSERT.mesh.wire} mm wire (nominal)`, use: [...new Set(panel.edges.map(e => e.use))].join('; ') });
+  lines.push(meshRollLine(l.mesh));
+  for (const panel of l.panels) lines.push({ id: panel.id, group: 'Mesh', name: panel.name, quantity: 1, size: `${Math.round(panel.width)} × ${Math.round(panel.height)} · ${meshCut(l.mesh)}`, use: [...new Set(panel.edges.map(e => e.use))].join('; ') });
   const counts = new Map<string, { quantity: number; uses: Set<string> }>();
   const add = (partId: string, use: string, quantity = 1) => {
     const entry = counts.get(partId) ?? { quantity: 0, uses: new Set<string>() };
@@ -655,6 +667,7 @@ export function windowInsertViews(variant: CatioMode, config: WindowInsertConfig
   };
 }
 
+const NET = catioMesh('netting'); const WELDED = catioMesh('welded');
 const PAD_SOLE: Record<PressurePadSurface, string> = { flat: 'Flat', grooved: 'Grooved', domed: 'Domed' };
 
 export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = [
@@ -668,7 +681,9 @@ export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = 
     ] },
   { key: 'junctionJoint', label: 'Port transom & jambs', group: 'Timber joints', variants: ['modular'], help: 'Housings carry the transom and jambs on timber; butt joints rely on the screws alone.',
     options: [{ value: 'housed', label: 'Housed 10 mm + screw' }, { value: 'butt-screwed', label: 'Butt joint + screws' }] },
-  { key: 'meshFixing', label: 'Mesh to timber', group: 'Mesh', help: 'Staples hold the wire; battens clamp it along the whole edge and cover the cut ends. Where the passage sleeve meets the threshold edge (direct) it is always stapled.',
+  { key: 'mesh', label: 'Mesh', group: 'Mesh', help: 'Soft cat netting is light, cut with scissors and easy on paws, but it only holds where its edge is clamped at every mesh. Welded wire mesh is stiff and bite-proof, and spans a panel between fixings a hand apart. Either is one roll from the parts library.',
+    options: CATIO_MESHES.map(value => ({ value, label: MESH_LABELS[value] })) },
+  { key: 'meshFixing', label: 'Mesh to timber', group: 'Mesh', help: 'Staples hold the mesh; battens clamp it along the whole edge and cover the cut ends. Soft netting needs the battens: staples alone leave its edge open between them. Where the passage sleeve meets the threshold edge (direct) it is always stapled, a net at every mesh.',
     options: [{ value: 'staples-and-battens', label: 'Staples under cover battens' }, { value: 'staples', label: 'Staples only' }, { value: 'battens', label: 'Cover battens only' }] },
   { key: 'fixingPitch', label: 'Fixing spacing', group: 'Mesh', help: 'The greatest distance between staples, and between batten screws, along an edge.',
     options: [{ value: 100, label: '10 cm' }, { value: 150, label: '15 cm' }, { value: 200, label: '20 cm' }] },
@@ -733,9 +748,12 @@ export const WINDOW_INSERT_DECISIONS: DesignDecision[] = [
   { title: 'Half-lapped collar corners (option)', parameter: 'Collar corners',
     choice: 'Each 40 × 60 collar member is halved 30 mm deep at its ends, glued and screwed with two DIN 7997 4 × 50 screws from the outdoor face.',
     why: 'The spreaders push the stiles and rails apart at the corners. A lap carries that on long-grain glue and timber shoulders; a butt joint (the alternative) holds only by screws in end grain.' },
+  { title: 'Soft cat netting', parameter: 'Mesh',
+    choice: `${NET.part.title}: knotted cord with a woven-in wire, ${NET.opening / 10} cm meshes, cut with scissors from one roll. Welded wire mesh (${WELDED.opening} mm meshes of ${WELDED.strand} mm wire) remains selectable.`,
+    why: 'A net is light, quiet and kind to paws, costs little, and one roll covers the insert many times over. It is soft, though: it keeps a cat in only where its edge is held at every mesh, so here it is always clamped under battens, and stapled mesh by mesh where no batten fits. Welded mesh is the choice against a cat that chews.' },
   { title: 'Mesh clamped under battens', parameter: 'Mesh to timber',
-    choice: 'DIN 1159 2.5 × 25 staples over the wire every 15 cm, then 40 × 15 cover battens screwed through the mesh with DIN 7997 4 × 35 screws.',
-    why: 'Staples locate the mesh while it is tensioned; the battens clamp the whole edge so a pulling claw cannot work single wires free, and they cover the sharp cut ends. Staples only or battens only remain selectable.' },
+    choice: 'DIN 1159 2.5 × 25 staples every 15 cm to hold the mesh taut, then 40 × 15 cover battens screwed through it with DIN 7997 4 × 35 screws.',
+    why: 'Staples locate the mesh while it is tensioned; the battens clamp the whole edge, so a pulling claw cannot work a mesh free, and they cover the cut ends. A net needs them: between staples 15 cm apart its edge would open. With welded mesh, staples only or battens only remain selectable.' },
   { title: 'The cat port ends at its frame', parameter: 'Port transom & jambs',
     choice: 'With tunnel, the port is a full-width transom and two jambs with the infill mesh round them. Nothing of the insert runs on to the wall face: the insert–tunnel coupling screws a docking frame onto the jambs and transom, and the frame stays on the insert from then on, also when it is lifted out.',
     why: 'The docking frame carries the passage from the port to the tunnel’s first flange and gives the latches their catch, so a mesh throat there would only be in its way. Its parts are on the coupling’s parts list; its screws are placed between this page’s batten screws and staples, so the mesh fixing and its spacing change it.' },

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createCatioParts } from './catioParts.ts';
-import { CATIO as d, CATIO_DERIVED as g, type CatioLayer } from './catioDesign.ts';
+import { CATIO as d, CATIO_DERIVED as g, ROOF_NET, roofBearers, type CatioLayer } from './catioDesign.ts';
 import { buildWindowFrame } from './catioWindowContext.ts';
 import { savedWindowInsert, windowFor, windowInsertLayout, type WindowInsertConfig } from './catioWindowInsert.ts';
 import { buildHungHardware } from './catioWindowInsertScene.ts';
@@ -118,7 +118,11 @@ export function createCatioScene(insert: WindowInsertConfig = savedWindowInsert(
     const cleat = box(ramp, [d.rampWidth, 18, 8], [0, top.y + run, top.z + run * rampSlope + 4]);
     cleat.rotation.x = Math.atan(rampSlope);
   }
-  panel('mesh-roof', 5, d.width - t, d.depth - t, [0, d.depth / 2, d.height - 10], 'xy', [0, 0, 430]);
+  // The net roof lies on cross rails between the side rails, so that it neither sags nor bags under a cat on top of it.
+  const bearers = component('roof-net-bearers', 5, 'timber', [0, 0, 430]);
+  const roofZ = d.height - 10; const { width: bw, depth: bd } = ROOF_NET.bearer;
+  for (const y of roofBearers(d.depth - 2 * t)) box(bearers, [d.width - 2 * t, bw, bd], [0, t + y, roofZ - d.wire / 2 - bd / 2]);
+  panel('mesh-roof', 5, d.width - t, d.depth - t, [0, d.depth / 2, roofZ], 'xy', [0, 0, 430]);
   const roof = component('roof-edge-battens', 5, 'timber', [0, 0, 430]);
   for (const x of [-half + 15, half - 15]) box(roof, [30, d.depth, 15], [x, d.depth / 2, d.height - 7.5], materials.endgrain);
   for (const y of [15, d.depth - 15]) box(roof, [d.width - 60, 30, 15], [0, y, d.height - 7.5], materials.endgrain);

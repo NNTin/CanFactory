@@ -49,6 +49,7 @@ export type AwinOffer = Static<typeof AwinOfferSchema>;
 export type Offer = Static<typeof OfferSchema>;
 
 const CHECKED = '2026-10-06';
+const MESH_CHECKED = '2026-10-13';
 const amazon = (market: Market, asin: string, title: string, covers: Offer['covers'], options: { rank?: number; sameAsProduct?: boolean } = {}): AmazonOffer => ({
   id: `amazon-${market.toLowerCase()}-${asin.toLowerCase()}`, market, network: 'amazon', asin, title, covers, rank: options.rank ?? 0,
   checkedOn: CHECKED, note: `Title read from the listing at https://www.amazon.${market === 'DE' ? 'de' : 'com'}/dp/${asin}.`, sameAsProduct: options.sameAsProduct ?? false,
@@ -64,7 +65,8 @@ const RUTHEX_BOX: Offer['covers'] = [
  * necessarily the same product on amazon.com: B07YSV66Y5 is ruthex's M4 insert on amazon.de and its ¼″ insert on amazon.com).
  * Parts without an offer link to a search of the market's Amazon instead. See docs/affiliate-offers.md.
  *
- * TODO(awin): applied on 2026-10-07 to these Awin programmes (DE market), waiting for approval. Once one approves, curate its
+ * TODO(awin): applied on 2026-10-07 to these Awin programmes (DE market). None had accepted by 2026-10-13, so every offer here is
+ * an Amazon listing for now (the catio's mesh too, #58). Once one approves, curate its
  * products here (`network: 'awin'`, its advertiser id, the feed's `merchant_product_id`), store the product feed key in the
  * `canfactory-offers` Secret, and enable the `offers` CronJob:
  * - 28052 online-schrauben DE: ISO/DIN screws, nuts, washers and wood screws, from a single piece.
@@ -85,5 +87,13 @@ export const offers: readonly Offer[] = [
   amazon('US', 'B08BCRZZS3', 'ruthex RX-M3x5.7, pack of 100', [{ partId: 'ruthex-rx-m3x5-7', quantity: 100 }], { sameAsProduct: true }),
   amazon('US', 'B07YSVXWS8', 'ruthex RX-M5x9.5, pack of 50', [{ partId: 'ruthex-rx-m5x9-5', quantity: 50 }], { sameAsProduct: true }),
   amazon('US', 'B08K1BVGN9', 'ruthex assortment box M2 + M3 + M4 + M5 (70 + 100 + 50 + 50)', RUTHEX_BOX, { rank: 1 }),
+  // The catio's mesh (#58), one roll per pack. TRIXIE's net has the same ASIN and title on both Amazons.
+  ...MARKETS.map(market => ({ ...amazon(market, 'B000V6DMEE', 'TRIXIE protective net with woven-in wire, 6 × 3 m, olive green (44294)', [{ partId: 'trixie-44294', quantity: 1 }], { sameAsProduct: true }), checkedOn: MESH_CHECKED })),
+  { ...amazon('DE', 'B0742DZBKD', 'KrapTrap welded wire mesh 19 × 19 mm, 1.45 mm wire, 1 × 5 m, galvanised', [{ partId: 'kraptrap-19x19x1-45-5m', quantity: 1 }], { sameAsProduct: true }), checkedOn: MESH_CHECKED,
+    note: 'Title and bullet points read from the listing at https://www.amazon.de/dp/B0742DZBKD: “1m x 5m”, “The wire thickness is 1.45 mm”, part number 27305.' },
+  { ...amazon('DE', 'B00NJRXH7Y', 'KrapTrap welded wire mesh 19 × 19 mm, 1.45 mm wire, 1 × 20 m, galvanised', [{ partId: 'kraptrap-19x19x1-45-20m', quantity: 1 }], { sameAsProduct: true }), checkedOn: MESH_CHECKED },
+  // amazon.com does not list KrapTrap's roll: the nearest welded mesh sold there has a wider mesh of thicker wire.
+  { ...amazon('US', 'B08B1PTX44', 'Far North galvanized welded wire, 14 gauge, 1 × 1 in mesh, 3 ft × 50 ft (nearest US equivalent)', [{ partId: 'kraptrap-19x19x1-45-5m', quantity: 1 }]), checkedOn: MESH_CHECKED,
+    note: 'Not the same product: KrapTrap’s roll is not on amazon.com (https://www.amazon.com/dp/B0742DZBKD has no listing). This is the nearest welded mesh found there, 25.4 mm meshes of 14 gauge (about 2 mm) wire in a 0.9 × 15 m roll; title and “Gauge: 14” read from https://www.amazon.com/dp/B08B1PTX44.' },
 ];
 

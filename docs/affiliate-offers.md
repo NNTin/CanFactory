@@ -50,6 +50,10 @@ Never put a price in this file: Amazon allows prices only from its API (out of s
 feeds at run time. `offers.test.ts` checks every offer's schema, that its parts are permanent library ids, and that no
 listing is curated twice per market.
 
+Awin: none of the programmes applied to had accepted by 2026-10-13, so every curated offer is an Amazon listing. Where
+a market's Amazon does not sell a part's product, an offer may cover it with the nearest equivalent sold there, named
+as such in its title and `note` and never `sameAsProduct` (KrapTrap's welded mesh on amazon.com).
+
 A part without a curated offer in the market links to a search of that market's Amazon for its designation (or its
 manufacturer and article number).
 
@@ -92,7 +96,9 @@ once the `canfactory-offers` Secret holds `AWIN_DATAFEED_KEY` and the network po
 - **Model editor**: “Hardware for this build” lists the library parts of the model's assembly for the current settings
   (`modelBom`: its reference objects and linked references, counted by part) with their best offer. This is derived
   only: a model that places no hardware in its assembly preview shows none.
-- **Catio pages**: the parts list gets a Buy column for its library parts and “Add all hardware to buy list”.
+- **Catio pages**: the parts list gets a Buy column for its library parts and “Add all hardware to buy list”. The mesh
+  is one of them: one roll of the chosen mesh (a `mesh` part), whatever the panels add up to. The pages do not plan the
+  cuts, so the line, and the buy list under that roll, say that more rolls may be needed.
 - **Buy list** (`#/buy-list`): everything added, summed by part, rounded up to packs and grouped by shop, with the
   quantities editable. It is kept in this browser's localStorage (`canfactory.buy-list`), as is the chosen market
   (`canfactory.market`).

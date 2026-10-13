@@ -72,6 +72,7 @@ level and suggests the level setting.
 | Climb in | The middle run | Run out from the wall; middle run; run into the port | Route |
 | Steepest slope | 20° | 10°, 15°, 20°, 25° | Route |
 | Turns and bends | Angle collar | Angle collar; mitred ends, bolted | Joints |
+| Mesh | Soft cat netting (TRIXIE 44294, 3 cm meshes) | Soft cat netting; welded wire mesh (KrapTrap, 19 mm meshes of 1.45 mm wire) | Sections |
 | Longest section | 75 cm | 50, 75, 100 cm | Sections |
 | Feet | Printed feet on M8 × 80 screws | Printed feet; Ganter GN 343.2 levelling feet | Supports |
 | Foot height | 27.5 mm | 13 to 40 mm, in 0.5 mm steps (printed feet) | Supports |
@@ -228,8 +229,12 @@ scene, the parts list and the tests.
    - rails screwed through the flanges into their end grain (DIN 7997 5 × 70)
    - the floor board screwed onto the bottom rails (DIN 7997 4 × 40)
    - cleats on sloped floors (DIN 7997 4 × 35)
-4. **Mesh the sections.** Fit side and roof mesh, stapled to the rails and turned onto the flanges with DIN 1159 2.5 × 25
-   staples every 15 cm.
+4. **Net the sections.** By default each section gets one piece of soft cat netting as a hood: down one side, over both
+   top rails and down the other, its ends turned onto the flanges.
+   - Pulled taut by its own sides, the roof does not sag, and it has no seam at the top rails.
+   - It is stapled (DIN 1159 2.5 × 25) every 15 cm along the top rails, and over every mesh (3 cm) along its cut edges, the
+     bottom rails and the flanges: a net's edge opens between fixings a hand apart.
+   - With welded wire mesh (**Mesh**) it is three panels a section, stapled every 15 cm all round.
 5. **Lay and couple.** Lower the pieces onto the supports one by one from the window end, sticking the seal round each
    flange's face before the next piece goes down. Then close every latch over centre (or bolt every coupling) as the
    coupling page sets. The latches' plates were screwed onto the flanges' sides while framing (stage 3).
@@ -271,7 +276,10 @@ They are listed once, by role, in [concepts.ts](../../../packages/contracts/src/
 `tunnelConcept`). The parts library lists the page under each part's “Used by”, and a test keeps the page's parts list and
 that list identical.
 
-Custom lines (not library parts): the timber cut list (with soles, strap cleats and keepers), mesh panels, the couplings'
+The mesh is one roll of the parts library (the net, or the welded mesh), linked to a shop; the list does not plan the cuts,
+so more rolls may be needed.
+
+Custom lines (not library parts): the timber cut list (with soles, strap cleats and keepers), the net hoods or mesh panels cut from that roll, the couplings'
 E-profile seals, the straps, the turn buttons with their posts, and the paving slabs.
 The printed latches link to their model (`#/models/toggle-latch`). The window end's seal and latches are listed on the
 insert–tunnel coupling page.

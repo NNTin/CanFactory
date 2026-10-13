@@ -66,7 +66,7 @@ export { PRINTED_LATCH };
  * The insert's mesh face (Y): hung on the window frame (the insert's default), its collar's back lies on the frame's face;
  * pressed into the recess, it stands clear of it. The decisions below quote the default's sizes.
  */
-const MESH_FACE = { hung: FRAME_FACE_Y + INSERT.depth + INSERT.mesh.wire, pressed: INSERT.y + INSERT.depth / 2 + INSERT.mesh.wire };
+const MESH_FACE = { hung: FRAME_FACE_Y + INSERT.depth + INSERT.mesh.layer, pressed: INSERT.y + INSERT.depth / 2 + INSERT.mesh.layer };
 const DEFAULT_FACE = WINDOW_INSERT_DEFAULT.attachment === 'frame-hooks' ? MESH_FACE.hung : MESH_FACE.pressed;
 const mm = (v: number) => Math.round(v);
 /** The docking frame's depth with GN 831 latches: from the insert's mesh face to the seal gap in front of the tunnel's first flange. */
@@ -77,7 +77,7 @@ const PRINTED_FRAME_DEPTH = FRAME_DEPTH + COUPLING.gap - COUPLING.printed.gap;
 const JOINT_DEPTH = TUNNEL.wallGap + TUNNEL.flange.thickness - DEFAULT_FACE;
 const PRESSED_JOINT_DEPTH = TUNNEL.wallGap + TUNNEL.flange.thickness - MESH_FACE.pressed;
 /** The frame screw the default's frame takes, the same rule as the layout's: the shorter that bites COUPLING.frameBite. */
-const FRAME_SCREW = [part(HW.frameScrew), part(HW.frameScrewDeep)].find(p => dimensionOf(p, 'l') - (PRINTED_FRAME_DEPTH + INSERT.mesh.wire) >= COUPLING.frameBite) ?? part(HW.frameScrewDeep);
+const FRAME_SCREW = [part(HW.frameScrew), part(HW.frameScrewDeep)].find(p => dimensionOf(p, 'l') - (PRINTED_FRAME_DEPTH + INSERT.mesh.layer) >= COUPLING.frameBite) ?? part(HW.frameScrewDeep);
 /** How far behind the wall face the insert's port frame lies. */
 const PORT_FACE_DEPTH = -DEFAULT_FACE;
 
@@ -118,7 +118,7 @@ export function couplingLayout(config: CouplingConfig, { tunnel, site }: Couplin
   const { width: w, height: h, transomZ } = port; const floor = insert.floor;
   const F = TUNNEL.flange.width; const T = TUNNEL.flange.thickness; const pm = INSERT.portMember;
   // the insert's outdoor faces: the mesh over the port frame, and the cover battens over that
-  const meshFace = insert.yOut + INSERT.mesh.wire;
+  const meshFace = insert.yOut + INSERT.mesh.layer;
   const battens = site.insert.meshFixing !== 'staples';
   const battenFace = battens ? meshFace + INSERT.batten.thickness : meshFace;
   const flangeBack = TUNNEL.wallGap; const flangeFront = flangeBack + T;
@@ -346,7 +346,7 @@ export const COUPLING_DECISIONS: DesignDecision[] = [
     why: 'The insert is held in its recess only by pressure, so it must not take the tunnel’s weight. Locating pins or a spigot would hand that weight to it as soon as the support settled, so there are none: the support’s levelling feet set the height. If a latch has to lift or push the flange to close, re-level the wall support, not the latch.' },
   { title: 'A docking frame on the insert', from: { page: 'window-insert', settings: ['meshFixing', 'fixingPitch'] },
     choice: `Two ${mm(PRINTED_FRAME_DEPTH)} × ${TUNNEL.flange.width} stiles (${mm(FRAME_DEPTH)} × ${TUNNEL.flange.width} with GN 831 latches) on the port jambs and a head on the transom, screwed through into them with ${FRAME_SCREW.designation} screws, rebated ${INSERT.batten.thickness} mm over the cover battens where the insert has them. Its face is the flange’s outline above the floor, ${COUPLING.printed.gap} mm short of the flange (${COUPLING.gap} mm with GN 831 latches). The screws sit between the insert’s batten screws and staples, at least ${COUPLING.screwClearance} mm from each. Whether there are battens, and where their screws are, is set by the window insert’s mesh fixing: with staples only the frame sits flat on the mesh, unrebated. These are the sizes for the insert hung on the window frame, its default; pressed into the recess, its port frame lies ${MESH_FACE.pressed - MESH_FACE.hung} mm further out, the frame is that much thinner and takes DIN 7997 5 × 60 screws.`,
-    why: `The port frame’s face lies ${mm(PORT_FACE_DEPTH)} mm inside the recess and is broken up by battens, while the flange stands ${TUNNEL.wallGap} mm off the wall: the frame brings a flat, matching face to the joint, and gives the catch brackets a side in line with the flange’s side. ${mm(PRINTED_FRAME_DEPTH)} mm is the depth from the mesh to the gap (${mm(FRAME_DEPTH)} mm with GN 831 latches), so the screws reach ${dimensionOf(FRAME_SCREW, 'l') - PRINTED_FRAME_DEPTH - INSERT.mesh.wire} mm into the jambs (${dimensionOf(FRAME_SCREW, 'l') - FRAME_DEPTH - INSERT.mesh.wire} mm) whichever mesh fixing the insert has. A screw on a batten screw’s centre line would run into its hole or split the 40 mm jamb, so they are moved clear. It stays on the insert when the insert is lifted out.` },
+    why: `The port frame’s face lies ${mm(PORT_FACE_DEPTH)} mm inside the recess and is broken up by battens, while the flange stands ${TUNNEL.wallGap} mm off the wall: the frame brings a flat, matching face to the joint, and gives the catch brackets a side in line with the flange’s side. ${mm(PRINTED_FRAME_DEPTH)} mm is the depth from the mesh to the gap (${mm(FRAME_DEPTH)} mm with GN 831 latches), so the screws reach ${dimensionOf(FRAME_SCREW, 'l') - PRINTED_FRAME_DEPTH - INSERT.mesh.layer} mm into the jambs (${dimensionOf(FRAME_SCREW, 'l') - FRAME_DEPTH - INSERT.mesh.layer} mm) whichever mesh fixing the insert has. A screw on a batten screw’s centre line would run into its hole or split the 40 mm jamb, so they are moved clear. It stays on the insert when the insert is lifted out.` },
   { title: 'A squashed seal and a floor lip', parameter: 'Floor gap',
     choice: `A self-adhesive EPDM E-profile (${COUPLING.printed.seal.width} × ${COUPLING.printed.seal.height}, made for 2–3.5 mm gaps) round the frame’s face, squashed to the printed latches’ ${COUPLING.printed.gap} mm gap; with GN 831 latches, a hollow EPDM D-profile about ${COUPLING.seal.height} mm high, squashed to their ${COUPLING.gap} mm gap; a ${COUPLING.lip.thickness} mm EPDM lip screwed to the flange’s sill, lying ${COUPLING.lip.overlap} mm onto the threshold.`,
     why: 'The old foam strip pressed against the wall round the flange, but the flange stands in front of the open recess, where there is no wall: the seal now sits between two faces that are there. A hollow or slotted profile squashes with little force, so the latches need not pull hard and the insert is not dragged out of its recess. The lip closes the floor gap to claws and draughts and bends out of the way when the joint opens.' },

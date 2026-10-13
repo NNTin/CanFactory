@@ -1,7 +1,7 @@
 # The parts library
 
 The parts library is a catalogue of real-world parts that models are made to fit: screws, nuts, washers, magnets, threaded
-inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, development boards, and everyday objects such as the BIC
+inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, development boards, mesh and netting by the roll, and everyday objects such as the BIC
 Mini lighter the cigarette case holds. Every entry is one real
 item, a size of a standard part (ISO 4762 M3 × 10) or a named product (supermagnete S-06-02-N), with its dimensions, their
 tolerances where the source gives them, and the source of every value.
@@ -57,6 +57,18 @@ its id; if a value was wrong, correct it under the same id.
 `npm test` checks the whole library (`parts.test.ts`): the schema, that every part has its family's required dimensions and a
 source for every value, unique ids, titles and descriptions, and physical sanity per family (a head is wider than its thread,
 a nut's corners are wider than its flats, an insert's hole is smaller than the insert).
+
+### Mesh and netting
+
+The **`mesh`** family (`mesh.ts`) holds mesh sold by the roll and cut to size, for the window catio's panels:
+
+- **TRIXIE's wire-reinforced cat net** (articles 44291–44295): 3 × 3 cm meshes, by size of the piece. The maker gives no
+  cord thickness, so these have no `d`.
+- **KrapTrap's welded wire mesh**, 19 × 19 mm of 1.45 mm wire, in 5, 12 and 20 m rolls about 1 m wide.
+
+Dimensions: the opening `a`, the wire `d` (welded mesh only) and the roll's width `w` and length `l`. One part is one roll:
+a page that uses it lists a roll and the pieces cut from it, never a fraction. `CATIO_MESH_PARTS` (`concepts.ts`) names
+the two the catio pages offer. The preview draws a piece eight meshes square, not the roll.
 
 ### Balls, springs and set screws
 

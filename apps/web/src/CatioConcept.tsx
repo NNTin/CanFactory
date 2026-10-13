@@ -18,7 +18,7 @@ const sheets = [
   ['01-overview', 'At home, outside', 'Exterior and interior views of the same timber catio.'],
   ['02-orientations', 'Every angle', 'Front, side and top views with consistent proportions.'],
   ['03-window-attachment', 'A removable connection', 'Reachable clamps, exterior brackets and a section through the recess.'],
-  ['04-ground-details', 'Grass under their paws', 'The ramp, four feet and continuous metal-mesh floor.'],
+  ['04-ground-details', 'Grass under their paws', 'The ramp, four feet and continuous mesh floor.'],
   ['05-exploded', 'How it fits together', 'The window collar, enclosure panels, roof, door and ramp.'],
   ['06-assembly', 'From window to catio', 'Six illustrated stages matching the live assembly preview.'],
   ['07-modular-overview', 'Room to move', 'A smaller tunnel connects the window insert to a freestanding enclosure.'],
@@ -30,7 +30,7 @@ const sheets = [
 ] as const;
 
 const layers: { id: CatioLayer; title: string }[] = [
-  { id: 'timber', title: 'Timber & ramp' }, { id: 'mesh', title: 'Metal mesh' },
+  { id: 'timber', title: 'Timber & ramp' }, { id: 'mesh', title: 'Mesh' },
   { id: 'hardware', title: 'Mounting & feet' }, { id: 'environment', title: 'Wall & grass' },
 ];
 
@@ -102,7 +102,7 @@ export function CatioConcept() {
 
   return <>
     <div className="page-heading catio-heading"><div><div className="eyebrow">CONCEPT STUDY · 01</div><h1>A little closer to the grass.</h1>
-      <p>A removable window catio for a souterrain apartment. Timber, metal mesh, and a gentle route outside.</p>
+      <p>A removable window catio for a souterrain apartment. Timber, cat netting, and a gentle route outside.</p>
       <nav className="catio-subassemblies" aria-label="Catio sub-assemblies"><span className="eyebrow">SUB-ASSEMBLIES · PIECES, JOINTS AND PARTS LISTS</span>
         <div>{CATIO_SUBASSEMBLIES.map(id => <a key={id} href={formatHash({ view: 'concepts', concept: 'catio', subassembly: id })}><strong>{CATIO_SUBASSEMBLY_TITLES[id]}</strong><span>pieces, joints and parts list</span><ArrowRight size={16} /></a>)}</div></nav></div><span className="model-tag"><span /> CATIO CONCEPT</span></div>
     <div className="catio-modes" role="group" aria-label="Catio design mode">{(['direct', 'modular'] as CatioMode[]).map(option => <button type="button" key={option} aria-pressed={mode === option} onClick={() => setSettings(current => ({ ...current, mode: option }))}>{option === 'direct' ? 'Direct · original design' : 'Modular · with tunnel'}</button>)}</div>

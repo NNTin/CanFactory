@@ -1,4 +1,4 @@
-import { cornerBracketHoles, devBoardLayout, METRIC_THREADS, type DevBoardComponent, type MetricThread, type Part } from '@canfactory/contracts';
+import { CATIO_NET_CORD, cornerBracketHoles, devBoardLayout, METRIC_THREADS, type DevBoardComponent, type MetricThread, type Part } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -14,6 +14,7 @@ const BRASS = 0xc9a24c;
 const NICKEL = 0xcfd2d6;
 const NYLON = 0xece4cc;
 const SHIELD = 0x58606a;
+const NET = 0x5b6338;
 
 type Piece = THREE.BufferGeometry;
 
@@ -399,9 +400,24 @@ function heatsink(part: Part): Piece[] {
   return [slab(w, l, base, 0, 0), ...Array.from({ length: 4 }, (_, i) => slab(fin, l, h - base, -w / 2 + fin / 2 + i * (w - fin) / 3, base))];
 }
 
+/** A piece of the roll, eight meshes square, lying on z = 0: every strand at the mesh's own opening. A net's cord has no published thickness. */
+function mesh(part: Part): Piece[] {
+  const a = value(part, 'a'); const wire = part.dimensions['d']?.value; const strand = wire ?? CATIO_NET_CORD;
+  const cells = 8; const pitch = a + strand; const size = cells * pitch + strand;
+  const pieces: Piece[] = [];
+  for (let i = 0; i <= cells; i++) {
+    const at = -size / 2 + strand / 2 + i * pitch;
+    // welded mesh: one layer of wires lies on the other; a net's cords are knotted in one layer
+    const across = new THREE.BoxGeometry(size, strand, strand); across.translate(0, at, strand / 2);
+    const along = new THREE.BoxGeometry(strand, size, strand); along.translate(at, 0, wire === undefined ? strand / 2 : strand * 1.5);
+    pieces.push(paint(across, wire === undefined ? NET : STEEL), paint(along, wire === undefined ? NET : STEEL));
+  }
+  return pieces;
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
-  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, heatsink,
+  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, heatsink, mesh,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */

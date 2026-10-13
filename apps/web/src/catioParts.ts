@@ -1,19 +1,23 @@
+import { CATIO_MESH_DEFAULT, catioMesh, type CatioMeshSpec } from '@canfactory/contracts';
 import * as THREE from 'three';
-import { CATIO as d, type CatioLayer } from './catioDesign.ts';
+import { type CatioLayer } from './catioDesign.ts';
 
 type V3 = [number, number, number];
 import type { CatioState, MeshPanel } from './catioScene.ts';
 interface Component { id: string; group: THREE.Group; step: number; layer?: CatioLayer; offset: V3 }
 
-/** The concept geometry is authored here, independently of the render API and future printable CAD. */
-export function createCatioParts() {
+/**
+ * The concept geometry is authored here, independently of the render API and future printable CAD. `mesh` is what the panels are
+ * drawn as: olive cord for soft netting, grey wire for welded mesh, at the mesh's own opening.
+ */
+export function createCatioParts(mesh: CatioMeshSpec = catioMesh(CATIO_MESH_DEFAULT)) {
   const root = new THREE.Group();
   const components: Component[] = [];
   const panels: MeshPanel[] = [];
   const materials = {
     timber: new THREE.MeshStandardMaterial({ color: '#b98959', roughness: 0.83 }),
     endgrain: new THREE.MeshStandardMaterial({ color: '#cfaa7a', roughness: 0.9 }),
-    mesh: new THREE.MeshStandardMaterial({ color: '#535e58', metalness: 0.48, roughness: 0.7 }),
+    mesh: mesh.soft ? new THREE.MeshStandardMaterial({ color: '#5b6338', roughness: 0.95 }) : new THREE.MeshStandardMaterial({ color: '#535e58', metalness: 0.48, roughness: 0.7 }),
     hardware: new THREE.MeshStandardMaterial({ color: '#66716f', metalness: 0.65, roughness: 0.42 }),
     rubber: new THREE.MeshStandardMaterial({ color: '#363f3b', roughness: 1 }),
     /** Printed parts (PETG), in the parts' green of the model library's drawings. */
@@ -53,14 +57,14 @@ export function createCatioParts() {
     const parent = component(id, step, 'mesh', offset);
     const positions = (size: number) => {
       const values: number[] = [];
-      for (let n = -size / 2; n < size / 2; n += d.meshOpening + d.wire) values.push(n);
+      for (let n = -size / 2; n < size / 2; n += mesh.opening + mesh.strand) values.push(n);
       values.push(size / 2); return values;
     };
     const xs = positions(width); const ys = positions(height);
     const wires = new THREE.InstancedMesh(boxGeometry, materials.mesh, xs.length + ys.length);
     const dummy = new THREE.Object3D(); let at = 0;
-    for (const x of xs) { dummy.position.set(x, 0, 0); dummy.scale.set(d.wire, height + d.wire, d.wire); dummy.updateMatrix(); wires.setMatrixAt(at++, dummy.matrix); }
-    for (const y of ys) { dummy.position.set(0, y, 0); dummy.scale.set(width + d.wire, d.wire, d.wire); dummy.updateMatrix(); wires.setMatrixAt(at++, dummy.matrix); }
+    for (const x of xs) { dummy.position.set(x, 0, 0); dummy.scale.set(mesh.strand, height + mesh.strand, mesh.strand); dummy.updateMatrix(); wires.setMatrixAt(at++, dummy.matrix); }
+    for (const y of ys) { dummy.position.set(0, y, 0); dummy.scale.set(width + mesh.strand, mesh.strand, mesh.strand); dummy.updateMatrix(); wires.setMatrixAt(at++, dummy.matrix); }
     wires.position.fromArray(center);
     if (plane === 'xz') wires.rotation.x = Math.PI / 2;
     if (plane === 'yz') wires.rotation.set(Math.PI / 2, Math.PI / 2, 0);
@@ -81,5 +85,5 @@ export function createCatioParts() {
     for (const geometry of geometries) geometry.dispose();
     for (const material of Object.values(materials)) material.dispose();
   }
-  return { root, components, panels, materials, component, box, rod, ring, panel, update, dispose };
+  return { root, components, panels, materials, mesh, component, box, rod, ring, panel, update, dispose };
 }

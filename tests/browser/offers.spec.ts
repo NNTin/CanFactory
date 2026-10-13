@@ -94,9 +94,15 @@ test('lists the hardware of a model for its settings and of a catio page, and ad
   const parts = page.getByRole('region', { name: 'Parts list' });
   await expect(parts.getByRole('columnheader', { name: 'Buy' }).first()).toBeVisible();
   await expect(parts.getByRole('link', { name: /Search amazon\.de|amazon\.de/ }).first()).toHaveAttribute('rel', 'sponsored noopener');
+  // the mesh is a library part too: one roll, linked to a shop, with the panels cut from it listed under it
+  const mesh = parts.getByRole('table', { name: 'Mesh parts' });
+  await expect(mesh.getByRole('row').nth(1)).toContainText('more rolls may be needed');
+  await expect(mesh.getByRole('row').nth(1).getByRole('link', { name: /amazon\.de/ })).toHaveAttribute('href', /\/dp\/B000V6DMEE\?tag=/);
   await parts.screenshot({ path: testInfo.outputPath('catio-parts.png') });
   await parts.getByRole('button', { name: 'Add all hardware to buy list' }).click();
   await page.goto('/#/buy-list');
   await expect(page.getByRole('link', { name: 'Cigarette case (Onz)' }).first()).toBeVisible();
   await expect(page.getByRole('link', { name: /Catio: / }).first()).toBeVisible();
+  // a roll is cut to size, and the pages list one: the buy list says more may be needed
+  await expect(page.getByText(/Cut to size: each catio page lists one roll, so more rolls may be needed/)).toBeVisible();
 });

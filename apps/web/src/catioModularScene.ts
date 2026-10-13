@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
+import { CATIO, ROOF_NET, roofBearers } from './catioDesign.ts';
 import { MODULAR as d, modularLayout, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { buildWindowFrame } from './catioWindowContext.ts';
 import { HOOK_FIT, modularWindow, savedWindowInsert, windowInsertLayout, windowProfileOf, type WindowInsertConfig } from './catioWindowInsert.ts';
@@ -130,6 +131,9 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
     mesh(`${id}-continuous-floor`, 2, ew, ed, [0, ed / 2, 4], 'xy', [0, 150, 0]);
     for (const x of [-half, half]) mesh(`${id}-floor-skirt-${x}`, 2, ed, 86, [x, ed / 2, 47], 'yz', [0, 150, 0]);
     for (const y of [0, ed]) mesh(`${id}-floor-skirt-end-${y}`, 2, ew, 86, [0, y, 47], 'xz', [0, 150, 0]);
+    // The net roof lies on cross rails between the side rails, so that it neither sags nor bags under a cat on top of it.
+    const bearers = component(`${id}-roof-net-bearers`, 2, 'timber', [0, 0, 400]);
+    for (const y of roofBearers(ed - 80)) box(bearers, [ew - 80, ROOF_NET.bearer.width, ROOF_NET.bearer.depth], [0, 40 + y, eh - 10 - CATIO.wire / 2 - ROOF_NET.bearer.depth / 2]);
     mesh(`${id}-roof`, 2, ew, ed, [0, ed / 2, eh - 10], 'xy', [0, 0, 400]);
     perforated(`${id}-rear-mesh`, 2, ew, 90, eh, 0);
     port(`${id}-rear`, `Enclosure ${id.toUpperCase()} rear cat gate`, 3, id === 'a');

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { createCatioScene, type CatioState } from './catioScene.ts';
-import { CATIO, CATIO_DERIVED } from './catioDesign.ts';
+import { catioMesh } from '@canfactory/contracts';
+import { CATIO, CATIO_DERIVED, ROOF_NET, roofBearers } from './catioDesign.ts';
 import { WINDOW_INSERT_DEFAULT, windowInsertLayout } from './catioWindowInsert.ts';
 
 const assembled: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
@@ -67,6 +68,26 @@ describe('catio concept geometry', () => {
     scene.update({ ...assembled, hidden: new Set(['mesh']), cutaway: true });
     expect(scene.components.filter(part => part.layer === 'mesh').every(part => !part.group.visible)).toBe(true);
     expect(scene.components.find(part => part.id === 'wall')?.group.visible).toBe(false);
+    scene.dispose();
+  });
+
+  it('is meshed with soft cat netting, its roof carried on cross rails no farther apart than a net may span', () => {
+    expect([CATIO.meshOpening, CATIO.wire]).toEqual([catioMesh('netting').opening, catioMesh('netting').strand]);
+    // evenly spaced, every bay within the span, none for a roof one bay wide
+    for (const clear of [300, 400, 401, 910, 1200, 2000]) {
+      const lines = [0, ...roofBearers(clear), clear]; const bays = lines.slice(1).map((y, i) => y - (lines[i] ?? 0));
+      expect(Math.max(...bays), `${clear}`).toBeLessThanOrEqual(ROOF_NET.span + 1e-9);
+      expect(Math.max(...bays) - Math.min(...bays)).toBeLessThan(1e-9);
+    }
+    expect(roofBearers(ROOF_NET.span)).toEqual([]);
+    const scene = createCatioScene(); scene.update(assembled);
+    const part = (id: string) => { const found = scene.components.find(p => p.id === id); if (!found) throw new Error(id); return found.group; };
+    const bearers = bounds(part('roof-net-bearers')); const roof = bounds(part('mesh-roof'));
+    // under the net, touching it, between the side rails and below the top of the frame
+    expect(bearers.max.z).toBeCloseTo(roof.min.z, 6);
+    expect(bearers.min.x).toBeCloseTo(-CATIO.width / 2 + CATIO.timber, 6); expect(bearers.max.x).toBeCloseTo(CATIO.width / 2 - CATIO.timber, 6);
+    expect(part('roof-net-bearers').children).toHaveLength(roofBearers(CATIO.depth - 2 * CATIO.timber).length);
+    expect(part('roof-net-bearers').children.length).toBeGreaterThan(0);
     scene.dispose();
   });
 

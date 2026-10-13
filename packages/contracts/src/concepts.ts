@@ -30,6 +30,38 @@ export const WINDOW_INSERT_HARDWARE = {
   hookScrew: 'din-7997-3x16',
 } as const;
 
+/**
+ * What the window catio is meshed with: soft cat netting (the default) or welded wire mesh. Each is one roll of the parts library,
+ * cut into the pages' panels. A net is soft, so its edges are held at every mesh and it is carried wherever it would sag; welded
+ * mesh spans a panel between fixings a hand apart.
+ */
+export const CATIO_MESHES = ['netting', 'welded'] as const;
+export type CatioMesh = typeof CATIO_MESHES[number];
+export const CATIO_MESH_DEFAULT: CatioMesh = 'netting';
+export const CATIO_MESH_PARTS: Record<CatioMesh, string> = { netting: 'trixie-44294', welded: 'kraptrap-19x19x1-45-5m' };
+/** The net's cord as the pages draw it, in mm: its maker gives no thickness. */
+export const CATIO_NET_CORD = 1.5;
+export interface CatioMeshSpec {
+  kind: CatioMesh; part: Part;
+  /** The mesh's clear opening, and its wire's (or cord's) thickness, in mm. */
+  opening: number; strand: number;
+  /** Soft: its edge is held at every mesh, and it is carried where it would sag. */
+  soft: boolean;
+  /** The roll, in mm. */
+  rollWidth: number; rollLength: number;
+}
+export function catioMesh(kind: CatioMesh): CatioMeshSpec {
+  const part = libraryPart(CATIO_MESH_PARTS[kind]);
+  return {
+    kind, part, opening: dimensionOf(part, 'a'), strand: part.dimensions['d']?.value ?? CATIO_NET_CORD, soft: kind === 'netting',
+    rollWidth: dimensionOf(part, 'w'), rollLength: dimensionOf(part, 'l'),
+  };
+}
+const MESH_LINKS: ConceptPartLink[] = [
+  { partId: CATIO_MESH_PARTS.netting, via: 'Mesh (soft cat netting, the default)' },
+  { partId: CATIO_MESH_PARTS.welded, via: 'Mesh (welded wire mesh)' },
+];
+
 /** The window insert's clamp feet: Ganter GN 343.2 KR on an M8 stud, in these diameters. */
 export const WINDOW_INSERT_FOOT = { thread: 'M8', diameters: [25, 32, 40], member: 40, travel: 8 } as const;
 
@@ -101,6 +133,7 @@ export const windowInsertConcept: ConceptPage = {
     { partId: h.jambScrew, via: 'Port jambs (with tunnel)' },
     { partId: h.thresholdScrew, via: 'Threshold and cover battens' },
     { partId: h.staple, via: 'Mesh to timber' },
+    ...MESH_LINKS,
     { partId: h.insertNut, via: 'Clamp threads in the collar' },
     { partId: h.jamNut, via: 'Spreader studs (jammed nuts)' },
     { partId: h.jamNut, via: 'Printed pads (lock nut on each spreader screw)' },
@@ -179,6 +212,7 @@ export const tunnelConcept: ConceptPage = {
     { partId: t.bearerScrew, via: 'Bearers to legs and flanges' },
     { partId: t.braceScrew, via: 'Support braces' },
     { partId: t.staple, via: 'Mesh to timber' },
+    ...MESH_LINKS,
     ...TUNNEL_FOOT.diameters.map(d1 => ({ partId: tunnelFoot(d1).id, via: `Support feet (${d1} mm)` })),
     { partId: tunnelPadScrew().id, via: 'Printed support feet (screw locked in each foot)' },
     { partId: hexScrew(TUNNEL_PAD.thread, 60).id, via: 'Printed feet under self-standing soles, for ±10 mm (the shorter screw stays inside the sole)' },
@@ -235,6 +269,7 @@ export const tunnelTunnelCouplingConcept: ConceptPage = {
     { partId: t.couplingBolt, via: 'Bolted couplings' },
     { partId: t.couplingWasher, via: 'Bolted couplings (both sides)' },
     { partId: t.couplingNut, via: 'Bolted couplings' },
+    ...MESH_LINKS,
   ],
   models: [{ modelId: 'toggle-latch', via: 'latched couplings, the default' }],
 };
