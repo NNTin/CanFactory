@@ -101,11 +101,11 @@ export const TUNNEL = {
   minRail: 20,
   /**
    * Side access (catioDoor.ts): a removable mesh panel in place of one side's mesh, between the flanges, in a section at least
-   * `minLength` long between them. Its turn buttons' pivots are `pivotEdge` inside the rails' edges that face away from the
-   * opening, clear of the roof's staples and the floor's screws in those rails. Over it a net hood ends `hoodTurn` down the top
-   * rail's outer face.
+   * `minLength` long between them. Its turn buttons' pivots are `pivotEdge` inside the rails' edges nearest the opening, and
+   * stop short of the rails' middle: clear of the roof's staples and the floor's screws, which are driven down the middle of
+   * those rails. Over it a net hood ends `hoodTurn` down the top rail's outer face.
    */
-  access: { minLength: 300, pivotEdge: 12, hoodTurn: 10 },
+  access: { minLength: 300, pivotEdge: 10, hoodTurn: 10 },
   /** The sharpest turn each joint type is offered for. */
   maxTurn: { 'angle-collar': 135, 'mitred-ends': 90 },
   staplePitch: 150, floorScrewPitch: 200,
@@ -510,9 +510,13 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   // nothing of it reaches the flanges' sides (the latches), the bearers under them or the roof above.
   const accessSide = config.sideAccessSide === 'left' ? -1 : 1;
   const squareEnded = (p: Piece) => dot(p.start.n, p.frame.y) > 1 - 1e-9 && dot(p.end.n, p.frame.y) > 1 - 1e-9;
-  const accessible = pieces.filter(p => p.kind === 'section' && squareEnded(p) && p.length - 2 * T >= TUNNEL.access.minLength);
+  // A strap goes plumb over the tunnel at a support. The supports at the wall and at the port stand under the first and the last
+  // piece themselves, not under two flanges that meet, and over a sloped section a plumb strap leans across its side: held by
+  // straps, those pieces have no side access.
+  const strapped = (p: Piece) => config.supportFixing === 'strap' && (p === pieces[0] || p === pieces.at(-1) || Math.abs(p.pitch) > 1e-6);
+  const accessible = pieces.filter(p => p.kind === 'section' && squareEnded(p) && p.length - 2 * T >= TUNNEL.access.minLength && !strapped(p));
   const withAccess = config.sideAccess === 'all' ? accessible : config.sideAccess === 'one' ? accessible.slice(Math.floor(accessible.length / 2), Math.floor(accessible.length / 2) + 1) : [];
-  if (config.sideAccess !== 'none' && accessible.length === 0) errors.push(`No section is square-ended and at least ${(TUNNEL.access.minLength + 2 * T) / 10} cm long, as a side-access panel needs: choose no side access, or longer sections.`);
+  // (a tunnel none of whose sections can take one simply has none: the page's brief says so)
   const access: SideAccessPanel[] = withAccess.map(p => {
     const id = `${p.id}-access`; const edge = TUNNEL.access.pivotEdge;
     const door = insetPanel({ id, width: p.length - 2 * T, height: h, cavity: r, pivots: { head: edge, sill: fl + r - edge } });
@@ -840,6 +844,13 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   }
 
   const totalLength = pieces.reduce((sum, p) => sum + p.length, 0);
+  // the check behind that rule: no strap's path crosses a side-access panel
+  for (const a of access) {
+    const piece = pieces.find(p => p.id === a.piece); if (!piece) continue;
+    const middle = mul(add(piece.start.at, piece.end.at), 0.5);
+    const crosses = (q: V3) => { const d = sub(q, middle); const along = dot(d, piece.frame.y); return Math.abs(along) < a.door.opening.width / 2 && len(sub(d, mul(piece.frame.y, along))) < w + 2 * F; };
+    if (supports.some(s => s.hold.strap?.path.some(crosses))) errors.push(`A support’s strap would cross the side-access panel of ${piece.name.toLowerCase()}: choose another way to hold the tunnel there, or no side access.`);
+  }
   return {
     config, site, w, h, S, E, dE, V1, V2, turns: turns.map(deg), rise, slope: slope ? { pitch: deg(slope.pitch), run: slope.run, footprint: slope.footprint } : null,
     joint, gap, mesh, pieces, joints, interfaces, couplings, members, panels, access, cleats, fasteners, supports, foot, pad, footHeight: l3, stud, insertNut, lockNut, travel, errors, totalLength,
@@ -1142,8 +1153,9 @@ export const TUNNEL_CONTROLS: SubassemblyControl<TunnelConfig>[] = [
     options: CATIO_MESHES.map(value => ({ value, label: MESH_LABELS[value] })) },
   { key: 'sectionLength', label: 'Longest section', group: 'Sections', help: 'Each straight run is split into equal sections no longer than this: shorter ones are lighter to carry and need more supports.',
     options: [500, 750, 1000].map(v => ({ value: v as TunnelConfig['sectionLength'], label: `${v / 10} cm` })) },
-  { key: 'sideAccess', label: 'Side access', group: 'Sections', help: 'A removable mesh panel in place of one side’s mesh, kept in by door turn buttons on the rails: turn each a quarter turn clear and lift the panel out to reach in from outside. Only sections with two square ends take one. Opening one opens the tunnel: secure the cats elsewhere first.',
+  { key: 'sideAccess', label: 'Side access', group: 'Sections', help: 'A removable mesh panel in place of one side’s mesh, kept in by door turn buttons on the rails: turn each a quarter turn clear and lift the panel out to reach in from outside. Only sections with two square ends take one; where a rubber strap holds the tunnel down, only level sections between two others. Opening one opens the tunnel: secure the cats elsewhere first.',
     options: [{ value: 'none', label: 'None' }, { value: 'one', label: 'One panel, near the middle' }, { value: 'all', label: 'A panel in every section that takes one' }] },
+  // (held by straps, the first, the last and the sloped sections take none: a strap would cross the panel there)
   { key: 'sideAccessSide', label: 'Access side', group: 'Sections', when: c => c.sideAccess !== 'none', help: 'The side the panels are on, looking along the tunnel from the window: the one you can stand beside.',
     options: [{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }] },
   { key: 'footPad', label: 'Feet', group: 'Supports',

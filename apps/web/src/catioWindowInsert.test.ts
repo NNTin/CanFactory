@@ -8,6 +8,7 @@ import { windowInsertDefinition } from './catioSubassemblies.ts';
 import { TILT_MAX, windowFrame } from './catioWindow.ts';
 import { HOOK_FIT, INSERT, PAD_HEIGHT, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from './catioWindowInsert.ts';
 import { BENCH_OFFSET, buildInsertContext, createWindowInsertScene } from './catioWindowInsertScene.ts';
+import { PORT_CLOSURE_DEFAULT, PORT_CLOSURES } from './catioDoor.ts';
 import { createCatioParts } from './catioParts.ts';
 
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
@@ -67,14 +68,15 @@ describe('window insert', () => {
   });
 
   it('keeps every installed piece outside the sash sweep and inside the recess, for every choice and variant', () => {
-    for (const variant of variants) for (const config of configs) {
-      expect(validateWindowInsert(variant, config), `${variant} ${JSON.stringify(config)}`).toEqual([]);
-      const scene = createWindowInsertScene(variant, config); scene.update(installed);
-      const w = windowFor(variant, config); const frame = windowFrame(w);
+    // with tunnel, for either closure of the cat port: the removable panel (the default) and the sliding gate
+    for (const variant of variants) for (const closure of variant === 'modular' ? PORT_CLOSURES : [PORT_CLOSURE_DEFAULT]) for (const config of configs) {
+      const w = { ...windowFor(variant, config), closure }; const frame = windowFrame(w);
+      expect(validateWindowInsert(variant, config, w), `${variant} ${closure} ${JSON.stringify(config)}`).toEqual([]);
+      const scene = createWindowInsertScene(variant, config, w); scene.update(installed);
       const pieces = scene.components.filter(part => part.layer !== 'environment' && part.id !== 'fixed-window-frame' && part.id !== 'opening-sash').map(part => ({ id: part.id, box: bounds(part.group) }));
-      // only the hooks (and their screws' tips) reach past the frame's face, behind its lip, and (hung) the gate latch on the port's
-      // room side into the window opening: all clear of the closed sash
-      const behind = (id: string) => id === 'screen-hooks' || id === 'hook-screws' || (config.attachment === 'frame-hooks' && id === 'gate-latch');
+      // only the hooks (and their screws' tips) reach past the frame's face, behind its lip, and (hung) what closes the port from its
+      // room side, into the window opening (a gate's latch; a removable panel's turn buttons and pull): all clear of the closed sash
+      const behind = (id: string) => id === 'screen-hooks' || id === 'hook-screws' || (config.attachment === 'frame-hooks' && (id === 'gate-latch' || id === 'port-panel-hardware'));
       for (const piece of pieces) {
         if (piece.box.isEmpty()) continue;
         expect(piece.box.min.x, `${variant} ${piece.id}`).toBeGreaterThanOrEqual(-w.openingWidth / 2 - 0.01);
@@ -145,7 +147,9 @@ describe('window insert', () => {
       expect(scene.focusOffset?.()).toEqual([0, scene.insert.position.y, 0]);
     }
     // hung on the window frame, by default: the hooks and their screws, and only the bearing feet
-    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['collar-head', 'collar-left', 'corner-screws', 'insert-nuts', 'screen-hooks', 'hook-screws', 'bearing-feet', 'port-frame', 'infill-top', 'staples', 'cover-battens', 'cat-gate']));
+    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['collar-head', 'collar-left', 'corner-screws', 'insert-nuts', 'screen-hooks', 'hook-screws', 'bearing-feet', 'port-frame', 'infill-top', 'staples', 'cover-battens', 'port-panel', 'port-panel-hardware']));
+    // a removable panel is the default closure: nothing of the sliding gate is drawn with it
+    expect(scene.components.map(part => part.id).filter(id => /gate/.test(id))).toEqual([]);
     expect(scene.components.map(part => part.id)).not.toContain('spreader-clamps');
     scene.update({ ...installed, cutaway: true, hidden: new Set(['mesh']) });
     expect(component(scene, 'wall').visible).toBe(false);
@@ -448,15 +452,21 @@ describe('window insert hung on the window frame', () => {
     // the printed barb is 2 mm: a seal gap under 3 mm is too narrow for it, but not for the bought strip
     expect(validateWindowInsert('direct', { ...hung, sealGap: 2.5 }).join(' ')).toMatch(/seal gap \(2.5 mm\) is too narrow for the printed hooks’ 2 mm barb.*Choose the bought hooks/);
     expect(validateWindowInsert('direct', { ...bought, sealGap: 2.5 })).toEqual([]);
-    // the modular cat gate's latch stands behind the collar's back, in front of the sash: a thin lip leaves too little room
-    expect(validateWindowInsert('modular', { ...bought, frameLip: 5, sealGap: 2.5 }).join(' ')).toMatch(/gate’s latch needs 13 mm/);
+    // a sliding cat gate's latch stands 12 mm behind the collar's back, in front of the sash: a thin lip leaves too little room. A
+    // removable panel's buttons and pull stand 5 mm behind it, and fit there
+    const thin = { ...bought, frameLip: 5, sealGap: 2.5 };
+    expect(validateWindowInsert('modular', thin, { ...windowFor('modular', thin), closure: 'sliding-gate' }).join(' ')).toMatch(/gate’s latch needs 13 mm/);
+    expect(validateWindowInsert('modular', thin, { ...windowFor('modular', thin), closure: 'removable-panel' })).toEqual([]);
+    const thinner = { ...bought, frameLip: 5, sealGap: 0 };
+    expect(validateWindowInsert('modular', thinner, { ...windowFor('modular', thinner), closure: 'removable-panel' }).join(' ')).toMatch(/panel, its turn buttons and its pull need 6 mm between the frame’s face and the closed sash; this window has 5 mm/);
     expect(validateWindowInsert('direct', { ...bought, frameLip: 5, sealGap: 2.5 })).toEqual([]);
     expect(validateWindowInsert('direct', { ...hung, frameLip: 5, sealGap: 3 })).toEqual([]);
   });
 
   it('is hung, lifted, on the frame and let down onto its feet, and says how', () => {
     const steps = windowInsertSteps('modular', hung);
-    expect(steps.map(s => s.title)).toEqual(['Existing window', 'Join the collar', 'Fit the feet and hooks', 'Cat port and infill mesh', 'Hang it on the window frame', 'Level it and close the window', 'Gate and check']);
+    expect(steps.map(s => s.title)).toEqual(['Existing window', 'Join the collar', 'Fit the feet and hooks', 'Cat port and infill mesh', 'Hang it on the window frame', 'Level it and close the window', 'Panel and check']);
+    expect(windowInsertSteps('modular', hung, { ...windowFor('modular', hung), closure: 'sliding-gate' }).at(-1)?.title).toBe('Gate and check');
     expect(steps[2]?.detail).toContain('printed for this window’s 15.5 mm lip and 3.5 mm seal gap');
     expect(steps[2]?.detail).toContain(`turns ${l.hookFit?.fromTop} mm below the collar’s top`);
     expect(windowInsertSteps('modular', bought)[2]?.detail).toMatch(/at 16 mm .* two 3 × 16 screws/);
@@ -483,7 +493,7 @@ describe('window insert hung on the window frame', () => {
   it('shows its hooks and feet where another page draws the installed insert', () => {
     const count = (config: WindowInsertConfig) => {
       const p = createCatioParts(); const layout = windowInsertLayout('modular', config);
-      const insert = buildInsertContext(p, layout); let meshes = 0; insert.traverse(o => { if (o instanceof THREE.Mesh) meshes++; });
+      const { insert } = buildInsertContext(p, layout); let meshes = 0; insert.traverse(o => { if (o instanceof THREE.Mesh) meshes++; });
       const timber = layout.timber.reduce((n, t) => n + t.boxes.length, 0); p.dispose();
       return meshes - timber;
     };

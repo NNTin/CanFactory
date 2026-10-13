@@ -70,7 +70,7 @@ const MESH_LINKS: ConceptPartLink[] = [
  */
 export const CATIO_DOOR_HARDWARE = {
   washer: 'iso-7093-m4',
-  pivot: { sealed: 'din-7997-4x35', mesh: 'din-7997-4x50', inset: 'din-7997-4x30' },
+  pivot: { sealed: 'din-7997-4x35', mesh: 'din-7997-4x50', inset: 'din-7997-4x25' },
   stripScrew: { sealed: 'din-7997-3-5x30', mesh: 'din-7997-4x45' },
   stopScrew: 'din-7997-3x25',
   frameScrew: 'din-7997-4x50',

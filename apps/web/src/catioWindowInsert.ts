@@ -218,6 +218,14 @@ export interface Fastener {
   /** A staple's crown runs this way, across the wire it holds. */ across?: V3;
 }
 
+/**
+ * Where the window port's removed panel is shown stowed, from its seat at `seatY` (as a door's `stow`: along the wall, up, into the
+ * room): on the room side of the wall beside the window opening, on the side away from the sash's hinge.
+ */
+export function portPanelStow(window: Pick<WindowSpec, 'openingWidth' | 'tunnel'>, seatY: number): V3 {
+  return [window.openingWidth / 2 + (window.tunnel?.width ?? 300) / 2 + 120, 0, seatY + CATIO.wall + 60];
+}
+
 /** Every piece of the insert, placed in the recess (installed and tightened). */
 export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant, config)) {
   const { member: m, depth: D } = INSERT;
@@ -325,7 +333,11 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     const w = tunnel.width; const h = tunnel.height; const pm = INSERT.portMember;
     const transomZ = floor + h; const housed = config.junctionJoint === 'housed'; const hd = INSERT.housing; const py = yOut - pm / 2;
     port = { width: w, height: h, transomZ };
-    if (window.closure === 'removable-panel') door = { panel: facePanel({ id: 'port-panel', width: w, height: h, material: 'solid', land: pm }), frame: { origin: [0, yOut - pm, floor], u: [1, 0, 0], v: [0, 0, 1], n: [0, -1, 0] } };
+    // removed, it is stowed in the room on the wall beside the window: clear of the route and of the sash's swing
+    if (window.closure === 'removable-panel') door = {
+      panel: facePanel({ id: 'port-panel', width: w, height: h, material: 'solid', land: pm, stow: portPanelStow(window, yOut - pm) }),
+      frame: { origin: [0, yOut - pm, floor], u: [1, 0, 0], v: [0, 0, 1], n: [0, -1, 0] },
+    };
     timber.push({ id: 'transom', component: 'port-frame', name: 'Port transom', section: `${pm} × ${pm}`, length: Wi + (housed ? 2 * hd : 0),
       cut: housed ? `${Wi + 2 * hd} long, ends into ${hd} mm housings in the stiles` : `${Wi} long, square ends`, use: 'Across the collar above the cat port',
       boxes: [box([Wi + (housed ? 2 * hd : 0), pm, pm], [0, py, transomZ + pm / 2])] });
@@ -628,7 +640,7 @@ export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, 
     lines.push({ id: 'folding-wedges', group: 'Timber', name: 'Folding wedge', quantity: 2 * l.clamps.length, size: `${length} × ${width}, ${thickness} mm to 0`, use: `Pairs: ${config.clampsPerSide} on each side of the collar` });
   }
   // what closes the cat port: a removable panel's timber here, its printed buttons, pull and seal below; or the sliding gate
-  const doorLines = l.door ? doorBom(l.door.panel, { prefix: 'port', where: 'Cat port', mesh: l.mesh }) : [];
+  const doorLines = l.door ? doorBom(l.door.panel, { prefix: 'port-panel', where: 'Cat port', mesh: l.mesh }) : [];
   lines.push(...doorLines.filter(line => line.group === 'Timber'));
   if (l.closure === 'sliding-gate' && l.port) lines.push({ id: 'cat-gate', group: 'Timber', name: 'Sliding cat gate', quantity: 1, size: `${l.port.width + 20} × ${l.port.height + 20} × 12 exterior plywood`, use: 'Slides up in its tracks on the room side of the port' });
   lines.push(meshRollLine(l.mesh));

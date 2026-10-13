@@ -23,8 +23,8 @@ export const PORT_FRAME = 40;
  * A cat port's removable panel (catioDoor.ts), for these port sizes: solid at the window, where it is pressed onto a seal against
  * draughts while no tunnel is docked; a framed mesh panel at an enclosure's ports.
  */
-export function modularPortPanel(c: Pick<ModularConfig, 'tunnelWidth' | 'tunnelHeight'>, at: 'window' | 'enclosure', id: string = at): DoorPanel {
-  return facePanel({ id, width: c.tunnelWidth, height: c.tunnelHeight, material: at === 'window' ? 'solid' : 'mesh', land: PORT_FRAME });
+export function modularPortPanel(c: Pick<ModularConfig, 'tunnelWidth' | 'tunnelHeight'>, at: 'window' | 'enclosure', id: string = at, stow?: [number, number, number]): DoorPanel {
+  return facePanel({ id, width: c.tunnelWidth, height: c.tunnelHeight, material: at === 'window' ? 'solid' : 'mesh', land: PORT_FRAME, ...(stow ? { stow } : {}) });
 }
 
 const STEPS: Record<PortClosure, { insert: string; ports: string; couple: string; open: { title: string; detail: string } }> = {

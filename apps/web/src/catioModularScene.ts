@@ -5,7 +5,7 @@ import { CATIO, ROOF_NET, roofBearers } from './catioDesign.ts';
 import { MODULAR as d, modularLayout, modularPortPanel, PORT_FRAME, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { buildDoorPanel } from './catioDoorScene.ts';
 import { buildWindowFrame } from './catioWindowContext.ts';
-import { HOOK_FIT, modularWindow, savedWindowInsert, windowInsertLayout, windowProfileOf, type WindowInsertConfig } from './catioWindowInsert.ts';
+import { HOOK_FIT, modularWindow, portPanelStow, savedWindowInsert, windowInsertLayout, windowProfileOf, type WindowInsertConfig } from './catioWindowInsert.ts';
 import { buildHungHardware } from './catioWindowInsertScene.ts';
 
 type V3 = [number, number, number];
@@ -57,11 +57,11 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
    * behind turn buttons, as on the window insert page (solid at the window, a framed mesh panel at an enclosure), or a gate
    * sliding up in tracks.
    */
-  function port(id: string, label: string, step: number, connected: boolean, at: 'window' | 'enclosure') {
+  function port(id: string, label: string, step: number, connected: boolean, at: 'window' | 'enclosure', stow?: V3) {
     const frame = component(`${id}-frame`, step, 'timber', [0, 0, 100]);
     ring(frame, span, h + 2 * PORT_FRAME, PORT_FRAME, PORT_FRAME, 0, d.sill - PORT_FRAME, m.timber);
     if (removable) {
-      const panel = modularPortPanel(c, at, id);
+      const panel = modularPortPanel(c, at, id, stow);
       const timber = component(`${id}-panel`, step, 'timber', [0, 0, 100]); const hardware = component(`${id}-panel-buttons`, step, 'hardware', [0, 0, 100]);
       const meshes = panel.mesh ? component(`${id}-panel-mesh`, step, 'mesh', [0, 0, 100]) : timber;
       // its seat is the frame's +Y face; it comes out along +Y
@@ -135,7 +135,8 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
     }
   }
   perforated('window-infill', 1, collarWidth - 80, 200, hung ? collarTop - 10 : c.sashHeight + 190, collarY);
-  placed(0, portY, Math.PI, () => port('window-cat', `Window ${closureName}`, 1, true, 'window'));
+  // its removed panel is stowed in the room, on the wall beside the window (as the window insert page shows it)
+  placed(0, portY, Math.PI, () => port('window-cat', `Window ${closureName}`, 1, true, 'window', portPanelStow(window, portY - PORT_FRAME / 2)));
   const threshold = component('window-threshold', 1, 'timber', [0, -220, 120]);
   box(threshold, [w, -collarBack, 18], [0, collarBack / 2, 191], m.endgrain);
   // The insert–tunnel coupling's docking frame (schematic): stiles and a head, the flange's outline, from the port to the wall face.

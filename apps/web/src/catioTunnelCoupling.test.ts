@@ -143,7 +143,10 @@ describe('tunnel–tunnel coupling parts list', () => {
       const roll = lines.filter(line => line.group === 'Mesh' && line.partId);
       expect(roll).toMatchObject([{ quantity: 1, partId: CATIO_MESH_PARTS[s.tunnel.mesh] }]);
       expect(roll[0]?.use).toContain('more rolls may be needed');
-      expect(lines.filter(line => line.group === 'Mesh' && !line.partId).reduce((n, line) => n + line.quantity, 0)).toBe(s.tunnel.mesh === 'netting' ? 2 : 6);
+      // a section with side access has its panel's mesh instead of one side's
+      const access = l.tl.access.filter(a => l.pieces.includes(a.piece)).length;
+      expect(lines.filter(line => line.name === 'Removable panel mesh').reduce((n, line) => n + line.quantity, 0)).toBe(access);
+      expect(lines.filter(line => line.group === 'Mesh' && !line.partId && line.name !== 'Removable panel mesh').reduce((n, line) => n + line.quantity, 0)).toBe(s.tunnel.mesh === 'netting' ? 2 : 6 - access);
       expect(lines.some(line => line.name === 'Net hood')).toBe(s.tunnel.mesh === 'netting');
       expect(lines.find(line => line.name === 'Floor board')?.size).toContain(`${Math.round(l.sectionLength - 2 * TUNNEL.flange.thickness)}`);
     }

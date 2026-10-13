@@ -458,15 +458,18 @@ describe('tunnel parts list', () => {
       const lines = tunnelBom('modular', { ...route, mesh }, site).filter(line => line.group === 'Mesh');
       expect(lines[0]).toMatchObject({ id: 'mesh-roll', quantity: 1, partId: CATIO_MESH_PARTS[mesh] });
       expect(lines[0]?.use).toContain('more rolls may be needed');
-      const cut = lines.slice(1); const count = cut.reduce((n, line) => n + line.quantity, 0);
+      // a side-access panel has its own mesh, and takes the place of one side's
+      const panelMesh = lines.filter(line => line.name === 'Removable panel mesh');
+      expect(panelMesh.reduce((n, line) => n + line.quantity, 0)).toBe(l.access.length);
+      const cut = lines.slice(1).filter(line => !panelMesh.includes(line)); const count = cut.reduce((n, line) => n + line.quantity, 0);
       expect(cut.every(line => !line.partId)).toBe(true);
       if (mesh === 'netting') {
         expect(cut.every(line => line.name === 'Net hood')).toBe(true); expect(count).toBe(l.pieces.length);
         // as wide as both sides and the roof together
-        const piece = l.pieces.find(p => p.kind === 'section'); const panels = l.panels.filter(panel => panel.piece === piece?.id);
+        const piece = l.pieces.find(p => p.kind === 'section' && !l.access.some(a => a.piece === p.id)); const panels = l.panels.filter(panel => panel.piece === piece?.id);
         const across = Math.round(panels.reduce((sum, panel) => sum + span(panel.corners[0], panel.corners[3]), 0));
         expect(cut.some(line => line.size.includes(`× ${across} ·`))).toBe(true);
-      } else expect(count).toBe(3 * l.pieces.length);
+      } else expect(count).toBe(3 * l.pieces.length - l.access.length);
     }
     expect(tunnelSteps('modular', TUNNEL_DEFAULT).find(step => step.title === 'Net the sections')?.detail).toContain('a staple over every mesh');
     expect(tunnelSteps('modular', { ...TUNNEL_DEFAULT, mesh: 'welded' }).find(step => step.title === 'Mesh the sections')?.detail).toContain('every 15 cm');

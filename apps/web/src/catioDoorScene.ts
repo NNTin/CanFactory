@@ -64,14 +64,15 @@ export function buildDoorPanel(p: ReturnType<typeof createCatioParts>, door: Doo
     return { button: b, group, arm, setTurn };
   });
 
-  /** The buttons `turn` of the way open, and the panel `offset` from its seat (in the door's frame). */
-  const pose = (turn: number, offset: readonly [number, number, number]) => {
+  const moving = [panel, panelMesh, panelHardware];
+  /** The buttons `turn` of the way open, and the panel `offset` from its seat (in the door's frame), or `gone`: carried away. */
+  const pose = (turn: number, offset: readonly [number, number, number], gone = false) => {
     for (const b of buttons) b.setTurn(turn);
-    for (const g of [panel, panelMesh, panelHardware]) g.position.set(...offset);
+    for (const g of moving) { g.position.set(...offset); for (const child of g.children) child.visible = !gone; }
   };
-  /** Anywhere between seated and retained (0) and removed and set aside (1). */
-  const set = (travel: number) => { const q = doorPose(door, travel); pose(q.turn, q.offset); };
+  /** Anywhere between seated and retained (0) and removed (1): set aside where the page stows it, or carried away. */
+  const set = (travel: number) => { const q = doorPose(door, travel); pose(q.turn, q.offset, q.gone); };
   set(0);
-  return { door, frame, fixed, seal, fixedScrews, panel, panelMesh, panelHardware, buttons, pose, set };
+  return { door, frame, fixed, seal, fixedScrews, panel, panelMesh, panelHardware, moving, buttons, pose, set };
 }
 export type BuiltDoor = ReturnType<typeof buildDoorPanel>;

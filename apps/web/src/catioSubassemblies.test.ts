@@ -18,7 +18,7 @@ const builds = {
     // the settings it shares with the tunnel page come from there, as the page loads them
     const config = withShared(tunnelCouplingDefinition, own, page => page === 'tunnel' ? tunnel : undefined);
     const l = tunnelCouplingLayout(config, { tunnel, site });
-    return JSON.stringify([l.before, l.after, l.coupling, l.support, l.tl.pad, l.tl.members.filter(m => l.pieces.includes(m.piece)), tunnelCouplingBom('modular', config, { tunnel, site }), l.errors]);
+    return JSON.stringify([l.before, l.after, l.coupling, l.support, l.tl.pad, l.tl.members.filter(m => l.pieces.includes(m.piece)), l.tl.access.filter(a => l.pieces.includes(a.piece)), tunnelCouplingBom('modular', config, { tunnel, site }), l.errors]);
   },
   coupling: (site: TunnelSite, tunnel: TunnelConfig = TUNNEL_DEFAULT) => {
     const l = couplingLayout(COUPLING_DEFAULT, { tunnel, site });
@@ -90,7 +90,7 @@ describe('catio pages that follow each other', () => {
     ]);
     expect(dependentsOf('tunnel')).toEqual([
       { page: 'insert-tunnel-coupling', settings: [] },
-      { page: 'tunnel-tunnel-coupling', settings: ['mesh', 'sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance', 'supportFixing', 'supportBase'] },
+      { page: 'tunnel-tunnel-coupling', settings: ['mesh', 'sectionLength', 'sideAccess', 'sideAccessSide', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance', 'supportFixing', 'supportBase'] },
     ]);
     expect(dependentsOf('insert-tunnel-coupling')).toEqual([]);
     expect(dependentsOf('tunnel-tunnel-coupling')).toEqual([{ page: 'tunnel', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal'] }]);

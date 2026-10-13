@@ -333,7 +333,7 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
     const door = closure?.door; const gate = closure?.gate;
     if (door) {
       // every piece comes in from the room side: along the door's own n
-      const strips = door.fixed.length;
+      const strips = door.fixed.reduce((n, f) => n + f.timber.boxes.length, 0);
       for (const f of door.fixed) move(f.group, 6, [0, 0.2], [0, 0, 200], `${strips} × Sill stop and locating strip: glued and screwed on round the port, from the room side`);
       move(door.fixedScrews, 6, [0.2, 0.3], [0, 0, 120], 'Screws: through the sill stop and the locating strips');
       if (door.seal) move(door.seal, 6, [0.3, 0.4], [0, 0, 160], 'Seal: stuck round the seat, on the jambs, the transom and the sill stop');
@@ -398,7 +398,7 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
       const q = doorPose(closure.door.door, travel);
       for (const b of closure.door.buttons) b.setTurn(state.exploded ? 1 : Math.max(q.turn, 1 - ease(closing)));
       // the panel's own way in (`move`) ends at its seat; opened again, it leaves from there
-      if (travel > 0) for (const g of [closure.door.panel, closure.door.panelMesh, closure.door.panelHardware]) g.position.set(...q.offset);
+      if (travel > 0) for (const g of closure.door.moving) g.position.set(...q.offset);
       if (closing > 0 && closing < 1) active.add(`${closure.door.buttons.length} × Door turn button: turned a quarter turn over the panel, until its pip drops into its dimple`);
     } else closure?.set(travel);
     const opening = closure?.action(travel); if (opening) active.add(opening);

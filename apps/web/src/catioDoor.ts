@@ -60,8 +60,8 @@ export const DOOR = {
   pitch: 250,
   /** A solid panel's pull, on its operator's side. */
   pull: { width: 90, height: 22, depth: 10 },
-  /** A pivot screw bites at least this far into timber, and `behind` of that into what its mount is fixed on. */
-  bite: 20, behind: 12,
+  /** A pivot screw bites at least this far into timber, and `behind` of that into what its mount is fixed on (a strip). */
+  bite: 18, behind: 12,
   /** Screws along a strip or stop, and along a cover strip over mesh, no farther apart than these. */
   fixingPitch: 150, coverPitch: 100,
   /** Lifted out, a panel is drawn this far clear of everything fixed before it is carried aside. */
@@ -120,8 +120,10 @@ export interface DoorPanel {
   washer: Part;
   /** The farthest anything stands out from the seat, towards the operator. */
   depth: number;
-  /** How far the panel is drawn out along n to clear everything fixed, and where it is then set aside (u, v, n from its seat). */
-  withdraw: number; stow: V3;
+  /** How far the panel is drawn out along n to clear everything fixed. */
+  withdraw: number;
+  /** Where it is then set aside, clear of the route (u, v, n from its seat), where the page knows such a place; otherwise it is carried away. */
+  stow: V3 | null;
   errors: string[];
 }
 
@@ -155,8 +157,9 @@ function panelBody(material: DoorPanel['material'], [u0, u1, v0, v1]: DoorPanel[
     const stiles = [u0 + fw / 2, ...mullions, u1 - fw / 2];
     timber.push({ id: `${id}-stile`, name: `${name}, upright`, section, length: height, cut: `${height} long`, use, moves: true, boxes: stiles.map(u => box(u - fw / 2, u + fw / 2, v0, v1, n0, n1)) });
     const bays = stiles.slice(1).map((u, i) => [(stiles[i] ?? u) + fw / 2, u - fw / 2] as const);
-    // every bay between two uprights has a rail at its head and at its sill
-    for (const [a, b] of bays) timber.push({ id: `${id}-rail`, name: `${name}, rail`, section, length: b - a, cut: `${b - a} long`, use, moves: true, boxes: [box(a, b, v0, v0 + fw, n0, n1), box(a, b, v1 - fw, v1, n0, n1)] });
+    // every bay between two uprights (all alike) has a rail at its head and at its sill
+    const [first] = bays; const bay = first ? first[1] - first[0] : 0;
+    timber.push({ id: `${id}-rail`, name: `${name}, rail`, section, length: bay, cut: `${Number(bay.toFixed(1))} long`, use, moves: true, boxes: bays.flatMap(([a, b]) => [box(a, b, v0, v0 + fw, n0, n1), box(a, b, v1 - fw, v1, n0, n1)]) });
     return { stiles, bays };
   };
   const { stiles, bays } = outline('panel-frame', 'Panel frame', `${fw} × ${ft}`, frameBack, frameBack + ft, 'Butt jointed and screwed; the mesh is laid on its cat side');
@@ -191,7 +194,7 @@ function pivots(buttons: DoorButton[], partId: string, mount: number, errors: st
   return buttons.map(b => ({ partId, role: 'pivot', at: [b.pivot[0], b.pivot[1], b.pivot[2] + DOOR.button.thickness], direction: [0, 0, -1], use: 'Door turn buttons: each one’s pivot, through its washer', moves: false }));
 }
 
-function finish(door: Omit<DoorPanel, 'depth' | 'withdraw' | 'stow' | 'errors'>, land: number, errors: string[]): DoorPanel {
+function finish(door: Omit<DoorPanel, 'depth' | 'withdraw' | 'stow' | 'errors'>, stow: V3 | undefined, errors: string[]): DoorPanel {
   const { width, height } = door.opening;
   if (width < DOOR.minOpening || height < DOOR.minOpening) errors.push(`A removable panel needs an opening of at least ${DOOR.minOpening / 10} cm each way.`);
   for (const b of door.buttons) {
@@ -201,7 +204,7 @@ function finish(door: Omit<DoorPanel, 'depth' | 'withdraw' | 'stow' | 'errors'>,
   }
   const depth = Math.max(door.buttonUnder + DOOR.button.thickness, door.pull ? door.pull.center[2] + door.pull.size[2] / 2 : 0, door.front);
   const withdraw = depth - door.back + DOOR.withdraw;
-  return { ...door, depth, withdraw, stow: [door.rect[1] - door.rect[0] + 2 * land + 60, 0, withdraw + 40], errors };
+  return { ...door, depth, withdraw, stow: stow ?? null, errors };
 }
 
 /**
@@ -210,7 +213,7 @@ function finish(door: Omit<DoorPanel, 'depth' | 'withdraw' | 'stow' | 'errors'>,
  * floor between locating strips on that frame, which carry the turn buttons, so that screws only keep it from coming out. Solid,
  * it is pressed onto a seal round the seat (the window port); meshed, it is a framed mesh panel (an enclosure's ports).
  */
-export function facePanel({ id, width, height, material, land }: { id: string; width: number; height: number; material: DoorPanel['material']; land: number }): DoorPanel {
+export function facePanel({ id, width, height, material, land, stow }: { id: string; width: number; height: number; material: DoorPanel['material']; land: number; stow?: V3 }): DoorPanel {
   const errors: string[] = [];
   const { lap, clearance: c } = DOOR; const washer = part(HW.washer); const sealed = material === 'solid';
   const rect: DoorPanel['rect'] = [-width / 2 - lap, width / 2 + lap, 0, height + lap];
@@ -252,7 +255,7 @@ export function facePanel({ id, width, height, material, land }: { id: string; w
   const pullSize = DOOR.pull;
   const pull = sealed ? box(-pullSize.width / 2, pullSize.width / 2, rect[3] / 2 - pullSize.height / 2, rect[3] / 2 + pullSize.height / 2, front, front + pullSize.depth) : null;
   if (pull) for (const s of [-1, 1]) fasteners.push({ partId: HW.pullScrew, role: 'pull', at: [s * (pullSize.width / 2 - 10), rect[3] / 2, front + 3], direction: [0, 0, -1], use: 'Pull onto the panel', moves: true });
-  return finish({ id, fit: 'face', material, opening: { width, height }, rect, back, front, seatLap: Math.min(lap, DOOR.stop.lap), mount, buttonUnder, play, timber, mesh: body.mesh, seal, pull, buttons, fasteners, washer }, land, errors);
+  return finish({ id, fit: 'face', material, opening: { width, height }, rect, back, front, seatLap: Math.min(lap, DOOR.stop.lap), mount, buttonUnder, play, timber, mesh: body.mesh, seal, pull, buttons, fasteners, washer }, stow, errors);
 }
 
 /**
@@ -261,7 +264,7 @@ export function facePanel({ id, width, height, material, land }: { id: string; w
  * and below (their pivots `pivots.head` and `pivots.sill` from the opening's edges) keep it in. `cavity` is the opening's depth,
  * which the stops and the panel fill (the tunnel's side access, between two rails).
  */
-export function insetPanel({ id, width, height, cavity, pivots: at }: { id: string; width: number; height: number; cavity: number; pivots: { head: number; sill: number } }): DoorPanel {
+export function insetPanel({ id, width, height, cavity, pivots: at, stow }: { id: string; width: number; height: number; cavity: number; pivots: { head: number; sill: number }; stow?: V3 }): DoorPanel {
   const errors: string[] = [];
   const c = DOOR.clearance; const washer = part(HW.washer); const { lap, depth } = DOOR.stop;
   const rect: DoorPanel['rect'] = [-width / 2 + c, width / 2 - c, 0, height - 2 * c];
@@ -285,7 +288,7 @@ export function insetPanel({ id, width, height, cavity, pivots: at }: { id: stri
     fasteners.push({ partId: HW.stopScrew, role: 'stop', at: [u, v, 0], direction: [0, 0, -1], use: 'Access stops, glued and screwed', moves: false });
   for (const s of [-1, 1]) for (const v of shared(lap, height - lap, Math.max(1, fastenersAlong(height - 2 * lap, DOOR.fixingPitch) - 1)))
     fasteners.push({ partId: HW.stopScrew, role: 'stop', at: [s * (width / 2 - lap / 2), v, 0], direction: [0, 0, -1], use: 'Access stops, glued and screwed', moves: false });
-  return finish({ id, fit: 'inset', material: 'mesh', opening: { width, height }, rect, back: 0, front, seatLap: lap - c, mount, buttonUnder, play: dimensionOf(washer, 'h'), timber, mesh: body.mesh, seal: null, pull: null, buttons, fasteners, washer }, 0, errors);
+  return finish({ id, fit: 'inset', material: 'mesh', opening: { width, height }, rect, back: 0, front, seatLap: lap - c, mount, buttonUnder, play: dimensionOf(washer, 'h'), timber, mesh: body.mesh, seal: null, pull: null, buttons, fasteners, washer }, stow, errors);
 }
 
 /** A point of a door's frame in the world. */
@@ -313,22 +316,26 @@ const ease = (t: number) => t * t * (3 - 2 * t);
 /** The turn buttons turn clear during this first share of a door's travel; the panel then comes out, and is set aside. */
 export const DOOR_TRAVEL = { turned: 0.4, out: 0.7 } as const;
 
+/** With nowhere to set it aside, a panel is carried this much farther out and away. */
+const CARRIED = 80;
 /**
- * A door on its way from seated and retained (`travel` 0) to removed and set aside (1): first every button turns a quarter turn
- * clear (`turn` 0–1), then the panel is drawn straight out, then carried aside. `offset` is the panel's, in the door's frame.
+ * A door on its way from seated and retained (`travel` 0) to removed (1): first every button turns a quarter turn clear (`turn`
+ * 0–1), then the panel is drawn straight out, then set aside where the page stows it, or carried away (`gone` once it is).
+ * `offset` is the panel's, in the door's frame.
  */
-export function doorPose(door: Pick<DoorPanel, 'withdraw' | 'stow'>, travel: number): { turn: number; offset: V3; out: number } {
+export function doorPose(door: Pick<DoorPanel, 'withdraw' | 'stow'>, travel: number): { turn: number; offset: V3; out: number; gone: boolean } {
   const turn = ease(clamp01(travel / DOOR_TRAVEL.turned));
   const out = ease(clamp01((travel - DOOR_TRAVEL.turned) / (DOOR_TRAVEL.out - DOOR_TRAVEL.turned)));
   const aside = ease(clamp01((travel - DOOR_TRAVEL.out) / (1 - DOOR_TRAVEL.out)));
-  return { turn, out, offset: [aside * door.stow[0], aside * door.stow[1], out * door.withdraw + aside * (door.stow[2] - door.withdraw)] };
+  const end: V3 = door.stow ?? [0, 0, door.withdraw + CARRIED];
+  return { turn, out, gone: !door.stow && travel >= 1, offset: [aside * end[0], aside * end[1], out * door.withdraw + aside * (end[2] - door.withdraw)] };
 }
 
 /** What a door is doing at `travel`, for the caption under a stage; null when it is seated or set aside. */
 export function doorAction(door: Pick<DoorPanel, 'buttons'>, travel: number, name: string): string | null {
   if (travel <= 0 || travel >= 1) return null;
   if (travel < DOOR_TRAVEL.turned) return `${door.buttons.length} × Door turn button: turned a quarter turn clear of the ${name}`;
-  return travel < DOOR_TRAVEL.out ? `${name.charAt(0).toUpperCase()}${name.slice(1)}: drawn straight out of its opening` : `${name.charAt(0).toUpperCase()}${name.slice(1)}: set aside, clear of the route`;
+  return travel < DOOR_TRAVEL.out ? `${name.charAt(0).toUpperCase()}${name.slice(1)}: drawn straight out of its opening` : `${name.charAt(0).toUpperCase()}${name.slice(1)}: stowed clear of the route`;
 }
 
 /** A button's outline as (u, v) corners, `turn` of the way from closed (0) to open (1): a quarter turn about its pivot. */
