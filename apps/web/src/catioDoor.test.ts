@@ -11,8 +11,8 @@ import type { CatioState } from './catioScene.ts';
 import { catioMesh } from '@canfactory/contracts';
 import { MODULAR, MODULAR_DEFAULT, modularPortPanel, modularSteps, PORT_FRAME, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { createModularCatio, type ModularState } from './catioModularScene.ts';
-import { CATIO_SETTINGS_VERSION, defaultCatioSettings, migrateCatioSettings, parseCatioSettings } from './catioSettings.ts';
-import { defaultSubassemblySettings, fastenerClashes, parseSubassemblySettings } from './catioSubassembly.ts';
+import { CATIO_SETTINGS_VERSION, CATIO_STORAGE_KEY, defaultCatioSettings, loadCatioSettings, migrateCatioSettings, parseCatioSettings, savedBeforeClosure } from './catioSettings.ts';
+import { defaultSubassemblySettings, fastenerClashes, parseSubassemblySettings, saveShared, subassemblyStorageKey } from './catioSubassembly.ts';
 import { couplingDefinition, tunnelCouplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
 import { COUPLING_CONTROLS, COUPLING_DEFAULT, couplingFacts, couplingLayout, couplingSteps } from './catioCoupling.ts';
 import { createCouplingScene } from './catioCouplingScene.ts';
@@ -383,6 +383,42 @@ describe('saved settings from before the closure could be chosen', () => {
     expect(parseTunnel({ supportFixing: 'strap', supportBase: 'self-standing' })).toEqual({ ...TUNNEL_DEFAULT, supportFixing: 'strap', supportBase: 'self-standing' });
     // an invalid value of the setting itself falls back to the default, like any other
     expect(parseTunnel({ ...old, sideAccess: 'both' })?.sideAccess).toBe('one');
+  });
+
+  it('keeps sliding gates for a window insert or tunnel saved before the choice, when the whole catio was never saved', () => {
+    const store = new Map<string, string>();
+    const storage = { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => void store.set(key, value), removeItem: (key: string) => void store.delete(key), clear: () => store.clear(), key: () => null, length: 0 };
+    const previous = (globalThis as { localStorage?: Storage }).localStorage;
+    Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+    try {
+      const oldView = { progress: 6, exploded: false, windowOpen: true, cutaway: false, hidden: [], view: 'Exterior' };
+      const oldPage = (config: object) => JSON.stringify({ version: 1, variant: 'modular', config, views: { direct: oldView, modular: oldView } });
+      const closures = () => [loadCatioSettings().config.portClosure, windowFor('modular').closure, tunnelSite().window.closure, windowInsertLayout('modular', WINDOW_INSERT_DEFAULT).closure];
+      // nothing saved anywhere: a new design, with removable panels
+      expect(closures()).toEqual(Array(4).fill('removable-panel')); expect(store.size).toBe(0);
+      // each page alone, saved before the choice, with no whole-catio settings: its design keeps its sliding gate
+      for (const [id, config] of [['window-insert', { ...WINDOW_INSERT_DEFAULT, footDiameter: 40 }], ['tunnel', without(TUNNEL_DEFAULT, 'sideAccess', 'sideAccessSide')], ['insert-tunnel-coupling', COUPLING_DEFAULT], ['tunnel-tunnel-coupling', TUNNEL_COUPLING_DEFAULT]] as const) {
+        store.clear(); store.set(subassemblyStorageKey(id), oldPage(config));
+        expect(savedBeforeClosure(storage), id).toBe(true);
+        expect(closures(), id).toEqual(Array(4).fill('sliding-gate'));
+        expect(windowInsertLayout('modular', WINDOW_INSERT_DEFAULT).door, id).toBeNull();
+        // the decision is saved with the catio's settings, everything else at its defaults
+        expect(JSON.parse(store.get(CATIO_STORAGE_KEY) ?? '{}')).toEqual({ ...defaultCatioSettings(), config: { ...MODULAR_DEFAULT, portClosure: 'sliding-gate' } });
+        // so it holds once the page has saved itself again in today's form
+        store.set(subassemblyStorageKey(id), JSON.stringify(parseSubassemblySettings(windowInsertDefinition, null)));
+        expect(savedBeforeClosure(storage), id).toBe(false); expect(closures(), id).toEqual(Array(4).fill('sliding-gate'));
+      }
+      // a page first saved today, with no whole-catio settings: a new design
+      store.clear(); store.set(subassemblyStorageKey('window-insert'), JSON.stringify(defaultSubassemblySettings(windowInsertDefinition)));
+      expect(savedBeforeClosure(storage)).toBe(false); expect(closures()).toEqual(Array(4).fill('removable-panel')); expect(store.has(CATIO_STORAGE_KEY)).toBe(false);
+      // only the settings another page shares into a page's storage, or rubbish: not a saved design
+      store.clear(); saveShared(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'strap' as const }); store.set(subassemblyStorageKey('window-insert'), '{oops');
+      expect(store.has(subassemblyStorageKey('tunnel'))).toBe(true); expect(savedBeforeClosure(storage)).toBe(false); expect(closures()).toEqual(Array(4).fill('removable-panel'));
+      // saved whole-catio settings decide, whatever the pages hold: version 1 migrates to the gate, a chosen panel stays
+      store.set(subassemblyStorageKey('tunnel'), oldPage(without(TUNNEL_DEFAULT, 'sideAccess', 'sideAccessSide')));
+      store.set(CATIO_STORAGE_KEY, JSON.stringify(defaultCatioSettings())); expect(closures()).toEqual(Array(4).fill('removable-panel'));
+      store.set(CATIO_STORAGE_KEY, legacy); expect(loadCatioSettings().config.portClosure).toBe('sliding-gate');
+    } finally { Object.defineProperty(globalThis, 'localStorage', { value: previous, configurable: true }); }
   });
 
   it('remembers an opened door per page, and starts every older page with its door shut', () => {

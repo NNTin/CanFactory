@@ -1,6 +1,7 @@
 import { CATIO_VIEWS, type CatioLayer, type CatioView } from './catioDesign.ts';
 import { PORT_CLOSURE_LEGACY } from './catioDoor.ts';
 import { MODULAR_DEFAULT, validateModular, type ModularConfig } from './catioModularDesign.ts';
+import { CATIO_SUBASSEMBLIES } from './route.ts';
 export type CatioMode = 'direct' | 'modular';
 export interface CatioViewing { progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: CatioLayer[]; view: CatioView; doors: Record<string, boolean> }
 /** The settings as saved now. Version 1 had no `portClosure`: every cat port had a sliding gate (see `migrateCatioSettings`). */
@@ -54,6 +55,33 @@ export function parseCatioSettings(raw: string | null): CatioSettings {
     return defaults;
   } catch { return defaults; }
 }
+/**
+ * Whether a sub-assembly page (the window insert, the tunnel, a coupling) saved its settings before the cat ports' closure could
+ * be chosen: a page's own save names its variant, and since the choice exists also says whether its door is shown open
+ * (`doorOpen`) in every view. Settings another page only shared into its storage are not a page's own save.
+ */
+export function savedBeforeClosure(storage: Pick<Storage, 'getItem'>): boolean {
+  return CATIO_SUBASSEMBLIES.some(id => {
+    try {
+      const saved: unknown = JSON.parse(storage.getItem(`canfactory.catio.${id}.v1`) ?? 'null');
+      if (!record(saved) || typeof saved['variant'] !== 'string') return false;
+      const views = record(saved['views']) ? Object.values(saved['views']).filter(record) : [];
+      return !views.some(view => typeof view['doorOpen'] === 'boolean');
+    } catch { return false; }
+  });
+}
+
+/**
+ * The whole catio's saved settings. With none saved, a new design: unless a sub-assembly page was saved before the closure could
+ * be chosen. Its design was drawn with sliding gates and follows these settings, so it keeps them: the catio's settings are then
+ * started, and saved, with the sliding gate, and stay so once that page saves itself again.
+ */
 export function loadCatioSettings(): CatioSettings {
-  try { return parseCatioSettings(localStorage.getItem(CATIO_STORAGE_KEY)); } catch { return defaultCatioSettings(); }
+  try {
+    const raw = localStorage.getItem(CATIO_STORAGE_KEY);
+    if (raw !== null || !savedBeforeClosure(localStorage)) return parseCatioSettings(raw);
+    const settings = defaultCatioSettings(); settings.config.portClosure = PORT_CLOSURE_LEGACY;
+    try { localStorage.setItem(CATIO_STORAGE_KEY, JSON.stringify(settings)); } catch { /* It is found again next time. */ }
+    return settings;
+  } catch { return defaultCatioSettings(); }
 }

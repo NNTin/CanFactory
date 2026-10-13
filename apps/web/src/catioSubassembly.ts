@@ -143,6 +143,7 @@ export interface SubassemblyViewing {
 }
 export interface SubassemblySettings<C> { version: 1; variant: CatioMode; config: C; views: Record<CatioMode, SubassemblyViewing> }
 
+/** (`savedBeforeClosure` in catioSettings.ts reads these keys too.) */
 export const subassemblyStorageKey = (id: CatioSubassembly) => `canfactory.catio.${id}.v1`;
 
 export function defaultSubassemblySettings<C extends object>(definition: SubassemblyDefinition<C>): SubassemblySettings<C> {

@@ -128,6 +128,11 @@ couple sections and dock the tunnel to the insert. Those are unchanged.
   (`migrateCatioSettings` in [catioSettings.ts](../../../apps/web/src/catioSettings.ts)): every dimension and all viewing
   state are kept, and the closure is set to the sliding gate. Before, settings lacking a field were rejected whole and
   replaced by the defaults.
+- **No whole-catio settings, but a saved sub-assembly page.** Someone who saved a window insert, tunnel or coupling page
+  before the choice existed, and never the concept page, has a design drawn with sliding gates and no closure recorded
+  anywhere. Such a page's save is recognised by what it lacks (`savedBeforeClosure`: it names its variant but no view has
+  `doorOpen`), and the whole-catio settings are then started, and saved, with the sliding gate, so the choice holds once
+  the page saves itself again. A page first saved now, or only another page's shared settings, starts a new design.
 - A saved tunnel that lacks **Side access** was saved before it existed and gets none (`TUNNEL_LEGACY`). A saved config
   that is only the settings another page shares with the tunnel page is not a saved tunnel, and takes the defaults.
 - The sub-assembly pages follow the concept page's closure, as they follow its window and cat-port sizes, and name it in
