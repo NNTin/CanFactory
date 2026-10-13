@@ -1,3 +1,4 @@
+import { CORNER_LATCH, CORNER_LATCH_SCREWS, DEFAULT_CORNER_LATCH, cornerLatchAssembly, cornerLatchIssues, cornerLatchLayout } from './outsideCornerToggleLatch.ts';
 import { magneticCatToyPhysics } from './magneticCatToyPhysics.ts';
 import { DEFAULT_MAGNETIC_CAT_TOY, MagneticCatToyParametersSchema, TOY, TOY_BALL_MAGNETS, TOY_GRID_MAGNETS, magneticCatToyAssembly, magneticCatToyIssues, magneticCatToyLayout, magneticCatToyReferences, type MagneticCatToyParameters } from './magneticCatToy.ts';
 import { CAMERA_HARDWARE, CAMERA_LID_INSERT, CAMERA_MOUNT_INSERTS, CAMERA_MOUNT_NUTS, CAMERA_HEATSINKS, CAMERA_HEATSINK_GAP, cameraNutScad, CameraHousingParametersSchema, DEFAULT_CAMERA_HOUSING, cameraHardwarePart, cameraHousingAssembly, cameraHousingIssues, cameraHousingLayout, cameraHousingReferences, type CameraHousingParameters } from './cameraHousing.ts';
@@ -1850,6 +1851,57 @@ export const toggleLatch = {
   derived: () => ({ slotCount: null }),
 } satisfies ModelDefinition;
 
+/** An outside 90° corner variant; independent ID and defaults, leaving the flat latch and its catio users unchanged. */
+export const OutsideCornerToggleLatchParametersSchema = Type.Object({
+  plankThickness: dimension('Plank thickness', 'Thickness of each of the two equal-thickness planks in a 90° butt joint, in mm. Moves the screw row beyond the joint and checks that the screw tips stay inside the wood.', DEFAULT_CORNER_LATCH.plankThickness, 10, 40, 0.5),
+  edgeDistance: dimension('Screw setback', 'Screw-centre distance beyond the butt joint, in mm. The mounting feet grow with this distance. Pre-drill for your timber; this layout allowance is not a structural edge-distance specification.', DEFAULT_CORNER_LATCH.edgeDistance, 12, 30, 0.5),
+  woodScrewDiameter: ToggleLatchParametersSchema.properties.woodScrewDiameter,
+  woodScrew: Type.Enum(CORNER_LATCH_SCREWS, { title: 'Wood screw', description: 'Four countersunk DIN 7997 wood screws, two per plank, driven normal to its broad face. Length includes the head; the 4 mm printed feet leave the remaining length in the wood.', default: DEFAULT_CORNER_LATCH.woodScrew }),
+  holeFit: ToggleLatchParametersSchema.properties.holeFit,
+  highTolerance: ToggleLatchParametersSchema.properties.highTolerance,
+}, { additionalProperties: false, description: 'Outside-corner toggle latch parameters, for two equal-thickness wooden planks. All fields are required; dimensions in mm.' });
+export type OutsideCornerToggleLatchParameters = Static<typeof OutsideCornerToggleLatchParametersSchema>;
+
+const cornerLatchControls: Control[] = [
+  control(OutsideCornerToggleLatchParametersSchema, 'plankThickness', 'basic'),
+  control(OutsideCornerToggleLatchParametersSchema, 'edgeDistance', 'basic'),
+  { ...enumControl(OutsideCornerToggleLatchParametersSchema, 'woodScrewDiameter', 'basic', LATCH_WOOD_DIAMETERS.map(value => ({ value, label: value, description: `DIN 7997 countersunk wood screws, ${value} in diameter.` }))),
+    part: { family: 'wood-screw', attribute: 'diameter', filter: null } },
+  { ...partControl(OutsideCornerToggleLatchParametersSchema, 'woodScrew', 'basic', 'wood-screw', CORNER_LATCH_SCREWS),
+    part: { family: 'wood-screw', attribute: null, filter: { control: 'woodScrewDiameter', attribute: 'diameter' } } },
+  enumControl(OutsideCornerToggleLatchParametersSchema, 'holeFit', 'advanced', HOLE_FIT_VALUES.map(value => ({ value, ...HOLE_FIT_TEXT[value] }))),
+  control(OutsideCornerToggleLatchParametersSchema, 'highTolerance', 'advanced'),
+];
+const cornerLatchParts: ModelPart[] = toggleLatchParts.map(part => part.id === 'base' || part.id === 'catch' ? {
+  ...part, sourcePath: `models/outside-corner-toggle-latch/${part.id}.scad`,
+  scadMapping: { plankThickness: 'PLANK_T', edgeDistance: 'EDGE_DISTANCE', woodScrew: 'WOOD_HOLES', holeFit: 'HOLE_FIT' },
+  partDefines: { woodScrew: { WOOD_D: ['d', 'value'], WOOD_DK: ['dk', 'max'], WOOD_K: ['k', 'max'] } },
+} : part);
+
+export const outsideCornerToggleLatch = {
+  id: 'outside-corner-toggle-latch' as const, version: '1' as const, title: 'Outside-corner toggle latch',
+  description: 'A printed over-centre latch for the outside of a 90° corner between two wooden planks. The original lever and link pull onto an L-shaped catch on the perpendicular face. Longer mounting feet put four countersunk wood screws beyond the butt joint, normal to each plank’s broad face rather than into its end grain. Set the plank thickness, screw setback and wood screws; download four STL parts as a ZIP.',
+  attribution: toggleLatch.attribution, attributionLinks: toggleLatch.attributionLinks,
+  license: toggleLatch.license, licenseUrl: toggleLatch.licenseUrl,
+  printNotes: 'Print all four parts as generated; the catch’s long flange lies flat and the base stands on its short end. Snap the lever onto the base’s pins, then the link onto the lever’s pins. Pre-drill and mount on the outside faces of a 90° butt joint, not inside the corner: the upright plank covers the horizontal plank’s end, with top edges flush. Fit the catch with the lever closed, then check the entire motion before fixing it permanently. The unchanged mechanism needs about 0.32 mm of elastic take-up to pass over centre: provide compliant packing or joint flex, and do not force a rigid joint shut. Tighten gently so countersinks do not split. Prototype: not physically fit- or load-tested; no rated holding force or structural use.',
+  parts: cornerLatchParts, parameterSchema: OutsideCornerToggleLatchParametersSchema, controls: cornerLatchControls,
+  defaults: DEFAULT_CORNER_LATCH, scadMapping: {}, scadEncode: { woodScrew: latchHolesScad },
+  assembly: cornerLatchAssembly(toggleLatchAssembly(), DEFAULT_CORNER_LATCH),
+  assemblyForParameters: parameters => cornerLatchAssembly(toggleLatchAssembly(), parameters as OutsideCornerToggleLatchParameters),
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(OutsideCornerToggleLatchParametersSchema, parameters) ? cornerLatchIssues(parameters) : [{ field: '', message: 'Parameters do not match the outside-corner latch schema.' }];
+  },
+  derived(parameters: unknown) {
+    if (!Value.Check(OutsideCornerToggleLatchParametersSchema, parameters) || cornerLatchIssues(parameters).length) return { slotCount: null };
+    const l = cornerLatchLayout(parameters);
+    return { slotCount: null, notes: [
+      `Hardware: four ${l.screw.designation} wood screws. ${CORNER_LATCH.plate} mm printed feet; ${l.bite} mm penetration into ${parameters.plankThickness} mm planks, leaving ${parameters.plankThickness - l.bite} mm before the far face. Pilot holes depend on your timber.`,
+      `90° outside butt joint, equal plank thicknesses. Feet 38 mm wide × ${l.legLength} mm long. Closed screw rows: base ${l.baseFromCorner.toFixed(2)} mm along the top face from the outside corner, catch ${l.catchFromCorner} mm down the perpendicular face. Two holes per row, about 26.4 mm apart across the width.`,
+      'Keep about 0.32 mm of elastic take-up for the over-centre stroke. Fit and cycle before final drilling; printed clearance and timber movement affect preload. Not a rigid corner bracket or a load-rated latch.',
+    ] };
+  },
+} satisfies ModelDefinition;
+
 /**
  * Pressure pad: an original design (models/pressure-pad/generator.scad, docs/pressure-pad.md). A round printed pad for the end of a
  * library screw, in place of a bought levelling foot: a thrust pad holds a nut run onto the screw's tip, turning freely, so that it
@@ -3523,7 +3575,7 @@ export const magneticCatToy = {
     ] };
   },
 } satisfies ModelDefinition;
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy];
+export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy];
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 

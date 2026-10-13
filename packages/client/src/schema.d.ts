@@ -1753,6 +1753,56 @@ export interface operations {
                     };
                 } | {
                     /** @enum {string} */
+                    modelId: "outside-corner-toggle-latch";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Outside-corner toggle latch parameters, for two equal-thickness wooden planks. All fields are required; dimensions in mm. */
+                    parameters: {
+                        /**
+                         * Plank thickness
+                         * @description Thickness of each of the two equal-thickness planks in a 90° butt joint, in mm. Moves the screw row beyond the joint and checks that the screw tips stay inside the wood.
+                         * @default 18
+                         */
+                        plankThickness: number;
+                        /**
+                         * Screw setback
+                         * @description Screw-centre distance beyond the butt joint, in mm. The mounting feet grow with this distance. Pre-drill for your timber; this layout allowance is not a structural edge-distance specification.
+                         * @default 18
+                         */
+                        edgeDistance: number;
+                        /**
+                         * Wood screw diameter
+                         * @description The wood screws’ diameter; the screws below are those of this diameter.
+                         * @default 4 mm
+                         * @enum {unknown}
+                         */
+                        woodScrewDiameter: "3 mm" | "3.5 mm" | "4 mm" | "4.5 mm" | "5 mm";
+                        /**
+                         * Wood screw
+                         * @description Four countersunk DIN 7997 wood screws, two per plank, driven normal to its broad face. Length includes the head; the 4 mm printed feet leave the remaining length in the wood.
+                         * @default din-7997-4x20
+                         * @enum {unknown}
+                         */
+                        woodScrew: "din-7997-3x12" | "din-7997-3x16" | "din-7997-3x20" | "din-7997-3x25" | "din-7997-3x30" | "din-7997-3-5x16" | "din-7997-3-5x20" | "din-7997-3-5x25" | "din-7997-3-5x30" | "din-7997-3-5x35" | "din-7997-3-5x40" | "din-7997-4x20" | "din-7997-4x25" | "din-7997-4x30" | "din-7997-4x35" | "din-7997-4x40" | "din-7997-4-5x25" | "din-7997-4-5x30" | "din-7997-4-5x35" | "din-7997-4-5x40" | "din-7997-5x30" | "din-7997-5x35" | "din-7997-5x40";
+                        /**
+                         * Hole fit
+                         * @description How much play the screws have in their holes: the DIN EN 20273 series for machine screws, and the same allowances (0.3 / 0.5 / 0.8 mm) over a wood screw’s diameter.
+                         * @default medium
+                         * @enum {unknown}
+                         */
+                        holeFit: "fine" | "medium" | "coarse";
+                        /**
+                         * Loose pivots
+                         * @description Print the original’s high-tolerance lever: a 5.14 mm pivot hole instead of 4.99 mm on the base’s 4.4 mm pins, and 4.41 mm link pins instead of 4.64 mm in the link’s 5 mm holes. For printers whose holes come out tight.
+                         * @default false
+                         */
+                        highTolerance: boolean;
+                    };
+                } | {
+                    /** @enum {string} */
                     modelId: "pressure-pad";
                     /**
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.

@@ -1,5 +1,5 @@
 import { Type, type Static } from 'typebox';
-import { aiRubberDuck, AssemblySchema, magneticCatToy, cameraHousing, catCollarTag, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector, pressurePad, printedCornerBracket, printedScreenHook, qrMagnetTag, springBallDetent, toggleLatch, windowCatGuard } from './models.ts';
+import { aiRubberDuck, AssemblySchema, magneticCatToy, cameraHousing, catCollarTag, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector, pressurePad, printedCornerBracket, printedScreenHook, qrMagnetTag, springBallDetent, toggleLatch, outsideCornerToggleLatch, windowCatGuard } from './models.ts';
 import { PartFamilySchema, PartSchema, PartSourceSchema } from './parts/index.ts';
 export * from './models.ts';
 export * from './assembly.ts';
@@ -12,6 +12,7 @@ export * from './windowCatGuard.ts';
 export * from './qrMagnetTag.ts';
 export * from './printPause.ts';
 export * from './screwHoles.ts';
+export * from './outsideCornerToggleLatch.ts';
 export * from './printedCornerBracket.ts';
 export * from './printedScreenHook.ts';
 export * from './springBallDetent.ts';
@@ -99,6 +100,11 @@ export const RenderRequestSchema = Type.Union([
     modelId: Type.Literal(toggleLatch.id),
     modelVersion: Type.Literal(toggleLatch.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
     parameters: toggleLatch.parameterSchema,
+  }, { additionalProperties: false }),
+  Type.Object({
+    modelId: Type.Literal(outsideCornerToggleLatch.id),
+    modelVersion: Type.Literal(outsideCornerToggleLatch.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
+    parameters: outsideCornerToggleLatch.parameterSchema,
   }, { additionalProperties: false }),
   Type.Object({
     modelId: Type.Literal(pressurePad.id),

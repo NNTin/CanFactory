@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
@@ -739,6 +739,54 @@ try {
         assert.ok(Math.abs(value - (expected[index] ?? NaN)) < 0.01, `toggle latch ${name} ${part.id}: ${value} != ${expected[index]}`);
     }
     console.log(`PASS toggle latch ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+  // Outside corner: independent perpendicular feet and real through-holes, including thin planks, every diameter,
+  // both extreme fits, the loose lever, and the largest footprint. Inspect the delivered ZIP, not an approximation.
+  const cornerRuns: { name: string; overrides: ParameterValues }[] = [
+    { name: 'default 18 mm planks', overrides: {} },
+    { name: 'smallest feet, fine 3 mm screws', overrides: { plankThickness: 10, edgeDistance: 12, woodScrewDiameter: '3 mm', woodScrew: 'din-7997-3x12', holeFit: 'fine' } },
+    { name: 'shortest 3.5 mm seats', overrides: { plankThickness: 14, edgeDistance: 12, woodScrewDiameter: '3.5 mm', woodScrew: 'din-7997-3-5x16' } },
+    { name: '4.5 mm screws', overrides: { plankThickness: 23, edgeDistance: 13.5, woodScrewDiameter: '4.5 mm', woodScrew: 'din-7997-4-5x25' } },
+    { name: '5 mm coarse countersinks', overrides: { plankThickness: 28, edgeDistance: 15, woodScrewDiameter: '5 mm', woodScrew: 'din-7997-5x30', holeFit: 'coarse' } },
+    { name: 'maximum feet, loose pivots', overrides: { plankThickness: 40, edgeDistance: 30, woodScrewDiameter: '5 mm', woodScrew: 'din-7997-5x40', highTolerance: true } },
+    { name: 'fractional footprint', overrides: { plankThickness: 18.5, edgeDistance: 12.5 } },
+  ];
+  for (const { name, overrides } of only && only !== outsideCornerToggleLatch.id ? [] : cornerRuns) {
+    const parameters = { ...outsideCornerToggleLatch.defaults, ...overrides } as OutsideCornerToggleLatchParameters;
+    assert.deepEqual(validateParameters(outsideCornerToggleLatch, parameters), [], `corner latch ${name}`);
+    const l = cornerLatchLayout(parameters), queued = store.enqueue(outsideCornerToggleLatch, parameters);
+    const job = store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken, heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `corner latch ${name}`); }
+    finally { clearInterval(heartbeat); }
+    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `corner latch ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const zip = await app.inject({ method: 'GET', url: `/api/v1/renders/${queued.id}/zip` });
+    assert.equal(zip.statusCode, 200);
+    const entries = unzipSync(zip.rawPayload);
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['base', 'lever', 'link', 'catch']);
+    for (const part of result.artifact.parts) {
+      const expected = part.id === 'base' ? [38, 15.372, l.legLength] : part.id === 'catch' ? [37.996, 14.4 + l.legLength, 11.998] : latchSizes[part.id];
+      assert.ok(expected);
+      [part.dimensions.x, part.dimensions.y, part.dimensions.z].forEach((v, axis) => assert.ok(Math.abs(v - (expected[axis] ?? NaN)) < 0.01, `corner latch ${name} ${part.id} bounds`));
+      const bytes = entries[`${part.id}.stl`]; assert.ok(bytes); inspectStl(Buffer.from(bytes));
+      if (part.id !== 'base' && part.id !== 'catch') continue;
+      const mesh = parseStl(Buffer.from(bytes)), base = part.id === 'base';
+      const screw = findPart(parameters.woodScrew); assert.ok(screw);
+      const radius = latchScrewHoles(screw)[parameters.holeFit === 'fine' ? 0 : parameters.holeFit === 'coarse' ? 2 : 1] / 2;
+      for (const x of base ? [5.769, 32.184] : [5.766, 32.18]) {
+        const at = (dx: number, depth: number): [number, number, number] => base
+          ? [x + dx, 11.376 + depth, l.holeAt] : [x + dx, 14.4 + l.holeAt, 4 - depth];
+        for (const depth of [0.1, 1, 2, 3, 3.9]) assert.equal(housingSolid(mesh, at(0, depth)), false, `${name} ${part.id}: hole through whole foot`);
+        assert.equal(housingSolid(mesh, at(radius + 0.2, 3.7)), true, `${name} ${part.id}: material beside the bore`);
+        assert.equal(housingSolid(mesh, at(radius - 0.2, 3.7)), false, `${name} ${part.id}: chosen clearance`);
+        const headRadius: number = (dimensionOf(screw, 'dk', 'max') + 0.4) / 2;
+        // A point outside the bore but inside the countersink is empty; the rim outside it stays intact.
+        assert.equal(housingSolid(mesh, at((radius + headRadius) / 2, 0.1)), false, `${name} ${part.id}: countersink at exposed face`);
+        assert.equal(housingSolid(mesh, at(headRadius + 0.2, 0.1)), true, `${name} ${part.id}: intact countersink rim`);
+      }
+      assert.equal(housingSolid(mesh, base ? [5.769, 13, 5.932] : [5.766, 12, 5.93]), true, `${name} ${part.id}: original edge holes removed`);
+    }
+    console.log(`PASS outside-corner toggle latch ${name}: ${l.legLength} mm feet, four manifold STL parts and perpendicular countersinks`);
   }
   // Printed corner bracket: the defaults (the window insert's), uneven legs with one hole, the widest and thickest plate for 6 mm
   // screws, the smallest for 3 mm ones, five holes a leg, and both other fits. One closed solid, as long as each leg and as thick as
