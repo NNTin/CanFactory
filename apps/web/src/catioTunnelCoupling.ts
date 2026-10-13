@@ -132,6 +132,8 @@ export function tunnelCouplingFacts(_variant: CatioMode, config: TunnelCouplingC
       : { label: 'Bolts per coupling', value: `${l.bolts.length} × ISO 4017 M8 × 80 · two large washers and a nut each` },
     { label: 'Enclosure end · mitred joints', value: `Bolted, ${config.boltsPerCoupling} per coupling` },
     { label: 'Section length', value: `${cm(l.sectionLength)} cm · the longest section`, from: { page: 'tunnel', settings: ['sectionLength'] } },
+    // a side-access panel lies between its own section's flanges: the latches on the flanges' sides stay free
+    ...(l.tl.access.some(a => l.pieces.includes(a.piece)) ? [{ label: 'Side access', value: 'A removable mesh panel beside the joint, between its section’s flanges: clear of the latches', from: { page: 'tunnel' as const, settings: ['sideAccess', 'sideAccessSide'] } }] : []),
     { label: 'On the support', value: `${SUPPORT_FIXING_LABELS[l.tunnel.supportFixing]}${l.support.hold.attached || l.tunnel.supportFixing === 'gravity' ? '' : ' · does not fit here'} · ${l.support.soles.length ? 'self-standing' : 'a trestle'}` },
   ];
 }
@@ -176,7 +178,7 @@ export const TUNNEL_COUPLING_DECISIONS: DesignDecision[] = [
 ];
 
 /** The cross-page settings of the tunnel this page is built from: its sections’ length, and the support's feet and ground. */
-export const TUNNEL_SETTINGS_FOLLOWED = ['mesh', 'sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
+export const TUNNEL_SETTINGS_FOLLOWED = ['mesh', 'sectionLength', 'sideAccess', 'sideAccessSide', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
 /** The tunnel's settings this page shows and sets too: how the tunnel is held on its supports. */
 export const TUNNEL_SETTINGS_SHARED = ['supportFixing', 'supportBase'];
 

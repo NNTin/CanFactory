@@ -10,9 +10,10 @@ import { buildInsertContext } from './catioWindowInsertScene.ts';
 import { couplingLayout, savedCoupling } from './catioCoupling.ts';
 import { buildCouplingPieces } from './catioCouplingScene.ts';
 import type { LatchMount } from './catioPrintedLatch.ts';
+import { doorAction } from './catioDoor.ts';
 import { groundAt, tunnelBounds, tunnelLayout, tunnelSite, TUNNEL, vec, type Member, type Piece, type Rect, type TunnelConfig, type TunnelLayout, type TunnelSite } from './catioTunnel.ts';
 import { savedTunnelCoupling, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
-import { buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
+import { buildAccessPanels, buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
 
 /** Stages 3–4 frame and mesh the sections this far above their line; stage 5 lowers them onto the supports. */
 export const LIFT = 650;
@@ -22,7 +23,7 @@ const ease = (t: number) => t * t * (3 - 2 * t);
 
 export interface PieceMotion {
   object: THREE.Object3D; stage: number; window: [number, number]; approach: THREE.Vector3; axis?: THREE.Vector3; turns?: number; action: string;
-  role?: 'slab' | 'leg' | 'insert-nut' | 'foot' | 'bearer' | 'screw' | 'staple' | 'bolt' | 'nut' | 'timber' | 'mesh' | 'latch' | 'seal' | 'dowel' | 'fitting';
+  role?: 'slab' | 'leg' | 'insert-nut' | 'foot' | 'bearer' | 'screw' | 'staple' | 'bolt' | 'nut' | 'timber' | 'mesh' | 'latch' | 'seal' | 'dowel' | 'fitting' | 'access';
   /** The tunnel piece (section or collar) it travels with when the pieces are lowered, or the support it rises with when levelled. */
   carrier?: string; support?: string; of?: string; drive?: V3;
 }
@@ -43,7 +44,7 @@ export function memberCaption(layout: TunnelLayout, mem: Member, collars: boolea
 export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, site: TunnelSite = tunnelSite(), joint: TunnelCouplingConfig = savedTunnelCoupling()): SubassemblyModel & {
   layout: ReturnType<typeof tunnelLayout>; motions: PieceMotion[]; carriers: Map<string, number>; drops: Map<string, number>;
   levers: { mount: LatchMount; lever: THREE.Group; setOpen: (open: number) => void }[];
-  holds: ReturnType<typeof buildSupportHold>[];
+  holds: ReturnType<typeof buildSupportHold>[]; accessPanels: ReturnType<typeof buildAccessPanels>;
 } {
   const layout = tunnelLayout(config, site, joint);
   const { w, h } = layout;
@@ -210,6 +211,11 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     const out = owner ? (panel.id.endsWith('roof') ? vec.mul(owner.frame.z, 240) : vec.mul(owner.frame.x, panel.id.endsWith('left') ? -240 : 240)) : [0, 0, 240] as V3;
     move(g, 4, [0, 0.5], out, `${layout.panels.length} × Mesh panel: offered up to the rails`, { role: 'mesh', carrier: panel.piece });
   }
+  // Stage 4: the side-access panels, each made up and offered into its opening from outside, its buttons turned over it.
+  const accessPanels = buildAccessPanels(p, layout, () => ({ timber: group('access-panels', 4, 'timber'), mesh: group('access-panel-mesh', 4, 'mesh'), hardware: group('access-buttons', 4, 'hardware') }));
+  for (const { access, roots } of accessPanels) for (const root of roots) {
+    move(root, 4, [0.5, 1], vec.mul(access.frame.n, 260), `${accessPanels.length} × Side-access panel: stood on its opening’s sill against the stops, every door turn button turned over it`, { role: 'access', carrier: access.piece });
+  }
   const flangeScrews = layout.fasteners.filter(f => f.component === 'flange-screws').flatMap(f => { const drawn = draw.fastener(f); return drawn ? [{ fastener: f, ...drawn }] : []; });
   for (const { fastener: f, group: g, part: partData } of [...built.fasteners, ...flangeScrews]) {
     const timing = fastenerWindows[f.component]; if (!timing) continue;
@@ -305,6 +311,10 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     // stage 6: the turn buttons turn flat over their keepers
     const turning = state.exploded ? 0 : ease(THREE.MathUtils.clamp(along(state.progress, 6) / 0.3, 0, 1));
     for (const b of holdButtons) b.setTurn(1 - turning);
+    // the page's toggle opens the side-access panels of the finished tunnel: buttons clear, panels lifted out sideways
+    const travel = state.progress >= 6 && !state.exploded ? state.door ?? 0 : 0;
+    for (const a of accessPanels) a.set(travel);
+    const opening = accessPanels[0] ? doorAction(accessPanels[0].access.door, travel, 'side-access panel') : null; if (opening) active.add(opening);
     let action: string | null = active.size > 0 ? [...active].join('; ') : null;
     if (!action && state.progress > 5 && turning > 0 && turning < 1 && holdButtons.length) action = `${holdButtons.length} × Turn button: turned flat over the keeper on the flange`;
     if (!action && state.progress > 4 && closing > 0 && closing < 1) action = `${latchCount} × Printed toggle latch: hooked over its catch, lever pressed down over centre`;
@@ -318,5 +328,5 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     p.root.updateMatrixWorld(true);
   }
   function dispose() { p.dispose(); dock.dispose(); draw.dispose(); for (const j of joints) j.dispose(); for (const g of geometries) g.dispose(); }
-  return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, carriers, drops, levers, holds, caption: () => currentAction };
+  return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, carriers, drops, levers, holds, accessPanels, caption: () => currentAction };
 }

@@ -1,3 +1,4 @@
+import { PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, PORT_CLOSURES, type PortClosure } from './catioDoor.ts';
 import { validateModular, type ModularConfig, type EnclosureSize } from './catioModularDesign.ts';
 
 export function CatioParameters({ draft, change, reset }: { draft: ModularConfig; change: (next: ModularConfig) => void; reset: () => void }) {
@@ -14,6 +15,12 @@ export function CatioParameters({ draft, change, reset }: { draft: ModularConfig
       <label className="catio-field"><span>Route</span><select aria-label="Tunnel route" value={draft.route} onChange={event => change({ ...draft, route: event.target.value as ModularConfig['route'] })}><option value="straight">Straight</option><option value="left">Left offset</option><option value="right">Right offset</option></select></label>
       {modules('Approach modules', 'approach')}{draft.route !== 'straight' && <>{modules('Lateral modules', 'lateral')}{modules('Final modules', 'final')}</>}
       <p>{draft.route === 'straight' ? 'A straight run from window to enclosure A.' : 'A dogleg with two 90° corners; left/right as seen from inside looking out.'}</p>
+    </fieldset>
+    <fieldset><legend>Cat ports</legend>
+      <label className="catio-field"><span>{PORT_CLOSURE_SETTING}</span><select aria-label={PORT_CLOSURE_SETTING} value={draft.portClosure} onChange={event => change({ ...draft, portClosure: event.target.value as PortClosure })}>{PORT_CLOSURES.map(option => <option key={option} value={option}>{PORT_CLOSURE_LABELS[option]}</option>)}</select></label>
+      <p>{draft.portClosure === 'removable-panel'
+        ? 'Every cat port, the window’s and the enclosures’, is shut by a panel kept in by turn buttons: turn each button clear and lift the panel out. Solid and sealed at the window, framed mesh at the enclosures.'
+        : 'Every cat port is shut by a gate that slides up in tracks, so each port needs its own height again above it.'}</p>
     </fieldset>
     <label className="catio-second"><input type="checkbox" checked={draft.secondEnabled} onChange={event => change({ ...draft, secondEnabled: event.target.checked })} /> Add second enclosure</label>
     {draft.secondEnabled && <>{enclosure('second', 'Enclosure B')}{modules('Link modules', 'link')}<p>B sits to the right of A. A separate tunnel joins their side ports; rear edges and landings align.</p></>}

@@ -5,7 +5,7 @@ import { createTunnelScene } from './catioTunnelScene.ts';
 import { createCouplingScene } from './catioCouplingScene.ts';
 import { createTunnelCouplingScene } from './catioTunnelCouplingScene.ts';
 import {
-  parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, TUNNEL_SETTINGS_FOLLOWED, TUNNEL_SETTINGS_SHARED, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingSteps,
+  parseTunnelCoupling, tunnelCouplingLayout, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, TUNNEL_SETTINGS_FOLLOWED, TUNNEL_SETTINGS_SHARED, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingSteps,
   tunnelCouplingViews, validateTunnelCoupling, type TunnelCouplingConfig,
 } from './catioTunnelCoupling.ts';
 import {
@@ -23,6 +23,8 @@ export const windowInsertDefinition: SubassemblyDefinition<WindowInsertConfig> =
   id: 'window-insert', title: 'Window insert', eyebrow: 'CATIO SUB-ASSEMBLY · WINDOW INSERT',
   heading: 'Held by the window, not fixed to it.', briefLabel: 'THE INSERT', assemblyHeading: 'From the bench to the window.',
   summary: 'The removable timber collar that sits in the exterior recess: its pieces, the joints between them, how the mesh is held, and the padded clamps that grip the recess, or the screen hooks that hang it on the window frame, without a single hole in the wall or the window.',
+  // with tunnel, the cat port is shut by what the catio concept page sets for every cat port, and the page can open it
+  doorToggle: variant => variant === 'modular' ? 'Cat port open' : null,
   defaults: WINDOW_INSERT_DEFAULT, controls: WINDOW_INSERT_CONTROLS, parse: parseWindowInsert,
   validate: (variant, config) => validateWindowInsert(variant, config),
   steps: windowInsertSteps, build: createWindowInsertScene, bom: (variant, config) => windowInsertBom(variant, config),
@@ -39,6 +41,7 @@ export const tunnelDefinition: SubassemblyDefinition<TunnelConfig> = {
   follows: [{ page: 'window-insert', settings: WINDOW_FLOOR_SETTINGS }, { page: 'tunnel-tunnel-coupling', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal'] }],
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the climb', Top: 'Top · the turns', Mounting: 'Support detail' },
   toggles: { cutaway: 'Wall cutaway' }, layerLabels: { hardware: 'Bolts, feet & fixings', environment: 'Ground, wall & slabs' },
+  doorToggle: (_variant, config) => config.sideAccess === 'none' ? null : 'Side access open',
   defaults: TUNNEL_DEFAULT, presets: TUNNEL_PRESETS, controls: TUNNEL_CONTROLS, parse: parseTunnel,
   validate: (variant, config) => validateTunnel(variant, config),
   steps: tunnelSteps, build: createTunnelScene, bom: (variant, config) => tunnelBom(variant, config),
@@ -56,6 +59,8 @@ export const couplingDefinition: SubassemblyDefinition<CouplingConfig> = {
   cutawayViews: ['Interior', 'Side', 'Top', 'Mounting'],
   viewLabels: { Side: 'Side · the joint', Mounting: 'Latch detail' },
   toggles: { windowOpen: 'Released · latches open', cutaway: 'Wall cutaway' }, defaultViewing: { windowOpen: false },
+  // docked and latched, the window's cat port can be opened from the room
+  doorToggle: () => 'Cat port open',
   layerLabels: { hardware: 'Latches, seal & screws', environment: 'Wall & grass' },
   defaults: COUPLING_DEFAULT, controls: COUPLING_CONTROLS, parse: parseCoupling,
   validate: (variant, config) => validateCoupling(variant, config),
@@ -74,6 +79,7 @@ export const tunnelCouplingDefinition: SubassemblyDefinition<TunnelCouplingConfi
   shares: [{ page: 'tunnel', settings: TUNNEL_SETTINGS_SHARED }],
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the joint', Mounting: 'Latch detail' },
   toggles: { windowOpen: 'Released · latches open' }, defaultViewing: { windowOpen: false },
+  doorToggle: (_variant, config) => { const l = tunnelCouplingLayout(config); return l.tl.access.some(a => l.pieces.includes(a.piece)) ? 'Side access open' : null; },
   layerLabels: { hardware: 'Latches, bolts, feet & screws', environment: 'Grass & slabs' },
   defaults: TUNNEL_COUPLING_DEFAULT, controls: TUNNEL_COUPLING_CONTROLS, parse: parseTunnelCoupling,
   validate: (variant, config) => validateTunnelCoupling(variant, config),

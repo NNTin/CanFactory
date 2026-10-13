@@ -2,6 +2,7 @@ import type { CatioMeshSpec } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { dimensionOf, findPart, type Part } from '@canfactory/contracts';
 import type { createCatioParts } from './catioParts.ts';
+import { buildDoorPanel, type DoorLayers } from './catioDoorScene.ts';
 import { buildPrintedLatches } from './catioPrintedLatchScene.ts';
 import type { V3 } from './catioSubassembly.ts';
 import { facePoint, TUNNEL, vec, type Coupling, type Face, type Fastener, type Member, type MeshPanel, type Rect, type Support, type SupportBox, type TunnelLayout } from './catioTunnel.ts';
@@ -112,6 +113,22 @@ export function buildSectionPieces(p: ReturnType<typeof createCatioParts>, draw:
   return { members, cleats, panels, fasteners };
 }
 export type SectionPieces = ReturnType<typeof buildSectionPieces>;
+
+/**
+ * The side-access panels of `pieces` (all when absent), each drawn by the shared door builder into the layers `into` gives for
+ * it: its stops, its panel and its turn buttons, shut. `roots` are its three groups, placed where it is installed, for a scene to
+ * move with its section; `set` opens it.
+ */
+export function buildAccessPanels(p: ReturnType<typeof createCatioParts>, layout: TunnelLayout, into: (piece: string) => DoorLayers, pieces?: string[]) {
+  return layout.access.filter(a => !pieces || pieces.includes(a.piece)).map(access => {
+    const layers = into(access.piece);
+    const before = [layers.timber, layers.mesh, layers.hardware].map(g => g.children.length);
+    const built = buildDoorPanel(p, access.door, access.frame, layers);
+    // the door's own group in each layer: the last child it added there
+    const roots = [layers.timber, layers.mesh, layers.hardware].flatMap((g, i) => g.children.slice(before[i]));
+    return { access, built, roots, set: built.set };
+  });
+}
 export type { Member, MeshPanel };
 
 /**

@@ -6,7 +6,7 @@ import type { CatioMode } from './catioSettings.ts';
 import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
 import { buildWindowContext } from './catioWindowContext.ts';
 import { COUPLING, couplingLayout, couplingSite, type CouplingConfig, type CouplingLayout, type CouplingSite } from './catioCoupling.ts';
-import { buildInsertContext } from './catioWindowInsertScene.ts';
+import { buildInsertContext, type PortClosureBuilt } from './catioWindowInsertScene.ts';
 import { TUNNEL, vec } from './catioTunnel.ts';
 import { buildSectionPieces, tunnelDrawing } from './catioTunnelPieces.ts';
 import { buildPrintedLatches } from './catioPrintedLatchScene.ts';
@@ -86,7 +86,7 @@ export function buildCouplingPieces(p: ReturnType<typeof createCatioParts>, layo
  * open/closed toggle shows the joint released: every lever open and its hook off the catch.
  */
 export function createCouplingScene(_variant: CatioMode, config: CouplingConfig, site: CouplingSite = couplingSite()): SubassemblyModel & {
-  layout: ReturnType<typeof couplingLayout>; motions: PieceMotion[]; levers: THREE.Group[]; lift: () => number;
+  layout: ReturnType<typeof couplingLayout>; motions: PieceMotion[]; levers: THREE.Group[]; lift: () => number; closure: PortClosureBuilt | null;
 } {
   const layout = couplingLayout(config, site);
   const { insert, tl, first } = layout;
@@ -107,7 +107,8 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
   };
 
   // Stage 0: the insert in its recess (timber and mesh) and the tunnel's wall support, levelled.
-  buildInsertContext(p, insert);
+  // its cat port is shut, as it must be until the tunnel is docked; docked, the page's toggle opens it
+  const { closure } = buildInsertContext(p, insert);
   const supportGroup = component('wall-support', 0, undefined);
   const s = layout.wallSupport;
   if (s) {
@@ -202,6 +203,11 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
     const closing = state.exploded ? 0 : ease(THREE.MathUtils.clamp(along(state.progress, 5) / 0.6, 0, 1));
     const closed = state.windowOpen ? 0 : closing;
     for (const latch of pieces.latches) latch.setOpen(1 - closed);
+    // the cat port opens only once the tunnel is docked and latched: a removable panel is then drawn into the room, past nothing
+    // of the coupling, which is all on the port's outdoor face
+    const travel = closed >= 1 && state.progress >= 5 ? state.door ?? 0 : 0;
+    closure?.set(travel);
+    const opening = closure?.action(travel); if (opening) active.add(opening);
     let action: string | null = active.size > 0 ? [...active].join('; ') : null;
     if (!action && state.progress > 3 && state.progress < 4 && !state.exploded) action = 'Lowering the first section onto its wall support, square to the port, onto the seal';
     if (!action && state.progress > 4 && closing > 0 && closing < 1) action = `${layout.latches.length} × ${latchTitle}: hooked over its catch, lever pressed down over centre`;
@@ -211,5 +217,5 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
     p.root.updateMatrixWorld(true);
   }
   function dispose() { p.dispose(); pieces.dispose(); draw.dispose(); }
-  return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers, lift: () => currentLift, caption: () => currentAction };
+  return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers, closure, lift: () => currentLift, caption: () => currentAction };
 }

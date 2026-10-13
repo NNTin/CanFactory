@@ -3,7 +3,8 @@ import { CATIO, CATIO_DERIVED, type CatioView } from './catioDesign.ts';
 import { validateWindowProfile, WINDOW_PROFILE_DEFAULT, WINDOW_PROFILE_RANGES, windowFrame, type WindowProfile } from './catioWindow.ts';
 import { loadCatioSettings, type CatioMode } from './catioSettings.ts';
 import { MESH_LABELS, meshCut, meshRollLine } from './catioMesh.ts';
-import { fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type V3 } from './catioSubassembly.ts';
+import { DOOR, doorBom, doorBounds, doorFacts, doorLibraryParts, facePanel, PORT_CLOSURE_DEFAULT, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, slidingGateRise, type DoorFrame, type DoorPanel, type PortClosure } from './catioDoor.ts';
+import { fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
 
 /**
  * The window insert: the removable timber collar that sits in the exterior window recess, its mesh, and the clamps that hold
@@ -97,6 +98,8 @@ export interface WindowSpec {
   profile: WindowProfile;
   /** The cat port's clear size, with tunnel only. */
   tunnel: { width: number; height: number } | null;
+  /** What closes the cat port (with tunnel only): as the catio concept page sets it for every cat port. */
+  closure: PortClosure;
 }
 
 /**
@@ -107,17 +110,17 @@ export function windowFor(variant: CatioMode, config: WindowProfile = WINDOW_INS
   const profile = windowProfileOf(config);
   if (variant === 'direct') return {
     glassWidth: CATIO.glass, glassHeight: CATIO.glass, sashWidth: CATIO.sash, sashHeight: CATIO.sash,
-    openingWidth: CATIO.fixedFrame, openingHeight: CATIO.fixedFrame, recessFloor: CATIO_DERIVED.fixedBottom, sill: CATIO.sill, profile, tunnel: null,
+    openingWidth: CATIO.fixedFrame, openingHeight: CATIO.fixedFrame, recessFloor: CATIO_DERIVED.fixedBottom, sill: CATIO.sill, profile, tunnel: null, closure: PORT_CLOSURE_DEFAULT,
   };
   return modularWindow(loadCatioSettings().config, profile);
 }
 
 /** The modular design's window: its fixed frame is the sash + 45 mm a side, its floor 45 mm below the sill. */
-export function modularWindow(c: { glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number; tunnelWidth: number; tunnelHeight: number }, profile: WindowProfile = windowProfileOf(WINDOW_INSERT_DEFAULT)): WindowSpec {
+export function modularWindow(c: { glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number; tunnelWidth: number; tunnelHeight: number; portClosure?: PortClosure }, profile: WindowProfile = windowProfileOf(WINDOW_INSERT_DEFAULT)): WindowSpec {
   return {
     glassWidth: c.glassWidth, glassHeight: c.glassHeight, sashWidth: c.sashWidth, sashHeight: c.sashHeight,
     openingWidth: c.sashWidth + 90, openingHeight: c.sashHeight + 90, recessFloor: CATIO.sill - 45, sill: CATIO.sill, profile,
-    tunnel: { width: c.tunnelWidth, height: c.tunnelHeight },
+    tunnel: { width: c.tunnelWidth, height: c.tunnelHeight }, closure: c.portClosure ?? PORT_CLOSURE_DEFAULT,
   };
 }
 
@@ -307,6 +310,9 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     edge([left, faceY, bottom], [left, faceY, top], true, use), edge([right, faceY, bottom], [right, faceY, top], true, use),
   ];
   let port: { width: number; height: number; transomZ: number } | null = null;
+  // The cat port's removable panel (catioDoor.ts), when that is its closure: on the room side of the port frame, whose jambs and
+  // transom are its seat, standing on the threshold. It comes out towards the room (−Y).
+  let door: { panel: DoorPanel; frame: DoorFrame } | null = null;
   if (variant === 'direct') {
     // A mesh passage sleeve continues the collar's opening towards the enclosure; its edges turn onto the collar face.
     const top = z0 + H - m; const y0 = yOut; const y1 = yOut + INSERT.sleeve;
@@ -319,6 +325,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     const w = tunnel.width; const h = tunnel.height; const pm = INSERT.portMember;
     const transomZ = floor + h; const housed = config.junctionJoint === 'housed'; const hd = INSERT.housing; const py = yOut - pm / 2;
     port = { width: w, height: h, transomZ };
+    if (window.closure === 'removable-panel') door = { panel: facePanel({ id: 'port-panel', width: w, height: h, material: 'solid', land: pm }), frame: { origin: [0, yOut - pm, floor], u: [1, 0, 0], v: [0, 0, 1], n: [0, -1, 0] } };
     timber.push({ id: 'transom', component: 'port-frame', name: 'Port transom', section: `${pm} × ${pm}`, length: Wi + (housed ? 2 * hd : 0),
       cut: housed ? `${Wi + 2 * hd} long, ends into ${hd} mm housings in the stiles` : `${Wi} long, square ends`, use: 'Across the collar above the cat port',
       boxes: [box([Wi + (housed ? 2 * hd : 0), pm, pm], [0, py, transomZ + pm / 2])] });
@@ -430,7 +437,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
   }
 
   return {
-    variant, config, window, frame: frameOf, gap, W, H, Wi, Hi, x0, z0, yIn, yOut, floor, port, mesh, timber, panels, fasteners, clamps, hooks, hookFit, brackets,
+    variant, config, window, frame: frameOf, gap, W, H, Wi, Hi, x0, z0, yIn, yOut, floor, port, door, closure: port ? window.closure : null, mesh, timber, panels, fasteners, clamps, hooks, hookFit, brackets,
     spreaderFoot, bearingFoot, pad, nut, insertNut: part(HW.insertNut),
   };
 }
@@ -465,16 +472,22 @@ export function validateWindowInsert(variant: CatioMode, config: WindowInsertCon
     if (Math.min(fit.engage.head, fit.engage.sill) < HOOK_FIT.engage) errors.push('The hooks would not reach far enough behind the frame’s lip.');
     if (frameFace - config.frameOverlap < fit.lift) errors.push(`Hanging the insert needs ${fit.lift} mm of room above the collar to lift it; it overlaps the frame too far.`);
     if (l.frame.lip.bottom - l.z0 < 8) errors.push('Standing on these feet, the collar does not reach over the frame below the lip’s tip: choose lower feet or pads.');
-    // the cat gate's latch stands behind the collar's back, in front of the closed sash
+    // what closes the cat port stands behind the collar's back, in front of the closed sash: a sliding gate's latch, or a
+    // removable panel's turn buttons and pull
     const latchBack = l.yIn + INSERT.gate.y - INSERT.gate.latchY - INSERT.gate.latch[1] / 2;
-    if (l.port && latchBack - l.frame.sashFace < HOOK_FIT.gap) errors.push(`The cat gate’s latch needs ${Math.ceil(l.yIn - latchBack + HOOK_FIT.gap)} mm between the frame’s face and the closed sash; this window has ${l.frame.face - l.frame.sashFace} mm.`);
+    const panelBack = l.door ? l.door.frame.origin[1] - l.door.panel.depth : l.yIn;
+    if (l.door && panelBack - l.frame.sashFace < HOOK_FIT.gap) errors.push(`The cat port’s panel, its turn buttons and its pull need ${Math.ceil(l.yIn - panelBack + HOOK_FIT.gap)} mm between the frame’s face and the closed sash; this window has ${l.frame.face - l.frame.sashFace} mm.`);
+    if (l.closure === 'sliding-gate' && latchBack - l.frame.sashFace < HOOK_FIT.gap) errors.push(`The cat gate’s latch needs ${Math.ceil(l.yIn - latchBack + HOOK_FIT.gap)} mm between the frame’s face and the closed sash; this window has ${l.frame.face - l.frame.sashFace} mm.`);
     if (INSERT.member - config.frameOverlap < spec.width + 4) errors.push('The collar overlaps the frame too far: the hooks need the stiles’ inner part over the window opening.');
   }
   if (l.W - 2 * INSERT.member < window.sashWidth * 0.6) errors.push('The collar opening is too narrow for this window.');
   if (l.port) {
     const { width: w, height: h } = l.port;
     if (w + 2 * INSERT.portMember > l.Wi - 2 * 60) errors.push('The cat port and its jambs must fit between the collar stiles and their clamps.');
-    if (l.floor + 2 * h + 50 > l.z0 + l.H - INSERT.member - 40) errors.push('The sliding gate needs room above the port for its full travel inside the collar.');
+    // only a sliding gate travels: it needs its own height again above the port, inside the collar
+    if (l.closure === 'sliding-gate' && l.floor + slidingGateRise(h, 50) > l.z0 + l.H - INSERT.member - 40) errors.push('The sliding gate needs room above the port for its full travel inside the collar.');
+    if (l.closure === 'removable-panel' && l.floor + h + INSERT.portMember > l.z0 + l.H - INSERT.member) errors.push('The cat port and its transom must fit under the collar’s head rail.');
+    if (l.door) errors.push(...l.door.panel.errors, ...doorAccessIssues(l));
   }
   const stud = dimensionOf(l.spreaderFoot, 'l1');
   if (config.attachment === 'spreader-feet' && !l.pad && stud < INSERT.member + INSERT.travel + 2 * dimensionOf(l.nut, 'm')) errors.push('No stud of this foot is long enough to pass the collar and take two nuts.');
@@ -488,8 +501,47 @@ export function validateWindowInsert(variant: CatioMode, config: WindowInsertCon
   return errors;
 }
 
+/**
+ * Where the cat port's removable panel is: from its seat to the collar's back and on into the room, as wide and as high as the
+ * panel, its locating strips and its buttons. Everything in it is reached, and the panel drawn out through it, from the room.
+ */
+export function doorZone(l: Pick<WindowInsertLayout, 'door' | 'port' | 'yIn'>): { min: V3; max: V3 } | null {
+  if (!l.door || !l.port) return null;
+  const { panel, frame } = l.door; const land = INSERT.portMember;
+  const reach = panel.depth + panel.withdraw;
+  return doorBounds(frame, { size: [l.port.width + 2 * land, l.port.height + land, reach], center: [0, (l.port.height + land) / 2, reach / 2] });
+}
+
+/**
+ * What would be in the way of a removable cat-port panel, of a turn button's turn or of the hand that turns it: the screen hooks'
+ * legs and the corner brackets on the collar's room-side face, and the clamps' studs and nuts inside the collar.
+ */
+function doorAccessIssues(l: WindowInsertLayout): string[] {
+  const zone = doorZone(l); if (!zone) return [];
+  const meets = (min: V3, max: V3) => [0, 1, 2].every(i => (min[i] ?? 0) < (zone.max[i] ?? 0) - 1e-9 && (max[i] ?? 0) > (zone.min[i] ?? 0) + 1e-9);
+  const bounds = (b: Box) => [b.center.map((x, i) => x - (b.size[i] ?? 0) / 2) as V3, b.center.map((x, i) => x + (b.size[i] ?? 0) / 2) as V3] as const;
+  const issues: string[] = [];
+  if (l.hooks.some(h => h.boxes.some(b => meets(...bounds(b))))) issues.push('A screen hook would lie in the way of the cat port’s panel or its turn buttons: the port needs more room between the collar’s stiles.');
+  if (l.brackets.some(k => k.boxes.some(b => meets(...bounds(b))))) issues.push('A corner bracket would lie in the way of the cat port’s panel or its turn buttons: choose a smaller bracket or another corner joint.');
+  // a spreader's stud and nuts stand inside the collar, up to 60 mm in from its member
+  const inside = INSERT.member + 60; const around = 12;
+  const stud = (c: Clamp) => {
+    const tip: V3 = [c.at[0] - c.normal[0] * inside, c.at[1], c.at[2] - c.normal[2] * inside];
+    const spread = (i: 0 | 2) => c.normal[i] === 0 ? around : 0;
+    return [[Math.min(c.at[0], tip[0]) - spread(0), l.yIn, Math.min(c.at[2], tip[2]) - spread(2)], [Math.max(c.at[0], tip[0]) + spread(0), l.yOut, Math.max(c.at[2], tip[2]) + spread(2)]] as [V3, V3];
+  };
+  if (l.clamps.some(c => c.kind === 'spreader' && meets(...stud(c))))
+    issues.push('A clamp’s stud would stand in the way of the cat port’s panel or its turn buttons.');
+  return issues;
+}
+
 /** Stage 0 is the window as it is; stages 1–3 happen on a bench outside, 4–6 at the window. */
-export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig): readonly AssemblyStep[] {
+export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant, config)): readonly AssemblyStep[] {
+  const door = variant === 'modular' ? windowInsertLayout(variant, config, window).door?.panel : undefined;
+  const docked = 'the insert–tunnel coupling page screws a docking frame onto the port’s face, which then stays on the insert';
+  const closing = door
+    ? { title: 'Panel and check', detail: `From the room side, glue and screw the sill stop across the port’s floor, flush with the jambs’ room-side faces, and screw the locating strips onto the jambs and the transom. Stick the seal round that seat. Screw the ${door.buttons.length} door turn buttons onto the strips, each on its washer, pointing clear of the opening. Stand the solid panel on the threshold between the strips, press it onto the seal and turn every button a quarter turn over it, until its pip drops into its dimple. Keep the port shut like this until a tunnel is docked: ${docked}. To open it, with the tunnel docked and the sash turned open: turn every button clear, draw the panel into the room by its pull and stow it clear of the route. Shut it again, every button over it, before the tunnel is undocked. Open and close the window: it clears the insert.` }
+    : { title: 'Gate and check', detail: `Fix the gate tracks on the room side of the port. Lower the sliding cat gate into them from above, then fit the latch. Keep the gate shut until a tunnel is docked: ${docked}. Open and close the window: it clears the insert.` };
   const bracket = windowInsertBracket(config.cornerBracket);
   const joint = config.cornerJoint === 'corner-bracket'
     ? `Stand the two stiles. Slide the head and sill rails in between them from the outdoor side. Then drive two 5 × 70 screws through each stile into the end grain of the rail. Turn the collar over: at each corner lay a ${bracket.a} × ${bracket.b} ${bracket.part ? 'flat corner bracket' : 'printed corner bracket'} on the room-side face, flush with the outer edges, mark round it and chisel it in ${bracket.t} mm, so that it lies flush; then screw it on through all ${bracket.holes.length} holes with ${bracket.screw.designation.replace('DIN 7997 ', '')} screws`
@@ -539,9 +591,9 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
       ? { title: 'Hang it on the window frame', detail: `Open the sash. Carry the insert to the window from the garden, lift it ${fit?.lift ?? 0} mm higher than it will stand, and slip the long hooks up behind the frame’s head lip. Swing its foot in flat against the frame and let it down: the short hooks drop behind the sill lip and the feet stand on the recess floor.` }
       : { title: 'Set it into the recess', detail: 'Carry the insert to the window from the garden and stand it on the recess floor, clear of the closed sash.' },
     { title: hung ? 'Level it and close the window' : config.attachment === 'spreader-feet' ? 'Tighten from inside' : 'Drive the wedges', detail: tighten },
-    { title: variant === 'direct' ? 'Brackets and check' : 'Gate and check', detail: variant === 'direct'
-      ? 'Offer the removable docking brackets to the collar face from outdoors, ready for the enclosure’s rear portal. Open and close the window: it clears the insert.'
-      : 'Fix the gate tracks on the room side of the port. Lower the sliding cat gate into them from above, then fit the latch. Keep the gate shut until a tunnel is docked: the insert–tunnel coupling page screws a docking frame onto the port’s face, which then stays on the insert. Open and close the window: it clears the insert.' },
+    variant === 'direct'
+      ? { title: 'Brackets and check', detail: 'Offer the removable docking brackets to the collar face from outdoors, ready for the enclosure’s rear portal. Open and close the window: it clears the insert.' }
+      : closing,
   ];
 }
 
@@ -575,7 +627,10 @@ export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, 
     const { length, width, thickness } = INSERT.wedge;
     lines.push({ id: 'folding-wedges', group: 'Timber', name: 'Folding wedge', quantity: 2 * l.clamps.length, size: `${length} × ${width}, ${thickness} mm to 0`, use: `Pairs: ${config.clampsPerSide} on each side of the collar` });
   }
-  if (variant === 'modular' && l.port) lines.push({ id: 'cat-gate', group: 'Timber', name: 'Sliding cat gate', quantity: 1, size: `${l.port.width + 20} × ${l.port.height + 20} × 12 exterior plywood`, use: 'Slides up in its tracks on the room side of the port' });
+  // what closes the cat port: a removable panel's timber here, its printed buttons, pull and seal below; or the sliding gate
+  const doorLines = l.door ? doorBom(l.door.panel, { prefix: 'port', where: 'Cat port', mesh: l.mesh }) : [];
+  lines.push(...doorLines.filter(line => line.group === 'Timber'));
+  if (l.closure === 'sliding-gate' && l.port) lines.push({ id: 'cat-gate', group: 'Timber', name: 'Sliding cat gate', quantity: 1, size: `${l.port.width + 20} × ${l.port.height + 20} × 12 exterior plywood`, use: 'Slides up in its tracks on the room side of the port' });
   lines.push(meshRollLine(l.mesh));
   for (const panel of l.panels) lines.push({ id: panel.id, group: 'Mesh', name: panel.name, quantity: 1, size: `${Math.round(panel.width)} × ${Math.round(panel.height)} · ${meshCut(l.mesh)}`, use: [...new Set(panel.edges.map(e => e.use))].join('; ') });
   const counts = new Map<string, { quantity: number; uses: Set<string> }>();
@@ -585,6 +640,10 @@ export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, 
     entry.quantity += quantity; entry.uses.add(plain.charAt(0).toUpperCase() + plain.slice(1)); counts.set(partId, entry);
   };
   for (const f of l.fasteners) add(f.partId, f.use);
+  if (l.door) {
+    for (const f of l.door.panel.fasteners) add(f.partId, f.use);
+    for (const extra of doorLibraryParts(l.door.panel)) add(extra.partId, extra.use, extra.quantity);
+  }
   for (const c of l.clamps) {
     if (c.kind === 'wedge') continue;
     add(l.insertNut.id, `In the ${sideName[c.side]}`);
@@ -623,15 +682,17 @@ export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, 
     if (spreaders > 0) lines.push({ id: 'thrust-pads', group: 'Hardware', name: 'Pressure pad, thrust pad', quantity: spreaders, modelId: 'pressure-pad', size: `${size} · for an ${l.pad.thrustNut.designation} nut`, use: 'On each spreader screw’s tip: presses on the reveal without turning' });
     lines.push({ id: 'foot-pads', group: 'Hardware', name: 'Pressure pad, foot', quantity: l.clamps.length - spreaders, modelId: 'pressure-pad', size: `${size} · for an ${l.pad.bearingScrew.designation} head`, use: 'Under the sill rail: stands on the recess floor; turned by hand to set the height' });
   }
-  if (variant === 'modular' && l.port) {
+  lines.push(...doorLines.filter(line => line.group !== 'Timber'));
+  if (l.closure === 'sliding-gate' && l.port) {
     lines.push({ id: 'gate-tracks', group: 'Hardware', name: 'Gate track (custom)', quantity: 2, size: `12 × 12 × ${2 * l.port.height + 45} channel`, use: 'Room side of the port, screwed to the threshold and transom' });
     lines.push({ id: 'gate-latch', group: 'Hardware', name: 'Gate latch (custom)', quantity: 1, size: 'Spring bolt, schematic', use: 'Holds the gate shut' });
-  } else lines.push({ id: 'docking-brackets', group: 'Hardware', name: 'Docking bracket (custom, from the original concept)', quantity: 4, size: '55 × 108 × 5 steel angle, schematic', use: 'Collar face to the enclosure’s rear portal; removable' });
+  } else if (!l.port) lines.push({ id: 'docking-brackets', group: 'Hardware', name: 'Docking bracket (custom, from the original concept)', quantity: 4, size: '55 × 108 × 5 steel angle, schematic', use: 'Collar face to the enclosure’s rear portal; removable' });
   return lines;
 }
 
-export function windowInsertFacts(variant: CatioMode, config: WindowInsertConfig) {
-  const l = windowInsertLayout(variant, config);
+export function windowInsertFacts(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant, config)): SubassemblyFact[] {
+  const l = windowInsertLayout(variant, config, window);
+  const door = l.door ? doorFacts(l.door.panel) : null;
   const cm = (mm: number) => `${Number((mm / 10).toFixed(1))}`;
   return [
     { label: 'Exterior recess · assumed', value: `${cm(l.window.openingWidth)} × ${cm(l.window.openingHeight)} cm` },
@@ -645,6 +706,9 @@ export function windowInsertFacts(variant: CatioMode, config: WindowInsertConfig
     { label: variant === 'direct' ? 'Passage · clear' : 'Cat port · clear', value: l.port ? `${cm(l.port.width)} × ${cm(l.port.height)} cm` : `${cm(l.Wi)} × ${cm(l.z0 + l.H - INSERT.member - l.floor)} cm` },
     // the clamp gap sets it, and the tunnel starts from it
     ...(l.port ? [{ label: 'Cat port floor · above the grass', value: `${cm(l.floor)} cm` }] : []),
+    // every cat port's closure is one choice, made on the catio concept page
+    ...(l.closure ? [{ label: 'Cat port · closed by', value: PORT_CLOSURE_LABELS[l.closure], from: { page: 'concept' as const, settings: [PORT_CLOSURE_SETTING] } }] : []),
+    ...(door ? [{ label: 'Port panel · solid, on a seal', value: door.panel }, { label: 'Port panel · kept in by', value: door.retention }] : []),
   ];
 }
 
@@ -668,6 +732,7 @@ export function windowInsertViews(variant: CatioMode, config: WindowInsertConfig
 }
 
 const NET = catioMesh('netting'); const WELDED = catioMesh('welded');
+const DOOR_SOLID = DOOR.solid.thickness;
 const PAD_SOLE: Record<PressurePadSurface, string> = { flat: 'Flat', grooved: 'Grooved', domed: 'Domed' };
 
 export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = [
@@ -757,6 +822,9 @@ export const WINDOW_INSERT_DECISIONS: DesignDecision[] = [
   { title: 'The cat port ends at its frame', parameter: 'Port transom & jambs',
     choice: 'With tunnel, the port is a full-width transom and two jambs with the infill mesh round them. Nothing of the insert runs on to the wall face: the insert–tunnel coupling screws a docking frame onto the jambs and transom, and the frame stays on the insert from then on, also when it is lifted out.',
     why: 'The docking frame carries the passage from the port to the tunnel’s first flange and gives the latches their catch, so a mesh throat there would only be in its way. Its parts are on the coupling’s parts list; its screws are placed between this page’s batten screws and staples, so the mesh fixing and its spacing change it.' },
+  { title: 'A panel that comes out closes the cat port', from: { page: 'concept', settings: [PORT_CLOSURE_SETTING] },
+    choice: `With tunnel, a solid ${DOOR_SOLID} mm plywood panel stands on the threshold on the room side of the port, pressed onto a seal round the port frame’s jambs and transom and a stop strip across the floor. Locating strips on the jambs and the transom hold it in place sideways and upwards; printed turn buttons on those strips, each on one screw, lie over its edge. To open the port every button is turned a quarter turn clear and the panel is drawn into the room by its pull. A vertical sliding gate in tracks remains selectable on the catio concept page, and is what designs saved before this choice keep.`,
+    why: 'The mechanism is the PawHut cat tunnel’s removable doors: a panel in its opening, kept in by turn buttons on the frame round it, lifted out altogether to open. Out of its opening it needs no room to travel, so the port may be as high as the collar allows, where a sliding gate needs its own height again above the port. What is not copied is the mesh: undocked, the window port is all that closes the window opening, so here the panel is solid and sealed. The port frame is the seat on the tunnel side, so a cat pushing out from the room pushes the panel onto timber, not onto the buttons; the buttons hold it against a push from the tunnel. The seat, the strips, the overlaps, the buttons’ spacing and their detent are this design’s proposal: the reference’s photos do not show how its doors are seated or how its buttons are kept from turning, and none of this has been built. A button with only its pivot’s friction is not cat-proof: check the detent, and that no button can be worked round from either side, before trusting the door.' },
   { title: 'Collar sized from the clamps', parameter: 'Pad height',
     choice: 'The collar is the recess size less the clamp gap on each side: the printed pad’s height, or the Ganter foot’s height with its cap, plus 8 mm of thread travel (32.5 mm for the default 24.5 mm pad, as for the 32 mm foot).',
     why: 'The original concept left 10 mm round its 98 cm collar, too little for any real clamp. Here the gap follows from the chosen part, so the collar (93.5 cm by default) and its cut list change with it. Pressed into the recess, the whole-catio scenes keep their schematic 98 cm collar until this is adopted there; hung on the window frame, they draw the hung collar.' },

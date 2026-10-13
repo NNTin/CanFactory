@@ -1,4 +1,5 @@
 import type { CatioView } from './catioDesign.ts';
+import { facePanel, PORT_CLOSURE_DEFAULT, PORT_CLOSURES, slidingGateRise, type DoorPanel, type PortClosure } from './catioDoor.ts';
 
 /** All lengths are millimetres. Grass Z=0; wall Y=0; outdoors is +Y. */
 export interface EnclosureSize { width: number; depth: number; height: number }
@@ -7,24 +8,55 @@ export interface ModularConfig {
   enclosure: EnclosureSize; second: EnclosureSize; secondEnabled: boolean;
   tunnelWidth: number; tunnelHeight: number;
   route: 'straight' | 'left' | 'right'; approach: number; lateral: number; final: number; link: number;
+  /** What closes every cat port, the window's and the enclosures': a panel lifted out from behind turn buttons, or a gate slid up. */
+  portClosure: PortClosure;
 }
 export const MODULAR_DEFAULT: ModularConfig = {
   glassWidth: 800, glassHeight: 800, sashWidth: 910, sashHeight: 910,
   enclosure: { width: 1200, depth: 1000, height: 1200 }, second: { width: 1200, depth: 1000, height: 1200 }, secondEnabled: false,
-  tunnelWidth: 300, tunnelHeight: 300, route: 'straight', approach: 2, lateral: 2, final: 1, link: 2,
+  tunnelWidth: 300, tunnelHeight: 300, route: 'straight', approach: 2, lateral: 2, final: 1, link: 2, portClosure: PORT_CLOSURE_DEFAULT,
 };
 export const MODULAR = { moduleLength: 500, timber: 40, sill: 200, floor: 4, wall: 300, recess: 150 } as const;
-export const MODULAR_STEPS = [
-  { title: 'Existing window', detail: 'Start with the inward-opening window and grass outside.' },
-  { title: 'Fit the window insert', detail: 'From inside, tighten the padded recess clamps. Keep the small sliding cat gate closed; mesh fills the remaining opening.' },
-  { title: 'Position the enclosures', detail: 'Place each enclosure on four short feet. Fit its continuous grass-level mesh floor, skirts, walls, roof and latched front maintenance door.' },
-  { title: 'Fit landings and cat ports', detail: 'Add the raised rear landing and ramp. Fit the small sliding gates on the rear and side ports; keep unused ports closed.' },
-  { title: 'Lay the supported tunnel', detail: 'Join 50 cm straight sections and, for an offset, two 90° corners. The enclosed solid walkway stays level with the sill on feet at each joint.' },
-  { title: 'Couple the connections', detail: 'Seat the matching rectangular collars and secure the removable clamps at every joint. Gates remain closed while connections are made.' },
-  { title: 'Open the connected gates', detail: 'With maintenance doors latched, open the gates along the connected route. Before disconnecting a run, close and latch the gates at both ends.' },
-] as const;
-/** The modular concept's second step when the window insert hangs on the window frame (its default). */
-export const MODULAR_HUNG_STEP = { title: 'Fit the window insert', detail: 'Hang it on the window frame: its screen hooks reach behind the fixed frame’s lip and its feet stand on the recess floor, so the sash still closes. Keep the small sliding cat gate closed; mesh fills the remaining opening.' };
+/** The timber round a cat port: the window's port frame and the enclosures' are both this wide. */
+export const PORT_FRAME = 40;
+/**
+ * A cat port's removable panel (catioDoor.ts), for these port sizes: solid at the window, where it is pressed onto a seal against
+ * draughts while no tunnel is docked; a framed mesh panel at an enclosure's ports.
+ */
+export function modularPortPanel(c: Pick<ModularConfig, 'tunnelWidth' | 'tunnelHeight'>, at: 'window' | 'enclosure', id: string = at): DoorPanel {
+  return facePanel({ id, width: c.tunnelWidth, height: c.tunnelHeight, material: at === 'window' ? 'solid' : 'mesh', land: PORT_FRAME });
+}
+
+const STEPS: Record<PortClosure, { insert: string; ports: string; couple: string; open: { title: string; detail: string } }> = {
+  'removable-panel': {
+    insert: 'Keep the cat port shut: its solid panel seated on its seal, every turn button turned over it. Mesh fills the remaining opening.',
+    ports: 'Seat a framed mesh panel in the rear and side ports, from inside the enclosure, and turn every button over it; unused ports stay shut.',
+    couple: 'Every port’s panel stays seated and retained while connections are made.',
+    open: { title: 'Open the connected ports', detail: 'With maintenance doors latched, turn every button clear of each panel along the connected route, lift the panel out and stow it clear of the route. Before disconnecting a run, reseat the panels at both of its ends and turn every button back over them.' },
+  },
+  'sliding-gate': {
+    insert: 'Keep the small sliding cat gate closed; mesh fills the remaining opening.',
+    ports: 'Fit the small sliding gates on the rear and side ports; keep unused ports closed.',
+    couple: 'Gates remain closed while connections are made.',
+    open: { title: 'Open the connected gates', detail: 'With maintenance doors latched, open the gates along the connected route. Before disconnecting a run, close and latch the gates at both ends.' },
+  },
+};
+/**
+ * The modular concept's stages, for its cat ports' closure. `hung`: the window insert hangs on the window frame (its default),
+ * instead of being clamped into the recess.
+ */
+export function modularSteps(c: Pick<ModularConfig, 'portClosure'>, hung: boolean): readonly { title: string; detail: string }[] {
+  const s = STEPS[c.portClosure];
+  return [
+    { title: 'Existing window', detail: 'Start with the inward-opening window and grass outside.' },
+    { title: 'Fit the window insert', detail: `${hung ? 'Hang it on the window frame: its screen hooks reach behind the fixed frame’s lip and its feet stand on the recess floor, so the sash still closes.' : 'From inside, tighten the padded recess clamps.'} ${s.insert}` },
+    { title: 'Position the enclosures', detail: 'Place each enclosure on four short feet. Fit its continuous grass-level mesh floor, skirts, walls, roof and latched front maintenance door.' },
+    { title: 'Fit landings and cat ports', detail: `Add the raised rear landing and ramp. ${s.ports}` },
+    { title: 'Lay the supported tunnel', detail: 'Join 50 cm straight sections and, for an offset, two 90° corners. The enclosed solid walkway stays level with the sill on feet at each joint.' },
+    { title: 'Couple the connections', detail: `Seat the matching rectangular collars and secure the removable clamps at every joint. ${s.couple}` },
+    s.open,
+  ];
+}
 
 export function validateModular(c: ModularConfig): string[] {
   const errors: string[] = [];
@@ -35,12 +67,21 @@ export function validateModular(c: ModularConfig): string[] {
   range(c.sashWidth, 500, 1600, 'Sash width'); range(c.sashHeight, 500, 1600, 'Sash height');
   if (c.sashWidth - c.glassWidth < 60 || c.sashHeight - c.glassHeight < 60) errors.push('The sash needs at least 3 cm of frame on each side of the glass.');
   range(c.tunnelWidth, 200, 450, 'Tunnel clear width'); range(c.tunnelHeight, 200, 450, 'Tunnel clear height');
-  if (c.tunnelWidth + 80 > c.sashWidth - 10) errors.push('The cat port and its frame must fit inside the window collar.');
-  if (2 * c.tunnelHeight + 40 > c.sashHeight - 10) errors.push('The sliding gate needs room for its full upward travel inside the window collar.');
+  if (!PORT_CLOSURES.includes(c.portClosure)) errors.push('Choose a removable panel or a sliding gate for the cat ports.');
+  // Only a sliding gate travels: it needs its own height again above each port. A removable panel leaves its opening, so a port
+  // with one only has to fit, with its frame, where it stands; its seat, buttons and withdrawal are checked from its layout.
+  const sliding = c.portClosure === 'sliding-gate';
+  const frame = 2 * PORT_FRAME;
+  if (c.tunnelWidth + frame > c.sashWidth - 10 || (!sliding && c.tunnelHeight + frame > c.sashHeight - 10)) errors.push('The cat port and its frame must fit inside the window collar.');
+  if (sliding && slidingGateRise(c.tunnelHeight, PORT_FRAME) > c.sashHeight - 10) errors.push('The sliding gate needs room for its full upward travel inside the window collar.');
+  if (!sliding) errors.push(...new Set(['window', 'enclosure'].flatMap(at => modularPortPanel(c, at as 'window' | 'enclosure').errors)));
   for (const [label, size] of [['Enclosure A', c.enclosure], ['Enclosure B', c.second]] as const) {
     range(size.width, 800, 2400, `${label} width`); range(size.depth, 800, 2400, `${label} depth`); range(size.height, 900, 2200, `${label} height`);
     if (label === 'Enclosure B' && !c.secondEnabled) continue;
-    if (MODULAR.sill + 2 * c.tunnelHeight + 80 > size.height) errors.push(`${label} is too low for the raised cat gate.`);
+    if (sliding && MODULAR.sill + slidingGateRise(c.tunnelHeight, frame) > size.height) errors.push(`${label} is too low for the raised cat gate.`);
+    if (!sliding && MODULAR.sill + c.tunnelHeight + frame > size.height) errors.push(`${label} is too low for its cat ports and their frames.`);
+    // a panel is drawn out into the enclosure over the landing, which must be deep enough to take it
+    if (!sliding && modularPortPanel(c, 'enclosure').withdraw > c.tunnelWidth + 100) errors.push(`${label}’s landing is too shallow to draw a cat port’s panel out over it.`);
     if (size.depth - (c.tunnelWidth + 100) - 80 < 300) errors.push(`${label} needs at least 30 cm of ramp run beyond the landing.`);
   }
   for (const [key, value] of Object.entries({ approach: c.approach, lateral: c.lateral, final: c.final, link: c.link })) {

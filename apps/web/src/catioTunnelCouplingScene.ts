@@ -4,9 +4,10 @@ import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
 import type { CatioMode } from './catioSettings.ts';
 import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
+import { doorAction } from './catioDoor.ts';
 import { groundAt, TUNNEL, vec } from './catioTunnel.ts';
 import { ENTRY, tunnelCouplingLayout, tunnelCouplingSite, type TunnelCouplingConfig, type TunnelCouplingLayout, type TunnelCouplingSite } from './catioTunnelCoupling.ts';
-import { buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
+import { buildAccessPanels, buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
 import { memberApproach } from './catioTunnelScene.ts';
 
 /** Stage 1 frames the first section this far above its place, then lays it on the support. */
@@ -18,11 +19,14 @@ const CLOSING = TL.TOGGLE_LATCH_MOVEMENTS.slice(0, 3);
 
 export interface PieceMotion {
   object: THREE.Object3D; stage: number; window: [number, number]; approach: THREE.Vector3; axis?: THREE.Vector3; turns?: number; action: string;
-  role?: 'timber' | 'mesh' | 'screw' | 'staple' | 'seal' | 'latch' | 'catch' | 'bolt' | 'nut' | 'section' | 'fitting';
+  role?: 'timber' | 'mesh' | 'screw' | 'staple' | 'seal' | 'latch' | 'catch' | 'bolt' | 'nut' | 'section' | 'fitting' | 'access';
   of?: string; drive?: V3;
   /** Built raised over its place with the first section, and laid with it at the end of stage 1. */
   lifted?: boolean;
 }
+
+/** The stage at which the joint is done (`tunnelCouplingSteps`): from then on the page's door toggle opens a side-access panel. */
+const LAST_STAGE = 5;
 
 /**
  * The coupling on its own: one of the tunnel's supports on the grass; the first section framed raised over it and laid; its joint
@@ -31,7 +35,7 @@ export interface PieceMotion {
  * Every piece is drawn by the tunnel's own builders (catioTunnelPieces.ts), so it is the tunnel page's joint.
  */
 export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCouplingConfig, site: TunnelCouplingSite = tunnelCouplingSite()): SubassemblyModel & {
-  layout: TunnelCouplingLayout; motions: PieceMotion[]; levers: ReturnType<typeof buildCouplingJoint>['latches']; hold: ReturnType<typeof buildSupportHold>; lift: () => number; entry: () => number;
+  layout: TunnelCouplingLayout; motions: PieceMotion[]; levers: ReturnType<typeof buildCouplingJoint>['latches']; hold: ReturnType<typeof buildSupportHold>; lift: () => number; entry: () => number; accessPanels: ReturnType<typeof buildAccessPanels>;
 } {
   const layout = tunnelCouplingLayout(config, site);
   const { tl, coupling, support, before, after } = layout;
@@ -92,6 +96,15 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     group('first-section-mesh', 1, 'mesh').add(g);
     const out = panel.id.endsWith('roof') ? vec.mul(before.frame.z, 240) : vec.mul(before.frame.x, panel.id.endsWith('left') ? -240 : 240);
     move(g, 1, [...firstWindows.mesh], out, '3 × Mesh panel: offered up to the rails', { role: 'mesh', of: panel.id, lifted: true });
+  }
+  // a section's side-access panel, where the tunnel has one in these two: it comes with its section
+  const accessPanels = buildAccessPanels(p, tl, piece => {
+    const [name, step] = piece === after.id ? ['second-section', 3] as const : ['first-section', 1] as const;
+    return { timber: group(`${name}-access`, step, 'timber'), mesh: group(`${name}-access-mesh`, step, 'mesh'), hardware: group(`${name}-access-buttons`, step, 'hardware') };
+  }, layout.pieces);
+  for (const { access, roots } of accessPanels) for (const root of roots) {
+    if (access.piece === after.id) move(root, 3, [0, 0.8], entry, entering, { role: 'section' });
+    else move(root, 1, [0.72, 0.76], vec.mul(access.frame.n, 260), 'Side-access panel: stood on its opening’s sill against the stops, every door turn button turned over it', { role: 'access', lifted: true });
   }
   const count = (component: string) => sections.fasteners.filter(q => q.fastener.component === component && q.fastener.piece === before.id).length;
   for (const { fastener: f, group: g, part } of sections.fasteners) {
@@ -204,6 +217,10 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     for (const b of hold.buttons) b.setTurn(state.windowOpen ? 1 : 1 - turning);
     if (!latchAction && hold.buttons.length && turning > 0 && turning < 1) latchAction = `${hold.buttons.length} × Turn button: turned flat over the keeper on the flange`;
     if (!latchAction && clearance && state.progress > 2.8 && state.progress < 3) latchAction = 'Setting the second section down over its dowels';
+    // the page's door toggle opens a side-access panel beside the joint, once both sections are coupled
+    const travel = state.progress >= LAST_STAGE && !state.exploded ? state.door ?? 0 : 0;
+    for (const a of accessPanels) a.set(travel);
+    const opening = accessPanels[0] ? doorAction(accessPanels[0].access.door, travel, 'side-access panel') : null; if (opening) active.add(opening);
     let action: string | null = active.size > 0 ? [...active].join('; ') : latchAction;
     if (!action && !state.exploded && state.progress > 0.76 && state.progress < 1) action = 'Laying the first section on the support, its outgoing flange over the bearer';
     currentAction = action;
@@ -213,7 +230,7 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
   }
   function dispose() { p.dispose(); draw.dispose(); jointPieces.dispose(); for (const g of geometries) g.dispose(); }
   return {
-    root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers: jointPieces.latches, hold,
+    root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers: jointPieces.latches, hold, accessPanels,
     lift: () => currentLift, entry: () => currentEntry, caption: () => currentAction, focusOffset: () => focus,
   };
 }

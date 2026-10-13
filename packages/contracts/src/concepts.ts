@@ -62,6 +62,22 @@ const MESH_LINKS: ConceptPartLink[] = [
   { partId: CATIO_MESH_PARTS.welded, via: 'Mesh (welded wire mesh)' },
 ];
 
+/**
+ * A removable catio door panel's hardware (catioDoor.ts): the turn buttons' pivots, each through its button, a large washer under it
+ * and whatever it is mounted on (`sealed`: the window port's locating strips; `mesh`: a mesh panel's deeper strips; `inset`: straight
+ * into a rail), and the screws of the strips, stops, panel frames, cover strips and pull. Not the support fixings' turn buttons, nor
+ * the couplings' toggle latches: those have their own.
+ */
+export const CATIO_DOOR_HARDWARE = {
+  washer: 'iso-7093-m4',
+  pivot: { sealed: 'din-7997-4x35', mesh: 'din-7997-4x50', inset: 'din-7997-4x30' },
+  stripScrew: { sealed: 'din-7997-3-5x30', mesh: 'din-7997-4x45' },
+  stopScrew: 'din-7997-3x25',
+  frameScrew: 'din-7997-4x50',
+  coverScrew: 'din-7997-3-5x25',
+  pullScrew: 'din-7997-3x12',
+} as const;
+
 /** The window insert's clamp feet: Ganter GN 343.2 KR on an M8 stud, in these diameters. */
 export const WINDOW_INSERT_FOOT = { thread: 'M8', diameters: [25, 32, 40], member: 40, travel: 8 } as const;
 
@@ -142,6 +158,11 @@ export const windowInsertConcept: ConceptPage = {
     { partId: WINDOW_INSERT_PAD.thrustNut, via: 'Printed pads (on each spreader screw’s tip)' },
     ...WINDOW_INSERT_BRACKETS.map(id => ({ partId: id, via: 'Collar corners (flat corner bracket)' })),
     ...WINDOW_INSERT_BRACKETS.map(id => ({ partId: cornerBracketScrew(libraryPart(id)).id, via: 'Collar corners (screws of the corner brackets)' })),
+    { partId: CATIO_DOOR_HARDWARE.pivot.sealed, via: 'Removable cat-port panel (turn buttons’ pivots)' },
+    { partId: CATIO_DOOR_HARDWARE.washer, via: 'Removable cat-port panel (under each turn button)' },
+    { partId: CATIO_DOOR_HARDWARE.stripScrew.sealed, via: 'Removable cat-port panel (locating strips)' },
+    { partId: CATIO_DOOR_HARDWARE.stopScrew, via: 'Removable cat-port panel (sill stop)' },
+    { partId: CATIO_DOOR_HARDWARE.pullScrew, via: 'Removable cat-port panel (pull)' },
     { partId: h.hookTop, via: 'Hung on the window frame (hooks at the head)' },
     { partId: h.hookBottom, via: 'Hung on the window frame (hooks at the sill)' },
     { partId: h.hookScrew, via: 'Hung on the window frame (screws of the hooks)' },
@@ -221,6 +242,11 @@ export const tunnelConcept: ConceptPage = {
     { partId: t.dowel, via: 'Dowels in the bearers’ tops' },
     { partId: t.floorScrew, via: 'Strap cleats and turn-button keepers on the bearers’ ends' },
     { partId: t.braceScrew, via: 'Turn buttons’ pivots on the flanges' },
+    { partId: CATIO_DOOR_HARDWARE.pivot.inset, via: 'Side-access panels (door turn buttons’ pivots)' },
+    { partId: CATIO_DOOR_HARDWARE.washer, via: 'Side-access panels (under each door turn button)' },
+    { partId: CATIO_DOOR_HARDWARE.stopScrew, via: 'Side-access panels (stops)' },
+    { partId: CATIO_DOOR_HARDWARE.frameScrew, via: 'Side-access panels (panel frames)' },
+    { partId: CATIO_DOOR_HARDWARE.coverScrew, via: 'Side-access panels (cover strips over the mesh)' },
   ],
   models: [
     { modelId: 'pressure-pad', via: 'support feet, the default' },

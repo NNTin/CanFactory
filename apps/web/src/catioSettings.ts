@@ -1,19 +1,34 @@
 import { CATIO_VIEWS, type CatioLayer, type CatioView } from './catioDesign.ts';
+import { PORT_CLOSURE_LEGACY } from './catioDoor.ts';
 import { MODULAR_DEFAULT, validateModular, type ModularConfig } from './catioModularDesign.ts';
 export type CatioMode = 'direct' | 'modular';
 export interface CatioViewing { progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: CatioLayer[]; view: CatioView; doors: Record<string, boolean> }
-export interface CatioSettings { version: 1; mode: CatioMode; config: ModularConfig; views: Record<CatioMode, CatioViewing> }
+/** The settings as saved now. Version 1 had no `portClosure`: every cat port had a sliding gate (see `migrateCatioSettings`). */
+export const CATIO_SETTINGS_VERSION = 2;
+export interface CatioSettings { version: typeof CATIO_SETTINGS_VERSION; mode: CatioMode; config: ModularConfig; views: Record<CatioMode, CatioViewing> }
 export const CATIO_STORAGE_KEY = 'canfactory.catio.v1';
 export function defaultCatioSettings(): CatioSettings {
   const view = (): CatioViewing => ({ progress: 6, exploded: false, windowOpen: true, cutaway: false, hidden: [], view: 'Exterior', doors: {} });
-  return { version: 1, mode: 'direct', config: structuredClone(MODULAR_DEFAULT), views: { direct: view(), modular: view() } };
+  return { version: CATIO_SETTINGS_VERSION, mode: 'direct', config: structuredClone(MODULAR_DEFAULT), views: { direct: view(), modular: view() } };
 }
 function record(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
+/**
+ * Saved settings of any version brought to the current one, or null when they are none of ours. A version 1 design keeps
+ * everything it holds, dimensions and viewing state alike, and gets the sliding gates it was drawn with: only a new or reset
+ * design takes the new default closure. Nothing else is touched, so that what is invalid is still rejected by the checks after it.
+ */
+export function migrateCatioSettings(value: unknown): Record<string, unknown> | null {
+  if (!record(value)) return null;
+  if (value['version'] === CATIO_SETTINGS_VERSION) return value;
+  if (value['version'] !== 1) return null;
+  const config = value['config'];
+  return { ...value, version: CATIO_SETTINGS_VERSION, config: record(config) ? { ...config, portClosure: PORT_CLOSURE_LEGACY } : config };
+}
 export function parseCatioSettings(raw: string | null): CatioSettings {
   const defaults = defaultCatioSettings();
   try {
-    const value: unknown = JSON.parse(raw ?? 'null');
-    if (!record(value) || value['version'] !== 1) return defaults;
+    const value = migrateCatioSettings(JSON.parse(raw ?? 'null'));
+    if (!value) return defaults;
     const config = value['config'];
     if (!record(config)) return defaults;
     // Require the entire shape before invoking dimensional validation on untrusted local storage.

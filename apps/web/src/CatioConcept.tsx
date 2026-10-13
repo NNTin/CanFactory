@@ -5,7 +5,7 @@ import { createStage, type Stage } from './stage.ts';
 import { createCatioScene, type CatioState } from './catioScene.ts';
 import { CatioParameters } from './CatioParameters.tsx';
 import { createModularCatio, type CatioDoor } from './catioModularScene.ts';
-import { MODULAR_DEFAULT, MODULAR_HUNG_STEP, MODULAR_STEPS, modularCamera, modularLayout, validateModular, type ModularConfig } from './catioModularDesign.ts';
+import { MODULAR_DEFAULT, modularCamera, modularLayout, modularSteps, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { CATIO_STORAGE_KEY, loadCatioSettings, type CatioViewing, type CatioMode } from './catioSettings.ts';
 import { CATIO_HUNG_STEP, CATIO_STEPS, CATIO_VIEWS, type CatioLayer, type CatioView } from './catioDesign.ts';
 import { CATIO_SUBASSEMBLY_TITLES } from './catioSubassemblies.ts';
@@ -50,7 +50,8 @@ export function CatioConcept() {
   stateRef.current = { ...viewing, hidden };
   // the insert's step follows how the window insert page holds it: hung on the window frame (the default) or clamped in the recess
   const hung = useMemo(() => savedWindowInsert().attachment === 'frame-hooks', []);
-  const steps = (mode === 'modular' ? MODULAR_STEPS : CATIO_STEPS).map((step, i) => i === 1 && hung ? (mode === 'modular' ? MODULAR_HUNG_STEP : CATIO_HUNG_STEP) : step);
+  const steps = mode === 'modular' ? modularSteps(config, hung) : CATIO_STEPS.map((step, i) => i === 1 && hung ? CATIO_HUNG_STEP : step);
+  const removable = config.portClosure === 'removable-panel';
   const index = Math.ceil(progress); const step = steps[index] ?? CATIO_STEPS[6];
   const editView = (patch: Partial<CatioViewing>) => setSettings(current => ({ ...current, views: { ...current.views, [mode]: { ...current.views[mode], ...patch } } }));
   const setProgress = (value: number) => editView({ progress: value });
@@ -139,7 +140,7 @@ export function CatioConcept() {
           <label><input type="checkbox" checked={exploded} onChange={event => setExploded(event.target.checked)} disabled={unsupported} /> Exploded view</label>
           <span>Drag to orbit · Scroll to zoom</span>
         </div>
-        {mode === 'modular' && <div className="catio-door-controls" role="group" aria-label="Doors and gates"><strong>Doors &amp; gates</strong><p>Checked means open. Cat gates open only at the completed stage; unused ports stay closed.</p>{doors.map(door => <label key={door.id}><input type="checkbox" checked={door.connected && (door.kind === 'human' || progress >= 6) && (viewing.doors[door.id] ?? door.kind === 'cat')} disabled={unsupported || !door.connected || (door.kind === 'cat' && progress < 6)} onChange={event => editView({ doors: { ...viewing.doors, [door.id]: event.target.checked } })} />{door.label}{!door.connected && <small>Unused · closed</small>}</label>)}<p>Close and latch both end gates before disconnecting a tunnel. The default 120 cm high maintenance door gives crouching or reaching access.</p></div>}
+        {mode === 'modular' && <div className="catio-door-controls" role="group" aria-label="Doors and gates" data-closure={config.portClosure}><strong>{removable ? 'Doors & panels' : 'Doors & gates'}</strong><p>{removable ? 'Checked means open: the panel’s turn buttons turned clear and the panel lifted out. Cat ports open only at the completed stage; unused ports stay shut, their panels retained.' : 'Checked means open. Cat gates open only at the completed stage; unused ports stay closed.'}</p>{doors.map(door => <label key={door.id}><input type="checkbox" checked={door.connected && (door.kind === 'human' || progress >= 6) && (viewing.doors[door.id] ?? door.kind === 'cat')} disabled={unsupported || !door.connected || (door.kind === 'cat' && progress < 6)} onChange={event => editView({ doors: { ...viewing.doors, [door.id]: event.target.checked } })} />{door.label}{!door.connected && <small>Unused · closed</small>}</label>)}<p>{removable ? 'Before disconnecting a tunnel, reseat the panels at both of its ends and turn every button back over them. Stow a removed panel clear of the route.' : 'Close and latch both end gates before disconnecting a tunnel.'} The default 120 cm high maintenance door gives crouching or reaching access; opening it, like any outside panel, opens the enclosure: secure the cats elsewhere first.</p></div>}
         <div className="catio-assembly">
           <div className="catio-step-title"><span className="eyebrow">{index === 0 ? 'BEFORE ASSEMBLY' : `STAGE ${index} / 6`}</span><strong aria-live="polite">{step.title}</strong></div>
           <div className="catio-slider"><button type="button" aria-label="Previous assembly stage" disabled={progress === 0} onClick={() => setProgress(Math.max(0, Math.ceil(progress) - 1))}><ArrowLeft size={16} /></button>

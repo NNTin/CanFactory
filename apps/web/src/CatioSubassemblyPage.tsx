@@ -16,6 +16,8 @@ const VIEWS: CatioView[] = ['Exterior', 'Interior', 'Front', 'Side', 'Top', 'Mou
 const LAYERS: { id: CatioLayer; title: string }[] = [
   { id: 'timber', title: 'Timber' }, { id: 'mesh', title: 'Mesh' }, { id: 'hardware', title: 'Clamps & fixings' }, { id: 'environment', title: 'Wall & grass' },
 ];
+/** How long a door takes to open or shut on the stage, in ms: its buttons turn, then its panel comes out. */
+const DOOR_MS = 1600;
 const VARIANTS: { id: CatioMode; label: string }[] = [{ id: 'direct', label: 'Direct · original design' }, { id: 'modular', label: 'Modular · with tunnel' }];
 
 /** The page of one catio sub-assembly, picked by its route. */
@@ -43,9 +45,14 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   const viewing = settings.views[variant];
   const { progress, exploded, windowOpen, cutaway, view } = viewing;
   const hidden = new Set(viewing.hidden);
-  const stateRef = useRef({ ...viewing, hidden });
-  stateRef.current = { ...viewing, hidden };
   const steps = definition.steps(variant, config); const last = steps.length - 1;
+  // The design's door (a cat port's panel or gate, a side-access panel), when it has one: shut until the assembly is complete, then
+  // opened by its toggle. `door` is how far it is on its way out, which the stage follows from frame to frame.
+  const doorLabel = definition.doorToggle?.(variant, config) ?? null;
+  const doorOpen = doorLabel !== null && viewing.doorOpen && progress >= last;
+  const door = useRef(doorOpen ? 1 : 0);
+  const stateRef = useRef({ ...viewing, hidden, door: door.current });
+  stateRef.current = { ...viewing, hidden, door: door.current };
   const index = Math.ceil(progress); const step = steps[index] ?? steps[last];
   const errors = definition.validate(variant, config);
   const bom = definition.bom(variant, config);
@@ -88,6 +95,26 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
     if (container.current) container.current.dataset['visibleParts'] = visibleParts();
   }, [viewing]);
   useEffect(() => { camera(view); }, [exploded, view]);
+  useEffect(() => {
+    const element = container.current; const target = doorOpen ? 1 : 0; const from = door.current;
+    const show = (travel: number) => {
+      door.current = travel; stateRef.current = { ...stateRef.current, door: travel };
+      controller.current?.model.update(stateRef.current); controller.current?.stage.invalidate();
+      setAction(controller.current?.model.caption?.() ?? null);
+      if (element) element.dataset['doorTravel'] = String(travel);
+    };
+    // no stage, nothing to move, or the visitor prefers no motion: the door is simply shown where it ends
+    if (from === target || !controller.current || typeof requestAnimationFrame !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { show(target); return; }
+    let frame = 0; const started = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - started) / DOOR_MS);
+      show(from + (target - from) * t);
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+    // the stage is rebuilt for a new design, and then shows the door where it is
+  }, [doorOpen]);
   const selectView = (name: CatioView) => { camera(name); editView({ view: name, cutaway: (definition.cutawayViews ?? ['Interior', 'Mounting']).includes(name) }); };
   const toggleLayer = (id: CatioLayer) => editView({ hidden: hidden.has(id) ? viewing.hidden.filter(layer => layer !== id) : [...viewing.hidden, id] });
   const change = (key: keyof C & string, value: C[keyof C]) => setSettings(current => ({ ...current, config: { ...current.config, [key]: value } }));
@@ -136,12 +163,13 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
           <button key={name} type="button" aria-pressed={name === view} onClick={() => selectView(name)} disabled={unsupported}>{definition.viewLabels?.[name] ?? name}</button>)}
           <button type="button" aria-label="Reset view" title="Reset view" disabled={unsupported} onClick={() => selectView('Exterior')}><RotateCcw size={14} /></button>
         </div>
-        <div className="catio-canvas" ref={container} data-testid="subassembly-viewer" data-subassembly={definition.id} data-variant={variant} data-config={JSON.stringify(config)} data-step={index} data-window={windowOpen ? 'open' : 'closed'} data-exploded={exploded}>
+        <div className="catio-canvas" ref={container} data-testid="subassembly-viewer" data-subassembly={definition.id} data-variant={variant} data-config={JSON.stringify(config)} data-step={index} data-window={windowOpen ? 'open' : 'closed'} data-exploded={exploded} data-door={doorLabel === null ? undefined : doorOpen ? 'open' : 'closed'}>
           {unsupported && <div className="catio-fallback"><Box size={32} /><strong>3D preview needs WebGL</strong><p>The parts list and assembly instructions below are still available.</p></div>}
         </div>
         <div className="catio-options">
           {toggles.windowOpen && <label><input type="checkbox" checked={windowOpen} onChange={event => editView({ windowOpen: event.target.checked })} disabled={unsupported} /> {toggles.windowOpen}</label>}
           {toggles.cutaway && <label><input type="checkbox" checked={cutaway} onChange={event => editView({ cutaway: event.target.checked })} disabled={unsupported} /> {toggles.cutaway}</label>}
+          {doorLabel && <label title={progress < last ? 'Complete the assembly first: the door stays shut until then.' : undefined}><input type="checkbox" checked={doorOpen} onChange={event => editView({ doorOpen: event.target.checked })} disabled={unsupported || progress < last || exploded} /> {doorLabel}</label>}
           <label><input type="checkbox" checked={exploded} onChange={event => editView({ exploded: event.target.checked })} disabled={unsupported} /> Exploded view</label>
           <span>Drag to orbit · Scroll to zoom</span>
         </div>
