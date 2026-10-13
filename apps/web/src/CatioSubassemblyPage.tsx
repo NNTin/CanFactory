@@ -14,7 +14,7 @@ import { addToBuyList, useMarket, useOffers, type BuyListSource } from './shoppi
 
 const VIEWS: CatioView[] = ['Exterior', 'Interior', 'Front', 'Side', 'Top', 'Mounting'];
 const LAYERS: { id: CatioLayer; title: string }[] = [
-  { id: 'timber', title: 'Timber' }, { id: 'mesh', title: 'Metal mesh' }, { id: 'hardware', title: 'Clamps & fixings' }, { id: 'environment', title: 'Wall & grass' },
+  { id: 'timber', title: 'Timber' }, { id: 'mesh', title: 'Mesh' }, { id: 'hardware', title: 'Clamps & fixings' }, { id: 'environment', title: 'Wall & grass' },
 ];
 const VARIANTS: { id: CatioMode; label: string }[] = [{ id: 'direct', label: 'Direct · original design' }, { id: 'modular', label: 'Modular · with tunnel' }];
 

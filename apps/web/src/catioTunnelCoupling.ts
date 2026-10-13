@@ -81,7 +81,7 @@ export function tunnelCouplingSteps(_variant: CatioMode, config: TunnelCouplingC
   const fixing = supportFixingSteps(l.tl, 'one');
   return [
     { title: 'The site', detail: `Grass, and the support that will carry the joint: a bearer ${l.support.kind === 'trestle' ? 'on two legs' : 'ripped to depth'}${l.support.soles.length ? ' on soles along the tunnel' : ''}, on ${l.tl.pad ? 'printed feet' : 'levelling feet'} on paving slabs, levelled to its line (the tunnel page, stages 1–2). ${fixing.support ? `${fixing.support} ` : ''}No tunnel yet.` },
-    { title: 'Build one section', detail: `Stand two flange rings, screw the four rails between them and the floor board onto the bottom rails, then staple the side and roof mesh on (the tunnel page, stages 3–4).${fixing.pieces ? ` ${fixing.pieces}` : ''} Lay the section, ${length} long, on its supports${fixing.lay} so that its outgoing flange sits over the bearer.` },
+    { title: 'Build one section', detail: `Stand two flange rings, screw the four rails between them and the floor board onto the bottom rails, then ${l.tl.mesh.soft ? 'lay the net over it as one hood and staple it, a staple over every mesh of its cut edges' : 'staple the side and roof mesh on'} (the tunnel page, stages 3–4).${fixing.pieces ? ` ${fixing.pieces}` : ''} Lay the section, ${length} long, on its supports${fixing.lay} so that its outgoing flange sits over the bearer.` },
     { title: 'Ready its joint', detail: printed
       ? `${l.seal ? 'Stick the EPDM E-profile seal round the middle of the outgoing flange’s face. ' : ''}Screw ${n / 2} base ${n / 2 === 1 ? 'plate' : 'plates'} of the printed toggle latch, lever and link already snapped on, onto each of the flange’s outer sides, ${round1(PRINTED_LATCH.overhang)} mm proud of its face, two 4 × 25 screws each (pre-drill them).`
       : `Nothing to fit yet: the bolts go through both flanges once the next section is down. Have ${bolts} M8 × 80 bolts, ${2 * bolts} large washers and ${bolts} nuts to hand.` },
@@ -176,7 +176,7 @@ export const TUNNEL_COUPLING_DECISIONS: DesignDecision[] = [
 ];
 
 /** The cross-page settings of the tunnel this page is built from: its sections’ length, and the support's feet and ground. */
-export const TUNNEL_SETTINGS_FOLLOWED = ['sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
+export const TUNNEL_SETTINGS_FOLLOWED = ['mesh', 'sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
 /** The tunnel's settings this page shows and sets too: how the tunnel is held on its supports. */
 export const TUNNEL_SETTINGS_SHARED = ['supportFixing', 'supportBase'];
 

@@ -15,8 +15,10 @@ const base = tunnelSite();
 const site: CouplingSite = { tunnel: TUNNEL_DEFAULT, site: base };
 /** The insert with each of its mesh fixings: the docking frame is rebated over cover battens only where there are battens. */
 // every mesh fixing, pressed into the recess and hung on the window frame (its collar then lies deeper, on the frame's face)
+/** Staples alone hold welded mesh only: a net needs the battens (the window insert page). */
+const meshFor = (meshFixing: string) => meshFixing === 'staples' ? 'welded' as const : 'netting' as const;
 const sites: CouplingSite[] = (['spreader-feet', 'frame-hooks'] as const).flatMap(attachment => (['staples-and-battens', 'staples', 'battens'] as const)
-  .map(meshFixing => ({ tunnel: TUNNEL_DEFAULT, site: { ...base, insert: { ...WINDOW_INSERT_DEFAULT, attachment, meshFixing } } })));
+  .map(meshFixing => ({ tunnel: TUNNEL_DEFAULT, site: { ...base, insert: { ...WINDOW_INSERT_DEFAULT, attachment, meshFixing, mesh: meshFor(meshFixing) } } })));
 /** Every option of every control, one at a time, from the defaults. */
 const configs: CouplingConfig[] = [COUPLING_DEFAULT, ...COUPLING_CONTROLS.flatMap(control => control.options.map(option => ({ ...COUPLING_DEFAULT, [control.key]: option.value })))];
 const installed: CatioState = { progress: 5, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
@@ -37,7 +39,7 @@ describe('insert–tunnel coupling', () => {
         const inside = (b.min[0] ?? 0) >= l.w / 2 - 1e-9 || (b.max[0] ?? 0) <= -l.w / 2 + 1e-9 || (b.min[2] ?? 0) >= l.transomZ - 1e-9;
         expect(inside, `${b.member} keeps out of the port`).toBe(true);
       }
-      expect(l.meshFace).toBeCloseTo(l.insert.yOut + INSERT.mesh.wire, 9);
+      expect(l.meshFace).toBeCloseTo(l.insert.yOut + INSERT.mesh.layer, 9);
       expect(l.frame.every(member => member.cut.includes('rebated') === battens)).toBe(true);
       // the outline above the floor is the tunnel flange's
       expect(Math.max(...boxes.map(b => b.max[0] ?? 0))).toBeCloseTo(l.w / 2 + TUNNEL.flange.width, 9);
@@ -74,7 +76,7 @@ describe('insert–tunnel coupling', () => {
   it('keeps every docking frame screw clear of the insert’s batten screws and staples, for every way the insert is set', () => {
     const insertConfigs = [WINDOW_INSERT_DEFAULT, ...WINDOW_INSERT_CONTROLS.flatMap(control => control.options.map(option => ({ ...WINDOW_INSERT_DEFAULT, [control.key]: option.value })))];
     for (const insert of insertConfigs) for (const meshFixing of ['staples-and-battens', 'staples', 'battens'] as const) {
-      const s: CouplingSite = { tunnel: TUNNEL_DEFAULT, site: { ...base, insert: { ...insert, meshFixing } } };
+      const s: CouplingSite = { tunnel: TUNNEL_DEFAULT, site: { ...base, insert: { ...insert, meshFixing, mesh: meshFor(meshFixing) } } };
       const l = couplingLayout(COUPLING_DEFAULT, s);
       const frame = l.fasteners.filter(f => f.component === 'frame-screws');
       const face = l.insert.fasteners.filter(f => f.component === 'batten-screws' || f.component === 'staples');

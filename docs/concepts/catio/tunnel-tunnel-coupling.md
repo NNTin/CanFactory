@@ -141,7 +141,8 @@ The slider shows, in order:
 
 0. **The site.** Grass, and the support that will carry the joint, levelled on its feet (the tunnel page, stages 1–2). No
    tunnel yet.
-1. **Build one section.** Two flange rings, four rails, the floor board, then the mesh, each moving in along its real
+1. **Build one section.** Two flange rings, four rails, the floor board, then the net (or welded mesh, as the tunnel page
+   sets it), each moving in along its real
    direction, framed raised over its place. Then it is laid on the support, its outgoing flange over the bearer.
 2. **Ready its joint.** Printed latch: stick the seal round the outgoing flange's face, then screw the base plates (lever and
    link already on) onto its sides. Bolted: nothing yet.
@@ -175,7 +176,8 @@ the latch plates, listed by role in [concepts.ts](../../../packages/contracts/sr
 (`tunnelTunnelCouplingConcept`; the tunnel's `TUNNEL_HARDWARE.latchScrew`). The parts library lists the page under each
 part's “Used by”.
 
-Custom lines: the two sections' timber and mesh (the tunnel's cut list for those two pieces, `tunnelCutList`), the seal,
+Custom lines: the two sections' timber and their net hoods or mesh panels (the tunnel's cut list for those two pieces,
+`tunnelCutList`, with the roll they are cut from as a library part), the seal,
 and the printed latches, which link to their model (`#/models/toggle-latch`).
 
 ## Implementation

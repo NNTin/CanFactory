@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
+import { CATIO, roofBearers } from './catioDesign.ts';
 import { MODULAR_DEFAULT as defaults, modularLayout, modularCamera, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { WINDOW_INSERT_DEFAULT } from './catioWindowInsert.ts';
 import { createModularCatio, type ModularState } from './catioModularScene.ts';
@@ -115,8 +116,12 @@ describe('modular scene geometry', () => {
     }
     for (const e of scene.layout.enclosures) {
       expect(bounds(part(scene, `${e.id}-frame`)).max.z).toBe(e.size.height);
-      expect(bounds(part(scene, `${e.id}-continuous-floor`)).min.z).toBe(3);
+      expect(bounds(part(scene, `${e.id}-continuous-floor`)).min.z).toBe(CATIO.floorZ - CATIO.wire / 2);
       expect(scene.panels.filter(p => p.id.startsWith(`${e.id}-floor-skirt`))).toHaveLength(4);
+      // the net roof lies on cross rails, none farther than a net may span from the next
+      let rails = 0; part(scene, `${e.id}-roof-net-bearers`).traverse(object => { if (object instanceof THREE.Mesh) rails++; });
+      expect(rails).toBe(roofBearers(e.size.depth - 80).length); expect(rails).toBeGreaterThan(0);
+      expect(bounds(part(scene, `${e.id}-roof-net-bearers`)).max.z).toBeCloseTo(bounds(part(scene, `${e.id}-roof`)).min.z, 6);
       const ramp = bounds(part(scene, `${e.id}-landing-and-ramp`));
       expect(ramp.max.y).toBeLessThan(e.rearY + e.size.depth); expect(ramp.min.z).toBeGreaterThanOrEqual(4);
     }

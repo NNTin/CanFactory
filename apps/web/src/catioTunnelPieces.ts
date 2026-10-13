@@ -1,3 +1,4 @@
+import type { CatioMeshSpec } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { dimensionOf, findPart, type Part } from '@canfactory/contracts';
 import type { createCatioParts } from './catioParts.ts';
@@ -11,7 +12,7 @@ import { facePoint, TUNNEL, vec, type Coupling, type Face, type Fastener, type M
  * piece is its own group placed where it is installed (positioned at its own centre, so a scene can move it in along its way), not
  * yet added to a scene.
  */
-export function tunnelDrawing(p: ReturnType<typeof createCatioParts>) {
+export function tunnelDrawing(p: ReturnType<typeof createCatioParts>, mesh: CatioMeshSpec = p.mesh) {
   const { box, rod, materials: m } = p;
   const geometries: THREE.BufferGeometry[] = [];
   const hexGeometry = new THREE.CylinderGeometry(1, 1, 1, 6); const discGeometry = new THREE.CylinderGeometry(1, 1, 1, 20);
@@ -50,7 +51,7 @@ export function tunnelDrawing(p: ReturnType<typeof createCatioParts>) {
   };
   /** Wire mesh over a planar quadrilateral: wires parallel to each pair of its edges. */
   const meshQuad = (parent: THREE.Object3D, c: [V3, V3, V3, V3], origin: V3) => {
-    const pitch = TUNNEL.mesh.opening + TUNNEL.mesh.wire; const lines: [V3, V3][] = [];
+    const pitch = mesh.opening + mesh.strand; const lines: [V3, V3][] = [];
     const lerp = (a: V3, b2: V3, t: number) => vec.add(a, vec.mul(vec.sub(b2, a), t));
     const [c0, c1, c2, c3] = c;
     const n1 = Math.max(1, Math.round(Math.max(vec.len(vec.sub(c1, c0)), vec.len(vec.sub(c2, c3))) / pitch));
@@ -59,10 +60,10 @@ export function tunnelDrawing(p: ReturnType<typeof createCatioParts>) {
     for (let i = 0; i <= n2; i++) lines.push([lerp(c0, c3, i / n2), lerp(c1, c2, i / n2)]);
     const wires = new THREE.InstancedMesh(wire, m.mesh, lines.length); const pose = new THREE.Object3D();
     lines.forEach(([a, b2], i) => {
-      const length = vec.len(vec.sub(b2, a)) + TUNNEL.mesh.wire;
+      const length = vec.len(vec.sub(b2, a)) + mesh.strand;
       pose.position.copy(vector(vec.sub(centroid([a, b2]), origin)));
       pose.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), length > 1e-6 ? vector(vec.unit(vec.sub(b2, a))) : new THREE.Vector3(0, 1, 0));
-      pose.scale.set(TUNNEL.mesh.wire, Math.max(length, 0.01), TUNNEL.mesh.wire); pose.updateMatrix(); wires.setMatrixAt(i, pose.matrix);
+      pose.scale.set(mesh.strand, Math.max(length, 0.01), mesh.strand); pose.updateMatrix(); wires.setMatrixAt(i, pose.matrix);
     });
     parent.add(wires); return wires;
   };

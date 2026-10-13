@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { findPart, partUsage, toggleLatchMechanism as TL, tunnelTunnelCouplingConcept } from '@canfactory/contracts';
+import { CATIO_MESH_PARTS, findPart, partUsage, toggleLatchMechanism as TL, tunnelTunnelCouplingConcept } from '@canfactory/contracts';
 import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, fastenerClashes, loadSubassemblySettings, parseSubassemblySettings, saveShared, subassemblyStorageKey } from './catioSubassembly.ts';
 import { dependentsOf, tunnelCouplingDefinition, tunnelDefinition } from './catioSubassemblies.ts';
@@ -14,6 +14,8 @@ import { createTunnelCouplingScene, LIFT } from './catioTunnelCouplingScene.ts';
 
 const base = tunnelSite();
 const site: TunnelCouplingSite = { tunnel: TUNNEL_DEFAULT, site: base };
+/** The tunnel meshed with welded wire mesh instead of the default net. */
+const welded: TunnelCouplingSite = { tunnel: { ...TUNNEL_DEFAULT, mesh: 'welded' }, site: base };
 /** Every option of every control, one at a time, from the defaults, and bolted with every count. */
 // (gravity only needs self-standing supports)
 const configs: TunnelCouplingConfig[] = [TUNNEL_COUPLING_DEFAULT, ...TUNNEL_COUPLING_CONTROLS.flatMap(control => control.options.map(option => ({ ...TUNNEL_COUPLING_DEFAULT, [control.key]: option.value })))
@@ -21,7 +23,7 @@ const configs: TunnelCouplingConfig[] = [TUNNEL_COUPLING_DEFAULT, ...TUNNEL_COUP
   ...([4, 8] as const).map(boltsPerCoupling => ({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' as const, boltsPerCoupling }))];
 /** The tunnel's sections at every length, with its feet, and the catio's smallest and largest clear tunnel. */
 const sites: TunnelCouplingSite[] = [site, ...([500, 1000] as const).map(sectionLength => ({ tunnel: { ...TUNNEL_DEFAULT, sectionLength }, site: base })),
-  { tunnel: { ...TUNNEL_DEFAULT, footPad: 'ganter' } satisfies TunnelConfig, site: base },
+  { tunnel: { ...TUNNEL_DEFAULT, footPad: 'ganter' } satisfies TunnelConfig, site: base }, welded,
   ...[[200, 200], [450, 450]].map(([w = 0, h = 0]) => ({ tunnel: TUNNEL_DEFAULT, site: { ...base, w, h } }))];
 const installed: CatioState = { progress: 5, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
 const bounds = (object: THREE.Object3D) => new THREE.Box3().setFromObject(object, true);
@@ -134,17 +136,21 @@ describe('tunnel–tunnel coupling parts list', () => {
         expect(count('iso-4017-m8x80')).toBe(config.boltsPerCoupling); expect(count('iso-7093-m8')).toBe(2 * config.boltsPerCoupling); expect(count('iso-4032-m8')).toBe(config.boltsPerCoupling);
         expect(lines.some(line => line.modelId)).toBe(false);
       }
-      // two flange rings per section, four rails, a floor board; three mesh panels each
+      // two flange rings per section, four rails, a floor board; one net hood each, or three welded mesh panels, cut from one roll
       expect(lines.filter(line => line.name.startsWith('Flange')).reduce((n, line) => n + line.quantity, 0)).toBe(16);
       expect(lines.filter(line => line.name === 'Section rail').reduce((n, line) => n + line.quantity, 0)).toBe(8);
       expect(lines.filter(line => line.name === 'Floor board').reduce((n, line) => n + line.quantity, 0)).toBe(2);
-      expect(lines.filter(line => line.group === 'Mesh').reduce((n, line) => n + line.quantity, 0)).toBe(6);
+      const roll = lines.filter(line => line.group === 'Mesh' && line.partId);
+      expect(roll).toMatchObject([{ quantity: 1, partId: CATIO_MESH_PARTS[s.tunnel.mesh] }]);
+      expect(roll[0]?.use).toContain('more rolls may be needed');
+      expect(lines.filter(line => line.group === 'Mesh' && !line.partId).reduce((n, line) => n + line.quantity, 0)).toBe(s.tunnel.mesh === 'netting' ? 2 : 6);
+      expect(lines.some(line => line.name === 'Net hood')).toBe(s.tunnel.mesh === 'netting');
       expect(lines.find(line => line.name === 'Floor board')?.size).toContain(`${Math.round(l.sectionLength - 2 * TUNNEL.flange.thickness)}`);
     }
   });
 
   it('links every library part it can use back to this page in the parts library', () => {
-    const used = new Set(configs.flatMap(config => tunnelCouplingBom('modular', config, site).flatMap(line => line.partId ? [line.partId] : [])));
+    const used = new Set([site, welded].flatMap(s => configs.flatMap(config => tunnelCouplingBom('modular', config, s))).flatMap(line => line.partId ? [line.partId] : []));
     expect([...used].sort()).toEqual([...new Set(tunnelTunnelCouplingConcept.parts.map(link => link.partId))].sort());
     for (const id of used) {
       const p = findPart(id); if (!p) throw new Error(id);

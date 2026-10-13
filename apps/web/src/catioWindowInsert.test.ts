@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { dimensionOf, findPart, modelUsage, partUsage, printedCornerBracket, printedCornerBracketFor, printedScreenHook, validateParameters, WINDOW_INSERT_BRACKETS, WINDOW_INSERT_FOOT, WINDOW_INSERT_MEMBER, windowInsertConcept } from '@canfactory/contracts';
+import { CATIO_MESH_PARTS, catioMesh, dimensionOf, findPart, modelUsage, partUsage, printedCornerBracket, printedCornerBracketFor, printedScreenHook, validateParameters, WINDOW_INSERT_BRACKETS, WINDOW_INSERT_FOOT, WINDOW_INSERT_MEMBER, windowInsertConcept } from '@canfactory/contracts';
 import { fastenerClashes } from './catioSubassembly.ts';
 import type { CatioState } from './catioScene.ts';
 import { parseSubassemblySettings, defaultSubassemblySettings } from './catioSubassembly.ts';
@@ -29,7 +29,9 @@ const configs: WindowInsertConfig[] = ([WINDOW_INSERT_DEFAULT, pressed, ...[WIND
   ...[10, 15, 20, 25].map(frameOverlap => ({ ...hung, frameOverlap }) as WindowInsertConfig), { ...hung, clampPad: 'ganter' }, { ...hung, clampsPerSide: 3 },
   { ...hung, padHeight: PAD_HEIGHT.max }, { ...hung, frameLip: 8, sealGap: 4.5 }, { ...hung, frameLip: 35, frameFace: 90, frameDepth: 120 },
   { ...bought, frameLip: 8, sealGap: 4.5 }, { ...bought, frameLip: 12, sealGap: 2.5 }, { ...bought, clampPad: 'ganter' }, { ...hung, frameLip: 12, sealGap: 3 },
-  { ...hung, frameOverlap: 10, cornerJoint: 'half-lap' }] as WindowInsertConfig[]).filter(besideHooks);
+  { ...hung, frameOverlap: 10, cornerJoint: 'half-lap' }] as WindowInsertConfig[]).filter(besideHooks)
+  // staples alone hold welded mesh only: a net needs the battens
+  .map(config => config.meshFixing === 'staples' ? { ...config, mesh: 'welded' as const } : config);
 const component = (scene: ReturnType<typeof createWindowInsertScene>, id: string) => {
   const found = scene.components.find(part => part.id === id); if (!found) throw new Error(`missing ${id}`); return found.group;
 };
@@ -209,6 +211,33 @@ describe('window insert', () => {
     }
   });
 
+  it('holds a net’s edge at every mesh: under battens, or stapled mesh by mesh, never by staples a hand apart', () => {
+    const net = catioMesh('netting');
+    expect(WINDOW_INSERT_DEFAULT.mesh).toBe('netting');
+    for (const variant of variants) {
+      // staples alone leave a net's edge open between them: only welded mesh may be fixed that way
+      expect(validateWindowInsert(variant, { ...WINDOW_INSERT_DEFAULT, meshFixing: 'staples' })).toEqual([expect.stringContaining('Soft netting needs the cover battens')]);
+      expect(validateWindowInsert(variant, { ...WINDOW_INSERT_DEFAULT, mesh: 'welded', meshFixing: 'staples' })).toEqual([]);
+      for (const meshFixing of ['staples-and-battens', 'battens'] as const) for (const mesh of ['netting', 'welded'] as const) {
+        const l = windowInsertLayout(variant, { ...WINDOW_INSERT_DEFAULT, mesh, meshFixing });
+        for (const panel of l.panels) for (const edge of panel.edges) {
+          const length = Math.hypot(edge.to[0] - edge.from[0], edge.to[1] - edge.from[1], edge.to[2] - edge.from[2]);
+          const staples = l.fasteners.filter(f => f.component === 'staples' && f.use.startsWith(`${panel.name}:`) && Math.abs(Math.hypot(f.at[0] - edge.from[0], f.at[1] - edge.from[1], f.at[2] - edge.from[2]) + Math.hypot(f.at[0] - edge.to[0], f.at[1] - edge.to[1], f.at[2] - edge.to[2]) - length) < 1e-6);
+          // an edge no batten covers (the direct sleeve along the threshold): a net gets a staple over every mesh there
+          if (!edge.face) expect(length / (staples.length - 1), `${variant} ${mesh} ${panel.id}`).toBeLessThanOrEqual(mesh === 'netting' ? net.opening : WINDOW_INSERT_DEFAULT.fixingPitch);
+          // under a batten the staples only hold it while it is pulled taut, at the fixing spacing, whatever the mesh
+          else if (meshFixing === 'staples-and-battens' && mesh === 'netting') expect(length / (staples.length - 1)).toBeGreaterThan(net.opening);
+        }
+      }
+    }
+    // the same geometry either way: the mesh lies in the same 2 mm layer under the battens
+    const boxes = (mesh: WindowInsertConfig['mesh']) => windowInsertLayout('modular', { ...WINDOW_INSERT_DEFAULT, mesh }).timber.map(piece => piece.boxes);
+    expect(boxes('netting')).toEqual(boxes('welded'));
+    // the steps say how a net is cut and tensioned
+    expect(windowInsertSteps('modular', WINDOW_INSERT_DEFAULT).map(step => step.detail).join(' ')).toContain('Cut the net with scissors');
+    expect(windowInsertSteps('modular', { ...WINDOW_INSERT_DEFAULT, mesh: 'welded' }).map(step => step.detail).join(' ')).not.toContain('scissors');
+  });
+
   it('lists every piece with real library parts, and changes the cut list with the joint', () => {
     for (const variant of variants) for (const config of configs) {
       const lines = windowInsertBom(variant, config);
@@ -258,7 +287,9 @@ describe('window insert', () => {
       expect(count('din-1159-2-5x25') > 0).toBe(variant === 'direct' || config.meshFixing !== 'battens');
       expect(count('din-7997-4x35') > 0).toBe(true);
       expect(lines.some(line => line.name.startsWith('Cover batten'))).toBe(config.meshFixing !== 'staples');
-      expect(lines.filter(line => line.group === 'Mesh')).toHaveLength(3);
+      // three panels, cut from one roll of the chosen mesh: a library part, so that it links to a shop
+      expect(lines.filter(line => line.group === 'Mesh' && !line.partId)).toHaveLength(3);
+      expect(lines.filter(line => line.group === 'Mesh' && line.partId)).toMatchObject([{ id: 'mesh-roll', quantity: 1, partId: CATIO_MESH_PARTS[config.mesh] }]);
       // the corner brackets: printed (linked to the model) or bought (from the library), four either way
       const brackets = lines.filter(line => line.modelId === 'printed-corner-bracket');
       if (config.cornerJoint !== 'corner-bracket') expect(brackets).toEqual([]);

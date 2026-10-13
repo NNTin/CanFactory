@@ -1,6 +1,7 @@
-import { dimensionOf, findPart, hexScrew, PRESSURE_PAD, PRESSURE_PAD_SURFACES, pressurePadMinDiameter, pressurePadMinHeight, TUNNEL_FOOT, TUNNEL_HARDWARE as HW, TUNNEL_PAD, tunnelFoot, type Part, type PressurePadSurface } from '@canfactory/contracts';
+import { CATIO_MESH_DEFAULT, CATIO_MESHES, catioMesh, type CatioMesh, type CatioMeshSpec, dimensionOf, findPart, hexScrew, PRESSURE_PAD, PRESSURE_PAD_SURFACES, pressurePadMinDiameter, pressurePadMinHeight, TUNNEL_FOOT, TUNNEL_HARDWARE as HW, TUNNEL_PAD, tunnelFoot, type Part, type PressurePadSurface } from '@canfactory/contracts';
 import { toggleLatchMechanism as TL } from '@canfactory/contracts';
-import { CATIO, type CatioView } from './catioDesign.ts';
+import { MESH_LABELS, meshCut, meshRollLine } from './catioMesh.ts';
+import { type CatioView } from './catioDesign.ts';
 import { E_PROFILE_SEAL, latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine, printedLatchScrews, type LatchMount } from './catioPrintedLatch.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { couplingGap, savedTunnelCoupling, SUPPORT_FIXING_LABELS, SUPPORT_SOLE, supportControls, type SupportBase, type SupportFixing, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
@@ -39,6 +40,8 @@ export interface TunnelConfig {
   maxSlope: 10 | 15 | 20 | 25;
   /** How the sections meet at a turn or a bend. */
   angleJoint: 'angle-collar' | 'mitred-ends';
+  /** What the tunnel is meshed with: soft cat netting or welded wire mesh (`CATIO_MESHES`). */
+  mesh: CatioMesh;
   /** The longest section; each straight run is divided into equal sections no longer. */
   sectionLength: 500 | 750 | 1000;
   /** The feet: printed pressure pads on library screws, or Ganter levelling feet. */
@@ -63,7 +66,7 @@ export { SUPPORT_FIXINGS, SUPPORT_FIXING_LABELS, type SupportFixing } from './ca
 
 export const TUNNEL_DEFAULT: TunnelConfig = {
   portX: 1200, portY: 3000, portFacing: 0, portLevel: 'own', portHeight: 500, approach: 700, final: 700, slopeLeg: 'middle', maxSlope: 20,
-  angleJoint: 'angle-collar', sectionLength: 750, footPad: 'printed', padHeight: 27.5, padSurface: 'grooved', footDiameter: 40, groundFall: 2, groundTolerance: 15,
+  angleJoint: 'angle-collar', mesh: CATIO_MESH_DEFAULT, sectionLength: 750, footPad: 'printed', padHeight: 27.5, padSurface: 'grooved', footDiameter: 40, groundFall: 2, groundTolerance: 15,
   supportFixing: 'screws', supportBase: 'trestle',
 };
 
@@ -90,7 +93,6 @@ export const TUNNEL = {
   /** The sharpest turn each joint type is offered for. */
   maxTurn: { 'angle-collar': 135, 'mitred-ends': 90 },
   staplePitch: 150, floorScrewPitch: 200,
-  mesh: { opening: CATIO.meshOpening, wire: CATIO.wire },
   /** A self-standing support's sole: along the tunnel under each leg, a foot near each of its ends. */
   sole: SUPPORT_SOLE,
   /** A self-standing low bearer: this wide along the tunnel, on a foot near each of its four corners. */
@@ -231,7 +233,8 @@ export interface Support {
   stands: boolean;
   hold: SupportHold;
 }
-export interface MeshPanel { id: string; piece: string; name: string; corners: [V3, V3, V3, V3]; edges: { from: V3; to: V3; drive: V3; use: string }[] }
+/** A mesh panel and the lines it is stapled along. `cut` is a cut edge of the mesh; a net passes over the top rails uncut, as one hood. */
+export interface MeshPanel { id: string; piece: string; name: string; corners: [V3, V3, V3, V3]; edges: { from: V3; to: V3; drive: V3; use: string; cut: boolean }[] }
 export interface Fastener {
   partId: string;
   component: 'rail-screws' | 'floor-screws' | 'cleat-screws' | 'staples' | 'bearer-screws' | 'brace-screws' | 'flange-screws' | 'latch-screws' | 'catch-screws' | 'sole-screws'
@@ -481,7 +484,10 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
     members.push({ id: `${p.id}-floor`, piece: p.id, name: 'Floor board', section: `${fl} mm exterior plywood`, from: p.start, fromOffset: T, to: p.end, toOffset: -T, rect: [-outer, outer, -fl, 0], kind: 'floor' });
   }
 
-  // Mesh: both sides and the roof of every piece, edges stapled to the rails and turned onto the flanges.
+  // Mesh: both sides and the roof of every piece, edges stapled to the rails and turned onto the flanges. Welded mesh is three
+  // panels a piece. A net is one hood: down one side, over both top rails and down the other, so that it is pulled taut over the
+  // roof and has no seam there; only its bottom edges and its ends are cut.
+  const mesh = catioMesh(config.mesh);
   const panels: MeshPanel[] = [];
   const mid = (rect: Rect): [number, number] => [(rect[0] + rect[1]) / 2, (rect[2] + rect[3]) / 2];
   for (const p of pieces) {
@@ -491,16 +497,18 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
       const u = side * outer; const inward = mul(p.frame.x, -side);
       const c: [V3, V3, V3, V3] = [s0(u, -fl - r), s1(u, -fl - r), s1(u, h + r), s0(u, h + r)];
       panels.push({ id: `${p.id}-mesh-${side < 0 ? 'left' : 'right'}`, piece: p.id, name: `${p.name}: side mesh, ${side < 0 ? 'left' : 'right'}`, corners: c, edges: [
-        { from: c[0], to: c[1], drive: inward, use: 'Onto the bottom rail' }, { from: c[3], to: c[2], drive: inward, use: 'Onto the top rail' },
-        { from: c[0], to: c[3], drive: back, use: 'Turned onto the flange' }, { from: c[1], to: c[2], drive: forward, use: 'Turned onto the flange' },
+        { from: c[0], to: c[1], drive: inward, use: 'Onto the bottom rail', cut: true },
+        // a net runs on over the top rail, where the roof's staples hold it
+        ...(mesh.soft ? [] : [{ from: c[3], to: c[2], drive: inward, use: 'Onto the top rail', cut: true }]),
+        { from: c[0], to: c[3], drive: back, use: 'Turned onto the flange', cut: true }, { from: c[1], to: c[2], drive: forward, use: 'Turned onto the flange', cut: true },
       ] });
     }
     const c: [V3, V3, V3, V3] = [s0(-outer, h + r), s1(-outer, h + r), s1(outer, h + r), s0(outer, h + r)];
     const down = mul(p.frame.z, -1); const railLine = (s: number) => [s0(s * (w / 2 + r / 2), h + r), s1(s * (w / 2 + r / 2), h + r)] as const;
     const [la, lb] = railLine(-1); const [ra, rb] = railLine(1);
     panels.push({ id: `${p.id}-mesh-roof`, piece: p.id, name: `${p.name}: roof mesh`, corners: c, edges: [
-      { from: la, to: lb, drive: down, use: 'Onto the top rail' }, { from: ra, to: rb, drive: down, use: 'Onto the top rail' },
-      { from: c[0], to: c[3], drive: back, use: 'Turned onto the flange' }, { from: c[1], to: c[2], drive: forward, use: 'Turned onto the flange' },
+      { from: la, to: lb, drive: down, use: 'Onto the top rail', cut: !mesh.soft }, { from: ra, to: rb, drive: down, use: 'Onto the top rail', cut: !mesh.soft },
+      { from: c[0], to: c[3], drive: back, use: 'Turned onto the flange', cut: true }, { from: c[1], to: c[2], drive: forward, use: 'Turned onto the flange', cut: true },
     ] });
     // Rails into the flanges: two screws into each rail's end grain, driven from the flange's outer face.
     for (const m of members.filter(m => m.piece === p.id && m.kind === 'rail')) {
@@ -532,7 +540,8 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   }
   const staple = part(HW.staple);
   for (const panel of panels) for (const e of panel.edges) {
-    const l = len(sub(e.to, e.from)); const count = fastenersAlong(l, TUNNEL.staplePitch); const along = unit(sub(e.to, e.from));
+    // a net's cut edge is held at every mesh; where it only passes over a rail, and all round welded mesh, a staple every `staplePitch`
+    const l = len(sub(e.to, e.from)); const count = fastenersAlong(l, mesh.soft && e.cut ? Math.min(TUNNEL.staplePitch, mesh.opening) : TUNNEL.staplePitch); const along = unit(sub(e.to, e.from));
     for (let i = 0; i < count; i++) fasteners.push({ partId: staple.id, component: 'staples', at: add(e.from, mul(sub(e.to, e.from), (i + 0.5) / count)), direction: e.drive, across: along, use: `Mesh: ${e.use.toLowerCase()}`, piece: panel.piece });
   }
 
@@ -779,7 +788,7 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   const totalLength = pieces.reduce((sum, p) => sum + p.length, 0);
   return {
     config, site, w, h, S, E, dE, V1, V2, turns: turns.map(deg), rise, slope: slope ? { pitch: deg(slope.pitch), run: slope.run, footprint: slope.footprint } : null,
-    joint, gap, pieces, joints, interfaces, couplings, members, panels, cleats, fasteners, supports, foot, pad, footHeight: l3, stud, insertNut, lockNut, travel, errors, totalLength,
+    joint, gap, mesh, pieces, joints, interfaces, couplings, members, panels, cleats, fasteners, supports, foot, pad, footHeight: l3, stud, insertNut, lockNut, travel, errors, totalLength,
   };
 }
 export type TunnelLayout = ReturnType<typeof tunnelLayout>;
@@ -847,7 +856,7 @@ export function tunnelSteps(_variant: CatioMode, config: TunnelConfig): readonly
     { title: 'Bed the slabs, build the supports', detail: `Bed a 30 × 30 cm paving slab in the grass under every foot position (${l.supports.length * 2}). For each support: screw an M8 insert nut into each leg’s foot end (or into the underside of a low bearer), ${foot}, screw the bearer down onto the legs and, on tall ones, the diagonal brace across. ${legs} trestles, ${blocks} low bearers.${sole}` },
     { title: 'Level the supports', detail: `Stretch a string line (or use a laser) at each bearer’s design height from the window floor. ${level} The feet, not the ground, set the heights.${fixing.support ? ` ${fixing.support}` : ''}` },
     { title: collar ? 'Frame the sections and collars' : 'Frame the sections', detail: `On trestles beside the line (shown raised over it): screw the four rails between each section’s two flange rings, then screw the floor board down onto the bottom rails. ${collar ? 'Each angle collar is built the same way between two flanges set at its angle.' : 'Sections at a joint have their flanges on the mitre: cut the rails and floor to the mitre angle.'} Sloped sections get cleats across the floor.${plates}${fixing.pieces ? ` ${fixing.pieces}` : ''}` },
-    { title: 'Mesh the sections', detail: 'Staple the side and roof mesh to the rails and turn its ends onto the flanges, stapling every 15 cm.' },
+    { title: l.mesh.soft ? 'Net the sections' : 'Mesh the sections', detail: meshingStep(l.mesh) },
     { title: 'Lay and couple', detail: `Lay the pieces onto the supports${fixing.lay} from the window end: ${joints}. ${couple} (The tunnel–tunnel coupling page sets how.)` },
     { title: 'Fix down and dock', detail: `${fixing.hold} Close the latches between the first flange and the window insert’s docking frame (the insert–tunnel coupling page); nothing of the tunnel rests on the wall or the insert. Bolt the last flange to the enclosure’s port flange: always bolted, whatever the couplings are. Open the gates.` },
   ];
@@ -922,11 +931,22 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
     if (keepers) timber('keeper', 'Keeper', `hardwood ${TUNNEL.fixing.keeper.out} × ${TUNNEL.fixing.keeper.high} · ${TUNNEL.fixing.keeper.length} long`, 'On each flange’s side just above a bearer: the turn button lies over it', keepers);
     if (s.brace) timber('brace', 'Brace', `${TUNNEL.brace.thickness} × ${TUNNEL.brace.width} · ${Math.round(len(sub(s.brace.to, s.brace.from)) + 80)} long, ends cut to the legs`, 'Diagonally across tall trestles');
   }
-  for (const panel of l.panels.filter(q => of(q.piece))) {
+  const meshed = l.panels.filter(q => of(q.piece));
+  if (meshed.length > 0) lines.push(meshRollLine(l.mesh));
+  const span = (panel: MeshPanel) => { const [a, b, c, d] = panel.corners; return { long: Math.max(len(sub(b, a)), len(sub(c, d))), short: Math.min(len(sub(b, a)), len(sub(c, d))), across: len(sub(d, a)) }; };
+  // a net: one hood a piece, as long as the piece's longer side and as wide as both sides and the roof together
+  if (l.mesh.soft) for (const piece of l.pieces.filter(p => of(p.id))) {
+    const spans = meshed.filter(q => q.piece === piece.id).map(span); if (spans.length === 0) continue;
+    const long = Math.round(Math.max(...spans.map(s => s.long))); const short = Math.round(Math.min(...spans.map(s => s.short)));
+    const size = `${long === short ? long : `${short}–${long}`} × ${Math.round(spans.reduce((sum, s) => sum + s.across, 0))} · ${meshCut(l.mesh)}`;
+    const same = lines.find(line => line.name === 'Net hood' && line.size === size);
+    if (same) same.quantity++; else lines.push({ id: `mesh-${lines.length}`, group: 'Mesh', name: 'Net hood', quantity: 1, size, use: 'In one piece down one side, over both top rails and down the other; its ends turned onto the flanges' });
+  }
+  else for (const panel of meshed) {
     const [a, b, c, d] = panel.corners;
     const long = Math.round(Math.max(len(sub(b, a)), len(sub(c, d)))); const short = Math.round(Math.min(len(sub(b, a)), len(sub(c, d)))); const across = Math.round(len(sub(d, a)));
     const kind = panel.name.includes('roof') ? 'Roof mesh' : 'Side mesh';
-    const size = `${long === short ? long : `${short}–${long}`} × ${across} · ${TUNNEL.mesh.opening} mm openings, ${TUNNEL.mesh.wire} mm wire (nominal)`;
+    const size = `${long === short ? long : `${short}–${long}`} × ${across} · ${meshCut(l.mesh)}`;
     const same = lines.find(line => line.group === 'Mesh' && line.name === kind && line.size === size);
     if (same) same.quantity++; else lines.push({ id: `mesh-${lines.length}`, group: 'Mesh', name: kind, quantity: 1, size, use: kind === 'Roof mesh' ? 'Over the top rails, ends turned onto the flanges' : 'Down each side, rail to rail' });
   }
@@ -1038,6 +1058,8 @@ export const TUNNEL_CONTROLS: SubassemblyControl<TunnelConfig>[] = [
     options: [10, 15, 20, 25].map(v => ({ value: v as TunnelConfig['maxSlope'], label: `${v}°` })) },
   { key: 'angleJoint', label: 'Turns and bends', group: 'Joints', help: 'A collar is a short wedge between two square flanges: every section stays a plain box. Mitred ends need no extra piece but cut the sections at a joint to the angle.',
     options: [{ value: 'angle-collar', label: 'Angle collar' }, { value: 'mitred-ends', label: 'Mitred ends, bolted' }] },
+  { key: 'mesh', label: 'Mesh', group: 'Sections', help: 'Soft cat netting goes over each section as one hood, pulled taut over the roof, with a staple over every mesh of its cut edges. Welded wire mesh is stiff and bite-proof: three panels a section, stapled every 15 cm. Either is one roll from the parts library.',
+    options: CATIO_MESHES.map(value => ({ value, label: MESH_LABELS[value] })) },
   { key: 'sectionLength', label: 'Longest section', group: 'Sections', help: 'Each straight run is split into equal sections no longer than this: shorter ones are lighter to carry and need more supports.',
     options: [500, 750, 1000].map(v => ({ value: v as TunnelConfig['sectionLength'], label: `${v / 10} cm` })) },
   { key: 'footPad', label: 'Feet', group: 'Supports',
@@ -1067,9 +1089,19 @@ export const TUNNEL_PRESETS: SubassemblyPreset<TunnelConfig>[] = [
     config: () => ({ ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portHeight: 900, slopeLeg: 'middle' }) },
 ];
 
+/** How a section is meshed, for the assembly steps: a net as one hood held at every mesh of its cut edges, welded mesh as three stapled panels. */
+export function meshingStep(mesh: CatioMeshSpec): string {
+  return mesh.soft
+    ? `Cut one piece of net for each section with scissors: as long as the section between its flanges plus a turn onto each, and wide enough to run down one side, over both top rails and down the other. Lay it over the section as a hood, pull it taut and staple it along both top rails every ${TUNNEL.staplePitch / 10} cm. Then pull each side down and put a staple over every mesh (${mesh.opening / 10} cm) along the bottom rails and where its ends turn onto the flanges: a net keeps a cat in only where every mesh of its edge is held.`
+    : `Staple the side and roof mesh to the rails and turn its ends onto the flanges, stapling every ${TUNNEL.staplePitch / 10} cm.`;
+}
+
 export const parseTunnel = (raw: unknown) => parseControlled(TUNNEL_DEFAULT, TUNNEL_CONTROLS, raw);
 
 export const TUNNEL_DECISIONS: DesignDecision[] = [
+  { title: 'A net hood over every section', parameter: 'Mesh',
+    choice: `Soft cat netting (${catioMesh('netting').part.title}), one piece a section: down one side, over both top rails and down the other. Its cut edges, along the bottom rails and on the flanges, get a staple over every mesh; over the top rails it is stapled every ${TUNNEL.staplePitch / 10} cm. Welded wire mesh, in three stapled panels, remains selectable.`,
+    why: 'A net cannot span a roof like stiff mesh: laid as a flat panel it would sag between the rails. As one hood it is pulled taut over the two top rails by its own sides, has no seam at the roof for a paw to open, and takes two cuts instead of six. Its edge opens between fixings a hand apart, so every mesh of a cut edge is stapled.' },
   { title: 'Turns on the level, climbs in a straight line', parameter: 'Climb in',
     choice: 'The route turns only where it is level and climbs only where it runs straight: one sloped run between two vertical bends, inside one leg, with level runs before and after it.',
     why: 'A joint that turns and climbs at once is a compound mitre: the two sections would meet with one rolled against the other and the floor tilted sideways. Kept apart, every joint is a plain mitre about one axis, every floor stays level across, and the angles are exact. The slope is the steepest allowed (20° by default) so the climb is short; a small climb gets a shallower slope over a 15 cm run.' },

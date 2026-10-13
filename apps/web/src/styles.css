@@ -2302,6 +2302,7 @@ main {
 .offer-row > div { display: grid; gap: 3px; min-width: 0; }
 .offer-title { color: #39433a; font-weight: 500; overflow-wrap: anywhere; }
 .offer-row small, .offer-price small { color: #8a8d80; font-size: 10.5px; }
+.offer-row small.offer-notice { color: #7a5a1e; }
 .offer-price { color: #4d5249; font-size: 11.5px; }
 .offer-price strong { color: #313d32; font-weight: 620; }
 .offer-link { display: inline-flex; align-items: center; gap: 4px; color: #4d6b38; white-space: nowrap; }

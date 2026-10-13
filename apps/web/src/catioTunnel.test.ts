@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { findPart, partUsage, toggleLatchMechanism as TL, TUNNEL_FOOT, tunnelConcept } from '@canfactory/contracts';
+import { CATIO_MESH_PARTS, catioMesh, findPart, partUsage, toggleLatchMechanism as TL, TUNNEL_FOOT, tunnelConcept } from '@canfactory/contracts';
 import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { tunnelDefinition } from './catioSubassemblies.ts';
@@ -436,6 +436,40 @@ describe('tunnel parts list', () => {
       expect(lines.filter(line => line.name.startsWith('Flange')).reduce((n, line) => n + line.quantity, 0)).toBe(8 * l.pieces.length);
       expect(lines.some(line => line.name === 'Collar floor')).toBe(config.angleJoint === 'angle-collar' && l.joints.length > 0);
     }
+  });
+
+  it('nets each piece with one hood held at every mesh of its cut edges, or meshes it with three stapled welded panels, from one roll', () => {
+    const net = catioMesh('netting'); const span = (a: V3, b: V3) => vec.len(vec.sub(b, a));
+    expect(TUNNEL_DEFAULT.mesh).toBe('netting');
+    for (const route of routes) for (const mesh of ['netting', 'welded'] as const) {
+      const l = tunnelLayout({ ...route, mesh }, site);
+      const staples = l.fasteners.filter(f => f.component === 'staples');
+      const on = (edge: { from: V3; to: V3 }) => staples.filter(f => Math.abs(span(edge.from, f.at) + span(f.at, edge.to) - span(edge.from, edge.to)) < 1e-6).length;
+      for (const panel of l.panels) for (const edge of panel.edges) {
+        const pitch = span(edge.from, edge.to) / on(edge);
+        // a net's cut edges (the bottom rails and the flanges): a staple over every mesh; everything else, every 15 cm at most
+        expect(pitch, `${panel.id} ${edge.use}`).toBeLessThanOrEqual(mesh === 'netting' && edge.cut ? net.opening : TUNNEL.staplePitch);
+        if (mesh === 'welded') expect(edge.cut).toBe(true);
+      }
+      // the hood passes over the top rails uncut: only the roof's staples hold it there, and its sides have none of their own
+      const top = l.panels.flatMap(panel => panel.edges.filter(edge => edge.use === 'Onto the top rail').map(edge => ({ side: panel.name.includes('side'), cut: edge.cut })));
+      if (mesh === 'netting') expect(top.every(edge => !edge.side && !edge.cut)).toBe(true);
+      else expect(top.filter(edge => edge.side)).toHaveLength(2 * l.pieces.length);
+      const lines = tunnelBom('modular', { ...route, mesh }, site).filter(line => line.group === 'Mesh');
+      expect(lines[0]).toMatchObject({ id: 'mesh-roll', quantity: 1, partId: CATIO_MESH_PARTS[mesh] });
+      expect(lines[0]?.use).toContain('more rolls may be needed');
+      const cut = lines.slice(1); const count = cut.reduce((n, line) => n + line.quantity, 0);
+      expect(cut.every(line => !line.partId)).toBe(true);
+      if (mesh === 'netting') {
+        expect(cut.every(line => line.name === 'Net hood')).toBe(true); expect(count).toBe(l.pieces.length);
+        // as wide as both sides and the roof together
+        const piece = l.pieces.find(p => p.kind === 'section'); const panels = l.panels.filter(panel => panel.piece === piece?.id);
+        const across = Math.round(panels.reduce((sum, panel) => sum + span(panel.corners[0], panel.corners[3]), 0));
+        expect(cut.some(line => line.size.includes(`× ${across} ·`))).toBe(true);
+      } else expect(count).toBe(3 * l.pieces.length);
+    }
+    expect(tunnelSteps('modular', TUNNEL_DEFAULT).find(step => step.title === 'Net the sections')?.detail).toContain('a staple over every mesh');
+    expect(tunnelSteps('modular', { ...TUNNEL_DEFAULT, mesh: 'welded' }).find(step => step.title === 'Mesh the sections')?.detail).toContain('every 15 cm');
   });
 
   it('lists the mitre angles in the cut list of mitred sections, and only square cuts for collared ones', () => {

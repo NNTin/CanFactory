@@ -55,7 +55,7 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
   layout: ReturnType<typeof windowInsertLayout>; insert: THREE.Group; motions: PieceMotion[]; tilt: THREE.Group;
 } {
   const layout = windowInsertLayout(variant, config, window);
-  const p = createCatioParts(); const { component, box, rod, panel, materials: m } = p;
+  const p = createCatioParts(layout.mesh); const { component, box, rod, panel, materials: m } = p;
   const { hinge, tilt } = buildWindowContext(p, window);
   const hung = layout.hooks.length > 0;
   const insert = new THREE.Group(); insert.name = 'window-insert'; p.root.add(insert);

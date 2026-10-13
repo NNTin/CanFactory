@@ -6,6 +6,7 @@ const CATIO_ACCESSED = '2026-10-02';
 const DETENT_ACCESSED = '2026-10-07';
 const COLLAR_ACCESSED = '2026-10-07';
 const BOARD_ACCESSED = '2026-10-09';
+const MESH_ACCESSED = '2026-10-13';
 
 const iso = (number: string, title: string): PartSource => ({
   id: `iso-${number.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, title: `ISO ${number}: ${title}`, publisher: 'ISO',
@@ -130,6 +131,8 @@ export const PART_SOURCES: readonly PartSource[] = [
   { id: 'alps-sktaaae010', title: 'SKTAAAE010 TACT switch, 2.6 × 1.6 mm compact type with projection: 2.6 × 1.6 × 0.53 mm (3 over the terminals), 0.11 mm travel, 1.6 N, top push', publisher: 'Alps Alpine', url: 'https://tech.alpsalpine.com/e/products/detail/SKTAAAE010/', kind: 'manufacturer', accessed: BOARD_ACCESSED },
   { id: 'hirose-u-fl', title: 'U.FL Series, ultra small surface mount coaxial connectors: U.FL-R-SMT-1 receptacle 2.6 × 2.6 mm (3 over the ground tabs), 0.35 mm base, Ø2 mm post 1.25 mm high; mated height 2.4 mm (2.5 max)', publisher: 'Hirose Electric (catalog published by RS)', url: 'https://docs.rs-online.com/3355/0900766b8105243f.pdf', kind: 'manufacturer', accessed: BOARD_ACCESSED },
   { id: 'canfactory-dev-board-estimate', title: 'Read off the makers’ to-scale drawings and photographs, or the usual size of the package (docs/adding-parts.md, “Development boards”)', publisher: 'CanFactory', url: 'https://github.com/NNTin/CanFactory/blob/develop/docs/adding-parts.md#development-boards', kind: 'reference', accessed: BOARD_ACCESSED },
+  { id: 'trixie-44291-44295', title: 'Katzenschutznetz, drahtverstärkt (articles 44291–44295): Maschenweite 3 × 3 cm, Nylon/Draht, olivgrün, sizes 2 × 1,5 m to 8 × 3 m', publisher: 'TRIXIE Heimtierbedarf', url: 'https://www.trixie.de/de/katze/katzenklappen-sicherheit/katzennetze-schutzgitter/katzenschutznetz-drahtverstaerkt-1001435861-1001449597', kind: 'manufacturer', accessed: MESH_ACCESSED },
+  { id: 'kraptrap-19x19x1-45', title: 'Kraptrap feuerverzinktes Drahtgitter 19 x 19 mm mit 1,45 mm Stärke: Maschengröße 19.0 mm, Drahtstärke 1.45 mm, Breite 101.0 cm, lengths 5, 12 and 20 m, feuerverzinkt und punktgeschweißt', publisher: 'KrapTrap (drahtexpress.de)', url: 'https://drahtexpress.de/products/kraptrap-volierendraht-drahtgitter-19-mm-masche-100-cm-breit-1-45mm-starke', kind: 'manufacturer', accessed: MESH_ACCESSED },
 ];
 
 export function findPartSource(id: string): PartSource | undefined { return PART_SOURCES.find(source => source.id === id); }

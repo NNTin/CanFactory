@@ -35,7 +35,7 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
 } {
   const layout = tunnelCouplingLayout(config, site);
   const { tl, coupling, support, before, after } = layout;
-  const p = createCatioParts(); const { component, materials: m } = p;
+  const p = createCatioParts(tl.mesh); const { component, materials: m } = p;
   const hinge = new THREE.Group(); p.root.add(hinge);
   const draw = tunnelDrawing(p); const { vector } = draw;
   const geometries: THREE.BufferGeometry[] = [];

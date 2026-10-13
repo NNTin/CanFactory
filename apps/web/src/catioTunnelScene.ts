@@ -47,7 +47,7 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
 } {
   const layout = tunnelLayout(config, site, joint);
   const { w, h } = layout;
-  const p = createCatioParts(); const { component, materials: m } = p;
+  const p = createCatioParts(layout.mesh); const { component, materials: m } = p;
   const b = tunnelBounds(layout);
   const groundWidth = 2 * Math.max(Math.abs(b.minX), Math.abs(b.maxX)) + 1200;
   const { hinge } = buildWindowContext(p, site.window, { width: groundWidth, depth: 1 }, false);
