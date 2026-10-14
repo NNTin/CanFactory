@@ -267,9 +267,9 @@ export function portTemplateSvg(s: number): string {
     `</g>`,
     `<g font-family="sans-serif" font-size="6" fill="#000" text-anchor="middle">`,
     // on the ring's band, over the head: the opening is cut out
-    `<text x="${m + half}" y="${m + 14}">THIS SIDE OUT · lay on the ring’s face</text>`,
-    `<text x="${m + half}" y="${m + 24}">holes: ${t.boltHole} mm bolt guides · notches: latch stations</text>`,
-    `<text x="${m + half}" y="${m + 34}">latches: base plates on the left side, catches on the right, seen from outside</text>`,
+    `<text x="${m + half}" y="${m + 34}">THIS SIDE OUT · lay on the ring’s face</text>`,
+    `<text x="${m + half}" y="${m + 44}">holes: ${t.boltHole} mm bolt guides · notches: latch stations</text>`,
+    `<text x="${m + half}" y="${m + 54}">latches: base plates on the left side, catches on the right, seen from outside</text>`,
     `</g>`,
     `</svg>`,
   ].join('\n');
