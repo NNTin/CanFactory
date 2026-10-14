@@ -1,5 +1,6 @@
 import { CATIO_DOOR_HARDWARE as HW, dimensionOf, findPart, type BomLine, type CatioMeshSpec, type Part } from '@canfactory/contracts';
 import { meshCut } from './catioMesh.ts';
+import { STANDARD_PORT } from './catioPort.ts';
 import { E_PROFILE_SEAL } from './catioPrintedLatch.ts';
 import { clearOf, fastenersAlong, type V3 } from './catioSubassembly.ts';
 
@@ -99,7 +100,7 @@ export interface DoorFastener {
   moves: boolean;
 }
 export interface DoorPanel {
-  id: string; fit: 'face' | 'inset'; material: 'solid' | 'mesh';
+  id: string; fit: 'face' | 'inset' | 'port' | 'blank'; material: 'solid' | 'mesh';
   opening: { width: number; height: number };
   /** The panel, seated: its outline (u0, u1, v0, v1), and its back and front along n. */
   rect: [number, number, number, number]; back: number; front: number;
@@ -291,6 +292,114 @@ export function insetPanel({ id, width, height, cavity, pivots: at, stow }: { id
   return finish({ id, fit: 'inset', material: 'mesh', opening: { width, height }, rect, back: 0, front, seatLap: lap - c, mount, buttonUnder, play: dimensionOf(washer, 'h'), timber, mesh: body.mesh, seal: null, pull: null, buttons, fasteners, washer }, stow, errors);
 }
 
+/**
+ * A floor door's plug: a block of plywood, `T` deep, that fills the port's opening (`DOOR.clearance` all round) from the door's back to
+ * the ring's inner face, so that the floor inside is flat and the cat stands on the plug, not in a recess.
+ */
+function floorPlug(size: number, depth: number, back: number): { timber: DoorTimber; fasteners: DoorFastener[] } {
+  const c = DOOR.clearance; const half = size / 2 - c;
+  return {
+    timber: { id: 'floor-plug', name: 'Floor plug', section: `${depth} mm deep, exterior plywood glued up`, length: size - 2 * c, cut: `${size - 2 * c} × ${size - 2 * c}`, use: 'In the port’s opening, on the door’s inner face: the floor the cat stands on there, flush with the ring', moves: true,
+      boxes: [box(-half, half, c, size - c, back - depth, back)] },
+    fasteners: shared(-half, half, 2).flatMap(u => shared(c, size - c, 2).map(v => ({ partId: HW.stopScrew, role: 'frame' as const, at: [u, v, back + DOOR.solid.thickness] as V3, direction: [0, 0, -1] as V3, use: 'Floor plug: screwed on through the door’s sheet', moves: true }))),
+  };
+}
+
+/**
+ * A door on a standard port (catioPort.ts) held by turn buttons: a panel `size` square plus `DOOR.lap` all round, laid on the port's
+ * ring from outside, between locating strips on all four sides of the ring, which carry the buttons; the same on every side, so it
+ * fits a port at any rotation and on any face of a cube. `land` is the ring's width. Mesh on the sides and the roof; solid on a floor
+ * face, with a plug that fills the opening (`floor`). The frame's origin is the foot of the opening's middle, on the ring's face.
+ */
+export function portPanel({ id, size, material, land, floor = false, stow }: { id: string; size: number; material: DoorPanel['material']; land: number; floor?: boolean; stow?: V3 }): DoorPanel {
+  const errors: string[] = [];
+  const { lap, clearance: c } = DOOR; const washer = part(HW.washer); const solid = material === 'solid';
+  const rect: DoorPanel['rect'] = [-size / 2 - lap, size / 2 + lap, -lap, size + lap];
+  const plain = panelBody(material, rect, 0); const front = plain.thickness;
+  // a solid one is a floor door, not a cat port's panel
+  const body = { ...plain, timber: plain.timber.map(t => t.id === 'panel-sheet' ? { ...t, name: 'Door sheet', use: 'The floor door: laid on the floor face’s ring from below, the plug on it filling the opening' } : t) };
+  const play = dimensionOf(washer, 'h');
+  const mount = front + play - dimensionOf(washer, 'h'); const buttonUnder = mount + dimensionOf(washer, 'h');
+  const stripWidth = land - lap - c;
+  if (stripWidth < DOOR.button.width) errors.push('The port’s ring is too narrow for the door’s locating strips and turn buttons.');
+  const outer = size / 2 + land; const section = `${stripWidth} × ${mount}`;
+  const plug = floor ? floorPlug(size, STANDARD_RING_DEPTH, 0) : null;
+  const timber: DoorTimber[] = [...body.timber, ...(plug ? [plug.timber] : []),
+    { id: 'strip-side', name: 'Locating strip, side', section, length: 2 * outer, cut: `${2 * outer} long`, use: 'On the ring each side of the door: locates it and carries the turn buttons', moves: false,
+      boxes: [-1, 1].map(s => box(...(s < 0 ? [-outer, rect[0] - c] as const : [rect[1] + c, outer] as const), size / 2 - outer, size / 2 + outer, 0, mount)) },
+    { id: 'strip-end', name: 'Locating strip, end', section, length: rect[1] - rect[0] + 2 * c, cut: `${rect[1] - rect[0] + 2 * c} long`, use: 'On the ring at the door’s other two edges, between the side strips', moves: false,
+      boxes: [box(rect[0] - c, rect[1] + c, rect[3] + c, size / 2 + outer, 0, mount), box(rect[0] - c, rect[1] + c, size / 2 - outer, rect[2] - c, 0, mount)] },
+  ];
+  const away = c + stripWidth / 2; const count = buttonsAlong(rect[1] - rect[0], 2);
+  const buttons = [
+    ...(['left', 'right'] as const).flatMap(side => shared(rect[2], rect[3], count).map((v, i) => button(`${id}-button-${side}-${i}`, side, rect, v, away, buttonUnder))),
+    ...(['head', 'sill'] as const).flatMap(side => shared(rect[0], rect[1], count).map((u, i) => button(`${id}-button-${side}-${i}`, side, rect, u, away, buttonUnder))),
+  ];
+  const fasteners: DoorFastener[] = [...body.fasteners, ...(plug?.fasteners ?? []), ...pivots(buttons, solid ? HW.pivot.sealed : HW.pivot.mesh, mount, errors)];
+  const stripScrew = solid ? HW.stripScrew.sealed : HW.stripScrew.mesh;
+  const along = (from: number, to: number, avoid: number[]) => clearOf(shared(from, to, fastenersAlong(to - from, DOOR.fixingPitch) - 1), avoid, 15, from + 10, to - 10);
+  for (const s of [-1, 1]) for (const v of along(size / 2 - outer, size / 2 + outer, buttons.filter(b => b.side === (s < 0 ? 'left' : 'right')).map(b => b.pivot[1])))
+    fasteners.push({ partId: stripScrew, role: 'strip', at: [s * (outer - stripWidth / 2), v, mount], direction: [0, 0, -1], use: 'Locating strips onto the port’s ring', moves: false });
+  for (const [side, v] of [['head', rect[3] + c + stripWidth / 2], ['sill', rect[2] - c - stripWidth / 2]] as const) for (const u of along(rect[0] - c, rect[1] + c, buttons.filter(b => b.side === side).map(b => b.pivot[0])))
+    fasteners.push({ partId: stripScrew, role: 'strip', at: [u, v, mount], direction: [0, 0, -1], use: 'Locating strips onto the port’s ring', moves: false });
+  return finish({ id, fit: 'port', material, opening: { width: size, height: size }, rect, back: 0, front, seatLap: lap, mount, buttonUnder, play, timber, mesh: body.mesh, seal: null, pull: null, buttons, fasteners, washer }, stow, errors);
+}
+
+/** The depth of a standard port's ring, which a floor door's plug fills. */
+const STANDARD_RING_DEPTH = STANDARD_PORT.ring.thickness;
+
+/**
+ * A door on a standard port held by the port's own toggle latches, as a coupling is: a blank, made like the port's flange ring
+ * (`land` wide, `STANDARD_RING_DEPTH` deep, round an opening `size` square) and closed on its outer face by mesh under cover strips,
+ * or by a plywood sheet. It stands `gap` off the port, across the latches' gap, and carries their other halves on its sides, so a
+ * port takes it or another element's port alike. Solid, on a floor face, a plug fills the port's opening (`floor`).
+ */
+export function blankPanel({ id, size, material, land, gap, floor = false, stow }: { id: string; size: number; material: DoorPanel['material']; land: number; gap: number; floor?: boolean; stow?: V3 }): DoorPanel {
+  const errors: string[] = [];
+  const t = STANDARD_RING_DEPTH; const outer = size / 2 + land; const washer = part(HW.washer);
+  const rect: DoorPanel['rect'] = [-outer, outer, size / 2 - outer, size / 2 + outer];
+  const ring = `${t} × ${land}`; const back = gap; const ringFront = gap + t;
+  const timber: DoorTimber[] = [
+    { id: 'blank-stile', name: 'Door ring, stile', section: ring, length: 2 * outer, cut: `${2 * outer} long`, use: 'Made like a flange ring: its sides carry the latches’ plates', moves: true,
+      boxes: [-1, 1].map(s => box(...(s < 0 ? [-outer, -size / 2] as const : [size / 2, outer] as const), rect[2], rect[3], back, ringFront)) },
+    { id: 'blank-rail', name: 'Door ring, head or sill', section: ring, length: size, cut: `${size} long`, use: 'Between the stiles', moves: true,
+      boxes: [box(-size / 2, size / 2, size, rect[3], back, ringFront), box(-size / 2, size / 2, rect[2], 0, back, ringFront)] },
+  ];
+  const fasteners: DoorFastener[] = [];
+  let mesh: DoorPanel['mesh'] = null; let front = ringFront;
+  if (material === 'solid') {
+    const sheet = DOOR.solid.thickness;
+    timber.push({ id: 'blank-sheet', name: 'Door sheet', section: `${sheet} mm exterior plywood`, length: 2 * outer, cut: `${2 * outer} × ${2 * outer}, edges sealed`, use: 'Screwed over the door ring’s outer face', moves: true, boxes: [box(-outer, outer, rect[2], rect[3], ringFront, ringFront + sheet)] });
+    front = ringFront + sheet;
+    for (const s of [-1, 1]) for (const k of shared(rect[2], rect[3], fastenersAlong(2 * outer, DOOR.coverPitch))) {
+      fasteners.push({ partId: HW.coverScrew, role: 'cover', at: [s * (outer - land / 2), k, front], direction: [0, 0, -1], use: 'Door sheet onto its ring', moves: true });
+      fasteners.push({ partId: HW.coverScrew, role: 'cover', at: [k - size / 2, size / 2 + s * (outer - land / 2), front], direction: [0, 0, -1], use: 'Door sheet onto its ring', moves: true });
+    }
+  } else {
+    // the mesh over the opening onto the ring, its cut edges clamped under cover strips
+    const { cover, meshLayer: layer } = DOOR; const edge = size / 2 + 30; const strip = 30;
+    mesh = { width: 2 * edge, height: 2 * edge, center: [0, size / 2, ringFront + layer / 2] };
+    front = ringFront + layer + cover;
+    timber.push({ id: 'blank-cover', name: 'Door cover strip', section: `${strip} × ${cover}`, length: 2 * (size / 2 + 40), cut: `${2 * (size / 2 + 40)} long`, use: 'Over the mesh’s cut edges, on the door ring’s outer face', moves: true,
+      boxes: [
+        ...[-1, 1].map(s => box(...(s < 0 ? [-size / 2 - 40, -size / 2 - 10] as const : [size / 2 + 10, size / 2 + 40] as const), -40, size + 40, ringFront + layer, front)),
+        ...[-1, 1].map(s => box(-size / 2 - 40, size / 2 + 40, ...(s < 0 ? [-40, -10] as const : [size + 10, size + 40] as const), ringFront + layer, front)),
+      ] });
+    for (const s of [-1, 1]) for (const k of shared(-size / 2 - 40, size / 2 + 40, fastenersAlong(size + 80, DOOR.coverPitch))) {
+      fasteners.push({ partId: HW.coverScrew, role: 'cover', at: [s * (size / 2 + 25), size / 2 + k, front], direction: [0, 0, -1], use: 'Cover strips through the mesh into the door ring', moves: true });
+      fasteners.push({ partId: HW.coverScrew, role: 'cover', at: [k, size / 2 + s * (size / 2 + 25), front], direction: [0, 0, -1], use: 'Cover strips through the mesh into the door ring', moves: true });
+    }
+  }
+  if (floor) {
+    if (material !== 'solid') errors.push('A floor door must be solid.');
+    // the plug stands on the door's sheet, inside its ring, and fills the gap and the port's opening up to the port ring's inner face
+    const plug = floorPlug(size, 2 * t + gap, ringFront);
+    timber.push(plug.timber);
+    fasteners.push(...plug.fasteners.map(f => ({ ...f, at: [f.at[0], f.at[1], front] as V3 })));
+  }
+  return finish({ id, fit: 'blank', material, opening: { width: size, height: size }, rect, back, front, seatLap: land, mount: 0, buttonUnder: 0, play: 0, timber, mesh, seal: null, pull: null, buttons: [], fasteners, washer }, stow, errors);
+}
+
 /** A point of a door's frame in the world. */
 export function doorPoint(frame: DoorFrame, [u, v, n]: V3): V3 {
   return [0, 1, 2].map(i => (frame.origin[i] ?? 0) + (frame.u[i] ?? 0) * u + (frame.v[i] ?? 0) * v + (frame.n[i] ?? 0) * n) as V3;
@@ -334,7 +443,7 @@ export function doorPose(door: Pick<DoorPanel, 'withdraw' | 'stow'>, travel: num
 /** What a door is doing at `travel`, for the caption under a stage; null when it is seated or set aside. */
 export function doorAction(door: Pick<DoorPanel, 'buttons'>, travel: number, name: string): string | null {
   if (travel <= 0 || travel >= 1) return null;
-  if (travel < DOOR_TRAVEL.turned) return `${door.buttons.length} × Door turn button: turned a quarter turn clear of the ${name}`;
+  if (travel < DOOR_TRAVEL.turned) return door.buttons.length ? `${door.buttons.length} × Door turn button: turned a quarter turn clear of the ${name}` : `The ${name}’s latches: levers lifted, links unhooked`;
   return travel < DOOR_TRAVEL.out ? `${name.charAt(0).toUpperCase()}${name.slice(1)}: drawn straight out of its opening` : `${name.charAt(0).toUpperCase()}${name.slice(1)}: stowed clear of the route`;
 }
 
@@ -402,8 +511,11 @@ export function doorLibraryParts(door: DoorPanel): { partId: string; quantity: n
 export function doorFacts(door: DoorPanel): { panel: string; retention: string } {
   const [u0, u1, v0, v1] = door.rect; const sides = [...new Set(door.buttons.map(b => b.side))];
   const names: Record<DoorSide, string> = { left: 'jamb', right: 'jamb', head: 'head', sill: 'sill' };
+  const panel = `${Math.round(u1 - u0)} × ${Math.round(v1 - v0)} × ${door.front - door.back} mm`;
+  if (door.fit === 'blank') return { panel, retention: 'the port’s own toggle latches, as a coupling' };
+  if (door.fit === 'port') return { panel, retention: `${door.buttons.length} turn buttons, on all four sides, ${DOOR.button.overlap} mm over the panel · seat ${door.seatLap} mm` };
   return {
-    panel: `${Math.round(u1 - u0)} × ${Math.round(v1 - v0)} × ${door.front - door.back} mm`,
+    panel,
     retention: `${door.buttons.length} turn buttons (${[...new Set(sides.map(s => names[s]))].join(' and ')}), ${DOOR.button.overlap} mm over the panel · seat ${door.seatLap} mm`,
   };
 }

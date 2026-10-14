@@ -12,7 +12,7 @@ import {
   COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, couplingBom, couplingFacts, couplingSteps, couplingViews, parseCoupling, validateCoupling, type CouplingConfig,
 } from './catioCoupling.ts';
 import {
-  parseTunnel, TUNNEL_CONTROLS, TUNNEL_PRESETS, TUNNEL_DECISIONS, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelSteps, tunnelViews, validateTunnel, type TunnelConfig,
+  parseTunnel, TUNNEL_CONTROLS, TUNNEL_PRESETS, TUNNEL_DECISIONS, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSteps, tunnelViews, validateTunnel, type TunnelConfig,
 } from './catioTunnel.ts';
 import {
   parseWindowInsert, validateWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DECISIONS, WINDOW_INSERT_DEFAULT, windowInsertBom, windowInsertFacts,
@@ -33,15 +33,19 @@ export const windowInsertDefinition: SubassemblyDefinition<WindowInsertConfig> =
 
 export const tunnelDefinition: SubassemblyDefinition<TunnelConfig> = {
   id: 'tunnel', title: 'Tunnel', eyebrow: 'CATIO SUB-ASSEMBLY · TUNNEL',
-  heading: 'Any angle, any height, on any ground.',
-  summary: 'The enclosed walkway from the window insert’s cat port to the enclosure’s: solved between the two ports, turning and climbing at any angle through parametrised angle joints, on supports whose levelling feet take up ground that is not level.',
+  heading: 'Standard elements, any height, on any ground.',
+  summary: 'The enclosed walkway from the window insert’s cat port to the enclosure’s, built of standard elements: every piece ends in the same port, so any one couples to any other. It turns at cubes (or angle collars) and climbs on sloped sections, on supports whose levelling feet take up ground that is not level.',
   variants: ['modular'], briefLabel: 'THE TUNNEL', assemblyHeading: 'From the slabs to the enclosure.', stageScale: 20,
   // the window port's floor, which the tunnel starts from, follows the insert's clamp gap; every section and collar coupling is the
   // tunnel–tunnel coupling page's (latched across a gap, or bolted)
-  follows: [{ page: 'window-insert', settings: WINDOW_FLOOR_SETTINGS }, { page: 'tunnel-tunnel-coupling', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal'] }],
+  follows: [{ page: 'window-insert', settings: WINDOW_FLOOR_SETTINGS }, { page: 'tunnel-tunnel-coupling', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal', 'doorFixing'] }],
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the climb', Top: 'Top · the turns', Mounting: 'Support detail' },
   toggles: { cutaway: 'Wall cutaway' }, layerLabels: { hardware: 'Bolts, feet & fixings', environment: 'Ground, wall & slabs' },
-  doorToggle: (_variant, config) => config.sideAccess === 'none' ? null : 'Side access open',
+  // the side-access panels and the cubes' doors: what the tunnel has of them
+  doorToggle: (_variant, config) => {
+    const cubes = tunnelLayout(config).doors.length > 0; const access = config.sideAccess !== 'none';
+    return cubes && access ? 'Doors open' : cubes ? 'Cube doors open' : access ? 'Side access open' : null;
+  },
   defaults: TUNNEL_DEFAULT, presets: TUNNEL_PRESETS, controls: TUNNEL_CONTROLS, parse: parseTunnel,
   validate: (variant, config) => validateTunnel(variant, config),
   steps: tunnelSteps, build: createTunnelScene, bom: (variant, config) => tunnelBom(variant, config),

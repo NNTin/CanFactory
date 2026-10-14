@@ -1,10 +1,12 @@
 import { dimensionOf, findPart, TUNNEL_HARDWARE as HW, toggleLatchMechanism as TL, type Part } from '@canfactory/contracts';
 import type { CatioView } from './catioDesign.ts';
+import { doorBom, doorLibraryParts } from './catioDoor.ts';
+import { DOOR_FIXING_LABELS, STANDARD_PORT } from './catioPort.ts';
 import { E_PROFILE_SEAL, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine } from './catioPrintedLatch.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { loadSubassemblyConfig, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
-import { LATCH_SCREW_EDGE, parseTunnel, SUPPORT_FIXING_LABELS, supportFixingSteps, TUNNEL, TUNNEL_DEFAULT, tunnelCutList, tunnelLayout, tunnelSite, vec, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
-import { couplingGap, parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
+import { LATCH_SCREW_EDGE, parseTunnel, tunnelPitch, SUPPORT_FIXING_LABELS, supportFixingSteps, TUNNEL, TUNNEL_DEFAULT, tunnelCutList, tunnelLayout, tunnelSite, vec, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
+import { parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 
 export { parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig };
 
@@ -29,12 +31,13 @@ export function tunnelCouplingSite(): TunnelCouplingSite {
 }
 
 /**
- * A straight, level tunnel out from the wall of three sections of the tunnel page's longest length, the gaps between them as the
- * coupling sets them: the page shows its first coupling. (A route has at least three straight runs; each of these is one section.)
+ * A straight, level tunnel out from the wall of three runs, the gaps between them as the coupling sets them: the page shows its
+ * first coupling. Each run is one element of the tunnel page's: a long section of its longest length, or a cube when its straight
+ * runs are cubes. (A route has at least three straight runs.)
  */
-export function straightTunnel(tunnel: TunnelConfig, config: TunnelCouplingConfig): TunnelConfig {
-  const L = tunnel.sectionLength; const g = couplingGap(config);
-  return { ...tunnel, portX: 0, portY: TUNNEL.wallGap + 3 * L + 2 * g, portFacing: 0, portLevel: 'window', approach: L, final: L + g, slopeLeg: 'middle', angleJoint: 'angle-collar' };
+export function straightTunnel(tunnel: TunnelConfig, config: TunnelCouplingConfig, site: Pick<TunnelSite, 'w'> = tunnelSite()): TunnelConfig {
+  const L = (tunnel.straights === 'cubes' ? 1 : tunnel.sectionLength) * tunnelPitch(site, config);
+  return { ...tunnel, portX: 0, portY: TUNNEL.wallGap + 3 * L, portFacing: 0, portLevel: 'window', approach: L, final: L, slopeLeg: 'middle', angleJoint: 'angle-collar' };
 }
 
 function part(id: string): Part {
@@ -45,7 +48,7 @@ function part(id: string): Part {
 export function tunnelCouplingLayout(config: TunnelCouplingConfig, { tunnel: saved, site }: TunnelCouplingSite = tunnelCouplingSite()) {
   // how the tunnel is held on its supports is shared with the tunnel page, and set on this page too (`shares`)
   const tunnel: TunnelConfig = { ...saved, supportFixing: config.supportFixing, supportBase: config.supportBase };
-  const straight = straightTunnel(tunnel, config);
+  const straight = straightTunnel(tunnel, config, site);
   const tl = tunnelLayout(straight, { ...site, floorZ: TUNNEL_COUPLING.floor }, config);
   // the tunnel's checks, but only this support's for how it is held (the straight tunnel's other supports are not shown)
   const errors = tl.errors.filter(e => !/a trestle cannot stand on its own/.test(e));
@@ -83,9 +86,9 @@ export function tunnelCouplingSteps(_variant: CatioMode, config: TunnelCouplingC
     { title: 'The site', detail: `Grass, and the support that will carry the joint: a bearer ${l.support.kind === 'trestle' ? 'on two legs' : 'ripped to depth'}${l.support.soles.length ? ' on soles along the tunnel' : ''}, on ${l.tl.pad ? 'printed feet' : 'levelling feet'} on paving slabs, levelled to its line (the tunnel page, stages 1–2). ${fixing.support ? `${fixing.support} ` : ''}No tunnel yet.` },
     { title: 'Build one section', detail: `Stand two flange rings, screw the four rails between them and the floor board onto the bottom rails, then ${l.tl.mesh.soft ? 'lay the net over it as one hood and staple it, a staple over every mesh of its cut edges' : 'staple the side and roof mesh on'} (the tunnel page, stages 3–4).${fixing.pieces ? ` ${fixing.pieces}` : ''} Lay the section, ${length} long, on its supports${fixing.lay} so that its outgoing flange sits over the bearer.` },
     { title: 'Ready its joint', detail: printed
-      ? `${l.seal ? 'Stick the EPDM E-profile seal round the middle of the outgoing flange’s face. ' : ''}Screw ${n / 2} base ${n / 2 === 1 ? 'plate' : 'plates'} of the printed toggle latch, lever and link already snapped on, onto each of the flange’s outer sides, ${round1(PRINTED_LATCH.overhang)} mm proud of its face, two 4 × 25 screws each (pre-drill them).`
+      ? `${l.seal ? 'Stick the EPDM E-profile seal round the middle of the outgoing flange’s face. ' : ''}A standard port carries its latches’ base plates on its left and their catch plates on its right, seen from outside it. Screw ${n / 2} base ${n / 2 === 1 ? 'plate' : 'plates'} of the printed toggle latch, lever and link already snapped on, onto the outgoing flange’s right side and ${n / 2} catch ${n / 2 === 1 ? 'plate' : 'plates'} onto its left, ${round1(PRINTED_LATCH.overhang)} mm proud of its face, two 4 × 25 screws each (pre-drill them).`
       : `Nothing to fit yet: the bolts go through both flanges once the next section is down. Have ${bolts} M8 × 80 bolts, ${2 * bolts} large washers and ${bolts} nuts to hand.` },
-    { title: 'The second section comes in', detail: `An identical section, also ${length} long${printed ? `, with the latches’ catch plates already screwed onto its incoming flange’s sides` : ''}, comes in along the tunnel’s axis from beyond the first, onto the same bearer${fixing.lay ? ` (lifted over the dowels and set down${fixing.lay})` : ''}, and stops ${printed ? `${l.gap} mm short of the first one’s flange, on the seal` : 'flange to flange against the first'}. The bearer, not the joint, sets where it lies.` },
+    { title: 'The second section comes in', detail: `An identical section, also ${length} long${printed ? `, with the other halves of the latches already screwed onto its incoming flange’s sides: base plates on its left, catch plates on its right, seen from outside it` : ''}, comes in along the tunnel’s axis from beyond the first, onto the same bearer${fixing.lay ? ` (lifted over the dowels and set down${fixing.lay})` : ''}, and stops ${printed ? `${l.gap} mm short of the first one’s flange, on the seal` : 'flange to flange against the first'}. The bearer, not the joint, sets where it lies.` },
     { title: 'Couple', detail: printed
       ? `Hook each latch’s link over its catch and press the lever down until it snaps over centre: the link draws the flanges in to the ${l.gap} mm gap${l.seal ? ', squashing the seal' : ''}, the plates ${round1(PRINTED_LATCH.locked)} mm apart. ${n} levers, no tools. To part the sections, lift the levers and unhook.`
       : `Push ${bolts} M8 × 80 bolts through both flanges with a large washer under each head, then run a large washer and a nut on from the far side and tighten them with a 13 mm spanner.` },
@@ -108,16 +111,34 @@ const partSize = (p: Part) => {
 export function tunnelCouplingBom(_variant: CatioMode, config: TunnelCouplingConfig, site?: TunnelCouplingSite): BomLine[] {
   const l = tunnelCouplingLayout(config, site);
   const lines = tunnelCutList(l.tl, { pieces: l.pieces, supports: false });
-  const library = (id: string, quantity: number, use: string) => { const p = part(id); lines.push({ id, group: 'Hardware', name: p.title, quantity, size: `${p.designation} · ${partSize(p)}`, use, partId: id }); };
+  const library = (id: string, quantity: number, use: string) => {
+    const same = lines.find(line => line.partId === id);
+    if (same) { same.quantity += quantity; if (!same.use.includes(use)) same.use = `${same.use}; ${use}`; return; }
+    const p = part(id); lines.push({ id, group: 'Hardware', name: p.title, quantity, size: `${p.designation} · ${partSize(p)}`, use, partId: id });
+  };
   const each = ['', 'One', 'Two', 'Three'][config.latchesPerSide] ?? String(config.latchesPerSide);
+  // two cubes' doors (when the tunnel's straight runs are cubes): their latches, or their turn buttons, and their screws
+  const doors = l.tl.doors.filter(d => l.pieces.includes(d.piece));
+  const doorLatches = doors.flatMap(d => d.latches);
+  const doorLatchScrews = l.tl.fasteners.filter(f => (f.component === 'latch-screws' || f.component === 'catch-screws') && doorLatches.some(q => q.id === f.of));
+  const latchCount = (l.coupling.kind === 'latched' ? l.latches.length : 0) + doorLatches.length;
+  if (latchCount) lines.push(printedLatchLine(latchCount, [
+    l.coupling.kind === 'latched' ? `${each} on each side of the joint` : '', doorLatches.length ? `${each.toLowerCase()} on each side of every cube’s door` : '',
+  ].filter(Boolean).join(', and ') + ': seen from outside each port, its base plates on its left, its catch plates on its right'));
   if (l.coupling.kind === 'latched') {
-    lines.push(printedLatchLine(l.latches.length, `${each} on each side of the joint: base plate on the first section’s flange, catch plate on the second’s`));
     library(HW.latchScrew, l.latchScrews.length, 'Two through each latch plate, into the flanges’ sides');
     if (l.seal) lines.push({ id: 'coupling-seal', group: 'Hardware', name: E_PROFILE_SEAL, quantity: 1, size: `about ${PRINTED_LATCH_JOINT.seal.width} × ${PRINTED_LATCH_JOINT.seal.height} · ${Math.ceil(l.seal.length / 10) * 10} long`, use: `Round the middle of the flange’s face; squashed to the ${l.gap} mm gap` });
   } else {
     library(HW.couplingBolt, l.bolts.length, 'Through both flanges');
     library(HW.couplingWasher, 2 * l.bolts.length, 'Under every bolt head and nut');
     library(HW.couplingNut, l.bolts.length, 'On every bolt');
+  }
+  if (doorLatchScrews.length) library(HW.latchScrew, doorLatchScrews.length, 'Two through each latch plate, into the cubes’ rings and their doors’');
+  for (const f of doors.flatMap(d => d.door.fasteners)) library(f.partId, 1, `Cubes’ doors: ${f.use.charAt(0).toLowerCase()}${f.use.slice(1)}`);
+  for (const extra of doors.flatMap(d => doorLibraryParts(d.door))) if (extra.quantity) library(extra.partId, extra.quantity, `Cubes’ doors: ${extra.use.charAt(0).toLowerCase()}${extra.use.slice(1)}`);
+  for (const line of doors.flatMap(d => doorBom(d.door, { prefix: 'cube-door', where: 'Cubes’ doors', mesh: l.tl.mesh })).filter(q => q.group === 'Hardware')) {
+    const same = lines.find(q => q.name === line.name && q.size === line.size);
+    if (same) same.quantity += line.quantity; else lines.push(line);
   }
   return lines;
 }
@@ -130,7 +151,9 @@ export function tunnelCouplingFacts(_variant: CatioMode, config: TunnelCouplingC
     { label: 'Gap · seal', value: printed ? `${l.gap} mm · ${l.seal ? `squashed from ${PRINTED_LATCH_JOINT.seal.height} mm` : 'left open'}` : 'None · flange to flange' },
     printed ? { label: 'Latches per coupling', value: `${l.latches.length} · ${config.latchesPerSide} each side, plates ${round1(PRINTED_LATCH.locked)} mm apart locked` }
       : { label: 'Bolts per coupling', value: `${l.bolts.length} × ISO 4017 M8 × 80 · two large washers and a nut each` },
-    { label: 'Enclosure end · mitred joints', value: `Bolted, ${config.boltsPerCoupling} per coupling` },
+    { label: 'Mitred joints', value: `Bolted, ${config.boltsPerCoupling} per coupling (${config.boltsPerCoupling / 4} on each side)` },
+    { label: 'Enclosure end', value: printed ? 'Latched: a standard port like every other' : `Bolted, ${config.boltsPerCoupling} per coupling` },
+    { label: 'Doors · held by', value: `${l.tl.doors.length ? `${l.tl.doors.filter(d => l.pieces.includes(d.piece)).length} on these two cubes` : 'On the tunnel’s cubes'} · ${DOOR_FIXING_LABELS[config.doorFixing].toLowerCase()}` },
     { label: 'Section length', value: `${cm(l.sectionLength)} cm · the longest section`, from: { page: 'tunnel', settings: ['sectionLength'] } },
     // a side-access panel lies between its own section's flanges: the latches on the flanges' sides stay free
     ...(l.tl.access.some(a => l.pieces.includes(a.piece)) ? [{ label: 'Side access', value: 'A removable mesh panel beside the joint, between its section’s flanges: clear of the latches', from: { page: 'tunnel' as const, settings: ['sideAccess', 'sideAccessSide'] } }] : []),
@@ -172,13 +195,13 @@ export const TUNNEL_COUPLING_DECISIONS: DesignDecision[] = [
   { title: 'Latches only where the flanges are square', parameter: 'Coupling', from: { page: 'tunnel', settings: ['angleJoint'] },
     choice: 'Every section-to-section coupling and every coupling to an angle collar is latched; a mitred joint stays bolted.',
     why: 'A latch needs its two plates in line on two side faces in one plane, pulling along the joint. Angle collars keep every coupling square, so they latch like straight ones. A mitre’s two flanges are cut on the bisector, so their side faces do not line up for a straight latch.' },
-  { title: 'The enclosure end stays bolted', parameter: 'Bolts per coupling',
-    choice: `The tunnel’s last flange always bolts to the enclosure’s port flange, with this page’s bolts per coupling (${TUNNEL_COUPLING_DEFAULT.boltsPerCoupling} by default), face to face.`,
-    why: 'The enclosure’s 30 mm port flange with the same bolt pattern is the one requirement the tunnel places on the enclosure: a fixed interface that does not change with the couplings between sections. The window end is not bolted either way: it is the insert–tunnel coupling page’s docking frame and latches.' },
+  { title: 'One standard port, coupled or closed', parameter: 'Door held by',
+    choice: `Every flange is the same standard port: a ${STANDARD_PORT.ring.thickness} × ${STANDARD_PORT.ring.width} ring round the square clear opening, its latch and bolt stations the same on all four sides. Seen from outside, every port carries its latches’ base plates on its left side and their catch plates on its right. The enclosure’s port is one too, coupled like any other. A port that is not coupled (every face of a cube the tunnel does not run through) is closed by a door, held by the port’s own latches by default (a blank ring closed by mesh, or by plywood on a floor face) or by turn buttons on its ring.`,
+    why: 'With one port, and base and catch on fixed sides of it, any element meets any other: two ports facing each other have a base across from every catch, whichever elements they belong to, and a door latched on is a blank element’s port. Stations the same on every side let a port fit another at any quarter turn, so a cube can be turned to put any face on the route. The window end is the insert–tunnel coupling page’s docking frame, set out to the same stations.' },
 ];
 
-/** The cross-page settings of the tunnel this page is built from: its sections’ length, and the support's feet and ground. */
-export const TUNNEL_SETTINGS_FOLLOWED = ['mesh', 'sectionLength', 'sideAccess', 'sideAccessSide', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
+/** The cross-page settings of the tunnel this page is built from: its elements (sections or cubes, and their length), and the support's feet and ground. */
+export const TUNNEL_SETTINGS_FOLLOWED = ['mesh', 'straights', 'sectionLength', 'sideAccess', 'sideAccessSide', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
 /** The tunnel's settings this page shows and sets too: how the tunnel is held on its supports. */
 export const TUNNEL_SETTINGS_SHARED = ['supportFixing', 'supportBase'];
 

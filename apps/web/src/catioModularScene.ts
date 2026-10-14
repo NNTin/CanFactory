@@ -28,7 +28,7 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
   const errors = validateModular(c); if (errors.length) throw new Error(errors.join(' '));
   const p = createCatioParts(); const { component, box, rod, ring, panel, materials: m } = p;
   const layout = modularLayout(c); const doors: CatioDoor[] = [];
-  const w = c.tunnelWidth; const h = c.tunnelHeight; const span = w + 80;
+  const w = c.tunnelWidth; const h = c.tunnelHeight; const span = w + 80; const straightSpan = span;
   const landingDepth = w + 100;
   // Assembly transforms remain on the outer component; placement and door motion have independent groups.
   function placed(x: number, y: number, angle: number, build: () => void) {
@@ -202,7 +202,8 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
   });
 
   for (const section of layout.sections) placed(...section.center, section.angle, () => {
-    const id = section.id; const length = section.length;
+    // a corner is a cube: as wide as it is long
+    const id = section.id; const length = section.length; const span = section.kind === 'corner' ? section.length : straightSpan;
     const frame = component(`${id}-frame`, 4, 'timber', [0, 0, 250]);
     box(frame, [span, length, 18], [0, 0, 191], m.endgrain);
     for (const x of [-w / 2 - 20, w / 2 + 20]) for (const y of [-length / 2 + 20, length / 2 - 20]) box(frame, [40, 40, h + 40], [x, y, 200 + (h + 40) / 2]);

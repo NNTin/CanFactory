@@ -146,11 +146,18 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
   move(sealGroup, 2, [0, 0.35], [0, 200, 0], `${layout.seal.profile} seal: stuck round the middle of the frame’s face`, { role: 'seal' });
   const latchTitle = layout.latchPart?.title ?? 'Printed toggle latch';
   const catchName = layout.latchPart ? 'Catch bracket' : 'Catch plate of the printed latch';
-  for (const { latch: q, group: g } of pieces.catches) {
+  // (the printed latch at a standard port: on the frame's right side its base, lever and link instead, the catch on the flange)
+  const onFrame = (id: string | undefined, part: 'base' | 'catch') => (layout.latches.find(q => q.id === id)?.printed?.baseOn === 'frame') === (part === 'base');
+  const flipped = layout.latches.filter(q => q.printed?.baseOn === 'frame').length;
+  for (const { latch: q, group: g } of pieces.catches.filter(c => onFrame(c.latch.id, 'catch'))) {
     group('catches', 2, 'hardware').add(g);
-    move(g, 2, [0.45, 0.7], [q.side * 160, 0, 0], `${layout.latches.length} × ${catchName}: onto the docking frame’s outer side`, { role: 'catch', of: q.id });
+    move(g, 2, [0.45, 0.7], [q.side * 160, 0, 0], `${layout.latches.length - flipped} × ${catchName}: onto the docking frame’s outer side`, { role: 'catch', of: q.id });
   }
-  for (const f of layout.fasteners.filter(f => f.component === 'catch-screws')) screw('catch-screws', 2, [0.7, 1], f, `${count('catch-screws')} × Countersunk wood screw 4 × 25: ${layout.latchPart ? 'catch brackets' : 'catch plates'} onto the frame`);
+  for (const { latch: q, group: g } of pieces.latches.filter(c => onFrame(c.latch.id, 'base'))) {
+    group('catches', 2, 'hardware').add(g);
+    move(g, 2, [0.45, 0.7], [q.side * 160, 0, 0], `${flipped} × ${latchTitle}: base plate, lever and link on it, onto the docking frame’s right side`, { role: 'latch', of: q.id });
+  }
+  for (const f of layout.fasteners.filter(f => (f.component === 'catch-screws' || f.component === 'latch-screws') && onFrame(f.of, f.component === 'latch-screws' ? 'base' : 'catch'))) screw('frame-latch-screws', 2, [0.7, 1], f, `${layout.fasteners.filter(q => (q.component === 'catch-screws' || q.component === 'latch-screws') && onFrame(q.of, q.component === 'latch-screws' ? 'base' : 'catch')).length} × Countersunk wood screw 4 × 25: ${layout.latchPart ? 'catch brackets' : 'latch plates'} onto the frame`);
 
   // Stage 3: the first section (built on the tunnel page) arrives raised; its latch bodies, screws and floor lip are fitted.
   if (first) {
@@ -163,12 +170,17 @@ export function createCouplingScene(_variant: CatioMode, config: CouplingConfig,
     for (const g of [timber, mesh]) move(g, 3, [0, 0], [0, 0, 0], 'The first section, framed and meshed on the tunnel page', { role: 'timber', carried: true });
   }
   const levers: THREE.Group[] = [];
-  for (const { latch: q, group: g, lever } of pieces.latches) {
+  for (const { lever } of pieces.latches) levers.push(lever);
+  for (const { latch: q, group: g } of pieces.latches.filter(c => !onFrame(c.latch.id, 'base'))) {
     group('latches', 3, 'hardware').add(g);
-    levers.push(lever);
-    move(g, 3, [0.05, 0.4], [q.side * 160, 0, 0], `${layout.latches.length} × ${latchTitle}: ${layout.latchPart ? 'body' : 'base plate, lever and link on it,'} onto the first flange’s outer side`, { role: 'latch', of: q.id, carried: true });
+    move(g, 3, [0.05, 0.4], [q.side * 160, 0, 0], `${layout.latches.length - flipped} × ${latchTitle}: ${layout.latchPart ? 'body' : 'base plate, lever and link on it,'} onto the first flange’s ${flipped ? 'left' : 'outer'} side`, { role: 'latch', of: q.id, carried: true });
   }
-  for (const f of layout.fasteners.filter(f => f.component === 'latch-screws')) screw('latch-screws', 3, [0.4, 0.7], f, `${count('latch-screws')} × Countersunk wood screw 4 × 25: ${layout.latchPart ? 'latch bodies' : 'base plates'} onto the flange`, true);
+  for (const { latch: q, group: g } of pieces.catches.filter(c => !onFrame(c.latch.id, 'catch'))) {
+    group('latches', 3, 'hardware').add(g);
+    move(g, 3, [0.05, 0.4], [q.side * 160, 0, 0], `${flipped} × ${catchName}: onto the first flange’s right side`, { role: 'catch', of: q.id, carried: true });
+  }
+  const onFlange = layout.fasteners.filter(f => (f.component === 'catch-screws' || f.component === 'latch-screws') && !onFrame(f.of, f.component === 'latch-screws' ? 'base' : 'catch'));
+  for (const f of onFlange) screw('flange-latch-screws', 3, [0.4, 0.7], f, `${onFlange.length} × Countersunk wood screw 4 × 25: ${layout.latchPart ? 'latch bodies' : 'latch plates'} onto the flange`, true);
   if (pieces.lip) {
     const g = pieces.lip; group('floor-lip', 3, 'hardware').add(g);
     move(g, 3, [0.7, 0.85], [0, 0, 120], 'EPDM floor lip: laid on the flange’s sill, reaching past its back', { role: 'lip', carried: true });

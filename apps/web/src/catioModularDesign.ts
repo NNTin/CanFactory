@@ -1,4 +1,6 @@
 import type { CatioView } from './catioDesign.ts';
+import { cubeEdge } from './catioPort.ts';
+import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 import { facePanel, PORT_CLOSURE_DEFAULT, PORT_CLOSURES, slidingGateRise, type DoorPanel, type PortClosure } from './catioDoor.ts';
 
 /** All lengths are millimetres. Grass Z=0; wall Y=0; outdoors is +Y. */
@@ -16,7 +18,12 @@ export const MODULAR_DEFAULT: ModularConfig = {
   enclosure: { width: 1200, depth: 1000, height: 1200 }, second: { width: 1200, depth: 1000, height: 1200 }, secondEnabled: false,
   tunnelWidth: 300, tunnelHeight: 300, route: 'straight', approach: 2, lateral: 2, final: 1, link: 2, portClosure: PORT_CLOSURE_DEFAULT,
 };
-export const MODULAR = { moduleLength: 500, timber: 40, sill: 200, floor: 4, wall: 300, recess: 150 } as const;
+export const MODULAR = { timber: 40, sill: 200, floor: 4, wall: 300, recess: 150 } as const;
+/**
+ * The tunnel's standard elements (catioPort.ts): a straight module is one pitch long (a cube's edge and a latched coupling's gap) and
+ * a corner is a cube, its edge the standard port's clear size and two rings and pockets.
+ */
+export const modularPitch = (c: Pick<ModularConfig, 'tunnelWidth'>) => cubeEdge(c.tunnelWidth) + PRINTED_LATCH_JOINT.gap;
 /** The timber round a cat port: the window's port frame and the enclosures' are both this wide. */
 export const PORT_FRAME = 40;
 /**
@@ -52,7 +59,7 @@ export function modularSteps(c: Pick<ModularConfig, 'portClosure'>, hung: boolea
     { title: 'Fit the window insert', detail: `${hung ? 'Hang it on the window frame: its screen hooks reach behind the fixed frame’s lip and its feet stand on the recess floor, so the sash still closes.' : 'From inside, tighten the padded recess clamps.'} ${s.insert}` },
     { title: 'Position the enclosures', detail: 'Place each enclosure on four short feet. Fit its continuous grass-level mesh floor, skirts, walls, roof and latched front maintenance door.' },
     { title: 'Fit landings and cat ports', detail: `Add the raised rear landing and ramp. ${s.ports}` },
-    { title: 'Lay the supported tunnel', detail: 'Join 50 cm straight sections and, for an offset, two 90° corners. The enclosed solid walkway stays level with the sill on feet at each joint.' },
+    { title: 'Lay the supported tunnel', detail: 'Join standard sections, one pitch (about 50 cm) each, and for an offset two cube corners, each turning 90°: every piece ends in the same square port, so any one couples to any other. The enclosed solid walkway stays level with the sill on feet at each joint.' },
     { title: 'Couple the connections', detail: `Seat the matching rectangular collars and secure the removable clamps at every joint. ${s.couple}` },
     s.open,
   ];
@@ -67,6 +74,7 @@ export function validateModular(c: ModularConfig): string[] {
   range(c.sashWidth, 500, 1600, 'Sash width'); range(c.sashHeight, 500, 1600, 'Sash height');
   if (c.sashWidth - c.glassWidth < 60 || c.sashHeight - c.glassHeight < 60) errors.push('The sash needs at least 3 cm of frame on each side of the glass.');
   range(c.tunnelWidth, 200, 450, 'Tunnel clear width'); range(c.tunnelHeight, 200, 450, 'Tunnel clear height');
+  if (c.tunnelWidth !== c.tunnelHeight) errors.push('The standard port is square: the tunnel’s clear width and height must be the same.');
   if (!PORT_CLOSURES.includes(c.portClosure)) errors.push('Choose a removable panel or a sliding gate for the cat ports.');
   // Only a sliding gate travels: it needs its own height again above each port. A removable panel leaves its opening, so a port
   // with one only has to fit, with its frame, where it stands; its seat, buttons and withdrawal are checked from its layout.
@@ -91,16 +99,18 @@ export function validateModular(c: ModularConfig): string[] {
   return errors;
 }
 export type Point = [number, number];
+/** A piece of the tunnel: a straight module, or a corner cube; `openings` are its coupled faces, the others shut (a cube's by its doors). */
 export interface TunnelSection { id: string; kind: 'straight' | 'corner'; center: Point; length: number; angle: number; openings: ('back' | 'front' | 'left' | 'right')[] }
 export interface EnclosurePlacement { id: 'a' | 'b'; centerX: number; rearY: number; size: EnclosureSize }
 export function modularLayout(c: ModularConfig) {
   const sections: TunnelSection[] = [];
-  const span = c.tunnelWidth + 80;
+  // a corner is a cube; every straight module a pitch
+  const span = cubeEdge(c.tunnelWidth); const pitch = modularPitch(c);
   let serial = 0;
   const run = (start: Point, angle: number, count: number): Point => {
     const dx = -Math.sin(angle); const dy = Math.cos(angle);
-    for (let i = 0; i < count; i++) sections.push({ id: `tunnel-${serial++}`, kind: 'straight', center: [start[0] + dx * (i + 0.5) * 500, start[1] + dy * (i + 0.5) * 500], length: 500, angle, openings: ['back', 'front'] });
-    return [start[0] + dx * count * 500, start[1] + dy * count * 500];
+    for (let i = 0; i < count; i++) sections.push({ id: `tunnel-${serial++}`, kind: 'straight', center: [start[0] + dx * (i + 0.5) * pitch, start[1] + dy * (i + 0.5) * pitch], length: pitch, angle, openings: ['back', 'front'] });
+    return [start[0] + dx * count * pitch, start[1] + dy * count * pitch];
   };
   let end = run([0, 0], 0, c.approach);
   if (c.route !== 'straight') {
@@ -115,7 +125,7 @@ export function modularLayout(c: ModularConfig) {
   if (c.secondEnabled) {
     const x = end[0] + c.enclosure.width / 2;
     run([x, end[1] + (c.tunnelWidth + 100) / 2], -Math.PI / 2, c.link);
-    enclosures.push({ id: 'b', centerX: x + c.link * 500 + c.second.width / 2, rearY: end[1], size: c.second });
+    enclosures.push({ id: 'b', centerX: x + c.link * pitch + c.second.width / 2, rearY: end[1], size: c.second });
   }
   const minX = Math.min(-c.sashWidth / 2 - 250, ...enclosures.map(e => e.centerX - e.size.width / 2));
   const maxX = Math.max(c.sashWidth / 2 + 250, ...enclosures.map(e => e.centerX + e.size.width / 2));

@@ -1,4 +1,5 @@
 import { loadSubassemblyConfig, parseControlled, type SubassemblyControl } from './catioSubassembly.ts';
+import { DOOR_FIXING_LABELS, DOOR_FIXINGS, type DoorFixing } from './catioPort.ts';
 import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 
 /**
@@ -43,30 +44,38 @@ export interface TunnelCouplingConfig {
   mechanism: 'printed-latch' | 'bolts';
   /** Printed latches on each side of a coupling. */
   latchesPerSide: 1 | 2 | 3;
-  /** M8 bolts through a bolted coupling: every coupling with bolts, and always the enclosure end and mitred joints. */
-  boltsPerCoupling: 4 | 6 | 8;
+  /**
+   * M8 bolts through a bolted coupling: every coupling with bolts, and always the mitred joints. The same number on each of the four
+   * sides of the standard port (catioPort.ts `boltStations`), so a port takes another at any quarter turn.
+   */
+  boltsPerCoupling: 4 | 8 | 12;
   /** What fills the printed latch's gap. */
   seal: 'e-profile' | 'none';
+  /** How a door closing a port is held there: by the port's own latches, as a coupling, or by turn buttons on its ring. */
+  doorFixing: DoorFixing;
   /** How the tunnel is held on its supports, and whether they stand on their own: the tunnel page's settings, shared here. */
   supportFixing: SupportFixing;
   supportBase: SupportBase;
 }
 
-export const TUNNEL_COUPLING_DEFAULT: TunnelCouplingConfig = { mechanism: 'printed-latch', latchesPerSide: 2, boltsPerCoupling: 6, seal: 'e-profile', supportFixing: 'screws', supportBase: 'trestle' };
+export const TUNNEL_COUPLING_DEFAULT: TunnelCouplingConfig = { mechanism: 'printed-latch', latchesPerSide: 2, boltsPerCoupling: 8, seal: 'e-profile', doorFixing: 'latches', supportFixing: 'screws', supportBase: 'trestle' };
 
 export const TUNNEL_COUPLING_CONTROLS: SubassemblyControl<TunnelCouplingConfig>[] = [
   { key: 'mechanism', label: 'Coupling', group: 'Coupling',
-    help: `The printed toggle latch from the model library joins two flanges without tools across a ${PRINTED_LATCH_JOINT.gap} mm sealed gap; M8 bolts through both flanges, face to face, need a spanner every time but have a rated hold. Mitred joints and the enclosure end are bolted either way.`,
+    help: `The printed toggle latch from the model library joins two flanges without tools across a ${PRINTED_LATCH_JOINT.gap} mm sealed gap; M8 bolts through both flanges, face to face, need a spanner every time but have a rated hold. Mitred joints are bolted either way: a mitre’s face is not a standard port.`,
     options: [{ value: 'printed-latch', label: 'Printed toggle latch (model)' }, { value: 'bolts', label: 'M8 bolts through both flanges' }] },
   { key: 'latchesPerSide', label: 'Latches per side', group: 'Coupling', when: config => config.mechanism === 'printed-latch',
     help: 'The printed latch’s hold is not rated: two on each side of every coupling pull the seal on evenly; three for a long, heavy run.',
     options: [{ value: 1, label: '1 (2 per coupling)' }, { value: 2, label: '2 (4 per coupling)' }, { value: 3, label: '3 (6 per coupling)' }] },
   { key: 'boltsPerCoupling', label: 'Bolts per coupling', group: 'Coupling',
-    help: 'M8 bolts through each bolted pair of flanges, outside the mesh where a spanner reaches: every coupling with bolts, and with the printed latch still the enclosure end and any mitred joint.',
-    options: [{ value: 4, label: '4 · two each side' }, { value: 6, label: '6 · three each side' }, { value: 8, label: '8 · three each side, two on top' }] },
+    help: 'M8 bolts through each bolted pair of flanges, outside the mesh where a spanner reaches: every coupling with bolts, and with the printed latch still any mitred joint. The same number on all four sides of the ring, so a port fits another whichever way round it is turned.',
+    options: [{ value: 4, label: '4 · one on each side' }, { value: 8, label: '8 · two on each side' }, { value: 12, label: '12 · three on each side' }] },
   { key: 'seal', label: 'Seal', group: 'Coupling', when: config => config.mechanism === 'printed-latch',
     help: `A self-adhesive EPDM E-profile (${PRINTED_LATCH_JOINT.seal.width} × ${PRINTED_LATCH_JOINT.seal.height}, for 2–3.5 mm gaps) round the flange’s face gives the over-centre lock something to squash, and closes the gap to draughts and claws.`,
     options: [{ value: 'e-profile', label: 'EPDM E-profile in the gap' }, { value: 'none', label: 'None · gap left open' }] },
+  { key: 'doorFixing', label: 'Door held by', group: 'Doors',
+    help: 'A door closes a port that is not coupled: every face of a cube that the tunnel does not run through. Held by the port’s own latches, it is a blank flange ring closed by mesh (or plywood, on a floor face) and goes on and off like a coupled section; held by turn buttons, it is a panel laid on the ring between locating strips, every button turned a quarter turn over its edge.',
+    options: DOOR_FIXINGS.map(value => ({ value, label: DOOR_FIXING_LABELS[value] })) },
   ...supportControls<TunnelCouplingConfig>('On the support'),
 ];
 

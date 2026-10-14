@@ -4,8 +4,11 @@ import { MODULAR_DEFAULT, validateModular, type ModularConfig } from './catioMod
 import { CATIO_SUBASSEMBLIES } from './route.ts';
 export type CatioMode = 'direct' | 'modular';
 export interface CatioViewing { progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: CatioLayer[]; view: CatioView; doors: Record<string, boolean> }
-/** The settings as saved now. Version 1 had no `portClosure`: every cat port had a sliding gate (see `migrateCatioSettings`). */
-export const CATIO_SETTINGS_VERSION = 2;
+/**
+ * The settings as saved now. Version 1 had no `portClosure`: every cat port had a sliding gate. Up to version 2 the tunnel's clear
+ * width and height could differ; the standard port is square (see `migrateCatioSettings`).
+ */
+export const CATIO_SETTINGS_VERSION = 3;
 export interface CatioSettings { version: typeof CATIO_SETTINGS_VERSION; mode: CatioMode; config: ModularConfig; views: Record<CatioMode, CatioViewing> }
 export const CATIO_STORAGE_KEY = 'canfactory.catio.v1';
 export function defaultCatioSettings(): CatioSettings {
@@ -16,14 +19,20 @@ function record(value: unknown): value is Record<string, unknown> { return typeo
 /**
  * Saved settings of any version brought to the current one, or null when they are none of ours. A version 1 design keeps
  * everything it holds, dimensions and viewing state alike, and gets the sliding gates it was drawn with: only a new or reset
- * design takes the new default closure. Nothing else is touched, so that what is invalid is still rejected by the checks after it.
+ * design takes the new default closure. A design of version 1 or 2 whose tunnel was not square is snapped to the standard square
+ * port, its larger clear size both ways, so that the cats' opening never shrinks. Nothing else is touched, so that what is invalid
+ * is still rejected by the checks after it.
  */
 export function migrateCatioSettings(value: unknown): Record<string, unknown> | null {
   if (!record(value)) return null;
   if (value['version'] === CATIO_SETTINGS_VERSION) return value;
-  if (value['version'] !== 1) return null;
+  if (value['version'] !== 1 && value['version'] !== 2) return null;
   const config = value['config'];
-  return { ...value, version: CATIO_SETTINGS_VERSION, config: record(config) ? { ...config, portClosure: PORT_CLOSURE_LEGACY } : config };
+  if (!record(config)) return { ...value, version: CATIO_SETTINGS_VERSION };
+  const closure = value['version'] === 1 ? { portClosure: PORT_CLOSURE_LEGACY } : {};
+  const [w, h] = [config['tunnelWidth'], config['tunnelHeight']];
+  const square = typeof w === 'number' && typeof h === 'number' && w !== h ? { tunnelWidth: Math.max(w, h), tunnelHeight: Math.max(w, h) } : {};
+  return { ...value, version: CATIO_SETTINGS_VERSION, config: { ...config, ...closure, ...square } };
 }
 export function parseCatioSettings(raw: string | null): CatioSettings {
   const defaults = defaultCatioSettings();
