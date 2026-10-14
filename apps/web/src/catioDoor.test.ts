@@ -279,9 +279,10 @@ describe('removable door panel: button sweep and withdrawal', () => {
 });
 
 describe('cat-port closure: sliding travel only for a sliding gate', () => {
-  const grid = SIZES.flatMap(tunnelWidth => SIZES.flatMap(tunnelHeight => [500, 700, 910, 1600].flatMap(sash => [900, 1200, 2200].map((height): ModularConfig => ({
-    ...MODULAR_DEFAULT, tunnelWidth, tunnelHeight, sashWidth: sash, sashHeight: sash, glassWidth: sash - 110, glassHeight: sash - 110, enclosure: { width: 1200, depth: 1000, height },
-  })))));
+  // (the standard port is square: the same clear size both ways)
+  const grid = SIZES.flatMap(size => [500, 700, 910, 1600].flatMap(sash => [900, 1200, 2200].map((height): ModularConfig => ({
+    ...MODULAR_DEFAULT, tunnelWidth: size, tunnelHeight: size, sashWidth: sash, sashHeight: sash, glassWidth: sash - 110, glassHeight: sash - 110, enclosure: { width: 1200, depth: 1000, height },
+  }))));
 
   it('defaults to the removable panel, keeps the sliding gate selectable, and names what a saved design had', () => {
     expect(PORT_CLOSURE_DEFAULT).toBe('removable-panel'); expect(PORT_CLOSURE_LEGACY).toBe('sliding-gate');
@@ -313,7 +314,7 @@ describe('cat-port closure: sliding travel only for a sliding gate', () => {
       }
     }
     // a port as high as the sliding gate could never be: 45 cm in a 91 cm sash, and in a 90 cm enclosure
-    const tall = { ...MODULAR_DEFAULT, tunnelHeight: 450, enclosure: { width: 1200, depth: 1000, height: 900 } };
+    const tall = { ...MODULAR_DEFAULT, tunnelWidth: 450, tunnelHeight: 450, enclosure: { width: 1200, depth: 1000, height: 900 } };
     expect(validateModular(tall)).toEqual([]); expect(validateModular({ ...tall, portClosure: 'sliding-gate' })).toHaveLength(2);
   });
 
@@ -340,10 +341,11 @@ describe('saved settings from before the closure could be chosen', () => {
   const legacyViews = { direct: { progress: 2, exploded: true, windowOpen: false, cutaway: true, hidden: ['mesh'], view: 'Side', doors: {} }, modular: { progress: 6, exploded: false, windowOpen: true, cutaway: false, hidden: ['environment'], view: 'Top', doors: { 'window-cat': false, 'a-human': true } } };
   const legacy = JSON.stringify({ version: 1, mode: 'modular', config: legacyConfig, views: legacyViews });
 
-  it('keeps a version 1 catio’s dimensions and viewing state, and its sliding gates', () => {
+  it('keeps a version 1 catio’s dimensions and viewing state, and its sliding gates; its tunnel square at the larger size', () => {
     const settings = parseCatioSettings(legacy);
     expect(settings.version).toBe(CATIO_SETTINGS_VERSION); expect(settings.mode).toBe('modular');
-    expect(settings.config).toEqual({ ...legacyConfig, portClosure: 'sliding-gate' });
+    // a 35 × 30 cm tunnel becomes the standard square port, 35 cm both ways: the cats' opening never shrinks
+    expect(settings.config).toEqual({ ...legacyConfig, tunnelHeight: 350, portClosure: 'sliding-gate' });
     expect(settings.views).toEqual(legacyViews);
     expect(validateModular(settings.config)).toEqual([]);
     // saved again, it stays as migrated: the new default is never applied behind the owner's back
@@ -433,8 +435,12 @@ describe('saved settings from before the closure could be chosen', () => {
     expect(windowInsertDefinition.doorToggle?.('modular', WINDOW_INSERT_DEFAULT)).toBe('Cat port open');
     expect(windowInsertDefinition.doorToggle?.('direct', WINDOW_INSERT_DEFAULT)).toBeNull();
     expect(couplingDefinition.doorToggle?.('modular', COUPLING_DEFAULT)).toBe('Cat port open');
-    expect(tunnelDefinition.doorToggle?.('modular', TUNNEL_DEFAULT)).toBe('Side access open');
-    expect(tunnelDefinition.doorToggle?.('modular', { ...TUNNEL_DEFAULT, sideAccess: 'none' })).toBeNull();
+    // the tunnel's side access and its cubes' doors open together
+    expect(tunnelDefinition.doorToggle?.('modular', TUNNEL_DEFAULT)).toBe('Doors open');
+    expect(tunnelDefinition.doorToggle?.('modular', { ...TUNNEL_DEFAULT, sideAccess: 'none' })).toBe('Cube doors open');
+    const noCubes = { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar' as const };
+    expect(tunnelDefinition.doorToggle?.('modular', noCubes)).toBe('Side access open');
+    expect(tunnelDefinition.doorToggle?.('modular', { ...noCubes, sideAccess: 'none' })).toBeNull();
   });
 });
 
@@ -646,8 +652,9 @@ describe('tunnel side access', () => {
     TUNNEL_DEFAULT, { ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends' },
     { ...TUNNEL_DEFAULT, portX: -1730, portY: 3420, portFacing: -25, portHeight: 820, slopeLeg: 'final', final: 2300 },
     { ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portHeight: 245, slopeLeg: 'approach', approach: 1500 },
-    { ...TUNNEL_DEFAULT, portX: 900, portY: 5200, portFacing: 15, portHeight: 1100, maxSlope: 25, sectionLength: 1000 },
-    { ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portLevel: 'window', sectionLength: 500 },
+    { ...TUNNEL_DEFAULT, portX: 900, portY: 5200, portFacing: 15, portHeight: 1100, maxSlope: 25, sectionLength: 2 },
+    { ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portLevel: 'window', sectionLength: 1 },
+    { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar', portX: 1200, portY: 3000, final: 700, slopeLeg: 'middle' },
   ];
   const site = siteWith('removable-panel');
   const variants = (route: TunnelConfig) => (['none', 'one', 'all'] as const).flatMap(sideAccess => (['left', 'right'] as const).map((sideAccessSide): TunnelConfig => ({ ...route, sideAccess, sideAccessSide })));
@@ -667,7 +674,8 @@ describe('tunnel side access', () => {
         for (const key of ['S', 'E', 'pieces', 'joints', 'interfaces', 'couplings', 'supports', 'members', 'cleats', 'totalLength', 'rise', 'turns'] as const) expect(l[key], `${label} ${key}`).toEqual(plain[key]);
         // the roof: the same panels, corners and edges, and the same staples along them
         const roof = (layout: typeof l) => layout.panels.filter(panel => panel.id.endsWith('-mesh-roof'));
-        expect(roof(l), label).toEqual(roof(plain)); expect(roof(l)).toHaveLength(l.pieces.length);
+        // (a cube has no roof mesh of its own: its roof is a door)
+        expect(roof(l), label).toEqual(roof(plain)); expect(roof(l)).toHaveLength(l.pieces.filter(p => p.kind !== 'cube').length);
         expect(roofStaples(l), label).toEqual(plainRoofStaples);
         // the other fasteners too, but for the mesh of the side that is now a panel
         const notMesh = (layout: typeof l) => layout.fasteners.filter(f => f.component !== 'staples');
@@ -782,7 +790,8 @@ describe('tunnel side access', () => {
 
   it('lists each panel’s timber, mesh, buttons and library screws, and tells how to use it without letting a cat out', () => {
     for (const mesh of ['netting', 'welded'] as const) for (const sideAccess of ['none', 'one', 'all'] as const) {
-      const config = { ...TUNNEL_DEFAULT, mesh, sideAccess }; const l = tunnelLayout(config, site); const n = l.access.length;
+      // (a route without cubes, whose doors have the same parts)
+      const config = { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar' as const, portX: 1200, portY: 3000, final: 700, slopeLeg: 'middle' as const, mesh, sideAccess }; const l = tunnelLayout(config, site); const n = l.access.length;
       const lines = tunnelBom('modular', config, site); const plain = tunnelBom('modular', { ...config, sideAccess: 'none' }, site);
       const quantity = (match: (line: typeof lines[number]) => boolean, list = lines) => list.filter(match).reduce((sum, line) => sum + line.quantity, 0);
       const door = l.access[0]?.door;
@@ -807,7 +816,7 @@ describe('tunnel side access', () => {
       expect(steps).toMatch(/Before any part of the tunnel is uncoupled again, shut both ends’ ports first/);
     }
     expect(tunnelSteps('modular', TUNNEL_DEFAULT)[0]?.detail).toMatch(/cat-port panel seated|cat gate shut and latched/);
-    expect(tunnelFacts('modular', TUNNEL_DEFAULT, site).find(f => f.label === 'Side access · right')?.value).toMatch(/^1 removable mesh panel, .* · 6 turn buttons \(head and sill\), 12 mm over the panel · seat 10 mm$/);
+    expect(tunnelFacts('modular', TUNNEL_DEFAULT, site).find(f => f.label === 'Side access · right')?.value).toMatch(/^1 removable mesh panel, .* · \d+ turn buttons \(head and sill\), 12 mm over the panel · seat 10 mm$/);
     expect(tunnelFacts('modular', TUNNEL_DEFAULT, siteWith('sliding-gate')).find(f => f.label.startsWith('Cat ports at both ends'))).toMatchObject({ value: 'Vertical sliding gate', from: { page: 'concept', settings: ['Cat-port closure'] } });
     expect(tunnelFacts('modular', { ...TUNNEL_DEFAULT, sideAccess: 'none' }, site).some(f => f.label.startsWith('Side access'))).toBe(false);
   });

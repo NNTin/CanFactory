@@ -52,11 +52,11 @@ describe('catio pages that follow each other', () => {
   });
 
   it('declares exactly the tunnel–tunnel coupling settings that change the tunnel, and the tunnel settings that change the coupling', () => {
-    // the tunnel follows the coupling's mechanism at every section and collar coupling (and its bolts at the enclosure end)
+    // the tunnel follows the coupling's mechanism at every coupling, its bolts where they are bolted, and how its cubes' doors are held
     const followed = CATIO_SUBASSEMBLY_ENTRIES.tunnel.follows.find(f => f.page === 'tunnel-tunnel-coupling')?.settings ?? [];
-    const reference = builds.tunnel(base);
+    const mechanisms = [TUNNEL_COUPLING_DEFAULT, { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' as const }];
     for (const control of TUNNEL_COUPLING_CONTROLS) {
-      const changes = control.options.some(option => builds.tunnel(base, { ...TUNNEL_COUPLING_DEFAULT, [control.key]: option.value }) !== reference);
+      const changes = mechanisms.some(m => control.options.some(option => builds.tunnel(base, { ...m, [control.key]: option.value }) !== builds.tunnel(base, m)));
       expect(changes, `tunnel · ${control.key}`).toBe(followed.includes(control.key));
     }
     // the coupling page is built from the tunnel's sections, one of its supports and its feet and ground
@@ -90,10 +90,10 @@ describe('catio pages that follow each other', () => {
     ]);
     expect(dependentsOf('tunnel')).toEqual([
       { page: 'insert-tunnel-coupling', settings: [] },
-      { page: 'tunnel-tunnel-coupling', settings: ['mesh', 'sectionLength', 'sideAccess', 'sideAccessSide', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance', 'supportFixing', 'supportBase'] },
+      { page: 'tunnel-tunnel-coupling', settings: ['mesh', 'straights', 'sectionLength', 'sideAccess', 'sideAccessSide', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance', 'supportFixing', 'supportBase'] },
     ]);
     expect(dependentsOf('insert-tunnel-coupling')).toEqual([]);
-    expect(dependentsOf('tunnel-tunnel-coupling')).toEqual([{ page: 'tunnel', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal'] }]);
+    expect(dependentsOf('tunnel-tunnel-coupling')).toEqual([{ page: 'tunnel', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal', 'doorFixing'] }]);
     for (const entry of Object.values(CATIO_SUBASSEMBLY_ENTRIES)) {
       for (const f of entry.follows) for (const key of f.settings) expect(CATIO_SUBASSEMBLY_ENTRIES[f.page].label(key), `${entry.id} → ${f.page}.${key}`).not.toBe(key);
       // without storage every page reads the others' defaults, which fit

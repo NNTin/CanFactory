@@ -22,19 +22,27 @@ const configs: TunnelCouplingConfig[] = [TUNNEL_COUPLING_DEFAULT, ...TUNNEL_COUP
   .map(config => config.supportFixing === 'gravity' ? { ...config, supportBase: 'self-standing' as const } : config),
   ...([4, 8] as const).map(boltsPerCoupling => ({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' as const, boltsPerCoupling }))];
 /** The tunnel's sections at every length, with its feet, and the catio's smallest and largest clear tunnel. */
-const sites: TunnelCouplingSite[] = [site, ...([500, 1000] as const).map(sectionLength => ({ tunnel: { ...TUNNEL_DEFAULT, sectionLength }, site: base })),
+const sites: TunnelCouplingSite[] = [site, ...([1, 3] as const).map(sectionLength => ({ tunnel: { ...TUNNEL_DEFAULT, sectionLength }, site: base })),
   { tunnel: { ...TUNNEL_DEFAULT, footPad: 'ganter' } satisfies TunnelConfig, site: base }, welded,
   ...[[200, 200], [450, 450]].map(([w = 0, h = 0]) => ({ tunnel: TUNNEL_DEFAULT, site: { ...base, w, h } }))];
+/** The tunnel's straight runs of cubes: the joint between two of them, each closed by its doors. */
+const cubes: TunnelCouplingSite = { tunnel: { ...TUNNEL_DEFAULT, straights: 'cubes' }, site: base };
+/** A standard element's length along the run: long sections a whole number of pitches less the gap, a cube its edge. */
+const elementLength = (s: TunnelCouplingSite, config: TunnelCouplingConfig) => s.tunnel.straights === 'cubes' ? s.site.w + 200 : s.tunnel.sectionLength * (s.site.w + 200 + (config.mechanism === 'printed-latch' ? PRINTED_LATCH_JOINT.gap : 0)) - (config.mechanism === 'printed-latch' ? PRINTED_LATCH_JOINT.gap : 0);
 const installed: CatioState = { progress: 5, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
 const bounds = (object: THREE.Object3D) => new THREE.Box3().setFromObject(object, true);
 
 describe('tunnel–tunnel coupling', () => {
-  it('joins two identical sections of the tunnel’s longest length, on the support under the joint, at its own height', () => {
-    for (const s of sites) for (const config of configs) {
+  it('joins two identical elements of the tunnel’s, on the support under the joint, at its own height', () => {
+    for (const s of [...sites, cubes]) for (const config of configs) {
       const l = tunnelCouplingLayout(config, s);
       expect(l.errors, `${JSON.stringify(config)} ${JSON.stringify(s.tunnel.sectionLength)} ${s.site.w}`).toEqual([]);
-      expect(l.before.length).toBeCloseTo(s.tunnel.sectionLength, 9); expect(l.after.length).toBeCloseTo(s.tunnel.sectionLength, 9);
-      expect(l.before.kind).toBe('section'); expect(l.after.kind).toBe('section');
+      // long sections of the tunnel's longest length, or two cubes when its straight runs are cubes
+      expect(l.before.length).toBeCloseTo(elementLength(s, config), 9); expect(l.after.length).toBeCloseTo(elementLength(s, config), 9);
+      const kind = s.tunnel.straights === 'cubes' ? 'cube' : 'section';
+      expect(l.before.kind).toBe(kind); expect(l.after.kind).toBe(kind);
+      // a cube's doors close every face the tunnel does not run through
+      expect(l.tl.doors.filter(d => l.pieces.includes(d.piece))).toHaveLength(kind === 'cube' ? 8 : 0);
       // straight on and level, the floor at the page's height wherever the window insert puts the window port
       expect(l.before.frame.y).toEqual(l.after.frame.y); expect(l.before.pitch).toBe(0);
       expect(l.before.start.at[2]).toBe(TUNNEL_COUPLING.floor);
@@ -54,8 +62,8 @@ describe('tunnel–tunnel coupling', () => {
     }
   });
 
-  it('puts each printed latch across the gap with the shared mechanism: base on the first flange, catch on the second, in line, pulling along the tunnel', () => {
-    for (const s of sites) for (const latchesPerSide of [1, 2, 3] as const) {
+  it('puts each printed latch across the gap with the shared mechanism: base and catch on the two flanges, in line, pulling along the tunnel', () => {
+    for (const s of [...sites, cubes]) for (const latchesPerSide of [1, 2, 3] as const) {
       const l = tunnelCouplingLayout({ ...TUNNEL_COUPLING_DEFAULT, latchesPerSide }, s);
       expect(l.latches).toHaveLength(2 * latchesPerSide); expect(l.bolts).toEqual([]);
       const face = l.coupling.face; const T = TUNNEL.flange.thickness;
@@ -63,11 +71,14 @@ describe('tunnel–tunnel coupling', () => {
       expect(PRINTED_LATCH.locked).toBeCloseTo(-TL.tautLink(TL.CLOSED).offset, 9);
       expect(2 * PRINTED_LATCH.overhang + PRINTED_LATCH.locked).toBeCloseTo(l.gap, 9);
       for (const q of l.latches) {
-        expect(q.pull.map(c => c + 0)).toEqual([0, -1, 0]); expect(Math.abs(q.at[0])).toBeCloseTo(l.w / 2 + TUNNEL.flange.width, 9);
+        // seen from outside, each flange has its base plates on its left: the first's on the right of the tunnel looking along it,
+        // pulling back towards it; the second's on the left, pulling on along the tunnel
+        expect(q.base).toBe(q.side > 0 ? 'outside' : 'port');
+        expect(q.pull.map(c => c + 0)).toEqual(q.base === 'outside' ? [0, -1, 0] : [0, 1, 0]); expect(Math.abs(q.at[0])).toBeCloseTo(l.w / 2 + TUNNEL.flange.width, 9);
         expect(q.out[0]).toBe(q.side);
-        // the seam is `overhang` proud of the first flange's face; its base plate lies within that flange's thickness
+        // the seam is `overhang` proud of the face of the flange with the base plate; that plate lies within the flange's thickness
         const first = face.at[1] - l.gap;
-        expect(first - q.at[1]).toBeCloseTo(-PRINTED_LATCH.overhang, 9);
+        expect(q.at[1] - (q.base === 'outside' ? first : face.at[1])).toBeCloseTo(q.base === 'outside' ? PRINTED_LATCH.overhang : -PRINTED_LATCH.overhang, 9);
         expect(PRINTED_LATCH.along - PRINTED_LATCH.overhang).toBeLessThanOrEqual(T);
         // standing on the flange's side, clear of the bearer under it and of its top
         expect(q.at[2] - PRINTED_LATCH.length / 2).toBeGreaterThan(l.support.top);
@@ -77,7 +88,10 @@ describe('tunnel–tunnel coupling', () => {
       expect(l.latchScrews).toHaveLength(4 * l.latches.length);
       for (const f of l.latchScrews) {
         expect(f.partId).toBe('din-7997-4x25');
-        const depth = f.component === 'latch-screws' ? (face.at[1] - l.gap) - f.at[1] : f.at[1] - face.at[1];
+        const q = l.latches.find(k => k.id === f.of);
+        const onFirst = (f.component === 'latch-screws') === (q?.base === 'outside');
+        const depth = onFirst ? (face.at[1] - l.gap) - f.at[1] : f.at[1] - face.at[1];
+        expect(f.piece).toBe(onFirst ? l.before.id : l.after.id);
         expect(depth, f.use).toBeGreaterThan(5);
         expect(depth, f.use).toBeLessThan(TUNNEL.flange.thickness);
       }
@@ -88,13 +102,15 @@ describe('tunnel–tunnel coupling', () => {
     }
   });
 
-  it('bolts the flanges face to face with the chosen pattern', () => {
-    for (const boltsPerCoupling of [4, 6, 8] as const) {
-      const l = tunnelCouplingLayout({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling }, site);
+  it('bolts the flanges face to face at the standard port’s stations, the same on all four sides', () => {
+    for (const s of [site, cubes]) for (const boltsPerCoupling of [4, 8, 12] as const) {
+      const l = tunnelCouplingLayout({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling }, s);
       expect(l.gap).toBe(0); expect(l.latches).toEqual([]); expect(l.seal).toBeNull();
       expect(l.bolts).toHaveLength(boltsPerCoupling);
-      // outside the mesh: up the flanges' sides beside the rails, or across the head over the roof
-      for (const b of l.bolts) { expect(b.n).toEqual(l.coupling.face.n); expect(Math.abs(b.at[0]) > l.w / 2 + TUNNEL.rail || b.at[2] > l.floor + l.h + TUNNEL.rail).toBe(true); }
+      // outside the mesh: up the flanges' sides beside the rails, across the head over the roof, or across the sill under the floor
+      for (const b of l.bolts) { expect(b.n).toEqual(l.coupling.face.n); expect(Math.abs(b.at[0]) > l.w / 2 + TUNNEL.rail || b.at[2] > l.floor + l.h + TUNNEL.rail || b.at[2] < l.floor - TUNNEL.floor - TUNNEL.rail + 5).toBe(true); }
+      const sides = [l.bolts.filter(b => b.at[0] < -l.w / 2), l.bolts.filter(b => b.at[0] > l.w / 2), l.bolts.filter(b => b.at[2] > l.floor + l.h), l.bolts.filter(b => b.at[2] < l.floor)];
+      expect(sides.map(q => q.length)).toEqual([1, 1, 1, 1].map(() => boltsPerCoupling / 4));
     }
   });
 
@@ -104,16 +120,20 @@ describe('tunnel–tunnel coupling', () => {
     expect(text).toContain(`${Number(PRINTED_LATCH.locked.toFixed(1))} mm apart`);
     expect(text).toContain(`${Number(PRINTED_LATCH.overhang.toFixed(1))} mm proud`);
     expect(text).toContain(`${TUNNEL_COUPLING_DEFAULT.boltsPerCoupling} ISO 4017 M8 × 80 bolts`);
-    expect(TUNNEL_COUPLING_DECISIONS.map(d => d.title)).toEqual(expect.arrayContaining(['No locating pins: the bearer locates', 'The enclosure end stays bolted']));
+    expect(TUNNEL_COUPLING_DECISIONS.map(d => d.title)).toEqual(expect.arrayContaining(['No locating pins: the bearer locates', 'One standard port, coupled or closed']));
+    expect(text).toContain('base plates on its left side and their catch plates on its right');
     for (const d of TUNNEL_COUPLING_DECISIONS) if (d.parameter) expect(TUNNEL_COUPLING_CONTROLS.map(c => c.label), d.title).toContain(d.parameter);
   });
 
   it('names where the section length is set, and what the joint is', () => {
     const facts = tunnelCouplingFacts('modular', TUNNEL_COUPLING_DEFAULT, site);
     expect(facts.find(f => f.label === 'Gap · seal')?.value).toBe('3 mm · squashed from 4 mm');
-    expect(facts.find(f => f.label === 'Section length')).toMatchObject({ value: '75 cm · the longest section', from: { page: 'tunnel', settings: ['sectionLength'] } });
+    expect(facts.find(f => f.label === 'Section length')).toMatchObject({ value: '100.3 cm · the longest section', from: { page: 'tunnel', settings: ['sectionLength'] } });
+    expect(facts.find(f => f.label === 'Enclosure end')?.value).toBe('Latched: a standard port like every other');
+    expect(facts.find(f => f.label === 'Doors · held by')?.value).toBe('On the tunnel’s cubes · the port’s own toggle latches');
+    expect(tunnelCouplingFacts('modular', { ...TUNNEL_COUPLING_DEFAULT, doorFixing: 'turn-buttons' }, cubes).find(f => f.label === 'Doors · held by')?.value).toBe('8 on these two cubes · turn buttons on the port’s ring');
     expect(tunnelCouplingFacts('modular', { ...TUNNEL_COUPLING_DEFAULT, seal: 'none' }, site).find(f => f.label === 'Gap · seal')?.value).toBe('3 mm · left open');
-    expect(tunnelCouplingFacts('modular', { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' }, site).find(f => f.label === 'Bolts per coupling')?.value).toMatch(/^6 × ISO 4017 M8 × 80/);
+    expect(tunnelCouplingFacts('modular', { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' }, site).find(f => f.label === 'Bolts per coupling')?.value).toMatch(/^8 × ISO 4017 M8 × 80/);
   });
 });
 
@@ -152,8 +172,24 @@ describe('tunnel–tunnel coupling parts list', () => {
     }
   });
 
+  it('counts two cubes’ rings, corner blocks and doors, and the doors’ latches or turn buttons', () => {
+    for (const config of configs) {
+      const l = tunnelCouplingLayout(config, cubes); const lines = tunnelCouplingBom('modular', config, cubes);
+      const doors = l.tl.doors.filter(d => l.pieces.includes(d.piece));
+      expect(lines.filter(line => line.name.startsWith('Flange')).reduce((n, line) => n + line.quantity, 0)).toBe(48);
+      expect(lines.find(line => line.name === 'Corner block')?.quantity).toBe(16);
+      expect(lines.some(line => line.name === 'Section rail' || line.name === 'Floor board' || line.name === 'Net hood')).toBe(false);
+      // every door but the floor's has its mesh
+      expect(lines.filter(line => line.name === 'Removable panel mesh').reduce((n, line) => n + line.quantity, 0)).toBe(6);
+      const latches = lines.find(line => line.modelId === 'toggle-latch')?.quantity ?? 0;
+      const joint = config.mechanism === 'printed-latch' ? 2 * config.latchesPerSide : 0;
+      expect(latches).toBe(joint + (config.doorFixing === 'latches' ? doors.length * 2 * config.latchesPerSide : 0));
+      expect(lines.filter(line => line.name === 'Door turn button, printed (custom)').reduce((n, line) => n + line.quantity, 0)).toBe(config.doorFixing === 'turn-buttons' ? doors.reduce((n, d) => n + d.door.buttons.length, 0) : 0);
+    }
+  });
+
   it('links every library part it can use back to this page in the parts library', () => {
-    const used = new Set([site, welded].flatMap(s => configs.flatMap(config => tunnelCouplingBom('modular', config, s))).flatMap(line => line.partId ? [line.partId] : []));
+    const used = new Set([site, welded, cubes].flatMap(s => configs.flatMap(config => tunnelCouplingBom('modular', config, s))).flatMap(line => line.partId ? [line.partId] : []));
     expect([...used].sort()).toEqual([...new Set(tunnelTunnelCouplingConcept.parts.map(link => link.partId))].sort());
     for (const id of used) {
       const p = findPart(id); if (!p) throw new Error(id);
@@ -403,17 +439,19 @@ describe('tunnel–tunnel coupling page settings', () => {
     const defaults = defaultSubassemblySettings(tunnelCouplingDefinition);
     expect(defaults.variant).toBe('modular');
     expect(defaults.views.modular.windowOpen).toBe(false);
-    expect(defaults.config).toEqual({ mechanism: 'printed-latch', latchesPerSide: 2, boltsPerCoupling: 6, seal: 'e-profile', supportFixing: 'screws', supportBase: 'trestle' });
-    const saved = JSON.stringify({ version: 1, variant: 'direct', config: { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 8, latchesPerSide: 5, seal: 'foam' }, views: { modular: { progress: 3, windowOpen: true, view: 'Mounting' } } });
+    expect(defaults.config).toEqual({ mechanism: 'printed-latch', latchesPerSide: 2, boltsPerCoupling: 8, seal: 'e-profile', doorFixing: 'latches', supportFixing: 'screws', supportBase: 'trestle' });
+    const saved = JSON.stringify({ version: 1, variant: 'direct', config: { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 12, latchesPerSide: 5, seal: 'foam', doorFixing: 'turn-buttons' }, views: { modular: { progress: 3, windowOpen: true, view: 'Mounting' } } });
     const settings = parseSubassemblySettings(tunnelCouplingDefinition, saved);
     expect(settings.variant).toBe('modular');
-    expect(settings.config).toEqual({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 8 });
+    expect(settings.config).toEqual({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 12, doorFixing: 'turn-buttons' });
+    // saved before the bolts were the same on all four sides of the port: 6 (three a side, on two sides) is not offered, and takes the default
+    expect(parseSubassemblySettings(tunnelCouplingDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_COUPLING_DEFAULT, boltsPerCoupling: 6 } })).config.boltsPerCoupling).toBe(8);
     expect(settings.views.modular).toMatchObject({ progress: 3, windowOpen: true, view: 'Mounting' });
     expect(parseSubassemblySettings(tunnelCouplingDefinition, '{oops')).toEqual(defaults);
     // the latches' own settings show only with the latches
     const shown = (config: TunnelCouplingConfig) => TUNNEL_COUPLING_CONTROLS.filter(c => !c.when || c.when(config)).map(c => c.key);
-    expect(shown(TUNNEL_COUPLING_DEFAULT)).toEqual(['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal', 'supportFixing', 'supportBase']);
-    expect(shown({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' })).toEqual(['mechanism', 'boltsPerCoupling', 'supportFixing', 'supportBase']);
+    expect(shown(TUNNEL_COUPLING_DEFAULT)).toEqual(['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal', 'doorFixing', 'supportFixing', 'supportBase']);
+    expect(shown({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' })).toEqual(['mechanism', 'boltsPerCoupling', 'doorFixing', 'supportFixing', 'supportBase']);
   });
 
   it('shares how the tunnel is held on its supports with the tunnel page: set on either, both show it', () => {
