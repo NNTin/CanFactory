@@ -259,7 +259,7 @@ export function couplingSteps(_variant: CatioMode, config: CouplingConfig): read
   const frameScrews = l.fasteners.filter(f => f.component === 'frame-screws').length;
   const close = printed ? '' : config.latchType === 'S' ? ' The safety catch clicks over the lever.' : config.latchType === 'SV' ? ' Hang a padlock through each eye if the tunnel should stay put.' : '';
   // the tunnel's first flange is a standard port: seen from the window, base plates on its left, catch plates on its right
-  const half = n / 2; const plates = (k: number, what: string) => `${k === 1 ? `a ${what}` : `${k} ${what}s`}`;
+  const half = n / 2; const plates = (k: number, what: string) => k === 1 ? `a ${what}` : `${k} ${what}s`;
   const catches = printed ? `Screw the printed latches’ plates onto the stiles’ outer sides, ${round1(PRINTED_LATCH.overhang)} mm proud of the frame’s face, two 4 × 25 screws each: ${plates(half, 'catch plate')} on the left stile, hook outwards, and ${plates(half, 'base plate')}, lever and link already snapped on, on the right (seen from the garden), so that the tunnel’s first flange meets them as a standard port.`
     : `Screw ${n === 2 ? 'a catch bracket' : 'the catch brackets'} of the ${latch} onto ${n === 2 ? 'each stile’s outer side' : 'the stiles’ outer sides'}, two 4 × 25 screws each.`;
   const bodies = printed ? `screw the latches’ other plates onto the first flange’s outer sides, ${round1(PRINTED_LATCH.overhang)} mm proud of its back, two 4 × 25 screws each: ${plates(half, 'base plate')}, lever and link already snapped on, on its left and ${plates(half, 'catch plate')} on its right, seen from the window.`
