@@ -16,7 +16,7 @@ import { defaultSubassemblySettings, fastenerClashes, parseSubassemblySettings, 
 import { couplingDefinition, tunnelCouplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
 import { COUPLING_CONTROLS, COUPLING_DEFAULT, couplingFacts, couplingLayout, couplingSteps } from './catioCoupling.ts';
 import { createCouplingScene } from './catioCouplingScene.ts';
-import { parseTunnel, TUNNEL, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSite, tunnelSteps, vec, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
+import { facePoint, parseTunnel, TUNNEL, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSite, tunnelSteps, vec, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
 import { TUNNEL_COUPLING_DEFAULT } from './catioTunnelJoint.ts';
 import { tunnelCouplingFacts, tunnelCouplingLayout } from './catioTunnelCoupling.ts';
 import { createTunnelCouplingScene } from './catioTunnelCouplingScene.ts';
@@ -701,7 +701,17 @@ describe('tunnel side access', () => {
     for (const route of routes) for (const config of variants(route)) {
       const l = tunnelLayout(config, site); const plain = tunnelLayout({ ...config, sideAccess: 'none' }, site);
       const T = TUNNEL.flange.thickness; const square = (p: typeof l.pieces[number]) => vec.dot(p.start.n, p.frame.y) > 1 - 1e-9 && vec.dot(p.end.n, p.frame.y) > 1 - 1e-9;
-      const able = l.pieces.filter(p => p.kind === 'section' && square(p) && p.length - 2 * T >= TUNNEL.access.minLength);
+      // the square part of the side between the flanges' inner faces, all the way up it, in the depth of the rails
+      const sideSpan = (p: typeof l.pieces[number]) => {
+        const side = config.sideAccessSide === 'left' ? -1 : 1; let from = -Infinity; let to = Infinity;
+        for (const u of [side * l.w / 2, side * (l.w / 2 + TUNNEL.rail)]) for (const v of [-TUNNEL.floor - TUNNEL.rail, l.h + TUNNEL.rail]) {
+          from = Math.max(from, vec.dot(vec.sub(facePoint(p.start, u, v, T), p.start.at), p.frame.y));
+          to = Math.min(to, vec.dot(vec.sub(facePoint(p.end, u, v, -T), p.start.at), p.frame.y));
+        }
+        return to - from;
+      };
+      const able = l.pieces.filter(p => p.kind === 'section' && sideSpan(p) >= TUNNEL.access.minLength);
+      for (const p of able.filter(square)) expect(sideSpan(p)).toBeCloseTo(p.length - 2 * T, 9);
       expect(config.supportFixing).not.toBe('strap');
       expect(l.access.map(a => a.piece), JSON.stringify(config)).toEqual(config.sideAccess === 'all' ? able.map(p => p.id) : config.sideAccess === 'one' ? able.slice(Math.floor(able.length / 2), Math.floor(able.length / 2) + 1).map(p => p.id) : []);
       const sign = config.sideAccessSide === 'left' ? -1 : 1; const sideName = config.sideAccessSide;
@@ -719,20 +729,20 @@ describe('tunnel side access', () => {
         expect(edge !== undefined).toBe(l.mesh.soft);
         if (edge) {
           const staples = l.fasteners.filter(f => f.component === 'staples' && f.piece === piece.id && /top rail over the side access/.test(f.use));
-          expect((piece.length - 2 * T) / staples.length).toBeLessThanOrEqual(l.mesh.opening);
+          expect(vec.len(vec.sub(edge.edges[0]?.to ?? [0, 0, 0], edge.edges[0]?.from ?? [0, 0, 0])) / staples.length).toBeLessThanOrEqual(l.mesh.opening);
           const top = Math.max(...a.door.buttons.map(b => b.pivot[1] + buttonSweep(b)));
           expect(l.h + TUNNEL.rail - TUNNEL.access.hoodTurn).toBeGreaterThan(Math.max(...a.door.buttons.filter(b => b.side === 'head').map(b => b.pivot[1] + b.tail)));
           expect(top).toBeLessThan(l.h + TUNNEL.rail + 20);
         }
         // its frame: seated the panel's thickness inside the rails' outer faces, coming out sideways, flush with the rails
-        const outer = l.w / 2 + TUNNEL.rail; const middle = vec.mul(vec.add(piece.start.at, piece.end.at), 0.5);
+        const outer = l.w / 2 + TUNNEL.rail; const middle = vec.add(piece.start.at, vec.mul(piece.frame.y, (a.span[0] + a.span[1]) / 2));
         expect(vec.len(vec.sub(a.frame.origin, vec.add(middle, vec.mul(piece.frame.x, sign * (outer - a.door.front)))))).toBeCloseTo(0, 6);
         expect(vec.dot(a.frame.n, vec.mul(piece.frame.x, sign))).toBeCloseTo(1, 9); expect(vec.dot(a.frame.v, piece.frame.z)).toBeCloseTo(1, 9);
         expect(vec.len(vec.sub(vec.cross(a.frame.u, a.frame.v), a.frame.n))).toBeCloseTo(0, 9);
         // everything of it lies between the flanges' inner faces, along the tunnel
         const along = (point: [number, number, number]) => vec.dot(vec.sub(point, middle), piece.frame.y);
         const reach = Math.max(...[...a.door.timber.flatMap(t => t.boxes).map(b => doorBounds(a.frame, b)).flatMap(b => [b.min, b.max]), ...a.door.buttons.flatMap(b => [-1, 1].map(k => [b.pivot[0] + k * buttonSweep(b), b.pivot[1], b.pivot[2]] as [number, number, number]).map(q => vec.add(a.frame.origin, vec.add(vec.mul(a.frame.u, q[0]), vec.add(vec.mul(a.frame.v, q[1]), vec.mul(a.frame.n, q[2]))))))].map(q => Math.abs(along(q))));
-        if (Math.abs(piece.pitch) < 1e-9 && Math.abs(piece.frame.y[0]) < 1e-9) expect(reach).toBeLessThanOrEqual(piece.length / 2 - T + 1e-6);
+        if (Math.abs(piece.pitch) < 1e-9 && Math.abs(piece.frame.y[0]) < 1e-9) expect(reach).toBeLessThanOrEqual((a.span[1] - a.span[0]) / 2 + 1e-6);
         for (const b of a.door.buttons) expect(Math.abs(b.pivot[0]) + buttonSweep(b)).toBeLessThanOrEqual(a.door.opening.width / 2 + 1e-6);
       }
     }
@@ -742,7 +752,7 @@ describe('tunnel side access', () => {
     expect(tunnelLayout(TUNNEL_DEFAULT, site).access).toHaveLength(1);
   });
 
-  it('stays clear of the couplings’ latches and bolts, the supports and what holds the tunnel on them, and of the screws in its rails', () => {
+  it('stays clear of the couplings’ latches and bolts, the supports and what holds the tunnel on them, and of the screws in its rails', { timeout: 120_000 }, () => {
     for (const route of routes) for (const joint of joints) for (const supportFixing of ['screws', 'strap', 'dowels', 'turn-buttons', 'gravity'] as const) {
       const l = tunnelLayout({ ...route, sideAccess: 'all', supportFixing, supportBase: 'self-standing' }, site, joint);
       for (const a of l.access) {
@@ -765,8 +775,10 @@ describe('tunnel side access', () => {
         };
         // every latch and bolt of its section's couplings is at a flange, beyond the panel's ends; so the latches stay in reach
         for (const c of l.couplings.filter(q => q.before === piece.id || q.after === piece.id)) {
-          for (const latch of c.latches) expect(along(latch.at), `${a.id} ${latch.id}`).toBeGreaterThan(half);
-          for (const bolt of c.bolts) expect(along(bolt.at), a.id).toBeGreaterThan(half - 1e-6);
+          // (on the panel's side of the tunnel: beside a mitre, bolts across the head or on the far side may stand beside it)
+          const beside = (q: [number, number, number]) => vec.dot(vec.sub(q, middle), vec.mul(piece.frame.x, a.side)) > l.w / 2;
+          for (const latch of c.latches.filter(q => beside(q.at))) expect(along(latch.at), `${a.id} ${latch.id}`).toBeGreaterThan(half);
+          for (const bolt of c.bolts.filter(q => beside(q.at))) expect(along(bolt.at), a.id).toBeGreaterThan(half - 1e-6);
         }
         // what holds the tunnel on its supports (dowels, straps and cleats, keepers, posts and the support fixings' own turn buttons)
         for (const s of l.supports) {

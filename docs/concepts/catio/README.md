@@ -177,7 +177,7 @@ The [exact modular prompts and correction passes](modular-prompts.md) record use
 | Each enclosure W / D / H | 120 / 100 / 120 cm | W and D 80–240 cm; H 90–220 cm |
 | Tunnel clear size | 30 cm | 20–45 cm, square (the [standard port](standard-port.md)), subject to ramp clearance and, with sliding gates, to their travel; a design saved with a non-square tunnel takes its larger size both ways |
 | Cat-port closure | Removable panel with turn buttons | Removable panel with turn buttons; vertical sliding gate (what a design saved before the choice keeps) |
-| Straight module length | One pitch: 50.3 cm | A cube's edge (the clear size + 20 cm) and a latched coupling's 3 mm gap |
+| Straight module length | One pitch: 54.1 cm | A cube's edge (the clear size + 23.8 cm) and a latched coupling's 3 mm gap |
 | Approach modules | 2 | 1–6 |
 | Offset lateral / final modules | 2 / 1 | 1–6 each; two corner cubes added automatically |
 | Second-enclosure link modules | 2 | 1–6 |
@@ -186,7 +186,7 @@ The [exact modular prompts and correction passes](modular-prompts.md) record use
 | Fixed-frame allowance | 45 mm per side of sash | Fixed concept assumption |
 | Collar outside dimensions | Sash dimensions + 70 mm | 10 mm margin inside fixed frame per side |
 
-Sheets 07–10 and 12 depict the default one-enclosure straight configuration. Sheet 10 opens the human maintenance door; each connected cat port can be opened or closed independently. The sheets were drawn with sliding gates, which remain selectable; the live concept now closes every cat port with a removable panel by default (see [removable-doors.md](removable-doors.md)). Sheet 11 compares the default straight layout, mirrored offsets with one approach + two lateral + one final straight modules, and two enclosures. In its two-enclosure example B is 140 × 120 × 140 cm; A stays 120 × 100 × 120 cm, with a two-module side link. Corner modules are cubes of the standard element, their edge the tunnel clear size + 20 cm (50 cm by default), so a two-module lateral run shifts the enclosure by 150.6 cm at the default size. (The sheets were drawn with 50 cm modules and corners of the clear width + 80 mm.)
+Sheets 07–10 and 12 depict the default one-enclosure straight configuration. Sheet 10 opens the human maintenance door; each connected cat port can be opened or closed independently. The sheets were drawn with sliding gates, which remain selectable; the live concept now closes every cat port with a removable panel by default (see [removable-doors.md](removable-doors.md)). Sheet 11 compares the default straight layout, mirrored offsets with one approach + two lateral + one final straight modules, and two enclosures. In its two-enclosure example B is 140 × 120 × 140 cm; A stays 120 × 100 × 120 cm, with a two-module side link. Corner modules are cubes of the standard element, their edge the tunnel clear size + 23.8 cm (53.8 cm by default), so a two-module lateral run shifts the enclosure by 162 cm at the default size. Each cube is drawn with its rings and its doors, which the door controls open, and the straight modules carry the tunnel page's side access. (The sheets were drawn with 50 cm modules and corners of the clear width + 80 mm.)
 
 ### Connections and access
 

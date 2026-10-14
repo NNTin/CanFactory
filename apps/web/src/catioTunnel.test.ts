@@ -10,13 +10,15 @@ import {
 import { createTunnelScene, LIFT } from './catioTunnelScene.ts';
 import { TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
+import { cubeEdge } from './catioPort.ts';
 import type { V3 } from './catioSubassembly.ts';
 import { WINDOW_INSERT_DEFAULT, windowInsertLayout, type WindowInsertConfig } from './catioWindowInsert.ts';
 
 const site = tunnelSite();
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: true, cutaway: false, hidden: new Set() };
 /** Every option of every select control, one at a time, from the defaults. */
-const optionConfigs: TunnelConfig[] = [TUNNEL_DEFAULT, ...TUNNEL_CONTROLS.filter(c => !c.range).flatMap(control => control.options.map(option => ({ ...TUNNEL_DEFAULT, [control.key]: option.value }))),
+// (a port facing left along the wall stands to the left of the window)
+const optionConfigs: TunnelConfig[] = [TUNNEL_DEFAULT, ...TUNNEL_CONTROLS.filter(c => !c.range).flatMap(control => control.options.map(option => ({ ...TUNNEL_DEFAULT, [control.key]: option.value, ...(control.key === 'portFacing' && option.value === -90 ? { portX: -TUNNEL_DEFAULT.portX } : {}) }))),
   // the Ganter feet in every size, and the printed feet at their lowest and highest
   ...TUNNEL_FOOT.diameters.map(footDiameter => ({ ...TUNNEL_DEFAULT, footPad: 'ganter' as const, footDiameter })),
   { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.min }, { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.max, footDiameter: 25 },
@@ -99,7 +101,7 @@ describe('tunnel route', () => {
     for (const joint of [TUNNEL_COUPLING_DEFAULT, bolted]) for (const config of [...routes, ...TUNNEL_PRESETS.map(p => p.config())]) {
       const l = tunnelLayout(config, site, joint);
       expect(l.errors, `${JSON.stringify(config)} ${joint.mechanism}`).toEqual([]);
-      expect(l.cubeEdge).toBe(l.w + 200); expect(l.pitch).toBe(l.cubeEdge + l.gap);
+      expect(l.cubeEdge).toBe(cubeEdge(l.w)); expect(l.pitch).toBe(l.cubeEdge + l.gap);
       // a long section is a whole number of pitches less the gap after it, no more than the longest; a cube is one cube edge
       for (const p of l.pieces.filter(q => q.kind === 'section')) {
         const pitches = (p.length + l.gap) / l.pitch;
@@ -421,7 +423,7 @@ describe('tunnel held on its supports', () => {
     expect(lines.find(line => line.name === 'Sole')?.quantity).toBe(2 * trestles.length);
     expect(lines.filter(line => line.name === 'Low bearer, wide').reduce((n, line) => n + line.quantity, 0)).toBe(blocks.length);
     expect(lines.find(line => line.name === 'Sole')?.size).toBe(`${TUNNEL.sole.width} × ${TUNNEL.sole.thickness} on edge · ${TUNNEL.sole.length} long`);
-    expect(lines.find(line => line.id === 'slabs')?.quantity).toBe(2 * l.supports.length);
+    expect(lines.find(line => line.id === 'slabs')?.quantity).toBe(2 * l.supports.length + l.props.length);
   });
 
   it('keeps every screw of a self-standing support inside its timber: the feet’s in the sole, the sole’s in the leg or low bearer', () => {
@@ -514,7 +516,7 @@ describe('tunnel parts list', () => {
       if (l.pad) expect(lines.find(line => line.modelId === 'pressure-pad')).toMatchObject({ id: 'foot-pads', quantity: feet, size: `Ø ${config.footDiameter} × ${config.padHeight} mm · ${config.padSurface} sole · PETG · for an ${l.pad.screw.designation} head` });
       else { expect(count(l.foot.id)).toBe(feet); expect(lines.some(line => line.modelId === 'pressure-pad')).toBe(false); }
       expect(count('din-7965-m8x18')).toBe(feet);
-      expect(lines.find(line => line.id === 'slabs')?.quantity).toBe(2 * l.supports.length);
+      expect(lines.find(line => line.id === 'slabs')?.quantity).toBe(2 * l.supports.length + l.props.length);
       expect(lines.filter(line => line.name === 'Leg').reduce((n, line) => n + line.quantity, 0)).toBe(l.supports.filter(s => s.kind === 'trestle').length * 2);
       // two flange rings a section or collar, six a cube, four members each
       const cubes = l.pieces.filter(p => p.kind === 'cube').length;
@@ -538,7 +540,9 @@ describe('tunnel parts list', () => {
         if (mesh === 'welded') expect(edge.cut).toBe(true);
       }
       // the hood passes over the top rails uncut: only the roof's staples hold it there, and its sides have none of their own
-      const top = l.panels.flatMap(panel => panel.edges.filter(edge => edge.use === 'Onto the top rail').map(edge => ({ side: panel.name.includes('side'), cut: edge.cut })));
+      // (beside a mitred section's side access, a net piece of its own fills the side: cut all round)
+      const beside = l.panels.filter(panel => panel.id.includes('-mesh-beside-'));
+      const top = l.panels.filter(panel => !beside.includes(panel)).flatMap(panel => panel.edges.filter(edge => edge.use === 'Onto the top rail').map(edge => ({ side: panel.name.includes('side'), cut: edge.cut })));
       // (a cube has no mesh of its own: its doors have)
       const meshed = l.pieces.filter(p => p.kind !== 'cube').length;
       if (mesh === 'netting') expect(top.every(edge => !edge.side && !edge.cut)).toBe(true);
@@ -548,17 +552,18 @@ describe('tunnel parts list', () => {
       expect(lines[0]).toMatchObject({ id: 'mesh-roll', quantity: 1, partId: CATIO_MESH_PARTS[mesh] });
       expect(lines[0]?.use).toContain('more rolls may be needed');
       // a side-access panel has its own mesh, and takes the place of one side's; so has every cube's door but the floor's
+      expect(lines.filter(line => line.name === 'Net, beside the side access').reduce((n, line) => n + line.quantity, 0)).toBe(mesh === 'netting' ? beside.length : 0);
       const panelMesh = lines.filter(line => line.name === 'Removable panel mesh');
       expect(panelMesh.reduce((n, line) => n + line.quantity, 0)).toBe(l.access.length + l.doors.filter(d => d.face !== 'bottom').length);
       const cut = lines.slice(1).filter(line => !panelMesh.includes(line)); const count = cut.reduce((n, line) => n + line.quantity, 0);
       expect(cut.every(line => !line.partId)).toBe(true);
       if (mesh === 'netting') {
-        expect(cut.every(line => line.name === 'Net hood')).toBe(true); expect(count).toBe(meshed);
+        expect(cut.every(line => line.name === 'Net hood' || line.name === 'Net, beside the side access')).toBe(true); expect(count).toBe(meshed + beside.length);
         // as wide as both sides and the roof together
         const piece = l.pieces.find(p => p.kind === 'section' && !l.access.some(a => a.piece === p.id)); const panels = l.panels.filter(panel => panel.piece === piece?.id);
         const across = Math.round(panels.reduce((sum, panel) => sum + span(panel.corners[0], panel.corners[3]), 0));
         if (piece) expect(cut.some(line => line.size.includes(`× ${across} ·`))).toBe(true);
-      } else expect(count).toBe(3 * meshed - l.access.length);
+      } else expect(count).toBe(3 * meshed - l.access.length + beside.length);
     }
     expect(tunnelSteps('modular', TUNNEL_DEFAULT).find(step => step.title.startsWith('Net the sections'))?.detail).toContain('a staple over every mesh');
     expect(tunnelSteps('modular', { ...TUNNEL_DEFAULT, mesh: 'welded' }).find(step => step.title.startsWith('Mesh the sections'))?.detail).toContain('every 15 cm');
@@ -796,5 +801,73 @@ describe('tunnel page settings', () => {
     }
     // off a step is not accepted either
     expect(parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, portHeight: 657.3 } })).config.portHeight).toBe(TUNNEL_DEFAULT.portHeight);
+  });
+});
+
+describe('tunnel: the rest of the standard elements', () => {
+  it('stands every cube’s floor door on a prop, clamped between it and the cube, clear of its buttons and latches', () => {
+    for (const doorFixing of ['latches', 'turn-buttons'] as const) for (const config of [TUNNEL_DEFAULT, { ...TUNNEL_DEFAULT, straights: 'cubes' as const }]) {
+      const l = tunnelLayout(config, site, { ...TUNNEL_COUPLING_DEFAULT, doorFixing });
+      expect(l.errors).toEqual([]);
+      const floors = l.doors.filter(d => d.face === 'bottom');
+      expect(l.props).toHaveLength(floors.length);
+      for (const prop of l.props) {
+        const piece = l.pieces.find(p => p.id === prop.piece); const door = floors.find(d => d.piece === prop.piece); if (!piece?.cube || !door) throw new Error(prop.id);
+        // its top on the floor door's outer face, its foot on its slab
+        expect(prop.top).toBeCloseTo(piece.cube.centre[2] - l.cubeEdge / 2 - door.door.front, 9);
+        expect(prop.slabTop + prop.length).toBeCloseTo(prop.top, 9);
+        // nothing of the door's that stands proud of its face is over the prop
+        for (const b of door.door.buttons) expect(Math.max(Math.abs(b.pivot[0]), Math.abs(b.pivot[1] - l.w / 2)) - b.reach, b.id).toBeGreaterThan(TUNNEL.floorProp / 2);
+        for (const q of door.latches) expect(Math.hypot(q.at[0] - prop.at[0], q.at[1] - prop.at[1])).toBeGreaterThan(TUNNEL.floorProp);
+      }
+      const lines = tunnelBom('modular', config, site, { ...TUNNEL_COUPLING_DEFAULT, doorFixing });
+      expect(lines.filter(line => line.name === 'Floor prop').reduce((n, line) => n + line.quantity, 0)).toBe(l.props.length);
+    }
+  });
+
+  it('offers only what cube corners can make for the port’s facing, and any facing with collars', () => {
+    const facing = (config: TunnelConfig) => TUNNEL_CONTROLS.filter(c => c.key === 'portFacing' && (!c.when || c.when(config)));
+    const cube = facing(TUNNEL_DEFAULT); expect(cube).toHaveLength(1);
+    expect(cube[0]?.range).toBeUndefined(); expect(cube[0]?.options.map(o => o.value)).toEqual([-90, 0, 90]);
+    const collar = facing({ ...TUNNEL_DEFAULT, angleJoint: 'angle-collar' }); expect(collar).toHaveLength(1); expect(collar[0]?.range).toBeDefined();
+    // a facing saved at another angle stays saved, and is laid out at the nearest a cube makes
+    const saved = parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, portFacing: 37 } })).config;
+    expect(saved.portFacing).toBe(37);
+    expect(tunnelLayout(saved, site).facingMoved).toBeCloseTo(37, 9);
+  });
+
+  it('gives a mitred section side access in the square part of its side, meshing the rest', () => {
+    const routes2 = [{ ...ROUTE, angleJoint: 'mitred-ends' as const, sideAccess: 'all' as const }, { ...ROUTE, angleJoint: 'mitred-ends' as const, sideAccess: 'all' as const, sideAccessSide: 'left' as const }];
+    let mitred = 0; let beside = 0;
+    for (const config of routes2) {
+      const l = tunnelLayout(config, site);
+      expect(l.errors).toEqual([]);
+      for (const a of l.access) {
+        const p = l.pieces.find(q => q.id === a.piece); if (!p) throw new Error(a.id);
+        const square = vec.dot(p.start.n, p.frame.y) > 1 - 1e-9 && vec.dot(p.end.n, p.frame.y) > 1 - 1e-9;
+        if (square) continue;
+        mitred++;
+        // within the flanges' inner faces all the way up the side, in the depth of the rails
+        const outer = l.w / 2 + TUNNEL.rail; const side = a.side;
+        for (const u of [side * l.w / 2, side * outer]) for (const v of [-TUNNEL.floor - TUNNEL.rail, l.h + TUNNEL.rail]) {
+          expect(vec.dot(vec.sub(facePoint(p.start, u, v, TUNNEL.flange.thickness), p.start.at), p.frame.y)).toBeLessThanOrEqual(a.span[0] + 1e-9);
+          expect(vec.dot(vec.sub(facePoint(p.end, u, v, -TUNNEL.flange.thickness), p.start.at), p.frame.y)).toBeGreaterThanOrEqual(a.span[1] - 1e-9);
+        }
+        expect(a.span[1] - a.span[0]).toBeGreaterThanOrEqual(TUNNEL.access.minLength);
+        // and where a mitre leans away from the panel, the side is meshed between them
+        if (l.panels.some(panel => panel.piece === p.id && panel.id.includes('-mesh-beside-'))) beside++;
+      }
+    }
+    expect(beside).toBeGreaterThan(0);
+    expect(mitred).toBeGreaterThan(0);
+  });
+
+  it('shows the enclosure’s own cat-port panel at the far end, seated, with removable panels', () => {
+    const scene = createTunnelScene('modular', TUNNEL_DEFAULT, site);
+    if (site.window.closure === 'removable-panel') {
+      expect(scene.enclosureClosure).not.toBeNull();
+      expect(scene.components.map(c => c.id)).toEqual(expect.arrayContaining(['enclosure-port-closure', 'enclosure-port-closure-mesh', 'enclosure-port-closure-hardware']));
+    } else expect(scene.enclosureClosure).toBeNull();
+    scene.dispose();
   });
 });

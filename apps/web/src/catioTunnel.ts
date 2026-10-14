@@ -639,7 +639,9 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   // A strap goes plumb over the tunnel at a support. The supports at the wall and at the port stand under the first and the last
   // piece themselves, not under two flanges that meet, and over a sloped section a plumb strap leans across its side: held by
   // straps, those pieces have no side access.
-  const strapped = (p: Piece) => config.supportFixing === 'strap' && (p === pieces[0] || p === pieces.at(-1) || Math.abs(p.pitch) > 1e-6);
+  // (and a strap over a mitred joint stands plumb over the mitre, which leans over that section's side)
+  const squareEnded = (p: Piece) => dot(p.start.n, p.frame.y) > 1 - 1e-9 && dot(p.end.n, p.frame.y) > 1 - 1e-9;
+  const strapped = (p: Piece) => config.supportFixing === 'strap' && (p === pieces[0] || p === pieces.at(-1) || Math.abs(p.pitch) > 1e-6 || !squareEnded(p));
   /**
    * The square part of a section's side, between its two flanges' inner faces all the way up the side (in the depth of the rails):
    * the whole side between square flanges, shorter beside a mitre, which leans over part of it. Along the section from its start.
@@ -724,7 +726,7 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
         const [from, to] = opened.span; const vb = -fl - r; const vt = h + r;
         for (const [name, c] of [['start', [s0(u, vb), at(from, vb), at(from, vt), s0(u, vt)]], ['end', [at(to, vb), s1(u, vb), s1(u, vt), at(to, vt)]]] as const) {
           const wide = Math.max(len(sub(c[1], c[0])), len(sub(c[2], c[3])));
-          if (wide < 5) continue;
+          if (wide < 1) continue;
           const quad = c as unknown as [V3, V3, V3, V3];
           panels.push({ id: `${p.id}-mesh-beside-${name}-${side < 0 ? 'left' : 'right'}`, piece: p.id, name: `${p.name}: side mesh beside the side access, ${side < 0 ? 'left' : 'right'}`, corners: quad, edges: [
             { from: quad[0], to: quad[1], drive: inward, use: 'Onto the bottom rail', cut: true }, { from: quad[3], to: quad[2], drive: inward, use: 'Onto the top rail', cut: true },

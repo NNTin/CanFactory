@@ -60,7 +60,7 @@ describe('modular catio layout and validation', () => {
   it('snaps a saved design’s tunnel to the square standard port, its larger size both ways, and keeps everything else', () => {
     const views = defaultCatioSettings().views;
     for (const [w, h] of [[350, 300], [300, 400], [300, 300]] as const) {
-      const { tunnelSize: _size, ...rest } = defaults; void _size;
+      const rest = Object.fromEntries(Object.entries(defaults).filter(([key]) => key !== 'tunnelSize'));
       const saved = { version: 2, mode: 'modular', config: { ...rest, route: 'left' as const, approach: 3, tunnelWidth: w, tunnelHeight: h }, views };
       const settings = parseCatioSettings(JSON.stringify(saved));
       expect(settings.version).toBe(3);
@@ -141,6 +141,25 @@ describe('modular scene geometry', () => {
     expect(door.intersectsBox(bounds(part(scene, 'b-frame')))).toBe(false);
     scene.dispose();
   });
+  it('follows the tunnel pages: its cubes’ doors held as set there, and side access on its straight modules', () => {
+    for (const doorFixing of ['latches', 'turn-buttons'] as const) for (const sideAccess of ['none', 'one', 'all'] as const) {
+      const c = { ...defaults, route: 'right' as const, approach: 2, lateral: 1, final: 1 };
+      const scene = createModularCatio(c, WINDOW_INSERT_DEFAULT, { doorFixing, sideAccess, sideAccessSide: 'left' });
+      const straights = scene.layout.sections.filter(q => q.kind === 'straight');
+      const access = scene.doors.filter(d => d.id.endsWith('-access'));
+      expect(access).toHaveLength(sideAccess === 'all' ? straights.length : sideAccess === 'one' ? 1 : 0);
+      const cubes = scene.doors.filter(d => d.id.endsWith('-doors'));
+      expect(cubes).toHaveLength(2);
+      for (const d of cubes) expect(d.mechanism).toBe(doorFixing === 'latches' ? 'latched' : 'removable-panel');
+      // shut unless asked; asked, every door of a cube comes off together
+      scene.update(assembled);
+      const first = cubes[0]; if (!first) throw new Error('cube');
+      const shut = first.moving.map(g => g.position.clone());
+      scene.update({ ...assembled, doors: { [first.id]: true } });
+      expect(first.moving.some((g, i) => g.position.distanceTo(shut[i] ?? g.position) > 1)).toBe(true);
+      scene.dispose();
+    }
+  });
   it('joins solid walkways across straight and corner modules with mesh containment and ground floors', () => {
     const scene = createModularCatio({ ...defaults, route: 'right', approach: 1, lateral: 1, final: 1, secondEnabled: true }); scene.update(assembled);
     const ids = scene.components.map(p => p.id); expect(new Set(ids).size).toBe(ids.length);
@@ -152,7 +171,9 @@ describe('modular scene geometry', () => {
       expect(hits[0]?.point.z).toBeCloseTo(corner ? 200 + defaults.tunnelSize / 2 - section.length / 2 + STANDARD_PORT.ring.thickness : 200);
       expect(bounds(part(scene, `${section.id}-feet`)).min.z).toBe(0);
       for (const side of ['back', 'front', 'left', 'right'] as const) {
-        if (!section.openings.includes(side)) expect(ids).toContain(corner ? `${section.id}-door-${side}` : `${section.id}-${side}`);
+        // (a straight module's side-access panel takes the place of its mesh on that side)
+        const access = scene.doors.some(d => d.id === `${section.id}-access`) && (side === 'left' || side === 'right');
+        if (!section.openings.includes(side)) expect(ids).toEqual(expect.arrayContaining([corner ? `${section.id}-door-${side}` : access && side === 'right' ? `${section.id}-access` : access ? `${section.id}-${side}` : `${section.id}-${side}`]));
         else expect(ids).toContain(`${section.id}-${side}-coupling`);
       }
       // a cube's roof and floor are doors too, and all its doors open together from the door controls

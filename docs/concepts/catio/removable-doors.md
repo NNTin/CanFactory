@@ -62,7 +62,7 @@ coupling and whole-catio previews cannot disagree. All sizes are this design's c
 | Carried and located **by timber, not by screws** | The panel stands on the opening's floor and sits between locating strips, or inside the opening, with 2 mm to spare each side. The screws only keep it from coming out. |
 | It must not **tilt or flex free** between buttons | No two buttons along an edge farther apart than 250 mm, no corner farther than 125 mm from one; buttons on at least two opposite edges. That is more than the reference's one button a side. A mesh panel longer than 600 mm has a mullion. |
 | Buttons in **sound timber** | Each pivot is a DIN 7997 screw through the button and an ISO 7093 M4 washer it turns on, at least 18 mm into timber, 12 mm of that in the member behind a strip. |
-| Not turned **by accident** | A 1 mm pip under the button's short end drops into a dimple in the timber at the closed and at the open position: opening takes a deliberate twist of every button, a quarter turn each. |
+| Not turned **by accident** | A captive locking pin (ISO 2338 2.5 × 16 under a printed knob, kept in the button by a printed collar) drops 6 mm into a hole drilled through the button into the timber, between the pivot and the panel's edge: the button cannot turn until the pin is lifted by its knob (issue #85). It replaced a 1 mm detent pip. |
 | **Mesh edges covered** | A mesh panel's mesh lies between its frame and cover strips screwed on over every cut edge, on the cat side. |
 | Straight **withdrawal** | Open, every button stands at least 1 mm clear of the panel's outline; the panel comes straight out, and is clear of everything fixed after its own depth and 20 mm. |
 
@@ -96,9 +96,10 @@ couple sections and dock the tunnel to the insert. Those are unchanged.
 - **Enclosure ports** (the whole-catio concept). The enclosure has no page of its own yet, so these panels are drawn and
   validated but have no parts list.
 - **Tunnel side access** ([tunnel.md](tunnel.md)), in long sections. **Side access**: none, one panel near the middle (the
-  default for a new tunnel), or one in every long section that can take one; **Access side**: left or right. A cube needs
-  none, since its free faces are doors ([standard-port.md](standard-port.md)). A section takes one if both its ends
-  are square and it is at least 36 cm long. The panel lies wholly between its section's flanges, in the depth of the
+  default for a new tunnel), or one in every long section that can take one; **Access side**: left or right. Beside a mitre
+  the panel takes the square part of the side, between the flanges' inner faces, and mesh fills the rest (issue #85). A cube needs
+  none, since its free faces are doors ([standard-port.md](standard-port.md)). A section takes one if the square part of
+  its side between the flanges' inner faces is at least 30 cm long. The panel lies wholly between its section's flanges, in the depth of the
   rails: the route, the sections, the flanges, every coupling and every support are the same with or without it, and a
   section still lifts off with its panel in. Its pivots are 10 mm inside the rails' edges and stop short of the rails'
   middle, clear of the roof's staples and the floor's screws. Where a rubber strap holds the tunnel down, the first, the
@@ -157,9 +158,7 @@ couple sections and dock the tunnel to the insert. Those are unchanged.
 
 Every item is a guess that the geometry cannot settle.
 
-- **The detent.** That a 1 mm pip in a dimple gives a button enough resistance to stay put under a paw, a push on the
-  panel, vibration or wind, and still lets a hand turn it. On a jamb or a sill the buttons are not held by gravity: turned
-  loose, one falls open. Only the head buttons hang closed.
+- **The locking pin.** That a 2.5 mm pin 6 mm deep holds a button against a cat pushing on the panel, that the knob is easy to lift for a person and not for a paw, and that the printed collar keeps the pin from falling out. Test both, from inside and outside.
 - **The printed button.** A PETG bar 6 mm thick on one screw: its strength, its creep in summer sun and how its pivot hole
   wears are unknown. It is a custom part, not yet a model of the library.
 - **The overlap and spacing.** That 12 mm of button over the panel and 250 mm between buttons hold a panel a cat throws

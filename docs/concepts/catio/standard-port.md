@@ -48,14 +48,25 @@ latches go when the port is turned a quarter round.
 
 ## The cube
 
-- **Edge.** The cube's edge is the outline plus a ring's depth each side: `cubeEdge(s) = s + 2 (F + T)`, which is 50 cm for a
-  30 cm opening.
-- **Pitch.** A cube's edge plus a coupling's gap is the **pitch**: 50.3 cm latched, 50 cm bolted.
-- **Rings.** Each face is a standard ring with its mating face flush with the cube's face. The rings of two adjacent faces meet
-  edge to edge at the inside of the corner between them, so the cube's inside is closed without anything more.
-- **Pockets.** Along each edge, outside both rings, that leaves a notch 30 × 30 mm. Both faces' latch plates stand in it: the
-  closed printed latch is about 15 mm off the ring's side, and its two plates are 12 mm along the joint each. The test checks
-  that every face's latch stays clear of the other faces' rings, latches and coupled elements, for every size and latch count.
+- **Edge.** The cube's edge is the outline, a ring's depth and a pocket each side: `cubeEdge(s) = s + 2 (F + T + CUBE_POCKET)`,
+  which is 53.8 cm for a 30 cm opening.
+- **Pitch.** A cube's edge plus a coupling's gap is the **pitch**: 54.1 cm latched, 53.8 cm bolted.
+- **Rings.** Each face is a standard ring with its mating face flush with the cube's face.
+- **Pockets, from the latch's real movement.** Along each edge, outside both rings, is a pocket in which both faces' latches
+  stand and swing. Its size, `CUBE_POCKET`, is computed (`cubePocket` in catioPort.ts) from the latch's own mechanism
+  (`LATCH_REACH`, the poses `buildPrintedLatches` draws).
+  - **Closed,** the lever lies 32 mm along the joint, 2 mm past the 30 mm ring.
+  - **Opening,** the lever swings 38 mm out from the ring's side, and the link swings off its hook.
+  - **Size:** the pocket is the least that keeps every face's latch clear of the other faces' rings, latches and coupled
+    elements: closed, and swinging open with 2 mm to spare. That is 19 mm.
+  - **History:** the first version's rings met edge to edge with a 30 × 30 mm notch. That was enough for closed latches but
+    not for a lever opening; the test shows it.
+- **Edge strips.** A 49 × 49 strip in each of the 12 edges fills the corner square outside both rings' outlines (the pocket
+  and a ring's depth).
+  - **Fixing:** glued and screwed (5 × 70) into both rings' sides.
+  - **Pockets kept open:** they run between the corner blocks, in lengths that stop 21 mm short of every latch station's
+    middle on either side (`edgeStripSegments`).
+  - **Why:** they stiffen the cube and close the edge, which would otherwise be open to the pocket.
 - **Corner blocks.** A 40 × 40 × 40 block in each of the eight corners sits behind the three rings that meet there. It is
   screwed through each ring with a 5 × 70, the three screws offset so they pass each other. The blocks are clear of every
   latch and bolt station, which lie within the opening's middle 70 %.
@@ -64,6 +75,13 @@ latches go when the port is turned a quarter round.
   fills the opening, so the cat stands on a flat floor 70 mm below the tunnel's.
 - **Supports.** A cube stands on the supports under its couplings, like a section: its end ring's sill is at the same height
   as a section's flange, and the bearer under a coupling lies under the end ring, clear of the floor door.
+- **Floor prop.** Under the middle of every cube's floor door, a 70 × 70 post stands on its own slab, cut on site to the gap
+  (`TUNNEL.floorProp`, `FloorProp`).
+  - **Load path:** the door is clamped between the cube and the prop, so a cat's weight on the floor goes into the ground, not
+    into the door's latches or turn buttons.
+  - **Clearance:** the prop stands clear of every button, latch and plug screw of the door.
+  - **Opening the floor door:** take the prop out first.
+  - **Why a prop:** a trestle would not fit; near the wall a floor door is only about 8 cm above the grass.
 
 ## Doors (`Door held by`, on the tunnel–tunnel coupling page)
 
@@ -75,7 +93,21 @@ latches go when the port is turned a quarter round.
 | Builder | `blankPanel` | `portPanel` |
 
 The turn buttons are the removable doors' buttons from [removable-doors.md](removable-doors.md), placed on the ring's face.
+Each has a captive locking pin (issue #85): a 2.5 × 16 parallel pin under a printed knob drops 6 mm into the strip, and the
+button turns only once it is lifted.
 They are not the turn buttons that can hold the tunnel on its supports, nor the couplings' toggle latches.
+
+## Marking template
+
+`portTemplate`, drawn 1:1 by `portTemplateSvg`, is downloadable from the tunnel and the tunnel–tunnel coupling pages and listed
+in the cut list.
+
+- **What it is:** a 6 mm plywood sheet with the ring's outline and the opening.
+- **Bolt holes:** every bolt station of every count (one, two or three a side) as a 9 mm drill guide.
+- **Latch notches:** a notch at every latch station on all four edges.
+- **Which way up:** it is marked "this side out" and is the same on all four sides.
+
+Every ring is marked and pre-drilled from it, so every port is the same and a cube turned a quarter round still fits.
 
 ## Elements and the route
 
@@ -90,8 +122,8 @@ port's position stays an input, as the asked target, and the brief shows **Enclo
 the asked position whenever the two are a millimetre or more apart. The defaults and the presets are set where their elements
 end (`placedRoute`).
 
-**Cube routes.** With cube corners, the port faces straight out or along the wall (±90°), whichever is nearer to the asked
-facing. A port beside the window (more than 25 cm to one side) is reached out, along the wall, and out again. **Straight in
+**Cube routes.** With cube corners, **Port faces** is a choice: straight out, or along the wall to the left or right. A facing
+saved at another angle is kept and laid out at the nearest of those. A port beside the window (more than 25 cm to one side) is reached out, along the wall, and out again. **Straight in
 to the port** then follows from where the port is, so it is hidden.
 
 **Climbs.** A climb is the one length solved exactly. It uses the fewest whole long sections that climb to the port's floor
@@ -108,9 +140,13 @@ runs are cubes.
 
 ## The whole catio
 
-The modular catio page uses the same standard. Its straight modules are one pitch long (50.3 cm) and its corners are cubes
-(50 cm), and one **Tunnel clear size** sets the port both ways. Its scene is still schematic: the corner cubes are drawn as
-frames, without the doors.
+The modular catio page uses the same standard. Its straight modules are one pitch long (54.1 cm) and its corners are cubes
+(53.8 cm), and one **Tunnel clear size** sets the port both ways. A saved width and height load as their larger size.
+- **Corner cubes:** drawn with their six rings and a door on every free face, held as the tunnel–tunnel coupling page sets
+  (the latches themselves are not drawn there). Each cube's doors open together from the page's door controls.
+- **Side access:** the straight modules carry it as the tunnel page sets it.
+
+The tunnel–tunnel coupling page can show any joint (**Joint shown**): section to section, section to cube, or cube to cube.
 
 ## Out of scope
 
@@ -120,13 +156,14 @@ frames, without the doors.
 
 ## Unverified: check on a built element
 
-- **The latch pocket.** Is the 30 mm notch enough room to work a lever? Both faces' latches can stand in the same notch, 1.6 mm
-  apart closed, and a lever swings out as it opens. Check by hand with two latched faces at one edge.
-- **Rings meeting edge to edge.** Rings that meet only along a line, held by the corner blocks, may not be stiff enough. A cube
-  may need glue on the meeting edges, or a fillet strip inside them. Check a built cube for racking.
-- **The floor door.** It carries the cat. Held by latches, the load is on the latches; held by turn buttons, on the buttons.
-  Test a cat's weight, and its jumping, on each before use.
-- **Quarter turns in practice.** A turned port is only as good as the stations it was marked out to. Mark every ring from one
-  template, and test a turned cube against a section.
-- **Doors cats can't work loose.** Test the printed latches and the door turn buttons against a cat pawing at them from
-  inside, as for the other removable doors.
+The geometry is checked in the tests. What only a built cube can show:
+
+- **The lever by hand.** The pocket leaves the swing 2 mm clear of everything, but nothing yet checks finger room to lift a
+  lever there. Try it with two latched faces at one edge.
+- **Stiffness.** The rings are held by corner blocks and glued edge strips. Check a built cube for racking under a push at a
+  corner.
+- **The floor door.** Its prop carries a cat standing still. A cat jumping on the floor, or a prop left out, still loads the
+  door's fixings, so test a cat's weight dropped on it.
+- **Quarter turns.** A turned port is as good as the template it was marked from. Test a turned cube against a section.
+- **Cats against the doors.** Test the locking pins and the printed latches (which have no catch of their own) against a cat
+  pawing at them from inside.

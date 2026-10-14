@@ -5,7 +5,7 @@ enclosure's rear cat port.
 
 - **Standard elements.** It is built of standard elements ([standard-port.md](standard-port.md)): every piece ends in the same
   square port, so any element couples to any other. Turns are **cubes**, the port on all six faces, each turning 90°. Straight
-  runs are long sections, a whole number of pitches (about 50 cm) each, or cubes. Climbs are sloped long sections between
+  runs are long sections, a whole number of pitches (54.1 cm) each, or cubes. Climbs are sloped long sections between
   angle collars, solved so that the tunnel reaches a door at a different height exactly.
 - **Where it ends.** The tunnel is whole elements, so it ends as near the enclosure port as they come, and the brief says
   where.
@@ -76,8 +76,8 @@ level and suggests the level setting.
 
 | Parameter | Default | Options | Group |
 | --- | --- | --- | --- |
-| Port along the wall | 100.6 cm | −400 to 400 cm, in 0.1 cm steps | Enclosure port |
-| Port out from the wall | 322.6 cm | 50 to 800 cm, in 0.1 cm steps | Enclosure port |
+| Port along the wall | 108.2 cm | −400 to 400 cm, in 0.1 cm steps | Enclosure port |
+| Port out from the wall | 345 cm | 50 to 800 cm, in 0.1 cm steps | Enclosure port |
 | Port faces | 0° | −120° to 120° (+ to the right); with cube corners 0° or ±90°, the nearest | Enclosure port |
 | Port floor | At its own height | Level with the window port; at its own height | Enclosure port |
 | Port floor height | 50 cm | 15 to 140 cm, in 0.05 cm steps (only at its own height) | Enclosure port |
@@ -104,16 +104,18 @@ How the sections are coupled is not set here: **Coupling**, **Latches per side**
 the [tunnel–tunnel coupling](tunnel-tunnel-coupling.md) page, which this page follows. (**Bolts per coupling** used to be
 here; settings saved before simply drop it.)
 
-With the defaults the tunnel is 4.22 m of pieces, with nine 3 mm gaps between them and at the port. It runs out from the
-wall and turns 90° right at a cube. It runs 50 cm along the wall to a second cube and turns 90° left. It then climbs
-25.45 cm at 13.14° on one 1 m section between two angle collars, into the port at 100.6 cm along and 322.6 cm out.
+With the defaults the tunnel is 4.52 m of pieces, with nine 3 mm gaps between them and at the port. It runs out from the
+wall and turns 90° right at a cube. It runs 54 cm along the wall to a second cube and turns 90° left. It then climbs
+25.45 cm at 12.32° on one 1.08 m section between two angle collars, into the port at 108.2 cm along and 345 cm out.
 
 - **Elements:** five sections (four of one pitch, the sloped one of two), two cubes and two angle collars.
 - **Doors:** the cubes' eight doors, two of them floor doors.
 - **Supports:** eight, four low bearers near the wall and four trestles.
 - **Latches:** all nine couplings, the port end too, are latched: 36 printed latches, and 32 more on the doors.
 
-Bolted, the pitch is a cube's edge, 50 cm, so the same elements end at 100 cm along and 320.3 cm out.
+Bolted, the pitch is a cube's edge, 53.8 cm, so the same elements end at 107.6 cm along and 342.6 cm out.
+
+- **Floor props:** each cube also stands its floor door on a floor prop on its own slab: two props, 5 and 7 cm long.
 
 ## The geometry
 
@@ -158,7 +160,8 @@ scene, the parts list and the tests.
    - **A long section** is a whole number of pitches long, less the gap after it, so it takes the place of that many cubes.
      It is two 30 × 70 flange rings around the clear opening, four 40 × 40 corner rails, an 18 mm exterior plywood floor on
      the bottom rails, mesh down both sides and over the roof, and 20 × 20 cleats across sloped floors.
-   - **A cube** is six flange rings, one on each face, butted edge to edge, with a corner block in each corner. Each face the
+   - **A cube** is six flange rings, one on each face, flush with it, with a corner block in each corner and an edge strip in
+     each edge between the latches ([standard-port.md](standard-port.md)). Each face the
      tunnel does not run through has a door ([standard-port.md](standard-port.md)).
    - **A climb** is the fewest whole pitches of long section that climb it within the steepest slope, sloped exactly to the
      port's floor.
@@ -265,9 +268,11 @@ the rails: one panel near the middle (the default for a new tunnel), one in ever
 a tunnel saved before the setting keeps). A cube needs none: every face it does not run through is a door already. [removable-doors.md](removable-doors.md) has the construction, what the reference product
 shows, what is unverified and the checks to make on a built panel.
 
-- **Where.** A section takes a panel if both its ends are square and it is at least 36 cm long, so mitred sections and
-  collars take none. Held on the supports by a rubber strap, the first, the last and the sloped sections take none either:
+- **Where.** A long section takes a panel if the square part of its side, between its flanges' inner faces all the way up,
+  is at least 30 cm long. Beside a mitre the panel sits in that square part and mesh fills the rest of the side (issue #85);
+  collars and cubes take none. Held on the supports by a rubber strap, the first, the last and the sloped sections take none either:
   a strap would cross the panel there.
+- **Locked.** Each of its door turn buttons has a captive locking pin: lift the pins, then turn the buttons.
 - **What stays the same.** The route, the sections' lengths, the flanges, every coupling and every support. The panel lies
   between its section's flanges, in the depth of the rails: clear of the latches on the flanges' sides, of the supports
   and what holds the tunnel on them, and of the roof. The roof mesh, its staples and its parts-list lines do not change.
@@ -290,7 +295,8 @@ shows, what is unverified and the checks to make on a built panel.
    - rails screwed through the flanges into their end grain (DIN 7997 5 × 70)
    - the floor board screwed onto the bottom rails (DIN 7997 4 × 40)
    - cleats on sloped floors (DIN 7997 4 × 35)
-   - each cube: six flange rings butted edge to edge, a 40 × 40 block in each corner screwed through its three rings (5 × 70)
+   - each cube: six flange rings, a 40 × 40 block in each corner screwed through its three rings (5 × 70), and a 49 × 49 edge
+     strip glued and screwed into each edge, in lengths that stop short of every latch station
    - the latches' plates on every port's sides: seen from outside it, base plates on its left, catch plates on its right
 4. **Net the sections.** By default each section gets one piece of soft cat netting as a hood: down one side, over both
    top rails and down the other, its ends turned onto the flanges.
