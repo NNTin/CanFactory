@@ -399,7 +399,7 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
       for (const b of closure.door.buttons) b.setTurn(state.exploded ? 1 : Math.max(q.turn, 1 - ease(closing)));
       // the panel's own way in (`move`) ends at its seat; opened again, it leaves from there
       if (travel > 0) for (const g of closure.door.moving) g.position.set(...q.offset);
-      if (closing > 0 && closing < 1) active.add(`${closure.door.buttons.length} × Door turn button: turned a quarter turn over the panel, until its pip drops into its dimple`);
+      if (closing > 0 && closing < 1) active.add(`${closure.door.buttons.length} × Door turn button: turned a quarter turn over the panel, its locking pin dropped into its hole`);
     } else closure?.set(travel);
     const opening = closure?.action(travel); if (opening) active.add(opening);
     let action: string | null = active.size > 0 ? [...active].join('; ') : null;

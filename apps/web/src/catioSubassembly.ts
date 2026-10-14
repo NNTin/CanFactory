@@ -79,6 +79,8 @@ export interface SubassemblyModel {
 }
 export interface CameraPreset { position: V3; target: V3 }
 
+/** A drawing to make a part by: its title, what it is for, an SVG document at 1:1, and the file name to save it as. */
+export interface SubassemblyDrawing { id: string; title: string; caption: string; svg: string; filename: string }
 export interface SubassemblyDefinition<C extends object> {
   id: CatioSubassembly;
   title: string;
@@ -130,6 +132,8 @@ export interface SubassemblyDefinition<C extends object> {
    * design has none. Checked, the scene shows the door open (`CatioState.door` runs from 0 to 1 as it opens); absent, no toggle.
    */
   doorToggle?: (variant: CatioMode, config: C) => string | null;
+  /** Drawings to make it by, shown beside the parts list with a download: an SVG document at 1:1 in millimetres. */
+  drawings?: (variant: CatioMode, config: C) => SubassemblyDrawing[];
   /** The views that open with the wall cut away; Interior and Mounting when absent. */
   cutawayViews?: CatioView[];
   /** Viewing defaults besides the shared ones, e.g. a toggle that starts off. */

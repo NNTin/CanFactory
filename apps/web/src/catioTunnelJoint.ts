@@ -53,12 +53,17 @@ export interface TunnelCouplingConfig {
   seal: 'e-profile' | 'none';
   /** How a door closing a port is held there: by the port's own latches, as a coupling, or by turn buttons on its ring. */
   doorFixing: DoorFixing;
+  /** Which joint the coupling page shows: as the tunnel's straight runs are, or any two standard elements. Only that page's. */
+  jointShown: JointShown;
   /** How the tunnel is held on its supports, and whether they stand on their own: the tunnel page's settings, shared here. */
   supportFixing: SupportFixing;
   supportBase: SupportBase;
 }
 
-export const TUNNEL_COUPLING_DEFAULT: TunnelCouplingConfig = { mechanism: 'printed-latch', latchesPerSide: 2, boltsPerCoupling: 8, seal: 'e-profile', doorFixing: 'latches', supportFixing: 'screws', supportBase: 'trestle' };
+/** The joint the tunnel–tunnel coupling page shows. */
+export type JointShown = 'tunnel' | 'section-section' | 'section-cube' | 'cube-cube';
+
+export const TUNNEL_COUPLING_DEFAULT: TunnelCouplingConfig = { mechanism: 'printed-latch', latchesPerSide: 2, boltsPerCoupling: 8, seal: 'e-profile', doorFixing: 'latches', jointShown: 'tunnel', supportFixing: 'screws', supportBase: 'trestle' };
 
 export const TUNNEL_COUPLING_CONTROLS: SubassemblyControl<TunnelCouplingConfig>[] = [
   { key: 'mechanism', label: 'Coupling', group: 'Coupling',
@@ -76,6 +81,9 @@ export const TUNNEL_COUPLING_CONTROLS: SubassemblyControl<TunnelCouplingConfig>[
   { key: 'doorFixing', label: 'Door held by', group: 'Doors',
     help: 'A door closes a port that is not coupled: every face of a cube that the tunnel does not run through. Held by the port’s own latches, it is a blank flange ring closed by mesh (or plywood, on a floor face) and goes on and off like a coupled section; held by turn buttons, it is a panel laid on the ring between locating strips, every button turned a quarter turn over its edge.',
     options: DOOR_FIXINGS.map(value => ({ value, label: DOOR_FIXING_LABELS[value] })) },
+  { key: 'jointShown', label: 'Joint shown', group: 'Shown',
+    help: 'Every element ends in the standard port, so any two couple the same way. As the tunnel is shows two of its straight elements: long sections, or cubes when its straight runs are cubes. Or show a long section meeting a cube’s face, or any two of either.',
+    options: [{ value: 'tunnel', label: 'As the tunnel’s straight runs' }, { value: 'section-section', label: 'Section to section' }, { value: 'section-cube', label: 'Section to cube' }, { value: 'cube-cube', label: 'Cube to cube' }] },
   ...supportControls<TunnelCouplingConfig>('On the support'),
 ];
 

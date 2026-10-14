@@ -116,11 +116,11 @@ export function windowFor(variant: CatioMode, config: WindowProfile = WINDOW_INS
 }
 
 /** The modular design's window: its fixed frame is the sash + 45 mm a side, its floor 45 mm below the sill. */
-export function modularWindow(c: { glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number; tunnelWidth: number; tunnelHeight: number; portClosure?: PortClosure }, profile: WindowProfile = windowProfileOf(WINDOW_INSERT_DEFAULT)): WindowSpec {
+export function modularWindow(c: { glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number; tunnelSize: number; portClosure?: PortClosure }, profile: WindowProfile = windowProfileOf(WINDOW_INSERT_DEFAULT)): WindowSpec {
   return {
     glassWidth: c.glassWidth, glassHeight: c.glassHeight, sashWidth: c.sashWidth, sashHeight: c.sashHeight,
     openingWidth: c.sashWidth + 90, openingHeight: c.sashHeight + 90, recessFloor: CATIO.sill - 45, sill: CATIO.sill, profile,
-    tunnel: { width: c.tunnelWidth, height: c.tunnelHeight }, closure: c.portClosure ?? PORT_CLOSURE_DEFAULT,
+    tunnel: { width: c.tunnelSize, height: c.tunnelSize }, closure: c.portClosure ?? PORT_CLOSURE_DEFAULT,
   };
 }
 
@@ -552,7 +552,7 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
   const door = variant === 'modular' ? windowInsertLayout(variant, config, window).door?.panel : undefined;
   const docked = 'the insert–tunnel coupling page screws a docking frame onto the port’s face, which then stays on the insert';
   const closing = door
-    ? { title: 'Panel and check', detail: `From the room side, glue and screw the sill stop across the port’s floor, flush with the jambs’ room-side faces, and screw the locating strips onto the jambs and the transom. Stick the seal round that seat. Screw the ${door.buttons.length} door turn buttons onto the strips, each on its washer, pointing clear of the opening. Stand the solid panel on the threshold between the strips, press it onto the seal and turn every button a quarter turn over it, until its pip drops into its dimple. Keep the port shut like this until a tunnel is docked: ${docked}. To open it, with the tunnel docked and the sash turned open: turn every button clear, draw the panel into the room by its pull and stow it clear of the route. Shut it again, every button over it, before the tunnel is undocked. Open and close the window: it clears the insert.` }
+    ? { title: 'Panel and check', detail: `From the room side, glue and screw the sill stop across the port’s floor, flush with the jambs’ room-side faces, and screw the locating strips onto the jambs and the transom. Stick the seal round that seat. Screw the ${door.buttons.length} door turn buttons onto the strips, each on its washer, pointing clear of the opening. Stand the solid panel on the threshold between the strips, press it onto the seal and turn every button a quarter turn over it and drop its locking pin into its hole (drill each hole 2.5 mm, 7 mm deep, through the button into the strip). Keep the port shut like this until a tunnel is docked: ${docked}. To open it, with the tunnel docked and the sash turned open: lift every button’s locking pin, turn the buttons clear, draw the panel into the room by its pull and stow it clear of the route. Shut it again, every button over it, before the tunnel is undocked. Open and close the window: it clears the insert.` }
     : { title: 'Gate and check', detail: `Fix the gate tracks on the room side of the port. Lower the sliding cat gate into them from above, then fit the latch. Keep the gate shut until a tunnel is docked: ${docked}. Open and close the window: it clears the insert.` };
   const bracket = windowInsertBracket(config.cornerBracket);
   const joint = config.cornerJoint === 'corner-bracket'

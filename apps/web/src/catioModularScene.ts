@@ -4,15 +4,22 @@ import type { CatioState } from './catioScene.ts';
 import { CATIO, ROOF_NET, roofBearers } from './catioDesign.ts';
 import { MODULAR as d, modularLayout, modularPortPanel, PORT_FRAME, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { buildDoorPanel } from './catioDoorScene.ts';
+import { blankPanel, insetPanel, portPanel } from './catioDoor.ts';
+import { cubeFaces, memberBox, PORT_FACES, portRing, STANDARD_PORT } from './catioPort.ts';
+import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
+import { loadSubassemblyConfig } from './catioSubassembly.ts';
+import { parseTunnel, TUNNEL_DEFAULT, type TunnelConfig } from './catioTunnel.ts';
+import { savedTunnelCoupling, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { buildWindowFrame } from './catioWindowContext.ts';
 import { HOOK_FIT, modularWindow, portPanelStow, savedWindowInsert, windowInsertLayout, windowProfileOf, type WindowInsertConfig } from './catioWindowInsert.ts';
 import { buildHungHardware } from './catioWindowInsertScene.ts';
 
 type V3 = [number, number, number];
 export interface CatioDoor {
-  id: string; label: string; kind: 'cat' | 'human'; connected: boolean;
+  /** A cat port, a maintenance door, or a tunnel's door (a cube's doors, a side-access panel), opened on demand. */
+  id: string; label: string; kind: 'cat' | 'human' | 'tunnel'; connected: boolean;
   /** How it opens: a panel lifted out from behind its turn buttons, a gate slid up, or the maintenance door on its hinges. */
-  mechanism: 'removable-panel' | 'sliding-gate' | 'hinged';
+  mechanism: 'removable-panel' | 'sliding-gate' | 'hinged' | 'latched';
   /** What moves with it: a sliding gate's leaf and latch, a hinged door's leaf, a removable panel's own pieces. */
   moving: THREE.Group[];
   /** Poses it anywhere from shut and retained (0) to open (1). */
@@ -24,11 +31,17 @@ export interface ModularState extends CatioState { doors?: Readonly<Record<strin
  * there by default): hung on the window frame, its collar lies on the frame's face with its screen hooks and feet, otherwise it is
  * the schematic recess collar with padded clamps.
  */
-export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig = savedWindowInsert()) {
+/** What the whole catio's tunnel takes from the tunnel pages: how its cubes' doors are held, and its side access. */
+export interface ModularTunnel { doorFixing: TunnelCouplingConfig['doorFixing']; sideAccess: TunnelConfig['sideAccess']; sideAccessSide: TunnelConfig['sideAccessSide'] }
+export function savedModularTunnel(): ModularTunnel {
+  const saved = loadSubassemblyConfig('tunnel', parseTunnel, TUNNEL_DEFAULT);
+  return { doorFixing: savedTunnelCoupling().doorFixing, sideAccess: saved.sideAccess, sideAccessSide: saved.sideAccessSide };
+}
+export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig = savedWindowInsert(), tunnel: ModularTunnel = savedModularTunnel()) {
   const errors = validateModular(c); if (errors.length) throw new Error(errors.join(' '));
   const p = createCatioParts(); const { component, box, rod, ring, panel, materials: m } = p;
   const layout = modularLayout(c); const doors: CatioDoor[] = [];
-  const w = c.tunnelWidth; const h = c.tunnelHeight; const span = w + 80; const straightSpan = span;
+  const w = c.tunnelSize; const h = c.tunnelSize; const span = w + 80; const straightSpan = span;
   const landingDepth = w + 100;
   // Assembly transforms remain on the outer component; placement and door motion have independent groups.
   function placed(x: number, y: number, angle: number, build: () => void) {
@@ -201,27 +214,68 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
     doors.push({ id: `${id}-human`, label: `Enclosure ${id.toUpperCase()} maintenance door`, kind: 'human', connected: true, mechanism: 'hinged', moving, set: travel => { for (const part of moving) part.rotation.z = travel * Math.PI / 2; } });
   });
 
+  // the main route's straight modules that have side access, as the tunnel page sets it (the link's have none)
+  const straights = layout.sections.filter(q => q.kind === 'straight' && !q.link);
+  const withAccess = new Set(tunnel.sideAccess === 'all' ? straights.map(q => q.id) : tunnel.sideAccess === 'one' && straights.length ? [straights[Math.floor(straights.length / 2)]?.id ?? ''] : []);
+  const accessSide = tunnel.sideAccessSide === 'left' ? -1 : 1;
+  let cubes = 0;
   for (const section of layout.sections) placed(...section.center, section.angle, () => {
-    // a corner is a cube: as wide as it is long
-    const id = section.id; const length = section.length; const span = section.kind === 'corner' ? section.length : straightSpan;
-    const frame = component(`${id}-frame`, 4, 'timber', [0, 0, 250]);
-    box(frame, [span, length, 18], [0, 0, 191], m.endgrain);
-    for (const x of [-w / 2 - 20, w / 2 + 20]) for (const y of [-length / 2 + 20, length / 2 - 20]) box(frame, [40, 40, h + 40], [x, y, 200 + (h + 40) / 2]);
-    for (const y of [-length / 2 + 20, length / 2 - 20]) box(frame, [span, 40, 40], [0, y, 200 + h + 20]);
-    for (const x of [-w / 2 - 20, w / 2 + 20]) box(frame, [40, length, 40], [x, 0, 200 + h + 20]);
-    mesh(`${id}-roof`, 4, span, length, [0, 0, 200 + h + 5], 'xy', [0, 0, 300]);
-    for (const side of ['left', 'right', 'back', 'front'] as const) {
-      if (section.openings.includes(side)) continue;
-      const lateral = side === 'left' || side === 'right'; const sign = side === 'left' || side === 'back' ? -1 : 1;
-      mesh(`${id}-${side}`, 4, lateral ? length : span, h + 20, lateral ? [sign * (w / 2 + 20), 0, 200 + (h + 20) / 2] : [0, sign * (length / 2 - 20), 200 + (h + 20) / 2], lateral ? 'yz' : 'xz', [0, 0, 250]);
-    }
+    const id = section.id; const length = section.length;
     const supports = component(`${id}-feet`, 4, 'hardware', [0, 0, 80]);
-    for (const x of [-w / 2 - 20, w / 2 + 20]) for (const y of [-length / 2 + 20, length / 2 - 20]) {
-      rod(supports, [x, y, 8], [x, y, 182], 8); box(supports, [55, 55, 8], [x, y, 4], m.rubber);
+    const feetAt = section.kind === 'corner' ? section.length / 2 - 30 : 0;
+    for (const x of section.kind === 'corner' ? [-feetAt, feetAt] : [-w / 2 - 20, w / 2 + 20]) for (const y of section.kind === 'corner' ? [-feetAt, feetAt] : [-length / 2 + 20, length / 2 - 20]) {
+      rod(supports, [x, y, 8], [x, y, section.kind === 'corner' ? 200 + h / 2 - section.length / 2 : 182], 8); box(supports, [55, 55, 8], [x, y, 4], m.rubber);
+    }
+    if (section.kind === 'corner') {
+      // a cube: a standard port's ring on every face, flush with it, and a door on every face the tunnel does not run through
+      // (catioPort.ts), held as the tunnel–tunnel coupling page sets
+      cubes++;
+      const C = section.length; const centre: V3 = [0, 0, 200 + h / 2];
+      const faces = cubeFaces(centre, { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }, C, w);
+      const rings = component(`${id}-frame`, 4, 'timber', [0, 0, 250]);
+      for (const f of PORT_FACES) for (const [, rect] of portRing(w)) {
+        const b = memberBox(faces[f], rect, 0, STANDARD_PORT.ring.thickness);
+        const size = [0, 1, 2].map(i => [b.axes.x, b.axes.y, b.axes.z].reduce((n, e, j) => n + Math.abs(e[i] ?? 0) * (b.size[j] ?? 0), 0)) as V3;
+        box(rings, size, b.center, m.endgrain);
+      }
+      const closed = PORT_FACES.filter(f => !(section.openings as string[]).includes(f));
+      const built = closed.map(f => {
+        const face = faces[f]; const floor = f === 'bottom'; const material = floor ? 'solid' as const : 'mesh' as const;
+        const door = tunnel.doorFixing === 'latches' ? blankPanel({ id: `${id}-door-${f}`, size: w, material, land: STANDARD_PORT.ring.width, gap: PRINTED_LATCH_JOINT.gap, floor })
+          : portPanel({ id: `${id}-door-${f}`, size: w, material, land: STANDARD_PORT.ring.width, floor });
+        return buildDoorPanel(p, door, { origin: face.at, u: face.frame.x, v: face.frame.z, n: [-face.n[0], -face.n[1], -face.n[2]] },
+          { timber: component(`${id}-door-${f}`, 4, 'timber', [0, 0, 250]), mesh: component(`${id}-door-${f}-mesh`, 4, 'mesh', [0, 0, 250]), hardware: component(`${id}-door-${f}-hardware`, 4, 'hardware', [0, 0, 250]) });
+      });
+      doors.push({ id: `${id}-doors`, label: `Corner cube ${cubes}: its ${built.length} doors`, kind: 'tunnel', connected: true, mechanism: tunnel.doorFixing === 'latches' ? 'latched' : 'removable-panel',
+        moving: built.flatMap(b => [b.panel, b.panelMesh, b.panelHardware]), set: travel => { for (const b of built) b.set(travel); } });
+    } else {
+      const span = straightSpan; const access = withAccess.has(id);
+      const frame = component(`${id}-frame`, 4, 'timber', [0, 0, 250]);
+      box(frame, [span, length, 18], [0, 0, 191], m.endgrain);
+      for (const x of [-w / 2 - 20, w / 2 + 20]) for (const y of [-length / 2 + 20, length / 2 - 20]) box(frame, [40, 40, h + 40], [x, y, 200 + (h + 40) / 2]);
+      for (const y of [-length / 2 + 20, length / 2 - 20]) box(frame, [span, 40, 40], [0, y, 200 + h + 20]);
+      for (const x of [-w / 2 - 20, w / 2 + 20]) box(frame, [40, length, 40], [x, 0, 200 + h + 20]);
+      mesh(`${id}-roof`, 4, span, length, [0, 0, 200 + h + 5], 'xy', [0, 0, 300]);
+      for (const side of ['left', 'right', 'back', 'front'] as const) {
+        if ((section.openings as string[]).includes(side)) continue;
+        const lateral = side === 'left' || side === 'right'; const sign = side === 'left' || side === 'back' ? -1 : 1;
+        // a side-access panel closes this side instead of its mesh
+        if (access && lateral && sign === accessSide) continue;
+        mesh(`${id}-${side}`, 4, lateral ? length : span, h + 20, lateral ? [sign * (w / 2 + 20), 0, 200 + (h + 20) / 2] : [0, sign * (length / 2 - 20), 200 + (h + 20) / 2], lateral ? 'yz' : 'xz', [0, 0, 250]);
+      }
+      if (access) {
+        // the tunnel page's side-access panel, between this module's end posts, in the depth of its posts, kept in by door turn buttons
+        const door = insetPanel({ id: `${id}-access`, width: length - 80, height: h, cavity: 40, pivots: { head: 10, sill: 10 } });
+        const n: V3 = [accessSide, 0, 0];
+        const built = buildDoorPanel(p, door, { origin: [accessSide * (w / 2 + 40 - door.front), 0, 200], u: [0, accessSide, 0], v: [0, 0, 1], n },
+          { timber: component(`${id}-access`, 4, 'timber', [0, 0, 250]), mesh: component(`${id}-access-mesh`, 4, 'mesh', [0, 0, 250]), hardware: component(`${id}-access-buttons`, 4, 'hardware', [0, 0, 250]) });
+        doors.push({ id: `${id}-access`, label: `Tunnel side access (${tunnel.sideAccessSide})`, kind: 'tunnel', connected: true, mechanism: 'removable-panel', moving: [built.panel, built.panelMesh, built.panelHardware], set: built.set });
+      }
     }
     for (const side of section.openings) {
       const sign = side === 'back' || side === 'left' ? -1 : 1;
       const lateral = side === 'left' || side === 'right';
+      const span = section.kind === 'corner' ? length : straightSpan;
       coupling(`${id}-${side}`, lateral ? sign * span / 2 : 0, lateral ? 0 : sign * length / 2, lateral ? Math.PI / 2 : 0);
     }
   });
@@ -229,6 +283,7 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
     p.update(state); hinge.rotation.z = state.windowOpen ? -Math.PI / 2 : 0;
     for (const door of doors) {
       // cat ports open only along a connected route, as the last stage; an unused port stays shut and retained
+      // a tunnel's doors (and a maintenance door) only when asked
       const open = door.connected && (state.doors?.[door.id] ?? door.kind === 'cat');
       door.set(!open ? 0 : door.kind === 'cat' ? THREE.MathUtils.clamp(state.progress - 5, 0, 1) : 1);
     }

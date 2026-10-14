@@ -8,7 +8,8 @@ export interface EnclosureSize { width: number; depth: number; height: number }
 export interface ModularConfig {
   glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number;
   enclosure: EnclosureSize; second: EnclosureSize; secondEnabled: boolean;
-  tunnelWidth: number; tunnelHeight: number;
+  /** The tunnel's clear size, both ways: the standard port is square (catioPort.ts). */
+  tunnelSize: number;
   route: 'straight' | 'left' | 'right'; approach: number; lateral: number; final: number; link: number;
   /** What closes every cat port, the window's and the enclosures': a panel lifted out from behind turn buttons, or a gate slid up. */
   portClosure: PortClosure;
@@ -16,30 +17,30 @@ export interface ModularConfig {
 export const MODULAR_DEFAULT: ModularConfig = {
   glassWidth: 800, glassHeight: 800, sashWidth: 910, sashHeight: 910,
   enclosure: { width: 1200, depth: 1000, height: 1200 }, second: { width: 1200, depth: 1000, height: 1200 }, secondEnabled: false,
-  tunnelWidth: 300, tunnelHeight: 300, route: 'straight', approach: 2, lateral: 2, final: 1, link: 2, portClosure: PORT_CLOSURE_DEFAULT,
+  tunnelSize: 300, route: 'straight', approach: 2, lateral: 2, final: 1, link: 2, portClosure: PORT_CLOSURE_DEFAULT,
 };
 export const MODULAR = { timber: 40, sill: 200, floor: 4, wall: 300, recess: 150 } as const;
 /**
  * The tunnel's standard elements (catioPort.ts): a straight module is one pitch long (a cube's edge and a latched coupling's gap) and
  * a corner is a cube, its edge the standard port's clear size and two rings and pockets.
  */
-export const modularPitch = (c: Pick<ModularConfig, 'tunnelWidth'>) => cubeEdge(c.tunnelWidth) + PRINTED_LATCH_JOINT.gap;
+export const modularPitch = (c: Pick<ModularConfig, 'tunnelSize'>) => cubeEdge(c.tunnelSize) + PRINTED_LATCH_JOINT.gap;
 /** The timber round a cat port: the window's port frame and the enclosures' are both this wide. */
 export const PORT_FRAME = 40;
 /**
  * A cat port's removable panel (catioDoor.ts), for these port sizes: solid at the window, where it is pressed onto a seal against
  * draughts while no tunnel is docked; a framed mesh panel at an enclosure's ports.
  */
-export function modularPortPanel(c: Pick<ModularConfig, 'tunnelWidth' | 'tunnelHeight'>, at: 'window' | 'enclosure', id: string = at, stow?: [number, number, number]): DoorPanel {
-  return facePanel({ id, width: c.tunnelWidth, height: c.tunnelHeight, material: at === 'window' ? 'solid' : 'mesh', land: PORT_FRAME, ...(stow ? { stow } : {}) });
+export function modularPortPanel(c: Pick<ModularConfig, 'tunnelSize'>, at: 'window' | 'enclosure', id: string = at, stow?: [number, number, number]): DoorPanel {
+  return facePanel({ id, width: c.tunnelSize, height: c.tunnelSize, material: at === 'window' ? 'solid' : 'mesh', land: PORT_FRAME, ...(stow ? { stow } : {}) });
 }
 
 const STEPS: Record<PortClosure, { insert: string; ports: string; couple: string; open: { title: string; detail: string } }> = {
   'removable-panel': {
-    insert: 'Keep the cat port shut: its solid panel seated on its seal, every turn button turned over it. Mesh fills the remaining opening.',
-    ports: 'Seat a framed mesh panel in the rear and side ports, from inside the enclosure, and turn every button over it; unused ports stay shut.',
+    insert: 'Keep the cat port shut: its solid panel seated on its seal, every turn button turned over it and locked by its pin. Mesh fills the remaining opening.',
+    ports: 'Seat a framed mesh panel in the rear and side ports, from inside the enclosure, and turn every button over it, dropping its locking pin; unused ports stay shut.',
     couple: 'Every port’s panel stays seated and retained while connections are made.',
-    open: { title: 'Open the connected ports', detail: 'With maintenance doors latched, turn every button clear of each panel along the connected route, lift the panel out and stow it clear of the route. Before disconnecting a run, reseat the panels at both of its ends and turn every button back over them.' },
+    open: { title: 'Open the connected ports', detail: 'With maintenance doors latched, lift every button’s locking pin and turn the buttons clear of each panel along the connected route, lift the panel out and stow it clear of the route. Before disconnecting a run, reseat the panels at both of its ends and turn every button back over them, each pin dropped.' },
   },
   'sliding-gate': {
     insert: 'Keep the small sliding cat gate closed; mesh fills the remaining opening.',
@@ -73,24 +74,23 @@ export function validateModular(c: ModularConfig): string[] {
   range(c.glassWidth, 400, 1400, 'Glass width'); range(c.glassHeight, 400, 1400, 'Glass height');
   range(c.sashWidth, 500, 1600, 'Sash width'); range(c.sashHeight, 500, 1600, 'Sash height');
   if (c.sashWidth - c.glassWidth < 60 || c.sashHeight - c.glassHeight < 60) errors.push('The sash needs at least 3 cm of frame on each side of the glass.');
-  range(c.tunnelWidth, 200, 450, 'Tunnel clear width'); range(c.tunnelHeight, 200, 450, 'Tunnel clear height');
-  if (c.tunnelWidth !== c.tunnelHeight) errors.push('The standard port is square: the tunnel’s clear width and height must be the same.');
+  range(c.tunnelSize, 200, 450, 'Tunnel clear size');
   if (!PORT_CLOSURES.includes(c.portClosure)) errors.push('Choose a removable panel or a sliding gate for the cat ports.');
   // Only a sliding gate travels: it needs its own height again above each port. A removable panel leaves its opening, so a port
   // with one only has to fit, with its frame, where it stands; its seat, buttons and withdrawal are checked from its layout.
   const sliding = c.portClosure === 'sliding-gate';
   const frame = 2 * PORT_FRAME;
-  if (c.tunnelWidth + frame > c.sashWidth - 10 || (!sliding && c.tunnelHeight + frame > c.sashHeight - 10)) errors.push('The cat port and its frame must fit inside the window collar.');
-  if (sliding && slidingGateRise(c.tunnelHeight, PORT_FRAME) > c.sashHeight - 10) errors.push('The sliding gate needs room for its full upward travel inside the window collar.');
+  if (c.tunnelSize + frame > c.sashWidth - 10 || (!sliding && c.tunnelSize + frame > c.sashHeight - 10)) errors.push('The cat port and its frame must fit inside the window collar.');
+  if (sliding && slidingGateRise(c.tunnelSize, PORT_FRAME) > c.sashHeight - 10) errors.push('The sliding gate needs room for its full upward travel inside the window collar.');
   if (!sliding) errors.push(...new Set(['window', 'enclosure'].flatMap(at => modularPortPanel(c, at as 'window' | 'enclosure').errors)));
   for (const [label, size] of [['Enclosure A', c.enclosure], ['Enclosure B', c.second]] as const) {
     range(size.width, 800, 2400, `${label} width`); range(size.depth, 800, 2400, `${label} depth`); range(size.height, 900, 2200, `${label} height`);
     if (label === 'Enclosure B' && !c.secondEnabled) continue;
-    if (sliding && MODULAR.sill + slidingGateRise(c.tunnelHeight, frame) > size.height) errors.push(`${label} is too low for the raised cat gate.`);
-    if (!sliding && MODULAR.sill + c.tunnelHeight + frame > size.height) errors.push(`${label} is too low for its cat ports and their frames.`);
+    if (sliding && MODULAR.sill + slidingGateRise(c.tunnelSize, frame) > size.height) errors.push(`${label} is too low for the raised cat gate.`);
+    if (!sliding && MODULAR.sill + c.tunnelSize + frame > size.height) errors.push(`${label} is too low for its cat ports and their frames.`);
     // a panel is drawn out into the enclosure over the landing, which must be deep enough to take it
-    if (!sliding && modularPortPanel(c, 'enclosure').withdraw > c.tunnelWidth + 100) errors.push(`${label}’s landing is too shallow to draw a cat port’s panel out over it.`);
-    if (size.depth - (c.tunnelWidth + 100) - 80 < 300) errors.push(`${label} needs at least 30 cm of ramp run beyond the landing.`);
+    if (!sliding && modularPortPanel(c, 'enclosure').withdraw > c.tunnelSize + 100) errors.push(`${label}’s landing is too shallow to draw a cat port’s panel out over it.`);
+    if (size.depth - (c.tunnelSize + 100) - 80 < 300) errors.push(`${label} needs at least 30 cm of ramp run beyond the landing.`);
   }
   for (const [key, value] of Object.entries({ approach: c.approach, lateral: c.lateral, final: c.final, link: c.link })) {
     if (!Number.isInteger(value) || value < 1 || value > 6) errors.push(`${key} run needs 1–6 modules.`);
@@ -100,16 +100,16 @@ export function validateModular(c: ModularConfig): string[] {
 }
 export type Point = [number, number];
 /** A piece of the tunnel: a straight module, or a corner cube; `openings` are its coupled faces, the others shut (a cube's by its doors). */
-export interface TunnelSection { id: string; kind: 'straight' | 'corner'; center: Point; length: number; angle: number; openings: ('back' | 'front' | 'left' | 'right')[] }
+export interface TunnelSection { id: string; kind: 'straight' | 'corner'; center: Point; length: number; angle: number; openings: ('back' | 'front' | 'left' | 'right')[]; /** On the link between two enclosures, not the main route. */ link?: boolean }
 export interface EnclosurePlacement { id: 'a' | 'b'; centerX: number; rearY: number; size: EnclosureSize }
 export function modularLayout(c: ModularConfig) {
   const sections: TunnelSection[] = [];
   // a corner is a cube; every straight module a pitch
-  const span = cubeEdge(c.tunnelWidth); const pitch = modularPitch(c);
+  const span = cubeEdge(c.tunnelSize); const pitch = modularPitch(c);
   let serial = 0;
-  const run = (start: Point, angle: number, count: number): Point => {
+  const run = (start: Point, angle: number, count: number, link = false): Point => {
     const dx = -Math.sin(angle); const dy = Math.cos(angle);
-    for (let i = 0; i < count; i++) sections.push({ id: `tunnel-${serial++}`, kind: 'straight', center: [start[0] + dx * (i + 0.5) * pitch, start[1] + dy * (i + 0.5) * pitch], length: pitch, angle, openings: ['back', 'front'] });
+    for (let i = 0; i < count; i++) sections.push({ id: `tunnel-${serial++}`, kind: 'straight', center: [start[0] + dx * (i + 0.5) * pitch, start[1] + dy * (i + 0.5) * pitch], length: pitch, angle, openings: ['back', 'front'], ...(link ? { link } : {}) });
     return [start[0] + dx * count * pitch, start[1] + dy * count * pitch];
   };
   let end = run([0, 0], 0, c.approach);
@@ -124,7 +124,7 @@ export function modularLayout(c: ModularConfig) {
   const enclosures: EnclosurePlacement[] = [{ id: 'a', centerX: end[0], rearY: end[1], size: c.enclosure }];
   if (c.secondEnabled) {
     const x = end[0] + c.enclosure.width / 2;
-    run([x, end[1] + (c.tunnelWidth + 100) / 2], -Math.PI / 2, c.link);
+    run([x, end[1] + (c.tunnelSize + 100) / 2], -Math.PI / 2, c.link, true);
     enclosures.push({ id: 'b', centerX: x + c.link * pitch + c.second.width / 2, rearY: end[1], size: c.second });
   }
   const minX = Math.min(-c.sashWidth / 2 - 250, ...enclosures.map(e => e.centerX - e.size.width / 2));

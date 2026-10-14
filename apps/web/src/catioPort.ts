@@ -28,11 +28,12 @@ export const DOOR_FIXING_LABELS: Record<DoorFixing, string> = { latches: 'The po
 /** The ring's outline: the port's size across its outer edges. */
 export const portOutline = (s: number) => s + 2 * F;
 /**
- * A cube's edge: each face a standard port whose ring stands flush with the face, the rings of two faces meeting edge to edge at
- * the inside of the corner between them. That leaves a notch `T` × `T` along each edge, outside both rings, in which both faces'
- * latch plates stand, and keeps a coupled element of one face clear of the other's.
+ * A cube's edge: each face a standard port whose ring stands flush with the face, and between the rings of two faces, along each
+ * edge, a pocket `CUBE_POCKET` deep outside both rings in which both faces' latches stand and their levers swing open, closed
+ * inside by a fillet strip glued to both rings. The pocket is the least that keeps every face's latch, open or closed, clear of the
+ * other faces' rings, latches and coupled elements (`cubePocket`).
  */
-export const cubeEdge = (s: number) => s + 2 * (F + T);
+export const cubeEdge = (s: number) => s + 2 * (F + T + CUBE_POCKET);
 /** The corner blocks inside a cube, one at each corner behind its three rings: this much each way. */
 export const CUBE_BLOCK = 40;
 
@@ -138,18 +139,29 @@ export function cubeFaces(centre: V3, frame: Frame, C: number, s: number): Recor
 /** A box in the world: its centre and its size along `axes` (x, y, z of a frame). */
 export interface OrientedBox { center: V3; size: V3; axes: Frame }
 /**
- * The space a closed printed latch takes at its mount: across it, along the joint from its base plate's far edge to its catch
- * plate's, and out from the faces' plane to the base's back (the lever folded over centre on it). For checking it against what
- * stands round a port.
+ * Where the printed latch's parts reach, in its own plane (u along the pull from the seam, v out from the faces' plane): closed,
+ * and over its whole movement, from closed back over centre to open and the link swung off the hook (`TL.latchState`, the same
+ * poses `buildPrintedLatches` draws). Its width is the widest part's, centred on the mount.
  */
-export function latchEnvelope(mount: LatchMount): OrientedBox {
+export const LATCH_REACH = (() => {
+  const P = TL.TOGGLE_LATCH_PROFILES; const G = TL.TOGGLE_LATCH_GEOMETRY;
+  const points = (state: TL.LatchState) => ([[state.lever, P.leverSide], [state.lever, P.leverBridge], [state.link, P.linkSide], [state.link, P.linkBar],
+    [TL.BASE_PLACEMENT, TL.BASE_PLATE_SECTION], [state.catch, TL.CATCH_PLATE_SECTION]] as const).flatMap(([placement, profile]) => TL.placeProfile(placement, profile as TL.Vec2[]));
+  const range = (list: TL.Vec2[]) => ({ u: [Math.min(...list.map(q => q[0])), Math.max(...list.map(q => q[0]))] as [number, number], v: [Math.min(...list.map(q => q[1])), Math.max(...list.map(q => q[1]))] as [number, number] });
+  const moving: TL.Vec2[] = [];
+  for (let i = 0; i <= 40; i++) moving.push(...points(TL.latchState(TL.CLOSED + (TL.OPEN - TL.CLOSED) * i / 40)));
+  for (let i = 0; i <= 20; i++) moving.push(...points(TL.latchState(TL.OPEN, TL.SWING * i / 20)));
+  return { closed: range(points(TL.latchState(TL.CLOSED))), swing: range(moving), width: Math.max(G.base.length, G.catch.length, G.lever.width, G.link.width) };
+})();
+const reachBox = (mount: LatchMount, { u, v }: { u: [number, number]; v: [number, number] }): OrientedBox => {
   const across = cross(mount.pull, mount.out);
-  const { along, locked, length } = PRINTED_LATCH;
-  // from the catch plate's far edge (behind the seam by the lock and its own plate) to the base plate's (ahead of it by its plate)
-  const from = -(locked + along); const to = along; const out = TL.TOGGLE_LATCH_GEOMETRY.base.back;
-  const centre = add(add(mount.at, mul(mount.pull, (from + to) / 2)), mul(mount.out, out / 2));
-  return { center: centre, size: [length, to - from, out], axes: { x: across, y: mount.pull, z: mount.out } };
-}
+  const centre = add(add(mount.at, mul(mount.pull, (u[0] + u[1]) / 2)), mul(mount.out, (v[0] + v[1]) / 2));
+  return { center: centre, size: [LATCH_REACH.width, u[1] - u[0], v[1] - v[0]], axes: { x: across, y: mount.pull, z: mount.out } };
+};
+/** The space a closed printed latch takes at its mount: its plates, and the lever folded over centre along the joint. */
+export const latchEnvelope = (mount: LatchMount): OrientedBox => reachBox(mount, LATCH_REACH.closed);
+/** The space a printed latch sweeps at its mount as it opens: the lever back over centre and out, the link swung off its hook. */
+export const latchSwing = (mount: LatchMount): OrientedBox => reachBox(mount, LATCH_REACH.swing);
 /** Whether two oriented boxes overlap by more than `clearance` (separating axis test over both boxes' axes and their cross products). */
 export function boxesOverlap(a: OrientedBox, b: OrientedBox, clearance = 0): boolean {
   const axesOf = (q: OrientedBox) => [q.axes.x, q.axes.y, q.axes.z];
@@ -163,4 +175,102 @@ export function memberBox(face: Face, rect: Rect, from: number, to: number): Ori
   const [u0, u1, v0, v1] = rect;
   const centre = facePoint(face, (u0 + u1) / 2, (v0 + v1) / 2, (from + to) / 2);
   return { center: centre, size: [u1 - u0, Math.abs(to - from), v1 - v0], axes: { x: face.frame.x, y: face.frame.y, z: face.frame.z } };
+}
+
+/** How far closed latches' halves reach into a ring along its depth, from its face: past it (the lever lies 32 mm along the joint). */
+export const LATCH_INTO_RING = LATCH_REACH.closed.u[1] - PRINTED_LATCH.overhang;
+
+/**
+ * The pocket a cube needs along each edge: the least whole millimetres, at least `CUBE_POCKET_LEAST`, for which no face's latch,
+ * closed or swinging open, reaches another face's ring, closed latch or coupled element (a standard element's ring across the gap
+ * outside it). The same for every size of port: the faces meet the same way at the corner.
+ */
+export const CUBE_POCKET_LEAST = 0;
+/** The least room left round a latch's parts as it swings open. */
+export const CUBE_SWING_CLEAR = 2;
+function cubeClashes(pocket: number, s = 300): boolean {
+  const C = s + 2 * (F + T + pocket); const gap = 3; const faces = cubeFaces([0, 0, 0], { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }, C, s);
+  const latches = PORT_FACES.flatMap(f => portLatches(f, faces[f], s, 3, gap).map(q => ({ face: f, closed: latchEnvelope(q), swing: latchSwing(q) })));
+  const solid = PORT_FACES.flatMap(f => [
+    ...portRing(s).map(([, rect]) => ({ face: f, box: memberBox(faces[f], rect, 0, T) })),
+    ...portRing(s).map(([, rect]) => ({ face: f, box: memberBox(faces[f], rect, -gap - T, -gap) })),
+  ]);
+  // (swinging, at least `CUBE_SWING_CLEAR` clear: a lever is not printed or fitted to the tenth of a millimetre)
+  return latches.some(q => solid.some(r => r.face !== q.face && (boxesOverlap(q.swing, r.box, -CUBE_SWING_CLEAR) || boxesOverlap(q.closed, r.box, 0.01)))
+    || latches.some(r => r.face !== q.face && boxesOverlap(q.swing, r.closed, -CUBE_SWING_CLEAR)));
+}
+export const CUBE_POCKET = (() => {
+  for (let pocket = CUBE_POCKET_LEAST; pocket <= 100; pocket++) if (!cubeClashes(pocket)) return pocket;
+  throw new Error('No pocket keeps a cube’s latches clear of each other.');
+})();
+export { cubeClashes };
+
+/**
+ * A cube's edge strips: in each of its 12 edges, filling the corner outside both rings' outlines (the pocket and a ring's depth,
+ * square), glued and screwed to the two rings' sides; along the edge between the corner blocks, cut short of every latch station
+ * there (any side of a face may carry latches, at the same stations), so that each latch has its pocket to stand and swing in.
+ * Each as (from, to) along the edge, measured from the cube's middle. They stiffen the cube and close its edges between the
+ * latches.
+ */
+export function edgeStripSegments(s: number, perSide: 1 | 2 | 3): [number, number][] {
+  const end = cubeEdge(s) / 2 - T - CUBE_BLOCK; const clear = LATCH_REACH.width / 2 + 2;
+  const stations = latchHeights(perSide).map(f => (f - 0.5) * s).sort((a, b) => a - b);
+  const cuts = [-end, ...stations.flatMap(z => [z - clear, z + clear]), end];
+  const segments: [number, number][] = [];
+  for (let i = 0; i < cuts.length; i += 2) { const a = cuts[i] ?? 0; const b = cuts[i + 1] ?? 0; if (b - a >= 20) segments.push([a, b]); }
+  return segments;
+}
+/** An edge strip's section: the corner square outside both rings' outlines, from the outline to the cube's edge. */
+export const edgeStripSection = (s: number) => cubeEdge(s) / 2 - (s / 2 + F);
+
+/**
+ * The marking template for a standard port: a 6 mm plywood sheet the ring's outline, laid on a ring's face to mark and pre-drill
+ * it, so that every port is set out from the same template and any one fits any other at any quarter turn.
+ *
+ * - every bolt station of every count offered (one, two or three on each side), as a 9 mm drill guide;
+ * - every latch station, as a notch on each of the four outer edges: the latch's middle, where its plates are screwed on the
+ *   ring's side (base plates on the left side seen from outside, catch plates on the right);
+ * - the opening, cut out;
+ * - a mark on one face ("this side out") and nothing that is not the same on all four sides, so a quarter turn maps it onto itself.
+ */
+export interface PortTemplate { size: number; opening: number; bolts: [number, number][]; notches: { side: 0 | 1 | 2 | 3; along: number }[]; thickness: number; boltHole: number }
+export function portTemplate(s: number): PortTemplate {
+  const fractions = [...new Set(([1, 2, 3] as const).flatMap(n => latchHeights(n)).map(f => Math.round(f * 1000) / 1000))].sort((a, b) => a - b);
+  const bolts: [number, number][] = [];
+  for (const n of [1, 2, 3] as const) for (const q of boltStations(s, n)) if (!bolts.some(b => Math.hypot(b[0] - q[0], b[1] - q[1]) < 1e-6)) bolts.push(q);
+  // the notches along each side, measured along it from its middle, the same on every side
+  const notches = ([0, 1, 2, 3] as const).flatMap(side => fractions.map(f => ({ side, along: (f - 0.5) * s })));
+  return { size: portOutline(s), opening: s, bolts, notches, thickness: 6, boltHole: 9 };
+}
+/** The template drawn at 1:1, in millimetres, as an SVG document: cut lines black, drill guides as circles, notches as V cuts. */
+export function portTemplateSvg(s: number): string {
+  const t = portTemplate(s); const half = t.size / 2; const m = 20; const W = t.size + 2 * m;
+  // the profile's (u, v) with v up from the opening's foot, in the drawing's (x, y) with y down, centred on the sheet
+  const x = (u: number) => m + half + u; const y = (v: number) => m + half - (v - s / 2);
+  const notch = 6;
+  const sideNotch = (side: 0 | 1 | 2 | 3, along: number) => {
+    // sides: 0 left, 1 head, 2 right, 3 sill; a V cut `notch` deep into the edge
+    if (side === 0) return `M ${m} ${y(s / 2 + along) - notch / 2} L ${m + notch} ${y(s / 2 + along)} L ${m} ${y(s / 2 + along) + notch / 2}`;
+    if (side === 2) return `M ${m + t.size} ${y(s / 2 - along) - notch / 2} L ${m + t.size - notch} ${y(s / 2 - along)} L ${m + t.size} ${y(s / 2 - along) + notch / 2}`;
+    if (side === 1) return `M ${x(along) - notch / 2} ${m} L ${x(along)} ${m + notch} L ${x(along) + notch / 2} ${m}`;
+    return `M ${x(-along) - notch / 2} ${m + t.size} L ${x(-along)} ${m + t.size - notch} L ${x(-along) + notch / 2} ${m + t.size}`;
+  };
+  const r = (n: number) => Number(n.toFixed(2));
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}mm" height="${W}mm" viewBox="0 0 ${W} ${W}">`,
+    `<title>Standard port marking template, ${s} mm port: 1:1, 6 mm plywood</title>`,
+    `<g fill="none" stroke="#000" stroke-width="0.3">`,
+    `<rect x="${m}" y="${m}" width="${t.size}" height="${t.size}"/>`,
+    `<rect x="${x(-s / 2)}" y="${y(s)}" width="${s}" height="${s}"/>`,
+    ...t.notches.map(q => `<path d="${sideNotch(q.side, q.along)}"/>`),
+    ...t.bolts.map(([u, v]) => `<circle cx="${r(x(u))}" cy="${r(y(v))}" r="${t.boltHole / 2}"/>`),
+    `</g>`,
+    `<g font-family="sans-serif" font-size="6" fill="#000" text-anchor="middle">`,
+    // on the ring's band, over the head: the opening is cut out
+    `<text x="${m + half}" y="${m + 14}">THIS SIDE OUT · lay on the ring’s face</text>`,
+    `<text x="${m + half}" y="${m + 24}">holes: ${t.boltHole} mm bolt guides · notches: latch stations</text>`,
+    `<text x="${m + half}" y="${m + 34}">latches: base plates on the left side, catches on the right, seen from outside</text>`,
+    `</g>`,
+    `</svg>`,
+  ].join('\n');
 }

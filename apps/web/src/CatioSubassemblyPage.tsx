@@ -56,6 +56,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   const index = Math.ceil(progress); const step = steps[index] ?? steps[last];
   const errors = definition.validate(variant, config);
   const bom = definition.bom(variant, config);
+  const drawings = definition.drawings?.(variant, config) ?? [];
   const controls = definition.controls.filter(control => (!control.variants || control.variants.includes(variant)) && (!control.when || control.when(config)));
   const groups = [...new Set(controls.map(control => control.group))];
   const editView = (patch: Partial<SubassemblyViewing>) => setSettings(current => ({ ...current, views: { ...current.views, [current.variant]: { ...current.views[current.variant], ...patch } } }));
@@ -185,6 +186,11 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
       </section>
     </div>
     <PartsList lines={bom} from={{ kind: 'concept', id: `catio/${definition.id}`, label: `Catio: ${CATIO_SUBASSEMBLY_TITLES[definition.id]}` }} />
+    {drawings.length > 0 && <section className="subassembly-drawings" aria-label="Drawings"><span className="eyebrow">THE DRAWINGS</span><h2>Made to the same marks.</h2>
+      {drawings.map(d => {
+        const href = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(d.svg)}`;
+        return <figure key={d.id}><img src={href} alt={d.title} width={320} /><figcaption><strong>{d.title}</strong> {d.caption} <a href={href} download={d.filename}>Download {d.filename}</a></figcaption></figure>;
+      })}</section>}
     <section className="catio-instructions" aria-label="Assembly instructions"><span className="eyebrow">THE ASSEMBLY</span><h2>{definition.assemblyHeading}</h2>
       <ol>{steps.slice(1).map(info => <li key={info.title}><strong>{info.title}</strong><p>{info.detail}</p></li>)}</ol></section>
     <section className="subassembly-decisions" aria-label="Design decisions"><span className="eyebrow">THE DEFAULTS, AND WHY</span><h2>Choices to redirect.</h2>

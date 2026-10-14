@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { CATIO_DOOR_HARDWARE, dimensionOf, findPart } from '@canfactory/contracts';
 import {
-  buttonOutline, buttonOverlap, buttonsAlong, buttonSweep, DOOR, DOOR_TRAVEL, doorAction, doorBom, doorBounds, doorFasteners, doorLibraryParts, doorPose, doorRetention, facePanel, insetPanel,
+  buttonOutline, buttonOverlap, buttonsAlong, buttonSweep, DOOR, LOCK_FROM_PIVOT, DOOR_TRAVEL, doorAction, doorBom, doorBounds, doorFasteners, doorLibraryParts, doorPose, doorRetention, facePanel, insetPanel,
   PORT_CLOSURE_DEFAULT, PORT_CLOSURE_LEGACY, PORT_CLOSURES, slidingGateRise, type DoorBox, type DoorPanel,
 } from './catioDoor.ts';
 import { buildDoorPanel } from './catioDoorScene.ts';
@@ -156,7 +156,15 @@ describe('removable door panel: retention both ways', () => {
       // at least 20 mm of timber in all, and 12 mm of what its strip is fixed on
       expect(bite, name(d)).toBeGreaterThanOrEqual(DOOR.bite);
       expect(bite - (d.fit === 'face' ? d.mount : 0), name(d)).toBeGreaterThanOrEqual(DOOR.behind);
-      expect(doorLibraryParts(d)).toEqual([{ partId: CATIO_DOOR_HARDWARE.washer, quantity: d.buttons.length, use: expect.stringContaining('turns on it') as string }]);
+      expect(doorLibraryParts(d)).toEqual([{ partId: CATIO_DOOR_HARDWARE.washer, quantity: d.buttons.length, use: expect.stringContaining('turns on it') as string },
+        { partId: CATIO_DOOR_HARDWARE.lockPin, quantity: d.buttons.length, use: expect.stringContaining('locking pin') as string }]);
+      // each button's locking pin: between its pivot and the panel's edge, clear of the pivot's screw and over the timber
+      for (const b of d.buttons) {
+        const reach = Math.hypot(b.lock[0] - b.pivot[0], b.lock[1] - b.pivot[1]); const away = b.reach - DOOR.button.overlap;
+        expect(reach).toBeGreaterThanOrEqual(Math.min(LOCK_FROM_PIVOT, away - DOOR.button.lock.diameter) - 1e-9);
+        expect(reach + DOOR.button.lock.diameter / 2).toBeLessThan(away);
+        expect(buttonOverlap(d, { ...b, pivot: [b.lock[0], b.lock[1], b.pivot[2]], reach: 0, tail: 0 }, 0)).toBe(0);
+      }
       // no two of the fixed screws share a hole: the strips' screws are kept clear of the pivots
       const screws = d.fasteners.filter(f => !f.moves && f.role !== 'stop');
       for (const [i, a] of screws.entries()) for (const b of screws.slice(i + 1)) expect(Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1]), `${name(d)} ${a.role}/${b.role}`).toBeGreaterThanOrEqual(12);
@@ -218,7 +226,7 @@ describe('removable door panel: button sweep and withdrawal', () => {
       // with nowhere of its own to stow it, the panel is carried away
       expect(doorPose(d, 1)).toMatchObject({ turn: 1, out: 1, gone: true });
       expect(doorAction(d, 0, 'panel')).toBeNull(); expect(doorAction(d, 1, 'panel')).toBeNull();
-      expect(doorAction(d, 0.2, 'panel')).toMatch(new RegExp(`^${d.buttons.length} × Door turn button: turned a quarter turn clear`));
+      expect(doorAction(d, 0.2, 'panel')).toMatch(new RegExp(`^${d.buttons.length} × Door turn button: its locking pin lifted, turned a quarter turn clear`));
       expect(doorAction(d, 0.5, 'panel')).toMatch(/drawn straight out/); expect(doorAction(d, 0.9, 'panel')).toMatch(/stowed clear of the route/);
     }
     const stowed = facePanel({ id: 'p', width: 300, height: 300, material: 'solid', land: PORT_FRAME, stow: [700, 0, 400] });
@@ -281,7 +289,7 @@ describe('removable door panel: button sweep and withdrawal', () => {
 describe('cat-port closure: sliding travel only for a sliding gate', () => {
   // (the standard port is square: the same clear size both ways)
   const grid = SIZES.flatMap(size => [500, 700, 910, 1600].flatMap(sash => [900, 1200, 2200].map((height): ModularConfig => ({
-    ...MODULAR_DEFAULT, tunnelWidth: size, tunnelHeight: size, sashWidth: sash, sashHeight: sash, glassWidth: sash - 110, glassHeight: sash - 110, enclosure: { width: 1200, depth: 1000, height },
+    ...MODULAR_DEFAULT, tunnelSize: size, sashWidth: sash, sashHeight: sash, glassWidth: sash - 110, glassHeight: sash - 110, enclosure: { width: 1200, depth: 1000, height },
   }))));
 
   it('defaults to the removable panel, keeps the sliding gate selectable, and names what a saved design had', () => {
@@ -296,25 +304,25 @@ describe('cat-port closure: sliding travel only for a sliding gate', () => {
   it('asks a sliding gate for its travel over every permitted size, and a removable panel only to fit where it stands', () => {
     for (const config of grid) {
       const removable = validateModular(config); const gate = validateModular({ ...config, portClosure: 'sliding-gate' });
-      const label = JSON.stringify([config.tunnelWidth, config.tunnelHeight, config.sashHeight, config.enclosure.height]);
+      const label = JSON.stringify([config.tunnelSize, config.sashHeight, config.enclosure.height]);
       // no travel constraint without a sliding gate
       expect(removable.filter(e => /sliding gate|raised cat gate/.test(e)), label).toEqual([]);
       // the same constraints as before for the gate, from the one shared rule
-      expect(gate.some(e => /sliding gate needs room for its full upward travel/.test(e)), label).toBe(slidingGateRise(config.tunnelHeight, PORT_FRAME) > config.sashHeight - 10);
-      expect(gate.some(e => /too low for the raised cat gate/.test(e)), label).toBe(MODULAR.sill + slidingGateRise(config.tunnelHeight, 2 * PORT_FRAME) > config.enclosure.height);
+      expect(gate.some(e => /sliding gate needs room for its full upward travel/.test(e)), label).toBe(slidingGateRise(config.tunnelSize, PORT_FRAME) > config.sashHeight - 10);
+      expect(gate.some(e => /too low for the raised cat gate/.test(e)), label).toBe(MODULAR.sill + slidingGateRise(config.tunnelSize, 2 * PORT_FRAME) > config.enclosure.height);
       // a panel only has to fit, with its frame, in the collar and under the enclosure's top rail: never more than the gate asked
-      expect(removable.some(e => /must fit inside the window collar/.test(e)), label).toBe(config.tunnelWidth + 80 > config.sashWidth - 10 || config.tunnelHeight + 80 > config.sashHeight - 10);
-      expect(removable.some(e => /too low for its cat ports/.test(e)), label).toBe(MODULAR.sill + config.tunnelHeight + 80 > config.enclosure.height);
+      expect(removable.some(e => /must fit inside the window collar/.test(e)), label).toBe(config.tunnelSize + 80 > config.sashWidth - 10 || config.tunnelSize + 80 > config.sashHeight - 10);
+      expect(removable.some(e => /too low for its cat ports/.test(e)), label).toBe(MODULAR.sill + config.tunnelSize + 80 > config.enclosure.height);
       for (const error of removable) expect(gate.length, `${label}: ${error}`).toBeGreaterThan(0);
       // its seat, buttons and withdrawal are checked from the very panel that is drawn
       if (removable.length === 0) for (const at of ['window', 'enclosure'] as const) {
         const panel = modularPortPanel(config, at); expect(panel.errors, label).toEqual([]);
         expect(panel.material).toBe(at === 'window' ? 'solid' : 'mesh');
-        expect(panel.withdraw).toBeLessThanOrEqual(config.tunnelWidth + 100);
+        expect(panel.withdraw).toBeLessThanOrEqual(config.tunnelSize + 100);
       }
     }
     // a port as high as the sliding gate could never be: 45 cm in a 91 cm sash, and in a 90 cm enclosure
-    const tall = { ...MODULAR_DEFAULT, tunnelWidth: 450, tunnelHeight: 450, enclosure: { width: 1200, depth: 1000, height: 900 } };
+    const tall = { ...MODULAR_DEFAULT, tunnelSize: 450, enclosure: { width: 1200, depth: 1000, height: 900 } };
     expect(validateModular(tall)).toEqual([]); expect(validateModular({ ...tall, portClosure: 'sliding-gate' })).toHaveLength(2);
   });
 
@@ -337,7 +345,8 @@ describe('cat-port closure: sliding travel only for a sliding gate', () => {
 
 describe('saved settings from before the closure could be chosen', () => {
   const without = <T extends object, K extends keyof T>(value: T, ...keys: K[]): Omit<T, K> => Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key as K))) as Omit<T, K>;
-  const legacyConfig = without({ ...MODULAR_DEFAULT, route: 'left' as const, approach: 3, tunnelWidth: 350, secondEnabled: true, second: { width: 1800, depth: 1600, height: 1900 } }, 'portClosure');
+  // (saved then with the tunnel's clear width and height, 35 × 30 cm)
+  const legacyConfig = { ...without({ ...MODULAR_DEFAULT, route: 'left' as const, approach: 3, secondEnabled: true, second: { width: 1800, depth: 1600, height: 1900 } }, 'portClosure', 'tunnelSize'), tunnelWidth: 350, tunnelHeight: 300 };
   const legacyViews = { direct: { progress: 2, exploded: true, windowOpen: false, cutaway: true, hidden: ['mesh'], view: 'Side', doors: {} }, modular: { progress: 6, exploded: false, windowOpen: true, cutaway: false, hidden: ['environment'], view: 'Top', doors: { 'window-cat': false, 'a-human': true } } };
   const legacy = JSON.stringify({ version: 1, mode: 'modular', config: legacyConfig, views: legacyViews });
 
@@ -345,7 +354,7 @@ describe('saved settings from before the closure could be chosen', () => {
     const settings = parseCatioSettings(legacy);
     expect(settings.version).toBe(CATIO_SETTINGS_VERSION); expect(settings.mode).toBe('modular');
     // a 35 × 30 cm tunnel becomes the standard square port, 35 cm both ways: the cats' opening never shrinks
-    expect(settings.config).toEqual({ ...legacyConfig, tunnelHeight: 350, portClosure: 'sliding-gate' });
+    expect(settings.config).toEqual({ ...without(legacyConfig, 'tunnelWidth', 'tunnelHeight'), tunnelSize: 350, portClosure: 'sliding-gate' });
     expect(settings.views).toEqual(legacyViews);
     expect(validateModular(settings.config)).toEqual([]);
     // saved again, it stays as migrated: the new default is never applied behind the owner's back
@@ -554,14 +563,14 @@ describe('window insert: the cat port’s removable panel', () => {
     const captions: string[] = [];
     for (let progress = 5.02; progress < 6; progress += 0.04) { scene.update({ ...installed, progress }); const caption = scene.caption?.(); if (caption && captions.at(-1) !== caption) captions.push(caption); }
     expect(captions.map(c => c.split(':')[0])).toEqual(['4 × Sill stop and locating strip', 'Screws', 'Seal', '6 × Door turn button', 'Cat-port panel', '6 × Door turn button']);
-    expect(captions.at(-1)).toMatch(/turned a quarter turn over the panel, until its pip drops into its dimple/);
+    expect(captions.at(-1)).toMatch(/turned a quarter turn over the panel, its locking pin dropped into its hole/);
     scene.update({ ...installed, progress: 5.7 }); for (const t of turned()) expect(t).toBeCloseTo(1, 6);
     // complete: seated, every button over it
     scene.update(installed); const seated = bounds(door.panel);
     for (const t of turned()) expect(t).toBeCloseTo(0, 6);
     expect(scene.caption?.()).toBeNull();
     // the toggle: buttons clear first, then the panel into the room, then stowed on the wall beside the window
-    scene.update({ ...installed, door: 0.2 }); expect(scene.caption?.()).toMatch(/6 × Door turn button: turned a quarter turn clear of the cat-port panel/);
+    scene.update({ ...installed, door: 0.2 }); expect(scene.caption?.()).toMatch(/6 × Door turn button: its locking pin lifted, turned a quarter turn clear of the cat-port panel/);
     expect(bounds(door.panel).min.y).toBeCloseTo(seated.min.y, 6);
     scene.update({ ...installed, door: DOOR_TRAVEL.turned }); for (const t of turned()) expect(t).toBeCloseTo(1, 6);
     scene.update({ ...installed, door: DOOR_TRAVEL.out }); expect(seated.min.y - bounds(door.panel).min.y).toBeCloseTo(door.door.withdraw, 6);
@@ -618,7 +627,7 @@ describe('insert–tunnel coupling with a removable cat-port panel', () => {
     expect(l.wallSupport).toBeDefined();
     const steps = couplingSteps('modular', COUPLING_DEFAULT); const facts = couplingFacts('modular', COUPLING_DEFAULT);
     expect(steps[0]?.detail).toMatch(/with its cat-port panel seated, every turn button turned over it/);
-    expect(steps.at(-1)?.detail).toMatch(/turn every button clear and lift its panel out, and stow it clear of the route/);
+    expect(steps.at(-1)?.detail).toMatch(/lift every button’s locking pin, turn the buttons clear and lift its panel out, and stow it clear of the route/);
     expect(steps.at(-1)?.detail).toMatch(/Before undocking, shut the port at this end and the enclosure’s port at the other/);
     expect(facts.find(f => f.label === 'Cat port · closed by')).toMatchObject({ value: 'Removable panel with turn buttons', from: { page: 'concept' } });
   });
@@ -699,7 +708,9 @@ describe('tunnel side access', () => {
       for (const a of l.access) {
         const piece = l.pieces.find(p => p.id === a.piece); if (!piece) throw new Error('piece');
         expect(a.side).toBe(sign); expect(a.door.errors).toEqual([]);
-        expect(a.door.opening).toEqual({ width: piece.length - 2 * T, height: l.h });
+        // the square part of its side between the flanges: all of it between square flanges
+        expect(a.door.opening.width).toBeCloseTo(a.span[1] - a.span[0], 9); expect(a.door.opening.height).toBe(l.h);
+        if (vec.dot(piece.start.n, piece.frame.y) > 1 - 1e-9 && vec.dot(piece.end.n, piece.frame.y) > 1 - 1e-9) expect(a.door.opening.width).toBeCloseTo(piece.length - 2 * T, 9);
         // that side's mesh panel is gone, the other side's and the roof's are as they were
         expect(l.panels.some(panel => panel.id === `${piece.id}-mesh-${sideName}`)).toBe(false);
         for (const id of [`${piece.id}-mesh-${sideName === 'left' ? 'right' : 'left'}`, `${piece.id}-mesh-roof`]) expect(l.panels.find(panel => panel.id === id)).toEqual(plain.panels.find(panel => panel.id === id));
@@ -736,7 +747,8 @@ describe('tunnel side access', () => {
       const l = tunnelLayout({ ...route, sideAccess: 'all', supportFixing, supportBase: 'self-standing' }, site, joint);
       for (const a of l.access) {
         const piece = l.pieces.find(p => p.id === a.piece); if (!piece) throw new Error('piece');
-        const middle = vec.mul(vec.add(piece.start.at, piece.end.at), 0.5); const half = piece.length / 2 - TUNNEL.flange.thickness;
+        // (beside a mitre, the panel takes the side's square part: `span`)
+        const middle = vec.add(piece.start.at, vec.mul(piece.frame.y, (a.span[0] + a.span[1]) / 2)); const half = (a.span[1] - a.span[0]) / 2;
         const along = (point: [number, number, number]) => Math.abs(vec.dot(vec.sub(point, middle), piece.frame.y));
         // the space the panel, its stops and its buttons take, and the panel's way out, in the door's own frame
         const reachOut = a.door.depth + a.door.withdraw;
@@ -836,7 +848,7 @@ describe('tunnel side access', () => {
         const expected = a.access.door.timber.filter(t => t.moves).flatMap(t => t.boxes).map(b => doorBounds(a.access.frame, b));
         for (const k of [0, 1, 2] as const) expect(seated[i]?.min.getComponent(k), a.access.id).toBeCloseTo(Math.min(...expected.map(e => e.min[k])), 4);
       }
-      scene.update({ ...installed, door: 0.2 }); expect(scene.caption?.()).toMatch(/Door turn button: turned a quarter turn clear of the side-access panel/);
+      scene.update({ ...installed, door: 0.2 }); expect(scene.caption?.()).toMatch(/Door turn button: its locking pin lifted, turned a quarter turn clear of the side-access panel/);
       scene.update({ ...installed, door: DOOR_TRAVEL.out });
       for (const [i, a] of scene.accessPanels.entries()) {
         const moved = bounds(a.built.panel).getCenter(new THREE.Vector3()).sub(seated[i]?.getCenter(new THREE.Vector3()) ?? new THREE.Vector3());
@@ -940,7 +952,7 @@ describe('whole catio: every cat port by the chosen closure', () => {
     // the apertures are free of fixed mesh, and with the panel out nothing but the sill stop is left in a connected port
     scene.update(assembled);
     for (const d of scene.doors.filter(q => q.kind === 'cat' && q.connected)) {
-      const frame = bounds(part(scene, `${d.id}-frame`)); const centre = frame.getCenter(new THREE.Vector3()); centre.z = MODULAR.sill + both.tunnelHeight / 2;
+      const frame = bounds(part(scene, `${d.id}-frame`)); const centre = frame.getCenter(new THREE.Vector3()); centre.z = MODULAR.sill + both.tunnelSize / 2;
       const direction = d.id.endsWith('left') || d.id.endsWith('right') ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
       const through = new THREE.Raycaster(centre.clone().addScaledVector(direction, -120), direction, 0, 240);
       const blockers = scene.components.filter(p => p.layer === 'mesh' || new RegExp(`^${d.id}-panel`).test(p.id)).map(p => p.group);
@@ -958,7 +970,7 @@ describe('whole catio: every cat port by the chosen closure', () => {
       expect(gate.at(-1)?.title).toBe('Open the connected gates');
       const text = panel.map(s => s.detail).join(' ');
       expect(text).not.toMatch(/gate|slid/i);
-      expect(text).toMatch(/turn every button clear of each panel along the connected route, lift the panel out and stow it clear of the route/);
+      expect(text).toMatch(/lift every button’s locking pin and turn the buttons clear of each panel along the connected route, lift the panel out and stow it clear of the route/);
       expect(text).toMatch(/Before disconnecting a run, reseat the panels at both of its ends and turn every button back over them/);
       expect(text).toMatch(/unused ports stay shut/);
       expect(gate.map(s => s.detail).join(' ')).toMatch(/Before disconnecting a run, close and latch the gates at both ends/);

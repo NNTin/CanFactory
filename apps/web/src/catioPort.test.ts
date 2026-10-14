@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { blankPanel, buttonOverlap, DOOR, portPanel, type DoorPanel } from './catioDoor.ts';
 import {
-  BOLTS_PER_SIDE, boltStations, boxesOverlap, CUBE_BLOCK, cubeEdge, cubeFaces, DOOR_FIXINGS, frameAlong, latchEnvelope, memberBox, PORT_FACES, portHalf, portLatches, portOutline, portRing,
-  STANDARD_PORT, type Face, type OrientedBox,
+  BOLTS_PER_SIDE, boltStations, boxesOverlap, CUBE_BLOCK, CUBE_POCKET, CUBE_SWING_CLEAR, cubeClashes, cubeEdge, cubeFaces, DOOR_FIXINGS, edgeStripSection, edgeStripSegments, frameAlong,
+  LATCH_INTO_RING, LATCH_REACH, latchEnvelope, latchSwing, memberBox, PORT_FACES, portHalf, portLatches, portOutline, portRing, portTemplate, portTemplateSvg, STANDARD_PORT, type Face, type OrientedBox,
 } from './catioPort.ts';
 import { latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 import type { V3 } from './catioSubassembly.ts';
@@ -28,15 +28,15 @@ describe('the standard port', () => {
     expect(STANDARD_PORT.ring).toEqual({ thickness: 30, width: 70 });
     for (const s of SIZES) {
       expect(portOutline(s)).toBe(s + 140);
-      // the rings of two adjacent faces meet edge to edge at the inside of the corner, leaving a T × T notch outside both
-      expect(cubeEdge(s)).toBe(portOutline(s) + 2 * T);
+      // each face's ring a ring's depth and the pocket in from the edge: room for both faces' latches at every edge
+      expect(cubeEdge(s)).toBe(portOutline(s) + 2 * (T + CUBE_POCKET));
       const ring = portRing(s);
       // its four members close round the opening and fill the outline, without overlapping
       const area = ring.reduce((n, [, [u0, u1, v0, v1]]) => n + (u1 - u0) * (v1 - v0), 0);
       expect(area).toBeCloseTo(portOutline(s) ** 2 - s ** 2, 9);
       expect(Math.min(...ring.map(([, r]) => r[0]))).toBe(-s / 2 - F); expect(Math.max(...ring.map(([, r]) => r[3]))).toBe(s + F);
     }
-    expect(cubeEdge(300)).toBe(500);
+    expect(cubeEdge(300)).toBe(300 + 2 * (F + T + CUBE_POCKET));
   });
 
   it('has the same bolt and latch stations on every side: a quarter turn maps them onto themselves', () => {
@@ -208,5 +208,80 @@ describe('the standard doors', () => {
       }
       expect(blankPanel({ id: 'f', size, material: 'mesh', land: F, gap, floor: true }).errors).toContain('A floor door must be solid.');
     }
+  });
+});
+
+describe('a cube’s latch pockets, from the latch’s real movement', () => {
+  it('reaches as far as the mechanism moves it: closed along the joint past the ring, open out of the pocket', () => {
+    // closed, the lever lies along the joint, past a 30 mm ring; opening, it swings out 38 mm from the side
+    expect(LATCH_INTO_RING).toBeGreaterThan(T);
+    expect(LATCH_REACH.swing.v[1]).toBeGreaterThan(LATCH_REACH.closed.v[1]);
+    expect(LATCH_REACH.swing.u[0]).toBeLessThan(LATCH_REACH.closed.u[0]);
+    expect(LATCH_REACH.width).toBe(38);
+  });
+
+  it('is the least pocket that keeps every face’s latch, open or closed, clear of the others, for every size and latch count', () => {
+    expect(cubeClashes(CUBE_POCKET)).toBe(false);
+    expect(cubeClashes(CUBE_POCKET - 1)).toBe(true);
+    // and the old 30 mm notch (no pocket) is not enough: a lever swinging open would hit the next face's coupled element
+    expect(cubeClashes(0)).toBe(true);
+    const gap = PRINTED_LATCH_JOINT.gap;
+    for (const s of SIZES) for (const perSide of [1, 2, 3] as const) {
+      const faces = cube(s);
+      const latches = PORT_FACES.flatMap(f => portLatches(f, faces[f], s, perSide, gap).map(q => ({ face: f, id: q.id, swing: latchSwing(q), closed: latchEnvelope(q) })));
+      const solid = PORT_FACES.flatMap(f => [...portRing(s).map(([, rect]) => ({ face: f, box: memberBox(faces[f], rect, 0, T) })), ...mateRing(faces[f], s, gap).map(box => ({ face: f, box }))]);
+      for (const q of latches) {
+        for (const r of solid.filter(x => x.face !== q.face)) expect(boxesOverlap(q.swing, r.box, -CUBE_SWING_CLEAR), `${s} ${perSide} ${q.id}`).toBe(false);
+        for (const r of latches.filter(x => x.face !== q.face)) expect(boxesOverlap(q.swing, r.closed, -CUBE_SWING_CLEAR), `${s} ${q.id} / ${r.id}`).toBe(false);
+      }
+    }
+  });
+
+  it('closes each edge between the latches with an edge strip glued to both rings’ sides, cut short of every latch station', () => {
+    for (const s of SIZES) for (const perSide of [1, 2, 3] as const) {
+      const C = cubeEdge(s); const strip = edgeStripSection(s); const segments = edgeStripSegments(s, perSide);
+      // the corner square outside both rings' outlines: from the outline to the cube's edge, a ring's depth and the pocket
+      expect(strip).toBe(T + CUBE_POCKET);
+      // between the corner blocks
+      expect(segments[0]?.[0]).toBeCloseTo(-(C / 2 - T - CUBE_BLOCK), 9); expect(segments.at(-1)?.[1]).toBeCloseTo(C / 2 - T - CUBE_BLOCK, 9);
+      // each latch's station and its swing (its width and 2 mm each side) left open: its pocket
+      const faces = cube(s);
+      const swings = PORT_FACES.flatMap(f => portLatches(f, faces[f], s, perSide, PRINTED_LATCH_JOINT.gap).map(latchSwing));
+      for (const [from, to] of segments) {
+        expect(to).toBeGreaterThan(from);
+        // a strip along the vertical edge at the back right: clear of every latch's swing
+        const box: OrientedBox = { center: [s / 2 + F + strip / 2, -(s / 2 + F + strip / 2), (from + to) / 2], size: [strip, strip, to - from], axes: frameAlong([0, 1, 0]) };
+        for (const q of swings) expect(boxesOverlap(box, q, 0.01), `${s} ${perSide}`).toBe(false);
+      }
+    }
+  });
+});
+
+describe('the marking template', () => {
+  it('has every bolt station of every count, and a notch at every latch station on all four sides', () => {
+    for (const s of SIZES) {
+      const t = portTemplate(s);
+      expect(t.size).toBe(portOutline(s)); expect(t.opening).toBe(s);
+      for (const n of [1, 2, 3] as const) for (const [u, v] of boltStations(s, n)) expect(t.bolts.some(([a, b]) => Math.hypot(a - u, b - v) < 1e-6), `${s} ${n}`).toBe(true);
+      // and nothing else: 4, 8 and 12 bolts share the middle station
+      expect(t.bolts).toHaveLength(4 * 5);
+      for (const side of [0, 1, 2, 3] as const) expect(t.notches.filter(q => q.side === side).map(q => q.along).sort((a, b) => a - b)).toEqual(t.notches.filter(q => q.side === 0).map(q => q.along).sort((a, b) => a - b));
+      // a quarter turn maps it onto itself, so it marks a ring the same whichever side is up
+      expect(sameSet(t.bolts.map(q => quarter(q, s)), t.bolts)).toBe(true);
+      // the latch stations: on each side, at the fractions of every count
+      for (const n of [1, 2, 3] as const) {
+        const latches = portLatches('p', { at: [0, 0, 0], n: [0, 1, 0], frame: frameAlong([0, 1, 0]) }, s, n, 3);
+        for (const q of latches) expect(t.notches.some(m => m.side === (q.side < 0 ? 0 : 2) && Math.abs((q.side < 0 ? m.along : -m.along) - (q.at[2] - s / 2)) < 1e-6), q.id).toBe(true);
+      }
+    }
+  });
+
+  it('draws at 1:1 in millimetres: an SVG with the outline, the opening, every hole and notch', () => {
+    const svg = portTemplateSvg(300); const t = portTemplate(300);
+    expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" width="480mm" height="480mm" viewBox="0 0 480 480">/);
+    expect(svg.match(/<circle /g)).toHaveLength(t.bolts.length);
+    expect(svg.match(/<path /g)).toHaveLength(t.notches.length);
+    expect(svg.match(/<rect /g)).toHaveLength(2);
+    expect(svg).toContain('THIS SIDE OUT');
   });
 });

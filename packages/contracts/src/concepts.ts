@@ -76,6 +76,8 @@ export const CATIO_DOOR_HARDWARE = {
   frameScrew: 'din-7997-4x50',
   coverScrew: 'din-7997-3-5x25',
   pullScrew: 'din-7997-3x12',
+  /** Each door turn button's captive locking pin: through the button into a hole in the timber under it, lifted to turn it. */
+  lockPin: 'iso-2338-2-5x16',
 } as const;
 
 /** The window insert's clamp feet: Ganter GN 343.2 KR on an M8 stud, in these diameters. */

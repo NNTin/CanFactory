@@ -28,7 +28,7 @@ export const isPortClosure = (value: unknown): value is PortClosure => PORT_CLOS
 
 /** How the pages name a cat port's closure, and what is done to shut and to open it. */
 export const CLOSURE_WORDS: Record<PortClosure, { thing: string; shut: string; close: string; open: string }> = {
-  'removable-panel': { thing: 'cat-port panel', shut: 'seated, every turn button turned over it', close: 'seat its panel and turn every button over it', open: 'turn every button clear and lift its panel out' },
+  'removable-panel': { thing: 'cat-port panel', shut: 'seated, every turn button turned over it and locked by its pin', close: 'seat its panel, turn every button over it and drop each one’s locking pin', open: 'lift every button’s locking pin, turn the buttons clear and lift its panel out' },
   'sliding-gate': { thing: 'cat gate', shut: 'shut and latched', close: 'lower its gate and latch it', open: 'unlatch its gate and slide it up' },
 };
 
@@ -53,10 +53,12 @@ export const DOOR = {
   /** A stop strip, where no frame is there to seat the panel: it laps `lap` over the opening and is `depth` deep. */
   stop: { lap: 12, depth: 10 },
   /**
-   * A turn button: a printed bar on a screw `tail` from one end, lying `overlap` over the panel when closed. A `pip` under its
-   * tail drops into a dimple in the timber at the closed and at the open position.
+   * A turn button: a printed bar on a screw `tail` from one end, lying `overlap` over the panel when closed. Closed, its captive
+   * locking pin (`CATIO_DOOR_HARDWARE.lockPin`, a 2.5 mm parallel pin under a printed knob `knob` high) stands `into` deep in a
+   * hole in the timber under it, between the pivot and the panel's edge: it cannot be turned until the pin is lifted out by its
+   * knob. A printed collar under the button keeps the pin captive.
    */
-  button: { thickness: 6, width: 16, overlap: 12, tail: 8, pip: 1 },
+  button: { thickness: 6, width: 16, overlap: 12, tail: 8, lock: { diameter: 2.5, into: 6, knob: { diameter: 8, height: 3 } } },
   /** No two buttons along a retained edge are farther apart than this, nor a corner farther than half of it from the nearest. */
   pitch: 250,
   /** A solid panel's pull, on its operator's side. */
@@ -92,6 +94,8 @@ export interface DoorButton {
   closed: [number, number]; open: [number, number];
   /** From its pivot to its tip, and to its other end. */
   reach: number; tail: number;
+  /** Its locking pin's hole in the timber under it, closed (u, v): on the way from the pivot to the panel's edge. */
+  lock: [number, number];
 }
 export interface DoorFastener {
   partId: string; role: 'pivot' | 'strip' | 'stop' | 'frame' | 'cover' | 'pull';
@@ -179,11 +183,15 @@ function panelBody(material: DoorPanel['material'], [u0, u1, v0, v1]: DoorPanel[
 /** A turn button on `side`, its pivot `away` from the panel's edge there, at `along` that edge. */
 function button(id: string, side: DoorSide, [u0, u1, v0, v1]: DoorPanel['rect'], along: number, away: number, under: number): DoorButton {
   const reach = away + DOOR.button.overlap; const tail = DOOR.button.tail;
+  const made = (pivot: V3, closed: [number, number], open: [number, number]): DoorButton => {
+    const d = lockDistance(away);
+    return { id, side, pivot, closed, open, reach, tail, lock: [pivot[0] + closed[0] * d, pivot[1] + closed[1] * d] };
+  };
   switch (side) {
-    case 'left': return { id, side, pivot: [u0 - away, along, under], closed: [1, 0], open: [0, -1], reach, tail };
-    case 'right': return { id, side, pivot: [u1 + away, along, under], closed: [-1, 0], open: [0, -1], reach, tail };
-    case 'head': return { id, side, pivot: [along, v1 + away, under], closed: [0, -1], open: [1, 0], reach, tail };
-    case 'sill': return { id, side, pivot: [along, v0 - away, under], closed: [0, 1], open: [1, 0], reach, tail };
+    case 'left': return made([u0 - away, along, under], [1, 0], [0, -1]);
+    case 'right': return made([u1 + away, along, under], [-1, 0], [0, -1]);
+    case 'head': return made([along, v1 + away, under], [0, -1], [1, 0]);
+    case 'sill': return made([along, v0 - away, under], [0, 1], [1, 0]);
   }
 }
 
@@ -443,7 +451,7 @@ export function doorPose(door: Pick<DoorPanel, 'withdraw' | 'stow'>, travel: num
 /** What a door is doing at `travel`, for the caption under a stage; null when it is seated or set aside. */
 export function doorAction(door: Pick<DoorPanel, 'buttons'>, travel: number, name: string): string | null {
   if (travel <= 0 || travel >= 1) return null;
-  if (travel < DOOR_TRAVEL.turned) return door.buttons.length ? `${door.buttons.length} × Door turn button: turned a quarter turn clear of the ${name}` : `The ${name}’s latches: levers lifted, links unhooked`;
+  if (travel < DOOR_TRAVEL.turned) return door.buttons.length ? `${door.buttons.length} × Door turn button: its locking pin lifted, turned a quarter turn clear of the ${name}` : `The ${name}’s latches: levers lifted, links unhooked`;
   return travel < DOOR_TRAVEL.out ? `${name.charAt(0).toUpperCase()}${name.slice(1)}: drawn straight out of its opening` : `${name.charAt(0).toUpperCase()}${name.slice(1)}: stowed clear of the route`;
 }
 
@@ -480,6 +488,12 @@ export function doorRetention(door: DoorPanel): { span: number; corner: number }
   return { span, corner };
 }
 
+/**
+ * How far a button's locking pin is from its pivot: half way to the panel's edge, but at least clear of the pivot screw's head
+ * (`LOCK_FROM_PIVOT`) and of the edge.
+ */
+export const LOCK_FROM_PIVOT = 6;
+export function lockDistance(away: number) { return Math.min(Math.max(LOCK_FROM_PIVOT, away / 2), away - DOOR.button.lock.diameter); }
 /** A button's length, pivot hole to both ends. */
 const buttonLength = (b: DoorButton) => b.reach + b.tail;
 
@@ -493,10 +507,10 @@ export function doorBom(door: DoorPanel, { prefix, where, mesh, count = 1 }: { p
   if (door.mesh) lines.push({ id: `${prefix}-mesh`, group: 'Mesh', name: 'Removable panel mesh', quantity: count, size: `${Math.round(door.mesh.width)} × ${Math.round(door.mesh.height)} · ${meshCut(mesh)}`, use: `${where}: between the panel’s frame and its cover strips, clamped along every edge` });
   const lengths = new Map<number, number>();
   for (const b of door.buttons) lengths.set(buttonLength(b), (lengths.get(buttonLength(b)) ?? 0) + count);
-  const { width, thickness, tail, pip } = DOOR.button;
+  const { width, thickness, tail, lock } = DOOR.button;
   for (const [length, quantity] of lengths) lines.push({ id: `${prefix}-door-buttons-${length}`, group: 'Hardware', name: 'Door turn button, printed (custom)', quantity,
-    size: `PETG · ${length} × ${width} × ${thickness} · countersunk hole for a 4 mm screw ${tail} mm from one end · ${pip} mm detent pip under that end`,
-    use: `${where}: turned over the panel’s edge to keep it in, a quarter turn clear to let it out. Not yet a model of the library: its strength and its detent are untested` });
+    size: `PETG · ${length} × ${width} × ${thickness} · countersunk hole for a 4 mm screw ${tail} mm from one end · a ${lock.diameter} mm hole for its locking pin, with a printed knob (Ø ${lock.knob.diameter} × ${lock.knob.height}) and a collar keeping it captive`,
+    use: `${where}: turned over the panel’s edge to keep it in, its locking pin dropped ${lock.into} mm into a hole in the timber; the pin lifted by its knob, a quarter turn clear to let it out. Not yet a model of the library: its strength and its pin are untested` });
   if (door.pull) lines.push({ id: `${prefix}-door-pull`, group: 'Hardware', name: 'Panel pull, printed (custom)', quantity: count, size: `PETG · ${DOOR.pull.width} × ${DOOR.pull.height} × ${DOOR.pull.depth}, two screw holes`, use: `${where}: on the panel’s room side, to draw it out by` });
   if (door.seal) lines.push({ id: `${prefix}-door-seal`, group: 'Hardware', name: E_PROFILE_SEAL, quantity: count, size: `about ${DOOR.seal.width} × ${DOOR.seal.height} · ${Math.ceil(door.seal.length / 10) * 10} long`, use: `${where}: round the panel’s seat, on the jambs, the transom and the sill stop; squashed to ${DOOR.seal.gap} mm` });
   return lines;
@@ -504,7 +518,10 @@ export function doorBom(door: DoorPanel, { prefix, where, mesh, count = 1 }: { p
 
 /** A door's library parts that are not drawn as fasteners: the washer under each button. */
 export function doorLibraryParts(door: DoorPanel): { partId: string; quantity: number; use: string }[] {
-  return [{ partId: door.washer.id, quantity: door.buttons.length, use: 'Under each door turn button, on its pivot: the button turns on it' }];
+  return [
+    { partId: door.washer.id, quantity: door.buttons.length, use: 'Under each door turn button, on its pivot: the button turns on it' },
+    { partId: HW.lockPin, quantity: door.buttons.length, use: 'Each door turn button’s captive locking pin, into its hole in the timber' },
+  ];
 }
 
 /** The facts a page's brief gives of a door. */

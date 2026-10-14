@@ -5,7 +5,7 @@ import { type CatioView } from './catioDesign.ts';
 import { E_PROFILE_SEAL, latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine, printedLatchScrews } from './catioPrintedLatch.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { blankPanel, CLOSURE_WORDS, DOOR, doorBom, doorFacts, doorLibraryParts, insetPanel, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, portPanel, type DoorFrame, type DoorPanel } from './catioDoor.ts';
-import { BOLTS_PER_SIDE, boltStations, CUBE_BLOCK, cubeEdge, cubeFaces, DOOR_FIXING_LABELS, facePoint, frameAlong, PORT_FACES, portLatches, portRing, STANDARD_PORT, type Face, type Frame, type PortFace, type PortLatch, type PortRole, type Rect } from './catioPort.ts';
+import { BOLTS_PER_SIDE, boltStations, CUBE_BLOCK, portOutline, cubeEdge, cubeFaces, edgeStripSection, edgeStripSegments, DOOR_FIXING_LABELS, facePoint, frameAlong, PORT_FACES, portLatches, portRing, STANDARD_PORT, type Face, type Frame, type PortFace, type PortLatch, type PortRole, type Rect } from './catioPort.ts';
 import { couplingGap, savedTunnelCoupling, SUPPORT_FIXING_LABELS, SUPPORT_SOLE, supportControls, type SupportBase, type SupportFixing, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { fastenerClashes, fastenersAlong, loadSubassemblyConfig, parseControlled, type LegacySettings, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type SubassemblyPreset, type V3 } from './catioSubassembly.ts';
 import { parseWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertLayout, type WindowInsertConfig, type WindowSpec } from './catioWindowInsert.ts';
@@ -78,7 +78,7 @@ export type SideAccess = typeof SIDE_ACCESS[number];
 export { SUPPORT_FIXINGS, SUPPORT_FIXING_LABELS, type SupportFixing } from './catioTunnelJoint.ts';
 
 export const TUNNEL_DEFAULT: TunnelConfig = {
-  portX: 1006, portY: 3226, portFacing: 0, portLevel: 'own', portHeight: 500, approach: 700, final: 2000, slopeLeg: 'final', maxSlope: 20,
+  portX: 1082, portY: 3450, portFacing: 0, portLevel: 'own', portHeight: 500, approach: 700, final: 2000, slopeLeg: 'final', maxSlope: 20,
   angleJoint: 'cube-corner', mesh: CATIO_MESH_DEFAULT, straights: 'long', sectionLength: 2, footPad: 'printed', padHeight: 27.5, padSurface: 'grooved', footDiameter: 40, groundFall: 2, groundTolerance: 15,
   supportFixing: 'screws', supportBase: 'trestle', sideAccess: 'one', sideAccessSide: 'right',
 };
@@ -100,6 +100,8 @@ export const TUNNEL = {
   /** Legs are cut to whole multiples of this; the foot takes up the rest. */
   legRound: 5,
   slab: { size: 300, thickness: 40 },
+  /** A cube's floor prop: a post this square under the middle of its floor door, on its own slab, cut to the gap. */
+  floorProp: 70,
   cleat: { size: 20, pitch: 120 },
   /** The shortest straight run: a level run before and after a slope, and one between joints. */
   minRun: 150,
@@ -266,13 +268,19 @@ export interface Fastener {
  * A side-access panel: the removable mesh panel (`door`, in its own frame `frame`) that closes one side of the section `piece`,
  * between its flanges and its top and bottom rails, from outside.
  */
-export interface SideAccessPanel { id: string; piece: string; side: -1 | 1; door: DoorPanel; frame: DoorFrame }
+/** `span`: where its opening is along the section from its start, between the flanges (beside a mitre, its square part). */
+export interface SideAccessPanel { id: string; piece: string; side: -1 | 1; door: DoorPanel; frame: DoorFrame; span: [number, number] }
 /**
  * A door closing a face of a cube that the tunnel does not run through (catioDoor.ts `blankPanel` or `portPanel`), in its own frame
  * `frame` (n out of the cube), and the latches that hold it when the port's own latches do (base plates on the cube's left of the face
  * seen from outside, on the door's right).
  */
 export interface CubeDoor { id: string; piece: string; face: PortFace; door: DoorPanel; frame: DoorFrame; latches: PortLatch[] }
+/**
+ * A cube's floor prop: a post `TUNNEL.floorProp` square under the middle of its floor door, standing on its own slab, cut on site to
+ * the gap (`length`, from the slab's top to the door's face at `top`). The door is clamped between the cube and the prop.
+ */
+export interface FloorProp { id: string; piece: string; at: V3; top: number; slabTop: number; ground: number; length: number; along: V3 }
 export interface Member { id: string; piece: string; name: string; section: string; from: Face; fromOffset: number; to: Face; toOffset: number; rect: Rect; kind: 'flange' | 'rail' | 'floor' }
 
 /** A printed latch's screws: at least this far inside the flange's timber, and this far from any other screw in it. */
@@ -345,7 +353,9 @@ export function cubeRoute(config: Pick<TunnelConfig, 'portX' | 'portFacing'>): {
  * from where it was asked. A climb is the one length solved exactly: a whole number of long sections, sloped as steeply as it
  * takes to reach the port's floor, up to the steepest slope allowed.
  */
-export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite(), joint: TunnelCouplingConfig = savedTunnelCoupling()) {
+export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite(), joint: TunnelCouplingConfig = savedTunnelCoupling(),
+  /** What each leg's level runs are made of instead of `straights` (the tunnel–tunnel coupling page shows any joint this way). */
+  legElements?: TunnelConfig['straights'][]) {
   const { w, h, floorZ } = site;
   const errors: string[] = [];
   const turnType = config.angleJoint;
@@ -482,7 +492,7 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
     const frame = frameAlong(item.dir);
     // after another run, straight on: the gap of the coupling between them
     if (index > 0 && items[index - 1]?.kind === 'run') at = add(at, mul(item.dir, gap));
-    const asCubes = config.straights === 'cubes' && item.pitch === 0;
+    const asCubes = (legElements?.[item.leg] ?? config.straights) === 'cubes' && item.pitch === 0;
     const count = asCubes ? k : Math.ceil(k / config.sectionLength - 1e-9);
     const lengths = Array.from({ length: count }, (_, i) => asCubes ? 1 : Math.floor(k / count) + (i < k % count ? 1 : 0));
     lengths.forEach((n, i) => {
@@ -566,6 +576,27 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
         const u = x * reach; const v = w / 2 + z * reach; const depth = C / 2 + y * reach;
         members.push({ id: `${p.id}-block-${x < 0 ? 'l' : 'r'}${y < 0 ? 'b' : 'f'}${z < 0 ? 'd' : 'u'}`, piece: p.id, name: 'Corner block', section: `${B} × ${B}`, from: back, fromOffset: depth - B / 2, to: back, toOffset: depth + B / 2, rect: [u - B / 2, u + B / 2, v - B / 2, v + B / 2], kind: 'rail' });
       }
+      // an edge strip in each of the 12 edges, between the corner blocks and the latch stations: a member along the face whose
+      // normal runs along the edge (the back face for edges along the run, the left face across it, the floor face up it)
+      const { centre } = p.cube; const { x: ax, y: ay, z: az } = p.frame;
+      const strip = edgeStripSection(w); const near = w / 2 + F; const far = C / 2;
+      for (const [axis, face] of [['x', p.cube.faces.left], ['y', p.cube.faces.back], ['z', p.cube.faces.bottom]] as const) {
+        const local = (q: [number, number, number]): [number, number, number] => {
+          const world = add(centre, add(add(mul(ax, q[0]), mul(ay, q[1])), mul(az, q[2]))); const d = sub(world, face.at);
+          return [dot(d, face.frame.x), dot(d, face.frame.z), dot(d, face.n)];
+        };
+        for (const a of [-1, 1]) for (const b of [-1, 1]) for (const [k, [from, to]] of edgeStripSegments(w, joint.latchesPerSide).entries()) {
+          const across = [a < 0 ? [-far, -near] : [near, far], b < 0 ? [-far, -near] : [near, far]] as const;
+          const range = (i: 0 | 1 | 2): [number, number] => {
+            const order = { x: [null, 0, 1], y: [0, null, 1], z: [0, 1, null] }[axis][i];
+            return order === null ? [from, to] : [...(across[order as 0 | 1])] as [number, number];
+          };
+          const corners = [range(0), range(1), range(2)].reduce<[number, number, number][]>((list, [lo, hi], i) => list.flatMap(q => [lo, hi].map(value => { const c = [...q] as [number, number, number]; c[i] = value; return c; })), [[0, 0, 0]]).map(local);
+          const span = (i: 0 | 1 | 2) => [Math.min(...corners.map(c => c[i])), Math.max(...corners.map(c => c[i]))] as const;
+          const [u0, u1] = span(0); const [v0, v1] = span(1); const [o0, o1] = span(2);
+          members.push({ id: `${p.id}-strip-${axis}${a < 0 ? 'n' : 'p'}${b < 0 ? 'n' : 'p'}-${k}`, piece: p.id, name: 'Edge strip', section: `${Number(strip.toFixed(1))} × ${Number(strip.toFixed(1))}`, from: face, fromOffset: o0, to: face, toOffset: o1, rect: [u0, u1, v0, v1], kind: 'rail' });
+        }
+      }
       continue;
     }
     for (const [end, face, offset] of [['start', p.start, T], ['end', p.end, -T]] as const) {
@@ -600,24 +631,37 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   }));
   for (const d of doors) errors.push(...d.door.errors.filter(e => !errors.includes(e)));
 
-  // Side access: a removable mesh panel instead of one side's mesh, in sections whose ends are both square (so the opening
-  // between their flanges is a rectangle) and long enough. It lies between the flanges' inner faces, in the depth of the rails, so
-  // nothing of it reaches the flanges' sides (the latches), the bearers under them or the roof above.
+  // Side access: a removable mesh panel instead of one side's mesh, in long sections whose side has a square part between its
+  // flanges long enough for it (all of it between square flanges; beside a mitre, the part the mitre does not lean over, the rest
+  // meshed). It lies between the flanges' inner faces, in the depth of the rails, so nothing of it reaches the flanges' sides (the
+  // latches), the bearers under them or the roof above.
   const accessSide = config.sideAccessSide === 'left' ? -1 : 1;
-  const squareEnded = (p: Piece) => dot(p.start.n, p.frame.y) > 1 - 1e-9 && dot(p.end.n, p.frame.y) > 1 - 1e-9;
   // A strap goes plumb over the tunnel at a support. The supports at the wall and at the port stand under the first and the last
   // piece themselves, not under two flanges that meet, and over a sloped section a plumb strap leans across its side: held by
   // straps, those pieces have no side access.
   const strapped = (p: Piece) => config.supportFixing === 'strap' && (p === pieces[0] || p === pieces.at(-1) || Math.abs(p.pitch) > 1e-6);
-  const accessible = pieces.filter(p => p.kind === 'section' && squareEnded(p) && p.length - 2 * T >= TUNNEL.access.minLength && !strapped(p));
+  /**
+   * The square part of a section's side, between its two flanges' inner faces all the way up the side (in the depth of the rails):
+   * the whole side between square flanges, shorter beside a mitre, which leans over part of it. Along the section from its start.
+   */
+  const clearSpan = (p: Piece, side: -1 | 1): [number, number] => {
+    let from = -Infinity; let to = Infinity;
+    for (const u of [side * w / 2, side * outer]) for (const v of [-fl - r, h + r]) {
+      from = Math.max(from, dot(sub(facePoint(p.start, u, v, T), p.start.at), p.frame.y));
+      to = Math.min(to, dot(sub(facePoint(p.end, u, v, -T), p.start.at), p.frame.y));
+    }
+    return [from, to];
+  };
+  const spanOf = (p: Piece) => { const [a, b] = clearSpan(p, accessSide); return b - a; };
+  const accessible = pieces.filter(p => p.kind === 'section' && spanOf(p) >= TUNNEL.access.minLength && !strapped(p));
   const withAccess = config.sideAccess === 'all' ? accessible : config.sideAccess === 'one' ? accessible.slice(Math.floor(accessible.length / 2), Math.floor(accessible.length / 2) + 1) : [];
   // (a tunnel none of whose sections can take one simply has none: the page's brief says so)
   const access: SideAccessPanel[] = withAccess.map(p => {
-    const id = `${p.id}-access`; const edge = TUNNEL.access.pivotEdge;
-    const door = insetPanel({ id, width: p.length - 2 * T, height: h, cavity: r, pivots: { head: edge, sill: fl + r - edge } });
+    const id = `${p.id}-access`; const edge = TUNNEL.access.pivotEdge; const [from, to] = clearSpan(p, accessSide);
+    const door = insetPanel({ id, width: to - from, height: h, cavity: r, pivots: { head: edge, sill: fl + r - edge } });
     // its seat stands the panel's thickness inside the rails' outer faces; it comes out sideways, away from the tunnel
-    const middle = mul(add(p.start.at, p.end.at), 0.5); const n = mul(p.frame.x, accessSide);
-    return { id, piece: p.id, side: accessSide, door, frame: { origin: add(middle, mul(n, outer - door.front)), u: mul(p.frame.y, accessSide), v: p.frame.z, n } };
+    const middle = add(p.start.at, mul(p.frame.y, (from + to) / 2)); const n = mul(p.frame.x, accessSide);
+    return { id, piece: p.id, side: accessSide, door, frame: { origin: add(middle, mul(n, outer - door.front)), u: mul(p.frame.y, accessSide), v: p.frame.z, n }, span: [from, to] };
   });
   for (const a of access) {
     errors.push(...a.door.errors.filter(e => !errors.includes(e)));
@@ -635,9 +679,22 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   for (const p of pieces) {
     if (p.cube) {
       // A cube has no mesh of its own (its doors have), and no floor board: its floor face's door is its floor. Each corner block is
-      // screwed through each of the three rings over it.
+      // screwed through each of the three rings over it; each edge strip, from its two outer faces, into the side of each ring it
+      // lies against (a ring's depth in from the cube's face), glued as well.
       const { faces } = p.cube;
-      for (const m of members.filter(q => q.piece === p.id && q.kind === 'rail')) {
+      const half = C / 2;
+      for (const m of members.filter(q => q.piece === p.id && q.name === 'Edge strip')) {
+        const [u, v] = mid(m.rect); const centre = facePoint(m.from, u, v, (m.fromOffset + m.toOffset) / 2);
+        const local = sub(centre, p.cube.centre);
+        const axes = [p.frame.x, p.frame.y, p.frame.z].filter(e => Math.abs(dot(e, m.from.n)) < 0.5);
+        for (const [i, e] of axes.entries()) {
+          const other = axes[1 - i] ?? e; const se = Math.sign(dot(local, e)); const so = Math.sign(dot(local, other));
+          // from the strip's outer face across `e`, into the ring whose face lies across `other`, at the middle of its depth
+          const at = add(add(p.cube.centre, mul(e, se * half)), add(mul(other, so * (half - T / 2)), mul(m.from.n, dot(local, m.from.n))));
+          fasteners.push({ partId: HW.railScrew, component: 'rail-screws', at, direction: mul(e, -se), use: 'Cubes’ edge strips into the rings’ sides (and glued)', piece: p.id });
+        }
+      }
+      for (const m of members.filter(q => q.piece === p.id && q.name === 'Corner block')) {
         const [u, v] = mid(m.rect); const centre = facePoint(m.from, u, v, (m.fromOffset + m.toOffset) / 2);
         const local = sub(centre, p.cube.centre);
         const { x, y, z } = p.frame;
@@ -658,9 +715,22 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
     const back = mul(p.start.n, -1); const forward = p.end.n;
     for (const side of [-1, 1]) {
       const u = side * outer; const inward = mul(p.frame.x, -side);
-      if (access.some(a => a.piece === p.id && a.side === side)) {
+      const opened = access.find(a => a.piece === p.id && a.side === side);
+      if (opened) {
         // A side-access panel closes this side instead. The roof mesh is as on any other piece; a net hood, which would run on
         // down this side, ends on the top rail's outer face instead, a staple over every mesh, above the panel's turn buttons.
+        // Beside a mitre, mesh fills the part of the side between the mitred flange and the panel's square opening.
+        const at = (along: number, v: number) => add(add(add(p.start.at, mul(p.frame.y, along)), mul(p.frame.x, u)), mul(p.frame.z, v));
+        const [from, to] = opened.span; const vb = -fl - r; const vt = h + r;
+        for (const [name, c] of [['start', [s0(u, vb), at(from, vb), at(from, vt), s0(u, vt)]], ['end', [at(to, vb), s1(u, vb), s1(u, vt), at(to, vt)]]] as const) {
+          const wide = Math.max(len(sub(c[1], c[0])), len(sub(c[2], c[3])));
+          if (wide < 5) continue;
+          const quad = c as unknown as [V3, V3, V3, V3];
+          panels.push({ id: `${p.id}-mesh-beside-${name}-${side < 0 ? 'left' : 'right'}`, piece: p.id, name: `${p.name}: side mesh beside the side access, ${side < 0 ? 'left' : 'right'}`, corners: quad, edges: [
+            { from: quad[0], to: quad[1], drive: inward, use: 'Onto the bottom rail', cut: true }, { from: quad[3], to: quad[2], drive: inward, use: 'Onto the top rail', cut: true },
+            { from: name === 'start' ? quad[0] : quad[1], to: name === 'start' ? quad[3] : quad[2], drive: name === 'start' ? back : forward, use: 'Turned onto the flange', cut: true },
+          ] });
+        }
         if (mesh.soft) {
           const turn = TUNNEL.access.hoodTurn; const c: [V3, V3, V3, V3] = [s0(u, h + r - turn), s1(u, h + r - turn), s1(u, h + r), s0(u, h + r)];
           panels.push({ id: `${p.id}-mesh-edge-${side < 0 ? 'left' : 'right'}`, piece: p.id, name: `${p.name}: hood edge over the side access, ${side < 0 ? 'left' : 'right'}`, corners: c, edges: [
@@ -916,6 +986,17 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
       }
     }
   }
+  // A floor prop under every cube: its floor door is clamped between the cube and the prop, so a cat's weight on the floor goes
+  // into the ground, not into the door's latches or turn buttons. It stands clear of every button and latch of that door.
+  const props: FloorProp[] = [];
+  for (const d of doors.filter(q => q.face === 'bottom')) {
+    const piece = pieces.find(q => q.id === d.piece); if (!piece?.cube) continue;
+    const c = piece.cube.centre; const top = c[2] - C / 2 - d.door.front;
+    const ground = groundAt(config, c[0], c[1]); const slabTop = ground + TUNNEL.slab.thickness;
+    const length = top - slabTop;
+    if (length < 10) errors.push(`The floor door of ${piece.name.toLowerCase()} is only ${Math.round(top - ground)} mm above the grass: too little for its prop on a slab. Raise the tunnel there.`);
+    props.push({ id: `${piece.id}-prop`, piece: piece.id, at: [c[0], c[1], top], top, slabTop, ground, length: Math.max(0, length), along: piece.frame.y });
+  }
   // a support with nothing holding it to the tunnel must stand on its soles
   const loose = supports.filter(s => !s.hold.attached && !s.stands);
   if (loose.length) {
@@ -968,13 +1049,13 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   // the check behind that rule: no strap's path crosses a side-access panel
   for (const a of access) {
     const piece = pieces.find(p => p.id === a.piece); if (!piece) continue;
-    const middle = mul(add(piece.start.at, piece.end.at), 0.5);
+    const middle = add(piece.start.at, mul(piece.frame.y, (a.span[0] + a.span[1]) / 2));
     const crosses = (q: V3) => { const d = sub(q, middle); const along = dot(d, piece.frame.y); return Math.abs(along) < a.door.opening.width / 2 && len(sub(d, mul(piece.frame.y, along))) < w + 2 * F; };
     if (supports.some(s => s.hold.strap?.path.some(crosses))) errors.push(`A support’s strap would cross the side-access panel of ${piece.name.toLowerCase()}: choose another way to hold the tunnel there, or no side access.`);
   }
   return {
     config, site, w, h, S, E, dE, V1, V2, asked, moved, facingMoved, cubeEdge: C, pitch, turns: turns.map(deg), rise, slope: slope ? { pitch: deg(slope.pitch), run: slope.run, footprint: slope.footprint } : null,
-    joint, gap, mesh, pieces, joints, interfaces, couplings, members, panels, access, doors, cleats, fasteners, supports, foot, pad, footHeight: l3, stud, insertNut, lockNut, travel, errors, totalLength,
+    joint, gap, mesh, pieces, joints, interfaces, couplings, members, panels, access, doors, props, cleats, fasteners, supports, foot, pad, footHeight: l3, stud, insertNut, lockNut, travel, errors, totalLength,
   };
 }
 export type TunnelLayout = ReturnType<typeof tunnelLayout>;
@@ -1028,10 +1109,11 @@ export function tunnelSteps(_variant: CatioMode, config: TunnelConfig): readonly
   const perCoupling = 2 * l.joint.latchesPerSide;
   const plates = latched.length ? ` Screw the printed toggle latches’ plates onto the flanges’ outer sides, ${perCoupling} at each coupling, two 4 × 25 screws each: seen from outside each flange, the base plates (lever and link snapped on) on its left side and the catch plates on its right, so that every port mates with every other.` : '';
   const doorLatches = l.doors.filter(d => d.latches.length).length;
-  const cubeFrame = cubes ? ` Each of the ${cubes} ${cubes === 1 ? 'cube' : 'cubes'} is six flange rings, every one a standard port, butted edge to edge round the cube’s edges with a ${CUBE_BLOCK} × ${CUBE_BLOCK} block in each corner behind its three rings, screwed through each (5 × 70).` : '';
+  const strip = Number(edgeStripSection(l.w).toFixed(1));
+  const cubeFrame = cubes ? ` Each of the ${cubes} ${cubes === 1 ? 'cube' : 'cubes'} is six flange rings, every one a standard port flush with its face, with a ${CUBE_BLOCK} × ${CUBE_BLOCK} block in each corner behind its three rings, screwed through each (5 × 70). Glue and screw a ${strip} × ${strip} edge strip into each edge, against both rings’ sides, in lengths that stop short of every latch station, so that each latch has its pocket.` : '';
   const doorWords = !l.doors.length ? '' : l.joint.doorFixing === 'latches'
     ? ` Close every face of a cube that the tunnel does not run through with its door (${l.doors.length}): a blank flange ring with mesh clamped over it under cover strips, or a plywood sheet and a floor plug on the floor face. ${doorLatches ? `Screw on its latches’ plates as on a flange, ` : ''}hold it ${PRINTED_LATCH_JOINT.gap} mm off the port and close its latches over centre.`
-    : ` Close every face of a cube that the tunnel does not run through with its door (${l.doors.length}): screw the locating strips onto the port’s ring on all four sides, each door turn button on its washer; lay the panel on the ring between them (the plywood one, its plug in the opening, on the floor face) and turn every button over it.`;
+    : ` Close every face of a cube that the tunnel does not run through with its door (${l.doors.length}): screw the locating strips onto the port’s ring on all four sides, each door turn button on its washer; lay the panel on the ring between them (the plywood one, its plug in the opening, on the floor face), turn every button over it and drop its locking pin.`;
   const couple = [
     latched.length ? `At ${latched.length === l.couplings.filter(c => c.stage === 5).length ? 'every coupling' : `${latched.length} square couplings`}${latched.some(c => c.seal) ? ' stick the E-profile seal round the flange’s face, lay the next piece' : ' lay the next piece'} ${l.gap} mm short of it, hook each latch’s link over its catch and press the lever down over centre.` : '',
     bolted.length ? `At ${latched.length ? `the ${bolted.length} mitred ${bolted.length === 1 ? 'joint' : 'joints'}` : 'every coupling'} push ${l.joint.boltsPerCoupling} M8 × 80 bolts through both flanges with a large washer each side and tighten the nuts.` : '',
@@ -1047,8 +1129,8 @@ export function tunnelSteps(_variant: CatioMode, config: TunnelConfig): readonly
   const words = CLOSURE_WORDS[l.site.window.closure];
   const panels = l.access.length; const buttons = l.access[0]?.door.buttons.length ?? 0;
   const accessFrame = panels ? ` In ${panels === 1 ? 'the section' : `each of the ${panels} sections`} with side access, glue and screw the four stop strips inside the ${config.sideAccessSide} side’s opening, between the flanges, ${l.access[0]?.door.front ?? 0} mm in from the rails’ outer faces.` : '';
-  const accessMesh = panels ? ` The ${config.sideAccessSide} side of ${panels === 1 ? 'the section' : 'the sections'} with side access is left open${l.mesh.soft ? `: the hood ends ${TUNNEL.access.hoodTurn} mm down that top rail’s outer face, a staple over every mesh` : ''}. Make ${panels === 1 ? 'its panel' : 'each one’s panel'}: a frame of ${DOOR_FRAME} timber, the mesh laid on its cat side and clamped under cover strips screwed on over every cut edge. Screw ${buttons} door turn buttons onto the rails’ outer faces above and below the opening, each on its washer; stand the panel on the opening’s sill, press it against the stops and turn every button over it.` : '';
-  const accessUse = panels ? ` The side-access ${panels === 1 ? 'panel is' : 'panels are'} for reaching in from outside, to clean or to fetch a toy. Opening one opens the tunnel to the garden: secure the cats elsewhere first, with both ends’ ports shut, and turn every button back over the panel before they return.` : '';
+  const accessMesh = panels ? ` The ${config.sideAccessSide} side of ${panels === 1 ? 'the section' : 'the sections'} with side access is left open${l.mesh.soft ? `: the hood ends ${TUNNEL.access.hoodTurn} mm down that top rail’s outer face, a staple over every mesh` : ''}. Make ${panels === 1 ? 'its panel' : 'each one’s panel'}: a frame of ${DOOR_FRAME} timber, the mesh laid on its cat side and clamped under cover strips screwed on over every cut edge. Screw ${buttons} door turn buttons onto the rails’ outer faces above and below the opening, each on its washer; stand the panel on the opening’s sill, press it against the stops, turn every button over it and drop its locking pin into the hole drilled through it into the rail.` : '';
+  const accessUse = panels ? ` The side-access ${panels === 1 ? 'panel is' : 'panels are'} for reaching in from outside, to clean or to fetch a toy. Opening one opens the tunnel to the garden: secure the cats elsewhere first, with both ends’ ports shut, and turn every button back over the panel, each pin dropped, before they return.` : '';
   return [
     { title: 'The site as it is', detail: `The window insert is fitted with its ${words.thing} ${words.shut} and the insert–tunnel coupling’s docking frame on its port; the enclosure stands with its rear port ${fmt(l.E[2] / 10)} cm above the grass. The ground between falls ${config.groundFall}% away from the wall and is uneven by up to ±${config.groundTolerance} mm.` },
     { title: 'Bed the slabs, build the supports', detail: `Bed a 30 × 30 cm paving slab in the grass under every foot position (${l.supports.length * 2}). For each support: screw an M8 insert nut into each leg’s foot end (or into the underside of a low bearer), ${foot}, screw the bearer down onto the legs and, on tall ones, the diagonal brace across. ${legs} trestles, ${blocks} low bearers.${sole}` },
@@ -1056,7 +1138,7 @@ export function tunnelSteps(_variant: CatioMode, config: TunnelConfig): readonly
     { title: `Frame the ${wordList(['sections', ...(collar ? ['collars'] : []), ...(cubes ? ['cubes'] : [])])}`, detail: `On trestles beside the line (shown raised over it): screw the four rails between each section’s two flange rings, then screw the floor board down onto the bottom rails. ${collar ? 'Each angle collar is built the same way between two flanges set at its angle.' : config.angleJoint === 'mitred-ends' ? 'Sections at a joint have their flanges on the mitre: cut the rails and floor to the mitre angle.' : ''}${cubeFrame} Sloped sections get cleats across the floor.${accessFrame}${plates}${fixing.pieces ? ` ${fixing.pieces}` : ''}` },
     { title: `${l.mesh.soft ? 'Net the sections' : 'Mesh the sections'}${l.doors.length ? ', close the cubes' : ''}`, detail: `${meshingStep(l.mesh)}${accessMesh}${doorWords}` },
     { title: 'Lay and couple', detail: `Lay the pieces onto the supports${fixing.lay} from the window end: ${joints}. ${couple} (The tunnel–tunnel coupling page sets how.)` },
-    { title: 'Fix down and dock', detail: `${fixing.hold} Close the latches between the first flange and the window insert’s docking frame (the insert–tunnel coupling page); nothing of the tunnel rests on the wall or the insert. ${l.couplings.find(c => c.stage === 6)?.kind === 'latched' ? 'Latch the last flange to the enclosure’s port flange, a standard port like every other' : `Bolt the last flange to the enclosure’s port flange (${l.joint.boltsPerCoupling} bolts)`}. Then open the cat ports at both ends: at each, ${words.open}. Before any part of the tunnel is uncoupled again, shut both ends’ ports first: at each, ${words.close}.${accessUse}` },
+    { title: 'Fix down and dock', detail: `${fixing.hold}${l.props.length ? ` Under each cube, bed a slab and stand a ${TUNNEL.floorProp} × ${TUNNEL.floorProp} floor prop on it, cut to the gap, so that the floor door is clamped between the cube and the prop: the cat’s weight goes into the ground. (To open a floor door, take its prop out first.)` : ''} Close the latches between the first flange and the window insert’s docking frame (the insert–tunnel coupling page); nothing of the tunnel rests on the wall or the insert. ${l.couplings.find(c => c.stage === 6)?.kind === 'latched' ? 'Latch the last flange to the enclosure’s port flange, a standard port like every other' : `Bolt the last flange to the enclosure’s port flange (${l.joint.boltsPerCoupling} bolts)`}. Then open the cat ports at both ends: at each, ${words.open}. Before any part of the tunnel is uncoupled again, shut both ends’ ports first: at each, ${words.close}.${accessUse}` },
   ];
 }
 
@@ -1113,9 +1195,10 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
   for (const m of l.members.filter(q => of(q.piece))) {
     const piece = l.pieces.find(p => p.id === m.piece); const collar = piece?.kind === 'collar'; const cube = piece?.kind === 'cube';
     const { cut } = memberCut(m);
-    const name = m.kind === 'flange' ? `Flange ${m.rect[3] - m.rect[2] > m.rect[1] - m.rect[0] ? 'stile' : 'head or sill'}` : m.kind === 'rail' ? (cube ? 'Corner block' : collar ? 'Collar rail' : 'Section rail') : (collar ? 'Collar floor' : 'Floor board');
-    const use = m.kind === 'flange' ? `Flange rings at both ends of every section and collar${cubes ? ', and on every face of every cube' : ''}: the standard port` : m.kind === 'rail' ? (cube ? 'In each corner of a cube, behind its three rings, screwed through each' : 'Along the corners, between the flanges') : 'The cat’s floor, on the bottom rails';
-    timber(cube && m.kind === 'rail' ? 'block' : m.kind, name, `${m.section} · ${cut}`, use);
+    const name = m.kind === 'flange' ? `Flange ${m.rect[3] - m.rect[2] > m.rect[1] - m.rect[0] ? 'stile' : 'head or sill'}` : m.kind === 'rail' ? (cube ? m.name : collar ? 'Collar rail' : 'Section rail') : (collar ? 'Collar floor' : 'Floor board');
+    const use = m.kind === 'flange' ? `Flange rings at both ends of every section and collar${cubes ? ', and on every face of every cube' : ''}: the standard port` : m.kind === 'rail'
+      ? (cube ? (m.name === 'Edge strip' ? 'Along each edge of a cube between its latches, glued and screwed to both rings’ sides: stiffens it and closes the edge' : 'In each corner of a cube, behind its three rings, screwed through each') : 'Along the corners, between the flanges') : 'The cat’s floor, on the bottom rails';
+    timber(cube && m.kind === 'rail' ? m.name : m.kind, name, `${m.section} · ${cut}`, use);
   }
   for (const c of l.cleats.filter(q => of(q.piece))) timber('cleat', 'Floor cleat', `${TUNNEL.cleat.size} × ${TUNNEL.cleat.size} · ${Math.round(c.length)} long`, 'Across the floor of sloped sections, for grip');
   if (supports) for (const s of l.supports) {
@@ -1130,6 +1213,10 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
     if (keepers) timber('keeper', 'Keeper', `hardwood ${TUNNEL.fixing.keeper.out} × ${TUNNEL.fixing.keeper.high} · ${TUNNEL.fixing.keeper.length} long`, 'On each flange’s side just above a bearer: the turn button lies over it', keepers);
     if (s.brace) timber('brace', 'Brace', `${TUNNEL.brace.thickness} × ${TUNNEL.brace.width} · ${Math.round(len(sub(s.brace.to, s.brace.from)) + 80)} long, ends cut to the legs`, 'Diagonally across tall trestles');
   }
+  // the template every ring of the tunnel is marked from (the page's drawing)
+  if (supports) timber('template', 'Port marking template', `6 mm plywood · ${portOutline(l.w)} × ${portOutline(l.w)}, cut to the drawing`, 'Laid on every ring’s face to mark and pre-drill its bolt holes and latch stations: every port the same');
+  // each cube's floor prop, cut on site to its gap: listed 20 mm long for that
+  if (supports) for (const prop of l.props.filter(q => of(q.piece))) timber('prop', 'Floor prop', `${TUNNEL.floorProp} × ${TUNNEL.floorProp} · ${Math.ceil((prop.length + 20) / 10) * 10} long, cut on site to the gap`, 'Under the middle of each cube’s floor door, on its own slab: the door is clamped between them, so the cat’s weight goes into the ground');
   // side-access panels and cubes' doors: their frames, cover strips and stops, doors alike counted together
   const accessLines = [
     ...l.access.filter(a => of(a.piece)).flatMap(a => doorBom(a.door, { prefix: 'access', where: 'Side access', mesh: l.mesh })),
@@ -1141,12 +1228,18 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
   const span = (panel: MeshPanel) => { const [a, b, c, d] = panel.corners; return { long: Math.max(len(sub(b, a)), len(sub(c, d))), short: Math.min(len(sub(b, a)), len(sub(c, d))), across: len(sub(d, a)) }; };
   // a net: one hood a piece, as long as the piece's longer side and as wide as both sides and the roof together
   if (l.mesh.soft) for (const piece of l.pieces.filter(p => of(p.id))) {
-    const spans = meshed.filter(q => q.piece === piece.id).map(span); if (spans.length === 0) continue;
+    const spans = meshed.filter(q => q.piece === piece.id && !q.id.includes('-mesh-beside-')).map(span); if (spans.length === 0) continue;
     const long = Math.round(Math.max(...spans.map(s => s.long))); const short = Math.round(Math.min(...spans.map(s => s.short)));
     const size = `${long === short ? long : `${short}–${long}`} × ${Math.round(spans.reduce((sum, s) => sum + s.across, 0))} · ${meshCut(l.mesh)}`;
     const same = lines.find(line => line.name === 'Net hood' && line.size === size);
     const open = l.access.some(a => a.piece === piece.id);
     if (same) same.quantity++; else lines.push({ id: `mesh-${lines.length}`, group: 'Mesh', name: 'Net hood', quantity: 1, size, use: open ? 'In one piece down one side and over both top rails, turned down onto the far top rail over the side access; its ends turned onto the flanges' : 'In one piece down one side, over both top rails and down the other; its ends turned onto the flanges' });
+  }
+  // beside a mitre, a net piece fills the side between the mitred flange and the side-access panel
+  if (l.mesh.soft) for (const panel of meshed.filter(q => q.id.includes('-mesh-beside-'))) {
+    const s2 = span(panel); const size = `${Math.round(s2.short)}–${Math.round(s2.long)} × ${Math.round(s2.across)} · ${meshCut(l.mesh)}`;
+    const same = lines.find(line => line.name === 'Net, beside the side access' && line.size === size);
+    if (same) same.quantity++; else lines.push({ id: `mesh-${lines.length}`, group: 'Mesh', name: 'Net, beside the side access', quantity: 1, size, use: 'Between a mitred flange and the side-access panel, stapled over every mesh to the rails and the flange' });
   }
   else for (const panel of meshed) {
     const [a, b, c, d] = panel.corners;
@@ -1162,7 +1255,7 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
     if (same) same.quantity += line.quantity; else lines.push({ ...line, id: `${line.id}-${lines.length}` });
   }
   // the cut list by kind of member, then longest first
-  const kinds = ['Flange stile', 'Flange head or sill', 'Section rail', 'Collar rail', 'Corner block', 'Floor board', 'Collar floor', 'Floor cleat', 'Bearer', 'Low bearer', 'Low bearer, wide', 'Leg', 'Sole', 'Brace', 'Strap cleat', 'Keeper', 'Panel frame, upright', 'Panel frame, rail', 'Panel cover strip, upright', 'Panel cover strip, rail', 'Access stop, head and sill', 'Access stop, end',
+  const kinds = ['Flange stile', 'Flange head or sill', 'Section rail', 'Collar rail', 'Edge strip', 'Corner block', 'Floor board', 'Collar floor', 'Floor cleat', 'Bearer', 'Low bearer', 'Low bearer, wide', 'Leg', 'Sole', 'Floor prop', 'Brace', 'Port marking template', 'Strap cleat', 'Keeper', 'Panel frame, upright', 'Panel frame, rail', 'Panel cover strip, upright', 'Panel cover strip, rail', 'Access stop, head and sill', 'Access stop, end',
     'Door ring, stile', 'Door ring, head or sill', 'Door cover strip', 'Door sheet', 'Floor plug', 'Locating strip, side', 'Locating strip, end'];
   const length = (line: BomLine) => Number(/· (\d+)/.exec(line.size)?.[1] ?? 0);
   const cut = lines.filter(line => line.group === 'Timber').sort((x, y) => kinds.indexOf(x.name) - kinds.indexOf(y.name) || length(y) - length(x));
@@ -1221,7 +1314,7 @@ export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: Tunne
   custom('turn-buttons', 'Turn button and post, printed (custom)', l.supports.reduce((n, s) => n + s.hold.buttons.length, 0), `PETG · post ${FX.post.thick} × ${FX.post.width} rising to the keeper’s top · button ${FX.button.width} × ${FX.button.thickness}, turning flat on a 4 × 25 screw`, 'On the bearer’s end beside each flange: the button turns over the flange’s keeper');
   if (l.pad) lines.push({ id: 'foot-pads', group: 'Hardware', name: 'Pressure pad, foot', quantity: l.supports.reduce((n, s) => n + s.feet.length, 0), modelId: 'pressure-pad',
     size: `Ø ${l.pad.diameter} × ${l.pad.height} mm · ${l.pad.surface} sole · PETG · for an ${l.pad.screw.designation} head`, use: 'Under every leg or low bearer, on a slab: turned by hand to level' });
-  lines.push({ id: 'slabs', group: 'Groundwork', name: 'Paving slab', quantity: l.supports.length * 2, size: `${TUNNEL.slab.size} × ${TUNNEL.slab.size} × ${TUNNEL.slab.thickness} concrete`, use: 'Bedded in the grass under every foot, so it cannot sink' });
+  lines.push({ id: 'slabs', group: 'Groundwork', name: 'Paving slab', quantity: l.supports.length * 2 + l.props.length, size: `${TUNNEL.slab.size} × ${TUNNEL.slab.size} × ${TUNNEL.slab.thickness} concrete`, use: l.props.length ? 'Bedded in the grass under every foot, and under every cube’s floor prop, so it cannot sink' : 'Bedded in the grass under every foot, so it cannot sink' });
   return lines;
 }
 
@@ -1279,7 +1372,10 @@ const mm = (label: string) => ({ unit: label, scale: label === 'cm' ? 10 : 1 });
 export const TUNNEL_CONTROLS: SubassemblyControl<TunnelConfig>[] = [
   { key: 'portX', label: 'Port along the wall', group: 'Enclosure port (fixed interface)', help: 'Its centre from the window’s centre; + is to the right, seen from the garden. The tunnel is whole standard elements, so it ends as near here as they make it: the brief says where.', options: [], range: { min: -4000, max: 4000, step: 1, ...mm('cm') } },
   { key: 'portY', label: 'Port out from the wall', group: 'Enclosure port (fixed interface)', help: 'From the wall face to the port’s face, where the last flange couples on. The tunnel ends as near it as whole elements make it.', options: [], range: { min: 500, max: 8000, step: 1, ...mm('cm') } },
-  { key: 'portFacing', label: 'Port faces', group: 'Enclosure port (fixed interface)', help: 'The way the tunnel runs into it, from straight out of the wall; + turned to the right. The turns follow. Cube corners turn only 90°: the port then faces straight out or along the wall (±90°), whichever is nearer.', options: [], range: { min: -120, max: 120, step: 1, ...mm('°') } },
+  { key: 'portFacing', label: 'Port faces', group: 'Enclosure port (fixed interface)', help: 'The way the tunnel runs into it, from straight out of the wall; + turned to the right. The turns follow. (With cube corners it is a choice: straight out, or along the wall either way.)', options: [], range: { min: -120, max: 120, step: 1, ...mm('°') }, when: c => c.angleJoint !== 'cube-corner' },
+  { key: 'portFacing', label: 'Port faces', group: 'Enclosure port (fixed interface)', when: c => c.angleJoint === 'cube-corner',
+    help: 'The way the tunnel runs into it. Cube corners turn only 90°, so the port faces straight out from the wall or along it, to the right or to the left. (A facing saved at another angle is taken as the nearest of these.)',
+    options: [{ value: -90, label: 'Along the wall, to the left (−90°)' }, { value: 0, label: 'Straight out from the wall (0°)' }, { value: 90, label: 'Along the wall, to the right (90°)' }] },
   { key: 'portLevel', label: 'Port floor', group: 'Enclosure port (fixed interface)', help: 'Level with the window port follows the window insert wherever its clamps put the port’s floor, so the tunnel stays level when the insert changes.',
     options: [{ value: 'window', label: 'Level with the window port' }, { value: 'own', label: 'At its own height' }] },
   { key: 'portHeight', label: 'Port floor height', group: 'Enclosure port (fixed interface)', help: 'The enclosure’s threshold above the grass at the wall. The window port’s floor is set by the window insert; the tunnel climbs or falls the difference.', options: [], range: { min: 150, max: 1400, step: 0.5, ...mm('cm') }, when: c => c.portLevel === 'own' },
@@ -1299,7 +1395,7 @@ export const TUNNEL_CONTROLS: SubassemblyControl<TunnelConfig>[] = [
     options: [{ value: 'long', label: 'Long sections' }, { value: 'cubes', label: 'Cubes' }] },
   { key: 'sectionLength', label: 'Longest section', group: 'Sections', help: 'In pitches: a cube’s edge and a coupling’s gap, about 50 cm. Every long section is a whole number of them, so it takes the place of that many cubes. Each run’s pitches are shared among as few sections as take them: shorter ones are lighter to carry and need more supports.',
     options: ([1, 2, 3, 4] as const).map(v => ({ value: v, label: `${v} ${v === 1 ? 'pitch' : 'pitches'} (about ${v * 50} cm)` })) },
-  { key: 'sideAccess', label: 'Side access', group: 'Sections', help: 'For long sections (a cube has its doors): a removable mesh panel in place of one side’s mesh, kept in by door turn buttons on the rails: turn each a quarter turn clear and lift the panel out to reach in from outside. Only sections with two square ends take one; where a rubber strap holds the tunnel down, only level sections between two others. Opening one opens the tunnel: secure the cats elsewhere first.',
+  { key: 'sideAccess', label: 'Side access', group: 'Sections', help: 'For long sections (a cube has its doors): a removable mesh panel in place of one side’s mesh, kept in by door turn buttons on the rails, each locked by its pin: lift the pins, turn each button a quarter turn clear and lift the panel out to reach in from outside. Beside a mitre the panel takes the square part of the side, mesh the rest; where a rubber strap holds the tunnel down, only level sections between two others. Opening one opens the tunnel: secure the cats elsewhere first.',
     options: [{ value: 'none', label: 'None' }, { value: 'one', label: 'One panel, near the middle' }, { value: 'all', label: 'A panel in every section that takes one' }] },
   // (held by straps, the first, the last and the sloped sections take none: a strap would cross the panel there)
   { key: 'sideAccessSide', label: 'Access side', group: 'Sections', when: c => c.sideAccess !== 'none', help: 'The side the panels are on, looking along the tunnel from the window: the one you can stand beside.',

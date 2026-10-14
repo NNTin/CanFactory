@@ -10,7 +10,9 @@ import { buildInsertContext } from './catioWindowInsertScene.ts';
 import { couplingLayout, savedCoupling } from './catioCoupling.ts';
 import { buildCouplingPieces } from './catioCouplingScene.ts';
 import type { LatchMount } from './catioPrintedLatch.ts';
-import { doorAction } from './catioDoor.ts';
+import { doorAction, facePanel } from './catioDoor.ts';
+import { buildDoorPanel } from './catioDoorScene.ts';
+import { PORT_FRAME } from './catioModularDesign.ts';
 import { groundAt, tunnelBounds, tunnelLayout, tunnelSite, TUNNEL, vec, type Member, type Piece, type Rect, type TunnelConfig, type TunnelLayout, type TunnelSite } from './catioTunnel.ts';
 import { savedTunnelCoupling, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { buildAccessPanels, buildCouplingJoint, buildCubeDoors, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
@@ -40,9 +42,11 @@ export function memberCaption(layout: TunnelLayout, mem: Member, collars: boolea
   const of = (id: string) => !pieces || pieces.includes(id);
   const count = pieces ? pieces.length : layout.pieces.length;
   const shown = layout.pieces.filter(q => of(q.id)); const cubes = shown.filter(q => q.kind === 'cube').length;
-  const blocks = layout.members.filter(n => n.kind === 'rail' && of(n.piece) && n.name === 'Corner block').length;
+  const named = (name: string) => layout.members.filter(n => n.kind === 'rail' && of(n.piece) && n.name === name).length;
+  const blocks = named('Corner block'); const strips = named('Edge strip');
   return mem.kind === 'flange' ? `${(count - cubes) * 2 + cubes * 6} × Flange ring: stood at each end of every ${collars ? 'section and collar' : 'section'}${cubes ? ', and on every face of every cube' : ''}`
-    : mem.kind === 'rail' ? (mem.name === 'Corner block' ? `${blocks} × Corner block: set in behind a cube’s three rings` : `${layout.members.filter(n => n.kind === 'rail' && of(n.piece)).length - blocks} × Rail: offered between the flanges from the side`) : `${count - cubes} × Floor board: laid onto the bottom rails`;
+    : mem.kind === 'rail' ? (mem.name === 'Corner block' ? `${blocks} × Corner block: set in behind a cube’s three rings` : mem.name === 'Edge strip' ? `${strips} × Edge strip: glued into a cube’s edges between its latches`
+      : `${layout.members.filter(n => n.kind === 'rail' && of(n.piece)).length - blocks - strips} × Rail: offered between the flanges from the side`) : `${count - cubes} × Floor board: laid onto the bottom rails`;
 }
 
 /** The tunnel on its site: every piece of `tunnelLayout`, staged as `tunnelSteps` describes. */
@@ -50,6 +54,8 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
   layout: ReturnType<typeof tunnelLayout>; motions: PieceMotion[]; carriers: Map<string, number>; drops: Map<string, number>;
   levers: { mount: LatchMount; lever: THREE.Group; setOpen: (open: number) => void }[];
   holds: ReturnType<typeof buildSupportHold>[]; accessPanels: ReturnType<typeof buildAccessPanels>; cubeDoors: ReturnType<typeof buildCubeDoors>;
+  /** The enclosure's own cat-port panel at the tunnel's far end, seated: null with sliding gates. */
+  enclosureClosure: ReturnType<typeof buildDoorPanel> | null;
 } {
   const layout = tunnelLayout(config, site, joint);
   const { w, h } = layout;
@@ -95,15 +101,26 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
   const latches = component('coupling-latches', 6, 'hardware', [0, 160, 0]);
   for (const g of [...dock.latches.filter(q => !baseOnFrame(q.latch.id)).map(q => q.group), ...dock.catches.filter(c => baseOnFrame(c.latch.id)).map(c => c.group), ...(dock.lip ? [dock.lip] : [])]) latches.add(g);
   const port = component('enclosure-port', 0, undefined);
+  let enclosureClosure: ReturnType<typeof buildDoorPanel> | null = null;
   const last = layout.pieces.at(-1);
   if (last) {
     const ring: Rect[] = [[-w / 2 - 70, -w / 2, -70, h + 70], [w / 2, w / 2 + 70, -70, h + 70], [-w / 2, w / 2, h, h + 70], [-w / 2, w / 2, -70, 0]];
     for (const rect of ring) hexahedron(port, corners(last.end, layout.gap, last.end, layout.gap + TUNNEL.flange.thickness, rect), m.endgrain, [0, 0, 0]);
-    // the enclosure's rear wall round its port, for scale only: the enclosure is not designed here
-    const back = vec.add(layout.E, vec.mul(layout.dE, TUNNEL.flange.thickness + 25)); const across = last.end.frame.x;
+    // the enclosure's rear wall round its port, for scale only (the enclosure is not designed here), in the ring's plane, open where
+    // the port is
+    const back = vec.add(layout.E, vec.mul(layout.dE, TUNNEL.flange.thickness / 2)); const across = last.end.frame.x;
     const z0 = groundAt(config, back[0], back[1], false); const top = layout.E[2] + h + 500;
-    const quad: [V3, V3, V3, V3] = [vec.add([back[0], back[1], z0], vec.mul(across, -650)), vec.add([back[0], back[1], z0], vec.mul(across, 650)), vec.add([back[0], back[1], top], vec.mul(across, 650)), vec.add([back[0], back[1], top], vec.mul(across, -650))];
-    meshQuad(port, quad, [0, 0, 0]);
+    const P = (u: number, z: number): V3 => vec.add([back[0], back[1], z], vec.mul(across, u));
+    const ou = w / 2 + 70; const oz0 = layout.E[2] - 70; const oz1 = layout.E[2] + h + 70;
+    for (const [u0, u1, a, b] of [[-650, -ou, z0, top], [ou, 650, z0, top], [-ou, ou, oz1, top], [-ou, ou, z0, oz0]] as const) if (b > a) meshQuad(port, [P(u0, a), P(u1, a), P(u1, b), P(u0, b)], [0, 0, 0]);
+    // the enclosure's own cat-port closure, inside it: a framed mesh panel behind turn buttons, as the catio concept page sets for
+    // every cat port (its sliding gate is drawn there)
+    if (site.window.closure === 'removable-panel') {
+      const panel = facePanel({ id: 'enclosure-port-panel', width: w, height: h, material: 'mesh', land: PORT_FRAME });
+      const n = layout.dE; const v: V3 = [0, 0, 1];
+      const frame = { origin: vec.add(layout.E, vec.mul(n, TUNNEL.flange.thickness)), u: vec.cross(v, n), v, n };
+      enclosureClosure = buildDoorPanel(p, panel, frame, { timber: component('enclosure-port-closure', 0, 'timber'), mesh: component('enclosure-port-closure-mesh', 0, 'mesh'), hardware: component('enclosure-port-closure-hardware', 0, 'hardware') });
+    }
     for (const s of [-1, 1]) beam(port, vec.add([back[0], back[1], z0], vec.mul(across, s * 650)), vec.add([back[0], back[1], top], vec.mul(across, s * 650)), 45, 45, m.timber, [0, 0, 0]);
   }
 
@@ -285,6 +302,16 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     }
   }
 
+  // Stage 6: a floor prop under each cube's floor door, on its own slab
+  const propParts = layout.props.map(prop => {
+    const slab = group('prop-slabs', 6, 'environment'); const post = group('floor-props', 6, 'timber');
+    const g = draw.group([prop.at[0], prop.at[1], prop.slabTop - TUNNEL.slab.thickness / 2]);
+    p.box(g, [TUNNEL.slab.size, TUNNEL.slab.size, TUNNEL.slab.thickness], [0, 0, 0], m.floor); slab.add(g);
+    const q = draw.group([prop.at[0], prop.at[1], prop.slabTop + prop.length / 2]);
+    p.box(q, [TUNNEL.floorProp, TUNNEL.floorProp, Math.max(prop.length, 1)], [0, 0, 0], m.endgrain); post.add(q);
+    move(q, 6, [0.4, 0.6], [0, 0, -Math.max(prop.length, 60)], `${layout.props.length} × Floor prop: stood on its slab under the cube’s floor door, cut to the gap`, { role: 'timber' });
+    return q;
+  });
   for (const c of p.components.slice(first)) p.root.add(c.group);
   const bases = motions.map(motion => motion.object.position.clone());
   const baseQuaternions = motions.map(motion => motion.object.quaternion.clone());
@@ -329,6 +356,8 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     // the page's toggle opens the side-access panels of the finished tunnel: buttons clear, panels lifted out sideways
     const travel = state.progress >= 6 && !state.exploded ? state.door ?? 0 : 0;
     for (const a of [...accessPanels, ...cubeDoors]) a.set(travel);
+    // a floor door comes out only with its prop taken away
+    for (const q of propParts) q.visible = q.visible && travel <= 0;
     const opening = accessPanels[0] ? doorAction(accessPanels[0].access.door, travel, 'side-access panel') : cubeDoors[0] ? doorAction(cubeDoors[0].access.door, travel, 'cube door') : null; if (opening) active.add(opening);
     let action: string | null = active.size > 0 ? [...active].join('; ') : null;
     if (!action && state.progress > 5 && turning > 0 && turning < 1 && holdButtons.length) action = `${holdButtons.length} × Turn button: turned flat over the keeper on the flange`;
@@ -343,5 +372,5 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     p.root.updateMatrixWorld(true);
   }
   function dispose() { p.dispose(); dock.dispose(); draw.dispose(); for (const j of joints) j.dispose(); for (const d of cubeDoors) d.dispose(); for (const g of geometries) g.dispose(); }
-  return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, carriers, drops, levers, holds, accessPanels, cubeDoors, caption: () => currentAction };
+  return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, carriers, drops, levers, holds, accessPanels, cubeDoors, enclosureClosure, caption: () => currentAction };
 }

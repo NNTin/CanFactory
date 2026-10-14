@@ -82,14 +82,14 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
   // second, built the same and whole, comes in along the tunnel from beyond the first.
   const sections = buildSectionPieces(p, draw, tl, layout.pieces);
   const entry = ENTRY(layout);
-  const entering = `The second section, identical (${Math.round(after.length)} mm): in along the tunnel’s axis onto the same bearer, ${layout.gap ? `stopping ${layout.gap} mm short of the first` : 'flange to flange against the first'}`;
+  const entering = `The second ${layout.second}${layout.first === layout.second ? ', identical' : ''} (${Math.round(after.length)} mm): in along the tunnel’s axis onto the same bearer, ${layout.gap ? `stopping ${layout.gap} mm short of the first` : 'flange to flange against the first'}`;
   const rails = sections.members.filter(q => q.member.piece === before.id && q.member.kind === 'rail').length;
   const firstWindows = { flange: [0, 0.12], rail: [0.12, 0.24], 'rail-screws': [0.24, 0.32], floor: [0.32, 0.4], 'floor-screws': [0.4, 0.46], mesh: [0.46, 0.6], staples: [0.6, 0.72] } as const;
   for (const { member, group: g } of sections.members) {
     if (member.piece === after.id) { group('second-section', 3, 'timber').add(g); move(g, 3, [0, 0.8], entry, entering, { role: 'section', of: member.id }); continue; }
     group('first-section', 1, 'timber').add(g);
     const caption = before.kind === 'cube'
-      ? (member.kind === 'flange' ? '6 × Flange ring: one on every face of the cube, butted edge to edge' : `${rails} × Corner block: set in behind the cube’s three rings`)
+      ? (member.kind === 'flange' ? '6 × Flange ring: one on every face of the cube, flush with it' : member.name === 'Edge strip' ? 'Edge strips: glued into the cube’s edges between its latches' : '8 × Corner block: set in behind the cube’s three rings')
       : member.kind === 'flange' ? '2 × Flange ring: stood at each end of the section' : member.kind === 'rail' ? `${rails} × Rail: offered between the flanges from the side` : 'Floor board: laid onto the bottom rails';
     move(g, 1, [...firstWindows[member.kind]], memberApproach(member, before), caption, { role: 'timber', of: member.id, lifted: true });
   }

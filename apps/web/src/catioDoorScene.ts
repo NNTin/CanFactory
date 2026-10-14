@@ -57,9 +57,14 @@ export function buildDoorPanel(p: ReturnType<typeof createCatioParts>, door: Doo
     p.box(arm, [b.reach + b.tail, width, thickness], [(b.reach - b.tail) / 2, 0, thickness / 2], m.printed);
     const pivot = door.fasteners.find(f => f.role === 'pivot' && f.at[0] === b.pivot[0] && f.at[1] === b.pivot[1]);
     if (pivot) { const g = screw(arm, { ...pivot, at: [0, 0, thickness] }); g?.position.set(0, 0, thickness); }
+    // its captive locking pin, through the button at the lock and down into its hole; lifted by its knob before the button turns
+    const { lock } = DOOR.button; const d = Math.hypot(b.lock[0] - b.pivot[0], b.lock[1] - b.pivot[1]);
+    const pin = piece(arm); pin.position.set(d, 0, 0); pin.name = `${b.id}-lock`;
+    p.rod(pin, [0, 0, -washerHeight - lock.into], [0, 0, thickness + lock.knob.height], lock.diameter / 2);
+    p.rod(pin, [0, 0, thickness], [0, 0, thickness + lock.knob.height], lock.knob.diameter / 2, m.printed);
     const closed = Math.atan2(b.closed[1], b.closed[0]); const open = Math.atan2(b.open[1], b.open[0]);
     const quarter = Math.atan2(Math.sin(open - closed), Math.cos(open - closed));
-    const setTurn = (turn: number) => { arm.rotation.z = closed + quarter * turn; };
+    const setTurn = (turn: number) => { arm.rotation.z = closed + quarter * turn; pin.position.z = turn > 0 ? lock.into + 1 : 0; };
     setTurn(0);
     return { button: b, group, arm, setTurn };
   });

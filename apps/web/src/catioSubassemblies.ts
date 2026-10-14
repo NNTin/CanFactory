@@ -1,5 +1,6 @@
 import type { CatioSubassembly } from './route.ts';
-import { loadSubassemblySettings, type Follow, type SubassemblyDefinition } from './catioSubassembly.ts';
+import { loadSubassemblySettings, type Follow, type SubassemblyDefinition, type SubassemblyDrawing } from './catioSubassembly.ts';
+import { portTemplateSvg } from './catioPort.ts';
 import { createWindowInsertScene } from './catioWindowInsertScene.ts';
 import { createTunnelScene } from './catioTunnelScene.ts';
 import { createCouplingScene } from './catioCouplingScene.ts';
@@ -12,7 +13,7 @@ import {
   COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, couplingBom, couplingFacts, couplingSteps, couplingViews, parseCoupling, validateCoupling, type CouplingConfig,
 } from './catioCoupling.ts';
 import {
-  parseTunnel, TUNNEL_CONTROLS, TUNNEL_PRESETS, TUNNEL_DECISIONS, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSteps, tunnelViews, validateTunnel, type TunnelConfig,
+  parseTunnel, TUNNEL_CONTROLS, TUNNEL_PRESETS, TUNNEL_DECISIONS, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSite, tunnelSteps, tunnelViews, validateTunnel, type TunnelConfig,
 } from './catioTunnel.ts';
 import {
   parseWindowInsert, validateWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DECISIONS, WINDOW_INSERT_DEFAULT, windowInsertBom, windowInsertFacts,
@@ -49,7 +50,7 @@ export const tunnelDefinition: SubassemblyDefinition<TunnelConfig> = {
   defaults: TUNNEL_DEFAULT, presets: TUNNEL_PRESETS, controls: TUNNEL_CONTROLS, parse: parseTunnel,
   validate: (variant, config) => validateTunnel(variant, config),
   steps: tunnelSteps, build: createTunnelScene, bom: (variant, config) => tunnelBom(variant, config),
-  views: tunnelViews, facts: tunnelFacts, decisions: TUNNEL_DECISIONS,
+  views: tunnelViews, facts: tunnelFacts, decisions: TUNNEL_DECISIONS, drawings: () => [portTemplateDrawing(tunnelSite().w)],
 };
 
 export const couplingDefinition: SubassemblyDefinition<CouplingConfig> = {
@@ -89,7 +90,7 @@ export const tunnelCouplingDefinition: SubassemblyDefinition<TunnelCouplingConfi
   validate: (variant, config) => validateTunnelCoupling(variant, config),
   steps: (variant, config) => tunnelCouplingSteps(variant, config), build: (variant, config) => createTunnelCouplingScene(variant, config),
   bom: (variant, config) => tunnelCouplingBom(variant, config),
-  views: tunnelCouplingViews, facts: (variant, config) => tunnelCouplingFacts(variant, config), decisions: TUNNEL_COUPLING_DECISIONS,
+  views: tunnelCouplingViews, facts: (variant, config) => tunnelCouplingFacts(variant, config), decisions: TUNNEL_COUPLING_DECISIONS, drawings: () => [portTemplateDrawing(tunnelSite().w)],
 };
 
 /** Every sub-assembly page, for links and breadcrumbs. The enclosure is next; `CatioSubassemblyRoute` picks the definition. */
@@ -122,4 +123,10 @@ export function dependentsOf(id: CatioSubassembly): Follow[] {
     const settings = [...e.follows, ...e.shares].filter(f => f.page === id).flatMap(f => f.settings);
     return settings.length || e.follows.some(f => f.page === id) ? [{ page: e.id, settings: [...new Set(settings)] }] : [];
   });
+}
+
+/** The standard port's marking template (catioPort.ts `portTemplate`), for the pages whose elements end in it. */
+export function portTemplateDrawing(s: number): SubassemblyDrawing {
+  return { id: 'port-template', title: 'Standard port marking template', filename: `port-template-${s}.svg`, svg: portTemplateSvg(s),
+    caption: `1:1, in millimetres: cut it from 6 mm plywood and mark and pre-drill every ring from it, face out (the bolt holes, and the latch stations at the notches). Every port is then the same, and any one fits any other at any quarter turn.` };
 }

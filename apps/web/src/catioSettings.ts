@@ -19,20 +19,24 @@ function record(value: unknown): value is Record<string, unknown> { return typeo
 /**
  * Saved settings of any version brought to the current one, or null when they are none of ours. A version 1 design keeps
  * everything it holds, dimensions and viewing state alike, and gets the sliding gates it was drawn with: only a new or reset
- * design takes the new default closure. A design of version 1 or 2 whose tunnel was not square is snapped to the standard square
- * port, its larger clear size both ways, so that the cats' opening never shrinks. Nothing else is touched, so that what is invalid
- * is still rejected by the checks after it.
+ * design takes the new default closure. A design saved with the tunnel's clear width and height (version 1, 2, or 3 as first
+ * written) has one clear size now, the standard square port's: the larger of the two, so that the cats' opening never shrinks.
+ * Nothing else is touched, so that what is invalid is still rejected by the checks after it.
  */
 export function migrateCatioSettings(value: unknown): Record<string, unknown> | null {
   if (!record(value)) return null;
-  if (value['version'] === CATIO_SETTINGS_VERSION) return value;
-  if (value['version'] !== 1 && value['version'] !== 2) return null;
   const config = value['config'];
+  const version = value['version'];
+  if (version !== 1 && version !== 2 && version !== CATIO_SETTINGS_VERSION) return null;
   if (!record(config)) return { ...value, version: CATIO_SETTINGS_VERSION };
-  const closure = value['version'] === 1 ? { portClosure: PORT_CLOSURE_LEGACY } : {};
+  const closure = version === 1 ? { portClosure: PORT_CLOSURE_LEGACY } : {};
+  // the tunnel's clear width and height, as saved before the port was square: its larger size, both ways
   const [w, h] = [config['tunnelWidth'], config['tunnelHeight']];
-  const square = typeof w === 'number' && typeof h === 'number' && w !== h ? { tunnelWidth: Math.max(w, h), tunnelHeight: Math.max(w, h) } : {};
-  return { ...value, version: CATIO_SETTINGS_VERSION, config: { ...config, ...closure, ...square } };
+  const sizes = [w, h].filter((n): n is number => typeof n === 'number');
+  if (version === CATIO_SETTINGS_VERSION && !sizes.length) return value;
+  const rest = Object.fromEntries(Object.entries(config).filter(([key]) => key !== 'tunnelWidth' && key !== 'tunnelHeight'));
+  const size = sizes.length && !('tunnelSize' in config) ? { tunnelSize: Math.max(...sizes) } : {};
+  return { ...value, version: CATIO_SETTINGS_VERSION, config: { ...rest, ...closure, ...size } };
 }
 export function parseCatioSettings(raw: string | null): CatioSettings {
   const defaults = defaultCatioSettings();

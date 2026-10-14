@@ -12,7 +12,7 @@ export function CatioParameters({ draft, change, reset }: { draft: ModularConfig
     <p>Adjust dimensions in centimetres. The tunnel is built of standard elements: each straight section is one pitch ({pitch} cm, a cube’s edge and a coupling’s gap), and each corner is a cube.</p>
     <fieldset><legend>Window</legend>{dimension('Glass width', 'glassWidth', 40, 140)}{dimension('Glass height', 'glassHeight', 40, 140)}{dimension('Sash width', 'sashWidth', 50, 160)}{dimension('Sash height', 'sashHeight', 50, 160)}</fieldset>
     {enclosure('enclosure', 'Enclosure A')}
-    <fieldset><legend>Tunnel</legend>{number('Tunnel clear size', draft.tunnelWidth / 10, n => change({ ...draft, tunnelWidth: n * 10, tunnelHeight: n * 10 }), 20, 45)}
+    <fieldset><legend>Tunnel</legend>{number('Tunnel clear size', draft.tunnelSize / 10, n => change({ ...draft, tunnelSize: n * 10 }), 20, 45)}
       <p>The standard port is square: this is its clear opening both ways, at the window, at the enclosures and along the tunnel.</p>
       <label className="catio-field"><span>Route</span><select aria-label="Tunnel route" value={draft.route} onChange={event => change({ ...draft, route: event.target.value as ModularConfig['route'] })}><option value="straight">Straight</option><option value="left">Left offset</option><option value="right">Right offset</option></select></label>
       {modules('Approach modules', 'approach')}{draft.route !== 'straight' && <>{modules('Lateral modules', 'lateral')}{modules('Final modules', 'final')}</>}
