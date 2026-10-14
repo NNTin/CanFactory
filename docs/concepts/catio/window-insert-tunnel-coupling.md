@@ -57,9 +57,17 @@ two GN 831-100-S-NI-2 latches each hold 1000 N, and their hooks take up ±4 mm o
 
 ### The printed toggle latch
 
-**Latches: Printed toggle latch**, the default, puts the library's [toggle latch](../../toggle-latch.md) on the joint. Its base plate goes
-on the flange's outer side and its catch plate on the docking frame's, lever and link snapped on. The coupling places it with the
-latch's shared mechanism (`packages/contracts/src/toggleLatchMechanism.ts`), the same one its model page and card use.
+**Latches: Printed toggle latch**, the default, puts the library's [toggle latch](../../toggle-latch.md) on the joint. The
+coupling places it with the latch's shared mechanism (`packages/contracts/src/toggleLatchMechanism.ts`), the same one its
+model page and card use.
+
+- **A standard port.** The tunnel's first flange is a [standard port](standard-port.md): seen from outside (from the
+  window), its latches' base plates are on its left and their catch plates on its right.
+  - **Left:** the base plate, lever and link snapped on, goes on the flange's side, its catch plate on the docking frame's.
+  - **Right:** the base plate goes on the docking frame's side, its catch plate on the flange's.
+- **Stations.** The latches stand at the port's stations, up the opening's height (one at 50 %, two at 20 and 80 %), the
+  same as between the tunnel's sections.
+- **The GN 831 option** keeps its body on the flange and its bracket on the frame: it is not the standard port's latch.
 
 - **Locked spacing:** locked, the plates stand 1.31 mm apart (its over-centre lock). It has no adjustable hook and is short
   (25.3 mm over both plates), so a 6 mm gap would leave its screws next to the timber's edges.
@@ -77,7 +85,8 @@ latch's shared mechanism (`packages/contracts/src/toggleLatchMechanism.ts`), the
   code the [tunnel–tunnel coupling](tunnel-tunnel-coupling.md) uses between sections.
 - **Live assembly:**
   - Its four parts are built from their real profiles.
-  - Stage 2 screws the catch plates on and stage 3 the base plates, with the lever and link on them.
+  - Stage 2 screws the docking frame's plates on (catch plates on its left, the base plates on its right) and stage 3 the
+    flange's, with the lever and link on each base.
   - Stage 5 closes each lever over centre with the mechanism.
   - **Released** turns the lever back over centre and swings the link off the hook.
   - Its catch stays where the lock holds it: near the dead centre, the 0.32 mm over-centre draw squashes the seal instead.
@@ -162,9 +171,11 @@ the scene, the parts list and the tests.
    - Screw the frame on with 5 × 60 screws.
 2. **Seal and catch brackets.**
    - Stick the seal round the frame's face.
-   - Screw the catch plates of the printed latches (or GN 831 catch brackets) onto the stiles' outer sides.
+   - Screw the printed latches' plates (or GN 831 catch brackets) onto the stiles' outer sides: printed, the catch plates
+     on the left stile and the base plates, lever and link snapped on, on the right.
 3. **Latches on the first section.** Where it was framed (the tunnel page, stages 3–4):
-   - Screw the latches' base plates, lever and link snapped on (or GN 831 bodies), onto the first flange's outer sides.
+   - Screw the latches' other plates (or GN 831 bodies) onto the first flange's outer sides: printed, the base plates, lever
+     and link snapped on, on its left and the catch plates on its right, seen from the window.
    - Screw the floor lip onto its sill.
 4. **Lay the first section.**
    - Lower it onto its wall support, square to the port. Its flange stands 3 mm off the frame (6 mm with GN 831 latches)

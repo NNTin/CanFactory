@@ -2,7 +2,8 @@
 
 A catio door that is **lifted out of its opening** once every **turn button** over it has been turned clear. It is the
 default closure of every cat port (the window insert's and the enclosures'), and the tunnel's side access. The vertical
-sliding gate remains selectable for the cat ports.
+sliding gate remains selectable for the cat ports. A cube's faces are closed by doors too; those are the
+[standard port](standard-port.md)'s doors, held by the port's own latches by default or by these turn buttons.
 
 This page keeps three things apart, because only the first is known:
 
@@ -94,8 +95,9 @@ couple sections and dock the tunnel to the insert. Those are unchanged.
   at least 12 mm from the panel's pivot and strip screws, as they already are from the batten screws and staples.
 - **Enclosure ports** (the whole-catio concept). The enclosure has no page of its own yet, so these panels are drawn and
   validated but have no parts list.
-- **Tunnel side access** ([tunnel.md](tunnel.md)). **Side access**: none, one panel near the middle (the default for a new
-  tunnel), or one in every section that can take one; **Access side**: left or right. A section takes one if both its ends
+- **Tunnel side access** ([tunnel.md](tunnel.md)), in long sections. **Side access**: none, one panel near the middle (the
+  default for a new tunnel), or one in every long section that can take one; **Access side**: left or right. A cube needs
+  none, since its free faces are doors ([standard-port.md](standard-port.md)). A section takes one if both its ends
   are square and it is at least 36 cm long. The panel lies wholly between its section's flanges, in the depth of the
   rails: the route, the sections, the flanges, every coupling and every support are the same with or without it, and a
   section still lifts off with its panel in. Its pivots are 10 mm inside the rails' edges and stop short of the rails'
@@ -136,8 +138,9 @@ couple sections and dock the tunnel to the insert. Those are unchanged.
 - A saved tunnel that lacks **Side access** was saved before it existed and gets none (`TUNNEL_LEGACY`). A saved config
   that is only the settings another page shares with the tunnel page is not a saved tunnel, and takes the defaults.
 - The sub-assembly pages follow the concept page's closure, as they follow its window and cat-port sizes, and name it in
-  their briefs as set there. Each page with a door has a toggle that opens it (**Cat port open**, **Side access open**)
-  once its assembly is complete; older saved pages start with it shut.
+  their briefs as set there. Each page with a door has a toggle that opens it (**Cat port open**, **Side access open**; on
+  the tunnel pages **Cube doors open** or **Doors open** when there are cubes) once its assembly is complete; older saved
+  pages start with it shut.
 
 ### Using the doors
 
@@ -198,12 +201,13 @@ To be done on a built door of each kind, from **both sides**. Until then no page
 ## Implementation
 
 - [Door layout, parts lists and poses](../../../apps/web/src/catioDoor.ts): `facePanel` (window and enclosure ports),
-  `insetPanel` (tunnel side access), `doorPose`, `doorBom`, `slidingGateRise`
+  `insetPanel` (tunnel side access), `portPanel` and `blankPanel` (a cube's doors on the standard port, by turn buttons or by
+  the port's latches), `doorPose`, `doorBom`, `slidingGateRise`
 - [Door 3D builder](../../../apps/web/src/catioDoorScene.ts): `buildDoorPanel`, used by `buildPortClosure`
   ([catioWindowInsertScene.ts](../../../apps/web/src/catioWindowInsertScene.ts): the insert's own page, and as context on
   the tunnel's and the coupling's), `port` ([catioModularScene.ts](../../../apps/web/src/catioModularScene.ts)) and
-  `buildAccessPanels` ([catioTunnelPieces.ts](../../../apps/web/src/catioTunnelPieces.ts): the tunnel's and the
-  tunnel–tunnel coupling's pages)
+  `buildAccessPanels` and `buildCubeDoors` ([catioTunnelPieces.ts](../../../apps/web/src/catioTunnelPieces.ts): the
+  tunnel's and the tunnel–tunnel coupling's pages)
 - Hardware by role: `CATIO_DOOR_HARDWARE` in [concepts.ts](../../../packages/contracts/src/concepts.ts)
 - [Tests](../../../apps/web/src/catioDoor.test.ts): seating, retention both ways, button sweep, withdrawal, the sliding
   gate's travel applied only to a sliding gate over every permitted size, migration of saved settings, each scene's closed
