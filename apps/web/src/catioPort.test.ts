@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blankPanel, buttonOverlap, DOOR, portPanel, type DoorPanel } from './catioDoor.ts';
+import { blankPanel, buttonOverlap, DOOR, DOOR_SEATS, setInDoor, type DoorPanel } from './catioDoor.ts';
 import {
   BOLTS_PER_SIDE, boltStations, boxesOverlap, CUBE_BLOCK, CUBE_POCKET, CUBE_SWING_CLEAR, cubeClashes, cubeEdge, cubeFaces, DOOR_FIXINGS, edgeStripSection, edgeStripSegments, frameAlong,
   LATCH_INTO_RING, LATCH_REACH, latchEnvelope, latchSwing, memberBox, PORT_FACES, portHalf, portLatches, portOutline, portRing, portTemplate, portTemplateSvg, STANDARD_PORT, type Face, type OrientedBox,
@@ -95,7 +95,7 @@ describe('the standard port', () => {
   });
 
   it('offers both door fixings', () => {
-    expect([...DOOR_FIXINGS]).toEqual(['latches', 'turn-buttons']);
+    expect([...DOOR_FIXINGS]).toEqual(['turn-buttons', 'latches']);
   });
 });
 
@@ -159,22 +159,27 @@ describe('the standard doors', () => {
   const sizes = SIZES.flatMap(size => (['mesh', 'solid'] as const).map(material => ({ size, material })));
   const pivots = (d: DoorPanel) => d.buttons.map(b => [b.pivot[0], b.pivot[1]] as [number, number]);
 
-  it('held by turn buttons: a panel lapping the ring all round, the same buttons on all four sides', () => {
-    for (const { size, material } of sizes) {
-      const d = portPanel({ id: 'd', size, material, land: F });
-      expect(d.errors, `${material} ${size}`).toEqual([]);
-      expect(d.fit).toBe('port');
-      expect(d.rect).toEqual([-size / 2 - DOOR.lap, size / 2 + DOOR.lap, -DOOR.lap, size + DOOR.lap]);
-      const count = (side: string) => d.buttons.filter(b => b.side === side).length;
-      expect(new Set(['left', 'right', 'head', 'sill'].map(count)).size).toBe(1);
+  it('held by turn buttons: a panel set into the ring’s opening, the same button on all four sides', () => {
+    for (const { size, material } of sizes) for (const seat of DOOR_SEATS) {
+      const d = setInDoor({ id: 'd', width: size, height: size, material, seat, depth: T });
+      expect(d.errors, `${material} ${size} ${seat}`).toEqual([]);
+      expect(d.fit).toBe('set-in');
+      const out = seat === 'rebate' ? DOOR.setIn.lap - DOOR.clearance : -DOOR.clearance;
+      expect(d.rect).toEqual([-size / 2 - out, size / 2 + out, -out, size + out]);
+      expect(['left', 'right', 'head', 'sill'].map(side => d.buttons.filter(b => b.side === side).length)).toEqual([1, 1, 1, 1]);
       // the buttons are where they would be had the door been turned a quarter round: it fits a port at any rotation
       expect(sameSet(pivots(d).map(p => quarter(p, size)), pivots(d))).toBe(true);
-      // every button holds the panel closed and clears it open
-      for (const b of d.buttons) { expect(buttonOverlap(d, b, 0)).toBeGreaterThan(DOOR.button.overlap - 1); expect(buttonOverlap(d, b, 1)).toBe(0); }
-      // everything fixed stands on the ring, inside its outline
+      // every button holds the panel closed and clears it open, its pivot on the ring
+      for (const b of d.buttons) {
+        expect(buttonOverlap(d, b, 0)).toBeCloseTo(DOOR.button.overlap, 6); expect(buttonOverlap(d, b, 1)).toBe(0);
+        expect(Math.max(Math.abs(b.pivot[0]), Math.abs(b.pivot[1] - size / 2))).toBeLessThan(size / 2 + F);
+      }
+      // nothing of it stands proud of the ring's face but the buttons, and everything fixed is inside the opening
+      for (const t of d.timber) for (const b of t.boxes) expect(b.center[2] + b.size[2] / 2).toBeLessThanOrEqual(0);
       for (const t of d.timber.filter(q => !q.moves)) for (const b of t.boxes) {
-        expect(Math.abs(b.center[0]) + b.size[0] / 2).toBeLessThanOrEqual(size / 2 + F + 1e-9);
-        expect(b.center[1] - b.size[1] / 2).toBeGreaterThanOrEqual(-F - 1e-9); expect(b.center[1] + b.size[1] / 2).toBeLessThanOrEqual(size + F + 1e-9);
+        expect(Math.abs(b.center[0]) + b.size[0] / 2).toBeLessThanOrEqual(size / 2 + 1e-9);
+        expect(b.center[1] - b.size[1] / 2).toBeGreaterThanOrEqual(-1e-9); expect(b.center[1] + b.size[1] / 2).toBeLessThanOrEqual(size + 1e-9);
+        expect(b.center[2] - b.size[2] / 2).toBeGreaterThanOrEqual(-T - 1e-9);
       }
     }
   });
@@ -198,12 +203,13 @@ describe('the standard doors', () => {
   it('on a floor face: solid, with a plug filling the port’s opening up to the ring’s inner face', () => {
     const gap = PRINTED_LATCH_JOINT.gap;
     for (const size of SIZES) {
-      for (const d of [blankPanel({ id: 'f', size, material: 'solid', land: F, gap, floor: true }), portPanel({ id: 'f', size, material: 'solid', land: F, floor: true })]) {
+      for (const d of [blankPanel({ id: 'f', size, material: 'solid', land: F, gap, floor: true }), ...DOOR_SEATS.map(seat => setInDoor({ id: 'f', width: size, height: size, material: 'solid', seat, depth: T, floor: true }))]) {
         const plug = d.timber.find(t => t.id === 'floor-plug'); expect(plug, d.fit).toBeDefined();
         const [b] = plug?.boxes ?? [];
-        // flush with the ring's inner face (n = −T), the opening filled but for the clearance
+        // flush with the ring's inner face (n = −T), the opening filled but for the clearance (and, on stops, inside them)
         expect((b?.center[2] ?? 0) - (b?.size[2] ?? 0) / 2).toBeCloseTo(-T, 9);
-        expect(b?.size[0]).toBe(size - 2 * DOOR.clearance); expect(b?.size[1]).toBe(size - 2 * DOOR.clearance);
+        const inside = size - 2 * DOOR.clearance - (d.seat === 'stops' ? 2 * DOOR.setIn.lap : 0);
+        expect(b?.size[0]).toBe(inside); expect(b?.size[1]).toBe(inside);
         expect(plug?.moves).toBe(true);
       }
       expect(blankPanel({ id: 'f', size, material: 'mesh', land: F, gap, floor: true }).errors).toContain('A floor door must be solid.');

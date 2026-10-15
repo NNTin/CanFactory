@@ -3,7 +3,7 @@ import { CATIO, CATIO_DERIVED, type CatioView } from './catioDesign.ts';
 import { validateWindowProfile, WINDOW_PROFILE_DEFAULT, WINDOW_PROFILE_RANGES, windowFrame, type WindowProfile } from './catioWindow.ts';
 import { loadCatioSettings, type CatioMode } from './catioSettings.ts';
 import { MESH_LABELS, meshCut, meshRollLine } from './catioMesh.ts';
-import { DOOR, doorBom, doorBounds, doorFacts, doorLibraryParts, facePanel, PORT_CLOSURE_DEFAULT, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, slidingGateRise, type DoorFrame, type DoorPanel, type PortClosure } from './catioDoor.ts';
+import { DOOR, DOOR_SEAT_DEFAULT, doorBom, doorBounds, doorFacts, doorLibraryParts, setInDoor, type DoorSeat, PORT_CLOSURE_DEFAULT, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, slidingGateRise, type DoorFrame, type DoorPanel, type PortClosure } from './catioDoor.ts';
 import { fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
 
 /**
@@ -100,6 +100,8 @@ export interface WindowSpec {
   tunnel: { width: number; height: number } | null;
   /** What closes the cat port (with tunnel only): as the catio concept page sets it for every cat port. */
   closure: PortClosure;
+  /** How every set-in door is seated (the catio concept page's choice): stop strips, or a rebate. */
+  seat: DoorSeat;
 }
 
 /**
@@ -110,17 +112,17 @@ export function windowFor(variant: CatioMode, config: WindowProfile = WINDOW_INS
   const profile = windowProfileOf(config);
   if (variant === 'direct') return {
     glassWidth: CATIO.glass, glassHeight: CATIO.glass, sashWidth: CATIO.sash, sashHeight: CATIO.sash,
-    openingWidth: CATIO.fixedFrame, openingHeight: CATIO.fixedFrame, recessFloor: CATIO_DERIVED.fixedBottom, sill: CATIO.sill, profile, tunnel: null, closure: PORT_CLOSURE_DEFAULT,
+    openingWidth: CATIO.fixedFrame, openingHeight: CATIO.fixedFrame, recessFloor: CATIO_DERIVED.fixedBottom, sill: CATIO.sill, profile, tunnel: null, closure: PORT_CLOSURE_DEFAULT, seat: DOOR_SEAT_DEFAULT,
   };
   return modularWindow(loadCatioSettings().config, profile);
 }
 
 /** The modular design's window: its fixed frame is the sash + 45 mm a side, its floor 45 mm below the sill. */
-export function modularWindow(c: { glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number; tunnelSize: number; portClosure?: PortClosure }, profile: WindowProfile = windowProfileOf(WINDOW_INSERT_DEFAULT)): WindowSpec {
+export function modularWindow(c: { glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number; tunnelSize: number; portClosure?: PortClosure; doorSeat?: DoorSeat }, profile: WindowProfile = windowProfileOf(WINDOW_INSERT_DEFAULT)): WindowSpec {
   return {
     glassWidth: c.glassWidth, glassHeight: c.glassHeight, sashWidth: c.sashWidth, sashHeight: c.sashHeight,
     openingWidth: c.sashWidth + 90, openingHeight: c.sashHeight + 90, recessFloor: CATIO.sill - 45, sill: CATIO.sill, profile,
-    tunnel: { width: c.tunnelSize, height: c.tunnelSize }, closure: c.portClosure ?? PORT_CLOSURE_DEFAULT,
+    tunnel: { width: c.tunnelSize, height: c.tunnelSize }, closure: c.portClosure ?? PORT_CLOSURE_DEFAULT, seat: c.doorSeat ?? DOOR_SEAT_DEFAULT,
   };
 }
 
@@ -335,7 +337,8 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     port = { width: w, height: h, transomZ };
     // removed, it is stowed in the room on the wall beside the window: clear of the route and of the sash's swing
     if (window.closure === 'removable-panel') door = {
-      panel: facePanel({ id: 'port-panel', width: w, height: h, material: 'solid', land: pm, stow: portPanelStow(window, yOut - pm) }),
+      // set into the port from the room side, sealed against draughts, seated as the catio concept page sets
+      panel: setInDoor({ id: 'port-panel', width: w, height: h, material: 'solid', seat: window.seat, depth: pm, sealed: true, sillButton: false, stow: portPanelStow(window, yOut - pm) }),
       frame: { origin: [0, yOut - pm, floor], u: [1, 0, 0], v: [0, 0, 1], n: [0, -1, 0] },
     };
     timber.push({ id: 'transom', component: 'port-frame', name: 'Port transom', section: `${pm} × ${pm}`, length: Wi + (housed ? 2 * hd : 0),
@@ -552,7 +555,7 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
   const door = variant === 'modular' ? windowInsertLayout(variant, config, window).door?.panel : undefined;
   const docked = 'the insert–tunnel coupling page screws a docking frame onto the port’s face, which then stays on the insert';
   const closing = door
-    ? { title: 'Panel and check', detail: `From the room side, glue and screw the sill stop across the port’s floor, flush with the jambs’ room-side faces, and screw the locating strips onto the jambs and the transom. Stick the seal round that seat. Screw the ${door.buttons.length} door turn buttons onto the strips, each on its washer, pointing clear of the opening. Stand the solid panel on the threshold between the strips, press it onto the seal and turn every button a quarter turn over it and drop its locking pin into its hole (drill each hole 2.5 mm, 7 mm deep, through the button into the strip). Keep the port shut like this until a tunnel is docked: ${docked}. To open it, with the tunnel docked and the sash turned open: lift every button’s locking pin, turn the buttons clear, draw the panel into the room by its pull and stow it clear of the route. Shut it again, every button over it, before the tunnel is undocked. Open and close the window: it clears the insert.` }
+    ? { title: 'Panel and check', detail: `${door.seat === 'rebate' ? `Rout a ${door.rebate?.width ?? 0} × ${door.rebate?.depth ?? 0} rebate round the port on the jambs’, the transom’s and the threshold’s room side` : `From the room side, glue and screw the door stops inside the port, on the jambs, under the transom and across the threshold, ${DOOR.setIn.stop} mm deep and ${Math.round(DOOR.seal.gap - door.back)} mm in from the room face`}, and stick the seal round that seat. Screw the ${door.buttons.length} door turn buttons onto the port frame’s room face beside the opening, one on each jamb and one on the transom, each on its washer, pointing clear of it. Set the solid panel into the port, standing on its threshold, about flush with the frame, press it onto the seal and turn every button a quarter turn over it and drop its locking pin into its hole (drill each hole 2.5 mm, 7 mm deep, through the button into the frame). Keep the port shut like this until a tunnel is docked: ${docked}. To open it, with the tunnel docked and the sash turned open: lift every button’s locking pin, turn the buttons clear, draw the panel into the room by its pull and stow it clear of the route. Shut it again, every button over it, before the tunnel is undocked. Open and close the window: it clears the insert.` }
     : { title: 'Gate and check', detail: `Fix the gate tracks on the room side of the port. Lower the sliding cat gate into them from above, then fit the latch. Keep the gate shut until a tunnel is docked: ${docked}. Open and close the window: it clears the insert.` };
   const bracket = windowInsertBracket(config.cornerBracket);
   const joint = config.cornerJoint === 'corner-bracket'
@@ -835,8 +838,8 @@ export const WINDOW_INSERT_DECISIONS: DesignDecision[] = [
     choice: 'With tunnel, the port is a full-width transom and two jambs with the infill mesh round them. Nothing of the insert runs on to the wall face: the insert–tunnel coupling screws a docking frame onto the jambs and transom, and the frame stays on the insert from then on, also when it is lifted out.',
     why: 'The docking frame carries the passage from the port to the tunnel’s first flange and gives the latches their catch, so a mesh throat there would only be in its way. Its parts are on the coupling’s parts list; its screws are placed between this page’s batten screws and staples, so the mesh fixing and its spacing change it.' },
   { title: 'A panel that comes out closes the cat port', from: { page: 'concept', settings: [PORT_CLOSURE_SETTING] },
-    choice: `With tunnel, a solid ${DOOR_SOLID} mm plywood panel stands on the threshold on the room side of the port, pressed onto a seal round the port frame’s jambs and transom and a stop strip across the floor. Locating strips on the jambs and the transom hold it in place sideways and upwards; printed turn buttons on those strips, each on one screw, lie over its edge. To open the port every button is turned a quarter turn clear and the panel is drawn into the room by its pull. A vertical sliding gate in tracks remains selectable on the catio concept page, and is what designs saved before this choice keep.`,
-    why: 'The mechanism is the PawHut cat tunnel’s removable doors: a panel in its opening, kept in by turn buttons on the frame round it, lifted out altogether to open. Out of its opening it needs no room to travel, so the port may be as high as the collar allows, where a sliding gate needs its own height again above the port. What is not copied is the mesh: undocked, the window port is all that closes the window opening, so here the panel is solid and sealed. The port frame is the seat on the tunnel side, so a cat pushing out from the room pushes the panel onto timber, not onto the buttons; the buttons hold it against a push from the tunnel. The seat, the strips, the overlaps, the buttons’ spacing and their detent are this design’s proposal: the reference’s photos do not show how its doors are seated or how its buttons are kept from turning, and none of this has been built. A button with only its pivot’s friction is not cat-proof: check the detent, and that no button can be worked round from either side, before trusting the door.' },
+    choice: `With tunnel, a solid ${DOOR_SOLID} mm plywood panel is set into the port from the room side, about flush with the port frame, and pressed onto a seal on its seat: door stops glued inside the port on the jambs, under the transom and across the threshold, or a rebate routed round it (**Door seat** on the catio concept page). Three printed turn buttons on the port frame’s room face, one on each jamb and one on the transom, each on one screw and locked by its pin, lie over its edge. To open the port every pin is lifted, every button turned a quarter turn clear and the panel drawn into the room by its pull. A vertical sliding gate in tracks remains selectable on the catio concept page, and is what designs saved before this choice keep.`,
+    why: 'The mechanism and the look are the PawHut cat tunnel’s removable doors: a slim panel set into its opening, kept in by turn buttons on the frame round it, lifted out altogether to open. Out of its opening it needs no room to travel, so the port may be as high as the collar allows, where a sliding gate needs its own height again above the port. What is not copied is the mesh: undocked, the window port is all that closes the window opening, so here the panel is solid and sealed. The seat is on the tunnel side, so a cat pushing out from the room pushes the panel onto timber, not onto the buttons; the buttons hold it against a push from the tunnel. Stop strips are the easier seat to make; a rebate leaves no strip standing in the opening. The seat, the clearances, the buttons and their locking pins are this design’s proposal: the reference’s photos do not show how its doors are seated or how its buttons are kept from turning, and none of this has been built. Check that no button can be worked round from either side before trusting the door.' },
   { title: 'Collar sized from the clamps', parameter: 'Pad height',
     choice: 'The collar is the recess size less the clamp gap on each side: the printed pad’s height, or the Ganter foot’s height with its cap, plus 8 mm of thread travel (32.5 mm for the default 24.5 mm pad, as for the 32 mm foot).',
     why: 'The original concept left 10 mm round its 98 cm collar, too little for any real clamp. Here the gap follows from the chosen part, so the collar (93.5 cm by default) and its cut list change with it. Pressed into the recess, the whole-catio scenes keep their schematic 98 cm collar until this is adopted there; hung on the window frame, they draw the hung collar.' },

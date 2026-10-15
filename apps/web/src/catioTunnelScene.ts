@@ -10,7 +10,7 @@ import { buildInsertContext } from './catioWindowInsertScene.ts';
 import { couplingLayout, savedCoupling } from './catioCoupling.ts';
 import { buildCouplingPieces } from './catioCouplingScene.ts';
 import type { LatchMount } from './catioPrintedLatch.ts';
-import { doorAction, facePanel } from './catioDoor.ts';
+import { doorAction, setInDoor } from './catioDoor.ts';
 import { buildDoorPanel } from './catioDoorScene.ts';
 import { PORT_FRAME } from './catioModularDesign.ts';
 import { groundAt, tunnelBounds, tunnelLayout, tunnelSite, TUNNEL, vec, type Member, type Piece, type Rect, type TunnelConfig, type TunnelLayout, type TunnelSite } from './catioTunnel.ts';
@@ -116,7 +116,7 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     // the enclosure's own cat-port closure, inside it: a framed mesh panel behind turn buttons, as the catio concept page sets for
     // every cat port (its sliding gate is drawn there)
     if (site.window.closure === 'removable-panel') {
-      const panel = facePanel({ id: 'enclosure-port-panel', width: w, height: h, material: 'mesh', land: PORT_FRAME });
+      const panel = setInDoor({ id: 'enclosure-port-panel', width: w, height: h, material: 'mesh', seat: site.window.seat, depth: PORT_FRAME });
       const n = layout.dE; const v: V3 = [0, 0, 1];
       const frame = { origin: vec.add(layout.E, vec.mul(n, TUNNEL.flange.thickness)), u: vec.cross(v, n), v, n };
       enclosureClosure = buildDoorPanel(p, panel, frame, { timber: component('enclosure-port-closure', 0, 'timber'), mesh: component('enclosure-port-closure-mesh', 0, 'mesh'), hardware: component('enclosure-port-closure-hardware', 0, 'hardware') });

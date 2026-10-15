@@ -8,7 +8,7 @@ import { windowInsertDefinition } from './catioSubassemblies.ts';
 import { TILT_MAX, windowFrame } from './catioWindow.ts';
 import { HOOK_FIT, INSERT, PAD_HEIGHT, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from './catioWindowInsert.ts';
 import { BENCH_OFFSET, buildInsertContext, createWindowInsertScene } from './catioWindowInsertScene.ts';
-import { PORT_CLOSURE_DEFAULT, PORT_CLOSURES } from './catioDoor.ts';
+import { DOOR_SEATS, PORT_CLOSURE_DEFAULT, PORT_CLOSURES } from './catioDoor.ts';
 import { createCatioParts } from './catioParts.ts';
 
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
@@ -204,7 +204,7 @@ describe('window insert', () => {
       for (let stage = 1; stage <= 6; stage++) {
         scene.update({ ...installed, progress: stage });
         for (const motion of scene.motions.filter(m => m.stage <= stage)) expect(motion.object.visible, motion.action).toBe(true);
-        for (const motion of scene.motions.filter(m => m.stage === stage)) {
+        for (const motion of new Map(scene.motions.filter(m => m.stage === stage).map(m => [m.window.join(), m] as const)).values()) {
           scene.update({ ...installed, progress: stage - 1 + (motion.window[0] + motion.window[1]) / 2 });
           expect(scene.caption?.(), `caption mid ${motion.action}`).not.toBeNull();
         }
@@ -453,12 +453,13 @@ describe('window insert hung on the window frame', () => {
     expect(validateWindowInsert('direct', { ...hung, sealGap: 2.5 }).join(' ')).toMatch(/seal gap \(2.5 mm\) is too narrow for the printed hooks’ 2 mm barb.*Choose the bought hooks/);
     expect(validateWindowInsert('direct', { ...bought, sealGap: 2.5 })).toEqual([]);
     // a sliding cat gate's latch stands 12 mm behind the collar's back, in front of the sash: a thin lip leaves too little room. A
-    // removable panel's buttons and pull stand 5 mm behind it, and fit there
+    // removable panel is set into the port, its buttons and pull within the collar's depth: it never reaches the sash
     const thin = { ...bought, frameLip: 5, sealGap: 2.5 };
     expect(validateWindowInsert('modular', thin, { ...windowFor('modular', thin), closure: 'sliding-gate' }).join(' ')).toMatch(/gate’s latch needs 13 mm/);
     expect(validateWindowInsert('modular', thin, { ...windowFor('modular', thin), closure: 'removable-panel' })).toEqual([]);
     const thinner = { ...bought, frameLip: 5, sealGap: 0 };
-    expect(validateWindowInsert('modular', thinner, { ...windowFor('modular', thinner), closure: 'removable-panel' }).join(' ')).toMatch(/panel, its turn buttons and its pull need 6 mm between the frame’s face and the closed sash; this window has 5 mm/);
+    expect(validateWindowInsert('modular', thinner, { ...windowFor('modular', thinner), closure: 'removable-panel' }).join(' ')).not.toMatch(/panel/);
+    for (const seat of DOOR_SEATS) { const l = windowInsertLayout('modular', thinner, { ...windowFor('modular', thinner), closure: 'removable-panel', seat }); expect((l.door?.frame.origin[1] ?? 0) - (l.door?.panel.depth ?? 0)).toBeGreaterThan(l.yIn); }
     expect(validateWindowInsert('direct', { ...bought, frameLip: 5, sealGap: 2.5 })).toEqual([]);
     expect(validateWindowInsert('direct', { ...hung, frameLip: 5, sealGap: 3 })).toEqual([]);
   });

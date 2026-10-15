@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { CATIO_DOOR_HARDWARE, dimensionOf, findPart } from '@canfactory/contracts';
 import {
-  buttonOutline, buttonOverlap, buttonsAlong, buttonSweep, DOOR, LOCK_FROM_PIVOT, DOOR_TRAVEL, doorAction, doorBom, doorBounds, doorFasteners, doorLibraryParts, doorPose, doorRetention, facePanel, insetPanel,
-  PORT_CLOSURE_DEFAULT, PORT_CLOSURE_LEGACY, PORT_CLOSURES, slidingGateRise, type DoorBox, type DoorPanel,
+  buttonOutline, buttonOverlap, buttonsAlong, buttonSweep, DOOR, LOCK_FROM_PIVOT, DOOR_TRAVEL, doorAction, doorBom, doorBounds, doorFasteners, doorLibraryParts, doorPose, doorRetention, insetPanel, setInDoor,
+  DOOR_SEATS, PORT_CLOSURE_DEFAULT, PORT_CLOSURE_LEGACY, PORT_CLOSURES, slidingGateRise, type DoorBox, type DoorPanel,
 } from './catioDoor.ts';
 import { buildDoorPanel } from './catioDoorScene.ts';
 import { createCatioParts } from './catioParts.ts';
@@ -28,7 +28,7 @@ import { createWindowInsertScene } from './catioWindowInsertScene.ts';
 /** The cat port sizes the catio concept page allows (20–45 cm each way), and section lengths between the tunnel's flanges. */
 const SIZES = [200, 250, 300, 380, 450];
 const BAYS = [300, 440, 690, 940];
-const faces = SIZES.flatMap(width => SIZES.flatMap(height => (['solid', 'mesh'] as const).map(material => facePanel({ id: 'p', width, height, material, land: PORT_FRAME }))));
+const faces = SIZES.flatMap(width => SIZES.flatMap(height => DOOR_SEATS.flatMap(seat => (['solid', 'mesh'] as const).map(material => setInDoor({ id: 'p', width, height, material, seat, depth: PORT_FRAME, sealed: material === 'solid', sillButton: material !== 'solid' })))));
 const insets = BAYS.flatMap(width => SIZES.map(height => insetPanel({ id: 'a', width, height, cavity: TUNNEL.rail, pivots: { head: TUNNEL.access.pivotEdge, sill: TUNNEL.floor + TUNNEL.rail - TUNNEL.access.pivotEdge } })));
 const doors = [...faces, ...insets];
 const name = (d: DoorPanel) => `${d.fit} ${d.material} ${d.opening.width} × ${d.opening.height}`;
@@ -48,70 +48,79 @@ const siteWith = (closure: WindowSpec['closure'], insert: WindowInsertConfig = W
 describe('removable door panel: seating', () => {
   it('fits every permitted opening without a complaint, and refuses one too small or with too little timber beside it', () => {
     for (const d of doors) expect(d.errors, name(d)).toEqual([]);
-    expect(facePanel({ id: 'p', width: 100, height: 300, material: 'solid', land: PORT_FRAME }).errors.join()).toMatch(/at least 15 cm each way/);
-    expect(facePanel({ id: 'p', width: 300, height: 300, material: 'solid', land: 25 }).errors.join()).toMatch(/too narrow for the panel’s locating strips/);
+    expect(setInDoor({ id: 'p', width: 100, height: 300, material: 'solid', seat: 'stops', depth: PORT_FRAME }).errors.join()).toMatch(/at least 15 cm each way/);
+    expect(setInDoor({ id: 'p', width: 300, height: 300, material: 'solid', seat: 'stops', depth: 25, sealed: true }).errors.join()).toMatch(/door and its stops need 30 mm of the opening's depth; the frame is 25 mm deep/);
+    expect(setInDoor({ id: 'p', width: 300, height: 300, material: 'mesh', seat: 'rebate', depth: 20 }).errors.join()).toMatch(/leaves less than 8 mm of the 20 mm frame/);
     expect(insetPanel({ id: 'a', width: 440, height: 300, cavity: 30, pivots: { head: 12, sill: 46 } }).errors.join()).toMatch(/need 40 mm of depth; the opening has 30 mm/);
     expect(insetPanel({ id: 'a', width: 440, height: 300, cavity: 40, pivots: { head: 2, sill: 46 } }).errors.join()).toMatch(/would not turn clear of the panel/);
   });
 
-  it('is seated all round: on the frame beside and above its opening and on a stop across its floor, or on four stops inside it', () => {
+  it('is seated all round: on stop strips inside its opening, or in a rebate round it', () => {
     for (const d of doors) {
-      const [u0, u1, v0, v1] = d.rect; const { width: W, height: H } = d.opening;
-      // the panel covers the whole opening, and nothing of it stands in the opening behind its seat
-      expect(u0, name(d)).toBeLessThanOrEqual(-W / 2 + (d.fit === 'inset' ? DOOR.clearance : 0)); expect(u1).toBeGreaterThanOrEqual(W / 2 - (d.fit === 'inset' ? DOOR.clearance : 0));
-      expect(d.back, name(d)).toBeGreaterThanOrEqual(0);
+      const [u0, u1, v0, v1] = d.rect; const { width: W, height: H } = d.opening; const rebate = d.seat === 'rebate';
+      // the panel covers the whole opening but for its clearance, and nothing of it stands in the opening behind its seat
+      expect(u0, name(d)).toBeLessThanOrEqual(-W / 2 + DOOR.clearance); expect(u1).toBeGreaterThanOrEqual(W / 2 - DOOR.clearance);
+      if (d.fit === 'inset') expect(d.back, name(d)).toBeGreaterThanOrEqual(0);
+      else expect(d.front, name(d)).toBe(d.material === 'solid' ? d.buttonUnder : -DOOR.setIn.recess);
       for (const b of moving(d)) expect(range(b, 2)[0], name(d)).toBeGreaterThanOrEqual(d.back - 1e-9);
-      // the seat's overlap on each of its four edges: the frame's own face (a face-fitted panel laps onto it), or a stop strip
-      const stops = fixed(d).filter(b => range(b, 2)[1] <= 1e-9);
-      const lap = {
-        left: d.fit === 'face' ? -W / 2 - u0 : Math.max(...stops.map(b => overlaps(range(b, 0), [u0, u0 + 50]))),
-        right: d.fit === 'face' ? u1 - W / 2 : Math.max(...stops.map(b => overlaps(range(b, 0), [u1 - 50, u1]))),
-        head: d.fit === 'face' ? v1 - H : Math.max(...stops.map(b => overlaps(range(b, 1), [v1 - 50, v1]))),
+      // the seat's overlap on each of its four edges: a stop strip, or the rebate's shoulder (the panel reaches out into it)
+      const stops = fixed(d).filter(b => range(b, 2)[1] <= d.back + 1e-9);
+      const lap = rebate ? { left: -W / 2 - u0, right: u1 - W / 2, head: v1 - H, sill: -v0 } : {
+        left: Math.max(...stops.map(b => overlaps(range(b, 0), [u0, u0 + 50]))),
+        right: Math.max(...stops.map(b => overlaps(range(b, 0), [u1 - 50, u1]))),
+        head: Math.max(...stops.map(b => overlaps(range(b, 1), [v1 - 50, v1]))),
         sill: Math.max(...stops.map(b => overlaps(range(b, 1), [v0, v0 + 50]))),
       };
       for (const [side, value] of Object.entries(lap)) expect(value, `${name(d)} ${side}`).toBeGreaterThanOrEqual(d.seatLap - 1e-9);
       expect(d.seatLap, name(d)).toBeGreaterThanOrEqual(10);
-      // the stops are continuous: they run the opening's whole width at its floor (and, inset, round all four sides)
-      const sill = stops.filter(b => range(b, 1)[0] < 1e-9);
-      expect(Math.max(...sill.map(b => b.size[0])), name(d)).toBeCloseTo(W, 6);
-      if (d.fit === 'inset') {
-        expect(stops.reduce((n, b) => n + Math.max(b.size[0], b.size[1]), 0)).toBeCloseTo(2 * W + 2 * (H - 2 * DOOR.stop.lap), 6);
-        // the stops and the panel fill the depth of the rails exactly: the panel is flush with them
-        expect(DOOR.stop.depth + (d.front - d.back)).toBe(TUNNEL.rail);
+      if (rebate) {
+        // a rebate: no strips, the rebate as wide as the stops would be and as deep as the panel sits
+        expect(stops).toEqual([]); expect(d.rebate).toEqual({ width: DOOR.setIn.lap, depth: (d.seal ? DOOR.seal.gap : 0) - d.back });
+        continue;
       }
+      // the stops are continuous, round all four sides
+      const strip = d.fit === 'inset' ? DOOR.stop.lap : DOOR.setIn.lap;
+      expect(Math.max(...stops.filter(b => range(b, 1)[0] < 1e-9).map(b => b.size[0])), name(d)).toBeCloseTo(W, 6);
+      expect(stops.reduce((n, b) => n + Math.max(b.size[0], b.size[1]), 0)).toBeCloseTo(2 * W + 2 * (H - 2 * strip), 6);
+      // the stops and the panel fill the depth of the rails exactly: the panel is flush with them
+      if (d.fit === 'inset') expect(DOOR.stop.depth + (d.front - d.back)).toBe(TUNNEL.rail);
+      else for (const b of stops) expect(range(b, 2)[0], name(d)).toBeGreaterThanOrEqual(-PORT_FRAME - 1e-9);
     }
   });
 
-  it('is carried and located by timber, not by its screws: it stands on the floor between strips, or in its opening, with 2 mm to spare', () => {
+  it('is carried and located by timber, not by its screws: it stands in its opening (or its rebate) with 2 mm to spare', () => {
     for (const d of doors) {
-      const [u0, u1, v0, v1] = d.rect;
-      // it stands on the opening's floor
-      expect(v0, name(d)).toBe(0);
-      if (d.fit === 'face') {
-        // locating strips beside it and over it, each 2 mm clear, thick enough to carry the buttons level with its face
-        const strips = fixed(d).filter(b => range(b, 2)[0] >= -1e-9);
-        expect(strips).toHaveLength(3);
-        const beside = strips.filter(b => b.size[1] > b.size[0]); const over = strips.find(b => b.size[0] > b.size[1]);
-        expect(beside.map(b => range(b, 0)).map(([a, z]) => a > 0 ? a - u1 : u0 - z)).toEqual([DOOR.clearance, DOOR.clearance]);
-        expect((over ? range(over, 1)[0] : NaN) - v1).toBe(DOOR.clearance);
-        for (const b of strips) { expect(range(b, 2)).toEqual([0, d.mount]); expect(Math.abs(b.center[0]) + b.size[0] / 2, name(d)).toBeLessThanOrEqual(d.opening.width / 2 + PORT_FRAME + 1e-9); }
+      const [u0, u1, v0, v1] = d.rect; const { width: W, height: H } = d.opening;
+      if (d.fit === 'inset') {
+        expect(v0, name(d)).toBe(0);
+        expect([u0 + W / 2, W / 2 - u1, H - v1]).toEqual([DOOR.clearance, DOOR.clearance, 2 * DOOR.clearance]);
       } else {
-        expect([u0 + d.opening.width / 2, d.opening.width / 2 - u1, d.opening.height - v1]).toEqual([DOOR.clearance, DOOR.clearance, 2 * DOOR.clearance]);
+        const e = d.seat === 'rebate' ? DOOR.setIn.lap : 0;
+        for (const gap of [u0 + W / 2 + e, W / 2 + e - u1, v0 + e, H + e - v1]) expect(gap, name(d)).toBeCloseTo(DOOR.clearance, 9);
       }
-      // a mesh panel is a frame with the mesh clamped under cover strips on its cat side; one longer than 60 cm has a mullion
+      // a mesh panel: inset, a frame with the mesh clamped under cover strips on its cat side, a mullion past 60 cm; set in, a slim
+      // frame with the mesh stapled on its back
       if (d.material === 'mesh') {
-        expect(d.front - d.back).toBe(DOOR.frame.thickness + DOOR.meshLayer + DOOR.cover);
         const uprights = d.timber.find(t => t.id === 'panel-frame-stile')?.boxes.length ?? 0;
         expect(uprights, name(d)).toBe(1 + Math.max(1, Math.ceil((u1 - u0) / DOOR.mullionSpan)));
-        expect(d.mesh?.center[2]).toBeLessThan(d.back + DOOR.cover + DOOR.meshLayer);
-        expect(d.timber.find(t => t.id === 'panel-cover-stile')?.boxes.every(b => range(b, 2)[0] === d.back)).toBe(true);
+        if (d.fit === 'inset') {
+          expect(d.front - d.back).toBe(DOOR.frame.thickness + DOOR.meshLayer + DOOR.cover);
+          expect(d.mesh?.center[2]).toBeLessThan(d.back + DOOR.cover + DOOR.meshLayer);
+          expect(d.timber.find(t => t.id === 'panel-cover-stile')?.boxes.every(b => range(b, 2)[0] === d.back)).toBe(true);
+        } else {
+          expect(d.front - d.back).toBe(DOOR.setIn.frameThick + DOOR.meshLayer);
+          expect(d.mesh?.center[2]).toBeCloseTo(d.back + DOOR.meshLayer / 2, 9);
+          const staples = d.fasteners.filter(f => f.role === 'staple');
+          expect(staples.length, name(d)).toBeGreaterThanOrEqual(Math.ceil((2 * (u1 - u0) + 2 * (v1 - v0)) / DOOR.setIn.staplePitch));
+          for (const f of staples) expect(f.at[2]).toBe(d.back);
+        }
         expect(d.seal).toBeNull(); expect(d.pull).toBeNull();
       } else {
         // a solid panel: plywood pressed onto a seal that runs all round its seat, with a pull on its operator's side
-        expect(d.front - d.back).toBe(DOOR.solid.thickness);
-        expect(d.back).toBe(DOOR.seal.gap); expect(DOOR.seal.gap).toBeLessThan(DOOR.seal.height);
+        expect(d.front - d.back).toBe(DOOR.setIn.solid);
+        expect(DOOR.seal.gap).toBeLessThan(DOOR.seal.height);
         expect(d.seal?.boxes).toHaveLength(4);
-        expect(d.seal?.length).toBeGreaterThan(2 * d.opening.width + 2 * d.opening.height);
+        expect(d.seal?.length).toBeGreaterThanOrEqual(2 * d.opening.width + 2 * d.opening.height);
         expect(d.pull && range(d.pull, 2)).toEqual([d.front, d.front + DOOR.pull.depth]);
       }
     }
@@ -122,27 +131,34 @@ describe('removable door panel: retention both ways', () => {
   it('cannot be pushed in past its seat, nor drawn out past its closed buttons', () => {
     for (const d of doors) {
       // inwards (−n): the seat; outwards (+n): every button lies 12 mm over the panel, directly over its face
-      expect(d.back, name(d)).toBeGreaterThanOrEqual(0);
       for (const b of d.buttons) {
         expect(buttonOverlap(d, b, 0), `${name(d)} ${b.id}`).toBeCloseTo(DOOR.button.overlap, 6);
         expect(b.pivot[2], b.id).toBe(d.buttonUnder);
       }
       expect(d.buttonUnder - d.front, name(d)).toBe(d.play);
       // a sealed panel is held squashed onto its seal; a mesh panel has only the washer's thickness of play
-      expect(d.play).toBe(d.material === 'solid' ? 0 : dimensionOf(d.washer, 'h'));
+      expect(d.play).toBe(d.material === 'solid' ? 0 : dimensionOf(d.washer, 'h') + (d.fit === 'set-in' ? DOOR.setIn.recess : 0));
       expect(d.play).toBeLessThan(d.seatLap);
     }
   });
 
   it('spaces its buttons so that the panel cannot tilt or flex free between them', () => {
     for (const d of doors) {
+      // an inset panel is held at its head and its sill only, so its buttons are spaced along them; a set-in one is seated round all
+      // four sides, and held by one at the middle of each, as the reference's are (whether its corners stay in is a check on a built door)
       const { span, corner } = doorRetention(d);
-      expect(span, name(d)).toBeLessThanOrEqual(DOOR.pitch + 1e-9);
-      expect(corner, name(d)).toBeLessThanOrEqual(DOOR.pitch / 2 + 1e-9);
-      // both uprights and the head of a face-fitted panel, the head and the sill of an inset one: never one edge alone
+      if (d.fit === 'inset') { expect(span, name(d)).toBeLessThanOrEqual(DOOR.pitch + 1e-9); expect(corner, name(d)).toBeLessThanOrEqual(DOOR.pitch / 2 + 1e-9); }
+      else expect(corner, name(d)).toBeLessThanOrEqual(Math.max(d.opening.width, d.opening.height) / 2 + DOOR.setIn.lap + 1e-9);
+      // set in, one at the middle of every side (but the sill where there is no frame below it); the head and the sill of an inset
+      // one, two or more each: never one edge alone
       const sides = new Set(d.buttons.map(b => b.side));
-      expect([...sides].sort(), name(d)).toEqual(d.fit === 'face' ? ['head', 'left', 'right'] : ['head', 'sill']);
-      for (const side of sides) expect(d.buttons.filter(b => b.side === side).length, `${name(d)} ${side}`).toBeGreaterThanOrEqual(side === 'head' && d.fit === 'face' ? 1 : 2);
+      if (d.fit === 'set-in') {
+        expect([...sides].sort(), name(d)).toEqual(d.material === 'solid' ? ['head', 'left', 'right'] : ['head', 'left', 'right', 'sill']);
+        for (const side of sides) expect(d.buttons.filter(b => b.side === side).length).toBe(1);
+      } else {
+        expect([...sides].sort(), name(d)).toEqual(['head', 'sill']);
+        for (const side of sides) expect(d.buttons.filter(b => b.side === side).length, `${name(d)} ${side}`).toBeGreaterThanOrEqual(2);
+      }
     }
     expect([100, 250, 251, 500, 501].map(length => buttonsAlong(length, 1))).toEqual([1, 1, 2, 2, 3]);
   });
@@ -155,7 +171,7 @@ describe('removable door panel: retention both ways', () => {
       const bite = dimensionOf(screw, 'l') - DOOR.button.thickness - dimensionOf(d.washer, 'h');
       // at least 20 mm of timber in all, and 12 mm of what its strip is fixed on
       expect(bite, name(d)).toBeGreaterThanOrEqual(DOOR.bite);
-      expect(bite - (d.fit === 'face' ? d.mount : 0), name(d)).toBeGreaterThanOrEqual(DOOR.behind);
+      expect(bite, name(d)).toBeGreaterThanOrEqual(DOOR.behind);
       expect(doorLibraryParts(d)).toEqual([{ partId: CATIO_DOOR_HARDWARE.washer, quantity: d.buttons.length, use: expect.stringContaining('turns on it') as string },
         { partId: CATIO_DOOR_HARDWARE.lockPin, quantity: d.buttons.length, use: expect.stringContaining('locking pin') as string }]);
       // each button's locking pin: between its pivot and the panel's edge, clear of the pivot's screw and over the timber
@@ -176,16 +192,16 @@ describe('removable door panel: button sweep and withdrawal', () => {
   it('turns every button a quarter turn clear, over its own timber and the panel only, without meeting another', () => {
     for (const d of doors) {
       const [u0, u1, v0, v1] = d.rect;
-      const land = d.fit === 'face' ? PORT_FRAME : 0;
+      const land = PORT_FRAME;
       for (const b of d.buttons) {
         for (let turn = 0; turn <= 1.0001; turn += 0.05) {
           const outline = buttonOutline(b, Math.min(1, turn));
           // it never reaches farther over the panel than its tip's circle does
           expect(buttonOverlap(d, b, Math.min(1, turn)), `${name(d)} ${b.id}`).toBeLessThanOrEqual(buttonSweep(b) - (b.reach - DOOR.button.overlap) + 1e-9);
-          if (d.fit === 'face') for (const [u, v] of outline) {
-            // never beyond the port frame it is mounted on
+          if (d.fit === 'set-in') for (const [u, v] of outline) {
+            // never beyond the frame round the opening it is mounted on
             expect(Math.abs(u), `${name(d)} ${b.id} at ${turn}`).toBeLessThanOrEqual(d.opening.width / 2 + land + 1e-6);
-            expect(v, `${name(d)} ${b.id} at ${turn}`).toBeLessThanOrEqual(d.opening.height + land + 1e-6);
+            expect(v, `${name(d)} ${b.id} at ${turn}`).toBeLessThanOrEqual(d.opening.height + land + 1e-6); expect(v).toBeGreaterThanOrEqual(-land - 1e-6);
           } else for (const [u, v] of outline) {
             // between the flanges, on the rails above and below the opening (a corner of its short end passes a rail's edge by a hair)
             expect(Math.abs(u), `${name(d)} ${b.id}`).toBeLessThanOrEqual(d.opening.width / 2 + 1e-6);
@@ -229,12 +245,12 @@ describe('removable door panel: button sweep and withdrawal', () => {
       expect(doorAction(d, 0.2, 'panel')).toMatch(new RegExp(`^${d.buttons.length} × Door turn button: its locking pin lifted, turned a quarter turn clear`));
       expect(doorAction(d, 0.5, 'panel')).toMatch(/drawn straight out/); expect(doorAction(d, 0.9, 'panel')).toMatch(/stowed clear of the route/);
     }
-    const stowed = facePanel({ id: 'p', width: 300, height: 300, material: 'solid', land: PORT_FRAME, stow: [700, 0, 400] });
+    const stowed = setInDoor({ id: 'p', width: 300, height: 300, material: 'solid', seat: 'stops', depth: PORT_FRAME, sealed: true, sillButton: false, stow: [700, 0, 400] });
     expect(doorPose(stowed, 1)).toMatchObject({ offset: [700, 0, 400], gone: false });
   });
 
   it('draws what it lays out: every piece once, the buttons turning and the panel coming out as one', () => {
-    for (const d of [facePanel({ id: 'p', width: 300, height: 300, material: 'solid', land: PORT_FRAME, stow: [600, 0, 300] }), ...insets.slice(0, 2), ...faces.filter(f => f.material === 'mesh').slice(0, 1)]) {
+    for (const d of [setInDoor({ id: 'p', width: 300, height: 300, material: 'solid', seat: 'stops', depth: PORT_FRAME, sealed: true, sillButton: false, stow: [600, 0, 300] }), ...insets.slice(0, 2), ...faces.filter(f => f.material === 'mesh').slice(0, 1)]) {
       const p = createCatioParts(); const root = new THREE.Group(); p.root.add(root);
       const built = buildDoorPanel(p, d, { origin: [100, 50, 200], u: [1, 0, 0], v: [0, 0, 1], n: [0, -1, 0] }, { timber: root, mesh: root, hardware: root });
       root.updateMatrixWorld(true);
@@ -469,27 +485,31 @@ describe('window insert: the cat port’s removable panel', () => {
     }
   });
 
-  it('seats a solid panel on the port frame’s room side, standing on the threshold, coming out into the room', () => {
-    for (const config of valid) {
-      const l = windowInsertLayout('modular', config, windowWith('removable-panel', config)); const door = l.door; if (!door || !l.port) throw new Error('door');
-      expect(door.panel).toMatchObject({ material: 'solid', fit: 'face', opening: { width: l.port.width, height: l.port.height } });
+  it('sets a solid panel into the port from the room side, about flush with the port frame, standing on the threshold', () => {
+    for (const seat of DOOR_SEATS) for (const config of valid) {
+      const window = { ...windowWith('removable-panel', config), seat };
+      const l = windowInsertLayout('modular', config, window); const door = l.door; if (!door || !l.port) throw new Error('door');
+      expect(door.panel).toMatchObject({ material: 'solid', fit: 'set-in', seat, opening: { width: l.port.width, height: l.port.height } });
       expect(door.frame).toEqual({ origin: [0, l.yOut - INSERT.portMember, l.floor], u: [1, 0, 0], v: [0, 0, 1], n: [0, -1, 0] });
-      // its seat is the jambs' and the transom's room-side faces: the port frame's own timber
+      // the frame's origin is the port frame's room face
       const jambs = l.timber.filter(t => t.component === 'port-frame').flatMap(t => t.boxes);
       for (const b of jambs) expect(b.center[1] - b.size[1] / 2, 'port frame room face').toBeCloseTo(door.frame.origin[1], 6);
+      // the panel in the port, just behind the room face, inside the port frame's depth
       const sheet = doorBounds(door.frame, door.panel.timber.find(t => t.id === 'panel-sheet')?.boxes[0] ?? { size: [0, 0, 0], center: [0, 0, 0] });
-      expect(sheet.min[2]).toBeCloseTo(l.floor, 6);
-      expect(sheet.max[1]).toBeCloseTo(door.frame.origin[1] - DOOR.seal.gap, 6);
-      // the strips lie on the jambs and the transom, within them
-      for (const b of door.panel.timber.filter(t => t.id.startsWith('strip')).flatMap(t => t.boxes).map(b => doorBounds(door.frame, b))) {
-        expect(b.max[1]).toBeCloseTo(door.frame.origin[1], 6);
-        expect(Math.max(Math.abs(b.min[0]), Math.abs(b.max[0]))).toBeLessThanOrEqual(l.port.width / 2 + INSERT.portMember + 1e-6);
-        expect(b.max[2]).toBeLessThanOrEqual(l.port.transomZ + INSERT.portMember + 1e-6);
+      // sealed, pressed onto its seal by the buttons: its face under their washers
+      expect(door.panel.play).toBe(0); expect(sheet.min[1]).toBeCloseTo(door.frame.origin[1] - door.panel.buttonUnder, 6);
+      expect(sheet.max[1]).toBeLessThan(l.yOut);
+      // standing on the threshold: in a rebate it goes below the floor into the threshold's rebate, on stops it stands on the sill stop
+      expect(sheet.min[2]).toBeCloseTo(l.floor + (seat === 'stops' ? DOOR.clearance : -(DOOR.setIn.lap - DOOR.clearance)), 6);
+      // three buttons, one on each jamb and one on the transom: there is no frame face below the threshold
+      expect(door.panel.buttons.map(b => b.side).sort()).toEqual(['head', 'left', 'right']);
+      // the stops, inside the port and within its depth
+      for (const b of door.panel.timber.filter(t => t.id.startsWith('stop')).flatMap(t => t.boxes).map(b => doorBounds(door.frame, b))) {
+        expect(b.min[1]).toBeGreaterThan(door.frame.origin[1]); expect(b.max[1]).toBeLessThanOrEqual(l.yOut + 1e-6);
+        expect(Math.max(Math.abs(b.min[0]), Math.abs(b.max[0]))).toBeLessThanOrEqual(l.port.width / 2 + 1e-6);
       }
-      // the sill stop lies on the threshold between the jambs, on the tunnel side of the seat
-      const stop = doorBounds(door.frame, door.panel.timber.find(t => t.id === 'stop-sill')?.boxes[0] ?? { size: [0, 0, 0], center: [0, 0, 0] });
-      expect([stop.min[2], stop.max[2] - stop.min[2], stop.min[1]]).toEqual([l.floor, DOOR.stop.lap, door.frame.origin[1]].map(x => expect.closeTo(x, 6) as number));
-      expect(stop.max[1]).toBeLessThanOrEqual(l.yOut);
+      expect(door.panel.timber.some(t => t.id.startsWith('stop'))).toBe(seat === 'stops');
+      expect(door.panel.rebate === null || door.panel.rebate === undefined).toBe(seat === 'stops');
       // nothing of it reaches the outdoor face: the coupling's docking frame, seal and latches have that to themselves
       const zone = doorZone(l); if (!zone) throw new Error('zone');
       expect(zone.max[1]).toBeCloseTo(door.frame.origin[1], 6); expect(zone.max[1]).toBeLessThan(l.yOut);
@@ -526,13 +546,14 @@ describe('window insert: the cat port’s removable panel', () => {
       expect(gate.filter(line => /^(cat-gate|gate-tracks|gate-latch)$/.test(line.id)).map(line => line.id)).toEqual(['cat-gate', 'gate-tracks', 'gate-latch']);
       expect(gate.filter(line => /port-panel|Door turn|Panel pull/.test(`${line.id} ${line.name}`))).toEqual([]);
       expect(quantity(line => line.name === 'Cat-port panel')).toBe(1);
-      expect(quantity(line => line.name.startsWith('Locating strip'))).toBe(3); expect(quantity(line => line.name === 'Sill stop')).toBe(1);
+      // its stop strips round the port, as the default seat
+      expect(quantity(line => line.name.startsWith('Door stop'))).toBe(4); expect(quantity(line => line.name.startsWith('Locating strip'))).toBe(0);
       expect(quantity(line => /Door turn button, printed \(custom\)/.test(line.name))).toBe(door.buttons.length);
       expect(quantity(line => line.name.startsWith('Panel pull'))).toBe(1); expect(quantity(line => line.id === 'port-panel-door-seal')).toBe(1);
       // the pivots, the washers, the strips', the stop's and the pull's screws: library parts, more than the gate's list by exactly these
       const extra = (partId: string) => quantity(line => line.partId === partId) - quantity(line => line.partId === partId, gate);
-      expect(extra(CATIO_DOOR_HARDWARE.pivot.sealed)).toBe(door.buttons.length); expect(extra(CATIO_DOOR_HARDWARE.washer)).toBe(door.buttons.length);
-      expect(extra(CATIO_DOOR_HARDWARE.stripScrew.sealed)).toBe(door.fasteners.filter(f => f.role === 'strip').length);
+      expect(extra(CATIO_DOOR_HARDWARE.pivot.inset)).toBe(door.buttons.length); expect(extra(CATIO_DOOR_HARDWARE.washer)).toBe(door.buttons.length);
+      expect(extra(CATIO_DOOR_HARDWARE.lockPin)).toBe(door.buttons.length);
       expect(extra(CATIO_DOOR_HARDWARE.stopScrew)).toBe(door.fasteners.filter(f => f.role === 'stop').length);
       expect(extra(CATIO_DOOR_HARDWARE.pullScrew)).toBe(2);
       // everything else is the same list
@@ -542,11 +563,11 @@ describe('window insert: the cat port’s removable panel', () => {
     }
     const facts = windowInsertFacts('modular', WINDOW_INSERT_DEFAULT, windowWith('removable-panel'));
     expect(facts.find(f => f.label === 'Cat port · closed by')).toEqual({ label: 'Cat port · closed by', value: 'Removable panel with turn buttons', from: { page: 'concept', settings: ['Cat-port closure'] } });
-    expect(facts.find(f => f.label === 'Port panel · kept in by')?.value).toMatch(/^6 turn buttons \(jamb and head\), 12 mm over the panel · seat 12 mm$/);
+    expect(facts.find(f => f.label === 'Port panel · kept in by')?.value).toMatch(/^3 turn buttons \(jamb and head\), 12 mm over the panel · seat \d+ mm$/);
     expect(windowInsertFacts('modular', WINDOW_INSERT_DEFAULT, windowWith('sliding-gate')).find(f => f.label === 'Cat port · closed by')?.value).toBe('Vertical sliding gate');
     expect(windowInsertFacts('direct', WINDOW_INSERT_DEFAULT).some(f => /closed by|Port panel/.test(f.label))).toBe(false);
     const step = windowInsertSteps('modular', WINDOW_INSERT_DEFAULT, windowWith('removable-panel')).at(-1);
-    expect(step?.detail).toMatch(/Screw the 6 door turn buttons onto the strips/);
+    expect(step?.detail).toMatch(/Screw the 3 door turn buttons onto the port frame’s room face/);
     expect(step?.detail).toMatch(/Shut it again, every button over it, before the tunnel is undocked/);
     expect(step?.detail).not.toMatch(/gate|track/);
     expect(windowInsertSteps('modular', WINDOW_INSERT_DEFAULT, windowWith('sliding-gate')).at(-1)?.detail).toMatch(/Lower the sliding cat gate into them from above/);
@@ -562,7 +583,7 @@ describe('window insert: the cat port’s removable panel', () => {
     // stage 6: stop and strips, their screws, the seal, the buttons (pointing clear), the panel, and last the buttons turned over it
     const captions: string[] = [];
     for (let progress = 5.02; progress < 6; progress += 0.04) { scene.update({ ...installed, progress }); const caption = scene.caption?.(); if (caption && captions.at(-1) !== caption) captions.push(caption); }
-    expect(captions.map(c => c.split(':')[0])).toEqual(['4 × Sill stop and locating strip', 'Screws', 'Seal', '6 × Door turn button', 'Cat-port panel', '6 × Door turn button']);
+    expect(captions.map(c => c.split(':')[0])).toEqual(['4 × Door stop', 'Screws', 'Seal', '3 × Door turn button', 'Cat-port panel', '3 × Door turn button']);
     expect(captions.at(-1)).toMatch(/turned a quarter turn over the panel, its locking pin dropped into its hole/);
     scene.update({ ...installed, progress: 5.7 }); for (const t of turned()) expect(t).toBeCloseTo(1, 6);
     // complete: seated, every button over it
@@ -570,7 +591,7 @@ describe('window insert: the cat port’s removable panel', () => {
     for (const t of turned()) expect(t).toBeCloseTo(0, 6);
     expect(scene.caption?.()).toBeNull();
     // the toggle: buttons clear first, then the panel into the room, then stowed on the wall beside the window
-    scene.update({ ...installed, door: 0.2 }); expect(scene.caption?.()).toMatch(/6 × Door turn button: its locking pin lifted, turned a quarter turn clear of the cat-port panel/);
+    scene.update({ ...installed, door: 0.2 }); expect(scene.caption?.()).toMatch(/3 × Door turn button: its locking pin lifted, turned a quarter turn clear of the cat-port panel/);
     expect(bounds(door.panel).min.y).toBeCloseTo(seated.min.y, 6);
     scene.update({ ...installed, door: DOOR_TRAVEL.turned }); for (const t of turned()) expect(t).toBeCloseTo(1, 6);
     scene.update({ ...installed, door: DOOR_TRAVEL.out }); expect(seated.min.y - bounds(door.panel).min.y).toBeCloseTo(door.door.withdraw, 6);
@@ -578,10 +599,10 @@ describe('window insert: the cat port’s removable panel', () => {
     scene.update({ ...installed, door: 1 });
     const stowed = bounds(door.panel); const w = scene.layout.window;
     expect(stowed.min.x).toBeGreaterThan(w.openingWidth / 2); expect(stowed.max.y).toBeLessThan(-300);
-    // the port is clear: nothing of the door's is left in the opening but the low sill stop
-    const port = scene.layout.port; if (!port) throw new Error('port');
-    const opening = new THREE.Box3(new THREE.Vector3(-port.width / 2 + 1, -400, scene.layout.floor + DOOR.stop.lap + 1), new THREE.Vector3(port.width / 2 - 1, 0, scene.layout.floor + port.height - 1));
-    for (const part of scene.components.filter(q => /^port-panel/.test(q.id))) part.group.traverse(o => { if (o instanceof THREE.Mesh && o.visible) expect(new THREE.Box3().setFromObject(o).intersectsBox(opening), part.id).toBe(false); });
+    // the port is clear: nothing of the door's is left in the opening but its stops, round its edge
+    const port = scene.layout.port; if (!port) throw new Error('port'); const stop = DOOR.setIn.lap + 1;
+    const opening = new THREE.Box3(new THREE.Vector3(-port.width / 2 + stop, -400, scene.layout.floor + stop), new THREE.Vector3(port.width / 2 - stop, 0, scene.layout.floor + port.height - stop));
+    for (const part of scene.components.filter(q => /^port-panel/.test(q.id))) part.group.traverse(o => { if (o instanceof THREE.Mesh && o.visible) { const b = new THREE.Box3().setFromObject(o); expect(b.intersectsBox(opening), `${part.id} ${o.name}`).toBe(false); } });
     // before the assembly is complete, and exploded, the toggle does nothing
     scene.update({ ...installed, progress: 5, door: 1 }); expect(door.panel.position.z).toBeGreaterThan(0);
     scene.update({ ...installed, progress: 6, door: 0 }); expect(bounds(door.panel).min.toArray().map(Math.round)).toEqual(seated.min.toArray().map(Math.round));
@@ -609,7 +630,7 @@ describe('insert–tunnel coupling with a removable cat-port panel', () => {
       const l = couplingLayout(config, { tunnel: TUNNEL_DEFAULT, site: tall }); const door = l.insert.door; if (!door) throw new Error('door');
       expect(l.errors, JSON.stringify([insert.attachment, insert.fixingPitch, config, height])).toEqual([]);
       const into = doorFasteners(door.panel, door.frame).filter(f => !f.moves && f.role !== 'stop');
-      expect(into.length).toBeGreaterThan(door.panel.buttons.length);
+      expect(into.length).toBeGreaterThanOrEqual(door.panel.buttons.length);
       expect(fastenerClashes(l.fasteners.filter(f => f.component === 'frame-screws'), into, 12)).toEqual([]);
       // the same number of frame screws as with the sliding gate: only moved along
       const gateSite = siteWith('sliding-gate', insert); const gateWindow = { ...gateSite.window, tunnel: { width: 300, height } };
@@ -648,7 +669,8 @@ describe('insert–tunnel coupling with a removable cat-port panel', () => {
       if (closure === 'removable-panel') {
         // into the room: nothing of the moving panel passes the port frame's room-side face
         const moving = scene.closure?.door?.panel; if (!moving) throw new Error('panel');
-        for (const travel of [0.45, 0.6, 0.8, 1]) { scene.update({ ...docked, door: travel }); expect(bounds(moving).max.y, String(travel)).toBeLessThanOrEqual(scene.layout.insert.yOut - INSERT.portMember + 1e-6); }
+        // (once drawn out: set into the port, it starts inside it)
+        for (const travel of [DOOR_TRAVEL.out, 0.8, 1]) { scene.update({ ...docked, door: travel }); expect(bounds(moving).max.y, String(travel)).toBeLessThanOrEqual(scene.layout.insert.yOut - INSERT.portMember + 1e-6); }
         scene.update({ ...docked, door: 0.5 }); expect(scene.caption?.()).toMatch(/Cat-port panel: drawn straight out of its opening/);
       } else expect(open.max.z).toBeGreaterThan(shut.max.z);
       scene.dispose();

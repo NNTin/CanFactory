@@ -497,9 +497,9 @@ describe('tunnel parts list', () => {
       expect(bolts).toBe(l.couplings.filter(c => c.kind === 'bolted').length * TUNNEL_COUPLING_DEFAULT.boltsPerCoupling);
       const latches = l.couplings.reduce((n, c) => n + c.latches.length, 0);
       expect(latches).toBe(l.couplings.filter(c => c.kind === 'latched').length * 2 * TUNNEL_COUPLING_DEFAULT.latchesPerSide);
-      // the cubes' doors are held by the ports' own latches by default: the same printed latch
+      // the cubes' doors are set in, on turn buttons, by default; blanks would be held by the ports' own latches, the same printed latch
       const doorLatches = l.doors.reduce((n, d) => n + d.latches.length, 0);
-      expect(doorLatches).toBe(l.doors.length * 2 * TUNNEL_COUPLING_DEFAULT.latchesPerSide);
+      expect(doorLatches).toBe(TUNNEL_COUPLING_DEFAULT.doorFixing === 'latches' ? l.doors.length * 2 * TUNNEL_COUPLING_DEFAULT.latchesPerSide : 0);
       if (latches + doorLatches) expect(lines.find(line => line.modelId === 'toggle-latch')).toMatchObject({ quantity: latches + doorLatches, name: 'Toggle latch, printed' });
       expect(l.fasteners.filter(f => f.component === 'latch-screws' || f.component === 'catch-screws')).toHaveLength(4 * (latches + doorLatches));
       // the latches' screws, and the pivots of the side-access panels' door turn buttons, which are the same screw
@@ -705,8 +705,10 @@ describe('tunnel scene', () => {
         const key = `${motion.stage}:${motion.action}`; const window = motion.window.join();
         expect(windows.get(key) ?? window, motion.action).toBe(window); windows.set(key, window);
       }
-      for (let stage = 1; stage <= 6; stage++) for (const motion of scene.motions.filter(m => m.stage === stage)) {
-        scene.update({ ...installed, progress: stage - 1 + (motion.window[0] + motion.window[1]) / 2 });
+      // a caption mid every window (once a window: the motions sharing it are posed together)
+      const mid = new Map(scene.motions.filter(m => m.stage >= 1 && m.stage <= 6).map(m => [`${m.stage}:${m.window.join()}`, m] as const));
+      for (const motion of mid.values()) {
+        scene.update({ ...installed, progress: motion.stage - 1 + (motion.window[0] + motion.window[1]) / 2 });
         expect(scene.caption?.(), `caption mid ${motion.action}`).not.toBeNull();
       }
       scene.dispose();

@@ -3,7 +3,12 @@
 A catio door that is **lifted out of its opening** once every **turn button** over it has been turned clear. It is the
 default closure of every cat port (the window insert's and the enclosures'), and the tunnel's side access. The vertical
 sliding gate remains selectable for the cat ports. A cube's faces are closed by doors too; those are the
-[standard port](standard-port.md)'s doors, held by the port's own latches by default or by these turn buttons.
+[standard port](standard-port.md)'s doors, held by these turn buttons by default or by the port's own latches.
+
+**Set in, like the PawHut's.** Every door with turn buttons is **set into its opening**, about flush with the frame round it:
+a slim mesh frame (or a plywood sheet) seated on stop strips inside the opening, or in a rebate, with four buttons on the
+frame's face. The first version laid a panel 13 mm over the frame, between locating strips, with up to six buttons; on a
+cube that was a box of strips and buttons on every face. That looked bulky, and the reference does not do it.
 
 This page keeps three things apart, because only the first is known:
 
@@ -57,10 +62,10 @@ coupling and whole-catio previews cannot disagree. All sizes are this design's c
 
 | Requirement | How it is met here |
 | --- | --- |
-| A **continuous seat**, so the panel cannot be pushed in | Timber on all four edges of the panel: the frame round the opening and a stop strip across its floor, or four stop strips inside it. At least 10 mm of seat everywhere. |
-| **Buttons over the panel**, so it cannot be drawn out | Printed turn buttons lying 12 mm over the panel's edge, their undersides on the panel's face. |
-| Carried and located **by timber, not by screws** | The panel stands on the opening's floor and sits between locating strips, or inside the opening, with 2 mm to spare each side. The screws only keep it from coming out. |
-| It must not **tilt or flex free** between buttons | No two buttons along an edge farther apart than 250 mm, no corner farther than 125 mm from one; buttons on at least two opposite edges. That is more than the reference's one button a side. A mesh panel longer than 600 mm has a mullion. |
+| A **continuous seat**, so the panel cannot be pushed in | **Door seat** (catio page): *stop strips* (default, the easier to make), four 12 × 10 strips glued and screwed inside the opening behind the panel; or a *rebate*, 12 mm wide round the opening's edge and as deep as the panel, the panel out into it. Either way 10 mm of seat on every edge. |
+| **Buttons over the panel**, so it cannot be drawn out | Four printed turn buttons, one at the middle of each side, on the frame's face, lying 12 mm over the panel's edge. The window port has three: there is no frame below its threshold. |
+| Carried and located **by timber, not by screws** | The panel sits inside the opening (or its rebate) with 2 mm to spare each side, 1 mm behind the frame's face. The screws only keep it from coming out. |
+| A **slim panel** | Mesh: a 25 × 17 frame, butt jointed and screwed, the mesh stapled on its back (DIN 1159 staples), 18 mm thick in all. Solid: an 18 mm exterior plywood sheet. |
 | Buttons in **sound timber** | Each pivot is a DIN 7997 screw through the button and an ISO 7093 M4 washer it turns on, at least 18 mm into timber, 12 mm of that in the member behind a strip. |
 | Not turned **by accident** | A captive locking pin (ISO 2338 2.5 × 16 under a printed knob, kept in the button by a printed collar) drops 6 mm into a hole drilled through the button into the timber, between the pivot and the panel's edge: the button cannot turn until the pin is lifted by its knob (issue #85). It replaced a 1 mm detent pip. |
 | **Mesh edges covered** | A mesh panel's mesh lies between its frame and cover strips screwed on over every cut edge, on the cat side. |
@@ -74,12 +79,11 @@ couple sections and dock the tunnel to the insert. Those are unchanged.
 
 | | Window port | Enclosure cat ports | Tunnel side access |
 | --- | --- | --- | --- |
-| Panel | **Solid** 12 mm exterior plywood, pressed onto an E-profile seal | Framed mesh, 30 mm thick | Framed mesh, 30 mm thick |
+| Panel | **Solid** 18 mm exterior plywood, pressed onto an E-profile seal | Slim framed mesh | Framed mesh, 30 mm thick |
 | Why | Undocked, it is all that closes the window opening against draught and weather. The mechanism is copied, not the mesh. | Outdoors; an unused port stands under the sky | Outdoors |
-| Fitted | On the port frame's **room side**, lapping 13 mm onto the jambs and transom | On the port frame's **inside**, the same way | **Inset** between the section's two flanges and its top and bottom rails, flush with the rails |
-| Seat | Jambs' and transom's faces, and a 12 × 10 stop across the port's floor | The same | Four 12 × 10 stops inside the opening |
-| Located by | The threshold, and 25 × 14 locating strips on the jambs and transom | The landing, and locating strips | The opening itself |
-| Buttons | 2 on each jamb, 1 or 2 on the transom, on the strips | The same | 2 or more on the top rail, as many on the bottom rail |
+| Fitted | **Set into the port** from the room side, about flush with the port frame | Set into the port from inside the enclosure | **Inset** between the section's two flanges and its top and bottom rails, flush with the rails |
+| Seat | Stops inside the port (or its rebate), on the jambs, under the transom and across the threshold | The same | Four 12 × 10 stops inside the opening |
+| Buttons | 3: one on each jamb, one on the transom | 4: one at the middle of each side | 2 or more on the top rail, as many on the bottom rail |
 | Operated from | The room, with the tunnel docked | Inside the enclosure, through the maintenance door | Outside |
 | A cat pushing out pushes it onto | Its **seat** (the port frame) | Its **seat** | Its **buttons** |
 | Stowed, removed | Shown on the room side of the wall beside the window | Not shown: carried away | Not shown: carried away |
@@ -92,7 +96,7 @@ couple sections and dock the tunnel to the insert. Those are unchanged.
   latches have to themselves, so the panel comes out with the tunnel docked. The door adds no load path: the tunnel still
   stands on its own wall support, and drawing the panel out pulls on the collar with no more than the seal's grip.
 - **Docking-frame screws.** The coupling's frame screws go into the same jambs and transom from outdoors. They are placed
-  at least 12 mm from the panel's pivot and strip screws, as they already are from the batten screws and staples.
+  at least 12 mm from the panel's pivot and stop screws, as they already are from the batten screws and staples.
 - **Enclosure ports** (the whole-catio concept). The enclosure has no page of its own yet, so these panels are drawn and
   validated but have no parts list.
 - **Tunnel side access** ([tunnel.md](tunnel.md)), in long sections. **Side access**: none, one panel near the middle (the
@@ -112,9 +116,10 @@ couple sections and dock the tunnel to the insert. Those are unchanged.
   has to fit, with its frame, where it stands. One rule (`slidingGateRise`) now serves the whole-catio page and the window
   insert page, each applying it only to a sliding gate; the panel is checked from its own layout instead (fit, seat,
   button sweep, withdrawal, access).
-- **One step in the floor.** The seat under a face-fitted panel is a 12 mm high stop strip across the port's floor, which
-  stays when the panel is out. It is the only step in the otherwise level walkway, like the cleats on a sloped floor. A
-  rebate in the threshold would avoid it at the cost of a slot across the walkway.
+- **One step in the floor.** With stop strips, the sill stop is a 12 mm high strip across the port's floor, which stays when
+  the panel is out, and the opening is 24 mm smaller each way while it is in. It is the only step in the otherwise level
+  walkway, like the cleats on a sloped floor. **Door seat → Rebate** avoids it, at the cost of routing a 12 mm rebate round
+  every opening and a slot across the walkway.
 - **Roofs:** nothing. Under a net, the hood of a section with side access ends 10 mm down the outer face of that side's
   top rail instead of running on down the side; its roof part, the roof's staples and the roof's parts-list lines are the
   same.
@@ -124,6 +129,7 @@ couple sections and dock the tunnel to the insert. Those are unchanged.
 | Setting | Where | New or reset design | A design saved before the setting existed |
 | --- | --- | --- | --- |
 | **Cat-port closure** | Catio concept page, **Cat ports** | Removable panel with turn buttons | **Vertical sliding gate**, as it was drawn |
+| **Door seat** | Catio concept page, **Cat ports** | Stop strips | Stop strips |
 | **Side access** | Tunnel page, **Sections** | One panel, near the middle | **None**, as it was |
 | **Access side** | Tunnel page, **Sections** | Right | (no panel) |
 
@@ -161,10 +167,13 @@ Every item is a guess that the geometry cannot settle.
 - **The locking pin.** That a 2.5 mm pin 6 mm deep holds a button against a cat pushing on the panel, that the knob is easy to lift for a person and not for a paw, and that the printed collar keeps the pin from falling out. Test both, from inside and outside.
 - **The printed button.** A PETG bar 6 mm thick on one screw: its strength, its creep in summer sun and how its pivot hole
   wears are unknown. It is a custom part, not yet a model of the library.
-- **The overlap and spacing.** That 12 mm of button over the panel and 250 mm between buttons hold a panel a cat throws
-  itself at, without the panel tilting or flexing free. On the tunnel's side the buttons, not the seat, take a cat's push.
-- **Panel stiffness.** That 12 mm plywood, and a 30 × 20 frame with its mesh and cover strips, are stiff enough at these
-  sizes; that the frame's butt joints stay square.
+- **The overlap and spacing.** That 12 mm of button over the panel holds a panel a cat throws itself at. The side access
+  keeps a button every 250 mm; a set-in door has only one at the middle of each side, as the reference has, so its corners
+  are up to about 23 cm from a button. On the tunnel's side and on a cube's doors the buttons, not the seat, take a cat's push.
+- **Panel stiffness.** That 18 mm plywood, the side access's 30 × 20 frame with its mesh and cover strips, and a set-in door's
+  25 × 17 frame with its mesh stapled on the back, are stiff enough at these sizes; that the frames' butt joints stay square.
+- **Staples alone.** That the mesh of a set-in door, stapled every 60 mm onto its frame's back with no cover strip, holds
+  against claws, and that its cut edges on the frame's back, with no cover strip over them, are out of a paw's reach.
 - **The seal.** That an E-profile squashed from 4 to 3 mm closes the window port against draught and rain, and that the
   buttons can hold it squashed.
 - **Clearances.** That 2 mm each side is enough for timber that swells outdoors, and not so much that a panel rattles or a
@@ -172,7 +181,8 @@ Every item is a guess that the geometry cannot settle.
 - **Reach.** That every button of an enclosure's port can be reached through the maintenance door, and those of the window
   port through the open sash over the collar.
 - **The stop strip.** That cats step over a 12 mm strip in a port without catching a claw, and that it stays glued and
-  screwed under their feet.
+  screwed under their feet. **Door seat → Rebate** has none.
+- **The rebate.** That a 12 mm rebate routed round a 30 mm ring leaves enough timber behind it (the page refuses less than 8 mm).
 - **Soft netting in a small frame.** That a net clamped only under cover strips, without staples (the library's shortest
   staple is longer than the frame is thick), holds at every mesh.
 
@@ -199,9 +209,9 @@ To be done on a built door of each kind, from **both sides**. Until then no page
 
 ## Implementation
 
-- [Door layout, parts lists and poses](../../../apps/web/src/catioDoor.ts): `facePanel` (window and enclosure ports),
-  `insetPanel` (tunnel side access), `portPanel` and `blankPanel` (a cube's doors on the standard port, by turn buttons or by
-  the port's latches), `doorPose`, `doorBom`, `slidingGateRise`
+- [Door layout, parts lists and poses](../../../apps/web/src/catioDoor.ts): `setInDoor` (window and enclosure ports, and a
+  cube's doors held by turn buttons), `insetPanel` (tunnel side access), `blankPanel` (a cube's doors on the port's latches),
+  `doorPose`, `doorBom`, `slidingGateRise`
 - [Door 3D builder](../../../apps/web/src/catioDoorScene.ts): `buildDoorPanel`, used by `buildPortClosure`
   ([catioWindowInsertScene.ts](../../../apps/web/src/catioWindowInsertScene.ts): the insert's own page, and as context on
   the tunnel's and the coupling's), `port` ([catioModularScene.ts](../../../apps/web/src/catioModularScene.ts)) and

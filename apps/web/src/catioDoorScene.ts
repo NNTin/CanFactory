@@ -40,6 +40,8 @@ export function buildDoorPanel(p: ReturnType<typeof createCatioParts>, door: Doo
   const screw = (parent: THREE.Group, f: DoorPanel['fasteners'][number]) => {
     const part = findPart(f.partId); if (!part) return;
     const g = new THREE.Group(); g.position.set(...f.at); parent.add(g);
+    // a staple: a short bar over the mesh
+    if (part.family === 'nail') { p.rod(g, [-5, 0, 0], [5, 0, 0], 1); return g; }
     const tip = f.direction.map(x => x * dimensionOf(part, 'l')) as [number, number, number]; const head = f.direction.map(x => x * 1.5) as [number, number, number];
     p.rod(g, [0, 0, 0], head, dimensionOf(part, 'dk') / 2); p.rod(g, [0, 0, 0], tip, dimensionOf(part, 'd') / 2.4);
     return g;

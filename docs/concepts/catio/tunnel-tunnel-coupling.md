@@ -45,7 +45,7 @@ are exactly the tunnel page's.
 | Latches per side | 2 (4 per coupling) | 1, 2, 3; printed latch only | Coupling |
 | Bolts per coupling | 8 · two on each side | 4, 8, 12: one, two or three on each of the port's four sides | Coupling |
 | Seal | EPDM E-profile in the gap | EPDM E-profile; none (gap left open); printed latch only | Coupling |
-| Door held by | The port's own toggle latches | The port's own latches; turn buttons on the port's ring | Doors |
+| Door held by | Set in, turn buttons on the port's ring | Set in, turn buttons; a blank on the port's own toggle latches | Doors |
 | Joint shown | As the tunnel's straight runs | As the tunnel; section to section; section to cube; cube to cube | Shown |
 | Held on the supports by | Screwed up through the bearer | Screws; rubber strap; dowels; turn buttons; gravity only | On the support (shared with the tunnel page) |
 | Supports stand | Held up by the tunnel (trestles) | Trestles; on their own (legs on soles, or a wide low bearer) | On the support (shared with the tunnel page) |
@@ -149,7 +149,7 @@ The tunnel's layout reports (and so both pages):
    ones; mitred joints stay bolted.
 5. **One standard port, coupled or closed.** Every flange is the same port, its stations the same on all four sides, base
    plates on its left and catches on its right. The enclosure's port is one too, coupled like any other. A port that is not
-   coupled is closed by a door, held by the port's own latches (a blank ring) by default, or by turn buttons on its ring.
+   coupled is closed by a door set into it on turn buttons by default, or by a blank ring on the port's own latches.
    One port, with the latches' halves on fixed sides of it, lets any element meet any other; see
    [standard-port.md](standard-port.md).
 

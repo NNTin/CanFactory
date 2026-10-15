@@ -1,4 +1,4 @@
-import { PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, PORT_CLOSURES, type PortClosure } from './catioDoor.ts';
+import { DOOR_SEAT_LABELS, DOOR_SEAT_SETTING, DOOR_SEATS, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, PORT_CLOSURES, type DoorSeat, type PortClosure } from './catioDoor.ts';
 import { modularPitch, validateModular, type ModularConfig, type EnclosureSize } from './catioModularDesign.ts';
 
 export function CatioParameters({ draft, change, reset }: { draft: ModularConfig; change: (next: ModularConfig) => void; reset: () => void }) {
@@ -20,6 +20,8 @@ export function CatioParameters({ draft, change, reset }: { draft: ModularConfig
     </fieldset>
     <fieldset><legend>Cat ports</legend>
       <label className="catio-field"><span>{PORT_CLOSURE_SETTING}</span><select aria-label={PORT_CLOSURE_SETTING} value={draft.portClosure} onChange={event => change({ ...draft, portClosure: event.target.value as PortClosure })}>{PORT_CLOSURES.map(option => <option key={option} value={option}>{PORT_CLOSURE_LABELS[option]}</option>)}</select></label>
+      <label className="catio-field"><span>{DOOR_SEAT_SETTING}</span><select aria-label={DOOR_SEAT_SETTING} value={draft.doorSeat} onChange={event => change({ ...draft, doorSeat: event.target.value as DoorSeat })}>{DOOR_SEATS.map(option => <option key={option} value={option}>{DOOR_SEAT_LABELS[option]}</option>)}</select></label>
+      <p>{draft.doorSeat === 'stops' ? 'Every door is set into its opening, about flush with the frame, against stop strips glued inside the opening: nothing to cut, but the strips narrow the opening a little.' : 'Every door is set into a rebate cut round its opening, about flush with the frame: the opening stays clear.'}</p>
       <p>{draft.portClosure === 'removable-panel'
         ? 'Every cat port, the window’s and the enclosures’, is shut by a panel kept in by turn buttons: turn each button clear and lift the panel out. Solid and sealed at the window, framed mesh at the enclosures.'
         : 'Every cat port is shut by a gate that slides up in tracks, so each port needs its own height again above it.'}</p>

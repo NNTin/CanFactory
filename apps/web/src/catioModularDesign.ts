@@ -1,7 +1,7 @@
 import type { CatioView } from './catioDesign.ts';
 import { cubeEdge } from './catioPort.ts';
 import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
-import { facePanel, PORT_CLOSURE_DEFAULT, PORT_CLOSURES, slidingGateRise, type DoorPanel, type PortClosure } from './catioDoor.ts';
+import { DOOR_SEAT_DEFAULT, DOOR_SEATS, setInDoor, type DoorSeat, PORT_CLOSURE_DEFAULT, PORT_CLOSURES, slidingGateRise, type DoorPanel, type PortClosure } from './catioDoor.ts';
 
 /** All lengths are millimetres. Grass Z=0; wall Y=0; outdoors is +Y. */
 export interface EnclosureSize { width: number; depth: number; height: number }
@@ -13,11 +13,13 @@ export interface ModularConfig {
   route: 'straight' | 'left' | 'right'; approach: number; lateral: number; final: number; link: number;
   /** What closes every cat port, the window's and the enclosures': a panel lifted out from behind turn buttons, or a gate slid up. */
   portClosure: PortClosure;
+  /** How every set-in door is seated: the window's, the enclosures' and the tunnel's cubes'. */
+  doorSeat: DoorSeat;
 }
 export const MODULAR_DEFAULT: ModularConfig = {
   glassWidth: 800, glassHeight: 800, sashWidth: 910, sashHeight: 910,
   enclosure: { width: 1200, depth: 1000, height: 1200 }, second: { width: 1200, depth: 1000, height: 1200 }, secondEnabled: false,
-  tunnelSize: 300, route: 'straight', approach: 2, lateral: 2, final: 1, link: 2, portClosure: PORT_CLOSURE_DEFAULT,
+  tunnelSize: 300, route: 'straight', approach: 2, lateral: 2, final: 1, link: 2, portClosure: PORT_CLOSURE_DEFAULT, doorSeat: DOOR_SEAT_DEFAULT,
 };
 export const MODULAR = { timber: 40, sill: 200, floor: 4, wall: 300, recess: 150 } as const;
 /**
@@ -31,8 +33,8 @@ export const PORT_FRAME = 40;
  * A cat port's removable panel (catioDoor.ts), for these port sizes: solid at the window, where it is pressed onto a seal against
  * draughts while no tunnel is docked; a framed mesh panel at an enclosure's ports.
  */
-export function modularPortPanel(c: Pick<ModularConfig, 'tunnelSize'>, at: 'window' | 'enclosure', id: string = at, stow?: [number, number, number]): DoorPanel {
-  return facePanel({ id, width: c.tunnelSize, height: c.tunnelSize, material: at === 'window' ? 'solid' : 'mesh', land: PORT_FRAME, ...(stow ? { stow } : {}) });
+export function modularPortPanel(c: Pick<ModularConfig, 'tunnelSize' | 'doorSeat'>, at: 'window' | 'enclosure', id: string = at, stow?: [number, number, number]): DoorPanel {
+  return setInDoor({ id, width: c.tunnelSize, height: c.tunnelSize, material: at === 'window' ? 'solid' : 'mesh', seat: c.doorSeat, depth: PORT_FRAME, sealed: at === 'window', sillButton: at !== 'window', ...(stow ? { stow } : {}) });
 }
 
 const STEPS: Record<PortClosure, { insert: string; ports: string; couple: string; open: { title: string; detail: string } }> = {
@@ -76,6 +78,7 @@ export function validateModular(c: ModularConfig): string[] {
   if (c.sashWidth - c.glassWidth < 60 || c.sashHeight - c.glassHeight < 60) errors.push('The sash needs at least 3 cm of frame on each side of the glass.');
   range(c.tunnelSize, 200, 450, 'Tunnel clear size');
   if (!PORT_CLOSURES.includes(c.portClosure)) errors.push('Choose a removable panel or a sliding gate for the cat ports.');
+  if (!DOOR_SEATS.includes(c.doorSeat)) errors.push('Choose stop strips or a rebate for the doors’ seats.');
   // Only a sliding gate travels: it needs its own height again above each port. A removable panel leaves its opening, so a port
   // with one only has to fit, with its frame, where it stands; its seat, buttons and withdrawal are checked from its layout.
   const sliding = c.portClosure === 'sliding-gate';

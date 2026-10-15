@@ -66,7 +66,8 @@ See [tunnel.md](tunnel.md). The modular whole-catio scene uses the same pitch an
 
 One port for every tunnel element, the window insert's docking frame and the enclosure. It is a square opening in a 30 × 70
 ring, with its latch and bolt stations the same on all four sides. Seen from outside, it has its latches' base plates on its
-left and their catch plates on its right. A port is coupled, or closed by a door held by its own latches or by turn buttons.
+left and their catch plates on its right. A port is coupled, or closed by a door set into it on turn buttons (the default)
+or by a blank on its own latches.
 See [standard-port.md](standard-port.md).
 
 ## Tunnel–tunnel coupling
@@ -177,6 +178,7 @@ The [exact modular prompts and correction passes](modular-prompts.md) record use
 | Each enclosure W / D / H | 120 / 100 / 120 cm | W and D 80–240 cm; H 90–220 cm |
 | Tunnel clear size | 30 cm | 20–45 cm, square (the [standard port](standard-port.md)), subject to ramp clearance and, with sliding gates, to their travel; a design saved with a non-square tunnel takes its larger size both ways |
 | Cat-port closure | Removable panel with turn buttons | Removable panel with turn buttons; vertical sliding gate (what a design saved before the choice keeps) |
+| Door seat | Stop strips | Stop strips inside the opening (the easier to make); a rebate round it (no strip in the opening). Every door with turn buttons is set into its opening, PawHut-style |
 | Straight module length | One pitch: 54.1 cm | A cube's edge (the clear size + 23.8 cm) and a latched coupling's 3 mm gap |
 | Approach modules | 2 | 1–6 |
 | Offset lateral / final modules | 2 / 1 | 1–6 each; two corner cubes added automatically |
@@ -194,7 +196,7 @@ The original large window passage is replaced, in modular mode, by mesh infill a
 
 Tunnels have solid timber floors, mesh sides and roof, and short supports at section ends. Straight modules a pitch long and cube corners turning 90° form a continuous enclosed route at sill height; every piece ends in the [standard port](standard-port.md). Enclosures have a continuous grass-level mesh floor, four short supports and low mesh skirts. A full-width rear landing meets rear and side cat ports; one cleated ramp descends toward the front inside each enclosure. Different enclosure depths share the same rear edge and side-port location, leaving the human doors free.
 
-Each enclosure has a full-front outward hinged maintenance door. At the default 120 cm enclosure height, access is by crouching or reaching; increase height for a larger opening. **Cat-port closure** sets what shuts every cat port, the window's and the enclosures': a panel lifted out once its turn buttons are turned clear (solid and sealed at the window, framed mesh at the enclosures' rear and side ports), or a small manual sliding gate. Connected ports can be opened and shut independently in the completed scene: a panel's buttons turn and it comes out; a gate slides up. Unused ports remain shut and retained, and every port stays shut through the coupling stage. Frame borders and room for the internal ramp are validated together with numeric ranges; a sliding gate's travel (its own height again above its port) only when sliding gates are chosen, a panel's fit, buttons and withdrawal instead when panels are. The enclosures' hinged maintenance doors and all roofs are the same either way. [removable-doors.md](removable-doors.md) has the construction, what is unverified, and how saved designs are kept.
+Each enclosure has a full-front outward hinged maintenance door. At the default 120 cm enclosure height, access is by crouching or reaching; increase height for a larger opening. **Cat-port closure** sets what shuts every cat port, the window's and the enclosures': a panel set into the port and lifted out once its turn buttons are turned clear (solid and sealed at the window, slim framed mesh at the enclosures' rear and side ports; seated as **Door seat** sets), or a small manual sliding gate. Connected ports can be opened and shut independently in the completed scene: a panel's buttons turn and it comes out; a gate slides up. Unused ports remain shut and retained, and every port stays shut through the coupling stage. Frame borders and room for the internal ramp are validated together with numeric ranges; a sliding gate's travel (its own height again above its port) only when sliding gates are chosen, a panel's fit, buttons and withdrawal instead when panels are. The enclosures' hinged maintenance doors and all roofs are the same either way. [removable-doors.md](removable-doors.md) has the construction, what is unverified, and how saved designs are kept.
 
 ### Modular assembly
 

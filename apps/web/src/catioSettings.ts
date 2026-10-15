@@ -1,5 +1,5 @@
 import { CATIO_VIEWS, type CatioLayer, type CatioView } from './catioDesign.ts';
-import { PORT_CLOSURE_LEGACY } from './catioDoor.ts';
+import { DOOR_SEAT_DEFAULT, PORT_CLOSURE_LEGACY } from './catioDoor.ts';
 import { MODULAR_DEFAULT, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { CATIO_SUBASSEMBLIES } from './route.ts';
 export type CatioMode = 'direct' | 'modular';
@@ -33,10 +33,12 @@ export function migrateCatioSettings(value: unknown): Record<string, unknown> | 
   // the tunnel's clear width and height, as saved before the port was square: its larger size, both ways
   const [w, h] = [config['tunnelWidth'], config['tunnelHeight']];
   const sizes = [w, h].filter((n): n is number => typeof n === 'number');
-  if (version === CATIO_SETTINGS_VERSION && !sizes.length) return value;
+  // a design saved before doors could be seated in a rebate has them on stop strips, the default
+  const seat = 'doorSeat' in config ? {} : { doorSeat: DOOR_SEAT_DEFAULT };
+  if (version === CATIO_SETTINGS_VERSION && !sizes.length && !('doorSeat' in seat)) return value;
   const rest = Object.fromEntries(Object.entries(config).filter(([key]) => key !== 'tunnelWidth' && key !== 'tunnelHeight'));
   const size = sizes.length && !('tunnelSize' in config) ? { tunnelSize: Math.max(...sizes) } : {};
-  return { ...value, version: CATIO_SETTINGS_VERSION, config: { ...rest, ...closure, ...size } };
+  return { ...value, version: CATIO_SETTINGS_VERSION, config: { ...rest, ...closure, ...size, ...seat } };
 }
 export function parseCatioSettings(raw: string | null): CatioSettings {
   const defaults = defaultCatioSettings();

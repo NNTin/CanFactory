@@ -4,7 +4,7 @@ import type { CatioState } from './catioScene.ts';
 import { CATIO, ROOF_NET, roofBearers } from './catioDesign.ts';
 import { MODULAR as d, modularLayout, modularPortPanel, PORT_FRAME, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { buildDoorPanel } from './catioDoorScene.ts';
-import { blankPanel, insetPanel, portPanel } from './catioDoor.ts';
+import { blankPanel, insetPanel, setInDoor } from './catioDoor.ts';
 import { cubeFaces, memberBox, PORT_FACES, portRing, STANDARD_PORT } from './catioPort.ts';
 import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 import { loadSubassemblyConfig } from './catioSubassembly.ts';
@@ -242,7 +242,7 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
       const built = closed.map(f => {
         const face = faces[f]; const floor = f === 'bottom'; const material = floor ? 'solid' as const : 'mesh' as const;
         const door = tunnel.doorFixing === 'latches' ? blankPanel({ id: `${id}-door-${f}`, size: w, material, land: STANDARD_PORT.ring.width, gap: PRINTED_LATCH_JOINT.gap, floor })
-          : portPanel({ id: `${id}-door-${f}`, size: w, material, land: STANDARD_PORT.ring.width, floor });
+          : setInDoor({ id: `${id}-door-${f}`, width: w, height: w, material, seat: c.doorSeat, depth: STANDARD_PORT.ring.thickness, floor });
         return buildDoorPanel(p, door, { origin: face.at, u: face.frame.x, v: face.frame.z, n: [-face.n[0], -face.n[1], -face.n[2]] },
           { timber: component(`${id}-door-${f}`, 4, 'timber', [0, 0, 250]), mesh: component(`${id}-door-${f}-mesh`, 4, 'mesh', [0, 0, 250]), hardware: component(`${id}-door-${f}-hardware`, 4, 'hardware', [0, 0, 250]) });
       });

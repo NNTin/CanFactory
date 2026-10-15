@@ -4,7 +4,7 @@ import { MESH_LABELS, meshCut, meshRollLine } from './catioMesh.ts';
 import { type CatioView } from './catioDesign.ts';
 import { E_PROFILE_SEAL, latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine, printedLatchScrews } from './catioPrintedLatch.ts';
 import type { CatioMode } from './catioSettings.ts';
-import { blankPanel, CLOSURE_WORDS, DOOR, doorBom, doorFacts, doorLibraryParts, insetPanel, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, portPanel, type DoorFrame, type DoorPanel } from './catioDoor.ts';
+import { blankPanel, CLOSURE_WORDS, DOOR, doorBom, doorFacts, doorLibraryParts, insetPanel, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, setInDoor, type DoorFrame, type DoorPanel } from './catioDoor.ts';
 import { BOLTS_PER_SIDE, boltStations, CUBE_BLOCK, portOutline, cubeEdge, cubeFaces, edgeStripSection, edgeStripSegments, DOOR_FIXING_LABELS, facePoint, frameAlong, PORT_FACES, portLatches, portRing, STANDARD_PORT, type Face, type Frame, type PortFace, type PortLatch, type PortRole, type Rect } from './catioPort.ts';
 import { couplingGap, savedTunnelCoupling, SUPPORT_FIXING_LABELS, SUPPORT_SOLE, supportControls, type SupportBase, type SupportFixing, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { fastenerClashes, fastenersAlong, loadSubassemblyConfig, parseControlled, type LegacySettings, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type SubassemblyPreset, type V3 } from './catioSubassembly.ts';
@@ -271,7 +271,7 @@ export interface Fastener {
 /** `span`: where its opening is along the section from its start, between the flanges (beside a mitre, its square part). */
 export interface SideAccessPanel { id: string; piece: string; side: -1 | 1; door: DoorPanel; frame: DoorFrame; span: [number, number] }
 /**
- * A door closing a face of a cube that the tunnel does not run through (catioDoor.ts `blankPanel` or `portPanel`), in its own frame
+ * A door closing a face of a cube that the tunnel does not run through (catioDoor.ts `setInDoor` or `blankPanel`), in its own frame
  * `frame` (n out of the cube), and the latches that hold it when the port's own latches do (base plates on the cube's left of the face
  * seen from outside, on the door's right).
  */
@@ -623,7 +623,7 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
     const floor = f === 'bottom'; const material = floor ? 'solid' as const : 'mesh' as const;
     const door = joint.doorFixing === 'latches'
       ? blankPanel({ id, size: w, material, land: F, gap: doorGap, floor })
-      : portPanel({ id, size: w, material, land: F, floor });
+      : setInDoor({ id, width: w, height: w, material, seat: site.window.seat, depth: T, floor });
     const frame: DoorFrame = { origin: face.at, u: face.frame.x, v: face.frame.z, n: mul(face.n, -1) };
     const latches = joint.doorFixing === 'latches' ? portLatches(id, face, w, joint.latchesPerSide, doorGap) : [];
     for (const mount of latches) latchFasteners(mount, p.id, p.id);
@@ -1115,7 +1115,7 @@ export function tunnelSteps(_variant: CatioMode, config: TunnelConfig): readonly
   const cubeFrame = cubes ? ` Each of the ${cubes} ${cubes === 1 ? 'cube' : 'cubes'} is six flange rings, every one a standard port flush with its face, with a ${CUBE_BLOCK} × ${CUBE_BLOCK} block in each corner behind its three rings, screwed through each (5 × 70). Glue and screw a ${strip} × ${strip} edge strip into each edge, against both rings’ sides, in lengths that stop short of every latch station, so that each latch has its pocket.` : '';
   const doorWords = !l.doors.length ? '' : l.joint.doorFixing === 'latches'
     ? ` Close every face of a cube that the tunnel does not run through with its door (${l.doors.length}): a blank flange ring with mesh clamped over it under cover strips, or a plywood sheet and a floor plug on the floor face. ${doorLatches ? `Screw on its latches’ plates as on a flange, ` : ''}hold it ${PRINTED_LATCH_JOINT.gap} mm off the port and close its latches over centre.`
-    : ` Close every face of a cube that the tunnel does not run through with its door (${l.doors.length}): screw the locating strips onto the port’s ring on all four sides, each door turn button on its washer; lay the panel on the ring between them (the plywood one, its plug in the opening, on the floor face), turn every button over it and drop its locking pin.`;
+    : (() => { const d = l.doors[0]?.door; const rebate = d?.seat === 'rebate'; return ` Close every face of a cube that the tunnel does not run through with its door (${l.doors.length}), set into the ring’s opening: ${rebate ? `rout a ${d.rebate?.width ?? 0} × ${Math.round(d.rebate?.depth ?? 0)} rebate round the opening on the ring’s outer face` : `glue and screw the ${DOOR.setIn.lap} × ${DOOR.setIn.stop} door stops inside the ring’s opening`}, screw a door turn button on its washer onto the ring at the middle of each side, pointing clear; set the panel in (the plywood one, its plug in the opening, on the floor face), turn every button over it and drop its locking pin.`; })();
   const couple = [
     latched.length ? `At ${latched.length === l.couplings.filter(c => c.stage === 5).length ? 'every coupling' : `${latched.length} square couplings`}${latched.some(c => c.seal) ? ' stick the E-profile seal round the flange’s face, lay the next piece' : ' lay the next piece'} ${l.gap} mm short of it, hook each latch’s link over its catch and press the lever down over centre.` : '',
     bolted.length ? `At ${latched.length ? `the ${bolted.length} mitred ${bolted.length === 1 ? 'joint' : 'joints'}` : 'every coupling'} push ${l.joint.boltsPerCoupling} M8 × 80 bolts through both flanges with a large washer each side and tighten the nuts.` : '',
@@ -1258,7 +1258,7 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
   }
   // the cut list by kind of member, then longest first
   const kinds = ['Flange stile', 'Flange head or sill', 'Section rail', 'Collar rail', 'Edge strip', 'Corner block', 'Floor board', 'Collar floor', 'Floor cleat', 'Bearer', 'Low bearer', 'Low bearer, wide', 'Leg', 'Sole', 'Floor prop', 'Brace', 'Port marking template', 'Strap cleat', 'Keeper', 'Panel frame, upright', 'Panel frame, rail', 'Panel cover strip, upright', 'Panel cover strip, rail', 'Access stop, head and sill', 'Access stop, end',
-    'Door ring, stile', 'Door ring, head or sill', 'Door cover strip', 'Door sheet', 'Floor plug', 'Locating strip, side', 'Locating strip, end'];
+    'Door ring, stile', 'Door ring, head or sill', 'Door cover strip', 'Door sheet', 'Floor plug', 'Door frame, upright', 'Door frame, rail', 'Door stop, head and sill', 'Door stop, side'];
   const length = (line: BomLine) => Number(/· (\d+)/.exec(line.size)?.[1] ?? 0);
   const cut = lines.filter(line => line.group === 'Timber').sort((x, y) => kinds.indexOf(x.name) - kinds.indexOf(y.name) || length(y) - length(x));
   return [...cut, ...lines.filter(line => line.group !== 'Timber')];

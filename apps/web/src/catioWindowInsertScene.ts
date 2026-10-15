@@ -333,12 +333,13 @@ export function createWindowInsertScene(variant: CatioMode, config: WindowInsert
     const door = closure?.door; const gate = closure?.gate;
     if (door) {
       // every piece comes in from the room side: along the door's own n
-      const strips = door.fixed.reduce((n, f) => n + f.timber.boxes.length, 0);
-      for (const f of door.fixed) move(f.group, 6, [0, 0.2], [0, 0, 200], `${strips} × Sill stop and locating strip: glued and screwed on round the port, from the room side`);
-      move(door.fixedScrews, 6, [0.2, 0.3], [0, 0, 120], 'Screws: through the sill stop and the locating strips');
-      if (door.seal) move(door.seal, 6, [0.3, 0.4], [0, 0, 160], 'Seal: stuck round the seat, on the jambs, the transom and the sill stop');
-      for (const b of door.buttons) move(b.group, 6, [0.4, 0.55], [0, 0, 140], `${door.buttons.length} × Door turn button: screwed onto the strips on its washer, pointing clear of the opening`);
-      for (const g of [door.panel, door.panelMesh, door.panelHardware]) move(g, 6, [0.6, 0.85], [0, 0, 260], 'Cat-port panel: stood on the threshold and pressed onto the seal, from the room side');
+      // the set-in panel's seat: its stop strips inside the port (none in a rebate, which is cut in the port frame), then its seal
+      const stops = door.fixed.reduce((n, f) => n + f.timber.boxes.length, 0);
+      for (const f of door.fixed) move(f.group, 6, [0, 0.2], [0, 0, 200], `${stops} × Door stop: glued and screwed inside the port, from the room side`);
+      if (stops) move(door.fixedScrews, 6, [0.2, 0.3], [0, 0, 120], 'Screws: through the door stops');
+      if (door.seal) move(door.seal, 6, [0.3, 0.4], [0, 0, 160], `Seal: stuck round the seat, ${stops ? 'on the stops' : 'in the rebate'}`);
+      for (const b of door.buttons) move(b.group, 6, [0.4, 0.55], [0, 0, 140], `${door.buttons.length} × Door turn button: screwed onto the port frame’s room face on its washer, pointing clear of the opening`);
+      for (const g of [door.panel, door.panelMesh, door.panelHardware]) move(g, 6, [0.6, 0.85], [0, 0, 260], 'Cat-port panel: set into the port, standing on its threshold, pressed onto the seal, from the room side');
     } else if (gate) {
       for (const g of gate.tracks) move(g, 6, [0, 0.3], [0, -220, 0], '2 × Gate track: fixed on the room side of the port');
       move(gate.leaf, 6, [0.4, 0.7], [0, 0, layout.port.height + GATE_RISE], 'Cat gate: lowered into its tracks from above');

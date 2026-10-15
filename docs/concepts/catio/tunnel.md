@@ -306,10 +306,11 @@ shows, what is unverified and the checks to make on a built panel.
    - With welded wire mesh (**Mesh**) it is three panels a section, stapled every 15 cm all round.
    - **Close the cubes.** Every face of a cube the tunnel does not run through gets its door
      ([standard-port.md](standard-port.md)).
-     - By default the door is a blank flange ring with mesh clamped over it under cover strips, or a plywood sheet and a
-       floor plug on the floor face. It is held off the port across the 3 mm gap and latched like a coupling.
-     - With **Door held by** = *turn buttons*, it is a panel laid on the ring between locating strips, every door turn button
-       turned over it.
+     - By default the door is set into the ring's opening on its seat (stop strips, or a rebate: the catio page's **Door
+       seat**): a slim framed mesh panel, or a plywood sheet and a floor plug on the floor face, and its four door turn
+       buttons, one at the middle of each side, are turned over it.
+     - With **Door held by** = *a blank on the latches*, it is a blank flange ring with mesh clamped over it under cover
+       strips (or a sheet), held off the port across the 3 mm gap and latched like a coupling.
 5. **Lay and couple.** Lower the pieces onto the supports one by one from the window end, sticking the seal round each
    flange's face before the next piece goes down. Then close every latch over centre (or bolt every coupling) as the
    coupling page sets. The latches' plates were screwed onto the flanges' sides while framing (stage 3).

@@ -85,14 +85,20 @@ latches go when the port is turned a quarter round.
 
 ## Doors (`Door held by`, on the tunnel–tunnel coupling page)
 
-| | Held by the port's latches (default) | Held by turn buttons |
-| --- | --- | --- |
-| The door | A blank: a ring like the port's (30 × 70) with mesh under cover strips on its outer face, or a 12 mm plywood sheet | A panel the opening plus 13 mm all round (mesh in a frame, or plywood) laid on the ring |
-| Held | By the port's own latches across the 3 mm gap: the door carries the other halves, as a coupled element would | By door turn buttons on locating strips on all four sides of the ring, the same on every side |
-| Floor face | Plywood sheet and a plug filling the gap and the opening | Plywood panel and a plug filling the opening |
-| Builder | `blankPanel` | `portPanel` |
+The doors look like the PawHut tunnel's: a slim panel set into the opening, about flush with the ring, with a turn button at the
+middle of each side. The first version laid a panel over the ring between locating strips, or latched a whole blank ring onto
+it; on a cube, with a door on four or five faces, that was bulky.
 
-The turn buttons are the removable doors' buttons from [removable-doors.md](removable-doors.md), placed on the ring's face.
+| | Set in, held by turn buttons (default) | A blank, held by the port's latches |
+| --- | --- | --- |
+| The door | A slim panel set into the opening, 1 mm behind the ring's face: mesh stapled on the back of a 25 × 17 frame, or an 18 mm plywood sheet | A ring like the port's (30 × 70) with mesh under cover strips on its outer face, or a 12 mm plywood sheet |
+| Seated | **Door seat** (catio page): 12 × 10 stop strips inside the ring's opening (default, the easier to make), or a 12 mm rebate round it | On the port's face, across the 3 mm gap |
+| Held | Four door turn buttons on the ring's face, one at the middle of each side: the same on every side | By the port's own latches: the door carries the other halves, as a coupled element would |
+| Floor face | Plywood sheet and a plug filling the ring's depth behind it | Plywood sheet and a plug filling the gap and the opening |
+| Builder | `setInDoor` | `blankPanel` |
+
+The turn buttons are the removable doors' buttons from [removable-doors.md](removable-doors.md), placed on the ring's face. With
+stop strips the cats' opening is 24 mm smaller each way while the door is in; the strips stay when it is out.
 Each has a captive locking pin (issue #85): a 2.5 × 16 parallel pin under a printed knob drops 6 mm into the strip, and the
 button turns only once it is lifted.
 They are not the turn buttons that can hold the tunnel on its supports, nor the couplings' toggle latches.

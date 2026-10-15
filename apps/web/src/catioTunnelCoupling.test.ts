@@ -150,8 +150,8 @@ describe('tunnel–tunnel coupling', () => {
     expect(facts.find(f => f.label === 'Gap · seal')?.value).toBe('3 mm · squashed from 4 mm');
     expect(facts.find(f => f.label === 'Section length')).toMatchObject({ value: `${Number((elementLength(site, TUNNEL_COUPLING_DEFAULT) / 10).toFixed(1))} cm · the longest section`, from: { page: 'tunnel', settings: ['sectionLength'] } });
     expect(facts.find(f => f.label === 'Enclosure end')?.value).toBe('Latched: a standard port like every other');
-    expect(facts.find(f => f.label === 'Doors · held by')?.value).toBe('On the tunnel’s cubes · the port’s own toggle latches');
-    expect(tunnelCouplingFacts('modular', { ...TUNNEL_COUPLING_DEFAULT, doorFixing: 'turn-buttons' }, cubes).find(f => f.label === 'Doors · held by')?.value).toBe('8 on these two cubes · turn buttons on the port’s ring');
+    expect(facts.find(f => f.label === 'Doors · held by')?.value).toBe('On the tunnel’s cubes · set in, turn buttons on the port’s ring');
+    expect(tunnelCouplingFacts('modular', { ...TUNNEL_COUPLING_DEFAULT, doorFixing: 'latches' }, cubes).find(f => f.label === 'Doors · held by')?.value).toBe('8 on these two cubes · a blank on the port’s own toggle latches');
     expect(tunnelCouplingFacts('modular', { ...TUNNEL_COUPLING_DEFAULT, seal: 'none' }, site).find(f => f.label === 'Gap · seal')?.value).toBe('3 mm · left open');
     expect(tunnelCouplingFacts('modular', { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' }, site).find(f => f.label === 'Bolts per coupling')?.value).toMatch(/^8 × ISO 4017 M8 × 80/);
   });
@@ -459,11 +459,11 @@ describe('tunnel–tunnel coupling page settings', () => {
     const defaults = defaultSubassemblySettings(tunnelCouplingDefinition);
     expect(defaults.variant).toBe('modular');
     expect(defaults.views.modular.windowOpen).toBe(false);
-    expect(defaults.config).toEqual({ mechanism: 'printed-latch', latchesPerSide: 2, boltsPerCoupling: 8, seal: 'e-profile', doorFixing: 'latches', jointShown: 'tunnel', supportFixing: 'screws', supportBase: 'trestle' });
-    const saved = JSON.stringify({ version: 1, variant: 'direct', config: { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 12, latchesPerSide: 5, seal: 'foam', doorFixing: 'turn-buttons' }, views: { modular: { progress: 3, windowOpen: true, view: 'Mounting' } } });
+    expect(defaults.config).toEqual({ mechanism: 'printed-latch', latchesPerSide: 2, boltsPerCoupling: 8, seal: 'e-profile', doorFixing: 'turn-buttons', jointShown: 'tunnel', supportFixing: 'screws', supportBase: 'trestle' });
+    const saved = JSON.stringify({ version: 1, variant: 'direct', config: { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 12, latchesPerSide: 5, seal: 'foam', doorFixing: 'latches' }, views: { modular: { progress: 3, windowOpen: true, view: 'Mounting' } } });
     const settings = parseSubassemblySettings(tunnelCouplingDefinition, saved);
     expect(settings.variant).toBe('modular');
-    expect(settings.config).toEqual({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 12, doorFixing: 'turn-buttons' });
+    expect(settings.config).toEqual({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 12, doorFixing: 'latches' });
     // saved before the bolts were the same on all four sides of the port: 6 (three a side, on two sides) is not offered, and takes the default
     expect(parseSubassemblySettings(tunnelCouplingDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_COUPLING_DEFAULT, boltsPerCoupling: 6 } })).config.boltsPerCoupling).toBe(8);
     expect(settings.views.modular).toMatchObject({ progress: 3, windowOpen: true, view: 'Mounting' });

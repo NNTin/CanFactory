@@ -20,10 +20,10 @@ export const STANDARD_PORT = {
 } as const;
 const T = STANDARD_PORT.ring.thickness; const F = STANDARD_PORT.ring.width;
 
-/** How a door is held on a port: by the port's own toggle latches, as a coupling is, or by turn buttons on its ring. */
-export const DOOR_FIXINGS = ['latches', 'turn-buttons'] as const;
+/** How a door is held on a port: set into it, by turn buttons on its ring (the default), or a blank held by the port's own toggle latches, as a coupling is. */
+export const DOOR_FIXINGS = ['turn-buttons', 'latches'] as const;
 export type DoorFixing = typeof DOOR_FIXINGS[number];
-export const DOOR_FIXING_LABELS: Record<DoorFixing, string> = { latches: 'The port’s own toggle latches', 'turn-buttons': 'Turn buttons on the port’s ring' };
+export const DOOR_FIXING_LABELS: Record<DoorFixing, string> = { 'turn-buttons': 'Set in, turn buttons on the port’s ring', latches: 'A blank on the port’s own toggle latches' };
 
 /** The ring's outline: the port's size across its outer edges. */
 export const portOutline = (s: number) => s + 2 * F;
