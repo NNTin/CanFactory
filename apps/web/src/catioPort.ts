@@ -226,6 +226,13 @@ export function sidePortFaces(centre: V3, frame: Frame, s: number, pocket: numbe
   const side = cubeFaces(centre, frame, s + 2 * F, s).right;
   return { back, side };
 }
+/**
+ * The side port's face on a section's `side` (+1 right, −1 left, looking along it) round the middle of its opening at `centre`, in the
+ * section's frame: its normal into the section, its frame's x to the right seen from outside, as a section's end faces are.
+ */
+export function sidePortFace(centre: V3, frame: Frame, s: number, side: -1 | 1): Face {
+  const faces = cubeFaces(centre, frame, s + 2 * F, s); return side > 0 ? faces.right : faces.left;
+}
 /** How far into the side ring, from its face, the latches' parts reach as they swing: what the pocket post stays behind. */
 export const LATCH_SWING_INTO = Math.max(LATCH_REACH.swing.u[1] - PRINTED_LATCH.overhang, LATCH_INTO_RING);
 /**

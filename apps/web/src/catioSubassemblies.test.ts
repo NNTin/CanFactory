@@ -90,7 +90,7 @@ describe('catio pages that follow each other', () => {
     ]);
     expect(dependentsOf('tunnel')).toEqual([
       { page: 'insert-tunnel-coupling', settings: [] },
-      { page: 'tunnel-tunnel-coupling', settings: ['mesh', 'straights', 'sectionLength', 'sideAccess', 'sideAccessSide', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance', 'supportFixing', 'supportBase'] },
+      { page: 'tunnel-tunnel-coupling', settings: ['mesh', 'sectionLength', 'sideAccess', 'sideAccessSide', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance', 'supportFixing', 'supportBase'] },
     ]);
     expect(dependentsOf('insert-tunnel-coupling')).toEqual([]);
     expect(dependentsOf('tunnel-tunnel-coupling')).toEqual([{ page: 'tunnel', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal', 'doorFixing'] }]);

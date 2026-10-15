@@ -462,7 +462,7 @@ describe('saved settings from before the closure could be chosen', () => {
     expect(couplingDefinition.doorToggle?.('modular', COUPLING_DEFAULT)).toBe('Cat port open');
     // the tunnel's side access and its cubes' doors open together
     expect(tunnelDefinition.doorToggle?.('modular', TUNNEL_DEFAULT)).toBe('Doors open');
-    expect(tunnelDefinition.doorToggle?.('modular', { ...TUNNEL_DEFAULT, sideAccess: 'none' })).toBe('Cube doors open');
+    expect(tunnelDefinition.doorToggle?.('modular', { ...TUNNEL_DEFAULT, sideAccess: 'none' })).toBe('End doors open');
     const noCubes = { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar' as const };
     expect(tunnelDefinition.doorToggle?.('modular', noCubes)).toBe('Side access open');
     expect(tunnelDefinition.doorToggle?.('modular', { ...noCubes, sideAccess: 'none' })).toBeNull();
@@ -706,7 +706,7 @@ describe('tunnel side access', () => {
         // the roof: the same panels, corners and edges, and the same staples along them
         const roof = (layout: typeof l) => layout.panels.filter(panel => panel.id.endsWith('-mesh-roof'));
         // (a cube has no roof mesh of its own: its roof is a door)
-        expect(roof(l), label).toEqual(roof(plain)); expect(roof(l)).toHaveLength(l.pieces.filter(p => p.kind !== 'cube').length);
+        expect(roof(l), label).toEqual(roof(plain)); expect(roof(l)).toHaveLength(l.pieces.length);
         expect(roofStaples(l), label).toEqual(plainRoofStaples);
         // the other fasteners too, but for the mesh of the side that is now a panel
         const notMesh = (layout: typeof l) => layout.fasteners.filter(f => f.component !== 'staples');
@@ -732,7 +732,8 @@ describe('tunnel side access', () => {
         }
         return to - from;
       };
-      const able = l.pieces.filter(p => p.kind === 'section' && sideSpan(p) >= TUNNEL.access.minLength);
+      // (not on the side of a side port: its ring is there)
+      const able = l.pieces.filter(p => p.kind === 'section' && p.sidePort?.side !== (config.sideAccessSide === 'left' ? -1 : 1) && sideSpan(p) >= TUNNEL.access.minLength);
       for (const p of able.filter(square)) expect(sideSpan(p)).toBeCloseTo(p.length - 2 * T, 9);
       expect(config.supportFixing).not.toBe('strap');
       expect(l.access.map(a => a.piece), JSON.stringify(config)).toEqual(config.sideAccess === 'all' ? able.map(p => p.id) : config.sideAccess === 'one' ? able.slice(Math.floor(able.length / 2), Math.floor(able.length / 2) + 1).map(p => p.id) : []);
@@ -808,8 +809,9 @@ describe('tunnel side access', () => {
           for (const button of s.hold.buttons) for (const box of [button.keeper, button.post, button.button]) expect(inZone(s, box), `${a.id} ${s.id}`).toBe(false);
           for (const cleat of s.hold.strap?.cleats ?? []) expect(inZone(s, cleat), `${a.id} ${s.id} strap cleat`).toBe(false);
           for (const point of s.hold.dowels) expect(inZone(s, { center: point, size: [8, 8, 40] }), `${a.id} ${s.id} dowel`).toBe(false);
-          // a strap goes over the tunnel at a support: over the flanges, never over the panel
-          const beside = (point: [number, number, number]) => { const d = vec.sub(point, middle); return vec.len(vec.sub(d, vec.mul(piece.frame.y, vec.dot(d, piece.frame.y)))) < l.w + 2 * TUNNEL.flange.width; };
+          // a strap goes over the tunnel at a support: over the flanges, never over the panel (a strap at a side port on the
+          // section's other side runs down that side)
+          const beside = (point: [number, number, number]) => { const d = vec.sub(point, middle); return vec.len(vec.sub(d, vec.mul(piece.frame.y, vec.dot(d, piece.frame.y)))) < l.w + 2 * TUNNEL.flange.width && vec.dot(d, piece.frame.x) * a.side > -l.w / 2; };
           for (const point of s.hold.strap?.path ?? []) if (beside(point) && along(point) < piece.length / 2 + 100) expect(along(point), `${a.id} strap`).toBeGreaterThan(half);
         }
         // a strap would cross the first, the last and any sloped section's side: with straps those have no panel

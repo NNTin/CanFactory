@@ -15,7 +15,7 @@ import { buildDoorPanel } from './catioDoorScene.ts';
 import { PORT_FRAME } from './catioModularDesign.ts';
 import { groundAt, tunnelBounds, tunnelLayout, tunnelSite, TUNNEL, vec, type Member, type Piece, type Rect, type TunnelConfig, type TunnelLayout, type TunnelSite } from './catioTunnel.ts';
 import { savedTunnelCoupling, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
-import { buildAccessPanels, buildCouplingJoint, buildCubeDoors, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
+import { buildAccessPanels, buildCouplingJoint, buildEndDoors, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
 
 /** Stages 3–4 frame and mesh the sections this far above their line; stage 5 lowers them onto the supports. */
 export const LIFT = 650;
@@ -31,29 +31,28 @@ export interface PieceMotion {
 }
 
 /**
- * Which way a flange ring, rail or floor board comes in while a section is framed: rings along the axis (a cube's from outside each
- * face), rails from the side, the floor from above.
+ * Which way a flange ring, rail, post or floor board comes in while a section is framed: rings along their normal from outside
+ * (a side port's from the side), rails and posts from the side, the floor from above.
  */
 export function memberApproach(mem: Member, owner: Piece): V3 {
-  return mem.kind === 'flange' ? vec.mul(mem.from.n, mem.toOffset > 0 ? -160 : 160) : mem.kind === 'rail' ? vec.mul(owner.frame.x, (mem.rect[0] + mem.rect[1]) > 0 ? 220 : -220) : vec.mul(owner.frame.z, 260);
+  return mem.kind === 'flange' ? vec.mul(mem.from.n, mem.toOffset > 0 ? -160 : 160) : mem.kind === 'rail' || mem.kind === 'post' ? vec.mul(owner.frame.x, (mem.rect[0] + mem.rect[1]) > 0 ? 220 : -220) : vec.mul(owner.frame.z, 260);
 }
 /** The caption for a member coming in, for all the pieces of its kind in `layout` (or in `pieces` of it). */
 export function memberCaption(layout: TunnelLayout, mem: Member, collars: boolean, pieces?: string[]): string {
   const of = (id: string) => !pieces || pieces.includes(id);
   const count = pieces ? pieces.length : layout.pieces.length;
-  const shown = layout.pieces.filter(q => of(q.id)); const cubes = shown.filter(q => q.kind === 'cube').length;
-  const named = (name: string) => layout.members.filter(n => n.kind === 'rail' && of(n.piece) && n.name === name).length;
-  const blocks = named('Corner block'); const strips = named('Edge strip');
-  return mem.kind === 'flange' ? `${(count - cubes) * 2 + cubes * 6} × Flange ring: stood at each end of every ${collars ? 'section and collar' : 'section'}${cubes ? ', and on every face of every cube' : ''}`
-    : mem.kind === 'rail' ? (mem.name === 'Corner block' ? `${blocks} × Corner block: set in behind a cube’s three rings` : mem.name === 'Edge strip' ? `${strips} × Edge strip: glued into a cube’s edges between its latches`
-      : `${layout.members.filter(n => n.kind === 'rail' && of(n.piece)).length - blocks - strips} × Rail: offered between the flanges from the side`) : `${count - cubes} × Floor board: laid onto the bottom rails`;
+  const ported = layout.pieces.filter(q => of(q.id) && q.sidePort).length;
+  const posts = layout.members.filter(n => n.kind === 'post' && of(n.piece)).length;
+  return mem.kind === 'flange' ? (mem.name.startsWith('Side ring') ? `${ported} × Side ring: screwed onto the rails of the section after each turn, its face flush with the flanges` : `${count * 2} × Flange ring: stood at each end of every ${collars ? 'section and collar' : 'section'}`)
+    : mem.kind === 'post' ? `${posts} × Pocket post: stood in each pocket beside a side port, under the top rail`
+    : mem.kind === 'rail' ? `${layout.members.filter(n => n.kind === 'rail' && of(n.piece)).length} × Rail: offered between the flanges from the side` : `${count} × Floor board: laid onto the bottom rails`;
 }
 
 /** The tunnel on its site: every piece of `tunnelLayout`, staged as `tunnelSteps` describes. */
 export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, site: TunnelSite = tunnelSite(), joint: TunnelCouplingConfig = savedTunnelCoupling()): SubassemblyModel & {
   layout: ReturnType<typeof tunnelLayout>; motions: PieceMotion[]; carriers: Map<string, number>; drops: Map<string, number>;
   levers: { mount: LatchMount; lever: THREE.Group; setOpen: (open: number) => void }[];
-  holds: ReturnType<typeof buildSupportHold>[]; accessPanels: ReturnType<typeof buildAccessPanels>; cubeDoors: ReturnType<typeof buildCubeDoors>;
+  holds: ReturnType<typeof buildSupportHold>[]; accessPanels: ReturnType<typeof buildAccessPanels>; endDoors: ReturnType<typeof buildEndDoors>;
   /** The enclosure's own cat-port panel at the tunnel's far end, seated: null with sliding gates. */
   enclosureClosure: ReturnType<typeof buildDoorPanel> | null;
 } {
@@ -215,10 +214,11 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
   const sections = layout.pieces.filter(q => q.kind === 'section').length; const collars = layout.pieces.length - sections;
   const built = buildSectionPieces(p, draw, layout);
   for (const { member: mem, group: g } of built.members) {
-    const id = mem.kind === 'flange' ? 'flanges' : mem.kind === 'rail' ? 'rails' : 'floor-boards';
+    const id = mem.kind === 'flange' ? 'flanges' : mem.kind === 'rail' || mem.kind === 'post' ? 'rails' : 'floor-boards';
     group(id, 3, 'timber').add(g);
     const owner = layout.pieces.find(q => q.id === mem.piece); if (!owner) continue;
-    const window: [number, number] = mem.kind === 'flange' ? [0, 0.2] : mem.kind === 'rail' ? [0.2, 0.4] : [0.55, 0.7];
+    // (a side port's ring and its posts go on once the section's rails and floor are on)
+    const window: [number, number] = mem.kind === 'flange' ? (mem.name.startsWith('Side ring') ? [0.4, 0.5] : [0, 0.2]) : mem.kind === 'rail' ? [0.2, 0.4] : mem.kind === 'post' ? [0.4, 0.5] : [0.55, 0.7];
     move(g, 3, window, memberApproach(mem, owner), memberCaption(layout, mem, collars > 0), { role: 'timber', carrier: owner.id });
   }
   for (const { cleat, group: g } of built.cleats) {
@@ -235,11 +235,11 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     const out = owner ? (panel.id.endsWith('roof') ? vec.mul(owner.frame.z, 240) : vec.mul(owner.frame.x, panel.id.endsWith('left') ? -240 : 240)) : [0, 0, 240] as V3;
     move(g, 4, [0, 0.5], out, `${layout.panels.length} × Mesh panel: offered up to the rails`, { role: 'mesh', carrier: panel.piece });
   }
-  // Stage 4: every cube's doors, each closing a face the tunnel does not run through: latched or buttoned on from outside.
-  const cubeDoors = buildCubeDoors(p, layout, () => ({ timber: group('cube-doors', 4, 'timber'), mesh: group('cube-door-mesh', 4, 'mesh'), hardware: group('cube-door-hardware', 4, 'hardware') }));
-  const doorWords = layout.joint.doorFixing === 'latches' ? 'held off its port across the gap and latched' : 'laid on its port’s ring, every door turn button turned over it';
-  for (const { access, roots } of cubeDoors) for (const root of roots) {
-    move(root, 4, [0.5, 1], vec.mul(access.frame.n, 260), `${cubeDoors.length} × Cube door: ${doorWords}`, { role: 'access', carrier: access.piece });
+  // Stage 4: the end door of the stub behind every side port: latched on, or set in and buttoned, from outside.
+  const endDoors = buildEndDoors(p, layout, () => ({ timber: group('end-doors', 4, 'timber'), mesh: group('end-door-mesh', 4, 'mesh'), hardware: group('end-door-hardware', 4, 'hardware') }));
+  const doorWords = layout.joint.doorFixing === 'latches' ? 'held off its port across the gap and latched' : 'set into its port, every door turn button turned over it';
+  for (const { access, roots } of endDoors) for (const root of roots) {
+    move(root, 4, [0.5, 1], vec.mul(access.frame.n, 260), `${endDoors.length} × Stub’s end door: ${doorWords}`, { role: 'access', carrier: access.piece });
   }
   // Stage 4: the side-access panels, each made up and offered into its opening from outside, its buttons turned over it.
   const accessPanels = buildAccessPanels(p, layout, () => ({ timber: group('access-panels', 4, 'timber'), mesh: group('access-panel-mesh', 4, 'mesh'), hardware: group('access-buttons', 4, 'hardware') }));
@@ -302,16 +302,6 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     }
   }
 
-  // Stage 6: a floor prop under each cube's floor door, on its own slab
-  const propParts = layout.props.map(prop => {
-    const slab = group('prop-slabs', 6, 'environment'); const post = group('floor-props', 6, 'timber');
-    const g = draw.group([prop.at[0], prop.at[1], prop.slabTop - TUNNEL.slab.thickness / 2]);
-    p.box(g, [TUNNEL.slab.size, TUNNEL.slab.size, TUNNEL.slab.thickness], [0, 0, 0], m.floor); slab.add(g);
-    const q = draw.group([prop.at[0], prop.at[1], prop.slabTop + prop.length / 2]);
-    p.box(q, [TUNNEL.floorProp, TUNNEL.floorProp, Math.max(prop.length, 1)], [0, 0, 0], m.endgrain); post.add(q);
-    move(q, 6, [0.4, 0.6], [0, 0, -Math.max(prop.length, 60)], `${layout.props.length} × Floor prop: stood on its slab under the cube’s floor door, cut to the gap`, { role: 'timber' });
-    return q;
-  });
   for (const c of p.components.slice(first)) p.root.add(c.group);
   const bases = motions.map(motion => motion.object.position.clone());
   const baseQuaternions = motions.map(motion => motion.object.quaternion.clone());
@@ -355,10 +345,8 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     for (const b of holdButtons) b.setTurn(1 - turning);
     // the page's toggle opens the side-access panels of the finished tunnel: buttons clear, panels lifted out sideways
     const travel = state.progress >= 6 && !state.exploded ? state.door ?? 0 : 0;
-    for (const a of [...accessPanels, ...cubeDoors]) a.set(travel);
-    // a floor door comes out only with its prop taken away
-    for (const q of propParts) q.visible = q.visible && travel <= 0;
-    const opening = accessPanels[0] ? doorAction(accessPanels[0].access.door, travel, 'side-access panel') : cubeDoors[0] ? doorAction(cubeDoors[0].access.door, travel, 'cube door') : null; if (opening) active.add(opening);
+    for (const a of [...accessPanels, ...endDoors]) a.set(travel);
+    const opening = accessPanels[0] ? doorAction(accessPanels[0].access.door, travel, 'side-access panel') : endDoors[0] ? doorAction(endDoors[0].access.door, travel, 'stub’s end door') : null; if (opening) active.add(opening);
     let action: string | null = active.size > 0 ? [...active].join('; ') : null;
     if (!action && state.progress > 5 && turning > 0 && turning < 1 && holdButtons.length) action = `${holdButtons.length} × Turn button: turned flat over the keeper on the flange`;
     if (!action && state.progress > 4 && closing > 0 && closing < 1) action = `${latchCount} × Printed toggle latch: hooked over its catch, lever pressed down over centre`;
@@ -371,6 +359,6 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     hinge.rotation.z = state.windowOpen ? -Math.PI / 2 : 0;
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); dock.dispose(); draw.dispose(); for (const j of joints) j.dispose(); for (const d of cubeDoors) d.dispose(); for (const g of geometries) g.dispose(); }
-  return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, carriers, drops, levers, holds, accessPanels, cubeDoors, enclosureClosure, caption: () => currentAction };
+  function dispose() { p.dispose(); dock.dispose(); draw.dispose(); for (const j of joints) j.dispose(); for (const d of endDoors) d.dispose(); for (const g of geometries) g.dispose(); }
+  return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, carriers, drops, levers, holds, accessPanels, endDoors, enclosureClosure, caption: () => currentAction };
 }

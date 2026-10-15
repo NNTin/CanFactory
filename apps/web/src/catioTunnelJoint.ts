@@ -53,7 +53,7 @@ export interface TunnelCouplingConfig {
   seal: 'e-profile' | 'none';
   /** How a door closing a port is held there: by the port's own latches, as a coupling, or by turn buttons on its ring. */
   doorFixing: DoorFixing;
-  /** Which joint the coupling page shows: as the tunnel's straight runs are, or any two standard elements. Only that page's. */
+  /** Which joint the coupling page shows: a section's end to the next one's, or to a side port at a turn. Only that page's. */
   jointShown: JointShown;
   /** How the tunnel is held on its supports, and whether they stand on their own: the tunnel page's settings, shared here. */
   supportFixing: SupportFixing;
@@ -61,9 +61,9 @@ export interface TunnelCouplingConfig {
 }
 
 /** The joint the tunnel–tunnel coupling page shows. */
-export type JointShown = 'tunnel' | 'section-section' | 'section-cube' | 'cube-cube';
+export type JointShown = 'end-end' | 'end-side';
 
-export const TUNNEL_COUPLING_DEFAULT: TunnelCouplingConfig = { mechanism: 'printed-latch', latchesPerSide: 2, boltsPerCoupling: 8, seal: 'e-profile', doorFixing: 'turn-buttons', jointShown: 'tunnel', supportFixing: 'screws', supportBase: 'trestle' };
+export const TUNNEL_COUPLING_DEFAULT: TunnelCouplingConfig = { mechanism: 'printed-latch', latchesPerSide: 2, boltsPerCoupling: 8, seal: 'e-profile', doorFixing: 'turn-buttons', jointShown: 'end-end', supportFixing: 'screws', supportBase: 'trestle' };
 
 export const TUNNEL_COUPLING_CONTROLS: SubassemblyControl<TunnelCouplingConfig>[] = [
   { key: 'mechanism', label: 'Coupling', group: 'Coupling',
@@ -79,11 +79,11 @@ export const TUNNEL_COUPLING_CONTROLS: SubassemblyControl<TunnelCouplingConfig>[
     help: `A self-adhesive EPDM E-profile (${PRINTED_LATCH_JOINT.seal.width} × ${PRINTED_LATCH_JOINT.seal.height}, for 2–3.5 mm gaps) round the flange’s face gives the over-centre lock something to squash, and closes the gap to draughts and claws.`,
     options: [{ value: 'e-profile', label: 'EPDM E-profile in the gap' }, { value: 'none', label: 'None · gap left open' }] },
   { key: 'doorFixing', label: 'Door held by', group: 'Doors',
-    help: 'A door closes a port that is not coupled: every face of a cube that the tunnel does not run through. Held by turn buttons (the default), it is a slim mesh panel (plywood, on a floor face) set into the port about flush with the ring, as the PawHut tunnel’s doors are, seated as the catio concept page sets (stop strips or a rebate) and kept in by four buttons on the ring, each locked by its pin. Held by the port’s own latches, it is a blank flange ring closed by mesh, outside the port, that goes on and off like a coupled section: sturdier, but bulkier.',
+    help: 'A door closes a port that is not coupled: the end of the stub behind every side port. Held by turn buttons (the default), it is a slim mesh panel set into the port about flush with the ring, as the PawHut tunnel’s doors are, seated as the catio concept page sets (stop strips or a rebate) and kept in by four buttons on the ring, each locked by its pin. Held by the port’s own latches, it is a blank flange ring closed by mesh, outside the port, that goes on and off like a coupled section: sturdier, but bulkier.',
     options: DOOR_FIXINGS.map(value => ({ value, label: DOOR_FIXING_LABELS[value] })) },
   { key: 'jointShown', label: 'Joint shown', group: 'Shown',
-    help: 'Every element ends in the standard port, so any two couple the same way. As the tunnel is shows two of its straight elements: long sections, or cubes when its straight runs are cubes. Or show a long section meeting a cube’s face, or any two of either.',
-    options: [{ value: 'tunnel', label: 'As the tunnel’s straight runs' }, { value: 'section-section', label: 'Section to section' }, { value: 'section-cube', label: 'Section to cube' }, { value: 'cube-cube', label: 'Cube to cube' }] },
+    help: 'Every element ends in the standard port, and a side port is one too, so every joint couples the same way: a section’s end to the next section’s, straight on, or at a turn to the side port of the section after it.',
+    options: [{ value: 'end-end', label: 'Section end to section end' }, { value: 'end-side', label: 'Section end to a side port (a turn)' }] },
   ...supportControls<TunnelCouplingConfig>('On the support'),
 ];
 

@@ -126,11 +126,11 @@ export function buildAccessPanels(p: ReturnType<typeof createCatioParts>, layout
 }
 
 /**
- * The doors of the cubes of `pieces` (all when absent), drawn like the side-access panels. A door held by the port's own latches
- * has them drawn too, closed: the half on the door (its catches on the left of the face, its bases on the right, seen from outside)
- * comes away with it; `set` lifts every lever first, then takes the door off.
+ * The doors closing the stubs' end ports behind the side ports of `pieces` (all when absent), drawn like the side-access panels. A
+ * door held by the port's own latches has them drawn too, closed: the half on the door (its catches on the left of the face, its
+ * bases on the right, seen from outside) comes away with it; `set` lifts every lever first, then takes the door off.
  */
-export function buildCubeDoors(p: ReturnType<typeof createCatioParts>, layout: TunnelLayout, into: (piece: string) => DoorLayers, pieces?: string[]) {
+export function buildEndDoors(p: ReturnType<typeof createCatioParts>, layout: TunnelLayout, into: (piece: string) => DoorLayers, pieces?: string[]) {
   return buildDoors(p, layout.doors.filter(d => !pieces || pieces.includes(d.piece)), into);
 }
 

@@ -7,7 +7,7 @@ import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
 import { doorAction } from './catioDoor.ts';
 import { groundAt, TUNNEL, vec } from './catioTunnel.ts';
 import { ENTRY, tunnelCouplingLayout, tunnelCouplingSite, type TunnelCouplingConfig, type TunnelCouplingLayout, type TunnelCouplingSite } from './catioTunnelCoupling.ts';
-import { buildAccessPanels, buildCubeDoors, buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
+import { buildAccessPanels, buildEndDoors, buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
 import { memberApproach } from './catioTunnelScene.ts';
 
 /** Stage 1 frames the first section this far above its place, then lays it on the support. */
@@ -88,10 +88,8 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
   for (const { member, group: g } of sections.members) {
     if (member.piece === after.id) { group('second-section', 3, 'timber').add(g); move(g, 3, [0, 0.8], entry, entering, { role: 'section', of: member.id }); continue; }
     group('first-section', 1, 'timber').add(g);
-    const caption = before.kind === 'cube'
-      ? (member.kind === 'flange' ? '6 × Flange ring: one on every face of the cube, flush with it' : member.name === 'Edge strip' ? 'Edge strips: glued into the cube’s edges between its latches' : '8 × Corner block: set in behind the cube’s three rings')
-      : member.kind === 'flange' ? '2 × Flange ring: stood at each end of the section' : member.kind === 'rail' ? `${rails} × Rail: offered between the flanges from the side` : 'Floor board: laid onto the bottom rails';
-    move(g, 1, [...firstWindows[member.kind]], memberApproach(member, before), caption, { role: 'timber', of: member.id, lifted: true });
+    const caption = member.kind === 'flange' ? '2 × Flange ring: stood at each end of the section' : member.kind === 'rail' ? `${rails} × Rail: offered between the flanges from the side` : 'Floor board: laid onto the bottom rails';
+    move(g, 1, [...firstWindows[member.kind === 'post' ? 'rail' : member.kind]], memberApproach(member, before), caption, { role: 'timber', of: member.id, lifted: true });
   }
   for (const { panel, group: g } of sections.panels) {
     if (panel.piece === after.id) { group('second-section-mesh', 3, 'mesh').add(g); move(g, 3, [0, 0.8], entry, entering, { role: 'section', of: panel.id }); continue; }
@@ -108,14 +106,14 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     if (access.piece === after.id) move(root, 3, [0, 0.8], entry, entering, { role: 'section' });
     else move(root, 1, [0.72, 0.76], vec.mul(access.frame.n, 260), 'Side-access panel: stood on its opening’s sill against the stops, every door turn button turned over it', { role: 'access', lifted: true });
   }
-  // two cubes (when the tunnel's straight runs are cubes): their doors, every face but the two the tunnel runs through
-  const cubeDoors = buildCubeDoors(p, tl, piece => {
+  // the stub's end door behind the side port, at a turn
+  const endDoors = buildEndDoors(p, tl, piece => {
     const [name, step] = piece === after.id ? ['second-section', 3] as const : ['first-section', 1] as const;
     return { timber: group(`${name}-doors`, step, 'timber'), mesh: group(`${name}-door-mesh`, step, 'mesh'), hardware: group(`${name}-door-hardware`, step, 'hardware') };
   }, layout.pieces);
-  for (const { access, roots } of cubeDoors) for (const root of roots) {
+  for (const { access, roots } of endDoors) for (const root of roots) {
     if (access.piece === after.id) move(root, 3, [0, 0.8], entry, entering, { role: 'section' });
-    else move(root, 1, [0.72, 0.76], vec.mul(access.frame.n, 260), `Cube door: ${tl.joint.doorFixing === 'latches' ? 'latched onto its port' : 'laid on its port’s ring, every turn button turned over it'}`, { role: 'access', lifted: true });
+    else move(root, 1, [0.72, 0.76], vec.mul(access.frame.n, 260), `Stub’s end door: ${tl.joint.doorFixing === 'latches' ? 'latched onto its port' : 'set into its port, every turn button turned over it'}`, { role: 'access', lifted: true });
   }
   const count = (component: string) => sections.fasteners.filter(q => q.fastener.component === component && q.fastener.piece === before.id).length;
   for (const { fastener: f, group: g, part } of sections.fasteners) {
@@ -242,8 +240,8 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     if (!latchAction && clearance && state.progress > 2.8 && state.progress < 3) latchAction = 'Setting the second section down over its dowels';
     // the page's door toggle opens a side-access panel beside the joint, once both sections are coupled
     const travel = state.progress >= LAST_STAGE && !state.exploded ? state.door ?? 0 : 0;
-    for (const a of [...accessPanels, ...cubeDoors]) a.set(travel);
-    const opening = accessPanels[0] ? doorAction(accessPanels[0].access.door, travel, 'side-access panel') : cubeDoors[0] ? doorAction(cubeDoors[0].access.door, travel, 'cube door') : null; if (opening) active.add(opening);
+    for (const a of [...accessPanels, ...endDoors]) a.set(travel);
+    const opening = accessPanels[0] ? doorAction(accessPanels[0].access.door, travel, 'side-access panel') : endDoors[0] ? doorAction(endDoors[0].access.door, travel, 'stub’s end door') : null; if (opening) active.add(opening);
     let action: string | null = active.size > 0 ? [...active].join('; ') : latchAction;
     if (!action && !state.exploded && state.progress > 0.76 && state.progress < 1) action = 'Laying the first section on the support, its outgoing flange over the bearer';
     currentAction = action;
@@ -251,7 +249,7 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     focus = state.progress > 2 && state.progress < 3 && !state.exploded ? vec.mul(coupling.face.n, 0.5 * L) : [0, 0, 0];
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); draw.dispose(); jointPieces.dispose(); for (const d of cubeDoors) d.dispose(); for (const g of geometries) g.dispose(); }
+  function dispose() { p.dispose(); draw.dispose(); jointPieces.dispose(); for (const d of endDoors) d.dispose(); for (const g of geometries) g.dispose(); }
   return {
     root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers: jointPieces.latches, hold, accessPanels,
     lift: () => currentLift, entry: () => currentEntry, caption: () => currentAction, focusOffset: () => focus,

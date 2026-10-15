@@ -5,7 +5,7 @@ import { type CatioView } from './catioDesign.ts';
 import { E_PROFILE_SEAL, latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine, printedLatchScrews } from './catioPrintedLatch.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { blankPanel, CLOSURE_WORDS, DOOR, doorBom, doorFacts, doorLibraryParts, insetPanel, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, setInDoor, type DoorFrame, type DoorPanel } from './catioDoor.ts';
-import { BOLTS_PER_SIDE, boltStations, CUBE_BLOCK, portOutline, cubeEdge, cubeFaces, edgeStripSection, edgeStripSegments, DOOR_FIXING_LABELS, facePoint, frameAlong, PORT_FACES, portLatches, portRing, STANDARD_PORT, type Face, type Frame, type PortFace, type PortLatch, type PortRole, type Rect } from './catioPort.ts';
+import { BOLTS_PER_SIDE, boltStations, portOutline, DOOR_FIXING_LABELS, facePoint, frameAlong, portLatches, portRing, SIDE_POCKET, sidePocketPost, sidePortFace, sidePortLength, sidePortOffset, STANDARD_PORT, type Face, type Frame, type PortLatch, type Rect } from './catioPort.ts';
 import { couplingGap, savedTunnelCoupling, SUPPORT_FIXING_LABELS, SUPPORT_SOLE, supportControls, type SupportBase, type SupportFixing, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { fastenerClashes, fastenersAlong, loadSubassemblyConfig, parseControlled, type LegacySettings, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type SubassemblyPreset, type V3 } from './catioSubassembly.ts';
 import { parseWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertLayout, type WindowInsertConfig, type WindowSpec } from './catioWindowInsert.ts';
@@ -41,15 +41,14 @@ export interface TunnelConfig {
   /** The steepest the sloped run may be, in degrees. */
   maxSlope: 10 | 15 | 20 | 25;
   /**
-   * How the tunnel turns: a cube (every face a standard port) at each 90° corner, an angle collar cut to any angle, or two sections
-   * mitred to it. Bends into and out of a climb are angle collars unless the turns are mitred.
+   * How the tunnel turns: at a 90° side port (the run before couples its end onto a standard port in the side of the next run's
+   * first section, catioPort.ts), with an angle collar cut to any angle, or with two sections mitred to it. Bends into and out of a
+   * climb are angle collars unless the turns are mitred.
    */
-  angleJoint: 'cube-corner' | 'angle-collar' | 'mitred-ends';
+  angleJoint: 'side-port' | 'angle-collar' | 'mitred-ends';
   /** What the tunnel is meshed with: soft cat netting or welded wire mesh (`CATIO_MESHES`). */
   mesh: CatioMesh;
-  /** What the straight level runs are made of: long sections (a whole number of pitches each), or cubes, one a pitch. */
-  straights: 'long' | 'cubes';
-  /** The longest long section, in pitches (a cube's edge and a coupling's gap): each run's pitches are shared among as few as can take them. */
+  /** The longest section, in pitches (the shortest section that takes a side port, and a coupling's gap): each run's pitches are shared among as few as can take them. */
   sectionLength: 1 | 2 | 3 | 4;
   /** The feet: printed pressure pads on library screws, or Ganter levelling feet. */
   footPad: 'printed' | 'ganter';
@@ -78,8 +77,8 @@ export type SideAccess = typeof SIDE_ACCESS[number];
 export { SUPPORT_FIXINGS, SUPPORT_FIXING_LABELS, type SupportFixing } from './catioTunnelJoint.ts';
 
 export const TUNNEL_DEFAULT: TunnelConfig = {
-  portX: 1082, portY: 3450, portFacing: 0, portLevel: 'own', portHeight: 500, approach: 700, final: 2000, slopeLeg: 'final', maxSlope: 20,
-  angleJoint: 'cube-corner', mesh: CATIO_MESH_DEFAULT, straights: 'long', sectionLength: 2, footPad: 'printed', padHeight: 27.5, padSurface: 'grooved', footDiameter: 40, groundFall: 2, groundTolerance: 15,
+  portX: 1096, portY: 3044, portFacing: 0, portLevel: 'own', portHeight: 500, approach: 700, final: 2000, slopeLeg: 'final', maxSlope: 20,
+  angleJoint: 'side-port', mesh: CATIO_MESH_DEFAULT, sectionLength: 2, footPad: 'printed', padHeight: 27.5, padSurface: 'grooved', footDiameter: 40, groundFall: 2, groundTolerance: 15,
   supportFixing: 'screws', supportBase: 'trestle', sideAccess: 'one', sideAccessSide: 'right',
 };
 /** A tunnel saved before it could have side access has none: its sections stay meshed on both sides, as they were. */
@@ -100,8 +99,6 @@ export const TUNNEL = {
   /** Legs are cut to whole multiples of this; the foot takes up the rest. */
   legRound: 5,
   slab: { size: 300, thickness: 40 },
-  /** A cube's floor prop: a post this square under the middle of its floor door, on its own slab, cut to the gap. */
-  floorProp: 70,
   cleat: { size: 20, pitch: 120 },
   /** The shortest straight run: a level run before and after a slope, and one between joints. */
   minRun: 150,
@@ -115,7 +112,7 @@ export const TUNNEL = {
    */
   access: { minLength: 300, pivotEdge: 10, hoodTurn: 10 },
   /** The sharpest turn each joint type is offered for. */
-  maxTurn: { 'cube-corner': 90, 'angle-collar': 135, 'mitred-ends': 90 },
+  maxTurn: { 'side-port': 90, 'angle-collar': 135, 'mitred-ends': 90 },
   staplePitch: 150, floorScrewPitch: 200,
   /** A self-standing support's sole: along the tunnel under each leg, a foot near each of its ends. */
   sole: SUPPORT_SOLE,
@@ -180,21 +177,21 @@ export interface Joint {
   inside: number;
   /** The angle collar that fills it, when there is one. */
   collar: string | null;
-  /** The cube that turns it, at a cube corner. */
-  cube: string | null;
+  /** The section whose side port turns it, at a side-port turn. */
+  side: string | null;
 }
 export interface Piece {
-  id: string; kind: 'section' | 'collar' | 'cube'; name: string;
+  id: string; kind: 'section' | 'collar'; name: string;
   frame: Frame; start: Face; end: Face; length: number;
   /** Degrees the piece climbs (its axis); a collar's is that of its chord. */
   pitch: number;
   joint: string | null;
   /**
-   * A cube's own: its centre, its six faces (each a standard port's plane, normal into the cube: catioPort.ts `cubeFaces`) and what
-   * each is, coupled (the tunnel runs through it) or closed by a door. A cube's start is its back face and its end the face the
-   * tunnel leaves by, in the frame of the run after it.
+   * A side port in the section's side, at a side-port turn (catioPort.ts `sidePortFace`): `offset` along it from its start, on its
+   * `side` (+1 right, −1 left, looking along it), `face` the port's plane (normal into the section), `from` the piece whose end is
+   * coupled to it. The section's start is then a stub, its port closed by a door.
    */
-  cube: { centre: V3; faces: Record<PortFace, Face>; roles: Record<PortFace, PortRole> } | null;
+  sidePort: { offset: number; side: -1 | 1; face: Face; from: string } | null;
 }
 /**
  * Where two pieces meet, or a piece meets a port. `face` is the start face of the piece after it (the end face at the port); at a
@@ -271,17 +268,13 @@ export interface Fastener {
 /** `span`: where its opening is along the section from its start, between the flanges (beside a mitre, its square part). */
 export interface SideAccessPanel { id: string; piece: string; side: -1 | 1; door: DoorPanel; frame: DoorFrame; span: [number, number] }
 /**
- * A door closing a face of a cube that the tunnel does not run through (catioDoor.ts `setInDoor` or `blankPanel`), in its own frame
- * `frame` (n out of the cube), and the latches that hold it when the port's own latches do (base plates on the cube's left of the face
- * seen from outside, on the door's right).
+ * A door closing a section's end port that is not coupled: the stub's start behind a side port (catioDoor.ts `setInDoor` or
+ * `blankPanel`), in its own frame `frame` (n out of the section), and the latches that hold it when the port's own latches do
+ * (base plates on the port's left seen from outside, on the door's right).
  */
-export interface CubeDoor { id: string; piece: string; face: PortFace; door: DoorPanel; frame: DoorFrame; latches: PortLatch[] }
-/**
- * A cube's floor prop: a post `TUNNEL.floorProp` square under the middle of its floor door, standing on its own slab, cut on site to
- * the gap (`length`, from the slab's top to the door's face at `top`). The door is clamped between the cube and the prop.
- */
-export interface FloorProp { id: string; piece: string; at: V3; top: number; slabTop: number; ground: number; length: number; along: V3 }
-export interface Member { id: string; piece: string; name: string; section: string; from: Face; fromOffset: number; to: Face; toOffset: number; rect: Rect; kind: 'flange' | 'rail' | 'floor' }
+export interface PortDoor { id: string; piece: string; end: 'start' | 'end'; face: Face; door: DoorPanel; frame: DoorFrame; latches: PortLatch[] }
+/** A member: its section's `rect` in the profile of `from`, from `fromOffset` along its normal to `toOffset` along `to`'s; a post's `rect` is its plan and height, between offsets along the section. */
+export interface Member { id: string; piece: string; name: string; section: string; from: Face; fromOffset: number; to: Face; toOffset: number; rect: Rect; kind: 'flange' | 'rail' | 'floor' | 'post' }
 
 /** A printed latch's screws: at least this far inside the flange's timber, and this far from any other screw in it. */
 export const LATCH_SCREW_EDGE = 5; export const LATCH_SCREW_CLEARANCE = 12;
@@ -315,7 +308,7 @@ function part(id: string): Part {
 }
 
 type Run = { kind: 'run'; dir: V3; length: number; psi: number; pitch: number; leg: number };
-type JointItem = { kind: 'joint'; joint: Omit<Joint, 'vertex' | 'collar' | 'id' | 'cube'> };
+type JointItem = { kind: 'joint'; joint: Omit<Joint, 'vertex' | 'collar' | 'id' | 'side'> };
 
 /** The enclosure port's floor above the grass: the window port's when level with it, else its own. */
 export const portFloor = (config: TunnelConfig, site: TunnelSite) => config.portLevel === 'window' ? site.floorZ : config.portHeight;
@@ -325,66 +318,72 @@ export const PORT_MOVED = 1;
 export const NEARLY_LEVEL = 30;
 
 /**
- * The port's facing that cube corners can make: straight out from the wall, or along it (±90°), whichever is nearest.
+ * The port's facing that side-port turns can make: straight out from the wall, or along it (±90°), whichever is nearest.
  * (Angle collars and mitred ends take any facing up to their sharpest turn.)
  */
-export const cubeFacing = (facing: number) => Math.abs(facing) < 45 ? 0 : Math.sign(facing) * 90;
-/** The standard tunnel element's length along a run: a cube's edge, which every section's length is a whole number of (with the gaps). */
-export const tunnelPitch = (site: Pick<TunnelSite, 'w'>, joint: Pick<TunnelCouplingConfig, 'mechanism'>) => cubeEdge(site.w) + couplingGap(joint);
-/** A port at least this far to one side of the window (half a standard cube's edge) is beside it: a cube-cornered tunnel turns to reach it. */
-export const CUBE_ROUTE_SIDE = cubeEdge(300) / 2;
+export const squareFacing = (facing: number) => Math.abs(facing) < 45 ? 0 : Math.sign(facing) * 90;
 /**
- * The route legs of a cube-cornered tunnel, which only turns 90°: out from the wall, then along the wall to the port's line, then
+ * The standard tunnel element's length along a run, which every section's length is a whole number of (with the gaps): the shortest
+ * section that takes a side port, and a coupling's gap.
+ */
+export const tunnelPitch = (site: Pick<TunnelSite, 'w'>, joint: Pick<TunnelCouplingConfig, 'mechanism'>) => sidePortLength(site.w) + couplingGap(joint);
+/** A port at least this far to one side of the window is beside it: a tunnel turning at side ports turns to reach it. */
+export const SQUARE_ROUTE_SIDE = sidePortOffset(300);
+/**
+ * The route legs of a tunnel turning at side ports, which only turns 90°: out from the wall, then along the wall to the port's line, then
  * out to it (a port facing straight out, beside the window: `approach` is the run out, the rest follows), or out from the wall to
- * the port's line and along it into the port (a port facing along the wall: both follow). Nearer than `CUBE_ROUTE_SIDE` to the
+ * the port's line and along it into the port (a port facing along the wall: both follow). Nearer than `SQUARE_ROUTE_SIDE` to the
  * window's line, the tunnel runs straight out. Which of the route's settings it uses.
  */
-export function cubeRoute(config: Pick<TunnelConfig, 'portX' | 'portFacing'>): { kind: 'straight' | 'offset' | 'along'; uses: ('approach' | 'final')[] } {
-  const facing = cubeFacing(config.portFacing);
+export function squareRoute(config: Pick<TunnelConfig, 'portX' | 'portFacing'>): { kind: 'straight' | 'offset' | 'along'; uses: ('approach' | 'final')[] } {
+  const facing = squareFacing(config.portFacing);
   if (facing !== 0) return { kind: 'along', uses: [] };
-  return Math.abs(config.portX) < CUBE_ROUTE_SIDE ? { kind: 'straight', uses: [] } : { kind: 'offset', uses: ['approach'] };
+  return Math.abs(config.portX) < SQUARE_ROUTE_SIDE ? { kind: 'straight', uses: [] } : { kind: 'offset', uses: ['approach'] };
 }
 
 /**
  * Everything the tunnel is, placed and installed, with its sections coupled as the tunnel–tunnel coupling page sets them (`joint`).
  * It is made of standard elements (catioPort.ts): every piece ends in the standard port, and every straight run is a whole number of
- * pitches (a cube's edge and a coupling's gap), filled with cubes or with long sections a whole number of pitches long. The route
+ * pitches (the shortest section that takes a side port, and a coupling's gap), in sections a whole number of pitches long. The route
  * runs towards the enclosure port as set (`asked`) and ends where those whole elements end (`E`); the brief says how far that is
  * from where it was asked. A climb is the one length solved exactly: a whole number of long sections, sloped as steeply as it
  * takes to reach the port's floor, up to the steepest slope allowed.
  */
-export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite(), joint: TunnelCouplingConfig = savedTunnelCoupling(),
-  /** What each leg's level runs are made of instead of `straights` (the tunnel–tunnel coupling page shows any joint this way). */
-  legElements?: TunnelConfig['straights'][]) {
+export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite(), joint: TunnelCouplingConfig = savedTunnelCoupling()) {
   const { w, h, floorZ } = site;
   const errors: string[] = [];
   const turnType = config.angleJoint;
-  const cube = turnType === 'cube-corner';
-  /** Bends (into and out of a climb) are made with angle collars when the turns are cube corners: a cube only turns on the level. */
+  const square = turnType === 'side-port';
+  /** Bends (into and out of a climb) are made with angle collars when the turns are at side ports: a side port only turns on the level. */
   const bendType: 'angle-collar' | 'mitred-ends' = turnType === 'mitred-ends' ? 'mitred-ends' : 'angle-collar';
   if (Math.abs(w - h) > 1e-6) errors.push(`The standard port is square: set the tunnel’s clear size the same both ways (it is ${w} × ${h} mm).`);
-  /** The gap at a latched coupling: between sections, and between a section and an angle collar or a cube (square couplings only). */
+  /** The gap at a latched coupling: between sections, between a section and an angle collar, and at a side port (square couplings only). */
   const gap = couplingGap(joint);
-  /** The standard elements: a cube's edge, and the pitch every straight run is a whole number of. */
-  const C = cubeEdge(w); const pitch = C + gap;
+  /** The standard element: the shortest section that takes a side port, and the pitch every straight run is a whole number of. */
+  const unitLength = sidePortLength(w); const pitch = unitLength + gap;
+  /** Where a side port is along the section that carries it, from its start: past the stub, the pocket and half the ring. */
+  const sideOffset = sidePortOffset(w);
   /** A run as near `length` as whole elements make it, at least one: `k` pitches less the last gap. */
   const snapRun = (length: number) => { const k = Math.max(1, Math.round((length + gap) / pitch)); return { k, length: k * pitch - gap }; };
-  /** How far a run stops short of a joint's vertex: the collar's setback and its coupling's gap; half a cube and its gap; a mitre meets on the bisector. */
-  const stopAt = (theta: number, inside: number, type: TunnelConfig['angleJoint']) => type === 'angle-collar' ? jointSetback(theta, inside, type) + gap : type === 'cube-corner' ? C / 2 + gap : 0;
-  const setbackOf = (theta: number, inside: number, type: TunnelConfig['angleJoint']) => type === 'cube-corner' ? C / 2 : jointSetback(theta, inside, type);
+  /**
+   * How far a run stops short of a joint's vertex: the collar's setback and its coupling's gap; at a side port, the run into it stops
+   * at the port's face and the gap, out across the section that carries it; a mitre meets on the bisector.
+   */
+  const stopAt = (theta: number, inside: number, type: TunnelConfig['angleJoint']) => type === 'angle-collar' ? jointSetback(theta, inside, type) + gap : type === 'side-port' ? inside + gap : 0;
+  const setbackOf = (theta: number, inside: number, type: TunnelConfig['angleJoint']) => type === 'side-port' ? inside : jointSetback(theta, inside, type);
   const S: V3 = [0, TUNNEL.wallGap, floorZ];
   /** Where the enclosure port was asked for: its face's foot, at its floor. */
   const asked: V3 = [config.portX, config.portY, portFloor(config, site)];
-  const psiE = rad(cube ? cubeFacing(config.portFacing) : config.portFacing);
+  const psiE = rad(square ? squareFacing(config.portFacing) : config.portFacing);
   const dE = heading(psiE);
   // The centre line in plan: out from the wall, across, and square into the port.
-  const route = cube ? cubeRoute(config).kind : null;
+  const route = square ? squareRoute(config).kind : null;
   const V1: V3 = route === 'along' ? [S[0], asked[1], S[2]] : route === 'straight' ? [S[0], asked[1], S[2]] : add(S, mul(heading(0), config.approach));
   const V2: V3 = route === 'offset' ? [asked[0], V1[1], S[2]] : route ? V1 : sub([asked[0], asked[1], S[2]], mul(dE, config.final));
   const middle = sub(V2, V1); const middleLength = Math.hypot(middle[0], middle[1]);
   const psiM = middleLength > 1e-6 ? Math.atan2(middle[0], middle[1]) : 0;
   const lateral = w / 2 + F;
-  /** The legs: out from the wall, across (none when the cube route has no middle leg), into the port. */
+  /** The legs: out from the wall, across (none when the square route has no middle leg), into the port. */
   const finalLength = route === 'along' ? Math.sign(Math.sin(psiE)) * asked[0] : route === 'offset' ? asked[1] - V1[1] : route === 'straight' ? 0 : config.final;
   if (route === 'along' && finalLength < 0) errors.push(`A port facing ${config.portFacing > 0 ? 'right' : 'left'} along the wall must be to the ${config.portFacing > 0 ? 'right' : 'left'} of the window: move it, or turn it the other way.`);
   const plan = [
@@ -399,7 +398,9 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   });
   const turnSetback = turns.map(theta => Math.abs(deg(theta)) < 0.05 ? null : setbackOf(theta, lateral, turnType));
   const turnStop = turns.map(theta => Math.abs(deg(theta)) < 0.05 ? null : stopAt(theta, lateral, turnType));
-  const legs = plan.map((leg, i) => ({ ...leg, in: i > 0 ? turnStop[i - 1] ?? 0 : 0, out: turnStop[i] ?? 0 }));
+  /** Where the run after a turn starts: as far past the vertex as the one before stops short of it; behind it by the stub, at a side port. */
+  const turnStart = turns.map((theta, i) => Math.abs(deg(theta)) < 0.05 ? null : square ? -sideOffset : turnStop[i] ?? 0);
+  const legs = plan.map((leg, i) => ({ ...leg, in: i > 0 ? turnStart[i - 1] ?? 0 : 0, out: turnStop[i] ?? 0 }));
   // The climb: one straight sloped run inside the chosen leg, level runs of equal length before and after it.
   const rise = asked[2] - S[2]; const up = rise > 0;
   const slopeLegIndex = Math.min(legs.length - 1, { approach: 0, middle: legs.length > 2 ? 1 : 0, final: legs.length - 1 }[config.slopeLeg]);
@@ -445,74 +446,69 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
     }
   });
 
-  // Walk the sequence: the elements of each run, an angle collar, a cube or a shared mitre at each joint; a latched coupling's gap
-  // before every piece but the first, except across a mitre.
+  // Walk the sequence: the sections of each run, an angle collar, a side port or a shared mitre at each joint; a latched coupling's
+  // gap before every piece but the first, except across a mitre.
   const pieces: Piece[] = []; const joints: Joint[] = []; const interfaces: Interface[] = [];
   let at = S; let pendingMitre: V3 | null = null;
-  let sectionCount = 0; let cubeCount = 0;
-  /** A cube round `centre` in the frame of the run that enters it, its faces' roles: the ones the tunnel runs through coupled. */
-  const cubePiece = (start: V3, a: V3, b: V3, coupled: PortFace[]): Piece => {
-    cubeCount++;
-    const frame = frameAlong(a); const centre = add(add(start, mul(a, C / 2)), mul(frame.z, h / 2));
-    const faces = cubeFaces(centre, frame, C, w);
-    const roles = Object.fromEntries(PORT_FACES.map(f => [f, coupled.includes(f) ? 'coupling' : 'door'])) as Record<PortFace, PortRole>;
-    const exit = coupled.find(f => f !== 'back') ?? 'front';
-    const end: Face = { at: faces[exit].at, n: b, frame: frameAlong(b) };
-    return { id: `cube-${cubeCount}`, kind: 'cube', name: `Cube ${cubeCount}`, frame, start: { at: faces.back.at, n: a, frame }, end, length: C, pitch: 0, joint: null, cube: { centre, faces, roles } };
-  };
+  /** The side port the next run's first section carries: on which side, for which joint, coupled to which piece's end. */
+  let pendingSide: { side: -1 | 1; joint: string; from: string } | null = null;
+  let sectionCount = 0;
   items.forEach((item, index) => {
     if (item.kind === 'joint') {
       const j = item.joint; const id = `joint-${joints.length + 1}`;
       const chord = unit(add(j.a, j.b));
       const type = j.kind === 'turn' ? turnType : bendType;
-      if (type === 'cube-corner') {
-        at = add(at, mul(j.a, j.stop - j.setback));
-        const corner = cubePiece(at, j.a, j.b, ['back', j.angle > 0 ? 'right' : 'left']);
-        pieces.push({ ...corner, joint: id });
-        joints.push({ ...j, id, vertex: add(at, mul(j.a, j.setback)), collar: null, cube: corner.id });
-        at = add(corner.end.at, mul(j.b, j.stop - j.setback));
+      if (type === 'side-port') {
+        // the run before ends at the side port's face and the gap; the next starts the stub's length behind the vertex
+        const vertex = add(at, mul(j.a, j.stop));
+        const from = pieces.at(-1)?.id ?? '';
+        const x = frameAlong(j.b).x; const side: -1 | 1 = dot(mul(j.a, -1), x) > 0 ? 1 : -1;
+        joints.push({ ...j, id, vertex, collar: null, side: null });
+        pendingSide = { side, joint: id, from };
+        at = sub(vertex, mul(j.b, sideOffset));
       } else if (type === 'angle-collar') {
         at = add(at, mul(j.a, j.stop - j.setback));
         const vertex = add(at, mul(j.a, j.setback)); const end = add(vertex, mul(j.b, j.setback));
         const collarId = `collar-${joints.length + 1}`;
         const frame = frameAlong(chord);
         pieces.push({ id: collarId, kind: 'collar', name: `Angle collar ${joints.length + 1}`, frame, start: { at, n: j.a, frame: frameAlong(j.a) }, end: { at: end, n: j.b, frame: frameAlong(j.b) },
-          length: len(sub(end, at)), pitch: deg(Math.asin(chord[2])), joint: id, cube: null });
-        joints.push({ ...j, id, vertex, collar: collarId, cube: null });
+          length: len(sub(end, at)), pitch: deg(Math.asin(chord[2])), joint: id, sidePort: null });
+        joints.push({ ...j, id, vertex, collar: collarId, side: null });
         at = add(end, mul(j.b, j.stop - j.setback));
       } else {
-        joints.push({ ...j, id, vertex: at, collar: null, cube: null });
+        joints.push({ ...j, id, vertex: at, collar: null, side: null });
         pendingMitre = chord;
       }
       return;
     }
-    // k pitches: in cubes (level runs, when chosen), or in long sections of at most the longest length, as even as whole pitches go
+    // k pitches, in sections of at most the longest length, as even as whole pitches go
     const k = Math.round((item.length + gap) / pitch);
     const next = items[index + 1];
     const frame = frameAlong(item.dir);
     // after another run, straight on: the gap of the coupling between them
     if (index > 0 && items[index - 1]?.kind === 'run') at = add(at, mul(item.dir, gap));
-    const asCubes = (legElements?.[item.leg] ?? config.straights) === 'cubes' && item.pitch === 0;
-    const count = asCubes ? k : Math.ceil(k / config.sectionLength - 1e-9);
-    const lengths = Array.from({ length: count }, (_, i) => asCubes ? 1 : Math.floor(k / count) + (i < k % count ? 1 : 0));
+    const count = Math.ceil(k / config.sectionLength - 1e-9);
+    const lengths = Array.from({ length: count }, (_, i) => Math.floor(k / count) + (i < k % count ? 1 : 0));
     lengths.forEach((n, i) => {
       if (i > 0) at = add(at, mul(item.dir, gap));
-      if (asCubes) {
-        const c = cubePiece(at, item.dir, item.dir, ['back', 'front']);
-        pieces.push(c); at = c.end.at; return;
-      }
       const piece = n * pitch - gap;
       const end = add(at, mul(item.dir, piece));
       const startNormal: V3 = i === 0 && pendingMitre ? pendingMitre : item.dir;
       const endNormal: V3 = i === count - 1 && next?.kind === 'joint' && bendTypeOf(next.joint) === 'mitred-ends' ? unit(add(next.joint.a, next.joint.b)) : item.dir;
       sectionCount++;
-      pieces.push({ id: `section-${sectionCount}`, kind: 'section', name: `Section ${sectionCount}`, frame, start: { at, n: startNormal, frame }, end: { at: end, n: endNormal, frame },
-        length: piece, pitch: deg(item.pitch), joint: null, cube: null });
+      const id = `section-${sectionCount}`;
+      const start: Face = { at, n: startNormal, frame };
+      // the first section after a side-port turn carries the side port, its stub behind it
+      const side = i === 0 ? pendingSide : null;
+      const sidePort = side ? { offset: sideOffset, side: side.side, from: side.from, face: sidePortFace(add(add(at, mul(item.dir, sideOffset)), mul(frame.z, h / 2)), frame, w, side.side) } : null;
+      if (side) { const j = joints.find(q => q.id === side.joint); if (j) j.side = id; }
+      pieces.push({ id, kind: 'section', name: `Section ${sectionCount}`, frame, start, end: { at: end, n: endNormal, frame },
+        length: piece, pitch: deg(item.pitch), joint: null, sidePort });
       at = end;
     });
-    pendingMitre = null;
+    pendingMitre = null; pendingSide = null;
   });
-  /** How a joint of the sequence is made: turns as chosen, bends with collars when turns are cube corners. */
+  /** How a joint of the sequence is made: turns as chosen, bends with collars when turns are at side ports. */
   function bendTypeOf(j: JointItem['joint']) { return j.kind === 'turn' ? turnType : bendType; }
 
   // Faces between pieces: the wall end, the couplings, the port end.
@@ -520,6 +516,8 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   if (first) interfaces.push({ id: 'wall', kind: 'wall', face: first.start, before: null, after: first.id, gap: 0 });
   pieces.slice(1).forEach((p, i) => {
     const prev = pieces[i]; if (!prev) return;
+    // at a side-port turn the piece before is coupled to the side port, across the gap; the section's start is the stub's, shut by a door
+    if (p.sidePort?.from === prev.id) { interfaces.push({ id: `coupling-${i + 1}`, kind: 'coupling', face: p.sidePort.face, before: prev.id, after: p.id, gap }); return; }
     interfaces.push({ id: `coupling-${i + 1}`, kind: 'coupling', face: { ...p.start, frame: prev.kind === 'collar' ? p.start.frame : prev.end.frame }, before: prev.id, after: p.id, gap: len(sub(p.start.at, prev.end.at)) });
   });
   // the enclosure's port is a standard port too: coupled as any other, across the coupling's gap
@@ -553,51 +551,28 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
       seal: latched && joint.seal === 'e-profile' ? { length: 2 * (w + F) + 2 * (h + F) } : null,
     };
   });
-  if (couplings.some(c => c.kind === 'latched') || (joint.doorFixing === 'latches' && pieces.some(p => p.kind === 'cube'))) {
+  if (couplings.some(c => c.kind === 'latched') || (joint.doorFixing === 'latches' && pieces.some(p => p.sidePort))) {
     const { along, overhang, length } = PRINTED_LATCH;
     if (along - overhang > T) errors.push(`The printed latch’s plates (${along} mm along the joint) are longer than the flanges are thick (${T} mm).`);
     if (TL.TOGGLE_LATCH_GEOMETRY.base.holeZ - overhang < LATCH_SCREW_EDGE - 1e-9) errors.push(`The printed latch’s screws would sit less than ${LATCH_SCREW_EDGE} mm inside the flanges.`);
     if (latchHeights(joint.latchesPerSide).some(f => f * h - length / 2 < -F - 1e-9 || f * h + length / 2 > h + F + 1e-9)) errors.push('A printed latch does not fit on the flange’s side: it would stand over the bearer or above the flange.');
   }
 
-  // Members: each section and collar has a flange ring at both ends, rails along its four corners and a floor board; a cube a ring
-  // on each of its six faces, joined by a block in each corner behind its three rings.
+  // Members: each section and collar has a flange ring at both ends, rails along its four corners and a floor board; a section with
+  // a side port has its ring on the rails' outer faces too, and a pocket post each side of it.
   const members: Member[] = [];
   const ring = portRing(w);
   const r = TUNNEL.rail; const fl = TUNNEL.floor; const outer = w / 2 + r;
+  const post = sidePocketPost(w);
   for (const p of pieces) {
-    if (p.cube) {
-      for (const face of PORT_FACES) for (const [name, rect] of ring) {
-        members.push({ id: `${p.id}-${face}-${name}`, piece: p.id, name: `Ring ${name.replace('-', ', ')} (${face})`, section: `${T} × ${F}`, from: p.cube.faces[face], fromOffset: 0, to: p.cube.faces[face], toOffset: T, rect, kind: 'flange' });
+    if (p.sidePort) {
+      const { face, side, offset } = p.sidePort;
+      for (const [name, rect] of ring) members.push({ id: `${p.id}-side-${name}`, piece: p.id, name: `Side ring ${name.replace('-', ', ')}`, section: `${T} × ${F}`, from: face, fromOffset: 0, to: face, toOffset: T, rect, kind: 'flange' });
+      // the posts, standing on the floor board under the top rail, from the clear opening's plane out to behind the latches
+      const across: [number, number] = side > 0 ? [w / 2, w / 2 + post.depth] : [-w / 2 - post.depth, -w / 2];
+      for (const [k, a0] of [[0, offset - w / 2 - F - SIDE_POCKET], [1, offset + w / 2 + F]] as const) {
+        members.push({ id: `${p.id}-pocket-post-${k}`, piece: p.id, name: 'Pocket post', section: `${post.width} × ${post.depth}`, from: p.start, fromOffset: a0, to: p.start, toOffset: a0 + post.width, rect: [across[0], across[1], 0, h], kind: 'post' });
       }
-      // a block in each corner, behind the three rings that meet there: in the back face's profile and depth
-      const back = p.cube.faces.back; const B = CUBE_BLOCK; const reach = C / 2 - T - B / 2;
-      for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) {
-        const u = x * reach; const v = w / 2 + z * reach; const depth = C / 2 + y * reach;
-        members.push({ id: `${p.id}-block-${x < 0 ? 'l' : 'r'}${y < 0 ? 'b' : 'f'}${z < 0 ? 'd' : 'u'}`, piece: p.id, name: 'Corner block', section: `${B} × ${B}`, from: back, fromOffset: depth - B / 2, to: back, toOffset: depth + B / 2, rect: [u - B / 2, u + B / 2, v - B / 2, v + B / 2], kind: 'rail' });
-      }
-      // an edge strip in each of the 12 edges, between the corner blocks and the latch stations: a member along the face whose
-      // normal runs along the edge (the back face for edges along the run, the left face across it, the floor face up it)
-      const { centre } = p.cube; const { x: ax, y: ay, z: az } = p.frame;
-      const strip = edgeStripSection(w); const near = w / 2 + F; const far = C / 2;
-      for (const [axis, face] of [['x', p.cube.faces.left], ['y', p.cube.faces.back], ['z', p.cube.faces.bottom]] as const) {
-        const local = (q: [number, number, number]): [number, number, number] => {
-          const world = add(centre, add(add(mul(ax, q[0]), mul(ay, q[1])), mul(az, q[2]))); const d = sub(world, face.at);
-          return [dot(d, face.frame.x), dot(d, face.frame.z), dot(d, face.n)];
-        };
-        for (const a of [-1, 1]) for (const b of [-1, 1]) for (const [k, [from, to]] of edgeStripSegments(w, joint.latchesPerSide).entries()) {
-          const across = [a < 0 ? [-far, -near] : [near, far], b < 0 ? [-far, -near] : [near, far]] as const;
-          const range = (i: 0 | 1 | 2): [number, number] => {
-            const order = { x: [null, 0, 1], y: [0, null, 1], z: [0, 1, null] }[axis][i];
-            return order === null ? [from, to] : [...(across[order as 0 | 1])] as [number, number];
-          };
-          const corners = [range(0), range(1), range(2)].reduce<[number, number, number][]>((list, [lo, hi], i) => list.flatMap(q => [lo, hi].map(value => { const c = [...q] as [number, number, number]; c[i] = value; return c; })), [[0, 0, 0]]).map(local);
-          const span = (i: 0 | 1 | 2) => [Math.min(...corners.map(c => c[i])), Math.max(...corners.map(c => c[i]))] as const;
-          const [u0, u1] = span(0); const [v0, v1] = span(1); const [o0, o1] = span(2);
-          members.push({ id: `${p.id}-strip-${axis}${a < 0 ? 'n' : 'p'}${b < 0 ? 'n' : 'p'}-${k}`, piece: p.id, name: 'Edge strip', section: `${Number(strip.toFixed(1))} × ${Number(strip.toFixed(1))}`, from: face, fromOffset: o0, to: face, toOffset: o1, rect: [u0, u1, v0, v1], kind: 'rail' });
-        }
-      }
-      continue;
     }
     for (const [end, face, offset] of [['start', p.start, T], ['end', p.end, -T]] as const) {
       for (const [name, rect] of ring) members.push({ id: `${p.id}-${end}-${name}`, piece: p.id, name: `Flange ${name.replace('-', ', ')}`, section: `${T} × ${F}`, from: face, fromOffset: 0, to: face, toOffset: offset, rect, kind: 'flange' });
@@ -615,20 +590,19 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
     members.push({ id: `${p.id}-floor`, piece: p.id, name: 'Floor board', section: `${fl} mm exterior plywood`, from: p.start, fromOffset: T, to: p.end, toOffset: -T, rect: [-outer, outer, -fl, 0], kind: 'floor' });
   }
 
-  // Doors: every face of a cube that the tunnel does not run through is closed by one (the standard door, catioDoor.ts): held by the
-  // port's own latches (a blank ring closed by mesh, or plywood on the floor face) or by turn buttons round a panel on the ring.
+  // Doors: the stub's start behind every side port is a port that is not coupled, closed by the standard door (catioDoor.ts): set in
+  // on turn buttons, or a blank ring held by the port's own latches.
   const doorGap = PRINTED_LATCH_JOINT.gap;
-  const doors: CubeDoor[] = pieces.flatMap(p => !p.cube ? [] : PORT_FACES.filter(f => p.cube?.roles[f] === 'door').map(f => {
-    const face = (p.cube as NonNullable<Piece['cube']>).faces[f]; const id = `${p.id}-door-${f}`;
-    const floor = f === 'bottom'; const material = floor ? 'solid' as const : 'mesh' as const;
+  const doors: PortDoor[] = pieces.filter(p => p.sidePort).map(p => {
+    const face = p.start; const id = `${p.id}-door-start`;
     const door = joint.doorFixing === 'latches'
-      ? blankPanel({ id, size: w, material, land: F, gap: doorGap, floor })
-      : setInDoor({ id, width: w, height: w, material, seat: site.window.seat, depth: T, floor });
+      ? blankPanel({ id, size: w, material: 'mesh', land: F, gap: doorGap })
+      : setInDoor({ id, width: w, height: w, material: 'mesh', seat: site.window.seat, depth: T });
     const frame: DoorFrame = { origin: face.at, u: face.frame.x, v: face.frame.z, n: mul(face.n, -1) };
     const latches = joint.doorFixing === 'latches' ? portLatches(id, face, w, joint.latchesPerSide, doorGap) : [];
     for (const mount of latches) latchFasteners(mount, p.id, p.id);
-    return { id, piece: p.id, face: f, door, frame, latches };
-  }));
+    return { id, piece: p.id, end: 'start' as const, face, door, frame, latches };
+  });
   for (const d of doors) errors.push(...d.door.errors.filter(e => !errors.includes(e)));
 
   // Side access: a removable mesh panel instead of one side's mesh, in long sections whose side has a square part between its
@@ -655,7 +629,8 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
     return [from, to];
   };
   const spanOf = (p: Piece) => { const [a, b] = clearSpan(p, accessSide); return b - a; };
-  const accessible = pieces.filter(p => p.kind === 'section' && spanOf(p) >= TUNNEL.access.minLength && !strapped(p));
+  // (not on the side of a side port: its ring is there)
+  const accessible = pieces.filter(p => p.kind === 'section' && p.sidePort?.side !== accessSide && spanOf(p) >= TUNNEL.access.minLength && !strapped(p));
   const withAccess = config.sideAccess === 'all' ? accessible : config.sideAccess === 'one' ? accessible.slice(Math.floor(accessible.length / 2), Math.floor(accessible.length / 2) + 1) : [];
   // (a tunnel none of whose sections can take one simply has none: the page's brief says so)
   const access: SideAccessPanel[] = withAccess.map(p => {
@@ -679,45 +654,13 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   const panels: MeshPanel[] = [];
   const mid = (rect: Rect): [number, number] => [(rect[0] + rect[1]) / 2, (rect[2] + rect[3]) / 2];
   for (const p of pieces) {
-    if (p.cube) {
-      // A cube has no mesh of its own (its doors have), and no floor board: its floor face's door is its floor. Each corner block is
-      // screwed through each of the three rings over it; each edge strip, from its two outer faces, into the side of each ring it
-      // lies against (a ring's depth in from the cube's face), glued as well.
-      const { faces } = p.cube;
-      const half = C / 2;
-      for (const m of members.filter(q => q.piece === p.id && q.name === 'Edge strip')) {
-        const [u, v] = mid(m.rect); const centre = facePoint(m.from, u, v, (m.fromOffset + m.toOffset) / 2);
-        const local = sub(centre, p.cube.centre);
-        const axes = [p.frame.x, p.frame.y, p.frame.z].filter(e => Math.abs(dot(e, m.from.n)) < 0.5);
-        for (const [i, e] of axes.entries()) {
-          const other = axes[1 - i] ?? e; const se = Math.sign(dot(local, e)); const so = Math.sign(dot(local, other));
-          // from the strip's outer face across `e`, into the ring whose face lies across `other`, at the middle of its depth
-          const at = add(add(p.cube.centre, mul(e, se * half)), add(mul(other, so * (half - T / 2)), mul(m.from.n, dot(local, m.from.n))));
-          fasteners.push({ partId: HW.railScrew, component: 'rail-screws', at, direction: mul(e, -se), use: 'Cubes’ edge strips into the rings’ sides (and glued)', piece: p.id });
-        }
-      }
-      for (const m of members.filter(q => q.piece === p.id && q.name === 'Corner block')) {
-        const [u, v] = mid(m.rect); const centre = facePoint(m.from, u, v, (m.fromOffset + m.toOffset) / 2);
-        const local = sub(centre, p.cube.centre);
-        const { x, y, z } = p.frame;
-        // each off the block's middle a different way, so that the three screws pass each other
-        const through: [Face, V3][] = [
-          [dot(local, x) < 0 ? faces.left : faces.right, add(mul(y, 8), mul(z, 8))],
-          [dot(local, y) < 0 ? faces.back : faces.front, add(mul(x, -8), mul(z, -8))],
-          [dot(local, z) < 0 ? faces.bottom : faces.top, add(mul(x, 8), mul(y, -8))],
-        ];
-        for (const [face, off] of through) {
-          const point = add(centre, off);
-          fasteners.push({ partId: HW.railScrew, component: 'rail-screws', at: sub(point, mul(face.n, dot(sub(point, face.at), face.n))), direction: face.n, use: 'Cube rings through into the corner blocks', piece: p.id });
-        }
-      }
-      continue;
-    }
     const s0 = (u: number, v: number) => facePoint(p.start, u, v, T); const s1 = (u: number, v: number) => facePoint(p.end, u, v, -T);
     const back = mul(p.start.n, -1); const forward = p.end.n;
     for (const side of [-1, 1]) {
       const u = side * outer; const inward = mul(p.frame.x, -side);
-      const opened = access.find(a => a.piece === p.id && a.side === side);
+      // a side-access panel, or a side port: the ring and its pocket posts, the mesh only beyond them
+      const ported = p.sidePort?.side === side ? p.sidePort : null;
+      const opened: { span: [number, number] } | undefined = access.find(a => a.piece === p.id && a.side === side) ?? (ported ? { span: [T, ported.offset + w / 2 + F + SIDE_POCKET] } : undefined);
       if (opened) {
         // A side-access panel closes this side instead. The roof mesh is as on any other piece; a net hood, which would run on
         // down this side, ends on the top rail's outer face instead, a staple over every mesh, above the panel's turn buttons.
@@ -728,15 +671,15 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
           const wide = Math.max(len(sub(c[1], c[0])), len(sub(c[2], c[3])));
           if (wide < 1) continue;
           const quad = c as unknown as [V3, V3, V3, V3];
-          panels.push({ id: `${p.id}-mesh-beside-${name}-${side < 0 ? 'left' : 'right'}`, piece: p.id, name: `${p.name}: side mesh beside the side access, ${side < 0 ? 'left' : 'right'}`, corners: quad, edges: [
+          panels.push({ id: `${p.id}-mesh-beside-${name}-${side < 0 ? 'left' : 'right'}`, piece: p.id, name: `${p.name}: side mesh beside the ${ported ? 'side port' : 'side access'}, ${side < 0 ? 'left' : 'right'}`, corners: quad, edges: [
             { from: quad[0], to: quad[1], drive: inward, use: 'Onto the bottom rail', cut: true }, { from: quad[3], to: quad[2], drive: inward, use: 'Onto the top rail', cut: true },
             { from: name === 'start' ? quad[0] : quad[1], to: name === 'start' ? quad[3] : quad[2], drive: name === 'start' ? back : forward, use: 'Turned onto the flange', cut: true },
           ] });
         }
         if (mesh.soft) {
           const turn = TUNNEL.access.hoodTurn; const c: [V3, V3, V3, V3] = [s0(u, h + r - turn), s1(u, h + r - turn), s1(u, h + r), s0(u, h + r)];
-          panels.push({ id: `${p.id}-mesh-edge-${side < 0 ? 'left' : 'right'}`, piece: p.id, name: `${p.name}: hood edge over the side access, ${side < 0 ? 'left' : 'right'}`, corners: c, edges: [
-            { from: s0(u, h + r - turn / 2), to: s1(u, h + r - turn / 2), drive: inward, use: 'Turned down onto the top rail over the side access', cut: true },
+          panels.push({ id: `${p.id}-mesh-edge-${side < 0 ? 'left' : 'right'}`, piece: p.id, name: `${p.name}: hood edge over the ${ported ? 'side port' : 'side access'}, ${side < 0 ? 'left' : 'right'}`, corners: c, edges: [
+            { from: s0(u, h + r - turn / 2), to: s1(u, h + r - turn / 2), drive: inward, use: `Turned down onto the top rail over the ${ported ? 'side port (under its ring)' : 'side access'}`, cut: true },
           ] });
         }
         continue;
@@ -756,6 +699,21 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
       { from: la, to: lb, drive: down, use: 'Onto the top rail', cut: !mesh.soft }, { from: ra, to: rb, drive: down, use: 'Onto the top rail', cut: !mesh.soft },
       { from: c[0], to: c[3], drive: back, use: 'Turned onto the flange', cut: true }, { from: c[1], to: c[2], drive: forward, use: 'Turned onto the flange', cut: true },
     ] });
+    // A side port's ring onto the rails' and the floor board's outer faces, and its pocket posts down through the top rail and up
+    // through the floor board.
+    if (p.sidePort) {
+      const { face } = p.sidePort;
+      // through its head into the top rail, through its sill into the bottom rail
+      for (const v of [h + r / 2, -fl - r / 2]) for (const q of [-0.3, 0.3]) {
+        fasteners.push({ partId: HW.railScrew, component: 'rail-screws', at: facePoint(face, q * w, v), direction: face.n, use: 'Side ring onto the rails', piece: p.id });
+      }
+      for (const m of members.filter(q => q.piece === p.id && q.kind === 'post')) {
+        const [u0, u1] = m.rect; const along = (m.fromOffset + m.toOffset) / 2;
+        const foot = add(add(p.start.at, mul(p.frame.y, along)), mul(p.frame.x, (u0 + u1) / 2));
+        fasteners.push({ partId: HW.railScrew, component: 'rail-screws', at: add(foot, mul(p.frame.z, h + r)), direction: mul(p.frame.z, -1), use: 'Pocket posts down through the top rail', piece: p.id });
+        fasteners.push({ partId: HW.railScrew, component: 'rail-screws', at: add(foot, mul(p.frame.z, -fl - r)), direction: p.frame.z, use: 'Pocket posts up through the bottom rail and the floor', piece: p.id });
+      }
+    }
     // Rails into the flanges: two screws into each rail's end grain, driven from the flange's outer face.
     for (const m of members.filter(m => m.piece === p.id && m.kind === 'rail')) {
       const [u, v] = mid(m.rect);
@@ -988,17 +946,6 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
       }
     }
   }
-  // A floor prop under every cube: its floor door is clamped between the cube and the prop, so a cat's weight on the floor goes
-  // into the ground, not into the door's latches or turn buttons. It stands clear of every button and latch of that door.
-  const props: FloorProp[] = [];
-  for (const d of doors.filter(q => q.face === 'bottom')) {
-    const piece = pieces.find(q => q.id === d.piece); if (!piece?.cube) continue;
-    const c = piece.cube.centre; const top = c[2] - C / 2 - d.door.front;
-    const ground = groundAt(config, c[0], c[1]); const slabTop = ground + TUNNEL.slab.thickness;
-    const length = top - slabTop;
-    if (length < 10) errors.push(`The floor door of ${piece.name.toLowerCase()} is only ${Math.round(top - ground)} mm above the grass: too little for its prop on a slab. Raise the tunnel there.`);
-    props.push({ id: `${piece.id}-prop`, piece: piece.id, at: [c[0], c[1], top], top, slabTop, ground, length: Math.max(0, length), along: piece.frame.y });
-  }
   // a support with nothing holding it to the tunnel must stand on its soles
   const loose = supports.filter(s => !s.hold.attached && !s.stands);
   if (loose.length) {
@@ -1052,12 +999,13 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
   for (const a of access) {
     const piece = pieces.find(p => p.id === a.piece); if (!piece) continue;
     const middle = add(piece.start.at, mul(piece.frame.y, (a.span[0] + a.span[1]) / 2));
-    const crosses = (q: V3) => { const d = sub(q, middle); const along = dot(d, piece.frame.y); return Math.abs(along) < a.door.opening.width / 2 && len(sub(d, mul(piece.frame.y, along))) < w + 2 * F; };
+    // (on the panel's side of the section: a strap at a side port on the other side runs down that side)
+    const crosses = (q: V3) => { const d = sub(q, middle); const along = dot(d, piece.frame.y); return Math.abs(along) < a.door.opening.width / 2 && len(sub(d, mul(piece.frame.y, along))) < w + 2 * F && dot(d, piece.frame.x) * a.side > -w / 2; };
     if (supports.some(s => s.hold.strap?.path.some(crosses))) errors.push(`A support’s strap would cross the side-access panel of ${piece.name.toLowerCase()}: choose another way to hold the tunnel there, or no side access.`);
   }
   return {
-    config, site, w, h, S, E, dE, V1, V2, asked, moved, facingMoved, cubeEdge: C, pitch, turns: turns.map(deg), rise, slope: slope ? { pitch: deg(slope.pitch), run: slope.run, footprint: slope.footprint } : null,
-    joint, gap, mesh, pieces, joints, interfaces, couplings, members, panels, access, doors, props, cleats, fasteners, supports, foot, pad, footHeight: l3, stud, insertNut, lockNut, travel, errors, totalLength,
+    config, site, w, h, S, E, dE, V1, V2, asked, moved, facingMoved, unitLength, pitch, turns: turns.map(deg), rise, slope: slope ? { pitch: deg(slope.pitch), run: slope.run, footprint: slope.footprint } : null,
+    joint, gap, mesh, pieces, joints, interfaces, couplings, members, panels, access, doors, cleats, fasteners, supports, foot, pad, footHeight: l3, stud, insertNut, lockNut, travel, errors, totalLength,
   };
 }
 export type TunnelLayout = ReturnType<typeof tunnelLayout>;
@@ -1105,17 +1053,17 @@ export function supportFixingSteps(l: TunnelLayout, scope: 'all' | 'one' = 'all'
 export function tunnelSteps(_variant: CatioMode, config: TunnelConfig): readonly AssemblyStep[] {
   const l = tunnelLayout(config);
   const joints = l.joints.length ? l.joints.map(describeJoint).join(', ') : 'no angle joints';
-  const collar = l.pieces.some(p => p.kind === 'collar'); const cubes = l.pieces.filter(p => p.kind === 'cube').length;
+  const collar = l.pieces.some(p => p.kind === 'collar'); const ported = l.pieces.filter(p => p.sidePort).length;
   const legs = l.supports.filter(s => s.kind === 'trestle').length; const blocks = l.supports.length - legs;
   const latched = l.couplings.filter(c => c.kind === 'latched'); const bolted = l.couplings.filter(c => c.kind === 'bolted' && c.stage === 5);
   const perCoupling = 2 * l.joint.latchesPerSide;
   const plates = latched.length ? ` Screw the printed toggle latches’ plates onto the flanges’ outer sides, ${perCoupling} at each coupling, two 4 × 25 screws each: seen from outside each flange, the base plates (lever and link snapped on) on its left side and the catch plates on its right, so that every port mates with every other.` : '';
   const doorLatches = l.doors.filter(d => d.latches.length).length;
-  const strip = Number(edgeStripSection(l.w).toFixed(1));
-  const cubeFrame = cubes ? ` Each of the ${cubes} ${cubes === 1 ? 'cube' : 'cubes'} is six flange rings, every one a standard port flush with its face, with a ${CUBE_BLOCK} × ${CUBE_BLOCK} block in each corner behind its three rings, screwed through each (5 × 70). Glue and screw a ${strip} × ${strip} edge strip into each edge, against both rings’ sides, in lengths that stop short of every latch station, so that each latch has its pocket.` : '';
+  const post = sidePocketPost(l.w);
+  const sideFrame = ported ? ` At each turn (${ported}) the first section after it carries a side port: a flange ring like the ends’, marked from the same template, screwed onto the rails’ outer faces ${sidePortOffset(l.w) / 10} cm from the section’s start, its face flush with the flanges’ outline and its opening the tunnel’s, level with the floor. Leave the side mesh out there and for ${SIDE_POCKET} mm beside the ring each side, the pocket the latches stand and swing in, and stand a ${post.width} × ${post.depth} pocket post in each pocket, on the floor board under the top rail, screwed down through the rail and up through the floor: it closes the side behind the latches.` : '';
   const doorWords = !l.doors.length ? '' : l.joint.doorFixing === 'latches'
-    ? ` Close every face of a cube that the tunnel does not run through with its door (${l.doors.length}): a blank flange ring with mesh clamped over it under cover strips, or a plywood sheet and a floor plug on the floor face. ${doorLatches ? `Screw on its latches’ plates as on a flange, ` : ''}hold it ${PRINTED_LATCH_JOINT.gap} mm off the port and close its latches over centre.`
-    : (() => { const d = l.doors[0]?.door; const rebate = d?.seat === 'rebate'; return ` Close every face of a cube that the tunnel does not run through with its door (${l.doors.length}), set into the ring’s opening: ${rebate ? `rout a ${d.rebate?.width ?? 0} × ${Math.round(d.rebate?.depth ?? 0)} rebate round the opening on the ring’s outer face` : `glue and screw the ${DOOR.setIn.lap} × ${DOOR.setIn.stop} door stops inside the ring’s opening`}, screw a door turn button on its washer onto the ring at the middle of each side, pointing clear; set the panel in (the plywood one, its plug in the opening, on the floor face), turn every button over it and drop its locking pin.`; })();
+    ? ` Close the stub’s end port behind every side port with its door (${l.doors.length}): a blank flange ring with mesh clamped over it under cover strips. ${doorLatches ? `Screw on its latches’ plates as on a flange, ` : ''}hold it ${PRINTED_LATCH_JOINT.gap} mm off the port and close its latches over centre.`
+    : (() => { const d = l.doors[0]?.door; const rebate = d?.seat === 'rebate'; return ` Close the stub’s end port behind every side port with its door (${l.doors.length}), set into the ring’s opening: ${rebate ? `rout a ${d.rebate?.width ?? 0} × ${Math.round(d.rebate?.depth ?? 0)} rebate round the opening on the ring’s outer face` : `glue and screw the ${DOOR.setIn.lap} × ${DOOR.setIn.stop} door stops inside the ring’s opening`}, screw a door turn button on its washer onto the ring at the middle of each side, pointing clear; set the panel in, turn every button over it and drop its locking pin.`; })();
   const couple = [
     latched.length ? `At ${latched.length === l.couplings.filter(c => c.stage === 5).length ? 'every coupling' : `${latched.length} square couplings`}${latched.some(c => c.seal) ? ' stick the E-profile seal round the flange’s face, lay the next piece' : ' lay the next piece'} ${l.gap} mm short of it, hook each latch’s link over its catch and press the lever down over centre.` : '',
     bolted.length ? `At ${latched.length ? `the ${bolted.length} mitred ${bolted.length === 1 ? 'joint' : 'joints'}` : 'every coupling'} push ${l.joint.boltsPerCoupling} M8 × 80 bolts through both flanges with a large washer each side and tighten the nuts.` : '',
@@ -1137,10 +1085,10 @@ export function tunnelSteps(_variant: CatioMode, config: TunnelConfig): readonly
     { title: 'The site as it is', detail: `The window insert is fitted with its ${words.thing} ${words.shut} and the insert–tunnel coupling’s docking frame on its port; the enclosure stands with its rear port ${fmt(l.E[2] / 10)} cm above the grass. The ground between falls ${config.groundFall}% away from the wall and is uneven by up to ±${config.groundTolerance} mm.` },
     { title: 'Bed the slabs, build the supports', detail: `Bed a 30 × 30 cm paving slab in the grass under every foot position (${l.supports.length * 2}). For each support: screw an M8 insert nut into each leg’s foot end (or into the underside of a low bearer), ${foot}, screw the bearer down onto the legs and, on tall ones, the diagonal brace across. ${legs} trestles, ${blocks} low bearers.${sole}` },
     { title: 'Level the supports', detail: `Stretch a string line (or use a laser) at each bearer’s design height from the window floor. ${level} The feet, not the ground, set the heights.${fixing.support ? ` ${fixing.support}` : ''}` },
-    { title: `Frame the ${wordList(['sections', ...(collar ? ['collars'] : []), ...(cubes ? ['cubes'] : [])])}`, detail: `On trestles beside the line (shown raised over it): screw the four rails between each section’s two flange rings, then screw the floor board down onto the bottom rails. ${collar ? 'Each angle collar is built the same way between two flanges set at its angle.' : config.angleJoint === 'mitred-ends' ? 'Sections at a joint have their flanges on the mitre: cut the rails and floor to the mitre angle.' : ''}${cubeFrame} Sloped sections get cleats across the floor.${accessFrame}${plates}${fixing.pieces ? ` ${fixing.pieces}` : ''}` },
-    { title: `${l.mesh.soft ? 'Net the sections' : 'Mesh the sections'}${l.doors.length ? ', close the cubes' : ''}`, detail: `${meshingStep(l.mesh)}${accessMesh}${doorWords}` },
+    { title: `Frame the ${wordList(['sections', ...(collar ? ['collars'] : [])])}`, detail: `On trestles beside the line (shown raised over it): screw the four rails between each section’s two flange rings, then screw the floor board down onto the bottom rails. ${collar ? 'Each angle collar is built the same way between two flanges set at its angle.' : config.angleJoint === 'mitred-ends' ? 'Sections at a joint have their flanges on the mitre: cut the rails and floor to the mitre angle.' : ''}${sideFrame} Sloped sections get cleats across the floor.${accessFrame}${plates}${fixing.pieces ? ` ${fixing.pieces}` : ''}` },
+    { title: `${l.mesh.soft ? 'Net the sections' : 'Mesh the sections'}${l.doors.length ? ', close the stubs' : ''}`, detail: `${meshingStep(l.mesh)}${accessMesh}${doorWords}` },
     { title: 'Lay and couple', detail: `Lay the pieces onto the supports${fixing.lay} from the window end: ${joints}. ${couple} (The tunnel–tunnel coupling page sets how.)` },
-    { title: 'Fix down and dock', detail: `${fixing.hold}${l.props.length ? ` Under each cube, bed a slab and stand a ${TUNNEL.floorProp} × ${TUNNEL.floorProp} floor prop on it, cut to the gap, so that the floor door is clamped between the cube and the prop: the cat’s weight goes into the ground. (To open a floor door, take its prop out first.)` : ''} Close the latches between the first flange and the window insert’s docking frame (the insert–tunnel coupling page); nothing of the tunnel rests on the wall or the insert. ${l.couplings.find(c => c.stage === 6)?.kind === 'latched' ? 'Latch the last flange to the enclosure’s port flange, a standard port like every other' : `Bolt the last flange to the enclosure’s port flange (${l.joint.boltsPerCoupling} bolts)`}. Then open the cat ports at both ends: at each, ${words.open}. Before any part of the tunnel is uncoupled again, shut both ends’ ports first: at each, ${words.close}.${accessUse}` },
+    { title: 'Fix down and dock', detail: `${fixing.hold} Close the latches between the first flange and the window insert’s docking frame (the insert–tunnel coupling page); nothing of the tunnel rests on the wall or the insert. ${l.couplings.find(c => c.stage === 6)?.kind === 'latched' ? 'Latch the last flange to the enclosure’s port flange, a standard port like every other' : `Bolt the last flange to the enclosure’s port flange (${l.joint.boltsPerCoupling} bolts)`}. Then open the cat ports at both ends: at each, ${words.open}. Before any part of the tunnel is uncoupled again, shut both ends’ ports first: at each, ${words.close}.${accessUse}` },
   ];
 }
 
@@ -1162,6 +1110,7 @@ const partSize = (p: Part) => {
 /** The length of a member along its middle line, and how its ends are cut. */
 export function memberCut(m: Member): { length: number; cut: string } {
   const [u0, u1, v0, v1] = m.rect;
+  if (m.kind === 'post') return { length: v1 - v0, cut: `${Math.round(v1 - v0)} long, square ends` };
   if (m.kind === 'flange') {
     const tall = v1 - v0 > u1 - u0; const uc = (u0 + u1) / 2; const vc = (v0 + v1) / 2;
     const length = tall ? len(sub(facePoint(m.from, uc, v1), facePoint(m.from, uc, v0))) : len(sub(facePoint(m.from, u1, vc), facePoint(m.from, u0, vc)));
@@ -1193,14 +1142,15 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
     if (same) { same.quantity += quantity; return; }
     lines.push({ id: `timber-${key}-${lines.length}`, group: 'Timber', name, quantity, size, use });
   };
-  const cubes = l.pieces.some(p => p.kind === 'cube' && of(p.id));
+  const ported = l.pieces.some(p => p.sidePort && of(p.id));
   for (const m of l.members.filter(q => of(q.piece))) {
-    const piece = l.pieces.find(p => p.id === m.piece); const collar = piece?.kind === 'collar'; const cube = piece?.kind === 'cube';
+    const piece = l.pieces.find(p => p.id === m.piece); const collar = piece?.kind === 'collar';
     const { cut } = memberCut(m);
-    const name = m.kind === 'flange' ? `Flange ${m.rect[3] - m.rect[2] > m.rect[1] - m.rect[0] ? 'stile' : 'head or sill'}` : m.kind === 'rail' ? (cube ? m.name : collar ? 'Collar rail' : 'Section rail') : (collar ? 'Collar floor' : 'Floor board');
-    const use = m.kind === 'flange' ? `Flange rings at both ends of every section and collar${cubes ? ', and on every face of every cube' : ''}: the standard port` : m.kind === 'rail'
-      ? (cube ? (m.name === 'Edge strip' ? 'Along each edge of a cube between its latches, glued and screwed to both rings’ sides: stiffens it and closes the edge' : 'In each corner of a cube, behind its three rings, screwed through each') : 'Along the corners, between the flanges') : 'The cat’s floor, on the bottom rails';
-    timber(cube && m.kind === 'rail' ? m.name : m.kind, name, `${m.section} · ${cut}`, use);
+    const name = m.kind === 'post' ? m.name : m.kind === 'flange' ? `Flange ${m.rect[3] - m.rect[2] > m.rect[1] - m.rect[0] ? 'stile' : 'head or sill'}` : m.kind === 'rail' ? (collar ? 'Collar rail' : 'Section rail') : (collar ? 'Collar floor' : 'Floor board');
+    const use = m.kind === 'post' ? 'In the pocket each side of a side port, on the floor board under the top rail: closes the side behind the latches'
+      : m.kind === 'flange' ? `Flange rings at both ends of every section and collar${ported ? ', and the side port’s on the rails of the section after each turn' : ''}: the standard port` : m.kind === 'rail'
+      ? 'Along the corners, between the flanges' : 'The cat’s floor, on the bottom rails';
+    timber(m.kind, name, `${m.section} · ${cut}`, use);
   }
   for (const c of l.cleats.filter(q => of(q.piece))) timber('cleat', 'Floor cleat', `${TUNNEL.cleat.size} × ${TUNNEL.cleat.size} · ${Math.round(c.length)} long`, 'Across the floor of sloped sections, for grip');
   if (supports) for (const s of l.supports) {
@@ -1217,12 +1167,10 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
   }
   // the template every ring of the tunnel is marked from (the page's drawing)
   if (supports) timber('template', 'Port marking template', `6 mm plywood · ${portOutline(l.w)} × ${portOutline(l.w)}, cut to the drawing`, 'Laid on every ring’s face to mark and pre-drill its bolt holes and latch stations: every port the same');
-  // each cube's floor prop, cut on site to its gap: listed 20 mm long for that
-  if (supports) for (const prop of l.props.filter(q => of(q.piece))) timber('prop', 'Floor prop', `${TUNNEL.floorProp} × ${TUNNEL.floorProp} · ${Math.ceil((prop.length + 20) / 10) * 10} long, cut on site to the gap`, 'Under the middle of each cube’s floor door, on its own slab: the door is clamped between them, so the cat’s weight goes into the ground');
-  // side-access panels and cubes' doors: their frames, cover strips and stops, doors alike counted together
+  // side-access panels and the stubs' doors: their frames, cover strips and stops, doors alike counted together
   const accessLines = [
     ...l.access.filter(a => of(a.piece)).flatMap(a => doorBom(a.door, { prefix: 'access', where: 'Side access', mesh: l.mesh })),
-    ...l.doors.filter(d => of(d.piece)).flatMap(d => doorBom(d.door, { prefix: 'cube-door', where: d.face === 'bottom' ? 'Cubes’ floor doors' : 'Cubes’ doors', mesh: l.mesh })),
+    ...l.doors.filter(d => of(d.piece)).flatMap(d => doorBom(d.door, { prefix: 'end-door', where: 'Stubs’ end doors', mesh: l.mesh })),
   ];
   for (const line of accessLines.filter(q => q.group === 'Timber')) timber('access', line.name, line.size, line.use, line.quantity);
   const meshed = l.panels.filter(q => of(q.piece));
@@ -1234,14 +1182,14 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
     const long = Math.round(Math.max(...spans.map(s => s.long))); const short = Math.round(Math.min(...spans.map(s => s.short)));
     const size = `${long === short ? long : `${short}–${long}`} × ${Math.round(spans.reduce((sum, s) => sum + s.across, 0))} · ${meshCut(l.mesh)}`;
     const same = lines.find(line => line.name === 'Net hood' && line.size === size);
-    const open = l.access.some(a => a.piece === piece.id);
-    if (same) same.quantity++; else lines.push({ id: `mesh-${lines.length}`, group: 'Mesh', name: 'Net hood', quantity: 1, size, use: open ? 'In one piece down one side and over both top rails, turned down onto the far top rail over the side access; its ends turned onto the flanges' : 'In one piece down one side, over both top rails and down the other; its ends turned onto the flanges' });
+    const open = l.access.some(a => a.piece === piece.id) || piece.sidePort !== null;
+    if (same) same.quantity++; else lines.push({ id: `mesh-${lines.length}`, group: 'Mesh', name: 'Net hood', quantity: 1, size, use: open ? 'In one piece down one side and over both top rails, turned down onto the far top rail over the side access or side port; its ends turned onto the flanges' : 'In one piece down one side, over both top rails and down the other; its ends turned onto the flanges' });
   }
-  // beside a mitre, a net piece fills the side between the mitred flange and the side-access panel
+  // beside a mitre, a net piece fills the side between the mitred flange and the side-access panel; beside a side port, the side beyond its pocket
   if (l.mesh.soft) for (const panel of meshed.filter(q => q.id.includes('-mesh-beside-'))) {
     const s2 = span(panel); const size = `${Math.round(s2.short)}–${Math.round(s2.long)} × ${Math.round(s2.across)} · ${meshCut(l.mesh)}`;
-    const same = lines.find(line => line.name === 'Net, beside the side access' && line.size === size);
-    if (same) same.quantity++; else lines.push({ id: `mesh-${lines.length}`, group: 'Mesh', name: 'Net, beside the side access', quantity: 1, size, use: 'Between a mitred flange and the side-access panel, stapled over every mesh to the rails and the flange' });
+    const same = lines.find(line => line.name === 'Net, beside a side opening' && line.size === size);
+    if (same) same.quantity++; else lines.push({ id: `mesh-${lines.length}`, group: 'Mesh', name: 'Net, beside a side opening', quantity: 1, size, use: 'Beside a side opening (between a mitred flange and the side-access panel, or beyond a side port’s pocket), stapled over every mesh to the rails and the flange' });
   }
   else for (const panel of meshed) {
     const [a, b, c, d] = panel.corners;
@@ -1279,7 +1227,7 @@ export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: Tunne
     addPart(HW.couplingNut, 'On every coupling bolt', c.bolts.length);
   }
   for (const f of l.fasteners) addPart(f.partId, f.use.replace(/^Mesh: .*/, 'Mesh to rails and flanges'));
-  for (const [where, list] of [['Side access', l.access], ['Cubes’ doors', l.doors]] as const) for (const a of list) {
+  for (const [where, list] of [['Side access', l.access], ['Stubs’ end doors', l.doors]] as const) for (const a of list) {
     for (const f of a.door.fasteners) addPart(f.partId, `${where}: ${f.use.charAt(0).toLowerCase()}${f.use.slice(1)}`);
     for (const extra of doorLibraryParts(a.door)) if (extra.quantity) addPart(extra.partId, `${where}: ${extra.use.charAt(0).toLowerCase()}${extra.use.slice(1)}`, extra.quantity);
   }
@@ -1297,13 +1245,13 @@ export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: Tunne
   const doorLatches = l.doors.reduce((n, d) => n + d.latches.length, 0);
   const each = l.joint.latchesPerSide === 1 ? 'One' : l.joint.latchesPerSide === 2 ? 'Two' : 'Three';
   if (couplingLatches + doorLatches) lines.push(printedLatchLine(couplingLatches + doorLatches, [
-    couplingLatches ? `${each} on each side of every square coupling` : '', doorLatches ? `${each.toLowerCase()} on each side of every cube’s door` : '',
+    couplingLatches ? `${each} on each side of every square coupling` : '', doorLatches ? `${each.toLowerCase()} on each side of every stub’s end door` : '',
   ].filter(Boolean).join(', and ') + ': seen from outside, every port has the base plates on its left and the catch plates on its right'));
   const sealed = latched.filter(c => c.seal);
   const sealLength = sealed[0]?.seal?.length ?? 0;
   if (sealed.length) lines.push({ id: 'coupling-seal', group: 'Hardware', name: E_PROFILE_SEAL, quantity: sealed.length, size: `about ${PRINTED_LATCH_JOINT.seal.width} × ${PRINTED_LATCH_JOINT.seal.height} · ${Math.ceil(sealLength / 10) * 10} long each`, use: `Round each latched coupling’s flange face; squashed to the ${l.gap} mm gap` });
-  // the side-access panels' and the cubes' doors' printed turn buttons, alike counted together (their pivots, washers and screws are counted above)
-  for (const line of [...l.access.flatMap(a => doorBom(a.door, { prefix: 'access', where: 'Side access', mesh: l.mesh })), ...l.doors.flatMap(d => doorBom(d.door, { prefix: 'cube-door', where: 'Cubes’ doors', mesh: l.mesh }))].filter(q => q.group === 'Hardware')) {
+  // the side-access panels' and the stubs' doors' printed turn buttons, alike counted together (their pivots, washers and screws are counted above)
+  for (const line of [...l.access.flatMap(a => doorBom(a.door, { prefix: 'access', where: 'Side access', mesh: l.mesh })), ...l.doors.flatMap(d => doorBom(d.door, { prefix: 'end-door', where: 'Stubs’ end doors', mesh: l.mesh }))].filter(q => q.group === 'Hardware')) {
     const same = lines.find(q => q.name === line.name && q.size === line.size);
     if (same) same.quantity += line.quantity; else lines.push(line);
   }
@@ -1316,7 +1264,7 @@ export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: Tunne
   custom('turn-buttons', 'Turn button and post, printed (custom)', l.supports.reduce((n, s) => n + s.hold.buttons.length, 0), `PETG · post ${FX.post.thick} × ${FX.post.width} rising to the keeper’s top · button ${FX.button.width} × ${FX.button.thickness}, turning flat on a 4 × 25 screw`, 'On the bearer’s end beside each flange: the button turns over the flange’s keeper');
   if (l.pad) lines.push({ id: 'foot-pads', group: 'Hardware', name: 'Pressure pad, foot', quantity: l.supports.reduce((n, s) => n + s.feet.length, 0), modelId: 'pressure-pad',
     size: `Ø ${l.pad.diameter} × ${l.pad.height} mm · ${l.pad.surface} sole · PETG · for an ${l.pad.screw.designation} head`, use: 'Under every leg or low bearer, on a slab: turned by hand to level' });
-  lines.push({ id: 'slabs', group: 'Groundwork', name: 'Paving slab', quantity: l.supports.length * 2 + l.props.length, size: `${TUNNEL.slab.size} × ${TUNNEL.slab.size} × ${TUNNEL.slab.thickness} concrete`, use: l.props.length ? 'Bedded in the grass under every foot, and under every cube’s floor prop, so it cannot sink' : 'Bedded in the grass under every foot, so it cannot sink' });
+  lines.push({ id: 'slabs', group: 'Groundwork', name: 'Paving slab', quantity: l.supports.length * 2, size: `${TUNNEL.slab.size} × ${TUNNEL.slab.size} × ${TUNNEL.slab.thickness} concrete`, use: 'Bedded in the grass under every foot, so it cannot sink' });
   return lines;
 }
 
@@ -1326,14 +1274,14 @@ export function tunnelFacts(_variant: CatioMode, config: TunnelConfig, site: Tun
   const turns = l.joints.filter(j => j.kind === 'turn');
   const tallest = Math.max(0, ...l.supports.flatMap(s => s.feet.map(f => f.leg)));
   const access = l.access[0] ? doorFacts(l.access[0].door) : null;
-  const sections = l.pieces.filter(p => p.kind === 'section').length; const cubes = l.pieces.filter(p => p.kind === 'cube').length;
+  const sections = l.pieces.filter(p => p.kind === 'section').length; const ported = l.pieces.filter(p => p.sidePort).length;
   const placed = l.moved >= PORT_MOVED || l.facingMoved >= 0.05;
   return [
     { label: 'Window port floor · above the grass', value: `${cm(l.S[2])} cm`, from: { page: 'window-insert', settings: WINDOW_FLOOR_SETTINGS } },
     { label: 'Window port → enclosure port', value: `${cm(l.totalLength)} cm of tunnel` },
     ...(placed ? [{ label: 'Enclosure port · placed by whole elements', value: `${cm(l.E[0])} cm along, ${cm(l.E[1])} cm out${l.facingMoved >= 0.05 ? `, facing ${fmt(deg(Math.atan2(l.dE[0], l.dE[1])), 0)}°` : ''} · asked ${cm(l.asked[0])}, ${cm(l.asked[1])}${l.facingMoved >= 0.05 ? `, ${fmt(config.portFacing, 0)}°` : ''}: ${l.moved >= PORT_MOVED ? `${cm(l.moved)} cm off` : 'turned'}` }] : []),
-    { label: 'Standard elements · pitch', value: `${wordList([...(sections ? [`${sections} ${sections === 1 ? 'section' : 'sections'}`] : []), ...(cubes ? [`${cubes} ${cubes === 1 ? 'cube' : 'cubes'}`] : []), ...(l.pieces.some(p => p.kind === 'collar') ? [`${l.pieces.filter(p => p.kind === 'collar').length} angle collars`] : [])])} · ${cm(l.pitch)} cm` },
-    ...(l.doors.length ? [{ label: 'Cubes’ doors · held by', value: `${l.doors.length} (${l.doors.filter(d => d.face === 'bottom').length} floor) · ${DOOR_FIXING_LABELS[l.joint.doorFixing].toLowerCase()}`, from: { page: 'tunnel-tunnel-coupling' as const, settings: ['doorFixing'] } }] : []),
+    { label: 'Standard elements · pitch', value: `${wordList([...(sections ? [`${sections} ${sections === 1 ? 'section' : 'sections'}${ported ? ` (${ported} with a side port)` : ''}`] : []), ...(l.pieces.some(p => p.kind === 'collar') ? [`${l.pieces.filter(p => p.kind === 'collar').length} angle collars`] : [])])} · ${cm(l.pitch)} cm` },
+    ...(l.doors.length ? [{ label: 'Stubs’ end doors · held by', value: `${l.doors.length} · ${DOOR_FIXING_LABELS[l.joint.doorFixing].toLowerCase()}`, from: { page: 'tunnel-tunnel-coupling' as const, settings: ['doorFixing'] } }] : []),
     { label: 'Rise · floor to floor', value: l.slope ? `${l.rise >= 0 ? '+' : '−'}${cm(Math.abs(l.rise))} cm at ${fmt(Math.abs(l.slope.pitch))}°${Math.abs(l.rise) < NEARLY_LEVEL ? ' · nearly level: set the port floor level with the window port' : ''}` : 'level' },
     { label: 'Turns', value: turns.length ? turns.map(j => `${fmt(Math.abs(j.angle))}° ${side(j.angle)}`).join(', ') : 'straight' },
     { label: 'Supports', value: `${l.supports.length} (${tallest > 0 ? `longest leg ${cm(tallest)} cm` : 'low bearers, no legs'})` },
@@ -1374,30 +1322,28 @@ const mm = (label: string) => ({ unit: label, scale: label === 'cm' ? 10 : 1 });
 export const TUNNEL_CONTROLS: SubassemblyControl<TunnelConfig>[] = [
   { key: 'portX', label: 'Port along the wall', group: 'Enclosure port (fixed interface)', help: 'Its centre from the window’s centre; + is to the right, seen from the garden. The tunnel is whole standard elements, so it ends as near here as they make it: the brief says where.', options: [], range: { min: -4000, max: 4000, step: 1, ...mm('cm') } },
   { key: 'portY', label: 'Port out from the wall', group: 'Enclosure port (fixed interface)', help: 'From the wall face to the port’s face, where the last flange couples on. The tunnel ends as near it as whole elements make it.', options: [], range: { min: 500, max: 8000, step: 1, ...mm('cm') } },
-  { key: 'portFacing', label: 'Port faces', group: 'Enclosure port (fixed interface)', help: 'The way the tunnel runs into it, from straight out of the wall; + turned to the right. The turns follow. (With cube corners it is a choice: straight out, or along the wall either way.)', options: [], range: { min: -120, max: 120, step: 1, ...mm('°') }, when: c => c.angleJoint !== 'cube-corner' },
-  { key: 'portFacing', label: 'Port faces', group: 'Enclosure port (fixed interface)', when: c => c.angleJoint === 'cube-corner',
-    help: 'The way the tunnel runs into it. Cube corners turn only 90°, so the port faces straight out from the wall or along it, to the right or to the left. (A facing saved at another angle is taken as the nearest of these.)',
+  { key: 'portFacing', label: 'Port faces', group: 'Enclosure port (fixed interface)', help: 'The way the tunnel runs into it, from straight out of the wall; + turned to the right. The turns follow. (With side-port turns it is a choice: straight out, or along the wall either way.)', options: [], range: { min: -120, max: 120, step: 1, ...mm('°') }, when: c => c.angleJoint !== 'side-port' },
+  { key: 'portFacing', label: 'Port faces', group: 'Enclosure port (fixed interface)', when: c => c.angleJoint === 'side-port',
+    help: 'The way the tunnel runs into it. Side-port turns are 90°, so the port faces straight out from the wall or along it, to the right or to the left. (A facing saved at another angle is taken as the nearest of these.)',
     options: [{ value: -90, label: 'Along the wall, to the left (−90°)' }, { value: 0, label: 'Straight out from the wall (0°)' }, { value: 90, label: 'Along the wall, to the right (90°)' }] },
   { key: 'portLevel', label: 'Port floor', group: 'Enclosure port (fixed interface)', help: 'Level with the window port follows the window insert wherever its clamps put the port’s floor, so the tunnel stays level when the insert changes.',
     options: [{ value: 'window', label: 'Level with the window port' }, { value: 'own', label: 'At its own height' }] },
   { key: 'portHeight', label: 'Port floor height', group: 'Enclosure port (fixed interface)', help: 'The enclosure’s threshold above the grass at the wall. The window port’s floor is set by the window insert; the tunnel climbs or falls the difference.', options: [], range: { min: 150, max: 1400, step: 0.5, ...mm('cm') }, when: c => c.portLevel === 'own' },
   { key: 'approach', label: 'Straight out from the wall', group: 'Route', help: 'Before the first turn, measured from the wall to where the centre lines meet.', options: [], range: { min: 300, max: 5000, step: 10, ...mm('cm') },
-    when: c => c.angleJoint !== 'cube-corner' || cubeRoute(c).uses.includes('approach') },
+    when: c => c.angleJoint !== 'side-port' || squareRoute(c).uses.includes('approach') },
   { key: 'final', label: 'Straight into the port', group: 'Route', help: 'After the last turn, square to the port.', options: [], range: { min: 300, max: 5000, step: 10, ...mm('cm') },
-    when: c => c.angleJoint !== 'cube-corner' },
+    when: c => c.angleJoint !== 'side-port' },
   { key: 'slopeLeg', label: 'Climb in', group: 'Route', help: 'The leg that climbs (or falls) to the port’s height, between two bends, with level runs either side.',
     options: [{ value: 'approach', label: 'The run out from the wall' }, { value: 'middle', label: 'The middle run' }, { value: 'final', label: 'The run into the port' }] },
   { key: 'maxSlope', label: 'Steepest slope', group: 'Route', help: 'Cats manage 25° on cleats; gentler is kinder to old cats. A small climb uses a shallower slope over a short run.',
     options: [10, 15, 20, 25].map(v => ({ value: v as TunnelConfig['maxSlope'], label: `${v}°` })) },
-  { key: 'angleJoint', label: 'Turns and bends', group: 'Joints', help: 'A cube corner is a cube, every face a standard port: it turns 90° and its other faces are doors. A collar is a short wedge between two square flanges, cut to any angle: every section stays a plain box. Mitred ends need no extra piece but cut the sections at a joint to the angle, and are not standard ports. Bends into and out of a climb are collars, unless the turns are mitred.',
-    options: [{ value: 'cube-corner', label: 'Cube corners (90°)' }, { value: 'angle-collar', label: 'Angle collars (any angle)' }, { value: 'mitred-ends', label: 'Mitred ends, bolted' }] },
+  { key: 'angleJoint', label: 'Turns and bends', group: 'Joints', help: 'At a side port the run before couples its end onto a standard port in the side of the next run’s first section: a 90° turn with nothing cut to an angle, the section running on past the port by a short stub closed by a door. A collar is a short wedge between two square flanges, cut to any angle: every section stays a plain box. Mitred ends need no extra piece but cut the sections at a joint to the angle, and are not standard ports. Bends into and out of a climb are collars, unless the turns are mitred.',
+    options: [{ value: 'side-port', label: 'Side ports (90°)' }, { value: 'angle-collar', label: 'Angle collars (any angle)' }, { value: 'mitred-ends', label: 'Mitred ends, bolted' }] },
   { key: 'mesh', label: 'Mesh', group: 'Sections', help: 'Soft cat netting goes over each section as one hood, pulled taut over the roof, with a staple over every mesh of its cut edges. Welded wire mesh is stiff and bite-proof: three panels a section, stapled every 15 cm. Either is one roll from the parts library.',
     options: CATIO_MESHES.map(value => ({ value, label: MESH_LABELS[value] })) },
-  { key: 'straights', label: 'Straight runs', group: 'Sections', help: 'Long sections have meshed sides and ends that are standard ports. Cubes are the standard element itself, every face a port: a run of cubes has a door on every side, top and floor, which can be opened anywhere, and each cube can be turned or moved to another place. Climbs are always long sections.',
-    options: [{ value: 'long', label: 'Long sections' }, { value: 'cubes', label: 'Cubes' }] },
-  { key: 'sectionLength', label: 'Longest section', group: 'Sections', help: 'In pitches: a cube’s edge and a coupling’s gap, about 50 cm. Every long section is a whole number of them, so it takes the place of that many cubes. Each run’s pitches are shared among as few sections as take them: shorter ones are lighter to carry and need more supports.',
-    options: ([1, 2, 3, 4] as const).map(v => ({ value: v, label: `${v} ${v === 1 ? 'pitch' : 'pitches'} (about ${v * 50} cm)` })) },
-  { key: 'sideAccess', label: 'Side access', group: 'Sections', help: 'For long sections (a cube has its doors): a removable mesh panel in place of one side’s mesh, kept in by door turn buttons on the rails, each locked by its pin: lift the pins, turn each button a quarter turn clear and lift the panel out to reach in from outside. Beside a mitre the panel takes the square part of the side, mesh the rest; where a rubber strap holds the tunnel down, only level sections between two others. Opening one opens the tunnel: secure the cats elsewhere first.',
+  { key: 'sectionLength', label: 'Longest section', group: 'Sections', help: 'In pitches: the shortest section that takes a side port and a coupling’s gap, about 58 cm. Every section is a whole number of them. Each run’s pitches are shared among as few sections as take them: shorter ones are lighter to carry and need more supports.',
+    options: ([1, 2, 3, 4] as const).map(v => ({ value: v, label: `${v} ${v === 1 ? 'pitch' : 'pitches'} (about ${v * 58} cm)` })) },
+  { key: 'sideAccess', label: 'Side access', group: 'Sections', help: 'A removable mesh panel in place of one side’s mesh, kept in by door turn buttons on the rails, each locked by its pin: lift the pins, turn each button a quarter turn clear and lift the panel out to reach in from outside. Beside a mitre the panel takes the square part of the side, mesh the rest; where a rubber strap holds the tunnel down, only level sections between two others. Opening one opens the tunnel: secure the cats elsewhere first.',
     options: [{ value: 'none', label: 'None' }, { value: 'one', label: 'One panel, near the middle' }, { value: 'all', label: 'A panel in every section that takes one' }] },
   // (held by straps, the first, the last and the sloped sections take none: a strap would cross the panel there)
   { key: 'sideAccessSide', label: 'Access side', group: 'Sections', when: c => c.sideAccess !== 'none', help: 'The side the panels are on, looking along the tunnel from the window: the one you can stand beside.',
@@ -1425,19 +1371,17 @@ export const TUNNEL_CONTROLS: SubassemblyControl<TunnelConfig>[] = [
  */
 export function placedRoute(config: TunnelConfig, site: TunnelSite = tunnelSite(), joint: TunnelCouplingConfig = savedTunnelCoupling()): TunnelConfig {
   const l = tunnelLayout(config, site, joint);
-  return { ...config, portX: Math.round(l.E[0]), portY: Math.round(l.E[1]), ...(config.angleJoint === 'cube-corner' ? { portFacing: cubeFacing(config.portFacing) } : {}) };
+  return { ...config, portX: Math.round(l.E[0]), portY: Math.round(l.E[1]), ...(config.angleJoint === 'side-port' ? { portFacing: squareFacing(config.portFacing) } : {}) };
 }
 
 /** Ready-made routes besides the defaults, their ports where whole elements end. Level ones keep the port level with the window port, whatever the insert's clamps make it. */
 export const TUNNEL_PRESETS: SubassemblyPreset<TunnelConfig>[] = [
   { id: 'straight', label: 'Straight', description: 'Straight out from the window to a port at the same height: no turns, no bends, square sections only.',
     config: () => placedRoute({ ...TUNNEL_DEFAULT, portX: 0, portY: 2500, portFacing: 0, portLevel: 'window' }) },
-  { id: 'right-angle', label: '90° turn right', description: 'Out from the wall, one cube corner turning 90° to the right, then along the wall to a port at the same height.',
+  { id: 'right-angle', label: '90° turn right', description: 'Out from the wall, one side port turning 90° to the right, then along the wall to a port at the same height.',
     config: () => placedRoute({ ...TUNNEL_DEFAULT, portX: 2200, portY: TUNNEL.wallGap + 1000, portFacing: 90, portLevel: 'window', approach: 1000, final: 1000 }) },
   { id: 'rising', label: 'Rising', description: 'Straight out to a door 90 cm above the grass: a climb at up to 20°, level runs either side.',
     config: () => placedRoute({ ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portHeight: 900, slopeLeg: 'middle' }) },
-  { id: 'cubes', label: 'All cubes', description: 'The recommended route built of cubes only: a door on every face the tunnel does not run through, all standard ports.',
-    config: () => placedRoute({ ...TUNNEL_DEFAULT, straights: 'cubes' }) },
 ];
 
 const DOOR_FRAME = `${DOOR.frame.width} × ${DOOR.frame.thickness}`;
@@ -1472,12 +1416,12 @@ export const TUNNEL_DECISIONS: DesignDecision[] = [
   { title: 'Turns on the level, climbs in a straight line', parameter: 'Climb in',
     choice: 'The route turns only where it is level and climbs only where it runs straight: one sloped run between two vertical bends, inside one leg, with level runs before and after it.',
     why: 'A joint that turns and climbs at once is a compound mitre: the two sections would meet with one rolled against the other and the floor tilted sideways. Kept apart, every joint is a plain mitre about one axis, every floor stays level across, and the angles are exact. The slope is the steepest allowed (20° by default) so the climb is short; a small climb gets a shallower slope over a 15 cm run.' },
-  { title: 'Standard elements, every one ending in the standard port', parameter: 'Straight runs',
-    choice: `Every piece ends in the same square port (catioPort.ts): the clear opening in a ${T} × ${F} flange ring, its latch and bolt stations the same on all four sides, and seen from outside its latches’ base plates on its left and their catch plates on its right. A cube is that port on all six faces: ${cubeEdge(300) / 10} cm each way for a 30 cm opening, its rings butted edge to edge with a block in each corner. A long section is a whole number of pitches (a cube’s edge and a coupling’s gap) long, so it takes the place of that many cubes. Each straight run is whole elements: cubes, or long sections (the default).`,
-    why: 'With one port, and base and catch on fixed sides of it, any element couples to any other, and to the window insert’s docking frame and the enclosure’s port: two ports facing each other have a base across from every catch, whatever they belong to. A cube’s faces are interchangeable: any of them can be coupled, or closed by a door. Whole elements mean nothing is cut to fit a route, so the tunnel ends where its elements end: the brief says how far that is from where the enclosure port was asked, and the defaults and presets are set there.' },
-  { title: 'Cube corners at every turn, angle collars at the bends', parameter: 'Turns and bends',
-    choice: 'A cube at every turn, coupled by its back face and one side: a right angle, so the route runs out from the wall, along it and out again, square to the window and the port. Its other four faces, roof and floor included, are closed by doors. The bends into and out of a climb are short wedge-shaped angle collars between two square flange rings. Angle collars at the turns too (any angle up to 135°), or mitred ends, remain selectable.',
-    why: 'A cube turns without a piece cut to an angle, and is itself the standard element. A collar keeps every section a plain box with square flanges, so a section can move to another place in the route, and only the small collars are cut to angles: a climb needs them, since a cube only turns on the level. The collar’s two flanges meet at the inside of the joint; each run stops short of the vertex by 30 + r · tan θ/2, r being the profile’s inside edge from the floor’s centre line. Mitred ends (up to 90°) save the collars but cut the two sections at each joint to the angle, and are not standard ports.' },
+  { title: 'Standard elements, every one ending in the standard port', parameter: 'Longest section',
+    choice: `Every piece ends in the same square port (catioPort.ts): the clear opening in a ${T} × ${F} flange ring, its latch and bolt stations the same on all four sides, and seen from outside its latches’ base plates on its left and their catch plates on its right. Every section is a whole number of pitches long: the shortest section that takes a side port (${sidePortLength(300) / 10} cm for a 30 cm opening) and a coupling’s gap.`,
+    why: 'With one port, and base and catch on fixed sides of it, any element couples to any other, and to the window insert’s docking frame and the enclosure’s port: two ports facing each other have a base across from every catch, whatever they belong to. Whole elements mean nothing is cut to fit a route, so the tunnel ends where its elements end: the brief says how far that is from where the enclosure port was asked, and the defaults and presets are set there.' },
+  { title: 'Side ports at every turn, angle collars at the bends', parameter: 'Turns and bends',
+    choice: `At every turn the run before couples its end onto a side port: the standard port on the rails of the next run’s first section, its face flush with the flanges’ outline, its opening level with the floor. The section runs on past it by a stub ${sidePortOffset(300) / 10 - 15} cm long, its end port closed by a door; beside the ring each side is a ${SIDE_POCKET} mm pocket for the latches, closed behind them by a post. A right angle, so the route runs out from the wall, along it and out again, square to the window and the port. The bends into and out of a climb are short wedge-shaped angle collars between two square flange rings. Angle collars at the turns too (any angle up to 135°), or mitred ends, remain selectable.`,
+    why: 'A side port turns without a piece cut to an angle and without a corner element: the corner is an ordinary section with one more ring on its side, which looks like the rest of the tunnel. It replaced cube corners, every face a port and the other faces doors, which were bulky and made little sense to assemble. The pocket comes from the latch’s real movement: the stub’s flange reaches out to the side port’s face, so a lever opening there needs more room than in a cube. A collar keeps every section a plain box with square flanges, and only the small collars are cut to angles: a climb needs them, since a side port only turns on the level. Mitred ends (up to 90°) save the collars but cut the two sections at each joint to the angle, and are not standard ports.' },
   { title: 'Flange couplings: latched, or bolted', from: { page: 'tunnel-tunnel-coupling', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal'] },
     choice: `Every element ends in a ${T} × ${F} flange ring that stands ${T} mm proud of the mesh. By default neighbours are joined by printed toggle latches on the rings’ outer sides (2 each side), across a ${PRINTED_LATCH_JOINT.gap} mm gap with an EPDM E-profile seal; or they are bolted face to face through both rings with ISO 4017 M8 × 80 bolts, ISO 7093 large washers and ISO 4032 nuts (8 per coupling, 2 on each side). The tunnel–tunnel coupling page sets which, for the enclosure end too. Mitred joints are bolted either way.`,
     why: 'Latches close by hand and leave nothing loose in the grass; bolts outside the mesh are reached with a 13 mm spanner, have a rated hold, and are all library parts (80 mm grips 2 × 30 mm of flange, two washers and the nut with the thread through). Every run is whole elements and the gaps between them. A mitre’s two flanges are not square to the runs, so their side faces do not line up for a latch. The window end is not bolted: the insert only presses on the recess and must not carry the tunnel, so the first flange stands 10 mm off the wall on its own support and is latched, without tools, to a docking frame on the insert (the insert–tunnel coupling page), set out to the standard port’s stations.' },
