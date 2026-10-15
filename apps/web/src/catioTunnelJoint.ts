@@ -87,7 +87,13 @@ export const TUNNEL_COUPLING_CONTROLS: SubassemblyControl<TunnelCouplingConfig>[
   ...supportControls<TunnelCouplingConfig>('On the support'),
 ];
 
-export const parseTunnelCoupling = (raw: unknown) => parseControlled(TUNNEL_COUPLING_DEFAULT, TUNNEL_COUPLING_CONTROLS, raw);
+/** A coupling page saved before cubes were dropped shows the nearest joint: two sections' ends, or a section's end at a side port for one that met a cube. */
+const SHOWN_BEFORE: Record<string, JointShown> = { tunnel: 'end-end', 'section-section': 'end-end', 'section-cube': 'end-side', 'cube-cube': 'end-side' };
+export const parseTunnelCoupling = (raw: unknown) => {
+  const saved = raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...raw as Record<string, unknown> } : raw;
+  if (saved && typeof saved === 'object') { const record = saved as Record<string, unknown>; const shown = SHOWN_BEFORE[String(record['jointShown'])]; if (shown) record['jointShown'] = shown; }
+  return parseControlled(TUNNEL_COUPLING_DEFAULT, TUNNEL_COUPLING_CONTROLS, saved);
+};
 /** The coupling as saved on its page (or its defaults), for the tunnel page, which follows it. */
 export const savedTunnelCoupling = () => loadSubassemblyConfig('tunnel-tunnel-coupling', parseTunnelCoupling, TUNNEL_COUPLING_DEFAULT);
 

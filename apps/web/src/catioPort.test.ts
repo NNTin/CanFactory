@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { blankPanel, buttonOverlap, DOOR, DOOR_SEATS, setInDoor, type DoorPanel } from './catioDoor.ts';
 import {
-  BOLTS_PER_SIDE, boltStations, boxesOverlap, CUBE_BLOCK, CUBE_POCKET, CUBE_SWING_CLEAR, cubeClashes, cubeEdge, cubeFaces, DOOR_FIXINGS, edgeStripSection, edgeStripSegments, frameAlong,
-  LATCH_INTO_RING, LATCH_REACH, LATCH_SWING_INTO, latchEnvelope, latchSwing, memberBox, PORT_FACES, portHalf, portLatches, portOutline, portRing, portTemplate, portTemplateSvg,
-  SIDE_POCKET, SIDE_RAIL, SIDE_RING_SET, sideClashes, sidePocketPost, sidePortFaces, sidePortLength, sidePortOffset, STANDARD_PORT, type Face, type OrientedBox,
+  BOLTS_PER_SIDE, boltStations, SWING_CLEAR, DOOR_FIXINGS, frameAlong,
+  LATCH_INTO_RING, LATCH_REACH, LATCH_SWING_INTO, portHalf, portLatches, portOutline, portRing, portTemplate, portTemplateSvg,
+  SIDE_POCKET, SIDE_RAIL, SIDE_RING_SET, sideClashes, sidePocketPost, sidePortFaces, sidePortLength, sidePortOffset, STANDARD_PORT, type Face,
 } from './catioPort.ts';
 import { latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 import type { V3 } from './catioSubassembly.ts';
@@ -14,30 +14,22 @@ const add = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const mul = (a: V3, k: number): V3 => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const near = (a: V3, b: V3, tolerance = 1e-6) => Math.hypot(...sub(a, b)) < tolerance;
 /** A point of the profile (u, v from the opening's foot) turned a quarter turn about the opening's middle. */
 const quarter = ([u, v]: [number, number], s: number): [number, number] => [-(v - s / 2), s / 2 + u];
 const sameSet = (a: [number, number][], b: [number, number][]) => a.length === b.length && a.every(p => b.some(q => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-6));
-/** A cube round the origin in the world's frame, entered along +Y. */
-const cube = (s: number) => cubeFaces([0, 0, 0], frameAlong([0, 1, 0]), cubeEdge(s), s);
-/** A standard element's ring `gap` outside the port on `face`, facing it: what a coupled element puts there. */
-const mateRing = (face: Face, s: number, gap: number): OrientedBox[] => portRing(s).map(([, rect]) => memberBox(face, rect, -gap - T, -gap));
 
 describe('the standard port', () => {
-  it('is a square opening in a ring 30 deep and 70 wide, its outline and a cube’s edge following from it', () => {
+  it('is a square opening in a ring 30 deep and 70 wide, its outline following from it', () => {
     expect(STANDARD_PORT.ring).toEqual({ thickness: 30, width: 70 });
     for (const s of SIZES) {
       expect(portOutline(s)).toBe(s + 140);
-      // each face's ring a ring's depth and the pocket in from the edge: room for both faces' latches at every edge
-      expect(cubeEdge(s)).toBe(portOutline(s) + 2 * (T + CUBE_POCKET));
       const ring = portRing(s);
       // its four members close round the opening and fill the outline, without overlapping
       const area = ring.reduce((n, [, [u0, u1, v0, v1]]) => n + (u1 - u0) * (v1 - v0), 0);
       expect(area).toBeCloseTo(portOutline(s) ** 2 - s ** 2, 9);
       expect(Math.min(...ring.map(([, r]) => r[0]))).toBe(-s / 2 - F); expect(Math.max(...ring.map(([, r]) => r[3]))).toBe(s + F);
     }
-    expect(cubeEdge(300)).toBe(300 + 2 * (F + T + CUBE_POCKET));
   });
 
   it('has the same bolt and latch stations on every side: a quarter turn maps them onto themselves', () => {
@@ -97,62 +89,6 @@ describe('the standard port', () => {
 
   it('offers both door fixings', () => {
     expect([...DOOR_FIXINGS]).toEqual(['turn-buttons', 'latches']);
-  });
-});
-
-describe('a cube', () => {
-  it('has six faces, each a standard port’s plane: normal into the cube, a right-handed frame, the opening’s foot on the plane', () => {
-    for (const s of SIZES) {
-      const C = cubeEdge(s); const faces = cube(s);
-      expect(Object.keys(faces)).toEqual([...PORT_FACES]);
-      const normals = PORT_FACES.map(f => faces[f].n);
-      // six different directions, opposite in pairs
-      for (const [i, n] of normals.entries()) {
-        expect(Math.hypot(...n)).toBeCloseTo(1, 12);
-        expect(normals.filter((m, j) => j !== i && near(m, mul(n, -1))).length).toBe(1);
-      }
-      for (const f of PORT_FACES) {
-        const { at, n, frame } = faces[f];
-        expect(near(frame.y, n)).toBe(true);
-        expect(near(cross(frame.x, frame.y), frame.z)).toBe(true);
-        // half an edge out from the centre, at the opening's foot (half the opening below the face's middle)
-        expect(dot(at, n)).toBeCloseTo(-C / 2, 9);
-        expect(near(add(at, mul(frame.z, s / 2)), mul(n, -C / 2))).toBe(true);
-      }
-      // the back face is the one a run along +Y enters by, in that run's frame, as a section's start face
-      expect(faces.back.n).toEqual([0, 1, 0]); expect(faces.back.frame).toEqual(frameAlong([0, 1, 0]));
-    }
-  });
-
-  it('has rings that meet edge to edge without overlapping, and corner blocks behind them', () => {
-    for (const s of SIZES) {
-      const faces = cube(s); const C = cubeEdge(s);
-      const rings = PORT_FACES.flatMap(f => portRing(s).map(([name, rect]) => ({ id: `${f}-${name}`, face: f, box: memberBox(faces[f], rect, 0, T) })));
-      for (const a of rings) for (const b of rings) if (a.face !== b.face) expect(boxesOverlap(a.box, b.box, 0.01), `${a.id} / ${b.id}`).toBe(false);
-      // a block in each corner touches the three rings over it, inside them
-      const reach = C / 2 - T - CUBE_BLOCK / 2;
-      expect(reach + CUBE_BLOCK / 2).toBe(C / 2 - T);
-      expect(reach - CUBE_BLOCK / 2).toBeGreaterThan(s / 2);
-      const block: OrientedBox = { center: [reach, reach, reach], size: [CUBE_BLOCK, CUBE_BLOCK, CUBE_BLOCK], axes: frameAlong([0, 1, 0]) };
-      for (const r of rings) expect(boxesOverlap(block, r.box, 0.01), r.id).toBe(false);
-    }
-  });
-
-  it('keeps every face’s latches clear of the other faces’ rings, latches and coupled elements, coupled or closed by a latched door', () => {
-    const gap = PRINTED_LATCH_JOINT.gap;
-    for (const s of SIZES) for (const perSide of [1, 2, 3] as const) {
-      const faces = cube(s);
-      const latches = PORT_FACES.flatMap(f => portLatches(f, faces[f], s, perSide, gap).map(q => ({ face: f, id: q.id, box: latchEnvelope(q) })));
-      const rings = PORT_FACES.flatMap(f => portRing(s).map(([name, rect]) => ({ face: f, id: `${f}-${name}`, box: memberBox(faces[f], rect, 0, T) })));
-      // on every face a coupled element's ring (or a blank door's, the same outline), across the gap
-      const mates = PORT_FACES.flatMap(f => mateRing(faces[f], s, gap).map((box, i) => ({ face: f, id: `${f}-mate-${i}`, box })));
-      for (const q of latches) {
-        for (const r of [...rings, ...mates].filter(r => r.face !== q.face)) expect(boxesOverlap(q.box, r.box, 0.01), `${q.id} / ${r.id}`).toBe(false);
-        for (const r of latches.filter(r => r.face !== q.face)) expect(boxesOverlap(q.box, r.box, 0.01), `${q.id} / ${r.id}`).toBe(false);
-      }
-      // and the coupled elements of two faces stay clear of each other
-      for (const a of mates) for (const b of mates.filter(m => m.face !== a.face)) expect(boxesOverlap(a.box, b.box, 0.01), `${a.id} / ${b.id}`).toBe(false);
-    }
   });
 });
 
@@ -218,49 +154,13 @@ describe('the standard doors', () => {
   });
 });
 
-describe('a cube’s latch pockets, from the latch’s real movement', () => {
-  it('reaches as far as the mechanism moves it: closed along the joint past the ring, open out of the pocket', () => {
+describe('the latch’s real movement', () => {
+  it('reaches as far as the mechanism moves it: closed along the joint past the ring, open out from its side', () => {
     // closed, the lever lies along the joint, past a 30 mm ring; opening, it swings out 38 mm from the side
     expect(LATCH_INTO_RING).toBeGreaterThan(T);
     expect(LATCH_REACH.swing.v[1]).toBeGreaterThan(LATCH_REACH.closed.v[1]);
     expect(LATCH_REACH.swing.u[0]).toBeLessThan(LATCH_REACH.closed.u[0]);
     expect(LATCH_REACH.width).toBe(38);
-  });
-
-  it('is the least pocket that keeps every face’s latch, open or closed, clear of the others, for every size and latch count', () => {
-    expect(cubeClashes(CUBE_POCKET)).toBe(false);
-    expect(cubeClashes(CUBE_POCKET - 1)).toBe(true);
-    // and the old 30 mm notch (no pocket) is not enough: a lever swinging open would hit the next face's coupled element
-    expect(cubeClashes(0)).toBe(true);
-    const gap = PRINTED_LATCH_JOINT.gap;
-    for (const s of SIZES) for (const perSide of [1, 2, 3] as const) {
-      const faces = cube(s);
-      const latches = PORT_FACES.flatMap(f => portLatches(f, faces[f], s, perSide, gap).map(q => ({ face: f, id: q.id, swing: latchSwing(q), closed: latchEnvelope(q) })));
-      const solid = PORT_FACES.flatMap(f => [...portRing(s).map(([, rect]) => ({ face: f, box: memberBox(faces[f], rect, 0, T) })), ...mateRing(faces[f], s, gap).map(box => ({ face: f, box }))]);
-      for (const q of latches) {
-        for (const r of solid.filter(x => x.face !== q.face)) expect(boxesOverlap(q.swing, r.box, -CUBE_SWING_CLEAR), `${s} ${perSide} ${q.id}`).toBe(false);
-        for (const r of latches.filter(x => x.face !== q.face)) expect(boxesOverlap(q.swing, r.closed, -CUBE_SWING_CLEAR), `${s} ${q.id} / ${r.id}`).toBe(false);
-      }
-    }
-  });
-
-  it('closes each edge between the latches with an edge strip glued to both rings’ sides, cut short of every latch station', () => {
-    for (const s of SIZES) for (const perSide of [1, 2, 3] as const) {
-      const C = cubeEdge(s); const strip = edgeStripSection(s); const segments = edgeStripSegments(s, perSide);
-      // the corner square outside both rings' outlines: from the outline to the cube's edge, a ring's depth and the pocket
-      expect(strip).toBe(T + CUBE_POCKET);
-      // between the corner blocks
-      expect(segments[0]?.[0]).toBeCloseTo(-(C / 2 - T - CUBE_BLOCK), 9); expect(segments.at(-1)?.[1]).toBeCloseTo(C / 2 - T - CUBE_BLOCK, 9);
-      // each latch's station and its swing (its width and 2 mm each side) left open: its pocket
-      const faces = cube(s);
-      const swings = PORT_FACES.flatMap(f => portLatches(f, faces[f], s, perSide, PRINTED_LATCH_JOINT.gap).map(latchSwing));
-      for (const [from, to] of segments) {
-        expect(to).toBeGreaterThan(from);
-        // a strip along the vertical edge at the back right: clear of every latch's swing
-        const box: OrientedBox = { center: [s / 2 + F + strip / 2, -(s / 2 + F + strip / 2), (from + to) / 2], size: [strip, strip, to - from], axes: frameAlong([0, 1, 0]) };
-        for (const q of swings) expect(boxesOverlap(box, q, 0.01), `${s} ${perSide}`).toBe(false);
-      }
-    }
   });
 });
 
@@ -283,10 +183,8 @@ describe('a side port', () => {
   it('has a pocket beside it from the latch’s real movement: the least that keeps both ports’ latches clear of each other’s ends', () => {
     expect(sideClashes(SIDE_POCKET)).toBe(false);
     expect(sideClashes(SIDE_POCKET - 1)).toBe(true);
-    // larger than a cube's: the stub's flange reaches out to the side port's face, where a cube's next ring stops a pocket short of it
-    expect(SIDE_POCKET).toBeGreaterThan(CUBE_POCKET);
-    // the lever swings out along the section by more than the cube's pocket
-    expect(LATCH_REACH.swing.v[1]).toBeGreaterThan(CUBE_POCKET);
+    // the stub's flange reaches out to the side port's face: the pocket takes the lever's whole swing out along the section
+    expect(SIDE_POCKET).toBeGreaterThanOrEqual(LATCH_REACH.swing.v[1] + SWING_CLEAR - 1);
     for (const s of SIZES) expect(sideClashes(SIDE_POCKET, s)).toBe(false);
   });
 
@@ -294,7 +192,7 @@ describe('a side port', () => {
     const post = sidePocketPost(300);
     expect(post.width).toBe(SIDE_POCKET);
     // from the clear opening's plane out to just behind the latches' parts, open or closed
-    expect(post.depth + CUBE_SWING_CLEAR + LATCH_SWING_INTO).toBeLessThanOrEqual(F + 1e-9);
+    expect(post.depth + SWING_CLEAR + LATCH_SWING_INTO).toBeLessThanOrEqual(F + 1e-9);
     expect(post.depth).toBeGreaterThan(SIDE_RAIL - 10);
   });
 });

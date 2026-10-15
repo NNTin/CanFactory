@@ -10,7 +10,7 @@ import {
 import { createTunnelScene, LIFT } from './catioTunnelScene.ts';
 import { TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
-import { boxesOverlap, CUBE_SWING_CLEAR, latchEnvelope, latchSwing, memberBox, SIDE_POCKET, sidePocketPost, sidePortLength, sidePortOffset } from './catioPort.ts';
+import { boxesOverlap, SWING_CLEAR, latchEnvelope, latchSwing, memberBox, SIDE_POCKET, sidePocketPost, sidePortLength, sidePortOffset } from './catioPort.ts';
 import type { V3 } from './catioSubassembly.ts';
 import { WINDOW_INSERT_DEFAULT, windowInsertLayout, type WindowInsertConfig } from './catioWindowInsert.ts';
 
@@ -297,7 +297,7 @@ describe('tunnel route', () => {
           const atSide = coupling?.latches.includes(q) ?? false;
           const others = l.members.filter(m => m.piece === p.id && (atSide ? !m.name.startsWith('Side ring') : !(m.kind === 'flange' && m.from === p.start)));
           for (const m of others) {
-            expect(boxesOverlap(latchSwing(q), box(m), -CUBE_SWING_CLEAR), `${q.id} swinging into ${m.id}`).toBe(false);
+            expect(boxesOverlap(latchSwing(q), box(m), -SWING_CLEAR), `${q.id} swinging into ${m.id}`).toBe(false);
             expect(boxesOverlap(latchEnvelope(q), box(m), 0.01), `${q.id} closed on ${m.id}`).toBe(false);
           }
         }
@@ -843,6 +843,15 @@ describe('tunnel page settings', () => {
 });
 
 describe('tunnel: the rest of the standard elements', () => {
+  it('loads a tunnel saved with cube corners as one turning at side ports, its runs of cubes as long sections', () => {
+    const saved = parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, angleJoint: 'cube-corner', straights: 'cubes', portFacing: 90, portX: 2200 } })).config;
+    expect(saved).toEqual({ ...TUNNEL_DEFAULT, angleJoint: 'side-port', portFacing: 90, portX: 2200 });
+    expect(Object.keys(saved)).not.toContain('straights');
+    expect(tunnelLayout(saved, site).joints.filter(j => j.kind === 'turn').every(j => j.side !== null)).toBe(true);
+    // collars and mitres saved stay as they were
+    expect(parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends', straights: 'long' } })).config.angleJoint).toBe('mitred-ends');
+  });
+
   it('offers only what side-port turns can make for the port’s facing, and any facing with collars', () => {
     const facing = (config: TunnelConfig) => TUNNEL_CONTROLS.filter(c => c.key === 'portFacing' && (!c.when || c.when(config)));
     const square = facing(TUNNEL_DEFAULT); expect(square).toHaveLength(1);

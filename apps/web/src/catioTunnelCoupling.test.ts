@@ -468,6 +468,10 @@ describe('tunnel–tunnel coupling page settings', () => {
     const settings = parseSubassemblySettings(tunnelCouplingDefinition, saved);
     expect(settings.variant).toBe('modular');
     expect(settings.config).toEqual({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 12, doorFixing: 'latches' });
+    // saved before cubes were dropped: the nearest joint, a section's end at a side port for one that met a cube
+    for (const [before, now] of [['tunnel', 'end-end'], ['section-section', 'end-end'], ['section-cube', 'end-side'], ['cube-cube', 'end-side']] as const) {
+      expect(parseSubassemblySettings(tunnelCouplingDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_COUPLING_DEFAULT, jointShown: before } })).config.jointShown).toBe(now);
+    }
     // saved before the bolts were the same on all four sides of the port: 6 (three a side, on two sides) is not offered, and takes the default
     expect(parseSubassemblySettings(tunnelCouplingDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_COUPLING_DEFAULT, boltsPerCoupling: 6 } })).config.boltsPerCoupling).toBe(8);
     expect(settings.views.modular).toMatchObject({ progress: 3, windowOpen: true, view: 'Mounting' });

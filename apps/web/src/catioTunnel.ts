@@ -1394,14 +1394,20 @@ export function meshingStep(mesh: CatioMeshSpec): string {
 
 /**
  * A saved tunnel, snapped to the standard elements on load: a longest section saved in millimetres (before sections came in whole
- * pitches) becomes the nearest whole number of pitches, about 50 cm each. Its route is laid out with whole elements like any other,
- * and the brief says where that puts the enclosure port.
+ * pitches) becomes the nearest whole number of pitches. Its route is laid out with whole elements like any other, and the brief says
+ * where that puts the enclosure port. A tunnel saved with cube corners turns at side ports instead, the same right angles; its
+ * straight runs of cubes (no longer offered) are long sections.
  */
 export const parseTunnel = (raw: unknown) => {
   const saved = raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...raw as Record<string, unknown> } : raw;
-  if (saved && typeof saved === 'object' && typeof (saved as Record<string, unknown>)['sectionLength'] === 'number') {
-    const length = (saved as Record<string, number>)['sectionLength'] ?? 0;
-    if (length >= 100) (saved as Record<string, unknown>)['sectionLength'] = Math.min(4, Math.max(1, Math.round(length / 500)));
+  if (saved && typeof saved === 'object') {
+    const record = saved as Record<string, unknown>;
+    if (typeof record['sectionLength'] === 'number') {
+      const length = record['sectionLength'];
+      if (length >= 100) record['sectionLength'] = Math.min(4, Math.max(1, Math.round(length / 500)));
+    }
+    if (record['angleJoint'] === 'cube-corner') record['angleJoint'] = 'side-port';
+    delete record['straights'];
   }
   return parseControlled(TUNNEL_DEFAULT, TUNNEL_CONTROLS, saved, TUNNEL_LEGACY);
 };
