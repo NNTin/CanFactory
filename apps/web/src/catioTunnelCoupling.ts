@@ -1,7 +1,7 @@
 import { dimensionOf, findPart, TUNNEL_HARDWARE as HW, toggleLatchMechanism as TL, type Part } from '@canfactory/contracts';
 import type { CatioView } from './catioDesign.ts';
 import { doorBom, doorLibraryParts } from './catioDoor.ts';
-import { DOOR_FIXING_LABELS, SIDE_POCKET, sidePortOffset, STANDARD_PORT } from './catioPort.ts';
+import { DOOR_FIXING_LABELS, sidePortOffset, STANDARD_PORT } from './catioPort.ts';
 import { E_PROFILE_SEAL, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine } from './catioPrintedLatch.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { loadSubassemblyConfig, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
@@ -97,7 +97,7 @@ export function tunnelCouplingSteps(_variant: CatioMode, config: TunnelCouplingC
     { title: 'Ready its joint', detail: printed
       ? `${l.seal ? `Stick the EPDM E-profile seal round the middle of the outgoing flange’s face${l.side ? ' (or the side port’s)' : ''}. ` : ''}A standard port carries its latches’ base plates on its left and their catch plates on its right, seen from outside it. Screw ${n / 2} base ${n / 2 === 1 ? 'plate' : 'plates'} of the printed toggle latch, lever and link already snapped on, onto the outgoing flange’s right side and ${n / 2} catch ${n / 2 === 1 ? 'plate' : 'plates'} onto its left, ${round1(PRINTED_LATCH.overhang)} mm proud of its face, two 4 × 25 screws each (pre-drill them).`
       : `Nothing to fit yet: the bolts go through both flanges once the next section is down. Have ${bolts} M8 × 80 bolts, ${2 * bolts} large washers and ${bolts} nuts to hand.` },
-    { title: `The second ${l.second} comes in`, detail: `${l.side ? `A section, ${cm(l.after.length)} cm long, with a side port: a flange ring like its ends’, on its rails’ outer faces ${cm(sidePortOffset(l.w))} cm from its start, its face flush with the flanges’ outline, a ${SIDE_POCKET} mm pocket and a pocket post each side of it, and its stub’s end port closed by its door. It lies square across the first, its side port facing the first one’s flange` : l.first === l.second ? `An identical ${l.second}, also ${length} long` : `A ${l.second}, ${cm(l.after.length)} cm long: its port the same as the ${l.first}’s`}${printed ? `, with the other halves of the latches already screwed onto ${l.side ? 'the side port’s' : 'its incoming flange’s'} sides: base plates on its left, catch plates on its right, seen from outside it` : ''}, comes in along the first one’s axis from beyond it, onto the same bearer${fixing.lay ? ` (lifted over the dowels and set down${fixing.lay})` : ''}, and stops ${printed ? `${l.gap} mm short of the first one’s flange, on the seal` : 'flange to flange against the first'}. The bearer, not the joint, sets where it lies.` },
+    { title: `The second ${l.second} comes in`, detail: `${l.side ? `A section, ${cm(l.after.length)} cm long, its end bay’s side door taken out: the opening, framed like an end, the middle of it ${cm(sidePortOffset(l.w))} cm from its start, the section’s start shut by a door. It lies square across the first, the opening facing the first one’s end frame` : l.first === l.second ? `An identical ${l.second}, also ${length} long` : `A ${l.second}, ${cm(l.after.length)} cm long: its port the same as the ${l.first}’s`}${printed ? `, with the other halves of the latches already screwed onto ${l.side ? 'the side port’s' : 'its incoming flange’s'} sides: base plates on its left, catch plates on its right, seen from outside it` : ''}, comes in along the first one’s axis from beyond it, onto the same bearer${fixing.lay ? ` (lifted over the dowels and set down${fixing.lay})` : ''}, and stops ${printed ? `${l.gap} mm short of the first one’s flange, on the seal` : 'flange to flange against the first'}. The bearer, not the joint, sets where it lies.` },
     { title: 'Couple', detail: printed
       ? `Hook each latch’s link over its catch and press the lever down until it snaps over centre: the link draws the flanges in to the ${l.gap} mm gap${l.seal ? ', squashing the seal' : ''}, the plates ${round1(PRINTED_LATCH.locked)} mm apart. ${n} levers, no tools. To part the sections, lift the levers and unhook.`
       : `Push ${bolts} M8 × 80 bolts through both flanges with a large washer under each head, then run a large washer and a nut on from the far side and tighten them with a 13 mm spanner.` },
@@ -165,8 +165,6 @@ export function tunnelCouplingFacts(_variant: CatioMode, config: TunnelCouplingC
     { label: 'Stub’s end door · held by', value: `${l.side ? 'Behind the side port' : 'Behind every side port of the tunnel'} · ${DOOR_FIXING_LABELS[config.doorFixing].toLowerCase()}` },
     { label: 'Joint shown', value: `${l.side ? 'Section end to a side port' : 'Section end to section end'}: the standard port either way` },
     { label: 'Section length', value: `${cm(l.sectionLength)} cm · the longest section`, from: { page: 'tunnel', settings: ['sectionLength'] } },
-    // a side-access panel lies between its own section's flanges: the latches on the flanges' sides stay free
-    ...(l.tl.access.some(a => l.pieces.includes(a.piece)) ? [{ label: 'Side access', value: 'A removable mesh panel beside the joint, between its section’s flanges: clear of the latches', from: { page: 'tunnel' as const, settings: ['sideAccess', 'sideAccessSide'] } }] : []),
     { label: 'On the support', value: `${SUPPORT_FIXING_LABELS[l.tunnel.supportFixing]}${l.support.hold.attached || l.tunnel.supportFixing === 'gravity' ? '' : ' · does not fit here'} · ${l.support.soles.length ? 'self-standing' : 'a trestle'}` },
   ];
 }
@@ -211,7 +209,7 @@ export const TUNNEL_COUPLING_DECISIONS: DesignDecision[] = [
 ];
 
 /** The cross-page settings of the tunnel this page is built from: its sections' length, and the support's feet and ground. */
-export const TUNNEL_SETTINGS_FOLLOWED = ['mesh', 'sectionLength', 'sideAccess', 'sideAccessSide', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
+export const TUNNEL_SETTINGS_FOLLOWED = ['mesh', 'sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
 /** The tunnel's settings this page shows and sets too: how the tunnel is held on its supports. */
 export const TUNNEL_SETTINGS_SHARED = ['supportFixing', 'supportBase'];
 

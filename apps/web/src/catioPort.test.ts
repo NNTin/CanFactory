@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { blankPanel, buttonOverlap, DOOR, DOOR_SEATS, setInDoor, type DoorPanel } from './catioDoor.ts';
 import {
-  BOLTS_PER_SIDE, boltStations, SWING_CLEAR, DOOR_FIXINGS, frameAlong,
-  LATCH_INTO_RING, LATCH_REACH, LATCH_SWING_INTO, portHalf, portLatches, portOutline, portRing, portTemplate, portTemplateSvg,
-  SIDE_POCKET, SIDE_RAIL, SIDE_RING_SET, sideClashes, sidePocketPost, sidePortFaces, sidePortLength, sidePortOffset, STANDARD_PORT, type Face,
+  BOLTS_PER_SIDE, boltStations, DOOR_FIXINGS, frameAlong,
+  LATCH_INTO_RING, LATCH_REACH, portHalf, portLatches, portOutline, portRing, portTemplate, portTemplateSvg,
+  sidePortFace, sidePortLength, sidePortOffset, STANDARD_PORT, type Face,
 } from './catioPort.ts';
 import { latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 import type { V3 } from './catioSubassembly.ts';
@@ -20,10 +20,10 @@ const quarter = ([u, v]: [number, number], s: number): [number, number] => [-(v 
 const sameSet = (a: [number, number][], b: [number, number][]) => a.length === b.length && a.every(p => b.some(q => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-6));
 
 describe('the standard port', () => {
-  it('is a square opening in a ring 30 deep and 70 wide, its outline following from it', () => {
-    expect(STANDARD_PORT.ring).toEqual({ thickness: 30, width: 70 });
+  it('is a square opening in a frame 40 deep and 40 wide, flush with the rails, its outline following from it', () => {
+    expect(STANDARD_PORT.ring).toEqual({ thickness: 40, width: 40 });
     for (const s of SIZES) {
-      expect(portOutline(s)).toBe(s + 140);
+      expect(portOutline(s)).toBe(s + 80);
       const ring = portRing(s);
       // its four members close round the opening and fill the outline, without overlapping
       const area = ring.reduce((n, [, [u0, u1, v0, v1]]) => n + (u1 - u0) * (v1 - v0), 0);
@@ -37,10 +37,10 @@ describe('the standard port', () => {
       const bolts = boltStations(s, perSide);
       expect(bolts).toHaveLength(4 * perSide);
       expect(sameSet(bolts.map(p => quarter(p, s)), bolts)).toBe(true);
-      // on the middle line of the ring's outer 30 mm: clear of a section's corner rails (40 mm) and inside the ring
+      // on the middle line of the frame
       for (const [u, v] of bolts) {
         const out = Math.max(Math.abs(u), Math.abs(v - s / 2)) - s / 2;
-        expect(out).toBe(40 + (F - 40) / 2);
+        expect(out).toBe(F / 2);
       }
       // the latches' fractions are symmetric, so the stations up one side are those across the others turned
       const f = latchHeights(perSide);
@@ -156,44 +156,40 @@ describe('the standard doors', () => {
 
 describe('the latch’s real movement', () => {
   it('reaches as far as the mechanism moves it: closed along the joint past the ring, open out from its side', () => {
-    // closed, the lever lies along the joint, past a 30 mm ring; opening, it swings out 38 mm from the side
-    expect(LATCH_INTO_RING).toBeGreaterThan(T);
+    // closed, the lever lies along the joint, within the 40 mm frame; opening, it swings out 38 mm from the side
+    expect(LATCH_INTO_RING).toBeLessThan(T);
     expect(LATCH_REACH.swing.v[1]).toBeGreaterThan(LATCH_REACH.closed.v[1]);
     expect(LATCH_REACH.swing.u[0]).toBeLessThan(LATCH_REACH.closed.u[0]);
     expect(LATCH_REACH.width).toBe(38);
   });
 });
 
-describe('a side port', () => {
+describe('a side opening', () => {
   const frame = { x: [1, 0, 0] as V3, y: [0, 1, 0] as V3, z: [0, 0, 1] as V3 };
 
-  it('lies on the section’s rails, its face flush with the flanges’ outline, its opening the tunnel’s', () => {
-    for (const s of SIZES) {
-      const { back, side } = sidePortFaces([0, 0, 0], frame, s, SIDE_POCKET);
-      // the face at the flanges' outline, the ring its depth inside it on the rails' outer faces
-      expect(side.at[0]).toBeCloseTo(s / 2 + F, 9); expect(SIDE_RING_SET).toBe(T); expect(s / 2 + F - T).toBe(s / 2 + SIDE_RAIL);
-      // its opening level with the floor and as high as the tunnel, square onto the section's side
-      expect(side.at[2]).toBeCloseTo(back.at[2], 9); expect(side.n.map(c => c + 0)).toEqual([-1, 0, 0]);
-      // the stub: its end port's face the pocket and a ring's depth past the side ring's outline
-      expect(-back.at[1]).toBeCloseTo(sidePortOffset(s), 9); expect(sidePortOffset(s)).toBe(s / 2 + F + SIDE_POCKET + T);
-      expect(sidePortLength(s)).toBe(2 * sidePortOffset(s));
+  it('is framed like an end, its face the section’s outline, its opening the tunnel’s, in the end bay', () => {
+    for (const s of SIZES) for (const side of [-1, 1] as const) {
+      const face = sidePortFace([0, 0, s / 2], frame, s, side);
+      // the face on the rails' outer faces, the section's outline: flush, nothing proud of the tunnel
+      expect(face.at[0]).toBeCloseTo(side * (s / 2 + F), 9); expect(face.n.map(c => c + 0)).toEqual([-side, 0, 0]);
+      // its opening level with the floor and as high as the tunnel
+      expect(face.at[2]).toBeCloseTo(0, 9);
+      // its frame's x to the right seen from outside, as an end face's is
+      expect(face.frame.y.map(c => c + 0)).toEqual(face.n.map(c => c + 0));
     }
+    // the end bay: the end frame, then the opening; one bay is the shortest section
+    expect(sidePortOffset(300)).toBe(T + 150); expect(sidePortLength(300)).toBe(300 + 2 * T);
   });
 
-  it('has a pocket beside it from the latch’s real movement: the least that keeps both ports’ latches clear of each other’s ends', () => {
-    expect(sideClashes(SIDE_POCKET)).toBe(false);
-    expect(sideClashes(SIDE_POCKET - 1)).toBe(true);
-    // the stub's flange reaches out to the side port's face: the pocket takes the lever's whole swing out along the section
-    expect(SIDE_POCKET).toBeGreaterThanOrEqual(LATCH_REACH.swing.v[1] + SWING_CLEAR - 1);
-    for (const s of SIZES) expect(sideClashes(SIDE_POCKET, s)).toBe(false);
-  });
-
-  it('closes the side behind the latches with a post in each pocket, clear of their swing', () => {
-    const post = sidePocketPost(300);
-    expect(post.width).toBe(SIDE_POCKET);
-    // from the clear opening's plane out to just behind the latches' parts, open or closed
-    expect(post.depth + SWING_CLEAR + LATCH_SWING_INTO).toBeLessThanOrEqual(F + 1e-9);
-    expect(post.depth).toBeGreaterThan(SIDE_RAIL - 10);
+  it('takes the two latches of an end butted into it on the head, lying across the joint, base and catch on either side of the middle', () => {
+    const face: Face = { at: [0, 0, 0], n: [0, 1, 0], frame: frameAlong([0, 1, 0]) };
+    const head = portLatches('h', face, 300, 2, PRINTED_LATCH_JOINT.gap, 'head');
+    expect(head).toHaveLength(2);
+    for (const q of head) {
+      expect(q.out).toEqual(face.frame.z); expect(q.at[2]).toBeCloseTo(300 + F, 9);
+      expect(q.base === 'port').toBe(q.side < 0);
+      expect(Math.abs(q.at[0])).toBeCloseTo(0.3 * 300, 9);
+    }
   });
 });
 
@@ -218,7 +214,7 @@ describe('the marking template', () => {
 
   it('draws at 1:1 in millimetres: an SVG with the outline, the opening, every hole and notch', () => {
     const svg = portTemplateSvg(300); const t = portTemplate(300);
-    expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" width="480mm" height="480mm" viewBox="0 0 480 480">/);
+    expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" width="420mm" height="420mm" viewBox="0 0 420 420">/);
     expect(svg.match(/<circle /g)).toHaveLength(t.bolts.length);
     expect(svg.match(/<path /g)).toHaveLength(t.notches.length);
     expect(svg.match(/<rect /g)).toHaveLength(2);

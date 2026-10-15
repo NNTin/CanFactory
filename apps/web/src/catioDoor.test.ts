@@ -16,10 +16,10 @@ import { defaultSubassemblySettings, fastenerClashes, parseSubassemblySettings, 
 import { couplingDefinition, tunnelCouplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
 import { COUPLING_CONTROLS, COUPLING_DEFAULT, couplingFacts, couplingLayout, couplingSteps } from './catioCoupling.ts';
 import { createCouplingScene } from './catioCouplingScene.ts';
-import { facePoint, parseTunnel, TUNNEL, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSite, tunnelSteps, vec, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
+import { parseTunnel, TUNNEL, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSite, tunnelSteps, vec, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
 import { TUNNEL_COUPLING_DEFAULT } from './catioTunnelJoint.ts';
-import { tunnelCouplingFacts, tunnelCouplingLayout } from './catioTunnelCoupling.ts';
 import { createTunnelCouplingScene } from './catioTunnelCouplingScene.ts';
+import { STANDARD_PORT } from './catioPort.ts';
 import { createTunnelScene } from './catioTunnelScene.ts';
 import { windowFrame } from './catioWindow.ts';
 import { doorZone, HOOK_FIT, INSERT, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig, type WindowSpec } from './catioWindowInsert.ts';
@@ -29,7 +29,7 @@ import { createWindowInsertScene } from './catioWindowInsertScene.ts';
 const SIZES = [200, 250, 300, 380, 450];
 const BAYS = [300, 440, 690, 940];
 const faces = SIZES.flatMap(width => SIZES.flatMap(height => DOOR_SEATS.flatMap(seat => (['solid', 'mesh'] as const).map(material => setInDoor({ id: 'p', width, height, material, seat, depth: PORT_FRAME, sealed: material === 'solid', sillButton: material !== 'solid' })))));
-const insets = BAYS.flatMap(width => SIZES.map(height => insetPanel({ id: 'a', width, height, cavity: TUNNEL.rail, pivots: { head: TUNNEL.access.pivotEdge, sill: TUNNEL.floor + TUNNEL.rail - TUNNEL.access.pivotEdge } })));
+const insets = BAYS.flatMap(width => SIZES.map(height => insetPanel({ id: 'a', width, height, cavity: TUNNEL.rail, pivots: { head: 10, sill: TUNNEL.floor + TUNNEL.rail - 10 } })));
 const doors = [...faces, ...insets];
 const name = (d: DoorPanel) => `${d.fit} ${d.material} ${d.opening.width} × ${d.opening.height}`;
 const range = (b: DoorBox, i: 0 | 1 | 2): [number, number] => [b.center[i] - b.size[i] / 2, b.center[i] + b.size[i] / 2];
@@ -395,21 +395,14 @@ describe('saved settings from before the closure could be chosen', () => {
     migrateCatioSettings(before); expect(before).toEqual(copy);
   });
 
-  it('keeps a saved tunnel as it was, without side access, with its settings and viewing state', () => {
-    const old = without({ ...TUNNEL_DEFAULT, portX: 800, portHeight: 655, supportFixing: 'dowels' as const, mesh: 'welded' as const }, 'sideAccess', 'sideAccessSide');
-    const saved = parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, variant: 'modular', config: old, views: { modular: { progress: 3, view: 'Top', hidden: ['mesh'], cutaway: true, exploded: true, windowOpen: false } } }));
-    expect(saved.config).toEqual({ ...old, sideAccess: 'none', sideAccessSide: TUNNEL_DEFAULT.sideAccessSide });
+  it('keeps a saved tunnel’s settings and viewing state, dropping the side access its end bays’ doors replaced', () => {
+    const config = { ...TUNNEL_DEFAULT, portX: 800, portHeight: 655, supportFixing: 'dowels' as const, mesh: 'welded' as const };
+    const saved = parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, variant: 'modular', config: { ...config, sideAccess: 'all', sideAccessSide: 'left' }, views: { modular: { progress: 3, view: 'Top', hidden: ['mesh'], cutaway: true, exploded: true, windowOpen: false } } }));
+    expect(saved.config).toEqual(config); expect(Object.keys(saved.config)).not.toContain('sideAccess');
     expect(saved.views.modular).toEqual({ progress: 3, view: 'Top', hidden: ['mesh'], cutaway: true, exploded: true, windowOpen: false, doorOpen: false });
-    expect(tunnelLayout(saved.config, siteWith('sliding-gate')).access).toEqual([]);
-    // saved again with the setting, it keeps it; a fresh or reset tunnel has the new default
     expect(parseTunnel(saved.config)).toEqual(saved.config);
-    expect(parseTunnel({ ...old, sideAccess: 'all', sideAccessSide: 'left' })).toMatchObject({ sideAccess: 'all', sideAccessSide: 'left' });
-    expect(defaultSubassemblySettings(tunnelDefinition).config).toMatchObject({ sideAccess: 'one', sideAccessSide: 'right' });
-    expect(parseSubassemblySettings(tunnelDefinition, null).config.sideAccess).toBe('one');
     // only the settings another page shares with it, written before the tunnel page was ever opened: not a saved tunnel
     expect(parseTunnel({ supportFixing: 'strap', supportBase: 'self-standing' })).toEqual({ ...TUNNEL_DEFAULT, supportFixing: 'strap', supportBase: 'self-standing' });
-    // an invalid value of the setting itself falls back to the default, like any other
-    expect(parseTunnel({ ...old, sideAccess: 'both' })?.sideAccess).toBe('one');
   });
 
   it('keeps sliding gates for a window insert or tunnel saved before the choice, when the whole catio was never saved', () => {
@@ -424,7 +417,7 @@ describe('saved settings from before the closure could be chosen', () => {
       // nothing saved anywhere: a new design, with removable panels
       expect(closures()).toEqual(Array(4).fill('removable-panel')); expect(store.size).toBe(0);
       // each page alone, saved before the choice, with no whole-catio settings: its design keeps its sliding gate
-      for (const [id, config] of [['window-insert', { ...WINDOW_INSERT_DEFAULT, footDiameter: 40 }], ['tunnel', without(TUNNEL_DEFAULT, 'sideAccess', 'sideAccessSide')], ['insert-tunnel-coupling', COUPLING_DEFAULT], ['tunnel-tunnel-coupling', TUNNEL_COUPLING_DEFAULT]] as const) {
+      for (const [id, config] of [['window-insert', { ...WINDOW_INSERT_DEFAULT, footDiameter: 40 }], ['tunnel', TUNNEL_DEFAULT], ['insert-tunnel-coupling', COUPLING_DEFAULT], ['tunnel-tunnel-coupling', TUNNEL_COUPLING_DEFAULT]] as const) {
         store.clear(); store.set(subassemblyStorageKey(id), oldPage(config));
         expect(savedBeforeClosure(storage), id).toBe(true);
         expect(closures(), id).toEqual(Array(4).fill('sliding-gate'));
@@ -442,7 +435,7 @@ describe('saved settings from before the closure could be chosen', () => {
       store.clear(); saveShared(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'strap' as const }); store.set(subassemblyStorageKey('window-insert'), '{oops');
       expect(store.has(subassemblyStorageKey('tunnel'))).toBe(true); expect(savedBeforeClosure(storage)).toBe(false); expect(closures()).toEqual(Array(4).fill('removable-panel'));
       // saved whole-catio settings decide, whatever the pages hold: version 1 migrates to the gate, a chosen panel stays
-      store.set(subassemblyStorageKey('tunnel'), oldPage(without(TUNNEL_DEFAULT, 'sideAccess', 'sideAccessSide')));
+      store.set(subassemblyStorageKey('tunnel'), oldPage(TUNNEL_DEFAULT));
       store.set(CATIO_STORAGE_KEY, JSON.stringify(defaultCatioSettings())); expect(closures()).toEqual(Array(4).fill('removable-panel'));
       store.set(CATIO_STORAGE_KEY, legacy); expect(loadCatioSettings().config.portClosure).toBe('sliding-gate');
     } finally { Object.defineProperty(globalThis, 'localStorage', { value: previous, configurable: true }); }
@@ -460,12 +453,9 @@ describe('saved settings from before the closure could be chosen', () => {
     expect(windowInsertDefinition.doorToggle?.('modular', WINDOW_INSERT_DEFAULT)).toBe('Cat port open');
     expect(windowInsertDefinition.doorToggle?.('direct', WINDOW_INSERT_DEFAULT)).toBeNull();
     expect(couplingDefinition.doorToggle?.('modular', COUPLING_DEFAULT)).toBe('Cat port open');
-    // the tunnel's side access and its cubes' doors open together
+    // the tunnel's doors, every opening not coupled, open together
     expect(tunnelDefinition.doorToggle?.('modular', TUNNEL_DEFAULT)).toBe('Doors open');
-    expect(tunnelDefinition.doorToggle?.('modular', { ...TUNNEL_DEFAULT, sideAccess: 'none' })).toBe('End doors open');
-    const noCubes = { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar' as const };
-    expect(tunnelDefinition.doorToggle?.('modular', noCubes)).toBe('Side access open');
-    expect(tunnelDefinition.doorToggle?.('modular', { ...noCubes, sideAccess: 'none' })).toBeNull();
+    expect(tunnelDefinition.doorToggle?.('modular', { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar' as const })).toBe('Doors open');
   });
 });
 
@@ -678,248 +668,109 @@ describe('insert–tunnel coupling with a removable cat-port panel', () => {
   });
 });
 
-describe('tunnel side access', () => {
+describe('tunnel doors: every section’s end bay', () => {
   const routes: TunnelConfig[] = [
     TUNNEL_DEFAULT, { ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends' },
-    { ...TUNNEL_DEFAULT, portX: -1730, portY: 3420, portFacing: -25, portHeight: 820, slopeLeg: 'final', final: 2300 },
-    { ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portHeight: 245, slopeLeg: 'approach', approach: 1500 },
-    { ...TUNNEL_DEFAULT, portX: 900, portY: 5200, portFacing: 15, portHeight: 1100, maxSlope: 25, sectionLength: 2 },
+    { ...TUNNEL_DEFAULT, portX: -1730, portY: 3420, portFacing: -25, portHeight: 820, slopeLeg: 'final', final: 2300, angleJoint: 'angle-collar' },
     { ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portLevel: 'window', sectionLength: 1 },
-    { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar', portX: 1200, portY: 3000, final: 700, slopeLeg: 'middle' },
+    { ...TUNNEL_DEFAULT, portX: 2400, portY: 2000, portFacing: 90, portLevel: 'window' },
   ];
   const site = siteWith('removable-panel');
-  const variants = (route: TunnelConfig) => (['none', 'one', 'all'] as const).flatMap(sideAccess => (['left', 'right'] as const).map((sideAccessSide): TunnelConfig => ({ ...route, sideAccess, sideAccessSide })));
-  const joints = [TUNNEL_COUPLING_DEFAULT, { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' as const }];
+  const T = STANDARD_PORT.ring.thickness; const F = STANDARD_PORT.ring.width;
 
-  it('leaves the route, every piece, coupling, support and the roof exactly as they are without it, for either mesh', { timeout: 120_000 }, () => {
-    for (const route of routes) for (const mesh of ['netting', 'welded'] as const) for (const joint of joints) {
-      const plain = tunnelLayout({ ...route, mesh, sideAccess: 'none' }, site, joint);
-      type Layout = typeof plain;
-      const roofEdges = (layout: Layout) => layout.panels.filter(panel => panel.id.endsWith('-mesh-roof')).flatMap(panel => panel.edges);
-      /** The staples along the roof panels' edges: on an edge's line, driven its way. */
-      const roofStaples = (layout: Layout) => { const edges = roofEdges(layout); return layout.fasteners.filter(f => f.component === 'staples' && edges.some(edge => vec.dot(f.direction, edge.drive) > 0.999 && Math.abs(vec.len(vec.sub(f.at, edge.from)) + vec.len(vec.sub(edge.to, f.at)) - vec.len(vec.sub(edge.to, edge.from))) < 1e-6)); };
-      const plainRoofStaples = roofStaples(plain); expect(plainRoofStaples.length).toBeGreaterThan(plain.pieces.length);
-      for (const config of variants({ ...route, mesh })) {
-        const l = tunnelLayout(config, site, joint); const label = `${mesh} ${config.sideAccess} ${config.sideAccessSide}`;
-        expect(l.errors, label).toEqual(plain.errors);
-        for (const key of ['S', 'E', 'pieces', 'joints', 'interfaces', 'couplings', 'supports', 'members', 'cleats', 'totalLength', 'rise', 'turns'] as const) expect(l[key], `${label} ${key}`).toEqual(plain[key]);
-        // the roof: the same panels, corners and edges, and the same staples along them
-        const roof = (layout: typeof l) => layout.panels.filter(panel => panel.id.endsWith('-mesh-roof'));
-        // (a cube has no roof mesh of its own: its roof is a door)
-        expect(roof(l), label).toEqual(roof(plain)); expect(roof(l)).toHaveLength(l.pieces.length);
-        expect(roofStaples(l), label).toEqual(plainRoofStaples);
-        // the other fasteners too, but for the mesh of the side that is now a panel
-        const notMesh = (layout: typeof l) => layout.fasteners.filter(f => f.component !== 'staples');
-        expect(notMesh(l), label).toEqual(notMesh(plain));
-        // roof mesh lines of the parts list are the same
-        const roofLines = (config2: TunnelConfig) => tunnelBom('modular', config2, site, joint).filter(line => line.name === 'Roof mesh').map(line => ({ ...line, id: '' }));
-        if (joint === TUNNEL_COUPLING_DEFAULT) expect(roofLines(config), label).toEqual(roofLines({ ...config, sideAccess: 'none' }));
-        if (config.sideAccess === 'none') { expect(l.access).toEqual([]); expect(l.panels).toEqual(plain.panels); expect(l.fasteners).toEqual(plain.fasteners); }
+  it('opens both sides of every section’s end bay, framed like an end, and shuts every one not coupled with the standard door', () => {
+    for (const doorFixing of ['turn-buttons', 'latches'] as const) for (const config of routes) {
+      const l = tunnelLayout(config, site, { ...TUNNEL_COUPLING_DEFAULT, doorFixing });
+      expect(l.errors, JSON.stringify(config)).toEqual([]);
+      // (a section whose start is a mitre has no end bay: the mitred frame leans over where it would be)
+      for (const p of l.pieces.filter(q => q.kind === 'section' && vec.dot(q.start.n, q.frame.y) > 1 - 1e-9)) {
+        // a bay post one opening on from the start frame, both sides (none in a section one bay long: its far frame is it)
+        const posts = l.members.filter(m => m.piece === p.id && m.kind === 'post');
+        expect(posts.length, p.id).toBe(p.length > l.unitLength + 1e-6 ? 2 : 0);
+        for (const m of posts) { expect([m.fromOffset, m.toOffset]).toEqual([T + l.w, 2 * T + l.w]); expect([m.rect[2], m.rect[3]]).toEqual([0, l.h]); }
+        // a door on each side but the one the run before is coupled into, and on the start where that is so
+        const doors = l.doors.filter(d => d.piece === p.id);
+        expect(doors.map(d => d.at).sort(), p.id).toEqual([...(p.sidePort ? ['start'] : []), ...(['left', 'right'] as const).filter(s => p.sidePort?.side !== (s === 'left' ? -1 : 1))].sort());
+        for (const d of doors) {
+          expect(d.door.errors).toEqual([]);
+          expect(d.door.fit).toBe(doorFixing === 'latches' ? 'blank' : 'set-in');
+          expect(d.door.opening).toEqual({ width: l.w, height: l.w });
+          // out of the section, on the plane of its outline: the side openings' face is the rails' outer faces
+          expect(vec.dot(d.frame.n, d.face.n)).toBeCloseTo(-1, 9);
+          if (d.at !== 'start') {
+            expect(Math.abs(vec.dot(vec.sub(d.face.at, p.start.at), p.frame.x))).toBeCloseTo(l.w / 2 + F, 6);
+            expect(vec.dot(vec.sub(d.face.at, p.start.at), p.frame.y)).toBeCloseTo(T + l.w / 2, 6);
+          }
+          expect(d.latches).toHaveLength(doorFixing === 'latches' ? (d.at === 'start' ? 2 * TUNNEL_COUPLING_DEFAULT.latchesPerSide : 2) : 0);
+        }
+        // no side mesh in the end bay: its sides are the openings
+        for (const panel of l.panels.filter(q => q.piece === p.id && !q.id.includes('roof') && !q.id.includes('-edge-'))) {
+          for (const c of panel.corners) expect(vec.dot(vec.sub(c, p.start.at), p.frame.y), panel.id).toBeGreaterThanOrEqual(2 * T + l.w - 1e-6);
+        }
       }
+      // a collar has none
+      expect(l.doors.every(d => l.pieces.find(q => q.id === d.piece)?.kind === 'section')).toBe(true);
     }
   });
 
-  it('replaces one side’s mesh with a panel between the flanges, in sections with two square ends long enough for it', () => {
-    for (const route of routes) for (const config of variants(route)) {
-      const l = tunnelLayout(config, site); const plain = tunnelLayout({ ...config, sideAccess: 'none' }, site);
-      const T = TUNNEL.flange.thickness; const square = (p: typeof l.pieces[number]) => vec.dot(p.start.n, p.frame.y) > 1 - 1e-9 && vec.dot(p.end.n, p.frame.y) > 1 - 1e-9;
-      // the square part of the side between the flanges' inner faces, all the way up it, in the depth of the rails
-      const sideSpan = (p: typeof l.pieces[number]) => {
-        const side = config.sideAccessSide === 'left' ? -1 : 1; let from = -Infinity; let to = Infinity;
-        for (const u of [side * l.w / 2, side * (l.w / 2 + TUNNEL.rail)]) for (const v of [-TUNNEL.floor - TUNNEL.rail, l.h + TUNNEL.rail]) {
-          from = Math.max(from, vec.dot(vec.sub(facePoint(p.start, u, v, T), p.start.at), p.frame.y));
-          to = Math.min(to, vec.dot(vec.sub(facePoint(p.end, u, v, -T), p.start.at), p.frame.y));
-        }
-        return to - from;
-      };
-      // (not on the side of a side port: its ring is there)
-      const able = l.pieces.filter(p => p.kind === 'section' && p.sidePort?.side !== (config.sideAccessSide === 'left' ? -1 : 1) && sideSpan(p) >= TUNNEL.access.minLength);
-      for (const p of able.filter(square)) expect(sideSpan(p)).toBeCloseTo(p.length - 2 * T, 9);
-      expect(config.supportFixing).not.toBe('strap');
-      expect(l.access.map(a => a.piece), JSON.stringify(config)).toEqual(config.sideAccess === 'all' ? able.map(p => p.id) : config.sideAccess === 'one' ? able.slice(Math.floor(able.length / 2), Math.floor(able.length / 2) + 1).map(p => p.id) : []);
-      const sign = config.sideAccessSide === 'left' ? -1 : 1; const sideName = config.sideAccessSide;
-      for (const a of l.access) {
-        const piece = l.pieces.find(p => p.id === a.piece); if (!piece) throw new Error('piece');
-        expect(a.side).toBe(sign); expect(a.door.errors).toEqual([]);
-        // the square part of its side between the flanges: all of it between square flanges
-        expect(a.door.opening.width).toBeCloseTo(a.span[1] - a.span[0], 9); expect(a.door.opening.height).toBe(l.h);
-        if (vec.dot(piece.start.n, piece.frame.y) > 1 - 1e-9 && vec.dot(piece.end.n, piece.frame.y) > 1 - 1e-9) expect(a.door.opening.width).toBeCloseTo(piece.length - 2 * T, 9);
-        // that side's mesh panel is gone, the other side's and the roof's are as they were
-        expect(l.panels.some(panel => panel.id === `${piece.id}-mesh-${sideName}`)).toBe(false);
-        for (const id of [`${piece.id}-mesh-${sideName === 'left' ? 'right' : 'left'}`, `${piece.id}-mesh-roof`]) expect(l.panels.find(panel => panel.id === id)).toEqual(plain.panels.find(panel => panel.id === id));
-        // a net hood ends on that side's top rail, a staple over every mesh, above the buttons; welded mesh needs nothing more
-        const edge = l.panels.find(panel => panel.id === `${piece.id}-mesh-edge-${sideName}`);
-        expect(edge !== undefined).toBe(l.mesh.soft);
-        if (edge) {
-          const staples = l.fasteners.filter(f => f.component === 'staples' && f.piece === piece.id && /top rail over the side access/.test(f.use));
-          expect(vec.len(vec.sub(edge.edges[0]?.to ?? [0, 0, 0], edge.edges[0]?.from ?? [0, 0, 0])) / staples.length).toBeLessThanOrEqual(l.mesh.opening);
-          const top = Math.max(...a.door.buttons.map(b => b.pivot[1] + buttonSweep(b)));
-          expect(l.h + TUNNEL.rail - TUNNEL.access.hoodTurn).toBeGreaterThan(Math.max(...a.door.buttons.filter(b => b.side === 'head').map(b => b.pivot[1] + b.tail)));
-          expect(top).toBeLessThan(l.h + TUNNEL.rail + 20);
-        }
-        // its frame: seated the panel's thickness inside the rails' outer faces, coming out sideways, flush with the rails
-        const outer = l.w / 2 + TUNNEL.rail; const middle = vec.add(piece.start.at, vec.mul(piece.frame.y, (a.span[0] + a.span[1]) / 2));
-        expect(vec.len(vec.sub(a.frame.origin, vec.add(middle, vec.mul(piece.frame.x, sign * (outer - a.door.front)))))).toBeCloseTo(0, 6);
-        expect(vec.dot(a.frame.n, vec.mul(piece.frame.x, sign))).toBeCloseTo(1, 9); expect(vec.dot(a.frame.v, piece.frame.z)).toBeCloseTo(1, 9);
-        expect(vec.len(vec.sub(vec.cross(a.frame.u, a.frame.v), a.frame.n))).toBeCloseTo(0, 9);
-        // everything of it lies between the flanges' inner faces, along the tunnel
-        const along = (point: [number, number, number]) => vec.dot(vec.sub(point, middle), piece.frame.y);
-        const reach = Math.max(...[...a.door.timber.flatMap(t => t.boxes).map(b => doorBounds(a.frame, b)).flatMap(b => [b.min, b.max]), ...a.door.buttons.flatMap(b => [-1, 1].map(k => [b.pivot[0] + k * buttonSweep(b), b.pivot[1], b.pivot[2]] as [number, number, number]).map(q => vec.add(a.frame.origin, vec.add(vec.mul(a.frame.u, q[0]), vec.add(vec.mul(a.frame.v, q[1]), vec.mul(a.frame.n, q[2]))))))].map(q => Math.abs(along(q))));
-        if (Math.abs(piece.pitch) < 1e-9 && Math.abs(piece.frame.y[0]) < 1e-9) expect(reach).toBeLessThanOrEqual((a.span[1] - a.span[0]) / 2 + 1e-6);
-        for (const b of a.door.buttons) expect(Math.abs(b.pivot[0]) + buttonSweep(b)).toBeLessThanOrEqual(a.door.opening.width / 2 + 1e-6);
-      }
-    }
-    // mitred sections have no square ends: such a tunnel has no panel, and says so instead of failing
-    const mitred = tunnelLayout({ ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends' }, site);
-    if (mitred.access.length === 0) expect(tunnelFacts('modular', { ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends' }, site).find(f => f.label.startsWith('Side access'))?.value).toBe('no section can take a panel');
-    expect(tunnelLayout(TUNNEL_DEFAULT, site).access).toHaveLength(1);
-  });
-
-  it('stays clear of the couplings’ latches and bolts, the supports and what holds the tunnel on them, and of the screws in its rails', { timeout: 120_000 }, () => {
-    for (const route of routes) for (const joint of joints) for (const supportFixing of ['screws', 'strap', 'dowels', 'turn-buttons', 'gravity'] as const) {
-      const l = tunnelLayout({ ...route, sideAccess: 'all', supportFixing, supportBase: 'self-standing' }, site, joint);
-      for (const a of l.access) {
-        const piece = l.pieces.find(p => p.id === a.piece); if (!piece) throw new Error('piece');
-        // (beside a mitre, the panel takes the side's square part: `span`)
-        const middle = vec.add(piece.start.at, vec.mul(piece.frame.y, (a.span[0] + a.span[1]) / 2)); const half = (a.span[1] - a.span[0]) / 2;
-        const along = (point: [number, number, number]) => Math.abs(vec.dot(vec.sub(point, middle), piece.frame.y));
-        // the space the panel, its stops and its buttons take, and the panel's way out, in the door's own frame
-        const reachOut = a.door.depth + a.door.withdraw;
-        /** Whether a box of a support (`size` across, along and up it) reaches into that space. */
-        const inZone = (s: { across: [number, number, number]; along: [number, number, number] }, box: { center: [number, number, number]; size: [number, number, number] }) => {
-          const d = vec.sub(box.center, a.frame.origin);
-          const half = (e: [number, number, number]) => (Math.abs(vec.dot(s.across, e)) * box.size[0] + Math.abs(vec.dot(s.along, e)) * box.size[1] + Math.abs(e[2]) * box.size[2]) / 2;
-          const [u, v, n] = [vec.dot(d, a.frame.u), vec.dot(d, a.frame.v), vec.dot(d, a.frame.n)]; const [hu, hv, hn] = [half(a.frame.u), half(a.frame.v), half(a.frame.n)];
-          if (Math.abs(u) >= a.door.opening.width / 2 + hu - 1e-6) return false;
-          // the opening, from the stops out to where the panel is clear; and the rails' faces above and below it, where the buttons turn
-          const way = v > -hv + 1e-6 && v < l.h + hv - 1e-6 && n > -DOOR.stop.depth - hn + 1e-6 && n < reachOut + hn - 1e-6;
-          const buttons = v > -TUNNEL.floor - TUNNEL.rail - hv + 1e-6 && v < l.h + TUNNEL.rail + hv - 1e-6 && n > a.door.mount - hn + 1e-6 && n < a.door.buttonUnder + DOOR.button.thickness + 2 + hn - 1e-6;
-          return way || buttons;
-        };
-        // every latch and bolt of its section's couplings is at a flange, beyond the panel's ends; so the latches stay in reach
-        for (const c of l.couplings.filter(q => q.before === piece.id || q.after === piece.id)) {
-          // (on the panel's side of the tunnel: beside a mitre, bolts across the head or on the far side may stand beside it)
-          const beside = (q: [number, number, number]) => vec.dot(vec.sub(q, middle), vec.mul(piece.frame.x, a.side)) > l.w / 2;
-          for (const latch of c.latches.filter(q => beside(q.at))) expect(along(latch.at), `${a.id} ${latch.id}`).toBeGreaterThan(half);
-          for (const bolt of c.bolts.filter(q => beside(q.at))) expect(along(bolt.at), a.id).toBeGreaterThan(half - 1e-6);
-        }
-        // what holds the tunnel on its supports (dowels, straps and cleats, keepers, posts and the support fixings' own turn buttons)
-        for (const s of l.supports) {
-          // none of them stands where the panel is, where it comes out, or where its buttons turn
-          for (const button of s.hold.buttons) for (const box of [button.keeper, button.post, button.button]) expect(inZone(s, box), `${a.id} ${s.id}`).toBe(false);
-          for (const cleat of s.hold.strap?.cleats ?? []) expect(inZone(s, cleat), `${a.id} ${s.id} strap cleat`).toBe(false);
-          for (const point of s.hold.dowels) expect(inZone(s, { center: point, size: [8, 8, 40] }), `${a.id} ${s.id} dowel`).toBe(false);
-          // a strap goes over the tunnel at a support: over the flanges, never over the panel (a strap at a side port on the
-          // section's other side runs down that side)
-          const beside = (point: [number, number, number]) => { const d = vec.sub(point, middle); return vec.len(vec.sub(d, vec.mul(piece.frame.y, vec.dot(d, piece.frame.y)))) < l.w + 2 * TUNNEL.flange.width && vec.dot(d, piece.frame.x) * a.side > -l.w / 2; };
-          for (const point of s.hold.strap?.path ?? []) if (beside(point) && along(point) < piece.length / 2 + 100) expect(along(point), `${a.id} strap`).toBeGreaterThan(half);
-        }
-        // a strap would cross the first, the last and any sloped section's side: with straps those have no panel
-        if (supportFixing === 'strap') { expect([l.pieces[0]?.id, l.pieces.at(-1)?.id]).not.toContain(a.piece); expect(piece.pitch).toBe(0); }
-        else if (route === TUNNEL_DEFAULT) expect(l.access.map(q => q.piece)).toContain(l.pieces[0]?.id);
-        expect(l.errors.filter(e => /strap would cross|turn button would foul/.test(e))).toEqual([]);
-        // its pivots are driven into the rails clear of the roof's staples, the floor's screws and the rails' own
-        const pivots = doorFasteners(a.door, a.frame).filter(f => f.role === 'pivot');
-        const others = l.fasteners.filter(f => f.piece === piece.id && ['staples', 'floor-screws', 'rail-screws', 'cleat-screws', 'flange-screws', 'latch-screws', 'catch-screws'].includes(f.component));
-        const near = pivots.flatMap(f => others.filter(o => {
-          const screw = findPart(o.partId); const depth = screw ? dimensionOf(screw, 'l') : 30;
-          const q = findPart(f.partId); const own = q ? dimensionOf(q, 'l') : 30;
-          // the closest the two shanks come to each other, sampled along both
-          let least = Infinity;
-          for (let i = 0; i <= 10; i++) for (let j = 0; j <= 10; j++) least = Math.min(least, vec.len(vec.sub(vec.add(f.at, vec.mul(f.direction, own * i / 10)), vec.add(o.at, vec.mul(vec.unit(o.direction), depth * j / 10)))));
-          return least < 4;
-        }));
-        expect(near.map(o => o.component), `${a.id} ${supportFixing}`).toEqual([]);
-        // and the tunnel is held on its supports exactly as without the panel
-      }
-      expect(l.supports.map(s => s.hold), supportFixing).toEqual(tunnelLayout({ ...route, sideAccess: 'none', supportFixing, supportBase: 'self-standing' }, site, joint).supports.map(s => s.hold));
-    }
-  });
-
-  it('lists each panel’s timber, mesh, buttons and library screws, and tells how to use it without letting a cat out', () => {
-    for (const mesh of ['netting', 'welded'] as const) for (const sideAccess of ['none', 'one', 'all'] as const) {
-      // (a route without cubes, whose doors have the same parts)
-      const config = { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar' as const, portX: 1200, portY: 3000, final: 700, slopeLeg: 'middle' as const, mesh, sideAccess }; const l = tunnelLayout(config, site); const n = l.access.length;
-      const lines = tunnelBom('modular', config, site); const plain = tunnelBom('modular', { ...config, sideAccess: 'none' }, site);
-      const quantity = (match: (line: typeof lines[number]) => boolean, list = lines) => list.filter(match).reduce((sum, line) => sum + line.quantity, 0);
-      const door = l.access[0]?.door;
-      expect(quantity(line => /Door turn button, printed \(custom\)/.test(line.name))).toBe(l.access.reduce((sum, a) => sum + a.door.buttons.length, 0));
-      expect(quantity(line => line.name === 'Removable panel mesh')).toBe(n);
-      expect(quantity(line => line.name.startsWith('Panel frame'))).toBe(l.access.reduce((sum, a) => sum + a.door.timber.filter(t => t.id.startsWith('panel-frame')).reduce((k, t) => k + t.boxes.length, 0), 0));
-      expect(quantity(line => line.name.startsWith('Access stop'))).toBe(4 * n);
-      for (const [partId, role] of [[CATIO_DOOR_HARDWARE.pivot.inset, 'pivot'], [CATIO_DOOR_HARDWARE.stopScrew, 'stop'], [CATIO_DOOR_HARDWARE.frameScrew, 'frame'], [CATIO_DOOR_HARDWARE.coverScrew, 'cover']] as const)
-        expect(quantity(line => line.partId === partId) - quantity(line => line.partId === partId, plain), `${mesh} ${sideAccess} ${role}`).toBe(l.access.reduce((sum, a) => sum + a.door.fasteners.filter(f => f.role === role).length, 0));
-      expect(quantity(line => line.partId === CATIO_DOOR_HARDWARE.washer)).toBe(l.access.reduce((sum, a) => sum + a.door.buttons.length, 0));
-      // one side's mesh fewer for each panel; the support fixings' own turn buttons are another part altogether
-      if (mesh === 'welded') expect(quantity(line => line.name === 'Side mesh')).toBe(2 * l.pieces.length - n);
-      else expect(quantity(line => line.name === 'Net hood')).toBe(l.pieces.length);
-      expect(lines.some(line => line.id === 'turn-buttons')).toBe(false);
+  it('lists each door’s timber, mesh, buttons and library screws, and tells how to use them without letting a cat out', () => {
+    for (const mesh of ['netting', 'welded'] as const) {
+      const config = { ...TUNNEL_DEFAULT, mesh }; const l = tunnelLayout(config, site);
+      const lines = tunnelBom('modular', config, site);
+      const quantity = (match: (line: typeof lines[number]) => boolean) => lines.filter(match).reduce((sum, line) => sum + line.quantity, 0);
+      expect(quantity(line => /Door turn button, printed \(custom\)/.test(line.name))).toBe(l.doors.reduce((sum, d) => sum + d.door.buttons.length, 0));
+      expect(quantity(line => line.name === 'Removable panel mesh')).toBe(l.doors.length);
+      expect(quantity(line => line.partId === CATIO_DOOR_HARDWARE.washer)).toBe(l.doors.reduce((sum, d) => sum + d.door.buttons.length, 0));
+      expect(quantity(line => line.name === 'Bay post')).toBe(l.members.filter(m => m.kind === 'post').length);
       const steps = tunnelSteps('modular', config).map(step => step.detail).join(' ');
-      expect(/side access/.test(steps)).toBe(n > 0);
-      if (door) {
-        expect(steps).toMatch(new RegExp(`Screw ${door.buttons.length} door turn buttons onto the rails’ outer faces`));
-        expect(steps).toMatch(/Opening one opens the tunnel to the garden: secure the cats elsewhere first, with both ends’ ports shut/);
-      }
-      // the gates at both ends, whatever they are, are shut before the tunnel is uncoupled
+      expect(steps).toMatch(/Every section starts with a square end bay/);
+      expect(steps).toMatch(/The side doors are for reaching in from outside.*secure the cats elsewhere first, with both ends’ ports shut/);
       expect(steps).toMatch(/Before any part of the tunnel is uncoupled again, shut both ends’ ports first/);
     }
     expect(tunnelSteps('modular', TUNNEL_DEFAULT)[0]?.detail).toMatch(/cat-port panel seated|cat gate shut and latched/);
-    expect(tunnelFacts('modular', TUNNEL_DEFAULT, site).find(f => f.label === 'Side access · right')?.value).toMatch(/^1 removable mesh panel, .* · \d+ turn buttons \(head and sill\), 12 mm over the panel · seat 10 mm$/);
+    expect(tunnelFacts('modular', TUNNEL_DEFAULT, site).find(f => f.label === 'Side doors · end bays')?.value).toMatch(/^\d+ · .* · 4 turn buttons/);
     expect(tunnelFacts('modular', TUNNEL_DEFAULT, siteWith('sliding-gate')).find(f => f.label.startsWith('Cat ports at both ends'))).toMatchObject({ value: 'Vertical sliding gate', from: { page: 'concept', settings: ['Cat-port closure'] } });
-    expect(tunnelFacts('modular', { ...TUNNEL_DEFAULT, sideAccess: 'none' }, site).some(f => f.label.startsWith('Side access'))).toBe(false);
   });
 
-  it('draws the panels with the shared door, opens them with the page’s toggle, and shows the window port’s closure as the insert has it', () => {
+  it('draws the doors with the shared door, opens them with the page’s toggle, and shows the window port’s closure as the insert has it', () => {
     for (const closure of PORT_CLOSURES) {
-      const scene = createTunnelScene('modular', { ...TUNNEL_DEFAULT, sideAccess: 'all' }, siteWith(closure), TUNNEL_COUPLING_DEFAULT);
+      const scene = createTunnelScene('modular', TUNNEL_DEFAULT, siteWith(closure), TUNNEL_COUPLING_DEFAULT);
       const ids = scene.components.map(part => part.id);
-      expect(ids).toEqual(expect.arrayContaining(['access-panels', 'access-panel-mesh', 'access-buttons', 'window-port-closure']));
-      expect(scene.accessPanels).toHaveLength(scene.layout.access.length); expect(scene.accessPanels.length).toBeGreaterThan(1);
-      expect(scene.components.find(part => part.id === 'access-panels')).toMatchObject({ step: 4, layer: 'timber' });
-      expect(scene.components.find(part => part.id === 'access-panel-mesh')?.layer).toBe('mesh'); expect(scene.components.find(part => part.id === 'access-buttons')?.layer).toBe('hardware');
+      expect(ids).toEqual(expect.arrayContaining(['doors', 'door-mesh', 'door-hardware', 'window-port-closure']));
+      expect(scene.doors).toHaveLength(scene.layout.doors.length); expect(scene.doors.length).toBeGreaterThan(1);
+      expect(scene.components.find(part => part.id === 'doors')).toMatchObject({ step: 4, layer: 'timber' });
       scene.update(installed);
-      const seated = scene.accessPanels.map(a => bounds(a.built.panel));
-      for (const [i, a] of scene.accessPanels.entries()) {
-        // installed where the layout puts it
+      const seated = scene.doors.map(a => bounds(a.built.panel));
+      for (const [i, a] of scene.doors.entries()) {
         const expected = a.access.door.timber.filter(t => t.moves).flatMap(t => t.boxes).map(b => doorBounds(a.access.frame, b));
         for (const k of [0, 1, 2] as const) expect(seated[i]?.min.getComponent(k), a.access.id).toBeCloseTo(Math.min(...expected.map(e => e.min[k])), 4);
       }
-      scene.update({ ...installed, door: 0.2 }); expect(scene.caption?.()).toMatch(/Door turn button: its locking pin lifted, turned a quarter turn clear of the side-access panel/);
+      scene.update({ ...installed, door: 0.2 }); expect(scene.caption?.()).toMatch(/Door turn button: its locking pin lifted, turned a quarter turn clear of the door/);
       scene.update({ ...installed, door: DOOR_TRAVEL.out });
-      for (const [i, a] of scene.accessPanels.entries()) {
+      for (const [i, a] of scene.doors.entries()) {
         const moved = bounds(a.built.panel).getCenter(new THREE.Vector3()).sub(seated[i]?.getCenter(new THREE.Vector3()) ?? new THREE.Vector3());
-        // straight out sideways, away from the tunnel
         expect(moved.length()).toBeCloseTo(a.access.door.withdraw, 4); expect(moved.normalize().dot(new THREE.Vector3(...a.access.frame.n))).toBeCloseTo(1, 6);
       }
-      scene.update({ ...installed, door: 1 }); for (const a of scene.accessPanels) expect(a.built.panel.children.every(child => !child.visible)).toBe(true);
-      // not before the tunnel is complete
-      scene.update({ ...installed, progress: 5.5, door: 1 }); for (const a of scene.accessPanels) expect(a.built.panel.children.every(child => child.visible)).toBe(true);
-      // the staging brings each panel in with its section, and says so
-      scene.update({ ...installed, progress: 3.75 }); expect(scene.caption?.()).toMatch(/Side-access panel: stood on its opening’s sill against the stops/);
+      scene.update({ ...installed, door: 1 }); for (const a of scene.doors) expect(a.built.panel.children.every(child => !child.visible)).toBe(true);
+      scene.update({ ...installed, progress: 5.5, door: 1 }); for (const a of scene.doors) expect(a.built.panel.children.every(child => child.visible)).toBe(true);
+      scene.update({ ...installed, progress: 3.75 }); expect(scene.caption?.()).toMatch(/Door: set into its opening/);
       scene.dispose();
     }
-    const none = createTunnelScene('modular', { ...TUNNEL_DEFAULT, sideAccess: 'none' }, site, TUNNEL_COUPLING_DEFAULT);
-    expect(none.components.map(part => part.id).filter(id => /access/.test(id))).toEqual([]); expect(none.accessPanels).toEqual([]); none.dispose();
   });
 
-  it('shows a panel beside the tunnel–tunnel joint, clear of its latches, on the coupling page', () => {
-    const tunnel = { ...TUNNEL_DEFAULT, sideAccess: 'all' as const };
-    const l = tunnelCouplingLayout(TUNNEL_COUPLING_DEFAULT, { tunnel, site });
-    expect(l.tl.access.filter(a => l.pieces.includes(a.piece)).map(a => a.piece)).toEqual(l.pieces);
-    expect(tunnelCouplingFacts('modular', TUNNEL_COUPLING_DEFAULT, { tunnel, site }).find(f => f.label === 'Side access')).toMatchObject({ from: { page: 'tunnel', settings: ['sideAccess', 'sideAccessSide'] } });
-    expect(tunnelCouplingFacts('modular', TUNNEL_COUPLING_DEFAULT, { tunnel: { ...tunnel, sideAccess: 'none' }, site }).some(f => f.label === 'Side access')).toBe(false);
-    const scene = createTunnelCouplingScene('modular', TUNNEL_COUPLING_DEFAULT, { tunnel, site });
-    expect(scene.accessPanels).toHaveLength(2);
-    const coupled: CatioState = { progress: 5, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
-    scene.update(coupled);
-    // the latches' levers and the panels' pieces do not meet, shut or open
-    for (const travel of [0, 0.4, 0.7]) {
-      scene.update({ ...coupled, door: travel });
-      for (const lever of scene.levers) for (const a of scene.accessPanels) for (const piece of [...a.built.moving, ...a.built.buttons.map(b => b.group), ...a.built.fixed.map(f => f.group)]) expect(bounds(lever.group).intersectsBox(bounds(piece)), `${a.access.id} at ${travel}`).toBe(false);
+  it('keeps the doors of the two sections on the coupling page clear of the joint’s latches, shut or open', () => {
+    for (const jointShown of ['end-end', 'end-side'] as const) {
+      const config = { ...TUNNEL_COUPLING_DEFAULT, jointShown };
+      const scene = createTunnelCouplingScene('modular', config, { tunnel: TUNNEL_DEFAULT, site });
+      expect(scene.doors.length).toBeGreaterThan(0);
+      const coupled: CatioState = { progress: 5, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
+      for (const travel of [0, 0.4, 0.7]) {
+        scene.update({ ...coupled, door: travel });
+        for (const lever of scene.levers) for (const a of scene.doors) for (const piece of [...a.built.moving, ...a.built.buttons.map(b => b.group), ...a.built.fixed.map(f => f.group)]) expect(bounds(lever.group).intersectsBox(bounds(piece)), `${jointShown} ${a.access.id} at ${travel}`).toBe(false);
+      }
+      scene.update({ ...coupled, door: 1 }); expect(scene.doors.every(a => a.built.panel.children.every(child => !child.visible))).toBe(true);
+      scene.dispose();
     }
-    scene.update({ ...coupled, door: 1 }); expect(scene.accessPanels.every(a => a.built.panel.children.every(child => !child.visible))).toBe(true);
-    scene.update({ ...coupled, progress: 4, door: 1 }); expect(scene.accessPanels.every(a => a.built.panel.children.every(child => child.visible))).toBe(true);
-    scene.dispose();
   });
 });
 

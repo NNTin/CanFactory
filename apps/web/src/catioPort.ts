@@ -4,9 +4,10 @@ import type { V3 } from './catioSubassembly.ts';
 
 /**
  * The standard port (docs/concepts/catio/standard-port.md): the one interface every tunnel element presents, so that any element
- * couples to any other. A square clear opening, `s` each way (the tunnel's clear size), in a flange ring `T` thick and `F` wide.
- * The ends of every section and collar are such a port, so is a side port at a turn, and so are the window insert's docking frame
- * and the enclosure's port flange.
+ * couples to any other. A square clear opening, `s` each way (the tunnel's clear size), in a frame `T` deep and `F` wide, flush with
+ * the element's 40 × 40 rails, as the end frames of a PawHut tunnel module are: every element is a flush box. The ends of every
+ * section and collar are such a port, so are the two side openings of every section's end bay (`sidePortFace`), the window
+ * insert's port frame and the enclosure's port.
  *
  * A port is either coupled to another element's port, or closed by a door: a removable wall, held by the port's own latches or by
  * turn buttons on its ring (`DoorFixing`). The latches and bolts stand at stations that are the same on all four sides of the ring,
@@ -15,8 +16,8 @@ import type { V3 } from './catioSubassembly.ts';
  * elements they belong to.
  */
 export const STANDARD_PORT = {
-  /** The flange ring round the opening: `thickness` deep, `width` out from the opening. */
-  ring: { thickness: 30, width: 70 },
+  /** The frame round the opening: `thickness` deep, `width` out from the opening, the rails' section, so that it is flush with them. */
+  ring: { thickness: 40, width: 40 },
 } as const;
 const T = STANDARD_PORT.ring.thickness; const F = STANDARD_PORT.ring.width;
 
@@ -61,12 +62,11 @@ export function portRing(s: number): [name: 'stile-left' | 'stile-right' | 'head
 }
 
 /**
- * The bolt stations of a port `s` square: `perSide` on each of its four sides, on the middle line of the ring's outer 30 mm (clear of
- * the rails along a section's corners), at the latches' fractions of the side. The same on every side, so the set is unchanged by a
- * quarter turn of the port about its centre.
+ * The bolt stations of a port `s` square: `perSide` on each of its four sides, on the middle line of the frame, at the latches'
+ * fractions of the side. The same on every side, so the set is unchanged by a quarter turn of the port about its centre.
  */
 export function boltStations(s: number, perSide: 1 | 2 | 3): [u: number, v: number][] {
-  const line = s / 2 + 40 + (F - 40) / 2; const along = latchHeights(perSide).map(f => (f - 0.5) * s);
+  const line = s / 2 + F / 2; const along = latchHeights(perSide).map(f => (f - 0.5) * s);
   return [
     ...along.map(a => [-line, s / 2 + a] as [number, number]), ...along.map(a => [line, s / 2 - a] as [number, number]),
     ...along.map(a => [a, s / 2 + line] as [number, number]), ...along.map(a => [-a, s / 2 - line] as [number, number]),
@@ -90,18 +90,23 @@ export interface PortLatch extends LatchMount { base: 'port' | 'outside' }
  * base plates on its left side and its catch plates on its right (`portHalf`), so the element outside has its catches on the left
  * and its bases on the right: across every joint each latch's base is on one element and its catch on the other.
  */
-export function portLatches(id: string, face: Face, s: number, perSide: 1 | 2 | 3, gap: number): PortLatch[] {
-  return ([-1, 1] as const).flatMap(side => latchHeights(perSide).map((f, k) => {
+/**
+ * Which sides of a port its latches stand on: its stiles' outer faces (left and right, `perSide` each, at the latch fractions of
+ * its height), or its head's top face (two, at a fifth of the width in from each side), where a joint leaves the stiles no free face
+ * on one element: an end butted into a side opening, whose posts are flanked by the section's own side.
+ */
+export type LatchSides = 'stiles' | 'head';
+export function portLatches(id: string, face: Face, s: number, perSide: 1 | 2 | 3, gap: number, where: LatchSides = 'stiles'): PortLatch[] {
+  const mount = (side: -1 | 1, k: number, u: number, v: number, out: V3, name: string): PortLatch => {
     const base = portHalf(side) === 'base' ? 'port' as const : 'outside' as const;
     // the seam: the base plate's edge, `overhang` proud of the face of whichever element it is on, into the gap
     const offset = base === 'port' ? -PRINTED_LATCH.overhang : -(gap - PRINTED_LATCH.overhang);
-    return {
-      id: `${id}-latch-${side < 0 ? 'left' : 'right'}-${k}`, side, base,
-      at: facePoint(face, side * (s / 2 + F), f * s, offset), out: mul(face.frame.x, side),
-      // from the catch to the base, along the joint
-      pull: mul(face.n, base === 'port' ? 1 : -1),
-    };
-  }));
+    // from the catch to the base, along the joint
+    return { id: `${id}-latch-${name}-${k}`, side, base, at: facePoint(face, u, v, offset), out, pull: mul(face.n, base === 'port' ? 1 : -1) };
+  };
+  // on the head: two, one each side of the middle, lying on the top faces across the joint
+  if (where === 'head') return latchHeights(2).map((f, k) => { const side: -1 | 1 = f < 0.5 ? -1 : 1; return mount(side, k, (f - 0.5) * s, s + F, face.frame.z, 'head'); });
+  return ([-1, 1] as const).flatMap(side => latchHeights(perSide).map((f, k) => mount(side, k, side * (s / 2 + F), f * s, mul(face.frame.x, side), side < 0 ? 'left' : 'right')));
 }
 
 /** A box's six faces: back and front along its axis, left and right across it, top and bottom. */
@@ -172,70 +177,22 @@ export const LATCH_INTO_RING = LATCH_REACH.closed.u[1] - PRINTED_LATCH.overhang;
 export const SWING_CLEAR = 2;
 
 /**
- * A side port: the standard port on the side of a long section, so that another element's end couples onto it there and the
- * tunnel turns 90° without a cube. Its ring lies on the outer faces of the section's rails and floor board, its mating face flush
- * with the outlines of the section's flanges (the rails stand `SIDE_RING_SET` inside them), its opening the section's clear opening:
- * level with the floor, as high as the tunnel. The section runs on past it by a short stub, closed at its end by a door.
+ * A side opening: every section starts with a square end bay, its end frame's stiles, then a bay post (`T` along, `F` across) one
+ * opening further on, and the top and bottom rails, so that each of its two sides is an opening `s` square framed `F` wide all round,
+ * exactly as an end frame is. Unused, it is closed by the standard door; at a turn the run before couples its end into it, as PawHut
+ * tunnels make an L: a door taken out of one module's side and the next module's end butted into the opening.
  *
- * Along the section, beside the ring on each side, is a pocket `SIDE_POCKET` long in which the latches at the ring's two sides
- * stand and their levers swing open: between the ring and the stub's flange, the least that keeps every latch of the side port and
- * of the stub's end port, closed or swinging open, clear of the other's rings, latches and the elements outside them
- * (`sideClashes`). Behind the latches, a pocket post (`sidePocketPost`) closes the side between the floor and the top rail.
- */
-export const SIDE_RAIL = 40;
-/** How far a section's rails stand inside its flanges' outline: the side ring's depth, so that its face is flush with the flanges. */
-export const SIDE_RING_SET = F - SIDE_RAIL;
-/** The faces of a section with a side port on its right, seen along it: its start (back) face and the side port's, round the port's middle. */
-export function sidePortFaces(centre: V3, frame: Frame, s: number, pocket: number): { back: Face; side: Face } {
-  const D = s / 2 + F + pocket + T;
-  const back = boxFaces(centre, frame, 2 * D, s).back;
-  const side = boxFaces(centre, frame, s + 2 * F, s).right;
-  return { back, side };
-}
-/**
- * The side port's face on a section's `side` (+1 right, −1 left, looking along it) round the middle of its opening at `centre`, in the
- * section's frame: its normal into the section, its frame's x to the right seen from outside, as a section's end faces are.
+ * Its face, on the section's `side` (+1 right, −1 left, looking along it), round the middle of the opening at `centre` (half the
+ * tunnel's height up, in the section's frame): its normal into the section, its frame's x to the right seen from outside, as a
+ * section's end faces are.
  */
 export function sidePortFace(centre: V3, frame: Frame, s: number, side: -1 | 1): Face {
   const faces = boxFaces(centre, frame, s + 2 * F, s); return side > 0 ? faces.right : faces.left;
 }
-/** How far into the side ring, from its face, the latches' parts reach as they swing: what the pocket post stays behind. */
-export const LATCH_SWING_INTO = Math.max(LATCH_REACH.swing.u[1] - PRINTED_LATCH.overhang, LATCH_INTO_RING);
-/**
- * Whether a side port with this pocket clashes: every latch of the side port and of the stub's end port (closed, and swinging open
- * with `SWING_CLEAR` to spare) against the other port's ring, the ring of an element coupled to it (or a door's blank) across
- * the gap, the other's closed latches, and the section's rails.
- */
-export function sideClashes(pocket: number, s = 300): boolean {
-  const gap = 3; const frame: Frame = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
-  const faces = sidePortFaces([0, 0, 0], frame, s, pocket);
-  const latches = (['back', 'side'] as const).flatMap(f => portLatches(f, faces[f], s, 3, gap).map(q => ({ face: f, closed: latchEnvelope(q), swing: latchSwing(q) })));
-  const solid: { face: string; box: OrientedBox }[] = (['back', 'side'] as const).flatMap(f => [
-    ...portRing(s).map(([, rect]) => ({ face: f, box: memberBox(faces[f], rect, 0, T) })),
-    ...portRing(s).map(([, rect]) => ({ face: f, box: memberBox(faces[f], rect, -gap - T, -gap) })),
-  ]);
-  // the section's rails along its corners on the side port's side, from the stub's flange on (the floor board is under the opening)
-  const D = s / 2 + F + pocket + T; const r = SIDE_RAIL;
-  for (const z of [[-18 - r, -18], [s, s + r]] as const) {
-    const length = 4 * D;
-    solid.push({ face: 'section', box: { center: [s / 2 + r / 2, -D + T + length / 2, (z[0] + z[1]) / 2 - s / 2], size: [r, length, z[1] - z[0]], axes: frame } });
-  }
-  return latches.some(q => solid.some(r2 => r2.face !== q.face && (boxesOverlap(q.swing, r2.box, -SWING_CLEAR) || boxesOverlap(q.closed, r2.box, 0.01))))
-    || latches.some(q => latches.some(r2 => r2.face !== q.face && boxesOverlap(q.swing, r2.closed, -SWING_CLEAR)));
-}
-export const SIDE_POCKET = (() => {
-  for (let pocket = 0; pocket <= 120; pocket++) if (!sideClashes(pocket)) return pocket;
-  throw new Error('No pocket keeps a side port’s latches clear of the section’s end.');
-})();
-/** From a section's start face to the middle of a side port at its start: its stub, the pocket and half the ring's outline. */
-export const sidePortOffset = (s: number) => T + SIDE_POCKET + F + s / 2;
-/** The shortest section that takes a side port with a pocket on both sides of it. */
-export const sidePortLength = (s: number) => 2 * sidePortOffset(s);
-/**
- * A pocket post: in each pocket beside a side port, standing on the floor board under the top rail, from the opening's edge inwards
- * to just behind the latches' swing, `width` along the section and `depth` across it (from the clear opening's plane outwards).
- */
-export const sidePocketPost = (s: number) => ({ width: SIDE_POCKET, depth: Math.floor(s / 2 + F - LATCH_SWING_INTO - SWING_CLEAR - s / 2) });
+/** From a section's start face to the middle of its end bay's side openings: the end frame and half an opening. */
+export const sidePortOffset = (s: number) => T + s / 2;
+/** The shortest section: one end bay, its far post the far end frame. */
+export const sidePortLength = (s: number) => s + 2 * T;
 
 /**
  * The marking template for a standard port: a 6 mm plywood sheet the ring's outline, laid on a ring's face to mark and pre-drill
@@ -280,10 +237,9 @@ export function portTemplateSvg(s: number): string {
     ...t.bolts.map(([u, v]) => `<circle cx="${r(x(u))}" cy="${r(y(v))}" r="${t.boltHole / 2}"/>`),
     `</g>`,
     `<g font-family="sans-serif" font-size="6" fill="#000" text-anchor="middle">`,
-    // on the ring's band, over the head: the opening is cut out
-    `<text x="${m + half}" y="${m + 34}">THIS SIDE OUT · lay on the ring’s face</text>`,
-    `<text x="${m + half}" y="${m + 44}">holes: ${t.boltHole} mm bolt guides · notches: latch stations</text>`,
-    `<text x="${m + half}" y="${m + 54}">latches: base plates on the left side, catches on the right, seen from outside</text>`,
+    // on the frame's band, over the head (the opening is cut out), clear of the bolt guides on its middle line
+    `<text x="${m + half}" y="${m + 9}" font-size="5">THIS SIDE OUT · lay on the frame’s face · holes: ${t.boltHole} mm bolt guides · notches: latch stations</text>`,
+    `<text x="${m + half}" y="${m + F - 4}" font-size="5">latches: base plates on the left side, catches on the right, seen from outside</text>`,
     `</g>`,
     `</svg>`,
   ].join('\n');

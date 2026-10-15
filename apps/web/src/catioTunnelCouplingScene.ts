@@ -7,7 +7,7 @@ import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
 import { doorAction } from './catioDoor.ts';
 import { groundAt, TUNNEL, vec } from './catioTunnel.ts';
 import { ENTRY, tunnelCouplingLayout, tunnelCouplingSite, type TunnelCouplingConfig, type TunnelCouplingLayout, type TunnelCouplingSite } from './catioTunnelCoupling.ts';
-import { buildAccessPanels, buildEndDoors, buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
+import { buildTunnelDoors, buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
 import { memberApproach } from './catioTunnelScene.ts';
 
 /** Stage 1 frames the first section this far above its place, then lays it on the support. */
@@ -35,7 +35,7 @@ const LAST_STAGE = 5;
  * Every piece is drawn by the tunnel's own builders (catioTunnelPieces.ts), so it is the tunnel page's joint.
  */
 export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCouplingConfig, site: TunnelCouplingSite = tunnelCouplingSite()): SubassemblyModel & {
-  layout: TunnelCouplingLayout; motions: PieceMotion[]; levers: ReturnType<typeof buildCouplingJoint>['latches']; hold: ReturnType<typeof buildSupportHold>; lift: () => number; entry: () => number; accessPanels: ReturnType<typeof buildAccessPanels>;
+  layout: TunnelCouplingLayout; motions: PieceMotion[]; levers: ReturnType<typeof buildCouplingJoint>['latches']; hold: ReturnType<typeof buildSupportHold>; lift: () => number; entry: () => number; doors: ReturnType<typeof buildTunnelDoors>;
 } {
   const layout = tunnelCouplingLayout(config, site);
   const { tl, coupling, support, before, after } = layout;
@@ -88,7 +88,7 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
   for (const { member, group: g } of sections.members) {
     if (member.piece === after.id) { group('second-section', 3, 'timber').add(g); move(g, 3, [0, 0.8], entry, entering, { role: 'section', of: member.id }); continue; }
     group('first-section', 1, 'timber').add(g);
-    const caption = member.kind === 'flange' ? '2 × Flange ring: stood at each end of the section' : member.kind === 'rail' ? `${rails} × Rail: offered between the flanges from the side` : 'Floor board: laid onto the bottom rails';
+    const caption = member.kind === 'flange' ? '2 × End frame: stood at each end of the section' : member.kind === 'rail' ? `${rails} × Rail: offered between the frames from the side` : member.kind === 'post' ? '2 × Bay post: stood one opening on from the start frame' : 'Floor board: laid into the bottom rails’ rebates';
     move(g, 1, [...firstWindows[member.kind === 'post' ? 'rail' : member.kind]], memberApproach(member, before), caption, { role: 'timber', of: member.id, lifted: true });
   }
   for (const { panel, group: g } of sections.panels) {
@@ -97,23 +97,14 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     const out = panel.id.endsWith('roof') ? vec.mul(before.frame.z, 240) : vec.mul(before.frame.x, panel.id.endsWith('left') ? -240 : 240);
     move(g, 1, [...firstWindows.mesh], out, '3 × Mesh panel: offered up to the rails', { role: 'mesh', of: panel.id, lifted: true });
   }
-  // a section's side-access panel, where the tunnel has one in these two: it comes with its section
-  const accessPanels = buildAccessPanels(p, tl, piece => {
-    const [name, step] = piece === after.id ? ['second-section', 3] as const : ['first-section', 1] as const;
-    return { timber: group(`${name}-access`, step, 'timber'), mesh: group(`${name}-access-mesh`, step, 'mesh'), hardware: group(`${name}-access-buttons`, step, 'hardware') };
-  }, layout.pieces);
-  for (const { access, roots } of accessPanels) for (const root of roots) {
-    if (access.piece === after.id) move(root, 3, [0, 0.8], entry, entering, { role: 'section' });
-    else move(root, 1, [0.72, 0.76], vec.mul(access.frame.n, 260), 'Side-access panel: stood on its opening’s sill against the stops, every door turn button turned over it', { role: 'access', lifted: true });
-  }
-  // the stub's end door behind the side port, at a turn
-  const endDoors = buildEndDoors(p, tl, piece => {
+  // the two sections' doors (their end bays' sides, and the second's start at a turn): they come with their sections
+  const doors = buildTunnelDoors(p, tl, piece => {
     const [name, step] = piece === after.id ? ['second-section', 3] as const : ['first-section', 1] as const;
     return { timber: group(`${name}-doors`, step, 'timber'), mesh: group(`${name}-door-mesh`, step, 'mesh'), hardware: group(`${name}-door-hardware`, step, 'hardware') };
   }, layout.pieces);
-  for (const { access, roots } of endDoors) for (const root of roots) {
+  for (const { access, roots } of doors) for (const root of roots) {
     if (access.piece === after.id) move(root, 3, [0, 0.8], entry, entering, { role: 'section' });
-    else move(root, 1, [0.72, 0.76], vec.mul(access.frame.n, 260), `Stub’s end door: ${tl.joint.doorFixing === 'latches' ? 'latched onto its port' : 'set into its port, every turn button turned over it'}`, { role: 'access', lifted: true });
+    else move(root, 1, [0.72, 0.76], vec.mul(access.frame.n, 260), `Door: ${tl.joint.doorFixing === 'latches' ? 'latched onto its opening' : 'set into its opening, every turn button turned over it'}`, { role: 'access', lifted: true });
   }
   const count = (component: string) => sections.fasteners.filter(q => q.fastener.component === component && q.fastener.piece === before.id).length;
   for (const { fastener: f, group: g, part } of sections.fasteners) {
@@ -240,8 +231,8 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     if (!latchAction && clearance && state.progress > 2.8 && state.progress < 3) latchAction = 'Setting the second section down over its dowels';
     // the page's door toggle opens a side-access panel beside the joint, once both sections are coupled
     const travel = state.progress >= LAST_STAGE && !state.exploded ? state.door ?? 0 : 0;
-    for (const a of [...accessPanels, ...endDoors]) a.set(travel);
-    const opening = accessPanels[0] ? doorAction(accessPanels[0].access.door, travel, 'side-access panel') : endDoors[0] ? doorAction(endDoors[0].access.door, travel, 'stub’s end door') : null; if (opening) active.add(opening);
+    for (const a of doors) a.set(travel);
+    const opening = doors[0] ? doorAction(doors[0].access.door, travel, 'door') : null; if (opening) active.add(opening);
     let action: string | null = active.size > 0 ? [...active].join('; ') : latchAction;
     if (!action && !state.exploded && state.progress > 0.76 && state.progress < 1) action = 'Laying the first section on the support, its outgoing flange over the bearer';
     currentAction = action;
@@ -249,9 +240,9 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     focus = state.progress > 2 && state.progress < 3 && !state.exploded ? vec.mul(coupling.face.n, 0.5 * L) : [0, 0, 0];
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); draw.dispose(); jointPieces.dispose(); for (const d of endDoors) d.dispose(); for (const g of geometries) g.dispose(); }
+  function dispose() { p.dispose(); draw.dispose(); jointPieces.dispose(); for (const d of doors) d.dispose(); for (const g of geometries) g.dispose(); }
   return {
-    root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers: jointPieces.latches, hold, accessPanels,
+    root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers: jointPieces.latches, hold, doors,
     lift: () => currentLift, entry: () => currentEntry, caption: () => currentAction, focusOffset: () => focus,
   };
 }

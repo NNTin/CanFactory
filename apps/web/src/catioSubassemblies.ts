@@ -42,11 +42,8 @@ export const tunnelDefinition: SubassemblyDefinition<TunnelConfig> = {
   follows: [{ page: 'window-insert', settings: WINDOW_FLOOR_SETTINGS }, { page: 'tunnel-tunnel-coupling', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal', 'doorFixing'] }],
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the climb', Top: 'Top · the turns', Mounting: 'Support detail' },
   toggles: { cutaway: 'Wall cutaway' }, layerLabels: { hardware: 'Bolts, feet & fixings', environment: 'Ground, wall & slabs' },
-  // the side-access panels and the stubs' end doors: what the tunnel has of them
-  doorToggle: (_variant, config) => {
-    const stubs = tunnelLayout(config).doors.length > 0; const access = config.sideAccess !== 'none';
-    return stubs && access ? 'Doors open' : stubs ? 'End doors open' : access ? 'Side access open' : null;
-  },
+  // the doors of every opening that is not coupled: the end bays' sides (the side access), and a section's start at a turn
+  doorToggle: (_variant, config) => tunnelLayout(config).doors.length > 0 ? 'Doors open' : null,
   defaults: TUNNEL_DEFAULT, presets: TUNNEL_PRESETS, controls: TUNNEL_CONTROLS, parse: parseTunnel,
   validate: (variant, config) => validateTunnel(variant, config),
   steps: tunnelSteps, build: createTunnelScene, bom: (variant, config) => tunnelBom(variant, config),
@@ -84,7 +81,7 @@ export const tunnelCouplingDefinition: SubassemblyDefinition<TunnelCouplingConfi
   shares: [{ page: 'tunnel', settings: TUNNEL_SETTINGS_SHARED }],
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the joint', Mounting: 'Latch detail' },
   toggles: { windowOpen: 'Released · latches open' }, defaultViewing: { windowOpen: false },
-  doorToggle: (_variant, config) => { const l = tunnelCouplingLayout(config); return l.tl.access.some(a => l.pieces.includes(a.piece)) ? 'Side access open' : null; },
+  doorToggle: (_variant, config) => { const l = tunnelCouplingLayout(config); return l.tl.doors.some(d => l.pieces.includes(d.piece)) ? 'Doors open' : null; },
   layerLabels: { hardware: 'Latches, bolts, feet & screws', environment: 'Grass & slabs' },
   defaults: TUNNEL_COUPLING_DEFAULT, controls: TUNNEL_COUPLING_CONTROLS, parse: parseTunnelCoupling,
   validate: (variant, config) => validateTunnelCoupling(variant, config),

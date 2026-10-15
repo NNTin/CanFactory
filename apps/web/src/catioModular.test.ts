@@ -140,18 +140,19 @@ describe('modular scene geometry', () => {
     expect(bounds(part(scene, 'a-rear-gate')).min.z).toBeCloseTo(520);
     const door = bounds(part(scene, 'a-human-door'));
     expect(door.max.y).toBeCloseTo(2 * modularPitch(defaults) + 1000 + 1114);
-    expect(door.min.y).toBeGreaterThanOrEqual(1980);
+    expect(door.min.y).toBeGreaterThanOrEqual(2 * modularPitch(defaults) + 898);
     // The right-side tunnel and B remain outside A's outward door sweep.
     expect(door.intersectsBox(bounds(part(scene, 'b-frame')))).toBe(false);
     scene.dispose();
   });
-  it('follows the tunnel pages: its stubs’ end doors held as set there, and side access on its straight modules', () => {
-    for (const doorFixing of ['latches', 'turn-buttons'] as const) for (const sideAccess of ['none', 'one', 'all'] as const) {
+  it('follows the tunnel pages: every module’s end-bay side doors and the corners’ start doors, held as set there', () => {
+    for (const doorFixing of ['latches', 'turn-buttons'] as const) {
       const c = { ...defaults, route: 'right' as const, approach: 2, lateral: 1, final: 1 };
-      const scene = createModularCatio(c, WINDOW_INSERT_DEFAULT, { doorFixing, sideAccess, sideAccessSide: 'left' });
-      const straights = scene.layout.sections.filter(q => q.kind === 'straight');
-      const access = scene.doors.filter(d => d.id.endsWith('-access'));
-      expect(access).toHaveLength(sideAccess === 'all' ? straights.length : sideAccess === 'one' ? 1 : 0);
+      const scene = createModularCatio(c, WINDOW_INSERT_DEFAULT, { doorFixing });
+      // both sides of every module's end bay, but the side a corner's run before butts into
+      const sides = scene.doors.filter(d => /-door-(left|right)$/.test(d.id));
+      expect(sides).toHaveLength(2 * scene.layout.sections.length - scene.layout.sections.filter(q => q.kind === 'corner').length);
+      for (const d of sides) expect(d.mechanism).toBe(doorFixing === 'latches' ? 'latched' : 'removable-panel');
       const ends = scene.doors.filter(d => d.id.endsWith('-end-door'));
       expect(ends).toHaveLength(2);
       for (const d of ends) expect(d.mechanism).toBe(doorFixing === 'latches' ? 'latched' : 'removable-panel');
@@ -175,9 +176,9 @@ describe('modular scene geometry', () => {
       expect(hits[0]?.point.z).toBeCloseTo(200);
       expect(bounds(part(scene, `${section.id}-feet`)).min.z).toBe(0);
       for (const side of ['back', 'front', 'left', 'right'] as const) {
-        // (a straight module's side-access panel takes the place of its mesh on that side)
-        const access = scene.doors.some(d => d.id === `${section.id}-access`) && (side === 'left' || side === 'right');
-        if (!section.openings.includes(side)) expect(ids).toEqual(expect.arrayContaining([corner && side === 'back' ? `${section.id}-end-door` : access && side === 'right' ? `${section.id}-access` : `${section.id}-${side}`]));
+        // (a module's sides are its end bay's doors, and mesh beyond the bay; a corner's start is shut by a door)
+        const lateral = side === 'left' || side === 'right';
+        if (!section.openings.includes(side)) expect(ids).toEqual(expect.arrayContaining([corner && side === 'back' ? `${section.id}-end-door` : lateral ? `${section.id}-door-${side}` : `${section.id}-${side}`]));
         else expect(ids).toContain(`${section.id}-${side}-coupling`);
       }
       // a corner's stub door opens from the door controls; its roof is mesh like any module's

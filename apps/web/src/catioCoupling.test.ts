@@ -137,12 +137,12 @@ describe('insert–tunnel coupling', () => {
       }
       expect(l.tolerance).toBe(w2 / 2);
     }
-    // the long type would hang its catch off the back of the frame where the insert is pressed into the recess: the joint is too
-    // shallow for it there (hung on the window frame, the default, it is 27.5 mm deeper)
+    // the long type's catch, even where the insert is pressed into the recess (the shallower joint), stays in front of the mesh now
+    // that the tunnel's end frame is 40 mm deep
     const long = findPart('ganter-gn-831-100-a-ni-1'); if (!long) throw new Error('long latch');
     const pressed = sites.find(s => s.site.insert.attachment === 'spreader-feet'); if (!pressed) throw new Error('pressed');
     const l = couplingLayout(COUPLING_DEFAULT, pressed);
-    expect(l.flangeFront - COUPLING.latchInset - dimensionOf(long, 'l1') - dimensionOf(long, 'w2') / 2).toBeLessThan(l.meshFace);
+    expect(l.flangeFront - COUPLING.latchInset - dimensionOf(long, 'l1') - dimensionOf(long, 'w2') / 2).toBeGreaterThan(l.meshFace);
   });
 
   it('can close the joint with the printed toggle latch instead, at its lock’s spacing: the tunnel’s first flange a standard port, its base plates on its left, catch plates on its right', () => {
@@ -222,7 +222,7 @@ describe('insert–tunnel coupling parts list', () => {
       expect(lines.find(line => line.id === 'frame-head')?.quantity).toBe(1);
       // hung on the window frame, the port frame lies 27.5 mm deeper and the docking frame is that much thicker
       const deeper = s.site.insert.attachment === 'frame-hooks' ? 27.5 : 0;
-      expect(lines.find(line => line.id === 'frame-stile')?.size).toMatch(new RegExp(`^${Math.round((config.latch === 'printed' ? 35 : 32) + deeper)} × 70 · 300 long`));
+      expect(lines.find(line => line.id === 'frame-stile')?.size).toMatch(new RegExp(`^${Math.round((config.latch === 'printed' ? 35 : 32) + deeper)} × 40 · 300 long`));
       expect(lines.some(line => line.id === 'floor-lip')).toBe(config.floorLip === 'rubber-lip');
       expect(lines.find(line => line.id === 'seal')?.size).toContain(`${Math.ceil(l.seal.length / 10) * 10} long`);
     }

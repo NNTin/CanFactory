@@ -117,20 +117,13 @@ export function buildSectionPieces(p: ReturnType<typeof createCatioParts>, draw:
 export type SectionPieces = ReturnType<typeof buildSectionPieces>;
 
 /**
- * The side-access panels of `pieces` (all when absent), each drawn by the shared door builder into the layers `into` gives for
- * it: its stops, its panel and its turn buttons, shut. `roots` are its three groups, placed where it is installed, for a scene to
- * move with its section; `set` opens it.
+ * The doors of `pieces` (all when absent): every opening that is not coupled, each drawn by the shared door builder into the layers
+ * `into` gives for it, its stops, panel and turn buttons, shut. `roots` are its three groups, placed where it is installed, for a
+ * scene to move with its section; `set` opens it. A door held by the port's own latches has them drawn too, closed: the half on the
+ * door (its catches on the left of the face, its bases on the right, seen from outside) comes away with it; `set` lifts every lever
+ * first, then takes the door off.
  */
-export function buildAccessPanels(p: ReturnType<typeof createCatioParts>, layout: TunnelLayout, into: (piece: string) => DoorLayers, pieces?: string[]) {
-  return buildDoors(p, layout.access.filter(a => !pieces || pieces.includes(a.piece)), into);
-}
-
-/**
- * The doors closing the stubs' end ports behind the side ports of `pieces` (all when absent), drawn like the side-access panels. A
- * door held by the port's own latches has them drawn too, closed: the half on the door (its catches on the left of the face, its
- * bases on the right, seen from outside) comes away with it; `set` lifts every lever first, then takes the door off.
- */
-export function buildEndDoors(p: ReturnType<typeof createCatioParts>, layout: TunnelLayout, into: (piece: string) => DoorLayers, pieces?: string[]) {
+export function buildTunnelDoors(p: ReturnType<typeof createCatioParts>, layout: TunnelLayout, into: (piece: string) => DoorLayers, pieces?: string[]) {
   return buildDoors(p, layout.doors.filter(d => !pieces || pieces.includes(d.piece)), into);
 }
 
