@@ -2,13 +2,13 @@
 
 A catio door that is **lifted out of its opening** once every **turn button** over it has been turned clear. It is the
 default closure of every cat port (the window insert's and the enclosures'), and the tunnel's side access. The vertical
-sliding gate remains selectable for the cat ports. A cube's faces are closed by doors too; those are the
-[standard port](standard-port.md)'s doors, held by these turn buttons by default or by the port's own latches.
+sliding gate remains selectable for the cat ports. The stub's end behind every side port of the tunnel is closed by a door
+too; that is the [standard port](standard-port.md)'s door, held by these turn buttons by default or by the port's own latches.
 
 **Set in, like the PawHut's.** Every door with turn buttons is **set into its opening**, about flush with the frame round it:
 a slim mesh frame (or a plywood sheet) seated on stop strips inside the opening, or in a rebate, with four buttons on the
 frame's face. The first version laid a panel 13 mm over the frame, between locating strips, with up to six buttons; on a
-cube that was a box of strips and buttons on every face. That looked bulky, and the reference does not do it.
+cube (since dropped) that was a box of strips and buttons on every face. That looked bulky, and the reference does not do it.
 
 This page keeps three things apart, because only the first is known:
 
@@ -101,8 +101,8 @@ couple sections and dock the tunnel to the insert. Those are unchanged.
   validated but have no parts list.
 - **Tunnel side access** ([tunnel.md](tunnel.md)), in long sections. **Side access**: none, one panel near the middle (the
   default for a new tunnel), or one in every long section that can take one; **Access side**: left or right. Beside a mitre
-  the panel takes the square part of the side, between the flanges' inner faces, and mesh fills the rest (issue #85). A cube needs
-  none, since its free faces are doors ([standard-port.md](standard-port.md)). A section takes one if the square part of
+  the panel takes the square part of the side, between the flanges' inner faces, and mesh fills the rest (issue #85). Never on the side
+  of a section where its side port is ([standard-port.md](standard-port.md)). A section takes one if the square part of
   its side between the flanges' inner faces is at least 30 cm long. The panel lies wholly between its section's flanges, in the depth of the
   rails: the route, the sections, the flanges, every coupling and every support are the same with or without it, and a
   section still lifts off with its panel in. Its pivots are 10 mm inside the rails' edges and stop short of the rails'
@@ -146,7 +146,7 @@ couple sections and dock the tunnel to the insert. Those are unchanged.
   that is only the settings another page shares with the tunnel page is not a saved tunnel, and takes the defaults.
 - The sub-assembly pages follow the concept page's closure, as they follow its window and cat-port sizes, and name it in
   their briefs as set there. Each page with a door has a toggle that opens it (**Cat port open**, **Side access open**; on
-  the tunnel pages **Cube doors open** or **Doors open** when there are cubes) once its assembly is complete; older saved
+  the tunnel pages **End doors open** or **Doors open** when there are side ports) once its assembly is complete; older saved
   pages start with it shut.
 
 ### Using the doors
@@ -169,7 +169,7 @@ Every item is a guess that the geometry cannot settle.
   wears are unknown. It is a custom part, not yet a model of the library.
 - **The overlap and spacing.** That 12 mm of button over the panel holds a panel a cat throws itself at. The side access
   keeps a button every 250 mm; a set-in door has only one at the middle of each side, as the reference has, so its corners
-  are up to about 23 cm from a button. On the tunnel's side and on a cube's doors the buttons, not the seat, take a cat's push.
+  are up to about 23 cm from a button. On the tunnel's side and on a stub's end door the buttons, not the seat, take a cat's push.
 - **Panel stiffness.** That 18 mm plywood, the side access's 30 × 20 frame with its mesh and cover strips, and a set-in door's
   25 × 17 frame with its mesh stapled on the back, are stiff enough at these sizes; that the frames' butt joints stay square.
 - **Staples alone.** That the mesh of a set-in door, stapled every 60 mm onto its frame's back with no cover strip, holds
@@ -209,13 +209,13 @@ To be done on a built door of each kind, from **both sides**. Until then no page
 
 ## Implementation
 
-- [Door layout, parts lists and poses](../../../apps/web/src/catioDoor.ts): `setInDoor` (window and enclosure ports, and a
-  cube's doors held by turn buttons), `insetPanel` (tunnel side access), `blankPanel` (a cube's doors on the port's latches),
+- [Door layout, parts lists and poses](../../../apps/web/src/catioDoor.ts): `setInDoor` (window and enclosure ports, and the
+  stubs' end doors held by turn buttons), `insetPanel` (tunnel side access), `blankPanel` (a stub's end door on the port's latches),
   `doorPose`, `doorBom`, `slidingGateRise`
 - [Door 3D builder](../../../apps/web/src/catioDoorScene.ts): `buildDoorPanel`, used by `buildPortClosure`
   ([catioWindowInsertScene.ts](../../../apps/web/src/catioWindowInsertScene.ts): the insert's own page, and as context on
   the tunnel's and the coupling's), `port` ([catioModularScene.ts](../../../apps/web/src/catioModularScene.ts)) and
-  `buildAccessPanels` and `buildCubeDoors` ([catioTunnelPieces.ts](../../../apps/web/src/catioTunnelPieces.ts): the
+  `buildAccessPanels` and `buildEndDoors` ([catioTunnelPieces.ts](../../../apps/web/src/catioTunnelPieces.ts): the
   tunnel's and the tunnel–tunnel coupling's pages)
 - Hardware by role: `CATIO_DOOR_HARDWARE` in [concepts.ts](../../../packages/contracts/src/concepts.ts)
 - [Tests](../../../apps/web/src/catioDoor.test.ts): seating, retention both ways, button sweep, withdrawal, the sliding

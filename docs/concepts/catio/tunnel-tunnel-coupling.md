@@ -21,13 +21,15 @@ The page shows only the modular variant, because the direct design has no tunnel
 
 ## What is shown
 
-The joint is the same wherever it is on the route, so the page shows one: the first coupling of a straight, level tunnel
-that the tunnel's own layout (`tunnelLayout`) builds. That way the sections, the support, its feet and the latches or bolts
-are exactly the tunnel page's.
+The joint is the same wherever it is on the route, so the page shows one: the first coupling of a tunnel that the tunnel's
+own layout (`tunnelLayout`) builds. That way the sections, the support, its feet and the latches or bolts are exactly the
+tunnel page's. **Joint shown** picks which:
 
-- **Sections.** Two identical elements of the tunnel page's:
-  - long sections at its **Longest section** (two pitches, 1003 mm, by default);
-  - or, when its **Straight runs** are cubes, two cubes with their doors.
+- **Section end to section end** (the default): a straight, level tunnel; two identical sections at the tunnel page's
+  **Longest section** (two pitches, 1163 mm, by default), the second straight on from the first.
+- **Section end to a side port** (a turn): the first section's end coupled onto the side port of the second, which lies
+  square across it. The second has its side ring, a pocket and a pocket post each side, and its stub's end port closed by
+  its door ([standard-port.md](standard-port.md)). It comes in along the first one's axis, sideways, onto the same bearer.
 
   Both are at the catio's clear tunnel size (30 × 30 cm by default, set on the catio concept page). Every element ends in the
   [standard port](standard-port.md).
@@ -46,7 +48,7 @@ are exactly the tunnel page's.
 | Bolts per coupling | 8 · two on each side | 4, 8, 12: one, two or three on each of the port's four sides | Coupling |
 | Seal | EPDM E-profile in the gap | EPDM E-profile; none (gap left open); printed latch only | Coupling |
 | Door held by | Set in, turn buttons on the port's ring | Set in, turn buttons; a blank on the port's own toggle latches | Doors |
-| Joint shown | As the tunnel's straight runs | As the tunnel; section to section; section to cube; cube to cube | Shown |
+| Joint shown | Section end to section end | Section end to section end; section end to a side port (a turn) | Shown |
 | Held on the supports by | Screwed up through the bearer | Screws; rubber strap; dowels; turn buttons; gravity only | On the support (shared with the tunnel page) |
 | Supports stand | Held up by the tunnel (trestles) | Trestles; on their own (legs on soles, or a wide low bearer) | On the support (shared with the tunnel page) |
 
@@ -62,9 +64,10 @@ or there."; on the tunnel page they say "Also changes the tunnel–tunnel coupli
 - **Now the same on all four sides of the port,** so a port fits another at any quarter turn: 4, 8 or 12. A saved 6 (three
   a side, on two sides) is not offered any more and loads as the default 8.
 
-**Joint shown** picks the two elements the page shows, so a long section meeting a cube's face can be seen; it changes only this page.
+**Joint shown** picks the joint the page shows; it changes only this page. A page saved showing two sections shows two
+sections' ends; one saved showing a cube shows a section's end at a side port.
 
-**Door held by** is how a door closes a port that is not coupled: every face of a cube the tunnel does not run through
+**Door held by** is how a door closes a port that is not coupled: the end of the stub behind every side port
 ([standard-port.md](standard-port.md)). The tunnel page follows it.
 
 With the defaults, a coupling has four printed latches (two each side, at 20 and 80 % of the clear height), sixteen
@@ -106,7 +109,7 @@ across the head over the roof and across the sill under the floor. Each has a la
 
 ### Where each mechanism goes
 
-- **Every square coupling** (section to section, to an angle collar or to a cube) uses this page's mechanism.
+- **Every square coupling** (section to section, to an angle collar or to a side port) uses this page's mechanism.
 - **Mitred joints stay bolted.** A mitre's two flanges are cut on the bisector, so their side faces do not line up for a
   straight latch.
 - **The enclosure end** is a standard port, and uses this page's mechanism too.
@@ -114,14 +117,15 @@ across the head over the roof and across the sill under the floor. Each has a la
 
 ### The gap in the route
 
-With the printed latch, every element and its gap is a pitch: a cube's edge and 3 mm (54.1 cm). The route is whole pitches
-and ends where its elements end.
+With the printed latch, every pitch is the shortest section that takes a side port and 3 mm (58.3 cm). The route is whole
+pitches and ends where its elements end.
 
 - Each straight run is whole pitches, each long section a whole number of them less the gap after it.
 - A run stops a gap further short of an angle collar: 30 + r · tan(θ/2) + 3 (`Joint.stop`). The collar's own ends stay at
   its setback, so its flanges still meet at the inside of the joint.
 - The bearer of a support at a coupling stands under the middle of the gap and is screwed up into both flanges.
-- Bolted, the pitch is the cube's edge (53.8 cm), so the same elements end 2.3 cm nearer the wall.
+- A run stops at a side port's face and the gap: the flanges' outline (22 cm) and 3 mm from the turn's vertex.
+- Bolted, the pitch is 58.0 cm, so the same elements end 2 cm nearer the wall.
 
 ### Checks
 
@@ -148,8 +152,9 @@ The tunnel's layout reports (and so both pages):
 4. **Latches only where the flanges are square.** Angle collars keep every coupling square, so they latch like straight
    ones; mitred joints stay bolted.
 5. **One standard port, coupled or closed.** Every flange is the same port, its stations the same on all four sides, base
-   plates on its left and catches on its right. The enclosure's port is one too, coupled like any other. A port that is not
-   coupled is closed by a door set into it on turn buttons by default, or by a blank ring on the port's own latches.
+   plates on its left and catches on its right. The enclosure's port is one too, coupled like any other, and so is a side
+   port. A port that is not coupled (a stub's end) is closed by a door set into it on turn buttons by default, or by a
+   blank ring on the port's own latches.
    One port, with the latches' halves on fixed sides of it, lets any element meet any other; see
    [standard-port.md](standard-port.md).
 

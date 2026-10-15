@@ -4,16 +4,17 @@ The tunnel is the enclosed, supported walkway of the modular catio. It runs from
 enclosure's rear cat port.
 
 - **Standard elements.** It is built of standard elements ([standard-port.md](standard-port.md)): every piece ends in the same
-  square port, so any element couples to any other. Turns are **cubes**, the port on all six faces, each turning 90°. Straight
-  runs are long sections, a whole number of pitches (54.1 cm) each, or cubes. Climbs are sloped long sections between
-  angle collars, solved so that the tunnel reaches a door at a different height exactly.
+  square port, so any element couples to any other. It turns 90° at **side ports**: the run before couples its end onto the
+  standard port in the side of the next run's first section, which runs on past it by a short stub closed by a door.
+  Every section is a whole number of pitches (58.3 cm). Climbs are sloped long sections between angle collars, solved so
+  that the tunnel reaches a door at a different height exactly.
 - **Where it ends.** The tunnel is whole elements, so it ends as near the enclosure port as they come, and the brief says
   where.
 - **Supports.** They stand on levelling feet (printed [pressure pads](../../pressure-pad.md) on M8 screws by default), because
   nothing on the site is assumed to be level.
 - **Couplings.** Its elements are coupled as the [tunnel–tunnel coupling](tunnel-tunnel-coupling.md) page sets: printed
-  toggle latches across a sealed 3 mm gap by default, or bolted flanges. A cube's faces that are not coupled are closed by
-  doors, held as that page's **Door held by** sets.
+  toggle latches across a sealed 3 mm gap by default, or bolted flanges. The stub's end behind every side port is closed by
+  a door, held as that page's **Door held by** sets.
 
 Live page: `#/concepts/catio/tunnel`, also linked from the catio concept page's heading under **Sub-assemblies**. For local
 development, run `npm run dev --workspace @canfactory/web -- --port 5181`, then open
@@ -47,7 +48,7 @@ control.
     port is the one requirement the tunnel places on the enclosure page.**
   - The four values are the asked position. The tunnel ends where its whole elements end, and the brief shows **Enclosure
     port · placed by whole elements** when that is a millimetre or more away.
-  - With cube corners the port faces straight out or along the wall, whichever is nearer to the asked facing.
+  - With side-port turns the port faces straight out or along the wall, whichever is nearer to the asked facing.
 
 ## Presets
 
@@ -55,11 +56,10 @@ Above the parameters, one click sets a whole design; the active one is highlight
 
 | Preset | What it shows |
 | --- | --- |
-| Recommended | The defaults: two cube corners, out, 1.1 m along the wall and out again, and a 25.45 cm climb at 13.1° in the run into the port (the same as **Reset to the recommended defaults**) |
-| Straight | Straight out 2.5 m to a port at the window floor's height: no turns, no bends |
-| 90° turn right | Out from the wall, one cube corner turning 90° to the right, 2 m along the wall to a level port |
-| Rising | Straight out about 4.2 m to a door 90 cm above the grass: a 65.45 cm climb at up to 20° |
-| All cubes | The recommended route built of cubes only: a door on every face the tunnel does not run through |
+| Recommended | The defaults: two side-port turns, out, 1.1 m along the wall and out again, and a 25.45 cm climb at 11.5° in the run into the port (the same as **Reset to the recommended defaults**) |
+| Straight | Straight out 2.3 m to a port at the window floor's height: no turns, no bends |
+| 90° turn right | Out from the wall, one side port turning 90° to the right, 2 m along the wall to a level port |
+| Rising | Straight out about 3.7 m to a door 90 cm above the grass: a 65.45 cm climb at up to 20° |
 
 Every preset's port is set where its whole elements end, so none shows a port placed elsewhere.
 
@@ -76,19 +76,18 @@ level and suggests the level setting.
 
 | Parameter | Default | Options | Group |
 | --- | --- | --- | --- |
-| Port along the wall | 108.2 cm | −400 to 400 cm, in 0.1 cm steps | Enclosure port |
-| Port out from the wall | 345 cm | 50 to 800 cm, in 0.1 cm steps | Enclosure port |
-| Port faces | 0° | −120° to 120° (+ to the right); with cube corners 0° or ±90°, the nearest | Enclosure port |
+| Port along the wall | 109.6 cm | −400 to 400 cm, in 0.1 cm steps | Enclosure port |
+| Port out from the wall | 304.4 cm | 50 to 800 cm, in 0.1 cm steps | Enclosure port |
+| Port faces | 0° | −120° to 120° (+ to the right); with side-port turns 0° or ±90°, the nearest | Enclosure port |
 | Port floor | At its own height | Level with the window port; at its own height | Enclosure port |
 | Port floor height | 50 cm | 15 to 140 cm, in 0.05 cm steps (only at its own height) | Enclosure port |
 | Straight out from the wall | 70 cm | 30 to 500 cm | Route |
-| Straight into the port | 200 cm | 30 to 500 cm (not with cube corners: it follows from the port) | Route |
+| Straight into the port | 200 cm | 30 to 500 cm (not with side-port turns: it follows from the port) | Route |
 | Climb in | The run into the port | Run out from the wall; middle run; run into the port | Route |
 | Steepest slope | 20° | 10°, 15°, 20°, 25° | Route |
-| Turns and bends | Cube corners (90°) | Cube corners; angle collars (any angle); mitred ends, bolted | Joints |
+| Turns and bends | Side ports (90°) | Side ports; angle collars (any angle); mitred ends, bolted | Joints |
 | Mesh | Soft cat netting (TRIXIE 44294, 3 cm meshes) | Soft cat netting; welded wire mesh (KrapTrap, 19 mm meshes of 1.45 mm wire) | Sections |
-| Straight runs | Long sections | Long sections; cubes | Sections |
-| Longest section | 2 pitches (about 1 m) | 1, 2, 3, 4 pitches | Sections |
+| Longest section | 2 pitches (about 1.2 m) | 1, 2, 3, 4 pitches | Sections |
 | Side access | One panel, near the middle | None; one panel near the middle; a panel in every long section that takes one | Sections |
 | Access side | Right | Left; right (looking along the tunnel from the window) | Sections |
 | Feet | Printed feet on M8 × 80 screws | Printed feet; Ganter GN 343.2 levelling feet | Supports |
@@ -104,18 +103,16 @@ How the sections are coupled is not set here: **Coupling**, **Latches per side**
 the [tunnel–tunnel coupling](tunnel-tunnel-coupling.md) page, which this page follows. (**Bolts per coupling** used to be
 here; settings saved before simply drop it.)
 
-With the defaults the tunnel is 4.52 m of pieces, with nine 3 mm gaps between them and at the port. It runs out from the
-wall and turns 90° right at a cube. It runs 54 cm along the wall to a second cube and turns 90° left. It then climbs
-25.45 cm at 12.32° on one 1.08 m section between two angle collars, into the port at 108.2 cm along and 345 cm out.
+With the defaults the tunnel is 4.27 m of pieces, with seven 3 mm gaps between them and at the port. It runs out from the
+wall and turns 90° right at a side port. It runs 1.1 m along the wall to a second side port and turns 90° left. It then climbs
+25.45 cm at 11.5° on one 1.16 m section between two angle collars, into the port at 109.6 cm along and 304.4 cm out.
 
-- **Elements:** five sections (four of one pitch, the sloped one of two), two cubes and two angle collars.
-- **Doors:** the cubes' eight doors, two of them floor doors.
-- **Supports:** eight, four low bearers near the wall and four trestles.
-- **Latches:** all nine couplings, the port end too, are latched: 36 printed latches, and 32 more on the doors.
+- **Elements:** five sections (three of one pitch, two of two), two of them with a side port, and two angle collars.
+- **Doors:** the two stubs' end doors.
+- **Supports:** six, three low bearers near the wall and three trestles.
+- **Latches:** all seven couplings, the port end too, are latched: 28 printed latches.
 
-Bolted, the pitch is a cube's edge, 53.8 cm, so the same elements end at 107.6 cm along and 342.6 cm out.
-
-- **Floor props:** each cube also stands its floor door on a floor prop on its own slab: two props, 5 and 7 cm long.
+Bolted, the pitch is 58.0 cm, so the same elements end at 109.0 cm along and 302.4 cm out.
 
 ## The geometry
 
@@ -126,9 +123,9 @@ scene, the parts list and the tests.
    - **Angle collars and mitred ends:** it runs out `approach`, to a point `final` short of the enclosure port along the port's
      facing, and a middle leg joins the two points. Both turn angles come from the geometry: any angle, and always summing
      to the port's facing.
-   - **Cube corners** (`cubeRoute`): a cube turns only 90°, so the port faces straight out or along the wall, whichever is
-     nearer. A port facing out, beside the window, is reached out `approach`, along the wall to its line and out again. A
-     port facing along the wall is reached out to its line and along it. A port within 25 cm of the window's line is reached
+   - **Side ports** (`squareRoute`): a side port turns only 90°, so the port faces straight out or along the wall, whichever
+     is nearer. A port facing out, beside the window, is reached out `approach`, along the wall to its line and out again. A
+     port facing along the wall is reached out to its line and along it. A port within 29 cm of the window's line is reached
      straight out.
    - **Whole elements:** every run between the joints is rounded to the nearest whole number of pitches, at least one. The
      route then ends where those elements end: `E`, as against the asked `asked`, `moved` apart (`facingMoved` for the
@@ -156,13 +153,13 @@ scene, the parts list and the tests.
      sections and the gaps between them, so the route still ends exactly at the port. Mitred joints are bolted, face to
      face, with no gap.
 4. **Elements.** Each run's pitches go into as few long sections as take them, none longer than the chosen number of
-   pitches; with **Straight runs** = *cubes*, each level run is one cube a pitch.
-   - **A long section** is a whole number of pitches long, less the gap after it, so it takes the place of that many cubes.
+   pitches.
+   - **A long section** is a whole number of pitches long, less the gap after it.
      It is two 30 × 70 flange rings around the clear opening, four 40 × 40 corner rails, an 18 mm exterior plywood floor on
      the bottom rails, mesh down both sides and over the roof, and 20 × 20 cleats across sloped floors.
-   - **A cube** is six flange rings, one on each face, flush with it, with a corner block in each corner and an edge strip in
-     each edge between the latches ([standard-port.md](standard-port.md)). Each face the
-     tunnel does not run through has a door ([standard-port.md](standard-port.md)).
+   - **A side port** is a third flange ring, on the rails' outer faces of the first section after a turn, 29 cm
+     from its start, with a 40 mm pocket and a pocket post each side; the section's stub behind it ends in a port closed by a
+     door ([standard-port.md](standard-port.md)).
    - **A climb** is the fewest whole pitches of long section that climb it within the steepest slope, sloped exactly to the
      port's floor.
 
@@ -187,8 +184,9 @@ scene, the parts list and the tests.
    - **Standard stations:** latches and bolts stand at the standard port's stations, the same on all four sides: the bolts
      4, 8 (default) or 12, one, two or three on each side. Seen from outside, every port has its latches' base plates on its
      left and their catch plates on its right.
-3. **A support at both ends, at every straight coupling and under every collar or mitre.** A cube stands on the supports under
-   its couplings, like a section: its end rings' sills are at the flanges' height.
+3. **A support at both ends, at every straight coupling and under every collar or mitre.** A section with a side port stands
+   on the support under its side-port coupling (across the run before, under its end flange and the side ring's sill) and the
+   one at its far end; its stub has none of its own.
    - **Trestles:** a 45 × 70 bearer, sitting just under the flanges, carries the tunnel on two 45 × 45 legs. The bearer is
      bevelled to the slope under sloped couplings and screwed up into the flanges with DIN 7997 6 × 100 screws.
    - **Braces:** a trestle with a leg over 30 cm gets a 22 × 70 diagonal brace.
@@ -256,21 +254,21 @@ scene, the parts list and the tests.
      unnoticed before.)
 7. **20° steepest slope, climbed in the run into the port.** Cats manage 25° on cleats, but a gentler slope is kinder to old
    cats. The leg that climbs, and the limit, are both parameters. The climb is whole pitches of long section, sloped exactly
-   to the port's floor: with the defaults one of two pitches at 13.14°. A leg too short for its climb is made as long as the
+   to the port's floor: with the defaults one of two pitches at 11.5°. A leg too short for its climb is made as long as the
    climb's elements take, and the port moves.
-8. **Two pitches (about 1 m) longest section.** One person can carry it. With a support at every coupling, no span exceeds a
-   section. With **Straight runs** = *cubes*, every level run is cubes instead.
+8. **Two pitches (about 1.2 m) longest section.** One person can carry it. With a support at every coupling, no span exceeds a
+   section.
 
 ## Side access
 
 **Side access** puts a removable mesh panel in place of one side's mesh in a long section, kept in by door turn buttons on
 the rails: one panel near the middle (the default for a new tunnel), one in every long section that takes one, or none (what
-a tunnel saved before the setting keeps). A cube needs none: every face it does not run through is a door already. [removable-doors.md](removable-doors.md) has the construction, what the reference product
+a tunnel saved before the setting keeps). Never on the side of a section where its side port is. [removable-doors.md](removable-doors.md) has the construction, what the reference product
 shows, what is unverified and the checks to make on a built panel.
 
 - **Where.** A long section takes a panel if the square part of its side, between its flanges' inner faces all the way up,
   is at least 30 cm long. Beside a mitre the panel sits in that square part and mesh fills the rest of the side (issue #85);
-  collars and cubes take none. Held on the supports by a rubber strap, the first, the last and the sloped sections take none either:
+  collars take none. Held on the supports by a rubber strap, the first, the last and the sloped sections take none either:
   a strap would cross the panel there.
 - **Locked.** Each of its door turn buttons has a captive locking pin: lift the pins, then turn the buttons.
 - **What stays the same.** The route, the sections' lengths, the flanges, every coupling and every support. The panel lies
@@ -290,13 +288,13 @@ shows, what is unverified and the checks to make on a built panel.
    - Screw the bearers down onto the legs, and the braces across.
 2. **Level the supports.** Set a string line at each bearer's design height from the window floor. Turn each foot on its stud
    until the bearer meets the line, then jam its nut.
-3. **Frame the sections, collars and cubes** on trestles beside the line (shown raised over it):
+3. **Frame the sections and collars** on trestles beside the line (shown raised over it):
    - flange rings at both ends
    - rails screwed through the flanges into their end grain (DIN 7997 5 × 70)
    - the floor board screwed onto the bottom rails (DIN 7997 4 × 40)
    - cleats on sloped floors (DIN 7997 4 × 35)
-   - each cube: six flange rings, a 40 × 40 block in each corner screwed through its three rings (5 × 70), and a 49 × 49 edge
-     strip glued and screwed into each edge, in lengths that stop short of every latch station
+   - at each turn, the first section after it: a side ring on the rails' outer faces, screwed into the rails (5 × 70), and a
+     40 × 36 pocket post each side of it, screwed down through the top rail and up through the bottom rail
    - the latches' plates on every port's sides: seen from outside it, base plates on its left, catch plates on its right
 4. **Net the sections.** By default each section gets one piece of soft cat netting as a hood: down one side, over both
    top rails and down the other, its ends turned onto the flanges.
@@ -304,11 +302,10 @@ shows, what is unverified and the checks to make on a built panel.
    - It is stapled (DIN 1159 2.5 × 25) every 15 cm along the top rails, and over every mesh (3 cm) along its cut edges, the
      bottom rails and the flanges: a net's edge opens between fixings a hand apart.
    - With welded wire mesh (**Mesh**) it is three panels a section, stapled every 15 cm all round.
-   - **Close the cubes.** Every face of a cube the tunnel does not run through gets its door
-     ([standard-port.md](standard-port.md)).
+   - **Close the stubs.** The end port of the stub behind every side port gets its door
+     ([standard-port.md](standard-port.md)). Leave the side mesh out between the stub's flange and the far pocket post.
      - By default the door is set into the ring's opening on its seat (stop strips, or a rebate: the catio page's **Door
-       seat**): a slim framed mesh panel, or a plywood sheet and a floor plug on the floor face, and its four door turn
-       buttons, one at the middle of each side, are turned over it.
+       seat**): a slim framed mesh panel, and its four door turn buttons, one at the middle of each side, are turned over it.
      - With **Door held by** = *a blank on the latches*, it is a blank flange ring with mesh clamped over it under cover
        strips (or a sheet), held off the port across the 3 mm gap and latched like a coupling.
 5. **Lay and couple.** Lower the pieces onto the supports one by one from the window end, sticking the seal round each
@@ -342,10 +339,10 @@ No new families were needed. The tunnel uses existing parts:
 - **ISO 4032** M8
 - **DIN 7965** M8 × 18
 - **DIN 7997**: 4 × 25 (the printed latches' plates, the turn buttons' pivots, the door turn buttons' pivots), 4 × 35,
-  4 × 40 (also strap cleats, keepers and turn buttons' posts), 5 × 50, 5 × 70 (also cubes' rings into their corner blocks),
+  4 × 40 (also strap cleats, keepers and turn buttons' posts), 5 × 50, 5 × 70 (also side rings into the rails and pocket posts),
   6 × 100 (also soles into legs); for the side-access panels also 3 × 25 (stops), 3.5 × 25 (cover strips) and 4 × 50
-  (panel frames); for the cubes' doors also 3 × 25 (floor plugs), 3.5 × 25 (cover strips and floor sheets) and, held by turn
-  buttons, 4 × 50 and 4 × 35 (pivots) and 4 × 45 and 3.5 × 30 (locating strips)
+  (panel frames); for the stubs' doors also 3.5 × 25 (cover strips, on the latches) and, held by turn buttons, 4 × 25
+  (pivots), 4 × 50 (door frames) and 3 × 25 (door stops), and DIN 1159 staples (mesh onto the door frames)
 - **ISO 7093-1** M4 (under each door turn button)
 - **ISO 4017** M8 × 60 (printed feet, for ±10 mm of uneven ground)
 - **ISO 2338** 8 × 40 parallel pins (dowels in the bearers)
@@ -364,7 +361,7 @@ The mesh is one roll of the parts library (the net, or the welded mesh), linked 
 so more rolls may be needed.
 
 Custom lines (not library parts): the timber cut list (with soles, strap cleats and keepers, the side-access panels'
-frames, cover strips and stops, and the cubes' corner blocks and doors), the net hoods or mesh panels cut from that roll, the couplings'
+frames, cover strips and stops, the side ports' pocket posts and the stubs' doors), the net hoods or mesh panels cut from that roll, the couplings'
 E-profile seals, the straps, the turn buttons with their posts, the side-access panels' printed door turn buttons, and the
 paving slabs.
 The printed latches link to their model (`#/models/toggle-latch`). The window end's seal and latches are listed on the
@@ -381,12 +378,13 @@ insert–tunnel coupling page.
   New for the tunnel: numeric controls (`range`), presets (`presets`), single-variant pages, per-page view, layer and toggle labels, the brief
   and assembly headings, a stage scale, and a Groundwork group in the parts list. The window insert page is unchanged.
 - [Standard port](../../../apps/web/src/catioPort.ts) and its [tests](../../../apps/web/src/catioPort.test.ts): the
-  stations under quarter turns, the genderless latches across any joint, a cube's rings, latches and coupled elements clear
-  of each other for every size, and both doors ([standard-port.md](standard-port.md)).
+  stations under quarter turns, the genderless latches across any joint, a side port's pocket the least that keeps its and
+  the stub's latches clear of each other, and both doors ([standard-port.md](standard-port.md)).
 - [Tests](../../../apps/web/src/catioTunnel.test.ts) check:
-  - both ends square to their ports across left, right, odd-angle, climbing, falling and 90° routes, with cube corners,
-    angle collars, mitred ends and straight runs of cubes
-  - every straight run whole pitches, every cube corner exactly 90°, the port placed where the elements end and reported
+  - both ends square to their ports across left, right, odd-angle, climbing, falling and 90° routes, with side ports,
+    angle collars and mitred ends
+  - every straight run whole pitches, every side-port turn exactly 90° with the run before coupled onto the side port and
+    every latch there clear of the section's end, posts and rails, the port placed where the elements end and reported
     when that is not where it was asked, the defaults and presets with no move, and saved tunnels snapped on load
   - no roll anywhere, and turns only on the level
   - coupling outlines identical on both sides, 3 mm apart where latched, and the route ending exactly at the port with
@@ -413,4 +411,4 @@ insert–tunnel coupling page.
 
 This is a concept: timber sizes, spans and bolt counts are not yet calculated for load, and the ground values are
 assumptions. Measure the fall and unevenness on site, and check both ports' positions, before cutting legs and collars.
-The cubes, their latch pockets and their doors are unbuilt: [standard-port.md](standard-port.md) lists what to check.
+The side ports, their latch pockets and the stubs' doors are unbuilt: [standard-port.md](standard-port.md) lists what to check.

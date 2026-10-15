@@ -1,15 +1,22 @@
-# Standard port and cube elements
+# Standard port and side ports
 
 Every element of the tunnel ends in the same port, so any element couples to any other (issue #86). A port is either
 **coupled** to another element (another tunnel element, the enclosure or the window insert) or **closed by a door**, which
-blocks it off. There are two kinds of element:
+blocks it off. The elements are:
 
-- a **long section**: a rectangular box with a standard port at each end and fixed mesh sides, as before;
-- a **cube**: the standard port on all six faces, roof and floor included.
+- a **long section**: a rectangular box with a standard port at each end and fixed mesh sides;
+- an **angle collar**: a short wedge between two square ports, at the bends into and out of a climb;
+- a **side port**: the standard port on the side of a long section, where the tunnel turns 90°.
 
-Turns are made at cubes (90° each). Climbs keep the sloped long sections and the angle collars at their bends. The geometry is
-one module, [catioPort.ts](../../../apps/web/src/catioPort.ts), which the tunnel's layout, its scenes and parts lists, the
-couplings and the tests all use.
+The run before a turn couples its end onto a side port in the first section of the run after it. That section runs on past
+the side port by a short **stub**, whose own end port is closed by a door. The geometry is one module,
+[catioPort.ts](../../../apps/web/src/catioPort.ts), which the tunnel's layout, its scenes and parts lists, the couplings and
+the tests all use.
+
+**Cubes are gone.** The first version turned at cubes: the port on all six faces, the faces the tunnel did not run through
+(roof and floor included) closed by doors, with corner blocks, edge strips and a floor prop under each. They looked bulky
+and made little sense to assemble. A corner is now an ordinary section with one more ring on its side, which looks like
+the rest of the tunnel. There are no roof or floor doors.
 
 Everything below is this design's proposal. None of it has been built, and the open questions are listed at the end.
 
@@ -25,8 +32,8 @@ Everything below is this design's proposal. None of it has been built, and the o
 | Latch halves | Seen from outside, base plates on the port's left, catch plates on its right | `portHalf` |
 
 **Four-fold symmetry.** The stations are the same on all four sides of the ring. A quarter turn about the opening's middle maps
-them onto themselves, because the latch fractions are symmetric. A port therefore fits another at any rotation, and a cube can
-be turned to put any face on the route. The bolts used to be three a side and two on top; that pattern is not symmetric, so
+them onto themselves, because the latch fractions are symmetric. A port therefore fits another at any rotation, and a side
+port takes a section's end like any other port. The bolts used to be three a side and two on top; that pattern is not symmetric, so
 `boltsPerCoupling` now offers 4, 8 or 12, and a saved 6 loads as the default 8.
 
 **Genderless latches.** A printed toggle latch has a base (with the lever and link) on one face and a catch on the other.
@@ -46,55 +53,47 @@ Only the two sides across a face's frame (its left and right) are populated with
 the vertical sides, clear of the bearer under the sill and of the roof. The stations on the other two sides are where the
 latches go when the port is turned a quarter round.
 
-## The cube
+## The side port
 
-- **Edge.** The cube's edge is the outline, a ring's depth and a pocket each side: `cubeEdge(s) = s + 2 (F + T + CUBE_POCKET)`,
-  which is 53.8 cm for a 30 cm opening.
-- **Pitch.** A cube's edge plus a coupling's gap is the **pitch**: 54.1 cm latched, 53.8 cm bolted.
-- **Rings.** Each face is a standard ring with its mating face flush with the cube's face.
-- **Pockets, from the latch's real movement.** Along each edge, outside both rings, is a pocket in which both faces' latches
-  stand and swing. Its size, `CUBE_POCKET`, is computed (`cubePocket` in catioPort.ts) from the latch's own mechanism
-  (`LATCH_REACH`, the poses `buildPrintedLatches` draws).
-  - **Closed,** the lever lies 32 mm along the joint, 2 mm past the 30 mm ring.
-  - **Opening,** the lever swings 38 mm out from the ring's side, and the link swings off its hook.
-  - **Size:** the pocket is the least that keeps every face's latch clear of the other faces' rings, latches and coupled
-    elements: closed, and swinging open with 2 mm to spare. That is 19 mm.
-  - **History:** the first version's rings met edge to edge with a 30 × 30 mm notch. That was enough for closed latches but
-    not for a lever opening; the test shows it.
-- **Edge strips.** A 49 × 49 strip in each of the 12 edges fills the corner square outside both rings' outlines (the pocket
-  and a ring's depth).
-  - **Fixing:** glued and screwed (5 × 70) into both rings' sides.
-  - **Pockets kept open:** they run between the corner blocks, in lengths that stop 21 mm short of every latch station's
-    middle on either side (`edgeStripSegments`).
-  - **Why:** they stiffen the cube and close the edge, which would otherwise be open to the pocket.
-- **Corner blocks.** A 40 × 40 × 40 block in each of the eight corners sits behind the three rings that meet there. It is
-  screwed through each ring with a 5 × 70, the three screws offset so they pass each other. The blocks are clear of every
-  latch and bolt station, which lie within the opening's middle 70 %.
-- **Doors.** Every face the tunnel does not run through is closed by a door: at a corner, the front and the other side; in a
-  run of cubes, both sides. The roof and floor faces are always doors. The floor face's door is solid and carries a plug that
-  fills the opening, so the cat stands on a flat floor 70 mm below the tunnel's.
-- **Supports.** A cube stands on the supports under its couplings, like a section: its end ring's sill is at the same height
-  as a section's flange, and the bearer under a coupling lies under the end ring, clear of the floor door.
-- **Floor prop.** Under the middle of every cube's floor door, a 70 × 70 post stands on its own slab, cut on site to the gap
-  (`TUNNEL.floorProp`, `FloorProp`).
-  - **Load path:** the door is clamped between the cube and the prop, so a cat's weight on the floor goes into the ground, not
-    into the door's latches or turn buttons.
-  - **Clearance:** the prop stands clear of every button, latch and plug screw of the door.
-  - **Opening the floor door:** take the prop out first.
-  - **Why a prop:** a trestle would not fit; near the wall a floor door is only about 8 cm above the grass.
+| | Value | Where |
+| --- | --- | --- |
+| Ring | The standard ring, 30 × 70, on the outer faces of the section's rails and floor board | `sidePortFace`, `SIDE_RING_SET` |
+| Its face | Flush with the outline of the section's flanges: the rails stand 30 mm (a ring's depth) inside it | `sidePortFaces` |
+| Its opening | The section's clear opening: level with the floor, as high as the tunnel | |
+| Pocket | 40 mm along the section each side of the ring, from the latch's real movement | `SIDE_POCKET`, `sideClashes` |
+| Pocket post | In each pocket, 40 × 36, on the floor board under the top rail | `sidePocketPost` |
+| Where | 29 cm from the section's start (stub 3 cm, pocket 4 cm, half the ring's outline 22 cm) | `sidePortOffset` |
+| Shortest section with one | 58 cm, both pockets and the ring | `sidePortLength` |
+
+- **The pocket, from the latch's real movement.** The latches at the side port's two sides stand along the section, and
+  their levers swing out along it as they open (38 mm). The stub's flange reaches out to the side port's face, so the
+  lever needs room before it: the pocket is the least that keeps every latch of the side port and of the stub's end port,
+  closed or swinging open with 2 mm to spare, clear of the other's ring, latches, coupled element and the section's rails.
+  It is 40 mm, where a cube needed 19: a cube's next ring stopped a pocket short of the face.
+- **Pocket posts.** Each pocket would leave a slot in the side between the ring and the mesh. A post 40 mm along the
+  section and 36 mm deep closes it: from the clear opening's plane out to 2 mm behind the latches' swing. It stands on the
+  floor board under the top rail, screwed down through the rail and up through the bottom rail.
+- **Mesh.** None on the side port's side between the stub's flange and the far post; the side mesh (or the net) runs on
+  from there. A net hood ends on the top rail's outer face, under the ring.
+- **Fixing.** The ring is screwed through its head into the top rail and through its sill into the bottom rail.
+- **The stub.** Its end port is a standard port, closed by a door (below).
+- **Supports.** The section stands on the support under its side-port coupling (a bearer across the run before, under its
+  end flange and the side ring's sill) and on the one under its own far end. The stub has no support of its own.
+- **Side access** is never on the side port's side of a section.
+- **The pitch** is the shortest section with a side port and a coupling's gap: 58.3 cm latched, 58.0 cm bolted. Every
+  section is a whole number of pitches, so any section after a turn can carry a side port.
 
 ## Doors (`Door held by`, on the tunnel–tunnel coupling page)
 
-The doors look like the PawHut tunnel's: a slim panel set into the opening, about flush with the ring, with a turn button at the
-middle of each side. The first version laid a panel over the ring between locating strips, or latched a whole blank ring onto
-it; on a cube, with a door on four or five faces, that was bulky.
+A port that is not coupled is closed by a door: the stub's end behind every side port. The doors look like the PawHut
+tunnel's: a slim panel set into the opening, about flush with the ring, with a turn button at the middle of each side. The
+first version laid a panel over the ring between locating strips, or latched a whole blank ring onto it, which was bulky.
 
 | | Set in, held by turn buttons (default) | A blank, held by the port's latches |
 | --- | --- | --- |
 | The door | A slim panel set into the opening, 1 mm behind the ring's face: mesh stapled on the back of a 25 × 17 frame, or an 18 mm plywood sheet | A ring like the port's (30 × 70) with mesh under cover strips on its outer face, or a 12 mm plywood sheet |
 | Seated | **Door seat** (catio page): 12 × 10 stop strips inside the ring's opening (default, the easier to make), or a 12 mm rebate round it | On the port's face, across the 3 mm gap |
 | Held | Four door turn buttons on the ring's face, one at the middle of each side: the same on every side | By the port's own latches: the door carries the other halves, as a coupled element would |
-| Floor face | Plywood sheet and a plug filling the ring's depth behind it | Plywood sheet and a plug filling the gap and the opening |
 | Builder | `setInDoor` | `blankPanel` |
 
 The turn buttons are the removable doors' buttons from [removable-doors.md](removable-doors.md), placed on the ring's face. With
@@ -113,63 +112,68 @@ in the cut list.
 - **Latch notches:** a notch at every latch station on all four edges.
 - **Which way up:** it is marked "this side out" and is the same on all four sides.
 
-Every ring is marked and pre-drilled from it, so every port is the same and a cube turned a quarter round still fits.
+Every ring is marked and pre-drilled from it, the side ports' too, so every port is the same and any one fits any other at a
+quarter turn.
 
 ## Elements and the route
 
 | Setting | Default | Options |
 | --- | --- | --- |
-| Turns and bends | Cube corners (90°) | Cube corners; angle collars (any angle); mitred ends, bolted |
-| Straight runs | Long sections | Long sections; cubes |
-| Longest section | 2 pitches (about 1 m) | 1–4 pitches |
+| Turns and bends | Side ports (90°) | Side ports; angle collars (any angle); mitred ends, bolted |
+| Longest section | 2 pitches (about 1.2 m) | 1–4 pitches |
 
 **Snapped route.** Every straight run is a whole number of pitches, and the enclosure port lands where the elements end. The
 port's position stays an input, as the asked target, and the brief shows **Enclosure port · placed by whole elements** with
 the asked position whenever the two are a millimetre or more apart. The defaults and the presets are set where their elements
 end (`placedRoute`).
 
-**Cube routes.** With cube corners, **Port faces** is a choice: straight out, or along the wall to the left or right. A facing
-saved at another angle is kept and laid out at the nearest of those. A port beside the window (more than 25 cm to one side) is reached out, along the wall, and out again. **Straight in
-to the port** then follows from where the port is, so it is hidden.
+**Side-port routes.** A side port turns 90°, so **Port faces** is a choice: straight out, or along the wall to the left or
+right. A facing saved at another angle is kept and laid out at the nearest of those. A port beside the window (more than 29 cm
+to one side) is reached out, along the wall, and out again. **Straight in to the port** then follows from where the port is, so
+it is hidden.
 
 **Climbs.** A climb is the one length solved exactly. It uses the fewest whole long sections that climb to the port's floor
-within the steepest slope, sloped as steeply as that takes. A climb is always made of long sections, even when the straight
-runs are cubes.
+within the steepest slope, sloped as steeply as that takes.
 
 ## Saved designs (snapped on load)
 
 - **Tunnel page.** A saved tunnel keeps its route settings and its joint type, so a saved design with angle collars keeps them.
-  Its longest section, saved in millimetres, becomes the nearest whole number of pitches (500 → 1, 750 and 1000 → 2). The
-  layout then snaps the route to whole elements, and the brief reports how far that puts the port from where it was saved.
+  One saved with cube corners turns at side ports, the same right angles; straight runs of cubes become long sections. Its
+  longest section, saved in millimetres, becomes the nearest whole number of pitches (500 → 1, 750 and 1000 → 2). The layout
+  then snaps the route to whole elements, and the brief reports how far that puts the port from where it was saved.
+- **Coupling page.** A page saved showing two sections shows two sections' ends; one saved showing a cube shows a section's
+  end at a side port.
 - **Catio page.** Settings version 3. A design saved with a tunnel that was not square becomes the standard square port at its
   larger size, so the cats' opening never shrinks. Version 1 designs also keep their sliding gates.
 
 ## The whole catio
 
-The modular catio page uses the same standard. Its straight modules are one pitch long (54.1 cm) and its corners are cubes
-(53.8 cm), and one **Tunnel clear size** sets the port both ways. A saved width and height load as their larger size.
-- **Corner cubes:** drawn with their six rings and a door on every free face, held as the tunnel–tunnel coupling page sets
-  (the latches themselves are not drawn there). Each cube's doors open together from the page's door controls.
+The modular catio page uses the same standard. Its modules are one pitch long (58.3 cm), and one **Tunnel clear size** sets
+the port both ways (a saved width and height load as their larger size).
+
+- **Corners:** a module with a side port in the middle of its side, the run before coupled onto it, its back closed by the
+  stub's door, held as the tunnel–tunnel coupling page sets. The door opens from the page's door controls.
 - **Side access:** the straight modules carry it as the tunnel page sets it.
 
-The tunnel–tunnel coupling page can show any joint (**Joint shown**): section to section, section to cube, or cube to cube.
+The tunnel–tunnel coupling page can show either joint (**Joint shown**): a section's end to the next section's, or to a side
+port at a turn.
 
 ## Out of scope
 
-- **Branching.** A cube with three or more coupled faces leading to separate routes would need a network model. The tunnel is
-  still a single route, but the port allows a branch later without changing it.
-- **Roofs of long sections** are unchanged. Only a cube's roof face is a port.
+- **Branching.** A section with side ports on both sides, or a side port and a run on past it, would need a network model. The
+  tunnel is still a single route, but the side port allows a branch later without changing it.
+- **Roof and floor access.** Only a section's ends and its side port are ports. There are no roof or floor doors.
 
-## Unverified: check on a built element
+## Unverified: check on a built section
 
-The geometry is checked in the tests. What only a built cube can show:
+The geometry is checked in the tests. What only a built side port can show:
 
 - **The lever by hand.** The pocket leaves the swing 2 mm clear of everything, but nothing yet checks finger room to lift a
-  lever there. Try it with two latched faces at one edge.
-- **Stiffness.** The rings are held by corner blocks and glued edge strips. Check a built cube for racking under a push at a
-  corner.
-- **The floor door.** Its prop carries a cat standing still. A cat jumping on the floor, or a prop left out, still loads the
-  door's fixings, so test a cat's weight dropped on it.
-- **Quarter turns.** A turned port is as good as the template it was marked from. Test a turned cube against a section.
+  lever there. Try it at the pocket between the side ring and the stub's flange.
+- **Stiffness.** The side ring is screwed onto the rails only; the side between the rails is open there. Check a built
+  section for racking under a push at the side port, and whether the pocket posts are enough.
+- **The section on its supports.** It stands on the bearer under the side coupling and the one at its far end; the stub
+  overhangs. Check it does not tip when a cat jumps onto the stub.
+- **Quarter turns.** A turned port is as good as the template it was marked from. Test a side port against a section's end.
 - **Cats against the doors.** Test the locking pins and the printed latches (which have no catch of their own) against a cat
   pawing at them from inside.

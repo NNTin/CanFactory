@@ -54,17 +54,18 @@ weight. See [window-insert-tunnel-coupling.md](window-insert-tunnel-coupling.md)
 The tunnel has its own live page, `#/concepts/catio/tunnel`.
 
 - **Standard elements.** It is built of [standard elements](standard-port.md): every piece ends in the same square port, so
-  any element couples to any other. It turns at cubes (the port on all six faces, the free faces closed by doors) and runs
-  straight on long sections or cubes, a whole number of pitches each. It climbs exactly on sloped sections between angle
+  any element couples to any other. It turns 90° at side ports (the run before coupled onto the port in the side of the next
+  run's first section, whose short stub behind it is closed by a door) and runs straight on long sections, a whole number of
+  pitches each. It climbs exactly on sloped sections between angle
   collars, and ends where its whole elements end.
 - **Supports** stand on levelling feet for uneven ground.
-- **The page** has a staged assembly, a parts list and presets (straight, 90° turn right, rising, all cubes).
+- **The page** has a staged assembly, a parts list and presets (straight, 90° turn right, rising).
 
-See [tunnel.md](tunnel.md). The modular whole-catio scene uses the same pitch and cube corners, drawn schematically.
+See [tunnel.md](tunnel.md). The modular whole-catio scene uses the same pitch and side-port corners, drawn schematically.
 
 ## Standard port
 
-One port for every tunnel element, the window insert's docking frame and the enclosure. It is a square opening in a 30 × 70
+One port for every tunnel element, a side port at every turn, the window insert's docking frame and the enclosure. It is a square opening in a 30 × 70
 ring, with its latch and bolt stations the same on all four sides. Seen from outside, it has its latches' base plates on its
 left and their catch plates on its right. A port is coupled, or closed by a door set into it on turn buttons (the default)
 or by a blank on its own latches.
@@ -179,22 +180,22 @@ The [exact modular prompts and correction passes](modular-prompts.md) record use
 | Tunnel clear size | 30 cm | 20–45 cm, square (the [standard port](standard-port.md)), subject to ramp clearance and, with sliding gates, to their travel; a design saved with a non-square tunnel takes its larger size both ways |
 | Cat-port closure | Removable panel with turn buttons | Removable panel with turn buttons; vertical sliding gate (what a design saved before the choice keeps) |
 | Door seat | Stop strips | Stop strips inside the opening (the easier to make); a rebate round it (no strip in the opening). Every door with turn buttons is set into its opening, PawHut-style |
-| Straight module length | One pitch: 54.1 cm | A cube's edge (the clear size + 23.8 cm) and a latched coupling's 3 mm gap |
+| Straight module length | One pitch: 58.3 cm | The shortest section that takes a side port (the clear size + 28 cm) and a latched coupling's 3 mm gap |
 | Approach modules | 2 | 1–6 |
-| Offset lateral / final modules | 2 / 1 | 1–6 each; two corner cubes added automatically |
+| Offset lateral / final modules | 2 / 1 | 1–6 each; two side-port corners added automatically |
 | Second-enclosure link modules | 2 | 1–6 |
 | Window and tunnel floor above grass | 20 cm | Fixed concept assumption |
 | Modular frame members | 40 mm | Fixed concept assumption |
 | Fixed-frame allowance | 45 mm per side of sash | Fixed concept assumption |
 | Collar outside dimensions | Sash dimensions + 70 mm | 10 mm margin inside fixed frame per side |
 
-Sheets 07–10 and 12 depict the default one-enclosure straight configuration. Sheet 10 opens the human maintenance door; each connected cat port can be opened or closed independently. The sheets were drawn with sliding gates, which remain selectable; the live concept now closes every cat port with a removable panel by default (see [removable-doors.md](removable-doors.md)). Sheet 11 compares the default straight layout, mirrored offsets with one approach + two lateral + one final straight modules, and two enclosures. In its two-enclosure example B is 140 × 120 × 140 cm; A stays 120 × 100 × 120 cm, with a two-module side link. Corner modules are cubes of the standard element, their edge the tunnel clear size + 23.8 cm (53.8 cm by default), so a two-module lateral run shifts the enclosure by 162 cm at the default size. Each cube is drawn with its rings and its doors, which the door controls open, and the straight modules carry the tunnel page's side access. (The sheets were drawn with 50 cm modules and corners of the clear width + 80 mm.)
+Sheets 07–10 and 12 depict the default one-enclosure straight configuration. Sheet 10 opens the human maintenance door; each connected cat port can be opened or closed independently. The sheets were drawn with sliding gates, which remain selectable; the live concept now closes every cat port with a removable panel by default (see [removable-doors.md](removable-doors.md)). Sheet 11 compares the default straight layout, mirrored offsets with one approach + two lateral + one final straight modules, and two enclosures. In its two-enclosure example B is 140 × 120 × 140 cm; A stays 120 × 100 × 120 cm, with a two-module side link. Corner modules are modules of one pitch with a side port in the middle of their side, the run before coupled onto it and the stub behind closed by its door, so a two-module lateral run shifts the enclosure by 168.2 cm at the default size. Each corner is drawn with its side ring, its pocket posts and its stub's door, which the door controls open, and the straight modules carry the tunnel page's side access. (The sheets were drawn with 50 cm modules and corners of the clear width + 80 mm.)
 
 ### Connections and access
 
 The original large window passage is replaced, in modular mode, by mesh infill and a small cat port at the bottom of the removable collar, shut by a removable panel behind turn buttons (the default) or by a sliding gate. Window and enclosure ports share the tunnel's clear dimensions. Timber collars, shallow metal flanges and schematic removable clamps show the docking interfaces; these are conceptual hardware, not fabricated part specifications. The window insert is tightened from inside; tunnels and enclosure couplings are assembled outside. All installed geometry clears the inward sash sweep.
 
-Tunnels have solid timber floors, mesh sides and roof, and short supports at section ends. Straight modules a pitch long and cube corners turning 90° form a continuous enclosed route at sill height; every piece ends in the [standard port](standard-port.md). Enclosures have a continuous grass-level mesh floor, four short supports and low mesh skirts. A full-width rear landing meets rear and side cat ports; one cleated ramp descends toward the front inside each enclosure. Different enclosure depths share the same rear edge and side-port location, leaving the human doors free.
+Tunnels have solid timber floors, mesh sides and roof, and short supports at section ends. Straight modules a pitch long and side-port corners turning 90° form a continuous enclosed route at sill height; every piece ends in the [standard port](standard-port.md). Enclosures have a continuous grass-level mesh floor, four short supports and low mesh skirts. A full-width rear landing meets rear and side cat ports; one cleated ramp descends toward the front inside each enclosure. Different enclosure depths share the same rear edge and side-port location, leaving the human doors free.
 
 Each enclosure has a full-front outward hinged maintenance door. At the default 120 cm enclosure height, access is by crouching or reaching; increase height for a larger opening. **Cat-port closure** sets what shuts every cat port, the window's and the enclosures': a panel set into the port and lifted out once its turn buttons are turned clear (solid and sealed at the window, slim framed mesh at the enclosures' rear and side ports; seated as **Door seat** sets), or a small manual sliding gate. Connected ports can be opened and shut independently in the completed scene: a panel's buttons turn and it comes out; a gate slides up. Unused ports remain shut and retained, and every port stays shut through the coupling stage. Frame borders and room for the internal ramp are validated together with numeric ranges; a sliding gate's travel (its own height again above its port) only when sliding gates are chosen, a panel's fit, buttons and withdrawal instead when panels are. The enclosures' hinged maintenance doors and all roofs are the same either way. [removable-doors.md](removable-doors.md) has the construction, what is unverified, and how saved designs are kept.
 
