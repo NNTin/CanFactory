@@ -1,5 +1,5 @@
 import type { CatioView } from './catioDesign.ts';
-import { cubeEdge } from './catioPort.ts';
+import { sidePortLength, sidePortOffset, STANDARD_PORT } from './catioPort.ts';
 import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 import { DOOR_SEAT_DEFAULT, DOOR_SEATS, setInDoor, type DoorSeat, PORT_CLOSURE_DEFAULT, PORT_CLOSURES, slidingGateRise, type DoorPanel, type PortClosure } from './catioDoor.ts';
 
@@ -13,7 +13,7 @@ export interface ModularConfig {
   route: 'straight' | 'left' | 'right'; approach: number; lateral: number; final: number; link: number;
   /** What closes every cat port, the window's and the enclosures': a panel lifted out from behind turn buttons, or a gate slid up. */
   portClosure: PortClosure;
-  /** How every set-in door is seated: the window's, the enclosures' and the tunnel's cubes'. */
+  /** How every set-in door is seated: the window's, the enclosures' and the tunnel's stubs'. */
   doorSeat: DoorSeat;
 }
 export const MODULAR_DEFAULT: ModularConfig = {
@@ -23,10 +23,11 @@ export const MODULAR_DEFAULT: ModularConfig = {
 };
 export const MODULAR = { timber: 40, sill: 200, floor: 4, wall: 300, recess: 150 } as const;
 /**
- * The tunnel's standard elements (catioPort.ts): a straight module is one pitch long (a cube's edge and a latched coupling's gap) and
- * a corner is a cube, its edge the standard port's clear size and two rings and pockets.
+ * The tunnel's standard elements (catioPort.ts): a module is one pitch long (the shortest section that takes a side port, and a
+ * latched coupling's gap). A corner is such a module with a side port in the middle of its side: the run before couples its end
+ * onto it, and its stub behind is closed by a door.
  */
-export const modularPitch = (c: Pick<ModularConfig, 'tunnelSize'>) => cubeEdge(c.tunnelSize) + PRINTED_LATCH_JOINT.gap;
+export const modularPitch = (c: Pick<ModularConfig, 'tunnelSize'>) => sidePortLength(c.tunnelSize) + PRINTED_LATCH_JOINT.gap;
 /** The timber round a cat port: the window's port frame and the enclosures' are both this wide. */
 export const PORT_FRAME = 40;
 /**
@@ -62,7 +63,7 @@ export function modularSteps(c: Pick<ModularConfig, 'portClosure'>, hung: boolea
     { title: 'Fit the window insert', detail: `${hung ? 'Hang it on the window frame: its screen hooks reach behind the fixed frame’s lip and its feet stand on the recess floor, so the sash still closes.' : 'From inside, tighten the padded recess clamps.'} ${s.insert}` },
     { title: 'Position the enclosures', detail: 'Place each enclosure on four short feet. Fit its continuous grass-level mesh floor, skirts, walls, roof and latched front maintenance door.' },
     { title: 'Fit landings and cat ports', detail: `Add the raised rear landing and ramp. ${s.ports}` },
-    { title: 'Lay the supported tunnel', detail: 'Join standard sections, one pitch (about 50 cm) each, and for an offset two cube corners, each turning 90°: every piece ends in the same square port, so any one couples to any other. The enclosed solid walkway stays level with the sill on feet at each joint.' },
+    { title: 'Lay the supported tunnel', detail: 'Join standard sections, one pitch (about 58 cm) each; for an offset, turn 90° twice at side ports, each the end of one run coupled onto a port in the side of the next run’s first section, its stub closed by a door: every piece ends in the same square port, so any one couples to any other. The enclosed solid walkway stays level with the sill on feet at each joint.' },
     { title: 'Couple the connections', detail: `Seat the matching rectangular collars and secure the removable clamps at every joint. ${s.couple}` },
     s.open,
   ];
@@ -102,13 +103,17 @@ export function validateModular(c: ModularConfig): string[] {
   return errors;
 }
 export type Point = [number, number];
-/** A piece of the tunnel: a straight module, or a corner cube; `openings` are its coupled faces, the others shut (a cube's by its doors). */
+/**
+ * A piece of the tunnel: a straight module, or a corner, a module with a side port in the middle of one side; `openings` are its
+ * coupled ports (a corner's: its side port and its front), the others shut (a corner's back by the stub's door).
+ */
 export interface TunnelSection { id: string; kind: 'straight' | 'corner'; center: Point; length: number; angle: number; openings: ('back' | 'front' | 'left' | 'right')[]; /** On the link between two enclosures, not the main route. */ link?: boolean }
 export interface EnclosurePlacement { id: 'a' | 'b'; centerX: number; rearY: number; size: EnclosureSize }
 export function modularLayout(c: ModularConfig) {
   const sections: TunnelSection[] = [];
-  // a corner is a cube; every straight module a pitch
-  const span = cubeEdge(c.tunnelSize); const pitch = modularPitch(c);
+  // every module a pitch; a corner's side port in the middle of its side, its face the flanges' outline out from its axis
+  const pitch = modularPitch(c); const gap = PRINTED_LATCH_JOINT.gap;
+  const offset = sidePortOffset(c.tunnelSize); const reach = c.tunnelSize / 2 + STANDARD_PORT.ring.width + gap;
   let serial = 0;
   const run = (start: Point, angle: number, count: number, link = false): Point => {
     const dx = -Math.sin(angle); const dy = Math.cos(angle);
@@ -118,11 +123,14 @@ export function modularLayout(c: ModularConfig) {
   let end = run([0, 0], 0, c.approach);
   if (c.route !== 'straight') {
     const sign = c.route === 'right' ? 1 : -1;
-    sections.push({ id: `tunnel-${serial++}`, kind: 'corner', center: [0, end[1] + span / 2], length: span, angle: 0, openings: ['back', sign > 0 ? 'right' : 'left'] });
-    end = run([sign * span / 2, end[1] + span / 2], -sign * Math.PI / 2, c.lateral);
-    const center: Point = [end[0] + sign * span / 2, end[1]];
-    sections.push({ id: `tunnel-${serial++}`, kind: 'corner', center, length: span, angle: 0, openings: [sign > 0 ? 'left' : 'right', 'front'] });
-    end = run([center[0], center[1] + span / 2], 0, c.final);
+    // the first corner runs along the wall, its side port facing back towards the window; the run out ends at it, across the gap
+    const first: Point = [0, end[1] + reach];
+    sections.push({ id: `tunnel-${serial++}`, kind: 'corner', center: [first[0] - sign * offset + sign * pitch / 2, first[1]], length: pitch, angle: -sign * Math.PI / 2, openings: [sign > 0 ? 'right' : 'left', 'front'] });
+    end = run([first[0] - sign * offset + sign * pitch, first[1]], -sign * Math.PI / 2, c.lateral);
+    // the second runs out from the wall again, its side port facing back along the wall
+    const second: Point = [end[0] + sign * reach, end[1]];
+    sections.push({ id: `tunnel-${serial++}`, kind: 'corner', center: [second[0], second[1] - offset + pitch / 2], length: pitch, angle: 0, openings: [sign > 0 ? 'left' : 'right', 'front'] });
+    end = run([second[0], second[1] - offset + pitch], 0, c.final);
   }
   const enclosures: EnclosurePlacement[] = [{ id: 'a', centerX: end[0], rearY: end[1], size: c.enclosure }];
   if (c.secondEnabled) {

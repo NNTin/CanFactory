@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { CATIO, roofBearers } from './catioDesign.ts';
 import { MODULAR_DEFAULT as defaults, modularLayout, modularCamera, modularPitch, validateModular, type ModularConfig } from './catioModularDesign.ts';
-import { CUBE_POCKET, cubeEdge, STANDARD_PORT } from './catioPort.ts';
+import { sidePortLength, sidePortOffset, STANDARD_PORT } from './catioPort.ts';
 import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 import { WINDOW_INSERT_DEFAULT } from './catioWindowInsert.ts';
 import { createModularCatio, type ModularState } from './catioModularScene.ts';
@@ -17,15 +17,19 @@ const part = (scene: ReturnType<typeof createModularCatio>, id: string) => {
   const found = scene.components.find(p => p.id === id); if (!found) throw new Error(`Missing ${id}`); return found.group;
 };
 describe('modular catio layout and validation', () => {
-  it('derives straight and mirrored offset endpoints from the standard elements: modules a pitch long, corners cubes', () => {
-    // a pitch: a 50 cm cube's edge and a latched coupling's 3 mm gap; a corner is a cube
-    const pitch = modularPitch(defaults); const cube = cubeEdge(defaults.tunnelSize);
-    expect(pitch).toBe(cube + PRINTED_LATCH_JOINT.gap); expect(cube).toBe(defaults.tunnelSize + 2 * (STANDARD_PORT.ring.width + STANDARD_PORT.ring.thickness + CUBE_POCKET));
+  it('derives straight and mirrored offset endpoints from the standard elements: modules a pitch long, corners at side ports', () => {
+    // a pitch: the shortest section that takes a side port and a latched coupling's 3 mm gap; a corner is a module with a side port
+    const pitch = modularPitch(defaults); const s = defaults.tunnelSize;
+    expect(pitch).toBe(sidePortLength(s) + PRINTED_LATCH_JOINT.gap);
     expect(modularLayout(defaults).end).toEqual([0, 2 * pitch]);
+    // the run before a turn ends the gap from the side port's face, the flanges' outline out from the corner's axis; the corner
+    // runs on past it by its stub
+    const reach = s / 2 + STANDARD_PORT.ring.width + PRINTED_LATCH_JOINT.gap; const offset = sidePortOffset(s);
     for (const sign of [-1, 1]) {
       const layout = modularLayout({ ...defaults, route: sign < 0 ? 'left' : 'right', approach: 1, lateral: 2, final: 3 });
-      expect(layout.end[0]).toBeCloseTo(sign * (cube + 2 * pitch)); expect(layout.end[1]).toBeCloseTo(pitch + cube + 3 * pitch);
-      expect(layout.sections.filter(s => s.kind === 'corner').every(s => s.length === cube)).toBe(true);
+      expect(layout.end[0]).toBeCloseTo(sign * (3 * pitch - offset + reach)); expect(layout.end[1]).toBeCloseTo(pitch + reach - offset + 4 * pitch);
+      expect(layout.sections.filter(q => q.kind === 'corner').every(q => q.length === pitch)).toBe(true);
+      expect(layout.sections.filter(q => q.kind === 'corner').map(q => q.openings)).toEqual([[sign > 0 ? 'right' : 'left', 'front'], [sign > 0 ? 'left' : 'right', 'front']]);
       expect(layout.sections.filter(s => s.kind === 'corner')).toHaveLength(2);
       expect(layout.sections).toHaveLength(8);
     }
@@ -141,19 +145,19 @@ describe('modular scene geometry', () => {
     expect(door.intersectsBox(bounds(part(scene, 'b-frame')))).toBe(false);
     scene.dispose();
   });
-  it('follows the tunnel pages: its cubes’ doors held as set there, and side access on its straight modules', () => {
+  it('follows the tunnel pages: its stubs’ end doors held as set there, and side access on its straight modules', () => {
     for (const doorFixing of ['latches', 'turn-buttons'] as const) for (const sideAccess of ['none', 'one', 'all'] as const) {
       const c = { ...defaults, route: 'right' as const, approach: 2, lateral: 1, final: 1 };
       const scene = createModularCatio(c, WINDOW_INSERT_DEFAULT, { doorFixing, sideAccess, sideAccessSide: 'left' });
       const straights = scene.layout.sections.filter(q => q.kind === 'straight');
       const access = scene.doors.filter(d => d.id.endsWith('-access'));
       expect(access).toHaveLength(sideAccess === 'all' ? straights.length : sideAccess === 'one' ? 1 : 0);
-      const cubes = scene.doors.filter(d => d.id.endsWith('-doors'));
-      expect(cubes).toHaveLength(2);
-      for (const d of cubes) expect(d.mechanism).toBe(doorFixing === 'latches' ? 'latched' : 'removable-panel');
-      // shut unless asked; asked, every door of a cube comes off together
+      const ends = scene.doors.filter(d => d.id.endsWith('-end-door'));
+      expect(ends).toHaveLength(2);
+      for (const d of ends) expect(d.mechanism).toBe(doorFixing === 'latches' ? 'latched' : 'removable-panel');
+      // shut unless asked; asked, it comes off
       scene.update(assembled);
-      const first = cubes[0]; if (!first) throw new Error('cube');
+      const first = ends[0]; if (!first) throw new Error('end door');
       const shut = first.moving.map(g => g.position.clone());
       scene.update({ ...assembled, doors: { [first.id]: true } });
       expect(first.moving.some((g, i) => g.position.distanceTo(shut[i] ?? g.position) > 1)).toBe(true);
@@ -165,21 +169,21 @@ describe('modular scene geometry', () => {
     const ids = scene.components.map(p => p.id); expect(new Set(ids).size).toBe(ids.length);
     for (const section of scene.layout.sections) {
       const corner = section.kind === 'corner';
-      // a straight module's floor is at the sill; a corner cube's is its floor door's plug, flush with its bottom ring's inner face
+      // every module's floor is at the sill, a corner's too
       const ray = new THREE.Raycaster(new THREE.Vector3(...section.center, 250), new THREE.Vector3(0, 0, -1));
-      const hits = ray.intersectObject(part(scene, corner ? `${section.id}-door-bottom` : `${section.id}-frame`), true);
-      expect(hits[0]?.point.z).toBeCloseTo(corner ? 200 + defaults.tunnelSize / 2 - section.length / 2 + STANDARD_PORT.ring.thickness : 200);
+      const hits = ray.intersectObject(part(scene, `${section.id}-frame`), true);
+      expect(hits[0]?.point.z).toBeCloseTo(200);
       expect(bounds(part(scene, `${section.id}-feet`)).min.z).toBe(0);
       for (const side of ['back', 'front', 'left', 'right'] as const) {
         // (a straight module's side-access panel takes the place of its mesh on that side)
         const access = scene.doors.some(d => d.id === `${section.id}-access`) && (side === 'left' || side === 'right');
-        if (!section.openings.includes(side)) expect(ids).toEqual(expect.arrayContaining([corner ? `${section.id}-door-${side}` : access && side === 'right' ? `${section.id}-access` : access ? `${section.id}-${side}` : `${section.id}-${side}`]));
+        if (!section.openings.includes(side)) expect(ids).toEqual(expect.arrayContaining([corner && side === 'back' ? `${section.id}-end-door` : access && side === 'right' ? `${section.id}-access` : `${section.id}-${side}`]));
         else expect(ids).toContain(`${section.id}-${side}-coupling`);
       }
-      // a cube's roof and floor are doors too, and all its doors open together from the door controls
+      // a corner's stub door opens from the door controls; its roof is mesh like any module's
       if (corner) {
-        expect(ids).toEqual(expect.arrayContaining([`${section.id}-door-top`, `${section.id}-door-bottom`]));
-        expect(scene.doors.find(d => d.id === `${section.id}-doors`)).toMatchObject({ kind: 'tunnel', connected: true });
+        expect(ids).toContain(`${section.id}-roof`);
+        expect(scene.doors.find(d => d.id === `${section.id}-end-door`)).toMatchObject({ kind: 'tunnel', connected: true });
       }
     }
     for (const e of scene.layout.enclosures) {
