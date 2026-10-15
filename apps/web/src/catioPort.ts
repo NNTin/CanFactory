@@ -206,6 +206,65 @@ export const CUBE_POCKET = (() => {
 export { cubeClashes };
 
 /**
+ * A side port: the standard port on the side of a long section, so that another element's end couples onto it there and the
+ * tunnel turns 90° without a cube. Its ring lies on the outer faces of the section's rails and floor board, its mating face flush
+ * with the outlines of the section's flanges (the rails stand `SIDE_RING_SET` inside them), its opening the section's clear opening:
+ * level with the floor, as high as the tunnel. The section runs on past it by a short stub, closed at its end by a door.
+ *
+ * Along the section, beside the ring on each side, is a pocket `SIDE_POCKET` long in which the latches at the ring's two sides
+ * stand and their levers swing open: between the ring and the stub's flange, the least that keeps every latch of the side port and
+ * of the stub's end port, closed or swinging open, clear of the other's rings, latches and the elements outside them
+ * (`sideClashes`). Behind the latches, a pocket post (`sidePocketPost`) closes the side between the floor and the top rail.
+ */
+export const SIDE_RAIL = 40;
+/** How far a section's rails stand inside its flanges' outline: the side ring's depth, so that its face is flush with the flanges. */
+export const SIDE_RING_SET = F - SIDE_RAIL;
+/** The faces of a section with a side port on its right, seen along it: its start (back) face and the side port's, round the port's middle. */
+export function sidePortFaces(centre: V3, frame: Frame, s: number, pocket: number): { back: Face; side: Face } {
+  const D = s / 2 + F + pocket + T;
+  const back = cubeFaces(centre, frame, 2 * D, s).back;
+  const side = cubeFaces(centre, frame, s + 2 * F, s).right;
+  return { back, side };
+}
+/** How far into the side ring, from its face, the latches' parts reach as they swing: what the pocket post stays behind. */
+export const LATCH_SWING_INTO = Math.max(LATCH_REACH.swing.u[1] - PRINTED_LATCH.overhang, LATCH_INTO_RING);
+/**
+ * Whether a side port with this pocket clashes: every latch of the side port and of the stub's end port (closed, and swinging open
+ * with `CUBE_SWING_CLEAR` to spare) against the other port's ring, the ring of an element coupled to it (or a door's blank) across
+ * the gap, the other's closed latches, and the section's rails.
+ */
+export function sideClashes(pocket: number, s = 300): boolean {
+  const gap = 3; const frame: Frame = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+  const faces = sidePortFaces([0, 0, 0], frame, s, pocket);
+  const latches = (['back', 'side'] as const).flatMap(f => portLatches(f, faces[f], s, 3, gap).map(q => ({ face: f, closed: latchEnvelope(q), swing: latchSwing(q) })));
+  const solid: { face: string; box: OrientedBox }[] = (['back', 'side'] as const).flatMap(f => [
+    ...portRing(s).map(([, rect]) => ({ face: f, box: memberBox(faces[f], rect, 0, T) })),
+    ...portRing(s).map(([, rect]) => ({ face: f, box: memberBox(faces[f], rect, -gap - T, -gap) })),
+  ]);
+  // the section's rails along its corners on the side port's side, from the stub's flange on (the floor board is under the opening)
+  const D = s / 2 + F + pocket + T; const r = SIDE_RAIL;
+  for (const z of [[-18 - r, -18], [s, s + r]] as const) {
+    const length = 4 * D;
+    solid.push({ face: 'section', box: { center: [s / 2 + r / 2, -D + T + length / 2, (z[0] + z[1]) / 2 - s / 2], size: [r, length, z[1] - z[0]], axes: frame } });
+  }
+  return latches.some(q => solid.some(r2 => r2.face !== q.face && (boxesOverlap(q.swing, r2.box, -CUBE_SWING_CLEAR) || boxesOverlap(q.closed, r2.box, 0.01))))
+    || latches.some(q => latches.some(r2 => r2.face !== q.face && boxesOverlap(q.swing, r2.closed, -CUBE_SWING_CLEAR)));
+}
+export const SIDE_POCKET = (() => {
+  for (let pocket = 0; pocket <= 120; pocket++) if (!sideClashes(pocket)) return pocket;
+  throw new Error('No pocket keeps a side port’s latches clear of the section’s end.');
+})();
+/** From a section's start face to the middle of a side port at its start: its stub, the pocket and half the ring's outline. */
+export const sidePortOffset = (s: number) => T + SIDE_POCKET + F + s / 2;
+/** The shortest section that takes a side port with a pocket on both sides of it. */
+export const sidePortLength = (s: number) => 2 * sidePortOffset(s);
+/**
+ * A pocket post: in each pocket beside a side port, standing on the floor board under the top rail, from the opening's edge inwards
+ * to just behind the latches' swing, `width` along the section and `depth` across it (from the clear opening's plane outwards).
+ */
+export const sidePocketPost = (s: number) => ({ width: SIDE_POCKET, depth: Math.floor(s / 2 + F - LATCH_SWING_INTO - CUBE_SWING_CLEAR - s / 2) });
+
+/**
  * A cube's edge strips: in each of its 12 edges, filling the corner outside both rings' outlines (the pocket and a ring's depth,
  * square), glued and screwed to the two rings' sides; along the edge between the corner blocks, cut short of every latch station
  * there (any side of a face may carry latches, at the same stations), so that each latch has its pocket to stand and swing in.

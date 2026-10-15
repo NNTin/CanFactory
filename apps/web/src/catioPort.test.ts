@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { blankPanel, buttonOverlap, DOOR, DOOR_SEATS, setInDoor, type DoorPanel } from './catioDoor.ts';
 import {
   BOLTS_PER_SIDE, boltStations, boxesOverlap, CUBE_BLOCK, CUBE_POCKET, CUBE_SWING_CLEAR, cubeClashes, cubeEdge, cubeFaces, DOOR_FIXINGS, edgeStripSection, edgeStripSegments, frameAlong,
-  LATCH_INTO_RING, LATCH_REACH, latchEnvelope, latchSwing, memberBox, PORT_FACES, portHalf, portLatches, portOutline, portRing, portTemplate, portTemplateSvg, STANDARD_PORT, type Face, type OrientedBox,
+  LATCH_INTO_RING, LATCH_REACH, LATCH_SWING_INTO, latchEnvelope, latchSwing, memberBox, PORT_FACES, portHalf, portLatches, portOutline, portRing, portTemplate, portTemplateSvg,
+  SIDE_POCKET, SIDE_RAIL, SIDE_RING_SET, sideClashes, sidePocketPost, sidePortFaces, sidePortLength, sidePortOffset, STANDARD_PORT, type Face, type OrientedBox,
 } from './catioPort.ts';
 import { latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 import type { V3 } from './catioSubassembly.ts';
@@ -260,6 +261,41 @@ describe('a cube’s latch pockets, from the latch’s real movement', () => {
         for (const q of swings) expect(boxesOverlap(box, q, 0.01), `${s} ${perSide}`).toBe(false);
       }
     }
+  });
+});
+
+describe('a side port', () => {
+  const frame = { x: [1, 0, 0] as V3, y: [0, 1, 0] as V3, z: [0, 0, 1] as V3 };
+
+  it('lies on the section’s rails, its face flush with the flanges’ outline, its opening the tunnel’s', () => {
+    for (const s of SIZES) {
+      const { back, side } = sidePortFaces([0, 0, 0], frame, s, SIDE_POCKET);
+      // the face at the flanges' outline, the ring its depth inside it on the rails' outer faces
+      expect(side.at[0]).toBeCloseTo(s / 2 + F, 9); expect(SIDE_RING_SET).toBe(T); expect(s / 2 + F - T).toBe(s / 2 + SIDE_RAIL);
+      // its opening level with the floor and as high as the tunnel, square onto the section's side
+      expect(side.at[2]).toBeCloseTo(back.at[2], 9); expect(side.n.map(c => c + 0)).toEqual([-1, 0, 0]);
+      // the stub: its end port's face the pocket and a ring's depth past the side ring's outline
+      expect(-back.at[1]).toBeCloseTo(sidePortOffset(s), 9); expect(sidePortOffset(s)).toBe(s / 2 + F + SIDE_POCKET + T);
+      expect(sidePortLength(s)).toBe(2 * sidePortOffset(s));
+    }
+  });
+
+  it('has a pocket beside it from the latch’s real movement: the least that keeps both ports’ latches clear of each other’s ends', () => {
+    expect(sideClashes(SIDE_POCKET)).toBe(false);
+    expect(sideClashes(SIDE_POCKET - 1)).toBe(true);
+    // larger than a cube's: the stub's flange reaches out to the side port's face, where a cube's next ring stops a pocket short of it
+    expect(SIDE_POCKET).toBeGreaterThan(CUBE_POCKET);
+    // the lever swings out along the section by more than the cube's pocket
+    expect(LATCH_REACH.swing.v[1]).toBeGreaterThan(CUBE_POCKET);
+    for (const s of SIZES) expect(sideClashes(SIDE_POCKET, s)).toBe(false);
+  });
+
+  it('closes the side behind the latches with a post in each pocket, clear of their swing', () => {
+    const post = sidePocketPost(300);
+    expect(post.width).toBe(SIDE_POCKET);
+    // from the clear opening's plane out to just behind the latches' parts, open or closed
+    expect(post.depth + CUBE_SWING_CLEAR + LATCH_SWING_INTO).toBeLessThanOrEqual(F + 1e-9);
+    expect(post.depth).toBeGreaterThan(SIDE_RAIL - 10);
   });
 });
 
