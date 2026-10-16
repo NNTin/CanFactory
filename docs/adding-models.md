@@ -18,10 +18,10 @@
    reference/source paths, control grouping, defaults, SCAD variable mapping,
    dependent validation, and derived metadata. Variable names must use uppercase
    letters/underscores. Validate all finite ranges and bound geometry complexity.
-4. Register the definition in `models` and its typed request branch in
-   `RenderRequestSchema`. Keep request schemas in an explicit TypeBox tuple so
-   static inference retains the discriminated union. The React editor, API
-   routes, and worker need no model-specific changes.
+4. Register the definition once, in the `registeredModels` tuple in
+   `packages/contracts/src/models.ts`. `models` and the model's typed branch of
+   `RenderRequestSchema` derive from it. The React editor, API routes, and
+   worker need no model-specific changes.
 5. Add contract and real-render cases, including extremes and invalid
    combinations. Verify closed edges, winding, connectedness, positive volume,
    expected dimensions, and a preview matching the downloaded STL.
