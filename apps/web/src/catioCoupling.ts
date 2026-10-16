@@ -3,9 +3,11 @@ import type { CatioView } from './catioDesign.ts';
 import { E_PROFILE_SEAL, latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine, printedLatchScrews, type LatchMount } from './catioPrintedLatch.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { clearOf, fastenerClashes, fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
+import { portHalf } from './catioPort.ts';
 import { parseTunnel, TUNNEL, TUNNEL_DEFAULT, tunnelLayout, tunnelSite, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
 import { FRAME_FACE_Y } from './catioWindow.ts';
 import { INSERT, WINDOW_INSERT_DEFAULT, windowInsertLayout } from './catioWindowInsert.ts';
+import { CLOSURE_WORDS, doorFasteners, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING } from './catioDoor.ts';
 
 /**
  * The insert–tunnel coupling: the joint between the window insert's cat port and the tunnel's first flange. Millimetres; X along
@@ -99,7 +101,7 @@ export interface Latch {
   id: string; side: -1 | 1; z: number;
   /** The printed latch: where its base plate's edge faces the catch across the gap (along Y); the catch plate's edge is `locked`
    * nearer the insert. Its base runs from `hingeY` (that edge) to `baseY`, its catch from `catchY` to the gap. `mount` places it. */
-  printed?: { seam: number; mount: LatchMount };
+  printed?: { seam: number; mount: LatchMount; baseOn: 'flange' | 'frame' };
   /** The latch body on the flange's outer side: from `baseY` (its end under the lever) to `hingeY` (the pivot end). */
   baseY: number; hingeY: number;
   /** The catch bracket on the docking frame's outer side, from `catchY` (its far end) to `catchY + b4`. */
@@ -152,7 +154,8 @@ export function couplingLayout(config: CouplingConfig, { tunnel, site }: Couplin
   // latch: base plate on the flange's side and catch plate on the frame's, across the gap, at the spacing its lock sets.
   const heights = latchHeights(config.latchesPerSide);
   const placeLatches = (place: (side: -1 | 1) => Omit<Latch, 'id' | 'side' | 'z' | 'faceX'>) => ([-1, 1] as const).flatMap(side => heights.map((f, i) => ({
-    id: `latch-${side < 0 ? 'left' : 'right'}-${i}`, side, z: floor + f * (h + F), faceX: side * (w / 2 + F), ...place(side),
+    // at the standard port's latch stations (catioPort.ts), up the opening's height
+    id: `latch-${side < 0 ? 'left' : 'right'}-${i}`, side, z: floor + f * h, faceX: side * (w / 2 + F), ...place(side),
   })));
   let latchPart: Part | null = null; let latches: Latch[]; let tolerance: number; let latchName: string; let latchSpan: number;
   if (config.latch === 'gn-831') {
@@ -165,11 +168,24 @@ export function couplingLayout(config: CouplingConfig, { tunnel, site }: Couplin
     tolerance = w2 / 2; latchSpan = dimensionOf(gn, 'b1');
   } else {
     const { locked, overhang, along: a } = PRINTED_LATCH; latchName = 'printed toggle latch';
-    const seam = flangeBack - overhang;
-    latches = placeLatches(() => ({ baseY: seam + a, hingeY: seam, catchY: seam - locked - a }))
-      .map(q => ({ ...q, printed: { seam, mount: { id: q.id, side: q.side, at: [q.faceX, seam, q.z], out: [q.side, 0, 0], pull: [0, 1, 0] } } }));
-    if (seam + a > flangeFront) errors.push(`The printed latch’s base plate (${a} mm) is longer than the flange is thick.`);
-    if (seam - locked - a < meshFace) errors.push('The printed latch’s catch plate would not sit on the docking frame’s side.');
+    // The tunnel's first flange is a standard port: seen from outside (from the window), its base plates on its left side and its
+    // catch plates on its right. So on the left the base is on the flange and the catch on the docking frame, on the right the
+    // other way round, as at every port.
+    latches = placeLatches(side => {
+      const onFlange = portHalf(side) === 'base';
+      const seam = onFlange ? flangeBack - overhang : front + overhang;
+      return onFlange ? { baseY: seam + a, hingeY: seam, catchY: seam - locked - a } : { baseY: seam - a, hingeY: seam, catchY: seam + locked };
+    }).map(q => {
+      const onFlange = portHalf(q.side) === 'base';
+      return { ...q, printed: { seam: q.hingeY, baseOn: onFlange ? 'flange' as const : 'frame' as const, mount: { id: q.id, side: q.side, at: [q.faceX, q.hingeY, q.z] as V3, out: [q.side, 0, 0] as V3, pull: [0, onFlange ? 1 : -1, 0] as V3 } } };
+    });
+    for (const q of latches) {
+      const onFlange = q.printed?.baseOn === 'flange';
+      // each plate's far end on its own side: the base `a` from its seam, the catch `locked` across the gap and `a` on
+      const baseEnd = onFlange ? q.hingeY + a : q.hingeY - a; const catchEnd = onFlange ? q.hingeY - locked - a : q.hingeY + locked + a;
+      if (onFlange ? baseEnd > flangeFront : baseEnd < meshFace) { errors.push(`The printed latch’s base plate (${a} mm) is longer than the ${onFlange ? 'flange is thick' : 'docking frame is deep'}.`); break; }
+      if (onFlange ? catchEnd < meshFace : catchEnd > flangeFront) { errors.push(`The printed latch’s catch plate would not sit on the ${onFlange ? 'docking frame' : 'flange'}’s side.`); break; }
+    }
     tolerance = PRINTED_LATCH.hooked - locked; latchSpan = PRINTED_LATCH.length;
   }
   for (const latch of latches) if (latch.z - latchSpan / 2 < floor || latch.z + latchSpan / 2 > transomZ + F) errors.push('A latch does not fit on the docking frame’s side.');
@@ -184,7 +200,9 @@ export function couplingLayout(config: CouplingConfig, { tunnel, site }: Couplin
   const latchScrew = part(HW.latchScrew);
   const spaced = (from: number, to: number, count: number) => Array.from({ length: count }, (_, i) => count === 1 ? (from + to) / 2 : from + i * (to - from) / (count - 1));
   const gap = COUPLING.screwClearance;
-  const faceFasteners = insert.fasteners.filter(f => f.component === 'batten-screws' || f.component === 'staples');
+  // a removable cat-port panel's strips and turn buttons are screwed into the same jambs and transom from the room side
+  const doorScrews = insert.door ? doorFasteners(insert.door.panel, insert.door.frame).filter(f => !f.moves && f.role !== 'stop') : [];
+  const faceFasteners = [...insert.fasteners.filter(f => f.component === 'batten-screws' || f.component === 'staples'), ...doorScrews];
   /** Along a frame member's screw line: the insert fasteners within `gap` of it, as positions along it. */
   const near = (index: 0 | 2, at: number, along: 0 | 2) => faceFasteners.filter(f => Math.abs(f.at[index] - at) < gap).map(f => f.at[along]);
   for (const s of [-1, 1]) {
@@ -197,7 +215,8 @@ export function couplingLayout(config: CouplingConfig, { tunnel, site }: Couplin
   for (const x of clearOf(spaced(-w / 2 - pm / 2, w / 2 + pm / 2, fastenersAlong(w + pm, COUPLING.screwPitch)), near(2, headZ, 0), gap, -w / 2 - pm + 10, w / 2 + pm - 10)) {
     fasteners.push({ partId: frameScrew.id, component: 'frame-screws', at: [x, front, headZ], direction: [0, -1, 0], use: 'Docking frame head into the transom' });
   }
-  if (fastenerClashes(fasteners, faceFasteners, gap).length > 0) errors.push(`A docking frame screw would come within ${gap} mm of a batten screw or staple in the port frame: change the window insert’s fixing spacing.`);
+  if (fastenerClashes(fasteners, doorScrews, gap).length > 0) errors.push(`A docking frame screw would come within ${gap} mm of a screw of the cat port’s panel in the port frame.`);
+  else if (fastenerClashes(fasteners, faceFasteners, gap).length > 0) errors.push(`A docking frame screw would come within ${gap} mm of a batten screw or staple in the port frame: change the window insert’s fixing spacing.`);
   if (latchPart) {
     const [m1, m2, m4, b4] = (['m1', 'm2', 'm4', 'b4'] as const).map(key => dimensionOf(latchPart, key)) as [number, number, number, number];
     for (const latch of latches) for (const k of [-1, 1]) {
@@ -208,8 +227,9 @@ export function couplingLayout(config: CouplingConfig, { tunnel, site }: Couplin
     // through the plates' holes: their heads on the plates' fronts (the shared placement)
     for (const latch of latches) if (latch.printed) {
       const screws = printedLatchScrews(latch.printed.mount);
-      for (const f of screws.base) fasteners.push({ partId: latchScrew.id, component: 'latch-screws', ...f, use: 'Latch base plates onto the first flange’s sides', of: latch.id });
-      for (const f of screws.catch) fasteners.push({ partId: latchScrew.id, component: 'catch-screws', ...f, use: 'Catch plates onto the docking frame’s sides', of: latch.id });
+      const onFlange = latch.printed.baseOn === 'flange';
+      for (const f of screws.base) fasteners.push({ partId: latchScrew.id, component: 'latch-screws', ...f, use: `Latch base plates onto the ${onFlange ? 'first flange' : 'docking frame'}’s sides`, of: latch.id });
+      for (const f of screws.catch) fasteners.push({ partId: latchScrew.id, component: 'catch-screws', ...f, use: `Catch plates onto the ${onFlange ? 'docking frame' : 'first flange'}’s sides`, of: latch.id });
     }
   }
   if (lip) for (const x of spaced(-w / 2 + 40, w / 2 - 40, 3)) {
@@ -238,19 +258,22 @@ export function couplingSteps(_variant: CatioMode, config: CouplingConfig): read
   const n = l.latches.length; const latch = l.latchName; const printed = !l.latchPart;
   const frameScrews = l.fasteners.filter(f => f.component === 'frame-screws').length;
   const close = printed ? '' : config.latchType === 'S' ? ' The safety catch clicks over the lever.' : config.latchType === 'SV' ? ' Hang a padlock through each eye if the tunnel should stay put.' : '';
-  const catches = printed ? `Screw ${n === 2 ? 'a catch plate' : `${n} catch plates`} of the printed latch onto ${n === 2 ? 'each stile’s outer side' : 'the stiles’ outer sides'}, hook outwards, ${round1(PRINTED_LATCH.overhang)} mm proud of the frame’s face, two 4 × 25 screws each.`
+  // the tunnel's first flange is a standard port: seen from the window, base plates on its left, catch plates on its right
+  const half = n / 2; const plates = (k: number, what: string) => k === 1 ? `a ${what}` : `${k} ${what}s`;
+  const catches = printed ? `Screw the printed latches’ plates onto the stiles’ outer sides, ${round1(PRINTED_LATCH.overhang)} mm proud of the frame’s face, two 4 × 25 screws each: ${plates(half, 'catch plate')} on the left stile, hook outwards, and ${plates(half, 'base plate')}, lever and link already snapped on, on the right (seen from the garden), so that the tunnel’s first flange meets them as a standard port.`
     : `Screw ${n === 2 ? 'a catch bracket' : 'the catch brackets'} of the ${latch} onto ${n === 2 ? 'each stile’s outer side' : 'the stiles’ outer sides'}, two 4 × 25 screws each.`;
-  const bodies = printed ? `screw ${n === 2 ? 'a base plate' : `${n} base plates`} of the printed latch, lever and link already snapped on, onto the first flange’s outer sides, ${round1(PRINTED_LATCH.overhang)} mm proud of its back, two 4 × 25 screws each.`
+  const bodies = printed ? `screw the latches’ other plates onto the first flange’s outer sides, ${round1(PRINTED_LATCH.overhang)} mm proud of its back, two 4 × 25 screws each: ${plates(half, 'base plate')}, lever and link already snapped on, on its left and ${plates(half, 'catch plate')} on its right, seen from the window.`
     : `screw ${n === 2 ? 'a latch body' : `${n} latch bodies`} onto the first flange’s outer sides, pivot end 2 mm in from its face, two 4 × 25 screws each.`;
   const draw = l.latchPart ? `the hook draws ${dimensionOf(l.latchPart, 'w1')} mm and holds ${l.latchPart.attributes['holdingForce'] ?? ''}`
     : `the link draws the joint in to its ${l.gap} mm gap, the plates ${round1(PRINTED_LATCH.locked)} mm apart, and the lever comes to rest on its base plate`;
+  const closure = l.insert.closure ?? 'removable-panel'; const words = CLOSURE_WORDS[closure]; const removable = closure === 'removable-panel';
   return [
-    { title: 'The two sides as they are', detail: 'The window insert stands in its recess with its cat gate shut. The tunnel’s wall support is levelled to the window floor (the tunnel page, stage 2). Nothing joins the two yet.' },
+    { title: 'The two sides as they are', detail: `The window insert stands in its recess with its ${words.thing} ${words.shut}. The tunnel’s wall support is levelled to the window floor (the tunnel page, stage 2). Nothing joins the two yet.` },
     { title: 'Docking frame onto the insert', detail: `From outdoors, offer the two stiles to the port jambs${l.battenFace > l.meshFace ? ', their rebates over the cover battens,' : ''} and the head across them onto the transom. Drive ${frameScrews} countersunk 5 × 60 screws through the frame${l.battenFace > l.meshFace ? ' and battens' : ''} into the jambs and transom. The frame stays on the insert from now on, also when it is lifted out.` },
-    { title: printed ? 'Seal and catch plates' : 'Seal and catch brackets', detail: `Stick the ${l.seal.profile} seal round the middle of the frame’s face, down both stiles and across the head. ${catches}` },
+    { title: printed ? 'Seal and latch plates' : 'Seal and catch brackets', detail: `Stick the ${l.seal.profile} seal round the middle of the frame’s face, down both stiles and across the head. ${catches}` },
     { title: 'Latches on the first section', detail: `Where the first section was framed: ${bodies}${l.lip ? ' Screw the EPDM floor lip onto the flange’s sill so that it reaches 25 mm past the flange’s back.' : ''}` },
     { title: 'Lay the first section', detail: `Lower the first section onto its wall support, square to the port: its flange stands ${l.gap} mm off the docking frame and squashes the seal${l.lip ? '; the lip lies on the threshold' : ''}. Screw it down and couple the rest of the tunnel to it as the tunnel page describes. The wall support carries it; the insert carries nothing.` },
-    { title: 'Dock: close the latches', detail: `Hook each latch over its catch and press the lever down until it snaps over centre: ${draw}.${close} Open the cat gate. To undock, lift ${n === 2 ? 'both levers' : `the ${n} levers`} and unhook: the insert can come out of its recess and the tunnel stays on its supports. No tools either way.` },
+    { title: 'Dock: close the latches', detail: `Hook each latch over its catch and press the lever down until it snaps over centre: ${draw}.${close} Then open the cat port from the room: ${words.open}${removable ? ', and stow it clear of the route. Nothing of the coupling is in its way: the docking frame, the seal and the latches are all on the port’s outdoor face' : ''}. Before undocking, shut the port at this end and the enclosure’s port at the other (${words.close}): an undocked port is all that keeps a cat in. To undock, lift ${n === 2 ? 'both levers' : `the ${n} levers`} and unhook: the insert can come out of its recess and the tunnel stays on its supports. No tools either way.` },
   ];
 }
 
@@ -300,6 +323,8 @@ export function couplingFacts(_variant: CatioMode, config: CouplingConfig, site?
       : { label: 'Latches', value: `${l.latches.length} × printed toggle latch · locks over centre, plates ${round1(PRINTED_LATCH.locked)} mm apart` },
     l.latchPart ? { label: 'Hook takes up', value: `±${l.tolerance} mm of the gap` } : { label: 'Draws in', value: `up to ${round1(l.tolerance)} mm, hooked on with the joint that far open` },
     { label: 'Dock or undock', value: `${l.latches.length} levers, no tools` },
+    // shut until the tunnel is docked, and again before it is undocked
+    ...(l.insert.closure ? [{ label: 'Cat port · closed by', value: PORT_CLOSURE_LABELS[l.insert.closure], from: { page: 'concept' as const, settings: [PORT_CLOSURE_SETTING] } }] : []),
     { label: 'Cover battens at the port', value: l.battenFace > l.meshFace ? `Yes · frame rebated ${INSERT.batten.thickness} mm over them` : 'None · frame flat on the mesh', from: { page: 'window-insert', settings: ['meshFixing'] } },
   ];
 }

@@ -2,24 +2,43 @@ import * as THREE from 'three';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
 import { CATIO, ROOF_NET, roofBearers } from './catioDesign.ts';
-import { MODULAR as d, modularLayout, validateModular, type ModularConfig } from './catioModularDesign.ts';
+import { MODULAR as d, modularLayout, modularPortPanel, PORT_FRAME, validateModular, type ModularConfig } from './catioModularDesign.ts';
+import { buildDoorPanel } from './catioDoorScene.ts';
+import { blankPanel, setInDoor } from './catioDoor.ts';
+import { STANDARD_PORT } from './catioPort.ts';
+import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
+import { savedTunnelCoupling, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { buildWindowFrame } from './catioWindowContext.ts';
-import { HOOK_FIT, modularWindow, savedWindowInsert, windowInsertLayout, windowProfileOf, type WindowInsertConfig } from './catioWindowInsert.ts';
+import { HOOK_FIT, modularWindow, portPanelStow, savedWindowInsert, windowInsertLayout, windowProfileOf, type WindowInsertConfig } from './catioWindowInsert.ts';
 import { buildHungHardware } from './catioWindowInsertScene.ts';
 
 type V3 = [number, number, number];
-export interface CatioDoor { id: string; label: string; kind: 'cat' | 'human'; connected: boolean; moving: THREE.Group[] }
+export interface CatioDoor {
+  /** A cat port, a maintenance door, or a tunnel's door (a stub's end door, a side-access panel), opened on demand. */
+  id: string; label: string; kind: 'cat' | 'human' | 'tunnel'; connected: boolean;
+  /** How it opens: a panel lifted out from behind its turn buttons, a gate slid up, or the maintenance door on its hinges. */
+  mechanism: 'removable-panel' | 'sliding-gate' | 'hinged' | 'latched';
+  /** What moves with it: a sliding gate's leaf and latch, a hinged door's leaf, a removable panel's own pieces. */
+  moving: THREE.Group[];
+  /** Poses it anywhere from shut and retained (0) to open (1). */
+  set: (travel: number) => void;
+}
 export interface ModularState extends CatioState { doors?: Readonly<Record<string, boolean>> }
 /**
  * The modular catio. The window is the real tilt-and-turn window; the insert follows the window insert page (`insert`, as saved
  * there by default): hung on the window frame, its collar lies on the frame's face with its screen hooks and feet, otherwise it is
  * the schematic recess collar with padded clamps.
  */
-export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig = savedWindowInsert()) {
+/** What the whole catio's tunnel takes from the tunnel pages: how its doors are held. */
+export interface ModularTunnel { doorFixing: TunnelCouplingConfig['doorFixing'] }
+export function savedModularTunnel(): ModularTunnel {
+  return { doorFixing: savedTunnelCoupling().doorFixing };
+}
+export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig = savedWindowInsert(), tunnel: ModularTunnel = savedModularTunnel()) {
   const errors = validateModular(c); if (errors.length) throw new Error(errors.join(' '));
   const p = createCatioParts(); const { component, box, rod, ring, panel, materials: m } = p;
   const layout = modularLayout(c); const doors: CatioDoor[] = [];
-  const w = c.tunnelWidth; const h = c.tunnelHeight; const span = w + 80;
+  const w = c.tunnelSize; const h = c.tunnelSize; const span = w + 80; const straightSpan = span;
   const landingDepth = w + 100;
   // Assembly transforms remain on the outer component; placement and door motion have independent groups.
   function placed(x: number, y: number, angle: number, build: () => void) {
@@ -39,19 +58,38 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
     mesh(`${id}-below`, step, w, d.sill - bottom, [0, y, (bottom + d.sill) / 2], 'xz');
     mesh(`${id}-above`, step, w, top - d.sill - h, [0, y, (top + d.sill + h) / 2], 'xz');
   }
-  function port(id: string, label: string, step: number, connected: boolean) {
+  const removable = c.portClosure === 'removable-panel';
+  /** What the door controls call a cat port's closure. */
+  const closureName = removable ? 'cat-port panel' : 'cat gate';
+  /**
+   * A cat port, in its own frame: its timber frame round the opening, and on its +Y side (the room's, or the enclosure's inside:
+   * the side it is operated from, a tunnel docking on the other) what closes it. That is a removable panel on the frame's face
+   * behind turn buttons, as on the window insert page (solid at the window, a framed mesh panel at an enclosure), or a gate
+   * sliding up in tracks.
+   */
+  function port(id: string, label: string, step: number, connected: boolean, at: 'window' | 'enclosure', stow?: V3) {
     const frame = component(`${id}-frame`, step, 'timber', [0, 0, 100]);
-    ring(frame, span, h + 80, 40, 40, 0, d.sill - 40, m.timber);
-    const tracks = component(`${id}-tracks`, step, 'hardware', [0, 0, 100]);
-    for (const side of [-1, 1]) box(tracks, [12, 28, 2 * h + 45], [side * (w / 2 + 16), 25, d.sill + h + 12], m.hardware);
-    const leafPart = component(`${id}-gate`, step, 'timber', [0, 0, 100]);
-    const leaf = new THREE.Group(); leafPart.add(leaf);
-    box(leaf, [w + 20, 12, h + 20], [0, 25, d.sill + h / 2], m.endgrain);
-    const hardware = component(`${id}-latch`, step, 'hardware', [0, 0, 100]);
-    const movingHardware = new THREE.Group(); hardware.add(movingHardware);
-    box(movingHardware, [42, 20, 12], [0, 42, d.sill + h - 35], m.hardware);
-    rod(movingHardware, [w / 2 - 30, 36, d.sill + 15], [w / 2 + 24, 36, d.sill + 15], 5);
-    doors.push({ id, label, kind: 'cat', connected, moving: [leaf, movingHardware] });
+    ring(frame, span, h + 2 * PORT_FRAME, PORT_FRAME, PORT_FRAME, 0, d.sill - PORT_FRAME, m.timber);
+    if (removable) {
+      const panel = modularPortPanel(c, at, id, stow);
+      const timber = component(`${id}-panel`, step, 'timber', [0, 0, 100]); const hardware = component(`${id}-panel-buttons`, step, 'hardware', [0, 0, 100]);
+      const meshes = panel.mesh ? component(`${id}-panel-mesh`, step, 'mesh', [0, 0, 100]) : timber;
+      // its seat is the frame's +Y face; it comes out along +Y
+      const built = buildDoorPanel(p, panel, { origin: [0, PORT_FRAME / 2, d.sill], u: [-1, 0, 0], v: [0, 0, 1], n: [0, 1, 0] }, { timber, mesh: meshes, hardware });
+      doors.push({ id, label, kind: 'cat', connected, mechanism: 'removable-panel', moving: [built.panel, built.panelMesh, built.panelHardware], set: built.set });
+    } else {
+      const tracks = component(`${id}-tracks`, step, 'hardware', [0, 0, 100]);
+      for (const side of [-1, 1]) box(tracks, [12, 28, 2 * h + 45], [side * (w / 2 + 16), 25, d.sill + h + 12], m.hardware);
+      const leafPart = component(`${id}-gate`, step, 'timber', [0, 0, 100]);
+      const leaf = new THREE.Group(); leafPart.add(leaf);
+      box(leaf, [w + 20, 12, h + 20], [0, 25, d.sill + h / 2], m.endgrain);
+      const hardware = component(`${id}-latch`, step, 'hardware', [0, 0, 100]);
+      const movingHardware = new THREE.Group(); hardware.add(movingHardware);
+      box(movingHardware, [42, 20, 12], [0, 42, d.sill + h - 35], m.hardware);
+      rod(movingHardware, [w / 2 - 30, 36, d.sill + 15], [w / 2 + 24, 36, d.sill + 15], 5);
+      const moving = [leaf, movingHardware];
+      doors.push({ id, label, kind: 'cat', connected, mechanism: 'sliding-gate', moving, set: travel => { for (const part of moving) part.position.z = (h + 30) * travel; } });
+    }
     if (connected) coupling(`${id}-dock`, 0, 0, 0);
   }
   function coupling(id: string, x: number, y: number, angle: number) {
@@ -87,10 +125,11 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
   const { hinge } = buildWindowFrame(p, window);
   const hanging = windowInsertLayout('modular', insert, window);
   const hung = hanging.hooks.length > 0;
-  // the collar's middle and back: on the frame's face when hung; the port frame stands far enough out that its gate latch, 52 mm
-  // behind it, stays in front of the closed sash
+  // the collar's middle and back: on the frame's face when hung; the port frame stands far enough out that what closes the port
+  // (a gate's latch, 52 mm behind the frame's middle; a removable panel with its buttons and pull) stays in front of the closed sash
   const collarY = hung ? hanging.yIn + 30 : -60; const collarBack = collarY - 30;
-  const portY = hung ? Math.max(collarY, hanging.frame.sashFace + HOOK_FIT.gap + 52) : -60;
+  const behind = removable ? PORT_FRAME / 2 + modularPortPanel(c, 'window').depth : 52;
+  const portY = hung ? Math.max(collarY, hanging.frame.sashFace + HOOK_FIT.gap + behind) : -60;
   const collar = component('recess-collar', 1, 'timber', [0, -220, 120]);
   const collarWidth = hung ? hanging.W : c.sashWidth + 70; const collarTop = hung ? hanging.z0 + hanging.H : 160 + c.sashHeight + 70;
   ring(collar, collarWidth, collarTop - 160, 40, 60, collarY, 160, m.timber);
@@ -106,7 +145,8 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
     }
   }
   perforated('window-infill', 1, collarWidth - 80, 200, hung ? collarTop - 10 : c.sashHeight + 190, collarY);
-  placed(0, portY, Math.PI, () => port('window-cat', 'Window cat gate', 1, true));
+  // its removed panel is stowed in the room, on the wall beside the window (as the window insert page shows it)
+  placed(0, portY, Math.PI, () => port('window-cat', `Window ${closureName}`, 1, true, 'window', portPanelStow(window, portY - PORT_FRAME / 2)));
   const threshold = component('window-threshold', 1, 'timber', [0, -220, 120]);
   box(threshold, [w, -collarBack, 18], [0, collarBack / 2, 191], m.endgrain);
   // The insert–tunnel coupling's docking frame (schematic): stiles and a head, the flange's outline, from the port to the wall face.
@@ -136,7 +176,7 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
     for (const y of roofBearers(ed - 80)) box(bearers, [ew - 80, ROOF_NET.bearer.width, ROOF_NET.bearer.depth], [0, 40 + y, eh - 10 - CATIO.wire / 2 - ROOF_NET.bearer.depth / 2]);
     mesh(`${id}-roof`, 2, ew, ed, [0, ed / 2, eh - 10], 'xy', [0, 0, 400]);
     perforated(`${id}-rear-mesh`, 2, ew, 90, eh, 0);
-    port(`${id}-rear`, `Enclosure ${id.toUpperCase()} rear cat gate`, 3, id === 'a');
+    port(`${id}-rear`, `Enclosure ${id.toUpperCase()} rear ${closureName}`, 3, id === 'a', 'enclosure');
     for (const side of [-1, 1]) placed(side * half, landingDepth / 2, side * Math.PI / 2, () => {
       // Side faces have asymmetric extents around the rear landing's port.
       const backRun = landingDepth / 2 - w / 2; const frontRun = ed - landingDepth / 2 - w / 2;
@@ -145,7 +185,7 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
       mesh(`${id}-side-${side}-front`, 2, frontRun, eh - 90, [sign * (w + frontRun) / 2, 0, (eh + 90) / 2], 'xz');
       mesh(`${id}-side-${side}-below`, 2, w, 110, [0, 0, 145], 'xz');
       mesh(`${id}-side-${side}-above`, 2, w, eh - 200 - h, [0, 0, (eh + 200 + h) / 2], 'xz');
-      port(`${id}-${side < 0 ? 'left' : 'right'}`, `Enclosure ${id.toUpperCase()} ${side < 0 ? 'left' : 'right'} cat gate`, 3, c.secondEnabled && (id === 'a' ? side > 0 : side < 0));
+      port(`${id}-${side < 0 ? 'left' : 'right'}`, `Enclosure ${id.toUpperCase()} ${side < 0 ? 'left' : 'right'} ${closureName}`, 3, c.secondEnabled && (id === 'a' ? side > 0 : side < 0), 'enclosure');
     });
     const landing = component(`${id}-landing-and-ramp`, 3, 'timber', [0, 140, 180]);
     box(landing, [ew - 80, landingDepth, 18], [0, landingDepth / 2, 191], m.endgrain);
@@ -168,40 +208,61 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig 
       const centered = new THREE.Group(); centered.position.x = dw / 2;
       centered.add(...part.children.slice()); pivot.add(centered); part.add(pivot); return pivot;
     });
-    doors.push({ id: `${id}-human`, label: `Enclosure ${id.toUpperCase()} maintenance door`, kind: 'human', connected: true, moving });
+    doors.push({ id: `${id}-human`, label: `Enclosure ${id.toUpperCase()} maintenance door`, kind: 'human', connected: true, mechanism: 'hinged', moving, set: travel => { for (const part of moving) part.rotation.z = travel * Math.PI / 2; } });
   });
 
+  // Every module is a flush box (catioPort.ts): end frames, rails flush with them, and a square end bay at its start whose two sides
+  // are openings framed like an end, each shut by the standard door, as the tunnel page's sections are. A corner's run before butts
+  // its end into one of them; its own start is then shut by a door too.
+  let corners = 0;
+  const F = STANDARD_PORT.ring.width; const T = STANDARD_PORT.ring.thickness;
+  const tunnelDoor = (id: string, label: string, origin: V3, u: V3, n: V3) => {
+    const door = tunnel.doorFixing === 'latches' ? blankPanel({ id, size: w, material: 'mesh', land: F, gap: PRINTED_LATCH_JOINT.gap })
+      : setInDoor({ id, width: w, height: w, material: 'mesh', seat: c.doorSeat, depth: T });
+    const built = buildDoorPanel(p, door, { origin, u, v: [0, 0, 1], n },
+      { timber: component(id, 4, 'timber', [0, 0, 250]), mesh: component(`${id}-mesh`, 4, 'mesh', [0, 0, 250]), hardware: component(`${id}-hardware`, 4, 'hardware', [0, 0, 250]) });
+    doors.push({ id, label, kind: 'tunnel', connected: true, mechanism: tunnel.doorFixing === 'latches' ? 'latched' : 'removable-panel', moving: [built.panel, built.panelMesh, built.panelHardware], set: built.set });
+  };
   for (const section of layout.sections) placed(...section.center, section.angle, () => {
-    const id = section.id; const length = section.length;
-    const frame = component(`${id}-frame`, 4, 'timber', [0, 0, 250]);
-    box(frame, [span, length, 18], [0, 0, 191], m.endgrain);
-    for (const x of [-w / 2 - 20, w / 2 + 20]) for (const y of [-length / 2 + 20, length / 2 - 20]) box(frame, [40, 40, h + 40], [x, y, 200 + (h + 40) / 2]);
-    for (const y of [-length / 2 + 20, length / 2 - 20]) box(frame, [span, 40, 40], [0, y, 200 + h + 20]);
-    for (const x of [-w / 2 - 20, w / 2 + 20]) box(frame, [40, length, 40], [x, 0, 200 + h + 20]);
-    mesh(`${id}-roof`, 4, span, length, [0, 0, 200 + h + 5], 'xy', [0, 0, 300]);
-    for (const side of ['left', 'right', 'back', 'front'] as const) {
-      if (section.openings.includes(side)) continue;
-      const lateral = side === 'left' || side === 'right'; const sign = side === 'left' || side === 'back' ? -1 : 1;
-      mesh(`${id}-${side}`, 4, lateral ? length : span, h + 20, lateral ? [sign * (w / 2 + 20), 0, 200 + (h + 20) / 2] : [0, sign * (length / 2 - 20), 200 + (h + 20) / 2], lateral ? 'yz' : 'xz', [0, 0, 250]);
-    }
+    const id = section.id; const length = section.length; const corner = section.kind === 'corner';
     const supports = component(`${id}-feet`, 4, 'hardware', [0, 0, 80]);
     for (const x of [-w / 2 - 20, w / 2 + 20]) for (const y of [-length / 2 + 20, length / 2 - 20]) {
       rod(supports, [x, y, 8], [x, y, 182], 8); box(supports, [55, 55, 8], [x, y, 4], m.rubber);
     }
+    const span = straightSpan;
+    /** The end bay's side openings: their middle along the module, and the bay post beyond them (none when the far frame is it). */
+    const bayMid = -length / 2 + T + w / 2; const bayPost = -length / 2 + T + w + T / 2; const posted = bayPost + T / 2 < length / 2 - T;
+    const frame = component(`${id}-frame`, 4, 'timber', [0, 0, 250]);
+    box(frame, [span, length, 18], [0, 0, 191], m.endgrain);
+    for (const x of [-w / 2 - 20, w / 2 + 20]) for (const y of [-length / 2 + 20, length / 2 - 20, ...(posted ? [bayPost] : [])]) box(frame, [40, 40, h + 40], [x, y, 200 + (h + 40) / 2]);
+    for (const y of [-length / 2 + 20, length / 2 - 20]) box(frame, [span, 40, 40], [0, y, 200 + h + 20]);
+    for (const x of [-w / 2 - 20, w / 2 + 20]) box(frame, [40, length, 40], [x, 0, 200 + h + 20]);
+    mesh(`${id}-roof`, 4, span, length, [0, 0, 200 + h + 5], 'xy', [0, 0, 300]);
+    // the sides beyond the end bay, and the far end if it is not coupled
+    const meshFrom = bayPost + T / 2;
+    for (const sign of [-1, 1]) if (length / 2 - 40 - meshFrom > 1) mesh(`${id}-${sign < 0 ? 'left' : 'right'}`, 4, length / 2 - 40 - meshFrom, h + 20, [sign * (w / 2 + 20), (meshFrom + length / 2 - 40) / 2, 200 + (h + 20) / 2], 'yz', [0, 0, 250]);
+    if (!(section.openings as string[]).includes('front')) mesh(`${id}-front`, 4, span, h + 20, [0, length / 2 - 20, 200 + (h + 20) / 2], 'xz', [0, 0, 250]);
+    // the end bay's side doors, but where the run before is coupled into it
+    const coupled = corner ? (section.openings.includes('left') ? -1 : 1) : 0;
+    if (coupled) corners++;
+    for (const sign of [-1, 1] as const) if (sign !== coupled) tunnelDoor(`${id}-door-${sign < 0 ? 'left' : 'right'}`, `${corner ? `Turn ${corners}` : `Tunnel module ${id.replace('tunnel-', '')}`}: ${sign < 0 ? 'left' : 'right'} side door`,
+      [sign * (w / 2 + 40), bayMid, 200], [0, sign, 0], [sign, 0, 0]);
+    // the start: coupled to the run before, or (at a corner, whose run before comes in from the side) shut by a door
+    if (!(section.openings as string[]).includes('back') && !corner) mesh(`${id}-back`, 4, span, h + 20, [0, -length / 2 + 20, 200 + (h + 20) / 2], 'xz', [0, 0, 250]);
+    if (corner) tunnelDoor(`${id}-end-door`, `Turn ${corners}: the door at its start`, [0, -length / 2, 200], [1, 0, 0], [0, -1, 0]);
     for (const side of section.openings) {
       const sign = side === 'back' || side === 'left' ? -1 : 1;
       const lateral = side === 'left' || side === 'right';
-      coupling(`${id}-${side}`, lateral ? sign * span / 2 : 0, lateral ? 0 : sign * length / 2, lateral ? Math.PI / 2 : 0);
+      coupling(`${id}-${side}`, lateral ? sign * span / 2 : 0, lateral ? bayMid : sign * length / 2, lateral ? Math.PI / 2 : 0);
     }
   });
   function update(state: ModularState) {
     p.update(state); hinge.rotation.z = state.windowOpen ? -Math.PI / 2 : 0;
     for (const door of doors) {
+      // cat ports open only along a connected route, as the last stage; an unused port stays shut and retained
+      // a tunnel's doors (and a maintenance door) only when asked
       const open = door.connected && (state.doors?.[door.id] ?? door.kind === 'cat');
-      for (const moving of door.moving) {
-        if (door.kind === 'cat') moving.position.z = open ? (h + 30) * THREE.MathUtils.clamp(state.progress - 5, 0, 1) : 0;
-        else moving.rotation.z = open ? Math.PI / 2 : 0;
-      }
+      door.set(!open ? 0 : door.kind === 'cat' ? THREE.MathUtils.clamp(state.progress - 5, 0, 1) : 1);
     }
     p.root.updateMatrixWorld(true);
   }

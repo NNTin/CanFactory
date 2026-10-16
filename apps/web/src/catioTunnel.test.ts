@@ -5,32 +5,38 @@ import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { tunnelDefinition } from './catioSubassemblies.ts';
 import {
-  facePoint, groundAt, jointSetback, portFloor, SUPPORT_FIXINGS, TUNNEL, TUNNEL_CONTROLS, TUNNEL_DEFAULT, TUNNEL_PAD_HEIGHT, TUNNEL_PRESETS, tunnelFacts, tunnelBom, tunnelLayout, tunnelSite, tunnelSteps, validateTunnel, vec, type SupportFixing, type TunnelConfig,
+  facePoint, groundAt, jointSetback, placedRoute, portFloor, PORT_MOVED, SUPPORT_FIXINGS, TUNNEL, TUNNEL_CONTROLS, TUNNEL_DEFAULT, TUNNEL_PAD_HEIGHT, TUNNEL_PRESETS, tunnelFacts, tunnelBom, tunnelLayout, tunnelSite, tunnelSteps, squareFacing, validateTunnel, vec, type SupportFixing, type TunnelConfig,
 } from './catioTunnel.ts';
 import { createTunnelScene, LIFT } from './catioTunnelScene.ts';
 import { TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
+import { boxesOverlap, SWING_CLEAR, latchEnvelope, latchSwing, memberBox, sidePortLength, sidePortOffset } from './catioPort.ts';
 import type { V3 } from './catioSubassembly.ts';
 import { WINDOW_INSERT_DEFAULT, windowInsertLayout, type WindowInsertConfig } from './catioWindowInsert.ts';
 
 const site = tunnelSite();
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: true, cutaway: false, hidden: new Set() };
 /** Every option of every select control, one at a time, from the defaults. */
-const optionConfigs: TunnelConfig[] = [TUNNEL_DEFAULT, ...TUNNEL_CONTROLS.filter(c => !c.range).flatMap(control => control.options.map(option => ({ ...TUNNEL_DEFAULT, [control.key]: option.value }))),
+// (a port facing left along the wall stands to the left of the window)
+const optionConfigs: TunnelConfig[] = [TUNNEL_DEFAULT, ...TUNNEL_CONTROLS.filter(c => !c.range).flatMap(control => control.options.map(option => ({ ...TUNNEL_DEFAULT, [control.key]: option.value, ...(control.key === 'portFacing' && option.value === -90 ? { portX: -TUNNEL_DEFAULT.portX } : {}) }))),
   // the Ganter feet in every size, and the printed feet at their lowest and highest
   ...TUNNEL_FOOT.diameters.map(footDiameter => ({ ...TUNNEL_DEFAULT, footPad: 'ganter' as const, footDiameter })),
   { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.min }, { ...TUNNEL_DEFAULT, padHeight: TUNNEL_PAD_HEIGHT.max, footDiameter: 25 },
   // self-standing on uneven ground of ±10 mm: the shorter screw in the feet
   { ...TUNNEL_DEFAULT, supportBase: 'self-standing', groundTolerance: 10 }];
 /** Routes that turn either way, at odd angles, climb and fall, with both joint types. */
+/** The routes' common start: the tunnel's earlier recommended route, two turns and a climb in the middle leg. */
+const ROUTE: TunnelConfig = { ...TUNNEL_DEFAULT, portX: 1200, portY: 3000, final: 700, slopeLeg: 'middle' };
 const routes: TunnelConfig[] = ([
-  TUNNEL_DEFAULT,
-  { ...TUNNEL_DEFAULT, portX: -1730, portY: 3420, portFacing: -25, portHeight: 820, slopeLeg: 'final', final: 2300 },
-  { ...TUNNEL_DEFAULT, portX: 2600, portY: 2200, portFacing: 90, portHeight: 300, approach: 900, final: 600 },
-  { ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portHeight: 245, slopeLeg: 'approach', approach: 1500 },
-  { ...TUNNEL_DEFAULT, portX: 900, portY: 5200, portFacing: 15, portHeight: 1100, maxSlope: 25, sectionLength: 1000 },
-  { ...TUNNEL_DEFAULT, portX: -2400, portY: 2600, portFacing: -60, portHeight: 400, slopeLeg: 'approach', approach: 1800, groundFall: 4 },
-] satisfies TunnelConfig[]).flatMap((config): TunnelConfig[] => [config, { ...config, angleJoint: 'mitred-ends' }]);
+  TUNNEL_DEFAULT, ROUTE,
+  { ...ROUTE, portX: -1730, portY: 3420, portFacing: -25, portHeight: 820, slopeLeg: 'final', final: 2300 },
+  { ...ROUTE, portX: 2600, portY: 2200, portFacing: 90, portHeight: 300, approach: 900, final: 600 },
+  { ...ROUTE, portX: 0, portY: 4000, portFacing: 0, portHeight: 245, slopeLeg: 'approach', approach: 1500 },
+  { ...ROUTE, portX: 900, portY: 5200, portFacing: 15, portHeight: 1100, maxSlope: 25, sectionLength: 2 },
+  { ...ROUTE, portX: -2400, portY: 2600, portFacing: -60, portHeight: 400, slopeLeg: 'approach', approach: 1800, groundFall: 4 },
+] satisfies TunnelConfig[]).flatMap((config): TunnelConfig[] => [config, { ...config, angleJoint: 'angle-collar' }, { ...config, angleJoint: 'mitred-ends' }]);
+/** Where a route's enclosure port faces: as asked, or with side-port turns the nearest of straight out and along the wall. */
+const facingOf = (config: TunnelConfig) => config.angleJoint === 'side-port' ? squareFacing(config.portFacing) : config.portFacing;
 /** Both coupling mechanisms, with every count of latches and bolts. */
 const joints: TunnelCouplingConfig[] = [TUNNEL_COUPLING_DEFAULT, ...TUNNEL_COUPLING_CONTROLS.flatMap(control => control.options.map(option => ({ ...TUNNEL_COUPLING_DEFAULT, [control.key]: option.value }))),
   { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 4 }, { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 8 }];
@@ -46,10 +52,15 @@ describe('tunnel route', () => {
       const first = l.pieces[0]; const last = l.pieces.at(-1); if (!first || !last) throw new Error('no pieces');
       close(first.start.at, [0, TUNNEL.wallGap, site.floorZ], 6, 'start');
       close(first.start.n, [0, 1, 0], 9, 'start square to the wall');
-      close(last.end.at, [config.portX, config.portY, config.portHeight], 6, 'end');
-      close(last.end.n, [Math.sin(config.portFacing * Math.PI / 180), Math.cos(config.portFacing * Math.PI / 180), 0], 9, 'end square to the port');
-      // the turns add up to the port's facing, and every slope is within the limit
-      expect(l.joints.filter(j => j.kind === 'turn').reduce((s, j) => s + j.angle, 0)).toBeCloseTo(config.portFacing, 6);
+      // it ends where its whole elements end, the coupling's gap short of the enclosure port's face, at the port's floor
+      close(vec.add(last.end.at, vec.mul(last.end.n, l.gap)), l.E, 6, 'end');
+      expect(l.E[2]).toBeCloseTo(config.portHeight, 6);
+      expect(l.moved).toBeCloseTo(vec.len(vec.sub(l.E, [config.portX, config.portY, config.portHeight])), 9);
+      const facing = facingOf(config);
+      close(last.end.n, [Math.sin(facing * Math.PI / 180), Math.cos(facing * Math.PI / 180), 0], 9, 'end square to the port');
+      // the turns add up to the port's facing (side ports: each a right angle), and every slope is within the limit
+      expect(l.joints.filter(j => j.kind === 'turn').reduce((s, j) => s + j.angle, 0)).toBeCloseTo(facing, 6);
+      if (config.angleJoint === 'side-port') for (const j of l.joints.filter(q => q.kind === 'turn')) { expect(Math.abs(j.angle)).toBeCloseTo(90, 9); expect(j.side).not.toBeNull(); }
       for (const p of l.pieces) expect(Math.abs(p.pitch), p.id).toBeLessThanOrEqual(config.maxSlope + 1e-9);
       expect(l.joints.filter(j => j.kind === 'bend').reduce((s, j) => s + j.angle, 0)).toBeCloseTo(0, 9);
     }
@@ -75,36 +86,68 @@ describe('tunnel route', () => {
       l.pieces.slice(1).forEach((after, i) => {
         const before = l.pieces[i]; if (!before) return;
         const coupling = l.couplings.find(c => c.after === after.id); if (!coupling) throw new Error(after.id);
-        // latched wherever both flanges are square to their pieces (sections and angle collars); a mitre is always bolted
-        const square = vec.dot(after.start.n, after.start.frame.y) > 1 - 1e-9;
+        // at a turn the piece before meets the side port of the section after it, the same outline on the same planes
+        const port = after.sidePort?.from === before.id ? after.sidePort.face : after.start;
+        // latched wherever both flanges are square to their pieces (sections, angle collars and side ports); a mitre is always bolted
+        const square = vec.dot(port.n, port.frame.y) > 1 - 1e-9;
         expect(coupling.kind, `${coupling.id} ${JSON.stringify(joint)}`).toBe(joint.mechanism === 'printed-latch' && square ? 'latched' : 'bolted');
         const gap = coupling.kind === 'latched' ? PRINTED_LATCH_JOINT.gap : 0;
         expect(coupling.gap).toBeCloseTo(gap, 9);
-        close(before.end.n, after.start.n, 12, `${after.id} plane`);
-        for (const [u, v] of profile(l.w, l.h)) close(vec.add(facePoint(before.end, u, v), vec.mul(after.start.n, gap)), facePoint(after.start, u, v), 6, `${before.id} | ${after.id} at ${u},${v}`);
+        close(before.end.n, port.n, 12, `${after.id} plane`);
+        for (const [u, v] of profile(l.w, l.h)) close(vec.add(facePoint(before.end, u, v), vec.mul(port.n, gap)), facePoint(port, u, v), 6, `${before.id} | ${after.id} at ${u},${v}`);
       });
     }
   });
 
-  it('makes room for the latches’ gaps: the route still ends exactly at the enclosure port, with every section no longer than the longest', () => {
+  it('is built of whole standard elements: every straight run a whole number of pitches, every coupling a standard port', () => {
     for (const joint of [TUNNEL_COUPLING_DEFAULT, bolted]) for (const config of [...routes, ...TUNNEL_PRESETS.map(p => p.config())]) {
       const l = tunnelLayout(config, site, joint);
       expect(l.errors, `${JSON.stringify(config)} ${joint.mechanism}`).toEqual([]);
-      close(l.pieces.at(-1)?.end.at ?? [0, 0, 0], [config.portX, config.portY, portFloor(config, site)], 6, `end ${joint.mechanism}`);
-      for (const p of l.pieces.filter(q => q.kind === 'section')) expect(p.length, p.id).toBeLessThanOrEqual(config.sectionLength + 1e-9);
-      // the pieces and the gaps between them make up the route; a collar's ends stay at its setback from the vertex
-      const gaps = l.couplings.reduce((n, c) => n + c.gap, 0);
-      expect(l.totalLength + gaps).toBeCloseTo(l.pieces.reduce((n, p) => n + p.length, 0) + gaps, 9);
-      for (const j of l.joints) expect(j.stop - j.setback, j.id).toBeCloseTo(j.collar && joint.mechanism === 'printed-latch' ? PRINTED_LATCH_JOINT.gap : 0, 9);
-      // the enclosure end is bolted whatever the couplings are
-      expect(l.couplings.find(c => c.id === 'port')).toMatchObject({ kind: 'bolted', gap: 0 });
-      expect(l.couplings.find(c => c.id === 'port')?.bolts).toHaveLength(joint.boltsPerCoupling);
+      expect(l.unitLength).toBe(sidePortLength(l.w)); expect(l.pitch).toBe(l.unitLength + l.gap);
+      // a section is a whole number of pitches less the gap after it, no more than the longest
+      for (const p of l.pieces.filter(q => q.kind === 'section')) {
+        const pitches = (p.length + l.gap) / l.pitch;
+        expect(pitches, p.id).toBeCloseTo(Math.round(pitches), 9);
+        expect(Math.round(pitches), p.id).toBeLessThanOrEqual(config.sectionLength);
+        expect(Math.round(pitches), p.id).toBeGreaterThanOrEqual(1);
+      }
+      // every section with a side port is level, and takes it: at least one pitch, the port at its offset
+      for (const p of l.pieces.filter(q => q.sidePort)) { expect(p.pitch).toBe(0); expect(p.length).toBeGreaterThanOrEqual(sidePortLength(l.w) - 1e-9); expect(p.sidePort?.offset).toBe(sidePortOffset(l.w)); }
+      // the pieces and the gaps between them make up the route; a collar's ends stay at its setback from the vertex, a side port's
+      // face at the inside edge's distance from it
+      for (const j of l.joints) expect(j.stop - j.setback, j.id).toBeCloseTo((j.collar || j.side) && joint.mechanism === 'printed-latch' ? PRINTED_LATCH_JOINT.gap : 0, 9);
+      // the enclosure end is a standard port like every other: coupled as the couplings are, its bolts at the same stations
+      const port = l.couplings.find(c => c.id === 'port');
+      expect(port).toMatchObject({ kind: joint.mechanism === 'printed-latch' ? 'latched' : 'bolted', gap: l.gap });
+      expect(port?.bolts).toHaveLength(joint.mechanism === 'bolts' ? joint.boltsPerCoupling : 0);
     }
-    // the default route is as long with either mechanism: the gaps come out of the sections
-    const latchedLength = tunnelLayout(TUNNEL_DEFAULT, site, TUNNEL_COUPLING_DEFAULT); const boltedLength = tunnelLayout(TUNNEL_DEFAULT, site, bolted);
-    expect(latchedLength.pieces.length).toBe(boltedLength.pieces.length);
-    const span = (l: typeof latchedLength) => l.totalLength + l.couplings.reduce((n, c) => n + c.gap, 0);
-    expect(span(latchedLength)).toBeCloseTo(span(boltedLength), 9);
+  });
+
+  it('puts the enclosure port where its whole elements end, and says so when that is not where it was asked', () => {
+    // the defaults and the presets are set where their elements end: no move
+    for (const config of [TUNNEL_DEFAULT, ...TUNNEL_PRESETS.map(p => p.config())]) expect(tunnelLayout(config, site).moved, JSON.stringify(config)).toBeLessThan(PORT_MOVED);
+    expect(tunnelFacts('modular', TUNNEL_DEFAULT, site).some(f => f.label.startsWith('Enclosure port'))).toBe(false);
+    // asked between two whole elements, it goes to the nearer
+    const asked = { ...TUNNEL_DEFAULT, portX: 0, portY: 2300, portLevel: 'window' as const };
+    const l = tunnelLayout(asked, site);
+    expect(l.errors).toEqual([]);
+    const pitches = (l.E[1] - TUNNEL.wallGap) / l.pitch;
+    expect(pitches).toBeCloseTo(Math.round(pitches), 6);
+    expect(Math.abs(l.E[1] - 2300)).toBeLessThanOrEqual(l.pitch / 2);
+    expect(l.moved).toBeGreaterThan(PORT_MOVED);
+    expect(tunnelFacts('modular', asked, site).find(f => f.label.startsWith('Enclosure port'))?.value).toMatch(/asked 0, 230: \d+(\.\d)? cm off/);
+    // set to where it was placed, the route is the same and nothing moves
+    const placed = placedRoute(asked, site);
+    expect(tunnelLayout(placed, site).moved).toBeLessThan(PORT_MOVED);
+    expect(tunnelLayout(placed, site).pieces.map(p => p.length)).toEqual(l.pieces.map(p => p.length));
+    // side-port turns are 90°: a port asked to face 30° faces straight out, and the brief says it was turned
+    const turned = tunnelLayout({ ...TUNNEL_DEFAULT, portFacing: 30 }, site);
+    expect(turned.facingMoved).toBeCloseTo(30, 9);
+    expect(tunnelFacts('modular', { ...TUNNEL_DEFAULT, portFacing: 30 }, site).find(f => f.label.startsWith('Enclosure port'))?.value).toMatch(/facing 0°.*, 30°/);
+    // the latches' gaps come out of the elements: with bolts the pitch is the shortest side-port section, so the port lands nearer the wall
+    const latched = tunnelLayout(TUNNEL_DEFAULT, site, TUNNEL_COUPLING_DEFAULT); const boltedRoute = tunnelLayout(TUNNEL_DEFAULT, site, bolted);
+    expect(latched.pieces.map(p => p.kind)).toEqual(boltedRoute.pieces.map(p => p.kind));
+    expect(boltedRoute.pitch).toBe(latched.pitch - PRINTED_LATCH_JOINT.gap);
   });
 
   it('puts the printed latches on the flanges’ outer sides, plates within the flanges, screws in the timber and clear of the bearer’s and rails’ screws', () => {
@@ -112,24 +155,36 @@ describe('tunnel route', () => {
       const l = tunnelLayout(config, site, joint);
       expect(l.errors).toEqual([]);
       for (const c of l.couplings.filter(k => k.kind === 'latched')) {
-        expect(c.latches).toHaveLength(2 * joint.latchesPerSide); expect(c.bolts).toEqual([]);
+        // two on the head where a run's end butts into a side opening, otherwise the chosen number up each side
+        const head = c.latches.some(q => q.id.includes('-head-'));
+        expect(c.latches).toHaveLength(head ? 2 : 2 * joint.latchesPerSide); expect(c.bolts).toEqual([]);
         expect(c.seal !== null).toBe(joint.seal === 'e-profile');
         for (const q of c.latches) {
-          // on the side face, the pull along the tunnel back towards the flange before the joint
-          close(q.pull, vec.mul(c.face.n, -1), 12, q.id);
-          expect(Math.abs(vec.dot(vec.sub(q.at, c.face.at), c.face.frame.x))).toBeCloseTo(l.w / 2 + TUNNEL.flange.width, 6);
+          // on the side face, the pull along the tunnel towards the flange with the base plate: seen from outside, every port has its
+          // base plates on its left, so the piece after the joint has them on the left of the tunnel (looking along it), the piece
+          // before it on the right
+          expect(q.base, q.id).toBe(q.side < 0 ? 'port' : 'outside');
+          close(q.pull, vec.mul(c.face.n, q.base === 'port' ? 1 : -1), 12, q.id);
+          if (head) expect(vec.dot(vec.sub(q.at, c.face.at), c.face.frame.z)).toBeCloseTo(l.h + TUNNEL.flange.width, 6);
+          else expect(vec.dot(vec.sub(q.at, c.face.at), c.face.frame.x)).toBeCloseTo(q.side * (l.w / 2 + TUNNEL.flange.width), 6);
         }
       }
       const screws = l.fasteners.filter(f => f.component === 'latch-screws' || f.component === 'catch-screws');
-      expect(screws).toHaveLength(4 * l.couplings.reduce((n, c) => n + c.latches.length, 0));
-      for (const f of screws) {
+      // the couplings' latches and the latched doors' (on the stubs)
+      expect(screws).toHaveLength(4 * (l.couplings.reduce((n, c) => n + c.latches.length, 0) + l.doors.reduce((n, d) => n + d.latches.length, 0)));
+      for (const f of screws.filter(q => l.couplings.some(k => k.latches.some(m => m.id === q.of)))) {
         const c = l.couplings.find(k => k.latches.some(q => q.id === f.of)); if (!c) throw new Error(f.of);
-        // into the flange before the joint (base) or after it (catch), at least 5 mm in from its face
+        const q = c.latches.find(k => k.id === f.of);
+        // into the flange its plate is on (the base's: after the joint where the base is the port's), at least 5 mm in from its face
+        const after = (f.component === 'latch-screws') === (q?.base === 'port');
         const depth = -vec.dot(vec.sub(f.at, c.face.at), c.face.n);
-        if (f.component === 'latch-screws') expect(depth - c.gap).toBeGreaterThan(5); else expect(-depth).toBeGreaterThan(5);
+        if (after) expect(-depth, f.of).toBeGreaterThan(5); else expect(depth - c.gap, f.of).toBeGreaterThan(5);
+        expect(f.piece, f.of).toBe(after ? c.after ?? undefined : c.before ?? undefined);
       }
     }
-    expect(tunnelLayout(TUNNEL_DEFAULT, site, bolted).fasteners.some(f => f.component === 'latch-screws')).toBe(false);
+    // bolted, only the stubs' latched doors have latches
+    const boltedLayout = tunnelLayout(TUNNEL_DEFAULT, site, bolted);
+    expect(boltedLayout.fasteners.some(f => f.component === 'latch-screws' && !boltedLayout.doors.some(d => d.latches.some(q => q.id === f.of)))).toBe(false);
   });
 
   it('closes an angle collar exactly: its two flanges touch at the inside of the joint and open on the outside', () => {
@@ -141,7 +196,7 @@ describe('tunnel route', () => {
         const insideOf = (face: typeof collar.start): [number, number] => {
           const inward = vec.unit(vec.sub(j.b, j.a));
           const across = vec.dot(inward, face.frame.x); const up = vec.dot(inward, face.frame.z);
-          return Math.abs(across) > Math.abs(up) ? [Math.sign(across) * (l.w / 2 + 70), l.h / 2] : [0, up > 0 ? l.h + 70 : -70];
+          return Math.abs(across) > Math.abs(up) ? [Math.sign(across) * (l.w / 2 + TUNNEL.flange.width), l.h / 2] : [0, up > 0 ? l.h + TUNNEL.flange.width : -TUNNEL.flange.width];
         };
         const [u, v] = insideOf(collar.start);
         const backA = facePoint(collar.start, u, v, TUNNEL.flange.thickness); const backB = facePoint(collar.end, u, v, -TUNNEL.flange.thickness);
@@ -149,8 +204,8 @@ describe('tunnel route', () => {
         // their outer faces there are two flange thicknesses apart across the bisector
         expect(vec.len(vec.sub(facePoint(collar.start, u, v), facePoint(collar.end, u, v))), `${j.id} faces at the inside`).toBeCloseTo(2 * TUNNEL.flange.thickness * Math.cos(j.angle * Math.PI / 360), 6);
         // and nothing of one flange lies behind the other's back: the outside corner opens wider
-        const [uo, vo] = [u === 0 ? 0 : -u, u === 0 ? (v > 0 ? -70 : l.h + 70) : v];
-        expect(vec.len(vec.sub(facePoint(collar.start, uo, vo, TUNNEL.flange.thickness), facePoint(collar.end, uo, vo, -TUNNEL.flange.thickness))), `${j.id} outside`).toBeGreaterThan(1);
+        const [uo, vo] = [u === 0 ? 0 : -u, u === 0 ? (v > 0 ? -TUNNEL.flange.width : l.h + TUNNEL.flange.width) : v];
+        expect(vec.len(vec.sub(facePoint(collar.start, uo, vo, TUNNEL.flange.thickness), facePoint(collar.end, uo, vo, -TUNNEL.flange.thickness))), `${j.id} outside`).toBeGreaterThan(1e-3);
         // and the setback formula is that geometry
         expect(vec.len(vec.sub(j.vertex, collar.start.at))).toBeCloseTo(jointSetback(j.angle * Math.PI / 180, j.inside, 'angle-collar'), 9);
       }
@@ -166,27 +221,84 @@ describe('tunnel route', () => {
     }
   });
 
-  it('climbs exactly the difference between the two floors', () => {
+  it('climbs exactly the difference between the two floors, on whole long sections', () => {
     for (const config of routes) {
       const l = tunnelLayout(config, site);
-      expect(l.pieces.at(-1)?.end.at[2]).toBeCloseTo(config.portHeight, 9);
+      expect(l.E[2]).toBeCloseTo(config.portHeight, 9);
       expect(l.rise).toBeCloseTo(config.portHeight - site.floorZ, 9);
-      if (Math.abs(l.rise) > 1) expect(l.slope?.pitch).toBeDefined();
+      if (Math.abs(l.rise) > 1) {
+        expect(l.slope?.pitch).toBeDefined();
+        // the sloped run is whole pitches of long section, the fewest that climb it within the steepest slope
+        const pitches = ((l.slope?.run ?? 0) + l.gap) / l.pitch;
+        expect(pitches).toBeCloseTo(Math.round(pitches), 9);
+        expect(Math.abs(l.slope?.pitch ?? 0)).toBeLessThanOrEqual(config.maxSlope + 1e-9);
+        for (const p of l.pieces.filter(q => Math.abs(q.pitch) > 0.01 && q.kind !== 'collar')) expect(p.kind, p.id).toBe('section');
+      }
     }
-    // a small climb gets a shallower slope over the shortest run
+    // a small climb gets a shallower slope over one pitch
     const small = tunnelLayout({ ...TUNNEL_DEFAULT, portHeight: 275 }, site);
     expect(Math.abs(small.slope?.pitch ?? 0)).toBeLessThan(TUNNEL_DEFAULT.maxSlope);
-    expect(small.slope?.run).toBeCloseTo(TUNNEL.minRun, 6);
+    expect(small.slope?.run).toBeCloseTo(small.pitch - small.gap, 6);
   });
 
-  it('explains what cannot be built', () => {
-    expect(validateTunnel('modular', { ...TUNNEL_DEFAULT, portHeight: 1400, final: 300, slopeLeg: 'final' }, site).join()).toMatch(/too short to climb/);
-    expect(validateTunnel('modular', { ...TUNNEL_DEFAULT, portX: 4000, portY: 900, final: 1200 }, site).join()).toMatch(/back into the wall/);
-    expect(validateTunnel('modular', { ...TUNNEL_DEFAULT, slopeLeg: 'approach' }, site).join()).toMatch(/approach leg is too short to climb 255 mm at up to 20°: it needs \d+ mm/);
+  it('explains what cannot be built, and moves the port for a leg too short for its joints', () => {
+    expect(validateTunnel('modular', { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar', portX: 4000, portY: 900, final: 1200 }, site).join()).toMatch(/back into the wall/);
     expect(validateTunnel('modular', { ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends', portX: 2600, portY: 900, portFacing: 60 }, site).join()).toMatch(/mitred ends go to 90°/);
     // the same 95° turn is fine for an angle collar
-    expect(validateTunnel('modular', { ...TUNNEL_DEFAULT, portX: 2600, portY: 900, portFacing: 60 }, site)).toEqual([]);
+    expect(validateTunnel('modular', { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar', portX: 2600, portY: 900, portFacing: 60 }, site)).toEqual([]);
     expect(validateTunnel('modular', { ...TUNNEL_DEFAULT, portHeight: 150, slopeLeg: 'approach', approach: 2000 }, site).join()).toMatch(/too close to the ground/);
+    expect(validateTunnel('modular', { ...TUNNEL_DEFAULT, portX: 2400, portY: 2000, portFacing: -90 }, site).join()).toMatch(/must be to the left of the window/);
+    expect(validateTunnel('modular', { ...TUNNEL_DEFAULT, portX: -2400, portY: 2000, portFacing: -90 }, site)).toEqual([]);
+    // a climb in a leg too short for it still climbs, on whole elements: the port goes as far out as they take it
+    const climb = { ...TUNNEL_DEFAULT, portHeight: 1400, slopeLeg: 'approach' as const };
+    const l = tunnelLayout(climb, site);
+    expect(l.errors).toEqual([]);
+    expect(l.E[2]).toBeCloseTo(1400, 6); expect(l.moved).toBeGreaterThan(PORT_MOVED);
+  });
+
+  it('turns into a side opening: the run before butts its end into the end bay of the next run’s first section, whose start is shut by a door', () => {
+    for (const joint of [TUNNEL_COUPLING_DEFAULT, bolted, { ...TUNNEL_COUPLING_DEFAULT, doorFixing: 'latches' as const }]) for (const config of routes.filter(c => c.angleJoint === 'side-port')) {
+      const l = tunnelLayout(config, site, joint);
+      for (const j of l.joints.filter(q => q.kind === 'turn')) {
+        const p = l.pieces.find(q => q.id === j.side); const port = p?.sidePort; if (!p || !port) throw new Error(j.id);
+        // the section runs along the run after the turn, the opening on the side facing the run before, over the vertex
+        close(p.frame.y, j.b, 9, j.id); close(port.face.n, j.a, 9, j.id);
+        close(vec.add(port.face.at, vec.mul(j.a, l.w / 2 + TUNNEL.flange.width)), j.vertex, 6, j.id);
+        close(vec.add(p.start.at, vec.mul(p.frame.y, port.offset)), j.vertex, 6, j.id);
+        expect(port.offset).toBe(sidePortOffset(l.w)); expect(port.side).toBe(j.angle > 0 ? 1 : -1);
+        // the piece before butts into it, latched (on the head) or bolted like any coupling
+        const coupling = l.couplings.find(c => c.after === p.id); if (!coupling) throw new Error(p.id);
+        expect(coupling.before).toBe(port.from); close(coupling.face.at, port.face.at, 9, j.id);
+        expect(coupling.kind).toBe(joint.mechanism === 'printed-latch' ? 'latched' : 'bolted');
+        if (coupling.kind === 'latched') { expect(coupling.latches).toHaveLength(2); for (const q of coupling.latches) close(q.out, p.frame.z, 9); }
+        // nothing stands proud of the section: no ring on its side, only its end frames, rails and bay posts
+        expect(l.members.filter(m => m.piece === p.id && m.kind === 'flange').every(m => m.from === p.start || m.from === p.end)).toBe(true);
+        // its start shut by a door, and the end bay's other side
+        const doors = l.doors.filter(d => d.piece === p.id);
+        expect(doors.map(d => d.at).sort()).toEqual(['start', port.side < 0 ? 'right' : 'left'].sort());
+        const start = doors.find(d => d.at === 'start'); if (!start) throw new Error(p.id);
+        close(start.frame.origin, p.start.at, 9); close(start.frame.n, vec.mul(p.frame.y, -1), 9);
+      }
+    }
+  });
+
+  it('keeps every latch at a side opening clear of the section’s frames, posts and rails, closed and swinging open', () => {
+    for (const joint of [TUNNEL_COUPLING_DEFAULT, { ...TUNNEL_COUPLING_DEFAULT, doorFixing: 'latches' as const, latchesPerSide: 3 as const }]) {
+      const l = tunnelLayout(TUNNEL_DEFAULT, site, joint);
+      for (const p of l.pieces.filter(q => q.sidePort)) {
+        const coupling = l.couplings.find(c => c.after === p.id);
+        const latches = [...(coupling?.latches ?? []), ...l.doors.filter(d => d.piece === p.id).flatMap(d => d.latches)];
+        expect(latches.length).toBeGreaterThan(0);
+        const box = (m: (typeof l.members)[number]) => m.kind === 'rail' || m.kind === 'floor' ? memberBox(m.from, m.rect, m.fromOffset, p.length + m.toOffset) : memberBox(m.from, m.rect, m.fromOffset, m.toOffset);
+        for (const q of latches) {
+          // every member of the section but what the latch is screwed to: the top rail its half lies on, or the frame round a door
+          const onIt = (m: (typeof l.members)[number]) => boxesOverlap(latchEnvelope(q), box(m), -1) && (m.kind === 'rail' || m.kind === 'flange');
+          for (const m of l.members.filter(m2 => m2.piece === p.id && !onIt(m2))) {
+            expect(boxesOverlap(latchSwing(q), box(m), -SWING_CLEAR), `${q.id} swinging into ${m.id}`).toBe(false);
+          }
+        }
+      }
+    }
   });
 });
 
@@ -194,8 +306,9 @@ describe('tunnel supports', () => {
   it('puts a support at both ends, at every straight coupling and at every joint, within a section’s length of each other', () => {
     for (const config of routes) {
       const l = tunnelLayout(config, site);
+      // (a side port's section stands on the supports under its couplings: the one at the side port and the one at its end)
       const straight = l.interfaces.filter(i => i.kind === 'coupling' && ![i.before, i.after].some(id => id?.startsWith('collar')) && !l.joints.some(j => vec.len(vec.sub(j.vertex, i.face.at)) < 1e-9));
-      expect(l.supports).toHaveLength(2 + straight.length + l.joints.length);
+      expect(l.supports).toHaveLength(2 + straight.length + l.joints.filter(j => !j.side).length);
       for (const p of l.pieces) {
         const near = (at: V3) => l.supports.some(s => Math.hypot(s.at[0] - at[0], s.at[1] - at[1]) < 250);
         expect(near(p.start.at) || near(p.end.at), p.id).toBe(true);
@@ -210,11 +323,11 @@ describe('tunnel supports', () => {
         // every flange's bottom edge (front and back) over the bearer's top is at or above it, and the nearest touches or nearly
         const over: number[] = [];
         for (const p of l.pieces) for (const [face, sign] of [[p.start, 1], [p.end, -1]] as const) for (const offset of [0, sign * TUNNEL.flange.thickness]) for (let k = -4; k <= 4; k++) {
-          const q = facePoint(face, k * (l.w / 2 + 70) / 4, -70, offset);
+          const q = facePoint(face, k * (l.w / 2 + TUNNEL.flange.width) / 4, -TUNNEL.flange.width, offset);
           const d = vec.sub(q, s.at);
           if (Math.abs(vec.dot(d, s.along)) <= TUNNEL.bearer.width / 2 && Math.abs(vec.dot(d, s.across)) <= s.length / 2) over.push(q[2]);
         }
-        for (const z of over) expect(z, s.id).toBeGreaterThanOrEqual(s.top - 0.05);
+        for (const z of over) expect(z, `${s.id} ${JSON.stringify(config)}`).toBeGreaterThanOrEqual(s.top - 0.05);
         if (over.length) expect(Math.min(...over) - s.top, s.id).toBeLessThan(TUNNEL.bearer.width * Math.tan(Math.PI / 180 * config.maxSlope) + 1e-6);
       }
     }
@@ -249,7 +362,7 @@ describe('tunnel supports', () => {
 describe('tunnel held on its supports', () => {
   const held = (supportFixing: SupportFixing, supportBase: TunnelConfig['supportBase'] = 'trestle', config: TunnelConfig = TUNNEL_DEFAULT) => tunnelLayout({ ...config, supportFixing, supportBase }, site, TUNNEL_COUPLING_DEFAULT);
   /** A straight route with section-to-section couplings: two flanges over a bearer, where the latch and the buttons fit. */
-  const straight: TunnelConfig = { ...TUNNEL_DEFAULT, portX: 0, portY: 3000, portLevel: 'window', sectionLength: 500 };
+  const straight: TunnelConfig = { ...TUNNEL_DEFAULT, portX: 0, portY: 3000, portLevel: 'window', sectionLength: 1 };
   const fp = 'iso-2338-8x40';
 
   it('screws up through every bearer by default, and binds every support to the tunnel', () => {
@@ -376,8 +489,8 @@ describe('tunnel held on its supports', () => {
     }
     // a screw or stud that would come out of the top of a shallow low bearer is reported, and the shorter screw of a smaller
     // tolerance fits there
-    const shallow: TunnelConfig = { ...TUNNEL_DEFAULT, portHeight: 200, slopeLeg: 'approach', approach: 1500, final: 1500 };
-    expect(tunnelLayout(shallow, site).errors.join()).toMatch(/At the joint 2 a foot’s screw would come out of the top of the low bearer \(59 mm up into 48 mm\)/);
+    const shallow: TunnelConfig = { ...ROUTE, angleJoint: 'angle-collar', portHeight: 180, slopeLeg: 'approach', approach: 1500, final: 1500 };
+    expect(tunnelLayout(shallow, site).errors.join()).toMatch(/At the joint \d a foot’s screw would come out of the top of the low bearer \(59 mm up into \d+ mm\)/);
     expect(tunnelLayout({ ...shallow, footPad: 'ganter' }, site).errors.join()).toMatch(/a foot’s stud would come out of the top of the low bearer/);
   });
 
@@ -413,13 +526,19 @@ describe('tunnel parts list', () => {
         if (line.partId) expect(findPart(line.partId), line.partId).toBeDefined();
       }
       const bolts = l.couplings.reduce((n, c) => n + c.bolts.length, 0);
-      // latched by default: only the enclosure end and any mitred joint are bolted
+      // latched by default: only any mitred joint is bolted
       expect(bolts).toBe(l.couplings.filter(c => c.kind === 'bolted').length * TUNNEL_COUPLING_DEFAULT.boltsPerCoupling);
       const latches = l.couplings.reduce((n, c) => n + c.latches.length, 0);
-      expect(latches).toBe(l.couplings.filter(c => c.kind === 'latched').length * 2 * TUNNEL_COUPLING_DEFAULT.latchesPerSide);
-      if (latches) expect(lines.find(line => line.modelId === 'toggle-latch')).toMatchObject({ quantity: latches, name: 'Toggle latch, printed' });
-      expect(l.fasteners.filter(f => f.component === 'latch-screws' || f.component === 'catch-screws')).toHaveLength(4 * latches);
-      expect(count('din-7997-4x25')).toBe(l.fasteners.filter(f => f.partId === 'din-7997-4x25').length);
+      // (two on the head where a run's end butts into a side opening)
+      expect(latches).toBe(l.couplings.filter(c => c.kind === 'latched').reduce((n, c) => n + (c.latches.some(q => q.id.includes('-head-')) ? 2 : 2 * TUNNEL_COUPLING_DEFAULT.latchesPerSide), 0));
+      // the stubs' doors are set in, on turn buttons, by default; blanks would be held by the ports' own latches, the same printed latch
+      const doorLatches = l.doors.reduce((n, d) => n + d.latches.length, 0);
+      expect(doorLatches).toBe(TUNNEL_COUPLING_DEFAULT.doorFixing === 'latches' ? l.doors.length * 2 * TUNNEL_COUPLING_DEFAULT.latchesPerSide : 0);
+      if (latches + doorLatches) expect(lines.find(line => line.modelId === 'toggle-latch')).toMatchObject({ quantity: latches + doorLatches, name: 'Toggle latch, printed' });
+      expect(l.fasteners.filter(f => f.component === 'latch-screws' || f.component === 'catch-screws')).toHaveLength(4 * (latches + doorLatches));
+      // the latches' screws, and the pivots of the doors' turn buttons, which are the same screw
+      const doorScrews = (id: string) => l.doors.reduce((n, a) => n + a.door.fasteners.filter(f => f.partId === id).length, 0);
+      expect(count('din-7997-4x25')).toBe(l.fasteners.filter(f => f.partId === 'din-7997-4x25').length + doorScrews('din-7997-4x25'));
       expect(lines.find(line => line.id === 'coupling-seal')?.quantity ?? 0).toBe(l.couplings.filter(c => c.seal).length);
       // a printed foot's screw and lock nut are the coupling's M8 × 80 and nut
       const feet = l.supports.reduce((n, s) => n + s.feet.length, 0);
@@ -433,8 +552,10 @@ describe('tunnel parts list', () => {
       expect(count('din-7965-m8x18')).toBe(feet);
       expect(lines.find(line => line.id === 'slabs')?.quantity).toBe(2 * l.supports.length);
       expect(lines.filter(line => line.name === 'Leg').reduce((n, line) => n + line.quantity, 0)).toBe(l.supports.filter(s => s.kind === 'trestle').length * 2);
+      // two end frames a section or collar, four members each, and nothing else proud of the tunnel; a bay post each side of an end bay
       expect(lines.filter(line => line.name.startsWith('Flange')).reduce((n, line) => n + line.quantity, 0)).toBe(8 * l.pieces.length);
-      expect(lines.some(line => line.name === 'Collar floor')).toBe(config.angleJoint === 'angle-collar' && l.joints.length > 0);
+      expect(lines.find(line => line.name === 'Bay post')?.quantity ?? 0).toBe(l.members.filter(m => m.kind === 'post').length);
+      expect(lines.some(line => line.name === 'Collar floor')).toBe(l.pieces.some(p => p.kind === 'collar'));
     }
   });
 
@@ -452,24 +573,34 @@ describe('tunnel parts list', () => {
         if (mesh === 'welded') expect(edge.cut).toBe(true);
       }
       // the hood passes over the top rails uncut: only the roof's staples hold it there, and its sides have none of their own
-      const top = l.panels.flatMap(panel => panel.edges.filter(edge => edge.use === 'Onto the top rail').map(edge => ({ side: panel.name.includes('side'), cut: edge.cut })));
+      // (beyond a section's end bay, a net piece of its own fills each side: cut all round)
+      const beside = l.panels.filter(panel => panel.id.includes('-mesh-beside-'));
+      const top = l.panels.filter(panel => !beside.includes(panel)).flatMap(panel => panel.edges.filter(edge => edge.use === 'Onto the top rail').map(edge => ({ side: panel.name.includes('side'), cut: edge.cut })));
+      const meshed = l.pieces.length;
+      // (a section without an end bay, beside a mitre, and a collar are meshed all round: they have no doors)
+      const unbayed = l.pieces.filter(p => !l.doors.some(d => d.piece === p.id)).length;
       if (mesh === 'netting') expect(top.every(edge => !edge.side && !edge.cut)).toBe(true);
-      else expect(top.filter(edge => edge.side)).toHaveLength(2 * l.pieces.length);
+      // (a section's sides are pieces of their own beyond its end bay, its end bay's sides openings; a collar is meshed all round)
+      else expect(top.filter(edge => edge.side)).toHaveLength(2 * unbayed);
       const lines = tunnelBom('modular', { ...route, mesh }, site).filter(line => line.group === 'Mesh');
       expect(lines[0]).toMatchObject({ id: 'mesh-roll', quantity: 1, partId: CATIO_MESH_PARTS[mesh] });
       expect(lines[0]?.use).toContain('more rolls may be needed');
-      const cut = lines.slice(1); const count = cut.reduce((n, line) => n + line.quantity, 0);
+      // every door has its own mesh
+      expect(lines.filter(line => line.name === 'Net, beside a side opening').reduce((n, line) => n + line.quantity, 0)).toBe(mesh === 'netting' ? beside.length : 0);
+      const panelMesh = lines.filter(line => line.name === 'Removable panel mesh');
+      expect(panelMesh.reduce((n, line) => n + line.quantity, 0)).toBe(l.doors.length);
+      const cut = lines.slice(1).filter(line => !panelMesh.includes(line)); const count = cut.reduce((n, line) => n + line.quantity, 0);
       expect(cut.every(line => !line.partId)).toBe(true);
       if (mesh === 'netting') {
-        expect(cut.every(line => line.name === 'Net hood')).toBe(true); expect(count).toBe(l.pieces.length);
+        expect(cut.every(line => line.name === 'Net hood' || line.name === 'Net, beside a side opening')).toBe(true); expect(count).toBe(meshed + beside.length);
         // as wide as both sides and the roof together
-        const piece = l.pieces.find(p => p.kind === 'section'); const panels = l.panels.filter(panel => panel.piece === piece?.id);
+        const piece = l.pieces.find(p => p.kind === 'collar'); const panels = l.panels.filter(panel => panel.piece === piece?.id);
         const across = Math.round(panels.reduce((sum, panel) => sum + span(panel.corners[0], panel.corners[3]), 0));
-        expect(cut.some(line => line.size.includes(`× ${across} ·`))).toBe(true);
-      } else expect(count).toBe(3 * l.pieces.length);
+        if (piece) expect(cut.some(line => line.size.includes(`× ${across} ·`))).toBe(true);
+      } else expect(count).toBe(meshed + 2 * unbayed + beside.length);
     }
-    expect(tunnelSteps('modular', TUNNEL_DEFAULT).find(step => step.title === 'Net the sections')?.detail).toContain('a staple over every mesh');
-    expect(tunnelSteps('modular', { ...TUNNEL_DEFAULT, mesh: 'welded' }).find(step => step.title === 'Mesh the sections')?.detail).toContain('every 15 cm');
+    expect(tunnelSteps('modular', TUNNEL_DEFAULT).find(step => step.title.startsWith('Net the sections'))?.detail).toContain('a staple over every mesh');
+    expect(tunnelSteps('modular', { ...TUNNEL_DEFAULT, mesh: 'welded' }).find(step => step.title.startsWith('Mesh the sections'))?.detail).toContain('every 15 cm');
   });
 
   it('lists the mitre angles in the cut list of mitred sections, and only square cuts for collared ones', () => {
@@ -480,18 +611,26 @@ describe('tunnel parts list', () => {
     expect(mitred.some(line => line.name === 'Section rail' && /°/.test(line.size))).toBe(true);
   });
 
-  it('lists bolts at every coupling with the bolts, and always at the enclosure end', () => {
-    for (const joint of joints) for (const config of [TUNNEL_DEFAULT, { ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends' as const }]) {
+  it('lists bolts at every coupling with the bolts, and at mitred joints', () => {
+    for (const joint of joints) for (const config of [TUNNEL_DEFAULT, { ...ROUTE, angleJoint: 'angle-collar' as const }, { ...ROUTE, angleJoint: 'mitred-ends' as const }]) {
       const l = tunnelLayout(config, site, joint); const lines = tunnelBom('modular', config, site, joint);
       const count = (id: string) => lines.find(line => line.partId === id)?.quantity ?? 0;
       const bolts = l.couplings.filter(c => c.kind === 'bolted').length * joint.boltsPerCoupling;
-      expect(bolts).toBeGreaterThanOrEqual(joint.boltsPerCoupling);
+      if (joint.mechanism === 'bolts' || config.angleJoint === 'mitred-ends') expect(bolts).toBeGreaterThanOrEqual(joint.boltsPerCoupling);
       expect(count('iso-7093-m8')).toBe(2 * bolts);
       expect(count('iso-4017-m8x80')).toBe(bolts + (l.pad ? 2 * l.supports.length : 0));
-      expect(lines.some(line => line.modelId === 'toggle-latch')).toBe(l.couplings.some(c => c.kind === 'latched'));
-      // angle collars keep every coupling square: all latched but the enclosure end
-      if (config.angleJoint === 'angle-collar') expect(l.couplings.filter(c => c.kind === 'bolted').map(c => c.id)).toEqual(joint.mechanism === 'bolts' ? l.couplings.map(c => c.id) : ['port']);
+      expect(lines.some(line => line.modelId === 'toggle-latch')).toBe(l.couplings.some(c => c.kind === 'latched') || l.doors.some(d => d.latches.length > 0));
+      // side ports and angle collars keep every coupling square, the enclosure end too: all latched
+      if (config.angleJoint !== 'mitred-ends') expect(l.couplings.filter(c => c.kind === 'bolted').map(c => c.id)).toEqual(joint.mechanism === 'bolts' ? l.couplings.map(c => c.id) : []);
       if (joint.mechanism === 'bolts') expect(l.couplings.every(c => c.kind === 'bolted')).toBe(true);
+      // the bolts of each coupling at the standard port's stations: the same number on each of its four sides
+      for (const c of l.couplings.filter(k => k.kind === 'bolted' && vec.dot(k.face.n, k.face.frame.y) > 1 - 1e-9)) {
+        const sides = [0, 1, 2, 3].map(side => c.bolts.filter(b => {
+          const d = vec.sub(b.at, c.face.at); const u = vec.dot(d, c.face.frame.x); const v = vec.dot(d, c.face.frame.z) - l.h / 2;
+          return side === 0 ? u < -Math.abs(v) : side === 1 ? u > Math.abs(v) : side === 2 ? v > Math.abs(u) : v < -Math.abs(u);
+        }).length);
+        expect(sides, c.id).toEqual([1, 1, 1, 1].map(() => joint.boltsPerCoupling / 4));
+      }
     }
   });
 
@@ -520,9 +659,10 @@ describe('tunnel scene', () => {
       expect(context.map(part => part.group.position.toArray())).toEqual(positions);
       for (const part of scene.components) expect(part.group.visible, `${part.id} at ${progress}`).toBe(part.step <= progress);
     }
-    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['terrain', 'window-insert', 'enclosure-port', 'slabs', 'legs', 'levelling-feet', 'bearers', 'flanges', 'rails', 'mesh', 'staples', 'section-latches', 'section-latch-screws', 'section-seals', 'port-bolts', 'flange-screws', 'docking-frame', 'coupling-latches']));
-    // printed latches at the couplings by default: no bolts there; bolted, no latches
+    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['terrain', 'window-insert', 'enclosure-port', 'slabs', 'legs', 'levelling-feet', 'bearers', 'flanges', 'rails', 'mesh', 'staples', 'section-latches', 'section-latch-screws', 'section-seals', 'flange-screws', 'docking-frame', 'coupling-latches', 'doors', 'door-mesh', 'door-hardware']));
+    // printed latches at every coupling by default, the enclosure end too: no bolts; bolted, no latches
     expect(scene.components.map(part => part.id)).not.toContain('coupling-bolts');
+    expect(scene.components.map(part => part.id)).not.toContain('port-bolts');
     scene.update({ ...installed, cutaway: true, hidden: new Set(['mesh']) });
     expect(scene.components.find(part => part.id === 'wall')?.group.visible).toBe(false);
     expect(scene.components.filter(part => part.layer === 'mesh').every(part => !part.group.visible)).toBe(true);
@@ -545,7 +685,7 @@ describe('tunnel scene', () => {
   it('latches every square coupling with the shared printed latch, closed over centre once the pieces are down, each part on its pins', () => {
     const scene = createTunnelScene('modular', TUNNEL_DEFAULT, site, TUNNEL_COUPLING_DEFAULT);
     const latched = scene.layout.couplings.filter(c => c.kind === 'latched');
-    expect(scene.levers).toHaveLength(latched.length * 2 * TUNNEL_COUPLING_DEFAULT.latchesPerSide);
+    expect(scene.levers).toHaveLength(latched.reduce((n, c) => n + c.latches.length, 0));
     const G = TL.TOGGLE_LATCH_GEOMETRY;
     const world = (object: THREE.Object3D, point: [number, number, number]) => new THREE.Vector3(...point).applyMatrix4(object.matrixWorld);
     const named = (lever: THREE.Object3D, name: string) => lever.parent?.children.find(child => child.name === name);
@@ -599,8 +739,10 @@ describe('tunnel scene', () => {
         const key = `${motion.stage}:${motion.action}`; const window = motion.window.join();
         expect(windows.get(key) ?? window, motion.action).toBe(window); windows.set(key, window);
       }
-      for (let stage = 1; stage <= 6; stage++) for (const motion of scene.motions.filter(m => m.stage === stage)) {
-        scene.update({ ...installed, progress: stage - 1 + (motion.window[0] + motion.window[1]) / 2 });
+      // a caption mid every window (once a window: the motions sharing it are posed together)
+      const mid = new Map(scene.motions.filter(m => m.stage >= 1 && m.stage <= 6).map(m => [`${m.stage}:${m.window.join()}`, m] as const));
+      for (const motion of mid.values()) {
+        scene.update({ ...installed, progress: motion.stage - 1 + (motion.window[0] + motion.window[1]) / 2 });
         expect(scene.caption?.(), `caption mid ${motion.action}`).not.toBeNull();
       }
       scene.dispose();
@@ -627,8 +769,10 @@ describe('tunnel presets', () => {
   });
 
   it('turns once, 90° to the right, and stays level', () => {
-    for (const angleJoint of ['angle-collar', 'mitred-ends'] as const) {
-      const l = tunnelLayout({ ...preset('right-angle'), angleJoint }, site);
+    for (const angleJoint of ['side-port', 'angle-collar', 'mitred-ends'] as const) {
+      // (a collar's or a mitre's route turns where the run out from the wall ends: there, the port's line)
+      const right = preset('right-angle');
+      const l = tunnelLayout({ ...right, angleJoint, approach: angleJoint === 'side-port' ? right.approach : right.portY - TUNNEL.wallGap }, site);
       expect(l.errors).toEqual([]);
       expect(l.joints.map(j => j.kind)).toEqual(['turn']);
       expect(l.joints[0]?.angle).toBeCloseTo(90, 9);
@@ -682,9 +826,47 @@ describe('tunnel page settings', () => {
     expect(settings.variant).toBe('modular');
     expect(settings.config.portHeight).toBe(655);
     expect(settings.config.portFacing).toBe(TUNNEL_DEFAULT.portFacing);
-    expect(settings.config.angleJoint).toBe('angle-collar');
+    expect(settings.config.angleJoint).toBe(TUNNEL_DEFAULT.angleJoint);
     expect(settings.views.modular).toMatchObject({ progress: 2, view: 'Top' });
+    // a tunnel saved before the standard elements: its route and its joints as saved, its longest section the nearest whole pitches
+    for (const [sectionLength, pitches] of [[500, 1], [750, 2], [1000, 2]] as const) {
+      const old = parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar', portX: 1200, portY: 3000, sectionLength } }));
+      expect(old.config).toMatchObject({ angleJoint: 'angle-collar', portX: 1200, portY: 3000, sectionLength: pitches });
+      // laid out on whole elements: the brief says where that puts the port
+      expect(tunnelLayout(old.config, site).moved).toBeGreaterThan(PORT_MOVED);
+    }
     // off a step is not accepted either
     expect(parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, portHeight: 657.3 } })).config.portHeight).toBe(TUNNEL_DEFAULT.portHeight);
+  });
+});
+
+describe('tunnel: the rest of the standard elements', () => {
+  it('loads a tunnel saved with cube corners as one turning at side ports, its runs of cubes as long sections', () => {
+    const saved = parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, angleJoint: 'cube-corner', straights: 'cubes', portFacing: 90, portX: 2200 } })).config;
+    expect(saved).toEqual({ ...TUNNEL_DEFAULT, angleJoint: 'side-port', portFacing: 90, portX: 2200 });
+    expect(Object.keys(saved)).not.toContain('straights');
+    expect(tunnelLayout(saved, site).joints.filter(j => j.kind === 'turn').every(j => j.side !== null)).toBe(true);
+    // collars and mitres saved stay as they were
+    expect(parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends', straights: 'long' } })).config.angleJoint).toBe('mitred-ends');
+  });
+
+  it('offers only what side-port turns can make for the port’s facing, and any facing with collars', () => {
+    const facing = (config: TunnelConfig) => TUNNEL_CONTROLS.filter(c => c.key === 'portFacing' && (!c.when || c.when(config)));
+    const square = facing(TUNNEL_DEFAULT); expect(square).toHaveLength(1);
+    expect(square[0]?.range).toBeUndefined(); expect(square[0]?.options.map(o => o.value)).toEqual([-90, 0, 90]);
+    const collar = facing({ ...TUNNEL_DEFAULT, angleJoint: 'angle-collar' }); expect(collar).toHaveLength(1); expect(collar[0]?.range).toBeDefined();
+    // a facing saved at another angle stays saved, and is laid out at the nearest a side port makes
+    const saved = parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, portFacing: 37 } })).config;
+    expect(saved.portFacing).toBe(37);
+    expect(tunnelLayout(saved, site).facingMoved).toBeCloseTo(37, 9);
+  });
+
+  it('shows the enclosure’s own cat-port panel at the far end, seated, with removable panels', () => {
+    const scene = createTunnelScene('modular', TUNNEL_DEFAULT, site);
+    if (site.window.closure === 'removable-panel') {
+      expect(scene.enclosureClosure).not.toBeNull();
+      expect(scene.components.map(c => c.id)).toEqual(expect.arrayContaining(['enclosure-port-closure', 'enclosure-port-closure-mesh', 'enclosure-port-closure-hardware']));
+    } else expect(scene.enclosureClosure).toBeNull();
+    scene.dispose();
   });
 });

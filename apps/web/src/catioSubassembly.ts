@@ -79,6 +79,8 @@ export interface SubassemblyModel {
 }
 export interface CameraPreset { position: V3; target: V3 }
 
+/** A drawing to make a part by: its title, what it is for, an SVG document at 1:1, and the file name to save it as. */
+export interface SubassemblyDrawing { id: string; title: string; caption: string; svg: string; filename: string }
 export interface SubassemblyDefinition<C extends object> {
   id: CatioSubassembly;
   title: string;
@@ -125,20 +127,32 @@ export interface SubassemblyDefinition<C extends object> {
    * them from there when it loads and writes them back when they change here, so either page sets them.
    */
   shares?: Follow[];
+  /**
+   * The label of the toggle that opens the design's door (a cat port's panel or gate, a side-access panel), or null when this
+   * design has none. Checked, the scene shows the door open (`CatioState.door` runs from 0 to 1 as it opens); absent, no toggle.
+   */
+  doorToggle?: (variant: CatioMode, config: C) => string | null;
+  /** Drawings to make it by, shown beside the parts list with a download: an SVG document at 1:1 in millimetres. */
+  drawings?: (variant: CatioMode, config: C) => SubassemblyDrawing[];
   /** The views that open with the wall cut away; Interior and Mounting when absent. */
   cutawayViews?: CatioView[];
   /** Viewing defaults besides the shared ones, e.g. a toggle that starts off. */
   defaultViewing?: Partial<Pick<SubassemblyViewing, 'windowOpen' | 'cutaway' | 'view'>>;
 }
 
-export interface SubassemblyViewing { progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: CatioLayer[]; view: CatioView }
+export interface SubassemblyViewing {
+  progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: CatioLayer[]; view: CatioView;
+  /** The design's door shown open (`doorToggle`): closed in settings saved before there was one. */
+  doorOpen: boolean;
+}
 export interface SubassemblySettings<C> { version: 1; variant: CatioMode; config: C; views: Record<CatioMode, SubassemblyViewing> }
 
+/** (`savedBeforeClosure` in catioSettings.ts reads these keys too.) */
 export const subassemblyStorageKey = (id: CatioSubassembly) => `canfactory.catio.${id}.v1`;
 
 export function defaultSubassemblySettings<C extends object>(definition: SubassemblyDefinition<C>): SubassemblySettings<C> {
   const view = (variant: CatioMode): SubassemblyViewing => ({
-    progress: definition.steps(variant, definition.defaults).length - 1, exploded: false, windowOpen: true, cutaway: false, hidden: [], view: 'Exterior', ...definition.defaultViewing,
+    progress: definition.steps(variant, definition.defaults).length - 1, exploded: false, windowOpen: true, cutaway: false, hidden: [], view: 'Exterior', doorOpen: false, ...definition.defaultViewing,
   });
   return { version: 1, variant: definition.variants?.[0] ?? 'direct', config: structuredClone(definition.defaults), views: { direct: view('direct'), modular: view('modular') } };
 }
@@ -163,7 +177,7 @@ export function parseSubassemblySettings<C extends object>(definition: Subassemb
       const target = settings.views[variant];
       const last = definition.steps(variant, settings.config).length - 1;
       if (typeof saved['progress'] === 'number' && saved['progress'] >= 0 && saved['progress'] <= last) target.progress = saved['progress'];
-      for (const key of ['exploded', 'windowOpen', 'cutaway'] as const) if (typeof saved[key] === 'boolean') target[key] = saved[key];
+      for (const key of ['exploded', 'windowOpen', 'cutaway', 'doorOpen'] as const) if (typeof saved[key] === 'boolean') target[key] = saved[key];
       if (typeof saved['view'] === 'string' && VIEWS.includes(saved['view'] as CatioView)) target.view = saved['view'] as CatioView;
       if (Array.isArray(saved['hidden'])) target.hidden = saved['hidden'].filter((layer): layer is CatioLayer => LAYERS.includes(layer as CatioLayer));
     }
@@ -242,10 +256,22 @@ export function fastenerClashes<A extends { at: V3; direction: V3 }, B extends {
 /** Fasteners along a fixed edge: one at each end and none further apart than `pitch`. */
 export function fastenersAlong(length: number, pitch: number): number { return Math.max(2, Math.ceil(length / pitch) + 1); }
 
-/** A config from storage, checked against the controls: each known key keeps a value its control offers, or its default. */
-export function parseControlled<C extends object>(defaults: C, controls: SubassemblyControl<C>[], raw: unknown): C | null {
+/**
+ * What a config saved before a setting existed has for it: the design as it was then, not today's default, so that a saved design
+ * does not change when a new choice gets a new default. A config the page saved itself always holds `witness` (a setting the page
+ * has had from the start); one that holds it but lacks a setting of `values` was saved before that setting existed. A config
+ * without the witness is not a design of the page's (e.g. only the settings another page shares with it), and takes the defaults.
+ */
+export interface LegacySettings<C> { witness: keyof C & string; values: Partial<C> }
+
+/**
+ * A config from storage, checked against the controls: each known key keeps a value its control offers, or its default. A key the
+ * saved config lacks altogether takes its `legacy` value instead, when it has one.
+ */
+export function parseControlled<C extends object>(defaults: C, controls: SubassemblyControl<C>[], raw: unknown, legacy?: LegacySettings<C>): C | null {
   if (!record(raw)) return null;
   const config = structuredClone(defaults);
+  if (legacy && legacy.witness in raw) for (const [key, value] of Object.entries(legacy.values)) if (!(key in raw)) (config as Record<string, unknown>)[key] = value;
   for (const control of controls) {
     const value = raw[control.key];
     if (control.range ? inRange(control.range, value) : control.options.some(option => option.value === value)) (config as Record<string, unknown>)[control.key] = value;

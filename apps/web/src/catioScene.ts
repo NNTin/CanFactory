@@ -6,7 +6,11 @@ import { savedWindowInsert, windowFor, windowInsertLayout, type WindowInsertConf
 import { buildHungHardware } from './catioWindowInsertScene.ts';
 
 type V3 = [number, number, number];
-export interface CatioState { progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: ReadonlySet<CatioLayer> }
+export interface CatioState {
+  progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: ReadonlySet<CatioLayer>;
+  /** How far the page's door is on its way out (catioDoor.ts): 0 closed and retained, also when absent; 1 open, its panel set aside. */
+  door?: number;
+}
 export interface MeshPanel { id: string; width: number; height: number; center: V3; plane: 'xy' | 'xz' | 'yz' }
 
 /**

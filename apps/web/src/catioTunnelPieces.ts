@@ -2,6 +2,9 @@ import type { CatioMeshSpec } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { dimensionOf, findPart, type Part } from '@canfactory/contracts';
 import type { createCatioParts } from './catioParts.ts';
+import { doorDirection, doorPose, type DoorFrame, type DoorPanel } from './catioDoor.ts';
+import { buildDoorPanel, type DoorLayers } from './catioDoorScene.ts';
+import type { PortLatch } from './catioPort.ts';
 import { buildPrintedLatches } from './catioPrintedLatchScene.ts';
 import type { V3 } from './catioSubassembly.ts';
 import { facePoint, TUNNEL, vec, type Coupling, type Face, type Fastener, type Member, type MeshPanel, type Rect, type Support, type SupportBox, type TunnelLayout } from './catioTunnel.ts';
@@ -112,6 +115,52 @@ export function buildSectionPieces(p: ReturnType<typeof createCatioParts>, draw:
   return { members, cleats, panels, fasteners };
 }
 export type SectionPieces = ReturnType<typeof buildSectionPieces>;
+
+/**
+ * The doors of `pieces` (all when absent): every opening that is not coupled, each drawn by the shared door builder into the layers
+ * `into` gives for it, its stops, panel and turn buttons, shut. `roots` are its three groups, placed where it is installed, for a
+ * scene to move with its section; `set` opens it. A door held by the port's own latches has them drawn too, closed: the half on the
+ * door (its catches on the left of the face, its bases on the right, seen from outside) comes away with it; `set` lifts every lever
+ * first, then takes the door off.
+ */
+export function buildTunnelDoors(p: ReturnType<typeof createCatioParts>, layout: TunnelLayout, into: (piece: string) => DoorLayers, pieces?: string[]) {
+  return buildDoors(p, layout.doors.filter(d => !pieces || pieces.includes(d.piece)), into);
+}
+
+function buildDoors<D extends { piece: string; door: DoorPanel; frame: DoorFrame; latches?: PortLatch[] }>(p: ReturnType<typeof createCatioParts>, list: D[], into: (piece: string) => DoorLayers) {
+  // every door's latches built at once, from one set of the latch's meshes
+  const mounts = list.flatMap(d => d.latches ?? []);
+  const printed = mounts.length ? buildPrintedLatches(mounts) : null;
+  const built = list.map(access => {
+    const layers = into(access.piece);
+    const before = [layers.timber, layers.mesh, layers.hardware].map(g => g.children.length);
+    const door = buildDoorPanel(p, access.door, access.frame, layers);
+    const ids = new Set((access.latches ?? []).map(q => q.id));
+    const latches = printed?.latches.filter(q => ids.has(q.mount.id)) ?? []; const catches = printed?.catches.filter(q => ids.has(q.mount.id)) ?? [];
+    // the latches in one group with the door's other hardware: the port's half of each stays, the door's half (in `away`) comes off
+    // with it
+    const away = new THREE.Group();
+    if (ids.size) {
+      const fixed = new THREE.Group(); fixed.add(away); layers.hardware.add(fixed);
+      for (const q of latches) (q.mount.base === 'outside' ? away : fixed).add(q.group);
+      for (const q of catches) (q.mount.base === 'port' ? away : fixed).add(q.group);
+    }
+    // the door's own group in each layer: the last child it added there
+    const roots = [layers.timber, layers.mesh, layers.hardware].flatMap((g, i) => g.children.slice(before[i]));
+    const set = (travel: number) => {
+      door.set(travel);
+      if (!ids.size) return;
+      const q = doorPose(access.door, travel); const offset = doorDirection(access.frame, q.offset);
+      for (const latch of latches) latch.setOpen(q.turn);
+      away.position.set(...offset); away.visible = !q.gone;
+    };
+    set(0);
+    return { access, built: door, roots, set, dispose: () => {} };
+  });
+  // the shared meshes go with the first door
+  const first = built[0]; if (first && printed) first.dispose = () => printed.dispose();
+  return built;
+}
 export type { Member, MeshPanel };
 
 /**

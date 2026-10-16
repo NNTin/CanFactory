@@ -6,6 +6,7 @@ import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSub
 import { couplingDefinition } from './catioSubassemblies.ts';
 import { COUPLING, COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, PRINTED_LATCH, couplingBom, couplingFacts, couplingLayout, couplingSteps, validateCoupling, type CouplingConfig, type CouplingSite } from './catioCoupling.ts';
 import { createCouplingScene, LIFT, OPEN } from './catioCouplingScene.ts';
+import { latchHeights } from './catioPrintedLatch.ts';
 import { TUNNEL, TUNNEL_DEFAULT, tunnelBom, tunnelSite } from './catioTunnel.ts';
 import { INSERT, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT } from './catioWindowInsert.ts';
 import { fastenerClashes } from './catioSubassembly.ts';
@@ -136,15 +137,15 @@ describe('insert–tunnel coupling', () => {
       }
       expect(l.tolerance).toBe(w2 / 2);
     }
-    // the long type would hang its catch off the back of the frame where the insert is pressed into the recess: the joint is too
-    // shallow for it there (hung on the window frame, the default, it is 27.5 mm deeper)
+    // the long type's catch, even where the insert is pressed into the recess (the shallower joint), stays in front of the mesh now
+    // that the tunnel's end frame is 40 mm deep
     const long = findPart('ganter-gn-831-100-a-ni-1'); if (!long) throw new Error('long latch');
     const pressed = sites.find(s => s.site.insert.attachment === 'spreader-feet'); if (!pressed) throw new Error('pressed');
     const l = couplingLayout(COUPLING_DEFAULT, pressed);
-    expect(l.flangeFront - COUPLING.latchInset - dimensionOf(long, 'l1') - dimensionOf(long, 'w2') / 2).toBeLessThan(l.meshFace);
+    expect(l.flangeFront - COUPLING.latchInset - dimensionOf(long, 'l1') - dimensionOf(long, 'w2') / 2).toBeGreaterThan(l.meshFace);
   });
 
-  it('can close the joint with the printed toggle latch instead: base plate on the flange, catch plate on the frame, at its lock’s spacing', () => {
+  it('can close the joint with the printed toggle latch instead, at its lock’s spacing: the tunnel’s first flange a standard port, its base plates on its left, catch plates on its right', () => {
     for (const s of sites) for (const latchesPerSide of [1, 2] as const) {
       const l = couplingLayout({ ...COUPLING_DEFAULT, latch: 'printed', latchesPerSide }, s);
       expect(l.errors).toEqual([]);
@@ -158,9 +159,15 @@ describe('insert–tunnel coupling', () => {
       expect(l.latches).toHaveLength(2 * latchesPerSide);
       for (const q of l.latches) {
         const seam = q.printed?.seam ?? NaN;
-        expect(l.flangeBack - seam).toBeCloseTo(PRINTED_LATCH.overhang, 9);
-        expect(seam - PRINTED_LATCH.locked - l.front).toBeCloseTo(PRINTED_LATCH.overhang, 9);
-        expect(q.baseY).toBeLessThanOrEqual(l.flangeFront); expect(q.catchY).toBeGreaterThanOrEqual(l.meshFace);
+        // seen from outside (from the window), the flange's left is −X: there the base is on the flange, on the right on the frame
+        const onFlange = q.printed?.baseOn === 'flange';
+        expect(onFlange).toBe(q.side < 0);
+        if (onFlange) { expect(l.flangeBack - seam).toBeCloseTo(PRINTED_LATCH.overhang, 9); expect(seam - PRINTED_LATCH.locked - l.front).toBeCloseTo(PRINTED_LATCH.overhang, 9); }
+        else { expect(seam - l.front).toBeCloseTo(PRINTED_LATCH.overhang, 9); expect(l.flangeBack - (seam + PRINTED_LATCH.locked)).toBeCloseTo(PRINTED_LATCH.overhang, 9); }
+        expect(q.printed?.mount.pull).toEqual([0, onFlange ? 1 : -1, 0]);
+        // at the standard port's stations, up the opening's height
+        expect((q.z - l.floor) / l.h).toBeCloseTo(latchHeights(latchesPerSide)[Number(q.id.at(-1))] ?? NaN, 9);
+        expect(Math.min(q.baseY, q.catchY)).toBeGreaterThanOrEqual(l.meshFace - 1e-9); expect(Math.max(q.baseY, q.catchY)).toBeLessThanOrEqual(l.flangeFront + 1e-9);
         expect(q.z - PRINTED_LATCH.length / 2).toBeGreaterThanOrEqual(l.floor); expect(q.z + PRINTED_LATCH.length / 2).toBeLessThanOrEqual(l.transomZ + TUNNEL.flange.width);
       }
       // two screws through each plate, heads on the plate, into the flange or the frame at least 5 mm in from its edge
@@ -170,7 +177,8 @@ describe('insert–tunnel coupling', () => {
         const q = l.latches.find(latch => latch.id === f.of); if (!q) throw new Error(f.of);
         expect(f.partId).toBe('din-7997-4x25');
         expect(f.at[0]).toBeCloseTo(q.faceX + q.side * PRINTED_LATCH.plate, 9); expect(f.direction).toEqual([-q.side, 0, 0]);
-        const inside = f.component === 'latch-screws' ? f.at[1] - l.flangeBack : l.front - f.at[1];
+        const inFlange = (f.component === 'latch-screws') === (q.printed?.baseOn === 'flange');
+        const inside = inFlange ? f.at[1] - l.flangeBack : l.front - f.at[1];
         expect(inside, f.use).toBeGreaterThan(5);
         expect(Math.abs(Math.abs(f.at[2] - q.z) - 13.2)).toBeLessThan(0.05);
       }
@@ -214,7 +222,7 @@ describe('insert–tunnel coupling parts list', () => {
       expect(lines.find(line => line.id === 'frame-head')?.quantity).toBe(1);
       // hung on the window frame, the port frame lies 27.5 mm deeper and the docking frame is that much thicker
       const deeper = s.site.insert.attachment === 'frame-hooks' ? 27.5 : 0;
-      expect(lines.find(line => line.id === 'frame-stile')?.size).toMatch(new RegExp(`^${Math.round((config.latch === 'printed' ? 35 : 32) + deeper)} × 70 · 300 long`));
+      expect(lines.find(line => line.id === 'frame-stile')?.size).toMatch(new RegExp(`^${Math.round((config.latch === 'printed' ? 35 : 32) + deeper)} × 40 · 300 long`));
       expect(lines.some(line => line.id === 'floor-lip')).toBe(config.floorLip === 'rubber-lip');
       expect(lines.find(line => line.id === 'seal')?.size).toContain(`${Math.ceil(l.seal.length / 10) * 10} long`);
     }
@@ -247,7 +255,7 @@ describe('insert–tunnel coupling scene', () => {
       expect(context.map(part => part.group.position.toArray())).toEqual(positions);
       for (const part of scene.components) expect(part.group.visible, `${part.id} at ${progress}`).toBe(part.step <= progress);
     }
-    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['wall', 'window-insert', 'wall-support', 'docking-frame', 'frame-screws', 'seal', 'catches', 'catch-screws', 'first-section', 'first-section-mesh', 'latches', 'latch-screws', 'floor-lip', 'lip-screws']));
+    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['wall', 'window-insert', 'wall-support', 'docking-frame', 'frame-screws', 'seal', 'catches', 'frame-latch-screws', 'first-section', 'first-section-mesh', 'latches', 'flange-latch-screws', 'floor-lip', 'lip-screws']));
     scene.update({ ...installed, cutaway: true, hidden: new Set(['hardware']) });
     expect(scene.components.find(part => part.id === 'wall')?.group.visible).toBe(false);
     expect(scene.components.filter(part => part.layer === 'hardware').every(part => !part.group.visible)).toBe(true);
@@ -310,7 +318,7 @@ describe('insert–tunnel coupling scene', () => {
     const closed = Math.abs(tip().x - q.faceX);
     scene.update({ ...installed, windowOpen: true });
     expect(Math.abs(tip().x - q.faceX)).toBeGreaterThan(closed + 15);
-    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['catches', 'latches', 'catch-screws', 'latch-screws']));
+    expect(scene.components.map(part => part.id)).toEqual(expect.arrayContaining(['catches', 'latches', 'frame-latch-screws', 'flange-latch-screws']));
     scene.dispose();
   });
 
@@ -321,11 +329,11 @@ describe('insert–tunnel coupling scene', () => {
         const drive = new THREE.Vector3(...(motion.drive ?? [0, 0, 0]));
         expect(motion.approach.clone().normalize().dot(drive), motion.action).toBeCloseTo(-1, 6);
       }
-      // a catch before its screws, a latch body before its screws
-      for (const q of scene.layout.latches) for (const [piece, screws] of [['catch', 2], ['latch', 3]] as const) {
-        const body = scene.motions.find(m => m.role === piece && m.of === q.id);
-        const screw = scene.motions.find(m => m.role === 'screw' && m.of === q.id && m.stage === screws);
-        expect(body?.window[1]).toBeLessThanOrEqual(screw?.window[0] ?? 0);
+      // a catch before its screws, a latch body before its screws: on the frame in stage 2, on the flange in stage 3
+      for (const q of scene.layout.latches) for (const piece of ['catch', 'latch'] as const) {
+        const body = scene.motions.find(m => m.role === piece && m.of === q.id); if (!body) throw new Error(`${q.id} ${piece}`);
+        const screw = scene.motions.find(m => m.role === 'screw' && m.of === q.id && m.stage === body.stage);
+        expect(body.window[1], `${q.id} ${piece}`).toBeLessThanOrEqual(screw?.window[0] ?? 0);
       }
       const windows = new Map<string, string>();
       for (const motion of scene.motions) {

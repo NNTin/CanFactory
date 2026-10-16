@@ -1,18 +1,19 @@
 import type { CatioSubassembly } from './route.ts';
-import { loadSubassemblySettings, type Follow, type SubassemblyDefinition } from './catioSubassembly.ts';
+import { loadSubassemblySettings, type Follow, type SubassemblyDefinition, type SubassemblyDrawing } from './catioSubassembly.ts';
+import { portTemplateSvg } from './catioPort.ts';
 import { createWindowInsertScene } from './catioWindowInsertScene.ts';
 import { createTunnelScene } from './catioTunnelScene.ts';
 import { createCouplingScene } from './catioCouplingScene.ts';
 import { createTunnelCouplingScene } from './catioTunnelCouplingScene.ts';
 import {
-  parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, TUNNEL_SETTINGS_FOLLOWED, TUNNEL_SETTINGS_SHARED, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingSteps,
+  parseTunnelCoupling, tunnelCouplingLayout, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, TUNNEL_SETTINGS_FOLLOWED, TUNNEL_SETTINGS_SHARED, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingSteps,
   tunnelCouplingViews, validateTunnelCoupling, type TunnelCouplingConfig,
 } from './catioTunnelCoupling.ts';
 import {
   COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, couplingBom, couplingFacts, couplingSteps, couplingViews, parseCoupling, validateCoupling, type CouplingConfig,
 } from './catioCoupling.ts';
 import {
-  parseTunnel, TUNNEL_CONTROLS, TUNNEL_PRESETS, TUNNEL_DECISIONS, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelSteps, tunnelViews, validateTunnel, type TunnelConfig,
+  parseTunnel, TUNNEL_CONTROLS, TUNNEL_PRESETS, TUNNEL_DECISIONS, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSite, tunnelSteps, tunnelViews, validateTunnel, type TunnelConfig,
 } from './catioTunnel.ts';
 import {
   parseWindowInsert, validateWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DECISIONS, WINDOW_INSERT_DEFAULT, windowInsertBom, windowInsertFacts,
@@ -23,6 +24,8 @@ export const windowInsertDefinition: SubassemblyDefinition<WindowInsertConfig> =
   id: 'window-insert', title: 'Window insert', eyebrow: 'CATIO SUB-ASSEMBLY · WINDOW INSERT',
   heading: 'Held by the window, not fixed to it.', briefLabel: 'THE INSERT', assemblyHeading: 'From the bench to the window.',
   summary: 'The removable timber collar that sits in the exterior recess: its pieces, the joints between them, how the mesh is held, and the padded clamps that grip the recess, or the screen hooks that hang it on the window frame, without a single hole in the wall or the window.',
+  // with tunnel, the cat port is shut by what the catio concept page sets for every cat port, and the page can open it
+  doorToggle: variant => variant === 'modular' ? 'Cat port open' : null,
   defaults: WINDOW_INSERT_DEFAULT, controls: WINDOW_INSERT_CONTROLS, parse: parseWindowInsert,
   validate: (variant, config) => validateWindowInsert(variant, config),
   steps: windowInsertSteps, build: createWindowInsertScene, bom: (variant, config) => windowInsertBom(variant, config),
@@ -31,18 +34,20 @@ export const windowInsertDefinition: SubassemblyDefinition<WindowInsertConfig> =
 
 export const tunnelDefinition: SubassemblyDefinition<TunnelConfig> = {
   id: 'tunnel', title: 'Tunnel', eyebrow: 'CATIO SUB-ASSEMBLY · TUNNEL',
-  heading: 'Any angle, any height, on any ground.',
-  summary: 'The enclosed walkway from the window insert’s cat port to the enclosure’s: solved between the two ports, turning and climbing at any angle through parametrised angle joints, on supports whose levelling feet take up ground that is not level.',
+  heading: 'Standard elements, any height, on any ground.',
+  summary: 'The enclosed walkway from the window insert’s cat port to the enclosure’s, built of standard elements: every piece ends in the same port, so any one couples to any other. It turns at cubes (or angle collars) and climbs on sloped sections, on supports whose levelling feet take up ground that is not level.',
   variants: ['modular'], briefLabel: 'THE TUNNEL', assemblyHeading: 'From the slabs to the enclosure.', stageScale: 20,
   // the window port's floor, which the tunnel starts from, follows the insert's clamp gap; every section and collar coupling is the
   // tunnel–tunnel coupling page's (latched across a gap, or bolted)
-  follows: [{ page: 'window-insert', settings: WINDOW_FLOOR_SETTINGS }, { page: 'tunnel-tunnel-coupling', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal'] }],
+  follows: [{ page: 'window-insert', settings: WINDOW_FLOOR_SETTINGS }, { page: 'tunnel-tunnel-coupling', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal', 'doorFixing'] }],
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the climb', Top: 'Top · the turns', Mounting: 'Support detail' },
   toggles: { cutaway: 'Wall cutaway' }, layerLabels: { hardware: 'Bolts, feet & fixings', environment: 'Ground, wall & slabs' },
+  // the doors of every opening that is not coupled: the end bays' sides (the side access), and a section's start at a turn
+  doorToggle: (_variant, config) => tunnelLayout(config).doors.length > 0 ? 'Doors open' : null,
   defaults: TUNNEL_DEFAULT, presets: TUNNEL_PRESETS, controls: TUNNEL_CONTROLS, parse: parseTunnel,
   validate: (variant, config) => validateTunnel(variant, config),
   steps: tunnelSteps, build: createTunnelScene, bom: (variant, config) => tunnelBom(variant, config),
-  views: tunnelViews, facts: tunnelFacts, decisions: TUNNEL_DECISIONS,
+  views: tunnelViews, facts: tunnelFacts, decisions: TUNNEL_DECISIONS, drawings: () => [portTemplateDrawing(tunnelSite().w)],
 };
 
 export const couplingDefinition: SubassemblyDefinition<CouplingConfig> = {
@@ -56,6 +61,8 @@ export const couplingDefinition: SubassemblyDefinition<CouplingConfig> = {
   cutawayViews: ['Interior', 'Side', 'Top', 'Mounting'],
   viewLabels: { Side: 'Side · the joint', Mounting: 'Latch detail' },
   toggles: { windowOpen: 'Released · latches open', cutaway: 'Wall cutaway' }, defaultViewing: { windowOpen: false },
+  // docked and latched, the window's cat port can be opened from the room
+  doorToggle: () => 'Cat port open',
   layerLabels: { hardware: 'Latches, seal & screws', environment: 'Wall & grass' },
   defaults: COUPLING_DEFAULT, controls: COUPLING_CONTROLS, parse: parseCoupling,
   validate: (variant, config) => validateCoupling(variant, config),
@@ -74,12 +81,13 @@ export const tunnelCouplingDefinition: SubassemblyDefinition<TunnelCouplingConfi
   shares: [{ page: 'tunnel', settings: TUNNEL_SETTINGS_SHARED }],
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the joint', Mounting: 'Latch detail' },
   toggles: { windowOpen: 'Released · latches open' }, defaultViewing: { windowOpen: false },
+  doorToggle: (_variant, config) => { const l = tunnelCouplingLayout(config); return l.tl.doors.some(d => l.pieces.includes(d.piece)) ? 'Doors open' : null; },
   layerLabels: { hardware: 'Latches, bolts, feet & screws', environment: 'Grass & slabs' },
   defaults: TUNNEL_COUPLING_DEFAULT, controls: TUNNEL_COUPLING_CONTROLS, parse: parseTunnelCoupling,
   validate: (variant, config) => validateTunnelCoupling(variant, config),
   steps: (variant, config) => tunnelCouplingSteps(variant, config), build: (variant, config) => createTunnelCouplingScene(variant, config),
   bom: (variant, config) => tunnelCouplingBom(variant, config),
-  views: tunnelCouplingViews, facts: (variant, config) => tunnelCouplingFacts(variant, config), decisions: TUNNEL_COUPLING_DECISIONS,
+  views: tunnelCouplingViews, facts: (variant, config) => tunnelCouplingFacts(variant, config), decisions: TUNNEL_COUPLING_DECISIONS, drawings: () => [portTemplateDrawing(tunnelSite().w)],
 };
 
 /** Every sub-assembly page, for links and breadcrumbs. The enclosure is next; `CatioSubassemblyRoute` picks the definition. */
@@ -112,4 +120,10 @@ export function dependentsOf(id: CatioSubassembly): Follow[] {
     const settings = [...e.follows, ...e.shares].filter(f => f.page === id).flatMap(f => f.settings);
     return settings.length || e.follows.some(f => f.page === id) ? [{ page: e.id, settings: [...new Set(settings)] }] : [];
   });
+}
+
+/** The standard port's marking template (catioPort.ts `portTemplate`), for the pages whose elements end in it. */
+export function portTemplateDrawing(s: number): SubassemblyDrawing {
+  return { id: 'port-template', title: 'Standard port marking template', filename: `port-template-${s}.svg`, svg: portTemplateSvg(s),
+    caption: `1:1, in millimetres: cut it from 6 mm plywood and mark and pre-drill every ring from it, face out (the bolt holes, and the latch stations at the notches). Every port is then the same, and any one fits any other at any quarter turn.` };
 }

@@ -4,9 +4,10 @@ import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
 import type { CatioMode } from './catioSettings.ts';
 import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
+import { doorAction } from './catioDoor.ts';
 import { groundAt, TUNNEL, vec } from './catioTunnel.ts';
 import { ENTRY, tunnelCouplingLayout, tunnelCouplingSite, type TunnelCouplingConfig, type TunnelCouplingLayout, type TunnelCouplingSite } from './catioTunnelCoupling.ts';
-import { buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
+import { buildTunnelDoors, buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
 import { memberApproach } from './catioTunnelScene.ts';
 
 /** Stage 1 frames the first section this far above its place, then lays it on the support. */
@@ -18,11 +19,14 @@ const CLOSING = TL.TOGGLE_LATCH_MOVEMENTS.slice(0, 3);
 
 export interface PieceMotion {
   object: THREE.Object3D; stage: number; window: [number, number]; approach: THREE.Vector3; axis?: THREE.Vector3; turns?: number; action: string;
-  role?: 'timber' | 'mesh' | 'screw' | 'staple' | 'seal' | 'latch' | 'catch' | 'bolt' | 'nut' | 'section' | 'fitting';
+  role?: 'timber' | 'mesh' | 'screw' | 'staple' | 'seal' | 'latch' | 'catch' | 'bolt' | 'nut' | 'section' | 'fitting' | 'access';
   of?: string; drive?: V3;
   /** Built raised over its place with the first section, and laid with it at the end of stage 1. */
   lifted?: boolean;
 }
+
+/** The stage at which the joint is done (`tunnelCouplingSteps`): from then on the page's door toggle opens a side-access panel. */
+const LAST_STAGE = 5;
 
 /**
  * The coupling on its own: one of the tunnel's supports on the grass; the first section framed raised over it and laid; its joint
@@ -31,7 +35,7 @@ export interface PieceMotion {
  * Every piece is drawn by the tunnel's own builders (catioTunnelPieces.ts), so it is the tunnel page's joint.
  */
 export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCouplingConfig, site: TunnelCouplingSite = tunnelCouplingSite()): SubassemblyModel & {
-  layout: TunnelCouplingLayout; motions: PieceMotion[]; levers: ReturnType<typeof buildCouplingJoint>['latches']; hold: ReturnType<typeof buildSupportHold>; lift: () => number; entry: () => number;
+  layout: TunnelCouplingLayout; motions: PieceMotion[]; levers: ReturnType<typeof buildCouplingJoint>['latches']; hold: ReturnType<typeof buildSupportHold>; lift: () => number; entry: () => number; doors: ReturnType<typeof buildTunnelDoors>;
 } {
   const layout = tunnelCouplingLayout(config, site);
   const { tl, coupling, support, before, after } = layout;
@@ -78,20 +82,29 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
   // second, built the same and whole, comes in along the tunnel from beyond the first.
   const sections = buildSectionPieces(p, draw, tl, layout.pieces);
   const entry = ENTRY(layout);
-  const entering = `The second section, identical (${Math.round(after.length)} mm): in along the tunnel’s axis onto the same bearer, ${layout.gap ? `stopping ${layout.gap} mm short of the first` : 'flange to flange against the first'}`;
+  const entering = `The second ${layout.second}${layout.first === layout.second ? ', identical' : ''} (${Math.round(after.length)} mm): in along the tunnel’s axis onto the same bearer, ${layout.gap ? `stopping ${layout.gap} mm short of the first` : 'flange to flange against the first'}`;
   const rails = sections.members.filter(q => q.member.piece === before.id && q.member.kind === 'rail').length;
   const firstWindows = { flange: [0, 0.12], rail: [0.12, 0.24], 'rail-screws': [0.24, 0.32], floor: [0.32, 0.4], 'floor-screws': [0.4, 0.46], mesh: [0.46, 0.6], staples: [0.6, 0.72] } as const;
   for (const { member, group: g } of sections.members) {
     if (member.piece === after.id) { group('second-section', 3, 'timber').add(g); move(g, 3, [0, 0.8], entry, entering, { role: 'section', of: member.id }); continue; }
     group('first-section', 1, 'timber').add(g);
-    const caption = member.kind === 'flange' ? '2 × Flange ring: stood at each end of the section' : member.kind === 'rail' ? `${rails} × Rail: offered between the flanges from the side` : 'Floor board: laid onto the bottom rails';
-    move(g, 1, [...firstWindows[member.kind]], memberApproach(member, before), caption, { role: 'timber', of: member.id, lifted: true });
+    const caption = member.kind === 'flange' ? '2 × End frame: stood at each end of the section' : member.kind === 'rail' ? `${rails} × Rail: offered between the frames from the side` : member.kind === 'post' ? '2 × Bay post: stood one opening on from the start frame' : 'Floor board: laid into the bottom rails’ rebates';
+    move(g, 1, [...firstWindows[member.kind === 'post' ? 'rail' : member.kind]], memberApproach(member, before), caption, { role: 'timber', of: member.id, lifted: true });
   }
   for (const { panel, group: g } of sections.panels) {
     if (panel.piece === after.id) { group('second-section-mesh', 3, 'mesh').add(g); move(g, 3, [0, 0.8], entry, entering, { role: 'section', of: panel.id }); continue; }
     group('first-section-mesh', 1, 'mesh').add(g);
     const out = panel.id.endsWith('roof') ? vec.mul(before.frame.z, 240) : vec.mul(before.frame.x, panel.id.endsWith('left') ? -240 : 240);
     move(g, 1, [...firstWindows.mesh], out, '3 × Mesh panel: offered up to the rails', { role: 'mesh', of: panel.id, lifted: true });
+  }
+  // the two sections' doors (their end bays' sides, and the second's start at a turn): they come with their sections
+  const doors = buildTunnelDoors(p, tl, piece => {
+    const [name, step] = piece === after.id ? ['second-section', 3] as const : ['first-section', 1] as const;
+    return { timber: group(`${name}-doors`, step, 'timber'), mesh: group(`${name}-door-mesh`, step, 'mesh'), hardware: group(`${name}-door-hardware`, step, 'hardware') };
+  }, layout.pieces);
+  for (const { access, roots } of doors) for (const root of roots) {
+    if (access.piece === after.id) move(root, 3, [0, 0.8], entry, entering, { role: 'section' });
+    else move(root, 1, [0.72, 0.76], vec.mul(access.frame.n, 260), `Door: ${tl.joint.doorFixing === 'latches' ? 'latched onto its opening' : 'set into its opening, every turn button turned over it'}`, { role: 'access', lifted: true });
   }
   const count = (component: string) => sections.fasteners.filter(q => q.fastener.component === component && q.fastener.piece === before.id).length;
   for (const { fastener: f, group: g, part } of sections.fasteners) {
@@ -112,19 +125,31 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     group('seal', 2, 'hardware').add(jointPieces.seal);
     move(jointPieces.seal, 2, [0, 0.3], vec.mul(coupling.face.n, 160), 'E-profile seal: stuck round the middle of the outgoing flange’s face', { role: 'seal' });
   }
+  // Seen from outside, every port has its latches' base plates on its left side and its catch plates on its right: so the outgoing
+  // flange takes the base plates on one side of the joint and the catch plates on the other, and the second section the rest.
   const n = jointPieces.latches.length;
-  for (const latch of jointPieces.latches) {
+  const onFirst = (base: 'port' | 'outside', part: 'base' | 'catch') => (base === 'outside') === (part === 'base');
+  const mountOf = (id: string | undefined) => coupling.latches.find(q => q.id === id);
+  for (const latch of jointPieces.latches.filter(q => onFirst(q.mount.base, 'base'))) {
     group('latches', 2, 'hardware').add(latch.group);
-    move(latch.group, 2, [0.3, 0.6], vec.mul(latch.mount.out, 160), `${n} × Printed toggle latch: base plate, lever and link on it, onto the outgoing flange’s outer side`, { role: 'latch', of: latch.mount.id });
+    move(latch.group, 2, [0.3, 0.6], vec.mul(latch.mount.out, 160), `${n / 2} × Printed toggle latch: base plate, lever and link on it, onto the outgoing flange’s right side`, { role: 'latch', of: latch.mount.id });
   }
-  for (const { mount, group: g } of jointPieces.catches) {
+  for (const { mount, group: g } of jointPieces.catches.filter(q => onFirst(q.mount.base, 'catch'))) {
+    group('latches', 2, 'hardware').add(g);
+    move(g, 2, [0.3, 0.6], vec.mul(mount.out, 160), `${n / 2} × Catch plate of the printed latch: onto the outgoing flange’s left side`, { role: 'latch', of: mount.id });
+  }
+  for (const latch of jointPieces.latches.filter(q => !onFirst(q.mount.base, 'base'))) {
+    group('second-section-fixings', 3, 'hardware').add(latch.group); move(latch.group, 3, [0, 0.8], entry, entering, { role: 'section', of: latch.mount.id });
+  }
+  for (const { mount, group: g } of jointPieces.catches.filter(q => !onFirst(q.mount.base, 'catch'))) {
     group('second-section-fixings', 3, 'hardware').add(g); move(g, 3, [0, 0.8], entry, entering, { role: 'section', of: mount.id });
   }
   for (const { fastener: f, group: g } of jointPieces.screws) {
-    if (f.component === 'catch-screws') { group('second-section-fixings', 3, 'hardware').add(g); move(g, 3, [0, 0.8], entry, entering, { role: 'section', ...(f.of ? { of: f.of } : {}) }); continue; }
+    const mount = mountOf(f.of);
+    if (!mount || !onFirst(mount.base, f.component === 'latch-screws' ? 'base' : 'catch')) { group('second-section-fixings', 3, 'hardware').add(g); move(g, 3, [0, 0.8], entry, entering, { role: 'section', ...(f.of ? { of: f.of } : {}) }); continue; }
     group('latch-screws', 2, 'hardware').add(g);
     const { approach, ...meta } = screwMotion(f, 25);
-    move(g, 2, [0.6, 1], approach, `${2 * n} × Countersunk wood screw 4 × 25: the base plates onto the flange’s sides`, { ...meta, ...(f.of ? { of: f.of } : {}) });
+    move(g, 2, [0.6, 1], approach, `${2 * n} × Countersunk wood screw 4 × 25: the latch plates onto the flange’s sides`, { ...meta, ...(f.of ? { of: f.of } : {}) });
   }
   const bolts = jointPieces.bolts.length;
   for (const { id, bolt, group: g, nut } of jointPieces.bolts) {
@@ -204,6 +229,10 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     for (const b of hold.buttons) b.setTurn(state.windowOpen ? 1 : 1 - turning);
     if (!latchAction && hold.buttons.length && turning > 0 && turning < 1) latchAction = `${hold.buttons.length} × Turn button: turned flat over the keeper on the flange`;
     if (!latchAction && clearance && state.progress > 2.8 && state.progress < 3) latchAction = 'Setting the second section down over its dowels';
+    // the page's door toggle opens a side-access panel beside the joint, once both sections are coupled
+    const travel = state.progress >= LAST_STAGE && !state.exploded ? state.door ?? 0 : 0;
+    for (const a of doors) a.set(travel);
+    const opening = doors[0] ? doorAction(doors[0].access.door, travel, 'door') : null; if (opening) active.add(opening);
     let action: string | null = active.size > 0 ? [...active].join('; ') : latchAction;
     if (!action && !state.exploded && state.progress > 0.76 && state.progress < 1) action = 'Laying the first section on the support, its outgoing flange over the bearer';
     currentAction = action;
@@ -211,9 +240,9 @@ export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCou
     focus = state.progress > 2 && state.progress < 3 && !state.exploded ? vec.mul(coupling.face.n, 0.5 * L) : [0, 0, 0];
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); draw.dispose(); jointPieces.dispose(); for (const g of geometries) g.dispose(); }
+  function dispose() { p.dispose(); draw.dispose(); jointPieces.dispose(); for (const d of doors) d.dispose(); for (const g of geometries) g.dispose(); }
   return {
-    root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers: jointPieces.latches, hold,
+    root: p.root, hinge, components: p.components, update, dispose, layout, motions, levers: jointPieces.latches, hold, doors,
     lift: () => currentLift, entry: () => currentEntry, caption: () => currentAction, focusOffset: () => focus,
   };
 }
