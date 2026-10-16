@@ -46,7 +46,7 @@ viewer loads every part and arranges them on an auto-sized grid instead of one c
 independently be one closed, connected solid — `inspectStl` rejects multi-body meshes, so parts are never merged into
 a single STL before validation. `referencePath` is optional: omit it (as moss-planter does) when there is no small,
 permanent original file to preserve — do not point it at a large STL that will not stay in the repository, since
-`Store.seed()` reads it at every startup.
+the release job's seed (`PostgresStorage.seed()`) uploads it on every release.
 
 **Parameters are model-wide, mappings are per part.** The model has one `parameterSchema`/`controls`/`defaults` (and an
 empty model-level `scadMapping`); each part's own `scadMapping` names the parameter keys it consumes and the SCAD

@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
 import { cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
-import { inspectStl, repositoryRoot, Store } from '@canfactory/server';
+import { inspectStl, ObjectStorage, PostgresStorage, repositoryRoot, type RenderJob } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
 import { selectRunner } from './renderers.ts';
+import { startStorageServices } from './storage-services.ts';
 import jsQR from 'jsqr';
 import { parseStl, type Mesh } from './stl-to-scad/stl.ts';
 
@@ -79,9 +80,11 @@ function housingSolid(mesh: Mesh, p: [number, number, number]): boolean {
 }
 const WIDE_BAR = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg"><rect width="80" height="20" rx="5"/></svg>');
 const directory = await mkdtemp(join(tmpdir(), 'canfactory-render-test-'));
-const store = new Store(directory, repositoryRoot);
-store.migrate(); store.seed();
+const services = await startStorageServices('canfactory-renderer');
+const store = new PostgresStorage(services.databaseUrl, repositoryRoot, directory, new ObjectStorage(services.objects));
+await store.migrate(); await store.seed();
 const app = await createApp(store);
+const artifactBytes = async (job: RenderJob) => Buffer.concat(await (await store.readArtifact(job)).toArray() as Buffer[]);
 /** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = selectRunner(directory);
@@ -103,21 +106,21 @@ try {
   for (const testCase of only && only !== 'fruit-fly-trap' ? [] : cases) {
     const parameters = { ...fruitFlyTrap.defaults, ...testCase.overrides };
     assert.deepEqual(validateParameters(fruitFlyTrap, parameters), []);
-    const queued = store.enqueue(fruitFlyTrap, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(fruitFlyTrap, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     const started = Date.now();
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded'); assert.ok(result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded'); assert.ok(result.artifact);
     if (!('dimensions' in result.artifact)) throw new Error('Expected a single-STL artifact for fruit-fly-trap.');
     const actual = result.artifact.dimensions;
     for (const [index, value] of [actual.x, actual.y, actual.z].entries()) {
       const expected = testCase.dimensions[index]; assert.ok(expected !== undefined);
       assert.ok(Math.abs(value - expected) < 0.001, `${testCase.name}: ${value} != ${expected}`);
     }
-    const bytes = await readFile(store.artifacts.path(job.id));
+    const bytes = await artifactBytes(job);
     assert.equal(inspectStl(bytes).sha256, result.artifact.sha256);
     if (testCase.name === 'default slots') defaultTriangles = result.artifact.triangles;
     if (testCase.name === 'smooth narrow opening') assert.ok(result.artifact.triangles < defaultTriangles / 4);
@@ -126,7 +129,7 @@ try {
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
     assert.match(String(download.headers['content-disposition']), /attachment/);
-    assert.equal(store.enqueue(fruitFlyTrap, parameters).id, job.id);
+    assert.equal((await store.enqueue(fruitFlyTrap, parameters)).id, job.id);
     console.log(`PASS ${testCase.name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 
@@ -143,13 +146,13 @@ try {
     const started = Date.now();
     const parameters = { ...mossPlanter.defaults, ...testCase.overrides };
     assert.deepEqual(validateParameters(mossPlanter, parameters), [], testCase.name);
-    const queued = store.enqueue(mossPlanter, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(mossPlanter, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, testCase.name); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', testCase.name); assert.ok(result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', testCase.name); assert.ok(result.artifact);
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for moss planter.');
     assert.equal(result.artifact.parts.length, mossPlanter.parts.length);
     for (const part of result.artifact.parts) assert.ok(part.volume > 0, `${testCase.name} ${part.id}: expected positive volume`);
@@ -165,7 +168,7 @@ try {
     near(dimensions['planting-helper']?.x, 85 * scale, 0.02, 'helper base');
     near(dimensions['ground-spike']?.z, Math.max(Number(parameters['spikeLength']), 50.02 * scale), 0.02, 'spike length');
     for (const [id, height] of Object.entries(testCase.heights)) near(dimensions[id]?.z, height, 0.1, `${id} height`);
-    const bytes = await readFile(store.artifacts.path(job.id, 'zip'));
+    const bytes = await artifactBytes(job);
     const entries = unzipSync(new Uint8Array(bytes));
     assert.deepEqual(Object.keys(entries).sort(), mossPlanter.parts.map(part => `${part.id}.stl`).sort());
     for (const [name, entryBytes] of Object.entries(entries)) {
@@ -177,7 +180,7 @@ try {
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.equal(preview.headers['content-type'], 'application/zip'); assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
     assert.match(String(download.headers['content-disposition']), /attachment/);
-    assert.equal(store.enqueue(mossPlanter, parameters).id, job.id);
+    assert.equal((await store.enqueue(mossPlanter, parameters)).id, job.id);
     console.log(`PASS moss planter ${testCase.name}: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 
@@ -218,13 +221,13 @@ try {
   for (const { name, parameters } of only && only !== 'cigarette-case' ? [] : caseRuns) {
     const started = Date.now();
     assert.deepEqual(validateParameters(cigaretteCase, parameters), []);
-    const queued = store.enqueue(cigaretteCase, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(cigaretteCase, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `cigarette case ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `cigarette case ${name}`); assert.ok(result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `cigarette case ${name}`); assert.ok(result.artifact);
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for the cigarette case.');
     const wanted = activeParts(cigaretteCase, parameters);
     assert.deepEqual(result.artifact.parts.map(part => part.id), wanted.map(part => part.id), `cigarette case ${name}: parts`);
@@ -257,7 +260,7 @@ try {
       for (const [axis, want] of [['x', size[0]], ['y', size[1]], ['z', size[2]]] as const)
         assert.ok(Math.abs(part.dimensions[axis] - want) <= 0.1, `cigarette case ${name} ${part.id} ${axis}: ${part.dimensions[axis]} != ${want}`);
     }
-    const bytes = await readFile(store.artifacts.path(job.id, 'zip'));
+    const bytes = await artifactBytes(job);
     const entries = unzipSync(new Uint8Array(bytes));
     assert.deepEqual(Object.keys(entries).sort(), wanted.map(part => `${part.id}.stl`).sort());
     // reference objects (the lighter) are shown in the preview only, never printed
@@ -265,7 +268,7 @@ try {
     for (const [entryName, entryBytes] of Object.entries(entries)) {
       assert.ok(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength), { allowDisconnected: entryName === 'case-text.stl' }).sha256, `cigarette case ${name} ${entryName}: expected a valid individual STL`);
     }
-    assert.equal(store.enqueue(cigaretteCase, parameters).id, job.id);
+    assert.equal((await store.enqueue(cigaretteCase, parameters)).id, job.id);
     console.log(`PASS cigarette case ${name}: ${result.artifact.parts.length} parts, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 
@@ -286,13 +289,13 @@ try {
     const started = Date.now();
     const parameters = { ...plankConnector.defaults, ...overrides };
     assert.deepEqual(validateParameters(plankConnector, parameters), [], name);
-    const queued = store.enqueue(plankConnector, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(plankConnector, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `plank connector ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `plank connector ${name}`); assert.ok(result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `plank connector ${name}`); assert.ok(result.artifact);
     if (!('dimensions' in result.artifact)) throw new Error('Expected a single-STL artifact for the plank connector.');
     const [w, t, d, wall, stop] = [parameters['pocketWidth'], parameters['pocketThickness'], parameters['insertionDepth'], parameters['wallThickness'], parameters['stopThickness']].map(Number) as [number, number, number, number, number];
     const want = { x: w + 2 * wall, y: t + 2 * wall, z: 2 * d + stop };
@@ -309,9 +312,9 @@ try {
       assert.ok(volume < previousHoleVolume, `plank connector ${name}: holes must grow with the screw`);
       previousHoleVolume = volume;
     }
-    const bytes = await readFile(store.artifacts.path(job.id));
+    const bytes = await artifactBytes(job);
     assert.equal(inspectStl(bytes).sha256, result.artifact.sha256);
-    assert.equal(store.enqueue(plankConnector, parameters).id, job.id);
+    assert.equal((await store.enqueue(plankConnector, parameters)).id, job.id);
     console.log(`PASS plank connector ${name}: ${result.artifact.triangles} triangles, ${volume.toFixed(0)} mm³, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
 
@@ -333,13 +336,13 @@ try {
     const started = Date.now();
     const parameters = { ...pressurePad.defaults, ...overrides };
     assert.deepEqual(validateParameters(pressurePad, parameters), [], name);
-    const queued = store.enqueue(pressurePad, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(pressurePad, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `pressure pad ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `pressure pad ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `pressure pad ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
     const [diameter, height, extenders, length] = [parameters['diameter'], parameters['height'], parameters['extenders'], parameters['extenderLength']].map(Number) as [number, number, number, number];
     assert.deepEqual(result.artifact.parts.map(part => part.id), ['pad', ...Array.from({ length: extenders }, (_, i) => `extender-${i + 1}`)], `pressure pad ${name}`);
     for (const part of result.artifact.parts) {
@@ -371,13 +374,13 @@ try {
     const started = Date.now();
     const parameters = { ...windowCatGuard.defaults, ...overrides };
     assert.deepEqual(validateParameters(windowCatGuard, parameters), [], name);
-    const queued = store.enqueue(windowCatGuard, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(windowCatGuard, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `window cat guard ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `window cat guard ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `window cat guard ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
     const p = parameters as unknown as WindowCatGuardParameters;
     const layout = windowCatGuardLayout(p);
     const segments = (kind: string, count: number) => Array.from({ length: count }, (_, i) => `${kind}-${i + 1}`);
@@ -442,13 +445,13 @@ try {
     // logoSize 0 stands for the largest the code allows
     if (parameters['logoSize'] === 0) parameters['logoSize'] = Math.min(40, maxLogoSize(qrTagCode({ ...parameters, logo: '' } as never).symbol.size, parameters['errorCorrection'] as 'Q'));
     assert.deepEqual(validateParameters(qrMagnetTag, parameters), [], `QR tag ${name}`);
-    const queued = store.enqueue(qrMagnetTag, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(qrMagnetTag, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `QR tag ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `QR tag ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `QR tag ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
     assert.deepEqual(result.artifact.parts.map(part => part.id), ['border', 'centre']);
     const p = parameters as unknown as QrMagnetTagParameters;
     const layout = qrTagLayout(qrTagSettings(parameters));
@@ -462,7 +465,7 @@ try {
     near(centre?.dimensions.x, p.joint === 'twist-lock' ? 2 * Math.max(r, lugX) : across, 'centre width');
     near(centre?.dimensions.y, p.joint === 'twist-lock' ? layout.centreWidth + QR_TAG.lugDepth : across, 'centre depth');
     // the centre seen from above: whatever stands above the middle of the relief is dark
-    const entries = unzipSync(new Uint8Array(await readFile(store.artifacts.path(job.id, 'zip'))));
+    const entries = unzipSync(new Uint8Array(await artifactBytes(job)));
     // embedded magnets: the border is one outer shell with a sealed cavity per magnet inside it (the worker checked they face inwards)
     const borderStl = entries['border.stl']; assert.ok(borderStl, 'border.stl');
     const cavities = layout.embedded ? layout.backPockets.length + layout.jointPockets.length : 0;
@@ -515,13 +518,13 @@ try {
     const started = Date.now();
     const parameters = { ...catCollarTag.defaults, ...overrides };
     assert.deepEqual(validateParameters(catCollarTag, parameters), [], `cat collar tag ${name}`);
-    const queued = store.enqueue(catCollarTag, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(catCollarTag, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `cat collar tag ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `cat collar tag ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `cat collar tag ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
     const layout = collarTagLayout(catCollarTagSettings(parameters));
     const carrierId = parameters['attachment'] === 'clip' || parameters['attachment'] === 'sleeve' ? parameters['attachment'] : null;
     assert.deepEqual(result.artifact.parts.map(part => part.id), carrierId ? ['tag', carrierId] : ['tag']);
@@ -536,7 +539,7 @@ try {
       near(carrier?.dimensions.y, layout.carrier.bounds.y, `${carrierId} height`);
       near(carrier?.dimensions.z, layout.carrier.bounds.z, `${carrierId} length`);
     }
-    const entries = unzipSync(new Uint8Array(await readFile(store.artifacts.path(job.id, 'zip'))));
+    const entries = unzipSync(new Uint8Array(await artifactBytes(job)));
     const stl = entries['tag.stl']; assert.ok(stl, 'tag.stl');
     const cavities = layout.embedded === 'nfc' ? 1 : layout.embedded === 'magnet' ? layout.magnets.length : 0;
     assert.equal(shells(parseStl(Buffer.from(stl.buffer, stl.byteOffset, stl.byteLength))), 1 + cavities, `cat collar tag ${name}: the tag's shells`);
@@ -642,13 +645,13 @@ try {
     const started = Date.now();
     const parameters = { ...litterShovel.defaults, ...overrides } as LitterShovelParameters;
     assert.deepEqual(validateParameters(litterShovel, parameters), [], name);
-    const queued = store.enqueue(litterShovel, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(litterShovel, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `litter shovel ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `litter shovel ${name}`); assert.ok(result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `litter shovel ${name}`); assert.ok(result.artifact);
     if (!('parts' in result.artifact)) throw new Error('Expected an assembly ZIP artifact for the litter shovel.');
     assert.deepEqual(result.artifact.parts.map(part => part.id), ['container', 'scoop', 'handle'], `litter shovel ${name}: parts`);
     for (const part of result.artifact.parts) {
@@ -670,11 +673,11 @@ try {
       const expected = solidScoop.get(wall) ?? solid; solidScoop.set(wall, expected);
       assert.ok(Math.abs(solid - expected) < 0.01 * expected, `litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³ + gaps = ${solid.toFixed(0)}, expected ${expected.toFixed(0)}`);
     }
-  const entries = unzipSync(new Uint8Array(await readFile(store.artifacts.path(job.id, 'zip'))));
+  const entries = unzipSync(new Uint8Array(await artifactBytes(job)));
     assert.deepEqual(Object.keys(entries).sort(), ['container.stl', 'handle.stl', 'scoop.stl']);
     for (const [entryName, entryBytes] of Object.entries(entries))
       assert.ok(inspectStl(Buffer.from(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength)).sha256, `litter shovel ${name} ${entryName}: expected a valid individual STL`);
-    assert.equal(store.enqueue(litterShovel, parameters).id, job.id);
+    assert.equal((await store.enqueue(litterShovel, parameters)).id, job.id);
     console.log(`PASS litter shovel ${name}: ${gaps} gaps, scoop ${scoop.volume.toFixed(0)} mm³, ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   // Eight concepts at default and the size/clearance corners: independent closed pieces, one ZIP.
@@ -682,17 +685,17 @@ try {
     for (const [bodyLength, clearance] of [[90, 0.2], [70, 0.1], [70, 0.25], [120, 0.1], [120, 0.25]] as const) {
       const parameters = { ...aiRubberDuck.defaults, variant, bodyLength, clearance };
       assert.deepEqual(validateParameters(aiRubberDuck, parameters), []);
-      const queued = store.enqueue(aiRubberDuck, parameters), job = store.claim();
+      const queued = await store.enqueue(aiRubberDuck, parameters), job = await store.claim();
       assert.ok(job?.leaseToken);
-      const token = job.leaseToken, heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+      const token = job.leaseToken, heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
       try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true); }
       finally { clearInterval(heartbeat); }
-      const result = store.getJob(queued.id);
+      const result = await store.getJob(queued.id);
       assert.equal(result?.status, 'succeeded');
       assert.ok(result.artifact && 'parts' in result.artifact);
       const expected = activeParts(aiRubberDuck, parameters).map(part => part.id);
       assert.deepEqual(result.artifact.parts.map(part => part.id), expected);
-      const bytes = await readFile(store.artifacts.path(job.id, 'zip'));
+      const bytes = await artifactBytes(job);
       const entries = unzipSync(new Uint8Array(bytes));
       assert.deepEqual(Object.keys(entries), expected.map(id => `${id}.stl`));
       for (const [name, entry] of Object.entries(entries)) {
@@ -705,7 +708,7 @@ try {
       const download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
       assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
       assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-      assert.equal(store.enqueue(aiRubberDuck, parameters).id, queued.id);
+      assert.equal((await store.enqueue(aiRubberDuck, parameters)).id, queued.id);
       console.log(`PASS AI duck ${variant}: ${bodyLength} mm, clearance ${clearance}, ${expected.length} pieces`);
     }
   }
@@ -725,13 +728,13 @@ try {
     const started = Date.now();
     const parameters = { ...toggleLatch.defaults, ...overrides };
     assert.deepEqual(validateParameters(toggleLatch, parameters), [], `toggle latch ${name}`);
-    const queued = store.enqueue(toggleLatch, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(toggleLatch, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `toggle latch ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `toggle latch ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `toggle latch ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
     assert.deepEqual(result.artifact.parts.map(part => part.id), ['base', 'lever', 'link', 'catch']);
     for (const part of result.artifact.parts) {
       const expected = latchSizes[part.id]; assert.ok(expected);
@@ -754,12 +757,12 @@ try {
   for (const { name, overrides } of only && only !== outsideCornerToggleLatch.id ? [] : cornerRuns) {
     const parameters = { ...outsideCornerToggleLatch.defaults, ...overrides } as OutsideCornerToggleLatchParameters;
     assert.deepEqual(validateParameters(outsideCornerToggleLatch, parameters), [], `corner latch ${name}`);
-    const l = cornerLatchLayout(parameters), queued = store.enqueue(outsideCornerToggleLatch, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
-    const token = job.leaseToken, heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const l = cornerLatchLayout(parameters), queued = await store.enqueue(outsideCornerToggleLatch, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken, heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `corner latch ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `corner latch ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `corner latch ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
     const zip = await app.inject({ method: 'GET', url: `/api/v1/renders/${queued.id}/zip` });
     assert.equal(zip.statusCode, 200);
     const entries = unzipSync(zip.rawPayload);
@@ -804,13 +807,13 @@ try {
     const started = Date.now();
     const parameters = { ...printedCornerBracket.defaults, ...overrides };
     assert.deepEqual(validateParameters(printedCornerBracket, parameters), [], `printed corner bracket ${name}`);
-    const queued = store.enqueue(printedCornerBracket, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(printedCornerBracket, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `printed corner bracket ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `printed corner bracket ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `printed corner bracket ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
     const [bracket] = result.artifact.parts; assert.ok(bracket && result.artifact.parts.length === 1);
     const [a, b, w, t] = ['legA', 'legB', 'width', 'thickness'].map(key => Number(parameters[key])) as [number, number, number, number];
     for (const [index, value] of [bracket.dimensions.x, bracket.dimensions.y, bracket.dimensions.z].entries())
@@ -837,13 +840,13 @@ try {
     const started = Date.now();
     const parameters = { ...printedScreenHook.defaults, ...overrides };
     assert.deepEqual(validateParameters(printedScreenHook, parameters), [], `printed screen hook ${name}`);
-    const queued = store.enqueue(printedScreenHook, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(printedScreenHook, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `printed screen hook ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `printed screen hook ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `printed screen hook ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
     assert.deepEqual(result.artifact.parts.map(part => part.id), ['long', 'short']);
     const screw = findPart(String(parameters['woodScrew'])); assert.ok(screw);
     const shape = printedScreenHookShape(parameters as unknown as Parameters<typeof printedScreenHookShape>[0], screw);
@@ -882,13 +885,13 @@ try {
     const started = Date.now();
     const parameters = { ...springBallDetent.defaults, ...overrides };
     assert.deepEqual(validateParameters(springBallDetent, parameters), [], `spring ball detent ${name}`);
-    const queued = store.enqueue(springBallDetent, parameters);
-    const job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(springBallDetent, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `spring ball detent ${name}`); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `spring ball detent ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `spring ball detent ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
     const press = parameters['retention'] === 'press-cap';
     assert.deepEqual(result.artifact.parts.map(part => part.id), press ? ['body', 'cap'] : ['body']);
     const chosen = (key: string) => { const found = findPart(String(parameters[key])); assert.ok(found); return found; };
@@ -929,13 +932,13 @@ try {
     const parameters = { ...DEFAULT_CAMERA_HOUSING, ...overrides };
     assert.deepEqual(validateParameters(cameraHousing, parameters), [], name);
     const l = cameraHousingLayout(parameters), h = CAMERA_HARDWARE;
-    const queued = store.enqueue(cameraHousing, parameters), job = store.claim(); assert.ok(job?.leaseToken);
+    const queued = await store.enqueue(cameraHousing, parameters), job = await store.claim(); assert.ok(job?.leaseToken);
     const token = job.leaseToken;
-    const heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, name); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', name); assert.ok(result.artifact && 'parts' in result.artifact);
-    const bytes = await readFile(store.artifacts.path(job.id, 'zip')), entries = unzipSync(new Uint8Array(bytes));
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', name); assert.ok(result.artifact && 'parts' in result.artifact);
+    const bytes = await artifactBytes(job), entries = unzipSync(new Uint8Array(bytes));
     assert.deepEqual(Object.keys(entries), ['base.stl', 'lid.stl']); // Hardware must never be in the printable download.
     for (const part of result.artifact.parts) {
       const expected = [l.width, l.length, part.id === 'base' ? l.seam : Math.max(l.top - l.tongueBottom, l.top - l.boardZ - h.expansionTop - 0.2)];
@@ -1023,12 +1026,12 @@ try {
     const parameters = { ...magneticCatToy.defaults, ...overrides };
     assert.deepEqual(validateParameters(magneticCatToy, parameters), [], name);
     const l = magneticCatToyLayout(parameters);
-    const queued = store.enqueue(magneticCatToy, parameters), job = store.claim(); assert.ok(job?.leaseToken);
-    const token = job.leaseToken, heartbeat = setInterval(() => store.renew(job.id, token), 5000);
+    const queued = await store.enqueue(magneticCatToy, parameters), job = await store.claim(); assert.ok(job?.leaseToken);
+    const token = job.leaseToken, heartbeat = setInterval(() => { void store.renew(job.id, token).catch(() => undefined); }, 5000);
     try { assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, name); }
     finally { clearInterval(heartbeat); }
-    const result = store.getJob(queued.id); assert.equal(result?.status, 'succeeded', name); assert.ok(result.artifact && 'parts' in result.artifact);
-    const bytes = await readFile(store.artifacts.path(job.id, 'zip')), entries = unzipSync(new Uint8Array(bytes));
+    const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', name); assert.ok(result.artifact && 'parts' in result.artifact);
+    const bytes = await artifactBytes(job), entries = unzipSync(new Uint8Array(bytes));
     assert.deepEqual(Object.keys(entries), magneticCatToy.parts.map(p => `${p.id}.stl`));
     const meshes = new Map<string, Mesh>();
     for (const part of result.artifact.parts) {
@@ -1129,5 +1132,5 @@ try {
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {
-  await app.close(); store.close(); await rm(directory, { recursive: true, force: true });
+  await app.close(); await store.close(); await services.stop(); await rm(directory, { recursive: true, force: true });
 }

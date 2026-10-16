@@ -2,7 +2,7 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import {
-  DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand,
+  CreateBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand,
   ListObjectsV2Command, PutObjectCommand, S3Client, S3ServiceException,
 } from '@aws-sdk/client-s3';
 import { AppError } from './errors.ts';
@@ -34,6 +34,16 @@ export class ObjectStorage {
   async ready(): Promise<void> {
     for (const Bucket of [this.config.catalogueBucket, this.config.generatedBucket]) {
       await this.client.send(new HeadBucketCommand({ Bucket }), { abortSignal: AbortSignal.timeout(5000) });
+    }
+  }
+  /** Creates whichever bucket is missing. Only Compose and the tests call it: production's buckets are provisioned with Garage. */
+  async createBuckets(): Promise<void> {
+    for (const Bucket of [this.config.catalogueBucket, this.config.generatedBucket]) {
+      try { await this.client.send(new HeadBucketCommand({ Bucket }), { abortSignal: AbortSignal.timeout(5000) }); }
+      catch (error) {
+        if (!(error instanceof S3ServiceException && error.$metadata.httpStatusCode === 404)) throw error;
+        await this.client.send(new CreateBucketCommand({ Bucket }), { abortSignal: AbortSignal.timeout(5000) });
+      }
     }
   }
   async put(bucket: string, key: string, path: string, sha256: string, signal?: AbortSignal, contentType = 'model/stl'): Promise<void> {

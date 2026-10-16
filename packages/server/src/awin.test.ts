@@ -1,12 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Offer } from '@canfactory/contracts';
 import { AWIN_FEED_LIST_URL, CsvParser, awinTime, feedDownloadUrl, ingestAwin, parseCsv, parseFeedList } from './awin.ts';
-import { LocalStorage } from './storage.ts';
-import { repositoryRoot, Store } from './store.ts';
+import { testStorage } from '../../../tools/unit-storage.ts';
+import type { PostgresStorage } from './postgres.ts';
 
 const offer = (id: string, merchantProductId: string, market: 'DE' | 'US' = 'DE', advertiserId = 777): Offer => ({
   id, market, network: 'awin', advertiserId, shop: 'Test Shop', merchantProductId, productUrl: `https://shop.example/${merchantProductId}`,
@@ -44,14 +41,9 @@ describe('Awin feeds', () => {
 });
 
 describe('ingestAwin', () => {
-  let directory: string;
-  let store: LocalStorage;
-  beforeEach(() => {
-    directory = mkdtempSync(join(tmpdir(), 'canfactory-awin-test-'));
-    const local = new Store(directory, repositoryRoot); local.migrate();
-    store = new LocalStorage(local);
-  });
-  afterEach(async () => { await store.close(); rmSync(directory, { recursive: true, force: true }); });
+  let store: PostgresStorage;
+  beforeEach(async () => { store = await testStorage(); });
+  afterEach(() => store.close());
 
   const run = (lastImported: string, catalogue: Offer[], requested: string[] = [], failures = 0) => {
     let failing = failures;
