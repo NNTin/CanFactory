@@ -162,7 +162,7 @@ export function tunnelCouplingFacts(_variant: CatioMode, config: TunnelCouplingC
       : { label: 'Bolts per coupling', value: `${l.bolts.length} × ISO 4017 M8 × 80 · two large washers and a nut each` },
     { label: 'Mitred joints', value: `Bolted, ${config.boltsPerCoupling} per coupling (${config.boltsPerCoupling / 4} on each side)` },
     { label: 'Enclosure end', value: printed ? 'Latched: a standard port like every other' : `Bolted, ${config.boltsPerCoupling} per coupling` },
-    { label: 'Stub’s end door · held by', value: `${l.side ? 'Behind the side port' : 'Behind every side port of the tunnel'} · ${DOOR_FIXING_LABELS[config.doorFixing].toLowerCase()}` },
+    { label: 'Doors · held by', value: `${l.tl.doors.filter(d => l.pieces.includes(d.piece)).length} on these two sections, every opening not coupled · ${DOOR_FIXING_LABELS[config.doorFixing].toLowerCase()}` },
     { label: 'Joint shown', value: `${l.side ? 'Section end to a side port' : 'Section end to section end'}: the standard port either way` },
     { label: 'Section length', value: `${cm(l.sectionLength)} cm · the longest section`, from: { page: 'tunnel', settings: ['sectionLength'] } },
     { label: 'On the support', value: `${SUPPORT_FIXING_LABELS[l.tunnel.supportFixing]}${l.support.hold.attached || l.tunnel.supportFixing === 'gravity' ? '' : ' · does not fit here'} · ${l.support.soles.length ? 'self-standing' : 'a trestle'}` },

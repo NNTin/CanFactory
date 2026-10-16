@@ -164,8 +164,8 @@ describe('tunnel–tunnel coupling', () => {
     expect(facts.find(f => f.label === 'Gap · seal')?.value).toBe('3 mm · squashed from 4 mm');
     expect(facts.find(f => f.label === 'Section length')).toMatchObject({ value: `${Number((elementLength(site, TUNNEL_COUPLING_DEFAULT) / 10).toFixed(1))} cm · the longest section`, from: { page: 'tunnel', settings: ['sectionLength'] } });
     expect(facts.find(f => f.label === 'Enclosure end')?.value).toBe('Latched: a standard port like every other');
-    expect(facts.find(f => f.label === 'Stub’s end door · held by')?.value).toBe('Behind every side port of the tunnel · set in, turn buttons on the port’s ring');
-    expect(tunnelCouplingFacts('modular', { ...TUNNEL_COUPLING_DEFAULT, doorFixing: 'latches', jointShown: 'end-side' }, site).find(f => f.label === 'Stub’s end door · held by')?.value).toBe('Behind the side port · a blank on the port’s own toggle latches');
+    expect(facts.find(f => f.label === 'Doors · held by')?.value).toBe('4 on these two sections, every opening not coupled · set in, turn buttons on the port’s ring');
+    expect(tunnelCouplingFacts('modular', { ...TUNNEL_COUPLING_DEFAULT, doorFixing: 'latches', jointShown: 'end-side' }, site).find(f => f.label === 'Doors · held by')?.value).toBe('4 on these two sections, every opening not coupled · a blank on the port’s own toggle latches');
     expect(tunnelCouplingFacts('modular', { ...TUNNEL_COUPLING_DEFAULT, seal: 'none' }, site).find(f => f.label === 'Gap · seal')?.value).toBe('3 mm · left open');
     expect(tunnelCouplingFacts('modular', { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' }, site).find(f => f.label === 'Bolts per coupling')?.value).toMatch(/^8 × ISO 4017 M8 × 80/);
   });

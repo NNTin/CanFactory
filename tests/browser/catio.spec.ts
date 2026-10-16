@@ -411,9 +411,9 @@ test('opens the tunnel, solves its route to the enclosure port, switches its joi
     await page.getByRole('button', { name: 'Next assembly stage' }).click();
     await expect(viewer).toHaveAttribute('data-step', String(stage));
   }
-  // every coupling latched by default, the enclosure's port too: a standard port; the stubs' end doors set in
+  // every coupling latched by default, the enclosure's port too: a standard port; the end bays' doors set in
   await expect(viewer).not.toHaveAttribute('data-visible-parts', /port-bolts/);
-  await expect(viewer).toHaveAttribute('data-visible-parts', /end-doors.*section-latches/);
+  await expect(viewer).toHaveAttribute('data-visible-parts', /doors door-mesh door-hardware.*section-latches/);
   await page.getByRole('checkbox', { name: 'Exploded view' }).check();
   await expect(viewer).toHaveAttribute('data-exploded', 'true');
   await page.getByRole('button', { name: 'Exterior', exact: true }).click();
@@ -518,7 +518,7 @@ test('opens the tunnel–tunnel coupling, brings the second section in, switches
   await expect(hardware.getByRole('link', { name: 'Countersunk wood screw 4 × 25' })).toBeVisible();
   await expect(hardware.getByRole('cell', { name: 'EPDM E-profile seal, self-adhesive (custom)' })).toBeVisible();
   await expect(hardware.getByRole('link', { name: 'Hexagon head screw M8 × 80' })).toHaveCount(0);
-  await expect(page.getByRole('table', { name: 'Timber parts' }).getByRole('cell', { name: 'Floor board' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Timber parts' }).getByRole('cell', { name: 'Floor board', exact: true })).toBeVisible();
   await expect(page.locator('.catio-dimensions > div', { hasText: 'Gap · seal' }).locator('dd')).toHaveText('3 mm · squashed from 4 mm');
   // the section length comes from the tunnel page, which follows this page's coupling
   const length = page.locator('.catio-dimensions > div', { hasText: 'Section length' });
@@ -598,7 +598,7 @@ test('opens the tunnel–tunnel coupling, brings the second section in, switches
   expect(errors).toEqual([]);
 });
 
-test('builds the tunnel of standard elements: turning at side ports, the stubs closed by doors, and the port where they end', async ({ page }, testInfo) => {
+test('builds the tunnel of flush standard elements: turning into side openings, every opening not coupled shut by a door, and the port where they end', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -611,20 +611,21 @@ test('builds the tunnel of standard elements: turning at side ports, the stubs c
   await expect(page.getByRole('combobox', { name: 'Turns and bends' })).toHaveValue('side-port');
   await expect(page.getByRole('combobox', { name: 'Turns and bends' }).locator('option')).toHaveText(['Side ports (90°)', 'Angle collars (any angle)', 'Mitred ends, bolted']);
   await expect(page.getByRole('combobox', { name: 'Straight runs' })).toHaveCount(0);
-  await expect(facts).toContainText('5 sections (2 with a side port) and 2 angle collars · 58.3 cm');
-  await expect(facts).toContainText(/Stubs’ end doors · held by\s*2 · set in, turn buttons on the port’s ring/);
+  await expect(facts).toContainText('5 sections (2 at the turns) and 2 angle collars · 38.3 cm');
+  await expect(facts).toContainText(/Doors · held by\s*10 \(8 in the end bays’ sides\) · set in, turn buttons on the port’s ring/);
   await expect(facts).not.toContainText('placed by whole elements');
   await expect(page.getByRole('spinbutton', { name: 'Straight into the port' })).toHaveCount(0);
   // side ports turn 90°: the port faces straight out or along the wall, a choice, not an angle
   await expect(page.getByRole('combobox', { name: 'Port faces' })).toHaveValue('0');
-  // the side ports' rings and pocket posts on the cut list; every ring is marked from one template
-  await expect(page.getByRole('table', { name: 'Timber parts' }).getByRole('cell', { name: 'Pocket post', exact: true })).toBeVisible();
+  // the end bays' posts on the cut list, nothing on a side; every frame is marked from one template
+  await expect(page.getByRole('table', { name: 'Timber parts' }).getByRole('cell', { name: 'Bay post', exact: true })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Timber parts' }).getByRole('cell', { name: /Pocket post|Side ring/ })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Drawings' }).getByRole('link', { name: /Download port-template-300\.svg/ })).toHaveAttribute('download', 'port-template-300.svg');
   // asked between whole elements, the port goes where they end, and the brief says so
   await page.getByRole('spinbutton', { name: 'Port out from the wall' }).fill('300');
-  await expect(facts).toContainText(/Enclosure port · placed by whole elements.*asked 109\.6, 300/s);
+  await expect(facts).toContainText(/Enclosure port · placed by whole elements.*asked 114\.9, 300/s);
   await page.getByRole('button', { name: 'Reset to the recommended defaults' }).click();
-  // the stubs' doors open with the side access
+  // the doors open together: the end bays' sides, and the sections' starts at the turns
   await page.getByRole('checkbox', { name: 'Doors open' }).check();
   await expect(viewer).toHaveAttribute('data-door-travel', '1');
   await page.screenshot({ path: testInfo.outputPath('tunnel-side-ports-doors-open.png'), fullPage: true });
@@ -636,15 +637,15 @@ test('builds the tunnel of standard elements: turning at side ports, the stubs c
   await expect(page.locator('.catio-dimensions')).toContainText('Section end to a side port: the standard port either way');
   await expect(viewer).toHaveAttribute('data-visible-parts', /second-section-doors/);
   await page.getByRole('combobox', { name: 'Door held by' }).selectOption('latches');
-  await expect(page.locator('.catio-dimensions')).toContainText('Behind the side port · a blank on the port’s own toggle latches');
+  await expect(page.locator('.catio-dimensions')).toContainText('4 on these two sections, every opening not coupled · a blank on the port’s own toggle latches');
   await page.screenshot({ path: testInfo.outputPath('coupling-end-to-side-port.png'), fullPage: true });
   await page.goto('/#/concepts/catio/tunnel');
   await expect(viewer).toHaveAttribute('data-ready', 'true');
-  await expect(facts).toContainText('2 · a blank on the port’s own toggle latches');
+  await expect(facts).toContainText('in the end bays’ sides) · a blank on the port’s own toggle latches');
   await expect(page.getByRole('table', { name: 'Timber parts' }).getByRole('cell', { name: 'Door ring, stile', exact: true })).toBeVisible();
-  // angle collars at any angle remain: no side ports, no stubs, the facing as asked
+  // angle collars at any angle remain: no turns into a side opening, the facing as asked
   await page.getByRole('combobox', { name: 'Turns and bends' }).selectOption('angle-collar');
-  await expect(facts).not.toContainText('Stubs’ end doors');
+  await expect(facts).not.toContainText('at the turns');
   await expect(page.getByRole('spinbutton', { name: 'Straight into the port' })).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -712,44 +713,34 @@ test('keeps a catio saved before the closure could be chosen as it was, and take
   await expect(page.getByRole('table', { name: 'Timber parts' })).toContainText('Sliding cat gate');
   await expect(page.getByRole('table', { name: 'Hardware parts' })).not.toContainText('Door turn button');
   await expect(page.getByRole('region', { name: 'Assembly instructions' })).toContainText('Gate and check');
-  // the saved tunnel keeps its own settings and view, and has no side access; reset gives it the new default
+  // the saved tunnel keeps its own settings and view; its old side access is dropped, the end bays' doors replace it
   await page.goto('/#/concepts/catio/tunnel');
   await expect(sub).toHaveAttribute('data-subassembly', 'tunnel');
   await expect(sub).toHaveAttribute('data-ready', 'true');
-  await expect(sub).toHaveAttribute('data-config', /"portX":800.*"mesh":"welded".*"supportFixing":"dowels".*"sideAccess":"none"/);
-  await expect(page.getByRole('combobox', { name: 'Side access', exact: true })).toHaveValue('none');
-  await expect(page.getByRole('combobox', { name: 'Access side' })).toHaveCount(0);
-  await expect(page.getByRole('checkbox', { name: 'Side access open' })).toHaveCount(0);
+  await expect(sub).toHaveAttribute('data-config', /"portX":800.*"mesh":"welded".*"supportFixing":"dowels"/);
+  await expect(sub).not.toHaveAttribute('data-config', /sideAccess/);
+  await expect(page.getByRole('combobox', { name: 'Side access', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Top · the turns', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Mesh', exact: true })).toHaveAttribute('aria-pressed', 'false');
-  await expect(sub).not.toHaveAttribute('data-visible-parts', /access/);
   await expect(page.getByRole('complementary', { name: 'Tunnel parameters' })).toContainText('Vertical sliding gate');
   await page.getByRole('button', { name: 'Reset to the recommended defaults' }).click();
-  await expect(sub).toHaveAttribute('data-config', /"sideAccess":"one","sideAccessSide":"right"/);
   await page.getByRole('button', { name: 'Mesh', exact: true }).click();
-  await expect(sub).toHaveAttribute('data-visible-parts', /access-panels access-panel-mesh access-buttons/);
+  await expect(sub).toHaveAttribute('data-visible-parts', /doors door-mesh door-hardware/);
   await expect(page.getByRole('table', { name: 'Hardware parts' })).toContainText('Door turn button, printed (custom)');
   await expect(page.getByRole('table', { name: 'Mesh parts' })).toContainText('Removable panel mesh');
-  // the recommended tunnel turns at side ports: their stubs' doors open with the side access
-  await expect(sub).toHaveAttribute('data-visible-parts', /end-doors end-door-mesh end-door-hardware/);
   await page.getByRole('checkbox', { name: 'Doors open' }).check();
   await expect(sub).toHaveAttribute('data-door-travel', '1');
-  await page.screenshot({ path: testInfo.outputPath('tunnel-side-access-open.png'), fullPage: true });
-  await page.getByRole('combobox', { name: 'Side access', exact: true }).selectOption('all');
-  await page.getByRole('combobox', { name: 'Access side' }).selectOption('left');
-  await expect(sub).toHaveAttribute('data-config', /"sideAccess":"all","sideAccessSide":"left"/);
+  await page.screenshot({ path: testInfo.outputPath('tunnel-doors-open.png'), fullPage: true });
   await expect(sub).toHaveAttribute('data-door', 'open');
   await page.reload();
   await expect(sub).toHaveAttribute('data-ready', 'true');
-  await expect(page.getByRole('combobox', { name: 'Side access', exact: true })).toHaveValue('all');
   await expect(page.getByRole('checkbox', { name: 'Doors open' })).toBeChecked();
-  // the tunnel–tunnel coupling follows the tunnel's side access; the insert–tunnel coupling opens the docked port
+  // the tunnel–tunnel coupling shows its two sections' doors
   await page.goto('/#/concepts/catio/tunnel-tunnel-coupling');
   await expect(sub).toHaveAttribute('data-subassembly', 'tunnel-tunnel-coupling');
   await expect(sub).toHaveAttribute('data-ready', 'true');
-  await expect(sub).toHaveAttribute('data-visible-parts', /second-section-access/);
-  await expect(page.getByRole('complementary', { name: 'Tunnel–tunnel coupling parameters' })).toContainText('A removable mesh panel beside the joint');
-  await expect(page.getByRole('checkbox', { name: 'Side access open' })).toBeVisible();
+  await expect(sub).toHaveAttribute('data-visible-parts', /second-section-doors/);
+  await expect(page.getByRole('checkbox', { name: 'Doors open' })).toBeVisible();
   // resetting the catio is what takes the new doors: every page then shows the removable panel
   await page.goto('/#/concepts/catio');
   await expect(viewer).toHaveAttribute('data-ready', 'true');
