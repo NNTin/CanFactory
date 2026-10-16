@@ -996,3 +996,13 @@ describe('toggle latch contract', () => {
     expect(linkedPartData(toggleLatch).map(entry => entry.id)).toEqual([...LATCH_WOOD_SCREWS, ...LATCH_MACHINE_SCREWS]);
   });
 });
+
+describe('model registration', () => {
+  it('derives exactly one RenderRequestSchema branch per registered model', () => {
+    // models is the only list; this guards the derivation, not a second hand-kept copy.
+    expect(RenderRequestSchema.anyOf.map(branch => [branch.properties.modelId.const, branch.properties.modelVersion.const]))
+      .toEqual(models.map(model => [model.id, model.version]));
+    RenderRequestSchema.anyOf.forEach((branch, i) => expect(branch.properties.parameters).toBe(models[i]?.parameterSchema));
+    expect(new Set(models.map(model => model.id)).size).toBe(models.length);
+  });
+});

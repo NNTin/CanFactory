@@ -191,8 +191,8 @@ flowchart TB
   small and permanent, `LICENSE` and attribution) plus a `ModelDefinition` in `packages/contracts/src/models.ts`. The
   definition holds the TypeBox parameter schema, editor controls, defaults, `scadMapping` (parameter to `-D` name),
   `partDefines` (dimensions of chosen library parts passed to SCAD), and, for assemblies, `parts[]`, `assembly` or
-  `assemblyForParameters`, `linkedReferences` and optionally `physics()`. Each model is registered **twice by hand**: in the
-  `models` array (`models.ts:3578`) and as a branch of `RenderRequestSchema` (`index.ts`). After that,
+  `assemblyForParameters`, `linkedReferences` and optionally `physics()`. Each model is registered **once**, in the
+  `registeredModels` tuple (`models.ts`); `models` and the branches of `RenderRequestSchema` (`index.ts`) derive from it. After that,
   `npm run contracts:generate` regenerates `docs/openapi.json` and `packages/client/src/schema.d.ts` from the live Fastify
   routes (`tools/generate-openapi.ts` imports `apps/api/src/app.ts`). See [adding-models.md](adding-models.md).
 - **Catalogue.** `store.seed()` (SQLite `Store` or `PostgresStorage`) writes one catalogue row per registered model:
@@ -373,8 +373,9 @@ Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/syst
    API's in-process maintenance loop are deleted. `PostgresStorage` with Garage S3 is the only backend, and its SQL moved to
    `packages/server/migrations/`. Compose runs PostgreSQL, Garage and the release and maintenance jobs like the chart,
    and the unit tests run against a real PostgreSQL and Garage (`tools/unit-storage.ts`).
-2. **Models registered twice by hand** (tracked in #91): the `models` array and the `RenderRequestSchema` union in `index.ts` (17 branches
-   written out one by one).
+2. ~~**Models registered twice by hand.**~~ **Resolved in #91: one registration.** The 17 hand-written
+   `RenderRequestSchema` branches in `index.ts` are deleted. `RenderRequestSchema` maps over the `registeredModels` const
+   tuple in `models.ts` (which `models` is), and a mapped tuple type keeps the per-model `Static<>` union.
 3. **Three geometries for library parts** (tracked in #92): `apps/web/src/partGeometry.ts` (Three.js from dimensions, for previews and
    catio), `parts/<family>/*.scad` with `GENERIC_MODELS` in `tools/assembly-meshes.ts` (SCAD from the same dimensions, for
    checks), and primitives from dimensions in `packages/physics/src/build.ts`. The editor preview and the CI collision check

@@ -1,5 +1,5 @@
-import { Type, type Static } from 'typebox';
-import { aiRubberDuck, AssemblySchema, magneticCatToy, cameraHousing, catCollarTag, cigaretteCase, ControlSchema, fruitFlyTrap, litterShovel, mossPlanter, plankConnector, pressurePad, printedCornerBracket, printedScreenHook, qrMagnetTag, springBallDetent, toggleLatch, outsideCornerToggleLatch, windowCatGuard } from './models.ts';
+import { Type, type Static, type TLiteral, type TObject } from 'typebox';
+import { AssemblySchema, ControlSchema, registeredModels, type ModelDefinition } from './models.ts';
 import { PartFamilySchema, PartSchema, PartSourceSchema } from './parts/index.ts';
 export * from './models.ts';
 export * from './assembly.ts';
@@ -63,88 +63,17 @@ export const ModelDetailSchema = Type.Object({
 }, { additionalProperties: false });
 export type ModelDetail = Static<typeof ModelDetailSchema>;
 
-/** Register a typed branch for each provided model; preserve the tuple for precise inference. */
-export const RenderRequestSchema = Type.Union([
-  Type.Object({ modelId: Type.Literal(magneticCatToy.id), modelVersion: Type.Literal(magneticCatToy.version), parameters: magneticCatToy.parameterSchema }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(aiRubberDuck.id),
-    modelVersion: Type.Literal(aiRubberDuck.version),
-    parameters: aiRubberDuck.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(fruitFlyTrap.id),
-    modelVersion: Type.Literal(fruitFlyTrap.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: fruitFlyTrap.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(mossPlanter.id),
-    modelVersion: Type.Literal(mossPlanter.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: mossPlanter.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(cigaretteCase.id),
-    modelVersion: Type.Literal(cigaretteCase.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: cigaretteCase.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(plankConnector.id),
-    modelVersion: Type.Literal(plankConnector.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: plankConnector.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(litterShovel.id),
-    modelVersion: Type.Literal(litterShovel.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: litterShovel.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(toggleLatch.id),
-    modelVersion: Type.Literal(toggleLatch.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: toggleLatch.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(outsideCornerToggleLatch.id),
-    modelVersion: Type.Literal(outsideCornerToggleLatch.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: outsideCornerToggleLatch.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(pressurePad.id),
-    modelVersion: Type.Literal(pressurePad.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: pressurePad.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(windowCatGuard.id),
-    modelVersion: Type.Literal(windowCatGuard.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: windowCatGuard.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(qrMagnetTag.id),
-    modelVersion: Type.Literal(qrMagnetTag.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: qrMagnetTag.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(printedCornerBracket.id),
-    modelVersion: Type.Literal(printedCornerBracket.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: printedCornerBracket.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(printedScreenHook.id),
-    modelVersion: Type.Literal(printedScreenHook.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: printedScreenHook.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(springBallDetent.id),
-    modelVersion: Type.Literal(springBallDetent.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: springBallDetent.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(catCollarTag.id),
-    modelVersion: Type.Literal(catCollarTag.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
-    parameters: catCollarTag.parameterSchema,
-  }, { additionalProperties: false }),
-  Type.Object({
-    modelId: Type.Literal(cameraHousing.id), modelVersion: Type.Literal(cameraHousing.version), parameters: cameraHousing.parameterSchema,
-  }, { additionalProperties: false }),
-], { description: 'Complete, uncoerced settings for one model version.' });
+/** One request branch per model, as a tuple type so that `Static` keeps the discriminated union. */
+type RenderRequestBranches<Models extends readonly ModelDefinition[]> = {
+  -readonly [K in keyof Models]: TObject<{ modelId: TLiteral<Models[K]['id']>; modelVersion: TLiteral<Models[K]['version']>; parameters: Models[K]['parameterSchema'] }>
+};
+
+/** Derived from `registeredModels`: registering a model there is all a new model needs. */
+export const RenderRequestSchema = Type.Union(registeredModels.map(model => Type.Object({
+  modelId: Type.Literal(model.id),
+  modelVersion: Type.Literal(model.version, { description: 'Version returned by the catalogue. Refresh the catalogue on a version conflict.' }),
+  parameters: model.parameterSchema,
+}, { additionalProperties: false })) as RenderRequestBranches<typeof registeredModels>, { description: 'Complete, uncoerced settings for one model version.' });
 export type RenderRequest = Static<typeof RenderRequestSchema>;
 
 export const PartUsageSchema = Type.Object({

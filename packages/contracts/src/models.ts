@@ -3575,7 +3575,9 @@ export const magneticCatToy = {
     ] };
   },
 } satisfies ModelDefinition;
-export const models: readonly ModelDefinition[] = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy];
+/** The one registration of each catalogue model. A `const` tuple, so that `RenderRequestSchema` (index.ts) derives a typed branch per model from it. */
+export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy] as const satisfies readonly ModelDefinition[];
+export const models: readonly ModelDefinition[] = registeredModels;
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
 
