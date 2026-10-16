@@ -25,7 +25,7 @@ implementations, registrations and data copies it deletes.
 | Workspace | Kind | Responsibility | Depends on (imports) |
 | --- | --- | --- | --- |
 | `packages/contracts` | Library (pure TS, no I/O) | Holds everything as data and pure functions: TypeBox API schemas, the **model registry** (`models.ts`, `ModelDefinition`), assembly and BOM helpers, the **parts library** (`parts/`), curated **offers** and the **matcher**, **concept pages** (`concepts.ts`), and **physics mechanism specs** (`physics.ts`, `*Physics.ts`, `physicsPieces.ts`). | none (only `typebox`) |
-| `packages/server` | Library (Node) | Storage and render support for the API, worker and tools: SQLite `Store` with the `LocalStorage` adapter, `PostgresStorage` with Garage S3 `ObjectStorage`, `runtimeStorage()` to pick one, the queue (enqueue, claim, lease, fencing, cleanup), STL inspection and repair (`mesh.ts`), the renderer fingerprint and limits (`config.ts`), and Awin feed ingest (`awin.ts`). | contracts |
+| `packages/server` | Library (Node) | Storage and render support for the API, worker and tools: `PostgresStorage` with Garage S3 `ObjectStorage` (the only backend), `runtimeStorage()` to build it from the environment, the queue (enqueue, claim, lease, fencing, cleanup), STL inspection and repair (`mesh.ts`), the renderer fingerprint and limits (`config.ts`), and Awin feed ingest (`awin.ts`). | contracts |
 | `packages/client` | Library (browser) | A typed `openapi-fetch` client over the generated `schema.d.ts`. | none (generated from the API) |
 | `packages/physics` | Library (Node and browser) | MuJoCo WebAssembly physics: scene compiler (spec to MJCF), simulation, scenario runner, interactive session, V-HACD decomposition. | contracts (types and materials only) |
 | `apps/api` | Process (Fastify) | The public HTTP API: model catalogue, render jobs and artifacts, parts library, market and offers. Also serves OpenAPI. | contracts, server |
@@ -62,7 +62,7 @@ flowchart LR
     end
     scad[("models/*.scad · parts/*.scad<br/>models/fonts")]
     openscad{{"OpenSCAD binary<br/>(pinned image)"}}
-    stores[("SQLite + /data files<br/>or PostgreSQL + Garage S3")]
+    stores[("PostgreSQL + Garage S3")]
 
     server --> contracts
     physics --> contracts
@@ -116,9 +116,9 @@ flowchart TB
 
     subgraph R["Render pipeline (server side)"]
         apiRenders["api: POST /renders · GET /renders/{id}[/stl|/zip]"]
-        queue[("Job queue + catalogue<br/>SQLite or PostgreSQL")]
+        queue[("Job queue + catalogue<br/>PostgreSQL")]
         workerR["worker: renderJob → OpenSCAD → inspectStl → publish"]
-        artifacts[("Artifacts<br/>/data files or Garage S3")]
+        artifacts[("Artifacts<br/>Garage S3")]
         scadFiles[("models/*/ SCAD")]
     end
 
@@ -299,8 +299,8 @@ The catio is a **concept**, not a catalogue model: no SCAD, no render job, no ph
 | --- | --- | --- |
 | Model definitions, parts, offers, concepts, physics specs | `packages/contracts` source (git) | Bundled into the web JS, API, worker and tools. Model detail is also seeded into the DB catalogue. |
 | SCAD generators, fonts, reference STLs | `models/`, `parts/` (git) | Packaged into the API and worker images. Reference STLs are seeded to `/data` or the Garage catalogue bucket. Part STLs are bundled into web. |
-| Render jobs, leases, worker heartbeats | SQLite (`/data`, Compose and local) or PostgreSQL (Kubernetes) | api and worker only |
-| Generated STLs and ZIPs (1 h TTL) | `/data` files or Garage `generated` bucket | Streamed by the API |
+| Render jobs, leases, worker heartbeats | PostgreSQL (Kubernetes, Compose, CI and local) | api and worker only |
+| Generated STLs and ZIPs (1 h TTL) | Garage `generated` bucket | Streamed by the API |
 | Awin feed rows | `awin_feeds` and `awin_offers` tables | Written by the offers CronJob, read by `/offers` |
 | Buy list, editor settings, catio settings | Browser `localStorage` | Browser only |
 | Physics decompositions | Browser IndexedDB, `node_modules/.cache` in CI | Speed-up only |
@@ -324,7 +324,7 @@ flowchart LR
         garage[("Garage S3")]
     end
     vercel["Vercel preview builds of apps/web<br/>(vercel.json rewrites /api → production)"]
-    compose["docker compose (SQLite + /data)<br/>CI integration, local, rollback"]
+    compose["docker compose (PostgreSQL + Garage)<br/>CI integration, local"]
     awin(("Awin"))
 
     user --> webK
@@ -368,10 +368,11 @@ Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/syst
 
 ### Likely duplication to investigate
 
-1. **Two storage backends with their own queue logic.** (Tracked in #90: PostgreSQL only.) `Store` (SQLite, synchronous, Drizzle schema in `schema.ts`, SQL in
-   `migrations/`) and `PostgresStorage` (async, raw SQL in `postgres-migrations/`) each implement enqueue, claim, renew,
-   complete, recover, cleanup, seed and the Awin tables. `LocalStorage` and `asyncStorage()` adapt one to the other.
-   Production runs only PostgreSQL, while CI's Compose integration and local development run only SQLite.
+1. ~~**Two storage backends with their own queue logic.**~~ **Resolved in #90: PostgreSQL only.** `Store` (SQLite), its
+   Drizzle `schema.ts` and SQL, `ArtifactStore`, `LocalStorage`, `asyncStorage()`, the `STORAGE_BACKEND` switch and the
+   API's in-process maintenance loop are deleted. `PostgresStorage` with Garage S3 is the only backend, and its SQL moved to
+   `packages/server/migrations/`. Compose runs PostgreSQL, Garage and the release and maintenance jobs like the chart,
+   and the unit tests run against a real PostgreSQL and Garage (`tools/unit-storage.ts`).
 2. **Models registered twice by hand** (tracked in #91): the `models` array and the `RenderRequestSchema` union in `index.ts` (17 branches
    written out one by one).
 3. **Three geometries for library parts** (tracked in #92): `apps/web/src/partGeometry.ts` (Three.js from dimensions, for previews and

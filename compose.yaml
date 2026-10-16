@@ -1,13 +1,79 @@
 name: canfactory
+# Production's storage, locally: PostgreSQL for the queue and catalogue, Garage S3 for reference and generated files. The
+# credentials below never leave this network (only the web port is published); production's come from Secrets.
+x-storage-env: &storage-env
+  DATABASE_URL: postgresql://canfactory:canfactory@postgres:5432/canfactory
+  S3_ENDPOINT: http://garage:3900
+  S3_REGION: garage
+  S3_ACCESS_KEY_ID: GKcompose0000000000000000
+  S3_SECRET_ACCESS_KEY: compose-garage-secret-0000000000000000
+  S3_CATALOGUE_BUCKET: canfactory-catalogue
+  S3_GENERATED_BUCKET: canfactory-generated
 services:
+  postgres:
+    # Keep in step with tools/storage-services.ts.
+    image: postgres:18.6-trixie@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: canfactory
+      POSTGRES_PASSWORD: canfactory
+      POSTGRES_DB: canfactory
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "canfactory", "-d", "canfactory"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  garage:
+    image: dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020
+    command: ["/garage", "server", "--single-node", "--default-access-key"]
+    restart: unless-stopped
+    environment:
+      GARAGE_RPC_SECRET: 0000000000000000000000000000000000000000000000000000000000c0ffee
+      GARAGE_DEFAULT_ACCESS_KEY: GKcompose0000000000000000
+      GARAGE_DEFAULT_SECRET_KEY: compose-garage-secret-0000000000000000
+    volumes:
+      - ./docker/garage.toml:/etc/garage.toml:ro
+      - garage:/data
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  # The chart's release Job: buckets (Compose only), migrations and the catalogue seed, once per `up`.
+  release:
+    build:
+      context: .
+      target: api
+    command: ["node", "--import", "tsx", "tools/maintenance.ts", "buckets", "release"]
+    environment: *storage-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+  # The chart's maintenance CronJob: lease recovery and expiry cleanup every minute.
+  maintenance:
+    build:
+      context: .
+      target: api
+    command: ["sh", "-c", "while node --import tsx tools/maintenance.ts cleanup; do sleep 60; done"]
+    restart: unless-stopped
+    environment: *storage-env
+    depends_on:
+      release:
+        condition: service_completed_successfully
   api:
     build:
       context: .
       target: api
     init: true
     restart: unless-stopped
-    volumes:
-      - data:/data
+    environment: *storage-env
+    depends_on:
+      release:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 5s
@@ -20,13 +86,12 @@ services:
       target: worker
     init: true
     restart: unless-stopped
+    environment: *storage-env
     depends_on:
       api:
         condition: service_healthy
     cpus: 2
     mem_limit: 2g
-    volumes:
-      - data:/data
     healthcheck:
       test: ["CMD", "node", "-e", "const fs=require('node:fs');process.exit(Date.now()-Number(fs.readFileSync('/tmp/canfactory-worker-health','utf8'))<30000?0:1)"]
       interval: 10s
@@ -53,7 +118,8 @@ services:
       timeout: 3s
       retries: 3
 volumes:
-  data:
+  postgres:
+  garage:
 networks:
   default:
     name: canfactory-network

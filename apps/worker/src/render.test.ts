@@ -1,10 +1,9 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import { unzipSync } from 'fflate';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cigaretteCase, mossPlanter } from '@canfactory/contracts';
-import { repositoryRoot, Store } from '@canfactory/server';
+import type { PostgresStorage } from '@canfactory/server';
+import { testStorage } from '../../../tools/unit-storage.ts';
 import { renderJob, type OpenScadRunner } from './render.ts';
 
 type Point = [number, number, number];
@@ -34,19 +33,15 @@ function fakeRunner(invocations: string[][]): OpenScadRunner {
   };
 }
 
-let directory: string;
-let store: Store;
-beforeEach(() => {
-  directory = mkdtempSync(join(tmpdir(), 'canfactory-render-test-'));
-  store = new Store(directory, repositoryRoot); store.migrate(); store.seed();
-});
-afterEach(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
+let store: PostgresStorage;
+beforeEach(async () => { store = await testStorage(); });
+afterEach(() => store.close());
 
 describe('renderJob for an assembly model', () => {
   it('renders each part with only the -D overrides its own mapping names, zips them, stamps attribution, and stores combined metadata', async () => {
     const invocations: string[][] = [];
-    const job = store.enqueue(mossPlanter, { ...mossPlanter.defaults, towerDiameter: 77, spikeLength: 190, tallRauteRows: 8, rauteColumns: 9 });
-    const claimed = store.claim();
+    const job = await store.enqueue(mossPlanter, { ...mossPlanter.defaults, towerDiameter: 77, spikeLength: 190, tallRauteRows: 8, rauteColumns: 9 });
+    const claimed = await store.claim();
     if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
 
     const published = await renderJob(store, claimed, new AbortController().signal, fakeRunner(invocations));
@@ -65,7 +60,7 @@ describe('renderJob for an assembly model', () => {
       expect(args).not.toContain('ROUNDNESS=48'); // the fruit-fly-trap defaults must not leak into verified parts
     }
 
-    const result = store.getJob(job.id);
+    const result = await store.getJob(job.id);
     expect(result?.status).toBe('succeeded');
     if (!result?.artifact || !('parts' in result.artifact)) throw new Error('Expected an assembly artifact');
     expect(result.artifact.parts).toHaveLength(mossPlanter.parts.length);
@@ -73,7 +68,7 @@ describe('renderJob for an assembly model', () => {
     expect(result.artifact.triangles).toBe(result.artifact.parts.reduce((sum, part) => sum + part.triangles, 0));
     expect(result.artifact.volume).toBeCloseTo(result.artifact.parts.reduce((sum, part) => sum + part.volume, 0));
 
-    const zipBytes = readFileSync(store.artifacts.path(job.id, 'zip'));
+    const zipBytes = Buffer.concat(await (await store.readArtifact(result)).toArray() as Buffer[]);
     expect(zipBytes.length).toBe(result.artifact.bytes);
     const entries = unzipSync(new Uint8Array(zipBytes));
     expect(Object.keys(entries).sort()).toEqual(mossPlanter.parts.map(part => `${part.id}.stl`).sort());
@@ -85,8 +80,8 @@ describe('renderJob for an assembly model', () => {
 
   it('passes the snap mode, clearance and text settings only to the cigarette-case parts that map them, strings quoted', async () => {
     const invocations: string[][] = [];
-    store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, snap: 'crush-ribs', magnet: 'supermagnete-s-08-02-n', miniLidSnap: 'detent', holderSnap: 'crush-ribs', lighterSnap: 'crush-ribs', lighterCrushSqueeze: 0.12, miniBoxSnap: 'detent', clearance: 0.35, engraveText: 'Tom "T" \\1', textSize: 3 });
-    const claimed = store.claim();
+    await store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, snap: 'crush-ribs', magnet: 'supermagnete-s-08-02-n', miniLidSnap: 'detent', holderSnap: 'crush-ribs', lighterSnap: 'crush-ribs', lighterCrushSqueeze: 0.12, miniBoxSnap: 'detent', clearance: 0.35, engraveText: 'Tom "T" \\1', textSize: 3 });
+    const claimed = await store.claim();
     if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
     expect(await renderJob(store, claimed, new AbortController().signal, fakeRunner(invocations))).toBe(true);
     const defines = invocations.map(args => args.flatMap((arg, index) => args[index - 1] === '-D' ? [arg] : []));
@@ -110,8 +105,8 @@ describe('renderJob for an assembly model', () => {
     const invocations: string[][] = [];
     const fonts: string[] = [];
     const runner = fakeRunner(invocations);
-    store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, engraveText: 'Tom', textMode: 'second-filament', textFont: 'mono', textSize: 4.5 });
-    const claimed = store.claim();
+    await store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, engraveText: 'Tom', textMode: 'second-filament', textFont: 'mono', textSize: 4.5 });
+    const claimed = await store.claim();
     if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
     expect(await renderJob(store, claimed, new AbortController().signal, (args, signal, fontPath) => { fonts.push(fontPath); return runner(args, signal, fontPath); })).toBe(true);
     expect(invocations).toHaveLength(6);
@@ -120,15 +115,15 @@ describe('renderJob for an assembly model', () => {
     expect(last.filter((_arg, index) => last[index - 1] === '-D')).toEqual(['MARK="text"', 'TEXT="Tom"', 'TEXT_FONT="mono"', 'TEXT_SIZE=4.5', 'LOGO=[]', 'LOGO_SIZE=12']);
     expect(new Set(fonts).size).toBe(1);
     expect(fonts[0]).toMatch(/models\/fonts$/);
-    const result = store.getJob(claimed.id);
+    const result = await store.getJob(claimed.id);
     if (!result?.artifact || !('parts' in result.artifact)) throw new Error('Expected an assembly artifact');
     expect(result.artifact.parts.map(part => part.id).at(-1)).toBe('case-text');
   });
 
   it('passes a logo to OpenSCAD as a vector of numbers, never as the logo string', async () => {
     const invocations: string[][] = [];
-    store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, undersideMark: 'logo', logo: 'M0 0L2000 0L1000 1500ZM800 200L1200 200L1000 500Z', logoSize: 8, textMode: 'second-filament' });
-    const claimed = store.claim();
+    await store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, undersideMark: 'logo', logo: 'M0 0L2000 0L1000 1500ZM800 200L1200 200L1000 500Z', logoSize: 8, textMode: 'second-filament' });
+    const claimed = await store.claim();
     if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
     expect(await renderJob(store, claimed, new AbortController().signal, fakeRunner(invocations))).toBe(true);
     expect(invocations).toHaveLength(6);

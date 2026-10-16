@@ -4,8 +4,8 @@ import { join, resolve } from 'node:path';
 import { zipSync } from 'fflate';
 import { activeParts, findModel, FONTS_DIR, isAssembly, scadDefines, validateParameters, type ApiError, type ModelDefinition, type ModelPart, type ParameterValues } from '@canfactory/contracts';
 import {
-  asyncStorage, combineParts, firstDegenerateTriangle, inspectStl, repairFloat32Slivers, RENDER_TIMEOUT_MS, RENDERER_FINGERPRINT, sourceFingerprint,
-  type AssemblyPart, type MeshInfo, type RenderJob, type Storage, type Store,
+  combineParts, firstDegenerateTriangle, inspectStl, repairFloat32Slivers, RENDER_TIMEOUT_MS, RENDERER_FINGERPRINT, sourceFingerprint,
+  type AssemblyPart, type MeshInfo, type PostgresStorage, type RenderJob,
 } from '@canfactory/server';
 
 /** Why a render failed. The retryable ones may pass on another attempt or with other settings; the rest are defects in a model or
@@ -93,8 +93,7 @@ async function finishStl(output: string, model: ModelDefinition, part: { id: str
 
 /** Revalidate trusted model/version and queued parameters before invoking the geometry engine. `onRepair` hears of every
  * repaired part (the worker logs and counts them; the renderer tests insist there are none). */
-export async function renderJob(storage: Store | Storage, job: RenderJob, signal: AbortSignal, run: OpenScadRunner = runOpenScad, onRepair?: (repair: MeshRepair) => void): Promise<boolean> {
-  const store = asyncStorage(storage);
+export async function renderJob(store: PostgresStorage, job: RenderJob, signal: AbortSignal, run: OpenScadRunner = runOpenScad, onRepair?: (repair: MeshRepair) => void): Promise<boolean> {
   const model = findModel(job.modelId);
   if (!model || model.version !== job.modelVersion || sourceFingerprint(store.projectRoot, model) !== job.sourceHash || job.rendererFingerprint !== RENDERER_FINGERPRINT)
     throw new RenderFailure('MODEL_CHANGED', 'The model or renderer changed. Refresh the catalogue and generate again.', `Queued for ${job.modelId}@${job.modelVersion}; the worker has ${model ? `${model.id}@${model.version}` : 'no such model'}.`, false);

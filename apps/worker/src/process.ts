@@ -1,4 +1,4 @@
-import { asyncStorage, type RenderJob, type Storage, type Store } from '@canfactory/server';
+import type { PostgresStorage, RenderJob } from '@canfactory/server';
 import { classifyRenderError, renderJob, runOpenScad, type OpenScadRunner } from './render.ts';
 
 /** The part of a pino logger the worker uses; tests pass a recorder. */
@@ -16,8 +16,7 @@ export type JobOutcome = 'published' | 'superseded' | 'failed' | 'aborted';
  * (model, version, parameters, the failure's detail and stack), and recorded on the job for the person waiting on it. Only a
  * shutdown or lost lease (`signal`) leaves the job alone, for lease recovery to requeue.
  */
-export async function processJob(storage: Store | Storage, job: RenderJob, signal: AbortSignal, log: JobLogger, run: OpenScadRunner = runOpenScad): Promise<JobOutcome> {
-  const store = asyncStorage(storage);
+export async function processJob(store: PostgresStorage, job: RenderJob, signal: AbortSignal, log: JobLogger, run: OpenScadRunner = runOpenScad): Promise<JobOutcome> {
   const started = Date.now();
   const context = { jobId: job.id, modelId: job.modelId, modelVersion: job.modelVersion };
   log.info({ ...context, attempt: job.attempts }, 'Render started');

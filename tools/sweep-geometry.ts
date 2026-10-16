@@ -17,9 +17,10 @@ import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { models, validateParameters, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
-import { repositoryRoot, Store } from '@canfactory/server';
+import { ObjectStorage, PostgresStorage, repositoryRoot } from '@canfactory/server';
 import { classifyRenderError, renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
 import { selectRunner } from './renderers.ts';
+import { startStorageServices } from './storage-services.ts';
 
 const env = (name: string, fallback: string) => process.env[name] ?? fallback;
 const samples = Number(env('SWEEP_SAMPLES', '5'));
@@ -92,8 +93,9 @@ const changed = (model: ModelDefinition, parameters: ParameterValues) =>
 interface Result { model: string; kind: 'boundary' | 'random'; settings: Record<string, unknown>; outcome: 'pass' | 'repaired' | 'failed'; code?: string; detail?: string; seconds: number }
 
 const directory = await mkdtemp(join(tmpdir(), 'canfactory-sweep-'));
-const store = new Store(directory, repositoryRoot);
-store.migrate(); store.seed();
+const services = await startStorageServices('canfactory-sweep');
+const store = new PostgresStorage(services.databaseUrl, repositoryRoot, directory, new ObjectStorage(services.objects));
+await store.migrate(); await store.seed();
 const runner = selectRunner(directory);
 const results: Result[] = [];
 let invalidBoundaries = 0;
@@ -116,20 +118,29 @@ try {
   });
   console.log(`Sweeping ${work.length} settings (seed ${seed}, ${samples} random per model${boundaries ? ', with boundaries' : ''}), ${concurrency} at a time`);
 
+  // One lane at a time enqueues and claims, so that no other lane's job comes between them: each claims the job it just queued.
+  let admission = Promise.resolve();
+  const admit = (model: ModelDefinition, parameters: ParameterValues) => {
+    const claimed = admission.then(async () => {
+      const queued = await store.enqueue(model, parameters);
+      const job = await store.claim();
+      if (!job?.leaseToken || job.id !== queued.id) throw new Error(`Could not claim the sweep's job for ${model.id}`);
+      return { ...job, leaseToken: job.leaseToken };
+    });
+    admission = claimed.then(() => undefined, () => undefined);
+    return claimed;
+  };
   let cursor = 0;
   const lane = async () => {
     for (let item = work[cursor++]; item; item = work[cursor++]) {
       const { model, kind, parameters } = item;
-      // enqueue and claim are synchronous, so no other lane's job comes between them: this claims the job just queued.
-      const queued = store.enqueue(model, parameters);
-      const claimed = store.claim();
-      if (!claimed?.leaseToken || claimed.id !== queued.id) throw new Error(`Could not claim the sweep's job for ${model.id}`);
+      const claimed = await admit(model, parameters);
       const started = Date.now();
       const settings = changed(model, parameters);
       const repairs: MeshRepair[] = [];
       let result: Result;
       const token = claimed.leaseToken;
-      const heartbeat = setInterval(() => store.renew(claimed.id, token), 5000);
+      const heartbeat = setInterval(() => { void store.renew(claimed.id, token).catch(() => undefined); }, 5000);
       try {
         await renderJob(store, claimed, new AbortController().signal, runner, repair => repairs.push(repair));
         result = { model: model.id, kind, settings, outcome: repairs.length ? 'repaired' : 'pass', seconds: (Date.now() - started) / 1000,
@@ -145,7 +156,7 @@ try {
   };
   await Promise.all(Array.from({ length: concurrency }, lane));
 } finally {
-  store.close(); await rm(directory, { recursive: true, force: true });
+  await store.close(); await services.stop(); await rm(directory, { recursive: true, force: true });
 }
 
 const bad = results.filter(result => result.outcome !== 'pass');

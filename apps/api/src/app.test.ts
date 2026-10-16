@@ -1,22 +1,14 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
 import { aiRubberDuck, AI_DUCK_VARIANTS, cigaretteCase, ErrorSchema, LOGO_MAX_LENGTH, LOGO_MAX_POINTS, fruitFlyTrap, litterShovel, MarketInfoSchema, ModelDetailSchema, mossPlanter, offers, OffersSchema, PartDetailSchema, PartFamilyDetailSchema, PartFamilySummarySchema, partFamilies, parts, plankConnector, RenderSchema, type Offer } from '@canfactory/contracts';
-import { CACHE_TTL_MS, repositoryRoot, Store } from '@canfactory/server';
+import type { PostgresStorage } from '@canfactory/server';
+import { expireJobs, testStorage } from '../../../tools/unit-storage.ts';
 import { createApp } from './app.ts';
 
-let store: Store;
-let directory: string;
-let time: number;
+let store: PostgresStorage;
 let app: Awaited<ReturnType<typeof createApp>>;
-beforeEach(async () => {
-  time = Date.now(); directory = mkdtempSync(join(tmpdir(), 'canfactory-api-test-'));
-  store = new Store(directory, repositoryRoot, () => time); store.migrate(); store.seed();
-  app = await createApp(store);
-});
-afterEach(async () => { await app.close(); store.close(); rmSync(directory, { recursive: true, force: true }); });
+beforeEach(async () => { store = await testStorage(); app = await createApp(store); });
+afterEach(async () => { await app.close(); await store.close(); });
 const payload = { modelId: fruitFlyTrap.id, modelVersion: fruitFlyTrap.version, parameters: fruitFlyTrap.defaults };
 
 describe('model and render API', () => {
@@ -195,17 +187,17 @@ describe('model and render API', () => {
     const again = await app.inject({ method: 'POST', url: '/api/v1/renders', payload });
     expect(Value.Parse(RenderSchema, again.json<unknown>()).id).toBe(job.id);
     expect((await app.inject(`/api/v1/renders/${job.id}/stl`)).statusCode).toBe(409);
-    time += CACHE_TTL_MS + 1;
+    await expireJobs(store);
     expect((await app.inject(`/api/v1/renders/${job.id}`)).statusCode).toBe(410);
     expect((await app.inject(`/api/v1/renders/${job.id}/stl`)).statusCode).toBe(410);
   });
 
   it('reports a failed render with its classification, detail, reference and retry advice, and requeues it when asked again', async () => {
     const created = Value.Parse(RenderSchema, (await app.inject({ method: 'POST', url: '/api/v1/renders', payload })).json<unknown>());
-    const claimed = store.claim();
+    const claimed = await store.claim();
     if (!claimed?.leaseToken) throw new Error('Expected to claim the job');
     const envelope = { code: 'GEOMETRY_INVALID', message: 'This combination of settings hits a defect in the model.', issues: [], detail: '"Scoop" (scoop): The mesh contains a zero-area triangle.', reference: created.id, retryable: false };
-    store.fail(claimed.id, claimed.leaseToken, envelope);
+    await store.fail(claimed.id, claimed.leaseToken, envelope);
     const failed = Value.Parse(RenderSchema, (await app.inject(`/api/v1/renders/${created.id}`)).json<unknown>());
     expect(failed.status).toBe('failed');
     expect(failed.error).toEqual(envelope);
@@ -225,7 +217,7 @@ describe('model and render API', () => {
     expect(Value.Parse(RenderSchema, again.json<unknown>()).id).toBe(job.id);
     expect((await app.inject(`/api/v1/renders/${job.id}/zip`)).statusCode).toBe(409);
     expect((await app.inject(`/api/v1/renders/${job.id}/stl`)).statusCode).toBe(409);
-    time += CACHE_TTL_MS + 1;
+    await expireJobs(store);
     expect((await app.inject(`/api/v1/renders/${job.id}`)).statusCode).toBe(410);
     expect((await app.inject(`/api/v1/renders/${job.id}/zip`)).statusCode).toBe(410);
   });
@@ -277,8 +269,9 @@ describe('offers API', () => {
   });
 
   it('serves curated Amazon links, the Awin price of a fresh feed, and searches for the rest', async () => {
+    const time = Date.now();
     const lastImported = time - 3_600_000;
-    store.saveAwinFeed({ feedId: 42, advertiserId: 777, lastImported }, [{ advertiserId: 777, merchantProductId: 'SKU-1', market: 'DE',
+    await store.saveAwinFeed({ feedId: 42, advertiserId: 777, lastImported }, [{ advertiserId: 777, merchantProductId: 'SKU-1', market: 'DE',
       deepLink: 'https://www.awin1.com/pclick.php?p=1', name: 'M3', price: 4.99, currency: 'EUR', deliveryCost: 3.95, inStock: true, lastImported }]);
     const linked = await createApp(store, false, { accounts, now: () => time, catalogue: [shopOffer, ...offers] });
     try {

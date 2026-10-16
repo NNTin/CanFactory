@@ -1,9 +1,8 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fruitFlyTrap, mossPlanter } from '@canfactory/contracts';
-import { repositoryRoot, Store } from '@canfactory/server';
+import type { PostgresStorage } from '@canfactory/server';
+import { testStorage } from '../../../tools/unit-storage.ts';
 import { processJob, type JobLogger } from './process.ts';
 import { classifyRenderError, RenderFailure, type OpenScadRunner } from './render.ts';
 
@@ -36,16 +35,12 @@ function recorder(): JobLogger & { entries: Entry[] } {
   return { entries, info: at('info'), warn: at('warn'), error: at('error') };
 }
 
-let directory: string;
-let store: Store;
-beforeEach(() => {
-  directory = mkdtempSync(join(tmpdir(), 'canfactory-process-test-'));
-  store = new Store(directory, repositoryRoot); store.migrate(); store.seed();
-});
-afterEach(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
+let store: PostgresStorage;
+beforeEach(async () => { store = await testStorage(); });
+afterEach(() => store.close());
 
-function claimNext() {
-  const job = store.claim();
+async function claimNext() {
+  const job = await store.claim();
   if (!job?.leaseToken) throw new Error('Expected to claim a job');
   return job;
 }
@@ -54,10 +49,10 @@ describe('processJob', () => {
   it('records a geometry defect with its part, reference and no retry, logs it with the parameters, and keeps going', async () => {
     const log = recorder();
     const parameters = { ...mossPlanter.defaults, towerDiameter: 60 };
-    const broken = store.enqueue(mossPlanter, parameters);
-    const outcome = await processJob(store, claimNext(), new AbortController().signal, log, writing(scad => scad.endsWith('spike.scad') ? collapsed : tetrahedron));
+    const broken = await store.enqueue(mossPlanter, parameters);
+    const outcome = await processJob(store, await claimNext(), new AbortController().signal, log, writing(scad => scad.endsWith('spike.scad') ? collapsed : tetrahedron));
     expect(outcome).toBe('failed');
-    const failed = store.getJob(broken.id);
+    const failed = await store.getJob(broken.id);
     expect(failed?.status).toBe('failed');
     expect(failed?.error).toMatchObject({ code: 'GEOMETRY_INVALID', reference: broken.id, retryable: false });
     expect(failed?.error?.message).toMatch(/defect in the model/);
@@ -67,16 +62,16 @@ describe('processJob', () => {
     expect(logged?.fields).toMatchObject({ jobId: broken.id, modelId: mossPlanter.id, code: 'GEOMETRY_INVALID', parameters });
 
     // the worker is unaffected: the next job renders
-    const next = store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
-    expect(await processJob(store, claimNext(), new AbortController().signal, log, writing(() => tetrahedron))).toBe('published');
-    expect(store.getJob(next.id)?.status).toBe('succeeded');
+    const next = await store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
+    expect(await processJob(store, await claimNext(), new AbortController().signal, log, writing(() => tetrahedron))).toBe('published');
+    expect((await store.getJob(next.id))?.status).toBe('succeeded');
   });
 
   it('publishes a render whose slivers it repaired, and says so in the metadata and a warning', async () => {
     const log = recorder();
-    const job = store.enqueue(mossPlanter, mossPlanter.defaults);
-    expect(await processJob(store, claimNext(), new AbortController().signal, log, writing(scad => scad.endsWith('cap.scad') ? withSliver : tetrahedron))).toBe('published');
-    const result = store.getJob(job.id);
+    const job = await store.enqueue(mossPlanter, mossPlanter.defaults);
+    expect(await processJob(store, await claimNext(), new AbortController().signal, log, writing(scad => scad.endsWith('cap.scad') ? withSliver : tetrahedron))).toBe('published');
+    const result = await store.getJob(job.id);
     if (!result?.artifact || !('parts' in result.artifact)) throw new Error('Expected an assembly artifact');
     expect(result.artifact.meshRepairs).toBe(1);
     expect(result.artifact.parts.find(part => part.id === 'cover-cap')?.meshRepairs).toBe(1);
@@ -88,23 +83,23 @@ describe('processJob', () => {
 
   it('classifies generator failures and unexpected errors, keeping only the latter retryable', async () => {
     const log = recorder();
-    const scad = store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
-    await processJob(store, claimNext(), new AbortController().signal, log,
+    const scad = await store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
+    await processJob(store, await claimNext(), new AbortController().signal, log,
       () => Promise.reject(new RenderFailure('OPENSCAD_FAILED', 'defect', 'ERROR: Assertion failed', false)));
-    expect(store.getJob(scad.id)?.error).toMatchObject({ code: 'OPENSCAD_FAILED', detail: 'ERROR: Assertion failed', retryable: false });
+    expect((await store.getJob(scad.id))?.error).toMatchObject({ code: 'OPENSCAD_FAILED', detail: 'ERROR: Assertion failed', retryable: false });
 
-    const internal = store.enqueue(fruitFlyTrap, { ...fruitFlyTrap.defaults, trapHeight: 70 });
-    await processJob(store, claimNext(), new AbortController().signal, log, () => Promise.reject(new TypeError('boom')));
-    expect(store.getJob(internal.id)?.error).toMatchObject({ code: 'RENDERER_INTERNAL', detail: 'TypeError: boom', retryable: true, reference: internal.id });
+    const internal = await store.enqueue(fruitFlyTrap, { ...fruitFlyTrap.defaults, trapHeight: 70 });
+    await processJob(store, await claimNext(), new AbortController().signal, log, () => Promise.reject(new TypeError('boom')));
+    expect((await store.getJob(internal.id))?.error).toMatchObject({ code: 'RENDERER_INTERNAL', detail: 'TypeError: boom', retryable: true, reference: internal.id });
   });
 
   it('leaves an aborted job to lease recovery instead of failing it', async () => {
     const log = recorder();
-    const job = store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
+    const job = await store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
     const controller = new AbortController();
-    const outcome = await processJob(store, claimNext(), controller.signal, log, () => { controller.abort(); return Promise.reject(new Error('killed')); });
+    const outcome = await processJob(store, await claimNext(), controller.signal, log, () => { controller.abort(); return Promise.reject(new Error('killed')); });
     expect(outcome).toBe('aborted');
-    expect(store.getJob(job.id)?.status).toBe('running');
+    expect((await store.getJob(job.id))?.status).toBe('running');
     expect(log.entries.some(entry => entry.level === 'error')).toBe(false);
   });
 });

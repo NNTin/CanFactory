@@ -4,12 +4,12 @@ import swaggerUi from '@fastify/swagger-ui';
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import { Type } from 'typebox';
 import {
-  AFFILIATE_ACCOUNTS, DownloadQuerySchema, ErrorSchema, IdParamsSchema, MarketInfoSchema, ModelDetailSchema, ModelSummarySchema, OffersQuerySchema, OffersSchema,
+  AFFILIATE_ACCOUNTS, artifactFormat, DownloadQuerySchema, ErrorSchema, IdParamsSchema, MarketInfoSchema, ModelDetailSchema, ModelSummarySchema, OffersQuerySchema, OffersSchema,
   PartDetailSchema, PartFamilyDetailSchema, PartFamilySummarySchema, RenderRequestSchema, RenderSchema, enabledNetworks, findModel, findPart, findPartFamily,
   findPartSource, marketOfCountry, matchOffers, offers, parseOfferParts, partFamilies, partUsage, partsOfFamily, validateParameters,
-  type AffiliateAccounts, type AwinLive, type Offer, type Part, type PartSource,
+  type AffiliateAccounts, type AwinLive, type Offer, type Part, type PartSource, type Render,
 } from '@canfactory/contracts';
-import { AppError, asyncStorage, publicRender, type ArtifactFormat, type Storage, type Store } from '@canfactory/server';
+import { AppError, type ArtifactFormat, type PostgresStorage, type RenderJob } from '@canfactory/server';
 
 export interface AppOptions {
   /** The affiliate accounts links carry (default: packages/contracts/src/parts/affiliateAccounts.ts). */
@@ -20,18 +20,29 @@ export interface AppOptions {
   catalogue?: readonly Offer[];
 }
 
+/** Sanitized public view of a job; internal paths, parameters, and leases stay private. */
+function publicRender(job: RenderJob): Render {
+  const model = findModel(job.modelId);
+  const suffix = model && artifactFormat(model) === 'zip' ? 'zip' : 'stl';
+  return {
+    id: job.id, modelId: job.modelId, modelVersion: job.modelVersion, status: job.status,
+    createdAt: job.createdAt, expiresAt: job.expiresAt, slotCount: job.slotCount,
+    artifact: job.status === 'succeeded' && job.artifact ? { ...job.artifact, url: `/api/v1/renders/${job.id}/${suffix}` } : null,
+    error: job.error,
+  };
+}
+
 /** Build routes without side effects; omitting storage supports offline OpenAPI generation. */
-export async function createApp(storage?: Store | Storage, logging = false, options: AppOptions = {}) {
+export async function createApp(storage?: PostgresStorage, logging = false, options: AppOptions = {}) {
   const accounts = options.accounts ?? AFFILIATE_ACCOUNTS;
   const catalogue = options.catalogue ?? offers;
   const app = Fastify({
     logger: logging, bodyLimit: 32_768,
     ajv: { customOptions: { coerceTypes: false, removeAdditional: false, useDefaults: false, multipleOfPrecision: 8 } },
   }).withTypeProvider<TypeBoxTypeProvider>();
-  const adapter = storage ? asyncStorage(storage) : undefined;
   const store = () => {
-    if (!adapter) throw new AppError(503, 'NOT_READY', 'The catalogue is not ready.');
-    return adapter;
+    if (!storage) throw new AppError(503, 'NOT_READY', 'The catalogue is not ready.');
+    return storage;
   };
   const stlResponse = { description: 'STL bytes; coordinates are in millimetres.', content: { 'model/stl': { schema: Type.Unknown({ type: 'string', format: 'binary' }) } } };
   const zipResponse = { description: 'ZIP archive containing this model’s STL parts.', content: { 'application/zip': { schema: Type.Unknown({ type: 'string', format: 'binary' }) } } };
@@ -44,7 +55,7 @@ export async function createApp(storage?: Store | Storage, logging = false, opti
     return reply.type(contentType).header('Content-Length', job.artifact.bytes)
       .header('Content-Disposition', `${disposition}; filename="${job.modelId}-${job.id.slice(0, 8)}.${format}"`)
       .header('Cache-Control', 'no-store').header('ETag', `"${job.artifact.sha256}"`)
-      .send(await store().readArtifact(job, format));
+      .send(await store().readArtifact(job));
   }
   await app.register(swagger, {
     openapi: {

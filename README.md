@@ -76,8 +76,12 @@ docker compose up --build -d --wait
 - Interactive API documentation: <http://localhost:5173/api/docs>
 - OpenAPI: <http://localhost:5173/api/openapi.json>
 
-Only the web port is published, bound to `127.0.0.1`. API and worker communicate
-inside Docker. Use `WEB_PORT=5180 docker compose up --build -d --wait` to select
+Compose runs the same storage as production: PostgreSQL for the render queue and
+catalogue, Garage S3 for reference and generated files. A one-shot `release`
+service creates the buckets, migrates and seeds before the API starts, and a
+`maintenance` service recovers leases and removes expired renders every minute
+(the chart's release Job and maintenance CronJob). Only the web port is
+published, bound to `127.0.0.1`; everything else communicates inside Docker. Use `WEB_PORT=5180 docker compose up --build -d --wait` to select
 another web port. The renderer initially uses at most two CPUs and 2 GB of RAM.
 Three.js requires a browser with WebGL support.
 
@@ -87,11 +91,11 @@ docker compose ps
 docker compose down
 ```
 
-`docker compose down` preserves the named `canfactory_data` volume. It contains
-the SQLite catalogue, original reference STLs, and temporary render artifacts.
-Generated jobs, parameters, and files expire after one hour and are cleaned up
-within the next maintenance cycle (10 seconds), including after startup. The API
-never serves expired artifacts. The browser remembers the last valid settings;
+`docker compose down` preserves the named `canfactory_postgres` and
+`canfactory_garage` volumes (the database, original reference STLs, and
+temporary render artifacts); `docker compose down -v` removes them. Generated
+jobs, parameters, and files expire after one hour and are cleaned up within the
+next maintenance cycle (one minute). The API never serves expired artifacts. The browser remembers the last valid settings;
 Reset restores model defaults. There are no accounts or backend saved designs.
 
 The provided model source and STL are preserved under
@@ -110,7 +114,16 @@ npm run build
 ```
 
 `check` runs strict TypeScript, strict lint, OpenAPI/client drift checks, and the
-contract/API/queue tests. Building also requires type checking. Application,
+contract/API/queue tests. The queue, API and worker tests run against a real
+PostgreSQL and Garage: a Vitest global setup (`tools/unit-storage.ts`) starts
+throwaway containers with Docker, migrates and seeds once, and removes them at
+the end; the test files share that database, one file at a time. Without
+Docker, point `TEST_DATABASE_URL` (a server where the user may create
+databases), `TEST_S3_ENDPOINT`, `TEST_S3_ACCESS_KEY_ID` and
+`TEST_S3_SECRET_ACCESS_KEY` (a key that may create buckets) at services you
+run yourself; each run then creates and drops its own database. `npm run
+test:renderer` and `npm run test:sweep` get their storage the same way.
+`npm run test:storage` always starts its own containers, since it pauses them. Building also requires type checking. Application,
 server, browser, configuration, and test code use TypeScript.
 
 With the Compose application running:
@@ -126,7 +139,8 @@ downloads, stale responses, validation, retries, persistence of browser settings
 and mobile layout. Screenshots and failure traces go to ignored test directories.
 
 The renderer integration suite runs isolated containers using the pinned
-OpenSCAD image; it does not use or modify the application database:
+OpenSCAD image and its own throwaway storage; it does not use or modify the
+Compose database:
 
 ```sh
 npm run test:renderer
@@ -144,8 +158,15 @@ catalogue and unexpired-artifact persistence.
 To iterate on the frontend without rebuilding images, use native development:
 `npm run api`, `npm run worker`, and `npm run dev` in separate terminals. The
 native worker requires the same OpenSCAD build with Manifold support; Docker is
-the supported reproducible path. Native storage defaults to ignored `.data/`.
-Both native servers bind to localhost; Vite proxies `/api` to port 3001.
+the supported reproducible path. The native API and worker need a PostgreSQL and
+a Garage: set `DATABASE_URL` and the `S3_*` variables (see `compose.yaml` and
+[interface contracts](docs/interfaces.md#operational-configuration)), then run
+`npm run maintenance -- buckets release` once (and `npm run maintenance --
+cleanup` to expire renders). To use Compose's, publish their ports to
+`127.0.0.1` in an untracked `compose.override.yaml`, for example
+`services: {postgres: {ports: ["127.0.0.1:5432:5432"]}, garage: {ports: ["127.0.0.1:3900:3900"]}}`,
+and use `localhost` in place of the service names. Both native servers bind to
+localhost; Vite proxies `/api` to port 3001.
 
 After changing public schemas or API routes:
 

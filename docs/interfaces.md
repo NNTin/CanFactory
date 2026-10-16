@@ -71,27 +71,30 @@ artifact is exposed for pending or failed jobs. Polling and artifacts use
 
 ## Queue and artifact boundaries
 
-`RenderQueue` declares atomic claim, lease renewal, successful publication, and
-failure operations. The SQLite adapter lives in `packages/server`. Claims have
-30-second leases renewed every five seconds. A fencing token makes a late result
-from an abandoned worker ineffective. Abandoned work retries once; a second
-interruption becomes a visible failure. Clients may explicitly retry failures.
+`PostgresStorage` (`packages/server/src/postgres.ts`) is the only queue and
+catalogue: atomic claim, lease renewal, successful publication, and failure
+operations. Claims have 30-second leases renewed every five seconds. A fencing
+token makes a late result from an abandoned worker ineffective. Abandoned work
+retries once; a second interruption becomes a visible failure. Clients may
+explicitly retry failures.
 
-`ArtifactStore` owns catalogue, temporary, and generated file locations. Worker
-source paths and SCAD variable names come from trusted definitions, never from
-client input. OpenSCAD runs through `execFile` with argument arrays. Successful
-files are validated and renamed into their final location before the job is
-marked successful inside the claim transaction. Orphan and expired files are
-removed by maintenance. Reads in progress can finish even if a file expires.
+`ObjectStorage` (`objects.ts`) keeps reference STLs in the catalogue bucket and
+generated files in the generated bucket of Garage S3. Worker source paths and
+SCAD variable names come from trusted definitions, never from client input.
+OpenSCAD runs through `execFile` with argument arrays in a local scratch
+directory. Successful files are validated and uploaded under the job's lease
+token before the job is marked successful, and only while that lease is live.
+Orphan and expired objects are removed by maintenance. Reads in progress can
+finish even if a file expires.
 
 Cache keys combine the model identifier, source/schema/mapping fingerprint,
 renderer/export fingerprint, and sorted parameters. Model or renderer changes
 cannot reuse old geometry accidentally. Original assets survive cache cleanup.
 
-SQLite uses WAL and a busy timeout. The API owns versioned SQL migrations and
-idempotent catalogue seeding. The worker starts after API readiness. These
-interfaces separate geometry execution from HTTP, but the local adapters are
-not a multi-machine queue or object store.
+Versioned SQL migrations (`packages/server/migrations/`) and idempotent
+catalogue seeding belong to the release job (`tools/maintenance.ts release`);
+lease recovery and expiry cleanup to the maintenance job. Compose and the chart
+run both.
 
 ## Editor behavior
 
@@ -110,7 +113,9 @@ is optional and stores only the last valid settings per model/version.
 
 | Variable | Native default | Purpose |
 | --- | --- | --- |
-| `DATA_DIR` | `.data` | SQLite and artifact root; Docker uses `/data`. |
+| `DATABASE_URL` | none | PostgreSQL queue and catalogue (required). |
+| `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_CATALOGUE_BUCKET`, `S3_GENERATED_BUCKET` | none | Garage S3 (required); `S3_REGION` defaults to `garage`. |
+| `SCRATCH_DIR` | `/tmp/canfactory` | Local render scratch. |
 | `PROJECT_ROOT` | current directory | Trusted model/source root; Docker uses `/app`. |
 | `PORT` | `3001` | API listener port. |
 | `HOST` | `127.0.0.1` | API bind address; Docker uses `0.0.0.0` internally. |

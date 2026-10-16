@@ -1,0 +1,12 @@
+# Garage for Compose: one node, the S3 API on 3900 inside the network only. The RPC secret and the default access key come
+# from compose.yaml's environment.
+metadata_dir = "/data/meta"
+data_dir = "/data/objects"
+db_engine = "lmdb"
+replication_factor = 1
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"

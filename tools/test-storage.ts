@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { randomBytes, randomUUID, createHash } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,71 +8,28 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { Pool } from 'pg';
 import { fruitFlyTrap } from '@canfactory/contracts';
-import { ObjectStorage, PostgresStorage, repositoryRoot, inspectStl, RENDERER_IMAGE, type ObjectConfig } from '@canfactory/server';
+import { ObjectStorage, PostgresStorage, repositoryRoot, inspectStl, RENDERER_IMAGE } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { renderJob, type OpenScadRunner } from '../apps/worker/src/render.ts';
+import { startStorageServices } from './storage-services.ts';
 
 const exec = promisify(execFile);
-const suffix = randomBytes(6).toString('hex');
-const name = `canfactory-storage-test-${suffix}`;
-const directory = await mkdtemp(join(tmpdir(), `${name}-`));
-const password = randomBytes(24).toString('hex');
-const keyId = `GK${randomBytes(16).toString('hex')}`;
-const keySecret = randomBytes(32).toString('hex');
-const environment = { ...process.env, POSTGRES_PASSWORD: password,
-  GARAGE_DEFAULT_ACCESS_KEY: keyId, GARAGE_DEFAULT_SECRET_KEY: keySecret, GARAGE_DEFAULT_BUCKET: 'generated' };
-const containers: string[] = [];
-const volumes: string[] = [];
+const directory = await mkdtemp(join(tmpdir(), 'canfactory-storage-test-'));
 const stores: PostgresStorage[] = [];
 let admin: Pool | undefined;
-const docker = async (...args: string[]) => {
-  try { return (await exec('docker', args, { env: environment, maxBuffer: 1_048_576 })).stdout.trim(); }
-  catch { throw new Error(`Isolated Docker ${args[0] ?? 'operation'} failed; credentials suppressed.`); }
-};
-async function waitFor(action: () => Promise<void>): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt++) {
-    try { await action(); return; } catch { await delay(200); }
-  }
-  throw new Error('Isolated storage services did not become ready within 20 seconds.');
-}
+// Its own containers even when TEST_DATABASE_URL is set: this test pauses them, and starts from an empty database.
+delete process.env['TEST_DATABASE_URL'];
+const services = await startStorageServices('canfactory-storage-test');
 try {
-  await docker('network', 'create', name);
-  for (const service of ['postgres', 'garage']) {
-    const volume = `${name}-${service}`;
-    await docker('volume', 'create', volume); volumes.push(volume);
-  }
-  const postgres = `${name}-postgres`;
-  await docker('run', '-d', '--name', postgres, '--network', name, '--memory', '768m', '--cpus', '1',
-    '-e', 'POSTGRES_PASSWORD', '-e', 'POSTGRES_USER=canfactory', '-e', 'POSTGRES_DB=canfactory',
-    '-p', '127.0.0.1::5432', '-v', `${postgres}:/var/lib/postgresql`,
-    'postgres:18.6-trixie@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae');
-  containers.push(postgres);
-  const configPath = join(directory, 'garage.toml');
-  await writeFile(configPath, `metadata_dir = "/data/meta"\ndata_dir = "/data/objects"\ndb_engine = "lmdb"\nreplication_factor = 1\nrpc_bind_addr = "0.0.0.0:3901"\nrpc_public_addr = "127.0.0.1:3901"\nrpc_secret = "${randomBytes(32).toString('hex')}"\n[s3_api]\ns3_region = "garage"\napi_bind_addr = "0.0.0.0:3900"\n`, { mode: 0o600 });
-  const garage = `${name}-garage`;
-  await docker('run', '-d', '--name', garage, '--network', name, '--memory', '512m', '--cpus', '1',
-    '-e', 'GARAGE_DEFAULT_ACCESS_KEY', '-e', 'GARAGE_DEFAULT_SECRET_KEY', '-e', 'GARAGE_DEFAULT_BUCKET',
-    '-p', '127.0.0.1::3900', '-v', `${garage}:/data`, '-v', `${configPath}:/etc/garage.toml:ro`,
-    'dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020',
-    '/garage', 'server', '--single-node', '--default-bucket');
-  containers.push(garage);
-  const pgPort = (await docker('port', postgres, '5432')).split(':').at(-1);
-  const s3Port = (await docker('port', garage, '3900')).split(':').at(-1);
-  assert.ok(pgPort && s3Port);
-  const databaseUrl = `postgresql://canfactory:${password}@127.0.0.1:${pgPort}/canfactory`;
-  admin = new Pool({ connectionString: databaseUrl, connectionTimeoutMillis: 1000 });
+  assert.ok(services.containers);
+  const { postgres, garage, docker } = services.containers;
+  const config = services.objects;
+  admin = new Pool({ connectionString: services.databaseUrl, connectionTimeoutMillis: 1000 });
   admin.on('error', () => undefined);
   const control = admin;
-  await waitFor(async () => { await control.query('SELECT 1'); });
-  await waitFor(async () => { await docker('exec', garage, '/garage', 'status'); });
-  await docker('exec', garage, '/garage', 'bucket', 'create', 'catalogue');
-  await docker('exec', garage, '/garage', 'bucket', 'allow', '--read', '--write', '--owner', 'catalogue', '--key', keyId);
-  const config: ObjectConfig = { endpoint: `http://127.0.0.1:${s3Port}`, region: 'garage', accessKeyId: keyId,
-    secretAccessKey: keySecret, catalogueBucket: 'catalogue', generatedBucket: 'generated' };
-  for (let i = 0; i < 3; i++) stores.push(new PostgresStorage(databaseUrl, repositoryRoot, join(directory, `scratch-${i}`), new ObjectStorage(config)));
+  for (let i = 0; i < 3; i++) stores.push(new PostgresStorage(services.databaseUrl, repositoryRoot, join(directory, `scratch-${i}`), new ObjectStorage(config)));
   const [first, second, third] = stores;
   assert.ok(first && second && third);
-  await waitFor(() => first.objects.ready());
   await Promise.all([first.migrate(), second.migrate()]);
   await Promise.all([first.seed(), second.seed()]);
   await first.ready();
@@ -268,8 +225,6 @@ try {
 } finally {
   await Promise.all(stores.map(store => store.close()));
   await admin?.end();
-  for (const container of containers.reverse()) await docker('rm', '-f', container);
-  for (const volume of volumes) await docker('volume', 'rm', volume);
-  await docker('network', 'rm', name);
+  await services.stop();
   await rm(directory, { recursive: true, force: true });
 }

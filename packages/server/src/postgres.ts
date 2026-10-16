@@ -4,15 +4,51 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Pool, type PoolClient } from 'pg';
-import { artifactFormat, models, type ApiError, type AwinLive, type ModelDefinition, type ModelDetail, type ParameterValues } from '@canfactory/contracts';
+import {
+  artifactFormat, linkedPartData, models, modelSourcePaths,
+  type ApiError, type AwinLive, type ModelDefinition, type ModelDetail, type ParameterValues, type RenderStatus,
+} from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS, QUEUE_LIMIT, RENDERER_FINGERPRINT } from './config.ts';
 import { AppError } from './errors.ts';
 import type { AssemblyInfo, MeshInfo } from './mesh.ts';
 import { ObjectStorage, ORPHAN_GRACE_MS } from './objects.ts';
-import type { RenderJob } from './schema.ts';
-import type { CatalogueEntry, Storage } from './storage.ts';
-import { AWIN_COLUMNS, awinLive, sourceFingerprint, type ArtifactFormat, type AwinOfferRow } from './store.ts';
-import type { AwinFeedState, AwinOfferKey } from './awin.ts';
+import type { AwinFeedState, AwinOfferKey, AwinStore } from './awin.ts';
+
+export type ArtifactFormat = 'stl' | 'zip';
+
+export interface RenderJob {
+  id: string;
+  cacheKey: string;
+  modelId: string;
+  modelVersion: string;
+  sourceHash: string;
+  rendererFingerprint: string;
+  parameters: ParameterValues;
+  status: RenderStatus;
+  createdAt: number;
+  expiresAt: number;
+  attempts: number;
+  leaseToken: string | null;
+  leaseUntil: number | null;
+  slotCount: number | null;
+  artifact: MeshInfo | AssemblyInfo | null;
+  error: ApiError | null;
+}
+
+export interface CatalogueEntry {
+  id: string;
+  version: string;
+  sourceHash: string;
+  referenceName: string;
+  detail: ModelDetail;
+}
+
+/** Hash all inputs that determine model behavior, not only the user-visible version (all SCAD sources, for an assembly). */
+export function sourceFingerprint(root: string, model: ModelDefinition): string {
+  const hash = createHash('sha256');
+  for (const relative of [...modelSourcePaths(model), ...model.assetPaths ?? []]) hash.update(readFileSync(resolve(root, relative)));
+  return hash.update(JSON.stringify({ schema: model.parameterSchema, mapping: model.scadMapping, parts: model.parts?.map(part => ({ id: part.id, mapping: part.scadMapping, constants: part.scadConstants, separateBodies: part.separateBodies === true, sealedVoids: part.sealedVoids === true, partDefines: part.partDefines })), partDefines: model.partDefines, linkedParts: linkedPartData(model), version: model.version })).digest('hex');
+}
 
 const CONTENT_TYPES: Record<ArtifactFormat, string> = { stl: 'model/stl', zip: 'application/zip' };
 
@@ -27,10 +63,12 @@ const ADMISSION_LOCK = 716301;
 const MIGRATION_LOCK = 716302;
 const MAINTENANCE_LOCK = 716303;
 const SCHEMA_VERSION = '0002_awin_offers.sql';
+const AWIN_COLUMNS = `advertiser_id::float8 AS "advertiserId", merchant_product_id AS "merchantProductId", market, deep_link AS "deepLink", name, price,
+  currency, delivery_cost AS "deliveryCost", in_stock AS "inStock", last_imported::float8 AS "lastImported"`;
 interface JobRow extends RenderJob { objectKey: string | null }
 
-/** PostgreSQL is the sole authority for admission, leases, expiry and publication. */
-export class PostgresStorage implements Storage {
+/** PostgreSQL is the sole authority for admission, leases, expiry and publication; Garage S3 holds the files. */
+export class PostgresStorage implements AwinStore {
   readonly pool: Pool;
   readonly fingerprints: string[];
   constructor(
@@ -67,7 +105,7 @@ export class PostgresStorage implements Storage {
     return row.now;
   }
   async migrate(): Promise<void> {
-    const directory = fileURLToPath(new URL('../postgres-migrations/', import.meta.url));
+    const directory = fileURLToPath(new URL('../migrations/', import.meta.url));
     const files = (await readdir(directory)).filter(name => name.endsWith('.sql')).sort();
     await this.transaction(async client => {
       await client.query('SELECT pg_advisory_xact_lock($1)', [MIGRATION_LOCK]);
@@ -89,8 +127,7 @@ export class PostgresStorage implements Storage {
     // Upload first, then activate all definitions atomically. Concurrent identical seeds are safe.
     const entries: { model: ModelDefinition; sha: string; key: string; detail: ModelDetail; source: string }[] = [];
     for (const model of models) {
-      // Empty sha/key (not NULL - the columns are NOT NULL) for a model with no small, permanent original file to
-      // preserve, matching Store.seed()'s local/SQLite convention.
+      // Empty sha/key (not NULL - the columns are NOT NULL) for a model with no small, permanent original file to preserve.
       let sha = '', key = '';
       if (model.referencePath) {
         const path = resolve(this.projectRoot, model.referencePath);
@@ -264,10 +301,10 @@ export class PostgresStorage implements Storage {
   }
   async awinOffers(keys: readonly AwinOfferKey[]): Promise<AwinLive[]> {
     if (keys.length === 0) return [];
-    const result = await this.pool.query<AwinOfferRow>(`SELECT ${AWIN_COLUMNS.replace('advertiser_id AS', 'advertiser_id::float8 AS').replace('last_imported AS', 'last_imported::float8 AS')}
+    const result = await this.pool.query<AwinLive>(`SELECT ${AWIN_COLUMNS}
       FROM awin_offers WHERE (advertiser_id, merchant_product_id, market) IN (SELECT * FROM unnest($1::bigint[], $2::text[], $3::text[]))`,
     [keys.map(key => key.advertiserId), keys.map(key => key.merchantProductId), keys.map(key => key.market)]);
-    return result.rows.map(awinLive);
+    return result.rows;
   }
   async awinFeeds(): Promise<AwinFeedState[]> {
     return (await this.pool.query<AwinFeedState>('SELECT feed_id::float8 AS "feedId", advertiser_id::float8 AS "advertiserId", last_imported::float8 AS "lastImported" FROM awin_feeds')).rows;

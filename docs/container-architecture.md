@@ -2,67 +2,68 @@
 
 Production moved to Kubernetes on 2026-09-22 after explicit cutover approval.
 The Kubernetes diagrams below describe the live production and preview endpoints.
-The first two diagrams preserve the former Compose architecture for rollback;
-service names and ports match [compose.yaml](../compose.yaml). The old API/worker
-are stopped after temporary-data cleanup, while old web serves maintenance.
+The first two diagrams show Docker Compose, which now serves local development
+and CI only; service names and ports match [compose.yaml](../compose.yaml). It
+runs the same storage as Kubernetes (PostgreSQL and Garage S3). The former
+SQLite Compose deployment was deleted, and with it the Compose rollback path
+(#90).
 
-## Former Docker deployment (rollback reference)
+## Local Docker Compose (development and CI)
 
 ```mermaid
 flowchart TB
     browser["Browser<br/>React editor + Three.js STL viewer"]
-    edge["Cloudflare edge<br/>HTTPS: canfactory.nntin.xyz"]
-    browser <-->|"Public HTTPS"| edge
 
     subgraph host["Local Docker host"]
-        tunnel["Existing lair cloudflared<br/>Outbound tunnel connection"]
-        traefik["Shared Docker Traefik :443<br/>DNS-01 certificate + security headers<br/>No CanFactory forward-auth"]
-        other["Unrelated applications"]
         subgraph network["Docker network: canfactory-network"]
             web["web container<br/>Nginx :80<br/>Static frontend + API reverse proxy"]
             api["api container<br/>Fastify :3001<br/>Catalogue, validation, render jobs, STL downloads"]
             worker["worker container<br/>TypeScript worker + OpenSCAD subprocess<br/>One render at a time; no HTTP listener"]
-        end
-        subgraph volume["Shared named volume: canfactory_data — mounted at /data"]
-            db[("SQLite<br/>Catalogue, job queue, leases, worker heartbeats")]
-            files[("Files<br/>Original STLs + temporary generated STLs")]
+            release["release (one-shot)<br/>tools/maintenance.ts buckets release"]
+            maintenance["maintenance<br/>tools/maintenance.ts cleanup, every minute"]
+            pg[("postgres :5432<br/>Catalogue, job queue, leases, worker heartbeats, Awin rows")]
+            garage[("garage S3 :3900<br/>Catalogue bucket: original STLs<br/>Generated bucket: temporary STLs and ZIPs")]
         end
     end
 
-    edge <-->|"Encrypted tunnel"| tunnel
-    tunnel <-->|"HTTPS origin, noTLSVerify=true<br/>Verified remote CanFactory rule"| traefik
-    traefik <-->|"HTTP — canfactory-web:80"| web
-    traefik <--> other
-    browser <-->|"Alternative local access: HTTP 127.0.0.1:5173"| web
+    browser <-->|"HTTP 127.0.0.1:5173"| web
     web <-->|"HTTP — api:3001<br/>Proxy /api/* requests and responses"| api
-    api <-->|"Local SQL reads and writes"| db
-    worker <-->|"Local SQL: claim jobs, renew leases, publish status"| db
-    api <-->|"Seed originals, read STL files, remove expired files"| files
-    worker -->|"Write and validate STL; publish by atomic rename"| files
+    api <-->|"SQL: enqueue, read status"| pg
+    worker <-->|"SQL: claim jobs, renew leases, publish status"| pg
+    api -->|"S3: stream reference and generated files"| garage
+    worker -->|"S3: upload validated attempt object"| garage
+    release --> pg
+    release --> garage
+    maintenance --> pg
+    maintenance --> garage
 ```
 
 React and Three.js run in the browser; the web container serves their static
-build. Only `web` publishes a host port. `api` listens inside the Docker network,
-and `worker` has no listening port. OpenSCAD runs inside the worker container.
+build. Only `web` publishes a host port. `api`, `postgres` and `garage` listen
+inside the Docker network, and `worker` has no listening port. OpenSCAD runs
+inside the worker container, in local scratch under `/tmp`.
 
-The API and worker communicate through shared SQLite state and files. There is
-no API-to-worker HTTP call, message broker, or separate database container. Both
-containers mount the same local volume. Trusted model definitions and SCAD
-sources are packaged in their images, outside that writable volume.
+The API and worker communicate through PostgreSQL and Garage, as in Kubernetes.
+There is no API-to-worker HTTP call or message broker. Trusted model definitions
+and SCAD sources are packaged in their images. The API, worker, release and
+maintenance containers share one set of local-only credentials from
+`compose.yaml`.
 
 | Connection | Purpose | Current protocol or access |
 | --- | --- | --- |
-| Browser ↔ Cloudflare ↔ cloudflared ↔ Traefik ↔ web | Public editor/API/STL access | Edge HTTPS, encrypted tunnel, origin HTTPS with verification disabled, then HTTP to web |
-| Browser ↔ web | Alternative local editor/API/STL access | HTTP on localhost port 5173 (configurable with `WEB_PORT`) |
+| Browser ↔ web | Editor/API/STL access | HTTP on localhost port 5173 (configurable with `WEB_PORT`) |
 | web ↔ api | Forward every `/api/*` request and its response | HTTP to Docker service DNS `api:3001` |
-| api ↔ SQLite | Catalogue, cached results, queued jobs, maintenance | SQLite file access on `/data`; no database TCP port |
-| worker ↔ SQLite | Claim jobs, heartbeat, renew leases, record completion/failure | SQLite file access on the same volume |
-| api ↔ files | Preserve originals, stream STL bytes, clean expired artifacts | Local filesystem on `/data` |
-| worker → files | Render in a temporary directory, validate, publish artifact | Local filesystem on `/data` |
+| api ↔ postgres | Catalogue, cached results, queued jobs, offers | PostgreSQL protocol to `postgres:5432` |
+| worker ↔ postgres | Claim jobs, heartbeat, renew leases, record completion/failure | PostgreSQL protocol to `postgres:5432` |
+| api → garage | Stream original and generated STL/ZIP bytes | S3 HTTP to `garage:3900` |
+| worker → garage | Upload a validated attempt object before publishing it | S3 HTTP to `garage:3900` |
+| release → postgres, garage | Create buckets, migrate, seed the catalogue and references, once per `up` | PostgreSQL and S3 |
+| maintenance → postgres, garage | Recover leases, delete expired jobs and objects, every minute | PostgreSQL and S3 |
 
-Compose starts `web` and `worker` after the API health check passes. This is a
-startup dependency, not another communication channel. Nginx refreshes Docker
-DNS so API address changes do not require a web restart.
+Compose starts `api` and `maintenance` after `release` completes, and `web` and
+`worker` after the API health check passes. These are startup dependencies, not
+other communication channels. Nginx refreshes Docker DNS so API address changes
+do not require a web restart.
 
 ## Render request and STL delivery
 
@@ -75,9 +76,9 @@ sequenceDiagram
     participant Browser as Browser / React
     participant Web as web / Nginx
     participant API as api / Fastify
-    participant DB as SQLite queue
+    participant DB as PostgreSQL queue
     participant Worker as worker / TypeScript + OpenSCAD
-    participant Files as Shared STL files
+    participant Files as Garage S3 (generated bucket)
 
     User->>Browser: Change model dimensions or slots
     Note over Browser: Validate, debounce 500 ms, keep newest pending settings
@@ -95,10 +96,10 @@ sequenceDiagram
         Worker->>DB: Renew 30-second lease and worker heartbeat
     end
     Note over Worker,Files: An assembly model (e.g. moss-planter) repeats this render+validate step once per<br/>part, with only the parameter overrides that part's own mapping names, then packages every part's STL into one ZIP instead of writing one STL.
-    Worker->>Files: Write temporary STL and validate mesh
-    Worker->>DB: Verify lease in completion transaction
-    Worker->>Files: Atomically rename STL to final path
-    Worker->>DB: Commit success and artifact metadata
+    Note over Worker: Write the STL in local scratch and validate the mesh
+    Worker->>DB: Verify the lease is still live
+    Worker->>Files: Upload the attempt object (keyed by job and lease token)
+    Worker->>DB: Commit success and artifact metadata only with the live token
 
     loop Browser polls every second until terminal status
         Browser->>Web: GET /api/v1/renders/{id}
@@ -112,7 +113,7 @@ sequenceDiagram
     Browser->>Web: GET /api/v1/renders/{id}/stl
     Web->>API: Forward STL request
     API->>DB: Check success and expiry
-    API->>Files: Read published STL
+    API->>Files: Read the recorded object
     Files-->>API: STL bytes
     API-->>Web: Stream STL
     Web-->>Browser: Load into Three.js viewer
@@ -163,7 +164,7 @@ flowchart TB
     maintenance --> pg
     maintenance --> garage
 
-    shared["Existing lair tunnel + Docker Traefik<br/>Unrelated apps + retained CanFactory rollback route"]
+    shared["Existing lair tunnel + Docker Traefik<br/>Unrelated apps"]
     cloud <--> shared
 ```
 
@@ -212,6 +213,8 @@ rolling upgrades have passed real multi-replica tests. The infrastructure reposi
 records exact evidence and remaining limits in `docs/canfactory/validation.md`.
 Production cutover was separately authorized and executed. Browser customization,
 inspection and downloads passed on the production hostname after routing converged.
-Shared Compose infrastructure remains operational; legacy CanFactory images and its
-route are retained for rollback. See the infrastructure validation record for
-one-hour observation results and remaining recovery limits.
+Shared Compose infrastructure remains operational for unrelated applications. The
+legacy SQLite CanFactory deployment is no longer a rollback target: its storage
+backend was deleted (#90), so a rollback means an earlier chart release. See the
+infrastructure validation record for one-hour observation results and remaining
+recovery limits.

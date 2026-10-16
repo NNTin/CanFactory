@@ -4,8 +4,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 {{- define "canfactory.env" -}}
-- name: STORAGE_BACKEND
-  value: postgres
 - name: PROJECT_ROOT
   value: /app
 - name: HOST
