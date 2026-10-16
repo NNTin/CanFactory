@@ -96,6 +96,14 @@ is used for both. Printed parts are taken as solid; a body whose real mass is kn
 
 1. **Primitives.** Balls, pins, screws, magnets and other parts-library hardware become MuJoCo spheres, cylinders, capsules
    and boxes from their dimensions. The detent's ball is an exact sphere.
+
+   **Library hardware** (#92). These primitives are not a third drawing of the part. `primitive()` in
+   `packages/physics/src/build.ts` only turns a mechanism spec's `collision` (`sphere`, `box` or `cylinder`, with its size and
+   centre) into a MuJoCo geom; it knows no family and draws no head, thread or pitch. The size is written in the mechanism's
+   spec in contracts, next to the model, from the part's dimension (the detent's ball from its `d`). A body's mass and inertia
+   still come from its closed mesh: for a reference object that is the mesh `@canfactory/part-geometry` draws, the same one the
+   parts library, the editor and `npm run check:assembly` use (`tools/assembly-meshes.ts`). An analytic sphere also collides
+   exactly where a faceted mesh would make a rolling ball bump, so the primitives stay.
 2. **Authored pieces.** A part may output its own convex pieces: the geometry side renders a collision variant of the part (a
    SCAD define) in which every piece is its own solid, and physics uses them instead of decomposing. Gears output each tooth,
    cut at the root circle, and the hub. Physics checks each piece is convex (its hull's volume matches its own). The transport

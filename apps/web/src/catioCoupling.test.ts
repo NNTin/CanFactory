@@ -10,7 +10,7 @@ import { latchHeights } from './catioPrintedLatch.ts';
 import { TUNNEL, TUNNEL_DEFAULT, tunnelBom, tunnelSite } from './catioTunnel.ts';
 import { INSERT, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT } from './catioWindowInsert.ts';
 import { fastenerClashes } from './catioSubassembly.ts';
-import { partGeometry } from './partGeometry.ts';
+import { partGeometry } from '@canfactory/part-geometry';
 
 const base = tunnelSite();
 const site: CouplingSite = { tunnel: TUNNEL_DEFAULT, site: base };

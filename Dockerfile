@@ -10,6 +10,7 @@ COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/server/package.json packages/server/package.json
 COPY packages/client/package.json packages/client/package.json
 COPY packages/physics/package.json packages/physics/package.json
+COPY packages/part-geometry/package.json packages/part-geometry/package.json
 RUN npm ci
 COPY . .
 # The commit the web app shows in its footer (the build context has no .git).

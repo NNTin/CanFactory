@@ -138,8 +138,8 @@ clear up the bore. While a nut or head slides into its slot, it passes the two s
 0.15 mm each, by design: up to 3.5 mm³ for the worst settings tried (M5, two extenders). With the bumps taken out
 (`--defines '{"SNAP":-0.01}'`), every check is 0 mm³.
 
-The parts library's generic screw for the check draws a hexagon head as a hexagon (`HEX`, `HEAD_S` in
-`parts/screws/screw.scad`), as the nut is drawn. A round head as wide as its corners would cut into a hexagon pocket.
+The parts library draws a hexagon head as a hexagon at its largest width across the flats (`@canfactory/part-geometry`), as the
+nut is drawn, and the check uses that drawing. A round head as wide as its corners would cut into a hexagon pocket.
 
 ## Printing
 

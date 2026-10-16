@@ -3,9 +3,13 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
- * Builds a part of the library from its dimensions, for the parts library's preview: millimetres, Z up, standing on z = 0. The
- * shapes are simplified (a thread is drawn as rings at its pitch, knurls as bands) but every size in them is the part's own,
- * so that parts can be compared. Colours are vertex colours, so that one mesh (one hover target) can have a dark socket.
+ * Builds a part of the library from its dimensions: millimetres, Z up, standing on z = 0. It is the one drawing of a procedural
+ * part: the parts library's preview, the editor's reference objects and `npm run check:assembly` (tools/assembly-meshes.ts) all
+ * use it, so what the editor shows is what the check collides. The shapes are simplified (a thread is drawn as rings at its
+ * pitch, knurls as bands) but every size in them is the part's own, so that parts can be compared, and the sizes a printed pocket
+ * must take are the largest ones. A thread's crests are at its nominal diameter and a nut's or insert's bore is drawn at it, so a
+ * screw in its nut touches without sharing volume. Each piece is a closed solid, so that the check can tell inside from outside.
+ * Colours are vertex colours, so that one mesh (one hover target) can have a dark socket.
  */
 
 const STEEL = 0xa3a8ad;
@@ -101,7 +105,8 @@ function screw(part: Part): Piece[] {
     const arc: [number, number][] = Array.from({ length: 9 }, (_, i) => { const a = (i / 8) * Math.PI / 2; return [s * 0.75 + (dk / 2 - s * 0.75) * Math.cos(a), l + k * 0.2 + k * 0.8 * Math.sin(a)]; });
     pieces.push(revolve([[0, l], [dk / 2, l], ...arc, [0, l + k]], color), prism(polygon(6, hexAcrossFlats(s)), l + k - 0.01, 0.02, socketColor));
   } else if (head === 'hex') {
-    pieces.push(prism(polygon(6, value(part, 'e', s * 1.15) / 2), l, k, color));
+    // at its largest across the flats, as the nut is drawn: its hexagon pocket must take it
+    pieces.push(prism(polygon(6, hexAcrossFlats(largest(part, 's'))), l, k, color));
   } else {
     // pan head with a cross recess
     const arc: [number, number][] = Array.from({ length: 9 }, (_, i) => { const a = (i / 8) * Math.PI / 2; return [dk * 0.3 + dk * 0.2 * Math.cos(a), l + k * 0.45 + k * 0.55 * Math.sin(a)]; });
@@ -131,8 +136,10 @@ function washer(part: Part): Piece[] {
 }
 
 function insert(part: Part): Piece[] {
-  const l = value(part, 'l'); const outer = value(part, 'd') / 2; const pilot = value(part, 'pilot', outer * 1.7 - value(part, 'hole') * 0.7) / 2;
-  const bore = Number(part.attributes['thread']?.slice(1) ?? 3) / 2 * 0.85; const groove = outer - (outer - pilot) * 0.6;
+  // as installed: melted in, its knurls fill the hole it was pushed into, so they are drawn at that hole's diameter, not across
+  // the knurls (d), and the bore at the thread's diameter, as a nut's
+  const l = value(part, 'l'); const outer = value(part, 'hole') / 2; const pilot = Math.min(value(part, 'pilot', outer * 2 * 0.95) / 2, outer);
+  const bore = Number(part.attributes['thread']?.slice(1) ?? 3) / 2; const groove = outer - (outer - bore) * 0.3;
   // pilot at the bottom, then two knurled bands with a groove between them
   return [ring([[bore, 0], [pilot, 0], [pilot, l * 0.2], [outer, l * 0.22], [outer, l * 0.52], [groove, l * 0.55], [groove, l * 0.65], [outer, l * 0.68], [outer, l], [bore, l]], BRASS, 24)];
 }
@@ -150,13 +157,14 @@ function pin(part: Part): Piece[] {
 }
 
 function magnet(part: Part): Piece[] {
-  const t = value(part, 'thickness'); const c = Math.min(0.15, t / 6);
+  // at its greatest size, as its pocket is cut
+  const t = largest(part, 'thickness'); const c = Math.min(0.15, t / 6);
   const shape = part.attributes['shape'];
   if (shape === 'block') {
-    const box = new THREE.BoxGeometry(value(part, 'length'), value(part, 'width'), t); box.translate(0, 0, t / 2);
+    const box = new THREE.BoxGeometry(largest(part, 'length'), largest(part, 'width'), t); box.translate(0, 0, t / 2);
     return [paint(box, NICKEL)];
   }
-  const r = value(part, 'diameter') / 2; const hole = value(part, 'innerDiameter') / 2;
+  const r = largest(part, 'diameter') / 2; const hole = value(part, 'innerDiameter') / 2;
   if (shape === 'countersunk-pot') {
     const sink = value(part, 'countersinkDiameter', hole * 2) / 2;
     return [ring([[hole, 0], [r - c, 0], [r, c], [r, t - c], [r - c, t], [sink, t], [hole, t - (sink - hole)]], STEEL)];
@@ -286,7 +294,23 @@ function spring(part: Part): Piece[] {
     const z = d / 2 + (L0 - d) * Math.min(1, Math.max(0, (turn - 1) / coils));
     points.push(new THREE.Vector3(radius * Math.cos(turn * 2 * Math.PI), radius * Math.sin(turn * 2 * Math.PI), z));
   }
-  return [paint(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), samples, d / 2, 8, false), STEEL)];
+  const curve = new THREE.CatmullRomCurve3(points);
+  const tube = new THREE.TubeGeometry(curve, samples, d / 2, 8, false);
+  // the wire's ends capped on the tube's own end rings, facing out, so that it is a closed solid
+  const cap = (index: number, outward: number): Piece => {
+    const centre = curve.getPointAt(index / samples); const normal = tube.normals[index]; const binormal = tube.binormals[index];
+    if (!normal || !binormal) throw new Error('The spring has no frame at its end.');
+    // as TubeGeometry places a ring's vertices
+    const at = (j: number) => {
+      const angle = j / 8 * Math.PI * 2;
+      return centre.clone().addScaledVector(normal, -Math.cos(angle) * d / 2).addScaledVector(binormal, Math.sin(angle) * d / 2);
+    };
+    const facing = new THREE.Vector3().crossVectors(at(0).sub(centre), at(1).sub(centre)).dot(curve.getTangentAt(index / samples)) * outward > 0;
+    const fan = Array.from({ length: 8 }, (_, j) => [centre, ...(facing ? [at(j), at(j + 1)] : [at(j + 1), at(j)])].flatMap(v => v.toArray())).flat();
+    const disc = new THREE.BufferGeometry(); disc.setAttribute('position', new THREE.Float32BufferAttribute(fan, 3)); disc.computeVertexNormals();
+    return paint(disc, STEEL);
+  };
+  return [paint(tube, STEEL), cap(0, -1), cap(samples, 1)];
 }
 
 function splitRing(part: Part): Piece[] {

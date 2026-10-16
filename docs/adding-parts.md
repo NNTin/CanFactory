@@ -47,7 +47,7 @@ Only the published values are used; a standard's text is never reproduced.
   or product, expanded into parts, so that a standard is a few lines however many lengths it has.
 - **A new standard or product line**: add a table (and its sources to `sources.ts`) to the family file, following the others.
 - **A new family**: add a file with its `PartFamily` and parts, register both in `index.ts`, give it a builder in
-  `apps/web/src/partGeometry.ts` (or STL previews) and an icon in `apps/web/src/PartsLibrary.tsx`. `index.ts` lists the families
+  `packages/part-geometry/src/index.ts` (or STL previews) and an icon in `apps/web/src/PartsLibrary.tsx`. `index.ts` lists the families
   planned next.
 
 Then add every new id to `packages/contracts/src/parts/ids.lock`. Part ids are permanent: models link to them. The test fails
@@ -87,8 +87,9 @@ whole catalogue:
 - **`set-screw`** (`set-screws.ts`): ISO 4026 hexagon socket set screws with a flat point, M3 to M8. Dimensions: `d`, `pitch`,
   `l`, the point `dp` (max/min), the key `s` and the socket depth `t`.
 
-`npm run check:assembly` renders them from generic models in `parts/balls/`, `parts/springs/` and `parts/set-screws/`. The set
-screw's thread is drawn at its minor diameter, so that it clears its tap-drill hole.
+`npm run check:assembly` checks them as the parts library draws them (`@canfactory/part-geometry`). A set screw is drawn at its
+nominal diameter: a hole it is turned into must be cut to clear it (as a tap-drill hole does not), or the check counts its
+thread.
 
 ### Development boards
 
@@ -164,8 +165,8 @@ Measure a board before a tight fit, and correct the value under the same id. Cop
 components slightly differently. There is no ESP32-C6 SuperMini: no maker publishes a drawing of one, and the third-party figures
 disagree.
 
-The parts library draws a board from its layout (`partGeometry.ts`), and `npm run check:assembly` renders it from
-`parts/dev-boards/dev-board.scad` with the layout as `-D` overrides (`GENERIC_MODELS`), so a case's assembly can check its walls
+The parts library draws a board from its layout (`@canfactory/part-geometry`), and `npm run check:assembly` checks that same
+drawing, so a case's assembly can check its walls
 and openings against the receptacle and the components, the plungers, the lens and the U.FL post included. The test checks the
 layout:
 - the pins on their grid;
@@ -180,8 +181,11 @@ layout:
 
 ## Previews
 
-Most parts are built in the browser from their dimensions (`partGeometry.ts`): simplified shapes, but every size is the part's
-own. A part whose shape cannot be built that way, such as an everyday object, has an STL preview: a SCAD file under `parts/`
+Most parts are built from their dimensions by `partGeometry` (`packages/part-geometry`): simplified shapes, but every size is
+the part's own. It is the only drawing of such a part: the parts library, the editor's reference objects and
+`npm run check:assembly` all use it, so a new family needs one builder there and nothing in `parts/`. Draw it as closed solids
+(the check casts rays through it), at the largest size a pocket must take, and as installed where that differs (a heat-set
+insert at its hole's diameter). A part whose shape cannot be built that way, such as an everyday object, has an STL preview: a SCAD file under `parts/`
 with the real dimensions as named values, and the STL beside it, rendered with
 `openscad --backend Manifold --export-format binstl <file>.scad -o <file>.stl`. Render the STL again after changing the SCAD file;
 for a reference object, `npm run check:assembly` fails until you do.
@@ -216,7 +220,7 @@ height**: the 10 mm height is explicitly estimated. Same Sky's drawing supplies
 10 × 10 × 7 mm with ±0.38 mm general tolerance. Never silently promote an
 estimated dimension into a manufacturer value.
 
-The procedural preview and `parts/heatsinks/heatsink.scad` share a centred XY
+The procedural preview (which `npm run check:assembly` also uses) has a centred XY
 frame, adhesive face at Z=0, fins towards +Z, using tolerance maxima. Fin/base
 shapes are illustrative, not thermal simulation geometry. A library instance
 means **one sink**, even when its SKU is a two-piece retail pack. The XIAO

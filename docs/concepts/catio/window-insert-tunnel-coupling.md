@@ -206,7 +206,7 @@ size 100: types A, S and SV, steel (ST) and stainless (NI), long (1) and short (
   l1–l5, m1–m4, r, w1 and w2. Its drawing was used to map the columns.
 - **Least lengths:** Ganter gives l1/l5 and l2/l4 as least values, so they are stored as nominal values, with the hook's
   range in w2.
-- **Preview:** a procedural preview (`partGeometry.ts`) and a lock icon.
+- **Preview:** a procedural preview (`@canfactory/part-geometry`) and a lock icon.
 
 Existing parts: DIN 7997 5 × 60 and 4 × 25. All are listed by role in
 [concepts.ts](../../../packages/contracts/src/concepts.ts) (`COUPLING_HARDWARE`, `couplingLatch`,

@@ -91,8 +91,8 @@ their greatest height, as their pockets are cut, with their axis along Y, at x 4
 - **In the lid:** the pocket opens on the cavity wall, 13.79 mm from the centre, and the magnet fills it outwards; these two move
   with the lid when the case closes.
 
-So each pair faces across the clearance, at any clearance. The collision check renders them from the generic magnet model
-(`parts/magnets/magnet.scad`); moving the box's magnets 0.5 mm outwards makes each pair share 7.29 mm³, so the check does see them.
+So each pair faces across the clearance, at any clearance. The collision check uses the parts library's drawing of the magnet
+(`@canfactory/part-geometry`, at its largest size); moving the box's magnets 0.5 mm outwards makes each pair share 7.29 mm³, so the check does see them.
 
 ### Upside down: the push-out
 
