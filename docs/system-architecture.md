@@ -351,52 +351,52 @@ flowchart LR
 
 ## Known gaps, stale docs and likely duplication
 
-Noted while mapping and **not fixed here**. Candidates for the follow-up phase, judged by the
+Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/system-architecture-overview` (issues #89–#96). Candidates for the follow-up phase, judged by the
 [goal above](#goals-and-non-goals): delete duplicates, don't wrap them.
 
 ### Stale or incomplete docs
 
-1. **`docs/architecture.md` is stale.** It describes the localhost Docker Compose setup ("Kubernetes is a future migration
+1. **`docs/architecture.md` is stale.** (Tracked in #89.) It describes the localhost Docker Compose setup ("Kubernetes is a future migration
    target; the current deployment remains localhost Docker Compose", "SQLite stores the catalogue and temporary render
    jobs", "no accounts, uploads"). `container-architecture.md` and `kubernetes-tech-plan.md` record that production moved to
    Kubernetes with PostgreSQL and Garage on 2026-09-22. It also leaves out everything added since: the parts library,
    offers, physics, concept pages, and the SVG-logo and QR-code uploads in the editor.
-2. **`container-architecture.md` leaves out the `offers` CronJob** (`charts/canfactory/templates/offers.yaml`), the Awin
+2. **`container-architecture.md` leaves out the `offers` CronJob** (tracked in #89) (`charts/canfactory/templates/offers.yaml`), the Awin
    egress, and the Vercel preview path (`vercel.json`, which sends `/api` to production).
 3. `README.md` and `interfaces.md` have no map of the subsystems. Before this file, no doc related physics, offers, parts and
    concepts to each other.
 
 ### Likely duplication to investigate
 
-1. **Two storage backends with their own queue logic.** `Store` (SQLite, synchronous, Drizzle schema in `schema.ts`, SQL in
+1. **Two storage backends with their own queue logic.** (Tracked in #90: PostgreSQL only.) `Store` (SQLite, synchronous, Drizzle schema in `schema.ts`, SQL in
    `migrations/`) and `PostgresStorage` (async, raw SQL in `postgres-migrations/`) each implement enqueue, claim, renew,
    complete, recover, cleanup, seed and the Awin tables. `LocalStorage` and `asyncStorage()` adapt one to the other.
    Production runs only PostgreSQL, while CI's Compose integration and local development run only SQLite.
-2. **Models registered twice by hand:** the `models` array and the `RenderRequestSchema` union in `index.ts` (17 branches
+2. **Models registered twice by hand** (tracked in #91): the `models` array and the `RenderRequestSchema` union in `index.ts` (17 branches
    written out one by one).
-3. **Three geometries for library parts:** `apps/web/src/partGeometry.ts` (Three.js from dimensions, for previews and
+3. **Three geometries for library parts** (tracked in #92): `apps/web/src/partGeometry.ts` (Three.js from dimensions, for previews and
    catio), `parts/<family>/*.scad` with `GENERIC_MODELS` in `tools/assembly-meshes.ts` (SCAD from the same dimensions, for
    checks), and primitives from dimensions in `packages/physics/src/build.ts`. The editor preview and the CI collision check
    therefore draw the same screw two different ways.
-4. **Model geometry rewritten outside SCAD.** The toggle latch exists in SCAD (`models/toggle-latch`), in
+4. **Model geometry rewritten outside SCAD.** (Tracked in #93.) The toggle latch exists in SCAD (`models/toggle-latch`), in
    `toggleLatchMechanism.ts` (contracts), in `toggleLatchMeshes.ts` and `ToggleLatchIllustration.tsx` (web), and again in the
    catio printed latch and port scenes. Other models have the same pattern (`*Illustration.tsx`, catio use of
    `printedCornerBracket` and `pressurePad`) and the tests that keep TS and SCAD values equal (for example the
    cigarette-case physics test).
-5. **Several ways to run OpenSCAD:** `runOpenScad` in `apps/worker/src/render.ts`, `renderScad` with native, docker and
+5. **Several ways to run OpenSCAD** (tracked in #94): `runOpenScad` in `apps/worker/src/render.ts`, `renderScad` with native, docker and
    wasm runners in `tools/stl-to-scad/openscad.ts`, `dockerRunner` and `wasmRunner` in `tools/renderers.ts`, a second docker
    invocation in `tools/test-storage.ts`, and `tools/assembly-meshes.ts`, which repeats the worker's per-part define logic.
    `FONTS_DIR` is defined twice (`contracts/models.ts` and `tools/stl-to-scad/openscad.ts`).
-6. **Mixed import styles:** `tools/physics/*` and `tools/assembly-meshes.ts` import `../../packages/*/src/index.ts` by
+6. **Mixed import styles** (tracked in #94): `tools/physics/*` and `tools/assembly-meshes.ts` import `../../packages/*/src/index.ts` by
    relative path, and `tools/stl-to-scad/openscad.ts` imports `packages/server/src/config.ts` directly. The rest of the repo
    uses `@canfactory/*`. `tools/renderers.ts` imports from `apps/worker/src/render.ts`, so an app is used as a library.
-7. **Catalogue data reaches the browser two ways.** The web app fetches models and parts from the API, which serves them
+7. **Catalogue data reaches the browser two ways.** (Tracked in #95: bundled contracts survive.) The web app fetches models and parts from the API, which serves them
    from contracts (parts) or from DB rows seeded from contracts (models), and it also bundles contracts and calls
    `findModel`, `parts` and `resolveAssembly` directly. Both paths carry the same static data.
-8. **Catio pages are a separate geometry stack.** About 7.4k lines of `catio*.ts` and `Catio*.tsx` build Three.js geometry by hand, separate
+8. **Catio pages are a separate geometry stack.** (Redraws of catalogue models are tracked in #93.) About 7.4k lines of `catio*.ts` and `Catio*.tsx` build Three.js geometry by hand, separate
    from the model, render and assembly pipeline. Hardware ids sit in `concepts.ts` while designs and BOMs sit in web.
    `catioSubassembly.ts` re-exports `BomLine` and `BOM_GROUPS` from contracts.
-9. **Assembly or BOM spread.** `modelBom` (contracts) and catio `BomLine`s (`concepts.ts` types, built in web) both end in
+9. **Assembly or BOM spread.** (Tracked in #96.) `modelBom` (contracts) and catio `BomLine`s (`concepts.ts` types, built in web) both end in
    `Requirement[]`, by different routes.
 
 ### Other gaps
