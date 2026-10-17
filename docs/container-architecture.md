@@ -230,6 +230,11 @@ handle upload/commit failures, durable deletion retries and abandoned uploads.
 API processes no longer own migrations, seeding or cleanup. Release Jobs serialize
 schema/catalogue changes; maintenance is independently coordinated. Fingerprint-
 changing releases pause submissions and drain old work before catalogue activation.
+The release Job migrates in a pre-upgrade hook while the previous release still
+serves, so an API pod is ready once its own newest migration (`SCHEMA_VERSION` in
+`packages/server/src/postgres.ts`) is applied, whatever came after it. Migrations
+therefore only expand (add, relax); a contracting one (drop, rename) waits until no
+release that reads the old shape can run.
 
 Resource budgets, HTTP draining, lease recovery, immutable publication, expiry and
 rolling upgrades have passed real multi-replica tests. The infrastructure repository
