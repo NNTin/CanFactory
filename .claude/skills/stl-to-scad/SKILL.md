@@ -27,7 +27,7 @@ Run from the repository root (`npm ci` first). Big SCADs render faster with a na
 | `relief <stl> --base-z z --z0 a --z1 b -o f.scad [--open-radius r] [--levels h,..] [--px mm] [--simplify mm] [--min-area mm2] [--origin x,y,z] [--no-refine]` | **wall patterns** (honeycomb, knurling, ribs): height map of the wall against its smooth base outline, cut into plateau levels and written as SCAD data plus `relief_wrap()`, which bends it back around the outline (see "Wall patterns" in reference.md) |
 | `polyhedron <stl> -o f.scad [--cluster mm]` | **fallback only**: welded `polyhedron()` dump, refuses > 5 MB |
 
-OpenSCAD runtime, first match wins: `$OPENSCAD_BIN` / `openscad` on PATH, then `openscad-wasm-prebuilt`
+OpenSCAD runtime (`selectRunner` in `packages/server/src/openscad.ts`), first match wins: `$OPENSCAD_BIN` / `openscad` on PATH, then `openscad-wasm-prebuilt`
 (`npm i --no-save openscad-wasm-prebuilt`, not a repo dependency), then Docker with the pinned image from
 `packages/server/src/config.ts`. Force one with `OPENSCAD_RUNNER=native|wasm|docker`.
 

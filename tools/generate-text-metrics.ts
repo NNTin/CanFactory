@@ -8,7 +8,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeFileSync } from 'node:fs';
-import { renderScad } from './stl-to-scad/openscad.ts';
+import { renderScad } from '@canfactory/server';
 
 const FONTS: Record<string, string> = {
   sans: 'Liberation Sans:style=Bold', serif: 'Liberation Serif:style=Bold', mono: 'Liberation Mono:style=Bold', wide: 'DejaVu Sans:style=Bold',

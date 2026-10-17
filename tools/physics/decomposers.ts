@@ -5,13 +5,12 @@
  *
  *   npx tsx tools/physics/decomposers.ts [--parts lighter,case-box,...]
  *
- * Needs an OpenSCAD runtime (see tools/stl-to-scad/openscad.ts).
+ * Needs an OpenSCAD runtime (selectRunner in @canfactory/server).
  */
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
-import { findModel, isAssembly, resolveAssembly, type ParameterValues } from '../../packages/contracts/src/index.ts';
-import { decompose, type DecomposeSettings } from '../../packages/physics/src/decompose.ts';
-import { pieceFit } from '../../packages/physics/src/pieceFit.ts';
+import { findModel, isAssembly, resolveAssembly, type ParameterValues } from '@canfactory/contracts';
+import { decompose, pieceFit, type DecomposeSettings } from '@canfactory/physics';
 import { renderAssemblyMeshes } from '../assembly-meshes.ts';
 import { parseStl, type Mesh } from '../stl-to-scad/stl.ts';
 

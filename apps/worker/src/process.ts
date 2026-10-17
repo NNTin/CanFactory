@@ -1,5 +1,4 @@
-import type { PostgresStorage, RenderJob } from '@canfactory/server';
-import { classifyRenderError, renderJob, runOpenScad, type OpenScadRunner } from './render.ts';
+import { classifyRenderError, renderJob, runOpenScad, type OpenScadRunner, type PostgresStorage, type RenderJob } from '@canfactory/server';
 
 /** The part of a pino logger the worker uses; tests pass a recorder. */
 export interface JobLogger {

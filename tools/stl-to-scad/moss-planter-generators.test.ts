@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { mossPlanter } from '../../packages/contracts/src/index.ts';
-import { detectRunner, renderScad, type Defines } from './openscad.ts';
+import { mossPlanter } from '@canfactory/contracts';
+import { detectRunner, renderScad, type Defines } from '@canfactory/server';
 import { bounds, parseStl, size, volume } from './stl.ts';
 import { analyzeTopology } from './topology.ts';
 

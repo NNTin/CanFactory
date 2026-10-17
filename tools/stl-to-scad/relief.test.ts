@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectRunner, renderScad } from './openscad.ts';
+import { detectRunner, renderScad } from '@canfactory/server';
 import { buildRelief, findLevels, heightmap, levelRegions, maskLoops, openOutline, outlineAt, quantise, reliefScad, type ReliefMap } from './relief.ts';
 import type { Point2 } from './sections.ts';
 import { bounds, parseStl, size, type Mesh } from './stl.ts';

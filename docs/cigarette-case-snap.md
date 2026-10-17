@@ -3,7 +3,7 @@
 The cigarette case has five joints, and each has its own snap setting. The other parameters are the underside text or logo (see
 [cigarette-case-text.md](cigarette-case-text.md)) and the [clearance](#clearance). Each setting is an enum
 (`ControlSchema.kind = 'enum'`, with its `options`). It reaches the SCAD files as `-D <VAR>="<value>"`
-(`apps/worker/src/render.ts`, `mappedDefines`), and only the printed parts of its joint receive it (their `scadMapping`):
+(`packages/server/src/render.ts`, `mappedDefines`), and only the printed parts of its joint receive it (their `scadMapping`):
 
 | Setting (editor label) | Joint | SCAD variable | Parts | Modes |
 |---|---|---|---|---|

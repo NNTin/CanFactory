@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { compareMeshes, type Comparison } from './compare.ts';
-import { renderScad, type Defines, type Render } from './openscad.ts';
+import { renderScad, type Defines, type Render } from '@canfactory/server';
 import { bounds, parseStl, sha256, size, type Mesh } from './stl.ts';
 import { analyzeTopology, type Topology } from './topology.ts';
 

@@ -88,8 +88,8 @@ references, malformed XML, the limits, and logo strings that are not exactly wha
 
 `text()` needs fonts, and the renderer would otherwise use whatever the host has (the wasm build has none). The four fonts are
 therefore bundled in `models/fonts` and OpenSCAD is pointed at them: `OPENSCAD_FONT_PATH` in the worker
-(`apps/worker/src/render.ts`), in the test harness Docker runner and in `tools/stl-to-scad/openscad.ts` (which also
-installs them into the wasm runner). The fonts are part of the model's cache fingerprint (`ModelDefinition.assetPaths`).
+and in every runner of `packages/server/src/openscad.ts` (Docker gets them at `/app/models/fonts`, and the wasm runner has
+them installed). The fonts are part of the model's cache fingerprint (`ModelDefinition.assetPaths`).
 If a font is missing, `text()` renders nothing: for the box that would mean no engraving without an error, so keep the fonts
 folder in the worker image (it is under `/app`, which the Dockerfile copies).
 

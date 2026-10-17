@@ -4,9 +4,8 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { DEFAULT_QR_MAGNET_TAG, filamentChangeHeight, FONTS_DIR, mergeModules, moduleColumns, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, scadDefines, type ParameterValues, type QrModuleStyle } from '@canfactory/contracts';
-import { repositoryRoot } from '@canfactory/server';
-import type { OpenScadRunner } from '../../apps/worker/src/render.ts';
+import { DEFAULT_QR_MAGNET_TAG, filamentChangeHeight, mergeModules, moduleColumns, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, scadDefines, type ParameterValues, type QrModuleStyle } from '@canfactory/contracts';
+import { fontsPath, openScadArgs, repositoryRoot, type OpenScadRunner } from '@canfactory/server';
 import type { Grid } from './check.ts';
 import { neighbourhoodCoupon } from './coupon.ts';
 import { readExtrusions, type Extrusion } from './gcode.ts';
@@ -44,8 +43,7 @@ export async function sliceSample(sample: Sample, directory: string, runner: Ope
   const defines = scadDefines(qrMagnetTag, centrePart, parameters).map(([name, literal]): [string, string] =>
     name === 'QR' && sample.kind === 'coupon' ? [name, JSON.stringify([COUPON.length, 0, mergeModules(COUPON), [], sample.style === 'connected-dots' ? moduleColumns(COUPON) : []])] : [name, literal]);
   const stl = join(directory, 'centre.stl');
-  await runner(['--backend', 'Manifold', '--export-format', 'binstl', '-o', stl, ...defines.flatMap(([name, literal]) => ['-D', `${name}=${literal}`]), resolve(repositoryRoot, centrePart.sourcePath)],
-    new AbortController().signal, resolve(repositoryRoot, FONTS_DIR));
+  await runner(openScadArgs(stl, defines, resolve(repositoryRoot, centrePart.sourcePath)), new AbortController().signal, fontsPath);
   const sliced = await slice(install, stl, directory, { nozzle: Number(sample.nozzle), layerHeight: Number(parameters['layerHeight']) });
   const lines = readExtrusions(await readFile(sliced.gcode, 'utf8')).map(line => ({ ...line, x0: line.x0 - BED_CENTRE[0], y0: line.y0 - BED_CENTRE[1], x1: line.x1 - BED_CENTRE[0], y1: line.y1 - BED_CENTRE[1] }));
   const dark = sample.kind === 'code' ? qrTagCode({ qrText: CHECK_TEXT, errorCorrection: CHECK_ECC, logo: '', logoSize: 20 }).dark : COUPON;

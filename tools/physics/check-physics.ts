@@ -6,17 +6,17 @@
  *   npm run check:physics -- [model-id ... | spur-gear-pair] [--parameters '<json>'] [--fit]
  *
  * --fit also reports how well each decomposed part's pieces fit it. Decompositions are cached in node_modules/.cache by the mesh's
- * hash and the settings. Needs an OpenSCAD runtime (see tools/stl-to-scad/openscad.ts).
+ * hash and the settings. Needs an OpenSCAD runtime (selectRunner in @canfactory/server).
  */
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
-import { isAssembly, models, resolveAssembly, spurGearPairPhysics, spurGearPieces, validateParameters, type ModelDefinition, type ParameterValues, type SpurGear } from '../../packages/contracts/src/index.ts';
-import { decompose, hullTriangles, loadEngine, pieceFit, runScenario, type BodyGeometry, type ConvexPiece, type DecomposeSettings } from '../../packages/physics/src/index.ts';
+import { isAssembly, models, resolveAssembly, spurGearPairPhysics, spurGearPieces, validateParameters, type ModelDefinition, type ParameterValues, type SpurGear } from '@canfactory/contracts';
+import { decompose, hullTriangles, loadEngine, pieceFit, runScenario, type BodyGeometry, type ConvexPiece, type DecomposeSettings } from '@canfactory/physics';
 import { renderAssemblyMeshes } from '../assembly-meshes.ts';
-import { renderScad } from '../stl-to-scad/openscad.ts';
+import { renderScad } from '@canfactory/server';
 import { parseStl } from '../stl-to-scad/stl.ts';
 
 const { values, positionals } = parseArgs({

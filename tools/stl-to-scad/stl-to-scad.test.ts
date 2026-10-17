@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { compareMeshes, detectScaleVariant, intersectionVolume } from './compare.ts';
 import { box, cylinder, merge, ring, withHole } from './fixtures.ts';
-import { detectRunner, renderScad } from './openscad.ts';
+import { detectRunner, renderScad } from '@canfactory/server';
 import { meshToPolyhedron } from './polyhedron.ts';
 import { overlayToSvg, sliceZ, sectionsToSvg, toPieces } from './sections.ts';
 import { bounds, isBinaryStl, parseStl, size, surfaceArea, transform, volume, writeBinaryStl } from './stl.ts';

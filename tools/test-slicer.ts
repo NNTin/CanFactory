@@ -15,13 +15,13 @@
  *   SLICER_ONLY=dots        only the cases whose name contains this
  *   SLICER_CONCURRENCY=2    cases at once
  *   SLICER_ARTIFACTS=dir    where each failing case's STL, G-code, profiles, picture and report go (default slicer-artifacts)
- *   OPENSCAD_TEST_MODE      the renderer (tools/renderers.ts): Docker by default, or `native`
+ *   OPENSCAD_RUNNER         the renderer (selectRunner in @canfactory/server): Docker by default, or `native`
  */
 import { appendFile, cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DEFAULT_QR_MAGNET_TAG, minModuleSize, QR_BLEED, QR_BLEED_POINTS, QR_MIN_MODULE, QR_MODULE_STYLES, QR_NOZZLES, qrMagnetTag, validateParameters, type ParameterValues, type QrModuleStyle, type QrNozzle } from '@canfactory/contracts';
-import { selectRunner } from './renderers.ts';
+import { selectRunner, WORKER_LIMITS } from '@canfactory/server';
 import { CHECK_ECC as ECC, CHECK_TEXT as TEXT, COUPON, sliceSample, type SampleKind } from './slicer/centre.ts';
 import { checkPrint, moduleMap, type Grid, type PrintCheck } from './slicer/check.ts';
 import { ORCA_PRESETS, orcaInstall, orcaVersion } from './slicer/orca.ts';
@@ -65,7 +65,7 @@ const selected = cases.filter(c => !only || c.name.includes(only));
 interface Outcome { c: Case; ok: boolean; check?: PrintCheck; grid?: Grid; error?: string; seconds: number; command?: string[]; parameters: ParameterValues; size: number; directory: string }
 
 const data = await mkdtemp(join(tmpdir(), 'canfactory-slicer-'));
-const runner = selectRunner(data);
+const runner = (await selectRunner(data, ['docker'], WORKER_LIMITS)).run;
 const version = await orcaVersion(install);
 console.log(`Slicer check: ${version}, presets "${ORCA_PRESETS.machine}" (nozzle changed per case), "${ORCA_PRESETS.process}" (layer height changed), "${ORCA_PRESETS.filament}"; ${selected.length} cases${sweep ? ' (sweep)' : ''}.`);
 
