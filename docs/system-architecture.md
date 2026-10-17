@@ -415,8 +415,13 @@ Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/syst
    the catio's own: timber, netting, doors, and schematic boxes for hardware. That geometry follows the sliders and feeds
    layout, BOM and clash checks, so a render round trip per change would not fit. Hardware ids in `concepts.ts`, BOMs in web
    and the `BomLine` re-export belong to finding 9 (#96).
-9. **Assembly or BOM spread.** (Tracked in #96.) `modelBom` (contracts) and catio `BomLine`s (`concepts.ts` types, built in web) both end in
-   `Requirement[]`, by different routes.
+9. ~~**Assembly or BOM spread.**~~ **Not duplication (#96, closed without a code change).** `modelBom` (a model's placed
+   references, one each) and `bomRequirements` (a catio parts list's library lines) are one-line adapters over the same
+   `countParts`. Their inputs differ: a model has no timber, cut mesh or "where it goes" text. The `*_HARDWARE` ids in
+   `concepts.ts` are the single source that the web design modules import. `ConceptPage.parts` is the union over every
+   setting, with the library's own "Used by" labels, and `partUsage` in contracts reads it. Deriving it would mean running the
+   web-only BOMs over a hand-picked setting space. The catio tests ("links every library part it can use back to this page")
+   keep it equal to the BOMs. The `BomLine` re-export in `catioSubassembly.ts` is a one-line import convenience, not a copy.
 
 ### Other gaps
 
