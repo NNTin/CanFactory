@@ -89,9 +89,9 @@ class Placement {
 }
 
 /** Splits a fetched ZIP into its STL entries, in archive order. Throws if it contains no entries. */
-function partsFromZip(bytes: ArrayBuffer): Part[] {
+export function partsFromZip(bytes: ArrayBuffer): { name: string; bytes: ArrayBuffer }[] {
   const entries = unzipSync(new Uint8Array(bytes));
-  const parts = Object.entries(entries).map(([name, data]): Part => ({ name, bytes: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) }));
+  const parts = Object.entries(entries).map(([name, data]) => ({ name, bytes: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) }));
   if (parts.length === 0) throw new Error('The preview archive contained no parts.');
   return parts;
 }

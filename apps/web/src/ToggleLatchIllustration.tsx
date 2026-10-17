@@ -13,11 +13,11 @@ const P = M.TOGGLE_LATCH_PROFILES, G = M.TOGGLE_LATCH_GEOMETRY;
 // with its pivot hole and its link pin, the link's side bar with its hole and the bar across its end.
 const PATHS = {
   base: toPath(P.baseKnuckle),
-  basePin: circle(G.base.pivot, 2.205),
+  basePin: circle(G.base.pivot, G.base.pinDiameter / 2),
   catch: toPath(P.catchHook),
-  lever: toPath(P.leverSide) + circle(G.lever.pivot, 2.495),
-  leverPin: circle(G.lever.pin, 2.321),
-  link: toPath(P.linkSide) + circle(G.link.hole, 2.5),
+  lever: toPath(P.leverSide) + circle(G.lever.pivot, G.lever.pivotDiameter / 2),
+  leverPin: circle(G.lever.pin, G.lever.pinDiameter / 2),
+  link: toPath(P.linkSide) + circle(G.link.hole, G.link.holeDiameter / 2),
   linkBar: toPath(P.linkBar),
 };
 

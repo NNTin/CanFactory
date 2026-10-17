@@ -84,10 +84,10 @@ export const TOGGLE_LATCH_PROFILES = {
  * the latch's middle plane lies). The catch's dip and the link's nose are circles fitted to CATCH_HOOK's and LINK_BAR's points.
  */
 export const TOGGLE_LATCH_GEOMETRY = {
-  // base.scad: PLATE_FRONT, PLATE_BACK, PLATE_HEIGHT, PLATE_LENGTH, EDGE_RADIUS, HOLE_X, HOLE_Z, PIN_CENTRE (y, z), KNUCKLE_X's and PIN_X
+  // base.scad: PLATE_FRONT, PLATE_BACK, PLATE_HEIGHT, PLATE_LENGTH, EDGE_RADIUS, HOLE_X, HOLE_Z, PIN_CENTRE (y, z), and KNUCKLE_X
   base: {
     front: 11.376, back: 15.372, height: 11.998, length: 38, edgeRadius: 1, holeX: [5.769, 32.184] as Vec2, holeZ: 5.932,
-    pivot: [5.115, 4.891] as Vec2, pinDiameter: 4.41, knuckle: [14.7, 23.298] as Vec2, pins: [12.5, 25.498] as Vec2, middle: 18.999,
+    pivot: [5.115, 4.891] as Vec2, pinDiameter: 4.41, knuckle: [14.7, 23.298] as Vec2, middle: 18.999,
   },
   // catch.scad: PLATE_FRONT, PLATE_BACK, PLATE_HEIGHT, PLATE_LENGTH, EDGE_RADIUS, HOLE_X, HOLE_Z, HOOK_X; the dip under the hook (y, z)
   catch: {
