@@ -155,3 +155,18 @@ describe('temporary render queue', () => {
     expect((await store.enqueue(fruitFlyTrap, { ...fruitFlyTrap.defaults, trapHeight: 60 })).status).toBe('queued');
   });
 });
+
+describe('readiness across a rolling upgrade', () => {
+  it('stays ready on a newer schema and not on an older one', async () => {
+    const newest = (await store.pool.query<{ name: string; sha256: string }>('SELECT name, sha256 FROM migrations ORDER BY name DESC LIMIT 1')).rows[0];
+    if (!newest) throw new Error('Expected a migrated database');
+    // the next release's release Job has migrated: this (previous) release keeps serving
+    await store.pool.query(`INSERT INTO migrations(name, sha256) VALUES('9999_next_release.sql', '')`);
+    try { await store.ready(); } finally { await store.pool.query(`DELETE FROM migrations WHERE name='9999_next_release.sql'`); }
+    // this release's own migration has not run (its release Job failed): not ready
+    await store.pool.query('DELETE FROM migrations WHERE name=$1', [newest.name]);
+    try { await expect(store.ready()).rejects.toThrow('not compatible'); }
+    finally { await store.pool.query('INSERT INTO migrations(name, sha256) VALUES($1, $2)', [newest.name, newest.sha256]); }
+    await store.ready();
+  });
+});

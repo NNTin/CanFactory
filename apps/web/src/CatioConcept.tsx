@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Box, RotateCcw } from 'lucide-react';
 import * as THREE from 'three';
 import { createStage, type Stage } from './stage.ts';
+import { latchPartsStatus, watchLatchParts } from './catioPrintedLatchScene.ts';
 import { createCatioScene, type CatioState } from './catioScene.ts';
 import { CatioParameters } from './CatioParameters.tsx';
 import { createModularCatio, type CatioDoor } from './catioModularScene.ts';
@@ -40,6 +41,9 @@ export function CatioConcept() {
   const [settings, setSettings] = useState(loadCatioSettings);
   const [draft, setDraft] = useState(settings.config);
   const [unsupported, setUnsupported] = useState(false);
+  // the printed latches' parts arrive after the scene is drawn (or fail to): redraw, and say so on the viewer
+  const latchParts = useSyncExternalStore(watchLatchParts, latchPartsStatus, () => 'idle' as const);
+  useEffect(() => { controller.current?.stage.invalidate(); }, [latchParts]);
   const [doors, setDoors] = useState<CatioDoor[]>([]);
   const [filter, setFilter] = useState<'All' | 'Direct' | 'Modular'>('All');
   const { mode, config } = settings;
@@ -131,8 +135,9 @@ export function CatioConcept() {
           <button key={name} type="button" aria-pressed={name === view} onClick={() => selectView(name)} disabled={unsupported}>{name}</button>)}
           <button type="button" aria-label="Reset catio view" title="Reset view" disabled={unsupported} onClick={() => selectView('Exterior')}><RotateCcw size={14} /></button>
         </div>
-        <div className="catio-canvas" ref={container} data-testid="catio-viewer" data-mode={mode} data-config={JSON.stringify(config)} data-step={index} data-window={windowOpen ? 'open' : 'closed'} data-exploded={exploded}>
+        <div className="catio-canvas" ref={container} data-testid="catio-viewer" data-mode={mode} data-config={JSON.stringify(config)} data-step={index} data-window={windowOpen ? 'open' : 'closed'} data-exploded={exploded} data-latch-parts={latchParts === 'idle' ? undefined : latchParts}>
           {unsupported && <div className="catio-fallback"><Box size={32} /><strong>3D preview needs WebGL</strong><p>The concept sheets and assembly instructions below are still available.</p></div>}
+          {latchParts === 'missing' && <p className="catio-latch-note" role="status">The printed latches’ parts could not be loaded. They are shown without them and tried again shortly.</p>}
         </div>
         <div className="catio-options">
           <label><input type="checkbox" checked={windowOpen} onChange={event => setWindowOpen(event.target.checked)} disabled={unsupported} /> Window open</label>

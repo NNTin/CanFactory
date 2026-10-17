@@ -32,7 +32,7 @@ implementations, registrations and data copies it deletes.
 | `apps/api` | Process (Fastify) | The public HTTP API: render jobs and artifacts, model reference STLs, market and offers. Also serves OpenAPI. The catalogue and parts library are not served; the web app bundles them. | contracts, server |
 | `apps/worker` | Process (no HTTP) | Claims render jobs, runs **OpenSCAD** in a subprocess, validates the meshes, and publishes STL or ZIP artifacts. | contracts, server |
 | `apps/web` | Browser SPA (React, Vite, Three.js) | Model library and editor, viewer with assembly and physics modes, parts library pages, buy list, and the catio concept pages. | client, contracts, physics, part-geometry |
-| `tools/` | CLI scripts (`tsx`) | Release, migration and cleanup (`maintenance.ts`), Awin ingest (`offers.ts`), OpenAPI and client generation, renderer, storage and restart tests, geometry sweep, assembly and physics checks, slicer checks, STL-to-SCAD, preview tracking. | contracts, server, physics, part-geometry, `apps/api` (OpenAPI generation), `apps/worker` (test runners) |
+| `tools/` | CLI scripts (`tsx`) | Release, migration and cleanup (`maintenance.ts`), Awin ingest (`offers.ts`), OpenAPI and client generation, renderer, storage and restart tests, geometry sweep, assembly and physics checks, slicer checks, STL-to-SCAD, preview tracking. | contracts, server, physics, part-geometry, `apps/api` (OpenAPI generation; the renderer and storage tests serve their renders through it) |
 | `models/` | Data (SCAD, reference STLs, fonts) | One directory per catalogue model. A model is its SCAD generator(s) plus a `ModelDefinition` in contracts. | (read by the worker and tools) |
 | `parts/` | Data (SCAD and STL) | The SCAD source and STL of each part with an STL preview (an everyday object). Other parts are drawn by `packages/part-geometry`. | (read by tools; STLs bundled into web) |
 | `charts/canfactory` | Helm chart | Kubernetes workloads: web, api and worker Deployments; release Job; maintenance and offers CronJobs. | (deploys the images) |
@@ -375,8 +375,9 @@ Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/syst
    copy in `tools/test-storage.ts`, the per-part loop in `tools/assembly-meshes.ts` and the second `FONTS_DIR` are deleted. A
    snapshot test (`render-invocations.test.ts`) pins the worker's command lines, so `RENDERER_FINGERPRINT` still holds.
 6. ~~**Mixed import styles.**~~ **Resolved in #94.** Tools import `@canfactory/contracts`, `@canfactory/physics` and
-   `@canfactory/server`, not `../../packages/*/src` or `apps/worker`. Only the API's own tests and the OpenAPI generator
-   import `apps/api`.
+   `@canfactory/server`, not `../../packages/*/src` or `apps/worker`. Only the API's own tests, the OpenAPI generator and the
+   renderer and storage tests (`tools/test-renderer.ts`, `tools/test-storage.ts`, which serve renders through the app) import
+   `apps/api`; nothing imports `apps/worker`.
 7. ~~**Catalogue data reaches the browser two ways.**~~ **Resolved in #95: bundled contracts only.** The web app reads models
    and parts from the bundled `@canfactory/contracts` (`ModelDefinition`, `partFamilies`, `partUsage`, …) and no longer fetches
    them. `GET /api/v1/models`, `/models/{id}`, `/part-families`, `/part-families/{id}` and `/parts/{id}`, their response

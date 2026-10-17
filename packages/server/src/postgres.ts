@@ -62,6 +62,11 @@ const LIVE_CLAIM = `id = $1 AND lease_token = $2 AND status = 'running' AND leas
 const ADMISSION_LOCK = 716301;
 const MIGRATION_LOCK = 716302;
 const MAINTENANCE_LOCK = 716303;
+/**
+ * This release's newest migration. A pod is ready once it is applied, whatever came after it: the release Job migrates in a
+ * pre-upgrade hook, while the previous release's pods still serve. So a migration must keep the previous release working (add,
+ * relax; never drop or rename what it reads) and may only contract once no release that reads the old shape can run.
+ */
 const SCHEMA_VERSION = '0003_model_detail_unused.sql';
 const AWIN_COLUMNS = `advertiser_id::float8 AS "advertiserId", merchant_product_id AS "merchantProductId", market, deep_link AS "deepLink", name, price,
   currency, delivery_cost AS "deliveryCost", in_stock AS "inStock", last_imported::float8 AS "lastImported"`;
@@ -150,8 +155,8 @@ export class PostgresStorage implements AwinStore {
     });
   }
   async ready(): Promise<void> {
-    const result = await this.pool.query<{ name: string }>('SELECT name FROM migrations ORDER BY name DESC LIMIT 1');
-    if (result.rows[0]?.name !== SCHEMA_VERSION) throw new Error('Database schema is not compatible with this release.');
+    if ((await this.pool.query('SELECT 1 FROM migrations WHERE name=$1', [SCHEMA_VERSION])).rowCount === 0)
+      throw new Error('Database schema is not compatible with this release.');
     if ((await this.pool.query('SELECT 1 FROM catalogue LIMIT 1')).rowCount === 0) throw new Error('Catalogue has not been seeded.');
     await this.objects.ready();
   }
