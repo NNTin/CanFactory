@@ -499,6 +499,25 @@ test('opens the insert–tunnel coupling, switches its latches, stages the docki
   expect(errors).toEqual([]);
 });
 
+test('draws the printed latch from its render, says when it is missing and tries again', async ({ page }) => {
+  test.setTimeout(240_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  // the render service is down: the latches are shown without their parts, and the viewer says so
+  const down = (route: import('@playwright/test').Route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+  await page.route('**/api/**', down);
+  await page.goto('/#/concepts/catio/insert-tunnel-coupling');
+  const viewer = page.getByTestId('subassembly-viewer');
+  await expect(viewer).toHaveAttribute('data-ready', 'true');
+  await expect(viewer).toHaveAttribute('data-latch-parts', 'missing');
+  await expect(viewer.getByRole('status')).toContainText('could not be loaded');
+  // back up: the retry renders the toggle latch model and fills the scene, without a reload
+  await page.unroute('**/api/**', down);
+  await expect(viewer).toHaveAttribute('data-latch-parts', 'loaded', { timeout: 180_000 });
+  await expect(viewer.getByRole('status')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('opens the tunnel–tunnel coupling, brings the second section in, switches to bolts and releases the latches', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
