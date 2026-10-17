@@ -1293,12 +1293,12 @@ export function placedRoute(config: TunnelConfig, site: TunnelSite, joint: Tunne
 export const tunnelPresets = (resolve: () => { site: TunnelSite; joint: TunnelCouplingConfig }): SubassemblyPreset<TunnelConfig>[] => {
   const placed = (config: TunnelConfig) => { const { site, joint } = resolve(); return placedRoute(config, site, joint); };
   return [
-  { id: 'straight', label: 'Straight', description: 'Straight out from the window to a port at the same height: no turns, no bends, square sections only.',
-    config: () => placed({ ...TUNNEL_DEFAULT, portX: 0, portY: 2500, portFacing: 0, portLevel: 'window' }) },
-  { id: 'right-angle', label: '90° turn right', description: 'Out from the wall, one side port turning 90° to the right, then along the wall to a port at the same height.',
-    config: () => placed({ ...TUNNEL_DEFAULT, portX: 2200, portY: TUNNEL.wallGap + 1000, portFacing: 90, portLevel: 'window', approach: 1000, final: 1000 }) },
-  { id: 'rising', label: 'Rising', description: 'Straight out to a door 90 cm above the grass: a climb at up to 20°, level runs either side.',
-    config: () => placed({ ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portHeight: 900, slopeLeg: 'middle' }) },
+    { id: 'straight', label: 'Straight', description: 'Straight out from the window to a port at the same height: no turns, no bends, square sections only.',
+      config: () => placed({ ...TUNNEL_DEFAULT, portX: 0, portY: 2500, portFacing: 0, portLevel: 'window' }) },
+    { id: 'right-angle', label: '90° turn right', description: 'Out from the wall, one side port turning 90° to the right, then along the wall to a port at the same height.',
+      config: () => placed({ ...TUNNEL_DEFAULT, portX: 2200, portY: TUNNEL.wallGap + 1000, portFacing: 90, portLevel: 'window', approach: 1000, final: 1000 }) },
+    { id: 'rising', label: 'Rising', description: 'Straight out to a door 90 cm above the grass: a climb at up to 20°, level runs either side.',
+      config: () => placed({ ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portHeight: 900, slopeLeg: 'middle' }) },
   ];
 };
 

@@ -105,8 +105,8 @@ Geometry that one page owns and another shows is drawn by one builder: `buildIns
 `buildCouplingPieces` (the docking frame, seal, catches, latches and lip), `buildSectionPieces`, `buildSupportPieces` and
 `buildCouplingJoint` (the tunnel's sections, supports and flange couplings, in
 [catioTunnelPieces.ts](../../../apps/web/src/catioTunnelPieces.ts)), and `buildPrintedLatches` (the printed toggle latch, on
-both coupling pages and the tunnel, placed by [catioPrintedLatch.ts](../../../apps/web/src/catioPrintedLatch.ts)). Fasteners added on top of another page's are
-placed with `clearOf` and checked with `fastenerClashes` ([catioSubassembly.ts](../../../apps/web/src/catioSubassembly.ts)).
+both coupling pages and the tunnel, placed by [catioPrintedLatch.ts](../../../packages/catio/src/catioPrintedLatch.ts)). Fasteners added on top of another page's are
+placed with `clearOf` and checked with `fastenerClashes` ([catioSubassembly.ts](../../../packages/catio/src/catioSubassembly.ts)).
 
 ## Dimensions and assumptions
 
@@ -127,7 +127,7 @@ placed with `clearOf` and checked with `fastenerClashes` ([catioSubassembly.ts](
 
 The model uses millimetres, X along the wall, +Y outdoors and Z up. Grass is Z=0 and the exterior wall face is Y=0. The collar and its four padded side clamps sit entirely beyond the closed sash. The timber rear portal is connected with removable exterior brackets and a mesh-sided passage with a timber threshold. Mesh surrounds the rear portal and covers the other sides, roof and floor. Covered edges and a low perimeter skirt join the floor to the raised base rails. The garden-facing maintenance door is timber and mesh, with hinges and a latch.
 
-The geometry, dimensions and assembly stages live in [catioDesign.ts](../../../apps/web/src/catioDesign.ts) and [catioScene.ts](../../../apps/web/src/catioScene.ts). Measured recess size, hardware fit and structural sizing need to be established before fabrication. The current stage has no SCAD files or printable export. Modular mode adds editable dimensions; the original direct design stays fixed.
+The geometry, dimensions and assembly stages live in [catioDesign.ts](../../../packages/catio/src/catioDesign.ts) and [catioScene.ts](../../../apps/web/src/catioScene.ts). Measured recess size, hardware fit and structural sizing need to be established before fabrication. The current stage has no SCAD files or printable export. Modular mode adds editable dimensions; the original direct design stays fixed.
 
 ## Assembly sequence
 
@@ -215,12 +215,13 @@ elsewhere first. The assembly slider, exploded view, layer controls and written 
 
 ### Implementation and validation
 
-- [Configuration, layout and validation](../../../apps/web/src/catioModularDesign.ts)
+- [Configuration, layout and validation](../../../packages/catio/src/catioModularDesign.ts)
+- [Enclosure layout: frame, mesh, ports, landing, ramp and maintenance door](../../../packages/catio/src/catioEnclosure.ts), drawn by [its builder](../../../apps/web/src/catioEnclosureScene.ts)
 - [Modular scene builders](../../../apps/web/src/catioModularScene.ts)
 - [Shared geometry primitives](../../../apps/web/src/catioParts.ts)
 - [Versioned local settings](../../../apps/web/src/catioSettings.ts)
-- [Cat-port closures and removable doors](../../../apps/web/src/catioDoor.ts), with [their tests](../../../apps/web/src/catioDoor.test.ts)
-- [Geometry and persistence tests](../../../apps/web/src/catioModular.test.ts)
+- [Cat-port closures and removable doors](../../../packages/catio/src/catioDoor.ts), with [their tests](../../../packages/catio/src/catioDoor.test.ts)
+- [Geometry and persistence tests](../../../apps/web/src/catioModularScene.test.ts)
 - [Browser interaction tests](../../../tests/browser/catio.spec.ts)
 
 The implementation tests exact glass/sash sizes and sweep clearance, mirrored routes, independent enclosure placement, cat-port mesh cutouts, gate travel (for sliding gates only), removable panels' seating and withdrawal, outward door clearance, floor/skirt containment, supported walkway levels, boundary sizes, assembly visibility and settings restoration. Existing direct-design geometry tests also remain in place.

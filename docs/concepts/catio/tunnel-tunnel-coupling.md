@@ -76,14 +76,14 @@ each side, sixteen ISO 7093 large washers and eight ISO 4032 nuts.
 
 ## The joint
 
-All of it is in [catioTunnel.ts](../../../apps/web/src/catioTunnel.ts) (`tunnelLayout`, its `couplings`), with the page's
-view of it in [catioTunnelCoupling.ts](../../../apps/web/src/catioTunnelCoupling.ts) (`tunnelCouplingLayout`). It is the
+All of it is in [catioTunnel.ts](../../../packages/catio/src/catioTunnel.ts) (`tunnelLayout`, its `couplings`), with the page's
+view of it in [catioTunnelCoupling.ts](../../../packages/catio/src/catioTunnelCoupling.ts) (`tunnelCouplingLayout`). It is the
 one source for both pages' scenes, parts lists and tests.
 
 ### The printed toggle latch
 
 It is the insert–tunnel coupling's printed latch, placed by the same shared code
-([catioPrintedLatch.ts](../../../apps/web/src/catioPrintedLatch.ts): `PRINTED_LATCH`, `LatchMount`, `printedLatchScrews`)
+([catioPrintedLatch.ts](../../../packages/catio/src/catioPrintedLatch.ts): `PRINTED_LATCH`, `LatchMount`, `printedLatchScrews`)
 from the latch's shared mechanism (`packages/contracts/src/toggleLatchMechanism.ts`).
 
 - **Gap and seal.** The latch locks over centre: its plates come closest at the dead centre and ease back 0.32 mm to
@@ -205,13 +205,13 @@ and the printed latches, which link to their model (`#/models/toggle-latch`).
 
 ## Implementation
 
-- [Coupling settings](../../../apps/web/src/catioTunnelJoint.ts): the config, controls and defaults, apart from the page so
+- [Coupling settings](../../../packages/catio/src/catioTunnelJoint.ts): the config, controls and defaults, apart from the page so
   that the tunnel's layout can follow them
-- [Coupling page: layout, steps, parts list, facts, views, decisions](../../../apps/web/src/catioTunnelCoupling.ts)
+- [Coupling page: layout, steps, parts list, facts, views, decisions](../../../packages/catio/src/catioTunnelCoupling.ts)
 - [Coupling scene](../../../apps/web/src/catioTunnelCouplingScene.ts): the staged assembly
 - [Shared tunnel pieces](../../../apps/web/src/catioTunnelPieces.ts): `buildSectionPieces`, `buildSupportPieces` and
   `buildCouplingJoint`, which draw the sections, supports and joints for this page and the tunnel page alike
-- [Shared printed latch](../../../apps/web/src/catioPrintedLatch.ts) and
+- [Shared printed latch](../../../packages/catio/src/catioPrintedLatch.ts) and
   [its drawing](../../../apps/web/src/catioPrintedLatchScene.ts) (`buildPrintedLatches`), used by both coupling pages and the
   tunnel page
 - **Cross-page wiring** (`follows` in [catioSubassemblies.ts](../../../apps/web/src/catioSubassemblies.ts)): the tunnel
@@ -220,7 +220,7 @@ and the printed latches, which link to their model (`#/models/toggle-latch`).
   section's flanges, clear of the latches), its feet and ground (**Feet**, **Foot height**, **Foot sole**, **Foot diameter**,
   **Ground falls away**, **Uneven by up to**). It shares the tunnel's **Held on the supports by** and **Supports stand**
   (`shares`), set on either page.
-- [Tests](../../../apps/web/src/catioTunnelCoupling.test.ts) check:
+- [Tests](../../../packages/catio/src/catioTunnelCoupling.test.ts) check:
   - two identical sections at the tunnel's length, the gap between them (3 mm latched, none bolted), and the bearer under
     the middle of the gap screwed into both flanges, for every option, section length, feet and clear size
   - each latch placed with the shared mechanism: base on the first flange, catch on the second, in line, pulling along the
@@ -233,7 +233,7 @@ and the printed latches, which link to their model (`#/models/toggle-latch`).
     every piece along its own way in, each kind together, and the exploded view
   - restoring saved settings, and the tunnel's old `couplingBolts` dropped
 
-  [catioTunnel.test.ts](../../../apps/web/src/catioTunnel.test.ts) checks that the route ends exactly at the enclosure port
+  [catioTunnel.test.ts](../../../packages/catio/src/catioTunnel.test.ts) checks that the route ends exactly at the enclosure port
   with either mechanism, the outlines across each gap, the latched and bolted couplings, and the tunnel's latches closing in
   its scene. [catioSubassemblies.test.ts](../../../apps/web/src/catioSubassemblies.test.ts) checks that exactly the declared
   settings change each page, in both directions. Browser coverage is in

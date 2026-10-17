@@ -51,7 +51,7 @@ settings break the tunnel or the coupling as they are saved, their errors are li
 
 ## The window
 
-The window is modelled as the tilt-and-turn (Dreh-Kipp) window it is ([catioWindow.ts](../../../apps/web/src/catioWindow.ts)),
+The window is modelled as the tilt-and-turn (Dreh-Kipp) window it is ([catioWindow.ts](../../../packages/catio/src/catioWindow.ts)),
 not as a hole: a fixed frame (Blendrahmen) and an inward-opening sash that turns on its hinge side and tilts about its sill.
 Seen from outside, the fixed frame's **outer lip** (Blendrahmenüberschlag) overlaps the closed sash; the sash's face lies behind
 the lip across the gap its outer seal fills, and a 12 mm rebate gap (Falzluft) runs round the sash's edge behind the lip.
@@ -296,11 +296,11 @@ and outer diameter).
 
 - [Sub-assembly contract, settings and parsing](../../../apps/web/src/catioSubassembly.ts) and the generic
   [page](../../../apps/web/src/CatioSubassemblyPage.tsx): a later tunnel or enclosure page is one more definition.
-- [Window insert design: parameters, layout, parts list, steps, decisions](../../../apps/web/src/catioWindowInsert.ts)
-- [The window: frame and sash profile, defaults and checks](../../../apps/web/src/catioWindow.ts)
+- [Window insert design: parameters, layout, parts list, steps, decisions](../../../packages/catio/src/catioWindowInsert.ts)
+- [The window: frame and sash profile, defaults and checks](../../../packages/catio/src/catioWindow.ts)
 - [Window insert scene](../../../apps/web/src/catioWindowInsertScene.ts) and the shared
   [window context](../../../apps/web/src/catioWindowContext.ts), which draws that window
-- [Tests](../../../apps/web/src/catioWindowInsert.test.ts): every option in both variants clears the 0–90° sash sweep and
+- [Tests](../../../packages/catio/src/catioWindowInsert.test.ts): every option in both variants clears the 0–90° sash sweep and
   stays inside the recess (hung, the hooks reach only behind the lip, clear of the closed sash, turned 0–90° and tilted 0–12°);
   the hooks' barbs lie in the seal gap and reach behind the lip at the head and the sill, printed or bought, and the printed
   hooks are where the model, set to the window, makes them; spreader pads reach the reveals only once tightened and the sill feet stand on the recess floor;

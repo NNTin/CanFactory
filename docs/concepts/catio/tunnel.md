@@ -116,7 +116,7 @@ Bolted, the pitch is 58.0 cm, so the same elements end at 109.0 cm along and 302
 
 ## The geometry
 
-All of it is in [catioTunnel.ts](../../../apps/web/src/catioTunnel.ts) (`tunnelLayout`). It is the one source for the
+All of it is in [catioTunnel.ts](../../../packages/catio/src/catioTunnel.ts) (`tunnelLayout`). It is the one source for the
 scene, the parts list and the tests.
 
 1. **Route in plan.** The centre line leaves the window port straight out from the wall and arrives square to the port.
@@ -369,7 +369,7 @@ insert–tunnel coupling page.
 
 ## Implementation
 
-- [Tunnel design: parameters, solved layout, joint geometry, supports, parts list, steps, decisions](../../../apps/web/src/catioTunnel.ts)
+- [Tunnel design: parameters, solved layout, joint geometry, supports, parts list, steps, decisions](../../../packages/catio/src/catioTunnel.ts)
 - [Tunnel scene](../../../apps/web/src/catioTunnelScene.ts): the window context (without its flat ground), uneven
   terrain, the window insert (`buildInsertContext`) with the coupling's docking frame (`buildCouplingPieces`), and the
   enclosure's port flange as fixed context. Its sections, supports and couplings are drawn by the builders it shares with
@@ -377,10 +377,10 @@ insert–tunnel coupling page.
 - [Sub-assembly contract](../../../apps/web/src/catioSubassembly.ts) and [page](../../../apps/web/src/CatioSubassemblyPage.tsx).
   New for the tunnel: numeric controls (`range`), presets (`presets`), single-variant pages, per-page view, layer and toggle labels, the brief
   and assembly headings, a stage scale, and a Groundwork group in the parts list. The window insert page is unchanged.
-- [Standard port](../../../apps/web/src/catioPort.ts) and its [tests](../../../apps/web/src/catioPort.test.ts): the
+- [Standard port](../../../packages/catio/src/catioPort.ts) and its [tests](../../../packages/catio/src/catioPort.test.ts): the
   stations under quarter turns, the genderless latches across any joint, a side port's pocket the least that keeps its and
   the stub's latches clear of each other, and both doors ([standard-port.md](standard-port.md)).
-- [Tests](../../../apps/web/src/catioTunnel.test.ts) check:
+- [Tests](../../../packages/catio/src/catioTunnel.test.ts) check:
   - both ends square to their ports across left, right, odd-angle, climbing, falling and 90° routes, with side ports,
     angle collars and mitred ends
   - every straight run whole pitches, every side-port turn exactly 90° with the run before coupled onto the side port and

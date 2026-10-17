@@ -94,7 +94,6 @@ export const parseTunnelCoupling = (raw: unknown) => {
   if (saved && typeof saved === 'object') { const record = saved as Record<string, unknown>; const shown = SHOWN_BEFORE[String(record['jointShown'])]; if (shown) record['jointShown'] = shown; }
   return parseControlled(TUNNEL_COUPLING_DEFAULT, TUNNEL_COUPLING_CONTROLS, saved);
 };
-/** The coupling as saved on its page (or its defaults), for the tunnel page, which follows it. */
 
 /** The gap between two latched flanges, and between two bolted ones (face to face). */
 export const couplingGap = (config: Pick<TunnelCouplingConfig, 'mechanism'>) => config.mechanism === 'printed-latch' ? PRINTED_LATCH_JOINT.gap : 0;

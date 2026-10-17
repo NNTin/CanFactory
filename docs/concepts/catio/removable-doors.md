@@ -54,7 +54,7 @@ was reverse-engineered, and none of the sizes below comes from the product. Wher
 
 ## 2. Proposed: CanFactory's construction
 
-One layout ([catioDoor.ts](../../../apps/web/src/catioDoor.ts)) and one 3D builder
+One layout ([catioDoor.ts](../../../packages/catio/src/catioDoor.ts)) and one 3D builder
 ([catioDoorScene.ts](../../../apps/web/src/catioDoorScene.ts)) serve every door, so the window insert, tunnel,
 coupling and whole-catio previews cannot disagree. All sizes are this design's choices, in millimetres.
 
@@ -209,7 +209,7 @@ To be done on a built door of each kind, from **both sides**. Until then no page
 
 ## Implementation
 
-- [Door layout, parts lists and poses](../../../apps/web/src/catioDoor.ts): `setInDoor` (window and enclosure ports, and the
+- [Door layout, parts lists and poses](../../../packages/catio/src/catioDoor.ts): `setInDoor` (window and enclosure ports, and the
   stubs' end doors held by turn buttons), `insetPanel` (tunnel side access), `blankPanel` (a stub's end door on the port's latches),
   `doorPose`, `doorBom`, `slidingGateRise`
 - [Door 3D builder](../../../apps/web/src/catioDoorScene.ts): `buildDoorPanel`, used by `buildPortClosure`
@@ -218,7 +218,7 @@ To be done on a built door of each kind, from **both sides**. Until then no page
   `buildAccessPanels` and `buildEndDoors` ([catioTunnelPieces.ts](../../../apps/web/src/catioTunnelPieces.ts): the
   tunnel's and the tunnel–tunnel coupling's pages)
 - Hardware by role: `CATIO_DOOR_HARDWARE` in [concepts.ts](../../../packages/contracts/src/concepts.ts)
-- [Tests](../../../apps/web/src/catioDoor.test.ts): seating, retention both ways, button sweep, withdrawal, the sliding
+- [Tests](../../../packages/catio/src/catioDoor.test.ts): seating, retention both ways, button sweep, withdrawal, the sliding
   gate's travel applied only to a sliding gate over every permitted size, migration of saved settings, each scene's closed
   and removed states, agreement of parts lists and stage captions with what is drawn, clearance from couplings and
   supports, and that routes, couplings, supports and roofs are the same with and without the doors
