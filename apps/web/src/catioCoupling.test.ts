@@ -4,13 +4,10 @@ import { COUPLING_LATCH, dimensionOf, findPart, insertTunnelCouplingConcept, par
 import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { couplingDefinition } from './catioSubassemblies.ts';
-import { COUPLING, COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, PRINTED_LATCH, couplingBom, couplingFacts, couplingLayout, couplingSteps, validateCoupling, type CouplingConfig, type CouplingSite } from './catioCoupling.ts';
 import { createCouplingScene, LIFT, OPEN } from './catioCouplingScene.ts';
-import { latchHeights } from './catioPrintedLatch.ts';
-import { TUNNEL, TUNNEL_DEFAULT, tunnelBom, tunnelSite } from './catioTunnel.ts';
-import { INSERT, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT } from './catioWindowInsert.ts';
-import { fastenerClashes } from './catioSubassembly.ts';
 import { partGeometry } from '@canfactory/part-geometry';
+import { COUPLING, COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, couplingBom, couplingFacts, couplingLayout, couplingSteps, fastenerClashes, INSERT, latchHeights, PRINTED_LATCH, TUNNEL, TUNNEL_DEFAULT, tunnelBom, validateCoupling, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, type CouplingConfig, type CouplingSite } from '@canfactory/catio';
+import { tunnelSite } from './catioSaved.ts';
 
 const base = tunnelSite();
 const site: CouplingSite = { tunnel: TUNNEL_DEFAULT, site: base };

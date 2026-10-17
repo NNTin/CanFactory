@@ -2,17 +2,11 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { CATIO_MESH_PARTS, findPart, partUsage, toggleLatchMechanism as TL, tunnelTunnelCouplingConcept } from '@canfactory/contracts';
 import type { CatioState } from './catioScene.ts';
-import { defaultSubassemblySettings, fastenerClashes, loadSubassemblySettings, parseSubassemblySettings, saveShared, subassemblyStorageKey } from './catioSubassembly.ts';
+import { defaultSubassemblySettings, loadSubassemblySettings, parseSubassemblySettings, saveShared, subassemblyStorageKey } from './catioSubassembly.ts';
 import { dependentsOf, tunnelCouplingDefinition, tunnelDefinition } from './catioSubassemblies.ts';
-import { PRINTED_LATCH, PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
-import { LATCH_SCREW_CLEARANCE, SUPPORT_FIXINGS, TUNNEL, TUNNEL_DEFAULT, tunnelSite, vec, type SupportFixing, type TunnelConfig } from './catioTunnel.ts';
-import {
-  TUNNEL_COUPLING, TUNNEL_COUPLING_CONTROLS, validateTunnelCoupling, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingLayout, tunnelCouplingSteps,
-  type TunnelCouplingConfig, type TunnelCouplingSite,
-} from './catioTunnelCoupling.ts';
 import { createTunnelCouplingScene, LIFT } from './catioTunnelCouplingScene.ts';
-import { sidePortLength } from './catioPort.ts';
-import type { V3 } from './catioSubassembly.ts';
+import { fastenerClashes, LATCH_SCREW_CLEARANCE, PRINTED_LATCH, PRINTED_LATCH_JOINT, sidePortLength, SUPPORT_FIXINGS, TUNNEL, TUNNEL_COUPLING, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingLayout, tunnelCouplingSteps, validateTunnelCoupling, vec, type SupportFixing, type TunnelConfig, type TunnelCouplingConfig, type TunnelCouplingSite, type V3 } from '@canfactory/catio';
+import { tunnelSite } from './catioSaved.ts';
 
 const base = tunnelSite();
 const site: TunnelCouplingSite = { tunnel: TUNNEL_DEFAULT, site: base };

@@ -3,9 +3,9 @@ import type { CatioView } from './catioDesign.ts';
 import { doorBom, doorLibraryParts } from './catioDoor.ts';
 import { DOOR_FIXING_LABELS, sidePortOffset, STANDARD_PORT } from './catioPort.ts';
 import { E_PROFILE_SEAL, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine } from './catioPrintedLatch.ts';
-import type { CatioMode } from './catioSettings.ts';
-import { loadSubassemblyConfig, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
-import { LATCH_SCREW_EDGE, parseTunnel, tunnelPitch, SUPPORT_FIXING_LABELS, supportFixingSteps, TUNNEL, TUNNEL_DEFAULT, tunnelCutList, tunnelLayout, tunnelSite, vec, type Piece, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
+import type { CatioMode } from './catioDesign.ts';
+import type { AssemblyStep, BomLine, CameraPreset, DesignDecision, SubassemblyFact, V3 } from './catioSubassembly.ts';
+import { LATCH_SCREW_EDGE, tunnelPitch, SUPPORT_FIXING_LABELS, supportFixingSteps, TUNNEL, tunnelCutList, tunnelLayout, vec, type Piece, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
 import { couplingGap, parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 
 export { parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig };
@@ -24,18 +24,15 @@ export const TUNNEL_COUPLING = {
   floor: 450,
 } as const;
 
-/** The tunnel as saved on its page (or its defaults), and the catio's window and tunnel sizes. */
+/** The tunnel as its page sets it, and the catio's window and tunnel sizes. */
 export interface TunnelCouplingSite { tunnel: TunnelConfig; site: TunnelSite }
-export function tunnelCouplingSite(): TunnelCouplingSite {
-  return { tunnel: loadSubassemblyConfig('tunnel', parseTunnel, TUNNEL_DEFAULT), site: tunnelSite() };
-}
 
 /**
  * The tunnel the page shows its first coupling of, the gaps as the coupling sets them, each run one section of the tunnel page's
  * longest length: straight and level out from the wall in three runs (a section's end to the next one's), or out from the wall and
  * turning 90° to the right at a side port (a section's end to the side port of the section after it).
  */
-export function straightTunnel(tunnel: TunnelConfig, config: TunnelCouplingConfig, site: Pick<TunnelSite, 'w'> = tunnelSite()): TunnelConfig {
+export function straightTunnel(tunnel: TunnelConfig, config: TunnelCouplingConfig, site: Pick<TunnelSite, 'w'>): TunnelConfig {
   const run = tunnel.sectionLength * tunnelPitch(site, config) - couplingGap(config);
   if (config.jointShown === 'end-side') {
     const lateral = site.w / 2 + TUNNEL.flange.width;
@@ -50,7 +47,7 @@ function part(id: string): Part {
 }
 
 /** The coupling, placed: the two sections either side of it, the support under it, and its latches or bolts. */
-export function tunnelCouplingLayout(config: TunnelCouplingConfig, { tunnel: saved, site }: TunnelCouplingSite = tunnelCouplingSite()) {
+export function tunnelCouplingLayout(config: TunnelCouplingConfig, { tunnel: saved, site }: TunnelCouplingSite) {
   // how the tunnel is held on its supports is shared with the tunnel page, and set on this page too (`shares`)
   const tunnel: TunnelConfig = { ...saved, supportFixing: config.supportFixing, supportBase: config.supportBase };
   const straight = straightTunnel(tunnel, config, site);
@@ -76,7 +73,7 @@ export function tunnelCouplingLayout(config: TunnelCouplingConfig, { tunnel: sav
 }
 export type TunnelCouplingLayout = ReturnType<typeof tunnelCouplingLayout>;
 
-export function validateTunnelCoupling(_variant: CatioMode, config: TunnelCouplingConfig, site?: TunnelCouplingSite): string[] {
+export function validateTunnelCoupling(_variant: CatioMode, config: TunnelCouplingConfig, site: TunnelCouplingSite): string[] {
   return tunnelCouplingLayout(config, site).errors;
 }
 
@@ -86,7 +83,7 @@ const round1 = (mm: number) => Number(mm.toFixed(1));
 const cm = (mm: number) => `${Number((mm / 10).toFixed(1))}`;
 
 /** Stage 0 is one support on the grass; 1 a section built and laid; 2 its joint readied; 3 the second section comes in; 4 coupled; 5 fixed down. */
-export function tunnelCouplingSteps(_variant: CatioMode, config: TunnelCouplingConfig, site?: TunnelCouplingSite): readonly AssemblyStep[] {
+export function tunnelCouplingSteps(_variant: CatioMode, config: TunnelCouplingConfig, site: TunnelCouplingSite): readonly AssemblyStep[] {
   const l = tunnelCouplingLayout(config, site);
   const printed = l.coupling.kind === 'latched'; const n = l.latches.length; const bolts = l.bolts.length;
   const length = `${cm(l.sectionLength)} cm`;
@@ -117,7 +114,7 @@ const partSize = (p: Part) => {
 };
 
 /** The parts list: the two sections' cut list and mesh (from the tunnel's), then the coupling's latches and seal, or its bolts. */
-export function tunnelCouplingBom(_variant: CatioMode, config: TunnelCouplingConfig, site?: TunnelCouplingSite): BomLine[] {
+export function tunnelCouplingBom(_variant: CatioMode, config: TunnelCouplingConfig, site: TunnelCouplingSite): BomLine[] {
   const l = tunnelCouplingLayout(config, site);
   const lines = tunnelCutList(l.tl, { pieces: l.pieces, supports: false });
   const library = (id: string, quantity: number, use: string) => {
@@ -152,7 +149,7 @@ export function tunnelCouplingBom(_variant: CatioMode, config: TunnelCouplingCon
   return lines;
 }
 
-export function tunnelCouplingFacts(_variant: CatioMode, config: TunnelCouplingConfig, site?: TunnelCouplingSite): SubassemblyFact[] {
+export function tunnelCouplingFacts(_variant: CatioMode, config: TunnelCouplingConfig, site: TunnelCouplingSite): SubassemblyFact[] {
   const l = tunnelCouplingLayout(config, site);
   const printed = l.coupling.kind === 'latched';
   return [
@@ -169,8 +166,8 @@ export function tunnelCouplingFacts(_variant: CatioMode, config: TunnelCouplingC
   ];
 }
 
-export function tunnelCouplingViews(_variant: CatioMode, config: TunnelCouplingConfig): Record<CatioView, CameraPreset> {
-  const l = tunnelCouplingLayout(config);
+export function tunnelCouplingViews(_variant: CatioMode, config: TunnelCouplingConfig, site: TunnelCouplingSite): Record<CatioView, CameraPreset> {
+  const l = tunnelCouplingLayout(config, site);
   const joint = l.coupling.face.at; const cz = joint[2] + l.h / 2; const L = l.sectionLength; const span = l.w + 2 * TUNNEL.flange.width;
   const latch = l.latches.find(q => q.side > 0);
   const focus: V3 = latch ? latch.at : [span / 2, joint[1], cz];

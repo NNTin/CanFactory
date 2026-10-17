@@ -2,12 +2,9 @@ import type { CatioMeshSpec } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { dimensionOf, findPart, type Part } from '@canfactory/contracts';
 import type { createCatioParts } from './catioParts.ts';
-import { doorDirection, doorPose, type DoorFrame, type DoorPanel } from './catioDoor.ts';
 import { buildDoorPanel, type DoorLayers } from './catioDoorScene.ts';
-import type { PortLatch } from './catioPort.ts';
 import { buildPrintedLatches } from './catioPrintedLatchScene.ts';
-import type { V3 } from './catioSubassembly.ts';
-import { facePoint, TUNNEL, vec, type Coupling, type Face, type Fastener, type Member, type MeshPanel, type Rect, type Support, type SupportBox, type TunnelLayout } from './catioTunnel.ts';
+import { doorDirection, doorPose, facePoint, TUNNEL, vec, type Coupling, type DoorFrame, type DoorPanel, type Face, type Member, type PortLatch, type Rect, type Support, type SupportBox, type TunnelFastener as Fastener, type TunnelLayout, type TunnelMeshPanel as MeshPanel, type V3 } from '@canfactory/catio';
 
 /**
  * The tunnel's pieces as 3D groups, drawn once for every page that shows them: the tunnel page stages all of them, the tunnel–tunnel

@@ -1,5 +1,4 @@
-import { DOOR_SEAT_LABELS, DOOR_SEAT_SETTING, DOOR_SEATS, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, PORT_CLOSURES, type DoorSeat, type PortClosure } from './catioDoor.ts';
-import { modularPitch, validateModular, type ModularConfig, type EnclosureSize } from './catioModularDesign.ts';
+import { DOOR_SEAT_LABELS, DOOR_SEAT_SETTING, DOOR_SEATS, modularPitch, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, PORT_CLOSURES, validateModular, type DoorSeat, type EnclosureSize, type ModularConfig, type PortClosure } from '@canfactory/catio';
 
 export function CatioParameters({ draft, change, reset }: { draft: ModularConfig; change: (next: ModularConfig) => void; reset: () => void }) {
   const errors = validateModular(draft);

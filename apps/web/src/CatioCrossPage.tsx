@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import type { Follow, SettingRef } from './catioSubassembly.ts';
 import { CATIO_SUBASSEMBLY_ENTRIES, dependentsOf } from './catioSubassemblies.ts';
-import { formatHash, type CatioSubassembly } from './route.ts';
+import { formatHash } from './route.ts';
+import type { Follow, SettingRef, CatioSubassembly } from '@canfactory/catio';
 
 /**
  * How the catio pages show what they take from each other, all from the sub-assemblies' `follows` and facts' `from`: where a

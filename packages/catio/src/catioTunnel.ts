@@ -3,12 +3,12 @@ import { toggleLatchMechanism as TL } from '@canfactory/contracts';
 import { MESH_LABELS, meshCut, meshRollLine } from './catioMesh.ts';
 import { type CatioView } from './catioDesign.ts';
 import { E_PROFILE_SEAL, latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine, printedLatchScrews } from './catioPrintedLatch.ts';
-import type { CatioMode } from './catioSettings.ts';
+import type { CatioMode } from './catioDesign.ts';
 import { blankPanel, CLOSURE_WORDS, DOOR, doorBom, doorFacts, doorLibraryParts, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, setInDoor, type DoorFrame, type DoorPanel } from './catioDoor.ts';
 import { BOLTS_PER_SIDE, boltStations, portOutline, DOOR_FIXING_LABELS, facePoint, frameAlong, portLatches, portRing, sidePortFace, sidePortLength, sidePortOffset, STANDARD_PORT, type Face, type Frame, type PortLatch, type Rect } from './catioPort.ts';
-import { couplingGap, savedTunnelCoupling, SUPPORT_FIXING_LABELS, SUPPORT_SOLE, supportControls, type SupportBase, type SupportFixing, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
-import { fastenerClashes, fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type SubassemblyPreset, type V3 } from './catioSubassembly.ts';
-import { parseWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertLayout, type WindowInsertConfig, type WindowSpec } from './catioWindowInsert.ts';
+import { couplingGap, SUPPORT_FIXING_LABELS, SUPPORT_SOLE, supportControls, type SupportBase, type SupportFixing, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
+import { fastenerClashes, fastenersAlong, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type SubassemblyPreset, type V3 } from './catioSubassembly.ts';
+import { WINDOW_FLOOR_SETTINGS, windowFor, windowInsertLayout, type ModularWindowSettings, type WindowInsertConfig, type WindowSpec } from './catioWindowInsert.ts';
 
 /**
  * The tunnel: the enclosed, supported walkway from the window insert's cat port to the enclosure's rear cat port. Millimetres;
@@ -123,10 +123,9 @@ export const TUNNEL = {
 /** The fixed interfaces: the window insert's port (where the tunnel starts) and the tunnel's clear size. */
 export interface TunnelSite { w: number; h: number; floorZ: number; window: WindowSpec; insert: WindowInsertConfig }
 
-/** The window insert as saved on its own page (or its defaults), in the modular window saved on the catio concept page. */
-export function tunnelSite(): TunnelSite {
-  const insert = loadSubassemblyConfig('window-insert', parseWindowInsert, WINDOW_INSERT_DEFAULT);
-  const window = windowFor('modular', insert);
+/** The window insert (`insert`, as its page sets it) in the modular window of the catio concept (`catio`). */
+export function tunnelSiteFor(insert: WindowInsertConfig, catio: ModularWindowSettings): TunnelSite {
+  const window = windowFor('modular', insert, catio);
   const tunnel = window.tunnel ?? { width: 300, height: 300 };
   return { w: tunnel.width, h: tunnel.height, floorZ: windowInsertLayout('modular', insert, window).floor, window, insert };
 }
@@ -332,7 +331,7 @@ export function squareRoute(config: Pick<TunnelConfig, 'portX' | 'portFacing'>):
  * from where it was asked. A climb is the one length solved exactly: a whole number of long sections, sloped as steeply as it
  * takes to reach the port's floor, up to the steepest slope allowed.
  */
-export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite(), joint: TunnelCouplingConfig = savedTunnelCoupling()) {
+export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig) {
   const { w, h, floorZ } = site;
   const errors: string[] = [];
   const turnType = config.angleJoint;
@@ -935,8 +934,8 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite = tunnelSite
 }
 export type TunnelLayout = ReturnType<typeof tunnelLayout>;
 
-export function validateTunnel(_variant: CatioMode, config: TunnelConfig, site: TunnelSite = tunnelSite()): string[] {
-  return tunnelLayout(config, site).errors;
+export function validateTunnel(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig): string[] {
+  return tunnelLayout(config, site, joint).errors;
 }
 
 const side = (angle: number) => angle > 0 ? 'right' : 'left';
@@ -975,8 +974,8 @@ export function supportFixingSteps(l: TunnelLayout, scope: 'all' | 'one' = 'all'
 }
 
 /** Stage 0 is the site; 1–2 the supports; 3–4 the sections, framed and meshed on the trestles' line, raised; 5–6 laid and fixed. */
-export function tunnelSteps(_variant: CatioMode, config: TunnelConfig): readonly AssemblyStep[] {
-  const l = tunnelLayout(config);
+export function tunnelSteps(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig): readonly AssemblyStep[] {
+  const l = tunnelLayout(config, site, joint);
   const joints = l.joints.length ? l.joints.map(describeJoint).join(', ') : 'no angle joints';
   const collar = l.pieces.some(p => p.kind === 'collar'); const ported = l.pieces.filter(p => p.sidePort).length;
   const legs = l.supports.filter(s => s.kind === 'trestle').length; const blocks = l.supports.length - legs;
@@ -1131,7 +1130,7 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
 }
 
 /** The parts list: cut list, mesh, hardware by library part, and groundwork. */
-export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: TunnelSite = tunnelSite(), joint: TunnelCouplingConfig = savedTunnelCoupling()): BomLine[] {
+export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig): BomLine[] {
   const l = tunnelLayout(config, site, joint);
   const lines: BomLine[] = tunnelCutList(l);
   const counts = new Map<string, { quantity: number; uses: Set<string> }>();
@@ -1186,8 +1185,8 @@ export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: Tunne
   return lines;
 }
 
-export function tunnelFacts(_variant: CatioMode, config: TunnelConfig, site: TunnelSite = tunnelSite()): SubassemblyFact[] {
-  const l = tunnelLayout(config, site);
+export function tunnelFacts(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig): SubassemblyFact[] {
+  const l = tunnelLayout(config, site, joint);
   const cm = (mm: number) => fmt(mm / 10);
   const turns = l.joints.filter(j => j.kind === 'turn');
   const tallest = Math.max(0, ...l.supports.flatMap(s => s.feet.map(f => f.leg)));
@@ -1217,8 +1216,8 @@ export function tunnelBounds(l: TunnelLayout) {
   return { minX: Math.min(...xs) - 500, maxX: Math.max(...xs) + 500, minY: 0, maxY: Math.max(...ys) + 400, maxZ: Math.max(...zs) + l.h + 200 };
 }
 
-export function tunnelViews(_variant: CatioMode, config: TunnelConfig): Record<CatioView, CameraPreset> {
-  const l = tunnelLayout(config);
+export function tunnelViews(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig): Record<CatioView, CameraPreset> {
+  const l = tunnelLayout(config, site, joint);
   const b = tunnelBounds(l);
   const center: V3 = [(b.minX + b.maxX) / 2, b.maxY / 2, b.maxZ / 3];
   const extent = Math.max(b.maxX - b.minX, b.maxY, b.maxZ);
@@ -1282,20 +1281,26 @@ export const TUNNEL_CONTROLS: SubassemblyControl<TunnelConfig>[] = [
  * A route's enclosure port moved to where its whole elements end, to the millimetre: so that a preset (or the defaults) shows no
  * port placed elsewhere than asked.
  */
-export function placedRoute(config: TunnelConfig, site: TunnelSite = tunnelSite(), joint: TunnelCouplingConfig = savedTunnelCoupling()): TunnelConfig {
+export function placedRoute(config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig): TunnelConfig {
   const l = tunnelLayout(config, site, joint);
   return { ...config, portX: Math.round(l.E[0]), portY: Math.round(l.E[1]), ...(config.angleJoint === 'side-port' ? { portFacing: squareFacing(config.portFacing) } : {}) };
 }
 
-/** Ready-made routes besides the defaults, their ports where whole elements end. Level ones keep the port level with the window port, whatever the insert's clamps make it. */
-export const TUNNEL_PRESETS: SubassemblyPreset<TunnelConfig>[] = [
+/**
+ * Ready-made routes besides the defaults, their ports where whole elements end. Level ones keep the port level with the window port,
+ * whatever the insert's clamps make it. The site and joint are resolved when a preset is picked.
+ */
+export const tunnelPresets = (resolve: () => { site: TunnelSite; joint: TunnelCouplingConfig }): SubassemblyPreset<TunnelConfig>[] => {
+  const placed = (config: TunnelConfig) => { const { site, joint } = resolve(); return placedRoute(config, site, joint); };
+  return [
   { id: 'straight', label: 'Straight', description: 'Straight out from the window to a port at the same height: no turns, no bends, square sections only.',
-    config: () => placedRoute({ ...TUNNEL_DEFAULT, portX: 0, portY: 2500, portFacing: 0, portLevel: 'window' }) },
+    config: () => placed({ ...TUNNEL_DEFAULT, portX: 0, portY: 2500, portFacing: 0, portLevel: 'window' }) },
   { id: 'right-angle', label: '90° turn right', description: 'Out from the wall, one side port turning 90° to the right, then along the wall to a port at the same height.',
-    config: () => placedRoute({ ...TUNNEL_DEFAULT, portX: 2200, portY: TUNNEL.wallGap + 1000, portFacing: 90, portLevel: 'window', approach: 1000, final: 1000 }) },
+    config: () => placed({ ...TUNNEL_DEFAULT, portX: 2200, portY: TUNNEL.wallGap + 1000, portFacing: 90, portLevel: 'window', approach: 1000, final: 1000 }) },
   { id: 'rising', label: 'Rising', description: 'Straight out to a door 90 cm above the grass: a climb at up to 20°, level runs either side.',
-    config: () => placedRoute({ ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portHeight: 900, slopeLeg: 'middle' }) },
-];
+    config: () => placed({ ...TUNNEL_DEFAULT, portX: 0, portY: 4000, portFacing: 0, portHeight: 900, slopeLeg: 'middle' }) },
+  ];
+};
 
 /** How a section is meshed, for the assembly steps: a net as one hood held at every mesh of its cut edges, welded mesh as three stapled panels. */
 export function meshingStep(mesh: CatioMeshSpec): string {

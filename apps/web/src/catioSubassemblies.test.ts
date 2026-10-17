@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { clearOf, fastenerClashes, withShared } from './catioSubassembly.ts';
+import { withShared } from './catioSubassembly.ts';
 import { CATIO_SUBASSEMBLY_ENTRIES, dependentsOf, tunnelCouplingDefinition } from './catioSubassemblies.ts';
-import { COUPLING_DEFAULT, couplingBom, couplingLayout } from './catioCoupling.ts';
-import { TUNNEL_CONTROLS, TUNNEL_DEFAULT, tunnelBom, tunnelLayout, tunnelSite, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
-import { TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, tunnelCouplingBom, tunnelCouplingLayout, type TunnelCouplingConfig } from './catioTunnelCoupling.ts';
-import { WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowInsertLayout, type WindowInsertConfig } from './catioWindowInsert.ts';
+import { clearOf, COUPLING_DEFAULT, couplingBom, couplingLayout, fastenerClashes, TUNNEL_CONTROLS, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelBom, tunnelCouplingBom, tunnelCouplingLayout, tunnelLayout, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowInsertLayout, type TunnelConfig, type TunnelCouplingConfig, type TunnelSite, type WindowInsertConfig } from '@canfactory/catio';
+import { tunnelSite } from './catioSaved.ts';
 
 const base = tunnelSite();
 const withInsert = (insert: WindowInsertConfig): TunnelSite => ({ ...base, insert, floorZ: windowInsertLayout('modular', insert, base.window).floor });

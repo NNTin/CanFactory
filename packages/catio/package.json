@@ -1,0 +1,1 @@
+{ "name": "@canfactory/catio", "private": true, "type": "module", "exports": "./src/index.ts" }

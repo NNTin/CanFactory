@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { CATIO, roofBearers } from './catioDesign.ts';
-import { MODULAR_DEFAULT as defaults, modularLayout, modularCamera, modularPitch, validateModular, type ModularConfig } from './catioModularDesign.ts';
-import { sidePortLength, sidePortOffset, STANDARD_PORT } from './catioPort.ts';
-import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
-import { WINDOW_INSERT_DEFAULT } from './catioWindowInsert.ts';
 import { createModularCatio, type ModularState } from './catioModularScene.ts';
 import { defaultCatioSettings, parseCatioSettings } from './catioSettings.ts';
-import { DOOR } from './catioDoor.ts';
+import { CATIO, DOOR, MODULAR_DEFAULT as defaults, modularCamera, modularLayout, modularPitch, PRINTED_LATCH_JOINT, roofBearers, sidePortLength, sidePortOffset, STANDARD_PORT, validateModular, WINDOW_INSERT_DEFAULT, type ModularConfig } from '@canfactory/catio';
 
 /** The design as it was before the cat ports' closure could be chosen: every port has a sliding gate. */
 const sliding: ModularConfig = { ...defaults, portClosure: 'sliding-gate' };

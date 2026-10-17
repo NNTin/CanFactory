@@ -1,24 +1,13 @@
-import type { CatioSubassembly } from './route.ts';
-import { loadSubassemblySettings, type Follow, type SubassemblyDefinition, type SubassemblyDrawing } from './catioSubassembly.ts';
-import { portTemplateSvg } from './catioPort.ts';
+import { loadSubassemblySettings, type SubassemblyDefinition, type SubassemblyDrawing } from './catioSubassembly.ts';
 import { createWindowInsertScene } from './catioWindowInsertScene.ts';
 import { createTunnelScene } from './catioTunnelScene.ts';
 import { createCouplingScene } from './catioCouplingScene.ts';
 import { createTunnelCouplingScene } from './catioTunnelCouplingScene.ts';
-import {
-  parseTunnelCoupling, tunnelCouplingLayout, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, TUNNEL_SETTINGS_FOLLOWED, TUNNEL_SETTINGS_SHARED, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingSteps,
-  tunnelCouplingViews, validateTunnelCoupling, type TunnelCouplingConfig,
-} from './catioTunnelCoupling.ts';
-import {
-  COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, couplingBom, couplingFacts, couplingSteps, couplingViews, parseCoupling, validateCoupling, type CouplingConfig,
-} from './catioCoupling.ts';
-import {
-  parseTunnel, TUNNEL_CONTROLS, TUNNEL_PRESETS, TUNNEL_DECISIONS, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSite, tunnelSteps, tunnelViews, validateTunnel, type TunnelConfig,
-} from './catioTunnel.ts';
-import {
-  parseWindowInsert, validateWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DECISIONS, WINDOW_INSERT_DEFAULT, windowInsertBom, windowInsertFacts,
-  windowInsertSteps, windowInsertViews, type WindowInsertConfig,
-} from './catioWindowInsert.ts';
+import { COUPLING_CONTROLS, COUPLING_DECISIONS, COUPLING_DEFAULT, couplingBom, couplingFacts, couplingSteps, couplingViews, parseCoupling, parseTunnel, parseTunnelCoupling, parseWindowInsert, portTemplateSvg, TUNNEL_CONTROLS, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DECISIONS, TUNNEL_COUPLING_DEFAULT, TUNNEL_DECISIONS, TUNNEL_DEFAULT, tunnelPresets, TUNNEL_SETTINGS_FOLLOWED, TUNNEL_SETTINGS_SHARED, tunnelBom, tunnelCouplingBom, tunnelCouplingFacts, tunnelCouplingLayout, tunnelCouplingSteps, tunnelCouplingViews, tunnelFacts, tunnelLayout, tunnelSteps, tunnelViews, validateCoupling, validateTunnel, validateTunnelCoupling, validateWindowInsert, WINDOW_FLOOR_SETTINGS, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DECISIONS, WINDOW_INSERT_DEFAULT, windowInsertBom, windowInsertFacts, windowInsertSteps, windowInsertViews, type CouplingConfig, type Follow, type TunnelConfig, type TunnelCouplingConfig, type WindowInsertConfig, type CatioSubassembly } from '@canfactory/catio';
+import { couplingSite, savedCoupling, savedTunnelCoupling, savedWindow, tunnelCouplingSite, tunnelSite } from './catioSaved.ts';
+
+// Each page shows its sub-assembly fitted to the others' saved settings: resolved here, at every call, and passed in.
+const tunnelJoint = () => savedTunnelCoupling();
 
 export const windowInsertDefinition: SubassemblyDefinition<WindowInsertConfig> = {
   id: 'window-insert', title: 'Window insert', eyebrow: 'CATIO SUB-ASSEMBLY · WINDOW INSERT',
@@ -27,9 +16,12 @@ export const windowInsertDefinition: SubassemblyDefinition<WindowInsertConfig> =
   // with tunnel, the cat port is shut by what the catio concept page sets for every cat port, and the page can open it
   doorToggle: variant => variant === 'modular' ? 'Cat port open' : null,
   defaults: WINDOW_INSERT_DEFAULT, controls: WINDOW_INSERT_CONTROLS, parse: parseWindowInsert,
-  validate: (variant, config) => validateWindowInsert(variant, config),
-  steps: windowInsertSteps, build: createWindowInsertScene, bom: (variant, config) => windowInsertBom(variant, config),
-  views: windowInsertViews, facts: windowInsertFacts, decisions: WINDOW_INSERT_DECISIONS,
+  validate: (variant, config) => validateWindowInsert(variant, config, savedWindow(variant, config)),
+  steps: (variant, config) => windowInsertSteps(variant, config, savedWindow(variant, config)),
+  build: (variant, config) => createWindowInsertScene(variant, config, savedWindow(variant, config)),
+  bom: (variant, config) => windowInsertBom(variant, config, savedWindow(variant, config)),
+  views: (variant, config) => windowInsertViews(variant, config, savedWindow(variant, config)),
+  facts: (variant, config) => windowInsertFacts(variant, config, savedWindow(variant, config)), decisions: WINDOW_INSERT_DECISIONS,
 };
 
 export const tunnelDefinition: SubassemblyDefinition<TunnelConfig> = {
@@ -43,11 +35,14 @@ export const tunnelDefinition: SubassemblyDefinition<TunnelConfig> = {
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the climb', Top: 'Top · the turns', Mounting: 'Support detail' },
   toggles: { cutaway: 'Wall cutaway' }, layerLabels: { hardware: 'Bolts, feet & fixings', environment: 'Ground, wall & slabs' },
   // the doors of every opening that is not coupled: the end bays' sides (the side access), and a section's start at a turn
-  doorToggle: (_variant, config) => tunnelLayout(config).doors.length > 0 ? 'Doors open' : null,
-  defaults: TUNNEL_DEFAULT, presets: TUNNEL_PRESETS, controls: TUNNEL_CONTROLS, parse: parseTunnel,
-  validate: (variant, config) => validateTunnel(variant, config),
-  steps: tunnelSteps, build: createTunnelScene, bom: (variant, config) => tunnelBom(variant, config),
-  views: tunnelViews, facts: tunnelFacts, decisions: TUNNEL_DECISIONS, drawings: () => [portTemplateDrawing(tunnelSite().w)],
+  doorToggle: (_variant, config) => tunnelLayout(config, tunnelSite(), tunnelJoint()).doors.length > 0 ? 'Doors open' : null,
+  defaults: TUNNEL_DEFAULT, presets: tunnelPresets(() => ({ site: tunnelSite(), joint: tunnelJoint() })), controls: TUNNEL_CONTROLS, parse: parseTunnel,
+  validate: (variant, config) => validateTunnel(variant, config, tunnelSite(), tunnelJoint()),
+  steps: (variant, config) => tunnelSteps(variant, config, tunnelSite(), tunnelJoint()),
+  build: (variant, config) => createTunnelScene(variant, config, tunnelSite(), tunnelJoint(), savedCoupling()),
+  bom: (variant, config) => tunnelBom(variant, config, tunnelSite(), tunnelJoint()),
+  views: (variant, config) => tunnelViews(variant, config, tunnelSite(), tunnelJoint()),
+  facts: (variant, config) => tunnelFacts(variant, config, tunnelSite(), tunnelJoint()), decisions: TUNNEL_DECISIONS, drawings: () => [portTemplateDrawing(tunnelSite().w)],
 };
 
 export const couplingDefinition: SubassemblyDefinition<CouplingConfig> = {
@@ -65,9 +60,12 @@ export const couplingDefinition: SubassemblyDefinition<CouplingConfig> = {
   doorToggle: () => 'Cat port open',
   layerLabels: { hardware: 'Latches, seal & screws', environment: 'Wall & grass' },
   defaults: COUPLING_DEFAULT, controls: COUPLING_CONTROLS, parse: parseCoupling,
-  validate: (variant, config) => validateCoupling(variant, config),
-  steps: couplingSteps, build: createCouplingScene, bom: (variant, config) => couplingBom(variant, config),
-  views: couplingViews, facts: couplingFacts, decisions: COUPLING_DECISIONS,
+  validate: (variant, config) => validateCoupling(variant, config, couplingSite()),
+  steps: (variant, config) => couplingSteps(variant, config, couplingSite()),
+  build: (variant, config) => createCouplingScene(variant, config, couplingSite()),
+  bom: (variant, config) => couplingBom(variant, config, couplingSite()),
+  views: (variant, config) => couplingViews(variant, config, couplingSite()),
+  facts: (variant, config) => couplingFacts(variant, config, couplingSite()), decisions: COUPLING_DECISIONS,
 };
 
 export const tunnelCouplingDefinition: SubassemblyDefinition<TunnelCouplingConfig> = {
@@ -81,13 +79,15 @@ export const tunnelCouplingDefinition: SubassemblyDefinition<TunnelCouplingConfi
   shares: [{ page: 'tunnel', settings: TUNNEL_SETTINGS_SHARED }],
   viewLabels: { Interior: 'Along the tunnel', Side: 'Side · the joint', Mounting: 'Latch detail' },
   toggles: { windowOpen: 'Released · latches open' }, defaultViewing: { windowOpen: false },
-  doorToggle: (_variant, config) => { const l = tunnelCouplingLayout(config); return l.tl.doors.some(d => l.pieces.includes(d.piece)) ? 'Doors open' : null; },
+  doorToggle: (_variant, config) => { const l = tunnelCouplingLayout(config, tunnelCouplingSite()); return l.tl.doors.some(d => l.pieces.includes(d.piece)) ? 'Doors open' : null; },
   layerLabels: { hardware: 'Latches, bolts, feet & screws', environment: 'Grass & slabs' },
   defaults: TUNNEL_COUPLING_DEFAULT, controls: TUNNEL_COUPLING_CONTROLS, parse: parseTunnelCoupling,
-  validate: (variant, config) => validateTunnelCoupling(variant, config),
-  steps: (variant, config) => tunnelCouplingSteps(variant, config), build: (variant, config) => createTunnelCouplingScene(variant, config),
-  bom: (variant, config) => tunnelCouplingBom(variant, config),
-  views: tunnelCouplingViews, facts: (variant, config) => tunnelCouplingFacts(variant, config), decisions: TUNNEL_COUPLING_DECISIONS, drawings: () => [portTemplateDrawing(tunnelSite().w)],
+  validate: (variant, config) => validateTunnelCoupling(variant, config, tunnelCouplingSite()),
+  steps: (variant, config) => tunnelCouplingSteps(variant, config, tunnelCouplingSite()),
+  build: (variant, config) => createTunnelCouplingScene(variant, config, tunnelCouplingSite()),
+  bom: (variant, config) => tunnelCouplingBom(variant, config, tunnelCouplingSite()),
+  views: (variant, config) => tunnelCouplingViews(variant, config, tunnelCouplingSite()),
+  facts: (variant, config) => tunnelCouplingFacts(variant, config, tunnelCouplingSite()), decisions: TUNNEL_COUPLING_DECISIONS, drawings: () => [portTemplateDrawing(tunnelSite().w)],
 };
 
 /** Every sub-assembly page, for links and breadcrumbs. The enclosure is next; `CatioSubassemblyRoute` picks the definition. */

@@ -1,4 +1,4 @@
-import { loadSubassemblyConfig, parseControlled, type SubassemblyControl } from './catioSubassembly.ts';
+import { parseControlled, type SubassemblyControl } from './catioSubassembly.ts';
 import { DOOR_FIXING_LABELS, DOOR_FIXINGS, type DoorFixing } from './catioPort.ts';
 import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 
@@ -95,7 +95,6 @@ export const parseTunnelCoupling = (raw: unknown) => {
   return parseControlled(TUNNEL_COUPLING_DEFAULT, TUNNEL_COUPLING_CONTROLS, saved);
 };
 /** The coupling as saved on its page (or its defaults), for the tunnel page, which follows it. */
-export const savedTunnelCoupling = () => loadSubassemblyConfig('tunnel-tunnel-coupling', parseTunnelCoupling, TUNNEL_COUPLING_DEFAULT);
 
 /** The gap between two latched flanges, and between two bolted ones (face to face). */
 export const couplingGap = (config: Pick<TunnelCouplingConfig, 'mechanism'>) => config.mechanism === 'printed-latch' ? PRINTED_LATCH_JOINT.gap : 0;

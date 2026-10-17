@@ -1,9 +1,8 @@
 import * as THREE from 'three';
 import { createCatioParts } from './catioParts.ts';
-import { CATIO as d, CATIO_DERIVED as g, ROOF_NET, roofBearers, type CatioLayer } from './catioDesign.ts';
 import { buildWindowFrame } from './catioWindowContext.ts';
-import { savedWindowInsert, windowFor, windowInsertLayout, type WindowInsertConfig } from './catioWindowInsert.ts';
 import { buildHungHardware } from './catioWindowInsertScene.ts';
+import { CATIO as d, CATIO_DERIVED as g, ROOF_NET, directWindow, roofBearers, windowInsertLayout, type CatioLayer, type WindowInsertConfig } from '@canfactory/catio';
 
 type V3 = [number, number, number];
 export interface CatioState {
@@ -15,11 +14,11 @@ export interface MeshPanel { id: string; width: number; height: number; center: 
 
 /**
  * The concept geometry is authored here, independently of the render API and future printable CAD. The window is the real
- * tilt-and-turn window (catioWindow.ts); the insert follows the window insert page (`insert`, as saved there by default): hung on
+ * tilt-and-turn window (catioWindow.ts); the insert follows the window insert page (`insert`, as saved there): hung on
  * the window frame, its collar lies on the frame's face with its screen hooks and feet, otherwise it is the schematic recess
  * collar with padded clamps. Either way the collar stays schematic in height, so that the passage and ramp meet the sill.
  */
-export function createCatioScene(insert: WindowInsertConfig = savedWindowInsert()) {
+export function createCatioScene(insert: WindowInsertConfig) {
   const parts = createCatioParts();
   const { root, components, panels, materials, component, box, rod, ring, panel, dispose } = parts;
   const wall = component('wall', 0, 'environment');
@@ -40,7 +39,7 @@ export function createCatioScene(insert: WindowInsertConfig = savedWindowInsert(
   }
   terrain.add(blades);
 
-  const window = windowFor('direct', insert);
+  const window = directWindow(insert);
   const { hinge } = buildWindowFrame(parts, window);
   const hanging = windowInsertLayout('direct', insert, window);
   const hung = hanging.hooks.length > 0;

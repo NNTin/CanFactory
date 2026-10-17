@@ -1,3 +1,4 @@
+import { CATIO_SUBASSEMBLIES, type CatioSubassembly } from '@canfactory/catio';
 /**
  * Where the app is, mirrored to the URL's hash so that every page can be linked to and the browser's back button works:
  * `#/models` (the model library), `#/models/<id>` (a model's editor), `#/parts` (the parts library's families),
@@ -6,8 +7,6 @@
  * `#/buy-list` is the buy list, `#/disclosure` the affiliate disclosure and `#/privacy` the privacy page.
  * A URL without a hash, or with one that names no page, opens the model library.
  */
-export const CATIO_SUBASSEMBLIES = ['window-insert', 'insert-tunnel-coupling', 'tunnel', 'tunnel-tunnel-coupling'] as const;
-export type CatioSubassembly = typeof CATIO_SUBASSEMBLIES[number];
 const isSubassembly = (value: string | undefined): value is CatioSubassembly => CATIO_SUBASSEMBLIES.includes(value as CatioSubassembly);
 
 export type Route =

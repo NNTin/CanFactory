@@ -4,15 +4,9 @@ import { CATIO_MESH_PARTS, catioMesh, findPart, partUsage, toggleLatchMechanism 
 import type { CatioState } from './catioScene.ts';
 import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { tunnelDefinition } from './catioSubassemblies.ts';
-import {
-  facePoint, groundAt, jointSetback, placedRoute, portFloor, PORT_MOVED, SUPPORT_FIXINGS, TUNNEL, TUNNEL_CONTROLS, TUNNEL_DEFAULT, TUNNEL_PAD_HEIGHT, TUNNEL_PRESETS, tunnelFacts, tunnelBom, tunnelLayout, tunnelSite, tunnelSteps, squareFacing, validateTunnel, vec, type SupportFixing, type TunnelConfig,
-} from './catioTunnel.ts';
 import { createTunnelScene, LIFT } from './catioTunnelScene.ts';
-import { TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
-import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
-import { boxesOverlap, SWING_CLEAR, latchEnvelope, latchSwing, memberBox, sidePortLength, sidePortOffset } from './catioPort.ts';
-import type { V3 } from './catioSubassembly.ts';
-import { WINDOW_INSERT_DEFAULT, windowInsertLayout, type WindowInsertConfig } from './catioWindowInsert.ts';
+import { boxesOverlap, facePoint, groundAt, jointSetback, latchEnvelope, latchSwing, memberBox, placedRoute, PORT_MOVED, portFloor, PRINTED_LATCH_JOINT, sidePortLength, sidePortOffset, squareFacing, SUPPORT_FIXINGS, SWING_CLEAR, TUNNEL, TUNNEL_CONTROLS, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, TUNNEL_PAD_HEIGHT, TUNNEL_PRESETS, tunnelBom, tunnelFacts, tunnelLayout, tunnelSteps, validateTunnel, vec, WINDOW_INSERT_DEFAULT, windowInsertLayout, type SupportFixing, type TunnelConfig, type TunnelCouplingConfig, type V3, type WindowInsertConfig } from '@canfactory/catio';
+import { tunnelSite } from './catioSaved.ts';
 
 const site = tunnelSite();
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: true, cutaway: false, hidden: new Set() };

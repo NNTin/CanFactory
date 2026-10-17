@@ -1,10 +1,10 @@
 import { CATIO_MESH_DEFAULT, CATIO_MESHES, catioMesh, type CatioMesh, cornerBracketHoles, cornerBracketScrew, dimensionOf, findPart, PRESSURE_PAD_SURFACES, PRINTED_CORNER_BRACKET_SCREW, printedCornerBracket, printedCornerBracketFor, printedCornerBracketHoles, printedScreenHook, printedScreenHookShape, SCREEN_HOOK_FIT, validateParameters, WINDOW_INSERT_BRACKETS, type WindowInsertBracket, pressurePadMinDiameter, pressurePadMinHeight, WINDOW_INSERT_FOOT, WINDOW_INSERT_HARDWARE as HW, WINDOW_INSERT_PAD, windowInsertFeet, windowInsertPadScrews, type Part, type PressurePadSurface } from '@canfactory/contracts';
 import { CATIO, CATIO_DERIVED, type CatioView } from './catioDesign.ts';
 import { validateWindowProfile, WINDOW_PROFILE_DEFAULT, WINDOW_PROFILE_RANGES, windowFrame, type WindowProfile } from './catioWindow.ts';
-import { loadCatioSettings, type CatioMode } from './catioSettings.ts';
+import type { CatioMode } from './catioDesign.ts';
 import { MESH_LABELS, meshCut, meshRollLine } from './catioMesh.ts';
 import { DOOR, DOOR_SEAT_DEFAULT, doorBom, doorBounds, doorFacts, doorLibraryParts, setInDoor, type DoorSeat, PORT_CLOSURE_DEFAULT, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, slidingGateRise, type DoorFrame, type DoorPanel, type PortClosure } from './catioDoor.ts';
-import { fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
+import { fastenersAlong, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
 
 /**
  * The window insert: the removable timber collar that sits in the exterior window recess, its mesh, and the clamps that hold
@@ -104,17 +104,24 @@ export interface WindowSpec {
   seat: DoorSeat;
 }
 
+/** The catio concept's window and tunnel settings that a modular window follows (its `ModularConfig`). */
+export type ModularWindowSettings = Parameters<typeof modularWindow>[0];
+
 /**
- * Direct uses the original fixed sizes; with tunnel follows the window and tunnel saved on the catio concept page. Either way the
- * window's frame profile is the one set on this page (`config`, the defaults when absent).
+ * Direct uses the original fixed sizes; with tunnel follows the catio concept's window and tunnel (`catio`). Either way the
+ * window's frame profile is the one set on the window insert page (`config`).
  */
-export function windowFor(variant: CatioMode, config: WindowProfile = WINDOW_INSERT_DEFAULT): WindowSpec {
+export function windowFor(variant: CatioMode, config: WindowProfile, catio: ModularWindowSettings): WindowSpec {
+  return variant === 'direct' ? directWindow(config) : modularWindow(catio, windowProfileOf(config));
+}
+
+/** The direct design's window: the original fixed sizes, in the frame profile set on the window insert page (`config`). */
+export function directWindow(config: WindowProfile): WindowSpec {
   const profile = windowProfileOf(config);
-  if (variant === 'direct') return {
+  return {
     glassWidth: CATIO.glass, glassHeight: CATIO.glass, sashWidth: CATIO.sash, sashHeight: CATIO.sash,
     openingWidth: CATIO.fixedFrame, openingHeight: CATIO.fixedFrame, recessFloor: CATIO_DERIVED.fixedBottom, sill: CATIO.sill, profile, tunnel: null, closure: PORT_CLOSURE_DEFAULT, seat: DOOR_SEAT_DEFAULT,
   };
-  return modularWindow(loadCatioSettings().config, profile);
 }
 
 /** The modular design's window: its fixed frame is the sash + 45 mm a side, its floor 45 mm below the sill. */
@@ -229,7 +236,7 @@ export function portPanelStow(window: Pick<WindowSpec, 'openingWidth' | 'tunnel'
 }
 
 /** Every piece of the insert, placed in the recess (installed and tightened). */
-export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant, config)) {
+export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec) {
   const { member: m, depth: D } = INSERT;
   const hung = config.attachment === 'frame-hooks';
   // Hung on the window frame, the collar's back lies on the frame's outer face; pressed into the recess, it stands clear of it.
@@ -464,7 +471,7 @@ function spaced(length: number, count: number): number[] {
   return Array.from({ length: count }, (_, i) => -length / 2 + i * length / (count - 1));
 }
 
-export function validateWindowInsert(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant, config)): string[] {
+export function validateWindowInsert(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec): string[] {
   const errors: string[] = [...validateWindowProfile(window)];
   if (config.mesh === 'netting' && config.meshFixing === 'staples') errors.push('Soft netting needs the cover battens: staples alone leave its edge open between them. Choose a fixing with battens, or welded wire mesh.');
   const l = windowInsertLayout(variant, config, window);
@@ -551,7 +558,7 @@ function doorAccessIssues(l: WindowInsertLayout): string[] {
 }
 
 /** Stage 0 is the window as it is; stages 1–3 happen on a bench outside, 4–6 at the window. */
-export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant, config)): readonly AssemblyStep[] {
+export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec): readonly AssemblyStep[] {
   const door = variant === 'modular' ? windowInsertLayout(variant, config, window).door?.panel : undefined;
   const docked = 'the insert–tunnel coupling page screws a docking frame onto the port’s face, which then stays on the insert';
   const closing = door
@@ -565,7 +572,7 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
     : 'Stand the two stiles. Slide the head and sill rails in between them from the outdoor side. Then drive two 5 × 70 screws through each stile into the end grain of the rail';
   const hung = config.attachment === 'frame-hooks';
   const printed = config.attachment !== 'folding-wedges' && config.clampPad === 'printed';
-  const fit = hung ? windowInsertLayout(variant, config).hookFit : null;
+  const fit = hung ? windowInsertLayout(variant, config, window).hookFit : null;
   const hookScrews = fit ? `${fit.spec.screws.length === 1 ? 'one' : 'two'} ${fit.spec.screw.designation.replace('DIN 7997 ', '')} screw${fit.spec.screws.length === 1 ? '' : 's'}` : '';
   const turns = fit?.spec.screws.length === 1 ? ' Each turns on its one screw: set it straight along the stile, then tighten the screw.' : '';
   const hookText = !fit ? '' : fit.bend === null
@@ -629,7 +636,7 @@ const partSize = (p: Part) => {
 };
 
 /** The parts list: timber cut list, mesh panels, and hardware by part of the library. */
-export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant, config)): BomLine[] {
+export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec): BomLine[] {
   const l = windowInsertLayout(variant, config, window);
   const lines: BomLine[] = [];
   // Timber: identical cuts are counted together.
@@ -705,7 +712,7 @@ export function windowInsertBom(variant: CatioMode, config: WindowInsertConfig, 
   return lines;
 }
 
-export function windowInsertFacts(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant, config)): SubassemblyFact[] {
+export function windowInsertFacts(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec): SubassemblyFact[] {
   const l = windowInsertLayout(variant, config, window);
   const door = l.door ? doorFacts(l.door.panel) : null;
   const cm = (mm: number) => `${Number((mm / 10).toFixed(1))}`;
@@ -727,8 +734,8 @@ export function windowInsertFacts(variant: CatioMode, config: WindowInsertConfig
   ];
 }
 
-export function windowInsertViews(variant: CatioMode, config: WindowInsertConfig): Record<CatioView, CameraPreset> {
-  const l = windowInsertLayout(variant, config);
+export function windowInsertViews(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec): Record<CatioView, CameraPreset> {
+  const l = windowInsertLayout(variant, config, window);
   const cz = l.window.recessFloor + l.window.openingHeight / 2; const span = Math.max(l.window.openingWidth, l.window.openingHeight);
   // the left clamp, or (hung) the head hook on the left, where it reaches behind the lip
   const clamp = l.clamps.find(c => c.side === 'left') ?? l.clamps[0];
@@ -799,8 +806,6 @@ export const WINDOW_INSERT_CONTROLS: SubassemblyControl<WindowInsertConfig>[] = 
 ];
 
 export const parseWindowInsert = (raw: unknown) => parseControlled(WINDOW_INSERT_DEFAULT, WINDOW_INSERT_CONTROLS, raw);
-/** The window insert as saved on its page (or its defaults), for the pages and scenes that draw it. */
-export const savedWindowInsert = () => loadSubassemblyConfig('window-insert', parseWindowInsert, WINDOW_INSERT_DEFAULT);
 
 /** The printed defaults, for the decisions below: the bracket for the collar's members, the hooks for the default window. */
 const PRINTED_BRACKET = windowInsertBracket('printed');
