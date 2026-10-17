@@ -13,7 +13,7 @@
     "dev": "npm run dev --workspace @canfactory/web",
     "api": "tsx apps/api/src/main.ts",
     "worker": "tsx apps/worker/src/main.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p packages/catio",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:browser": "playwright test",

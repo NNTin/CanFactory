@@ -111,7 +111,7 @@ export type ModularWindowSettings = Parameters<typeof modularWindow>[0];
  * Direct uses the original fixed sizes; with tunnel follows the catio concept's window and tunnel (`catio`). Either way the
  * window's frame profile is the one set on the window insert page (`config`).
  */
-export function windowFor(variant: CatioMode, config: WindowProfile, catio: ModularWindowSettings): WindowSpec {
+export function windowFor(variant: CatioMode, config: WindowInsertConfig | WindowProfile, catio: ModularWindowSettings): WindowSpec {
   return variant === 'direct' ? directWindow(config) : modularWindow(catio, windowProfileOf(config));
 }
 

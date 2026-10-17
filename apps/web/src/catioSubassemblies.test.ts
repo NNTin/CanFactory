@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { withShared } from './catioSubassembly.ts';
 import { CATIO_SUBASSEMBLY_ENTRIES, dependentsOf, tunnelCouplingDefinition } from './catioSubassemblies.ts';
-import { clearOf, COUPLING_DEFAULT, couplingBom, couplingLayout, fastenerClashes, TUNNEL_CONTROLS, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelBom, tunnelCouplingBom, tunnelCouplingLayout, tunnelLayout, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowInsertLayout, type TunnelConfig, type TunnelCouplingConfig, type TunnelSite, type WindowInsertConfig } from '@canfactory/catio';
-import { tunnelSite } from './catioSaved.ts';
+import { clearOf, COUPLING_DEFAULT, MODULAR_DEFAULT, couplingBom, couplingLayout, fastenerClashes, TUNNEL_CONTROLS, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelBom, tunnelCouplingBom, tunnelCouplingLayout, tunnelLayout, tunnelSiteFor, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowInsertLayout, type TunnelConfig, type TunnelCouplingConfig, type TunnelSite, type WindowInsertConfig } from '@canfactory/catio';
 
-const base = tunnelSite();
+const base = tunnelSiteFor(WINDOW_INSERT_DEFAULT, MODULAR_DEFAULT);
 const withInsert = (insert: WindowInsertConfig): TunnelSite => ({ ...base, insert, floorZ: windowInsertLayout('modular', insert, base.window).floor });
 /** What a page builds from the other pages' settings: anything a followed setting changes shows up here. */
 const builds = {
@@ -19,8 +18,8 @@ const builds = {
     return JSON.stringify([l.before, l.after, l.coupling, l.support, l.tl.pad, l.tl.members.filter(m => l.pieces.includes(m.piece)), l.tl.doors.filter(d => l.pieces.includes(d.piece)).map(d => d.id), tunnelCouplingBom('modular', config, { tunnel, site }), l.errors]);
   },
   coupling: (site: TunnelSite, tunnel: TunnelConfig = TUNNEL_DEFAULT) => {
-    const l = couplingLayout(COUPLING_DEFAULT, { tunnel, site });
-    return JSON.stringify([l.frame, l.fasteners, l.floor, couplingBom('modular', COUPLING_DEFAULT, { tunnel, site }), l.errors]);
+    const l = couplingLayout(COUPLING_DEFAULT, { tunnel, site, joint: TUNNEL_COUPLING_DEFAULT });
+    return JSON.stringify([l.frame, l.fasteners, l.floor, couplingBom('modular', COUPLING_DEFAULT, { tunnel, site, joint: TUNNEL_COUPLING_DEFAULT }), l.errors]);
   },
 };
 
