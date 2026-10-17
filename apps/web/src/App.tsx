@@ -2,7 +2,7 @@ import { MagneticCatToyIllustration } from './MagneticCatToyIllustration.tsx';
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Atom, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, ShoppingBasket, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from '@canfactory/client';
-import { controlRange, controlShown, decodeLogo, findModel, findPartFamily, modelBom, modelUsage, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDetail, type ParameterValues, type PartFamilySummary } from '@canfactory/contracts';
+import { artifactFormat, controlRange, controlShown, decodeLogo, findModel, findPartFamily, modelBom, models, modelUsage, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
 import { PartsLibrary } from './PartsLibrary.tsx';
 import { BuyListPage, DisclosurePage, Hardware, PrivacyPage } from './Shopping.tsx';
 import { useBuyList, useMarket } from './shopping.ts';
@@ -23,10 +23,8 @@ import { CatioSubassemblyRoute } from './CatioSubassemblyPage.tsx';
 import { CATIO_SUBASSEMBLY_TITLES } from './catioSubassemblies.ts';
 import catioThumbnail from '../../../docs/concepts/catio/01-overview.png';
 
-type ModelCard = Pick<ModelDetail, 'id' | 'version' | 'title' | 'description' | 'attribution' | 'attributionLinks' | 'license' | 'licenseUrl' | 'artifactFormat' | 'customizable'>;
-
 /** A model's attribution, its `attributionLinks` phrases linked to their pages. */
-function Attribution({ text, links = [] }: { text: string; links?: ModelDetail['attributionLinks'] }) {
+function Attribution({ text, links = [] }: { text: string; links?: ModelDefinition['attributionLinks'] }) {
   const parts: ReactNode[] = [];
   let rest = text;
   for (const link of links) {
@@ -37,15 +35,14 @@ function Attribution({ text, links = [] }: { text: string; links?: ModelDetail['
   }
   return <>{parts}{rest}</>;
 }
-const settingsKey = (model: ModelDetail) => `canfactory:settings:${model.id}:${model.version}`;
+const settingsKey = (model: ModelDefinition) => `canfactory:settings:${model.id}:${model.version}`;
 
-function restoreSettings(model: ModelDetail): ParameterValues {
+function restoreSettings(model: ModelDefinition): ParameterValues {
   try {
     const stored = localStorage.getItem(settingsKey(model));
-    const definition = findModel(model.id);
-    if (stored && definition) {
+    if (stored) {
       const values: unknown = JSON.parse(stored);
-      if (values !== null && typeof values === 'object' && validateParameters(definition, values).length === 0) {
+      if (values !== null && typeof values === 'object' && validateParameters(model, values).length === 0) {
         const entries = Object.entries(values).filter((entry): entry is [string, number | boolean | string] => ['number', 'boolean', 'string'].includes(typeof entry[1]));
         return Object.fromEntries(entries);
       }
@@ -485,32 +482,32 @@ function RenderProblemBanner({ problem, retry }: { problem: RenderProblem; retry
   </div>;
 }
 
-function Editor({ model }: { model: ModelDetail }) {
+function Editor({ model }: { model: ModelDefinition }) {
   const [parameters, setParameters] = useState<ParameterValues>(() => restoreSettings(model));
   const [advanced, setAdvanced] = useState(false);
   const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
   const [viewerError, setViewerError] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const definition = findModel(model.id);
+  const format = artifactFormat(model);
   const usage = useMemo(() => modelUsage(model.id), [model.id]);
-  const issues = useMemo(() => definition ? validateParameters(definition, parameters) : [{ field: '', message: 'Reload the page to use this model’s current editor.' }], [definition, parameters]);
+  const issues = useMemo(() => validateParameters(model, parameters), [model, parameters]);
   const valid = issues.length === 0;
   const rendering = useRender(model, parameters, valid);
   // Keep poses and colors with the displayed geometry while newer settings render.
   const displayedParameters = rendering.completed?.parameters ?? model.defaults;
-  const assembly = useMemo(() => resolveAssembly(definition, model.assembly, displayedParameters), [definition, model, displayedParameters]);
+  const assembly = useMemo(() => resolveAssembly(model, model.assembly, displayedParameters), [model, displayedParameters]);
   const references = useMemo(() => referenceObjects(assembly), [assembly]);
-  const physics = useMemo(() => definition?.physics?.(displayedParameters), [definition, displayedParameters]);
+  const physics = useMemo(() => model.physics?.(displayedParameters), [model, displayedParameters]);
   const partTitles = useMemo(() => Object.fromEntries([...(model.parts ?? []), ...(assembly?.references ?? [])].map(part => [part.id, part.title])), [model, assembly]);
   const render = rendering.completed?.render;
   const artifact = render?.artifact;
   const url = artifact?.url ?? null;
   const ready = rendering.ready && loadedUrl === url && !viewerError;
   const error = rendering.error ?? viewerError ?? downloadError;
-  const derived = definition?.derived(parameters);
+  const derived = model.derived(parameters);
   // The library parts the model holds for these settings (its assembly's real-world objects), for “Hardware for this build”.
-  const hardware = useMemo(() => definition ? modelBom(definition, valid ? parameters : displayedParameters) : [], [definition, valid, parameters, displayedParameters]);
+  const hardware = useMemo(() => modelBom(model, valid ? parameters : displayedParameters), [model, valid, parameters, displayedParameters]);
 
   useEffect(() => {
     if (!valid) return;
@@ -527,12 +524,12 @@ function Editor({ model }: { model: ModelDetail }) {
         const chosen = next[control.key];
         if (control.part?.filter?.control !== key || (typeof chosen === 'string' && partOptionOffered(control, chosen, next))) continue;
         const offered = offeredOptions(control, next);
-        const accepted = definition && offered.find(option => !validateParameters(definition, { ...next, [control.key]: option.value }).some(issue => issue.field === control.key));
+        const accepted = offered.find(option => !validateParameters(model, { ...next, [control.key]: option.value }).some(issue => issue.field === control.key));
         const first = accepted ?? offered[0];
         if (first) next[control.key] = first.value;
       }
-      if (value === false && definition) {
-        const invalid = validateParameters(definition, next);
+      if (value === false) {
+        const invalid = validateParameters(model, next);
         for (const control of model.controls) {
           if (control.enabledWhen === key && invalid.some(issue => issue.field === control.key)) next[control.key] = control.default;
         }
@@ -547,7 +544,7 @@ function Editor({ model }: { model: ModelDetail }) {
     if (!render || !ready) return;
     setDownloading(true); setDownloadError(null);
     try {
-      const response = model.artifactFormat === 'zip'
+      const response = format === 'zip'
         ? await api.GET('/api/v1/renders/{id}/zip', { params: { path: { id: render.id }, query: { download: 'true' } }, parseAs: 'blob' })
         : await api.GET('/api/v1/renders/{id}/stl', { params: { path: { id: render.id }, query: { download: 'true' } }, parseAs: 'blob' });
       if (response.error) {
@@ -555,7 +552,7 @@ function Editor({ model }: { model: ModelDetail }) {
         throw new Error(response.error.message);
       }
       const blobUrl = URL.createObjectURL(response.data);
-      const link = document.createElement('a'); link.href = blobUrl; link.download = `${model.id}-${render.id.slice(0, 8)}.${model.artifactFormat}`;
+      const link = document.createElement('a'); link.href = blobUrl; link.download = `${model.id}-${render.id.slice(0, 8)}.${format}`;
       link.click(); setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
     } catch (caught) { setDownloadError(caught instanceof Error ? caught.message : 'Download failed. Please try again.'); }
     finally { setDownloading(false); }
@@ -564,19 +561,19 @@ function Editor({ model }: { model: ModelDetail }) {
   // Controls that only matter in some modes of another control (Control.visibleWhen) are hidden in the others.
   const shown = (control: Control) => controlShown(control, parameters);
   // A number control whose room depends on other settings (ModelDefinition.limits) spans the range they leave it.
-  const field = (control: Control) => <Field key={control.key} control={definition ? { ...control, ...controlRange(definition, control, parameters) } : control} value={parameters[control.key]} options={control.part?.filter ? offeredOptions(control, parameters) : control.options}
+  const field = (control: Control) => <Field key={control.key} control={{ ...control, ...controlRange(model, control, parameters) }} value={parameters[control.key]} options={control.part?.filter ? offeredOptions(control, parameters) : control.options}
     disabled={control.enabledWhen !== null && parameters[control.enabledWhen] !== true}
     issue={issues.find(issue => issue.field === control.key)?.message} recommended={recommendation(control, model.controls, parameters)} change={value => change(control.key, value)} />;
 
   return <>
     <div className="editor-layout">
       <aside className="settings-panel">
-        {model.customizable ? <>
+        {model.controls.length > 0 ? <>
           <div className="panel-heading"><div><SlidersHorizontal size={16} /><h2>Make it yours</h2></div><button className="text-button" type="button" onClick={reset}><RotateCcw size={13} /> Reset</button></div>
           <p className="panel-intro">A few adjustments. A perfect fit.</p>
           <div className="basic-controls">{model.controls.filter(control => control.group === 'basic' && shown(control)).map(field)}</div>
-          {derived?.slotCount !== undefined && derived.slotCount !== null && <div className="slot-note"><Sparkles size={14} /><span>{derived.slotCount === 0 ? 'One opening. A smooth funnel.' : `${derived.slotCount.toLocaleString()} slots, automatically spaced.`}</span></div>}
-          {valid && derived?.notes?.map(note => <div key={note} className="slot-note derived-note"><Sparkles size={14} /><span>{note}</span></div>)}
+          {derived.slotCount !== null && <div className="slot-note"><Sparkles size={14} /><span>{derived.slotCount === 0 ? 'One opening. A smooth funnel.' : `${derived.slotCount.toLocaleString()} slots, automatically spaced.`}</span></div>}
+          {valid && derived.notes?.map(note => <div key={note} className="slot-note derived-note"><Sparkles size={14} /><span>{note}</span></div>)}
           {model.controls.some(control => control.group === 'advanced') && <button className="advanced-button" type="button" aria-expanded={advanced} aria-controls="advanced-controls" onClick={() => setAdvanced(value => !value)}>
             Advanced settings <ChevronDown size={16} className={advanced ? 'rotated' : ''} />
           </button>}
@@ -591,7 +588,7 @@ function Editor({ model }: { model: ModelDetail }) {
         <div className="preview-heading"><span className="eyebrow"><Box size={15} /> LIVE PREVIEW</span><span className={`status ${ready && !error ? 'status-ready' : ''}`} role="status">
           {ready && !error ? <Check size={13} /> : error || !valid ? <CircleAlert size={13} /> : <LoaderCircle size={13} className="spin" />}{status}
         </span></div>
-        <Viewer url={url} format={model.artifactFormat} assembly={assembly} references={references} partTitles={partTitles} physics={physics} onError={setViewerError} onLoaded={setLoadedUrl} />
+        <Viewer url={url} format={format} assembly={assembly} references={references} partTitles={partTitles} physics={physics} onError={setViewerError} onLoaded={setLoadedUrl} />
         {!ready && url && !error && <div className="previous-preview">Showing the previous preview while your changes are prepared.</div>}
         {!ready && url && rendering.problem && <div className="previous-preview previous-preview-stale">This is the last preview that rendered. It does not match your current settings.</div>}
         {rendering.problem ? <RenderProblemBanner problem={rendering.problem} retry={retry} />
@@ -599,11 +596,11 @@ function Editor({ model }: { model: ModelDetail }) {
         <div className="model-stats">
           {artifact?.parts ? <div><span>PARTS</span><strong>{artifact.parts.length} <small>· {(artifact.volume / 1000).toFixed(1)} cm³ total</small></strong></div>
             : <div><span>PRINT DIMENSIONS</span><strong>{artifact?.dimensions ? `${artifact.dimensions.x.toFixed(1)} × ${artifact.dimensions.y.toFixed(1)} × ${artifact.dimensions.z.toFixed(1)}` : '—'} <small>mm</small></strong></div>}
-          <div><span>FILE FORMAT</span><strong>{model.artifactFormat.toUpperCase()} <small>{artifact ? `· ${(artifact.bytes / 1_000_000).toFixed(2)} MB` : '· binary'}</small></strong></div>
+          <div><span>FILE FORMAT</span><strong>{format.toUpperCase()} <small>{artifact ? `· ${(artifact.bytes / 1_000_000).toFixed(2)} MB` : '· binary'}</small></strong></div>
         </div>
         <div className="download-bar"><div><span className="download-icon"><Layers3 size={23} /></span><div><strong>From your screen to your workbench.</strong><p>Download your model and open it in your slicer.</p></div></div>
           <button className="download-button" type="button" disabled={!ready || downloading} onClick={() => { void download(); }}>
-            {downloading ? <LoaderCircle size={17} className="spin" /> : <ArrowDownToLine size={17} />} {downloading ? 'Downloading…' : `Download ${model.artifactFormat.toUpperCase()}`}
+            {downloading ? <LoaderCircle size={17} className="spin" /> : <ArrowDownToLine size={17} />} {downloading ? 'Downloading…' : `Download ${format.toUpperCase()}`}
           </button>
         </div>
       </section>
@@ -621,20 +618,15 @@ const LIBRARY: Route = { view: 'models', model: null };
 const routeOf = (hash: string): Route => parseHash(hash) ?? LIBRARY;
 
 export function App() {
-  const [models, setModels] = useState<ModelCard[]>([]);
-  const [families, setFamilies] = useState<PartFamilySummary[]>([]);
   const [route, setRoute] = useState<Route>(() => routeOf(window.location.hash));
-  const [model, setModel] = useState<ModelDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   /** Goes to a page by changing the hash (the `hashchange` listener follows); filters replace the history entry instead of adding one. */
   const navigate = useCallback((next: Route, replace = false) => {
     const hash = formatHash(next);
     if (replace) { window.history.replaceState(null, '', hash); setRoute(routeOf(hash)); }
     else window.location.hash = hash;
   }, []);
-  const openLibrary = () => { navigate(LIBRARY); setError(null); };
-  const openParts = () => { navigate({ view: 'parts', family: null, part: null, filters: {} }); setError(null); };
+  const openLibrary = () => navigate(LIBRARY);
+  const openParts = () => navigate({ view: 'parts', family: null, part: null, filters: {} });
   useEffect(() => {
     // Without a page in the URL, the app opens the model library.
     if (!parseHash(window.location.hash)) window.history.replaceState(null, '', formatHash(LIBRARY));
@@ -642,29 +634,10 @@ export function App() {
     window.addEventListener('hashchange', follow);
     return () => window.removeEventListener('hashchange', follow);
   }, []);
-  useEffect(() => {
-    const abort = new AbortController();
-    void api.GET('/api/v1/models', { signal: abort.signal }).then(response => {
-      if (!response.data) throw new Error('The model catalogue is unavailable.');
-      setModels(response.data); setLoading(false);
-    }).catch((caught: unknown) => { if (!abort.signal.aborted) { setError(caught instanceof Error ? caught.message : 'Cannot load models.'); setLoading(false); } });
-    void api.GET('/api/v1/part-families', { signal: abort.signal }).then(response => { if (response.data) setFamilies(response.data); }).catch(() => { /* The header count is optional. */ });
-    return () => abort.abort();
-  }, []);
   const selectedId = route.view === 'models' ? route.model : null;
-  useEffect(() => {
-    setModel(null);
-    if (!selectedId) return;
-    const abort = new AbortController(); setLoading(true); setError(null);
-    void api.GET('/api/v1/models/{id}', { params: { path: { id: selectedId } }, signal: abort.signal }).then(response => {
-      if (!response.data) throw new Error(response.error.message);
-      setModel(response.data); setLoading(false);
-    }).catch((caught: unknown) => { if (!abort.signal.aborted) { setError(caught instanceof Error ? caught.message : 'Cannot load this model.'); setLoading(false); } });
-    return () => abort.abort();
-  }, [selectedId]);
+  const model = selectedId ? findModel(selectedId) : undefined;
   const partsRoute = route.view === 'parts' ? route : null;
-  const family = partsRoute?.family ? families.find(candidate => candidate.id === partsRoute.family) : undefined;
-  const partCount = families.reduce((sum, candidate) => sum + candidate.count, 0);
+  const family = partsRoute?.family ? findPartFamily(partsRoute.family) : undefined;
   const shopping = useMarket();
   const buyList = useBuyList();
 
@@ -672,7 +645,7 @@ export function App() {
     <header className="site-header"><button className="brand" type="button" aria-label="CanFactory model library" onClick={openLibrary}><span className="brand-mark"><Layers3 size={24} strokeWidth={1.7} /></span>CanFactory<span className="brand-dot">.</span></button>
       <span className="header-tagline">A little factory for useful things.</span><div className="header-right">
         <button type="button" className="library-link" aria-current={route.view === 'models' ? 'page' : undefined} onClick={openLibrary}>Model library <span>{models.length.toString().padStart(2, '0')}</span></button>
-        <button type="button" className="library-link" aria-current={partsRoute ? 'page' : undefined} onClick={openParts}>Parts library <span>{partCount.toString().padStart(2, '0')}</span></button>
+        <button type="button" className="library-link" aria-current={partsRoute ? 'page' : undefined} onClick={openParts}>Parts library <span>{parts.length.toString().padStart(2, '0')}</span></button>
         <button type="button" className="library-link" aria-current={route.view === 'concepts' ? 'page' : undefined} onClick={() => navigate({ view: 'concepts', concept: 'catio', subassembly: null })}>Catio concept</button>
         {(shopping.enabled || buyList.length > 0) && <button type="button" className="library-link" aria-current={route.view === 'buy-list' ? 'page' : undefined} onClick={() => navigate({ view: 'buy-list' })}><ShoppingBasket size={13} aria-hidden="true" /> Buy list <span>{new Set(buyList.map(item => item.partId)).size.toString().padStart(2, '0')}</span></button>}
         <span className="local-badge"><i /> Local workspace</span></div>
@@ -689,14 +662,13 @@ export function App() {
             ? <button type="button" onClick={() => navigate({ ...partsRoute, part: null })}>{family?.title ?? partsRoute.family}</button>
             : <span>{family?.title ?? partsRoute.family}</span>}</>}
           {partsRoute.part && <><span>/</span><span>{parts.find(part => part.id === partsRoute.part)?.designation ?? partsRoute.part}</span></>}</div>
-        <PartsLibrary route={partsRoute} families={families} navigate={navigate} />
+        <PartsLibrary route={partsRoute} navigate={navigate} />
       </> : <>
       <div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button>{model && <><span>/</span><span>{model.title}</span></>}</div>
-      {error ? <div className="empty-state" role="alert"><CircleAlert size={30} /><h1>Let’s reconnect.</h1><p>{error}</p><button className="primary-button" type="button" onClick={() => window.location.reload()}>Reload catalogue</button></div>
-        : loading ? <div className="empty-state"><LoaderCircle className="spin" size={30} /><p>Opening the workshop…</p></div>
-          : model ? <><div className="page-heading"><div><div className="eyebrow">THE MODEL WORKSHOP</div><h1>{model.title}</h1><p>{model.description}</p></div><span className="model-tag"><span /> {model.customizable ? 'PARAMETRIC MODEL' : 'ASSEMBLY PREVIEW'}</span></div><Editor key={`${model.id}:${model.version}`} model={model} /></>
+      {selectedId && !model ? <div className="empty-state" role="alert"><CircleAlert size={30} /><h1>Not in the library.</h1><p>This model is not available.</p></div>
+          : model ? <><div className="page-heading"><div><div className="eyebrow">THE MODEL WORKSHOP</div><h1>{model.title}</h1><p>{model.description}</p></div><span className="model-tag"><span /> {model.controls.length > 0 ? 'PARAMETRIC MODEL' : 'ASSEMBLY PREVIEW'}</span></div><Editor key={`${model.id}:${model.version}`} model={model} /></>
             : <><div className="page-heading library-heading"><div><div className="eyebrow">THE MODEL LIBRARY</div><h1>Useful things. Made to fit.</h1><p>Start with a model. Make a few changes. Make it yours.</p></div></div>
-              <div className="model-library model-masonry">{models.map(item => <button type="button" className="model-card" key={item.id} onClick={() => navigate({ view: 'models', model: item.id })}><div className="card-art">{(() => { const Illustration = ILLUSTRATIONS[item.id]; return Illustration ? <Illustration /> : <Box size={60} strokeWidth={1} />; })()}{findModel(item.id)?.physics && <span className="card-physics" title="Physics: simulate it in the editor and drag its parts"><Atom size={13} aria-hidden="true" />Physics</span>}</div><div className="card-copy"><span className="eyebrow">{item.customizable ? 'CUSTOMIZABLE' : 'PREVIEW'} · {item.artifactFormat.toUpperCase()}</span><h2>{item.title}</h2><p>{item.description}</p><span className="card-action">{item.customizable ? 'Customize model' : 'View model'} <ArrowRight size={17} /></span></div></button>)}
+              <div className="model-library model-masonry">{models.map(item => <button type="button" className="model-card" key={item.id} onClick={() => navigate({ view: 'models', model: item.id })}><div className="card-art">{(() => { const Illustration = ILLUSTRATIONS[item.id]; return Illustration ? <Illustration /> : <Box size={60} strokeWidth={1} />; })()}{item.physics && <span className="card-physics" title="Physics: simulate it in the editor and drag its parts"><Atom size={13} aria-hidden="true" />Physics</span>}</div><div className="card-copy"><span className="eyebrow">{item.controls.length > 0 ? 'CUSTOMIZABLE' : 'PREVIEW'} · {artifactFormat(item).toUpperCase()}</span><h2>{item.title}</h2><p>{item.description}</p><span className="card-action">{item.controls.length > 0 ? 'Customize model' : 'View model'} <ArrowRight size={17} /></span></div></button>)}
                 <button type="button" className="model-card" onClick={() => navigate({ view: 'concepts', concept: 'catio', subassembly: null })}><div className="card-art catio-card-art"><img src={catioThumbnail} alt="" loading="lazy" /></div><div className="card-copy"><span className="eyebrow">CONCEPT · LIVE ASSEMBLY</span><h2>Window catio</h2><p>A timber enclosure, a removable window connection, and grass under their paws.</p><span className="card-action">Explore the concept <ArrowRight size={17} /></span></div></button>
                 <div className="coming-next"><span className="plus-shape">+</span><h2>More useful things to come.</h2><p>A growing collection for everyday making.</p></div></div></>}
       </>}

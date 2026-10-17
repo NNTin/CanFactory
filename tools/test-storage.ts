@@ -29,9 +29,9 @@ try {
   await Promise.all([first.migrate(), second.migrate()]);
   await Promise.all([first.seed(), second.seed()]);
   await first.ready();
-  await first.pool.query(`UPDATE model_revisions SET detail = detail - 'artifactFormat' - 'customizable'`);
+  await first.pool.query(`UPDATE model_revisions SET version = 'stale'`);
   await second.seed();
-  assert.ok((await second.listModels()).every(entry => ['stl', 'zip'].includes(entry.artifactFormat) && typeof entry.customizable === 'boolean'), 'reseeding must refresh stored model details');
+  assert.equal((await second.getModel(fruitFlyTrap.id))?.version, fruitFlyTrap.version, 'reseeding must refresh stored model revisions');
   // The offers service: a feed's rows replace that feed's earlier rows, and keep their types through PostgreSQL.
   const awinRow = { advertiserId: 777, merchantProductId: 'SKU-1', market: 'DE' as const, deepLink: 'https://www.awin1.com/pclick.php?p=1', name: 'M3 inserts',
     price: 4.99, currency: 'EUR', deliveryCost: null, inStock: true, lastImported: 1_791_000_000_000 };

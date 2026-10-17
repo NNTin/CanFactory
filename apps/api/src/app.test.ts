@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { aiRubberDuck, AI_DUCK_VARIANTS, cigaretteCase, ErrorSchema, LOGO_MAX_LENGTH, LOGO_MAX_POINTS, fruitFlyTrap, litterShovel, MarketInfoSchema, ModelDetailSchema, mossPlanter, offers, OffersSchema, PartDetailSchema, PartFamilyDetailSchema, PartFamilySummarySchema, partFamilies, parts, plankConnector, RenderSchema, type Offer } from '@canfactory/contracts';
+import { aiRubberDuck, AI_DUCK_VARIANTS, cigaretteCase, ErrorSchema, LOGO_MAX_LENGTH, LOGO_MAX_POINTS, fruitFlyTrap, litterShovel, MarketInfoSchema, mossPlanter, offers, OffersSchema, plankConnector, RenderSchema, type Offer } from '@canfactory/contracts';
 import type { PostgresStorage } from '@canfactory/server';
 import { expireJobs, testStorage } from '../../../tools/unit-storage.ts';
 import { createApp } from './app.ts';
@@ -12,28 +12,17 @@ afterEach(async () => { await app.close(); await store.close(); });
 const payload = { modelId: fruitFlyTrap.id, modelVersion: fruitFlyTrap.version, parameters: fruitFlyTrap.defaults };
 
 describe('model and render API', () => {
-  it('serves the catalogue, reference STL, and OpenAPI', async () => {
-    const catalogue = await app.inject('/api/v1/models');
-    expect(catalogue.statusCode).toBe(200);
-    expect(catalogue.json<{ id: string }[]>().map(item => item.id).sort()).toEqual(['ai-rubber-duck', 'cat-collar-tag', 'cigarette-case', 'fruit-fly-trap', 'litter-shovel', 'magnetic-cat-toy', 'moss-planter', 'outside-corner-toggle-latch', 'plank-connector', 'pressure-pad', 'printed-corner-bracket', 'printed-screen-hook', 'qr-magnet-tag', 'spring-ball-detent', 'toggle-latch', 'window-cat-guard', 'xiao-sense-camera-housing']);
-    const detail = await app.inject('/api/v1/models/fruit-fly-trap');
-    const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
-    expect(model.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false, properties: { trapDiameter: { type: 'number', minimum: 20, maximum: 200 } } });
-    expect(model.artifactFormat).toBe('stl');
-    expect(model.customizable).toBe(true);
+  it('serves the reference STL and OpenAPI, but not the catalogue: the web app bundles it from contracts', async () => {
     expect((await app.inject('/api/v1/models/fruit-fly-trap/reference.stl')).rawPayload.length).toBeGreaterThan(100000);
+    expect((await app.inject('/api/v1/models/missing/reference.stl')).json<{ code: string }>().code).toBe('MODEL_NOT_FOUND');
     expect((await app.inject('/api/openapi.json')).body).toContain('createRender');
-    expect((await app.inject('/api/v1/models/missing')).statusCode).toBe(404);
+    for (const url of ['/api/v1/models', '/api/v1/models/fruit-fly-trap', '/api/v1/part-families', '/api/v1/part-families/screw', '/api/v1/parts/iso-4762-m3x10']) {
+      const removed = await app.inject(url);
+      expect(removed.json<{ code: string }>().code, url).toBe('NOT_FOUND');
+    }
   });
 
-  it('serves the eight duck choices, their default colors and accepts only the public controls', async () => {
-    const response = await app.inject('/api/v1/models/ai-rubber-duck');
-    expect(response.statusCode).toBe(200);
-    const model = Value.Parse(ModelDetailSchema, response.json<unknown>());
-    expect(model.artifactFormat).toBe('zip');
-    expect(model.controls.map(control => control.key)).toEqual(['variant', 'bodyLength', 'clearance']);
-    expect(model.controls[0]?.options?.map(option => option.value)).toEqual([...AI_DUCK_VARIANTS]);
-    expect(model.assembly?.partColors).toEqual({ body: '#ffda4a', face: '#d7774b' });
+  it('accepts the eight duck choices and only the public controls', async () => {
     const post = (change: Record<string, unknown>) => app.inject({ method: 'POST', url: '/api/v1/renders', payload: {
       modelId: aiRubberDuck.id, modelVersion: '1', parameters: { ...aiRubberDuck.defaults, ...change },
     } });
@@ -42,35 +31,11 @@ describe('model and render API', () => {
       expect((await post(change)).statusCode).toBeGreaterThanOrEqual(400);
   });
 
-  it('serves the moss planter as a customizable, five-part, ZIP-formatted assembly model', async () => {
-    const detail = await app.inject('/api/v1/models/moss-planter');
-    const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
-    expect(model.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false });
-    expect(model.artifactFormat).toBe('zip');
-    expect(model.customizable).toBe(true);
-    expect(model.controls.map(control => control.key)).toEqual(['towerDiameter', 'spikeLength', 'shortRauteRows', 'tallRauteRows', 'rauteColumns']);
-    expect(model.defaults).toEqual(mossPlanter.defaults);
-    expect(model.parts).toHaveLength(5);
-    expect(model.assembly).toBeUndefined();
-    expect(model.referenceUrl).toBeUndefined();
-    expect((await app.inject('/api/v1/models/moss-planter/reference.stl')).statusCode).toBe(404);
+  it('has no reference STL for the moss planter', async () => {
+    expect((await app.inject('/api/v1/models/moss-planter/reference.stl')).json<{ code: string }>().code).toBe('REFERENCE_NOT_AVAILABLE');
   });
 
-  it('serves the cigarette case as a five-part, ZIP-formatted assembly with a snap-mode enum', async () => {
-    const detail = await app.inject('/api/v1/models/cigarette-case');
-    const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
-    expect(model.artifactFormat).toBe('zip');
-    expect(model.customizable).toBe(true);
-    expect(model.controls.map(control => control.kind)).toEqual(['enum', 'enum', 'enum', 'enum', 'enum', 'enum', 'enum', 'text', 'enum', 'number', 'svg', 'number', 'enum', 'number', ...Array<string>(9).fill('number')]);
-    // the magnets are real parts, linked to the parts library, and offered only in magnet mode
-    expect(model.controls.find(control => control.key === 'magnet')).toMatchObject({ part: { family: 'magnet', attribute: null }, visibleWhen: { control: 'snap', values: ['magnet'] }, default: 'supermagnete-s-06-02-n' });
-    const clearanceControl = model.controls.find(control => control.key === 'clearance');
-    expect(clearanceControl).toMatchObject({ key: 'clearance', group: 'advanced', default: 0.2, minimum: 0.1, maximum: 0.6 });
-    expect(clearanceControl?.recommended?.map(entry => entry.control)).toEqual(['snap', 'miniLidSnap', 'holderSnap', 'lighterSnap', 'miniBoxSnap']);
-    expect(model.defaults).toEqual(cigaretteCase.defaults);
-    expect(model.parts).toHaveLength(6);
-    expect(model.assembly).toEqual(cigaretteCase.assembly);
-    expect(model.referenceUrl).toBeUndefined();
+  it('validates the cigarette case’s snap modes and engraving', async () => {
     const accepted = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, snap: 'magnet', holderSnap: 'detent', lighterSnap: 'crush-ribs', engraveText: 'Tom', textMode: 'second-filament' } } });
     expect(accepted.statusCode).toBeLessThan(300);
     const unknownMode = await app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: cigaretteCase.id, modelVersion: cigaretteCase.version, parameters: { ...cigaretteCase.defaults, snap: 'glue' } } });
@@ -100,14 +65,7 @@ describe('model and render API', () => {
       expect((await post(logo)).statusCode, logo).toBeGreaterThanOrEqual(400);
   });
 
-  it('serves the plank connector as a single-STL model with a screw-hole enum and accepts each screw size', async () => {
-    const detail = await app.inject('/api/v1/models/plank-connector');
-    const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
-    expect(model.artifactFormat).toBe('stl');
-    expect(model.customizable).toBe(true);
-    expect(model.defaults).toEqual(plankConnector.defaults);
-    expect(model.controls.find(control => control.key === 'screwHoles')?.options?.map(option => option.value)).toEqual(['none', 'M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8']);
-    expect(model.parts).toBeUndefined();
+  it('accepts each of the plank connector’s screw sizes', async () => {
     const render = (parameters: Record<string, unknown>) => app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: plankConnector.id, modelVersion: plankConnector.version, parameters: { ...plankConnector.defaults, ...parameters } } });
     for (const screwHoles of ['none', 'M3', 'M8']) expect((await render({ screwHoles })).statusCode, screwHoles).toBeLessThan(300);
     expect((await render({ screwHoles: 'M7' })).statusCode).toBeGreaterThanOrEqual(400);
@@ -116,45 +74,7 @@ describe('model and render API', () => {
     expect(shallow.json<{ issues: { field: string }[] }>().issues[0]?.field).toBe('insertionDepth');
   });
 
-  it('serves the parts library: families with counts, a family with its parts and sources, and one part with its users', async () => {
-    const list = await app.inject('/api/v1/part-families');
-    expect(list.statusCode).toBe(200);
-    const families = list.json<unknown[]>().map(family => Value.Parse(PartFamilySummarySchema, family));
-    expect(families.map(family => family.id)).toEqual(partFamilies.map(family => family.id));
-    expect(families.reduce((sum, family) => sum + family.count, 0)).toBe(parts.length);
-    const screws = Value.Parse(PartFamilyDetailSchema, (await app.inject('/api/v1/part-families/screw')).json<unknown>());
-    expect(screws.parts.every(part => part.family === 'screw')).toBe(true);
-    // every source a part or a dimension cites is served with the family
-    const served = new Set(screws.sources.map(source => source.id));
-    for (const part of screws.parts) for (const id of [...part.sources, ...Object.values(part.dimensions).map(value => value.source)]) expect(served.has(id), `${part.id}: ${id}`).toBe(true);
-    // the plank connector links every M3 screw through its screw-hole sizes
-    expect(screws.usage['iso-4762-m3x10']).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes', kind: 'model' },
-      // the toggle latch links it by its thread and as a machine screw it offers
-      { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Thread', kind: 'model' }, { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Machine screw', kind: 'model' }]);
-    // a concept page that uses a part is listed too, as a concept
-    const foot = Value.Parse(PartDetailSchema, (await app.inject('/api/v1/parts/ganter-gn-343-2-32-m8-63-kr')).json());
-    expect(foot.usage).toEqual([
-      { modelId: 'catio/window-insert', modelTitle: 'Window catio: window insert', via: 'Spreader feet (32 mm)', kind: 'concept' },
-      { modelId: 'catio/tunnel', modelTitle: 'Window catio: tunnel', via: 'Support feet (32 mm)', kind: 'concept' },
-    ]);
-    const lighter = Value.Parse(PartDetailSchema, (await app.inject('/api/v1/parts/bic-j25-mini-lighter')).json<unknown>());
-    expect(lighter.family.id).toBe('everyday-object');
-    expect(lighter.usage).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview', kind: 'model' }]);
-    expect(lighter.sources.map(source => source.kind)).toContain('manufacturer');
-    for (const url of ['/api/v1/part-families/missing', '/api/v1/parts/missing']) {
-      const missing = await app.inject(url);
-      expect(missing.statusCode, url).toBe(404);
-      expect(Value.Check(ErrorSchema, missing.json<unknown>())).toBe(true);
-    }
-  });
-
-  it('serves the litter shovel as a three-part ZIP model and validates the sieve and the snaps', async () => {
-    const detail = await app.inject('/api/v1/models/litter-shovel');
-    const model = Value.Parse(ModelDetailSchema, detail.json<unknown>());
-    expect(model.artifactFormat).toBe('zip');
-    expect(model.defaults).toEqual(litterShovel.defaults);
-    expect(model.parts?.map(part => part.id)).toEqual(['container', 'scoop', 'handle']);
-    expect(model.controls.find(control => control.key === 'sievePattern')?.options?.map(option => option.value)).toEqual(['slots', 'staggered', 'round', 'hex']);
+  it('validates the litter shovel’s sieve and snaps', async () => {
     const render = (parameters: Record<string, unknown>) => app.inject({ method: 'POST', url: '/api/v1/renders', payload: { modelId: litterShovel.id, modelVersion: litterShovel.version, parameters: { ...litterShovel.defaults, ...parameters } } });
     for (const sievePattern of ['slots', 'staggered', 'round', 'hex']) expect((await render({ sievePattern })).statusCode, sievePattern).toBeLessThan(300);
     for (const handleSnap of ['friction', 'detent']) expect((await render({ handleSnap, scoopSnap: handleSnap })).statusCode, handleSnap).toBeLessThan(300);

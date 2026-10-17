@@ -76,8 +76,11 @@ docker compose up --build -d --wait
 - Interactive API documentation: <http://localhost:5173/api/docs>
 - OpenAPI: <http://localhost:5173/api/openapi.json>
 
+The API serves renders and their files, the original reference STLs, the visitor's market and the parts' offers. The
+catalogue itself, the models and the parts library, is not an API: the web app bundles it from `@canfactory/contracts`.
+
 Compose runs the same storage as production: PostgreSQL for the render queue and
-catalogue, Garage S3 for reference and generated files. A one-shot `release`
+the seeded model revisions, Garage S3 for reference and generated files. A one-shot `release`
 service creates the buckets, migrates and seeds before the API starts, and a
 `maintenance` service recovers leases and removes expired renders every minute
 (the chart's release Job and maintenance CronJob). Only the web port is
@@ -153,7 +156,7 @@ Geometric validation does not replace a physical test print.
 
 `npm run test:restart` exercises recovery against the running Compose app. It
 restarts the worker during a render, then restarts the API and worker to verify
-catalogue and unexpired-artifact persistence.
+reference-file and unexpired-artifact persistence.
 
 To iterate on the frontend without rebuilding images, use native development:
 `npm run api`, `npm run worker`, and `npm run dev` in separate terminals. The

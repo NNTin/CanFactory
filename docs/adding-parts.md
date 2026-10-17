@@ -6,9 +6,8 @@ Mini lighter the cigarette case holds. Every entry is one real
 item, a size of a standard part (ISO 4762 M3 × 10) or a named product (supermagnete S-06-02-N), with its dimensions, their
 tolerances where the source gives them, and the source of every value.
 
-The data lives in `packages/contracts/src/parts/`, one file per family. The API serves it (`GET /api/v1/part-families`,
-`/api/v1/part-families/{id}` and `/api/v1/parts/{id}`, see [interfaces.md](interfaces.md)), and the web app browses it on its
-own page, the parts library (`#/parts`). Each family page lists its parts with filters and search, shows the listed parts side
+The data lives in `packages/contracts/src/parts/`, one file per family. The web app bundles it with the rest of
+`@canfactory/contracts` (no API serves it, see [interfaces.md](interfaces.md)) and browses it on its own page, the parts library (`#/parts`). Each family page lists its parts with filters and search, shows the listed parts side
 by side and true to size in a live 3D preview (hover one, in the preview or the list, to highlight it and read its
 description), and shows the selected part's dimensions, sources and the models that use it.
 
