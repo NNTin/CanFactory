@@ -13,6 +13,12 @@
  *   npm run check:assembly -- [model-id] [--parameters '{"snap":"detent"}'] [--tolerance 1] [--snap-tolerance 10]
  *
  * Needs an OpenSCAD runtime (selectRunner in @canfactory/server). Exits 1 if any check fails.
+ *
+ * Without a model id it checks every model at these default tolerances, and some models exceed them by design, so a full run
+ * exits 1: the toggle latches' hooks flex over their catch (CI checks them with `--snap-tolerance 50`), the spring ball detent's
+ * press cap is held by crush ribs that interfere with its bore, and the pressure pad's parts slide in from the side through a
+ * pocket with only `fit` of play on each side. The models and tolerances CI holds to are those in
+ * .github/workflows/integration.yml; compare a full run with the one before your change rather than expecting it to pass.
  */
 import { parseArgs } from 'node:util';
 import { assemblyOffset, assemblyScale, motionFrames, isAssembly, models, resolveAssembly, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
