@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, Box, RotateCcw } from 'lucide-react';
 import * as THREE from 'three';
 import { bomRequirements, findPart } from '@canfactory/contracts';
 import { createStage, type Stage } from './stage.ts';
+import { latchPartsStatus, watchLatchParts } from './catioPrintedLatchScene.ts';
 import type { CatioLayer, CatioView } from './catioDesign.ts';
 import type { CatioMode } from './catioSettings.ts';
 import { BOM_GROUPS, inRange, loadSubassemblySettings, saveShared, subassemblyStorageKey, defaultSubassemblySettings, type BomLine, type NumberRange, type SubassemblyDefinition, type SubassemblyModel, type SubassemblyViewing } from './catioSubassembly.ts';
@@ -38,6 +39,9 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   const controller = useRef<{ stage: Stage; model: SubassemblyModel } | null>(null);
   const [settings, setSettings] = useState(() => loadSubassemblySettings(definition));
   const [unsupported, setUnsupported] = useState(false);
+  // the printed latches' parts arrive after the scene is drawn (or fail to): redraw, and say so on the viewer
+  const latchParts = useSyncExternalStore(watchLatchParts, latchPartsStatus, () => 'idle' as const);
+  useEffect(() => { controller.current?.stage.invalidate(); }, [latchParts]);
   const [action, setAction] = useState<string | null>(null);
   const { variant, config } = settings;
   const variants = VARIANTS.filter(option => !definition.variants || definition.variants.includes(option.id));
@@ -164,8 +168,9 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
           <button key={name} type="button" aria-pressed={name === view} onClick={() => selectView(name)} disabled={unsupported}>{definition.viewLabels?.[name] ?? name}</button>)}
           <button type="button" aria-label="Reset view" title="Reset view" disabled={unsupported} onClick={() => selectView('Exterior')}><RotateCcw size={14} /></button>
         </div>
-        <div className="catio-canvas" ref={container} data-testid="subassembly-viewer" data-subassembly={definition.id} data-variant={variant} data-config={JSON.stringify(config)} data-step={index} data-window={windowOpen ? 'open' : 'closed'} data-exploded={exploded} data-door={doorLabel === null ? undefined : doorOpen ? 'open' : 'closed'}>
+        <div className="catio-canvas" ref={container} data-testid="subassembly-viewer" data-subassembly={definition.id} data-variant={variant} data-config={JSON.stringify(config)} data-step={index} data-window={windowOpen ? 'open' : 'closed'} data-exploded={exploded} data-door={doorLabel === null ? undefined : doorOpen ? 'open' : 'closed'} data-latch-parts={latchParts === 'idle' ? undefined : latchParts}>
           {unsupported && <div className="catio-fallback"><Box size={32} /><strong>3D preview needs WebGL</strong><p>The parts list and assembly instructions below are still available.</p></div>}
+          {latchParts === 'missing' && <p className="catio-latch-note" role="status">The printed latches’ parts could not be loaded. They are shown without them and tried again shortly.</p>}
         </div>
         <div className="catio-options">
           {toggles.windowOpen && <label><input type="checkbox" checked={windowOpen} onChange={event => editView({ windowOpen: event.target.checked })} disabled={unsupported} /> {toggles.windowOpen}</label>}
