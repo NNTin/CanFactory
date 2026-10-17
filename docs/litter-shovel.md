@@ -380,8 +380,8 @@ where the detents engage, and holds those samples to a looser snap tolerance (10
 | M4 nylon-insert nuts, M4 × 12, 0.6 mm | 0.00 mm³ | 2.88 mm³ | 0.43 mm³ |
 | M4 inserts, M4 × 16, friction, 0.1 mm | 0.00 mm³ | 3.06 mm³ | 0.00 mm³ |
 
-With a reinforcement, the screws, inserts and nuts are checked too, from the generic models in `parts/`. A screw's thread is drawn
-at its minor diameter, a nut's or insert's bore at the thread's diameter, and an insert as the hole it fills. The step that drives
+With a reinforcement, the screws, inserts and nuts are checked too, as the parts library draws them (`@canfactory/part-geometry`).
+A screw's thread crests and a nut's or insert's bore are at the thread's diameter, and an insert is drawn as the hole it fills. The step that drives
 the screws in shares 0.00 mm³ in every case above.
 
 That shared volume is only the bumps passing the mating wall before they drop into their grooves. Seated, every detent clears its

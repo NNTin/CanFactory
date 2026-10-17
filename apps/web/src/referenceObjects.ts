@@ -1,6 +1,6 @@
 import { findPart, partAssetPath, type Assembly, type Part } from '@canfactory/contracts';
 import type { BufferGeometry } from 'three';
-import { partGeometry } from './partGeometry.ts';
+import { partGeometry } from '@canfactory/part-geometry';
 
 // The parts library's rendered models (e.g. a lighter), bundled as static files: they do not depend on any model's settings, so
 // they are not rendered per preview (see `partAssetPath`). Only this folder is bundled, never the models' own STLs.

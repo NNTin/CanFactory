@@ -151,10 +151,9 @@ for any library screw, wood screws included) from the library rather than copyin
   the parts are together). `resolveAssembly` adds them to the assembly for the editor and the collision check. An assembly's own steps may also
   name a linked reference by its id, to move it in among the printed parts: the pressure pad's screws and nuts go in between
   its extenders this way (`pressurePadAssembly`). Parts without an
-  STL are built from their dimensions in the preview. The check renders magnets, screws (wood screws at their nominal diameter), nuts and threaded inserts from the generic
-  models in `parts/` (`GENERIC_MODELS` in `tools/check-assembly.ts`). A screw's thread is drawn at its minor diameter and a nut's
-  or insert's bore at the thread's diameter, so a screw in its nut does not count as a collision. An insert is drawn as the hole
-  it is melted into.
+  STL are built from their dimensions (`@canfactory/part-geometry`), and the check collides that same drawing. A screw's thread
+  crests and a nut's or insert's bore are both at the thread's diameter, so a screw in its nut does not count as a collision. An
+  insert is drawn as the hole it is melted into.
 
 Generators for continuous parameters need extra care. Choose which dimensions scale with each parameter and record it in
 the SCAD header (moss-planter: tube radius, thread and end rings scale with the tower diameter; strut width and row

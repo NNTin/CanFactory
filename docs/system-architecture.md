@@ -28,12 +28,13 @@ implementations, registrations and data copies it deletes.
 | `packages/server` | Library (Node) | Storage and render support for the API, worker and tools: `PostgresStorage` with Garage S3 `ObjectStorage` (the only backend), `runtimeStorage()` to build it from the environment, the queue (enqueue, claim, lease, fencing, cleanup), STL inspection and repair (`mesh.ts`), the renderer fingerprint and limits (`config.ts`), and Awin feed ingest (`awin.ts`). | contracts |
 | `packages/client` | Library (browser) | A typed `openapi-fetch` client over the generated `schema.d.ts`. | none (generated from the API) |
 | `packages/physics` | Library (Node and browser) | MuJoCo WebAssembly physics: scene compiler (spec to MJCF), simulation, scenario runner, interactive session, V-HACD decomposition. | contracts (types and materials only) |
+| `packages/part-geometry` | Library (Node and browser, Three.js) | `partGeometry(part)`: the one drawing of a procedural parts-library part, from its dimensions. The parts library, the editor's reference objects and the assembly check use it. | contracts |
 | `apps/api` | Process (Fastify) | The public HTTP API: model catalogue, render jobs and artifacts, parts library, market and offers. Also serves OpenAPI. | contracts, server |
 | `apps/worker` | Process (no HTTP) | Claims render jobs, runs **OpenSCAD** in a subprocess, validates the meshes, and publishes STL or ZIP artifacts. | contracts, server |
-| `apps/web` | Browser SPA (React, Vite, Three.js) | Model library and editor, viewer with assembly and physics modes, parts library pages, buy list, and the catio concept pages. | client, contracts, physics |
-| `tools/` | CLI scripts (`tsx`) | Release, migration and cleanup (`maintenance.ts`), Awin ingest (`offers.ts`), OpenAPI and client generation, renderer, storage and restart tests, geometry sweep, assembly and physics checks, slicer checks, STL-to-SCAD, preview tracking. | contracts, server, physics, `apps/api` (OpenAPI generation), `apps/worker` (test runners) |
+| `apps/web` | Browser SPA (React, Vite, Three.js) | Model library and editor, viewer with assembly and physics modes, parts library pages, buy list, and the catio concept pages. | client, contracts, physics, part-geometry |
+| `tools/` | CLI scripts (`tsx`) | Release, migration and cleanup (`maintenance.ts`), Awin ingest (`offers.ts`), OpenAPI and client generation, renderer, storage and restart tests, geometry sweep, assembly and physics checks, slicer checks, STL-to-SCAD, preview tracking. | contracts, server, physics, part-geometry, `apps/api` (OpenAPI generation), `apps/worker` (test runners) |
 | `models/` | Data (SCAD, reference STLs, fonts) | One directory per catalogue model. A model is its SCAD generator(s) plus a `ModelDefinition` in contracts. | (read by the worker and tools) |
-| `parts/` | Data (SCAD, a few STLs) | Generic SCAD for parts-library families (screw, nut, magnet, …) and STLs of non-generic parts. | (read by tools; STLs bundled into web) |
+| `parts/` | Data (SCAD and STL) | The SCAD source and STL of each part with an STL preview (an everyday object). Other parts are drawn by `packages/part-geometry`. | (read by tools; STLs bundled into web) |
 | `charts/canfactory` | Helm chart | Kubernetes workloads: web, api and worker Deployments; release Job; maintenance and offers CronJobs. | (deploys the images) |
 
 ### Workspace dependency graph
@@ -48,6 +49,7 @@ flowchart LR
         server["@canfactory/server<br/>storage · queue · mesh · Awin ingest"]
         client["@canfactory/client<br/>openapi-fetch + generated schema.d.ts"]
         physics["@canfactory/physics<br/>MuJoCo WASM · V-HACD"]
+        partgeom["@canfactory/part-geometry<br/>library parts from dimensions"]
     end
     subgraph apps["apps/"]
         web["apps/web<br/>React SPA + Three.js"]
@@ -73,12 +75,15 @@ flowchart LR
     web --> contracts
     web --> client
     web --> physics
+    web --> partgeom
+    partgeom --> contracts
     maint --> server
     offerstool --> server
     gen --> api
     checks --> contracts
     checks --> server
     checks --> physics
+    checks --> partgeom
     checks -->|"imports runOpenScad"| worker
 
     gen -.->|"writes docs/openapi.json + schema.d.ts"| client
@@ -132,7 +137,7 @@ flowchart TB
     subgraph W["apps/web (browser)"]
         editor["Model library + editor<br/>App.tsx · useRender.ts"]
         viewer["Viewer.tsx (Three.js)<br/>STL/ZIP + assembly slider + reference objects"]
-        partGeo["partGeometry.ts<br/>parts drawn from dimensions"]
+        partGeo["@canfactory/part-geometry<br/>parts drawn from dimensions"]
         partsUi["Parts library pages<br/>PartsLibrary · PartsViewer"]
         shop["Shopping: shopping.ts · Shopping.tsx<br/>Where to buy · Hardware · buy list"]
         catio["Catio concept pages<br/>Catio*.tsx · catio*.ts (30 modules, ~7.4k lines)"]
@@ -217,23 +222,24 @@ The only geometry *renderer* is OpenSCAD in the worker. The browser *previews*:
 
 - `Viewer.tsx` loads the rendered STL or ZIP with Three.js, places parts by the model's `Assembly` poses (assembly slider and
   motion frames come from `assembly.ts` in contracts), and adds **reference objects** (`referenceObjects.ts`). These are
-  parts-library hardware drawn in Three.js from their dimensions by `partGeometry.ts`, or a part's STL from `parts/`,
+  parts-library hardware drawn in Three.js from their dimensions by `@canfactory/part-geometry`, or a part's STL from `parts/`,
   bundled through `import.meta.glob`.
 - Model-specific **SVG/React illustrations** (`*Illustration.tsx`, `toggleLatchMeshes.ts`) draw side views and mechanisms
   from geometry helpers in contracts (for example `toggleLatchMechanism`), not from rendered STLs.
-- The same `partGeometry.ts` drives the parts library's 3D preview (`PartsViewer.tsx`) and the catio scenes.
+- The same `@canfactory/part-geometry` drives the parts library's 3D preview (`PartsViewer.tsx`) and the reference objects
+  that `npm run check:assembly` and `check:physics` collide.
 
 ### Parts library
 
 - **Data:** `packages/contracts/src/parts/` has one file per family (24 families), a `schema.ts` for the shape of `Part`,
-  `PartFamily` and `Dimension`, cited `sources.ts`, and `ids.lock` to keep part ids permanent. Generic SCAD for each family
-  lives in `parts/<family>/`.
+  `PartFamily` and `Dimension`, cited `sources.ts`, and `ids.lock` to keep part ids permanent. A part with an STL preview
+  (an everyday object) has its SCAD and STL in `parts/<family>/`; every other part is drawn by `@canfactory/part-geometry`.
 - **Served** straight from contracts by the API (`/api/v1/part-families`, `/part-families/{id}`, `/parts/{id}`) with no
   storage. Its "used by" lists come from `partUsage()`, which merges the model registry (part-linked controls and reference
   objects) with `concepts.ts` (catio pages).
 - **Consumed by** the models (`partDefines` sizes SCAD from part dimensions, part-linked controls offer only parts that
   fit), by the editor's reference objects, by the physics specs (library hardware becomes exact primitives), by the catio
-  pages (dimensions and hardware ids), by `tools/assembly-meshes.ts` (renders hardware through `parts/*.scad`), and by the
+  pages (dimensions and hardware ids), by `tools/assembly-meshes.ts` (checks hardware as `@canfactory/part-geometry` draws it), and by the
   offers matcher (offers `cover` part ids).
 - **UI:** `PartsLibrary.tsx` and `PartsViewer.tsx` at `#/parts[/family[/part]]` (hash routes in `route.ts`) show the
   "Where to buy" block from the offers subsystem.
@@ -376,10 +382,11 @@ Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/syst
 2. ~~**Models registered twice by hand.**~~ **Resolved in #91: one registration.** The 17 hand-written
    `RenderRequestSchema` branches in `index.ts` are deleted. `RenderRequestSchema` maps over the `registeredModels` const
    tuple in `models.ts` (which `models` is), and a mapped tuple type keeps the per-model `Static<>` union.
-3. **Three geometries for library parts** (tracked in #92): `apps/web/src/partGeometry.ts` (Three.js from dimensions, for previews and
-   catio), `parts/<family>/*.scad` with `GENERIC_MODELS` in `tools/assembly-meshes.ts` (SCAD from the same dimensions, for
-   checks), and primitives from dimensions in `packages/physics/src/build.ts`. The editor preview and the CI collision check
-   therefore draw the same screw two different ways.
+3. ~~**Three geometries for library parts.**~~ **Resolved in #92: one drawing per family.** The twelve generic
+   `parts/<family>/*.scad` files and `GENERIC_MODELS` are deleted. `partGeometry.ts` moved to `packages/part-geometry`, and
+   `tools/assembly-meshes.ts` checks reference objects as it draws them, so the editor and the collision check show the same
+   screw. The physics primitives stay: they are authored per mechanism in its spec, not drawn from a family's dimensions
+   (`docs/physics-plan.md`, “Library hardware”).
 4. **Model geometry rewritten outside SCAD.** (Tracked in #93.) The toggle latch exists in SCAD (`models/toggle-latch`), in
    `toggleLatchMechanism.ts` (contracts), in `toggleLatchMeshes.ts` and `ToggleLatchIllustration.tsx` (web), and again in the
    catio printed latch and port scenes. Other models have the same pattern (`*Illustration.tsx`, catio use of

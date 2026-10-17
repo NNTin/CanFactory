@@ -3,7 +3,7 @@ import { Box, RotateCcw } from 'lucide-react';
 import type { Part } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
-import { partGeometry } from './partGeometry.ts';
+import { partGeometry } from '@canfactory/part-geometry';
 import { partStlUrl } from './referenceObjects.ts';
 import { createStage, smoothNormals } from './stage.ts';
 
