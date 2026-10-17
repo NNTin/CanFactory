@@ -12,7 +12,7 @@ import { createTunnelCouplingScene } from './catioTunnelCouplingScene.ts';
 import { createTunnelScene } from './catioTunnelScene.ts';
 import { createWindowInsertScene } from './catioWindowInsertScene.ts';
 import { COUPLING_DEFAULT, DOOR, DOOR_SEATS, DOOR_TRAVEL, doorBounds, INSERT, insetPanel, MODULAR, MODULAR_DEFAULT, parseTunnel, PORT_CLOSURE_DEFAULT, PORT_CLOSURE_LEGACY, PORT_CLOSURES, PORT_FRAME, setInDoor, slidingGateRise, TUNNEL, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, validateModular, WINDOW_INSERT_DEFAULT, windowFor, windowInsertLayout, type DoorPanel, type ModularConfig, type TunnelSite, type WindowInsertConfig, type WindowSpec } from '@canfactory/catio';
-import { tunnelSite } from './catioSaved.ts';
+import { savedWindow, tunnelSite } from './catioSaved.ts';
 
 /** The cat port sizes the catio concept page allows (20–45 cm each way), and section lengths between the tunnel's flanges. */
 const SIZES = [200, 250, 300, 380, 450];
@@ -135,7 +135,7 @@ describe('saved settings from before the closure could be chosen', () => {
     try {
       const oldView = { progress: 6, exploded: false, windowOpen: true, cutaway: false, hidden: [], view: 'Exterior' };
       const oldPage = (config: object) => JSON.stringify({ version: 1, variant: 'modular', config, views: { direct: oldView, modular: oldView } });
-      const closures = () => [loadCatioSettings().config.portClosure, windowFor('modular', WINDOW_INSERT_DEFAULT, MODULAR_DEFAULT).closure, tunnelSite().window.closure, windowInsertLayout('modular', WINDOW_INSERT_DEFAULT, windowFor('modular', WINDOW_INSERT_DEFAULT, MODULAR_DEFAULT)).closure];
+      const closures = () => [loadCatioSettings().config.portClosure, savedWindow('modular', WINDOW_INSERT_DEFAULT).closure, tunnelSite().window.closure, windowInsertLayout('modular', WINDOW_INSERT_DEFAULT, savedWindow('modular', WINDOW_INSERT_DEFAULT)).closure];
       // nothing saved anywhere: a new design, with removable panels
       expect(closures()).toEqual(Array(4).fill('removable-panel')); expect(store.size).toBe(0);
       // each page alone, saved before the choice, with no whole-catio settings: its design keeps its sliding gate
@@ -143,7 +143,7 @@ describe('saved settings from before the closure could be chosen', () => {
         store.clear(); store.set(subassemblyStorageKey(id), oldPage(config));
         expect(savedBeforeClosure(storage), id).toBe(true);
         expect(closures(), id).toEqual(Array(4).fill('sliding-gate'));
-        expect(windowInsertLayout('modular', WINDOW_INSERT_DEFAULT, windowFor('modular', WINDOW_INSERT_DEFAULT, MODULAR_DEFAULT)).door, id).toBeNull();
+        expect(windowInsertLayout('modular', WINDOW_INSERT_DEFAULT, savedWindow('modular', WINDOW_INSERT_DEFAULT)).door, id).toBeNull();
         // the decision is saved with the catio's settings, everything else at its defaults
         expect(JSON.parse(store.get(CATIO_STORAGE_KEY) ?? '{}')).toEqual({ ...defaultCatioSettings(), config: { ...MODULAR_DEFAULT, portClosure: 'sliding-gate' } });
         // so it holds once the page has saved itself again in today's form
