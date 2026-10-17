@@ -312,47 +312,18 @@ The catio is a **concept**, not a catalogue model: no SCAD, no render job, no ph
 
 ## Deployment topology
 
-Detailed diagrams: [container-architecture.md](container-architecture.md). The list below only adds what those diagrams
-leave out, chiefly the **offers CronJob** and the **Vercel** path.
-
-```mermaid
-flowchart LR
-    user["Browser"]
-    subgraph k8s["RKE2 on the NUC (Flux + charts/canfactory) — production canfactory.nntin.xyz, preview canfactory-preview.nntin.xyz"]
-        webK["web (nginx static)"]
-        apiK["api"]
-        workerK["worker (+ OpenSCAD)"]
-        releaseK[["release Job<br/>maintenance.ts release"]]
-        maintK[["maintenance CronJob<br/>maintenance.ts cleanup"]]
-        offersK[["offers CronJob<br/>offers.ts ingest-awin"]]
-        pg[("PostgreSQL")]
-        garage[("Garage S3")]
-    end
-    vercel["Vercel preview builds of apps/web<br/>(vercel.json rewrites /api → production)"]
-    compose["docker compose (PostgreSQL + Garage)<br/>CI integration, local"]
-    awin(("Awin"))
-
-    user --> webK
-    user --> apiK
-    user --> vercel
-    vercel -->|"/api/*"| apiK
-    apiK --> pg
-    apiK --> garage
-    workerK --> pg
-    workerK --> garage
-    releaseK --> pg
-    releaseK --> garage
-    maintK --> pg
-    maintK --> garage
-    offersK --> pg
-    offersK --> awin
-```
+The deployment diagram is in [container-architecture.md](container-architecture.md#live-kubernetes-deployment--production-and-preview):
+the RKE2 workloads (web, api, worker, the release Job, and the maintenance and offers CronJobs), the production and preview
+hostnames, the offers CronJob's Awin egress, and the Vercel preview path. Local Compose is drawn in the same file.
 
 - Images (`Dockerfile`): `api` (Node; the release, maintenance and offers jobs also use the api image), `worker` (the pinned
   `openscad/openscad` image with Node copied in), and `web` (nginx plus `apps/web/dist`).
-- CI: `quality.yml` (typecheck, lint, contract drift, unit tests, build), `integration.yml` (Compose stack with **SQLite**,
+- CI: `quality.yml` (typecheck, lint, contract drift, unit tests, build), `integration.yml` (Compose stack with PostgreSQL and Garage,
   Playwright, renderer, `check:assembly`, sweep sample, slicer, `check:physics`), `kubernetes.yml` (chart checks,
   `test:storage` against PostgreSQL and Garage, image and chart publication), and `geometry-sweep.yml` (nightly).
+- Type and lint policy: `tsconfig.json` is `strict` with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`, and
+  `eslint.config.ts` uses `strictTypeChecked`, rejecting explicit `any`, non-null assertions and `@ts-ignore`/`@ts-nocheck`
+  (`@ts-expect-error` only with a description). `npm run check` runs both, plus contract drift and unit tests.
 
 ## Known gaps, stale docs and likely duplication
 
@@ -361,13 +332,13 @@ Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/syst
 
 ### Stale or incomplete docs
 
-1. **`docs/architecture.md` is stale.** (Tracked in #89.) It describes the localhost Docker Compose setup ("Kubernetes is a future migration
-   target; the current deployment remains localhost Docker Compose", "SQLite stores the catalogue and temporary render
-   jobs", "no accounts, uploads"). `container-architecture.md` and `kubernetes-tech-plan.md` record that production moved to
-   Kubernetes with PostgreSQL and Garage on 2026-09-22. It also leaves out everything added since: the parts library,
-   offers, physics, concept pages, and the SVG-logo and QR-code uploads in the editor.
-2. **`container-architecture.md` leaves out the `offers` CronJob** (tracked in #89) (`charts/canfactory/templates/offers.yaml`), the Awin
-   egress, and the Vercel preview path (`vercel.json`, which sends `/api` to production).
+1. ~~**`docs/architecture.md` is stale.**~~ **Resolved in #89: deleted.** Its stale Compose/SQLite statements are dropped.
+   What was still true is recorded in its owner: the editor's debounce and polling, cache keys, leases and retry in
+   `interfaces.md` (which already held them; the 16-job queue limit is added there), and the strict TypeScript and lint
+   policy under [Deployment topology](#deployment-topology). Links to it (README) now point at this file.
+2. ~~**`container-architecture.md` leaves out the `offers` CronJob.**~~ **Resolved in #89.** Its Kubernetes diagram now
+   shows the offers CronJob and its Awin egress, both hostnames, and the Vercel preview path, which calls the production API.
+   The supplementary diagram that stood in for it here is deleted, so one deployment diagram is left.
 3. `README.md` and `interfaces.md` have no map of the subsystems. Before this file, no doc related physics, offers, parts and
    concepts to each other.
 
