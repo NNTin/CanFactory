@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { createCatioParts } from './catioParts.ts';
-import { windowFrame, type WindowShape } from './catioWindow.ts';
+import { windowFrame, type WindowShape } from '@canfactory/catio';
 
 /** The existing surroundings every catio sub-assembly is fitted to: wall with its window opening, the tilt-and-turn window's fixed frame and sash (catioWindow.ts), grass and room floor. */
 export interface WindowContextSpec extends WindowShape { glassWidth: number; glassHeight: number }

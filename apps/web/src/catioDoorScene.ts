@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { dimensionOf, findPart } from '@canfactory/contracts';
 import type { createCatioParts } from './catioParts.ts';
-import { DOOR, doorPose, type DoorBox, type DoorFrame, type DoorPanel } from './catioDoor.ts';
+import { DOOR, doorPose, type DoorBox, type DoorFrame, type DoorPanel } from '@canfactory/catio';
 
 /** The groups a door is drawn into, by layer: each gets the door's pieces of that layer, placed by the door's frame. */
 export interface DoorLayers { timber: THREE.Object3D; mesh: THREE.Object3D; hardware: THREE.Object3D }

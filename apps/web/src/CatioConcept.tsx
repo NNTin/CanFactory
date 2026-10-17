@@ -6,13 +6,12 @@ import { latchPartsStatus, watchLatchParts } from './catioPrintedLatchScene.ts';
 import { createCatioScene, type CatioState } from './catioScene.ts';
 import { CatioParameters } from './CatioParameters.tsx';
 import { createModularCatio, type CatioDoor } from './catioModularScene.ts';
-import { MODULAR_DEFAULT, modularCamera, modularLayout, modularSteps, validateModular, type ModularConfig } from './catioModularDesign.ts';
-import { CATIO_STORAGE_KEY, loadCatioSettings, type CatioViewing, type CatioMode } from './catioSettings.ts';
-import { CATIO_HUNG_STEP, CATIO_STEPS, CATIO_VIEWS, type CatioLayer, type CatioView } from './catioDesign.ts';
+import { CATIO_STORAGE_KEY, loadCatioSettings, type CatioViewing } from './catioSettings.ts';
 import { CATIO_SUBASSEMBLY_TITLES } from './catioSubassemblies.ts';
-import { savedWindowInsert } from './catioWindowInsert.ts';
 import { OtherPageIssues, useOtherPageIssues } from './CatioCrossPage.tsx';
-import { CATIO_SUBASSEMBLIES, formatHash } from './route.ts';
+import { formatHash } from './route.ts';
+import { CATIO_HUNG_STEP, CATIO_STEPS, CATIO_VIEWS, MODULAR_DEFAULT, modularCamera, modularLayout, modularSteps, validateModular, type CatioLayer, type CatioMode, type CatioView, type ModularConfig, CATIO_SUBASSEMBLIES } from '@canfactory/catio';
+import { savedTunnelCoupling, savedWindowInsert } from './catioSaved.ts';
 
 const assets = import.meta.glob<string>('../../../docs/concepts/catio/*.png', { eager: true, query: '?url', import: 'default' });
 const sheets = [
@@ -81,7 +80,8 @@ export function CatioConcept() {
     const stage = createStage(element, 'Interactive catio concept. Drag to orbit, scroll to zoom, right-drag to pan.', { scale, workshopFloor: false });
     if (!stage) { setUnsupported(true); return; }
     setUnsupported(false);
-    const model = mode === 'direct' ? createCatioScene() : createModularCatio(config);
+    const insert = savedWindowInsert();
+    const model = mode === 'direct' ? createCatioScene(insert) : createModularCatio(config, insert, { doorFixing: savedTunnelCoupling().doorFixing });
     stage.group.add(model.root); controller.current = { stage, model };
     setDoors('doors' in model ? model.doors : []);
     model.update(stateRef.current); camera(view); stage.invalidate();

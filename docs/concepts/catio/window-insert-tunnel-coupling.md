@@ -81,7 +81,7 @@ model page and card use.
   that must hold a rated load, or must be locked.
 - **Parts list:** the latch line links to the model (`#/models/toggle-latch`), not the parts library.
 - **Shared:** its sizes, placement and screws (`PRINTED_LATCH`, `printedLatchScrews` in
-  [catioPrintedLatch.ts](../../../apps/web/src/catioPrintedLatch.ts)) and its drawing (`buildPrintedLatches`) are the same
+  [catioPrintedLatch.ts](../../../packages/catio/src/catioPrintedLatch.ts)) and its drawing (`buildPrintedLatches`) are the same
   code the [tunnel–tunnel coupling](tunnel-tunnel-coupling.md) uses between sections.
 - **Live assembly:**
   - Its four parts are the toggle latch model's own STLs at its defaults, the render the editor shows. The page fetches them once
@@ -94,7 +94,7 @@ model page and card use.
 
 ## The pieces and how they fit
 
-All of it is in [catioCoupling.ts](../../../apps/web/src/catioCoupling.ts) (`couplingLayout`). It is the one source for
+All of it is in [catioCoupling.ts](../../../packages/catio/src/catioCoupling.ts) (`couplingLayout`). It is the one source for
 the scene, the parts list and the tests.
 
 1. **Docking frame (on the insert).** Two stiles stand on the threshold, over the port jambs. A head lies across them, on
@@ -218,10 +218,10 @@ part behind them. Their sizes are this design's, not a product's.
 
 ## Implementation
 
-- [Coupling design: parameters, layout, latch fit, parts list, steps, decisions](../../../apps/web/src/catioCoupling.ts)
+- [Coupling design: parameters, layout, latch fit, parts list, steps, decisions](../../../packages/catio/src/catioCoupling.ts)
 - [Coupling scene](../../../apps/web/src/catioCouplingScene.ts), with the window, the insert and the tunnel's wall support
   as fixed context
-- [Tests](../../../apps/web/src/catioCoupling.test.ts) check:
+- [Tests](../../../packages/catio/src/catioCoupling.test.ts) check:
   - the frame sits on the insert's own faces (battens or mesh, for every mesh fixing), keeps the port's clear size and has
     the flange's outline
   - the frame screws' 23 mm bite (26 mm with GN 831 latches)

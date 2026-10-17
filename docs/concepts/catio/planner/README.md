@@ -28,7 +28,7 @@ Built on `feat/catio-planner` (umbrella PR #111, tracking issue #109). Each PR e
 
 | Issue | Phase | Scope | Status |
 | --- | --- | --- | --- |
-| #112 | PoC 1/4 | Move the pure catio domain into `@canfactory/catio`, with explicit inputs | Open |
+| #112 | PoC 1/4 | Move the pure catio domain into `@canfactory/catio`, with explicit inputs | In review: `packages/catio`, `enclosureLayout` |
 | #113 | PoC 2/4 | Project document, commands, undo/redo, `evaluate()`, one platform | Open |
 | #114 | PoC 3/4 | Planner page, scene and direct manipulation | Open |
 | #115 | PoC 4/4 | Local persistence, JSON import/export, draft build list | Open |

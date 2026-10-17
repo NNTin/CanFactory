@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { CATIO, roofBearers } from './catioDesign.ts';
-import { MODULAR_DEFAULT as defaults, modularLayout, modularCamera, modularPitch, validateModular, type ModularConfig } from './catioModularDesign.ts';
-import { sidePortLength, sidePortOffset, STANDARD_PORT } from './catioPort.ts';
-import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
-import { WINDOW_INSERT_DEFAULT } from './catioWindowInsert.ts';
 import { createModularCatio, type ModularState } from './catioModularScene.ts';
 import { defaultCatioSettings, parseCatioSettings } from './catioSettings.ts';
-import { DOOR } from './catioDoor.ts';
+import { CATIO, DOOR, MODULAR_DEFAULT as defaults, modularCamera, modularLayout, modularPitch, roofBearers, TUNNEL_COUPLING_DEFAULT, validateModular, WINDOW_INSERT_DEFAULT, type ModularConfig } from '@canfactory/catio';
 
 /** The design as it was before the cat ports' closure could be chosen: every port has a sliding gate. */
 const sliding: ModularConfig = { ...defaults, portClosure: 'sliding-gate' };
@@ -17,49 +12,19 @@ const part = (scene: ReturnType<typeof createModularCatio>, id: string) => {
   const found = scene.components.find(p => p.id === id); if (!found) throw new Error(`Missing ${id}`); return found.group;
 };
 describe('modular catio layout and validation', () => {
-  it('derives straight and mirrored offset endpoints from the standard elements: modules a pitch long, corners at side ports', () => {
-    // a pitch: the shortest section that takes a side port and a latched coupling's 3 mm gap; a corner is a module with a side port
-    const pitch = modularPitch(defaults); const s = defaults.tunnelSize;
-    expect(pitch).toBe(sidePortLength(s) + PRINTED_LATCH_JOINT.gap);
-    expect(modularLayout(defaults).end).toEqual([0, 2 * pitch]);
-    // the run before a turn ends the gap from the side port's face, the flanges' outline out from the corner's axis; the corner
-    // runs on past it by its stub
-    const reach = s / 2 + STANDARD_PORT.ring.width + PRINTED_LATCH_JOINT.gap; const offset = sidePortOffset(s);
-    for (const sign of [-1, 1]) {
-      const layout = modularLayout({ ...defaults, route: sign < 0 ? 'left' : 'right', approach: 1, lateral: 2, final: 3 });
-      expect(layout.end[0]).toBeCloseTo(sign * (3 * pitch - offset + reach)); expect(layout.end[1]).toBeCloseTo(pitch + reach - offset + 4 * pitch);
-      expect(layout.sections.filter(q => q.kind === 'corner').every(q => q.length === pitch)).toBe(true);
-      expect(layout.sections.filter(q => q.kind === 'corner').map(q => q.openings)).toEqual([[sign > 0 ? 'right' : 'left', 'front'], [sign > 0 ? 'left' : 'right', 'front']]);
-      expect(layout.sections.filter(s => s.kind === 'corner')).toHaveLength(2);
-      expect(layout.sections).toHaveLength(8);
-    }
-  });
-  it('aligns independent enclosures at their rear landings with a measured link', () => {
-    const c = { ...defaults, route: 'left' as const, secondEnabled: true, second: { width: 1800, depth: 1600, height: 1900 }, link: 3 };
-    const { enclosures } = modularLayout(c); const [a, b] = enclosures;
-    if (!a || !b) throw new Error('Missing enclosures');
-    expect(b.rearY).toBe(a.rearY); expect(b.centerX - b.size.width / 2 - (a.centerX + a.size.width / 2)).toBe(3 * modularPitch(c));
-    expect(validateModular(c)).toEqual([]);
-  });
   it('rejects impossible sash, gate, ramp and module combinations without clamping', () => {
     expect(validateModular(defaults)).toEqual([]);
     for (const patch of [{ glassWidth: 910 }, { second: { width: NaN, depth: 1000, height: 1200 } }, { tunnelSize: NaN }, { approach: 0 }, { lateral: 1.5 }, { tunnelSize: 450, enclosure: { width: 800, depth: 800, height: 1200 } }]) for (const base of [defaults, sliding]) {
       const config = { ...base, ...patch }; const before = structuredClone(config);
       expect(validateModular(config).length).toBeGreaterThan(0); expect(config).toEqual(before);
-      expect(() => createModularCatio(config)).toThrow();
+      expect(() => createModularCatio(config, WINDOW_INSERT_DEFAULT, { doorFixing: TUNNEL_COUPLING_DEFAULT.doorFixing })).toThrow();
     }
     // a sliding gate needs its own height again above its port, in the window collar and in an enclosure; a removable panel does not
     for (const [patch, message] of [[{ sashHeight: 600, glassHeight: 500 }, /sliding gate needs room for its full upward travel/], [{ tunnelSize: 450, enclosure: { width: 1200, depth: 1000, height: 900 } }, /too low for the raised cat gate/]] as const) {
       expect(validateModular({ ...sliding, ...patch }).join(' ')).toMatch(message);
-      expect(() => createModularCatio({ ...sliding, ...patch })).toThrow();
+      expect(() => createModularCatio({ ...sliding, ...patch }, WINDOW_INSERT_DEFAULT, { doorFixing: TUNNEL_COUPLING_DEFAULT.doorFixing })).toThrow();
       expect(validateModular({ ...defaults, ...patch })).toEqual([]);
     }
-  });
-  it('keeps the standard port square: a tunnel clear size the same both ways', () => {
-    // one clear size, both ways
-    expect('tunnelWidth' in defaults || 'tunnelHeight' in defaults).toBe(false);
-    expect(validateModular({ ...defaults, tunnelSize: 350 })).toEqual([]);
-    expect(validateModular({ ...defaults, tunnelSize: 460 }).join(' ')).toMatch(/Tunnel clear size must be 20–45 cm/);
   });
   it('snaps a saved design’s tunnel to the square standard port, its larger size both ways, and keeps everything else', () => {
     const views = defaultCatioSettings().views;
@@ -81,10 +46,11 @@ describe('modular catio layout and validation', () => {
     }
   });
 });
+
 describe('modular scene geometry', () => {
   it('models rectangular glass and sash independently, with all fittings outside the inward sweep', () => {
     for (const base of [sliding, defaults]) {
-      const scene = createModularCatio({ ...base, glassWidth: 700, glassHeight: 900, sashWidth: 830, sashHeight: 1050 });
+      const scene = createModularCatio({ ...base, glassWidth: 700, glassHeight: 900, sashWidth: 830, sashHeight: 1050 }, WINDOW_INSERT_DEFAULT, { doorFixing: TUNNEL_COUPLING_DEFAULT.doorFixing });
       // a sliding gate raised; a removable panel seated and retained, as it is whenever the sash is closed over it
       scene.update(base.portClosure === 'sliding-gate' ? assembled : { ...assembled, doors: { 'window-cat': false } });
       const glass = scene.root.getObjectByName('context-glass'); if (!glass) throw new Error('Missing glass');
@@ -104,17 +70,17 @@ describe('modular scene geometry', () => {
     }
   });
   it('hangs the window insert on the window frame with its screen hooks by default, or clamps it into the recess', () => {
-    const hung = createModularCatio(defaults, WINDOW_INSERT_DEFAULT);
+    const hung = createModularCatio(defaults, WINDOW_INSERT_DEFAULT, { doorFixing: TUNNEL_COUPLING_DEFAULT.doorFixing });
     expect(hung.components.map(p => p.id)).toContain('screen-hooks');
     expect(hung.components.map(p => p.id)).not.toContain('padded-clamps');
     hung.dispose();
-    const pressed = createModularCatio(defaults, { ...WINDOW_INSERT_DEFAULT, attachment: 'spreader-feet' });
+    const pressed = createModularCatio(defaults, { ...WINDOW_INSERT_DEFAULT, attachment: 'spreader-feet' }, { doorFixing: TUNNEL_COUPLING_DEFAULT.doorFixing });
     expect(pressed.components.map(p => p.id)).toContain('padded-clamps');
     expect(pressed.components.map(p => p.id)).not.toContain('screen-hooks');
     pressed.dispose();
   });
   it('docks the tunnel to the window port with a docking frame, as the coupling page does, not a mesh throat', () => {
-    const scene = createModularCatio(defaults);
+    const scene = createModularCatio(defaults, WINDOW_INSERT_DEFAULT, { doorFixing: TUNNEL_COUPLING_DEFAULT.doorFixing });
     const ids = scene.components.map(p => p.id);
     expect(ids.filter(id => id.includes('throat'))).toEqual([]);
     expect(ids).toEqual(expect.arrayContaining(['window-threshold', 'window-docking-frame']));
@@ -124,7 +90,7 @@ describe('modular scene geometry', () => {
   });
 
   it('keeps all cat apertures free of fixed mesh and each small gate independently closable', () => {
-    const scene = createModularCatio({ ...sliding, secondEnabled: true }); scene.update(assembled);
+    const scene = createModularCatio({ ...sliding, secondEnabled: true }, WINDOW_INSERT_DEFAULT, { doorFixing: TUNNEL_COUPLING_DEFAULT.doorFixing }); scene.update(assembled);
     for (const door of scene.doors.filter(d => d.kind === 'cat')) {
       const gate = bounds(part(scene, `${door.id}-gate`));
       expect(gate.min.z).toBeCloseTo(door.connected ? 520 : 190);
@@ -166,7 +132,7 @@ describe('modular scene geometry', () => {
     }
   });
   it('joins solid walkways across straight and corner modules with mesh containment and ground floors', () => {
-    const scene = createModularCatio({ ...defaults, route: 'right', approach: 1, lateral: 1, final: 1, secondEnabled: true }); scene.update(assembled);
+    const scene = createModularCatio({ ...defaults, route: 'right', approach: 1, lateral: 1, final: 1, secondEnabled: true }, WINDOW_INSERT_DEFAULT, { doorFixing: TUNNEL_COUPLING_DEFAULT.doorFixing }); scene.update(assembled);
     const ids = scene.components.map(p => p.id); expect(new Set(ids).size).toBe(ids.length);
     for (const section of scene.layout.sections) {
       const corner = section.kind === 'corner';
@@ -202,7 +168,7 @@ describe('modular scene geometry', () => {
   });
   it('provides a continuous level walking surface from each landing through the side link', () => {
     for (const base of [sliding, defaults]) {
-      const scene = createModularCatio({ ...base, secondEnabled: true, second: { width: 1600, depth: 1500, height: 1400 } }); scene.update(assembled);
+      const scene = createModularCatio({ ...base, secondEnabled: true, second: { width: 1600, depth: 1500, height: 1400 } }, WINDOW_INSERT_DEFAULT, { doorFixing: TUNNEL_COUPLING_DEFAULT.doorFixing }); scene.update(assembled);
       const [a, b] = scene.layout.enclosures; if (!a || !b) throw new Error('Missing enclosures');
       const timber = scene.components.filter(p => p.layer === 'timber').map(p => p.group);
       let stops = 0;
@@ -219,7 +185,7 @@ describe('modular scene geometry', () => {
   });
 
   it('has six assembly stages, keeps gates closed before connection, and preserves stationary context', () => {
-    const scene = createModularCatio(sliding);
+    const scene = createModularCatio(sliding, WINDOW_INSERT_DEFAULT, { doorFixing: TUNNEL_COUPLING_DEFAULT.doorFixing });
     for (let progress = 0; progress <= 6; progress++) {
       scene.update({ ...assembled, progress, exploded: true });
       for (const p of scene.components) {
@@ -237,13 +203,14 @@ describe('modular scene geometry', () => {
       { ...sliding, glassWidth: 400, glassHeight: 400, sashWidth: 500, sashHeight: 500, tunnelSize: 200, enclosure: { width: 800, depth: 800, height: 900 } },
       { ...sliding, glassWidth: 1400, glassHeight: 1400, sashWidth: 1600, sashHeight: 1600, tunnelSize: 450, enclosure: { width: 2400, depth: 2400, height: 2200 } },
     ] satisfies ModularConfig[]) {
-      const scene = createModularCatio(config); scene.update(assembled);
+      const scene = createModularCatio(config, WINDOW_INSERT_DEFAULT, { doorFixing: TUNNEL_COUPLING_DEFAULT.doorFixing }); scene.update(assembled);
       for (const p of scene.components) expect([...bounds(p.group).min.toArray(), ...bounds(p.group).max.toArray()].every(Number.isFinite), p.id).toBe(true);
       expect(bounds(part(scene, 'window-cat-gate')).max.z).toBeLessThan(config.sashHeight + 190);
       expect(bounds(part(scene, 'a-rear-gate')).max.z).toBeLessThan(config.enclosure.height); scene.dispose();
     }
   });
 });
+
 describe('saved catio settings', () => {
   it('round-trips valid dimensions and independent view states, and rejects corrupt storage', () => {
     const settings = defaultCatioSettings(); settings.mode = 'modular'; settings.config.route = 'left'; settings.config.secondEnabled = true;

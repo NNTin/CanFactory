@@ -2,12 +2,10 @@ import * as THREE from 'three';
 import { dimensionOf, findPart, PRESSURE_PAD, pressurePadSeat, type Part } from '@canfactory/contracts';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
-import type { CatioMode } from './catioSettings.ts';
-import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
+import type { SubassemblyModel } from './catioSubassembly.ts';
 import { buildDoorPanel, type DoorLayers } from './catioDoorScene.ts';
-import { doorAction, doorPose } from './catioDoor.ts';
 import { buildWindowContext } from './catioWindowContext.ts';
-import { INSERT, windowFor, windowInsertLayout, type Clamp, type WindowInsertConfig, type WindowInsertLayout, type WindowSpec } from './catioWindowInsert.ts';
+import { doorAction, doorPose, INSERT, windowInsertLayout, type CatioMode, type Clamp, type V3, type WindowInsertConfig, type WindowInsertLayout, type WindowSpec } from '@canfactory/catio';
 
 /** Stages 1–3 are built on a bench this far out in the garden; stage 4 carries the insert into the recess. */
 export const BENCH_OFFSET = 900;
@@ -83,7 +81,7 @@ export function buildHungHardware(p: ReturnType<typeof createCatioParts>, layout
 }
 
 /** The window insert in its window: every piece of `windowInsertLayout`, staged as `windowInsertSteps` describes. */
-export function createWindowInsertScene(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec = windowFor(variant, config)): SubassemblyModel & {
+export function createWindowInsertScene(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec): SubassemblyModel & {
   layout: ReturnType<typeof windowInsertLayout>; insert: THREE.Group; motions: PieceMotion[]; tilt: THREE.Group; closure: PortClosureBuilt | null;
 } {
   const layout = windowInsertLayout(variant, config, window);

@@ -4,14 +4,13 @@ import * as THREE from 'three';
 import { bomRequirements, findPart } from '@canfactory/contracts';
 import { createStage, type Stage } from './stage.ts';
 import { latchPartsStatus, watchLatchParts } from './catioPrintedLatchScene.ts';
-import type { CatioLayer, CatioView } from './catioDesign.ts';
-import type { CatioMode } from './catioSettings.ts';
-import { BOM_GROUPS, inRange, loadSubassemblySettings, saveShared, subassemblyStorageKey, defaultSubassemblySettings, type BomLine, type NumberRange, type SubassemblyDefinition, type SubassemblyModel, type SubassemblyViewing } from './catioSubassembly.ts';
+import { loadSubassemblySettings, saveShared, subassemblyStorageKey, defaultSubassemblySettings, type SubassemblyDefinition, type SubassemblyModel, type SubassemblyViewing } from './catioSubassembly.ts';
 import { CATIO_SUBASSEMBLY_TITLES, couplingDefinition, dependentsOf, tunnelCouplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
 import { ChangesNote, OtherPageIssues, PageRelations, SettingSource, SharedNote, useOtherPageIssues } from './CatioCrossPage.tsx';
-import { formatHash, type CatioSubassembly } from './route.ts';
+import { formatHash } from './route.ts';
 import { AffiliateNote, OfferLink } from './Shopping.tsx';
 import { addToBuyList, useMarket, useOffers, type BuyListSource } from './shopping.ts';
+import { BOM_GROUPS, inRange, type BomLine, type CatioLayer, type CatioMode, type CatioView, type NumberRange, type CatioSubassembly } from '@canfactory/catio';
 
 const VIEWS: CatioView[] = ['Exterior', 'Interior', 'Front', 'Side', 'Top', 'Mounting'];
 const LAYERS: { id: CatioLayer; title: string }[] = [

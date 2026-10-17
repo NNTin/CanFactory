@@ -1,6 +1,6 @@
 import { CATIO_MESH_DEFAULT, catioMesh, type CatioMeshSpec } from '@canfactory/contracts';
 import * as THREE from 'three';
-import { type CatioLayer } from './catioDesign.ts';
+import type { CatioLayer } from '@canfactory/catio';
 
 type V3 = [number, number, number];
 import type { CatioState, MeshPanel } from './catioScene.ts';

@@ -45,6 +45,8 @@ export const CATIO_STEPS = [
   { title: 'Completed catio', detail: 'Latch the maintenance door. The original window can open inward and close with the catio installed.' },
 ] as const;
 
+/** The whole catio's two variants: direct on the window, or modular with a tunnel to an enclosure. */
+export type CatioMode = 'direct' | 'modular';
 export type CatioLayer = 'timber' | 'mesh' | 'hardware' | 'environment';
 export type CatioView = 'Exterior' | 'Interior' | 'Front' | 'Side' | 'Top' | 'Mounting';
 export const CATIO_VIEWS: Record<CatioView, { position: [number, number, number]; target: [number, number, number] }> = {

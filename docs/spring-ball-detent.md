@@ -10,7 +10,7 @@ or the back is solid and the ball and spring go in through an opening in the sid
 One parametric file, `models/spring-ball-detent/generator.scad`, makes both parts. The model downloads as a ZIP of the **body**
 and, for the press cap, the **press cap**.
 
-It follows the toggle latch's pattern (`packages/contracts/src/toggleLatchMechanism.ts`, `apps/web/src/catioCoupling.ts`, issues
+It follows the toggle latch's pattern (`packages/contracts/src/toggleLatchMechanism.ts`, `packages/catio/src/catioCoupling.ts`, issues
 #45 and #46): the printed parts carry real hardware from the [parts library](adding-parts.md). The ball, spring and set screw are
 parts-library entries, so their real dimensions size the geometry and they appear on the model's hardware list.
 

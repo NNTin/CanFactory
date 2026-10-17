@@ -2,15 +2,14 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { createCatioScene, type CatioState } from './catioScene.ts';
 import { catioMesh } from '@canfactory/contracts';
-import { CATIO, CATIO_DERIVED, ROOF_NET, roofBearers } from './catioDesign.ts';
-import { WINDOW_INSERT_DEFAULT, windowInsertLayout } from './catioWindowInsert.ts';
+import { CATIO, CATIO_DERIVED, MODULAR_DEFAULT, ROOF_NET, roofBearers, WINDOW_INSERT_DEFAULT, windowFor, windowInsertLayout } from '@canfactory/catio';
 
 const assembled: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
 const bounds = (object: THREE.Object3D) => new THREE.Box3().setFromObject(object, true);
 
 describe('catio concept geometry', () => {
   it('preserves the measured glass and sash independently of the illustrative fixed frame', () => {
-    const scene = createCatioScene(); scene.update(assembled);
+    const scene = createCatioScene(WINDOW_INSERT_DEFAULT); scene.update(assembled);
     const glass = scene.root.getObjectByName('context-glass');
     if (!glass) throw new Error('Glass geometry missing');
     expect(bounds(glass).getSize(new THREE.Vector3()).toArray()).toEqual([800, 6, 800]);
@@ -28,7 +27,7 @@ describe('catio concept geometry', () => {
   });
 
   it('keeps every installed catio component outside the sash sweep, including its handle', () => {
-    const scene = createCatioScene(); scene.update(assembled);
+    const scene = createCatioScene(WINDOW_INSERT_DEFAULT); scene.update(assembled);
     const installed = scene.components.filter(part => part.step > 0).map(part => ({ id: part.id, box: bounds(part.group) }));
     for (let angle = 0; angle <= 90; angle += 5) {
       scene.hinge.rotation.z = -THREE.MathUtils.degToRad(angle); scene.root.updateMatrixWorld(true);
@@ -39,7 +38,7 @@ describe('catio concept geometry', () => {
   });
 
   it('closes the entire floor perimeter down to grass and links the ramp to the passage', () => {
-    const scene = createCatioScene(); scene.update(assembled);
+    const scene = createCatioScene(WINDOW_INSERT_DEFAULT); scene.update(assembled);
     const floor = scene.panels.find(panel => panel.id === 'continuous-floor');
     expect(floor).toMatchObject({ width: 1200, height: 1000, center: [0, 500, 4], plane: 'xy' });
     const skirts = scene.panels.filter(panel => panel.id.startsWith('floor-skirt'));
@@ -57,7 +56,7 @@ describe('catio concept geometry', () => {
   });
 
   it('stages construction while keeping the room, window and grass stationary', () => {
-    const scene = createCatioScene(); scene.update(assembled);
+    const scene = createCatioScene(WINDOW_INSERT_DEFAULT); scene.update(assembled);
     const context = scene.components.filter(part => part.step === 0);
     const positions = context.map(part => part.group.position.toArray());
     for (let progress = 0; progress <= 6; progress++) {
@@ -80,7 +79,7 @@ describe('catio concept geometry', () => {
       expect(Math.max(...bays) - Math.min(...bays)).toBeLessThan(1e-9);
     }
     expect(roofBearers(ROOF_NET.span)).toEqual([]);
-    const scene = createCatioScene(); scene.update(assembled);
+    const scene = createCatioScene(WINDOW_INSERT_DEFAULT); scene.update(assembled);
     const part = (id: string) => { const found = scene.components.find(p => p.id === id); if (!found) throw new Error(id); return found.group; };
     const bearers = bounds(part('roof-net-bearers')); const roof = bounds(part('mesh-roof'));
     // under the net, touching it, between the side rails and below the top of the frame
@@ -97,7 +96,7 @@ describe('catio concept geometry', () => {
     expect(ids).toContain('screen-hooks'); expect(ids).not.toContain('padded-clamps');
     // the hooks are the insert page's, behind the fixed frame's lip and clear of the closed sash
     const hooks = hung.components.find(part => part.id === 'screen-hooks'); if (!hooks) throw new Error('hooks');
-    const layout = windowInsertLayout('direct', WINDOW_INSERT_DEFAULT);
+    const layout = windowInsertLayout('direct', WINDOW_INSERT_DEFAULT, windowFor('direct', WINDOW_INSERT_DEFAULT, MODULAR_DEFAULT));
     expect(bounds(hooks.group).min.y).toBeGreaterThan(layout.frame.sashFace);
     expect(bounds(hooks.group).min.y).toBeLessThan(layout.frame.lipBack);
     hung.dispose();

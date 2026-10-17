@@ -1,8 +1,4 @@
-import { CATIO_VIEWS, type CatioLayer, type CatioView } from './catioDesign.ts';
-import { DOOR_SEAT_DEFAULT, PORT_CLOSURE_LEGACY } from './catioDoor.ts';
-import { MODULAR_DEFAULT, validateModular, type ModularConfig } from './catioModularDesign.ts';
-import { CATIO_SUBASSEMBLIES } from './route.ts';
-export type CatioMode = 'direct' | 'modular';
+import { CATIO_SUBASSEMBLIES, CATIO_VIEWS, DOOR_SEAT_DEFAULT, MODULAR_DEFAULT, PORT_CLOSURE_LEGACY, validateModular, type CatioLayer, type CatioMode, type CatioView, type ModularConfig } from '@canfactory/catio';
 export interface CatioViewing { progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: CatioLayer[]; view: CatioView; doors: Record<string, boolean> }
 /**
  * The settings as saved now. Version 1 had no `portClosure`: every cat port had a sliding gate. Up to version 2 the tunnel's clear

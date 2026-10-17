@@ -10,7 +10,7 @@ blocks it off. The elements are:
 
 The run before a turn couples its end onto a side port in the first section of the run after it. That section runs on past
 the side port by a short **stub**, whose own end port is closed by a door. The geometry is one module,
-[catioPort.ts](../../../apps/web/src/catioPort.ts), which the tunnel's layout, its scenes and parts lists, the couplings and
+[catioPort.ts](../../../packages/catio/src/catioPort.ts), which the tunnel's layout, its scenes and parts lists, the couplings and
 the tests all use.
 
 **Cubes are gone.** The first version turned at cubes: the port on all six faces, the faces the tunnel did not run through
