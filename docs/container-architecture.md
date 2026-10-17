@@ -135,9 +135,13 @@ are acceptable. Detailed behavior is in the implemented [tech plan](kubernetes-t
 
 ```mermaid
 flowchart TB
-    browser["Browser: production + preview hostnames; same editor"]
-    cloud["Cloudflare: public HTTPS"]
+    browser["Browser: same editor on every hostname"]
+    cloud["Cloudflare: public HTTPS<br/>production canfactory.nntin.xyz<br/>preview canfactory-preview.nntin.xyz"]
+    vercel["Vercel preview deployments<br/>static apps/web build (vercel.json)"]
+    awin(("Awin product feeds<br/>productdata.awin.com<br/>datafeed.api.productserve.com"))
     browser <-->|"HTTPS"| cloud
+    browser <-->|"HTTPS: / and static assets"| vercel
+    vercel <-->|"Rewrite /api/* to production<br/>https://canfactory.nntin.xyz"| cloud
 
     subgraph cluster["New single-node RKE2 on existing WSL2/NUC"]
         tunnel["Dedicated CanFactory cloudflared"]
@@ -147,7 +151,8 @@ flowchart TB
         workers["worker Deployment<br/>Initially 1, manual maximum 2<br/>One render per pod; local scratch"]
         release["Release migration/seeding Job"]
         maintenance["Maintenance CronJob"]
-        pg[("PostgreSQL<br/>Catalogue, jobs, leases, heartbeats<br/>One instance, local PV")]
+        offers["Offers CronJob, hourly (api image)<br/>tools/offers.ts ingest-awin<br/>Suspended until the Awin key is set"]
+        pg[("PostgreSQL<br/>Catalogue, jobs, leases, heartbeats,<br/>awin_feeds + awin_offers<br/>One instance, local PV")]
         garage[("Garage S3<br/>Persistent references + temporary artifacts<br/>One instance, local PV")]
     end
 
@@ -163,10 +168,28 @@ flowchart TB
     release --> garage
     maintenance --> pg
     maintenance --> garage
+    offers -->|"Outbound HTTPS: feed list + feed CSVs"| awin
+    offers -->|"SQL: write awin_feeds, awin_offers"| pg
 
     shared["Existing lair tunnel + Docker Traefik<br/>Unrelated apps"]
     cloud <--> shared
 ```
+
+Production (`canfactory.nntin.xyz`) follows `develop`'s chart releases, and the
+preview (`canfactory-preview.nntin.xyz`) follows the newest pull-request chart;
+`npm run preview:check` (`tools/check-preview.ts`) reports which commit each
+serves. Both hostnames reach the cluster through the same tunnel. Vercel preview
+deployments are separate: `vercel.json` builds only `apps/web` and rewrites
+`/api/:path*` to production, so a Vercel preview calls the production API,
+queue and storage.
+
+The offers CronJob (`charts/canfactory/templates/offers.yaml`) runs
+`node --import tsx tools/offers.ts ingest-awin` in the api image. It downloads
+Awin's feed list and the curated offers' feeds over HTTPS and writes the
+`awin_feeds` and `awin_offers` tables, which `GET /api/v1/offers` reads. It is
+suspended until the `offers.secret` Secret holds `AWIN_DATAFEED_KEY` and the
+network policy allows egress to both Awin hosts on 443. See
+[affiliate-offers.md](affiliate-offers.md).
 
 Preview and download still pass through the API and reference the same immutable
 artifact. API reads enforce expiry regardless of object cleanup timing. There is
@@ -189,7 +212,7 @@ sequenceDiagram
     participant S3 as Garage
     API->>DB: Validate/fingerprint, deduplicate and enqueue transaction
     Worker->>DB: Atomic compatible claim + fencing token
-    Note over Worker: Render/validate in local scratch; renew lease
+    Note over Worker: Render/validate in local scratch, renew lease
     Worker->>S3: Upload immutable attempt object
     S3-->>Worker: Upload complete
     Worker->>DB: Publish metadata only with live token and unexpired job
@@ -198,7 +221,7 @@ sequenceDiagram
         API->>DB: Check success, expiry and object metadata
         API->>S3: Stream the recorded object for preview/download
     else Lost claim or failed commit
-        Note over Worker,S3: Unreferenced upload is collected; stale result stays invisible
+        Note over Worker,S3: Unreferenced upload is collected, stale result stays invisible
     end
 ```
 

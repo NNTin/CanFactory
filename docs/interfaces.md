@@ -75,7 +75,8 @@ catalogue: atomic claim, lease renewal, successful publication, and failure
 operations. Claims have 30-second leases renewed every five seconds. A fencing
 token makes a late result from an abandoned worker ineffective. Abandoned work
 retries once; a second interruption becomes a visible failure. Clients may
-explicitly retry failures.
+explicitly retry failures. At most 16 jobs may be queued; a further submission
+gets 429 `QUEUE_FULL` (`QUEUE_LIMIT` in `packages/server/src/config.ts`).
 
 `ObjectStorage` (`objects.ts`) keeps reference STLs in the catalogue bucket and
 generated files in the generated bucket of Garage S3. Worker source paths and

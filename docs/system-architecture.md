@@ -29,7 +29,7 @@ implementations, registrations and data copies it deletes.
 | `packages/client` | Library (browser) | A typed `openapi-fetch` client over the generated `schema.d.ts`. | none (generated from the API) |
 | `packages/physics` | Library (Node and browser) | MuJoCo WebAssembly physics: scene compiler (spec to MJCF), simulation, scenario runner, interactive session, V-HACD decomposition. | contracts (types and materials only) |
 | `packages/part-geometry` | Library (Node and browser, Three.js) | `partGeometry(part)`: the one drawing of a procedural parts-library part, from its dimensions. The parts library, the editor's reference objects and the assembly check use it. | contracts |
-| `apps/api` | Process (Fastify) | The public HTTP API: model catalogue, render jobs and artifacts, parts library, market and offers. Also serves OpenAPI. | contracts, server |
+| `apps/api` | Process (Fastify) | The public HTTP API: render jobs and artifacts, model reference STLs, market and offers. Also serves OpenAPI. The catalogue and parts library are not served; the web app bundles them. | contracts, server |
 | `apps/worker` | Process (no HTTP) | Claims render jobs, runs **OpenSCAD** in a subprocess, validates the meshes, and publishes STL or ZIP artifacts. | contracts, server |
 | `apps/web` | Browser SPA (React, Vite, Three.js) | Model library and editor, viewer with assembly and physics modes, parts library pages, buy list, and the catio concept pages. | client, contracts, physics, part-geometry |
 | `tools/` | CLI scripts (`tsx`) | Release, migration and cleanup (`maintenance.ts`), Awin ingest (`offers.ts`), OpenAPI and client generation, renderer, storage and restart tests, geometry sweep, assembly and physics checks, slicer checks, STL-to-SCAD, preview tracking. | contracts, server, physics, part-geometry, `apps/api` (OpenAPI generation), `apps/worker` (test runners) |
@@ -108,7 +108,7 @@ browser carries its own copy of the whole model registry, parts library, offers 
 flowchart TB
     subgraph C["packages/contracts: data and pure logic (bundled into web, api, worker, tools)"]
         registry["Model registry<br/>models.ts: 17 ModelDefinitions<br/>schemas · controls · scadMapping · partDefines<br/>assembly · physics()"]
-        reqUnion["RenderRequestSchema union<br/>index.ts: one branch per model"]
+        reqUnion["RenderRequestSchema union<br/>index.ts: derived from registeredModels"]
         partsLib["Parts library<br/>parts/: 24 families · sources · ids.lock"]
         offersData["Curated offers + accounts<br/>offers.ts · affiliateAccounts.ts"]
         matcher["Matcher<br/>matcher.ts: matchOffers · markets"]
@@ -163,7 +163,7 @@ flowchart TB
     workerR --> scadFiles
     workerR --> artifacts
     apiRenders -->|"stream bytes"| artifacts
-    registry -.->|"seed: catalogue rows + source fingerprints"| queue
+    registry -.->|"seed: source fingerprints + reference objects"| queue
     registry -.->|"findModel, validateParameters, scadDefines"| workerR
 
     editor --> viewer
@@ -173,7 +173,7 @@ flowchart TB
     engine -->|"PhysicsSpec types, materials"| phySpec
     editor -->|"definition.physics(params), resolveAssembly"| registry
 
-    partsUi -->|"HTTP /part-families, /parts"| partsLib
+    partsUi -->|"bundled: partFamilies, partUsage"| partsLib
     partsUi --> partGeo
 
     shop -->|"HTTP"| apiOffers
@@ -186,7 +186,7 @@ flowchart TB
     catio --> shop
 
     catio -->|"part dimensions, hardware ids,<br/>toggleLatchMechanism, model helpers"| concepts
-    catio -->|"local Three.js geometry"| partGeo
+    catio -->|"HTTP: toggle latch rendered once at its defaults"| apiRenders
 ```
 
 ### Model library and the render pipeline
@@ -199,10 +199,10 @@ flowchart TB
   `registeredModels` tuple (`models.ts`); `models` and the branches of `RenderRequestSchema` (`index.ts`) derive from it. After that,
   `npm run contracts:generate` regenerates `docs/openapi.json` and `packages/client/src/schema.d.ts` from the live Fastify
   routes (`tools/generate-openapi.ts` imports `apps/api/src/app.ts`). See [adding-models.md](adding-models.md).
-- **Catalogue.** `store.seed()` (SQLite `Store` or `PostgresStorage`) writes one catalogue row per registered model:
-  detail, `sourceFingerprint` (hash of every SCAD/asset path) and the reference object. In Kubernetes this runs in the
-  release Job (`tools/maintenance.ts release`). Under Compose the API runs it at startup. `GET /api/v1/models[/{id}]` reads
-  these rows.
+- **Catalogue.** `PostgresStorage.seed()` writes one catalogue row per registered model: its `sourceFingerprint` (hash of
+  every SCAD/asset path), which `enqueue` and `claim` check, and the reference object behind
+  `GET /api/v1/models/{id}/reference.stl`. It runs in the release Job (`tools/maintenance.ts release`), which Compose runs
+  too. The browser does not read these rows: it bundles the model definitions from contracts.
 - **Submit.** The browser (`useRender.ts`) debounces, validates locally with the same `RenderRequestSchema`, and
   `POST /api/v1/renders`. The API checks again with `findModel` and `validateParameters`, then `enqueue`s with a cache key
   built from the parameters and the model, source and renderer fingerprints. An identical unexpired job is reused.
@@ -210,7 +210,7 @@ flowchart TB
   `openscad --backend Manifold --export-format binstl` with `-D` defines from `scadDefines()`. An assembly renders once per
   active part (identical calls are de-duplicated) and is zipped with `fflate`. Every STL goes through
   `repairFloat32Slivers`, gets an attribution stamp and passes `inspectStl` (`packages/server/src/mesh.ts`). It is then
-  published with a fenced `complete()`: atomic rename locally, or an immutable S3 object plus a DB commit.
+  published with a fenced `complete()`: an immutable S3 object, then a DB commit.
 - **Deliver.** The browser polls `GET /renders/{id}` and then fetches `/stl` or `/zip`. The same bytes serve preview and
   download. The sequence diagrams in [container-architecture.md](container-architecture.md#render-request-and-stl-delivery)
   remain accurate.
@@ -223,8 +223,8 @@ The only geometry *renderer* is OpenSCAD in the worker. The browser *previews*:
   motion frames come from `assembly.ts` in contracts), and adds **reference objects** (`referenceObjects.ts`). These are
   parts-library hardware drawn in Three.js from their dimensions by `@canfactory/part-geometry`, or a part's STL from `parts/`,
   bundled through `import.meta.glob`.
-- Model-specific **SVG/React illustrations** (`*Illustration.tsx`, `toggleLatchMeshes.ts`) draw side views and mechanisms
-  from geometry helpers in contracts (for example `toggleLatchMechanism`), not from rendered STLs.
+- Model-specific **SVG/React illustrations** (`*Illustration.tsx`) draw side views and mechanisms from geometry helpers in
+  contracts (for example `toggleLatchMechanism`), not from rendered STLs.
 - The same `@canfactory/part-geometry` drives the parts library's 3D preview (`PartsViewer.tsx`) and the reference objects
   that `npm run check:assembly` and `check:physics` collide.
 
@@ -233,8 +233,8 @@ The only geometry *renderer* is OpenSCAD in the worker. The browser *previews*:
 - **Data:** `packages/contracts/src/parts/` has one file per family (24 families), a `schema.ts` for the shape of `Part`,
   `PartFamily` and `Dimension`, cited `sources.ts`, and `ids.lock` to keep part ids permanent. A part with an STL preview
   (an everyday object) has its SCAD and STL in `parts/<family>/`; every other part is drawn by `@canfactory/part-geometry`.
-- **Served** straight from contracts by the API (`/api/v1/part-families`, `/part-families/{id}`, `/parts/{id}`) with no
-  storage. Its "used by" lists come from `partUsage()`, which merges the model registry (part-linked controls and reference
+- **Bundled** into the web app from contracts (`partFamilies`, `partsOfFamily`, `findPartSource`); no API route or
+  storage serves it. Its "used by" lists come from `partUsage()`, which merges the model registry (part-linked controls and reference
   objects) with `concepts.ts` (catio pages).
 - **Consumed by** the models (`partDefines` sizes SCAD from part dimensions, part-linked controls offer only parts that
   fit), by the editor's reference objects, by the physics specs (library hardware becomes exact primitives), by the catio
@@ -251,8 +251,8 @@ Details in [affiliate-offers.md](affiliate-offers.md). Relationships:
   `affiliateAccounts.ts` (a `null` account turns a network off), `matcher.ts` (`matchOffers`, markets, URL builders), and
   `bom.ts` (`modelBom` from a model's assembly references, `bomRequirements` from catio `BomLine`s).
 - **Dynamic half (server):** the `offers` CronJob (`tools/offers.ts ingest-awin` → `packages/server/src/awin.ts`) downloads
-  changed Awin feeds and stores only the curated products in `awin_feeds` and `awin_offers`. Those tables exist in both
-  SQLite (`packages/server/migrations/0002`) and PostgreSQL (`postgres-migrations/0002`).
+  changed Awin feeds and stores only the curated products in `awin_feeds` and `awin_offers`
+  (`packages/server/migrations/0002_awin_offers.sql`).
 - **API:** `GET /api/v1/market` (from `CF-IPCountry`) and `GET /api/v1/offers` (the matcher plus the stored Awin rows).
 - **Web:** `shopping.ts` (market, offers cache and buy list in `localStorage`) and `Shopping.tsx`. The editor's "Hardware
   for this build", the parts pages' "Where to buy", the catio pages' Buy column and `#/buy-list` all use them.
@@ -279,7 +279,9 @@ Status from [physics-plan.md](physics-plan.md): **implemented** (spikes 1–5 do
 
 ### Catio concept pages
 
-The catio is a **concept**, not a catalogue model: no SCAD, no render job, no physics. Routes are `#/concepts/catio`
+The catio is a **concept**, not a catalogue model: no SCAD of its own and no physics. Its one render job is the
+toggle-latch model at its defaults, rendered once and cached (`catioPrintedLatchScene.ts`, through `completedRender` in
+`useRender.ts`), so the printed latch shows the model's own STLs. Routes are `#/concepts/catio`
 (`CatioConcept.tsx`) and `#/concepts/catio/<window-insert|insert-tunnel-coupling|tunnel|tunnel-tunnel-coupling>`
 (`CatioSubassemblyPage.tsx`).
 
@@ -287,7 +289,7 @@ The catio is a **concept**, not a catalogue model: no SCAD, no render job, no ph
   `catioWindowInsert.ts`, `catioCoupling.ts`, `catioDoor.ts`, `catioPort.ts`, …) and Three.js scenes (`*Scene.ts`). They
   draw timber, mesh and hardware with `three` directly, using part dimensions (`findPart`, `dimensionOf`), hardware ids and
   helpers from `concepts.ts`, and geometry helpers of real catalogue models (`toggleLatchMechanism`, `pressurePad`,
-  `printedCornerBracket`, `printedScreenHook`). `toggleLatchMeshes.ts` redraws the toggle latch in Three.js.
+  `printedCornerBracket`, `printedScreenHook`).
 - **Relation to models:** `concepts.ts` lists, per sub-assembly, the catalogue models it uses (`models: ConceptModelLink[]`)
   and the library parts (`parts`). `modelUsage()` lets a model's editor link back to the catio pages, and `partUsage()` lists
   catio pages under "used by" in the parts library.
@@ -302,8 +304,8 @@ The catio is a **concept**, not a catalogue model: no SCAD, no render job, no ph
 
 | Data | Source of truth | Copies and consumers |
 | --- | --- | --- |
-| Model definitions, parts, offers, concepts, physics specs | `packages/contracts` source (git) | Bundled into the web JS, API, worker and tools. Model detail is also seeded into the DB catalogue. |
-| SCAD generators, fonts, reference STLs | `models/`, `parts/` (git) | Packaged into the API and worker images. Reference STLs are seeded to `/data` or the Garage catalogue bucket. Part STLs are bundled into web. |
+| Model definitions, parts, offers, concepts, physics specs | `packages/contracts` source (git) | Bundled into the web JS, API, worker and tools. The DB catalogue holds only each model's source fingerprint and reference object. |
+| SCAD generators, fonts, reference STLs | `models/`, `parts/` (git) | Packaged into the API and worker images. Reference STLs are seeded to the Garage catalogue bucket. Part STLs are bundled into web. |
 | Render jobs, leases, worker heartbeats | PostgreSQL (Kubernetes, Compose, CI and local) | api and worker only |
 | Generated STLs and ZIPs (1 h TTL) | Garage `generated` bucket | Streamed by the API |
 | Awin feed rows | `awin_feeds` and `awin_offers` tables | Written by the offers CronJob, read by `/offers` |
@@ -312,47 +314,18 @@ The catio is a **concept**, not a catalogue model: no SCAD, no render job, no ph
 
 ## Deployment topology
 
-Detailed diagrams: [container-architecture.md](container-architecture.md). The list below only adds what those diagrams
-leave out, chiefly the **offers CronJob** and the **Vercel** path.
-
-```mermaid
-flowchart LR
-    user["Browser"]
-    subgraph k8s["RKE2 on the NUC (Flux + charts/canfactory) — production canfactory.nntin.xyz, preview canfactory-preview.nntin.xyz"]
-        webK["web (nginx static)"]
-        apiK["api"]
-        workerK["worker (+ OpenSCAD)"]
-        releaseK[["release Job<br/>maintenance.ts release"]]
-        maintK[["maintenance CronJob<br/>maintenance.ts cleanup"]]
-        offersK[["offers CronJob<br/>offers.ts ingest-awin"]]
-        pg[("PostgreSQL")]
-        garage[("Garage S3")]
-    end
-    vercel["Vercel preview builds of apps/web<br/>(vercel.json rewrites /api → production)"]
-    compose["docker compose (PostgreSQL + Garage)<br/>CI integration, local"]
-    awin(("Awin"))
-
-    user --> webK
-    user --> apiK
-    user --> vercel
-    vercel -->|"/api/*"| apiK
-    apiK --> pg
-    apiK --> garage
-    workerK --> pg
-    workerK --> garage
-    releaseK --> pg
-    releaseK --> garage
-    maintK --> pg
-    maintK --> garage
-    offersK --> pg
-    offersK --> awin
-```
+The deployment diagram is in [container-architecture.md](container-architecture.md#live-kubernetes-deployment--production-and-preview):
+the RKE2 workloads (web, api, worker, the release Job, and the maintenance and offers CronJobs), the production and preview
+hostnames, the offers CronJob's Awin egress, and the Vercel preview path. Local Compose is drawn in the same file.
 
 - Images (`Dockerfile`): `api` (Node; the release, maintenance and offers jobs also use the api image), `worker` (the pinned
   `openscad/openscad` image with Node copied in), and `web` (nginx plus `apps/web/dist`).
-- CI: `quality.yml` (typecheck, lint, contract drift, unit tests, build), `integration.yml` (Compose stack with **SQLite**,
+- CI: `quality.yml` (typecheck, lint, contract drift, unit tests, build), `integration.yml` (Compose stack with PostgreSQL and Garage,
   Playwright, renderer, `check:assembly`, sweep sample, slicer, `check:physics`), `kubernetes.yml` (chart checks,
   `test:storage` against PostgreSQL and Garage, image and chart publication), and `geometry-sweep.yml` (nightly).
+- Type and lint policy: `tsconfig.json` is `strict` with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`, and
+  `eslint.config.ts` uses `strictTypeChecked`, rejecting explicit `any`, non-null assertions and `@ts-ignore`/`@ts-nocheck`
+  (`@ts-expect-error` only with a description). `npm run check` runs both, plus contract drift and unit tests.
 
 ## Known gaps, stale docs and likely duplication
 
@@ -361,13 +334,13 @@ Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/syst
 
 ### Stale or incomplete docs
 
-1. **`docs/architecture.md` is stale.** (Tracked in #89.) It describes the localhost Docker Compose setup ("Kubernetes is a future migration
-   target; the current deployment remains localhost Docker Compose", "SQLite stores the catalogue and temporary render
-   jobs", "no accounts, uploads"). `container-architecture.md` and `kubernetes-tech-plan.md` record that production moved to
-   Kubernetes with PostgreSQL and Garage on 2026-09-22. It also leaves out everything added since: the parts library,
-   offers, physics, concept pages, and the SVG-logo and QR-code uploads in the editor.
-2. **`container-architecture.md` leaves out the `offers` CronJob** (tracked in #89) (`charts/canfactory/templates/offers.yaml`), the Awin
-   egress, and the Vercel preview path (`vercel.json`, which sends `/api` to production).
+1. ~~**`docs/architecture.md` is stale.**~~ **Resolved in #89: deleted.** Its stale Compose/SQLite statements are dropped.
+   What was still true is recorded in its owner: the editor's debounce and polling, cache keys, leases and retry in
+   `interfaces.md` (which already held them; the 16-job queue limit is added there), and the strict TypeScript and lint
+   policy under [Deployment topology](#deployment-topology). Links to it (README) now point at this file.
+2. ~~**`container-architecture.md` leaves out the `offers` CronJob.**~~ **Resolved in #89.** Its Kubernetes diagram now
+   shows the offers CronJob and its Awin egress, both hostnames, and the Vercel preview path, which calls the production API.
+   The supplementary diagram that stood in for it here is deleted, so one deployment diagram is left.
 3. `README.md` and `interfaces.md` have no map of the subsystems. Before this file, no doc related physics, offers, parts and
    concepts to each other.
 
@@ -425,9 +398,9 @@ Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/syst
 
 ### Other gaps
 
-- CI tests the SQLite path (Compose) on every PR. The PostgreSQL path is tested only in `kubernetes.yml`
-  (`test:storage`).
+- ~~CI tests the SQLite path (Compose) on every PR.~~ **Resolved by #90:** Compose in `integration.yml` and the unit tests
+  run PostgreSQL and Garage, like the chart.
 - The Awin ingest runs hourly in Kubernetes although no Awin programme has accepted.
 - `apps/web/src/styles.css` (2.3k lines) and `App.tsx` (700 lines) each hold the editor, the library and routing together.
 - "Live renderer" in the request has no single module. It is the browser preview described above, built from
-  `Viewer.tsx`, `partGeometry.ts`, `stage.ts` and the illustrations.
+  `Viewer.tsx`, `@canfactory/part-geometry`, `stage.ts` and the illustrations.
