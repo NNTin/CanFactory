@@ -1,19 +1,15 @@
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
 import { randomUUID, createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { promisify } from 'node:util';
 import { Pool } from 'pg';
 import { fruitFlyTrap } from '@canfactory/contracts';
-import { ObjectStorage, PostgresStorage, repositoryRoot, inspectStl, RENDERER_IMAGE } from '@canfactory/server';
+import { ObjectStorage, PostgresStorage, renderJob, repositoryRoot, inspectStl, selectRunner, WORKER_LIMITS } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
-import { renderJob, type OpenScadRunner } from '../apps/worker/src/render.ts';
 import { startStorageServices } from './storage-services.ts';
 
-const exec = promisify(execFile);
 const directory = await mkdtemp(join(tmpdir(), 'canfactory-storage-test-'));
 const stores: PostgresStorage[] = [];
 let admin: Pool | undefined;
@@ -58,15 +54,8 @@ try {
     const job = claims.find(Boolean); assert.ok(job?.leaseToken);
     const file = join(directory, 'artifact.stl');
     const token = job.leaseToken;
-    const runner: OpenScadRunner = async (args, signal) => {
-      const mapped = args.map(arg => arg.startsWith(directory) ? arg.replace(directory, '/data') : arg.startsWith(repositoryRoot) ? arg.replace(repositoryRoot, '/app') : arg);
-      await exec('docker', ['run', '--rm', '--init', '--network', 'none', '--cpus', '2', '--memory', '2g',
-        '--user', `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
-        '--mount', `type=bind,src=${repositoryRoot},dst=/app,readonly`, '--mount', `type=bind,src=${directory},dst=/data`,
-        RENDERER_IMAGE, 'timeout', '120', 'openscad', ...mapped], { signal, maxBuffer: 1_048_576 });
-    };
     const renew = setInterval(() => { void first.renew(job.id, token).catch(() => undefined); }, 5000);
-    try { assert.equal(await renderJob(first, job, new AbortController().signal, runner), true); }
+    try { assert.equal(await renderJob(first, job, new AbortController().signal, (await selectRunner(directory, ['docker'], WORKER_LIMITS)).run), true); }
     finally { clearInterval(renew); }
     const preview = await apis[0].inject(`/api/v1/renders/${job.id}/stl`);
     const download = await apis[1].inject(`/api/v1/renders/${job.id}/stl?download=true`);

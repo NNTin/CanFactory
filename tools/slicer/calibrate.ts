@@ -2,7 +2,7 @@
  * How QR_MIN_MODULE (packages/contracts/src/qrMagnetTag.ts) was found, and how to find it again after an OrcaSlicer upgrade: for every
  * module style and nozzle, slice the real code and the neighbourhood coupon at module widths from large to small (5 % apart), check
  * each at several bleeds, and report per bleed the smallest width from which every larger width read right. Needs OrcaSlicer
- * (ORCA_SLICER, as tools/test-slicer.ts) and OpenSCAD (OPENSCAD_TEST_MODE).
+ * (ORCA_SLICER, as tools/test-slicer.ts) and OpenSCAD (OPENSCAD_RUNNER).
  *
  *   npx tsx tools/slicer/calibrate.ts > calibration.json     (CALIBRATE_ONLY=dots, CALIBRATE_CONCURRENCY=4)
  */
@@ -10,7 +10,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { QR_MODULE_STYLES, QR_NOZZLES, type QrModuleStyle } from '@canfactory/contracts';
-import { selectRunner } from '../renderers.ts';
+import { selectRunner, WORKER_LIMITS } from '@canfactory/server';
 import { CHECK_TEXT, sliceSample, type SampleKind } from './centre.ts';
 import { checkPrint } from './check.ts';
 import { orcaInstall } from './orca.ts';
@@ -20,7 +20,7 @@ const BLEEDS = [0, 0.05, 0.1, 0.15, 0.2];
 const only = process.env['CALIBRATE_ONLY'];
 const concurrency = Math.max(1, Number(process.env['CALIBRATE_CONCURRENCY'] ?? '4'));
 const data = await mkdtemp(join(tmpdir(), 'canfactory-calibrate-'));
-const runner = selectRunner(data);
+const runner = (await selectRunner(data, ['docker'], WORKER_LIMITS)).run;
 let counter = 0;
 
 /** Whether a module width reads right at each bleed (code and coupon both). */

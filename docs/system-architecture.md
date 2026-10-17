@@ -84,7 +84,6 @@ flowchart LR
     checks --> server
     checks --> physics
     checks --> partgeom
-    checks -->|"imports runOpenScad"| worker
 
     gen -.->|"writes docs/openapi.json + schema.d.ts"| client
     web -.->|"HTTP /api/v1/*"| api
@@ -396,13 +395,15 @@ Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/syst
    test. One is the latch's side profiles, copied from the frozen, verified STL reconstructions in `reference/`. The other is
    the generators' derived formulas, which contracts needs synchronously while each SCAD stays a standalone generator.
    Removing either is a convention decision (issue #93, phase 1 comment).
-5. **Several ways to run OpenSCAD** (tracked in #94): `runOpenScad` in `apps/worker/src/render.ts`, `renderScad` with native, docker and
-   wasm runners in `tools/stl-to-scad/openscad.ts`, `dockerRunner` and `wasmRunner` in `tools/renderers.ts`, a second docker
-   invocation in `tools/test-storage.ts`, and `tools/assembly-meshes.ts`, which repeats the worker's per-part define logic.
-   `FONTS_DIR` is defined twice (`contracts/models.ts` and `tools/stl-to-scad/openscad.ts`).
-6. **Mixed import styles** (tracked in #94): `tools/physics/*` and `tools/assembly-meshes.ts` import `../../packages/*/src/index.ts` by
-   relative path, and `tools/stl-to-scad/openscad.ts` imports `packages/server/src/config.ts` directly. The rest of the repo
-   uses `@canfactory/*`. `tools/renderers.ts` imports from `apps/worker/src/render.ts`, so an app is used as a library.
+5. ~~**Several ways to run OpenSCAD.**~~ **Resolved in #94: one runner, one per-part loop.** `packages/server/src/openscad.ts`
+   holds the only OpenSCAD invocation (`openScadArgs`, the worker's `runOpenScad`, the Docker and wasm runners) and the only
+   runner choice (`selectRunner`, `OPENSCAD_RUNNER`). `renderJob` and `renderActiveParts`, the per-part define logic, moved
+   from `apps/worker` to `packages/server/src/render.ts`. `tools/renderers.ts`, `tools/stl-to-scad/openscad.ts`, the Docker
+   copy in `tools/test-storage.ts`, the per-part loop in `tools/assembly-meshes.ts` and the second `FONTS_DIR` are deleted. A
+   snapshot test (`render-invocations.test.ts`) pins the worker's command lines, so `RENDERER_FINGERPRINT` still holds.
+6. ~~**Mixed import styles.**~~ **Resolved in #94.** Tools import `@canfactory/contracts`, `@canfactory/physics` and
+   `@canfactory/server`, not `../../packages/*/src` or `apps/worker`. Only the API's own tests and the OpenAPI generator
+   import `apps/api`.
 7. **Catalogue data reaches the browser two ways.** (Tracked in #95: bundled contracts survive.) The web app fetches models and parts from the API, which serves them
    from contracts (parts) or from DB rows seeded from contracts (models), and it also bundles contracts and calls
    `findModel`, `parts` and `resolveAssembly` directly. Both paths carry the same static data.

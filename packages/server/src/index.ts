@@ -2,6 +2,8 @@ export * from './config.ts';
 export * from './errors.ts';
 export * from './mesh.ts';
 export * from './objects.ts';
+export * from './openscad.ts';
 export * from './postgres.ts';
+export * from './render.ts';
 export * from './runtime.ts';
 export * from './awin.ts';

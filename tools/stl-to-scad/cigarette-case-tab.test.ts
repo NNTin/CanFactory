@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { detectRunner, renderScad } from './openscad.ts';
+import { detectRunner, renderScad } from '@canfactory/server';
 import { g, parseStl, type Mesh } from './stl.ts';
 
 const BOX = new URL('../../models/cigarette-case/reference/11_v11.3__-_honeycomb_-_box.scad', import.meta.url).pathname;

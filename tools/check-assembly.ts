@@ -12,10 +12,10 @@
  *
  *   npm run check:assembly -- [model-id] [--parameters '{"snap":"detent"}'] [--tolerance 1] [--snap-tolerance 10]
  *
- * Needs an OpenSCAD runtime (see tools/stl-to-scad/openscad.ts). Exits 1 if any check fails.
+ * Needs an OpenSCAD runtime (selectRunner in @canfactory/server). Exits 1 if any check fails.
  */
 import { parseArgs } from 'node:util';
-import { assemblyOffset, assemblyScale, motionFrames, isAssembly, models, resolveAssembly, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '../packages/contracts/src/index.ts';
+import { assemblyOffset, assemblyScale, motionFrames, isAssembly, models, resolveAssembly, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
 import { renderAssemblyMeshes } from './assembly-meshes.ts';
 import { intersectionVolume } from './stl-to-scad/compare.ts';
 import { bounds, g, type Mesh } from './stl-to-scad/stl.ts';

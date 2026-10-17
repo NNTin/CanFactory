@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, expect, it, vi } from 'vitest';
 import { models, validateParameters, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
-import { renderJob } from '../../../apps/worker/src/render.ts';
 import { RENDERER_FINGERPRINT, repositoryRoot } from './config.ts';
 import type { PostgresStorage, RenderJob } from './postgres.ts';
 import { sourceFingerprint } from './postgres.ts';
+import { renderJob } from './render.ts';
 
 interface Invocation { file: string; args: string[]; timeout: number; killSignal: string; fontPath: string | undefined }
 const invocations: Invocation[] = [];

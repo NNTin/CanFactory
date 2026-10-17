@@ -1,10 +1,9 @@
 import { writeFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fruitFlyTrap, mossPlanter } from '@canfactory/contracts';
-import type { PostgresStorage } from '@canfactory/server';
+import { classifyRenderError, RenderFailure, type OpenScadRunner, type PostgresStorage } from '@canfactory/server';
 import { testStorage } from '../../../tools/unit-storage.ts';
 import { processJob, type JobLogger } from './process.ts';
-import { classifyRenderError, RenderFailure, type OpenScadRunner } from './render.ts';
 
 type Point = [number, number, number];
 type Triangle = [Point, Point, Point];

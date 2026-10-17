@@ -577,7 +577,7 @@ export const mossPlanter = {
   attribution: 'HpInvent (MakerWorld)',
   printNotes: 'Print each part separately.',
   // Kept short deliberately: this string and `attribution` together are stamped into each STL's 80-byte header
-  // (see apps/worker/src/render.ts's stampAttribution) and would otherwise be silently truncated there.
+  // (see packages/server/src/render.ts's stampAttribution) and would otherwise be silently truncated there.
   license: 'Adapted, original MakerWorld terms apply', licenseUrl: 'https://makerworld.com/de/models/1200114-moss-tower-verdura-the-modular-climbing-support',
   parts: mossPlanterParts,
   parameterSchema: MossPlanterParametersSchema,

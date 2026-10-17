@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { detectRunner, renderScad } from './openscad.ts';
+import { detectRunner, renderScad } from '@canfactory/server';
 import { bounds, parseStl, size, volume } from './stl.ts';
 import { analyzeTopology } from './topology.ts';
 import { readManifest } from './verify.ts';

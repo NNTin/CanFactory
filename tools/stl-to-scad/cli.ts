@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { parseArgs } from 'node:util';
 import { detectScaleVariant } from './compare.ts';
-import { renderScad } from './openscad.ts';
+import { renderScad } from '@canfactory/server';
 import { buildRelief, reliefScad } from './relief.ts';
 import { meshToPolyhedron } from './polyhedron.ts';
 import { overlayToSvg, sectionsToSvg, simplifyLoop, sliceAxial, sliceZ, toPieces } from './sections.ts';

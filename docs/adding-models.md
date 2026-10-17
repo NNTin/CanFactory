@@ -39,7 +39,7 @@ is the worked example.
 A model that is really a set of independent parts (e.g. moss-planter's five: ground spike, planting helper, cover cap,
 and two lattice segments) uses `ModelDefinition.parts: { id, title, sourcePath, scadMapping? }[]` instead of
 `sourcePath`. This changes the shape end to end, generically (no per-model code elsewhere): the worker
-(`apps/worker/src/render.ts`) renders each part with its own OpenSCAD invocation, validates each with the same
+(`renderJob` in `packages/server/src/render.ts`) renders each part with its own OpenSCAD invocation, validates each with the same
 `inspectStl`, and packages them as one ZIP (`packages/server/src/mesh.ts`'s `combineParts`); the artifact is served from
 `/api/v1/renders/{id}/zip` instead of `/stl` (`artifactFormat()` in `packages/contracts` decides which); and the web
 viewer loads every part and arranges them on an auto-sized grid instead of one centred mesh (see the assembly slider below). Each part must

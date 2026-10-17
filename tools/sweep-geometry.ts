@@ -9,7 +9,7 @@
  *   SWEEP_CONCURRENCY=2      renders at once
  *   SWEEP_REPORT=path.md     also write the results as Markdown (and to $GITHUB_STEP_SUMMARY when set)
  *   TEST_ONLY=litter-shovel  one model
- *   OPENSCAD_TEST_MODE       the renderer (tools/renderers.ts): Docker by default, `native` or `wasm`
+ *   OPENSCAD_RUNNER          the renderer (selectRunner in @canfactory/server): Docker by default, `native` or `wasm`
  *
  * Every failure prints the settings that differ from the model's defaults, which is all it takes to reproduce it in the editor.
  */
@@ -17,9 +17,7 @@ import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { models, validateParameters, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
-import { ObjectStorage, PostgresStorage, repositoryRoot } from '@canfactory/server';
-import { classifyRenderError, renderJob, type MeshRepair } from '../apps/worker/src/render.ts';
-import { selectRunner } from './renderers.ts';
+import { classifyRenderError, ObjectStorage, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair } from '@canfactory/server';
 import { startStorageServices } from './storage-services.ts';
 
 const env = (name: string, fallback: string) => process.env[name] ?? fallback;
@@ -96,7 +94,7 @@ const directory = await mkdtemp(join(tmpdir(), 'canfactory-sweep-'));
 const services = await startStorageServices('canfactory-sweep');
 const store = new PostgresStorage(services.databaseUrl, repositoryRoot, directory, new ObjectStorage(services.objects));
 await store.migrate(); await store.seed();
-const runner = selectRunner(directory);
+const runner = (await selectRunner(directory, ['docker'], WORKER_LIMITS)).run;
 const results: Result[] = [];
 let invalidBoundaries = 0;
 try {
