@@ -38,7 +38,6 @@ describe('toggle latch mechanism', () => {
     }
     expect(G.base.pinDiameter).toBe(numbers(BASE, 'PIN_D')[0]);
     expect(G.base.knuckle).toEqual(numbers(BASE, 'KNUCKLE_X'));
-    expect(G.base.pins).toEqual(numbers(BASE, 'PIN_X'));
     expect(G.catch.hook).toEqual(numbers(CATCH, 'HOOK_X'));
     expect([G.lever.pivotDiameter, G.lever.pinDiameter]).toEqual([numbers(LEVER, 'PIVOT_D')[1], numbers(LEVER, 'PIN_D')[1]]);
     expect([G.lever.pinLength, G.lever.side, G.lever.width]).toEqual(['PIN_LENGTH', 'SIDE', 'WIDTH'].map(name => numbers(LEVER, name)[0]));

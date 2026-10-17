@@ -20,6 +20,23 @@ const pause = (milliseconds: number, signal: AbortSignal) => new Promise<void>((
   if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true });
 });
 
+/** Queues `request` and polls it until it has rendered; throws a `ProblemError` if it fails. `onStatus` hears it queued and running. */
+export async function completedRender(request: RenderRequest, signal: AbortSignal, onStatus: (status: 'queued' | 'running') => void = () => {}): Promise<Render> {
+  const response = await api.POST('/api/v1/renders', { body: request, signal });
+  if (response.error) throw new ProblemError(problemOf(response.error));
+  let result: Render = response.data;
+  while (result.status === 'queued' || result.status === 'running') {
+    onStatus(result.status);
+    await pause(1000, signal);
+    const status = await api.GET('/api/v1/renders/{id}', { params: { path: { id: result.id } }, signal });
+    if (status.error) throw new ProblemError(problemOf(status.error));
+    result = status.data;
+  }
+  if (result.status === 'failed')
+    throw new ProblemError(result.error ? problemOf(result.error) : { code: 'RENDER_FAILED', message: 'Rendering failed. Please try again.', reference: result.id, retryable: true });
+  return result;
+}
+
 /** One outstanding job per mounted editor; newer inputs replace pending work and fence stale results. */
 export function useRender(model: ModelDetail, parameters: ParameterValues, valid: boolean) {
   const key = JSON.stringify([model.id, model.version, parameters]);
@@ -42,18 +59,7 @@ export function useRender(model: ModelDetail, parameters: ParameterValues, valid
     const abort = new AbortController(); controller.current = abort;
     setPhase('queued'); setProblem(null);
     try {
-      const response = await api.POST('/api/v1/renders', { body: wanted.request, signal: abort.signal });
-      if (response.error) throw new ProblemError(problemOf(response.error));
-      let result: Render = response.data;
-      while (result.status === 'queued' || result.status === 'running') {
-        if (isMounted()) setPhase(result.status);
-        await pause(1000, abort.signal);
-        const status = await api.GET('/api/v1/renders/{id}', { params: { path: { id: result.id } }, signal: abort.signal });
-        if (status.error) throw new ProblemError(problemOf(status.error));
-        result = status.data;
-      }
-      if (result.status === 'failed')
-        throw new ProblemError(result.error ? problemOf(result.error) : { code: 'RENDER_FAILED', message: 'Rendering failed. Please try again.', reference: result.id, retryable: true });
+      const result = await completedRender(wanted.request, abort.signal, status => { if (isMounted()) setPhase(status); });
       if (isCurrent(wanted.key)) {
         setCompleted({ key: wanted.key, render: result, parameters: { ...wanted.request.parameters } });
         setProblem(null);

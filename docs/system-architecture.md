@@ -387,11 +387,15 @@ Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/syst
    `tools/assembly-meshes.ts` checks reference objects as it draws them, so the editor and the collision check show the same
    screw. The physics primitives stay: they are authored per mechanism in its spec, not drawn from a family's dimensions
    (`docs/physics-plan.md`, “Library hardware”).
-4. **Model geometry rewritten outside SCAD.** (Tracked in #93.) The toggle latch exists in SCAD (`models/toggle-latch`), in
-   `toggleLatchMechanism.ts` (contracts), in `toggleLatchMeshes.ts` and `ToggleLatchIllustration.tsx` (web), and again in the
-   catio printed latch and port scenes. Other models have the same pattern (`*Illustration.tsx`, catio use of
-   `printedCornerBracket` and `pressurePad`) and the tests that keep TS and SCAD values equal (for example the
-   cigarette-case physics test).
+4. ~~**Model geometry rewritten outside SCAD.**~~ **Resolved in #93: the one redraw is deleted; the rest is not a redraw.**
+   `toggleLatchMeshes.ts`, the catio's hand-extruded toggle latch, is deleted. The catio now shows the model's own STLs, from
+   one cached render at the model's defaults (`catioPrintedLatchScene.ts`, through `completedRender` in `useRender.ts`).
+   `toggleLatchMechanism.ts` stays: it is the only copy of the latch's kinematics, which the editor, physics, the card and the
+   catio all need synchronously. The illustrations are card art drawn from the contracts layouts, and the catio draws the
+   bracket, pad and hook as boxes and cylinders sized from those layouts. Two copies remain on purpose, each kept equal by a
+   test. One is the latch's side profiles, copied from the frozen, verified STL reconstructions in `reference/`. The other is
+   the generators' derived formulas, which contracts needs synchronously while each SCAD stays a standalone generator.
+   Removing either is a convention decision (issue #93, phase 1 comment).
 5. **Several ways to run OpenSCAD** (tracked in #94): `runOpenScad` in `apps/worker/src/render.ts`, `renderScad` with native, docker and
    wasm runners in `tools/stl-to-scad/openscad.ts`, `dockerRunner` and `wasmRunner` in `tools/renderers.ts`, a second docker
    invocation in `tools/test-storage.ts`, and `tools/assembly-meshes.ts`, which repeats the worker's per-part define logic.
@@ -402,9 +406,11 @@ Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/syst
 7. **Catalogue data reaches the browser two ways.** (Tracked in #95: bundled contracts survive.) The web app fetches models and parts from the API, which serves them
    from contracts (parts) or from DB rows seeded from contracts (models), and it also bundles contracts and calls
    `findModel`, `parts` and `resolveAssembly` directly. Both paths carry the same static data.
-8. **Catio pages are a separate geometry stack.** (Redraws of catalogue models are tracked in #93.) About 7.4k lines of `catio*.ts` and `Catio*.tsx` build Three.js geometry by hand, separate
-   from the model, render and assembly pipeline. Hardware ids sit in `concepts.ts` while designs and BOMs sit in web.
-   `catioSubassembly.ts` re-exports `BomLine` and `BOM_GROUPS` from contracts.
+8. ~~**Catio pages are a separate geometry stack.**~~ **Resolved in #93 for catalogue models.** The catio's only redraw of a
+   catalogue model, the printed toggle latch, now comes from the model's render (see 4). The remaining hand-built geometry is
+   the catio's own: timber, netting, doors, and schematic boxes for hardware. That geometry follows the sliders and feeds
+   layout, BOM and clash checks, so a render round trip per change would not fit. Hardware ids in `concepts.ts`, BOMs in web
+   and the `BomLine` re-export belong to finding 9 (#96).
 9. **Assembly or BOM spread.** (Tracked in #96.) `modelBom` (contracts) and catio `BomLine`s (`concepts.ts` types, built in web) both end in
    `Requirement[]`, by different routes.
 

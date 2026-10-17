@@ -84,7 +84,8 @@ model page and card use.
   [catioPrintedLatch.ts](../../../apps/web/src/catioPrintedLatch.ts)) and its drawing (`buildPrintedLatches`) are the same
   code the [tunnel–tunnel coupling](tunnel-tunnel-coupling.md) uses between sections.
 - **Live assembly:**
-  - Its four parts are built from their real profiles.
+  - Its four parts are the toggle latch model's own STLs at its defaults, the render the editor shows. The page fetches them once
+    from the render API, and the mechanism poses them.
   - Stage 2 screws the docking frame's plates on (catch plates on its left, the base plates on its right) and stage 3 the
     flange's, with the lever and link on each base.
   - Stage 5 closes each lever over centre with the mechanism.
