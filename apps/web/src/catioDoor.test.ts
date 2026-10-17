@@ -1,29 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { CATIO_DOOR_HARDWARE, dimensionOf, findPart } from '@canfactory/contracts';
-import {
-  buttonOutline, buttonOverlap, buttonsAlong, buttonSweep, DOOR, LOCK_FROM_PIVOT, DOOR_TRAVEL, doorAction, doorBom, doorBounds, doorFasteners, doorLibraryParts, doorPose, doorRetention, insetPanel, setInDoor,
-  DOOR_SEATS, PORT_CLOSURE_DEFAULT, PORT_CLOSURE_LEGACY, PORT_CLOSURES, slidingGateRise, type DoorBox, type DoorPanel,
-} from './catioDoor.ts';
 import { buildDoorPanel } from './catioDoorScene.ts';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
 import { catioMesh } from '@canfactory/contracts';
-import { MODULAR, MODULAR_DEFAULT, modularPortPanel, modularSteps, PORT_FRAME, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { createModularCatio, type ModularState } from './catioModularScene.ts';
 import { CATIO_SETTINGS_VERSION, CATIO_STORAGE_KEY, defaultCatioSettings, loadCatioSettings, migrateCatioSettings, parseCatioSettings, savedBeforeClosure } from './catioSettings.ts';
-import { defaultSubassemblySettings, fastenerClashes, parseSubassemblySettings, saveShared, subassemblyStorageKey } from './catioSubassembly.ts';
+import { defaultSubassemblySettings, parseSubassemblySettings, saveShared, subassemblyStorageKey } from './catioSubassembly.ts';
 import { couplingDefinition, tunnelCouplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
-import { COUPLING_CONTROLS, COUPLING_DEFAULT, couplingFacts, couplingLayout, couplingSteps } from './catioCoupling.ts';
 import { createCouplingScene } from './catioCouplingScene.ts';
-import { parseTunnel, TUNNEL, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSite, tunnelSteps, vec, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
-import { TUNNEL_COUPLING_DEFAULT } from './catioTunnelJoint.ts';
 import { createTunnelCouplingScene } from './catioTunnelCouplingScene.ts';
-import { STANDARD_PORT } from './catioPort.ts';
 import { createTunnelScene } from './catioTunnelScene.ts';
-import { windowFrame } from './catioWindow.ts';
-import { doorZone, HOOK_FIT, INSERT, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig, type WindowSpec } from './catioWindowInsert.ts';
 import { createWindowInsertScene } from './catioWindowInsertScene.ts';
+import { buttonOutline, buttonOverlap, buttonsAlong, buttonSweep, COUPLING_CONTROLS, COUPLING_DEFAULT, couplingFacts, couplingLayout, couplingSteps, DOOR, DOOR_SEATS, DOOR_TRAVEL, doorAction, doorBom, doorBounds, doorFasteners, doorLibraryParts, doorPose, doorRetention, doorZone, fastenerClashes, HOOK_FIT, INSERT, insetPanel, LOCK_FROM_PIVOT, MODULAR, MODULAR_DEFAULT, modularPortPanel, modularSteps, parseTunnel, PORT_CLOSURE_DEFAULT, PORT_CLOSURE_LEGACY, PORT_CLOSURES, PORT_FRAME, setInDoor, slidingGateRise, STANDARD_PORT, TUNNEL, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSteps, validateModular, validateWindowInsert, vec, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowFrame, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type DoorBox, type DoorPanel, type ModularConfig, type TunnelConfig, type TunnelSite, type WindowInsertConfig, type WindowSpec } from '@canfactory/catio';
+import { tunnelSite } from './catioSaved.ts';
 
 /** The cat port sizes the catio concept page allows (20–45 cm each way), and section lengths between the tunnel's flanges. */
 const SIZES = [200, 250, 300, 380, 450];

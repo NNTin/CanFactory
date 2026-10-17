@@ -1,10 +1,11 @@
 import { COUPLING_HARDWARE as HW, COUPLING_LATCH, couplingLatch, dimensionOf, findPart, toggleLatchMechanism as TL, type Part } from '@canfactory/contracts';
 import type { CatioView } from './catioDesign.ts';
 import { E_PROFILE_SEAL, latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, printedLatchLine, printedLatchScrews, type LatchMount } from './catioPrintedLatch.ts';
-import type { CatioMode } from './catioSettings.ts';
-import { clearOf, fastenerClashes, fastenersAlong, loadSubassemblyConfig, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
+import type { CatioMode } from './catioDesign.ts';
+import { clearOf, fastenerClashes, fastenersAlong, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
 import { portHalf } from './catioPort.ts';
-import { parseTunnel, TUNNEL, TUNNEL_DEFAULT, tunnelLayout, tunnelSite, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
+import { TUNNEL, tunnelLayout, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
+import type { TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { FRAME_FACE_Y } from './catioWindow.ts';
 import { INSERT, WINDOW_INSERT_DEFAULT, windowInsertLayout } from './catioWindowInsert.ts';
 import { CLOSURE_WORDS, doorFasteners, PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING } from './catioDoor.ts';
@@ -83,13 +84,8 @@ const FRAME_SCREW = [part(HW.frameScrew), part(HW.frameScrewDeep)].find(p => dim
 /** How far behind the wall face the insert's port frame lies. */
 const PORT_FACE_DEPTH = -DEFAULT_FACE;
 
-/** The fixed interfaces: the window insert and the tunnel as their pages set them (or their defaults). */
-export interface CouplingSite { tunnel: TunnelConfig; site: TunnelSite }
-export function couplingSite(): CouplingSite {
-  return { tunnel: loadSubassemblyConfig('tunnel', parseTunnel, TUNNEL_DEFAULT), site: tunnelSite() };
-}
-/** The coupling as saved on its page (or its defaults), for the pages that show it. */
-export const savedCoupling = () => loadSubassemblyConfig('insert-tunnel-coupling', parseCoupling, COUPLING_DEFAULT);
+/** The fixed interfaces: the window insert and the tunnel as their pages set them, and how the tunnel's sections are coupled. */
+export interface CouplingSite { tunnel: TunnelConfig; site: TunnelSite; joint: TunnelCouplingConfig }
 
 function part(id: string): Part {
   const found = findPart(id); if (!found) throw new Error(`The parts library has no ${id}.`); return found;
@@ -112,10 +108,10 @@ export interface Latch {
 export interface Fastener { partId: string; component: 'frame-screws' | 'latch-screws' | 'catch-screws' | 'lip-screws'; at: V3; direction: V3; use: string; of?: string }
 
 /** Everything the coupling is, placed and installed. */
-export function couplingLayout(config: CouplingConfig, { tunnel, site }: CouplingSite = couplingSite()) {
+export function couplingLayout(config: CouplingConfig, { tunnel, site, joint: sections }: CouplingSite) {
   const errors: string[] = [];
   const insert = windowInsertLayout('modular', site.insert, site.window);
-  const tl = tunnelLayout(tunnel, site);
+  const tl = tunnelLayout(tunnel, site, sections);
   const port = insert.port ?? { width: site.w, height: site.h, transomZ: insert.floor + site.h };
   const { width: w, height: h, transomZ } = port; const floor = insert.floor;
   const F = TUNNEL.flange.width; const T = TUNNEL.flange.thickness; const pm = INSERT.portMember;
@@ -248,13 +244,13 @@ export function couplingLayout(config: CouplingConfig, { tunnel, site }: Couplin
 }
 export type CouplingLayout = ReturnType<typeof couplingLayout>;
 
-export function validateCoupling(_variant: CatioMode, config: CouplingConfig, site?: CouplingSite): string[] {
+export function validateCoupling(_variant: CatioMode, config: CouplingConfig, site: CouplingSite): string[] {
   return couplingLayout(config, site).errors;
 }
 
 /** Stage 0 is the insert in its recess and the tunnel's levelled wall support; 1–2 at the insert, 3 on the first section, 4–5 the joint. */
-export function couplingSteps(_variant: CatioMode, config: CouplingConfig): readonly AssemblyStep[] {
-  const l = couplingLayout(config);
+export function couplingSteps(_variant: CatioMode, config: CouplingConfig, site: CouplingSite): readonly AssemblyStep[] {
+  const l = couplingLayout(config, site);
   const n = l.latches.length; const latch = l.latchName; const printed = !l.latchPart;
   const frameScrews = l.fasteners.filter(f => f.component === 'frame-screws').length;
   const close = printed ? '' : config.latchType === 'S' ? ' The safety catch clicks over the lever.' : config.latchType === 'SV' ? ' Hang a padlock through each eye if the tunnel should stay put.' : '';
@@ -289,7 +285,7 @@ const partSize = (p: Part) => {
 };
 
 /** The parts list: the docking frame's cut list, the latches and screws by library part, and the seal and lip. */
-export function couplingBom(_variant: CatioMode, config: CouplingConfig, site?: CouplingSite): BomLine[] {
+export function couplingBom(_variant: CatioMode, config: CouplingConfig, site: CouplingSite): BomLine[] {
   const l = couplingLayout(config, site);
   const lines: BomLine[] = [];
   const section = `${Math.round(l.thickness)} × ${TUNNEL.flange.width}`;
@@ -313,7 +309,7 @@ export function couplingBom(_variant: CatioMode, config: CouplingConfig, site?: 
   return lines;
 }
 
-export function couplingFacts(_variant: CatioMode, config: CouplingConfig, site?: CouplingSite): SubassemblyFact[] {
+export function couplingFacts(_variant: CatioMode, config: CouplingConfig, site: CouplingSite): SubassemblyFact[] {
   const l = couplingLayout(config, site);
   const cm = (mm: number) => `${Number((mm / 10).toFixed(1))}`;
   return [
@@ -329,8 +325,8 @@ export function couplingFacts(_variant: CatioMode, config: CouplingConfig, site?
   ];
 }
 
-export function couplingViews(_variant: CatioMode, config: CouplingConfig): Record<CatioView, CameraPreset> {
-  const l = couplingLayout(config);
+export function couplingViews(_variant: CatioMode, config: CouplingConfig, site: CouplingSite): Record<CatioView, CameraPreset> {
+  const l = couplingLayout(config, site);
   const cz = l.floor + l.h / 2; const span = l.w + 2 * TUNNEL.flange.width;
   // far enough out to see the whole recess and the first section raised over its support
   const room = Math.max(l.site.window.openingWidth, l.site.window.openingHeight);

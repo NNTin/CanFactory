@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { RenderRequestSchema, toggleLatch, toggleLatchMechanism as TL } from '@canfactory/contracts';
 import { Value } from 'typebox/value';
-import { latchAcross, type LatchMount } from './catioPrintedLatch.ts';
 import { smoothNormals } from './stage.ts';
 import { completedRender } from './useRender.ts';
 import { partsFromZip } from './Viewer.tsx';
+import { latchAcross, type LatchMount } from '@canfactory/catio';
 
 /** The printed parts' filament colours, as the toggle latch model suggests them. */
 const COLOURS = { base: '#5f7350', catch: '#5f7350', lever: '#d98460', link: '#3f6ea6' } as const;

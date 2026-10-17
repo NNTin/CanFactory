@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { CATIO_MESH_PARTS, catioMesh, dimensionOf, findPart, modelUsage, partUsage, printedCornerBracket, printedCornerBracketFor, printedScreenHook, validateParameters, WINDOW_INSERT_BRACKETS, WINDOW_INSERT_FOOT, WINDOW_INSERT_MEMBER, windowInsertConcept } from '@canfactory/contracts';
-import { fastenerClashes } from './catioSubassembly.ts';
 import type { CatioState } from './catioScene.ts';
 import { parseSubassemblySettings, defaultSubassemblySettings } from './catioSubassembly.ts';
 import { windowInsertDefinition } from './catioSubassemblies.ts';
-import { TILT_MAX, windowFrame } from './catioWindow.ts';
-import { HOOK_FIT, INSERT, PAD_HEIGHT, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from './catioWindowInsert.ts';
 import { BENCH_OFFSET, buildInsertContext, createWindowInsertScene } from './catioWindowInsertScene.ts';
-import { DOOR_SEATS, PORT_CLOSURE_DEFAULT, PORT_CLOSURES } from './catioDoor.ts';
 import { createCatioParts } from './catioParts.ts';
+import { DOOR_SEATS, fastenerClashes, HOOK_FIT, INSERT, PAD_HEIGHT, PORT_CLOSURE_DEFAULT, PORT_CLOSURES, TILT_MAX, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowFrame, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from '@canfactory/catio';
 
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
 const bounds = (object: THREE.Object3D) => new THREE.Box3().setFromObject(object, true);

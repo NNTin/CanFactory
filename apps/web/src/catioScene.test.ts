@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { createCatioScene, type CatioState } from './catioScene.ts';
 import { catioMesh } from '@canfactory/contracts';
-import { CATIO, CATIO_DERIVED, ROOF_NET, roofBearers } from './catioDesign.ts';
-import { WINDOW_INSERT_DEFAULT, windowInsertLayout } from './catioWindowInsert.ts';
+import { CATIO, CATIO_DERIVED, ROOF_NET, roofBearers, WINDOW_INSERT_DEFAULT, windowInsertLayout } from '@canfactory/catio';
 
 const assembled: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
 const bounds = (object: THREE.Object3D) => new THREE.Box3().setFromObject(object, true);

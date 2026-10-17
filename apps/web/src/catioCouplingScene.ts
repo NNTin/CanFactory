@@ -2,14 +2,12 @@ import * as THREE from 'three';
 import { dimensionOf, findPart } from '@canfactory/contracts';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
-import type { CatioMode } from './catioSettings.ts';
-import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
+import type { SubassemblyModel } from './catioSubassembly.ts';
 import { buildWindowContext } from './catioWindowContext.ts';
-import { COUPLING, couplingLayout, couplingSite, type CouplingConfig, type CouplingLayout, type CouplingSite } from './catioCoupling.ts';
 import { buildInsertContext, type PortClosureBuilt } from './catioWindowInsertScene.ts';
-import { TUNNEL, vec } from './catioTunnel.ts';
 import { buildSectionPieces, tunnelDrawing } from './catioTunnelPieces.ts';
 import { buildPrintedLatches } from './catioPrintedLatchScene.ts';
+import { COUPLING, couplingLayout, TUNNEL, vec, type CatioMode, type CouplingConfig, type CouplingLayout, type CouplingSite, type V3 } from '@canfactory/catio';
 
 /** Stage 3 fits the latches to the first section this far above its place; stage 4 lowers it onto its wall support. */
 export const LIFT = 450;
@@ -85,7 +83,7 @@ export function buildCouplingPieces(p: ReturnType<typeof createCatioParts>, layo
  * catches fitted to the insert, the first section with its latches lowered onto its support, and the latches closed. The page's
  * open/closed toggle shows the joint released: every lever open and its hook off the catch.
  */
-export function createCouplingScene(_variant: CatioMode, config: CouplingConfig, site: CouplingSite = couplingSite()): SubassemblyModel & {
+export function createCouplingScene(_variant: CatioMode, config: CouplingConfig, site: CouplingSite): SubassemblyModel & {
   layout: ReturnType<typeof couplingLayout>; motions: PieceMotion[]; levers: THREE.Group[]; lift: () => number; closure: PortClosureBuilt | null;
 } {
   const layout = couplingLayout(config, site);

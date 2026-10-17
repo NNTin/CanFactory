@@ -1,16 +1,10 @@
 import * as THREE from 'three';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
-import { CATIO, ROOF_NET, roofBearers } from './catioDesign.ts';
-import { MODULAR as d, modularLayout, modularPortPanel, PORT_FRAME, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { buildDoorPanel } from './catioDoorScene.ts';
-import { blankPanel, setInDoor } from './catioDoor.ts';
-import { STANDARD_PORT } from './catioPort.ts';
-import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
-import { savedTunnelCoupling, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { buildWindowFrame } from './catioWindowContext.ts';
-import { HOOK_FIT, modularWindow, portPanelStow, savedWindowInsert, windowInsertLayout, windowProfileOf, type WindowInsertConfig } from './catioWindowInsert.ts';
 import { buildHungHardware } from './catioWindowInsertScene.ts';
+import { blankPanel, CATIO, HOOK_FIT, MODULAR as d, modularLayout, modularPortPanel, modularWindow, PORT_FRAME, portPanelStow, PRINTED_LATCH_JOINT, ROOF_NET, roofBearers, setInDoor, STANDARD_PORT, validateModular, windowInsertLayout, windowProfileOf, type ModularConfig, type TunnelCouplingConfig, type WindowInsertConfig } from '@canfactory/catio';
 
 type V3 = [number, number, number];
 export interface CatioDoor {
@@ -26,15 +20,12 @@ export interface CatioDoor {
 export interface ModularState extends CatioState { doors?: Readonly<Record<string, boolean>> }
 /**
  * The modular catio. The window is the real tilt-and-turn window; the insert follows the window insert page (`insert`, as saved
- * there by default): hung on the window frame, its collar lies on the frame's face with its screen hooks and feet, otherwise it is
+ * there): hung on the window frame, its collar lies on the frame's face with its screen hooks and feet, otherwise it is
  * the schematic recess collar with padded clamps.
  */
 /** What the whole catio's tunnel takes from the tunnel pages: how its doors are held. */
 export interface ModularTunnel { doorFixing: TunnelCouplingConfig['doorFixing'] }
-export function savedModularTunnel(): ModularTunnel {
-  return { doorFixing: savedTunnelCoupling().doorFixing };
-}
-export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig = savedWindowInsert(), tunnel: ModularTunnel = savedModularTunnel()) {
+export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig, tunnel: ModularTunnel) {
   const errors = validateModular(c); if (errors.length) throw new Error(errors.join(' '));
   const p = createCatioParts(); const { component, box, rod, ring, panel, materials: m } = p;
   const layout = modularLayout(c); const doors: CatioDoor[] = [];

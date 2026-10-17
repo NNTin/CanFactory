@@ -2,20 +2,13 @@ import * as THREE from 'three';
 import { dimensionOf, findPart } from '@canfactory/contracts';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
-import type { CatioMode } from './catioSettings.ts';
-import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
+import type { SubassemblyModel } from './catioSubassembly.ts';
 import { buildWindowContext } from './catioWindowContext.ts';
-import { windowInsertLayout } from './catioWindowInsert.ts';
 import { buildInsertContext } from './catioWindowInsertScene.ts';
-import { couplingLayout, savedCoupling } from './catioCoupling.ts';
 import { buildCouplingPieces } from './catioCouplingScene.ts';
-import type { LatchMount } from './catioPrintedLatch.ts';
-import { doorAction, setInDoor } from './catioDoor.ts';
 import { buildDoorPanel } from './catioDoorScene.ts';
-import { PORT_FRAME } from './catioModularDesign.ts';
-import { groundAt, tunnelBounds, tunnelLayout, tunnelSite, TUNNEL, vec, type Member, type Piece, type Rect, type TunnelConfig, type TunnelLayout, type TunnelSite } from './catioTunnel.ts';
-import { savedTunnelCoupling, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { buildCouplingJoint, buildTunnelDoors, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
+import { couplingLayout, doorAction, groundAt, PORT_FRAME, setInDoor, TUNNEL, tunnelBounds, tunnelLayout, vec, windowInsertLayout, type CatioMode, type CouplingConfig, type LatchMount, type Member, type Piece, type Rect, type TunnelConfig, type TunnelCouplingConfig, type TunnelLayout, type TunnelSite, type V3 } from '@canfactory/catio';
 
 /** Stages 3–4 frame and mesh the sections this far above their line; stage 5 lowers them onto the supports. */
 export const LIFT = 650;
@@ -49,7 +42,7 @@ export function memberCaption(layout: TunnelLayout, mem: Member, collars: boolea
 }
 
 /** The tunnel on its site: every piece of `tunnelLayout`, staged as `tunnelSteps` describes. */
-export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, site: TunnelSite = tunnelSite(), joint: TunnelCouplingConfig = savedTunnelCoupling()): SubassemblyModel & {
+export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig, couplingConfig: CouplingConfig): SubassemblyModel & {
   layout: ReturnType<typeof tunnelLayout>; motions: PieceMotion[]; carriers: Map<string, number>; drops: Map<string, number>;
   levers: { mount: LatchMount; lever: THREE.Group; setOpen: (open: number) => void }[];
   holds: ReturnType<typeof buildSupportHold>[]; doors: ReturnType<typeof buildTunnelDoors>;
@@ -91,8 +84,7 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
   buildInsertContext(p, windowInsertLayout('modular', site.insert, site.window));
   // the coupling as set on its page, docked to this tunnel: its frame, seal and catches are on the insert from the start; the
   // latch bodies and lip come with the first section and are closed in the last stage (the coupling page shows how)
-  const couplingConfig = savedCoupling();
-  const dock = buildCouplingPieces(p, couplingLayout(couplingConfig, { tunnel: config, site }), couplingConfig.latchType);
+  const dock = buildCouplingPieces(p, couplingLayout(couplingConfig, { tunnel: config, site, joint }), couplingConfig.latchType);
   const dockingFrame = component('docking-frame', 0, undefined);
   // (at the standard port, the printed latch's base is on the frame's right side and its catch on the flange: see catioCoupling.ts)
   const baseOnFrame = (id: string) => dock.latches.some(q => q.latch.id === id && q.latch.printed?.baseOn === 'frame');

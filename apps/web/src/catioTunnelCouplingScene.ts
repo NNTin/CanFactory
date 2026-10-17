@@ -2,13 +2,10 @@ import * as THREE from 'three';
 import { toggleLatchMechanism as TL } from '@canfactory/contracts';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
-import type { CatioMode } from './catioSettings.ts';
-import type { SubassemblyModel, V3 } from './catioSubassembly.ts';
-import { doorAction } from './catioDoor.ts';
-import { groundAt, TUNNEL, vec } from './catioTunnel.ts';
-import { ENTRY, tunnelCouplingLayout, tunnelCouplingSite, type TunnelCouplingConfig, type TunnelCouplingLayout, type TunnelCouplingSite } from './catioTunnelCoupling.ts';
+import type { SubassemblyModel } from './catioSubassembly.ts';
 import { buildTunnelDoors, buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
 import { memberApproach } from './catioTunnelScene.ts';
+import { doorAction, ENTRY, groundAt, TUNNEL, tunnelCouplingLayout, vec, type CatioMode, type TunnelCouplingConfig, type TunnelCouplingLayout, type TunnelCouplingSite, type V3 } from '@canfactory/catio';
 
 /** Stage 1 frames the first section this far above its place, then lays it on the support. */
 export const LIFT = 450;
@@ -34,7 +31,7 @@ const LAST_STAGE = 5;
  * by the gap; the joint closed (the printed latches over centre with the shared mechanism, or the bolts and nuts); and screwed down.
  * Every piece is drawn by the tunnel's own builders (catioTunnelPieces.ts), so it is the tunnel page's joint.
  */
-export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCouplingConfig, site: TunnelCouplingSite = tunnelCouplingSite()): SubassemblyModel & {
+export function createTunnelCouplingScene(_variant: CatioMode, config: TunnelCouplingConfig, site: TunnelCouplingSite): SubassemblyModel & {
   layout: TunnelCouplingLayout; motions: PieceMotion[]; levers: ReturnType<typeof buildCouplingJoint>['latches']; hold: ReturnType<typeof buildSupportHold>; lift: () => number; entry: () => number; doors: ReturnType<typeof buildTunnelDoors>;
 } {
   const layout = tunnelCouplingLayout(config, site);
