@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blankPanel, BOLTS_PER_SIDE, boltStations, buttonOverlap, DOOR, DOOR_FIXINGS, DOOR_SEATS, frameAlong, LATCH_INTO_RING, LATCH_REACH, latchHeights, portHalf, portLatches, portOutline, portRing, portTemplate, portTemplateSvg, PRINTED_LATCH, PRINTED_LATCH_JOINT, setInDoor, sidePortFace, sidePortLength, sidePortOffset, STANDARD_PORT, type DoorPanel, type Face, type V3 } from '@canfactory/catio';
+import { blankPanel, BOLTS_PER_SIDE, boltStations, buttonOverlap, DOOR, DOOR_FIXINGS, DOOR_SEATS, frameAlong, LATCH_INTO_RING, LATCH_REACH, latchHeights, portHalf, portLatches, portOutline, portRing, portTemplate, portTemplateSvg, PRINTED_LATCH, PRINTED_LATCH_JOINT, setInDoor, sidePortFace, sidePortLength, sidePortOffset, STANDARD_PORT, type DoorPanel, type Face, type V3 } from './index.ts';
 
 const { thickness: T, width: F } = STANDARD_PORT.ring;
 const SIZES = [200, 250, 300, 380, 450];

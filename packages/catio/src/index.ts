@@ -16,6 +16,7 @@ export * from './catioTunnel.ts';
 export * from './catioCoupling.ts';
 export * from './catioTunnelCoupling.ts';
 export * from './catioModularDesign.ts';
+export * from './catioEnclosure.ts';
 // Names two modules export alike: the window insert's under its own name, the others' prefixed.
 export type { Box, Fastener, MeshPanel } from './catioWindowInsert.ts';
 export type { Fastener as TunnelFastener, MeshPanel as TunnelMeshPanel } from './catioTunnel.ts';

@@ -16,5 +16,17 @@ export default defineConfig(
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       '@typescript-eslint/no-confusing-void-expression': ['error', { ignoreArrowShorthand: true }]
     }
+  },
+  {
+    // The catio's pure domain: it takes every input explicitly, so that the planner's evaluation depends on the project alone. No
+    // drawing, no UI, no browser globals and no saved settings; its tsconfig.json also leaves out the DOM library.
+    files: ['packages/catio/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [
+        { group: ['three', 'three/*', 'react', 'react/*', 'react-dom', 'react-dom/*', 'lucide-react'], message: 'packages/catio is pure: draw and render in apps/web.' },
+        { group: ['**/apps/**', '@canfactory/web', '@canfactory/web/*'], message: 'packages/catio must not depend on the web app.' },
+      ] }],
+      'no-restricted-globals': ['error', ...['localStorage', 'sessionStorage', 'indexedDB', 'window', 'document', 'navigator', 'location', 'fetch'].map(name => ({ name, message: 'packages/catio takes its inputs explicitly: resolve saved settings and browser state in apps/web.' }))],
+    }
   }
 );

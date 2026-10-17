@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { createCatioParts } from './catioParts.ts';
 import type { CatioState } from './catioScene.ts';
 import { buildDoorPanel } from './catioDoorScene.ts';
+import { buildEnclosure } from './catioEnclosureScene.ts';
 import { buildWindowFrame } from './catioWindowContext.ts';
 import { buildHungHardware } from './catioWindowInsertScene.ts';
-import { blankPanel, CATIO, HOOK_FIT, MODULAR as d, modularLayout, modularPortPanel, modularWindow, PORT_FRAME, portPanelStow, PRINTED_LATCH_JOINT, ROOF_NET, roofBearers, setInDoor, STANDARD_PORT, validateModular, windowInsertLayout, windowProfileOf, type ModularConfig, type TunnelCouplingConfig, type WindowInsertConfig } from '@canfactory/catio';
+import { blankPanel, enclosureLayout, HOOK_FIT, meshAroundPort, MODULAR as d, modularLayout, modularPortPanel, modularWindow, PORT_FRAME, portPanelStow, PRINTED_LATCH_JOINT, setInDoor, STANDARD_PORT, validateModular, windowInsertLayout, windowProfileOf, type EnclosurePort, type ModularConfig, type TunnelCouplingConfig, type WindowInsertConfig } from '@canfactory/catio';
 
 type V3 = [number, number, number];
 export interface CatioDoor {
@@ -30,7 +31,6 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig,
   const p = createCatioParts(); const { component, box, rod, ring, panel, materials: m } = p;
   const layout = modularLayout(c); const doors: CatioDoor[] = [];
   const w = c.tunnelSize; const h = c.tunnelSize; const span = w + 80; const straightSpan = span;
-  const landingDepth = w + 100;
   // Assembly transforms remain on the outer component; placement and door motion have independent groups.
   function placed(x: number, y: number, angle: number, build: () => void) {
     const start = p.components.length;
@@ -42,12 +42,6 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig,
   }
   function mesh(id: string, step: number, width: number, height: number, center: V3, plane: 'xy' | 'xz' | 'yz', offset: V3 = [0, 0, 140]) {
     return panel(id, step, width, height, center, plane, offset);
-  }
-  // Four mesh rectangles surround an aperture. There is no full panel behind the cat gate.
-  function perforated(id: string, step: number, width: number, bottom: number, top: number, y: number) {
-    for (const side of [-1, 1]) mesh(`${id}-side-${side}`, step, (width - w) / 2, top - bottom, [side * (width + w) / 4, y, (top + bottom) / 2], 'xz');
-    mesh(`${id}-below`, step, w, d.sill - bottom, [0, y, (bottom + d.sill) / 2], 'xz');
-    mesh(`${id}-above`, step, w, top - d.sill - h, [0, y, (top + d.sill + h) / 2], 'xz');
   }
   const removable = c.portClosure === 'removable-panel';
   /** What the door controls call a cat port's closure. */
@@ -135,7 +129,8 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig,
       box(clamps, [12, 25, 45], [side * (c.sashWidth / 2 - 30), -60, z], m.hardware);
     }
   }
-  perforated('window-infill', 1, collarWidth - 80, 200, hung ? collarTop - 10 : c.sashHeight + 190, collarY);
+  // four mesh rectangles round the port, as in an enclosure's walls; there is no full panel behind the cat port
+  for (const s of meshAroundPort('window-infill', collarWidth - 80, 200, hung ? collarTop - 10 : c.sashHeight + 190, collarY, w)) mesh(s.id, 1, s.width, s.height, s.center, s.plane, s.explode);
   // its removed panel is stowed in the room, on the wall beside the window (as the window insert page shows it)
   placed(0, portY, Math.PI, () => port('window-cat', `Window ${closureName}`, 1, true, 'window', portPanelStow(window, portY - PORT_FRAME / 2)));
   const threshold = component('window-threshold', 1, 'timber', [0, -220, 120]);
@@ -145,61 +140,11 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig,
   for (const side of [-1, 1]) box(dockingFrame, [70, -collarBack, h + 70], [side * (w / 2 + 35), collarBack / 2, 200 + (h + 70) / 2]);
   box(dockingFrame, [w, -collarBack, 70], [0, collarBack / 2, 200 + h + 35]);
 
+  const host = { placed, doors, port: (e: EnclosurePort, label: string) => { port(e.id, label, 3, e.connected, 'enclosure'); } };
   for (const e of layout.enclosures) placed(e.centerX, e.rearY, 0, () => {
-    const { width: ew, depth: ed, height: eh } = e.size; const half = ew / 2; const id = e.id;
-    const frame = component(`${id}-frame`, 2, 'timber', [0, 100, 200]);
-    const feet = component(`${id}-four-feet`, 2, 'hardware', [0, 150, 0]);
-    for (const x of [-half + 20, half - 20]) {
-      for (const y of [20, ed - 20]) {
-        box(frame, [40, 40, eh - 90], [x, y, (eh + 90) / 2]);
-        rod(feet, [x, y, 8], [x, y, 90], 9); box(feet, [55, 55, 8], [x, y, 4], m.rubber);
-      }
-      for (const z of [90, eh - 20]) box(frame, [40, ed, 40], [x, ed / 2, z]);
-    }
-    for (const y of [20, ed - 20]) for (const z of [90, eh - 20]) box(frame, [ew - 80, 40, 40], [0, y, z]);
-    for (const x of [-half + 7, half - 7]) box(frame, [14, ed, 14], [x, ed / 2, 11], m.endgrain);
-    for (const y of [7, ed - 7]) box(frame, [ew - 28, 14, 14], [0, y, 11], m.endgrain);
-    mesh(`${id}-continuous-floor`, 2, ew, ed, [0, ed / 2, 4], 'xy', [0, 150, 0]);
-    for (const x of [-half, half]) mesh(`${id}-floor-skirt-${x}`, 2, ed, 86, [x, ed / 2, 47], 'yz', [0, 150, 0]);
-    for (const y of [0, ed]) mesh(`${id}-floor-skirt-end-${y}`, 2, ew, 86, [0, y, 47], 'xz', [0, 150, 0]);
-    // The net roof lies on cross rails between the side rails, so that it neither sags nor bags under a cat on top of it.
-    const bearers = component(`${id}-roof-net-bearers`, 2, 'timber', [0, 0, 400]);
-    for (const y of roofBearers(ed - 80)) box(bearers, [ew - 80, ROOF_NET.bearer.width, ROOF_NET.bearer.depth], [0, 40 + y, eh - 10 - CATIO.wire / 2 - ROOF_NET.bearer.depth / 2]);
-    mesh(`${id}-roof`, 2, ew, ed, [0, ed / 2, eh - 10], 'xy', [0, 0, 400]);
-    perforated(`${id}-rear-mesh`, 2, ew, 90, eh, 0);
-    port(`${id}-rear`, `Enclosure ${id.toUpperCase()} rear ${closureName}`, 3, id === 'a', 'enclosure');
-    for (const side of [-1, 1]) placed(side * half, landingDepth / 2, side * Math.PI / 2, () => {
-      // Side faces have asymmetric extents around the rear landing's port.
-      const backRun = landingDepth / 2 - w / 2; const frontRun = ed - landingDepth / 2 - w / 2;
-      const sign = side > 0 ? 1 : -1;
-      mesh(`${id}-side-${side}-rear`, 2, backRun, eh - 90, [-sign * (w + backRun) / 2, 0, (eh + 90) / 2], 'xz');
-      mesh(`${id}-side-${side}-front`, 2, frontRun, eh - 90, [sign * (w + frontRun) / 2, 0, (eh + 90) / 2], 'xz');
-      mesh(`${id}-side-${side}-below`, 2, w, 110, [0, 0, 145], 'xz');
-      mesh(`${id}-side-${side}-above`, 2, w, eh - 200 - h, [0, 0, (eh + 200 + h) / 2], 'xz');
-      port(`${id}-${side < 0 ? 'left' : 'right'}`, `Enclosure ${id.toUpperCase()} ${side < 0 ? 'left' : 'right'} ${closureName}`, 3, c.secondEnabled && (id === 'a' ? side > 0 : side < 0), 'enclosure');
-    });
-    const landing = component(`${id}-landing-and-ramp`, 3, 'timber', [0, 140, 180]);
-    box(landing, [ew - 80, landingDepth, 18], [0, landingDepth / 2, 191], m.endgrain);
-    // Bridge the landing's frame clearance to the side docking thresholds.
-    for (const side of [-1, 1]) box(landing, [80, w, 18], [side * (half - 20), landingDepth / 2, 191], m.endgrain);
-    const run = ed - landingDepth - 80; const drop = 178;
-    const ramp = box(landing, [w, Math.hypot(run, drop), 18], [0, landingDepth + run / 2, 102], m.endgrain); ramp.rotation.x = -Math.atan2(drop, run);
-    for (let dy = 60; dy < run; dy += 100) {
-      const cleat = box(landing, [w, 18, 8], [0, landingDepth + dy, 204 - drop * dy / run]); cleat.rotation.x = ramp.rotation.x;
-    }
-    const dw = ew - 86; const dh = eh - 136;
-    const doorTimber = component(`${id}-human-door`, 2, 'timber', [0, 300, 0]);
-    ring(doorTimber, dw, dh, 40, 30, 0, 0, m.timber);
-    const doorMesh = mesh(`${id}-human-door-mesh`, 2, dw, dh, [0, 0, dh / 2], 'xz', [0, 300, 0]);
-    const doorMetal = component(`${id}-human-door-hardware`, 2, 'hardware', [0, 300, 0]);
-    box(doorMetal, [65, 15, 22], [dw / 2 - 22, 24, dh / 2], m.hardware);
-    for (const z of [120, dh - 120]) box(doorMetal, [70, 12, 25], [-dw / 2, 22, z], m.hardware);
-    const moving = [doorTimber, doorMesh, doorMetal].map(part => {
-      const pivot = new THREE.Group(); pivot.position.set(-dw / 2, ed, 113);
-      const centered = new THREE.Group(); centered.position.x = dw / 2;
-      centered.add(...part.children.slice()); pivot.add(centered); part.add(pivot); return pivot;
-    });
-    doors.push({ id: `${id}-human`, label: `Enclosure ${id.toUpperCase()} maintenance door`, kind: 'human', connected: true, mechanism: 'hinged', moving, set: travel => { for (const part of moving) part.rotation.z = travel * Math.PI / 2; } });
+    // a's rear port docks the tunnel from the window; with a second enclosure, a's right port and b's left dock the link between them
+    const connected = { rear: e.id === 'a', left: c.secondEnabled && e.id === 'b', right: c.secondEnabled && e.id === 'a' };
+    buildEnclosure(p, enclosureLayout(e.size, { id: e.id, tunnelSize: w, connected }), closureName, host);
   });
 
   // Every module is a flush box (catioPort.ts): end frames, rails flush with them, and a square end bay at its start whose two sides
