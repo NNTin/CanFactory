@@ -5,8 +5,8 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Pool, type PoolClient } from 'pg';
 import {
-  artifactFormat, linkedPartData, models, modelSourcePaths,
-  type ApiError, type AwinLive, type ModelDefinition, type ModelDetail, type ParameterValues, type RenderStatus,
+  linkedPartData, models, modelSourcePaths,
+  type ApiError, type AwinLive, type ModelDefinition, type ParameterValues, type RenderStatus,
 } from '@canfactory/contracts';
 import { CACHE_TTL_MS, LEASE_MS, QUEUE_LIMIT, RENDERER_FINGERPRINT } from './config.ts';
 import { AppError } from './errors.ts';
@@ -35,12 +35,12 @@ export interface RenderJob {
   error: ApiError | null;
 }
 
+/** What the render and reference paths need of a seeded model; the model itself is the contracts registry's. */
 export interface CatalogueEntry {
   id: string;
   version: string;
   sourceHash: string;
   referenceName: string;
-  detail: ModelDetail;
 }
 
 /** Hash all inputs that determine model behavior, not only the user-visible version (all SCAD sources, for an assembly). */
@@ -62,7 +62,7 @@ const LIVE_CLAIM = `id = $1 AND lease_token = $2 AND status = 'running' AND leas
 const ADMISSION_LOCK = 716301;
 const MIGRATION_LOCK = 716302;
 const MAINTENANCE_LOCK = 716303;
-const SCHEMA_VERSION = '0002_awin_offers.sql';
+const SCHEMA_VERSION = '0003_model_detail_unused.sql';
 const AWIN_COLUMNS = `advertiser_id::float8 AS "advertiserId", merchant_product_id AS "merchantProductId", market, deep_link AS "deepLink", name, price,
   currency, delivery_cost AS "deliveryCost", in_stock AS "inStock", last_imported::float8 AS "lastImported"`;
 interface JobRow extends RenderJob { objectKey: string | null }
@@ -125,7 +125,7 @@ export class PostgresStorage implements AwinStore {
   }
   async seed(): Promise<void> {
     // Upload first, then activate all definitions atomically. Concurrent identical seeds are safe.
-    const entries: { model: ModelDefinition; sha: string; key: string; detail: ModelDetail; source: string }[] = [];
+    const entries: { model: ModelDefinition; sha: string; key: string; source: string }[] = [];
     for (const model of models) {
       // Empty sha/key (not NULL - the columns are NOT NULL) for a model with no small, permanent original file to preserve.
       let sha = '', key = '';
@@ -135,25 +135,14 @@ export class PostgresStorage implements AwinStore {
         key = `references/${sha}.stl`;
         await this.objects.put(this.objects.config.catalogueBucket, key, path, sha);
       }
-      const detail: ModelDetail = {
-        id: model.id, version: model.version, title: model.title, description: model.description,
-        attribution: model.attribution, license: model.license, licenseUrl: model.licenseUrl,
-        ...(model.attributionLinks ? { attributionLinks: model.attributionLinks } : {}),
-        printNotes: model.printNotes, controls: model.controls, defaults: model.defaults,
-        parameterSchema: { ...model.parameterSchema },
-        artifactFormat: artifactFormat(model), customizable: model.controls.length > 0,
-        ...(key ? { referenceUrl: `/api/v1/models/${model.id}/reference.stl` } : {}),
-        ...(model.parts ? { parts: model.parts.map(part => ({ id: part.id, title: part.title })) } : {}),
-        ...(model.assembly ? { assembly: model.assembly } : {}),
-      };
-      entries.push({ model, sha, key, detail, source: sourceFingerprint(this.projectRoot, model) });
+      entries.push({ model, sha, key, source: sourceFingerprint(this.projectRoot, model) });
     }
     await this.transaction(async client => {
       await client.query('SELECT pg_advisory_xact_lock($1)', [MIGRATION_LOCK]);
       for (const entry of entries) {
-        await client.query(`INSERT INTO model_revisions(id,version,source_hash,detail,reference_key,reference_sha256)
-          VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id,source_hash) DO UPDATE SET version=excluded.version, detail=excluded.detail`,
-        [entry.model.id, entry.model.version, entry.source, entry.detail, entry.key, entry.sha]);
+        await client.query(`INSERT INTO model_revisions(id,version,source_hash,reference_key,reference_sha256)
+          VALUES($1,$2,$3,$4,$5) ON CONFLICT(id,source_hash) DO UPDATE SET version=excluded.version`,
+        [entry.model.id, entry.model.version, entry.source, entry.key, entry.sha]);
         await client.query(`INSERT INTO catalogue(id,source_hash) VALUES($1,$2)
           ON CONFLICT(id) DO UPDATE SET source_hash=excluded.source_hash`, [entry.model.id, entry.source]);
       }
@@ -163,18 +152,12 @@ export class PostgresStorage implements AwinStore {
   async ready(): Promise<void> {
     const result = await this.pool.query<{ name: string }>('SELECT name FROM migrations ORDER BY name DESC LIMIT 1');
     if (result.rows[0]?.name !== SCHEMA_VERSION) throw new Error('Database schema is not compatible with this release.');
-    const catalogue = await this.listModels();
-    if (catalogue.length === 0) throw new Error('Catalogue has not been seeded.');
+    if ((await this.pool.query('SELECT 1 FROM catalogue LIMIT 1')).rowCount === 0) throw new Error('Catalogue has not been seeded.');
     await this.objects.ready();
-  }
-  async listModels(): Promise<ModelDetail[]> {
-    const result = await this.pool.query<{ detail: ModelDetail }>(`SELECT r.detail FROM catalogue c
-      JOIN model_revisions r ON (r.id=c.id AND r.source_hash=c.source_hash) ORDER BY c.id`);
-    return result.rows.map(row => row.detail);
   }
   async getModel(id: string): Promise<CatalogueEntry | undefined> {
     const result = await this.pool.query<CatalogueEntry>(`SELECT r.id,r.version,r.source_hash AS "sourceHash",
-      r.reference_key AS "referenceName",r.detail FROM catalogue c
+      r.reference_key AS "referenceName" FROM catalogue c
       JOIN model_revisions r ON (r.id=c.id AND r.source_hash=c.source_hash) WHERE c.id=$1`, [id]);
     return result.rows[0];
   }

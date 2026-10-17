@@ -7,14 +7,14 @@ The authoritative contracts are TypeBox schemas in `packages/contracts`.
 the web app uses `openapi-fetch` against these generated types. Generate and check
 them offline using `npm run contracts:generate` and `npm run contracts:check`.
 
+The catalogue is not served: the web app bundles `@canfactory/contracts` and reads the models (`models`, `findModel`,
+`artifactFormat`) and the parts library (`partFamilies`, `partsOfFamily`, `findPartSource`, `partUsage`) from it, so the
+browser and the API validate against the same definitions. A render request's `modelVersion` is the bundled
+definition's `version`.
+
 | Method and path | Behavior |
 | --- | --- |
-| `GET /api/v1/models` | List supplied model summaries and attribution. |
-| `GET /api/v1/models/{id}` | Get a versioned model, defaults, JSON Schema, and control descriptors. |
 | `GET /api/v1/models/{id}/reference.stl` | Stream the original supplied reference bytes. 404 if the model has none. |
-| `GET /api/v1/part-families` | List the parts library's families, with their part counts. |
-| `GET /api/v1/part-families/{id}` | Get a family with all its parts, the sources they cite, and the models that link to each part. |
-| `GET /api/v1/parts/{id}` | Get one part, its family, its sources, and the models that link to it. |
 | `GET /api/v1/market` | The visitor's market from Cloudflare's `CF-IPCountry` (DE/AT/CH → `DE`, else `US`) and which affiliate networks link in each market. `private, no-store`. |
 | `GET /api/v1/offers?market=DE&parts=<id>[:<qty>],…` | Where to buy parts: ranked affiliate offers per part in packs that cover each quantity, and the buy list grouped by shop. 404 for an unknown part. See [affiliate-offers.md](affiliate-offers.md). |
 | `POST /api/v1/renders` | Submit complete settings; return an existing successful render (200) or pending job (202). |
@@ -27,11 +27,10 @@ requests include `modelId`, `modelVersion`, and the complete `parameters` object
 Model IDs discriminate parameter types. Unknown keys, numeric strings, invalid
 ranges, and invalid combinations are rejected, not silently coerced or clamped.
 
-A model's `artifactFormat` (`stl` or `zip`) says which of the two render-artifact routes to use;
-`customizable` says whether it has any controls at all. A `zip`-formatted model's artifact has no top-level
+A model's `artifactFormat(model)` (`stl` or `zip`) says which of the two render-artifact routes to use. A `zip`-formatted model's artifact has no top-level
 `dimensions` (a bounding box across independently placed parts isn't meaningful) but a `parts` array, one entry
 per part, each with its own dimensions/volume/triangle count; a single-part model's artifact has `dimensions` and
-no `parts`. `ModelDetail.parts` (id/title only) lists an assembly's parts regardless of render state.
+no `parts`. The definition's `parts` lists an assembly's parts regardless of render state.
 
 Errors have `{ code, message, issues: [{ field, message }] }`, and optionally `detail` (technical, for whoever
 fixes the fault), `reference` (an identifier to quote; a failed render's job id) and `retryable` (false when the

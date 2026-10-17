@@ -404,9 +404,12 @@ Noted while mapping and **not fixed here**. Each fix is a PR based on `docs/syst
 6. ~~**Mixed import styles.**~~ **Resolved in #94.** Tools import `@canfactory/contracts`, `@canfactory/physics` and
    `@canfactory/server`, not `../../packages/*/src` or `apps/worker`. Only the API's own tests and the OpenAPI generator
    import `apps/api`.
-7. **Catalogue data reaches the browser two ways.** (Tracked in #95: bundled contracts survive.) The web app fetches models and parts from the API, which serves them
-   from contracts (parts) or from DB rows seeded from contracts (models), and it also bundles contracts and calls
-   `findModel`, `parts` and `resolveAssembly` directly. Both paths carry the same static data.
+7. ~~**Catalogue data reaches the browser two ways.**~~ **Resolved in #95: bundled contracts only.** The web app reads models
+   and parts from the bundled `@canfactory/contracts` (`ModelDefinition`, `partFamilies`, `partUsage`, …) and no longer fetches
+   them. `GET /api/v1/models`, `/models/{id}`, `/part-families`, `/part-families/{id}` and `/parts/{id}`, their response
+   schemas (`ModelSummary`, `ModelDetail`, `PartFamilySummary`, `PartFamilyDetail`, `PartDetail`), the seeded `detail`
+   projection and `listModels` are deleted. The seed keeps what renders need: the source fingerprint that `enqueue` and
+   `claim` check, and the reference object behind `/models/{id}/reference.stl` (migration `0003` stops filling `detail`).
 8. ~~**Catio pages are a separate geometry stack.**~~ **Resolved in #93 for catalogue models.** The catio's only redraw of a
    catalogue model, the printed toggle latch, now comes from the model's render (see 4). The remaining hand-built geometry is
    the catio's own: timber, netting, doors, and schematic boxes for hardware. That geometry follows the sliders and feeds

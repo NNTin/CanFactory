@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@canfactory/client';
-import { RenderRequestSchema, type ApiError, type ModelDetail, type ParameterValues, type Render, type RenderRequest } from '@canfactory/contracts';
+import { RenderRequestSchema, type ApiError, type ModelDefinition, type ParameterValues, type Render, type RenderRequest } from '@canfactory/contracts';
 import { Value } from 'typebox/value';
 
 /** Why the preview could not be made: the API's error envelope (a failed render's carries its classification, detail and job id),
@@ -38,7 +38,7 @@ export async function completedRender(request: RenderRequest, signal: AbortSigna
 }
 
 /** One outstanding job per mounted editor; newer inputs replace pending work and fence stale results. */
-export function useRender(model: ModelDetail, parameters: ParameterValues, valid: boolean) {
+export function useRender(model: ModelDefinition, parameters: ParameterValues, valid: boolean) {
   const key = JSON.stringify([model.id, model.version, parameters]);
   const [completed, setCompleted] = useState<CompletedRender | null>(null);
   const [phase, setPhase] = useState<'idle' | 'queued' | 'running'>('idle');

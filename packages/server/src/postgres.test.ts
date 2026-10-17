@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { aiRubberDuck, cigaretteCase, findPart, fruitFlyTrap, litterShovel, mossPlanter, plankConnector } from '@canfactory/contracts';
+import { aiRubberDuck, cigaretteCase, findPart, fruitFlyTrap, litterShovel, models, mossPlanter, plankConnector } from '@canfactory/contracts';
 import { expireJobs, expireLeases, testStorage } from '../../../tools/unit-storage.ts';
 import { repositoryRoot } from './config.ts';
 import { inspectStl } from './mesh.ts';
@@ -19,6 +19,9 @@ let store: PostgresStorage;
 beforeEach(async () => { directory = mkdtempSync(join(tmpdir(), 'canfactory-store-test-')); store = await testStorage(); });
 afterEach(async () => { await store.close(); rmSync(directory, { recursive: true, force: true }); });
 
+/** How many registered models the catalogue has a seeded revision for. */
+const seeded = async () => (await Promise.all(models.map(model => store.getModel(model.id)))).filter(Boolean).length;
+
 /** Claims the oldest job and publishes a tetrahedron as its artifact; returns the job as published and its object key. */
 async function publish(format: 'stl' | 'zip' = 'stl'): Promise<{ job: RenderJob; key: string }> {
   const job = await store.claim();
@@ -31,7 +34,7 @@ async function publish(format: 'stl' | 'zip' = 'stl'): Promise<{ job: RenderJob;
 
 describe('temporary render queue', () => {
   it('seeds idempotently and reuses equivalent normalized parameters', async () => {
-    await store.seed(); expect(await store.listModels()).toHaveLength(17);
+    await store.seed(); expect(await seeded()).toBe(models.length);
     const first = await store.enqueue(fruitFlyTrap, fruitFlyTrap.defaults);
     const reordered = Object.fromEntries(Object.entries(fruitFlyTrap.defaults).reverse());
     expect((await store.enqueue(fruitFlyTrap, reordered)).id).toBe(first.id);
@@ -45,49 +48,25 @@ describe('temporary render queue', () => {
       .not.toBe(sourceFingerprint(repositoryRoot, aiRubberDuck));
   });
 
-  it('seeds an assembly model with no reference file and a ZIP artifact format', async () => {
-    const detail = (await store.getModel(mossPlanter.id))?.detail;
-    expect(detail?.artifactFormat).toBe('zip');
-    expect(detail?.customizable).toBe(true);
-    expect(detail?.referenceUrl).toBeUndefined();
-    expect(detail?.parts).toHaveLength(5);
+  it('seeds a model with no reference file with an empty reference key', async () => {
     expect((await store.getModel(mossPlanter.id))?.referenceName).toBe('');
+    expect((await store.getModel(fruitFlyTrap.id))?.referenceName).toMatch(/^references\/[0-9a-f]{64}\.stl$/);
   });
 
-  it('seeds the cigarette case as a customizable ZIP assembly with snap and text parameters', async () => {
-    const detail = (await store.getModel(cigaretteCase.id))?.detail;
-    expect(detail?.artifactFormat).toBe('zip');
-    expect(detail?.customizable).toBe(true);
-    expect(detail?.controls.map(control => control.key)).toEqual(['snap', 'magnet', 'miniLidSnap', 'holderSnap', 'lighterSnap', 'miniBoxSnap', 'undersideMark', 'engraveText', 'textFont', 'textSize', 'logo', 'logoSize', 'textMode', 'clearance', 'snapDetentEngage', 'snapCrushSqueeze', 'miniLidDetentEngage', 'miniLidCrushSqueeze', 'holderDetentEngage', 'holderCrushSqueeze', 'lighterCrushSqueeze', 'miniBoxDetentEngage', 'miniBoxCrushSqueeze']);
-    expect(detail?.defaults).toEqual(cigaretteCase.defaults);
-    expect(detail?.parts?.map(part => part.id)).toEqual(['case-box', 'case-lid', 'mini-holder', 'mini-box', 'mini-lid', 'case-text']);
-    expect(detail?.referenceUrl).toBeUndefined();
+  it('caches the cigarette case by its snap and text parameters', async () => {
     const job = await store.enqueue(cigaretteCase, cigaretteCase.defaults);
     expect((await store.enqueue(cigaretteCase, cigaretteCase.defaults)).id).toBe(job.id);
     expect((await store.enqueue(cigaretteCase, { ...cigaretteCase.defaults, engraveText: 'Tom' })).id).not.toBe(job.id);
   });
 
-  it('seeds the plank connector as a customizable single-STL model without a reference file', async () => {
-    const detail = (await store.getModel(plankConnector.id))?.detail;
-    expect(detail?.artifactFormat).toBe('stl');
-    expect(detail?.customizable).toBe(true);
-    expect(detail?.referenceUrl).toBeUndefined();
-    expect(detail?.parts).toBeUndefined();
-    expect(detail?.controls.map(control => control.key)).toEqual(['pocketWidth', 'pocketThickness', 'insertionDepth', 'screwHoles', 'holeFit', 'holesPerEnd', 'wallThickness', 'stopThickness', 'entryChamfer']);
-    expect(detail?.defaults).toEqual(plankConnector.defaults);
+  it('caches the plank connector by its screw holes and depth', async () => {
     const job = await store.enqueue(plankConnector, plankConnector.defaults);
     expect((await store.enqueue(plankConnector, { ...plankConnector.defaults })).id).toBe(job.id);
     expect((await store.enqueue(plankConnector, { ...plankConnector.defaults, screwHoles: 'M4' })).id).not.toBe(job.id);
     expect((await store.enqueue(plankConnector, { ...plankConnector.defaults, insertionDepth: 25 })).id).not.toBe(job.id);
   });
 
-  it('seeds the litter shovel as a three-part assembly whose sieve and snap settings reach the cache key', async () => {
-    const detail = (await store.getModel(litterShovel.id))?.detail;
-    expect(detail?.artifactFormat).toBe('zip');
-    expect(detail?.customizable).toBe(true);
-    expect(detail?.referenceUrl).toBeUndefined();
-    expect(detail?.parts?.map(part => part.id)).toEqual(['container', 'scoop', 'handle']);
-    expect(detail?.assembly?.steps.map(step => step.parts)).toEqual([['scoop'], ['handle']]);
+  it('puts the litter shovel’s sieve and snap settings in the cache key', async () => {
     const job = await store.enqueue(litterShovel, litterShovel.defaults);
     expect((await store.enqueue(litterShovel, { ...litterShovel.defaults })).id).toBe(job.id);
     expect((await store.enqueue(litterShovel, { ...litterShovel.defaults, sievePattern: 'hex' })).id).not.toBe(job.id);
@@ -164,7 +143,7 @@ describe('temporary render queue', () => {
     await expireJobs(store); await store.cleanup();
     expect(await store.getJob(job.id)).toBeUndefined();
     expect(await store.objects.exists(store.objects.config.generatedBucket, key)).toBe(false);
-    expect(await store.listModels()).toHaveLength(17);
+    expect(await seeded()).toBe(models.length);
     const reference = (await store.getModel(fruitFlyTrap.id))?.referenceName;
     if (!reference) throw new Error('Expected a reference file');
     expect(await store.objects.exists(store.objects.config.catalogueBucket, reference)).toBe(true);

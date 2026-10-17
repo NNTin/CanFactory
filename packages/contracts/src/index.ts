@@ -1,6 +1,5 @@
 import { Type, type Static, type TLiteral, type TObject } from 'typebox';
-import { AssemblySchema, ControlSchema, registeredModels, type ModelDefinition } from './models.ts';
-import { PartFamilySchema, PartSchema, PartSourceSchema } from './parts/index.ts';
+import { registeredModels, type ModelDefinition } from './models.ts';
 export * from './models.ts';
 export * from './assembly.ts';
 export * from './bom.ts';
@@ -37,32 +36,6 @@ export const ErrorSchema = Type.Object({
 }, { additionalProperties: false });
 export type ApiError = Static<typeof ErrorSchema>;
 
-export const ModelPartSummarySchema = Type.Object({ id: Type.String(), title: Type.String() }, { additionalProperties: false });
-
-export const ModelSummarySchema = Type.Object({
-  id: Type.String(), version: Type.String(), title: Type.String(), description: Type.String(),
-  attribution: Type.String(),
-  attributionLinks: Type.Optional(Type.Array(Type.Object({
-    text: Type.String({ description: 'A phrase of `attribution`, verbatim.' }),
-    url: Type.String({ description: 'The page it links to, e.g. the original design.' }),
-  }, { additionalProperties: false }), { description: 'Phrases of the attribution that link to where they were published.' })),
-  license: Type.String(), licenseUrl: Type.String(),
-  printNotes: Type.String({ description: 'Model-specific orientation or printing guidance.' }),
-  artifactFormat: Type.Union([Type.Literal('stl'), Type.Literal('zip')], { description: 'The shape of the generated file: one STL, or a ZIP of one STL per part.' }),
-  customizable: Type.Boolean({ description: 'Whether this model exposes adjustable parameters yet.' }),
-}, { additionalProperties: false });
-
-export const ModelDetailSchema = Type.Object({
-  ...ModelSummarySchema.properties,
-  controls: Type.Array(ControlSchema),
-  defaults: Type.Record(Type.String(), Type.Union([Type.Number(), Type.Boolean(), Type.String()])),
-  parameterSchema: Type.Record(Type.String(), Type.Unknown(), { description: 'JSON Schema for this model’s parameter object.' }),
-  referenceUrl: Type.Optional(Type.String({ description: 'Absent when this model has no small, permanent original file.' })),
-  parts: Type.Optional(Type.Array(ModelPartSummarySchema, { description: 'Present only for multi-part assembly models, in render/ZIP order.' })),
-  assembly: Type.Optional(AssemblySchema),
-}, { additionalProperties: false });
-export type ModelDetail = Static<typeof ModelDetailSchema>;
-
 /** One request branch per model, as a tuple type so that `Static` keeps the discriminated union. */
 type RenderRequestBranches<Models extends readonly ModelDefinition[]> = {
   -readonly [K in keyof Models]: TObject<{ modelId: TLiteral<Models[K]['id']>; modelVersion: TLiteral<Models[K]['version']>; parameters: Models[K]['parameterSchema'] }>
@@ -75,32 +48,6 @@ export const RenderRequestSchema = Type.Union(registeredModels.map(model => Type
   parameters: model.parameterSchema,
 }, { additionalProperties: false })) as RenderRequestBranches<typeof registeredModels>, { description: 'Complete, uncoerced settings for one model version.' });
 export type RenderRequest = Static<typeof RenderRequestSchema>;
-
-export const PartUsageSchema = Type.Object({
-  modelId: Type.String({ description: 'The model’s id, or for a concept its page under `#/concepts/`, e.g. `catio/window-insert`.' }), modelTitle: Type.String(),
-  via: Type.String({ description: 'The model’s setting that links to the part, “Assembly preview” for a reference object, or the concept’s use of it.' }),
-  kind: Type.Union([Type.Literal('model'), Type.Literal('concept')], { description: '`model`: a model in the library; `concept`: a concept page.' }),
-}, { additionalProperties: false });
-
-export const PartFamilySummarySchema = Type.Object({
-  ...PartFamilySchema.properties,
-  count: Type.Integer({ description: 'How many parts the family has.' }),
-}, { additionalProperties: false });
-export type PartFamilySummary = Static<typeof PartFamilySummarySchema>;
-
-/** A family with all its parts, the sources they cite, and the models that link to each part (by part id). */
-export const PartFamilyDetailSchema = Type.Object({
-  family: PartFamilySchema,
-  parts: Type.Array(PartSchema),
-  sources: Type.Array(PartSourceSchema),
-  usage: Type.Record(Type.String(), Type.Array(PartUsageSchema), { description: 'Models that link to a part, by part id; parts no model links to are left out.' }),
-}, { additionalProperties: false });
-export type PartFamilyDetail = Static<typeof PartFamilyDetailSchema>;
-
-export const PartDetailSchema = Type.Object({
-  part: PartSchema, family: PartFamilySchema, sources: Type.Array(PartSourceSchema), usage: Type.Array(PartUsageSchema),
-}, { additionalProperties: false });
-export type PartDetail = Static<typeof PartDetailSchema>;
 
 export const RenderStatusSchema = Type.Enum(['queued', 'running', 'succeeded', 'failed']);
 export type RenderStatus = Static<typeof RenderStatusSchema>;

@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, BookOpen, Bolt, CircleAlert, CircleDot, Cog, Disc, ExternalLink, Flame, Hexagon, LoaderCircle, Magnet, Pin, Search, Footprints, Paperclip, Drill, Lock, Anchor, SquareDashedBottom, Circle, WavesVertical, KeyRound, Nfc, Cat, Cpu, Grid3x3, type LucideIcon } from 'lucide-react';
-import { api } from '@canfactory/client';
-import type { Part, PartFamilyDetail, PartFamilySummary, PartSource } from '@canfactory/contracts';
+import { useMemo, useState } from 'react';
+import { ArrowRight, BookOpen, Bolt, CircleAlert, CircleDot, Cog, Disc, ExternalLink, Flame, Hexagon, Magnet, Pin, Search, Footprints, Paperclip, Drill, Lock, Anchor, SquareDashedBottom, Circle, WavesVertical, KeyRound, Nfc, Cat, Cpu, Grid3x3, type LucideIcon } from 'lucide-react';
+import { findPartFamily, findPartSource, partFamilies, partsOfFamily, partUsage, type Part, type PartFamily } from '@canfactory/contracts';
 import { facetLabel } from './facetLabel.ts';
 import { PartsViewer, VIEWER_LIMIT } from './PartsViewer.tsx';
 import { formatHash, type Route } from './route.ts';
@@ -31,15 +30,16 @@ function matches(part: Part, filters: Record<string, string>): boolean {
 }
 
 /** The families, as cards. */
-function Families({ families, open }: { families: PartFamilySummary[]; open: (family: string) => void }) {
+function Families({ open }: { open: (family: string) => void }) {
   return <>
     <div className="page-heading library-heading"><div><div className="eyebrow">THE PARTS LIBRARY</div><h1>Real parts. Exact sizes.</h1>
       <p>Screws, nuts, magnets and more, as the standards and their makers specify them: every size with its tolerance and its source. Models link here for the parts they are made to fit.</p></div></div>
-    <div className="model-library part-families">{families.map(family => {
+    <div className="model-library part-families">{partFamilies.map(family => {
       const Icon = FAMILY_ICONS[family.id] ?? BookOpen;
+      const count = partsOfFamily(family.id).length;
       return <button type="button" className="model-card family-card" key={family.id} onClick={() => open(family.id)}>
         <div className="card-art"><Icon size={70} strokeWidth={1} /></div>
-        <div className="card-copy"><span className="eyebrow">{family.count} {family.count === 1 ? 'PART' : 'PARTS'}</span><h2>{family.title}</h2><p>{family.description}</p>
+        <div className="card-copy"><span className="eyebrow">{count} {count === 1 ? 'PART' : 'PARTS'}</span><h2>{family.title}</h2><p>{family.description}</p>
           <span className="card-action">Browse {family.title.toLowerCase()} <ArrowRight size={17} /></span></div>
       </button>;
     })}</div>
@@ -47,9 +47,8 @@ function Families({ families, open }: { families: PartFamilySummary[]; open: (fa
 }
 
 /** Everything about one part: what it is, its dimensions with their basis and source, and the models that use it. */
-function PartDetails({ detail, part }: { detail: PartFamilyDetail; part: Part }) {
-  const sources = new Map<string, PartSource>(detail.sources.map(source => [source.id, source]));
-  const usage = detail.usage[part.id] ?? [];
+function PartDetails({ family, part }: { family: PartFamily; part: Part }) {
+  const usage = useMemo(() => partUsage(part), [part]);
   const attributes = Object.entries(part.attributes);
   const { market, linking, choose } = useMarket();
   const offers = useOffers([{ partId: part.id, quantity: 1 }], market, linking);
@@ -66,9 +65,9 @@ function PartDetails({ detail, part }: { detail: PartFamilyDetail; part: Part })
     <table className="part-dimensions">
       <caption>Dimensions in mm</caption>
       <thead><tr><th scope="col">Dimension</th><th scope="col">Nominal</th><th scope="col">Min</th><th scope="col">Max</th><th scope="col">Basis</th></tr></thead>
-      <tbody>{detail.family.dimensions.filter(spec => spec.key in part.dimensions).map(spec => {
+      <tbody>{family.dimensions.filter(spec => spec.key in part.dimensions).map(spec => {
         const value = part.dimensions[spec.key];
-        const source = value && sources.get(value.source);
+        const source = value && findPartSource(value.source);
         return value && <tr key={spec.key}>
           <th scope="row"><i>{spec.symbol}</i> {spec.label}</th><td>{mm(value.value)}</td><td>{mm(value.min)}</td><td>{mm(value.max)}</td>
           <td><span className={`basis basis-${value.basis}`} title={source ? `${source.title} (${source.publisher})` : value.source}>{BASIS_TEXT[value.basis] ?? value.basis}</span></td>
@@ -76,11 +75,11 @@ function PartDetails({ detail, part }: { detail: PartFamilyDetail; part: Part })
       })}</tbody>
     </table>
     {attributes.length > 0 && <dl className="part-attributes">{attributes.map(([key, value]) =>
-      <div key={key}><dt>{detail.family.attributes.find(attribute => attribute.key === key)?.label ?? key.replace(/([A-Z])/g, ' $1').toLowerCase()}</dt><dd>{value.replace(/^([a-z]+)-([a-z])/, '$1 $2')}</dd></div>)}</dl>}
+      <div key={key}><dt>{family.attributes.find(attribute => attribute.key === key)?.label ?? key.replace(/([A-Z])/g, ' $1').toLowerCase()}</dt><dd>{value.replace(/^([a-z]+)-([a-z])/, '$1 $2')}</dd></div>)}</dl>}
     {part.notes && <p className="part-notes">{part.notes}</p>}
     {market && linking && <WhereToBuy key={part.id} partId={part.id} offers={offers} market={market} choose={choose} />}
     <h3>Sources</h3>
-    <ul className="part-sources">{part.sources.flatMap(id => { const source = sources.get(id); return source ? [source] : []; }).map(source =>
+    <ul className="part-sources">{part.sources.flatMap(id => { const source = findPartSource(id); return source ? [source] : []; }).map(source =>
       <li key={source.id}><span className={`source-kind source-${source.kind}`}>{source.kind}</span>{source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : source.title}
         <small> · {source.publisher} · read {source.accessed}</small></li>)}</ul>
     <h3>Used by</h3>
@@ -91,35 +90,26 @@ function PartDetails({ detail, part }: { detail: PartFamilyDetail; part: Part })
 
 /** One family: filters and the list of its parts, the live preview of the listed parts, and the selected part's details. */
 function FamilyPage({ route, navigate }: { route: PartsRoute & { family: string }; navigate: (route: Route, replace?: boolean) => void }) {
-  const [detail, setDetail] = useState<PartFamilyDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const family = findPartFamily(route.family);
+  const members = useMemo(() => partsOfFamily(route.family), [route.family]);
   const [hovered, setHovered] = useState<string | null>(null);
-  useEffect(() => {
-    const abort = new AbortController(); setDetail(null); setError(null);
-    void api.GET('/api/v1/part-families/{id}', { params: { path: { id: route.family } }, signal: abort.signal }).then(response => {
-      if (!response.data) throw new Error(response.error.message);
-      setDetail(response.data);
-    }).catch((caught: unknown) => { if (!abort.signal.aborted) setError(caught instanceof Error ? caught.message : 'Cannot load this part family.'); });
-    return () => abort.abort();
-  }, [route.family]);
-  const filtered = useMemo(() => detail?.parts.filter(part => matches(part, route.filters)) ?? [], [detail, route.filters]);
-  const selected = detail?.parts.find(part => part.id === route.part) ?? null;
+  const filtered = useMemo(() => members.filter(part => matches(part, route.filters)), [members, route.filters]);
+  const selected = members.find(part => part.id === route.part) ?? null;
   // The preview shows the listed parts, up to its limit; a selected part is always among them.
   const shown = useMemo(() => {
     const first = filtered.slice(0, VIEWER_LIMIT);
     return selected && !first.includes(selected) ? [selected, ...first.slice(0, VIEWER_LIMIT - 1)] : first;
   }, [filtered, selected]);
-  const facets = useMemo(() => (detail?.family.attributes ?? []).map(attribute => ({
-    ...attribute, values: [...new Set(detail?.parts.flatMap(part => part.attributes[attribute.key] ?? []))].sort(byNumber),
-  })).filter(facet => facet.values.length > 1), [detail]);
+  const facets = useMemo(() => (family?.attributes ?? []).map(attribute => ({
+    ...attribute, values: [...new Set(members.flatMap(part => part.attributes[attribute.key] ?? []))].sort(byNumber),
+  })).filter(facet => facet.values.length > 1), [family, members]);
 
-  if (error) return <div className="empty-state" role="alert"><CircleAlert size={30} /><h1>Not in the library.</h1><p>{error}</p></div>;
-  if (!detail) return <div className="empty-state"><LoaderCircle className="spin" size={30} /><p>Opening the parts drawer…</p></div>;
+  if (!family) return <div className="empty-state" role="alert"><CircleAlert size={30} /><h1>Not in the library.</h1><p>This part family is not in the library.</p></div>;
   const filter = (key: string, value: string) => navigate({ ...route, filters: { ...route.filters, [key]: value } }, true);
   const select = (id: string) => navigate({ ...route, part: id === route.part ? null : id });
 
   return <>
-    <div className="page-heading"><div><div className="eyebrow">THE PARTS LIBRARY · {detail.parts.length} {detail.parts.length === 1 ? 'PART' : 'PARTS'}</div><h1>{detail.family.title}</h1><p>{detail.family.description}</p></div></div>
+    <div className="page-heading"><div><div className="eyebrow">THE PARTS LIBRARY · {members.length} {members.length === 1 ? 'PART' : 'PARTS'}</div><h1>{family.title}</h1><p>{family.description}</p></div></div>
     <div className="parts-layout">
       <aside className="settings-panel parts-panel" aria-label="Find a part">
         <label className="part-search"><Search size={14} aria-hidden="true" /><span className="sr-only">Search</span>
@@ -130,27 +120,27 @@ function FamilyPage({ route, navigate }: { route: PartsRoute & { family: string 
             <option value="">All</option>{facet.values.map(value => <option key={value} value={value}>{facetLabel(value)}</option>)}
           </select>
         </div>)}</div>
-        <div className="part-count" role="status">{filtered.length} of {detail.parts.length} {filtered.length > VIEWER_LIMIT ? `· the first ${VIEWER_LIMIT} are shown; filter to see others` : ''}
+        <div className="part-count" role="status">{filtered.length} of {members.length} {filtered.length > VIEWER_LIMIT ? `· the first ${VIEWER_LIMIT} are shown; filter to see others` : ''}
           {Object.keys(route.filters).length > 0 && <button type="button" className="text-button" onClick={() => navigate({ ...route, filters: {} }, true)}>Clear filters</button>}</div>
-        <ul className="part-list" aria-label={`${detail.family.title} in the library`}>{filtered.map(part =>
+        <ul className="part-list" aria-label={`${family.title} in the library`}>{filtered.map(part =>
           <li key={part.id}><button type="button" aria-pressed={part.id === route.part} className={part.id === hovered ? 'hovered' : undefined}
             onMouseEnter={() => setHovered(part.id)} onMouseLeave={() => setHovered(current => current === part.id ? null : current)} onFocus={() => setHovered(part.id)} onBlur={() => setHovered(null)}
             onClick={() => select(part.id)}>
             <strong>{part.designation}</strong><span>{part.title}</span>
-            <small>{detail.family.dimensions.flatMap(spec => { const value = part.dimensions[spec.key]; return value ? [`${spec.symbol} ${mm(value.value)}`] : []; }).slice(0, 5).join(' · ')}</small>
+            <small>{family.dimensions.flatMap(spec => { const value = part.dimensions[spec.key]; return value ? [`${spec.symbol} ${mm(value.value)}`] : []; }).slice(0, 5).join(' · ')}</small>
           </button></li>)}</ul>
       </aside>
       <section className="preview-panel parts-preview" aria-label="Parts preview and details">
         <div className="preview-heading"><span className="eyebrow">LIVE PREVIEW · TRUE TO SIZE</span></div>
         <PartsViewer parts={shown} hovered={hovered} selected={route.part} onHover={setHovered} onSelect={select} />
-        {selected ? <PartDetails detail={detail} part={selected} /> : <p className="part-hint">Select a part for its dimensions, tolerances and sources.</p>}
+        {selected ? <PartDetails family={family} part={selected} /> : <p className="part-hint">Select a part for its dimensions, tolerances and sources.</p>}
       </section>
     </div>
   </>;
 }
 
 /** The parts library: its families, or one family's parts. */
-export function PartsLibrary({ route, families, navigate }: { route: PartsRoute; families: PartFamilySummary[]; navigate: (route: Route, replace?: boolean) => void }) {
-  if (!route.family) return <Families families={families} open={family => navigate({ view: 'parts', family, part: null, filters: {} })} />;
+export function PartsLibrary({ route, navigate }: { route: PartsRoute; navigate: (route: Route, replace?: boolean) => void }) {
+  if (!route.family) return <Families open={family => navigate({ view: 'parts', family, part: null, filters: {} })} />;
   return <FamilyPage key={route.family} route={{ ...route, family: route.family }} navigate={navigate} />;
 }
