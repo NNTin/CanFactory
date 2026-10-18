@@ -112,3 +112,18 @@ export function enclosureLayout(size: EnclosureSize, { id, tunnelSize: w, connec
   return { id, size, landingDepth, frame, feet: { rods, pads }, floor, bearers, roof, rear, sides, ports: [rear.port, ...sides.map(s => s.port)], landing, ramp, door, doorMesh };
 }
 export type EnclosureLayout = ReturnType<typeof enclosureLayout>;
+
+/**
+ * The room inside an enclosure, in its frame: between its posts' inner faces across and along it, and from its floor up to the
+ * lowest member overhead (its top rails, or the roof's cross rails under a net). `soleTop` is the top of the side frames' sole rails,
+ * the lowest a member fixed across a side frame's posts can sit.
+ */
+export function enclosureInside(layout: Pick<EnclosureLayout, 'size' | 'floor' | 'bearers' | 'frame'>) {
+  const { width, depth, height } = layout.size;
+  const minX = -width / 2 + d.timber; const maxX = width / 2 - d.timber; const minY = d.timber; const maxY = depth - d.timber;
+  const floor = layout.floor[0]?.center[2] ?? 0;
+  const ceiling = Math.min(height - d.timber, ...layout.bearers.map(b => b.center[2] - b.size[2] / 2));
+  const soleTop = Math.min(...layout.frame.filter(b => b.size[1] === depth && b.size[2] === d.timber).map(b => b.center[2] + b.size[2] / 2));
+  return { minX, maxX, minY, maxY, floor, ceiling, soleTop, width: maxX - minX, depth: maxY - minY, height: ceiling - floor };
+}
+export type EnclosureInside = ReturnType<typeof enclosureInside>;
