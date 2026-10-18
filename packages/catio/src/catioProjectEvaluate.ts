@@ -284,7 +284,7 @@ function evaluatedElements(t: TunnelInstance, layout: TunnelLayout, end: number)
 export function tunnelRoute(t: Pick<TunnelInstance, 'params'>, s: ProjectSettings, target: Transform, mated: boolean): TunnelConfig {
   const [dx, dy] = mated ? yawDirection(target.yaw).map(v => -v) as [number, number] : yawDirection(target.yaw);
   return {
-    ...withoutKeys(t.params, ['mode']), portX: r6(target.x), portY: r6(target.y), portFacing: r6(Math.atan2(dx, dy) / RAD), portLevel: 'own', portHeight: r6(target.z),
+    ...withoutKeys(t.params, ['mode', 'route']), portX: r6(target.x), portY: r6(target.y), portFacing: r6(Math.atan2(dx, dy) / RAD), portLevel: 'own', portHeight: r6(target.z),
     angleJoint: 'side-port', mesh: s.mesh, supportFixing: s.tunnelCoupling.supportFixing, supportBase: s.tunnelCoupling.supportBase,
   };
 }
