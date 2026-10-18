@@ -50,4 +50,4 @@ export function redo(h: History): History {
 }
 
 /** The document without its view and revision: what an undo step is about. */
-const physical = ({ view: _view, revision: _revision, ...rest }: Project) => JSON.stringify(rest);
+const physical = (project: Project) => JSON.stringify({ ...project, view: null, revision: 0 });

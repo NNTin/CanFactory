@@ -116,8 +116,7 @@ const replace = (project: Project, instance: Instance): Project => ({ ...project
 export function moveInstance(project: Project, id: string, to: Partial<Pick<Transform, 'x' | 'y' | 'z'>>): CommandResult {
   const instance = movable(project, id); if (typeof instance === 'string') return fail(project, instance);
   const errors = numberErrors(to, false); if (errors.length) return fail(project, ...errors);
-  const defined = Object.fromEntries(Object.entries(to).filter(([, v]) => v !== undefined));
-  return ok(replace(project, { ...instance, transform: { ...instance.transform, ...defined } }));
+  return ok(replace(project, { ...instance, transform: { ...instance.transform, ...to } }));
 }
 
 /** Turns an enclosure or platform to `yaw` degrees about its own origin, in its parent's frame. */
@@ -137,8 +136,7 @@ export function resizeInstance(project: Project, id: string, size: Partial<Enclo
   const unknown = Object.keys(size).filter(k => !keys.includes(k));
   if (unknown.length) return fail(project, `A ${instance.kind} has no ${unknown.join(' or ')} to resize.`);
   const errors = numberErrors(size, true); if (errors.length) return fail(project, ...errors);
-  const defined = Object.fromEntries(Object.entries(size).filter(([, v]) => v !== undefined));
-  const resized = { ...instance, params: { ...instance.params, ...defined } } as Instance;
+  const resized = { ...instance, params: { ...instance.params, ...size } } as Instance;
   // a platform's anchors stay at its ends, so that resizing it moves where it bears, not what it is fixed to
   const attachments = resized.kind === 'platform'
     ? project.attachments.map(a => a.instance === id && a.support.member in platformAnchors(resized.params) ? { ...a, anchor: platformAnchors(resized.params)[a.support.member as keyof ReturnType<typeof platformAnchors>] } : a)
@@ -162,7 +160,7 @@ export function duplicateInstance(project: Project, id: string, offset?: Partial
   const copies = subtree.map((i): Instance => ({
     ...structuredClone(i), id: ids.get(i.id) ?? i.id, ...(i.name ? { name: `${i.name} (copy)` } : {}), parent: i.parent && ids.has(i.parent) ? ids.get(i.parent) ?? null : i.parent,
     transform: i === instance ? { ...i.transform, x: i.transform.x + (shift.x ?? 0), y: i.transform.y + (shift.y ?? 0), z: i.transform.z + (shift.z ?? 0), yaw: i.transform.yaw + (shift.yaw ?? 0) } : { ...i.transform },
-  } as Instance));
+  }));
   const ports = project.ports.filter(p => ids.has(p.owner)).map(p => {
     const owner = ids.get(p.owner) ?? p.owner;
     return { ...structuredClone(p), id: portId(owner, p.name), owner, state: p.state === 'connected' ? 'closed' as const : p.state };

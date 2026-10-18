@@ -139,11 +139,11 @@ export const ProjectSchema = Type.Object({
 }, { additionalProperties: false });
 export interface Project extends Omit<Static<typeof ProjectSchema>, 'settings' | 'instances'> { settings: ProjectSettings; instances: Instance[] }
 
-const omit = <T extends object, K extends keyof T>(value: T, keys: readonly K[]): Omit<T, K> => {
-  const copy = { ...value }; for (const key of keys) delete copy[key]; return copy;
-};
+/** A copy of `value` without `keys`. */
+export const withoutKeys = <T extends object, K extends keyof T>(value: T, keys: readonly K[]): Omit<T, K> =>
+  Object.fromEntries(Object.entries(value).filter(([key]) => !(keys as readonly PropertyKey[]).includes(key))) as Omit<T, K>;
 export const SETTINGS_DEFAULT: ProjectSettings = {
-  insert: omit(WINDOW_INSERT_DEFAULT, ['mesh']), insertCoupling: COUPLING_DEFAULT, tunnelCoupling: omit(TUNNEL_COUPLING_DEFAULT, ['jointShown']),
+  insert: withoutKeys(WINDOW_INSERT_DEFAULT, ['mesh']), insertCoupling: COUPLING_DEFAULT, tunnelCoupling: withoutKeys(TUNNEL_COUPLING_DEFAULT, ['jointShown']),
   mesh: CATIO_MESH_DEFAULT, portClosure: PORT_CLOSURE_DEFAULT, doorSeat: DOOR_SEAT_DEFAULT,
 };
 /** The window the catio concept page starts from. */
@@ -151,7 +151,7 @@ export const WINDOW_PARAMS_DEFAULT: WindowParams = {
   glassWidth: MODULAR_DEFAULT.glassWidth, glassHeight: MODULAR_DEFAULT.glassHeight, sashWidth: MODULAR_DEFAULT.sashWidth, sashHeight: MODULAR_DEFAULT.sashHeight, tunnelSize: MODULAR_DEFAULT.tunnelSize,
 };
 /** The tunnel page's defaults, its sections one module each. */
-export const TUNNEL_PARAMS_DEFAULT: TunnelParams = { mode: 'standard', ...omit(TUNNEL_DEFAULT, TUNNEL_ROUTE_KEYS), sectionLength: 1 };
+export const TUNNEL_PARAMS_DEFAULT: TunnelParams = { mode: 'standard', ...withoutKeys(TUNNEL_DEFAULT, TUNNEL_ROUTE_KEYS), sectionLength: 1 };
 
 // The controls that check each setting: a value is accepted when a control for its key offers it.
 const TUNNEL_SETTING_CONTROLS = [...TUNNEL_COUPLING_CONTROLS, ...TUNNEL_CONTROLS] as SubassemblyControl<object>[];
@@ -173,8 +173,8 @@ const PARAMS_SCHEMA = { window: WindowParamsSchema, enclosure: EnclosureParamsSc
 export const PARENT_KINDS: Record<InstanceKind, (InstanceKind | null)[]> = { window: [null], enclosure: [null], tunnel: ['window'], platform: ['enclosure'] };
 
 function schemaErrors(path: string, schema: TSchema, value: unknown): string[] {
-  // a union reports every branch it tried; its own summary is enough
-  return [...Value.Errors(schema, value)].filter(e => !e.schemaPath.includes('/anyOf/'))
+  // a union reports every branch it tried, and an extra property its false schema too; their summaries are enough
+  return [...Value.Errors(schema, value)].filter(e => !e.schemaPath.includes('/anyOf/') && e.keyword !== 'boolean')
     .slice(0, 20).map(e => `${path}${e.instancePath || ''}: ${e.message}${e.keyword === 'additionalProperties' ? ` (${(e.params as { additionalProperties?: string[] }).additionalProperties?.join(', ') ?? ''})` : ''}.`);
 }
 
@@ -192,7 +192,7 @@ export function projectErrors(raw: unknown): string[] {
   if (version > PROJECT_SCHEMA_VERSION) return [`The project was saved by a newer planner (schema version ${version}); this one reads version ${PROJECT_SCHEMA_VERSION}.`];
   if (version !== PROJECT_SCHEMA_VERSION) return [`Schema version ${version} is not supported; this planner reads version ${PROJECT_SCHEMA_VERSION}.`];
   if (!Value.Check(ProjectSchema, raw)) return schemaErrors('project', ProjectSchema, raw);
-  const p = raw as Static<typeof ProjectSchema>;
+  const p = raw;
   const errors: string[] = [];
 
   const ids = new Set<string>();
@@ -205,7 +205,7 @@ export function projectErrors(raw: unknown): string[] {
     const kind = i.kind as InstanceKind;
     const schema = PARAMS_SCHEMA[kind];
     if (!Value.Check(schema, i.params)) errors.push(...schemaErrors(`${i.id}.params`, schema, i.params));
-    else if (kind === 'tunnel') errors.push(...checkControlled(`${i.id}.params`, omit(i.params as Record<string, unknown>, ['mode']), omit(TUNNEL_PARAMS_DEFAULT, ['mode']), TUNNEL_CONTROLS as SubassemblyControl<object>[]));
+    else if (kind === 'tunnel') errors.push(...checkControlled(`${i.id}.params`, withoutKeys(i.params as Record<string, unknown>, ['mode']), withoutKeys(TUNNEL_PARAMS_DEFAULT, ['mode']), TUNNEL_CONTROLS as SubassemblyControl<object>[]));
     const parent = i.parent === null ? null : instances.get(i.parent);
     if (i.parent !== null && !parent) errors.push(`Instance ${i.id}'s parent ${i.parent} does not exist.`);
     else if (!PARENT_KINDS[kind].includes((parent?.kind ?? null) as InstanceKind | null)) errors.push(`A ${kind} cannot stand ${parent ? `in a ${parent.kind}` : 'on the site'} (${i.id}).`);

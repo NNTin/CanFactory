@@ -3,7 +3,7 @@ import { enclosureInside, enclosureLayout, type EnclosureInside, type EnclosureL
 import { MODULAR_DEFAULT, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { platformLayout, type PlatformLayout } from './catioPlatform.ts';
 import {
-  applyTransform, composeTransform, isKind, relativeTransform, worldTransforms, yawDirection,
+  applyTransform, composeTransform, isKind, relativeTransform, withoutKeys, worldTransforms, yawDirection,
   type EnclosureInstance, type Instance, type Port, type Project, type ProjectIssue, type TunnelInstance, type Transform, type WindowParams,
 } from './catioProject.ts';
 import type { BomLine } from './catioSubassembly.ts';
@@ -151,9 +151,9 @@ export function evaluateProject(project: Project): ProjectEvaluation {
     if (!target) { issue('connection', 'error', [t.id], 'no-end', `${name(t)} has no end port.`); return result; }
     // the tunnel runs into a mate's face against the way it faces out; a free end's own face out is the way the tunnel runs
     const [dx, dy] = mateWorld ? yawDirection(target.yaw).map(v => -v) as [number, number] : yawDirection(target.yaw);
-    const { mode: _mode, ...own } = t.params;
+    const own = withoutKeys(t.params, ['mode']);
     const config: TunnelConfig = {
-      ...own, portX: target.x, portY: target.y, portFacing: Math.atan2(dx, dy) / RAD, portLevel: 'own', portHeight: target.z,
+      ...own, portX: r6(target.x), portY: r6(target.y), portFacing: r6(Math.atan2(dx, dy) / RAD), portLevel: 'own', portHeight: r6(target.z),
       angleJoint: 'side-port', mesh: s.mesh, supportFixing: s.tunnelCoupling.supportFixing, supportBase: s.tunnelCoupling.supportBase,
     };
     result.config = config;
