@@ -19,7 +19,7 @@ import { CameraHousingIllustration } from './CameraHousingIllustration.tsx';
 import { SpringBallDetentIllustration } from './SpringBallDetentIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { CatioConcept } from './CatioConcept.tsx';
-import { CatioPlanner } from './CatioPlanner.tsx';
+import { CatioPlannerRoute } from './CatioPlannerRoute.tsx';
 import { CatioSubassemblyRoute } from './CatioSubassemblyPage.tsx';
 import { CATIO_SUBASSEMBLY_TITLES } from './catioSubassemblies.ts';
 import catioThumbnail from '../../../docs/concepts/catio/01-overview.png';
@@ -657,7 +657,7 @@ export function App() {
         {route.view === 'buy-list' ? <BuyListPage /> : route.view === 'disclosure' ? <DisclosurePage /> : <PrivacyPage />}</>
         : route.view === 'catio-planner' ? <><div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button><span>/</span>
         <button type="button" onClick={() => navigate({ view: 'concepts', concept: 'catio', subassembly: null })}>Catio concept</button><span>/</span><span>Planner</span></div>
-        <CatioPlanner /></>
+        <CatioPlannerRoute /></>
         : route.view === 'concepts' ? <><div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button><span>/</span>
         {route.subassembly ? <><button type="button" onClick={() => navigate({ view: 'concepts', concept: 'catio', subassembly: null })}>Catio concept</button><span>/</span><span>{CATIO_SUBASSEMBLY_TITLES[route.subassembly]}</span></> : <span>Catio concept</span>}</div>
         {route.subassembly ? <CatioSubassemblyRoute key={route.subassembly} id={route.subassembly} /> : <CatioConcept />}</> : partsRoute ? <>
