@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addPlatform, composeTransform, createProject, evaluateProject, moveInstance, parseProject, PLATFORM, resizeInstance, rotateInstance, serializeProject,
-  tunnelBom, withoutKeys, type Project,
+  addEnclosure, addPlatform, composeTransform, createProject, evaluateProject, moveInstance, parseProject, PLATFORM, resizeInstance, rotateInstance, serializeProject,
+  previewTunnels, snapToModules, tunnelBom, tunnelPitch, withoutKeys, type Project,
 } from './index.ts';
 
 const furnished = () => addPlatform(createProject({ id: 'p1' }), 'enclosure-1').project;
@@ -128,5 +128,41 @@ describe('the platform', () => {
     expect(issueIds(wide)).toContain('geometry:platform-1+enclosure-1:platform-sheet');
     expect(issueIds(moveInstance(furnished(), 'platform-1', { z: 500 }).project)).toContain('geometry:platform-1+enclosure-1:platform-port-side-left');
     expect(issueIds(moveInstance(furnished(), 'platform-1', { z: 150 }).project)).toContain('geometry:platform-1+enclosure-1:platform-below');
+  });
+});
+
+describe('a drag’s preview', () => {
+  it('re-solves only the tunnels the dragged instances couple to, as evaluating the moved project does', () => {
+    const project = furnished();
+    const evaluation = evaluateProject(project);
+    const at = project.instances.find(i => i.id === 'enclosure-1')?.transform;
+    if (!at) throw new Error('no enclosure');
+    const to = { ...at, y: at.y + 700 };
+    const [preview, ...others] = previewTunnels(project, evaluation, new Map([['enclosure-1', to]]));
+    expect(others).toEqual([]);
+    const moved = tunnelOf(moveInstance(project, 'enclosure-1', to).project);
+    expect(preview?.config).toEqual(moved.config);
+    expect(preview?.reaches).toBe(moved.reaches);
+    // moving the platform inside leaves the tunnel alone
+    expect(previewTunnels(project, evaluation, new Map([['platform-1', { x: 0, y: 900, z: 1200, yaw: 0 }]]))).toEqual([]);
+  });
+
+  it('snaps an enclosure on a tunnel to whole modules, on the ground', () => {
+    const project = createProject();
+    const evaluation = evaluateProject(project);
+    const at = project.instances.find(i => i.id === 'enclosure-1')?.transform;
+    if (!at) throw new Error('no enclosure');
+    const window = evaluation.instances.find(i => i.kind === 'window');
+    if (window?.kind !== 'window') throw new Error('no window');
+    const pitch = tunnelPitch(window.site, { ...project.settings.tunnelCoupling, jointShown: 'end-end' });
+    for (const dy of [380, pitch * 0.6, -pitch * 0.4]) {
+      const snapped = snapToModules(project, evaluation, 'enclosure-1', { ...at, y: at.y + dy });
+      expect(snapped.x).toBeCloseTo(at.x, 3);
+      expect(Math.abs((snapped.y - at.y) / pitch - Math.round((snapped.y - at.y) / pitch))).toBeLessThan(1e-6);
+      expect(tunnelOf(moveInstance(project, 'enclosure-1', snapped).project).reaches).toBe(true);
+    }
+    // an enclosure on no tunnel stays where it is put
+    const free = addEnclosure(project, { x: 500, y: 3000 });
+    expect(snapToModules(free.project, evaluateProject(free.project), free.id ?? '', { x: 512, y: 3003, z: 0, yaw: 0 })).toEqual({ x: 512, y: 3003, z: 0, yaw: 0 });
   });
 });

@@ -4,7 +4,7 @@ import { MODULAR_DEFAULT, validateModular, type ModularConfig } from './catioMod
 import { platformLayout, type PlatformLayout } from './catioPlatform.ts';
 import {
   applyTransform, composeTransform, isKind, relativeTransform, withoutKeys, worldTransforms, yawDirection,
-  type EnclosureInstance, type Instance, type Port, type Project, type ProjectIssue, type TunnelInstance, type Transform, type WindowParams,
+  type EnclosureInstance, type Instance, type Port, type Project, type ProjectIssue, type ProjectSettings, type TunnelInstance, type Transform, type WindowParams,
 } from './catioProject.ts';
 import type { BomLine } from './catioSubassembly.ts';
 import { facePoint, PORT_MOVED, TUNNEL, tunnelBom, tunnelLayout, tunnelPitch, tunnelSiteFor, type TunnelConfig, type TunnelLayout, type TunnelSite } from './catioTunnel.ts';
@@ -149,13 +149,7 @@ export function evaluateProject(project: Project): ProjectEvaluation {
     const mateWorld = mate ? portWorld(mate) : null;
     const target = mateWorld ? relativeTransform(tunnelWorld, mateWorld) : end ? end.frame : null;
     if (!target) { issue('connection', 'error', [t.id], 'no-end', `${name(t)} has no end port.`); return result; }
-    // the tunnel runs into a mate's face against the way it faces out; a free end's own face out is the way the tunnel runs
-    const [dx, dy] = mateWorld ? yawDirection(target.yaw).map(v => -v) as [number, number] : yawDirection(target.yaw);
-    const own = withoutKeys(t.params, ['mode']);
-    const config: TunnelConfig = {
-      ...own, portX: r6(target.x), portY: r6(target.y), portFacing: r6(Math.atan2(dx, dy) / RAD), portLevel: 'own', portHeight: r6(target.z),
-      angleJoint: 'side-port', mesh: s.mesh, supportFixing: s.tunnelCoupling.supportFixing, supportBase: s.tunnelCoupling.supportBase,
-    };
+    const config = tunnelRoute(t, s, target, mateWorld !== null);
     result.config = config;
     const layout = guard([t.id], 'tunnel', () => tunnelLayout(config, window.site, joint));
     if (!layout) return result;
@@ -230,6 +224,67 @@ export function evaluateProject(project: Project): ProjectEvaluation {
 
   const unresolved = issues.filter(i => i.severity === 'error' || i.kind === 'missing-recipe' || i.kind === 'unverified');
   return { instances: evaluated, ports, issues, bom, unresolved };
+}
+
+/**
+ * The tunnel page's config that solves a tunnel's route (in its window's frame): from its window's port to `target`, its end's face
+ * in the tunnel's frame. The tunnel runs into a mate's face (`mated`) against the way that faces out; a free end's own face out is
+ * the way the tunnel runs.
+ */
+export function tunnelRoute(t: Pick<TunnelInstance, 'params'>, s: ProjectSettings, target: Transform, mated: boolean): TunnelConfig {
+  const [dx, dy] = mated ? yawDirection(target.yaw).map(v => -v) as [number, number] : yawDirection(target.yaw);
+  return {
+    ...withoutKeys(t.params, ['mode']), portX: r6(target.x), portY: r6(target.y), portFacing: r6(Math.atan2(dx, dy) / RAD), portLevel: 'own', portHeight: r6(target.z),
+    angleJoint: 'side-port', mesh: s.mesh, supportFixing: s.tunnelCoupling.supportFixing, supportBase: s.tunnelCoupling.supportBase,
+  };
+}
+
+/** A tunnel re-solved for a drag's preview: its route's config and layout, and whether its whole modules reach its mate. */
+export interface TunnelPreview { id: string; config: TunnelConfig; layout: TunnelLayout | null; reaches: boolean }
+/**
+ * A drag's tunnels: with the instances in `moved` at those transforms (each in its parent's frame), every tunnel coupled to a port of
+ * one of them (or of anything in them) re-solved, from `evaluation`, the project's before the drag. Nothing else is evaluated (no
+ * checks, no parts list), so that a drag stays quick; committing it evaluates the whole project.
+ */
+export function previewTunnels(project: Project, evaluation: Pick<ProjectEvaluation, 'instances' | 'ports'>, moved: ReadonlyMap<string, Transform>): TunnelPreview[] {
+  const instances = project.instances.map(i => { const t = moved.get(i.id); return t ? { ...i, transform: t } as Instance : i; });
+  const byId = new Map(instances.map(i => [i.id, i]));
+  const affected = (id: string | null): boolean => { const seen = new Set<string>(); for (let at = id; at && !seen.has(at); at = byId.get(at)?.parent ?? null) { if (moved.has(at)) return true; seen.add(at); } return false; };
+  const world = worldTransforms({ instances });
+  const ports = new Map(evaluation.ports.map(p => [p.id, p]));
+  const joint: TunnelCouplingConfig = { ...project.settings.tunnelCoupling, jointShown: 'end-end' };
+  const previews: TunnelPreview[] = [];
+  for (const t of instances.filter(isKind('tunnel'))) {
+    const end = project.ports.find(p => p.owner === t.id && p.name === 'end');
+    const connection = end && project.connections.find(c => c.ports.includes(end.id));
+    const mate = ports.get(connection?.ports.find(id => id !== end?.id) ?? '');
+    const window = evaluation.instances.find((e): e is EvaluatedWindow => e.kind === 'window' && e.id === t.parent);
+    const tunnelWorld = world.get(t.id);
+    if (!mate || !window || !tunnelWorld || !(affected(mate.owner) || affected(t.id))) continue;
+    const ownerWorld = world.get(mate.owner); if (!ownerWorld) continue;
+    const config = tunnelRoute(t, project.settings, relativeTransform(tunnelWorld, composeTransform(ownerWorld, mate.local)), true);
+    let layout: TunnelLayout | null = null;
+    try { layout = tunnelLayout(config, window.site, joint); } catch { /* an unsolvable route previews as not reaching */ }
+    previews.push({ id: t.id, config, layout, reaches: !!layout && layout.moved <= PORT_MOVED && layout.facingMoved <= 0.5 });
+  }
+  return previews;
+}
+
+/**
+ * Where an instance dragged to `to` stands so that the tunnels coupled to it reach it in whole standard modules: moved
+ * on the ground by how far the first such tunnel's modules end from its port (FR-02.5: tunnel lengths snap to the module pitch,
+ * not the garden grid). `to` itself when no tunnel couples to it, or none can be solved.
+ */
+export function snapToModules(project: Project, evaluation: Pick<ProjectEvaluation, 'instances' | 'ports'>, id: string, to: Transform): Transform {
+  const preview = previewTunnels(project, evaluation, new Map([[id, to]])).find(p => p.layout);
+  const tunnel = preview && project.instances.find(i => i.id === preview.id);
+  if (!preview?.layout || !tunnel) return to;
+  const { E, asked } = preview.layout;
+  const world = worldTransforms(project);
+  const parent = project.instances.find(i => i.id === id)?.parent;
+  // the shift in the tunnel's frame, turned into the dragged instance's parent's
+  const shift = applyTransform({ x: 0, y: 0, z: 0, yaw: (world.get(tunnel.id)?.yaw ?? 0) - (parent ? world.get(parent)?.yaw ?? 0 : 0) }, { x: (E[0] ?? 0) - (asked[0] ?? 0), y: (E[1] ?? 0) - (asked[1] ?? 0), z: 0 });
+  return { ...to, x: r6(to.x + shift.x), y: r6(to.y + shift.y) };
 }
 
 /** The instances outside the garden (an enclosure with its door swung open): what a smaller garden would leave out. */
