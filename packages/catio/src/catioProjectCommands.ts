@@ -145,8 +145,8 @@ export function platformRangeOf(project: Project, id: string, change: { params?:
   return platformRange(change.params ?? platform.params, change.yaw ?? platform.transform.yaw, roomOf(project, enclosure), portSize(project, enclosure.id));
 }
 
-const cm = (mm: number) => `${(Math.round(mm) / 10).toLocaleString('en', { maximumFractionDigits: 1 })}`;
-/** A range's text, in centimetres: `24–176 cm`, or several bands. */
+const cm = (mm: number) => `${mm < -0.5 ? '−' : ''}${(Math.abs(Math.round(mm)) / 10).toLocaleString('en', { maximumFractionDigits: 1 })}`;
+/** A range's text, in centimetres: `24–176 cm`, `−76–76 cm`, or several bands. */
 export const rangeText = (intervals: [number, number][]) => intervals.length ? `${intervals.map(([a, b]) => `${cm(a)}–${cm(b)}`).join(' or ')} cm` : 'nowhere';
 const AXIS_TITLES = { x: 'West–East', y: 'North–South' } as const;
 /** What keeping a platform at `got` rather than `wanted` changed, for the owner. */
@@ -214,7 +214,7 @@ export function resizeInstance(project: Project, id: string, size: Partial<Enclo
   const errors = numberErrors(size, true); if (errors.length) return fail(project, ...errors);
   if (instance.kind !== 'platform') return ok(project, replace(project, { ...instance, params: { ...instance.params, ...size } } as Instance));
   const range = platformRangeOf(project, id);
-  const wanted = { ...instance.params, ...size } as PlatformParams;
+  const wanted = { ...instance.params, ...size };
   const params = range ? { ...wanted, width: Math.min(wanted.width, range.span), depth: Math.min(wanted.depth, range.room) } : wanted;
   const name = instance.name ?? id; const notes: string[] = [];
   if (params.width < wanted.width) notes.push(`${name}'s board is ${cm(params.width)} cm long: that is the span between the frames it rests on.`);

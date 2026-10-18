@@ -30,4 +30,13 @@ describe('the resize handles', () => {
     expect(r.size).toEqual({ height: 2100 }); expect(r.box.max[2]).toBe(2100); expect(r.transform).toEqual({ x: 0, y: 0, z: 0, yaw: 0 });
     expect(sizeFaces(platform)).not.toContain('+z');
   });
+
+  it('keeps a platform’s board no larger than its range allows, as its resize command does (#125)', () => {
+    const t = { x: 0, y: 1000, z: 1200, yaw: 0 };
+    expect(resizeFrom(platform, t, '+x', 500, 10, 1920).value).toBe(1920);
+    expect(resizeFrom(platform, t, '-y', 3000, 10, 1920).value).toBe(1920);
+    expect(resizeFrom(platform, t, '+y', -100, 10, 1920).value).toBe(300);
+    // a board already larger (an enclosure shrunk under it) is not shrunk by the handle unasked
+    expect(resizeFrom(platform, t, '+x', 10, 10, 1500).value).toBe(1920);
+  });
 });

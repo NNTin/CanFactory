@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Box, CircleAlert, Copy, Focus, Magnet, Maximize, Move, Plus, Redo2, RotateCw, Scaling, Trash2, Undo2 } from 'lucide-react';
 import {
-  addEnclosure, addPlatform, canRedo, canUndo, deleteDependents, deleteInstance, duplicateInstance, ENCLOSURE_DEFAULT, moveInstance, resizeGarden,
-  resizeInstance, rotateInstance, worldTransforms, type CommandResult, type EvaluatedInstance, type Instance, type Project, type ProjectEvaluation, type ProjectIssue,
+  addEnclosure, addPlatform, canRedo, canUndo, deleteDependents, deleteInstance, duplicateInstance, ENCLOSURE_DEFAULT, moveInstance, ORIENTATION_YAW,
+  platformOrientation, platformRangeOf, PLATFORM_ORIENTATIONS, PLATFORM_RECIPES, rangeText, resizeGarden, resizeInstance, rotateInstance, worldTransforms, type CommandResult, type EvaluatedInstance, type Instance, type Project, type ProjectEvaluation, type ProjectIssue,
 } from '@canfactory/catio';
 import { createPlannerStore, PlannerStoreContext, usePlannerHistory, usePlannerStore } from './catioPlannerStore.ts';
 import { CAMERA_VIEWS, createPlannerViewport, tunnelModules, type CameraView, type PlannerViewport, type Readout } from './catioPlannerViewport.ts';
@@ -25,7 +25,7 @@ const KIND_TITLES: Record<string, string> = { window: 'Window', tunnel: 'Tunnel'
 /** Page Up / Page Down's step, and with Shift (FR-02.6). */
 const ELEVATION_STEP = { fine: 10, coarse: 100 } as const;
 const TOOLS: { tool: PlannerTool; label: string; title: string; icon: ReactNode }[] = [
-  { tool: 'move', label: 'Move', title: 'Move: drag the object to move it, its ring to turn it, a platform’s arrow to raise it', icon: <Move size={13} aria-hidden="true" /> },
+  { tool: 'move', label: 'Move', title: 'Move: drag the object to move it, its ring to turn it; a platform slides by its double arrow and rises by its upright one', icon: <Move size={13} aria-hidden="true" /> },
   { tool: 'rotate', label: 'Rotate', title: 'Rotate: drag the object or its ring to turn it', icon: <RotateCw size={13} aria-hidden="true" /> },
   { tool: 'resize', label: 'Resize', title: 'Resize: drag a handle on a face to change the size; the opposite face stays put', icon: <Scaling size={13} aria-hidden="true" /> },
 ];
@@ -41,14 +41,15 @@ function PlannerPage() {
   const [snap, setSnap] = useState(true);
   const [tool, setTool] = useState<PlannerTool>('move');
   const [view, setView] = useState<CameraView>('3D');
-  const [status, setStatus] = useState<string | null>(null);
+  /** The last edit's refusal (an alert) or what it did other than asked (a note). */
+  const [status, setStatus] = useState<{ text: string; alert: boolean } | null>(null);
   const [focusedIssue, setFocusedIssue] = useState<string | null>(null);
   const flagged = useMemo(() => [...new Set(evaluation.issues.filter(flags).flatMap(i => i.instanceIds))], [evaluation]);
 
-  /** Runs a command on the present project: one undo step, or its errors shown. */
+  /** Runs a command on the present project: one undo step, or its errors shown; its notes (where a platform stopped) are shown too. */
   const run = (result: CommandResult, select?: string | null) => {
-    if (result.errors.length) { setStatus(result.errors.join(' ')); return result.errors; }
-    setStatus(null); store.apply(result.project);
+    if (result.errors.length) { setStatus({ text: result.errors.join(' '), alert: true }); return result.errors; }
+    setStatus(result.notes?.length ? { text: result.notes.join(' '), alert: false } : null); store.apply(result.project);
     if (select) store.select([select]);
     return [];
   };
@@ -98,7 +99,7 @@ function PlannerPage() {
   const elevate = (direction: 1 | -1, coarse: boolean) => {
     const present = store.get().present;
     const [id] = present.view.selection; const instance = present.view.selection.length === 1 ? present.instances.find(i => i.id === id) : undefined;
-    if (instance?.kind !== 'platform') { setStatus(instance?.kind === 'enclosure' ? 'An enclosure stands on the ground: raise or lower a platform in it.' : 'Select a platform to raise or lower it.'); return; }
+    if (instance?.kind !== 'platform') { setStatus({ text: instance?.kind === 'enclosure' ? 'An enclosure stands on the ground: raise or lower a platform in it.' : 'Select a platform to raise or lower it.', alert: true }); return; }
     run(moveInstance(present, instance.id, { z: instance.transform.z + direction * (coarse ? ELEVATION_STEP.coarse : ELEVATION_STEP.fine) }));
   };
   const elevateRef = useRef(elevate); elevateRef.current = elevate;
@@ -108,7 +109,7 @@ function PlannerPage() {
   const addAnEnclosure = () => { const result = addEnclosure(project, freeSpot(project)); run(result, result.id); };
   const addAPlatform = () => {
     const enclosure = enclosureFor(selected);
-    if (!enclosure) { setStatus('Add an enclosure first: a platform stands in one.'); return; }
+    if (!enclosure) { setStatus({ text: 'Add an enclosure first: a platform stands in one.', alert: true }); return; }
     const result = addPlatform(project, enclosure); run(result, result.id);
   };
 
@@ -122,7 +123,7 @@ function PlannerPage() {
       </div>
       <BuildListSlot />
     </div>
-    {status && <p className="planner-status" role="alert">{status}</p>}
+    {status && <p className={`planner-status${status.alert ? '' : ' note'}`} role={status.alert ? 'alert' : 'status'}>{status.text}</p>}
     <div className="planner-layout">
       <aside className="planner-left">
         <section aria-label="Catalogue"><h2 className="eyebrow">CATALOGUE</h2>
@@ -154,7 +155,7 @@ function PlannerPage() {
           {unsupported && <div className="catio-fallback" role="status"><Box size={32} /><strong>3D is unavailable</strong><p>This browser has no WebGL. The object tree, the inspector and the issues still work.</p></div>}
           {readout && <div className={`planner-readout${readout.ok ? '' : ' invalid'}`} role="status" style={{ left: readout.x + 18, top: readout.y + 18 }}><strong>{readout.title}</strong>{readout.lines.map(line => <span key={line}>{line}</span>)}</div>}
         </div>
-        <p className="planner-hint">Drag an object to move it, its ring to turn it, a platform’s arrow (or Page Up / Page Down) to raise it · Resize: drag a face’s handle · empty space: orbit in 3D, pan in Top, Front and Side · middle button pans · scroll zooms · Esc cancels a drag</p>
+        <p className="planner-hint">Drag an object to move it, its ring to turn it · a platform stays in its enclosure: its double arrow slides it, its upright arrow (or Page Up / Page Down) raises it, its ring turns it West–East or North–South · Resize: drag a face’s handle · empty space: orbit in 3D, pan in Top, Front and Side · middle button pans · scroll zooms · Esc cancels a drag</p>
       </section>
       <aside className="planner-right">
         <Inspector project={project} evaluation={evaluation} selected={selected} run={run} remove={id => {
@@ -264,15 +265,26 @@ function InstanceFields({ project, instance, evaluated, run }: { project: Projec
     </>;
   }
   if (instance.kind === 'platform') {
+    // where its recipe holds: it spans its frames (that axis is fixed), slides along the other and rises between its limits
+    const range = platformRangeOf(project, instance.id);
+    const orientation = platformOrientation(t.yaw);
+    const axis = (key: 'x' | 'y') => range?.fixed === key
+      ? { disabled: true, hint: `Fixed: it spans the enclosure ${range.orientation === 'west-east' ? 'from side to side' : 'from rear to front'}` }
+      : { hint: range ? `${AXIS_TITLES[key]} · ${rangeText([range.along])}` : undefined };
     return <>
+      <div className="planner-orientation" role="group" aria-label="Orientation">
+        {PLATFORM_ORIENTATIONS.map(o => <button key={o} type="button" aria-pressed={orientation === o}
+          title={o === 'west-east' ? 'From one side frame to the other, on a batten along each' : 'From the rear posts to the front posts, on a cross bearer at each end'}
+          onClick={() => { if (orientation !== o) run(rotateInstance(project, instance.id, ORIENTATION_YAW[o])); }}>{PLATFORM_RECIPES[o].title}</button>)}
+      </div>
       <fieldset><legend>Position in {nameOf(project, instance.parent ?? '')}</legend>
-        <NumberField label="X" unit="cm" value={t.x} scale={10} digits={1} onCommit={v => move({ x: v })} />
-        <NumberField label="Y" unit="cm" value={t.y} scale={10} digits={1} onCommit={v => move({ y: v })} />
-        <NumberField label="Elevation" unit="cm" value={t.z} scale={10} digits={1} onCommit={v => move({ z: v })} />
-        {yaw}</fieldset>
+        <NumberField label="X" unit="cm" value={t.x} scale={10} digits={1} {...axis('x')} onCommit={v => move({ x: v })} />
+        <NumberField label="Y" unit="cm" value={t.y} scale={10} digits={1} {...axis('y')} onCommit={v => move({ y: v })} />
+        <NumberField label="Elevation" unit="cm" value={t.z} scale={10} digits={1} hint={range ? rangeText(range.heights) : undefined} onCommit={v => move({ z: v })} />
+        <NumberField label="Yaw" unit="°" value={t.yaw} scale={1} digits={0} step={90} hint="Quarter turns" onCommit={v => run(rotateInstance(project, instance.id, v))} /></fieldset>
       <fieldset><legend>Board</legend>
-        <NumberField label="Width" unit="cm" value={instance.params.width} scale={10} digits={1} positive onCommit={v => resize({ width: v })} />
-        <NumberField label="Depth" unit="cm" value={instance.params.depth} scale={10} digits={1} positive onCommit={v => resize({ depth: v })} />
+        <NumberField label="Width" unit="cm" value={instance.params.width} scale={10} digits={1} positive hint={range ? `Its span · up to ${cm(range.span)} cm` : undefined} onCommit={v => resize({ width: v })} />
+        <NumberField label="Depth" unit="cm" value={instance.params.depth} scale={10} digits={1} positive hint={range ? `Up to ${cm(range.room)} cm` : undefined} onCommit={v => resize({ depth: v })} />
         <NumberField label="Thickness" unit="mm" value={instance.params.thickness} scale={1} digits={0} positive onCommit={v => resize({ thickness: v })} /></fieldset>
     </>;
   }
@@ -295,14 +307,15 @@ function InstanceFields({ project, instance, evaluated, run }: { project: Projec
   return null;
 }
 const cm = (mm: number) => (Math.round(mm) / 10).toLocaleString('en', { maximumFractionDigits: 1 });
+const AXIS_TITLES = { x: 'West–East', y: 'North–South' } as const;
 
 /**
  * A number with its unit. It is committed (as one edit) on Enter or when the field loses the focus; a value that is not a number,
  * or not above zero where it must be, is not: the project keeps its last valid value and the field says what is wrong. Esc puts
- * the field back.
+ * the field back. `hint` says what it accepts (a platform's range); a command that keeps the value within it says so in the status.
  */
-function NumberField({ label, unit, value, scale, digits, step, positive = false, onCommit }: {
-  label: string; unit: string; value: number; scale: number; digits: number; step?: number; positive?: boolean; onCommit: (mm: number) => string[];
+function NumberField({ label, unit, value, scale, digits, step, positive = false, hint, disabled = false, onCommit }: {
+  label: string; unit: string; value: number; scale: number; digits: number; step?: number; positive?: boolean; hint?: string | undefined; disabled?: boolean; onCommit: (mm: number) => string[];
 }) {
   const shown = (value / scale).toFixed(digits).replace(/\.0+$/, '');
   const [text, setText] = useState<string | null>(null);
@@ -333,7 +346,9 @@ function NumberField({ label, unit, value, scale, digits, step, positive = false
   };
   return <label className={`planner-field${error ? ' invalid' : ''}`}><span>{label}</span>
     <span className="planner-input"><input type="text" inputMode="decimal" value={text ?? shown} aria-invalid={error ? true : undefined} aria-label={`${label} (${unit})`}
+ disabled={disabled}
       onChange={event => { setText(event.target.value); setError(check(event.target.value).error); }} onBlur={commit} onKeyDown={onKey} /><small>{unit}</small></span>
+    {hint && <small className="planner-range">{hint}</small>}
     {error && <em className="planner-error" role="alert">{error} Keeping {shown} {unit}.</em>}
   </label>;
 }

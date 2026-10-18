@@ -314,6 +314,121 @@ test('Top, Front and Side are orthographic and empty space pans them; 3D orbits;
   expect(errors).toEqual([]);
 });
 
+/** The double arrow's direction on the screen, a unit vector from its middle to its tip. */
+async function slideDirection(viewport: Locator): Promise<[number, number]> {
+  const tip = await at(viewport, 'slide'); const middle = await at(viewport, 'slide-centre');
+  const length = Math.hypot(tip[0] - middle[0], tip[1] - middle[1]);
+  return [(tip[0] - middle[0]) / length, (tip[1] - middle[1]) / length];
+}
+const orientation = (page: Page) => page.getByRole('group', { name: 'Orientation' });
+const status = (page: Page) => page.locator('.planner-status');
+
+test('turns a platform North–South; its double arrow lies along its one free direction and slides it, stopping at the inside faces (#125)', async ({ page }, testInfo) => {
+  const { viewport, errors } = await open(page);
+  await page.getByRole('button', { name: /^Platform/ }).click();
+  await page.getByRole('button', { name: 'Top', exact: true }).click();
+  await expect.poll(async () => (await anchors(viewport))['slide']).toBeTruthy();
+  await expect(orientation(page).getByRole('button', { name: 'West–East' })).toHaveAttribute('aria-pressed', 'true');
+  // West–East: it spans the side frames, so X is fixed and the arrow points North–South (up and down the Top view)
+  await expect(field(page, 'X (cm)')).toBeDisabled();
+  await expect(page.getByRole('region', { name: 'Inspector' })).toContainText('North–South · 24–176 cm');
+  let [dx, dy] = await slideDirection(viewport);
+  expect(Math.abs(dy)).toBeGreaterThan(5 * Math.abs(dx));
+
+  // the arrow slides it far past the wall: it stops at the inside face, its X unchanged
+  const arrow = await at(viewport, 'slide');
+  await drag(page, arrow, [[arrow[0] + dx * 120, arrow[1] + dy * 120], [arrow[0] + dx * 400, arrow[1] + dy * 400]], false);
+  await expect(page.locator('.planner-readout')).toContainText(/Moving Platform 1/);
+  await expect(page.locator('.planner-readout')).toContainText(/North–South \d+(\.\d)? cm \([+−]\d+ mm\)/);
+  await expect(page.locator('.planner-readout')).toContainText('Range 24–176 cm');
+  await page.mouse.up();
+  await expect(viewport).toHaveAttribute('data-revision', '2');
+  const stop = await field(page, 'Y (cm)').inputValue();
+  expect(['24', '176']).toContain(stop);
+  await expect(field(page, 'X (cm)')).toHaveValue('0');
+  // the body moves on the same axis only: a drag across it changes nothing
+  const body = await at(viewport, 'platform-1');
+  await drag(page, body, [[body[0] - dy * 60, body[1] + dx * 60], [body[0] - dy * 150, body[1] + dx * 150]]);
+  await expect(field(page, 'X (cm)')).toHaveValue('0');
+  await expect(field(page, 'Y (cm)')).toHaveValue(stop);
+
+  // turned North–South by the orientation control: one edit, still whole and attached
+  await orientation(page).getByRole('button', { name: 'North–South' }).click();
+  await expect(viewport).toHaveAttribute('data-revision', '3');
+  await expect(orientation(page).getByRole('button', { name: 'North–South' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(field(page, 'Yaw (°)')).toHaveValue('90');
+  await expect(field(page, 'Y (cm)')).toBeDisabled();
+  await expect(field(page, 'X (cm)')).toBeEnabled();
+  await expect(page.getByRole('region', { name: 'Inspector' })).toContainText('West–East · −76–76 cm');
+  await expect(issues(page)).toContainText('0 ERRORS');
+  await expect.poll(async () => { const [x, y] = await slideDirection(viewport); return Math.abs(x) > 5 * Math.abs(y); }).toBe(true);
+  [dx, dy] = await slideDirection(viewport);
+  const turned = await at(viewport, 'slide');
+  await drag(page, turned, [[turned[0] - dx * 120, turned[1] - dy * 120], [turned[0] - dx * 400, turned[1] - dy * 400]]);
+  await expect(viewport).toHaveAttribute('data-revision', '4');
+  expect(['-76', '76']).toContain(await field(page, 'X (cm)').inputValue());
+  await page.screenshot({ path: testInfo.outputPath('catio-planner-north-south.png') });
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(field(page, 'Yaw (°)')).toHaveValue('0');
+  await expect(orientation(page).getByRole('button', { name: 'West–East' })).toHaveAttribute('aria-pressed', 'true');
+
+  // the ring turns it in quarter turns only, and the yaw field snaps to them
+  const handle = await at(viewport, 'rotate'); const centre = await at(viewport, 'rotate-centre');
+  const r = Math.hypot(handle[0] - centre[0], handle[1] - centre[1]); const a0 = Math.atan2(handle[1] - centre[1], handle[0] - centre[0]);
+  await drag(page, handle, [20, 40, 60, 80].map((deg): [number, number] => [centre[0] + r * Math.cos(a0 + deg * Math.PI / 180), centre[1] + r * Math.sin(a0 + deg * Math.PI / 180)]));
+  await expect(field(page, 'Yaw (°)')).not.toHaveValue('0');
+  expect(Math.abs(Number(await field(page, 'Yaw (°)').inputValue())) % 90).toBe(0);
+  await expect(orientation(page).getByRole('button', { name: 'North–South' })).toHaveAttribute('aria-pressed', 'true');
+  await field(page, 'Yaw (°)').fill('170'); await field(page, 'Yaw (°)').press('Enter');
+  await expect(field(page, 'Yaw (°)')).toHaveValue('180');
+  await expect(status(page)).toContainText('A platform turns in 90° steps');
+  await expect(issues(page)).toContainText('0 ERRORS');
+  expect(errors).toEqual([]);
+});
+
+test('locks a platform in its enclosure: its arrow, Page Up / Page Down and its fields stop at the roof, the lowest height and the walls (#125)', async ({ page }) => {
+  const { viewport, errors } = await open(page);
+  await page.getByRole('button', { name: /^Platform/ }).click();
+  await expect(page.getByRole('region', { name: 'Inspector' })).toContainText('60.3–195.9 cm');
+  await page.getByRole('button', { name: 'Front', exact: true }).click();
+  await page.getByRole('button', { name: 'Fit selection', exact: true }).click();
+  await expect.poll(async () => (await anchors(viewport))['elevate']).toBeTruthy();
+  // dragged far above the roof: it stops under the lowest member overhead
+  const arrow = await at(viewport, 'elevate');
+  await drag(page, arrow, [[arrow[0], arrow[1] - 150], [arrow[0], Math.max(5, arrow[1] - 900)]], false);
+  await expect(page.locator('.planner-readout')).toContainText('at its limit');
+  await page.mouse.up();
+  await expect(viewport).toHaveAttribute('data-revision', '2');
+  await expect(field(page, 'Elevation (cm)')).toHaveValue('195.9');
+  // Page Up at the top: nothing changes, and it says why
+  await page.locator('body').press('PageUp');
+  await expect(status(page)).toContainText('stops at an elevation of 195.9 cm');
+  await expect(viewport).toHaveAttribute('data-revision', '2');
+  // Shift+Page Down to the bottom: it stops above the cat ports, and Page Down there does nothing
+  for (let i = 0; i < 15; i++) await page.locator('body').press('Shift+PageDown');
+  await expect(field(page, 'Elevation (cm)')).toHaveValue('60.3');
+  const revision = await viewport.getAttribute('data-revision');
+  await tools(page).getByRole('button', { name: 'Lower' }).click();
+  await expect(status(page)).toContainText('stops at an elevation of 60.3 cm');
+  await expect(viewport).toHaveAttribute('data-revision', revision ?? '');
+  // a field's value out of range is clamped, with a note
+  await field(page, 'Y (cm)').fill('500'); await field(page, 'Y (cm)').press('Enter');
+  await expect(field(page, 'Y (cm)')).toHaveValue('176');
+  await expect(status(page)).toContainText('stops at 176 cm North–South');
+  await field(page, 'Elevation (cm)').fill('300'); await field(page, 'Elevation (cm)').press('Enter');
+  await expect(field(page, 'Elevation (cm)')).toHaveValue('195.9');
+  // dragged far past a wall in the Top view, the body stops at the inside face
+  await page.getByRole('button', { name: 'Top', exact: true }).click();
+  await expect.poll(async () => (await anchors(viewport))['slide']).toBeTruthy();
+  const [dx, dy] = await slideDirection(viewport);
+  const body = await at(viewport, 'platform-1');
+  await drag(page, body, [[body[0] - dx * 100, body[1] - dy * 100], [body[0] - dx * 300, body[1] - dy * 300]]);
+  await expect(field(page, 'Y (cm)')).toHaveValue('24');
+  await expect(issues(page)).toContainText('0 ERRORS');
+  expect(errors).toEqual([]);
+});
+
 test('says 3D is unavailable without WebGL, and the tree and inspector still work', async ({ page }) => {
   await page.addInitScript(() => {
     // Preserve the browser method and explicitly restore its receiver with apply below.

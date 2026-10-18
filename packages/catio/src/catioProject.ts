@@ -102,7 +102,8 @@ export const ConnectionSchema = Type.Object({ id: Id, ports: Type.Tuple([Id, Id]
 export type Connection = Static<typeof ConnectionSchema>;
 /**
  * An instance fixed to a structural member of another: `support.member` names the member in that instance's layout (an enclosure's
- * `side-left` or `side-right` frame), `anchor` is the point that bears on it, in the attached instance's own frame.
+ * `side-left` or `side-right` frame, or a platform's `frame-rear` or `frame-front` cross bearer on them: catioPlatform.ts), `anchor`
+ * is the point that bears on it, in the attached instance's own frame.
  */
 export const AttachmentSchema = Type.Object({
   id: Id, instance: Id, support: Type.Object({ instance: Id, member: Type.String({ minLength: 1 }) }, { additionalProperties: false }), anchor: PointSchema,

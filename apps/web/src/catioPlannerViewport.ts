@@ -1,13 +1,18 @@
 import * as THREE from 'three';
-import { applyTransform, previewTunnels, snapToModules, worldTransforms, type EnclosureParams, type PlatformParams, type Project, type ProjectEvaluation, type Transform, type TunnelLayout } from '@canfactory/catio';
+import {
+  applyTransform, clampPlatform, platformOrientation, platformRangeOf, platformYaw, PLATFORM_RECIPES, previewTunnels, rangeText, snapToModules, worldTransforms,
+  type EnclosureParams, type PlatformParams, type PlatformRange, type Project, type ProjectEvaluation, type Transform, type TunnelLayout,
+} from '@canfactory/catio';
 import { createStage, type Stage } from './stage.ts';
 import { createPlannerScene, type PlannerScene, type PlannerTool } from './catioPlannerScene.ts';
 import { facePoint, resizeFrom, type SizeFace, type Sized } from './catioPlannerHandles.ts';
 
 /**
  * The planner's viewport: the stage, the scene drawn from the evaluated project, and direct manipulation. A click picks an instance
- * (or a handle of the selected one); dragging an enclosure moves it on the ground, a platform within its enclosure at its elevation
- * (its arrow raises or lowers it), the ring turns either in 15° steps, and in the Resize tool a handle on a face drags that face. A
+ * (or a handle of the selected one); dragging an enclosure moves it on the ground, the ring turns it in 15° steps, and in the Resize
+ * tool a handle on a face drags that face. A platform is locked in its enclosure where its recipe holds (`platformRange`, the same
+ * clamp its move command applies): its body or its double arrow slides it along its one free direction, its upright arrow raises or
+ * lowers it, and its ring turns it West–East or North–South in quarter turns. A
  * drag on an instance or handle never orbits: the viewport takes the pointer before the camera's controls see it. In 3D empty space
  * orbits; the Top, Front and Side views are orthographic, and there it pans (FR-02.3). The middle (or right) button pans, the wheel
  * zooms.
@@ -42,6 +47,8 @@ interface Drag {
   plane: THREE.Plane; grab: THREE.Vector3;
   /** Its parent's frame in the site's. */
   parent: Transform;
+  /** A platform's: where it can stand in its enclosure, as the move command clamps it. */
+  range: PlatformRange | null;
   /** The pointer went down here; a drag starts once it has moved a few pixels. */
   down: [number, number]; moved: boolean;
   /** The tunnels it has redrawn. */
@@ -56,6 +63,7 @@ const cm = (mm: number) => (Math.round(mm) / 10).toLocaleString('en', { maximumF
 const signed = (mm: number) => `${mm >= 0 ? '+' : '−'}${Math.abs(Math.round(mm))} mm`;
 const snapTo = (value: number, step: number) => Math.round(value / step) * step;
 const normalYaw = (yaw: number) => { const a = ((yaw % 360) + 360) % 360; return a > 180 ? a - 360 : a; };
+const AXIS_TITLES = { x: 'West–East', y: 'North–South' } as const;
 
 export function createPlannerViewport(element: HTMLElement, callbacks: ViewportCallbacks) {
   const stage: Stage | null = createStage(element, 'Catio planner. Drag an object to move it, the ring to turn it; drag empty space to orbit, the middle button to pan, scroll to zoom.', { scale: 25, workshopFloor: false });
@@ -186,6 +194,7 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     if (!grab) return null;
     return {
       id, how, pointer, start: { ...instance.transform }, current: { ...instance.transform }, plane, grab, parent, own, down: point, moved: false, tunnels: new Set(),
+      range: platformRangeOf(input.project, id),
       ...(face ? { face } : {}), ...(sized ? { sized } : {}),
     };
   }
@@ -197,11 +206,15 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     const { start, parent } = drag; const snap = input.snap;
     let to: Transform;
     const name = input.project.instances.find(i => i.id === drag?.id)?.name ?? drag.id;
+    const { range } = drag;
     if (drag.how === 'elevate') {
-      to = { ...start, z: snapTo(start.z + hit.z - drag.grab.z, snap ? SNAP.grid : 1) };
+      const wanted = snapTo(start.z + hit.z - drag.grab.z, snap ? SNAP.grid : 1);
+      to = range ? clampPlatform(range, { ...start, z: wanted }, drag.current.z) : { ...start, z: wanted };
       if (to.z === drag.current.z) return;
       drag.current = to; scene.pose(drag.id, to); stage?.invalidate(); publishAnchors();
-      callbacks.readout({ x: point[0], y: point[1], title: `Raising ${name}`, lines: [`Elevation ${cm(to.z)} cm (${signed(to.z - start.z)})`], ok: true });
+      callbacks.readout({ x: point[0], y: point[1], title: `Raising ${name}`, ok: true, lines: [
+        `Elevation ${cm(to.z)} cm (${signed(to.z - start.z)})`, ...(range ? [`Range ${rangeText(range.heights)}${to.z !== wanted ? ' · at its limit' : ''}`] : []),
+      ] });
       return;
     }
     if (drag.how === 'resize' && drag.face && drag.sized) {
@@ -209,7 +222,9 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
       const axis = drag.face[1]; const sign = drag.face[0] === '+' ? 1 : -1; const yaw = drag.own.yaw * RAD;
       const out = axis === 'x' ? [Math.cos(yaw), Math.sin(yaw)] : [-Math.sin(yaw), Math.cos(yaw)];
       const delta = axis === 'z' ? hit.z - drag.grab.z : sign * ((hit.x - drag.grab.x) * (out[0] ?? 0) + (hit.y - drag.grab.y) * (out[1] ?? 0));
-      const r = resizeFrom(drag.sized, start, drag.face, delta, snap ? SNAP.grid : 1);
+      // a platform's board spans its frames and fits between the inside faces, as its resize command keeps it
+      const max = range ? (axis === 'x' ? range.span : axis === 'y' ? range.room : undefined) : undefined;
+      const r = resizeFrom(drag.sized, start, drag.face, delta, snap ? SNAP.grid : 1, max);
       if (drag.size ? JSON.stringify(r.size) === JSON.stringify(drag.size) : r.change === 0) return;
       drag.current = r.transform; drag.size = r.size;
       scene.showGhost(drag.id, r.box); stage?.invalidate();
@@ -221,12 +236,20 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
       // the pointer's travel, turned into the parent's frame
       const dx = hit.x - drag.grab.x; const dy = hit.y - drag.grab.y; const c = Math.cos(-parent.yaw * RAD); const s = Math.sin(-parent.yaw * RAD);
       const step = snap ? SNAP.grid : 1;
-      to = { ...start, x: snapTo(start.x + c * dx - s * dy, step), y: snapTo(start.y + s * dx + c * dy, step) };
-      if (snap) to = snapToModules(input.project, input.evaluation, drag.id, to);
+      const travel = { x: c * dx - s * dy, y: s * dx + c * dy };
+      if (range) {
+        // a platform slides along its free direction only, and stops at the inside faces
+        to = clampPlatform(range, { ...start, [range.free]: snapTo(start[range.free] + travel[range.free], step) });
+      } else {
+        to = { ...start, x: snapTo(start.x + travel.x, step), y: snapTo(start.y + travel.y, step) };
+        if (snap) to = snapToModules(input.project, input.evaluation, drag.id, to);
+      }
     } else {
       const origin = new THREE.Vector3(parent.x + Math.cos(parent.yaw * RAD) * start.x - Math.sin(parent.yaw * RAD) * start.y, parent.y + Math.sin(parent.yaw * RAD) * start.x + Math.cos(parent.yaw * RAD) * start.y, 0);
       const angle = (v: THREE.Vector3) => Math.atan2(v.y - origin.y, v.x - origin.x) / RAD;
-      to = { ...start, yaw: normalYaw(snapTo(start.yaw + angle(hit) - angle(drag.grab), snap ? SNAP.yaw : 1)) };
+      const yaw = start.yaw + angle(hit) - angle(drag.grab);
+      // a platform runs West–East or North–South: quarter turns, snapping or not
+      to = { ...start, yaw: normalYaw(range ? platformYaw(yaw) : snapTo(yaw, snap ? SNAP.yaw : 1)) };
     }
     if (JSON.stringify(to) === JSON.stringify(drag.current)) return;
     drag.current = to;
@@ -235,9 +258,11 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     const tunnels = previewTunnels(input.project, input.evaluation, new Map([[drag.id, to]]));
     for (const t of tunnels) { scene.redrawTunnel(t.id, t.layout, t.config); drag.tunnels.add(t.id); }
     stage?.invalidate();
+    const turn = `Yaw ${Math.round(to.yaw)}° (${to.yaw - start.yaw >= 0 ? '+' : '−'}${Math.abs(Math.round(normalYaw(to.yaw - start.yaw)))}°)`;
     const lines = drag.how === 'move'
-      ? [`x ${metres(to.x)} (${signed(to.x - start.x)})`, `y ${metres(to.y)} (${signed(to.y - start.y)})`]
-      : [`Yaw ${Math.round(to.yaw)}° (${to.yaw - start.yaw >= 0 ? '+' : '−'}${Math.abs(Math.round(normalYaw(to.yaw - start.yaw)))}°)`];
+      ? range ? [`${AXIS_TITLES[range.free]} ${cm(to[range.free])} cm (${signed(to[range.free] - start[range.free])})`, `Range ${rangeText([range.along])}`]
+        : [`x ${metres(to.x)} (${signed(to.x - start.x)})`, `y ${metres(to.y)} (${signed(to.y - start.y)})`]
+      : range ? [`${turn} · ${PLATFORM_RECIPES[platformOrientation(platformYaw(to.yaw)) ?? 'west-east'].title}`] : [turn];
     for (const t of tunnels) lines.push(t.layout ? `Tunnel: ${tunnelModules(t.layout)} modules${t.reaches ? '' : ' · does not reach'}` : 'Tunnel: no route');
     callbacks.readout({ x: point[0], y: point[1], title: `${drag.how === 'move' ? 'Moving' : 'Turning'} ${name}`, lines, ok: tunnels.every(t => t.reaches) });
   }
@@ -267,7 +292,7 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     emptyDown = null;
     if (pick.kind === 'instance' && !(input.selection.length === 1 && input.selection[0] === pick.id)) callbacks.select([pick.id]);
     // the body moves the selection, or turns it in the Rotate tool; a handle does what it is for
-    const how: Drag['how'] = pick.kind === 'instance' ? (input.tool === 'rotate' ? 'rotate' : 'move') : pick.kind;
+    const how: Drag['how'] = pick.kind === 'instance' ? (input.tool === 'rotate' ? 'rotate' : 'move') : pick.kind === 'slide' ? 'move' : pick.kind;
     const next = beginDrag(pick.id, how, point, event.pointerId, pick.kind === 'resize' ? pick.face : undefined);
     if (!next) return;
     drag = next; controls.enabled = false;
@@ -282,7 +307,7 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
       hoverFrame = 0; if (!hover) return;
       const pick = pickAt(hover);
       const kind = pick && input?.project.instances.find(i => i.id === pick.id)?.kind;
-      renderer.domElement.style.cursor = pick?.kind === 'rotate' ? 'grab' : pick?.kind === 'elevate' ? 'ns-resize' : pick?.kind === 'resize' ? (pick.face === '+z' ? 'ns-resize' : 'ew-resize')
+      renderer.domElement.style.cursor = pick?.kind === 'rotate' ? 'grab' : pick?.kind === 'elevate' ? 'ns-resize' : pick?.kind === 'slide' ? 'move' : pick?.kind === 'resize' ? (pick.face === '+z' ? 'ns-resize' : 'ew-resize')
         : kind && MOVABLE.includes(kind) ? (input?.tool === 'rotate' ? 'grab' : 'move') : pick ? 'pointer' : '';
     });
   }

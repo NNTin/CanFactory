@@ -144,7 +144,7 @@ export function platformRange(params: PlatformParams, yaw: number, enclosure: Ro
 export function clampPlatform(range: PlatformRange, to: Transform, from?: number): Transform {
   const [min, max] = range.along;
   const along = min > max ? (min + max) / 2 : Math.min(max, Math.max(min, to[range.free]));
-  return { ...to, [range.fixed]: range.across, [range.free]: along, z: clampHeight(range.heights, to.z, from) } as Transform;
+  return { ...to, [range.fixed]: range.across, [range.free]: along, z: clampHeight(range.heights, to.z, from) };
 }
 function clampHeight(heights: Interval[], z: number, from?: number): number {
   if (!heights.length || heights.some(([a, b]) => z >= a && z <= b)) return z;
