@@ -141,7 +141,7 @@ export function PrivacyPage() {
     <div className="eyebrow">PRIVACY</div><h1>Privacy</h1>
     <p>CanFactory has no accounts, sets no cookies of its own, and runs no analytics or third-party scripts.</p>
     <h2>Stored in your browser</h2>
-    <p>Your model settings, your buy list and the market you chose are kept in this browser’s local storage, and never sent to CanFactory’s server except as the request for the page you view (a render’s settings, the parts of the buy list to find shops for). Clearing your browser’s site data removes them.</p>
+    <p>Your model settings, your catio planner project, your buy list and the market you chose are kept in this browser’s local storage, and never sent to CanFactory’s server except as the request for the page you view (a render’s settings, the parts of the buy list to find shops for). Clearing your browser’s site data removes them.</p>
     <h2>Your country</h2>
     <p>To pick the shops of your market, CanFactory reads the country that its network provider, Cloudflare, derives from your IP address. The country is used for that one answer and not stored.</p>
     <h2>Generated files</h2>

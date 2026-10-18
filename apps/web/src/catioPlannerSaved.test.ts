@@ -31,7 +31,7 @@ describe('the saved planner project', () => {
   });
 
   it('saves after each committed edit, never during one', () => {
-    const { storage, items, state } = memory();
+    const { storage, state } = memory();
     const store = createPlannerStore();
     const autosave = createAutosave(store, { storage });
     expect(state.writes).toBe(1);
@@ -43,7 +43,7 @@ describe('the saved planner project', () => {
     expect(autosave.get()).toEqual({ state: 'saved', revision: 1 });
     expect(readSavedProject(storage).project?.instances.find(i => i.id === 'enclosure-1')?.transform.x).toBe(1200);
     store.undo();
-    expect(JSON.parse(items.get(PLANNER_STORAGE_KEY) ?? '').revision).toBe(0);
+    expect(readSavedProject(storage).project?.revision).toBe(0);
     autosave.dispose();
     store.redo();
     expect(state.writes).toBe(3);
