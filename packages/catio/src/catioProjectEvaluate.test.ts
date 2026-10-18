@@ -154,7 +154,7 @@ describe('a drag’s preview', () => {
     if (!at) throw new Error('no enclosure');
     const window = evaluation.instances.find(i => i.kind === 'window');
     if (window?.kind !== 'window') throw new Error('no window');
-    const pitch = tunnelPitch(window.site, { ...project.settings.tunnelCoupling, jointShown: 'end-end' });
+    const pitch = tunnelPitch(window.site, project.settings.tunnelCoupling);
     for (const dy of [380, pitch * 0.6, -pitch * 0.4]) {
       const snapped = snapToModules(project, evaluation, 'enclosure-1', { ...at, y: at.y + dy });
       expect(snapped.x).toBeCloseTo(at.x, 3);

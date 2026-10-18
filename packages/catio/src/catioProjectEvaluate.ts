@@ -247,7 +247,7 @@ export interface TunnelPreview { id: string; config: TunnelConfig; layout: Tunne
  * checks, no parts list), so that a drag stays quick; committing it evaluates the whole project.
  */
 export function previewTunnels(project: Project, evaluation: Pick<ProjectEvaluation, 'instances' | 'ports'>, moved: ReadonlyMap<string, Transform>): TunnelPreview[] {
-  const instances = project.instances.map(i => { const t = moved.get(i.id); return t ? { ...i, transform: t } as Instance : i; });
+  const instances = project.instances.map(i => { const t = moved.get(i.id); return t ? { ...i, transform: t } : i; });
   const byId = new Map(instances.map(i => [i.id, i]));
   const affected = (id: string | null): boolean => { const seen = new Set<string>(); for (let at = id; at && !seen.has(at); at = byId.get(at)?.parent ?? null) { if (moved.has(at)) return true; seen.add(at); } return false; };
   const world = worldTransforms({ instances });
@@ -283,7 +283,7 @@ export function snapToModules(project: Project, evaluation: Pick<ProjectEvaluati
   const world = worldTransforms(project);
   const parent = project.instances.find(i => i.id === id)?.parent;
   // the shift in the tunnel's frame, turned into the dragged instance's parent's
-  const shift = applyTransform({ x: 0, y: 0, z: 0, yaw: (world.get(tunnel.id)?.yaw ?? 0) - (parent ? world.get(parent)?.yaw ?? 0 : 0) }, { x: (E[0] ?? 0) - (asked[0] ?? 0), y: (E[1] ?? 0) - (asked[1] ?? 0), z: 0 });
+  const shift = applyTransform({ x: 0, y: 0, z: 0, yaw: (world.get(tunnel.id)?.yaw ?? 0) - (parent ? world.get(parent)?.yaw ?? 0 : 0) }, { x: E[0] - asked[0], y: E[1] - asked[1], z: 0 });
   return { ...to, x: r6(to.x + shift.x), y: r6(to.y + shift.y) };
 }
 
