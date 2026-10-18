@@ -186,6 +186,24 @@ test('adds a platform, moves it within its enclosure, and it follows its enclosu
   expect(errors).toEqual([]);
 });
 
+test('Fit all frames everything, also what stands outside the garden (#122)', async ({ page }) => {
+  const { viewport, errors } = await open(page);
+  await tree(page).getByRole('button', { name: /Enclosure/ }).click();
+  await field(page, 'X (m)').fill('20'); await field(page, 'X (m)').press('Enter');
+  await expect(viewport).toHaveAttribute('data-revision', '1');
+  await expect(issues(page)).toContainText('Enclosure is outside the garden');
+  const inside = async () => {
+    const box = await viewport.boundingBox(); const all = await anchors(viewport);
+    if (!box) return false;
+    return ['window-1', 'enclosure-1'].every(id => { const p = all[id]; return !!p && p[0] >= 0 && p[0] <= box.width && p[1] >= 0 && p[1] <= box.height; });
+  };
+  for (const name of ['Fit all', 'Top', '3D']) {
+    await page.getByRole('button', { name, exact: true }).click();
+    await expect.poll(inside, { message: name }).toBe(true);
+  }
+  expect(errors).toEqual([]);
+});
+
 test('says 3D is unavailable without WebGL, and the tree and inspector still work', async ({ page }) => {
   await page.addInitScript(() => {
     // Preserve the browser method and explicitly restore its receiver with apply below.

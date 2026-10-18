@@ -43,6 +43,25 @@ test('saves each committed edit and opens it again after a reload', async ({ pag
   expect(errors).toEqual([]);
 });
 
+test('undoing an added platform it had selected saves a project that opens again (#122)', async ({ page }) => {
+  const { errors, viewport } = await open(page);
+  await enter(page, 'Width (m)', '6');
+  await page.getByRole('button', { name: /^Platform/ }).click();
+  await expect(viewport).toHaveAttribute('data-selection', '["platform-1"]');
+  await expect(viewport).toHaveAttribute('data-revision', '2');
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Enclosure/]);
+  await expect(viewport).toHaveAttribute('data-selection', '[]');
+  await expect(saved(page)).toHaveAttribute('data-revision', '1');
+  expect(JSON.parse(await stored(page) ?? '{}')).toMatchObject({ revision: 1, view: { selection: [] } });
+  await page.reload();
+  // the saved project opened, not a new default one beside the saved data
+  await expect(viewport).toHaveAttribute('data-revision', '1');
+  await expect(field(page, 'Width (m)')).toHaveValue('6');
+  await expect(page.getByRole('alert').filter({ hasText: 'The saved project could not be opened' })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('exports the project as JSON and imports it back into a fresh browser', async ({ page }, testInfo) => {
   const { errors, viewport } = await open(page);
   await page.getByRole('textbox', { name: 'Project name' }).fill('Garden catio');

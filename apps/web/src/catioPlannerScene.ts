@@ -1,18 +1,20 @@
 import * as THREE from 'three';
 import { catioMesh } from '@canfactory/contracts';
-import type {
-  EvaluatedEnclosure, EvaluatedInstance, EvaluatedPlatform, EvaluatedTunnel, EvaluatedWindow, Project, ProjectEvaluation, Transform, TunnelLayout,
+import {
+  couplingLayout, type EvaluatedEnclosure, type EvaluatedInstance, type EvaluatedPlatform, type EvaluatedTunnel, type EvaluatedWindow, type Project,
+  type ProjectEvaluation, type Transform, type TunnelConfig, type TunnelFastener, type TunnelLayout,
 } from '@canfactory/catio';
 import { createCatioParts } from './catioParts.ts';
 import { buildEnclosure } from './catioEnclosureScene.ts';
 import { catPorts, type CatioDoor } from './catioModularScene.ts';
-import { buildSectionPieces, buildSupportPieces, tunnelDrawing } from './catioTunnelPieces.ts';
+import { buildCouplingPieces } from './catioCouplingScene.ts';
+import { buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, buildTunnelDoors, tunnelDrawing } from './catioTunnelPieces.ts';
 import { buildWindowContext } from './catioWindowContext.ts';
 import { buildInsertContext } from './catioWindowInsertScene.ts';
 
 /**
  * The planner's scene, drawn from an evaluated project (catioProjectEvaluate.ts) with the catio's own builders: the window with its
- * insert, each tunnel's sections and supports, each enclosure, each platform. It is transient: rebuilt from the evaluation after
+ * insert, each tunnel as built (with its doors, couplings, supports and fixings), each enclosure, each platform. It is transient: rebuilt from the evaluation after
  * every committed edit, and never part of the document. Every instance is a group (`userData.instanceId`) placed at its transform
  * in its parent's group, so that an enclosure carries what stands in it; picking walks up from a mesh to its instance.
  * Millimetres, in the site's frame (Z up); the stage turns it to the scene's Y up.
@@ -33,8 +35,8 @@ interface Drawn {
   anchor: THREE.Vector3;
   /** Shows it at `t` (in its parent's frame) while a drag is in progress. */
   pose: (t: Transform) => void;
-  /** A tunnel's: draws it along another layout, for a drag's preview. */
-  redraw?: (layout: TunnelLayout | null) => void;
+  /** A tunnel's: draws it along another route's config and layout, for a drag's preview. */
+  redraw?: (layout: TunnelLayout | null, config: TunnelConfig | null) => void;
   dispose: () => void;
 }
 
@@ -93,23 +95,53 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
 
   function drawTunnel(e: EvaluatedTunnel): Drawn {
     const group = instanceGroup(e);
+    const window = e.parent ? evaluation.instances.find((w): w is EvaluatedWindow => w.kind === 'window' && w.id === e.parent) : undefined;
     let dispose = () => {};
-    const draw = (layout: TunnelLayout | null) => {
+    /**
+     * The tunnel as built, everything its parts list counts (tunnelBom, couplingBom): the sections with their screws and staples,
+     * the doors on every opening not coupled, the couplings between pieces and at the enclosure, the supports with their fixings,
+     * and the coupling's docking frame and latches on the window insert's port. `config` is the route's (null: no dock to draw).
+     */
+    const draw = (layout: TunnelLayout | null, config: TunnelConfig | null) => {
       dispose(); group.clear();
       if (!layout) { dispose = () => {}; return; }
       const p = parts(group, layout.mesh); const drawing = tunnelDrawing(p);
-      const pieces = buildSectionPieces(p, drawing, layout);
-      const body = p.component(`${e.id}-sections`, 0, 'timber');
-      for (const { group: g } of [...pieces.members, ...pieces.cleats, ...pieces.panels]) body.add(g);
-      const supports = p.component(`${e.id}-supports`, 0, 'hardware');
+      const components = new Map<string, THREE.Group>();
+      const add = (id: string, layer: 'timber' | 'mesh' | 'hardware', objects: (THREE.Object3D | null | undefined)[]) => {
+        let into = components.get(id); if (!into) { into = p.component(`${e.id}-${id}`, 0, layer); components.set(id, into); }
+        for (const o of objects) if (o) into.add(o);
+      };
+      const fastenersOf = (components: TunnelFastener['component'][]) => layout.fasteners.filter(f => components.includes(f.component)).flatMap(f => drawing.fastener(f)?.group ?? []);
+      const sections = buildSectionPieces(p, drawing, layout);
+      add('sections', 'timber', [...sections.members, ...sections.cleats].map(q => q.group));
+      add('mesh', 'mesh', sections.panels.map(q => q.group));
+      add('section-fasteners', 'hardware', [...sections.fasteners.map(f => f.group), ...fastenersOf(['flange-screws'])]);
+      const doorLayers = { timber: p.component(`${e.id}-doors`, 0, 'timber'), mesh: p.component(`${e.id}-door-mesh`, 0, 'mesh'), hardware: p.component(`${e.id}-door-hardware`, 0, 'hardware') };
+      const doors = buildTunnelDoors(p, layout, () => doorLayers);
+      const joints = layout.couplings.map(c => buildCouplingJoint(p, drawing, layout, c));
+      for (const j of joints) {
+        for (const latch of j.latches) latch.setOpen(0);
+        add('couplings', 'hardware', [...j.bolts.flatMap(b => [b.group, b.nut]), ...j.catches.map(q => q.group), ...j.latches.map(q => q.group), ...j.screws.map(q => q.group), j.seal]);
+      }
       for (const s of layout.supports) {
         const built = buildSupportPieces(p, drawing, layout, s);
-        for (const f of built.feet) for (const g of [f.slab, f.leg, f.sole, f.nut, f.footPiece]) if (g) supports.add(g);
-        supports.add(built.bearer); if (built.brace) supports.add(built.brace);
+        add('supports', 'timber', [built.bearer, built.brace, ...built.feet.flatMap(f => [f.slab, f.leg, f.sole])]);
+        add('support-hardware', 'hardware', built.feet.flatMap(f => [f.nut, f.footPiece, ...f.screws]));
+        const hold = buildSupportHold(p, drawing, layout, s);
+        for (const b of hold.buttons) b.setTurn(0);
+        add('support-fixings', 'hardware', [...hold.onSupport, ...hold.keepers, ...hold.buttons].map(q => q.group).concat(hold.strap ? [hold.strap] : [], [...hold.supportScrews, ...hold.pieceScrews].map(q => q.group)));
       }
-      dispose = () => { drawing.dispose(); p.dispose(); };
+      add('support-hardware', 'hardware', fastenersOf(['sole-screws', 'brace-screws']));
+      // the coupling to the window insert's port: its docking frame, seal and latches, closed
+      const dock = window && config ? buildCouplingPieces(p, couplingLayout(project.settings.insertCoupling, { tunnel: config, site: window.site, joint: e.joint }), project.settings.insertCoupling.latchType) : null;
+      if (dock) {
+        for (const q of dock.latches) q.setOpen(0);
+        add('docking-frame', 'timber', dock.frame.map(f => f.group));
+        add('docking-hardware', 'hardware', [dock.seal, ...dock.catches.map(q => q.group), ...dock.latches.map(q => q.group), dock.lip]);
+      }
+      dispose = () => { for (const j of joints) j.dispose(); for (const d of doors) d.dispose(); dock?.dispose(); drawing.dispose(); p.dispose(); };
     };
-    draw(e.layout);
+    draw(e.layout, e.config);
     const middle = e.layout?.pieces[Math.floor((e.layout.pieces.length - 1) / 2)];
     const anchor = middle ? new THREE.Vector3(...middle.end.at).setZ(middle.end.at[2] + (e.layout?.h ?? 0)) : new THREE.Vector3();
     return { id: e.id, kind: e.kind, group, anchor, pose: t => place(group, t), dispose: () => dispose(), redraw: draw };
@@ -247,8 +279,8 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     root, drawn, mark, pickOf, anchors, localBounds,
     /** Shows `id` at `t` (in its parent's frame) during a drag. */
     pose(id: string, t: Transform) { drawn.get(id)?.pose(t); },
-    /** Redraws a tunnel for a drag's preview. */
-    redrawTunnel(id: string, layout: TunnelLayout | null) { drawn.get(id)?.redraw?.(layout); },
+    /** Redraws a tunnel along a route (its config and layout), for a drag's preview or to put it back. */
+    redrawTunnel(id: string, layout: TunnelLayout | null, config: TunnelConfig | null) { drawn.get(id)?.redraw?.(layout, config); },
     dispose() {
       clearOverlays();
       for (const m of [...outlineMaterials, handleMaterial]) m.dispose();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addPlatform, applyTransform, composeTransform, createProject, invertTransform, parseProject, PROJECT_SCHEMA_VERSION, relativeTransform,
+  addPlatform, applyTransform, composeTransform, createProject, invertTransform, parseProject, projectErrors, PROJECT_SCHEMA_VERSION, relativeTransform,
   serializeProject, withoutKeys, worldTransforms, type Project,
 } from './index.ts';
 
@@ -84,7 +84,15 @@ describe('parseProject', () => {
     expect(errorsOf(mutate(raw => { at(raw, 'connections', 0, 'ports')[1] = 'ghost-port'; }))).toContain('Connection connection-1\'s port ghost-port does not exist.');
     expect(errorsOf(mutate(raw => { at(raw, 'attachments', 0, 'support')['instance'] = 'enclosure-7'; }))).toContain('Attachment attachment-1\'s support enclosure-7 does not exist.');
     expect(errorsOf(mutate(raw => { at(raw, 'attachments', 0)['instance'] = 'platform-7'; }))).toContain('Attachment attachment-1\'s instance platform-7 does not exist.');
-    expect(errorsOf(mutate(raw => { at(raw, 'view')['selection'] = ['gone']; }))).toContain('The view\'s selection names gone, which does not exist.');
+    const stale = JSON.parse(serializeProject(furnished())) as Json; at(stale, 'view')['selection'] = ['gone'];
+    expect(projectErrors(stale)).toContain('The view\'s selection names gone, which does not exist.');
+  });
+
+  it('opens a project whose view names what is gone, without it: the view is not the design', () => {
+    const result = mutate(raw => { at(raw, 'view')['selection'] = ['gone', 'enclosure-1']; at(raw, 'view')['hidden'] = ['platform-9']; });
+    if (!result.ok) throw new Error(result.errors.join('\n'));
+    expect(result.project.view).toEqual({ selection: ['enclosure-1'], hidden: [], camera: null });
+    expect({ ...result.project, view: null }).toEqual({ ...furnished(), view: null });
   });
 
   it('refuses a port with two mates, a port state that contradicts its connections, and impossible parents', () => {

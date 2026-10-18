@@ -1,4 +1,4 @@
-import { findPart } from '@canfactory/contracts';
+import { dimensionOf, findPart, partsOfFamily, type Part } from '@canfactory/contracts';
 import { enclosureInside, type EnclosureLayout } from './catioEnclosure.ts';
 import { PORT_FRAME } from './catioModularDesign.ts';
 import { applyTransform, type Attachment, type PlatformParams, type Point3, type ProjectIssue, type Transform } from './catioProject.ts';
@@ -20,7 +20,13 @@ export const PLATFORM = {
   boardScrewPitch: 200,
   /** Screws through each batten's end into a post. */
   postScrews: 2,
-  hardware: { postScrew: 'din-7997-6x80', boardScrew: 'din-7997-4x40' },
+  hardware: { postScrew: 'din-7997-6x80' },
+  /**
+   * The board's screws, chosen for its thickness (`boardScrewFor`): DIN 7997 countersunk screws of these diameters, thinnest then
+   * shortest first, with at least `grip` of the screw's length in the batten and its point at least `cover` short of the batten's
+   * underside.
+   */
+  boardScrew: { diameters: [4, 5, 6], grip: 0.5, cover: 5 },
   /** The generic sheet the board is cut from (products.md P04: 2500 × 1250 × 18 mm, film-faced exterior plywood). */
   sheet: { width: 2500, length: 1250, thickness: 18, example: 'e.g. Garnica Laudio Wire Xtra Plus, BAUHAUS 28517690' },
   /** How far an anchor may be from its member's face and still bear on it. */
@@ -90,17 +96,33 @@ export function platformLayout(params: PlatformParams, transform: Transform, enc
     if (battens.some(b => b.member === member && b.center[2] + PLATFORM.batten.depth / 2 > low && b.center[2] - PLATFORM.batten.depth / 2 < high))
       issues.push({ code: `port-${member}`, kind: 'geometry', severity: 'error', message: `The ${side.side} support batten would cross the ${side.side} cat port (${Math.round(low)}–${Math.round(high)} mm up). Raise the platform.` });
   }
+  const boardScrew = boardScrewFor(t);
+  if (!boardScrew) issues.push({ code: 'board-screw', kind: 'geometry', severity: 'error', message: `No wood screw fixes a ${t} mm board to its ${PLATFORM.batten.depth} mm battens: one long enough to hold in a batten would come out under it. Choose a thinner board.` });
   issues.push({ code: 'span', kind: 'unverified', severity: 'info', message: `The platform's ${w} mm span of ${t} mm plywood on two battens, and the load it carries, are not verified: the checks are geometric, not structural.` });
 
-  const bom = platformBom(params, battens);
+  const bom = platformBom(params, battens, boardScrew);
   return { params, transform, top, under, corners, battens, issues, bom };
 }
 export type PlatformLayout = ReturnType<typeof platformLayout>;
 
+/**
+ * The screw that fixes a board `thickness` mm thick down into its battens (`PLATFORM.boardScrew`), or null when no screw in the
+ * parts library reaches far enough into a batten without coming out under it.
+ */
+export function boardScrewFor(thickness: number): Part | null {
+  const { diameters, grip, cover } = PLATFORM.boardScrew;
+  const screws = partsOfFamily('wood-screw').filter(p => p.standard === 'din-7997' && (diameters as readonly number[]).includes(dimensionOf(p, 'd')))
+    .sort((a, b) => dimensionOf(a, 'd') - dimensionOf(b, 'd') || dimensionOf(a, 'l') - dimensionOf(b, 'l'));
+  return screws.find(p => {
+    const l = dimensionOf(p, 'l'); const into = l - thickness;
+    return into >= grip * l && into <= PLATFORM.batten.depth - cover;
+  }) ?? null;
+}
+
 /** Whether a board this size can be cut from the sheet, turned either way. */
 export const fitsSheet = (w: number, d: number) => (w <= PLATFORM.sheet.width && d <= PLATFORM.sheet.length) || (d <= PLATFORM.sheet.width && w <= PLATFORM.sheet.length);
 
-function platformBom(params: PlatformParams, battens: PlatformBatten[]): BomLine[] {
+function platformBom(params: PlatformParams, battens: PlatformBatten[], boardScrew: Part | null): BomLine[] {
   const { width: w, depth: d, thickness: t } = params;
   const sheet = PLATFORM.sheet;
   const lines: BomLine[] = [
@@ -117,6 +139,7 @@ function platformBom(params: PlatformParams, battens: PlatformBatten[]): BomLine
     lines.push({ id: partId, group: 'Hardware', name: part?.title ?? partId, quantity, size: part?.designation ?? '', use, partId });
   };
   screw(PLATFORM.hardware.postScrew, battens.length * 2 * PLATFORM.postScrews, 'Through each support batten into the side frame’s posts');
-  screw(PLATFORM.hardware.boardScrew, battens.length * fastenersAlong(d, PLATFORM.boardScrewPitch), 'Down through the platform board into its battens');
+  // (no screw fits the board: the issue says so, and no screw is listed that would not hold it)
+  if (boardScrew) screw(boardScrew.id, battens.length * fastenersAlong(d, PLATFORM.boardScrewPitch), 'Down through the platform board into its battens');
   return lines;
 }

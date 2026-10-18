@@ -102,8 +102,19 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     element.dataset['ready'] = 'true';
   }
 
-  // Cameras: the presets look from the garden at the whole site; the fits keep the way the camera looks.
-  const siteBounds = () => input ? new THREE.Box3(new THREE.Vector3(0, -300, 0), new THREE.Vector3(input.project.garden.width, input.project.garden.depth, 2400)) : new THREE.Box3();
+  // Cameras: the presets and Fit all look at the whole site (the garden and everything in the design, inside it or not); Fit all and
+  // Fit selection keep the way the camera looks.
+  /** The bounds of the instances `ids` as drawn, in the site's frame. */
+  function instanceBounds(ids: Iterable<string>): THREE.Box3 {
+    const box = new THREE.Box3(); if (!scene) return box;
+    const inverse = group.matrixWorld.clone().invert();
+    for (const id of ids) {
+      const d = scene.drawn.get(id); if (!d) continue;
+      box.union(scene.localBounds(d).applyMatrix4(inverse.clone().multiply(d.group.matrixWorld)));
+    }
+    return box;
+  }
+  const siteBounds = () => input ? instanceBounds(input.project.instances.map(i => i.id)).union(new THREE.Box3(new THREE.Vector3(0, -300, 0), new THREE.Vector3(input.project.garden.width, input.project.garden.depth, 0))) : new THREE.Box3();
   function frame(box: THREE.Box3, direction: THREE.Vector3) {
     if (box.isEmpty()) return;
     const sphere = box.getBoundingSphere(new THREE.Sphere());
@@ -118,15 +129,7 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
   const looking = () => group.worldToLocal(camera.position.clone()).sub(group.worldToLocal(controls.target.clone()));
   function view(name: CameraView) { frame(siteBounds(), DIRECTIONS[name]); }
   function fitAll() { frame(siteBounds(), looking()); }
-  function fitSelection() {
-    if (!scene || !input?.selection.length) return;
-    const box = new THREE.Box3(); const inverse = group.matrixWorld.clone().invert();
-    for (const id of input.selection) {
-      const d = scene.drawn.get(id); if (!d) continue;
-      box.union(scene.localBounds(d).applyMatrix4(inverse.clone().multiply(d.group.matrixWorld)));
-    }
-    frame(box, looking());
-  }
+  function fitSelection() { if (input?.selection.length) frame(instanceBounds(input.selection), looking()); }
 
   // Picking and dragging.
   function pickAt(point: [number, number]) {
@@ -169,7 +172,7 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     scene.pose(drag.id, to);
     // only the tunnels this moves are solved again
     const tunnels = previewTunnels(input.project, input.evaluation, new Map([[drag.id, to]]));
-    for (const t of tunnels) { scene.redrawTunnel(t.id, t.layout); drag.tunnels.add(t.id); }
+    for (const t of tunnels) { scene.redrawTunnel(t.id, t.layout, t.config); drag.tunnels.add(t.id); }
     stage?.invalidate();
     const lines = drag.how === 'move'
       ? [`x ${metres(to.x)} (${signed(to.x - start.x)})`, `y ${metres(to.y)} (${signed(to.y - start.y)})`]
@@ -188,7 +191,7 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     scene.pose(d.id, d.start);
     for (const id of d.tunnels) {
       const e = input.evaluation.instances.find(i => i.id === id);
-      scene.redrawTunnel(id, e?.kind === 'tunnel' ? e.layout : null);
+      scene.redrawTunnel(id, e?.kind === 'tunnel' ? e.layout : null, e?.kind === 'tunnel' ? e.config : null);
     }
     scene.mark(input.selection, input.flagged);
     stage?.invalidate(); publishAnchors();
