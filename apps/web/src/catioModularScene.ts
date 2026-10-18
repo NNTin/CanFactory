@@ -26,23 +26,13 @@ export interface ModularState extends CatioState { doors?: Readonly<Record<strin
  */
 /** What the whole catio's tunnel takes from the tunnel pages: how its doors are held. */
 export interface ModularTunnel { doorFixing: TunnelCouplingConfig['doorFixing'] }
-export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig, tunnel: ModularTunnel) {
-  const errors = validateModular(c); if (errors.length) throw new Error(errors.join(' '));
-  const p = createCatioParts(); const { component, box, rod, ring, panel, materials: m } = p;
-  const layout = modularLayout(c); const doors: CatioDoor[] = [];
-  const w = c.tunnelSize; const h = c.tunnelSize; const span = w + 80; const straightSpan = span;
-  // Assembly transforms remain on the outer component; placement and door motion have independent groups.
-  function placed(x: number, y: number, angle: number, build: () => void) {
-    const start = p.components.length;
-    build();
-    for (const part of p.components.slice(start)) {
-      const pose = new THREE.Group(); pose.add(...part.group.children.slice()); part.group.add(pose);
-      pose.position.set(x, y, 0); pose.rotation.z = angle;
-    }
-  }
-  function mesh(id: string, step: number, width: number, height: number, center: V3, plane: 'xy' | 'xz' | 'yz', offset: V3 = [0, 0, 140]) {
-    return panel(id, step, width, height, center, plane, offset);
-  }
+/**
+ * The modular catio's cat ports, drawn into `p` (their doors into `doors`): `port` draws one in its own frame, with its closure and,
+ * when coupled, its dock; `coupling` a tunnel's coupling flange. The whole catio and the planner draw every cat port with them.
+ */
+export function catPorts(p: ReturnType<typeof createCatioParts>, c: Pick<ModularConfig, 'tunnelSize' | 'portClosure' | 'doorSeat'>, doors: CatioDoor[]) {
+  const { component, box, rod, ring, placed, materials: m } = p;
+  const w = c.tunnelSize; const h = c.tunnelSize; const span = w + 80;
   const removable = c.portClosure === 'removable-panel';
   /** What the door controls call a cat port's closure. */
   const closureName = removable ? 'cat-port panel' : 'cat gate';
@@ -88,6 +78,19 @@ export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig,
       }
     });
   }
+  return { removable, closureName, port, coupling };
+}
+
+export function createModularCatio(c: ModularConfig, insert: WindowInsertConfig, tunnel: ModularTunnel) {
+  const errors = validateModular(c); if (errors.length) throw new Error(errors.join(' '));
+  const p = createCatioParts(); const { component, box, rod, ring, panel, placed, materials: m } = p;
+  const layout = modularLayout(c); const doors: CatioDoor[] = [];
+  const w = c.tunnelSize; const h = c.tunnelSize; const span = w + 80; const straightSpan = span;
+  // Assembly transforms remain on the outer component; placement (`placed`) and door motion have independent groups.
+  function mesh(id: string, step: number, width: number, height: number, center: V3, plane: 'xy' | 'xz' | 'yz', offset: V3 = [0, 0, 140]) {
+    return panel(id, step, width, height, center, plane, offset);
+  }
+  const { removable, closureName, port, coupling } = catPorts(p, c, doors);
   const b = layout.bounds;
   const terrain = component('terrain', 0, 'environment');
   const groundWidth = b.maxX - b.minX + 800; const groundDepth = b.maxY + 400;
