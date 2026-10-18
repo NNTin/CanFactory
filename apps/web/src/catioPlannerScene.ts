@@ -238,6 +238,7 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     if (handle) {
       const g = handle.geometry as THREE.TorusGeometry;
       result['rotate'] = screen(new THREE.Vector3(g.parameters.radius, 0, 0).applyMatrix4(handle.matrixWorld));
+      result['rotate-centre'] = screen(new THREE.Vector3().applyMatrix4(handle.matrixWorld));
     }
     return result;
   }

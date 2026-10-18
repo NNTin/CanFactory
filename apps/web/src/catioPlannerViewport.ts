@@ -211,11 +211,16 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
   function onPointerMove(event: PointerEvent) {
     if (drag && event.pointerId === drag.pointer) { dragTo(canvasPoint(event)); return; }
     if (event.buttons) return;
-    // the cursor tells what a press would do
-    const pick = pickAt(canvasPoint(event));
-    const kind = pick && input?.project.instances.find(i => i.id === pick.id)?.kind;
-    renderer.domElement.style.cursor = pick?.kind === 'rotate' ? 'grab' : kind && MOVABLE.includes(kind) ? 'move' : pick ? 'pointer' : '';
+    // the cursor tells what a press would do: one pick a frame, however fast the pointer moves
+    hover = canvasPoint(event);
+    if (!hoverFrame) hoverFrame = requestAnimationFrame(() => {
+      hoverFrame = 0; if (!hover) return;
+      const pick = pickAt(hover);
+      const kind = pick && input?.project.instances.find(i => i.id === pick.id)?.kind;
+      renderer.domElement.style.cursor = pick?.kind === 'rotate' ? 'grab' : kind && MOVABLE.includes(kind) ? 'move' : pick ? 'pointer' : '';
+    });
   }
+  let hover: [number, number] | null = null; let hoverFrame = 0;
   function onPointerUp(event: PointerEvent) {
     if (drag && event.pointerId === drag.pointer) {
       if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
@@ -242,7 +247,7 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
       element.removeEventListener('pointermove', onPointerMove);
       element.removeEventListener('pointerup', onPointerUp);
       element.removeEventListener('pointercancel', onCancel);
-      controls.removeEventListener('change', publishAnchors); resized.disconnect();
+      controls.removeEventListener('change', publishAnchors); resized.disconnect(); cancelAnimationFrame(hoverFrame);
       scene?.dispose(); stage.dispose();
       delete element.dataset['ready']; delete element.dataset['anchors'];
     },
