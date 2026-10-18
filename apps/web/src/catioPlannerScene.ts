@@ -167,18 +167,18 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
   }
 
   function drawPlatform(e: EvaluatedPlatform): Drawn {
-    // the board at its transform; its battens run along the side frames, in the enclosure's frame, at the board's height
+    // the board at its transform; its supports (battens along the side frames, North–South bearers across them), in the enclosure's frame, under the board
     const group = new THREE.Group(); group.name = e.id; group.userData['instanceId'] = e.id;
     const own = byId.get(e.id);
     const board = new THREE.Group(); group.add(board);
-    const battens = new THREE.Group(); group.add(battens);
+    const supports = new THREE.Group(); group.add(supports);
     const p = parts(board);
     const params = own?.kind === 'platform' ? own.params : { width: 0, depth: 0, thickness: 0 };
     p.box(p.root, [params.width, params.depth, params.thickness], [0, 0, -params.thickness / 2], p.materials.endgrain);
-    for (const b of e.layout?.battens ?? []) p.box(battens, b.size, b.center, p.materials.timber);
+    for (const b of e.layout?.supports ?? []) p.box(supports, b.size, b.center, p.materials.timber);
     const start = own?.transform ?? { x: 0, y: 0, z: 0, yaw: 0 };
     place(board, start);
-    const pose = (t: Transform) => { place(board, t); battens.position.z = t.z - start.z; };
+    const pose = (t: Transform) => { place(board, t); supports.position.z = t.z - start.z; };
     return { id: e.id, kind: e.kind, group, anchor: new THREE.Vector3(start.x, start.y, start.z), pose, dispose: p.dispose };
   }
 

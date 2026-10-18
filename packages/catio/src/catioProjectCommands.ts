@@ -1,9 +1,11 @@
 import { enclosureLayout } from './catioEnclosure.ts';
 import { MODULAR_DEFAULT } from './catioModularDesign.ts';
-import { platformAnchors, platformDefaults, PLATFORM_SHEET } from './catioPlatform.ts';
+import {
+  clampPlatform, platformAttachments, platformDefaults, platformOrientation, platformRange, platformYaw, PLATFORM_RECIPES, PLATFORM_SHEET, type PlatformRange,
+} from './catioPlatform.ts';
 import {
   composeTransform, isKind, keepView, projectErrors, PROJECT_SCHEMA_VERSION, SETTINGS_DEFAULT, TUNNEL_PARAMS_DEFAULT, WINDOW_PARAMS_DEFAULT,
-  type Attachment, type Connection, type EnclosureParams, type Instance, type PlatformParams, type Port, type Project, type Transform,
+  type Attachment, type Connection, type EnclosureInstance, type EnclosureParams, type Instance, type PlatformParams, type Port, type Project, type Transform,
 } from './catioProject.ts';
 import { evaluateProject, outsideGarden, syncPorts, type ProjectEvaluation } from './catioProjectEvaluate.ts';
 import { TUNNEL, TUNNEL_DEFAULT, tunnelLayout, tunnelPitch, tunnelSiteFor } from './catioTunnel.ts';
@@ -14,7 +16,11 @@ import { TUNNEL, TUNNEL_DEFAULT, tunnelLayout, tunnelPitch, tunnelSiteFor } from
  * value never reaches the document. After every edit the ports are where their owners' layouts put them (`syncPorts`). Edits do
  * not count revisions: a committed history step does (catioProjectHistory.ts: `commitEdit`).
  */
-export interface CommandResult { project: Project; errors: string[] }
+export interface CommandResult {
+  project: Project; errors: string[];
+  /** What the edit did other than asked, e.g. a platform kept inside its enclosure: for the owner, not a refusal. */
+  notes?: string[];
+}
 
 /** The new project's garden, enclosure and tunnel (FR-01.2–4). */
 export const GARDEN_DEFAULT = { width: 5000, depth: 5000 } as const;
@@ -98,14 +104,13 @@ export function addEnclosure(project: Project, at: { x: number; y: number; yaw?:
 export function addPlatform(project: Project, enclosureId: string): CommandResult & { id: string | null } {
   const enclosure = project.instances.filter(isKind('enclosure')).find(e => e.id === enclosureId);
   if (!enclosure) return { ...fail(project, `There is no enclosure ${enclosureId}.`), id: null };
-  const layout = enclosureLayout(enclosure.params, { id: enclosure.id, tunnelSize: tunnelSize(project), connected: { rear: false, left: false, right: false } });
-  const { params, transform, anchors } = platformDefaults(layout);
+  const { params, transform, ends } = platformDefaults(roomOf(project, enclosure), tunnelSize(project));
   // a board across an enclosure too small inside to hold one would have no size: refuse it, rather than save it
   if (numberErrors({ ...params }, true).length) return { ...fail(project, `${enclosure.name ?? enclosure.id} is too small inside (${Math.round(params.width)} mm between its side frames) for a platform.`), id: null };
   const taken = allIds(project);
   const id = nextId(project, 'platform', taken); taken.add(id);
   const platform: Instance = { id, kind: 'platform', name: `Platform ${id.split('-')[1]}`, parent: enclosure.id, transform, params, material: { sheet: PLATFORM_SHEET } };
-  const attachments: Attachment[] = (Object.entries(anchors) as [keyof typeof anchors, typeof anchors[keyof typeof anchors]][]).map(([member, anchor]) => {
+  const attachments: Attachment[] = ends.map(({ member, anchor }) => {
     const aid = nextId(project, 'attachment', taken); taken.add(aid);
     return { id: aid, instance: id, support: { instance: enclosure.id, member }, anchor };
   });
@@ -121,26 +126,85 @@ function movable(project: Project, id: string): Instance | string {
 }
 const replace = (project: Project, instance: Instance): Project => ({ ...project, instances: project.instances.map(i => i.id === instance.id ? instance : i) });
 
+/** An enclosure's standard port size, as `evaluateProject` reads it: its ports', else the window's. */
+const portSize = (project: Project, enclosure: string) => project.ports.find(p => p.owner === enclosure)?.interface.size ?? tunnelSize(project);
+/** An enclosure's layout, for what stands in it: its ports' state does not matter there. */
+const roomOf = (project: Project, enclosure: EnclosureInstance) =>
+  enclosureLayout(enclosure.params, { id: enclosure.id, tunnelSize: portSize(project, enclosure.id), connected: { rear: false, left: false, right: false } });
+
+/**
+ * Where a platform can stand in its enclosure (`platformRange`), its board as `change.params` and turned to `change.yaw` (by
+ * default, as they are): what every move of it is clamped to, here and in the viewport's drag. Null for anything but a platform
+ * in an enclosure.
+ */
+export function platformRangeOf(project: Project, id: string, change: { params?: PlatformParams; yaw?: number } = {}): PlatformRange | null {
+  const platform = project.instances.find(i => i.id === id);
+  if (platform?.kind !== 'platform') return null;
+  const enclosure = project.instances.filter(isKind('enclosure')).find(e => e.id === platform.parent);
+  if (!enclosure) return null;
+  return platformRange(change.params ?? platform.params, change.yaw ?? platform.transform.yaw, roomOf(project, enclosure), portSize(project, enclosure.id));
+}
+
+const cm = (mm: number) => `${(Math.round(mm) / 10).toLocaleString('en', { maximumFractionDigits: 1 })}`;
+/** A range's text, in centimetres: `24–176 cm`, or several bands. */
+export const rangeText = (intervals: [number, number][]) => intervals.length ? `${intervals.map(([a, b]) => `${cm(a)}–${cm(b)}`).join(' or ')} cm` : 'nowhere';
+const AXIS_TITLES = { x: 'West–East', y: 'North–South' } as const;
+/** What keeping a platform at `got` rather than `wanted` changed, for the owner. */
+function clampNotes(range: PlatformRange, wanted: Transform, got: Transform, name: string): string[] {
+  const notes: string[] = [];
+  const moved = (key: 'x' | 'y' | 'z') => Math.abs(wanted[key] - got[key]) > 0.5;
+  if (moved(range.fixed)) notes.push(`${name} spans its enclosure ${range.orientation === 'west-east' ? 'from side to side' : 'from rear to front'}: it stays in the middle ${AXIS_TITLES[range.fixed]}.`);
+  if (moved(range.free)) notes.push(`${name} stops at ${cm(got[range.free])} cm ${AXIS_TITLES[range.free]}: it moves within ${rangeText([range.along])}, between the inside faces.`);
+  if (moved('z')) notes.push(`${name} stops at an elevation of ${cm(got.z)} cm: its supports allow ${rangeText(range.heights)}, clear of the cat ports.`);
+  return notes;
+}
+const noted = (result: CommandResult, notes: string[]): CommandResult => result.errors.length || !notes.length ? result : { ...result, notes };
+
 /**
  * Moves an enclosure or platform to `to` in its parent's frame (a platform's z is its elevation). An enclosure carries its
- * interior; a tunnel coupled to it keeps the connection and is re-solved, an invalid draft when its modules no longer reach.
+ * interior; a tunnel coupled to it keeps the connection and is re-solved, an invalid draft when its modules no longer reach. A
+ * platform is kept inside its enclosure where its recipe holds (`platformRange`): it stays centred between the frames it spans,
+ * stops at the inside faces and at its lowest and highest elevations, and skips the heights of the cat ports in the way it moved.
+ * The result's notes say where it stopped.
  */
 export function moveInstance(project: Project, id: string, to: Partial<Pick<Transform, 'x' | 'y' | 'z'>>): CommandResult {
   const instance = movable(project, id); if (typeof instance === 'string') return fail(project, instance);
   const errors = numberErrors(to, false); if (errors.length) return fail(project, ...errors);
-  return ok(project, replace(project, { ...instance, transform: { ...instance.transform, ...to } }));
+  const wanted = { ...instance.transform, ...to };
+  const range = platformRangeOf(project, id);
+  if (!range) return ok(project, replace(project, { ...instance, transform: wanted }));
+  const transform = clampPlatform(range, wanted, instance.transform.z);
+  return noted(ok(project, replace(project, { ...instance, transform })), clampNotes(range, wanted, transform, instance.name ?? id));
 }
 
-/** Turns an enclosure or platform to `yaw` degrees about its own origin, in its parent's frame. */
+/**
+ * Turns an enclosure or platform to `yaw` degrees about its own origin, in its parent's frame. A platform runs West–East or
+ * North–South: it turns in quarter turns (to the nearest), and a turn to the other way is one edit that spans its board between the
+ * other frames, keeps it inside (`platformRange`) and moves its attachments to the members its ends then bear on.
+ */
 export function rotateInstance(project: Project, id: string, yaw: number): CommandResult {
   const instance = movable(project, id); if (typeof instance === 'string') return fail(project, instance);
   const errors = numberErrors({ yaw }, false); if (errors.length) return fail(project, ...errors);
-  return ok(project, replace(project, { ...instance, transform: { ...instance.transform, yaw } }));
+  if (instance.kind !== 'platform') return ok(project, replace(project, { ...instance, transform: { ...instance.transform, yaw } }));
+  const quarter = platformYaw(yaw); const name = instance.name ?? id;
+  const range = platformRangeOf(project, id, { yaw: quarter });
+  if (!range) return ok(project, replace(project, { ...instance, transform: { ...instance.transform, yaw: quarter } }));
+  const notes = quarter !== yaw ? [`A platform turns in 90° steps: ${name} is turned to ${quarter}°.`] : [];
+  let params = instance.params;
+  if (range.orientation !== platformOrientation(platformYaw(instance.transform.yaw))) {
+    params = { ...params, width: range.span, depth: Math.min(params.depth, range.room) };
+    notes.push(`${name} now runs ${PLATFORM_RECIPES[range.orientation].title}: its board spans ${cm(range.span)} cm${params.depth < instance.params.depth ? `, and is ${cm(params.depth)} cm deep to fit` : ''}.`);
+  }
+  const fitted = platformRangeOf(project, id, { params, yaw: quarter }) ?? range;
+  const turned = { ...instance, params, transform: clampPlatform(fitted, { ...instance.transform, yaw: quarter }) };
+  return noted(ok(project, { ...replace(project, turned), attachments: platformAttachments(project.attachments, id, params, quarter) }), notes);
 }
 
 /**
  * Resizes an enclosure (width, depth, height) or a platform (width, depth, thickness). Its children keep their sizes and their
- * positions in its frame; whatever no longer fits, or an attachment it breaks, is reported by `evaluateProject`.
+ * positions in its frame; whatever no longer fits, or an attachment it breaks, is reported by `evaluateProject`, never moved. A
+ * platform's own resize keeps it inside its enclosure as a move does: its span no wider than the frames it spans, its depth no
+ * more than there is room for, and its position clamped to the range its new size has.
  */
 export function resizeInstance(project: Project, id: string, size: Partial<EnclosureParams> | Partial<PlatformParams>): CommandResult {
   const instance = movable(project, id); if (typeof instance === 'string') return fail(project, instance);
@@ -148,12 +212,19 @@ export function resizeInstance(project: Project, id: string, size: Partial<Enclo
   const unknown = Object.keys(size).filter(k => !keys.includes(k));
   if (unknown.length) return fail(project, `A ${instance.kind} has no ${unknown.join(' or ')} to resize.`);
   const errors = numberErrors(size, true); if (errors.length) return fail(project, ...errors);
-  const resized = { ...instance, params: { ...instance.params, ...size } } as Instance;
+  if (instance.kind !== 'platform') return ok(project, replace(project, { ...instance, params: { ...instance.params, ...size } } as Instance));
+  const range = platformRangeOf(project, id);
+  const wanted = { ...instance.params, ...size } as PlatformParams;
+  const params = range ? { ...wanted, width: Math.min(wanted.width, range.span), depth: Math.min(wanted.depth, range.room) } : wanted;
+  const name = instance.name ?? id; const notes: string[] = [];
+  if (params.width < wanted.width) notes.push(`${name}'s board is ${cm(params.width)} cm long: that is the span between the frames it rests on.`);
+  if (params.depth < wanted.depth) notes.push(`${name}'s board is ${cm(params.depth)} cm deep: no more fits between the inside faces.`);
+  const fitted = platformRangeOf(project, id, { params });
+  const transform = fitted ? clampPlatform(fitted, instance.transform) : instance.transform;
+  if (fitted) notes.push(...clampNotes(fitted, instance.transform, transform, name));
   // a platform's anchors stay at its ends, so that resizing it moves where it bears, not what it is fixed to
-  const attachments = resized.kind === 'platform'
-    ? project.attachments.map(a => a.instance === id && a.support.member in platformAnchors(resized.params) ? { ...a, anchor: platformAnchors(resized.params)[a.support.member as keyof ReturnType<typeof platformAnchors>] } : a)
-    : project.attachments;
-  return ok(project, { ...replace(project, resized), attachments });
+  const resized = { ...instance, params, transform };
+  return noted(ok(project, { ...replace(project, resized), attachments: platformAttachments(project.attachments, id, params, transform.yaw) }), notes);
 }
 
 /**
@@ -182,6 +253,9 @@ export function duplicateInstance(project: Project, id: string, offset?: Partial
     support: { ...a.support, instance: ids.get(a.support.instance) ?? a.support.instance },
   }));
   const copy = ids.get(id) ?? null;
+  // a platform's copy stays inside its enclosure, as a move would keep it
+  const range = platformRangeOf(project, id);
+  if (range) for (const c of copies) if (c.id === copy) c.transform = clampPlatform(range, c.transform, instance.transform.z);
   return withId(ok(project, { ...project, instances: [...project.instances, ...copies], ports: [...project.ports, ...ports], attachments: [...project.attachments, ...attachments] }), copy);
 }
 
