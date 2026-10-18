@@ -4,7 +4,7 @@ import { E_PROFILE_SEAL, latchHeights, PRINTED_LATCH, PRINTED_LATCH_JOINT, print
 import type { CatioMode } from './catioDesign.ts';
 import { clearOf, fastenerClashes, fastenersAlong, parseControlled, type AssemblyStep, type BomLine, type CameraPreset, type DesignDecision, type SubassemblyControl, type SubassemblyFact, type V3 } from './catioSubassembly.ts';
 import { portHalf } from './catioPort.ts';
-import { TUNNEL, tunnelLayout, type TunnelConfig, type TunnelSite } from './catioTunnel.ts';
+import { TUNNEL, tunnelLayout, type TunnelConfig, type TunnelLayout, type TunnelSite } from './catioTunnel.ts';
 import type { TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { FRAME_FACE_Y } from './catioWindow.ts';
 import { INSERT, WINDOW_INSERT_DEFAULT, windowInsertLayout } from './catioWindowInsert.ts';
@@ -85,7 +85,8 @@ const FRAME_SCREW = [part(HW.frameScrew), part(HW.frameScrewDeep)].find(p => dim
 const PORT_FACE_DEPTH = -DEFAULT_FACE;
 
 /** The fixed interfaces: the window insert and the tunnel as their pages set them, and how the tunnel's sections are coupled. */
-export interface CouplingSite { tunnel: TunnelConfig; site: TunnelSite; joint: TunnelCouplingConfig }
+/** `layout`: the tunnel already laid out (a described route's, in the planner), rather than solved again from `tunnel`. */
+export interface CouplingSite { tunnel: TunnelConfig; site: TunnelSite; joint: TunnelCouplingConfig; layout?: TunnelLayout }
 
 function part(id: string): Part {
   const found = findPart(id); if (!found) throw new Error(`The parts library has no ${id}.`); return found;
@@ -108,10 +109,10 @@ export interface Latch {
 export interface Fastener { partId: string; component: 'frame-screws' | 'latch-screws' | 'catch-screws' | 'lip-screws'; at: V3; direction: V3; use: string; of?: string }
 
 /** Everything the coupling is, placed and installed. */
-export function couplingLayout(config: CouplingConfig, { tunnel, site, joint: sections }: CouplingSite) {
+export function couplingLayout(config: CouplingConfig, { tunnel, site, joint: sections, layout: laid }: CouplingSite) {
   const errors: string[] = [];
   const insert = windowInsertLayout('modular', site.insert, site.window);
-  const tl = tunnelLayout(tunnel, site, sections);
+  const tl = laid ?? tunnelLayout(tunnel, site, sections);
   const port = insert.port ?? { width: site.w, height: site.h, transomZ: insert.floor + site.h };
   const { width: w, height: h, transomZ } = port; const floor = insert.floor;
   const F = TUNNEL.flange.width; const T = TUNNEL.flange.thickness; const pm = INSERT.portMember;

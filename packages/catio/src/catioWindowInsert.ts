@@ -102,6 +102,11 @@ export interface WindowSpec {
   closure: PortClosure;
   /** How every set-in door is seated (the catio concept page's choice): stop strips, or a rebate. */
   seat: DoorSeat;
+  /**
+   * With tunnel: how far the cat port's floor stands above the threshold (0: on it). A raised port stands on a port sill across the
+   * collar, so that a tunnel coupled to it can run higher (the catio planner's raised tunnel, #126); `portRaiseRange` limits it.
+   */
+  portRaise: number;
 }
 
 /** The catio concept's window and tunnel settings that a modular window follows (its `ModularConfig`). */
@@ -120,16 +125,16 @@ export function directWindow(config: WindowProfile): WindowSpec {
   const profile = windowProfileOf(config);
   return {
     glassWidth: CATIO.glass, glassHeight: CATIO.glass, sashWidth: CATIO.sash, sashHeight: CATIO.sash,
-    openingWidth: CATIO.fixedFrame, openingHeight: CATIO.fixedFrame, recessFloor: CATIO_DERIVED.fixedBottom, sill: CATIO.sill, profile, tunnel: null, closure: PORT_CLOSURE_DEFAULT, seat: DOOR_SEAT_DEFAULT,
+    openingWidth: CATIO.fixedFrame, openingHeight: CATIO.fixedFrame, recessFloor: CATIO_DERIVED.fixedBottom, sill: CATIO.sill, profile, tunnel: null, closure: PORT_CLOSURE_DEFAULT, seat: DOOR_SEAT_DEFAULT, portRaise: 0,
   };
 }
 
 /** The modular design's window: its fixed frame is the sash + 45 mm a side, its floor 45 mm below the sill. */
-export function modularWindow(c: { glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number; tunnelSize: number; portClosure?: PortClosure; doorSeat?: DoorSeat }, profile: WindowProfile = windowProfileOf(WINDOW_INSERT_DEFAULT)): WindowSpec {
+export function modularWindow(c: { glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number; tunnelSize: number; portClosure?: PortClosure; doorSeat?: DoorSeat; portRaise?: number }, profile: WindowProfile = windowProfileOf(WINDOW_INSERT_DEFAULT)): WindowSpec {
   return {
     glassWidth: c.glassWidth, glassHeight: c.glassHeight, sashWidth: c.sashWidth, sashHeight: c.sashHeight,
     openingWidth: c.sashWidth + 90, openingHeight: c.sashHeight + 90, recessFloor: CATIO.sill - 45, sill: CATIO.sill, profile,
-    tunnel: { width: c.tunnelSize, height: c.tunnelSize }, closure: c.portClosure ?? PORT_CLOSURE_DEFAULT, seat: c.doorSeat ?? DOOR_SEAT_DEFAULT,
+    tunnel: { width: c.tunnelSize, height: c.tunnelSize }, closure: c.portClosure ?? PORT_CLOSURE_DEFAULT, seat: c.doorSeat ?? DOOR_SEAT_DEFAULT, portRaise: c.portRaise ?? 0,
   };
 }
 
@@ -260,7 +265,10 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
   const H = hung ? frameOf.lip.top + config.frameOverlap - z0 : window.openingHeight - 2 * gap; const x0 = -W / 2;
   const Wi = W - 2 * m; const Hi = H - 2 * m;
   const yOut = yc + D / 2; const yIn = yc - D / 2;
-  const floor = z0 + m + INSERT.threshold;
+  /** The threshold's top, and the cat port's floor: on it, or raised on a port sill (with tunnel only). */
+  const threshold = z0 + m + INSERT.threshold;
+  const raise = variant === 'direct' ? 0 : Math.max(0, window.portRaise);
+  const floor = threshold + raise;
   const timber: TimberPiece[] = []; const fasteners: Fastener[] = []; const panels: MeshPanel[] = [];
   const section = `${m} × ${D}`;
   const box = (size: V3, center: V3): Box => ({ size, center });
@@ -317,7 +325,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
   const thresholdEnd = variant === 'direct' ? yOut + INSERT.sleeve : 0;
   timber.push({ id: 'threshold', component: 'threshold', name: 'Threshold board', section: 'Exterior board', length: Wi, cut: `${Wi} × ${thresholdEnd - yIn} × ${INSERT.threshold}`, use: 'On the sill rail, between the stiles',
     boxes: [box([Wi, thresholdEnd - yIn, INSERT.threshold], [0, (yIn + thresholdEnd) / 2, z0 + m + INSERT.threshold / 2])] });
-  for (const x of spaced(Wi - 80, 3)) fasteners.push({ partId: HW.thresholdScrew, component: 'threshold-screws', at: [x, yc, floor], direction: [0, 0, -1], use: 'Threshold into the sill rail' });
+  for (const x of spaced(Wi - 80, 3)) fasteners.push({ partId: HW.thresholdScrew, component: 'threshold-screws', at: [x, yc, threshold], direction: [0, 0, -1], use: 'Threshold into the sill rail' });
 
   const mesh = catioMesh(config.mesh);
   const o = INSERT.mesh.overlap; const faceY = yOut + INSERT.mesh.layer / 2;
@@ -326,7 +334,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     edge([left, faceY, bottom], [right, faceY, bottom], true, use), edge([left, faceY, top], [right, faceY, top], true, use),
     edge([left, faceY, bottom], [left, faceY, top], true, use), edge([right, faceY, bottom], [right, faceY, top], true, use),
   ];
-  let port: { width: number; height: number; transomZ: number } | null = null;
+  let port: { width: number; height: number; transomZ: number; raise: number } | null = null;
   // The cat port's removable panel (catioDoor.ts), when that is its closure: on the room side of the port frame, whose jambs and
   // transom are its seat, standing on the threshold. It comes out towards the room (−Y).
   let door: { panel: DoorPanel; frame: DoorFrame } | null = null;
@@ -341,7 +349,13 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     const tunnel = window.tunnel ?? { width: 300, height: 300 };
     const w = tunnel.width; const h = tunnel.height; const pm = INSERT.portMember;
     const transomZ = floor + h; const housed = config.junctionJoint === 'housed'; const hd = INSERT.housing; const py = yOut - pm / 2;
-    port = { width: w, height: h, transomZ };
+    port = { width: w, height: h, transomZ, raise };
+    if (raise > 0) {
+      // the port sill: across the collar on the threshold, as deep as the port frame, its top the port's floor; the jambs stand on it
+      timber.push({ id: 'port-sill', component: 'port-frame', name: 'Port sill', section: `${pm} × ${Math.round(raise)}`, length: Wi, cut: `${Wi} long, ripped to ${Math.round(raise)} mm (glued up from boards where one is not deep enough)`,
+        use: `On the threshold between the stiles: raises the cat port ${Math.round(raise)} mm`, boxes: [box([Wi, pm, raise], [0, py, threshold + raise / 2])] });
+      for (const x of spaced(Wi - 80, 3)) fasteners.push({ partId: HW.thresholdScrew, component: 'port-screws', at: [x, py, floor], direction: [0, 0, -1], use: 'Port sill down into the threshold' });
+    }
     // removed, it is stowed in the room on the wall beside the window: clear of the route and of the sash's swing
     if (window.closure === 'removable-panel') door = {
       // set into the port from the room side, sealed against draughts, seated as the catio concept page sets
@@ -358,7 +372,7 @@ export function windowInsertLayout(variant: CatioMode, config: WindowInsertConfi
     for (const side of [-1, 1]) for (const k of housed ? [0] : [-1, 1]) fasteners.push({ partId: endScrew.id, component: 'port-screws', at: [side * W / 2, py + k * 10, transomZ + pm / 2], direction: [-side, 0, 0], use: housed ? 'Transom, housed into the stile' : 'Transom, butt jointed to the stile' });
     // The jambs are screwed from below through the sill rail and threshold into their end grain.
     const jambScrew = part(HW.jambScrew);
-    for (const side of [-1, 1]) for (const k of [-1, 1]) fasteners.push({ partId: jambScrew.id, component: 'port-screws', at: [side * (w / 2 + pm / 2) + k * 9, py, z0], direction: [0, 0, 1], use: 'Port jamb, from under the sill rail' });
+    for (const side of [-1, 1]) for (const k of [-1, 1]) fasteners.push({ partId: jambScrew.id, component: 'port-screws', at: [side * (w / 2 + pm / 2) + k * 9, py, raise > 0 ? threshold : z0], direction: [0, 0, 1], use: raise > 0 ? 'Port jamb, up through the port sill before it is laid' : 'Port jamb, from under the sill rail' });
     // Infill mesh on the outdoor face: left and right of the port up to the transom, and one panel above it.
     const left = x0 + m - o; const portLeft = -w / 2 - pm + o;
     const bottom = z0 + m - o; const middle = transomZ + o; const upper = transomZ + pm - o; const top = z0 + H - m + o;
@@ -524,6 +538,18 @@ export function validateWindowInsert(variant: CatioMode, config: WindowInsertCon
 }
 
 /**
+ * How far the cat port's floor can be raised above the threshold (`WindowSpec.portRaise`): from 0 (on it) until the port, its transom
+ * and the tunnel's docking frame over it reach the collar's head rail, or a sliding gate no longer has its travel inside the collar.
+ * The collar stays where it is, in front of the closed sash, so the window still closes whatever the port's height.
+ */
+export function portRaiseRange(l: Pick<WindowInsertLayout, 'z0' | 'H' | 'floor' | 'port' | 'closure'>): { min: number; max: number } {
+  if (!l.port) return { min: 0, max: 0 };
+  const head = l.z0 + l.H - INSERT.member; const base = l.floor - l.port.raise;
+  const room = l.closure === 'sliding-gate' ? head - 40 - slidingGateRise(l.port.height, 50) - base : head - INSERT.portMember - l.port.height - base;
+  return { min: 0, max: Math.max(0, Math.floor(room)) };
+}
+
+/**
  * Where the cat port's removable panel is: from its seat to the collar's back and on into the room, as wide and as high as the
  * panel, its locating strips and its buttons. Everything in it is reached, and the panel drawn out through it, from the room.
  */
@@ -559,7 +585,8 @@ function doorAccessIssues(l: WindowInsertLayout): string[] {
 
 /** Stage 0 is the window as it is; stages 1–3 happen on a bench outside, 4–6 at the window. */
 export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig, window: WindowSpec): readonly AssemblyStep[] {
-  const door = variant === 'modular' ? windowInsertLayout(variant, config, window).door?.panel : undefined;
+  const l = windowInsertLayout(variant, config, window);
+  const door = variant === 'modular' ? l.door?.panel : undefined;
   const docked = 'the insert–tunnel coupling page screws a docking frame onto the port’s face, which then stays on the insert';
   const closing = door
     ? { title: 'Panel and check', detail: `${door.seat === 'rebate' ? `Rout a ${door.rebate?.width ?? 0} × ${door.rebate?.depth ?? 0} rebate round the port on the jambs’, the transom’s and the threshold’s room side` : `From the room side, glue and screw the door stops inside the port, on the jambs, under the transom and across the threshold, ${DOOR.setIn.stop} mm deep and ${Math.round(DOOR.seal.gap - door.back)} mm in from the room face`}, and stick the seal round that seat. Screw the ${door.buttons.length} door turn buttons onto the port frame’s room face beside the opening, one on each jamb and one on the transom, each on its washer, pointing clear of it. Set the solid panel into the port, standing on its threshold, about flush with the frame, press it onto the seal and turn every button a quarter turn over it and drop its locking pin into its hole (drill each hole 2.5 mm, 7 mm deep, through the button into the frame). Keep the port shut like this until a tunnel is docked: ${docked}. To open it, with the tunnel docked and the sash turned open: lift every button’s locking pin, turn the buttons clear, draw the panel into the room by its pull and stow it clear of the route. Shut it again, every button over it, before the tunnel is undocked. Open and close the window: it clears the insert.` }
@@ -594,7 +621,7 @@ export function windowInsertSteps(variant: CatioMode, config: WindowInsertConfig
   const loose = soft && variant === 'direct' ? ' Along the threshold edge, where no batten fits, put a staple over every mesh.' : '';
   const fill = variant === 'direct'
     ? `Lower the threshold onto the sill rail and screw it down from above. ${soft ? `${cut}slide the passage sleeve on from outdoors, then ${mesh}.` : `Slide the passage sleeve mesh on from outdoors and ${mesh}.`}${loose}`
-    : `Lower the threshold onto the sill rail and screw it down from above. Slide the transom into its stile housings from outdoors, then each jamb up into the transom. Screw the transom through the stiles and the jambs up from under the sill rail. ${soft ? `${cut}offer the infill from outdoors, then ${mesh}.` : `Offer the infill mesh from outdoors and ${mesh}.`}`;
+    : `Lower the threshold onto the sill rail and screw it down from above. ${l.port?.raise ? `Screw the port jambs up through the ${Math.round(l.port.raise)} mm port sill, lay the sill on the threshold between the stiles and screw it down into it: the cat port stands on it. ` : ''}Slide the transom into its stile housings from outdoors, then each jamb up into the transom. Screw the transom through the stiles${l.port?.raise ? '' : ' and the jambs up from under the sill rail'}. ${soft ? `${cut}offer the infill from outdoors, then ${mesh}.` : `Offer the infill mesh from outdoors and ${mesh}.`}`;
   const tighten = hung
     ? `${printed ? 'Turn each printed foot by hand' : 'Turn each foot’s hexagon with a 13 mm spanner'} until the short hooks stand ${fit?.spec.clearance ?? HOOK_FIT.clearance} mm clear of the sill lip: the feet carry the insert, the hooks only keep it on the frame. Close the sash: the hooks’ tips lie in the seal gap, so it closes and locks as over an insect screen; the seal is pressed locally at the four hooks.`
     : printed

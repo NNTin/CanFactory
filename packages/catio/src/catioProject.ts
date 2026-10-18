@@ -5,7 +5,7 @@ import { COUPLING_CONTROLS, COUPLING_DEFAULT, type CouplingConfig } from './cati
 import { DOOR_SEAT_DEFAULT, DOOR_SEATS, PORT_CLOSURE_DEFAULT, PORT_CLOSURES, type DoorSeat, type PortClosure } from './catioDoor.ts';
 import { MODULAR_DEFAULT } from './catioModularDesign.ts';
 import { inRange, type SubassemblyControl } from './catioSubassembly.ts';
-import { TUNNEL_CONTROLS, TUNNEL_DEFAULT, type TunnelConfig } from './catioTunnel.ts';
+import { TUNNEL_CONTROLS, TUNNEL_DEFAULT, type RouteElement, type TunnelConfig } from './catioTunnel.ts';
 import { TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, type WindowInsertConfig } from './catioWindowInsert.ts';
 
@@ -24,8 +24,11 @@ import { WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, type WindowInsertConfig 
  *
  * Later kinds (junctions, more interior items) and custom-cut tunnels add instance kinds and params: an instance's `kind` is any
  * string and its `params` an open record, checked per kind, so the document's shape and version stay the same.
+ *
+ * Version 2 (#126) describes each tunnel's route as a chain of elements (`TunnelParams.route`) and lets a cat port be raised or
+ * lowered (`Port.raise`); `parseProject` (catioProjectMigrate.ts) reads version 1 documents too, and migrates them.
  */
-export const PROJECT_SCHEMA_VERSION = 1;
+export const PROJECT_SCHEMA_VERSION = 2;
 
 /** The instance kinds this version builds; a document with another is reported, not dropped. */
 export const INSTANCE_KINDS = ['window', 'enclosure', 'tunnel', 'platform'] as const;
@@ -56,12 +59,22 @@ export type PlatformParams = Static<typeof PlatformParamsSchema>;
 /**
  * The tunnel's own choices: those of the tunnel page (`TunnelConfig`) that are not its route's ends. Where it starts and ends follows
  * from the window and the port it couples to, and its mesh and support fixing are project settings. `mode` is how its runs are
- * made: whole standard modules (the only mode yet; custom cuts come later, as another mode).
+ * made: whole standard modules (the only mode yet; custom cuts come later, as another mode). `route` is its chain of elements from
+ * its start port (catioTunnel.ts `RouteElement`): each a whole number of modules, a straight run or a side-port turn, with its own id
+ * (selectable, unique in the project) and its floor's height where it starts, in the tunnel's frame. The chain runs into its end
+ * port's floor; neighbours at different heights slope between them.
  */
 export const TUNNEL_ROUTE_KEYS = ['portX', 'portY', 'portFacing', 'portLevel', 'portHeight', 'angleJoint', 'mesh', 'supportFixing', 'supportBase'] as const;
 export type TunnelOwnSettings = Omit<TunnelConfig, typeof TUNNEL_ROUTE_KEYS[number]>;
-export type TunnelParams = { mode: 'standard' } & TunnelOwnSettings;
-export const TunnelParamsSchema = Type.Object({ mode: Type.Literal('standard') }, { additionalProperties: true });
+export type TunnelParams = { mode: 'standard'; route: RouteElement[] } & TunnelOwnSettings;
+const Modules = Type.Integer({ minimum: 1, maximum: 100 });
+export const RouteElementSchema = Type.Union([
+  Type.Object({ id: Id, kind: Type.Literal('straight'), modules: Modules, floor: Type.Number() }, { additionalProperties: false }),
+  Type.Object({ id: Id, kind: Type.Literal('turn'), turn: Type.Union([Type.Literal(90), Type.Literal(-90)]), modules: Modules, floor: Type.Number() }, { additionalProperties: false }),
+]);
+export const TunnelParamsSchema = Type.Object({ mode: Type.Literal('standard'), route: Type.Array(RouteElementSchema, { minItems: 1 }) }, { additionalProperties: true });
+/** The keys of a tunnel's params that are not tunnel-page settings. */
+const TUNNEL_OWN_KEYS = ['mode', 'route'] as const;
 
 const InstanceBase = <K extends InstanceKind, P extends TSchema>(kind: K, params: P) => Type.Object({
   id: Id, kind: Type.Literal(kind), name: Type.Optional(Type.String({ maxLength: 200 })),
@@ -78,6 +91,12 @@ export const PlatformInstanceSchema = InstanceBase('platform', PlatformParamsSch
 export type WindowInstance = Static<typeof WindowInstanceSchema>;
 export type EnclosureInstance = Static<typeof EnclosureInstanceSchema>;
 export type TunnelInstance = Omit<Static<typeof TunnelInstanceSchema>, 'params'> & { params: TunnelParams };
+/** Every tunnel's route elements by id, with the tunnel and their place in its chain. */
+export function routeElements(project: Pick<Project, 'instances'>): Map<string, { tunnel: TunnelInstance; index: number; element: RouteElement }> {
+  const found = new Map<string, { tunnel: TunnelInstance; index: number; element: RouteElement }>();
+  for (const tunnel of project.instances.filter(isKind('tunnel'))) (tunnel.params.route ?? []).forEach((element, index) => found.set(element.id, { tunnel, index, element }));
+  return found;
+}
 export type PlatformInstance = Static<typeof PlatformInstanceSchema>;
 export type Instance = WindowInstance | EnclosureInstance | TunnelInstance | PlatformInstance;
 /** The document's shape of every instance, whatever its kind: what a reader checks before it checks the kind's params. */
@@ -90,9 +109,11 @@ export const AnyInstanceSchema = Type.Object({
  * A port: an opening of `owner` where another instance couples on. `name` is the owner's port (a window's `port`, a tunnel's `start`
  * and `end`, an enclosure's `rear`, `left` and `right`); `frame` is its face in the owner's frame, its yaw the way the opening faces
  * out (0: +Y). `open` is a free end, not yet finished; `closed` is shut by its closure; `connected` is coupled to its one mate.
+ * `raise` is how far a window's or an enclosure's cat port stands above (or, negative, below) where its owner puts it by default: a
+ * window insert's port on the threshold, an enclosure's at `MODULAR.sill`. It is moved with the tunnel element coupled to it (#126).
  */
 export const PortSchema = Type.Object({
-  id: Id, owner: Id, name: Type.String({ minLength: 1 }), frame: TransformSchema,
+  id: Id, owner: Id, name: Type.String({ minLength: 1 }), frame: TransformSchema, raise: Type.Optional(Type.Number()),
   interface: Type.Object({ kind: Type.Literal('standard-port'), size: Size }, { additionalProperties: false }),
   state: Type.Union([Type.Literal('open'), Type.Literal('closed'), Type.Literal('connected')]),
 }, { additionalProperties: false });
@@ -112,9 +133,17 @@ export type Attachment = Static<typeof AttachmentSchema>;
 /** How the project is looked at: never part of the physical design, the checks or the parts list. */
 export const ViewSchema = Type.Object({ selection: Type.Array(Id), hidden: Type.Array(Id), camera: Type.Union([Type.String(), Type.Null()]) }, { additionalProperties: false });
 export type ProjectView = Static<typeof ViewSchema>;
-/** `view` with only the instances `project` has: what a view kept across a change to the instances still names. */
-export function keepView(view: ProjectView, project: { instances: readonly { id: string }[] }): ProjectView {
-  const ids = new Set(project.instances.map(i => i.id));
+/** What a view can name: the instances, and their tunnels' route elements. */
+const viewable = (project: { instances: readonly { id: string; kind: string; params: unknown }[] }) => new Set(project.instances.flatMap(i => [
+  i.id, ...(i.kind === 'tunnel' ? routeOf(i.params).map(e => e.id) : []),
+]));
+const routeOf = (params: unknown): { id: string }[] => {
+  const route = (params as { route?: unknown } | null)?.route;
+  return Array.isArray(route) ? route.filter((e): e is { id: string } => typeof (e as { id?: unknown } | null)?.id === 'string') : [];
+};
+/** `view` with only the instances (and route elements) `project` has: what a view kept across a change to the instances still names. */
+export function keepView(view: ProjectView, project: { instances: readonly { id: string; kind: string; params: unknown }[] }): ProjectView {
+  const ids = viewable(project);
   return { ...view, selection: view.selection.filter(id => ids.has(id)), hidden: view.hidden.filter(id => ids.has(id)) };
 }
 
@@ -156,8 +185,8 @@ export const SETTINGS_DEFAULT: ProjectSettings = {
 export const WINDOW_PARAMS_DEFAULT: WindowParams = {
   glassWidth: MODULAR_DEFAULT.glassWidth, glassHeight: MODULAR_DEFAULT.glassHeight, sashWidth: MODULAR_DEFAULT.sashWidth, sashHeight: MODULAR_DEFAULT.sashHeight, tunnelSize: MODULAR_DEFAULT.tunnelSize,
 };
-/** The tunnel page's defaults, its sections one module each. */
-export const TUNNEL_PARAMS_DEFAULT: TunnelParams = { mode: 'standard', ...withoutKeys(TUNNEL_DEFAULT, TUNNEL_ROUTE_KEYS), sectionLength: 1 };
+/** The tunnel page's defaults, its sections one module each: a tunnel's params but its route. */
+export const TUNNEL_PARAMS_DEFAULT: Omit<TunnelParams, 'route'> = { mode: 'standard', ...withoutKeys(TUNNEL_DEFAULT, TUNNEL_ROUTE_KEYS), sectionLength: 1 };
 
 // The controls that check each setting: a value is accepted when a control for its key offers it.
 const TUNNEL_SETTING_CONTROLS = [...TUNNEL_COUPLING_CONTROLS, ...TUNNEL_CONTROLS] as SubassemblyControl<object>[];
@@ -196,13 +225,14 @@ export function projectErrors(raw: unknown): string[] {
   if (version === undefined) return ['The file has no schemaVersion: it is not a catio planner project.'];
   if (typeof version !== 'number' || !Number.isInteger(version)) return [`schemaVersion ${JSON.stringify(version)} is not a version number.`];
   if (version > PROJECT_SCHEMA_VERSION) return [`The project was saved by a newer planner (schema version ${version}); this one reads version ${PROJECT_SCHEMA_VERSION}.`];
-  if (version !== PROJECT_SCHEMA_VERSION) return [`Schema version ${version} is not supported; this planner reads version ${PROJECT_SCHEMA_VERSION}.`];
+  if (version !== PROJECT_SCHEMA_VERSION) return [`Schema version ${version} is not supported here; this planner reads version ${PROJECT_SCHEMA_VERSION}${version === 1 ? ' (opening a file migrates version 1)' : ''}.`];
   if (!Value.Check(ProjectSchema, raw)) return schemaErrors('project', ProjectSchema, raw);
   const p = raw;
   const errors: string[] = [];
 
   const ids = new Set<string>();
-  for (const { id } of [...p.instances, ...p.ports, ...p.connections, ...p.attachments]) {
+  const elements = p.instances.flatMap(i => i.kind === 'tunnel' ? routeOf(i.params) : []);
+  for (const { id } of [...p.instances, ...elements, ...p.ports, ...p.connections, ...p.attachments]) {
     if (ids.has(id)) errors.push(`The id ${id} is used more than once.`); ids.add(id);
   }
   const instances = new Map(p.instances.map(i => [i.id, i]));
@@ -211,7 +241,7 @@ export function projectErrors(raw: unknown): string[] {
     const kind = i.kind as InstanceKind;
     const schema = PARAMS_SCHEMA[kind];
     if (!Value.Check(schema, i.params)) errors.push(...schemaErrors(`${i.id}.params`, schema, i.params));
-    else if (kind === 'tunnel') errors.push(...checkControlled(`${i.id}.params`, withoutKeys(i.params as Record<string, unknown>, ['mode']), withoutKeys(TUNNEL_PARAMS_DEFAULT, ['mode']), TUNNEL_CONTROLS as SubassemblyControl<object>[]));
+    else if (kind === 'tunnel') errors.push(...checkControlled(`${i.id}.params`, withoutKeys(i.params as Record<string, unknown>, TUNNEL_OWN_KEYS), withoutKeys(TUNNEL_PARAMS_DEFAULT, ['mode']), TUNNEL_CONTROLS as SubassemblyControl<object>[]));
     const parent = i.parent === null ? null : instances.get(i.parent);
     if (i.parent !== null && !parent) errors.push(`Instance ${i.id}'s parent ${i.parent} does not exist.`);
     else if (!PARENT_KINDS[kind].includes((parent?.kind ?? null) as InstanceKind | null)) errors.push(`A ${kind} cannot stand ${parent ? `in a ${parent.kind}` : 'on the site'} (${i.id}).`);
@@ -248,30 +278,15 @@ export function projectErrors(raw: unknown): string[] {
     if (!support) errors.push(`Attachment ${a.id}'s support ${a.support.instance} does not exist.`);
     if (attached && support && attached.parent !== support.id) errors.push(`Attachment ${a.id} fixes ${attached.id} to ${support.id}, which it does not stand in.`);
   }
+  const named = viewable(p);
   for (const [list, name] of [[p.view.selection, 'selection'], [p.view.hidden, 'hidden list']] as const) {
-    for (const id of list) if (!instances.has(id)) errors.push(`The view's ${name} names ${id}, which does not exist.`);
+    for (const id of list) if (!named.has(id)) errors.push(`The view's ${name} names ${id}, which does not exist.`);
   }
   const s = p.settings;
   errors.push(...checkControlled('settings.insert', s.insert, SETTINGS_DEFAULT.insert, WINDOW_INSERT_CONTROLS as SubassemblyControl<object>[]));
   errors.push(...checkControlled('settings.insertCoupling', s.insertCoupling, SETTINGS_DEFAULT.insertCoupling, COUPLING_CONTROLS as SubassemblyControl<object>[]));
   errors.push(...checkControlled('settings.tunnelCoupling', s.tunnelCoupling, SETTINGS_DEFAULT.tunnelCoupling, TUNNEL_SETTING_CONTROLS));
   return errors;
-}
-
-export type ParseResult = { ok: true; project: Project } | { ok: false; errors: string[] };
-/**
- * A project from a file's text (or its parsed JSON): the document when `projectErrors` finds nothing, else the errors, so that the
- * caller keeps its current project. Its view keeps only the instances it has (`keepView`). It never throws.
- */
-export function parseProject(json: unknown): ParseResult {
-  let raw = json;
-  if (typeof json === 'string') {
-    try { raw = JSON.parse(json); } catch (error) { return { ok: false, errors: [`The file is not JSON: ${(error as Error).message}`] }; }
-  }
-  // the view is not the design: a selection or hidden list naming what is gone is dropped, not a reason to refuse the project
-  if (Value.Check(ProjectSchema, raw)) raw = { ...raw, view: keepView(raw.view, raw) };
-  const errors = projectErrors(raw);
-  return errors.length ? { ok: false, errors } : { ok: true, project: structuredClone(raw) as Project };
 }
 
 export const serializeProject = (project: Project): string => JSON.stringify(project, null, 2);

@@ -4,11 +4,11 @@ import {
   clampPlatform, platformAttachments, platformDefaults, platformOrientation, platformRange, platformYaw, PLATFORM_RECIPES, PLATFORM_SHEET, type PlatformRange,
 } from './catioPlatform.ts';
 import {
-  composeTransform, isKind, keepView, projectErrors, PROJECT_SCHEMA_VERSION, SETTINGS_DEFAULT, TUNNEL_PARAMS_DEFAULT, WINDOW_PARAMS_DEFAULT,
-  type Attachment, type Connection, type EnclosureInstance, type EnclosureParams, type Instance, type PlatformParams, type Port, type Project, type Transform,
+  applyTransform, composeTransform, isKind, keepView, projectErrors, PROJECT_SCHEMA_VERSION, relativeTransform, routeElements, SETTINGS_DEFAULT, TUNNEL_PARAMS_DEFAULT, WINDOW_PARAMS_DEFAULT, worldTransforms,
+  type Attachment, type Connection, type EnclosureInstance, type EnclosureParams, type Instance, type PlatformParams, type Port, type Project, type Transform, type TunnelInstance,
 } from './catioProject.ts';
-import { evaluateProject, outsideGarden, syncPorts, type ProjectEvaluation } from './catioProjectEvaluate.ts';
-import { TUNNEL, TUNNEL_DEFAULT, tunnelLayout, tunnelPitch, tunnelSiteFor } from './catioTunnel.ts';
+import { evaluateProject, outsideGarden, solveRoute, syncPorts, type EvaluatedTunnel, type EvaluatedWindow, type ProjectEvaluation } from './catioProjectEvaluate.ts';
+import { routeElementName, TUNNEL, tunnelPitch, tunnelSiteFor } from './catioTunnel.ts';
 
 /**
  * The planner's edits: pure functions from a project to the next one. An edit that cannot be made (a number that is not finite or
@@ -67,14 +67,15 @@ export function createProject({ id = 'catio-project', name = 'My catio' }: { id?
   const settings = structuredClone(SETTINGS_DEFAULT);
   const windowAt: Transform = { x: garden.width / 2, y: 0, z: 0, yaw: 0 };
   const window: Instance = { id: 'window-1', kind: 'window', name: 'Window', parent: null, transform: windowAt, params: { ...WINDOW_PARAMS_DEFAULT }, material: {} };
-  const tunnel: Instance = { id: 'tunnel-1', kind: 'tunnel', name: 'Tunnel', parent: window.id, transform: { x: 0, y: 0, z: 0, yaw: 0 }, params: { ...TUNNEL_PARAMS_DEFAULT }, material: {} };
   // the route the two modules make, straight out from the window port at its floor's height
   const site = tunnelSiteFor({ ...settings.insert, mesh: settings.mesh }, { ...MODULAR_DEFAULT, ...window.params, portClosure: settings.portClosure, doorSeat: settings.doorSeat });
   const joint = { ...settings.tunnelCoupling, jointShown: 'end-end' as const };
-  const route = tunnelLayout({ ...TUNNEL_DEFAULT, ...tunnel.params, portX: 0, portY: TUNNEL.wallGap + DEFAULT_TUNNEL_MODULES * tunnelPitch(site, joint), portFacing: 0, portLevel: 'own', portHeight: site.floorZ,
-    angleJoint: 'side-port', mesh: settings.mesh, supportFixing: settings.tunnelCoupling.supportFixing, supportBase: settings.tunnelCoupling.supportBase }, site, joint);
+  const solved = solveRoute({ id: 'tunnel-1', params: { ...TUNNEL_PARAMS_DEFAULT, route: [] } }, settings,
+    site, { x: 0, y: TUNNEL.wallGap + DEFAULT_TUNNEL_MODULES * tunnelPitch(site, joint), z: site.floorZ, yaw: 180 }, true);
+  const tunnel: Instance = { id: 'tunnel-1', kind: 'tunnel', name: 'Tunnel', parent: window.id, transform: { x: 0, y: 0, z: 0, yaw: 0 }, params: { ...TUNNEL_PARAMS_DEFAULT, route: solved.route }, material: {} };
+  const { E } = solved.layout;
   const rear = enclosureLayout(ENCLOSURE_DEFAULT, { id: 'enclosure-1', tunnelSize: site.w, connected: { rear: true, left: false, right: false } }).rear.port.face.at;
-  const enclosureAt = composeTransform(windowAt, { x: route.E[0] - rear[0], y: route.E[1] - rear[1], z: route.E[2] - rear[2], yaw: 0 });
+  const enclosureAt = composeTransform(windowAt, { x: E[0] - rear[0], y: E[1] - rear[1], z: E[2] - rear[2], yaw: 0 });
   const enclosure: Instance = { id: 'enclosure-1', kind: 'enclosure', name: 'Enclosure', parent: null, transform: enclosureAt, params: { ...ENCLOSURE_DEFAULT }, material: {} };
   const ports: Port[] = [
     port(window.id, 'port', site.w, 'connected'), port(tunnel.id, 'start', site.w, 'connected'), port(tunnel.id, 'end', site.w, 'connected'),
@@ -172,7 +173,7 @@ export function moveInstance(project: Project, id: string, to: Partial<Pick<Tran
   const errors = numberErrors(to, false); if (errors.length) return fail(project, ...errors);
   const wanted = { ...instance.transform, ...to };
   const range = platformRangeOf(project, id);
-  if (!range) return ok(project, replace(project, { ...instance, transform: wanted }));
+  if (!range) return ok(project, rerouted(replace(project, { ...instance, transform: wanted }), [id]));
   const transform = clampPlatform(range, wanted, instance.transform.z);
   return noted(ok(project, replace(project, { ...instance, transform })), clampNotes(range, wanted, transform, instance.name ?? id));
 }
@@ -185,7 +186,7 @@ export function moveInstance(project: Project, id: string, to: Partial<Pick<Tran
 export function rotateInstance(project: Project, id: string, yaw: number): CommandResult {
   const instance = movable(project, id); if (typeof instance === 'string') return fail(project, instance);
   const errors = numberErrors({ yaw }, false); if (errors.length) return fail(project, ...errors);
-  if (instance.kind !== 'platform') return ok(project, replace(project, { ...instance, transform: { ...instance.transform, yaw } }));
+  if (instance.kind !== 'platform') return ok(project, rerouted(replace(project, { ...instance, transform: { ...instance.transform, yaw } }), [id]));
   const quarter = platformYaw(yaw); const name = instance.name ?? id;
   const range = platformRangeOf(project, id, { yaw: quarter });
   if (!range) return ok(project, replace(project, { ...instance, transform: { ...instance.transform, yaw: quarter } }));
@@ -212,7 +213,7 @@ export function resizeInstance(project: Project, id: string, size: Partial<Enclo
   const unknown = Object.keys(size).filter(k => !keys.includes(k));
   if (unknown.length) return fail(project, `A ${instance.kind} has no ${unknown.join(' or ')} to resize.`);
   const errors = numberErrors(size, true); if (errors.length) return fail(project, ...errors);
-  if (instance.kind !== 'platform') return ok(project, replace(project, { ...instance, params: { ...instance.params, ...size } } as Instance));
+  if (instance.kind !== 'platform') return ok(project, rerouted(replace(project, { ...instance, params: { ...instance.params, ...size } } as Instance), [id]));
   const range = platformRangeOf(project, id);
   const wanted = { ...instance.params, ...size };
   const params = range ? { ...wanted, width: Math.min(wanted.width, range.span), depth: Math.min(wanted.depth, range.room) } : wanted;
@@ -307,4 +308,119 @@ export function resizeGarden(project: Project, size: { width: number; depth: num
   const evaluation = evaluateProject(resized);
   const result = ok(project, resized, evaluation);
   return { ...result, outside: result.errors.length ? [] : outsideGarden(evaluation) };
+}
+
+/**
+ * `project` with every tunnel coupled to a port of `moved` (or of what stands in them, other than `except`) solved again to that port
+ * (`solveRoute`): its elements keep their ids and floors where they still are, and run into the port's floor (FR-04.10).
+ */
+function rerouted(project: Project, moved: string[], except: string[] = []): Project {
+  const evaluation = evaluateProject(project);
+  const ports = new Map(evaluation.ports.map(p => [p.id, p]));
+  const byId = new Map(project.instances.map(i => [i.id, i]));
+  const inMoved = (id: string) => { for (let at: string | null = id, n = 0; at && n < 50; at = byId.get(at)?.parent ?? null, n++) if (moved.includes(at)) return true; return false; };
+  const world = worldTransforms(project);
+  let next = project;
+  for (const t of project.instances.filter(isKind('tunnel'))) {
+    if (except.includes(t.id)) continue;
+    const end = project.ports.find(p => p.owner === t.id && p.name === 'end');
+    const mate = end && mateOf(project, end.id);
+    const mateWorld = mate && ports.get(mate.id)?.world;
+    const window = evaluation.instances.find((e): e is EvaluatedWindow => e.kind === 'window' && e.id === t.parent);
+    const tunnelWorld = world.get(t.id);
+    if (!mate || !mateWorld || !window || !tunnelWorld || !(inMoved(mate.owner) || inMoved(t.id))) continue;
+    const { route } = solveRoute(t, project.settings, window.site, relativeTransform(tunnelWorld, mateWorld), true);
+    next = replace(next, { ...t, params: { ...t.params, route } });
+  }
+  return next;
+}
+/** The port coupled to port `id`, if any. */
+function mateOf(project: Project, id: string): Port | undefined {
+  const other = project.connections.find(c => c.ports.includes(id))?.ports.find(p => p !== id);
+  return other ? project.ports.find(p => p.id === other) : undefined;
+}
+
+/**
+ * Raises (or, `delta` < 0, lowers) tunnel route elements by `delta` mm, as one edit (FR-02.6, FR-04.2): each element's floor and the
+ * next one's (its end), so that the elements move as they are and their neighbours that stay put slope up or down to them, with bends
+ * where the slope changes (`tunnelLayout`). An element at either end of its tunnel takes the cat port it couples to with it: the
+ * window insert's port moves in its collar, an enclosure's port with its frame, mesh, landing and ramp (`Port.raise`), as far as
+ * they allow (`ProjectEvaluation.portRanges`). Beyond that the whole edit stops there, and the notes say so. An enclosure at the
+ * tunnel's end is moved by as much as the bends lengthen or shorten the route, so that it stays coupled; the notes say by how much.
+ * A slope too steep or a support too low is not refused: the design stays an editable draft with those issues on the elements.
+ */
+export function raiseElements(project: Project, ids: readonly string[], delta: number): CommandResult {
+  const errors = numberErrors({ delta }, false); if (errors.length) return fail(project, ...errors);
+  const elements = routeElements(project);
+  const missing = ids.filter(id => !elements.has(id));
+  if (missing.length || !ids.length) return fail(project, missing.length ? `There is no tunnel element ${missing.join(', ')}.` : 'Select tunnel elements to raise or lower.');
+  const evaluation = evaluateProject(project);
+  const tunnels = new Map<string, { tunnel: TunnelInstance; nodes: Set<number> }>();
+  for (const id of ids) {
+    const found = elements.get(id); if (!found) continue;
+    const entry = tunnels.get(found.tunnel.id) ?? { tunnel: found.tunnel, nodes: new Set<number>() };
+    entry.nodes.add(found.index); entry.nodes.add(found.index + 1);
+    tunnels.set(found.tunnel.id, entry);
+  }
+  // the cat ports at the ends that move with them, and how far each can
+  let step = delta; const notes: string[] = [];
+  const raised = new Map<string, number>();
+  const endFrames = new Map<string, number>();
+  for (const { tunnel, nodes } of tunnels.values()) {
+    const n = tunnel.params.route.length;
+    for (const [node, name] of [[0, 'start'], [n, 'end']] as const) {
+      if (!nodes.has(node)) continue;
+      const own = project.ports.find(p => p.owner === tunnel.id && p.name === name);
+      const mate = own && mateOf(project, own.id);
+      if (!mate) { if (own && name === 'end') endFrames.set(own.id, own.frame.z); continue; }
+      const range = evaluation.portRanges.get(mate.id);
+      const now = mate.raise ?? 0;
+      raised.set(mate.id, now);
+      if (!range) continue;
+      const allowed = Math.min(range.max, Math.max(range.min, now + step)) - now;
+      if (Math.abs(allowed) < Math.abs(step) - 1e-9) {
+        step = Math.sign(step) === Math.sign(allowed) ? allowed : 0;
+        const owner = project.instances.find(i => i.id === mate.owner);
+        notes.push(`${owner?.name ?? mate.owner}'s ${owner?.kind === 'window' ? '' : `${mate.name} `}cat port can go no ${delta > 0 ? 'higher' : 'lower'} (${owner?.kind === 'window' ? 'the insert' : 'the enclosure'} allows ${cm(range.min)} to ${cm(range.max)} cm from its usual height: ${range.limits}).`);
+      }
+    }
+  }
+  if (Math.abs(step) < 0.5) return fail(project, ...(notes.length ? notes : ['Nothing to raise or lower.']));
+  if (Math.abs(step - delta) > 1e-9) notes.push(`The selection ${delta > 0 ? 'rises' : 'falls'} ${Math.round(Math.abs(step))} mm, not ${Math.round(Math.abs(delta))} mm.`);
+  let next: Project = {
+    ...project,
+    instances: project.instances.map(i => {
+      const entry = tunnels.get(i.id); if (!entry || i.kind !== 'tunnel') return i;
+      return { ...i, params: { ...i.params, route: i.params.route.map((e, index) => entry.nodes.has(index) ? { ...e, floor: e.floor + step } : e) } };
+    }),
+    ports: project.ports.map(p => raised.has(p.id) ? { ...p, raise: (raised.get(p.id) ?? 0) + step }
+      : endFrames.has(p.id) ? { ...p, frame: { ...p.frame, z: p.frame.z + step } } : p),
+  };
+  // an enclosure at a tunnel's end follows where its elements now end
+  const after = evaluateProject(next);
+  const world = worldTransforms(project);
+  const followed: string[] = [];
+  for (const { tunnel } of tunnels.values()) {
+    const before = evaluation.instances.find((e): e is EvaluatedTunnel => e.kind === 'tunnel' && e.id === tunnel.id)?.layout;
+    const now = after.instances.find((e): e is EvaluatedTunnel => e.kind === 'tunnel' && e.id === tunnel.id)?.layout;
+    const end = project.ports.find(p => p.owner === tunnel.id && p.name === 'end');
+    const mate = end && mateOf(project, end.id);
+    const owner = mate && next.instances.find(i => i.id === mate.owner);
+    const tunnelWorld = world.get(tunnel.id);
+    if (!before || !now || owner?.kind !== 'enclosure' || owner.parent !== null || !tunnelWorld || followed.includes(owner.id)) continue;
+    const shift = applyTransform({ x: 0, y: 0, z: 0, yaw: tunnelWorld.yaw }, { x: now.E[0] - before.E[0], y: now.E[1] - before.E[1], z: 0 });
+    if (Math.hypot(shift.x, shift.y) < 0.5) continue;
+    followed.push(owner.id);
+    next = replace(next, { ...owner, transform: { ...owner.transform, x: r3(owner.transform.x + shift.x), y: r3(owner.transform.y + shift.y) } });
+    notes.push(`${owner.name ?? owner.id} moved ${Math.round(Math.hypot(shift.x, shift.y))} mm ${Math.hypot(now.E[0], now.E[1]) > Math.hypot(before.E[0], before.E[1]) ? 'away' : 'closer'}: the ${tunnel.name ?? tunnel.id}'s bends change its length, and it stays coupled.`);
+  }
+  if (followed.length) next = rerouted(next, followed, [...tunnels.keys()]);
+  return noted(ok(project, next), notes);
+}
+const r3 = (v: number) => Math.round(v * 1000) / 1000;
+
+/** What the planner calls a tunnel element: its tunnel's name and its place in the chain. */
+export function elementTitle(project: Project, id: string): string | null {
+  const found = routeElements(project).get(id);
+  return found ? `${found.tunnel.name ?? found.tunnel.id} · ${routeElementName(found.index, found.element)}` : null;
 }

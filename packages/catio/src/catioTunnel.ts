@@ -168,6 +168,8 @@ export interface Joint {
 }
 export interface Piece {
   id: string; kind: 'section' | 'collar'; name: string;
+  /** The route element it is (a section of a described route, `DescribedRoute`); null for a collar, and on a solved route. */
+  element: string | null;
   frame: Frame; start: Face; end: Face; length: number;
   /** Degrees the piece climbs (its axis); a collar's is that of its chord. */
   pitch: number;
@@ -289,15 +291,31 @@ function part(id: string): Part {
   const found = findPart(id); if (!found) throw new Error(`The parts library has no ${id}.`); return found;
 }
 
-type Run = { kind: 'run'; dir: V3; length: number; psi: number; pitch: number; leg: number };
+type Run = { kind: 'run'; dir: V3; length: number; psi: number; pitch: number; leg: number; element?: string };
 type JointItem = { kind: 'joint'; joint: Omit<Joint, 'vertex' | 'collar' | 'id' | 'side'> };
 
 /** The enclosure port's floor above the grass: the window port's when level with it, else its own. */
 export const portFloor = (config: TunnelConfig, site: TunnelSite) => config.portLevel === 'window' ? site.floorZ : config.portHeight;
+/** What the planner calls a described route's element: by its place in the chain. */
+export const routeElementName = (index: number, e: Pick<RouteElement, 'kind'>) => `${e.kind === 'turn' ? 'Turn' : 'Module'} ${index + 1}`;
 /** The brief says where the enclosure port was placed when whole elements put it this far from where it was asked. */
 export const PORT_MOVED = 1;
 /** A climb this small is likely meant to be level: the window port's floor moved since the height was set. */
 export const NEARLY_LEVEL = 30;
+
+/**
+ * A tunnel's route as the catio planner's document describes it (#126), instead of solved from its ends: a chain of standard
+ * elements from the start port, each a whole number of modules (`modules`) with a stable id and its floor's height where it starts
+ * (`floor`, above the grass at the wall). A `turn` is the section that carries a side port in its first bay: the run before couples
+ * onto it from the side, and the route turns `turn` degrees there (+ to the right), level. The chain ends at the floor of the port it
+ * runs into (`end`). Where neighbours' floors differ, the element between them slopes, with angle-collar bends wherever the slope
+ * changes: the climb of a solved route, between any neighbours. A branch (a junction element) or a custom-cut element would be other
+ * kinds of element; the chain does not rule them out.
+ */
+export type RouteElement = { id: string; kind: 'straight'; modules: number; floor: number } | { id: string; kind: 'turn'; turn: 90 | -90; modules: number; floor: number };
+export interface DescribedRoute { elements: readonly RouteElement[]; end: number }
+/** A problem with a described route, on the elements it concerns. */
+export interface RouteIssue { elements: string[]; message: string }
 
 /**
  * The port's facing that side-port turns can make: straight out from the wall, or along it (±90°), whichever is nearest.
@@ -331,9 +349,12 @@ export function squareRoute(config: Pick<TunnelConfig, 'portX' | 'portFacing'>):
  * from where it was asked. A climb is the one length solved exactly: a whole number of long sections, sloped as steeply as it
  * takes to reach the port's floor, up to the steepest slope allowed.
  */
-export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig) {
+export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig, route?: DescribedRoute) {
   const { w, h, floorZ } = site;
   const errors: string[] = [];
+  /** Problems on a described route's elements: they are in `errors` too. */
+  const routeIssues: RouteIssue[] = [];
+  const routeIssue = (elements: string[], message: string) => { routeIssues.push({ elements, message }); errors.push(message); };
   const turnType = config.angleJoint;
   const square = turnType === 'side-port';
   /** Bends (into and out of a climb) are made with angle collars when the turns are at side ports: a side port only turns on the level. */
@@ -359,15 +380,16 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: Tunn
   const psiE = rad(square ? squareFacing(config.portFacing) : config.portFacing);
   const dE = heading(psiE);
   // The centre line in plan: out from the wall, across, and square into the port.
-  const route = square ? squareRoute(config).kind : null;
-  const V1: V3 = route === 'along' ? [S[0], asked[1], S[2]] : route === 'straight' ? [S[0], asked[1], S[2]] : add(S, mul(heading(0), config.approach));
-  const V2: V3 = route === 'offset' ? [asked[0], V1[1], S[2]] : route ? V1 : sub([asked[0], asked[1], S[2]], mul(dE, config.final));
+  const described = route ?? null;
+  const routeKind = square ? squareRoute(config).kind : null;
+  const V1: V3 = routeKind === 'along' ? [S[0], asked[1], S[2]] : routeKind === 'straight' ? [S[0], asked[1], S[2]] : add(S, mul(heading(0), config.approach));
+  const V2: V3 = routeKind === 'offset' ? [asked[0], V1[1], S[2]] : routeKind ? V1 : sub([asked[0], asked[1], S[2]], mul(dE, config.final));
   const middle = sub(V2, V1); const middleLength = Math.hypot(middle[0], middle[1]);
   const psiM = middleLength > 1e-6 ? Math.atan2(middle[0], middle[1]) : 0;
   const lateral = w / 2 + F;
   /** The legs: out from the wall, across (none when the square route has no middle leg), into the port. */
-  const finalLength = route === 'along' ? Math.sign(Math.sin(psiE)) * asked[0] : route === 'offset' ? asked[1] - V1[1] : route === 'straight' ? 0 : config.final;
-  if (route === 'along' && finalLength < 0) errors.push(`A port facing ${config.portFacing > 0 ? 'right' : 'left'} along the wall must be to the ${config.portFacing > 0 ? 'right' : 'left'} of the window: move it, or turn it the other way.`);
+  const finalLength = routeKind === 'along' ? Math.sign(Math.sin(psiE)) * asked[0] : routeKind === 'offset' ? asked[1] - V1[1] : routeKind === 'straight' ? 0 : config.final;
+  if (!described && routeKind === 'along' && finalLength < 0) errors.push(`A port facing ${config.portFacing > 0 ? 'right' : 'left'} along the wall must be to the ${config.portFacing > 0 ? 'right' : 'left'} of the window: move it, or turn it the other way.`);
   const plan = [
     { psi: 0, length: len(sub(V1, S)) },
     ...(middleLength > 1e-6 ? [{ psi: psiM, length: middleLength }] : []),
@@ -375,7 +397,7 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: Tunn
   ];
   const turns = plan.slice(1).map((leg, i) => wrap(leg.psi - (plan[i]?.psi ?? 0)));
   const maxTurn = TUNNEL.maxTurn[turnType];
-  turns.forEach((theta, i) => {
+  if (!described) turns.forEach((theta, i) => {
     if (Math.abs(deg(theta)) > maxTurn + 1e-9) errors.push(`The ${i === 0 ? 'first' : 'second'} turn would be ${Math.abs(deg(theta)).toFixed(1)}°; ${turnType === 'angle-collar' ? 'angle collars' : 'mitred ends'} go to ${maxTurn}°. Move the port, change its facing or the straight runs.`);
   });
   const turnSetback = turns.map(theta => Math.abs(deg(theta)) < 0.05 ? null : setbackOf(theta, lateral, turnType));
@@ -391,7 +413,7 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: Tunn
   /** Each bend's stop: the climb runs from vertex to vertex over both stops and the sloped run. */
   const bendSetbacks = (phi: number) => [stopAt(phi, r1, bendType), stopAt(phi, r2, bendType)] as const;
   let slope: { pitch: number; run: number; footprint: number } | null = null;
-  if (Math.abs(rise) >= 0.5) {
+  if (!described && Math.abs(rise) >= 0.5) {
     const climb = Math.abs(rise); const steepest = rad(config.maxSlope);
     const reach = (p: number, run: number) => { const [e1, e2] = bendSetbacks(p); return Math.sin(p) * (e1 + run + e2); };
     // the fewest whole pitches of long section that climb it at no more than the steepest slope, sloped exactly to the port's floor
@@ -407,7 +429,72 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: Tunn
   // The sequence of straight runs and the joints between them; every run whole elements long, at least one, so a leg too short for
   // its joints moves the port instead of failing.
   const items: (Run | JointItem)[] = [];
-  legs.forEach((leg, i) => {
+  /** A described route's heading at its end, and each element's slope (radians, + up). */
+  let endPsi = psiE;
+  const elementPitch = new Map<string, number>();
+  if (described) {
+    const els = described.elements;
+    const n = els.length;
+    if (!n) errors.push('The tunnel has no elements.');
+    // the headings: a turn turns the route at the element it is
+    const psi: number[] = []; let at = 0;
+    els.forEach((e, i) => { if (e.kind === 'turn' && i > 0) at = wrap(at + rad(e.turn)); psi.push(at); });
+    endPsi = psi.at(-1) ?? 0;
+    const firstElement = els[0];
+    if (firstElement?.kind === 'turn') routeIssue([firstElement.id], 'A tunnel cannot start with a turn: its first element runs straight out of its port.');
+    if (firstElement && Math.abs(firstElement.floor - floorZ) > 0.5) routeIssue([firstElement.id], `The first element’s floor is ${Math.round(Math.abs(firstElement.floor - floorZ))} mm ${firstElement.floor > floorZ ? 'above' : 'below'} the port it starts at: raise or lower the port with it.`);
+    // each element climbs from its floor to the next one's (the end port's after the last), vertex to vertex: over its own run, half
+    // a straight coupling's gap, or a bend's stop, at each end. A bend is where neighbours slope differently; its stops depend on its
+    // angle, so the slopes are found together.
+    const z = [floorZ, ...els.slice(1).map(e => e.floor), described.end];
+    const runs = els.map(e => Math.max(1, Math.round(e.modules)) * pitch - gap);
+    let phi = els.map(() => 0);
+    const turnAt = (j: number) => j > 0 && j < n && els[j]?.kind === 'turn';
+    const bendAt = (j: number, slopes: number[]) => {
+      if (turnAt(j)) return null;
+      const theta = (j < n ? slopes[j] ?? 0 : 0) - (j > 0 ? slopes[j - 1] ?? 0 : 0);
+      if (Math.abs(deg(theta)) < 0.05) return null;
+      const inside = theta > 0 ? h + F : F;
+      return { theta, inside, stop: stopAt(theta, inside, bendType), setback: setbackOf(theta, inside, bendType) };
+    };
+    /** The steepest a drawing goes: anything steeper is drawn at this, and reported. */
+    const drawable = rad(60);
+    for (let iteration = 0; iteration < 60; iteration++) {
+      const next = els.map((_, i) => {
+        const b0 = bendAt(i, phi); const b1 = bendAt(i + 1, phi);
+        const before = b0 ? b0.stop : i === 0 ? 0 : turnAt(i) ? -sideOffset : gap / 2;
+        const after = b1 ? b1.stop : i === n - 1 ? gap : turnAt(i + 1) ? lateral + gap : gap / 2;
+        const ratio = ((z[i + 1] ?? 0) - (z[i] ?? 0)) / (before + (runs[i] ?? 0) + after);
+        return Math.asin(Math.max(-Math.sin(drawable), Math.min(Math.sin(drawable), ratio)));
+      });
+      const change = Math.max(0, ...next.map((v, i) => Math.abs(v - (phi[i] ?? 0))));
+      phi = next;
+      if (change < 1e-12) break;
+    }
+    els.forEach((e, i) => {
+      const slope = Math.abs(deg(phi[i] ?? 0)); elementPitch.set(e.id, phi[i] ?? 0);
+      if (slope > deg(drawable) - 1e-6) routeIssue([e.id], `${routeElementName(i, e)} would have to climb ${Math.round(Math.abs((z[i + 1] ?? 0) - (z[i] ?? 0)))} mm over its ${Math.round(runs[i] ?? 0)} mm: it cannot slope that steeply. Raise or lower it with its neighbours.`);
+      else if (slope > config.maxSlope + 1e-6) routeIssue([e.id], `${routeElementName(i, e)} slopes ${slope.toFixed(1)}°, steeper than ${config.maxSlope}°: raise or lower it with its neighbours, or allow a steeper slope.`);
+      if (turnAt(i) && (Math.abs(phi[i - 1] ?? 0) > 1e-9 || Math.abs(phi[i] ?? 0) > 1e-9)) {
+        const near = [els[i - 1]?.id, e.id].filter((id): id is string => !!id);
+        routeIssue(near, `${routeElementName(i, e)} turns at a side port, which only turns on the level: the elements either side of it must be level with it (a sloped turn is a compound bend).`);
+      }
+    });
+    els.forEach((e, i) => {
+      const a = i > 0 ? heading(psi[i - 1] ?? 0, phi[i - 1] ?? 0) : heading(psi[0] ?? 0); const b = heading(psi[i] ?? 0, phi[i] ?? 0);
+      if (turnAt(i)) {
+        const theta = wrap((psi[i] ?? 0) - (psi[i - 1] ?? 0));
+        items.push({ kind: 'joint', joint: { kind: 'turn', angle: deg(theta), a, b, setback: setbackOf(theta, lateral, turnType), stop: stopAt(theta, lateral, turnType), inside: lateral } });
+      } else {
+        const bend = bendAt(i, phi);
+        if (bend) items.push({ kind: 'joint', joint: { kind: 'bend', angle: deg(bend.theta), a, b, setback: bend.setback, stop: bend.stop, inside: bend.inside } });
+      }
+      items.push({ kind: 'run', dir: b, length: runs[i] ?? 0, psi: psi[i] ?? 0, pitch: phi[i] ?? 0, leg: i, element: e.id });
+    });
+    const last = bendAt(n, phi);
+    if (last) items.push({ kind: 'joint', joint: { kind: 'bend', angle: deg(last.theta), a: heading(endPsi, phi[n - 1] ?? 0), b: heading(endPsi), setback: last.setback, stop: last.stop, inside: last.inside } });
+  }
+  if (!described) legs.forEach((leg, i) => {
     if (i > 0) {
       const theta = turns[i - 1] ?? 0; const e = turnSetback[i - 1]; const stop = turnStop[i - 1];
       if (e !== null && e !== undefined) items.push({ kind: 'joint', joint: { kind: 'turn', angle: deg(theta), a: heading(legs[i - 1]?.psi ?? 0), b: heading(leg.psi), setback: e, stop: stop ?? e, inside: lateral } });
@@ -453,7 +540,7 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: Tunn
         const vertex = add(at, mul(j.a, j.setback)); const end = add(vertex, mul(j.b, j.setback));
         const collarId = `collar-${joints.length + 1}`;
         const frame = frameAlong(chord);
-        pieces.push({ id: collarId, kind: 'collar', name: `Angle collar ${joints.length + 1}`, frame, start: { at, n: j.a, frame: frameAlong(j.a) }, end: { at: end, n: j.b, frame: frameAlong(j.b) },
+        pieces.push({ id: collarId, kind: 'collar', name: `Angle collar ${joints.length + 1}`, element: null, frame, start: { at, n: j.a, frame: frameAlong(j.a) }, end: { at: end, n: j.b, frame: frameAlong(j.b) },
           length: len(sub(end, at)), pitch: deg(Math.asin(chord[2])), joint: id, sidePort: null });
         joints.push({ ...j, id, vertex, collar: collarId, side: null });
         at = add(end, mul(j.b, j.stop - j.setback));
@@ -484,7 +571,7 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: Tunn
       const side = i === 0 ? pendingSide : null;
       const sidePort = side ? { offset: sideOffset, side: side.side, from: side.from, face: sidePortFace(add(add(at, mul(item.dir, sideOffset)), mul(frame.z, h / 2)), frame, w, side.side) } : null;
       if (side) { const j = joints.find(q => q.id === side.joint); if (j) j.side = id; }
-      pieces.push({ id, kind: 'section', name: `Section ${sectionCount}`, frame, start, end: { at: end, n: endNormal, frame },
+      pieces.push({ id, kind: 'section', name: `Section ${sectionCount}`, element: item.element ?? null, frame, start, end: { at: end, n: endNormal, frame },
         length: piece, pitch: deg(item.pitch), joint: null, sidePort });
       at = end;
     });
@@ -507,7 +594,8 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: Tunn
   /** Where the route ends: the enclosure port's face, a whole number of elements from the window. */
   const E: V3 = last ? add(last.end.at, mul(last.end.n, gap)) : asked;
   const moved = len(sub(E, asked));
-  const facingMoved = Math.abs(deg(psiE) - config.portFacing);
+  const facingMoved = described ? Math.abs(deg(wrap(endPsi - rad(config.portFacing)))) : Math.abs(deg(psiE) - config.portFacing);
+  const dEnd = described ? heading(endPsi) : dE;
 
   // Bolts on every bolted coupling: at the standard port's stations, the same on its four sides. Printed latches across every
   // square coupling when they are chosen, on the faces' sides: seen from outside, each port has its base plates on its left and
@@ -766,7 +854,11 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: Tunn
     const { centre, top, slopeAt } = at; const { ends, room, trestle, depth } = chosen;
     const ownSole = stance === 'sole' ? sole : null; const soleThickness = ownSole ? ownSole.thickness : 0;
     const footprint = footprintAt ? footprintAt(half) : null;
-    if (!trestle && depth < TUNNEL.minBlock) errors.push(`At the ${id.replace('-', ' ')} the tunnel is too close to the ground for a support: ${Math.round(room + l3 + middleSetting)} mm under it, at least ${Math.ceil(TUNNEL.minBlock + l3 + middleSetting + TUNNEL.slab.thickness)} mm needed. Raise the port or slope the approach.`);
+    if (!trestle && depth < TUNNEL.minBlock) {
+      const message = `At the ${id.replace('-', ' ')} the tunnel is too close to the ground for a support: ${Math.round(room + l3 + middleSetting)} mm under it, at least ${Math.ceil(TUNNEL.minBlock + l3 + middleSetting + TUNNEL.slab.thickness)} mm needed. Raise the port or slope the approach.`;
+      const on = [...new Set(over.flatMap(p => { const piece = pieces.find(q => q.id === p); return piece?.element ? [piece.element] : []; }))];
+      if (on.length) routeIssue(on, message); else errors.push(message);
+    }
     // each leg (or low bearer end) on one foot; self-standing, on a sole along the tunnel or under a wide low bearer, a foot near each
     // end along the tunnel; one slab under each end
     const spread = ownSole ? ownSole.length / 2 - ownSole.footInset : stance === 'wide' ? TUNNEL.wideBlock.width / 2 - TUNNEL.wideBlock.footInset : 0;
@@ -819,7 +911,7 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: Tunn
     const fixings = [-1, 1].map(k => add(add(centre, mul(c.frame.x, k * (w / 2 + r / 2))), mul(c.frame.z, -F)));
     station(`support-${j.id}`, () => centre, c.frame.y, width, fixings.map(p => [p[0], p[1], p[2]] as V3), 0, null, [c.id]);
   }
-  if (last) station('support-port', half => sub(last.end.at, mul(dE, half)), dE, w + 2 * F, flangeFixings(last.end, [-T / 2]), 1, half => [half - T, half], [last.id]);
+  if (last) station('support-port', half => sub(last.end.at, mul(dEnd, half)), dEnd, w + 2 * F, flangeFixings(last.end, [-T / 2]), 1, half => [half - T, half], [last.id]);
   // Fixing points take their height from the bearer they go up through.
   for (const s of supports) s.fixings = s.fixings.map(p => [p[0], p[1], s.top]);
 
@@ -928,11 +1020,33 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: Tunn
 
   const totalLength = pieces.reduce((sum, p) => sum + p.length, 0);
   return {
-    config, site, w, h, S, E, dE, V1, V2, asked, moved, facingMoved, unitLength, pitch, turns: turns.map(deg), rise, slope: slope ? { pitch: deg(slope.pitch), run: slope.run, footprint: slope.footprint } : null,
+    config, site, w, h, S, E, dE: dEnd, V1, V2, asked, moved, facingMoved, unitLength, pitch, turns: turns.map(deg), rise, slope: slope ? { pitch: deg(slope.pitch), run: slope.run, footprint: slope.footprint } : null,
     joint, gap, mesh, pieces, joints, interfaces, couplings, members, panels, doors, cleats, fasteners, supports, foot, pad, footHeight: l3, stud, insertNut, lockNut, travel, errors, totalLength,
+    /** A described route's problems on its elements, and each element's slope in degrees (+ up). */
+    routeIssues, elementSlopes: new Map([...elementPitch].map(([id, p]) => [id, deg(p)])),
   };
 }
 export type TunnelLayout = ReturnType<typeof tunnelLayout>;
+
+/**
+ * The described route a laid-out tunnel is (`DescribedRoute`): each of its sections an element of its whole modules, the section that
+ * carries a side port a turn, each with its floor where it starts: at the vertex of the bend or turn before it, or half way across
+ * the coupling's gap (the start port's floor for the first). Laid out again with the same end, it is the same tunnel. `id` names
+ * the element at each place.
+ */
+export function routeOf(layout: Pick<TunnelLayout, 'pieces' | 'joints' | 'S' | 'gap' | 'pitch'>, id: (index: number) => string): RouteElement[] {
+  const r = (v: number) => Math.round(v * 1e6) / 1e6 || 0;
+  return layout.pieces.filter(p => p.kind === 'section').map((p, i) => {
+    const modules = Math.max(1, Math.round((p.length + layout.gap) / layout.pitch));
+    const before = layout.pieces[layout.pieces.indexOf(p) - 1];
+    const turn = layout.joints.find(j => j.side === p.id);
+    const bend = before?.kind === 'collar' ? layout.joints.find(j => j.collar === before.id) : layout.joints.find(j => j.kind === 'bend' && j.collar === null && len(sub(j.vertex, p.start.at)) < 1e-6);
+    const floor = i === 0 ? layout.S[2] : (turn ?? bend)?.vertex[2] ?? (before ? (before.end.at[2] + p.start.at[2]) / 2 : p.start.at[2]);
+    return turn
+      ? { id: id(i), kind: 'turn' as const, turn: turn.angle > 0 ? 90 as const : -90 as const, modules, floor: r(floor) }
+      : { id: id(i), kind: 'straight' as const, modules, floor: r(floor) };
+  });
+}
 
 export function validateTunnel(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig): string[] {
   return tunnelLayout(config, site, joint).errors;
@@ -1130,8 +1244,7 @@ export function tunnelCutList(l: TunnelLayout, { pieces, supports = true }: { pi
 }
 
 /** The parts list: cut list, mesh, hardware by library part, and groundwork. */
-export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig): BomLine[] {
-  const l = tunnelLayout(config, site, joint);
+export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig, l: TunnelLayout = tunnelLayout(config, site, joint)): BomLine[] {
   const lines: BomLine[] = tunnelCutList(l);
   const counts = new Map<string, { quantity: number; uses: Set<string> }>();
   const addPart = (partId: string, use: string, quantity = 1) => {

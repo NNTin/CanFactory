@@ -24,5 +24,6 @@ export type { Box as CouplingBox, Fastener as CouplingFastener } from './catioCo
 export * from './catioPlatform.ts';
 export * from './catioProject.ts';
 export * from './catioProjectEvaluate.ts';
+export * from './catioProjectMigrate.ts';
 export * from './catioProjectCommands.ts';
 export * from './catioProjectHistory.ts';
