@@ -5,6 +5,7 @@ import {
   type ProjectEvaluation, type Transform, type TunnelConfig, type TunnelFastener, type TunnelLayout,
 } from '@canfactory/catio';
 import { createCatioParts } from './catioParts.ts';
+import { facePoint, sizeFaces, type Box, type SizeFace, type Sized } from './catioPlannerHandles.ts';
 import { buildEnclosure } from './catioEnclosureScene.ts';
 import { catPorts, type CatioDoor } from './catioModularScene.ts';
 import { buildCouplingPieces } from './catioCouplingScene.ts';
@@ -25,7 +26,13 @@ const SELECTED = 0xe8890c; const FLAGGED = 0xc8352b; const HANDLE = 0x2c6e8f;
 const CONTEXT = new Set(['wall', 'room-floor', 'terrain']);
 
 /** What the pointer is over: an instance, or a handle of the selected one. */
-export type PlannerPick = { kind: 'instance'; id: string } | { kind: 'rotate'; id: string };
+export type PlannerPick = { kind: 'instance'; id: string } | { kind: 'rotate' | 'elevate'; id: string } | { kind: 'resize'; id: string; face: SizeFace };
+/**
+ * The selection tool (FR-02.4): which handles the selection shows. Move: the body moves it, the ring turns it, a platform's arrow
+ * raises it. Rotate: the body and the ring turn it. Resize: a handle on each face changes its size.
+ */
+export const PLANNER_TOOLS = ['move', 'rotate', 'resize'] as const;
+export type PlannerTool = typeof PLANNER_TOOLS[number];
 
 interface Drawn {
   id: string; kind: EvaluatedInstance['kind'];
@@ -186,16 +193,39 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
   }
   for (const d of drawn.values()) d.group.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
 
-  // The selection's outline, the flagged instances' outlines, and the rotate handle.
+  // The selection's outline, the flagged instances' outlines, the selection's handles, and a resize's preview box.
   const outlines: THREE.Object3D[] = [];
   const outlineMaterials = [SELECTED, FLAGGED].map(color => new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true }));
   const handleMaterial = new THREE.MeshBasicMaterial({ color: HANDLE, depthTest: false, transparent: true, opacity: 0.85 });
-  let handle: THREE.Mesh | null = null;
+  const ghostMaterial = new THREE.LineBasicMaterial({ color: HANDLE, depthTest: false, transparent: true });
+  /** Each handle with the point on it that tests and readouts aim at, in its own frame. */
+  const handles: { mesh: THREE.Object3D; name: string; aim: THREE.Vector3 }[] = [];
+  let ghost: THREE.Box3Helper | null = null;
   const clearOverlays = () => {
     for (const o of outlines) { o.removeFromParent(); (o as THREE.LineSegments).geometry.dispose(); }
     outlines.length = 0;
-    if (handle) { handle.removeFromParent(); handle.geometry.dispose(); handle = null; }
+    for (const { mesh } of handles) { mesh.removeFromParent(); mesh.traverse(o => { if (o instanceof THREE.Mesh) (o as THREE.Mesh).geometry.dispose(); }); }
+    handles.length = 0;
+    showGhost(null, null);
   };
+  /** Shows the box a resize drag would give `id` (in its own frame), or nothing. */
+  function showGhost(id: string | null, box: Box | null) {
+    if (ghost) { ghost.removeFromParent(); ghost.geometry.dispose(); ghost = null; }
+    const d = id ? drawn.get(id) : undefined; if (!d || !box) return;
+    ghost = new THREE.Box3Helper(new THREE.Box3(new THREE.Vector3(...box.min), new THREE.Vector3(...box.max))); ghost.material = ghostMaterial; ghost.renderOrder = 12;
+    frameOf(d).add(ghost);
+  }
+  /** The group an instance's handles go in: its own frame (a platform's board, which its pose moves). */
+  const frameOf = (d: Drawn) => d.kind === 'platform' ? d.group.children[0] ?? d.group : d.group;
+  const sizedOf = (id: string): Sized | null => {
+    const i = byId.get(id);
+    return i?.kind === 'enclosure' ? { kind: 'enclosure', params: i.params } : i?.kind === 'platform' ? { kind: 'platform', params: i.params } : null;
+  };
+  function addHandle(d: Drawn, mesh: THREE.Object3D, name: string, data: Record<string, string>, aim = new THREE.Vector3()) {
+    mesh.traverse(o => { o.renderOrder = 11; });
+    Object.assign(mesh.userData, { handleOf: d.id, ...data });
+    frameOf(d).add(mesh); handles.push({ mesh, name, aim });
+  }
 
   /** The bounds of an instance's own meshes (not its children's, nor its site context), in its group's frame. */
   function localBounds(d: Drawn): THREE.Box3 {
@@ -223,20 +253,39 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     d.group.add(helper); outlines.push(helper);
   }
 
-  /** Outlines the selection, and the instances with problems; puts the rotate handle round a single movable selection. */
-  function mark(selection: string[], flagged: string[]) {
+  /** Outlines the selection, and the instances with problems; puts the `tool`'s handles on a single movable selection. */
+  function mark(selection: string[], flagged: string[], tool: PlannerTool = 'move') {
     clearOverlays();
     for (const id of flagged) { const d = drawn.get(id); if (d) outline(d, outlineMaterials[1] as THREE.LineBasicMaterial, 30); }
     for (const id of selection) { const d = drawn.get(id); if (d) outline(d, outlineMaterials[0] as THREE.LineBasicMaterial, 15); }
     const [only] = selection; const d = only && selection.length === 1 ? drawn.get(only) : undefined;
-    if (d && (d.kind === 'enclosure' || d.kind === 'platform')) {
+    const sized = d && sizedOf(d.id);
+    if (!d || !sized) return;
+    if (tool !== 'resize') {
+      // the ring turns it about its origin, round its outline
       const box = localBounds(d);
-      const target = d.kind === 'platform' ? d.group.children[0] ?? d.group : d.group;
-      const radius = Math.max(Math.hypot(box.min.x, box.min.y), Math.hypot(box.max.x, box.max.y), Math.hypot(box.min.x, box.max.y), Math.hypot(box.max.x, box.min.y)) + 150;
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(d.kind === 'platform' ? Math.max(box.max.x - box.min.x, box.max.y - box.min.y) / 2 + 150 : radius, 22, 8, 96), handleMaterial);
-      ring.position.z = d.kind === 'platform' ? 0 : 15; ring.renderOrder = 11;
-      ring.userData['handle'] = 'rotate'; ring.userData['handleOf'] = d.id;
-      target.add(ring); handle = ring;
+      const radius = d.kind === 'platform' ? Math.max(box.max.x - box.min.x, box.max.y - box.min.y) / 2 + 150
+        : Math.max(Math.hypot(box.min.x, box.min.y), Math.hypot(box.max.x, box.max.y), Math.hypot(box.min.x, box.max.y), Math.hypot(box.max.x, box.min.y)) + 150;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 22, 8, 96), handleMaterial);
+      ring.position.z = d.kind === 'platform' ? 0 : 15;
+      addHandle(d, ring, 'rotate', { handle: 'rotate' }, new THREE.Vector3(radius, 0, 0));
+    }
+    if (tool === 'move' && d.kind === 'platform') {
+      // the arrow raises or lowers the platform: off its front edge, so that seen from above it is not on the board
+      const arrow = new THREE.Group(); arrow.position.set(0, sized.params.depth / 2 + 160, 120);
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 160, 12), handleMaterial); shaft.rotation.x = Math.PI / 2; shaft.position.z = 80;
+      const head = new THREE.Mesh(new THREE.ConeGeometry(45, 110, 16), handleMaterial); head.rotation.x = Math.PI / 2; head.position.z = 215;
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(45, 110, 16), handleMaterial); tail.rotation.x = -Math.PI / 2; tail.position.z = -55;
+      arrow.add(shaft, head, tail);
+      addHandle(d, arrow, 'elevate', { handle: 'elevate' }, new THREE.Vector3(0, 0, 80));
+    }
+    if (tool === 'resize') {
+      for (const face of sizeFaces(sized)) {
+        const [x, y, z] = facePoint(sized, face);
+        const out = new THREE.Vector3(face[1] === 'x' ? 1 : 0, face[1] === 'y' ? 1 : 0, face[1] === 'z' ? 1 : 0).multiplyScalar(face[0] === '+' ? 70 : -70);
+        const grip = new THREE.Mesh(new THREE.BoxGeometry(110, 110, 110), handleMaterial); grip.position.set(x + out.x, y + out.y, z + out.z);
+        addHandle(d, grip, `resize${face}`, { handle: 'resize', face });
+      }
     }
   }
 
@@ -246,7 +295,9 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     for (const hit of hits) {
       for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) {
         const handleOf = o.userData['handleOf'] as string | undefined;
-        if (handleOf) return { kind: 'rotate', id: handleOf };
+        const handle = o.userData['handle'] as string | undefined;
+        if (handleOf && handle === 'resize') return { kind: 'resize', id: handleOf, face: o.userData['face'] as SizeFace };
+        if (handleOf && (handle === 'rotate' || handle === 'elevate')) return { kind: handle, id: handleOf };
         const id = o.userData['instanceId'] as string | undefined;
         if (id) { if (!ids.includes(id)) ids.push(id); break; }
       }
@@ -261,29 +312,28 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     return false;
   };
 
-  /** Where each instance's anchor (and the rotate handle) is on the screen, for tests and readouts. */
+  /** Where each instance's anchor (and each handle: `rotate`, `elevate`, `resize+x`…) is on the screen, for tests and readouts. */
   function anchors(camera: THREE.Camera, size: { width: number; height: number }) {
     root.updateWorldMatrix(true, true); camera.updateMatrixWorld();
     const screen = (v: THREE.Vector3) => { const q = v.clone().project(camera); return [Math.round((q.x + 1) / 2 * size.width), Math.round((1 - q.y) / 2 * size.height)]; };
     const result: Record<string, number[]> = {};
     for (const d of drawn.values()) result[d.id] = screen(d.anchor.clone().applyMatrix4(d.group.matrixWorld));
-    if (handle) {
-      const g = handle.geometry as THREE.TorusGeometry;
-      result['rotate'] = screen(new THREE.Vector3(g.parameters.radius, 0, 0).applyMatrix4(handle.matrixWorld));
-      result['rotate-centre'] = screen(new THREE.Vector3().applyMatrix4(handle.matrixWorld));
+    for (const { mesh, name, aim } of handles) {
+      result[name] = screen(aim.clone().applyMatrix4(mesh.matrixWorld));
+      if (name === 'rotate') result['rotate-centre'] = screen(new THREE.Vector3().applyMatrix4(mesh.matrixWorld));
     }
     return result;
   }
 
   return {
-    root, drawn, mark, pickOf, anchors, localBounds,
+    root, drawn, mark, pickOf, anchors, localBounds, showGhost,
     /** Shows `id` at `t` (in its parent's frame) during a drag. */
     pose(id: string, t: Transform) { drawn.get(id)?.pose(t); },
     /** Redraws a tunnel along a route (its config and layout), for a drag's preview or to put it back. */
     redrawTunnel(id: string, layout: TunnelLayout | null, config: TunnelConfig | null) { drawn.get(id)?.redraw?.(layout, config); },
     dispose() {
       clearOverlays();
-      for (const m of [...outlineMaterials, handleMaterial]) m.dispose();
+      for (const m of [...outlineMaterials, handleMaterial, ghostMaterial]) m.dispose();
       for (const d of drawn.values()) d.dispose();
       for (const f of disposers) f();
       root.removeFromParent();

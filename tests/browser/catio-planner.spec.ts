@@ -204,6 +204,116 @@ test('Fit all frames everything, also what stands outside the garden (#122)', as
   expect(errors).toEqual([]);
 });
 
+const tools = (page: Page) => page.getByRole('group', { name: 'Selection tools' });
+
+test('the Resize tool drags a face of the enclosure; the opposite face stays put; one undo step (#123)', async ({ page }, testInfo) => {
+  const { viewport, errors } = await open(page);
+  await page.getByRole('button', { name: 'Top', exact: true }).click();
+  await expect(viewport).toHaveAttribute('data-projection', 'orthographic');
+  await tree(page).getByRole('button', { name: /Enclosure/ }).click();
+  await expect(tools(page).getByRole('button', { name: 'Move' })).toHaveAttribute('aria-pressed', 'true');
+  await tools(page).getByRole('button', { name: 'Resize' }).click();
+  await expect.poll(async () => (await anchors(viewport))['resize+x']).toBeTruthy();
+  expect((await anchors(viewport))['rotate']).toBeUndefined();
+  const x0 = Number(await field(page, 'X (m)').inputValue());
+  const handle = await at(viewport, 'resize+x'); const centre = await at(viewport, 'enclosure-1');
+  // outward, away from the enclosure's middle
+  const [dx, dy] = [handle[0] - centre[0], handle[1] - centre[1]]; const length = Math.hypot(dx, dy);
+  await drag(page, handle, [[handle[0] + dx / length * 40, handle[1] + dy / length * 40]], false);
+  await expect(page.locator('.planner-readout')).toContainText(/Resizing Enclosure/);
+  await expect(page.locator('.planner-readout')).toContainText(/Width \d+(\.\d)? cm \(\+\d+ mm\)/);
+  await page.mouse.up();
+  await expect(viewport).toHaveAttribute('data-revision', '1');
+  const width = Number(await field(page, 'Width (cm)').inputValue());
+  expect(width).toBeGreaterThan(200);
+  // half the change on the side that moved: the other side stayed where it was
+  expect(Number(await field(page, 'X (m)').inputValue())).toBeCloseTo(x0 + (width - 200) / 200, 1);
+  await page.screenshot({ path: testInfo.outputPath('catio-planner-resize.png') });
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(field(page, 'Width (cm)')).toHaveValue('200');
+  await expect(viewport).toHaveAttribute('data-revision', '0');
+  expect(errors).toEqual([]);
+});
+
+test('raises a platform by its arrow, Page Up / Page Down and the Raise and Lower buttons, never while typing (#123)', async ({ page }, testInfo) => {
+  const { viewport, errors } = await open(page);
+  await page.getByRole('button', { name: /^Platform/ }).click();
+  await expect(field(page, 'Elevation (cm)')).toHaveValue('120');
+  await page.getByRole('button', { name: 'Front', exact: true }).click();
+  await page.getByRole('button', { name: 'Fit selection', exact: true }).click();
+  await expect.poll(async () => (await anchors(viewport))['elevate']).toBeTruthy();
+  const arrow = await at(viewport, 'elevate');
+  await drag(page, arrow, [[arrow[0], arrow[1] - 30]], false);
+  await expect(page.locator('.planner-readout')).toContainText(/Raising Platform 1/);
+  await expect(page.locator('.planner-readout')).toContainText(/Elevation \d+(\.\d)? cm \(\+\d+ mm\)/);
+  await page.mouse.up();
+  await expect(viewport).toHaveAttribute('data-revision', '2');
+  const raised = Number(await field(page, 'Elevation (cm)').inputValue());
+  expect(raised).toBeGreaterThan(120);
+  await page.screenshot({ path: testInfo.outputPath('catio-planner-elevate.png') });
+
+  // Page Up 10 mm, Shift 100 mm, each one undo step; the buttons alike
+  await page.locator('body').press('PageUp');
+  await expect(field(page, 'Elevation (cm)')).toHaveValue(String(raised + 1));
+  await page.locator('body').press('Shift+PageDown');
+  await expect(field(page, 'Elevation (cm)')).toHaveValue(String(raised + 1 - 10));
+  await tools(page).getByRole('button', { name: 'Raise' }).click();
+  await expect(field(page, 'Elevation (cm)')).toHaveValue(String(raised - 8));
+  await tools(page).getByRole('button', { name: 'Lower' }).click();
+  await expect(field(page, 'Elevation (cm)')).toHaveValue(String(raised - 9));
+  await expect(tools(page).getByRole('button', { name: 'Raise' })).toHaveAttribute('title', /Page Up; Shift: 100 mm/);
+  const revision = await viewport.getAttribute('data-revision');
+  // not while a field has the focus
+  await field(page, 'Width (cm)').focus(); await page.keyboard.press('PageUp');
+  await expect(viewport).toHaveAttribute('data-revision', revision ?? '');
+  // an enclosure stands on the ground
+  await tree(page).getByRole('button', { name: /^Enclosure/ }).click();
+  await page.locator('body').press('PageUp');
+  await expect(page.locator('.planner-status')).toContainText('An enclosure stands on the ground');
+  await expect(tools(page).getByRole('button', { name: 'Raise' })).toBeDisabled();
+  expect(errors).toEqual([]);
+});
+
+test('Top, Front and Side are orthographic and empty space pans them; 3D orbits; the Rotate tool turns the body (#123)', async ({ page }) => {
+  const { viewport, errors } = await open(page);
+  await expect(viewport).toHaveAttribute('data-projection', 'perspective');
+  const box = await viewport.boundingBox(); if (!box) throw new Error('no viewport');
+  const empty: [number, number] = [box.x + 30, box.y + box.height - 30];
+  for (const name of ['Top', 'Front', 'Side']) {
+    await page.getByRole('button', { name, exact: true }).click();
+    await expect(viewport).toHaveAttribute('data-projection', 'orthographic');
+    await expect(page.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
+  }
+  await page.getByRole('button', { name: 'Top', exact: true }).click();
+  // a pan moves everything on the screen alike
+  const before = await anchors(viewport);
+  await drag(page, empty, [[empty[0] + 120, empty[1] - 60]]);
+  await expect.poll(async () => ((await anchors(viewport))['enclosure-1']?.[0] ?? 0) - (before['enclosure-1']?.[0] ?? 0)).toBeGreaterThan(60);
+  const after = await anchors(viewport);
+  const shift = (id: string) => [(after[id]?.[0] ?? 0) - (before[id]?.[0] ?? 0), (after[id]?.[1] ?? 0) - (before[id]?.[1] ?? 0)];
+  expect(Math.abs((shift('enclosure-1')[0] ?? 0) - (shift('window-1')[0] ?? 0))).toBeLessThan(3);
+  expect(Math.abs((shift('enclosure-1')[1] ?? 0) - (shift('window-1')[1] ?? 0))).toBeLessThan(3);
+  await expect(viewport).toHaveAttribute('data-selection', '[]');
+  await page.getByRole('button', { name: '3D', exact: true }).click();
+  await expect(viewport).toHaveAttribute('data-projection', 'perspective');
+
+  // the Rotate tool: dragging the body turns it
+  await page.getByRole('button', { name: 'Top', exact: true }).click();
+  await tree(page).getByRole('button', { name: /Enclosure/ }).click();
+  await tools(page).getByRole('button', { name: 'Rotate' }).click();
+  const enclosure = await at(viewport, 'enclosure-1'); const centre = await at(viewport, 'rotate-centre');
+  const grip: [number, number] = [enclosure[0] + (enclosure[0] - centre[0]) * 0.2 + 25, enclosure[1] + (enclosure[1] - centre[1]) * 0.2];
+  const angle = (p: [number, number], a: number): [number, number] => {
+    const r = Math.hypot(p[0] - centre[0], p[1] - centre[1]); const t = Math.atan2(p[1] - centre[1], p[0] - centre[0]) + a;
+    return [centre[0] + r * Math.cos(t), centre[1] + r * Math.sin(t)];
+  };
+  await drag(page, grip, [angle(grip, 0.3), angle(grip, 0.6)]);
+  await expect(viewport).toHaveAttribute('data-revision', '1');
+  expect(Math.abs(Number(await field(page, 'Yaw (°)').inputValue())) % 15).toBe(0);
+  expect(await field(page, 'Yaw (°)').inputValue()).not.toBe('0');
+  expect(errors).toEqual([]);
+});
+
 test('says 3D is unavailable without WebGL, and the tree and inspector still work', async ({ page }) => {
   await page.addInitScript(() => {
     // Preserve the browser method and explicitly restore its receiver with apply below.

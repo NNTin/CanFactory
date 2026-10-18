@@ -42,4 +42,10 @@ The PoC review (#122) found five defects, which are fixed on `feat/catio-planner
 - an incomplete tunnel preview;
 - "Fit all" missing objects outside the garden.
 
-The FR-02 controls #114 deferred are **not delivered** and are tracked in #123: resize and elevation handles, orthographic panning, visible Move/Rotate/Resize controls, and Page Up/Down elevation.
+The FR-02 controls #114 deferred (#123) are delivered in the same PR:
+- resize handles on each face and a platform's elevation arrow (FR-02.2);
+- orthographic Top, Front and Side views that pan on an empty-space drag (FR-02.3);
+- Move, Rotate and Resize selection tools with dimension readouts (FR-02.4);
+- Page Up / Page Down with Raise and Lower buttons (FR-02.6).
+
+Tunnel route editing and hide/isolate remain later #109 work.
