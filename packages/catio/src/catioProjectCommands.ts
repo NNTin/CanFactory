@@ -12,7 +12,7 @@ import { TUNNEL, TUNNEL_DEFAULT, tunnelLayout, tunnelPitch, tunnelSiteFor } from
  * The planner's edits: pure functions from a project to the next one. An edit that cannot be made (a number that is not finite or
  * not positive, an instance that is not there or cannot take it) returns the project unchanged with its `errors`, so that a bad
  * value never reaches the document. After every edit the ports are where their owners' layouts put them (`syncPorts`). Edits do
- * not count revisions: a committed history step does (catioProjectHistory.ts).
+ * not count revisions: a committed history step does (catioProjectHistory.ts: `commitEdit`).
  */
 export interface CommandResult { project: Project; errors: string[] }
 
