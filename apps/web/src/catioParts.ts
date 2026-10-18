@@ -71,6 +71,16 @@ export function createCatioParts(mesh: CatioMeshSpec = catioMesh(CATIO_MESH_DEFA
     parent.add(wires); return parent;
   }
 
+  /** Builds what `build` adds as components, then places each at (x, y), turned by `angle` about Z (inside its own pose group). */
+  function placed(x: number, y: number, angle: number, build: () => void) {
+    const start = components.length;
+    build();
+    for (const part of components.slice(start)) {
+      const pose = new THREE.Group(); pose.add(...part.group.children.slice()); part.group.add(pose);
+      pose.position.set(x, y, 0); pose.rotation.z = angle;
+    }
+  }
+
   function update(state: CatioState) {
     for (const part of components) {
       const fraction = part.step === 0 ? 1 : THREE.MathUtils.clamp(state.progress - part.step + 1, 0, 1);
@@ -85,5 +95,5 @@ export function createCatioParts(mesh: CatioMeshSpec = catioMesh(CATIO_MESH_DEFA
     for (const geometry of geometries) geometry.dispose();
     for (const material of Object.values(materials)) material.dispose();
   }
-  return { root, components, panels, materials, mesh, component, box, rod, ring, panel, update, dispose };
+  return { root, components, panels, materials, mesh, component, box, rod, ring, panel, placed, update, dispose };
 }

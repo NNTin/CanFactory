@@ -2357,3 +2357,69 @@ main {
 .magnet-controls-caption > small { display: block; font-size: 10px; color: var(--muted); margin-top: 0.5rem; max-width: 48em; }
 .magnet-controls-caption button { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; margin-right: 6px; cursor: pointer; color: inherit; }
 @media (max-width: 600px) { .magnet-controls { flex-wrap: wrap; } }
+
+/* The catio planner (#114): catalogue and tree, viewport, inspector and issues. */
+.catio-subassemblies a.catio-planner-link { background: #fbefe9; border-color: #dcae9b; color: #8a3c25; }
+.catio-subassemblies a.catio-planner-link span { color: #9a6553; }
+.planner { display: grid; gap: 14px; }
+.planner-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.planner-name { display: flex; align-items: center; gap: 10px; flex: 1 1 260px; }
+.planner-text { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; border: 1px solid transparent; border-radius: 6px; padding: 5px 8px; background: transparent; }
+.planner-text:hover, .planner-text:focus { border-color: var(--line); background: #fff; }
+.planner-history { display: flex; gap: 6px; }
+.planner-bar button, .planner-catalogue button, .planner-actions button, .planner-snap { border: 1px solid #dce1d3; border-radius: 6px; background: #fafbf5; padding: 7px 11px; font-size: 12.5px; color: #415537; }
+.planner-bar button:disabled { opacity: 0.45; }
+.planner-status { padding: 9px 14px; border-radius: 8px; background: #fbefe9; color: #8a3c25; font-size: 13px; }
+.planner-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.planner-left, .planner-right { display: grid; gap: 16px; }
+.planner-left > section, .planner-inspector, .planner-issues { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 14px; display: grid; gap: 10px; align-content: start; }
+.planner-catalogue { display: grid; gap: 6px; }
+.planner-catalogue button { justify-content: flex-start; flex-wrap: wrap; text-align: left; }
+.planner-catalogue small { flex-basis: 100%; padding-left: 22px; color: var(--muted); font-size: 11px; }
+.planner-tree ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.planner-tree ul ul { padding-left: 14px; margin-top: 3px; border-left: 1px solid var(--line); }
+.planner-tree button { width: 100%; justify-content: flex-start; gap: 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; padding: 6px 8px; font-size: 13px; text-align: left; }
+.planner-tree button:hover { background: #f1f2ea; }
+.planner-tree button[aria-pressed=true] { background: #fdf0de; border-color: #e8b26a; }
+.planner-tree small { color: var(--muted); font-size: 11px; margin-left: auto; }
+.planner-badge { display: inline-flex; align-items: center; gap: 3px; color: #b2362b; font-size: 11px; font-weight: 600; }
+.planner-centre { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.planner-tools { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px 6px; }
+.planner-tools .catio-cameras { padding: 0; }
+.planner-snap[aria-pressed=true] { background: #e0e7d7; border-color: #aebea0; }
+.planner-canvas { position: relative; height: 640px; width: 100%; }
+.planner-canvas canvas { display: block; touch-action: none; }
+.planner-readout { position: absolute; pointer-events: none; display: grid; gap: 2px; padding: 8px 10px; border-radius: 7px; background: rgba(40, 46, 43, 0.88); color: #fff; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.planner-readout.invalid { background: rgba(160, 45, 35, 0.92); }
+.planner-hint { padding: 8px 12px 10px; font-size: 11.5px; color: var(--muted); }
+.planner-inspector fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
+.planner-inspector legend { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.planner-field { display: grid; grid-template-columns: 82px minmax(0, 1fr); align-items: center; column-gap: 8px; font-size: 12.5px; }
+.planner-input { display: flex; align-items: center; border: 1px solid #d8dacf; border-radius: 6px; background: #fff; }
+.planner-input input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 6px 8px; font-variant-numeric: tabular-nums; }
+.planner-input small { padding-right: 8px; color: var(--muted); }
+.planner-field.invalid .planner-input { border-color: #c8352b; }
+.planner-error { grid-column: 2; font-style: normal; color: #b2362b; font-size: 11.5px; padding-top: 3px; }
+.planner-readonly { margin: 0; display: grid; gap: 6px; font-size: 12.5px; }
+.planner-readonly div { display: flex; justify-content: space-between; gap: 10px; }
+.planner-readonly dt { color: var(--muted); }
+.planner-readonly dd { margin: 0; font-weight: 600; text-align: right; }
+.planner-note { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.planner-actions { display: flex; gap: 6px; }
+.planner-object-issues { margin: 0; padding-left: 18px; font-size: 12px; display: grid; gap: 4px; color: #b2362b; }
+.planner-object-issues .warning { color: #8a6418; }
+.planner-issues ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 360px; overflow: auto; }
+.planner-issues button { width: 100%; display: grid; justify-items: start; gap: 2px; text-align: left; border: 1px solid transparent; border-left: 3px solid #c8352b; border-radius: 5px; background: #fdf6f3; padding: 6px 8px; font-size: 12px; }
+.planner-issues button.warning { border-left-color: #d29a2c; background: #fdf9ef; }
+.planner-issues button[aria-pressed=true] { border-color: #e8b26a; }
+.planner-issues strong { font-size: 11.5px; }
+.planner-issues p { font-size: 12px; color: var(--muted); }
+@media (max-width: 1150px) {
+  .planner-layout { grid-template-columns: 220px minmax(0, 1fr); }
+  .planner-right { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 760px) {
+  .planner-layout { grid-template-columns: minmax(0, 1fr); }
+  .planner-right { grid-template-columns: minmax(0, 1fr); }
+  .planner-canvas { height: 420px; }
+}

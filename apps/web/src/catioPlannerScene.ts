@@ -1,0 +1,261 @@
+import * as THREE from 'three';
+import { catioMesh } from '@canfactory/contracts';
+import type {
+  EvaluatedEnclosure, EvaluatedInstance, EvaluatedPlatform, EvaluatedTunnel, EvaluatedWindow, Project, ProjectEvaluation, Transform, TunnelLayout,
+} from '@canfactory/catio';
+import { createCatioParts } from './catioParts.ts';
+import { buildEnclosure } from './catioEnclosureScene.ts';
+import { catPorts, type CatioDoor } from './catioModularScene.ts';
+import { buildSectionPieces, buildSupportPieces, tunnelDrawing } from './catioTunnelPieces.ts';
+import { buildWindowContext } from './catioWindowContext.ts';
+import { buildInsertContext } from './catioWindowInsertScene.ts';
+
+/**
+ * The planner's scene, drawn from an evaluated project (catioProjectEvaluate.ts) with the catio's own builders: the window with its
+ * insert, each tunnel's sections and supports, each enclosure, each platform. It is transient: rebuilt from the evaluation after
+ * every committed edit, and never part of the document. Every instance is a group (`userData.instanceId`) placed at its transform
+ * in its parent's group, so that an enclosure carries what stands in it; picking walks up from a mesh to its instance.
+ * Millimetres, in the site's frame (Z up); the stage turns it to the scene's Y up.
+ */
+const RAD = Math.PI / 180;
+const SELECTED = 0xe8890c; const FLAGGED = 0xc8352b; const HANDLE = 0x2c6e8f;
+/** The site context the selection outline leaves out: what a window stands in, not the window. */
+const CONTEXT = new Set(['wall', 'room-floor', 'terrain']);
+
+/** What the pointer is over: an instance, or a handle of the selected one. */
+export type PlannerPick = { kind: 'instance'; id: string } | { kind: 'rotate'; id: string };
+
+interface Drawn {
+  id: string; kind: EvaluatedInstance['kind'];
+  /** Placed at the instance's transform in its parent's group. */
+  group: THREE.Group;
+  /** A point on it (in its group) that a click always hits: where tests and readouts aim. */
+  anchor: THREE.Vector3;
+  /** Shows it at `t` (in its parent's frame) while a drag is in progress. */
+  pose: (t: Transform) => void;
+  /** A tunnel's: draws it along another layout, for a drag's preview. */
+  redraw?: (layout: TunnelLayout | null) => void;
+  dispose: () => void;
+}
+
+const place = (object: THREE.Object3D, t: Transform) => { object.position.set(t.x, t.y, t.z); object.rotation.set(0, 0, t.yaw * RAD); };
+/** An invisible solid that a click on the instance's volume hits, even between its mesh's wires. */
+const proxyMaterial = new THREE.MeshBasicMaterial({ visible: false });
+
+export function createPlannerScene(project: Project, evaluation: ProjectEvaluation) {
+  const root = new THREE.Group(); root.name = 'catio-planner';
+  const drawn = new Map<string, Drawn>();
+  const disposers: (() => void)[] = [];
+  const mesh = catioMesh(project.settings.mesh);
+  const byId = new Map(project.instances.map(i => [i.id, i]));
+  const window0 = evaluation.instances.find((e): e is EvaluatedWindow => e.kind === 'window');
+  const portSettings = { tunnelSize: window0?.site.w ?? 0, portClosure: project.settings.portClosure, doorSeat: project.settings.doorSeat };
+
+  // The garden: its lawn, its boundary, and a metre grid; the ground beyond it.
+  const { width: gw, depth: gd } = project.garden;
+  const site = new THREE.Group(); site.name = 'garden'; root.add(site);
+  const groundMaterials = [new THREE.MeshStandardMaterial({ color: '#c9c8bb', roughness: 1 }), new THREE.MeshStandardMaterial({ color: '#97a77e', roughness: 1 })];
+  const beyond = new THREE.Mesh(new THREE.PlaneGeometry(gw + 8000, gd + 8000), groundMaterials[0]);
+  beyond.position.set(gw / 2, gd / 2, -4); beyond.receiveShadow = true; site.add(beyond);
+  const lawn = new THREE.Mesh(new THREE.PlaneGeometry(gw, gd), groundMaterials[1]);
+  lawn.position.set(gw / 2, gd / 2, -2); lawn.receiveShadow = true; site.add(lawn);
+  const gridPoints: number[] = [];
+  for (let x = 1000; x < gw; x += 1000) gridPoints.push(x, 0, 0, x, gd, 0);
+  for (let y = 1000; y < gd; y += 1000) gridPoints.push(0, y, 0, gw, y, 0);
+  const lineGeometry = (points: number[]) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(points, 3)); return g; };
+  const gridMaterial = new THREE.LineBasicMaterial({ color: 0x7f8f69, transparent: true, opacity: 0.45 });
+  site.add(new THREE.LineSegments(lineGeometry(gridPoints), gridMaterial));
+  const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x3f4a33 });
+  const edge = new THREE.LineLoop(lineGeometry([0, 0, 1, gw, 0, 1, gw, gd, 1, 0, gd, 1]), edgeMaterial); site.add(edge);
+  disposers.push(() => {
+    for (const m of [beyond, lawn]) m.geometry.dispose();
+    for (const m of [...groundMaterials, gridMaterial, edgeMaterial]) m.dispose();
+    site.traverse(o => { if (o instanceof THREE.Line) (o as THREE.Line).geometry.dispose(); });
+  });
+
+  const instanceGroup = (e: EvaluatedInstance) => {
+    const group = new THREE.Group(); group.name = e.id; group.userData['instanceId'] = e.id;
+    place(group, byId.get(e.id)?.transform ?? e.world);
+    return group;
+  };
+  /** A drawing of `createCatioParts` in `into`, disposed with the scene (or when `into` is redrawn). */
+  const parts = (into: THREE.Group, spec = mesh) => { const p = createCatioParts(spec); into.add(p.root); return p; };
+
+  function drawWindow(e: EvaluatedWindow): Drawn {
+    const group = instanceGroup(e);
+    const p = parts(group);
+    // the house wall along the whole rear boundary, its window in it
+    const reach = 2 * Math.max(e.world.x, gw - e.world.x, e.site.window.openingWidth);
+    buildWindowContext(p, e.site.window, { width: reach, depth: 1 }, false);
+    buildInsertContext(p, e.insert);
+    return { id: e.id, kind: e.kind, group, anchor: new THREE.Vector3(0, -150, e.site.window.recessFloor + e.site.window.openingHeight + 300), pose: t => place(group, t), dispose: p.dispose };
+  }
+
+  function drawTunnel(e: EvaluatedTunnel): Drawn {
+    const group = instanceGroup(e);
+    let dispose = () => {};
+    const draw = (layout: TunnelLayout | null) => {
+      dispose(); group.clear();
+      if (!layout) { dispose = () => {}; return; }
+      const p = parts(group, layout.mesh); const drawing = tunnelDrawing(p);
+      const pieces = buildSectionPieces(p, drawing, layout);
+      const body = p.component(`${e.id}-sections`, 0, 'timber');
+      for (const { group: g } of [...pieces.members, ...pieces.cleats, ...pieces.panels]) body.add(g);
+      const supports = p.component(`${e.id}-supports`, 0, 'hardware');
+      for (const s of layout.supports) {
+        const built = buildSupportPieces(p, drawing, layout, s);
+        for (const f of built.feet) for (const g of [f.slab, f.leg, f.sole, f.nut, f.footPiece]) if (g) supports.add(g);
+        supports.add(built.bearer); if (built.brace) supports.add(built.brace);
+      }
+      dispose = () => { drawing.dispose(); p.dispose(); };
+    };
+    draw(e.layout);
+    const middle = e.layout?.pieces[Math.floor((e.layout.pieces.length - 1) / 2)];
+    const anchor = middle ? new THREE.Vector3(...middle.end.at).setZ(middle.end.at[2] + (e.layout?.h ?? 0)) : new THREE.Vector3();
+    return { id: e.id, kind: e.kind, group, anchor, pose: t => place(group, t), dispose: () => dispose(), redraw: draw };
+  }
+
+  function drawEnclosure(e: EvaluatedEnclosure): Drawn {
+    const group = instanceGroup(e);
+    const p = parts(group);
+    const doors: CatioDoor[] = [];
+    const { closureName, port } = catPorts(p, portSettings, doors);
+    buildEnclosure(p, e.layout, closureName, { placed: p.placed, doors, port: (q, label) => port(q.id, label, 3, q.connected, 'enclosure') });
+    const { width, depth, height } = e.layout.size;
+    const proxy = new THREE.Mesh(new THREE.BoxGeometry(width, depth, height), proxyMaterial);
+    proxy.position.set(0, depth / 2, height / 2); group.add(proxy);
+    return { id: e.id, kind: e.kind, group, anchor: new THREE.Vector3(0, depth / 2, height), pose: t => place(group, t), dispose: () => { proxy.geometry.dispose(); p.dispose(); } };
+  }
+
+  function drawPlatform(e: EvaluatedPlatform): Drawn {
+    // the board at its transform; its battens run along the side frames, in the enclosure's frame, at the board's height
+    const group = new THREE.Group(); group.name = e.id; group.userData['instanceId'] = e.id;
+    const own = byId.get(e.id);
+    const board = new THREE.Group(); group.add(board);
+    const battens = new THREE.Group(); group.add(battens);
+    const p = parts(board);
+    const params = own?.kind === 'platform' ? own.params : { width: 0, depth: 0, thickness: 0 };
+    p.box(p.root, [params.width, params.depth, params.thickness], [0, 0, -params.thickness / 2], p.materials.endgrain);
+    for (const b of e.layout?.battens ?? []) p.box(battens, b.size, b.center, p.materials.timber);
+    const start = own?.transform ?? { x: 0, y: 0, z: 0, yaw: 0 };
+    place(board, start);
+    const pose = (t: Transform) => { place(board, t); battens.position.z = t.z - start.z; };
+    return { id: e.id, kind: e.kind, group, anchor: new THREE.Vector3(start.x, start.y, start.z), pose, dispose: p.dispose };
+  }
+
+  for (const e of evaluation.instances) {
+    const d = e.kind === 'window' ? drawWindow(e) : e.kind === 'tunnel' ? drawTunnel(e) : e.kind === 'enclosure' ? drawEnclosure(e) : drawPlatform(e);
+    drawn.set(e.id, d);
+  }
+  // each in its parent's group, so that moving a parent carries it
+  for (const d of drawn.values()) {
+    const parent = byId.get(d.id)?.parent;
+    (parent && drawn.get(parent)?.group || root).add(d.group);
+  }
+  for (const d of drawn.values()) d.group.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
+
+  // The selection's outline, the flagged instances' outlines, and the rotate handle.
+  const outlines: THREE.Object3D[] = [];
+  const outlineMaterials = [SELECTED, FLAGGED].map(color => new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true }));
+  const handleMaterial = new THREE.MeshBasicMaterial({ color: HANDLE, depthTest: false, transparent: true, opacity: 0.85 });
+  let handle: THREE.Mesh | null = null;
+  const clearOverlays = () => {
+    for (const o of outlines) { o.removeFromParent(); (o as THREE.LineSegments).geometry.dispose(); }
+    outlines.length = 0;
+    if (handle) { handle.removeFromParent(); handle.geometry.dispose(); handle = null; }
+  };
+
+  /** The bounds of an instance's own meshes (not its children's, nor its site context), in its group's frame. */
+  function localBounds(d: Drawn): THREE.Box3 {
+    d.group.updateWorldMatrix(true, true);
+    const inverse = d.group.matrixWorld.clone().invert();
+    const box = new THREE.Box3(); const part = new THREE.Box3(); const matrix = new THREE.Matrix4();
+    const visit = (o: THREE.Object3D) => {
+      if (o !== d.group && (o.userData['instanceId'] || CONTEXT.has(o.name))) return;
+      if (o instanceof THREE.InstancedMesh) {
+        const instanced = o as THREE.InstancedMesh; if (!instanced.boundingBox) instanced.computeBoundingBox();
+        if (instanced.boundingBox) box.union(part.copy(instanced.boundingBox).applyMatrix4(matrix.multiplyMatrices(inverse, o.matrixWorld)));
+      } else if (o instanceof THREE.Mesh && (o as THREE.Mesh).material !== proxyMaterial) {
+        const geometry = (o as THREE.Mesh).geometry; if (!geometry.boundingBox) geometry.computeBoundingBox();
+        if (geometry.boundingBox) box.union(part.copy(geometry.boundingBox).applyMatrix4(matrix.multiplyMatrices(inverse, o.matrixWorld)));
+      }
+      for (const child of o.children) visit(child);
+    };
+    visit(d.group);
+    return box;
+  }
+  function outline(d: Drawn, material: THREE.LineBasicMaterial, grow: number) {
+    const box = localBounds(d); if (box.isEmpty()) return;
+    box.expandByScalar(grow);
+    const helper = new THREE.Box3Helper(box); helper.material = material; helper.renderOrder = 10;
+    d.group.add(helper); outlines.push(helper);
+  }
+
+  /** Outlines the selection, and the instances with problems; puts the rotate handle round a single movable selection. */
+  function mark(selection: string[], flagged: string[]) {
+    clearOverlays();
+    for (const id of flagged) { const d = drawn.get(id); if (d) outline(d, outlineMaterials[1] as THREE.LineBasicMaterial, 30); }
+    for (const id of selection) { const d = drawn.get(id); if (d) outline(d, outlineMaterials[0] as THREE.LineBasicMaterial, 15); }
+    const [only] = selection; const d = only && selection.length === 1 ? drawn.get(only) : undefined;
+    if (d && (d.kind === 'enclosure' || d.kind === 'platform')) {
+      const box = localBounds(d);
+      const target = d.kind === 'platform' ? d.group.children[0] ?? d.group : d.group;
+      const radius = Math.max(Math.hypot(box.min.x, box.min.y), Math.hypot(box.max.x, box.max.y), Math.hypot(box.min.x, box.max.y), Math.hypot(box.max.x, box.min.y)) + 150;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(d.kind === 'platform' ? Math.max(box.max.x - box.min.x, box.max.y - box.min.y) / 2 + 150 : radius, 22, 8, 96), handleMaterial);
+      ring.position.z = d.kind === 'platform' ? 0 : 15; ring.renderOrder = 11;
+      ring.userData['handle'] = 'rotate'; ring.userData['handleOf'] = d.id;
+      target.add(ring); handle = ring;
+    }
+  }
+
+  /** The instance or handle a mesh belongs to. */
+  function pickOf(hits: THREE.Intersection[]): PlannerPick | null {
+    const ids: string[] = [];
+    for (const hit of hits) {
+      for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) {
+        const handleOf = o.userData['handleOf'] as string | undefined;
+        if (handleOf) return { kind: 'rotate', id: handleOf };
+        const id = o.userData['instanceId'] as string | undefined;
+        if (id) { if (!ids.includes(id)) ids.push(id); break; }
+      }
+    }
+    // a click through an enclosure's walls picks what stands in it
+    let id = ids[0]; if (!id) return null;
+    for (const other of ids) if (isInside(other, id)) id = other;
+    return { kind: 'instance', id };
+  }
+  const isInside = (id: string, ancestor: string) => {
+    for (let at = byId.get(id)?.parent ?? null, n = 0; at && n < 50; at = byId.get(at)?.parent ?? null, n++) if (at === ancestor) return true;
+    return false;
+  };
+
+  /** Where each instance's anchor (and the rotate handle) is on the screen, for tests and readouts. */
+  function anchors(camera: THREE.Camera, size: { width: number; height: number }) {
+    root.updateWorldMatrix(true, true); camera.updateMatrixWorld();
+    const screen = (v: THREE.Vector3) => { const q = v.clone().project(camera); return [Math.round((q.x + 1) / 2 * size.width), Math.round((1 - q.y) / 2 * size.height)]; };
+    const result: Record<string, number[]> = {};
+    for (const d of drawn.values()) result[d.id] = screen(d.anchor.clone().applyMatrix4(d.group.matrixWorld));
+    if (handle) {
+      const g = handle.geometry as THREE.TorusGeometry;
+      result['rotate'] = screen(new THREE.Vector3(g.parameters.radius, 0, 0).applyMatrix4(handle.matrixWorld));
+      result['rotate-centre'] = screen(new THREE.Vector3().applyMatrix4(handle.matrixWorld));
+    }
+    return result;
+  }
+
+  return {
+    root, drawn, mark, pickOf, anchors, localBounds,
+    /** Shows `id` at `t` (in its parent's frame) during a drag. */
+    pose(id: string, t: Transform) { drawn.get(id)?.pose(t); },
+    /** Redraws a tunnel for a drag's preview. */
+    redrawTunnel(id: string, layout: TunnelLayout | null) { drawn.get(id)?.redraw?.(layout); },
+    dispose() {
+      clearOverlays();
+      for (const m of [...outlineMaterials, handleMaterial]) m.dispose();
+      for (const d of drawn.values()) d.dispose();
+      for (const f of disposers) f();
+      root.removeFromParent();
+    },
+  };
+}
+export type PlannerScene = ReturnType<typeof createPlannerScene>;
