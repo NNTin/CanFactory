@@ -86,6 +86,14 @@ describe('commands', () => {
     expect(addPlatform(fresh(), 'window-1').errors).toEqual(['There is no enclosure window-1.']);
   });
 
+  it('refuses a platform in an enclosure too small inside for one, rather than save a board with no size', () => {
+    const narrow = resizeInstance(fresh(), 'enclosure-1', { width: 70 }).project;
+    const { project, id, errors } = addPlatform(narrow, 'enclosure-1');
+    expect(id).toBeNull();
+    expect(errors).toEqual([expect.stringMatching(/^Enclosure is too small inside \(-10 mm between its side frames\) for a platform\.$/)]);
+    expect(project).toBe(narrow);
+  });
+
   it('moves and rotates enclosures and platforms, and nothing else', () => {
     const start = addPlatform(fresh(), 'enclosure-1').project;
     const moved = moveInstance(start, 'enclosure-1', { x: 2000, y: 1500 });

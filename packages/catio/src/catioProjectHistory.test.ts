@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPlatform, applyEdit, beginEdit, cancelEdit, canRedo, canUndo, commitEdit, createHistory, createProject, deleteInstance, moveInstance, previewEdit, redo, undo } from './index.ts';
+import { addPlatform, applyEdit, beginEdit, cancelEdit, canRedo, canUndo, commitEdit, createHistory, createProject, deleteInstance, moveInstance, previewEdit, projectErrors, redo, undo } from './index.ts';
 
 const start = () => createHistory(createProject({ id: 'p1' }));
 const xOf = (h: ReturnType<typeof start>) => h.present.instances.find(i => i.id === 'enclosure-1')?.transform.x;
@@ -52,5 +52,26 @@ describe('project history', () => {
     // no undo or redo while an edit is in progress
     const busy = beginEdit(viewed);
     expect(undo(busy)).toBe(busy); expect(redo(busy)).toBe(busy);
+  });
+
+  it('drops from the view what undo, redo or cancelling takes away, so that the document stays one that opens', () => {
+    const select = (h: ReturnType<typeof start>, ...selection: string[]) => ({ ...h, present: { ...h.present, view: { ...h.present.view, selection, hidden: selection } } });
+    // add a platform, select it, undo: the platform and every mention of it are gone
+    let h = select(applyEdit(start(), addPlatform(start().present, 'enclosure-1').project), 'platform-1', 'enclosure-1');
+    h = undo(h);
+    expect(h.present.view).toEqual({ selection: ['enclosure-1'], hidden: ['enclosure-1'], camera: null });
+    expect(projectErrors(h.present)).toEqual([]);
+    // redo it, delete the enclosure, undo, select the platform, redo the delete
+    h = applyEdit(redo(h), deleteInstance(redo(h).present, 'enclosure-1').project);
+    h = select(undo(h), 'platform-1');
+    h = redo(h);
+    expect(h.present.view.selection).toEqual([]);
+    expect(projectErrors(h.present)).toEqual([]);
+    // an added platform, selected while the edit is in progress, then cancelled
+    const added = addPlatform(start().present, 'enclosure-1').project;
+    h = select(previewEdit(beginEdit(start()), added), 'platform-1');
+    h = cancelEdit(h);
+    expect(h.present.view.selection).toEqual([]);
+    expect(projectErrors(h.present)).toEqual([]);
   });
 });

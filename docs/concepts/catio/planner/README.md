@@ -34,3 +34,18 @@ Built on `feat/catio-planner` (umbrella PR #111, tracking issue #109). Each PR e
 | #115 | PoC 4/4 | Local persistence, JSON import/export, draft build list | In review: `catioPlannerSaved.ts`, `catioPlannerDraft.ts`, `CatioPlannerBuildList.tsx` |
 | #116 | Full scope | Replace the Direct and Modular concept page; no legacy code | Open |
 | #117 | Full scope | One settings source: sub-assembly pages read and write the project | Open |
+
+The PoC review (#122) found five defects, which are fixed on `feat/catio-planner`:
+- undo leaving a dangling view reference;
+- a platform added to an undersized enclosure;
+- board screws ignoring board thickness;
+- an incomplete tunnel preview;
+- "Fit all" missing objects outside the garden.
+
+The FR-02 controls #114 deferred (#123) are delivered in the same PR:
+- resize handles on each face and a platform's elevation arrow (FR-02.2);
+- orthographic Top, Front and Side views that pan on an empty-space drag (FR-02.3);
+- Move, Rotate and Resize selection tools with dimension readouts (FR-02.4);
+- Page Up / Page Down with Raise and Lower buttons (FR-02.6).
+
+Tunnel route editing and hide/isolate remain later #109 work.

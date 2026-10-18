@@ -111,6 +111,11 @@ export type Attachment = Static<typeof AttachmentSchema>;
 /** How the project is looked at: never part of the physical design, the checks or the parts list. */
 export const ViewSchema = Type.Object({ selection: Type.Array(Id), hidden: Type.Array(Id), camera: Type.Union([Type.String(), Type.Null()]) }, { additionalProperties: false });
 export type ProjectView = Static<typeof ViewSchema>;
+/** `view` with only the instances `project` has: what a view kept across a change to the instances still names. */
+export function keepView(view: ProjectView, project: { instances: readonly { id: string }[] }): ProjectView {
+  const ids = new Set(project.instances.map(i => i.id));
+  return { ...view, selection: view.selection.filter(id => ids.has(id)), hidden: view.hidden.filter(id => ids.has(id)) };
+}
 
 /**
  * The sub-assemblies' settings, held by the project (PoC: copies starting from each page's defaults; #117 makes the project their
@@ -255,13 +260,15 @@ export function projectErrors(raw: unknown): string[] {
 export type ParseResult = { ok: true; project: Project } | { ok: false; errors: string[] };
 /**
  * A project from a file's text (or its parsed JSON): the document when `projectErrors` finds nothing, else the errors, so that the
- * caller keeps its current project. It never throws.
+ * caller keeps its current project. Its view keeps only the instances it has (`keepView`). It never throws.
  */
 export function parseProject(json: unknown): ParseResult {
   let raw = json;
   if (typeof json === 'string') {
     try { raw = JSON.parse(json); } catch (error) { return { ok: false, errors: [`The file is not JSON: ${(error as Error).message}`] }; }
   }
+  // the view is not the design: a selection or hidden list naming what is gone is dropped, not a reason to refuse the project
+  if (Value.Check(ProjectSchema, raw)) raw = { ...raw, view: keepView(raw.view, raw) };
   const errors = projectErrors(raw);
   return errors.length ? { ok: false, errors } : { ok: true, project: structuredClone(raw) as Project };
 }

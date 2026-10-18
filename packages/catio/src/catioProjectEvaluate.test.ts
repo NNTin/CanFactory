@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { dimensionOf } from '@canfactory/contracts';
 import {
-  addEnclosure, addPlatform, composeTransform, createProject, evaluateProject, moveInstance, parseProject, PLATFORM, resizeInstance, rotateInstance, serializeProject,
+  addEnclosure, addPlatform, boardScrewFor, composeTransform, createProject, evaluateProject, moveInstance, parseProject, PLATFORM, resizeInstance, rotateInstance, serializeProject,
   previewTunnels, snapToModules, tunnelBom, tunnelPitch, withoutKeys, type Project,
 } from './index.ts';
 
@@ -83,7 +84,7 @@ describe('evaluateProject', () => {
     expect([...sources].sort()).toEqual(['platform-1', 'tunnel-1', 'window-1', 'window-1+tunnel-1']);
     const platform = e.bom.filter(l => l.sources[0] === 'platform-1');
     expect(platform.map(l => [l.id, l.quantity, l.partId])).toEqual([
-      ['platform-board', 1, undefined], ['platform-batten', 2, undefined], [PLATFORM.hardware.postScrew, 8, PLATFORM.hardware.postScrew], [PLATFORM.hardware.boardScrew, 6, PLATFORM.hardware.boardScrew],
+      ['platform-board', 1, undefined], ['platform-batten', 2, undefined], [PLATFORM.hardware.postScrew, 8, PLATFORM.hardware.postScrew], ['din-7997-4x40', 6, 'din-7997-4x40'],
     ]);
     expect(platform[0]?.size).toBe('1920 × 400 × 18, cut from a 2500 × 1250 × 18 sheet (e.g. Garnica Laudio Wire Xtra Plus, BAUHAUS 28517690)');
   });
@@ -128,6 +129,25 @@ describe('the platform', () => {
     expect(issueIds(wide)).toContain('geometry:platform-1+enclosure-1:platform-sheet');
     expect(issueIds(moveInstance(furnished(), 'platform-1', { z: 500 }).project)).toContain('geometry:platform-1+enclosure-1:platform-port-side-left');
     expect(issueIds(moveInstance(furnished(), 'platform-1', { z: 150 }).project)).toContain('geometry:platform-1+enclosure-1:platform-below');
+  });
+
+  it('screws its board down with a screw that holds in the battens at any thickness, or says none does', () => {
+    const boardScrew = (project: Project) => evaluateProject(project).bom.find(l => l.sources[0] === 'platform-1' && l.use.startsWith('Down through'));
+    expect(boardScrewFor(18)?.id).toBe('din-7997-4x40');
+    for (const thickness of [12, 18, 25, 30, 40]) {
+      const screw = boardScrewFor(thickness); if (!screw) throw new Error(`no screw for ${thickness} mm`);
+      const into = dimensionOf(screw, 'l') - thickness;
+      expect(into).toBeGreaterThanOrEqual(dimensionOf(screw, 'l') / 2);
+      expect(into).toBeLessThanOrEqual(PLATFORM.batten.depth - PLATFORM.boardScrew.cover);
+      const project = resizeInstance(furnished(), 'platform-1', { thickness }).project;
+      expect(boardScrew(project)?.partId).toBe(screw.id);
+      expect(issueIds(project)).not.toContain('geometry:platform-1+enclosure-1:platform-board-screw');
+    }
+    const thick = resizeInstance(furnished(), 'platform-1', { thickness: 44 }).project;
+    expect(boardScrewFor(44)).toBeNull();
+    expect(issueIds(thick)).toContain('geometry:platform-1+enclosure-1:platform-board-screw');
+    expect(boardScrew(thick)).toBeUndefined();
+    expect(evaluateProject(thick).unresolved.map(i => i.id)).toContain('geometry:platform-1+enclosure-1:platform-board-screw');
   });
 });
 

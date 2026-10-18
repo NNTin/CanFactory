@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
-import { Box, CircleAlert, Copy, Focus, Magnet, Maximize, Plus, Redo2, Trash2, Undo2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Box, CircleAlert, Copy, Focus, Magnet, Maximize, Move, Plus, Redo2, RotateCw, Scaling, Trash2, Undo2 } from 'lucide-react';
 import {
   addEnclosure, addPlatform, canRedo, canUndo, deleteDependents, deleteInstance, duplicateInstance, ENCLOSURE_DEFAULT, moveInstance, resizeGarden,
   resizeInstance, rotateInstance, worldTransforms, type CommandResult, type EvaluatedInstance, type Instance, type Project, type ProjectEvaluation, type ProjectIssue,
 } from '@canfactory/catio';
 import { createPlannerStore, PlannerStoreContext, usePlannerHistory, usePlannerStore } from './catioPlannerStore.ts';
-import { CAMERA_VIEWS, createPlannerViewport, tunnelModules, type PlannerViewport, type Readout } from './catioPlannerViewport.ts';
+import { CAMERA_VIEWS, createPlannerViewport, tunnelModules, type CameraView, type PlannerViewport, type Readout } from './catioPlannerViewport.ts';
+import type { PlannerTool } from './catioPlannerScene.ts';
 import { BuildListSlot } from './CatioPlannerBuildList.tsx';
 
 /**
@@ -21,6 +22,13 @@ export function CatioPlanner({ initial }: { initial?: Project } = {}) {
 /** What a problem marks on its instances: an error with the design's numbers, geometry or connections. */
 const flags = (issue: ProjectIssue) => issue.severity === 'error' && (issue.kind === 'geometry' || issue.kind === 'connection' || issue.kind === 'input');
 const KIND_TITLES: Record<string, string> = { window: 'Window', tunnel: 'Tunnel', enclosure: 'Enclosure', platform: 'Platform' };
+/** Page Up / Page Down's step, and with Shift (FR-02.6). */
+const ELEVATION_STEP = { fine: 10, coarse: 100 } as const;
+const TOOLS: { tool: PlannerTool; label: string; title: string; icon: ReactNode }[] = [
+  { tool: 'move', label: 'Move', title: 'Move: drag the object to move it, its ring to turn it, a platform’s arrow to raise it', icon: <Move size={13} aria-hidden="true" /> },
+  { tool: 'rotate', label: 'Rotate', title: 'Rotate: drag the object or its ring to turn it', icon: <RotateCw size={13} aria-hidden="true" /> },
+  { tool: 'resize', label: 'Resize', title: 'Resize: drag a handle on a face to change the size; the opposite face stays put', icon: <Scaling size={13} aria-hidden="true" /> },
+];
 /** Whether a key press is meant for a field rather than the planner. */
 const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
@@ -31,6 +39,8 @@ function PlannerPage() {
   const evaluation = store.evaluation();
   const selection = project.view.selection;
   const [snap, setSnap] = useState(true);
+  const [tool, setTool] = useState<PlannerTool>('move');
+  const [view, setView] = useState<CameraView>('3D');
   const [status, setStatus] = useState<string | null>(null);
   const [focusedIssue, setFocusedIssue] = useState<string | null>(null);
   const flagged = useMemo(() => [...new Set(evaluation.issues.filter(flags).flatMap(i => i.instanceIds))], [evaluation]);
@@ -52,9 +62,13 @@ function PlannerPage() {
     const created = createPlannerViewport(element, {
       select: ids => store.select(ids),
       readout: setReadout,
-      commit(id, to, how) {
+      commit(id, { how, to, size }) {
         const present = store.get().present;
-        run(how === 'move' ? moveInstance(present, id, { x: to.x, y: to.y, z: to.z }) : rotateInstance(present, id, to.yaw));
+        if (how === 'rotate') { run(rotateInstance(present, id, to.yaw)); return; }
+        if (how !== 'resize' || !size) { run(moveInstance(present, id, { x: to.x, y: to.y, z: to.z })); return; }
+        // a face dragged: the new size, and where it then stands so that the opposite face stays, as one edit
+        const resized = resizeInstance(present, id, size);
+        run(resized.errors.length ? resized : moveInstance(resized.project, id, { x: to.x, y: to.y }));
       },
     });
     if (!created) { setUnsupported(true); return; }
@@ -62,13 +76,14 @@ function PlannerPage() {
     return () => { created.dispose(); viewport.current = null; };
     // the store is the page's for its whole life
   }, []);
-  useEffect(() => { viewport.current?.update({ project, evaluation, selection, flagged, snap }); }, [project, evaluation, selection, flagged, snap]);
+  useEffect(() => { viewport.current?.update({ project, evaluation, selection, flagged, snap, tool }); }, [project, evaluation, selection, flagged, snap, tool]);
 
   // Keys: never while a field has the focus. Esc abandons the edit in progress.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (typing(event.target)) return;
       if (event.key === 'Escape') { if (!viewport.current?.cancel()) store.cancel(); return; }
+      if (event.key === 'PageUp' || event.key === 'PageDown') { event.preventDefault(); elevateRef.current(event.key === 'PageUp' ? 1 : -1, event.shiftKey); return; }
       if (!(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
       if (key === 'z' && !event.shiftKey) { event.preventDefault(); store.undo(); }
@@ -79,6 +94,15 @@ function PlannerPage() {
   }, [store]);
 
   const selected = selection.length === 1 ? project.instances.find(i => i.id === selection[0]) : undefined;
+  /** Raises (`direction` 1) or lowers the selection one step, 100 mm with Shift: a platform; an enclosure stands on the ground. */
+  const elevate = (direction: 1 | -1, coarse: boolean) => {
+    const present = store.get().present;
+    const [id] = present.view.selection; const instance = present.view.selection.length === 1 ? present.instances.find(i => i.id === id) : undefined;
+    if (instance?.kind !== 'platform') { setStatus(instance?.kind === 'enclosure' ? 'An enclosure stands on the ground: raise or lower a platform in it.' : 'Select a platform to raise or lower it.'); return; }
+    run(moveInstance(present, instance.id, { z: instance.transform.z + direction * (coarse ? ELEVATION_STEP.coarse : ELEVATION_STEP.fine) }));
+  };
+  const elevateRef = useRef(elevate); elevateRef.current = elevate;
+  const movable = selected?.kind === 'enclosure' || selected?.kind === 'platform';
   const enclosureFor = (instance: Instance | undefined) => instance?.kind === 'enclosure' ? instance.id
     : instance?.kind === 'platform' ? instance.parent : project.instances.find(i => i.kind === 'enclosure')?.id ?? null;
   const addAnEnclosure = () => { const result = addEnclosure(project, freeSpot(project)); run(result, result.id); };
@@ -114,9 +138,15 @@ function PlannerPage() {
       <section className="planner-centre" aria-label="Viewport">
         <div className="planner-tools">
           <div className="catio-cameras" role="group" aria-label="Camera views">
-            {CAMERA_VIEWS.map(name => <button key={name} type="button" disabled={unsupported} onClick={() => viewport.current?.view(name)}>{name}</button>)}
+            {CAMERA_VIEWS.map(name => <button key={name} type="button" disabled={unsupported} aria-pressed={view === name} title={name === '3D' ? 'Perspective: drag empty space to orbit' : `${name}: orthographic, drag empty space to pan`}
+              onClick={() => { setView(name); viewport.current?.view(name); }}>{name}</button>)}
             <button type="button" disabled={unsupported} onClick={() => viewport.current?.fitAll()}><Maximize size={13} aria-hidden="true" /> Fit all</button>
             <button type="button" disabled={unsupported || !selection.length} onClick={() => viewport.current?.fitSelection()}><Focus size={13} aria-hidden="true" /> Fit selection</button>
+          </div>
+          <div className="planner-selection-tools" role="group" aria-label="Selection tools">
+            {TOOLS.map(t => <button key={t.tool} type="button" aria-pressed={tool === t.tool} disabled={unsupported || !movable} title={t.title} onClick={() => setTool(t.tool)}>{t.icon} {t.label}</button>)}
+            <button type="button" disabled={selected?.kind !== 'platform'} title="Raise by 10 mm (Page Up; Shift: 100 mm)" onClick={event => elevate(1, event.shiftKey)}><ArrowUp size={13} aria-hidden="true" /> Raise</button>
+            <button type="button" disabled={selected?.kind !== 'platform'} title="Lower by 10 mm (Page Down; Shift: 100 mm)" onClick={event => elevate(-1, event.shiftKey)}><ArrowDown size={13} aria-hidden="true" /> Lower</button>
           </div>
           <button type="button" className="planner-snap" aria-pressed={snap} onClick={() => setSnap(on => !on)} title="Snap moves to 10 mm (tunnels to whole modules) and turns to 15°"><Magnet size={13} aria-hidden="true" /> Snap {snap ? 'on' : 'off'} · 10 mm · 15°</button>
         </div>
@@ -124,7 +154,7 @@ function PlannerPage() {
           {unsupported && <div className="catio-fallback" role="status"><Box size={32} /><strong>3D is unavailable</strong><p>This browser has no WebGL. The object tree, the inspector and the issues still work.</p></div>}
           {readout && <div className={`planner-readout${readout.ok ? '' : ' invalid'}`} role="status" style={{ left: readout.x + 18, top: readout.y + 18 }}><strong>{readout.title}</strong>{readout.lines.map(line => <span key={line}>{line}</span>)}</div>}
         </div>
-        <p className="planner-hint">Drag an object to move it, its ring to turn it · drag empty space to orbit · middle button to pan · scroll to zoom · Esc cancels a drag</p>
+        <p className="planner-hint">Drag an object to move it, its ring to turn it, a platform’s arrow (or Page Up / Page Down) to raise it · Resize: drag a face’s handle · empty space: orbit in 3D, pan in Top, Front and Side · middle button pans · scroll zooms · Esc cancels a drag</p>
       </section>
       <aside className="planner-right">
         <Inspector project={project} evaluation={evaluation} selected={selected} run={run} remove={id => {

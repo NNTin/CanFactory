@@ -2,10 +2,10 @@ import { enclosureLayout } from './catioEnclosure.ts';
 import { MODULAR_DEFAULT } from './catioModularDesign.ts';
 import { platformAnchors, platformDefaults, PLATFORM_SHEET } from './catioPlatform.ts';
 import {
-  composeTransform, isKind, PROJECT_SCHEMA_VERSION, SETTINGS_DEFAULT, TUNNEL_PARAMS_DEFAULT, WINDOW_PARAMS_DEFAULT,
+  composeTransform, isKind, keepView, projectErrors, PROJECT_SCHEMA_VERSION, SETTINGS_DEFAULT, TUNNEL_PARAMS_DEFAULT, WINDOW_PARAMS_DEFAULT,
   type Attachment, type Connection, type EnclosureParams, type Instance, type PlatformParams, type Port, type Project, type Transform,
 } from './catioProject.ts';
-import { evaluateProject, outsideGarden, syncPorts } from './catioProjectEvaluate.ts';
+import { evaluateProject, outsideGarden, syncPorts, type ProjectEvaluation } from './catioProjectEvaluate.ts';
 import { TUNNEL, TUNNEL_DEFAULT, tunnelLayout, tunnelPitch, tunnelSiteFor } from './catioTunnel.ts';
 
 /**
@@ -31,8 +31,18 @@ export function nextId(project: Project, prefix: string, taken: Set<string> = al
 }
 const port = (owner: string, name: string, size: number, state: Port['state']): Port =>
   ({ id: portId(owner, name), owner, name, frame: { x: 0, y: 0, z: 0, yaw: 0 }, interface: { kind: 'standard-port', size }, state });
-const ok = (project: Project): CommandResult => ({ project: syncPorts(project), errors: [] });
 const fail = (project: Project, ...errors: string[]): CommandResult => ({ project, errors });
+/**
+ * `next`, its ports synced, as the edit's result; or `project` unchanged with the reasons, if `next` is a document `parseProject`
+ * would refuse. An edit's own checks say why first; this is the guarantee that no edit puts what cannot be reopened into the history.
+ */
+function ok(project: Project, next: Project, evaluation?: Pick<ProjectEvaluation, 'ports'>): CommandResult {
+  const synced = syncPorts(next, evaluation);
+  const errors = projectErrors(synced);
+  return errors.length ? fail(project, ...errors) : { project: synced, errors: [] };
+}
+/** A result naming the instance an edit made: none, if the edit was refused. */
+const withId = (result: CommandResult, id: string | null) => ({ ...result, id: result.errors.length ? null : id });
 /** Errors for values that are not finite numbers, or (`positive`) not above zero. */
 function numberErrors(values: Record<string, unknown>, positive: boolean): string[] {
   return Object.entries(values).filter(([, v]) => v !== undefined).flatMap(([key, v]) =>
@@ -81,7 +91,7 @@ export function addEnclosure(project: Project, at: { x: number; y: number; yaw?:
   const id = nextId(project, 'enclosure');
   const enclosure: Instance = { id, kind: 'enclosure', name: `Enclosure ${id.split('-')[1]}`, parent: null, transform: { x: at.x, y: at.y, z: 0, yaw: at.yaw ?? 0 }, params: { ...size }, material: {} };
   const ports = ENCLOSURE_PORTS.map(side => port(id, side, tunnelSize(project), 'closed'));
-  return { ...ok({ ...project, instances: [...project.instances, enclosure], ports: [...project.ports, ...ports] }), id };
+  return withId(ok(project, { ...project, instances: [...project.instances, enclosure], ports: [...project.ports, ...ports] }), id);
 }
 
 /** A new frame-mounted platform across `enclosureId`, attached to both of its side frames. */
@@ -90,6 +100,8 @@ export function addPlatform(project: Project, enclosureId: string): CommandResul
   if (!enclosure) return { ...fail(project, `There is no enclosure ${enclosureId}.`), id: null };
   const layout = enclosureLayout(enclosure.params, { id: enclosure.id, tunnelSize: tunnelSize(project), connected: { rear: false, left: false, right: false } });
   const { params, transform, anchors } = platformDefaults(layout);
+  // a board across an enclosure too small inside to hold one would have no size: refuse it, rather than save it
+  if (numberErrors({ ...params }, true).length) return { ...fail(project, `${enclosure.name ?? enclosure.id} is too small inside (${Math.round(params.width)} mm between its side frames) for a platform.`), id: null };
   const taken = allIds(project);
   const id = nextId(project, 'platform', taken); taken.add(id);
   const platform: Instance = { id, kind: 'platform', name: `Platform ${id.split('-')[1]}`, parent: enclosure.id, transform, params, material: { sheet: PLATFORM_SHEET } };
@@ -97,7 +109,7 @@ export function addPlatform(project: Project, enclosureId: string): CommandResul
     const aid = nextId(project, 'attachment', taken); taken.add(aid);
     return { id: aid, instance: id, support: { instance: enclosure.id, member }, anchor };
   });
-  return { ...ok({ ...project, instances: [...project.instances, platform], attachments: [...project.attachments, ...attachments] }), id };
+  return withId(ok(project, { ...project, instances: [...project.instances, platform], attachments: [...project.attachments, ...attachments] }), id);
 }
 
 const MOVABLE = ['enclosure', 'platform'] as const;
@@ -116,14 +128,14 @@ const replace = (project: Project, instance: Instance): Project => ({ ...project
 export function moveInstance(project: Project, id: string, to: Partial<Pick<Transform, 'x' | 'y' | 'z'>>): CommandResult {
   const instance = movable(project, id); if (typeof instance === 'string') return fail(project, instance);
   const errors = numberErrors(to, false); if (errors.length) return fail(project, ...errors);
-  return ok(replace(project, { ...instance, transform: { ...instance.transform, ...to } }));
+  return ok(project, replace(project, { ...instance, transform: { ...instance.transform, ...to } }));
 }
 
 /** Turns an enclosure or platform to `yaw` degrees about its own origin, in its parent's frame. */
 export function rotateInstance(project: Project, id: string, yaw: number): CommandResult {
   const instance = movable(project, id); if (typeof instance === 'string') return fail(project, instance);
   const errors = numberErrors({ yaw }, false); if (errors.length) return fail(project, ...errors);
-  return ok(replace(project, { ...instance, transform: { ...instance.transform, yaw } }));
+  return ok(project, replace(project, { ...instance, transform: { ...instance.transform, yaw } }));
 }
 
 /**
@@ -141,7 +153,7 @@ export function resizeInstance(project: Project, id: string, size: Partial<Enclo
   const attachments = resized.kind === 'platform'
     ? project.attachments.map(a => a.instance === id && a.support.member in platformAnchors(resized.params) ? { ...a, anchor: platformAnchors(resized.params)[a.support.member as keyof ReturnType<typeof platformAnchors>] } : a)
     : project.attachments;
-  return ok({ ...replace(project, resized), attachments });
+  return ok(project, { ...replace(project, resized), attachments });
 }
 
 /**
@@ -170,7 +182,7 @@ export function duplicateInstance(project: Project, id: string, offset?: Partial
     support: { ...a.support, instance: ids.get(a.support.instance) ?? a.support.instance },
   }));
   const copy = ids.get(id) ?? null;
-  return { ...ok({ ...project, instances: [...project.instances, ...copies], ports: [...project.ports, ...ports], attachments: [...project.attachments, ...attachments] }), id: copy };
+  return withId(ok(project, { ...project, instances: [...project.instances, ...copies], ports: [...project.ports, ...ports], attachments: [...project.attachments, ...attachments] }), copy);
 }
 
 function descendants(project: Project, id: string): Instance[] {
@@ -203,11 +215,11 @@ export function deleteInstance(project: Project, id: string): CommandResult & { 
   const orphaned = new Set(project.connections.filter(c => removed.connections.includes(c.id)).flatMap(c => c.ports));
   const owners = new Map(project.instances.map(i => [i.id, i.kind]));
   const ports = project.ports.filter(gone(removed.ports)).map(p => orphaned.has(p.id) ? { ...p, state: owners.get(p.owner) === 'tunnel' ? 'open' as const : 'closed' as const } : p);
-  const keep = (list: string[]) => list.filter(i => !removed.instances.includes(i));
+  const instances = project.instances.filter(gone(removed.instances));
   return {
-    ...ok({
-      ...project, instances: project.instances.filter(gone(removed.instances)), ports, connections: project.connections.filter(gone(removed.connections)),
-      attachments: project.attachments.filter(gone(removed.attachments)), view: { ...project.view, selection: keep(project.view.selection), hidden: keep(project.view.hidden) },
+    ...ok(project, {
+      ...project, instances, ports, connections: project.connections.filter(gone(removed.connections)),
+      attachments: project.attachments.filter(gone(removed.attachments)), view: keepView(project.view, { instances }),
     }),
     removed,
   };
@@ -219,5 +231,6 @@ export function resizeGarden(project: Project, size: { width: number; depth: num
   if (errors.length) return { ...fail(project, ...errors), outside: [] };
   const resized = { ...project, garden: { width: size.width, depth: size.depth } };
   const evaluation = evaluateProject(resized);
-  return { project: syncPorts(resized, evaluation), errors: [], outside: outsideGarden(evaluation) };
+  const result = ok(project, resized, evaluation);
+  return { ...result, outside: result.errors.length ? [] : outsideGarden(evaluation) };
 }

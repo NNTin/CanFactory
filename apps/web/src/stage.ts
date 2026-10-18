@@ -18,7 +18,15 @@ export function smoothNormals(geometry: THREE.BufferGeometry): THREE.BufferGeome
 /** The 3D scene both previews share: lights, the floor with its grid, an orbit camera, and `group`, which holds the meshes. */
 export interface Stage {
   renderer: THREE.WebGLRenderer;
+  /** The perspective camera: the one in use unless `setProjection` switches to the orthographic one. */
   camera: THREE.PerspectiveCamera;
+  /** The camera drawing the stage now: `camera`, or the orthographic one. */
+  activeCamera: () => THREE.PerspectiveCamera | THREE.OrthographicCamera;
+  /**
+   * Draws in perspective or orthographically, from where the camera is; `halfHeight` (in the scene's units) is how much an
+   * orthographic view shows above and below its target.
+   */
+  setProjection: (projection: 'perspective' | 'orthographic', halfHeight?: number) => void;
   /** Meshes keep their SCAD frame (Z up) inside `group`, which turns it to the scene's Y up. */
   group: THREE.Group;
   /** The camera's orbit controls: switched off while the physics drags a part with the pointer. */
@@ -51,7 +59,14 @@ export function createStage(element: HTMLElement, label: string, options: { scal
   element.appendChild(renderer.domElement);
   const world = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1 * scale, 10000 * scale);
-  const controls = new OrbitControls(camera, renderer.domElement);
+  const orthographic = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1 * scale, 10000 * scale);
+  let active: THREE.PerspectiveCamera | THREE.OrthographicCamera = camera;
+  let orthoHalf = 100 * scale;
+  const fitOrthographic = () => {
+    orthographic.left = -orthoHalf * camera.aspect; orthographic.right = orthoHalf * camera.aspect;
+    orthographic.top = orthoHalf; orthographic.bottom = -orthoHalf; orthographic.updateProjectionMatrix();
+  };
+  const controls = new OrbitControls<THREE.Camera>(camera, renderer.domElement);
   let dirty = true;
   const invalidate = () => { dirty = true; };
   controls.addEventListener('change', invalidate);
@@ -81,7 +96,7 @@ export function createStage(element: HTMLElement, label: string, options: { scal
   const resize = new ResizeObserver(() => {
     const width = element.clientWidth; const clientHeight = element.clientHeight;
     if (!width || !clientHeight) return;
-    renderer.setSize(width, clientHeight); camera.aspect = width / clientHeight; camera.updateProjectionMatrix();
+    renderer.setSize(width, clientHeight); camera.aspect = width / clientHeight; camera.updateProjectionMatrix(); fitOrthographic();
     invalidate();
   });
   resize.observe(element);
@@ -90,13 +105,21 @@ export function createStage(element: HTMLElement, label: string, options: { scal
   // resizes and `invalidate()` decide when to draw.
   const loop = () => {
     animation = requestAnimationFrame(loop); controls.update();
-    if (dirty) { renderer.render(world, camera); dirty = false; }
+    if (dirty) { renderer.render(world, active); dirty = false; }
   };
   loop();
   return {
     renderer, camera, group, controls, reset, invalidate,
+    activeCamera: () => active,
+    setProjection(projection, halfHeight) {
+      const next = projection === 'orthographic' ? orthographic : camera;
+      if (halfHeight !== undefined) { orthoHalf = halfHeight; orthographic.zoom = 1; }
+      fitOrthographic();
+      if (next !== active) { next.position.copy(active.position); next.quaternion.copy(active.quaternion); active = next; controls.object = next; }
+      controls.update(); invalidate();
+    },
     lookAt(position, target) {
-      camera.position.copy(group.localToWorld(position.clone()));
+      active.position.copy(group.localToWorld(position.clone()));
       controls.target.copy(group.localToWorld(target.clone()));
       controls.update();
     },
