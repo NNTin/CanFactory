@@ -33,14 +33,14 @@ export function facePoint(s: Sized, face: SizeFace): [number, number, number] {
 
 /**
  * The instance with `face` dragged `delta` mm outward (inward when negative), its size snapped to `step` and no smaller than
- * `MIN_SIZE`: the size it takes, where it then stands in its parent's frame (so that the opposite face stays put), the dragged
+ * `MIN_SIZE` (nor larger than `max`): the size it takes, where it then stands in its parent's frame (so that the opposite face stays put), the dragged
  * box in its old frame (a drag's preview), and how much the size changed.
  */
-export function resizeFrom(s: Sized, transform: Transform, face: SizeFace, delta: number, step: number) {
+export function resizeFrom(s: Sized, transform: Transform, face: SizeFace, delta: number, step: number, max = Infinity) {
   const axis = face[1] as 'x' | 'y' | 'z'; const sign = face[0] === '+' ? 1 : -1; const key = KEY[axis];
   const params = s.params as Record<string, number>;
   const old = params[key] ?? 0;
-  const next = Math.max(MIN_SIZE, Math.round((old + delta) / step) * step);
+  const next = Math.min(Math.max(old, max), Math.max(MIN_SIZE, Math.round((old + delta) / step) * step));
   const change = next - old;
   // the origin moves so that the opposite face stays: half the change across a centred axis, all of it at an enclosure's rear
   let sx = 0; let sy = 0;

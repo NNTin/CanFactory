@@ -26,10 +26,10 @@ const SELECTED = 0xe8890c; const FLAGGED = 0xc8352b; const HANDLE = 0x2c6e8f;
 const CONTEXT = new Set(['wall', 'room-floor', 'terrain']);
 
 /** What the pointer is over: an instance, or a handle of the selected one. */
-export type PlannerPick = { kind: 'instance'; id: string } | { kind: 'rotate' | 'elevate'; id: string } | { kind: 'resize'; id: string; face: SizeFace };
+export type PlannerPick = { kind: 'instance'; id: string } | { kind: 'rotate' | 'elevate' | 'slide'; id: string } | { kind: 'resize'; id: string; face: SizeFace };
 /**
- * The selection tool (FR-02.4): which handles the selection shows. Move: the body moves it, the ring turns it, a platform's arrow
- * raises it. Rotate: the body and the ring turn it. Resize: a handle on each face changes its size.
+ * The selection tool (FR-02.4): which handles the selection shows. Move: the body moves it, the ring turns it, a platform's upright
+ * arrow raises it and its double arrow slides it along its one free direction. Rotate: the body and the ring turn it. Resize: a handle on each face changes its size.
  */
 export const PLANNER_TOOLS = ['move', 'rotate', 'resize'] as const;
 export type PlannerTool = typeof PLANNER_TOOLS[number];
@@ -167,18 +167,18 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
   }
 
   function drawPlatform(e: EvaluatedPlatform): Drawn {
-    // the board at its transform; its battens run along the side frames, in the enclosure's frame, at the board's height
+    // the board at its transform; its supports (battens along the side frames, North–South bearers across them), in the enclosure's frame, under the board
     const group = new THREE.Group(); group.name = e.id; group.userData['instanceId'] = e.id;
     const own = byId.get(e.id);
     const board = new THREE.Group(); group.add(board);
-    const battens = new THREE.Group(); group.add(battens);
+    const supports = new THREE.Group(); group.add(supports);
     const p = parts(board);
     const params = own?.kind === 'platform' ? own.params : { width: 0, depth: 0, thickness: 0 };
     p.box(p.root, [params.width, params.depth, params.thickness], [0, 0, -params.thickness / 2], p.materials.endgrain);
-    for (const b of e.layout?.battens ?? []) p.box(battens, b.size, b.center, p.materials.timber);
+    for (const b of e.layout?.supports ?? []) p.box(supports, b.size, b.center, p.materials.timber);
     const start = own?.transform ?? { x: 0, y: 0, z: 0, yaw: 0 };
     place(board, start);
-    const pose = (t: Transform) => { place(board, t); battens.position.z = t.z - start.z; };
+    const pose = (t: Transform) => { place(board, t); supports.position.z = t.z - start.z; };
     return { id: e.id, kind: e.kind, group, anchor: new THREE.Vector3(start.x, start.y, start.z), pose, dispose: p.dispose };
   }
 
@@ -278,6 +278,15 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
       const tail = new THREE.Mesh(new THREE.ConeGeometry(45, 110, 16), handleMaterial); tail.rotation.x = -Math.PI / 2; tail.position.z = -55;
       arrow.add(shaft, head, tail);
       addHandle(d, arrow, 'elevate', { handle: 'elevate' }, new THREE.Vector3(0, 0, 80));
+      // the double arrow slides it along its one free direction: across its span, the board's own Y (North–South for a West–East
+      // platform), beside the upright arrow; its shaft reaches past the board's edges, where it can be held from above
+      const reach = sized.params.depth / 2 + 220;
+      const slide = new THREE.Group(); slide.position.set(sized.params.width / 4, 0, 60);
+      const rail = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 2 * reach, 12), handleMaterial);
+      const ahead = new THREE.Mesh(new THREE.ConeGeometry(45, 110, 16), handleMaterial); ahead.position.y = reach + 55;
+      const behind = new THREE.Mesh(new THREE.ConeGeometry(45, 110, 16), handleMaterial); behind.rotation.z = Math.PI; behind.position.y = -reach - 55;
+      slide.add(rail, ahead, behind);
+      addHandle(d, slide, 'slide', { handle: 'slide' }, new THREE.Vector3(0, sized.params.depth / 2 + 110, 0));
     }
     if (tool === 'resize') {
       for (const face of sizeFaces(sized)) {
@@ -297,7 +306,7 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
         const handleOf = o.userData['handleOf'] as string | undefined;
         const handle = o.userData['handle'] as string | undefined;
         if (handleOf && handle === 'resize') return { kind: 'resize', id: handleOf, face: o.userData['face'] as SizeFace };
-        if (handleOf && (handle === 'rotate' || handle === 'elevate')) return { kind: handle, id: handleOf };
+        if (handleOf && (handle === 'rotate' || handle === 'elevate' || handle === 'slide')) return { kind: handle, id: handleOf };
         const id = o.userData['instanceId'] as string | undefined;
         if (id) { if (!ids.includes(id)) ids.push(id); break; }
       }
@@ -312,7 +321,10 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     return false;
   };
 
-  /** Where each instance's anchor (and each handle: `rotate`, `elevate`, `resize+x`…) is on the screen, for tests and readouts. */
+  /**
+   * Where each instance's anchor (and each handle: `rotate`, `elevate`, `slide`, `resize+x`…) is on the screen, for tests and
+   * readouts; `rotate-centre` and `slide-centre` are the ring's and the double arrow's middles (the arrow points from there to `slide`).
+   */
   function anchors(camera: THREE.Camera, size: { width: number; height: number }) {
     root.updateWorldMatrix(true, true); camera.updateMatrixWorld();
     const screen = (v: THREE.Vector3) => { const q = v.clone().project(camera); return [Math.round((q.x + 1) / 2 * size.width), Math.round((1 - q.y) / 2 * size.height)]; };
@@ -320,7 +332,7 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     for (const d of drawn.values()) result[d.id] = screen(d.anchor.clone().applyMatrix4(d.group.matrixWorld));
     for (const { mesh, name, aim } of handles) {
       result[name] = screen(aim.clone().applyMatrix4(mesh.matrixWorld));
-      if (name === 'rotate') result['rotate-centre'] = screen(new THREE.Vector3().applyMatrix4(mesh.matrixWorld));
+      if (name === 'rotate' || name === 'slide') result[`${name}-centre`] = screen(new THREE.Vector3().applyMatrix4(mesh.matrixWorld));
     }
     return result;
   }

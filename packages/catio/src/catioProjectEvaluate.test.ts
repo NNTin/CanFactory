@@ -13,6 +13,8 @@ const tunnelOf = (project: Project) => {
   const t = evaluateProject(project).instances.find(i => i.kind === 'tunnel'); if (t?.kind !== 'tunnel') throw new Error('no tunnel'); return t;
 };
 const issueIds = (project: Project) => evaluateProject(project).issues.map(i => i.id);
+/** The project with the platform put at `z` in the document itself: what a command would not do (it clamps), but an import can. */
+const placed = (project: Project, z: number): Project => ({ ...project, instances: project.instances.map(i => i.id === 'platform-1' ? { ...i, transform: { ...i.transform, z } } : i) });
 
 describe('evaluateProject', () => {
   it('needs nothing but the project: no storage, and the same result from a JSON copy', () => {
@@ -95,7 +97,7 @@ describe('the platform', () => {
     const project = furnished();
     const p = platformOf(project);
     expect(p.layout?.params).toEqual({ width: 1920, depth: 400, thickness: 18 });
-    expect(p.layout?.battens.map(b => [b.member, b.center[0]])).toEqual([['side-left', -960 + 22.5], ['side-right', 960 - 22.5]]);
+    expect(p.layout?.supports.map(b => [b.kind, b.member, b.center[0]])).toEqual([['batten', 'side-left', -960 + 22.5], ['batten', 'side-right', 960 - 22.5]]);
     const issues = evaluateProject(project).issues.filter(i => i.instanceIds.includes('platform-1'));
     expect(issues.map(i => [i.kind, i.severity])).toEqual([['unverified', 'info']]);
   });
@@ -122,13 +124,13 @@ describe('the platform', () => {
     expect(issueIds(resizeInstance(furnished(), 'enclosure-1', { height: 1100 }).project)).toContain('geometry:platform-1+enclosure-1:platform-above');
   });
 
-  it('reports an attachment its own resize breaks, a board too big for a sheet, and a batten across a cat port', () => {
+  it('reports an attachment its own resize breaks, a board too big for a sheet, and supports across a cat port', () => {
     const narrower = resizeInstance(furnished(), 'platform-1', { width: 1500 }).project;
     expect(issueIds(narrower)).toContain('connection:platform-1+enclosure-1:platform-detached-attachment-1');
     const wide = resizeInstance(resizeInstance(furnished(), 'enclosure-1', { width: 2400, depth: 2400 }).project, 'platform-1', { width: 2320, depth: 1300 }).project;
     expect(issueIds(wide)).toContain('geometry:platform-1+enclosure-1:platform-sheet');
-    expect(issueIds(moveInstance(furnished(), 'platform-1', { z: 500 }).project)).toContain('geometry:platform-1+enclosure-1:platform-port-side-left');
-    expect(issueIds(moveInstance(furnished(), 'platform-1', { z: 150 }).project)).toContain('geometry:platform-1+enclosure-1:platform-below');
+    expect(issueIds(placed(furnished(), 500))).toContain('geometry:platform-1+enclosure-1:platform-port-left');
+    expect(issueIds(placed(furnished(), 150))).toContain('geometry:platform-1+enclosure-1:platform-below');
   });
 
   it('screws its board down with a screw that holds in the battens at any thickness, or says none does', () => {
