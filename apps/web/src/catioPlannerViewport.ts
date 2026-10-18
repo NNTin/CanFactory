@@ -113,7 +113,7 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     stage?.invalidate(); publishAnchors();
   }
   const DIRECTIONS: Record<CameraView, THREE.Vector3> = {
-    '3D': new THREE.Vector3(0.55, 1, 0.8), Top: new THREE.Vector3(0, 0.002, 1), Front: new THREE.Vector3(0, 1, 0.12), Side: new THREE.Vector3(1, 0, 0.12),
+    '3D': new THREE.Vector3(1, 0.8, 0.75), Top: new THREE.Vector3(0, 0.002, 1), Front: new THREE.Vector3(0, 1, 0.12), Side: new THREE.Vector3(1, 0, 0.12),
   };
   const looking = () => group.worldToLocal(camera.position.clone()).sub(group.worldToLocal(controls.target.clone()));
   function view(name: CameraView) { frame(siteBounds(), DIRECTIONS[name]); }
