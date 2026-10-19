@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Box, CircleAlert, Copy, Focus, Magnet, Maximize, Move, Plus, Redo2, RotateCw, Scaling, Trash2, Undo2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Box, CircleAlert, Copy, CornerUpLeft, CornerUpRight, Focus, Link, Magnet, Maximize, Minus, Move, Plus, Redo2, RotateCw, Scaling, Trash2, Undo2, Unlink } from 'lucide-react';
 import {
-  addEnclosure, addPlatform, canRedo, canUndo, deleteDependents, deleteInstance, duplicateInstance, elementTitle, ENCLOSURE_DEFAULT, moveInstance, ORIENTATION_YAW,
-  platformOrientation, platformRangeOf, PLATFORM_ORIENTATIONS, PLATFORM_RECIPES, raiseElements, rangeText, resizeGarden, resizeInstance, rotateInstance, routeElements, worldTransforms,
-  type CommandResult, type EvaluatedElement, type EvaluatedInstance, type Instance, type Project, type ProjectEvaluation, type ProjectIssue,
+  addEnclosure, addPlatform, addTunnel, canRedo, canUndo, connect, CONNECT_REACH, connectTargets, deleteDependents, deleteInstance, detach, duplicateInstance, elementTitle, ENCLOSURE_DEFAULT,
+  extendTunnel, moveInstance, ORIENTATION_YAW, platformOrientation, platformRangeOf, PLATFORM_ORIENTATIONS, PLATFORM_RECIPES, portTitle, raiseElements, rangeText, resizeGarden, resizeInstance,
+  rotateInstance, routeElements, turnTunnel, worldTransforms,
+  type CommandResult, type EvaluatedElement, type EvaluatedInstance, type EvaluatedTunnel, type Instance, type Port, type Project, type ProjectEvaluation, type ProjectIssue, type TunnelEnd,
 } from '@canfactory/catio';
 import { createPlannerStore, PlannerStoreContext, usePlannerHistory, usePlannerStore } from './catioPlannerStore.ts';
 import { CAMERA_VIEWS, createPlannerViewport, tunnelModules, type CameraView, type PlannerViewport, type Readout } from './catioPlannerViewport.ts';
@@ -73,6 +74,9 @@ function PlannerPage() {
         run(resized.errors.length ? resized : moveInstance(resized.project, id, { x: to.x, y: to.y }));
       },
       raise(ids, delta) { run(raiseElements(store.get().present, ids, delta)); },
+      grow(port, modules) { const result = addTunnel(store.get().present, port, modules); run(result, result.id); },
+      extend(end, modules) { run(extendTunnel(store.get().present, end, modules)); },
+      turn(end, side) { run(turnTunnel(store.get().present, end, side)); },
     });
     if (!created) { setUnsupported(true); return; }
     viewport.current = created;
@@ -114,6 +118,12 @@ function PlannerPage() {
   const enclosureFor = (instance: Instance | undefined) => instance?.kind === 'enclosure' ? instance.id
     : instance?.kind === 'platform' ? instance.parent : project.instances.find(i => i.kind === 'enclosure')?.id ?? null;
   const addAnEnclosure = () => { const result = addEnclosure(project, freeSpot(project)); run(result, result.id); };
+  /** The selected cat port, when it is one a tunnel can start from: a window's or an enclosure's, coupled to nothing. */
+  const freePort = selection.length === 1 ? startable(project, selection[0] ?? '') : undefined;
+  const addATunnel = () => {
+    if (!freePort) { setStatus({ text: 'Select a free cat port first: click a green port marker in the viewport, or a port in an enclosure’s inspector.', alert: true }); return; }
+    const result = addTunnel(project, freePort.id); run(result, result.id);
+  };
   const addAPlatform = () => {
     const enclosure = enclosureFor(selected);
     if (!enclosure) { setStatus({ text: 'Add an enclosure first: a platform stands in one.', alert: true }); return; }
@@ -137,6 +147,7 @@ function PlannerPage() {
           <div className="planner-catalogue">
             <button type="button" onClick={addAnEnclosure}><Plus size={14} aria-hidden="true" /> Enclosure<small>{ENCLOSURE_DEFAULT.width / 10} × {ENCLOSURE_DEFAULT.depth / 10} × {ENCLOSURE_DEFAULT.height / 10} cm</small></button>
             <button type="button" onClick={addAPlatform}><Plus size={14} aria-hidden="true" /> Platform<small>in {enclosureFor(selected) ? nameOf(project, enclosureFor(selected) ?? '') : 'an enclosure'}</small></button>
+            <button type="button" onClick={addATunnel} aria-disabled={!freePort}><Plus size={14} aria-hidden="true" /> Tunnel<small>{freePort ? `from ${portTitle(project, freePort.id)}` : 'select a free cat port, then Add'}</small></button>
           </div>
         </section>
         <section aria-label="Objects"><h2 className="eyebrow">OBJECTS</h2>
@@ -162,7 +173,7 @@ function PlannerPage() {
           {unsupported && <div className="catio-fallback" role="status"><Box size={32} /><strong>3D is unavailable</strong><p>This browser has no WebGL. The object tree, the inspector and the issues still work.</p></div>}
           {readout && <div className={`planner-readout${readout.ok ? '' : ' invalid'}`} role="status" style={{ left: readout.x + 18, top: readout.y + 18 }}><strong>{readout.title}</strong>{readout.lines.map(line => <span key={line}>{line}</span>)}</div>}
         </div>
-        <p className="planner-hint">Drag an object to move it, its ring to turn it · Shift- or Ctrl-click adds to the selection · a click on a tunnel picks one of its elements: its upright arrow (or Page Up / Page Down) raises the selected elements, and the cat port at either end rises with them · a platform stays in its enclosure: its double arrow slides it, its upright arrow raises it, its ring turns it West–East or North–South · Resize: drag a face’s handle · empty space: orbit in 3D, pan in Top, Front and Side · middle button pans · scroll zooms · Esc cancels a drag</p>
+        <p className="planner-hint">Drag an object to move it, its ring to turn it · Shift- or Ctrl-click adds to the selection · a click on a tunnel picks one of its elements: its upright arrow (or Page Up / Page Down) raises the selected elements, and the cat port at either end rises with them · drag from a green cat port to draw a tunnel; a free end’s arrow lengthens or shortens it in whole modules, its round buttons turn it, and the inspector connects it to a port nearby · a platform stays in its enclosure: its double arrow slides it, its upright arrow raises it, its ring turns it West–East or North–South · Resize: drag a face’s handle · empty space: orbit in 3D, pan in Top, Front and Side · middle button pans · scroll zooms · Esc cancels a drag</p>
       </section>
       <aside className="planner-right">
         <Inspector project={project} evaluation={evaluation} selected={selected} elements={elementIds} run={run} remove={id => {
@@ -248,6 +259,8 @@ function Inspector({ project, evaluation, selected, elements, run, remove }: Ins
   const issues = selected ? evaluation.issues.filter(i => i.severity !== 'info' && i.instanceIds.includes(selected.id)) : [];
   const { garden } = project;
   if (elements.length) return <section className="planner-inspector" aria-label="Inspector"><ElementFields project={project} evaluation={evaluation} ids={elements} run={run} /></section>;
+  const port = !selected && project.view.selection.length === 1 ? project.ports.find(p => p.id === project.view.selection[0]) : undefined;
+  if (port) return <section className="planner-inspector" aria-label="Inspector"><PortFields project={project} port={port} run={run} /></section>;
   return <section className="planner-inspector" aria-label="Inspector">
     {!selected ? <><h2 className="eyebrow">GARDEN</h2>
       <p className="planner-note">Select an object in the viewport or the tree. Everything outside the garden is flagged, never moved or deleted.</p>
@@ -257,8 +270,8 @@ function Inspector({ project, evaluation, selected, elements, run, remove }: Ins
       <h2 className="eyebrow">{(KIND_TITLES[selected.kind] ?? selected.kind).toUpperCase()}</h2>
       <TextField label="Name" value={selected.name ?? selected.id} maxLength={200} onCommit={name => { if (name !== selected.name) run({ project: { ...project, instances: project.instances.map(i => i.id === selected.id ? { ...i, name } : i) }, errors: [] }); }} />
       {evaluated && <InstanceFields project={project} instance={selected} evaluated={evaluated} run={run} />}
-      {(selected.kind === 'enclosure' || selected.kind === 'platform') && <div className="planner-actions">
-        <button type="button" onClick={() => { const result = duplicateInstance(project, selected.id); run(result, result.id); }}><Copy size={14} aria-hidden="true" /> Duplicate</button>
+      {(selected.kind === 'enclosure' || selected.kind === 'platform' || selected.kind === 'tunnel') && <div className="planner-actions">
+        {selected.kind !== 'tunnel' && <button type="button" onClick={() => { const result = duplicateInstance(project, selected.id); run(result, result.id); }}><Copy size={14} aria-hidden="true" /> Duplicate</button>}
         <button type="button" onClick={() => remove(selected.id)}><Trash2 size={14} aria-hidden="true" /> Delete</button>
       </div>}
       {issues.length > 0 && <ul className="planner-object-issues" aria-label="Problems with this object">{issues.map(i => <li key={i.id} className={i.severity}>{i.message}</li>)}</ul>}
@@ -284,6 +297,10 @@ function InstanceFields({ project, instance, evaluated, run }: { project: Projec
         <NumberField label="Height" unit="cm" value={instance.params.height} scale={10} digits={1} positive onCommit={v => resize({ height: v })} /></fieldset>
       <dl className="planner-readonly"><div><dt>Usable inside · W × D × H</dt><dd>{cm(inside.width)} × {cm(inside.depth)} × {cm(inside.height)} <small>cm</small></dd></div>
         <div><dt>Cat port sills · {evaluated.layout.ports.map(q => q.side).join(', ')}</dt><dd data-sills={JSON.stringify(evaluated.layout.ports.map(q => q.face.at[2]))}>{evaluated.layout.ports.map(q => cm(q.face.at[2])).join(' · ')} <small>cm</small></dd></div></dl>
+      <ul className="planner-ports" aria-label="Cat ports">{project.ports.filter(q => q.owner === instance.id).map(q => <li key={q.id}>
+        <span>{q.name}</span><small>{portState(project, q)}</small>
+        {q.state !== 'connected' && <button type="button" onClick={() => { const result = addTunnel(project, q.id); run(result, result.id); }} title="A tunnel of one module from this port: lengthen it by its arrow"><Plus size={13} aria-hidden="true" /> Tunnel</button>}
+      </li>)}</ul>
     </>;
   }
   if (instance.kind === 'platform') {
@@ -310,14 +327,7 @@ function InstanceFields({ project, instance, evaluated, run }: { project: Projec
         <NumberField label="Thickness" unit="mm" value={instance.params.thickness} scale={1} digits={0} positive onCommit={v => resize({ thickness: v })} /></fieldset>
     </>;
   }
-  if (evaluated.kind === 'tunnel') {
-    const layout = evaluated.layout;
-    return <dl className="planner-readonly">
-      <div><dt>Modules</dt><dd>{layout ? tunnelModules(layout) : '–'} <small>× {layout ? cm(layout.pitch) : '–'} cm</small></dd></div>
-      <div><dt>Reaches its port</dt><dd>{evaluated.reaches ? 'Yes' : 'No: an invalid draft'}</dd></div>
-      <p className="planner-note">The tunnel follows the enclosure it couples to. Click one of its elements (Shift or Ctrl for more) to raise or lower it.</p>
-    </dl>;
-  }
+  if (evaluated.kind === 'tunnel') return <TunnelFields project={project} tunnel={evaluated} run={run} />;
   if (evaluated.kind === 'window') {
     const w = evaluated.site.window;
     return <dl className="planner-readonly">
@@ -329,6 +339,66 @@ function InstanceFields({ project, instance, evaluated, run }: { project: Projec
   return null;
 }
 const cm = (mm: number) => (Math.round(mm) / 10).toLocaleString('en', { maximumFractionDigits: 1 });
+
+/** `id` when it is a port a tunnel can start from: a window's or an enclosure's, coupled to nothing. */
+function startable(project: Project, id: string): Port | undefined {
+  const port = project.ports.find(p => p.id === id);
+  return port && port.state !== 'connected' && project.instances.find(i => i.id === port.owner)?.kind !== 'tunnel' ? port : undefined;
+}
+/** A port's state, for the owner: what it is coupled to, or how it is closed. */
+function portState(project: Project, port: Port): string {
+  const connection = project.connections.find(c => c.ports.includes(port.id));
+  const mate = connection?.ports.find(id => id !== port.id);
+  if (mate) return `coupled to ${portTitle(project, mate)}`;
+  return port.state === 'open' ? 'free: an unfinished end' : 'shut by its closure';
+}
+
+/** A selected cat port: its state, a tunnel started from it, or its connection detached. */
+function PortFields({ project, port, run }: { project: Project; port: Port; run: InspectorProps['run'] }) {
+  const connection = project.connections.find(c => c.ports.includes(port.id));
+  return <>
+    <h2 className="eyebrow">CAT PORT</h2>
+    <dl className="planner-readonly"><div><dt>{portTitle(project, port.id)}</dt><dd data-port-state={port.state}>{portState(project, port)}</dd></div>
+      <div><dt>Opening</dt><dd>{cm(port.interface.size)} × {cm(port.interface.size)} <small>cm, the standard port</small></dd></div></dl>
+    <div className="planner-actions">
+      {startable(project, port.id) && <button type="button" onClick={() => { const result = addTunnel(project, port.id); run(result, result.id); }}><Plus size={14} aria-hidden="true" /> Start a tunnel here</button>}
+      {connection && <button type="button" onClick={() => run(detach(project, connection.id))}><Unlink size={14} aria-hidden="true" /> Detach</button>}
+    </div>
+    <p className="planner-note">A port coupled to nothing keeps its closure. Drag from its marker in the viewport to draw a tunnel out of it in whole modules.</p>
+  </>;
+}
+
+/**
+ * A tunnel (FR-04): its modules and length, its two ends (what each is coupled to, or free), and the edits at them: a free far end
+ * lengthened or shortened by a module, turned, or connected to a port near it (`connectTargets`); a coupled end detached.
+ */
+function TunnelFields({ project, tunnel, run }: { project: Project; tunnel: EvaluatedTunnel; run: InspectorProps['run'] }) {
+  const layout = tunnel.layout;
+  const connectionOf = (end: TunnelEnd) => end.port ? project.connections.find(c => c.ports.includes(end.port ?? '')) : undefined;
+  const free = tunnel.ends.end.port && !tunnel.ends.end.mate ? tunnel.ends.end.port : null;
+  const near = free ? connectTargets(project, free).filter(t => t.distance <= CONNECT_REACH) : [];
+  const end = (title: string, e: TunnelEnd, reaches = true) => {
+    const connection = connectionOf(e);
+    return <div data-tunnel-end={e.port ?? ''}><dt>{title}</dt><dd>{e.mate ? `Coupled to ${portTitle(project, e.mate)}${reaches ? '' : ' · its modules do not reach it'}` : 'Free: an unfinished end'}
+      {connection && <button type="button" className="planner-inline" onClick={() => run(detach(project, connection.id))} title="Uncouple it: the port is shut again, the tunnel’s end left free"><Unlink size={12} aria-hidden="true" /> Detach</button>}</dd></div>;
+  };
+  return <>
+    <dl className="planner-readonly">
+      <div><dt>Modules</dt><dd data-modules={layout ? tunnelModules(layout) : 0}>{layout ? tunnelModules(layout) : '–'} <small>× {layout ? cm(layout.pitch) : '–'} cm</small></dd></div>
+      <div><dt>Length</dt><dd>{layout ? cm(layout.totalLength) : '–'} <small>cm</small></dd></div>
+      {end('Start', tunnel.ends.start)}
+      {end('End', tunnel.ends.end, tunnel.reaches)}
+    </dl>
+    {free && <div className="planner-actions" role="group" aria-label="Free end">
+      <button type="button" onClick={() => run(extendTunnel(project, free, 1))}><Plus size={14} aria-hidden="true" /> Module</button>
+      <button type="button" onClick={() => run(extendTunnel(project, free, -1))}><Minus size={14} aria-hidden="true" /> Module</button>
+      <button type="button" onClick={() => run(turnTunnel(project, free, 'left'))}><CornerUpLeft size={14} aria-hidden="true" /> Turn left</button>
+      <button type="button" onClick={() => run(turnTunnel(project, free, 'right'))}><CornerUpRight size={14} aria-hidden="true" /> Turn right</button>
+      {near.map(t => <button key={t.port} type="button" onClick={() => run(connect(project, free, t.port))}><Link size={14} aria-hidden="true" /> Connect to {portTitle(project, t.port)}</button>)}
+    </div>}
+    <p className="planner-note">{free ? 'Drag its end’s arrow to lengthen or shorten it in whole modules; bring the end near a free cat port to connect it there.' : 'The tunnel follows the enclosures it couples to.'} Click one of its elements (Shift or Ctrl for more) to raise or lower it.</p>
+  </>;
+}
 
 /**
  * The selected tunnel elements (FR-04.2): each one's floor where it starts and ends, its length and its slope; a single one's floor

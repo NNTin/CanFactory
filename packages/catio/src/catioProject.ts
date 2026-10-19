@@ -14,9 +14,10 @@ import { WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, type WindowInsertConfig 
  *
  * The site's frame: X along the rear garden boundary from its left corner (seen from the garden), Y from the rear boundary (the
  * house wall, Y = 0) into the garden, Z up from the lawn. Every instance stands in its parent's frame (the site's when it has
- * none) at `transform`: moved by x, y, z, then turned by `yaw` degrees anticlockwise about Z, seen from above. A window's frame is the
- * tunnel's (catioTunnel.ts): X along the wall, +Y out into the garden. An enclosure's is its layout's (catioEnclosure.ts): X across its
- * width from its middle, Y from its rear face to its front, where the maintenance door is.
+ * none) at `transform`: moved by x, y, z, then turned by `yaw` degrees anticlockwise about Z, seen from above. A window's frame is
+ * X along the wall, +Y out into the garden. An enclosure's is its layout's (catioEnclosure.ts): X across its width from its middle, Y
+ * from its rear face to its front, where the maintenance door is. A tunnel stands on the site in the frame of the port it starts at
+ * (catioTunnel.ts's, on the lawn: `tunnelFrame`), +Y the way it runs out of that port.
  *
  * The document holds only what the owner chose: instances, the ports between them and their mates, attachments to structural
  * members, and project-level settings. Everything derived (layouts, checks, the parts list) is evaluated from it
@@ -26,9 +27,11 @@ import { WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, type WindowInsertConfig 
  * string and its `params` an open record, checked per kind, so the document's shape and version stay the same.
  *
  * Version 2 (#126) describes each tunnel's route as a chain of elements (`TunnelParams.route`) and lets a cat port be raised or
- * lowered (`Port.raise`); `parseProject` (catioProjectMigrate.ts) reads version 1 documents too, and migrates them.
+ * lowered (`Port.raise`). Version 3 (#127) runs a tunnel between any two ports, a window's or an enclosure's: it is no longer in a
+ * window but on the site, each of its ends coupled or free. `parseProject` (catioProjectMigrate.ts) reads versions 1 and 2 too, and
+ * migrates them.
  */
-export const PROJECT_SCHEMA_VERSION = 2;
+export const PROJECT_SCHEMA_VERSION = 3;
 
 /** The instance kinds this version builds; a document with another is reported, not dropped. */
 export const INSTANCE_KINDS = ['window', 'enclosure', 'tunnel', 'platform'] as const;
@@ -58,11 +61,11 @@ export type PlatformParams = Static<typeof PlatformParamsSchema>;
 
 /**
  * The tunnel's own choices: those of the tunnel page (`TunnelConfig`) that are not its route's ends. Where it starts and ends follows
- * from the window and the port it couples to, and its mesh and support fixing are project settings. `mode` is how its runs are
+ * from the ports its ends couple to, and its mesh and support fixing are project settings. `mode` is how its runs are
  * made: whole standard modules (the only mode yet; custom cuts come later, as another mode). `route` is its chain of elements from
  * its start port (catioTunnel.ts `RouteElement`): each a whole number of modules, a straight run or a side-port turn, with its own id
  * (selectable, unique in the project) and its floor's height where it starts, in the tunnel's frame. The chain runs into its end
- * port's floor; neighbours at different heights slope between them.
+ * port's floor (a free end's own, where it was left); neighbours at different heights slope between them.
  */
 export const TUNNEL_ROUTE_KEYS = ['portX', 'portY', 'portFacing', 'portLevel', 'portHeight', 'angleJoint', 'mesh', 'supportFixing', 'supportBase'] as const;
 export type TunnelOwnSettings = Omit<TunnelConfig, typeof TUNNEL_ROUTE_KEYS[number]>;
@@ -108,7 +111,8 @@ export const AnyInstanceSchema = Type.Object({
 /**
  * A port: an opening of `owner` where another instance couples on. `name` is the owner's port (a window's `port`, a tunnel's `start`
  * and `end`, an enclosure's `rear`, `left` and `right`); `frame` is its face in the owner's frame, its yaw the way the opening faces
- * out (0: +Y). `open` is a free end, not yet finished; `closed` is shut by its closure; `connected` is coupled to its one mate.
+ * out (0: +Y). `open` is a free tunnel end, not yet finished; `closed` is a window's or an enclosure's port shut by its closure;
+ * `connected` is coupled to its one mate.
  * `raise` is how far a window's or an enclosure's cat port stands above (or, negative, below) where its owner puts it by default: a
  * window insert's port on the threshold, an enclosure's at `MODULAR.sill`. It is moved with the tunnel element coupled to it (#126).
  */
@@ -133,16 +137,17 @@ export type Attachment = Static<typeof AttachmentSchema>;
 /** How the project is looked at: never part of the physical design, the checks or the parts list. */
 export const ViewSchema = Type.Object({ selection: Type.Array(Id), hidden: Type.Array(Id), camera: Type.Union([Type.String(), Type.Null()]) }, { additionalProperties: false });
 export type ProjectView = Static<typeof ViewSchema>;
-/** What a view can name: the instances, and their tunnels' route elements. */
-const viewable = (project: { instances: readonly { id: string; kind: string; params: unknown }[] }) => new Set(project.instances.flatMap(i => [
-  i.id, ...(i.kind === 'tunnel' ? routeOf(i.params).map(e => e.id) : []),
-]));
+/** What a view can name: the instances, their tunnels' route elements, and the ports (a selected port is where a tunnel starts). */
+type Viewable = { instances: readonly { id: string; kind: string; params: unknown }[]; ports?: readonly { id: string }[] };
+const viewable = (project: Viewable) => new Set([
+  ...project.instances.flatMap(i => [i.id, ...(i.kind === 'tunnel' ? routeOf(i.params).map(e => e.id) : [])]), ...(project.ports ?? []).map(p => p.id),
+]);
 const routeOf = (params: unknown): { id: string }[] => {
   const route = (params as { route?: unknown } | null)?.route;
   return Array.isArray(route) ? route.filter((e): e is { id: string } => typeof (e as { id?: unknown } | null)?.id === 'string') : [];
 };
-/** `view` with only the instances (and route elements) `project` has: what a view kept across a change to the instances still names. */
-export function keepView(view: ProjectView, project: { instances: readonly { id: string; kind: string; params: unknown }[] }): ProjectView {
+/** `view` with only the instances, route elements and ports `project` has: what a view kept across a change to the instances still names. */
+export function keepView(view: ProjectView, project: Viewable): ProjectView {
   const ids = viewable(project);
   return { ...view, selection: view.selection.filter(id => ids.has(id)), hidden: view.hidden.filter(id => ids.has(id)) };
 }
@@ -205,7 +210,7 @@ function checkControlled(path: string, raw: Record<string, unknown>, defaults: o
 
 const PARAMS_SCHEMA = { window: WindowParamsSchema, enclosure: EnclosureParamsSchema, tunnel: TunnelParamsSchema, platform: PlatformParamsSchema } as const;
 /** The parent each kind stands in: the site, or an instance of one of these kinds. */
-export const PARENT_KINDS: Record<InstanceKind, (InstanceKind | null)[]> = { window: [null], enclosure: [null], tunnel: ['window'], platform: ['enclosure'] };
+export const PARENT_KINDS: Record<InstanceKind, (InstanceKind | null)[]> = { window: [null], enclosure: [null], tunnel: [null], platform: ['enclosure'] };
 
 function schemaErrors(path: string, schema: TSchema, value: unknown): string[] {
   // a union reports every branch it tried, and an extra property its false schema too; their summaries are enough
@@ -225,7 +230,7 @@ export function projectErrors(raw: unknown): string[] {
   if (version === undefined) return ['The file has no schemaVersion: it is not a catio planner project.'];
   if (typeof version !== 'number' || !Number.isInteger(version)) return [`schemaVersion ${JSON.stringify(version)} is not a version number.`];
   if (version > PROJECT_SCHEMA_VERSION) return [`The project was saved by a newer planner (schema version ${version}); this one reads version ${PROJECT_SCHEMA_VERSION}.`];
-  if (version !== PROJECT_SCHEMA_VERSION) return [`Schema version ${version} is not supported here; this planner reads version ${PROJECT_SCHEMA_VERSION}${version === 1 ? ' (opening a file migrates version 1)' : ''}.`];
+  if (version !== PROJECT_SCHEMA_VERSION) return [`Schema version ${version} is not supported here; this planner reads version ${PROJECT_SCHEMA_VERSION}${version >= 1 ? ` (opening a file migrates version ${version})` : ''}.`];
   if (!Value.Check(ProjectSchema, raw)) return schemaErrors('project', ProjectSchema, raw);
   const p = raw;
   const errors: string[] = [];

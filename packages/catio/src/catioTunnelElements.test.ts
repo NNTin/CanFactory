@@ -14,6 +14,13 @@ const enclosureOf = (project: Project) => {
 };
 const routeOf = (project: Project) => { const t = project.instances.find(i => i.kind === 'tunnel'); if (t?.kind !== 'tunnel') throw new Error('no tunnel'); return t.params.route; };
 const port = (project: Project, id: string) => project.ports.find(p => p.id === id);
+/** A project as version 1 saved it: its tunnel in its window, its route solved from its ends (no elements). */
+function asVersion1(project: Project) {
+  const v1 = JSON.parse(serializeProject(project)) as Omit<Project, 'schemaVersion'> & { schemaVersion: number };
+  v1.schemaVersion = 1;
+  for (const i of v1.instances) if (i.kind === 'tunnel') { delete (i.params as Partial<typeof i.params>).route; i.parent = 'window-1'; i.transform = { x: 0, y: 0, z: 0, yaw: 0 }; }
+  return v1;
+}
 /** The new project with its enclosure moved out by `modules` more standard modules: a longer tunnel. */
 function longer(modules: number): Project {
   const p = createProject({ id: 'p1' });
@@ -45,14 +52,13 @@ describe('the route model', () => {
 
   it('migrates a version 1 document: its tunnel laid out as version 1 did, now as elements', () => {
     const p = longer(1);
-    const v1 = JSON.parse(serializeProject(p)) as { schemaVersion: number; instances: { kind: string; params: Record<string, unknown> }[] };
-    v1.schemaVersion = 1;
-    for (const i of v1.instances) if (i.kind === 'tunnel') delete i.params['route'];
+    const v1 = asVersion1(p);
     expect(projectErrors(v1)[0]).toMatch(/not supported here/);
     const migrated = parseProject(JSON.stringify(v1));
     expect(migrated.ok).toBe(true);
     if (!migrated.ok) return;
-    expect(migrated.project.schemaVersion).toBe(2);
+    expect(migrated.project.schemaVersion).toBe(3);
+    expect(migrated.project.instances).toEqual(p.instances);
     expect(routeOf(migrated.project)).toEqual(routeOf(p));
     expect(evaluateProject(migrated.project).bom).toEqual(evaluateProject(p).bom);
   });
@@ -60,9 +66,8 @@ describe('the route model', () => {
   it('keeps a version 1 climb: the migrated elements lay out the same tunnel', () => {
     const p = longer(4);
     // version 1 solved a climb to an enclosure standing higher
-    const v1 = JSON.parse(serializeProject(p)) as Omit<Project, 'schemaVersion'> & { schemaVersion: number };
-    v1.schemaVersion = 1;
-    for (const i of v1.instances) { if (i.id === 'enclosure-1') i.transform.z += 120; if (i.kind === 'tunnel') delete (i.params as Partial<typeof i.params>).route; }
+    const v1 = asVersion1(p);
+    for (const i of v1.instances) if (i.id === 'enclosure-1') i.transform.z += 120;
     for (const q of v1.ports) if (q.owner === 'enclosure-1') q.frame.z = MODULAR.sill;
     const migrated = parseProject(JSON.stringify(v1));
     if (!migrated.ok) throw new Error(migrated.errors.join(' '));
