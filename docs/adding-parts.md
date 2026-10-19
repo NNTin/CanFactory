@@ -90,6 +90,21 @@ whole catalogue:
 nominal diameter: a hole it is turned into must be cut to clear it (as a tap-drill hole does not), or the check counts its
 thread.
 
+### Pin headers
+
+The `pin-header` family (`pin-headers.ts`) starts with Würth Elektronik's WR-PHD
+61300811121: one straight row of eight 0.64 mm square contacts at 2.54 mm pitch.
+The manufacturer's drawing supplies the footprint, body size, 3 mm solder tails,
+6 mm mating posts, overall length and stated tolerances. One instance is one
+strip; the SuperMini case uses two.
+
+The procedural preview uses nominal dimensions: row along Y, centred XY,
+solder-tail tips at z=0, plastic from z=3 to 5.54, mating tips at z=11.54.
+It omits moulding notches and tip chamfers. Rotate about X by 180° to point the
+mating pins down. Keep the plastic outside the SuperMini case's narrow floor
+slots; solder tails alone go through the slots and board. Check actual tail
+reach and solder access before fitting generic replacement strips.
+
 ### Development boards
 
 The **`dev-board`** family (`dev-boards.ts`) holds small microcontroller boards that a print holds (a smart lamp's controller):

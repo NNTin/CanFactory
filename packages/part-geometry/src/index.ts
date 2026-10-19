@@ -439,9 +439,24 @@ function mesh(part: Part): Piece[] {
   return pieces;
 }
 
+/** Row along Y; short solder tails down, mating posts up, grounded at the short tips. */
+function pinHeader(part: Part): Piece[] {
+  const pitch = value(part, 'e'), width = value(part, 'W'), length = value(part, 'L');
+  const body = value(part, 'h'), tail = value(part, 'tail'), post = value(part, 'post'), pin = value(part, 'd');
+  const count = Number(part.attributes['positions']);
+  const block = (w: number, l: number, h: number, y: number, z: number, color: number) => {
+    const geometry = new THREE.BoxGeometry(w, l, h); geometry.translate(0, y, z + h / 2); return paint(geometry, color);
+  };
+  // Split contacts at the plastic surfaces, avoiding overlapping closed shells in ray-based checks.
+  return [block(width, length, body, 0, tail, DARK), ...Array.from({ length: count }, (_, i) => {
+    const y = (i - (count - 1) / 2) * pitch;
+    return [block(pin, pin, tail, y, 0, BRASS), block(pin, pin, post, y, tail + body, BRASS)];
+  }).flat()];
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
-  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, heatsink, mesh,
+  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, 'pin-header': pinHeader, heatsink, mesh,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */

@@ -23,6 +23,7 @@ const fastenersEu = (standard: string, path: string): PartSource => ({
 
 /** Every source of the parts library, by id. Parts and dimensions refer to these ids; a test checks that each one exists. */
 export const PART_SOURCES: readonly PartSource[] = [
+  { id: 'wurth-61300811121', title: 'WR-PHD 61300811121, 8-pin single-row header drawing, revision 003.000', publisher: 'Würth Elektronik', url: 'https://www.we-online.com/components/products/datasheet/61300811121.pdf', kind: 'manufacturer', accessed: '2026-10-19' },
   { id: 'seeed-xiao-heatsink', title: 'Aluminum Heat Sink for Seeed Studio XIAO (2pcs), SKU 114010001', publisher: 'Seeed Studio', kind: 'manufacturer', accessed: '2026-10-10',
     url: 'https://files.seeedstudio.com/Bazaar/product_pdf/114010001.pdf' },
   { id: 'seeed-xiao-heatsink-installation', title: 'XIAO ESP32-S3: installing the upgraded heat sink', publisher: 'Seeed Studio', kind: 'manufacturer', accessed: '2026-10-10',
