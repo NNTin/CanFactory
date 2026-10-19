@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, ObjectStorage, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair, type RenderJob } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { startStorageServices } from './storage-services.ts';
@@ -1128,9 +1128,9 @@ try {
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
     console.log(`PASS magnetic cat toy ${name}: 5 connected prints, ${l.mountBase} mm tray / M3×${l.screwLength} screws, ${l.columns} × ${l.rows} flush sockets with push-out holes, no raised ribs, hollow grip shells, rear-loaded magnet pairs, thin touching bearing floors, staggered push-out bores and adjustable grip holes, ball-retaining slots`);
   }
-  for (const ledHoles of !only || only === 'esp32-c3-supermini-case' ? [true, false] : []) {
+  for (const ledHoles of !only || only === 'esp32-c3-supermini-case' ? [true, false] : []) for (const flushHeaders of [true, false]) {
     const model = esp32C3SuperminiCase;
-    const queued = await store.enqueue(model, { ledHoles });
+    const queued = await store.enqueue(model, { ledHoles, flushHeaders });
     const job = await store.claim(); assert.ok(job?.leaseToken);
     assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true);
     const result = await store.getJob(queued.id);
@@ -1146,6 +1146,23 @@ try {
       assert.equal(shells(parseStl(stl)), 1);
       assert.ok(stl.subarray(0, 80).toString().includes('Vinors3DLab'));
       assert.ok(stl.subarray(0, 80).toString().includes('CC BY-NC-SA 4.0'));
+    }
+    const base = parseStl(Buffer.from(entries['bottom.stl'] ?? []));
+    const originalBase = parseStl(await readFile(join(repositoryRoot, 'models/esp32-c3-supermini-case/bottom.stl')));
+    for (const opening of ESP32_CASE_HEADER_OPENINGS) for (const z of [0.2, 0.75, 1.4]) {
+      // The widest allowed insulator must clear both slot sides and ends.
+      const halfWidth = (ESP32_CASE_HEADER_DEFINES.HEADER_WIDTH - 0.4) / 2;
+      const halfLength = (ESP32_CASE_HEADER_DEFINES.HEADER_LENGTH - 0.4) / 2;
+      for (const dx of [-halfLength, 0, halfLength]) for (const dy of [-halfWidth, 0, halfWidth]) {
+        const p: [number, number, number] = [opening.x + dx, opening.y + dy, z];
+        assert.equal(housingSolid(base, p), flushHeaders ? false : housingSolid(originalBase, p), 'Maximum insulator envelope clears the floor only in flush mode');
+      }
+      // These side bands are solid in the source: prove the toggle removes material.
+      const band: [number, number, number] = [opening.x, opening.y + 1.4, z];
+      assert.equal(housingSolid(originalBase, band), true, 'Source narrow slot retains side band');
+      assert.equal(housingSolid(base, band), !flushHeaders, 'Flush setting widens slot through the entire floor');
+      const wall: [number, number, number] = [opening.x, Math.sign(opening.y) * 10, z];
+      assert.equal(housingSolid(base, wall), true, 'Outer side wall retained');
     }
     const lid = parseStl(Buffer.from(entries['top.stl'] ?? []));
     const originalLid = parseStl(await readFile(join(repositoryRoot, 'models/esp32-c3-supermini-case/top.stl')));
@@ -1166,7 +1183,7 @@ try {
     const download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log(`PASS ESP32-C3 SuperMini case LED openings ${ledHoles}: two closed attributed prints, aperture probes and matching preview/download bytes`);
+    console.log(`PASS ESP32-C3 SuperMini case LED openings ${ledHoles}, flush headers ${flushHeaders}: two closed attributed prints, maximum-insulator clearance and aperture probes and matching preview/download bytes`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

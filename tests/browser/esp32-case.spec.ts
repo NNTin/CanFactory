@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { unzipSync } from 'fflate';
 import { esp32C3SuperminiCase as model, ESP32_CASE_HEADER } from '@canfactory/contracts';
 
-test('previews LED openings, board and headers, plays assembly and downloads both lid variants', async ({ page }, testInfo) => {
+test('previews LED openings, board and headers, plays assembly and downloads all four opening combinations', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/#/models');
@@ -15,6 +15,8 @@ test('previews LED openings, board and headers, plays assembly and downloads bot
   await expect(download).toBeEnabled();
   const toggle = page.getByRole('switch', { name: 'LED openings', exact: true });
   await expect(toggle).toBeChecked();
+  const flushToggle = page.getByRole('switch', { name: 'Flush pin headers', exact: true });
+  await expect(flushToggle).toBeChecked();
   await expect(page.getByRole('link', { name: 'MakerOnline', exact: true })).toHaveAttribute('href', /makeronline.com/);
   await expect(page.getByRole('link', { name: model.license, exact: true })).toHaveAttribute('href', model.licenseUrl);
   await expect(page.getByTitle('Hide ESP32-C3 SuperMini', { exact: true })).toBeVisible();
@@ -32,9 +34,10 @@ test('previews LED openings, board and headers, plays assembly and downloads bot
   await expect(page.getByTitle('Show Sliding button lid')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('esp32-case-electronics.png'), fullPage: true });
   await page.getByTitle('Show Sliding button lid').click();
-  const lids: Uint8Array[] = [];
-  for (const enabled of [true, false]) {
-    if (!enabled) await toggle.uncheck();
+  const variants: { ledHoles: boolean; flushHeaders: boolean; base: Uint8Array; lid: Uint8Array }[] = [];
+  for (const enabled of [true, false]) for (const flushHeaders of [true, false]) {
+    await toggle.setChecked(enabled);
+    await flushToggle.setChecked(flushHeaders);
     await expect(download).toBeEnabled();
     const pending = page.waitForEvent('download');
     await download.click();
@@ -48,10 +51,15 @@ test('previews LED openings, board and headers, plays assembly and downloads bot
       expect(header).toContain('CC BY-NC-SA 4.0');
     }
     const lid = entries['top.stl']; if (!lid) throw new Error('Missing lid');
-    lids.push(lid);
+    const base = entries['bottom.stl']; if (!base) throw new Error('Missing base');
+    variants.push({ ledHoles: enabled, flushHeaders, base, lid });
+    if (!flushHeaders) await expect(page.getByText('Original narrow slots: pin-header insulators stay outside the case floor.')).toBeVisible();
     if (!enabled) await expect(page.getByText('Closed lid: LED openings disabled.')).toBeVisible();
   }
-  expect(lids[0]).not.toEqual(lids[1]);
+  for (const a of variants) for (const b of variants) {
+    expect(Buffer.from(a.base).equals(Buffer.from(b.base))).toBe(a.flushHeaders === b.flushHeaders);
+    expect(Buffer.from(a.lid).equals(Buffer.from(b.lid))).toBe(a.ledHoles === b.ledHoles);
+  }
   expect(errors).toEqual([]);
 });
 

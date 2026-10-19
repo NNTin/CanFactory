@@ -19,7 +19,7 @@ renderTests('ESP32-C3 STEP conversion against the supplied 3MFs', () => {
       const reference = join(directory, 'source.stl');
       await exec('python3', ['tools/step-to-scad/reference_3mf.py', `models/${model.id}/references/${part.id}.3mf`, reference, ...(part.id === 'top' ? ['--flip-x'] : [])]);
       const original = await readFile(reference);
-      const rendered = await renderScad(resolve(part.sourcePath), part.id === 'top' ? { LED_HOLES: 'false' } : {});
+      const rendered = await renderScad(resolve(part.sourcePath), part.id === 'top' ? { LED_HOLES: 'false' } : { FLUSH_HEADERS: 'false' });
       const result = verifyMeshes(parseStl(original), original, rendered.stl, rendered, { name: part.id, scad: part.sourcePath, stl: reference, scadBytes: (await readFile(part.sourcePath)).length });
       expect(result.failures).toEqual([]);
       expect(result.comparison.iou).toBeGreaterThan(0.995);
