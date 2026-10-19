@@ -75,7 +75,11 @@ limit. Rendered output still needs the worker's connected-body and topology chec
   a format conversion pass.
 - Add contract, renderer and browser coverage for preview, assembly playback,
   ZIP parts and attribution. Generate contracts and run `npm run check`, relevant
-  real-render and browser checks. Record reproducible conversion commands and
+  real-render and browser checks. Registration also changes the pinned invocation
+  snapshot: update `packages/server/src/__snapshots__/openscad-invocations.json`
+  with `npx vitest run -u packages/server/src/render-invocations.test.ts`, then
+  inspect that the diff adds only the new model's expected calls.
+  Record reproducible conversion commands and
   measured results alongside the model; commit and push as requested.
 
 Worked example: `models/esp32-c3-supermini-case/CONVERSION.md`.

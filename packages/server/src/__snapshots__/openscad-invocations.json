@@ -3127,5 +3127,40 @@
    "slotWidth=12": "6b0a1b333baf92d63d12f3299ddbb540f2d66888bfc75bebdb35050560e26062",
    "clearance=0.4": "3a7996202462e574ae87dc133d7da9350af968a1da79821b7b3ee9c8b90b7a5d"
   }
+ },
+ "esp32-c3-supermini-case": {
+  "defaults": [
+   {
+    "file": "openscad",
+    "args": [
+     "--backend",
+     "Manifold",
+     "--export-format",
+     "binstl",
+     "-o",
+     "<scratch>/job/bottom.stl",
+     "<root>/models/esp32-c3-supermini-case/bottom.scad"
+    ],
+    "timeout": 120000,
+    "killSignal": "SIGKILL",
+    "fontPath": "<root>/models/fonts"
+   },
+   {
+    "file": "openscad",
+    "args": [
+     "--backend",
+     "Manifold",
+     "--export-format",
+     "binstl",
+     "-o",
+     "<scratch>/job/top.stl",
+     "<root>/models/esp32-c3-supermini-case/top.scad"
+    ],
+    "timeout": 120000,
+    "killSignal": "SIGKILL",
+    "fontPath": "<root>/models/fonts"
+   }
+  ],
+  "variants": {}
  }
 }
