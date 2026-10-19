@@ -84,7 +84,8 @@ test('selects and drags the enclosure: the tunnel follows in whole modules; Esc 
   await expect(issues(page)).not.toContainText('cannot reach');
   await tree(page).getByRole('button', { name: /Tunnel/ }).click();
   const inspector = page.getByRole('region', { name: 'Inspector' });
-  await expect(inspector).toContainText('Reaches its portYes');
+  await expect(inspector.locator('[data-tunnel-end="tunnel-1-end"]')).toContainText("Coupled to Enclosure's rear port");
+  await expect(inspector).not.toContainText('do not reach');
   await expect(inspector).not.toContainText(/Modules\s*2 ×/);
   await page.screenshot({ path: testInfo.outputPath('catio-planner-dragged.png') });
 
@@ -506,5 +507,92 @@ test('selects tunnel elements, one and then a second with Shift; raises them by 
   expect((await sills())[0]).toBe(rear0);
   await tree(page).getByRole('button', { name: /Module 2/ }).click();
   await expect.poll(floorOf).toBe(floor0);
+  expect(errors).toEqual([]);
+});
+
+test('connects a second enclosure: drags a tunnel from A’s side port, extends it, connects it to B; moving B, the run follows; undo to the start (#127)', async ({ page }, testInfo) => {
+  const { viewport, errors } = await open(page);
+  const inspector = page.getByRole('region', { name: 'Inspector' });
+  const readout = page.locator('.planner-readout');
+  // room for B East of A, then B in line with A's side ports, 1.5 m clear of it
+  await field(page, 'Width (m)').fill('10'); await field(page, 'Width (m)').press('Enter');
+  await expect(viewport).toHaveAttribute('data-revision', '1');
+  await page.getByRole('region', { name: 'Catalogue' }).getByRole('button', { name: /^Enclosure/ }).click();
+  await expect(viewport).toHaveAttribute('data-selection', '["enclosure-2"]');
+  await expect(inspector.getByRole('list', { name: 'Cat ports' })).toContainText('shut by its closure');
+  await field(page, 'X (m)').fill('6'); await field(page, 'X (m)').press('Enter');
+  await field(page, 'Y (m)').fill('0.78'); await field(page, 'Y (m)').press('Enter');
+  await expect(viewport).toHaveAttribute('data-revision', '4');
+  // the Tunnel entry asks for a port first
+  await page.getByRole('region', { name: 'Catalogue' }).getByRole('button', { name: /^Tunnel/ }).click();
+  await expect(page.locator('.planner-status')).toContainText('Select a free cat port first');
+
+  await page.getByRole('button', { name: 'Top', exact: true }).click();
+  let last = '';
+  await expect.poll(async () => { const now = JSON.stringify((await anchors(viewport))['port:enclosure-2-left']); const same = now === last; last = now; return same; }, { intervals: [250] }).toBe(true);
+  // drag a tunnel out of A's right port, part of the way towards B
+  const from = await at(viewport, 'port:enclosure-1-right'); const to = await at(viewport, 'port:enclosure-2-left');
+  const toward = (k: number): [number, number] => [from[0] + (to[0] - from[0]) * k, from[1] + (to[1] - from[1]) * k];
+  await drag(page, from, [toward(0.5)], false);
+  await expect(readout).toContainText("New tunnel from Enclosure's right port");
+  await expect(readout).toContainText(/\d modules · \d\.\d\d m/);
+  await page.mouse.up();
+  await expect(viewport).toHaveAttribute('data-revision', '5');
+  await expect(viewport).toHaveAttribute('data-selection', '["tunnel-2"]');
+  await expect(inspector.locator('[data-tunnel-end="tunnel-2-start"]')).toContainText("Coupled to Enclosure's right port");
+  await expect(inspector.locator('[data-tunnel-end="tunnel-2-end"]')).toContainText('Free: an unfinished end');
+  await expect(issues(page)).toContainText("Tunnel 2's far end is free: an unfinished end");
+  const grown = Number(await inspector.locator('[data-modules]').getAttribute('data-modules'));
+  expect(grown).toBeGreaterThanOrEqual(1);
+
+  // its end's arrow lengthens it in whole modules, up to B's port
+  await expect.poll(async () => (await anchors(viewport))['extend:tunnel-2-end']).toBeTruthy();
+  const arrow = await at(viewport, 'extend:tunnel-2-end');
+  await drag(page, arrow, [await at(viewport, 'port:enclosure-2-left')], false);
+  await expect(readout).toContainText('Extending Tunnel 2');
+  await expect(readout).toContainText("Near Enclosure 2's left port");
+  await page.mouse.up();
+  await expect(viewport).toHaveAttribute('data-revision', '6');
+  const extended = Number(await inspector.locator('[data-modules]').getAttribute('data-modules'));
+  expect(extended).toBeGreaterThan(grown);
+
+  // in 3D: the free end open and unfinished, its arrow and turn buttons; the free cat ports marked
+  const settle = async (id: string) => { let seen = ''; await expect.poll(async () => { const now = JSON.stringify((await anchors(viewport))[id]); const same = now === seen; seen = now; return same; }, { intervals: [250] }).toBe(true); };
+  await page.getByRole('button', { name: '3D', exact: true }).click();
+  await settle('extend:tunnel-2-end');
+  await page.screenshot({ path: testInfo.outputPath('catio-planner-free-end.png') });
+  await page.getByRole('button', { name: 'Top', exact: true }).click();
+  await settle('enclosure-2');
+
+  // it offers to connect there: B moves onto its end, and its port opens
+  await inspector.getByRole('button', { name: "Connect to Enclosure 2's left port" }).click();
+  await expect(viewport).toHaveAttribute('data-revision', '7');
+  await expect(page.locator('.planner-status')).toContainText(/Enclosure 2 moved \d+ mm onto Tunnel 2's end/);
+  await expect(inspector.locator('[data-tunnel-end="tunnel-2-end"]')).toContainText("Coupled to Enclosure 2's left port");
+  await expect(issues(page)).toContainText('0 ERRORS');
+  await page.screenshot({ path: testInfo.outputPath('catio-planner-connected.png') });
+
+  // moving B, the run that ends at it follows in whole modules
+  await tree(page).getByRole('button', { name: /^Enclosure 2/ }).click();
+  const b = await at(viewport, 'enclosure-2'); const a = await at(viewport, 'enclosure-1');
+  const [dx, dy] = [b[0] - a[0], b[1] - a[1]]; const length = Math.hypot(dx, dy);
+  await drag(page, b, [[b[0] + dx / length * 40, b[1] + dy / length * 40]], false);
+  await expect(readout).toContainText('Moving Enclosure 2');
+  await expect(readout).toContainText(/Tunnel: \d+ modules/);
+  await page.mouse.up();
+  await expect(viewport).toHaveAttribute('data-revision', '8');
+  await tree(page).getByRole('button', { name: /^Tunnel 2/ }).click();
+  await expect.poll(async () => Number(await inspector.locator('[data-modules]').getAttribute('data-modules'))).toBeGreaterThan(extended);
+  await expect(inspector.locator('[data-tunnel-end="tunnel-2-end"]')).not.toContainText('do not reach');
+  await expect(issues(page)).toContainText('0 ERRORS');
+  await page.screenshot({ path: testInfo.outputPath('catio-planner-moved-b.png') });
+
+  // undo, step by step, back to the start
+  for (let revision = 7; revision >= 0; revision--) {
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect(viewport).toHaveAttribute('data-revision', String(revision));
+  }
+  await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled();
+  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Module 1/, /Module 2/, /Enclosure/]);
   expect(errors).toEqual([]);
 });

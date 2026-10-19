@@ -472,7 +472,7 @@ export function connectTargets(project: Project, end: string, evaluation: Pick<P
 /**
  * Couples the free tunnel end `end` to the port `to`, when they fit (`connectProblems`): both are then connected, and the port opens
  * and takes its coupling (FR-04.9). A far end coupled to an enclosure coupled to nothing else moves that enclosure onto it (with what
- * stands in it): the tunnel's modules decide where it stands. An anchored port (a window's, or an enclosure's coupled elsewhere) stays
+ * stands in it), its port level with the end where it can stand so high: the tunnel's modules decide where it stands. An anchored port (a window's, or an enclosure's coupled elsewhere) stays
  * put: the tunnel is solved again to reach it, and is kept as an invalid draft when its whole modules cannot (FR-04.10). A start
  * coupled anew puts the tunnel in that port's frame.
  */
@@ -493,17 +493,23 @@ export function connect(project: Project, end: string, to: string): CommandResul
   const anchored = owner.kind !== 'enclosure' || owner.parent !== null
     || project.connections.some(c => c.ports.some(q => project.ports.find(p => p.id === q)?.owner === owner.id));
   if (anchored) return withId(ok(project, rerouted(next, [owner.id])), id);
-  // the enclosure moves onto the tunnel's end, as its modules lay it out into the port's floor
-  const after = evaluateProject(next);
-  const e = after.instances.find((i): i is EvaluatedTunnel => i.kind === 'tunnel' && i.id === tunnel.id);
-  const face = after.ports.find(p => p.id === to)?.world;
-  if (!e?.layout || !face) return withId(ok(project, next), id);
-  const reached = applyTransform(e.world, { x: e.layout.E[0], y: e.layout.E[1], z: e.layout.E[2] });
-  const shift = { x: reached.x - face.x, y: reached.y - face.y };
+  // the enclosure moves onto the tunnel's end: level with it, unless that would sink it into the lawn; then the end slopes down into
+  // its port, and it stands where the modules so laid out end
+  const free = evaluation.ports.find(p => p.id === end)?.world; const face = evaluation.ports.find(p => p.id === to)?.world;
+  if (!free || !face) return withId(ok(project, next), id);
+  let shift = { x: free.x - face.x, y: free.y - face.y, z: free.z - face.z };
+  if (owner.transform.z + shift.z < -0.5) {
+    const after = evaluateProject(next);
+    const e = after.instances.find((i): i is EvaluatedTunnel => i.kind === 'tunnel' && i.id === tunnel.id);
+    const reached = e?.layout && applyTransform(e.world, { x: e.layout.E[0], y: e.layout.E[1], z: e.layout.E[2] });
+    shift = reached ? { x: reached.x - face.x, y: reached.y - face.y, z: 0 } : { x: 0, y: 0, z: 0 };
+  }
   const notes: string[] = [];
-  if (Math.hypot(shift.x, shift.y) >= 0.5) {
-    next = replace(next, { ...owner, transform: { ...owner.transform, x: r3(owner.transform.x + shift.x), y: r3(owner.transform.y + shift.y) } });
-    notes.push(`${titleOf(project, owner.id)} moved ${Math.round(Math.hypot(shift.x, shift.y))} mm onto ${titleOf(project, tunnel.id)}'s end: its whole modules decide where it stands.`);
+  if (Math.hypot(shift.x, shift.y, shift.z) >= 0.5) {
+    const t = owner.transform;
+    next = replace(next, { ...owner, transform: { ...t, x: r3(t.x + shift.x), y: r3(t.y + shift.y), z: r3(t.z + shift.z) } });
+    const rise = Math.abs(shift.z) >= 0.5 ? `, ${Math.round(Math.abs(shift.z))} mm ${shift.z > 0 ? 'up' : 'down'} to its floor` : '';
+    notes.push(`${titleOf(project, owner.id)} moved ${Math.round(Math.hypot(shift.x, shift.y))} mm onto ${titleOf(project, tunnel.id)}'s end${rise}: its whole modules decide where it stands.`);
   }
   return withId(noted(ok(project, next), notes), id);
 }

@@ -131,7 +131,10 @@ describe('connecting and detaching', () => {
     expect(result.notes?.[0]).toMatch(/Enclosure 2 moved \d+ mm onto Tunnel 2's end/);
     const end = evaluateProject(result.project).ports.find(q => q.id === 'tunnel-2-end')?.world;
     const port = evaluateProject(result.project).ports.find(q => q.id === `${b}-left`)?.world;
-    expect(Math.hypot((end?.x ?? 0) - (port?.x ?? 1e9), (end?.y ?? 0) - (port?.y ?? 1e9))).toBeLessThan(1);
+    expect(Math.hypot((end?.x ?? 0) - (port?.x ?? 1e9), (end?.y ?? 0) - (port?.y ?? 1e9), (end?.z ?? 0) - (port?.z ?? 1e9))).toBeLessThan(1);
+    // raised to the end's floor (the new project's enclosure stands at the window port's): the run stays level
+    expect(result.notes?.[0]).toMatch(/\d+ mm up to its floor/);
+    expect(tunnel(result.project, 'tunnel-2').elements.map(e => e.slope)).toEqual([0, 0, 0, 0]);
     expect(undo(applyEdit(createHistory(grown), result.project)).present).toEqual(grown);
   });
 

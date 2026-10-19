@@ -100,9 +100,10 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     return group;
   };
   const controlMaterial = new THREE.MeshBasicMaterial({ color: PORT, depthTest: false, transparent: true, opacity: 0.8 });
+  const endMaterial = new THREE.MeshBasicMaterial({ color: HANDLE, depthTest: false, transparent: true, opacity: 0.85 });
   const unfinishedMaterial = new THREE.MeshBasicMaterial({ color: FLAGGED, transparent: true, opacity: 0.45, side: THREE.DoubleSide });
   const controlGeometries: THREE.BufferGeometry[] = [];
-  disposers.push(() => { controlMaterial.dispose(); unfinishedMaterial.dispose(); for (const g of controlGeometries) g.dispose(); });
+  disposers.push(() => { controlMaterial.dispose(); endMaterial.dispose(); unfinishedMaterial.dispose(); for (const g of controlGeometries) g.dispose(); });
   /** A control mesh: drawn over everything, picked as `data` says. */
   const control = (geometry: THREE.BufferGeometry, data: Record<string, string>, material: THREE.Material = controlMaterial) => {
     controlGeometries.push(geometry);
@@ -112,8 +113,8 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
   /** The free cat ports of `owner` (none coupled to them): a square marker on each face, a little out of it. */
   function portMarkers(owner: string, into: THREE.Group, controls: Map<string, THREE.Vector3>) {
     for (const port of evaluation.ports.filter(q => q.owner === owner && q.state !== 'connected')) {
-      const marker = control(new THREE.BoxGeometry(port.size * 0.7, 24, port.size * 0.7), { control: 'port', portId: port.id });
-      const out = 60; const yaw = port.local.yaw * RAD;
+      const marker = control(new THREE.BoxGeometry(port.size * 0.6, 140, port.size * 0.6), { control: 'port', portId: port.id });
+      const out = 110; const yaw = port.local.yaw * RAD;
       marker.position.set(port.local.x - Math.sin(yaw) * out, port.local.y + Math.cos(yaw) * out, port.local.z + port.size / 2);
       marker.rotation.set(0, 0, yaw);
       into.add(marker); controls.set(`port:${port.id}`, marker.position.clone());
@@ -216,13 +217,13 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
         const opening = control(new THREE.PlaneGeometry(layout.w + 2 * TUNNEL.flange.width, layout.h + 2 * TUNNEL.flange.width), { unfinished: end.id }, unfinishedMaterial);
         opening.position.copy(centre); opening.lookAt(centre.clone().add(out)); opening.renderOrder = 0; group.add(opening);
         if (!end.grows) continue;
-        const arrow = new THREE.Group(); arrow.position.copy(centre.clone().addScaledVector(out, 260)); arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), out);
-        const shaft = control(new THREE.CylinderGeometry(16, 16, 220, 12), { control: 'extend', portId: end.id }); shaft.position.y = -40;
-        const head = control(new THREE.ConeGeometry(55, 130, 16), { control: 'extend', portId: end.id }); head.position.y = 130;
+        const arrow = new THREE.Group(); arrow.position.copy(centre.clone().addScaledVector(out, 380)); arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), out);
+        const shaft = control(new THREE.CylinderGeometry(24, 24, 400, 12), { control: 'extend', portId: end.id }, endMaterial); shaft.position.y = -80;
+        const head = control(new THREE.ConeGeometry(85, 180, 16), { control: 'extend', portId: end.id }, endMaterial); head.position.y = 200;
         arrow.add(shaft, head); group.add(arrow); controls.set(`extend:${end.id}`, arrow.position.clone());
         for (const [side, sign] of [['left', -1], ['right', 1]] as const) {
-          const button = control(new THREE.CylinderGeometry(70, 70, 30, 24), { control: 'turn', portId: end.id, side });
-          button.position.copy(centre.clone().addScaledVector(across, sign * (layout.w / 2 + TUNNEL.flange.width + 160)).addScaledVector(out, 120));
+          const button = control(new THREE.CylinderGeometry(95, 95, 40, 24), { control: 'turn', portId: end.id, side }, endMaterial);
+          button.position.copy(centre.clone().addScaledVector(across, sign * (layout.w / 2 + TUNNEL.flange.width + 200)).addScaledVector(out, 160));
           button.rotation.x = Math.PI / 2; group.add(button); controls.set(`turn-${side}:${end.id}`, button.position.clone());
         }
       }

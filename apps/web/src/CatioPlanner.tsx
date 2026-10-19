@@ -147,7 +147,7 @@ function PlannerPage() {
           <div className="planner-catalogue">
             <button type="button" onClick={addAnEnclosure}><Plus size={14} aria-hidden="true" /> Enclosure<small>{ENCLOSURE_DEFAULT.width / 10} × {ENCLOSURE_DEFAULT.depth / 10} × {ENCLOSURE_DEFAULT.height / 10} cm</small></button>
             <button type="button" onClick={addAPlatform}><Plus size={14} aria-hidden="true" /> Platform<small>in {enclosureFor(selected) ? nameOf(project, enclosureFor(selected) ?? '') : 'an enclosure'}</small></button>
-            <button type="button" onClick={addATunnel} aria-disabled={!freePort}><Plus size={14} aria-hidden="true" /> Tunnel<small>{freePort ? `from ${portTitle(project, freePort.id)}` : 'select a free cat port, then Add'}</small></button>
+            <button type="button" onClick={addATunnel}><Plus size={14} aria-hidden="true" /> Tunnel<small>{freePort ? `from ${portTitle(project, freePort.id)}` : 'select a free cat port, then Add'}</small></button>
           </div>
         </section>
         <section aria-label="Objects"><h2 className="eyebrow">OBJECTS</h2>
