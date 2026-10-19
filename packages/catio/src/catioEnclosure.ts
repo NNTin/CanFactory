@@ -60,7 +60,7 @@ export function enclosureSillRange(size: EnclosureSize, tunnelSize: number, clos
  * Four mesh panels round a port's opening in a wall (`plane` xz, at `y`): either side of it and below and above it. There is no
  * full panel behind the port. The wall runs from `bottom` to `top`; the opening, `size` square, stands on the sill.
  */
-export function meshAroundPort(id: string, width: number, bottom: number, top: number, y: number, size: number, explode: V3 = [0, 0, 140], sill: number = d.sill): EnclosureMesh[] {
+function meshAroundPort(id: string, width: number, bottom: number, top: number, y: number, size: number, explode: V3 = [0, 0, 140], sill: number = d.sill): EnclosureMesh[] {
   const panel = (suffix: string, w: number, h: number, center: V3): EnclosureMesh => ({ id: `${id}-${suffix}`, width: w, height: h, center, plane: 'xz', explode });
   return [
     ...[-1, 1].map(side => panel(`side-${side}`, (width - size) / 2, top - bottom, [side * (width + size) / 4, y, (top + bottom) / 2])),

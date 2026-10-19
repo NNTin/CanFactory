@@ -69,7 +69,7 @@ export function buildInsertContext(p: ReturnType<typeof createCatioParts>, layou
  * A hung insert's hardware, installed: its screen hooks behind the window frame's lip (into `hooks`) and its feet under the sill rail
  * standing on the recess floor (into `feet`), drawn simply. Nothing for an insert pressed into the recess.
  */
-export function buildHungHardware(p: ReturnType<typeof createCatioParts>, layout: WindowInsertLayout, hooks: THREE.Group, feet: THREE.Group) {
+function buildHungHardware(p: ReturnType<typeof createCatioParts>, layout: WindowInsertLayout, hooks: THREE.Group, feet: THREE.Group) {
   if (!layout.hooks.length) return;
   for (const h of layout.hooks) for (const b of h.boxes) p.box(hooks, b.size, b.center, h.part ? p.materials.hardware : p.materials.printed);
   const radius = (layout.pad?.diameter ?? dimensionOf(layout.bearingFoot, 'd1')) / 2;

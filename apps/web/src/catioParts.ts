@@ -9,7 +9,7 @@ export interface CatioState {
   /** How far the page's door is on its way out (catioDoor.ts): 0 closed and retained, also when absent; 1 open, its panel set aside. */
   door?: number;
 }
-export interface MeshPanel { id: string; width: number; height: number; center: V3; plane: 'xy' | 'xz' | 'yz' }
+interface MeshPanel { id: string; width: number; height: number; center: V3; plane: 'xy' | 'xz' | 'yz' }
 interface Component { id: string; group: THREE.Group; step: number; layer?: CatioLayer; offset: V3 }
 
 /**

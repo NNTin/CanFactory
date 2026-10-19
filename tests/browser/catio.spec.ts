@@ -10,7 +10,7 @@ test('opens the catio concept’s overview: the planner and every sub-assembly l
   await expect(page).toHaveURL(/#\/concepts\/catio$/);
   await expect(page.getByRole('heading', { name: 'A little closer to the grass.' })).toBeVisible();
   const links = page.getByRole('navigation', { name: 'Catio planner and sub-assemblies' }).getByRole('link');
-  await expect(links).toHaveText([/Catio planner/, /Window insert/, /Insert–tunnel coupling/, /Tunnel pieces/, /Tunnel–tunnel coupling/]);
+  await expect(links).toHaveText([/Catio planner/, /Window insert/, /Insert–tunnel coupling/, /^Tunnelpieces/, /Tunnel–tunnel coupling/]);
   await expect(links.first()).toHaveAttribute('href', '#/concepts/catio/planner');
   // no second design here: the planner is where the catio is designed
   await expect(page.getByTestId('catio-viewer')).toHaveCount(0);
@@ -18,10 +18,12 @@ test('opens the catio concept’s overview: the planner and every sub-assembly l
   await page.screenshot({ path: testInfo.outputPath('catio-overview.png'), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  // the overview renders nothing (the planner asks for the printed latch's render)
+  expect(jobs).toEqual([]);
   await links.first().click();
   await expect(page.getByTestId('planner-viewport')).toHaveAttribute('data-ready', 'true');
   await page.goBack(); await expect(page.getByRole('heading', { name: 'A little closer to the grass.' })).toBeVisible();
-  expect(errors).toEqual([]); expect(jobs).toEqual([]);
+  expect(errors).toEqual([]);
 });
 
 test('opens the window insert, adjusts its joints and clamps, and stages its assembly with a parts list', async ({ page }, testInfo) => {

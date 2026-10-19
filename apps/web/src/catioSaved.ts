@@ -10,7 +10,7 @@ import { loadSubassemblyConfig } from './catioSubassembly.ts';
  * The sub-assemblies' settings as their pages saved them (or their defaults), for the pages and scenes that show one sub-assembly
  * fitted to the others. `@canfactory/catio` never reads saved settings: the pages resolve them here and pass them in.
  */
-export const savedWindowInsert = () => loadSubassemblyConfig('window-insert', parseWindowInsert, WINDOW_INSERT_DEFAULT);
+const savedWindowInsert = () => loadSubassemblyConfig('window-insert', parseWindowInsert, WINDOW_INSERT_DEFAULT);
 export const savedTunnel = () => loadSubassemblyConfig('tunnel', parseTunnel, TUNNEL_DEFAULT);
 export const savedTunnelCoupling = () => loadSubassemblyConfig('tunnel-tunnel-coupling', parseTunnelCoupling, TUNNEL_COUPLING_DEFAULT);
 export const savedCoupling = () => loadSubassemblyConfig('insert-tunnel-coupling', parseCoupling, COUPLING_DEFAULT);
@@ -20,7 +20,7 @@ let read: { text: string | null; ports: ModularConfig } | null = null;
  * The window's sizes and the cat ports' settings of the planner's project in this browser: its first window's params, its closure and
  * door seat. A new project's (the defaults) when none is saved or it cannot be read. Parsed once per saved text.
  */
-export function plannerCatPorts(): ModularConfig {
+function plannerCatPorts(): ModularConfig {
   let text: string | null = null;
   try { text = browserStorage().getItem(PLANNER_STORAGE_KEY); } catch { /* A browser without storage has the defaults. */ }
   if (read?.text === text) return read.ports;

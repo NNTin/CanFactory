@@ -95,7 +95,7 @@ function step(result: CommandResult): Project {
  * enclosure stands at the end of the link from A's right-hand port. The sub-assembly pages' saves give the project's insert,
  * couplings, mesh and the tunnels' feet. The garden is grown, never shrunk, to take it all.
  */
-export function legacyProject(saves: LegacySaves): LegacyImport {
+function legacyProject(saves: LegacySaves): LegacyImport {
   const pages = saves.pages;
   if (saves.catio === null && !Object.values(pages).some(page => page.ownSave)) return { kind: 'none' };
   if (saves.catio === 'unreadable') return { kind: 'failed', errors: ['The saved catio settings are not of a version this import reads, or are incomplete.'] };

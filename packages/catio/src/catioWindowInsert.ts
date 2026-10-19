@@ -51,7 +51,7 @@ export const WINDOW_INSERT_DEFAULT: WindowInsertConfig = {
 };
 
 /** The window's profile, as the insert's settings hold it. */
-export const windowProfileOf = (config: WindowProfile): WindowProfile => ({ frameFace: config.frameFace, frameLip: config.frameLip, sealGap: config.sealGap, frameDepth: config.frameDepth });
+const windowProfileOf = (config: WindowProfile): WindowProfile => ({ frameFace: config.frameFace, frameLip: config.frameLip, sealGap: config.sealGap, frameDepth: config.frameDepth });
 
 /** The settings that move the cat port's floor (the clamp gap sets it), which the tunnel and the coupling start from. */
 export const WINDOW_FLOOR_SETTINGS: (keyof WindowInsertConfig)[] = ['attachment', 'clampPad', 'padHeight', 'footDiameter'];
@@ -121,7 +121,7 @@ export function windowFor(variant: CatioMode, config: WindowInsertConfig | Windo
 }
 
 /** The direct design's window: the original fixed sizes, in the frame profile set on the window insert page (`config`). */
-export function directWindow(config: WindowProfile): WindowSpec {
+function directWindow(config: WindowProfile): WindowSpec {
   const profile = windowProfileOf(config);
   return {
     glassWidth: CATIO.glass, glassHeight: CATIO.glass, sashWidth: CATIO.sash, sashHeight: CATIO.sash,
@@ -130,7 +130,7 @@ export function directWindow(config: WindowProfile): WindowSpec {
 }
 
 /** The modular design's window: its fixed frame is the sash + 45 mm a side, its floor 45 mm below the sill. */
-export function modularWindow(c: { glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number; tunnelSize: number; portClosure?: PortClosure; doorSeat?: DoorSeat; portRaise?: number }, profile: WindowProfile = windowProfileOf(WINDOW_INSERT_DEFAULT)): WindowSpec {
+function modularWindow(c: { glassWidth: number; glassHeight: number; sashWidth: number; sashHeight: number; tunnelSize: number; portClosure?: PortClosure; doorSeat?: DoorSeat; portRaise?: number }, profile: WindowProfile = windowProfileOf(WINDOW_INSERT_DEFAULT)): WindowSpec {
   return {
     glassWidth: c.glassWidth, glassHeight: c.glassHeight, sashWidth: c.sashWidth, sashHeight: c.sashHeight,
     openingWidth: c.sashWidth + 90, openingHeight: c.sashHeight + 90, recessFloor: CATIO.sill - 45, sill: CATIO.sill, profile,
@@ -236,7 +236,7 @@ export interface Fastener {
  * Where the window port's removed panel is shown stowed, from its seat at `seatY` (as a door's `stow`: along the wall, up, into the
  * room): on the room side of the wall beside the window opening, on the side away from the sash's hinge.
  */
-export function portPanelStow(window: Pick<WindowSpec, 'openingWidth' | 'tunnel'>, seatY: number): V3 {
+function portPanelStow(window: Pick<WindowSpec, 'openingWidth' | 'tunnel'>, seatY: number): V3 {
   return [window.openingWidth / 2 + (window.tunnel?.width ?? 300) / 2 + 120, 0, seatY + CATIO.wall + 60];
 }
 
