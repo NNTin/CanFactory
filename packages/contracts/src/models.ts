@@ -3516,6 +3516,34 @@ export const cameraHousing = {
   },
 } satisfies ModelDefinition;
 
+/** Fixed technical conversion of Vinors3DLab's STEP; see the model's CONVERSION.md. */
+const Esp32CaseParametersSchema = Type.Object<Record<string, ReturnType<typeof Type.Never>>>({}, { additionalProperties: false });
+export const esp32C3SuperminiCase = {
+  id: 'esp32-c3-supermini-case' as const, version: '1' as const, title: 'ESP32-C3 SuperMini case',
+  description: 'Vinors3DLab’s ultra-compact two-piece enclosure with a sliding lid, flexible B (BOOT) and R (RESET) tabs, USB-C opening and bottom GPIO access slots. Original dimensions, supplied as a fixed format conversion for noncommercial printing.',
+  attribution: 'Vinors3DLab (MakerWorld)',
+  attributionLinks: [{ text: 'Vinors3DLab (MakerWorld)', url: 'https://makerworld.com/de/models/3419196-ultra-compact-case-esp32-c3-supermini-step-file' }],
+  license: 'CC BY-NC-ND 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+  printNotes: 'Print both parts as generated: base floor down, lid outer face down. The author recommends 0.08 mm layers, 2–3 perimeters, PLA/PETG/ABS/ASA and no supports. Seat the ESP32-C3 SuperMini in the base, align USB-C with its opening, then slide the lid along the rails from the USB end until seated. B and R operate BOOT and RESET. Electronics are not included in the print ZIP. Technical format conversion only; original geometry and lettering retained. Noncommercial use; no distribution of adaptations under CC BY-NC-ND 4.0.',
+  parts: [
+    { id: 'bottom', title: 'Case base', sourcePath: 'models/esp32-c3-supermini-case/bottom.scad', scadMapping: {} },
+    { id: 'top', title: 'Sliding button lid', sourcePath: 'models/esp32-c3-supermini-case/top.scad', scadMapping: {} },
+  ],
+  parameterSchema: Esp32CaseParametersSchema, controls: [], defaults: {}, scadMapping: {},
+  assembly: {
+    partColors: { bottom: '#497c85', top: '#e5d9bb' },
+    // Print geometry is centred per part; lid is Rx(180), roof-down. These poses
+    // invert the conversion transforms and ground the original STEP assembly.
+    poses: { bottom: { position: [0, 0, 0] }, top: { position: [0.2, 0, 7.56], rotation: [180, 0, 0] } },
+    steps: [{ title: 'Slide the lid into the rails from the USB end', parts: ['top'], from: [30, 0, 0] }],
+    lift: 5,
+  },
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(Esp32CaseParametersSchema, parameters) ? [] : [{ field: '', message: 'This fixed model accepts no adjustable parameters.' }];
+  },
+  derived() { return { slotCount: null, notes: ['Original assembled envelope: 25.8 × 21.8 × 7.56 mm, including projecting features. Fixed geometry; no design changes.'] }; },
+} satisfies ModelDefinition;
+
 /** Original magnetic toy: four functional layers, exported as five independently printable components. */
 const toyNut = findPart('iso-4032-m3');
 if (!toyNut) throw new Error('Missing magnetic cat toy cover nut.');
@@ -3576,7 +3604,7 @@ export const magneticCatToy = {
   },
 } satisfies ModelDefinition;
 /** The one registration of each catalogue model. A `const` tuple, so that `RenderRequestSchema` (index.ts) derives a typed branch per model from it. */
-export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy] as const satisfies readonly ModelDefinition[];
+export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase] as const satisfies readonly ModelDefinition[];
 export const models: readonly ModelDefinition[] = registeredModels;
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }

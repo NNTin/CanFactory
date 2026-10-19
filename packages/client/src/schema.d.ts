@@ -2212,6 +2212,15 @@ export interface operations {
                          */
                         clearance: number;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "esp32-c3-supermini-case";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    parameters: Record<string, never>;
                 };
             };
         };

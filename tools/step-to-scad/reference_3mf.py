@@ -12,6 +12,8 @@ from zipfile import ZipFile
 
 
 def extract(source, output, flip_x=False):
+    if Path(output).suffix != '.stl' or Path(source).resolve() == Path(output).resolve():
+        raise ValueError('Output must be a separate .stl file; preserve the original 3MF.')
     with ZipFile(source) as archive:
         root = ET.fromstring(archive.read('3D/3dmodel.model'))
     ns = {'m': 'http://schemas.microsoft.com/3dmanufacturing/core/2015/02'}
