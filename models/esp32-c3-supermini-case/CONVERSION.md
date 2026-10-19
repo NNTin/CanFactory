@@ -1,7 +1,7 @@
 # ESP32-C3 SuperMini case
 
 Original by **Vinors3DLab**. [Attribution and source licenses](ATTRIBUTION.md).
-Model version 3 adds default-on pin-header insulator openings and selectable header seating to the LED openings and board/header assembly preview.
+Model version 4 provides independent, default-on toggles for LED openings, pin-header insulator openings and a taller enclosure, with a matching board/header assembly preview.
 The adaptation uses the author's matching **MakerOnline CC BY-NC-SA 4.0** release;
 the supplied MakerWorld originals retain their CC BY-NC-ND 4.0 notices.
 
@@ -11,7 +11,7 @@ STEP SHA-256:
 `585a8cd17c842e73d1cced65d44ce4af3e3e7029bf83b4024b1a71100d33ec31`.
 Both original BReps are valid. The base is solid 0; the lid is solid 1.
 The originals in `references/` remain unchanged. The root STL/JSON files are
-baseline conversion references without LED or insulator openings, not runtime dependencies.
+baseline conversion references without LED openings, insulator openings or the base extension, not runtime dependencies.
 
 From the repository root, reproduce the original conversion in a scratch folder:
 
@@ -32,13 +32,13 @@ credit=(--creator Vinors3DLab \
 ```
 
 These commands reproduce the unmodified baseline; they do not overwrite the live
-SCAD wrappers for the LED and pin-header openings. CadQuery 2.6.1 / cadquery-ocp 7.8.1.1.post1 performs
+SCAD wrappers for the LED openings, pin-header openings and base extension. CadQuery 2.6.1 / cadquery-ocp 7.8.1.1.post1 performs
 conversion offline; production only renders self-contained SCAD. Coordinates are
 welded at six decimals without decimation. CadQuery uses relative linear
 deflection factor 0.01, not a millimetre error bound; angular deflection is
 0.1 rad for the base and 0.3 rad for the lid. Original lettering is retained.
 
-With both LED openings and Flush pin headers disabled, each part matches its original tessellation-reference
+With all three toggles disabled, each part matches its original tessellation-reference
 STL with IoU 1.000000. Independent comparison against the supplied 3MFs gives:
 
 | Part | Print dimensions (mm) | STEP volume (mm³) | Baseline rendered volume (mm³) | IoU vs 3MF |
@@ -47,7 +47,7 @@ STL with IoU 1.000000. Independent comparison against the supplied 3MFs gives:
 | Closed lid | 25.4 × 19.8 × 2.50 | 570.158588 | 570.173957 | 0.999884 |
 
 Bounds differ from 3MF by less than 0.000001 mm. The IoU verifier uses its existing
-0.2 mm oblique ray grid. All four setting combinations produce one connected, closed,
+0.2 mm oblique ray grid. All eight setting combinations produce one connected, closed,
 consistently wound manifold per printed part, without float32 sliver repairs.
 The worker tests aperture interiors and adjacent source surfaces at several roof
 heights, and confirms preview/download bytes match. These are numerical checks,
@@ -88,36 +88,50 @@ Würth WR-PHD 61300811121: one row of eight 0.64 mm square pins at 2.54 mm pitch
 stated tolerances come from the manufacturer's drawing.
 
 `flushHeaders` defaults to `true`. Two 21.07 × 3.09 mm rectangular openings
-replace the narrow slots through the floor. Their centres are derived from the
-actual library pin rows: source XY `[10.54, 1.38]` and `[10.54, 16.62]`, or
-print XY `[-0.86, ±7.62]`. The dimensions clear the manufacturer's maximum
-20.67 × 2.69 mm insulator envelope by 0.2 mm on every side. The cutters run from
-print z=−0.1 to 1.8, clearing the floor and seated insulator without cutting the
-upper rails or relocating the PCB, USB port or lid.
+replace the narrow slots through the selected floor. Their centres are derived
+from the actual library pin rows: source XY `[10.54, 1.38]` and `[10.54, 16.62]`,
+or print XY `[-0.86, ±7.62]`. They clear the manufacturer's maximum
+20.67 × 2.69 mm insulator envelope by 0.2 mm on every side. Header insulators
+seat against the PCB underside at source z=0. Disabling this toggle restores
+narrow slots and places the spacers 0.1 mm outside the selected case floor.
 
-In the default mode, each insulator's upper face seats against the PCB underside
-at source z=0. Its 2.54 mm thickness extends 0.84 mm below the exterior case floor:
-“flush” refers to seating against the PCB, not a coplanar exterior face. Nominal
-solder tails project 2 mm beyond the nominal 1 mm PCB. The lowest mating-pin tips
-are at source z=−8.54. With `flushHeaders: false`, the original base is restored:
-insulators stay at source z=−1.8, 0.1 mm below the floor, and only solder tails
-pass through the slots. The nominal 3 mm tails then reach z=1.2 (0.2 mm above
-the PCB); minimum-length tails can be flush with its top. Check delivered parts,
-board variants and solder access before fitting replacements.
+`tallerEnclosure` is a separate, independent toggle, also defaulting to `true`.
+It extends the base downward by 0.84 mm: exterior height becomes **8.40 mm**
+instead of **7.56 mm**. The source bottom moves from z=−1.7 to **−2.54**, matching
+the bottom of the nominal 2.54 mm insulator when it seats against the PCB.
+Thus the two housing bottoms are coplanar with both toggles on. Only the mating
+pins project below them. With flush headers on but the height toggle off, the
+insulators extend 0.84 mm below the shorter case.
 
-The live assembly adapts the header seating and grounds the mating-pin tips for
-both modes. Final poses, computed in `packages/contracts/src/esp32Case.ts`:
+The base extension uses an extrusion of the original constant floor cross-section
+at print z=0.1, joined with 0.01 mm overlap to a vertically translated original
+base. This thickens the floor from 1.50 to 2.34 mm and keeps the internal floor
+surface, board seating, USB opening, rails and lid unchanged relative to the PCB.
+The new floor starts at print z=0; all original features above it shift up by
+0.84 mm in the part's print frame. The header cutters extend from print z=−0.1
+to 0.1 mm above the PCB underside in either height, so the wider slots remain
+through-holes. Neither the preserved source mesh nor the source files are edited.
 
-| Object | Flush headers (default) | Original narrow slots |
-| --- | --- | --- |
-| Base | `[0, 0, 6.84]` | `[0, 0, 8.64]` |
-| Roof-down lid | `[0.2, 0, 14.40]` | `[0.2, 0, 16.20]` |
-| Board | `[11.2, −9, 8.54]` | `[11.2, −9, 10.34]` |
-| Headers | `[-0.86, ±7.62, 11.54]` | `[-0.86, ±7.62, 11.54]` |
+Nominal 3 mm solder tails extend 2 mm beyond the 1 mm PCB with flush headers on.
+With flush headers off, they reach 0.2 mm beyond the PCB in the shorter case.
+In the **taller case with narrow slots**, the shown 3 mm tails enter the PCB by
+only **0.36 mm** and stop inside it; use longer solder tails for through-board
+soldering (at least 3.64 mm to reach the top at nominal dimensions, plus the
+required projection). The editor shows a note for this combination. Check actual
+header dimensions, board variants and solder access before fitting replacements.
+
+The assembly adapts both seating and enclosure height, grounding the mating-pin
+tips in all four combinations (LED openings do not change placement). Final poses
+are computed in `packages/contracts/src/esp32Case.ts`:
+
+| Object | Flush + taller (default) | Flush + shorter | External + taller | External + shorter |
+| --- | --- | --- | --- | --- |
+| Base | `[0, 0, 6.00]` | `[0, 0, 6.84]` | `[0, 0, 8.64]` | `[0, 0, 8.64]` |
+| Roof-down lid | `[0.2, 0, 14.40]` | `[0.2, 0, 14.40]` | `[0.2, 0, 17.04]` | `[0.2, 0, 16.20]` |
+| Board | `[11.2, −9, 8.54]` | `[11.2, −9, 8.54]` | `[11.2, −9, 11.18]` | `[11.2, −9, 10.34]` |
+| Headers | `[-0.86, ±7.62, 11.54]` | `[-0.86, ±7.62, 11.54]` | `[-0.86, ±7.62, 11.54]` | `[-0.86, ±7.62, 11.54]` |
 
 The lid rotates `[180, 0, 0]`, board `[0, 0, 90]` and headers `[180, 0, 90]`.
-The board-to-case relationship stays constant; the case and board move down
-1.8 mm relative to the grounded headers when flush seating is enabled.
 
 The animation starts with the board seated. It inserts the two headers from
 below, then slides the lid from positive X, the **antenna end**. Straight-line
@@ -127,7 +141,7 @@ The board and each header are individually hideable and excluded from the ZIP.
 
 ## Assembly verification
 
-All ten assembled object pairs have zero sampled overlap in both header seating modes. Header insertion also
+All ten assembled object pairs have zero sampled overlap in all height/header/LED combinations. Header insertion also
 has zero sampled overlap. The lid retains the original detent interference:
 the coarse 0.2 mm ray sampler reports 3.31 mm³ during insertion, 0.02 mm³ near
 seating, and 0.00 mm³ when closed. Exact OCCT intersection of the original two
@@ -140,16 +154,23 @@ The earlier version's “USB end” insertion caption was incorrect and is fixed
 .data/step-tools/bin/python -m unittest discover -s tools/step-to-scad
 STL_TO_SCAD_RENDER_TESTS=1 OPENSCAD_RUNNER=docker npx vitest run tools/step-to-scad
 TEST_ONLY=esp32-c3-supermini-case npm run test:renderer
-OPENSCAD_RUNNER=docker npm run check:assembly -- esp32-c3-supermini-case --tolerance 4 --snap-tolerance 0.1
-OPENSCAD_RUNNER=docker npm run check:assembly -- esp32-c3-supermini-case --tolerance 4 --snap-tolerance 0.1 --parameters '{"ledHoles":false}'
-OPENSCAD_RUNNER=docker npm run check:assembly -- esp32-c3-supermini-case --tolerance 4 --snap-tolerance 0.1 --parameters '{"flushHeaders":false}'
-OPENSCAD_RUNNER=docker npm run check:assembly -- esp32-c3-supermini-case --tolerance 4 --snap-tolerance 0.1 --parameters '{"ledHoles":false,"flushHeaders":false}'
+for led in true false; do
+  for flush in true false; do
+    for taller in true false; do
+      OPENSCAD_RUNNER=docker npm run check:assembly -- esp32-c3-supermini-case \
+        --tolerance 4 --snap-tolerance 0.1 \
+        --parameters "{\"ledHoles\":$led,\"flushHeaders\":$flush,\"tallerEnclosure\":$taller}"
+    done
+  done
+done
 BASE_URL=http://127.0.0.1:5273 npx playwright test tests/browser/esp32-case.spec.ts
 ```
 
 The independent 3MF comparison test extracts the reference meshes using
-`tools/step-to-scad/reference_3mf.py` and disables both adaptations during comparison. Renderer coverage checks the
-maximum insulator footprint at three floor heights, restored source bands when
+`tools/step-to-scad/reference_3mf.py` and disables all three adaptations during comparison. Renderer coverage checks the
+maximum insulator footprint through both floor thicknesses, restored source bands when
 flush seating is disabled, retained side walls, and the LED apertures. Browser
-coverage downloads all four combinations and checks that each switch changes
-only the corresponding printed part.
+coverage downloads all eight combinations, checks both actual STL heights and
+editor notes, and verifies that height/header settings affect only the base while
+LED settings affect only the lid. Contracts assert that the insulator bottom is
+coplanar with the exterior base when both height and flush settings are enabled.

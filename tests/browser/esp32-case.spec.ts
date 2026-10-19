@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { unzipSync } from 'fflate';
+import { inspectStl } from '@canfactory/server';
 import { esp32C3SuperminiCase as model, ESP32_CASE_HEADER } from '@canfactory/contracts';
 
-test('previews LED openings, board and headers, plays assembly and downloads all four opening combinations', async ({ page }, testInfo) => {
+test('previews LED openings, board and headers, plays assembly and downloads all eight opening and height combinations', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/#/models');
@@ -17,6 +18,8 @@ test('previews LED openings, board and headers, plays assembly and downloads all
   await expect(toggle).toBeChecked();
   const flushToggle = page.getByRole('switch', { name: 'Flush pin headers', exact: true });
   await expect(flushToggle).toBeChecked();
+  const heightToggle = page.getByRole('switch', { name: 'Taller enclosure', exact: true });
+  await expect(heightToggle).toBeChecked();
   await expect(page.getByRole('link', { name: 'MakerOnline', exact: true })).toHaveAttribute('href', /makeronline.com/);
   await expect(page.getByRole('link', { name: model.license, exact: true })).toHaveAttribute('href', model.licenseUrl);
   await expect(page.getByTitle('Hide ESP32-C3 SuperMini', { exact: true })).toBeVisible();
@@ -34,10 +37,11 @@ test('previews LED openings, board and headers, plays assembly and downloads all
   await expect(page.getByTitle('Show Sliding button lid')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('esp32-case-electronics.png'), fullPage: true });
   await page.getByTitle('Show Sliding button lid').click();
-  const variants: { ledHoles: boolean; flushHeaders: boolean; base: Uint8Array; lid: Uint8Array }[] = [];
-  for (const enabled of [true, false]) for (const flushHeaders of [true, false]) {
+  const variants: { ledHoles: boolean; flushHeaders: boolean; tallerEnclosure: boolean; base: Uint8Array; lid: Uint8Array }[] = [];
+  for (const enabled of [true, false]) for (const flushHeaders of [true, false]) for (const tallerEnclosure of [true, false]) {
     await toggle.setChecked(enabled);
     await flushToggle.setChecked(flushHeaders);
+    await heightToggle.setChecked(tallerEnclosure);
     await expect(download).toBeEnabled();
     const pending = page.waitForEvent('download');
     await download.click();
@@ -52,12 +56,16 @@ test('previews LED openings, board and headers, plays assembly and downloads all
     }
     const lid = entries['top.stl']; if (!lid) throw new Error('Missing lid');
     const base = entries['bottom.stl']; if (!base) throw new Error('Missing base');
-    variants.push({ ledHoles: enabled, flushHeaders, base, lid });
+    variants.push({ ledHoles: enabled, flushHeaders, tallerEnclosure, base, lid });
+    expect(inspectStl(Buffer.from(base)).dimensions.z).toBeCloseTo(tallerEnclosure ? 8.4 : 7.56, 3);
+    await expect(page.getByText(`Case envelope: 25.8 × 21.8 × ${tallerEnclosure ? '8.40' : '7.56'} mm, excluding the pin headers.`)).toBeVisible();
+    if (flushHeaders) await expect(page.getByText(tallerEnclosure ? /seat against the PCB, flush with the exterior case bottom/ : /seat against the PCB, extending 0.84 mm below the shorter case/)).toBeVisible();
     if (!flushHeaders) await expect(page.getByText('Original narrow slots: pin-header insulators stay outside the case floor.')).toBeVisible();
+    if (tallerEnclosure && !flushHeaders) await expect(page.getByText(/shown 3 mm solder tails enter the PCB by only 0.36 mm/)).toBeVisible();
     if (!enabled) await expect(page.getByText('Closed lid: LED openings disabled.')).toBeVisible();
   }
   for (const a of variants) for (const b of variants) {
-    expect(Buffer.from(a.base).equals(Buffer.from(b.base))).toBe(a.flushHeaders === b.flushHeaders);
+    expect(Buffer.from(a.base).equals(Buffer.from(b.base))).toBe(a.flushHeaders === b.flushHeaders && a.tallerEnclosure === b.tallerEnclosure);
     expect(Buffer.from(a.lid).equals(Buffer.from(b.lid))).toBe(a.ledHoles === b.ledHoles);
   }
   expect(errors).toEqual([]);

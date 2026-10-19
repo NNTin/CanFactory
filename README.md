@@ -65,7 +65,8 @@ without resetting it (approximate dipole forces/torques; virtual switches, not s
 Physics assumes the ball stays closed; seam strength and grip-hole interaction require physical tests.
 
 The [ESP32-C3 SuperMini case](models/esp32-c3-supermini-case/CONVERSION.md) adds
-optional LED holes and pin-header insulator openings, both enabled by default, to Vinors3DLab’s two-part design.
+independent toggles for LED holes, pin-header insulator openings and a taller
+enclosure, all enabled by default, to Vinors3DLab’s two-part design.
 Its live assembly shows the existing SuperMini board and two sourced eight-pin
 headers; only the base and lid are printed. The adaptation uses the author’s
 [CC BY-NC-SA release](models/esp32-c3-supermini-case/ATTRIBUTION.md), while the

@@ -103,9 +103,13 @@ solder-tail tips at z=0, plastic from z=3 to 5.54, mating tips at z=11.54.
 It omits moulding notches and tip chamfers. Rotate about X by 180° to point the
 mating pins down. The SuperMini case defaults to 21.07 × 3.09 mm floor openings,
 clearing the maximum insulator envelope by 0.2 mm per side so it can seat against
-the PCB. Disabling Flush pin headers restores the narrow slots: spacers stay
-outside the floor and only solder tails pass through. Check actual tail reach
-and solder access before fitting generic replacement strips.
+the PCB. The independent Taller enclosure switch adds 0.84 mm below the PCB,
+aligning the case bottom with seated insulator bottoms. Disabling it keeps the
+original shorter case. Disabling Flush pin headers restores the narrow slots:
+spacers stay outside the floor and only solder tails pass through. Check actual tail reach
+and solder access before fitting generic replacement strips. The taller case
+with external spacers needs longer tails for through-board soldering: the
+nominal 3 mm tails enter the PCB by only 0.36 mm in that combination.
 
 ### Development boards
 
