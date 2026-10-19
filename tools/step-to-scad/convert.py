@@ -3,6 +3,7 @@
 import argparse
 from collections import Counter
 from hashlib import sha256
+from importlib.metadata import version
 import json
 import math
 from pathlib import Path
@@ -82,8 +83,8 @@ def convert(solid, args):
             for face in faces:
                 f.write(struct.pack('<12fH', 0, 0, 0, *(v for i in face for v in points[i]), 0))
     report = dict(source=describe(solid, args.solid), sourceSha256=sha256(args.source.read_bytes()).hexdigest(),
-                  cadqueryVersion=__import__('cadquery').__version__, tolerance=args.tolerance,
-                  angularTolerance=args.angular_tolerance, printRotation=args.rotate, printTranslation=shift,
+                  cadqueryVersion=__import__('cadquery').__version__, ocpVersion=version('cadquery-ocp'), tolerance=args.tolerance,
+                  angularTolerance=args.angular_tolerance, relativeDeflection=True, printRotation=args.rotate, printTranslation=shift,
                   points=len(points), triangles=len(faces), meshVolume=signed_volume,
                   volumeRelativeError=error, scadBytes=len(scad.encode()),
                   inversePlacement='source = inverse(rotation) * (print - printTranslation)')
@@ -98,7 +99,7 @@ def main():
     parser.add_argument('--solid', type=int, default=0, help='zero-based index from inspect')
     parser.add_argument('-o', '--output', type=Path)
     parser.add_argument('--rotate', type=float, nargs=3, default=[0, 0, 0], metavar=('X', 'Y', 'Z'), help='rigid print rotation in degrees, applied X then Y then Z')
-    parser.add_argument('--tolerance', type=positive, default=0.01, help='OCCT linear tessellation deflection (mm)')
+    parser.add_argument('--tolerance', type=positive, default=0.01, help='OCCT relative linear tessellation deflection factor (CadQuery mesh default)')
     parser.add_argument('--angular-tolerance', type=positive, default=0.1, help='OCCT angular deflection (radians)')
     parser.add_argument('--volume-error', type=positive, default=0.002, help='maximum relative mesh/CAD volume error')
     parser.add_argument('--max-bytes', type=int, default=500_000)

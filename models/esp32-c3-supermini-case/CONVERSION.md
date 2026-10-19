@@ -38,8 +38,9 @@ The renderer uses the repository's pinned OpenSCAD Docker image. CadQuery 2.6.1 
 OCCT 7.8.1.1 performs the offline conversion; it is not a production dependency.
 The converter emits self-contained `polyhedron()` SCAD, a tessellation-reference
 STL and a JSON record with the source hash, analytic volume and rigid placement.
-Coordinates are welded at six decimals without decimation. Linear deflection is
-0.01 mm; angular deflection is 0.1 rad for the base and 0.3 rad for the lid.
+Coordinates are welded at six decimals without decimation. CadQuery 2.6.1 uses
+OCCT relative linear deflection: the factor is 0.01 (not an absolute millimetre
+error bound). Angular deflection is 0.1 rad for the base and 0.3 rad for the lid.
 The latter keeps the curved lettering compact; the independent comparison below
 checks its fidelity. No features or letters are rebuilt with replacement fonts.
 

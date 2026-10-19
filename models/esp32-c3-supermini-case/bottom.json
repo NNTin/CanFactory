@@ -26,8 +26,10 @@
   },
   "sourceSha256": "585a8cd17c842e73d1cced65d44ce4af3e3e7029bf83b4024b1a71100d33ec31",
   "cadqueryVersion": "2.6.1",
+  "ocpVersion": "7.8.1.1.post1",
   "tolerance": 0.01,
   "angularTolerance": 0.1,
+  "relativeDeflection": true,
   "printRotation": [
     0,
     0,

@@ -64,6 +64,14 @@ Interactive physics starts fully assembled with empty sockets: drag the ball and
 without resetting it (approximate dipole forces/torques; virtual switches, not switchable hardware).
 Physics assumes the ball stays closed; seam strength and grip-hole interaction require physical tests.
 
+The [ESP32-C3 SuperMini case](models/esp32-c3-supermini-case/CONVERSION.md) preserves
+Vinors3DLab’s supplied STEP geometry as a fixed two-part model, with an SVG card,
+live 3D preview and sliding-lid assembly playback at `#/models/esp32-c3-supermini-case`.
+Its original [CC BY-NC-ND 4.0 attribution](models/esp32-c3-supermini-case/ATTRIBUTION.md)
+is retained in the catalogue and STL headers. The reusable
+[STEP-to-SCAD skill](.claude/skills/step-to-scad/SKILL.md) documents offline conversion
+and verification against the supplied 3MFs.
+
 ## Run with Docker
 
 Requires Docker Engine/Desktop and Docker Compose.

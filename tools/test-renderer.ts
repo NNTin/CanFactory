@@ -1135,7 +1135,7 @@ try {
     assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true);
     const result = await store.getJob(queued.id);
     assert.equal(result?.status, 'succeeded');
-    if (!result?.artifact || !('parts' in result.artifact)) throw new Error('Expected the ESP32-C3 case ZIP.');
+    if (!result.artifact || !('parts' in result.artifact)) throw new Error('Expected the ESP32-C3 case ZIP.');
     assert.deepEqual(result.artifact.parts.map(part => part.id), ['bottom', 'top']);
     const bytes = await artifactBytes(result), entries = unzipSync(bytes);
     assert.deepEqual(Object.keys(entries), ['bottom.stl', 'top.stl']);
