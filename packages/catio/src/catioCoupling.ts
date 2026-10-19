@@ -321,7 +321,7 @@ export function couplingFacts(_variant: CatioMode, config: CouplingConfig, site:
     l.latchPart ? { label: 'Hook takes up', value: `±${l.tolerance} mm of the gap` } : { label: 'Draws in', value: `up to ${round1(l.tolerance)} mm, hooked on with the joint that far open` },
     { label: 'Dock or undock', value: `${l.latches.length} levers, no tools` },
     // shut until the tunnel is docked, and again before it is undocked
-    ...(l.insert.closure ? [{ label: 'Cat port · closed by', value: PORT_CLOSURE_LABELS[l.insert.closure], from: { page: 'concept' as const, settings: [PORT_CLOSURE_SETTING] } }] : []),
+    ...(l.insert.closure ? [{ label: 'Cat port · closed by', value: PORT_CLOSURE_LABELS[l.insert.closure], from: { page: 'planner' as const, settings: [PORT_CLOSURE_SETTING] } }] : []),
     { label: 'Cover battens at the port', value: l.battenFace > l.meshFace ? `Yes · frame rebated ${INSERT.batten.thickness} mm over them` : 'None · frame flat on the mesh', from: { page: 'window-insert', settings: ['meshFixing'] } },
   ];
 }

@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { dimensionOf, WINDOW_INSERT_FOOT } from '@canfactory/contracts';
-import type { CatioState } from './catioScene.ts';
 import { parseSubassemblySettings, defaultSubassemblySettings } from './catioSubassembly.ts';
 import { windowInsertDefinition } from './catioSubassemblies.ts';
 import { BENCH_OFFSET, buildInsertContext, createWindowInsertScene } from './catioWindowInsertScene.ts';
-import { createCatioParts } from './catioParts.ts';
+import { createCatioParts, type CatioState } from './catioParts.ts';
 import { HOOK_FIT, INSERT, MODULAR_DEFAULT, PAD_HEIGHT, PORT_CLOSURE_DEFAULT, PORT_CLOSURES, TILT_MAX, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowFrame, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from '@canfactory/catio';
 
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };

@@ -8,18 +8,18 @@ import type { Follow, SettingRef, CatioSubassembly } from '@canfactory/catio';
  * setting comes from, what else it changes, and which other pages the current settings break.
  */
 
-function PageLink({ page }: { page: CatioSubassembly | 'concept' }) {
-  return page === 'concept'
-    ? <a href={formatHash({ view: 'concepts', concept: 'catio', subassembly: null })}>catio concept</a>
+function PageLink({ page }: { page: CatioSubassembly | 'planner' }) {
+  return page === 'planner'
+    ? <a href={formatHash({ view: 'catio-planner' })}>catio planner</a>
     : <a href={formatHash({ view: 'concepts', concept: 'catio', subassembly: page })}>{CATIO_SUBASSEMBLY_ENTRIES[page].title.toLowerCase()}</a>;
 }
 
 /** “the a”, “the a and the b”, “the a, the b and the c”; “The …” to start a sentence. */
-function Pages({ pages, capital = false }: { pages: (CatioSubassembly | 'concept')[]; capital?: boolean }) {
+function Pages({ pages, capital = false }: { pages: (CatioSubassembly | 'planner')[]; capital?: boolean }) {
   return <>{pages.map((page, i) => <Fragment key={page}>{i > 0 ? (i === pages.length - 1 ? ' and ' : ', ') : ''}{i === 0 && capital ? 'The' : 'the'} <PageLink page={page} /></Fragment>)}</>;
 }
 
-const labels = (ref: SettingRef) => ref.page === 'concept' ? ref.settings : ref.settings.map(key => CATIO_SUBASSEMBLY_ENTRIES[ref.page].label(key));
+const labels = (ref: SettingRef) => ref.page === 'planner' ? ref.settings : ref.settings.map(key => CATIO_SUBASSEMBLY_ENTRIES[ref.page].label(key));
 
 /** Under a fact that another page sets: which page and settings to change it with. */
 export function SettingSource({ from }: { from: SettingRef }) {

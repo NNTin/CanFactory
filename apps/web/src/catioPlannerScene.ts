@@ -6,8 +6,7 @@ import {
 } from '@canfactory/catio';
 import { createCatioParts } from './catioParts.ts';
 import { facePoint, sizeFaces, type Box, type SizeFace, type Sized } from './catioPlannerHandles.ts';
-import { buildEnclosure } from './catioEnclosureScene.ts';
-import { catPorts, type CatioDoor } from './catioModularScene.ts';
+import { buildEnclosure, catPorts, type CatioDoor } from './catioEnclosureScene.ts';
 import { buildCouplingPieces } from './catioCouplingScene.ts';
 import { buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, buildTunnelDoors, tunnelDrawing } from './catioTunnelPieces.ts';
 import { buildWindowContext } from './catioWindowContext.ts';

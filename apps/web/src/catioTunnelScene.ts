@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { dimensionOf, findPart } from '@canfactory/contracts';
-import { createCatioParts } from './catioParts.ts';
-import type { CatioState } from './catioScene.ts';
+import { createCatioParts, type CatioState } from './catioParts.ts';
 import type { SubassemblyModel } from './catioSubassembly.ts';
 import { buildWindowContext } from './catioWindowContext.ts';
 import { buildInsertContext } from './catioWindowInsertScene.ts';

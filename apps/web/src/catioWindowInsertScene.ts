@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { dimensionOf, findPart, PRESSURE_PAD, pressurePadSeat, type Part } from '@canfactory/contracts';
-import { createCatioParts } from './catioParts.ts';
-import type { CatioState } from './catioScene.ts';
+import { createCatioParts, type CatioState } from './catioParts.ts';
 import type { SubassemblyModel } from './catioSubassembly.ts';
 import { buildDoorPanel, type DoorLayers } from './catioDoorScene.ts';
 import { buildWindowContext } from './catioWindowContext.ts';

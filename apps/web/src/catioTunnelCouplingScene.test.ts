@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { toggleLatchMechanism as TL } from '@canfactory/contracts';
-import type { CatioState } from './catioScene.ts';
+import type { CatioState } from './catioParts.ts';
 import { defaultSubassemblySettings, loadSubassemblySettings, parseSubassemblySettings, saveShared, subassemblyStorageKey } from './catioSubassembly.ts';
 import { dependentsOf, tunnelCouplingDefinition, tunnelDefinition } from './catioSubassemblies.ts';
 import { createTunnelCouplingScene, LIFT } from './catioTunnelCouplingScene.ts';

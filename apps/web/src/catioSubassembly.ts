@@ -1,7 +1,7 @@
 import type { CameraPreset, CatioLayer, CatioMode, CatioSubassembly, CatioView, DesignDecision, AssemblyStep, BomLine, Follow, SubassemblyControl, SubassemblyFact, SubassemblyPreset, V3 } from '@canfactory/catio';
 import { inRange } from '@canfactory/catio';
 import type * as THREE from 'three';
-import type { CatioState } from './catioScene.ts';
+import type { CatioState } from './catioParts.ts';
 
 /**
  * A sub-assembly's live page (`#/concepts/catio/<id>`): the same two variants as the whole catio, design choices as parameters, its
@@ -91,7 +91,7 @@ export interface SubassemblyViewing {
 }
 export interface SubassemblySettings<C> { version: 1; variant: CatioMode; config: C; views: Record<CatioMode, SubassemblyViewing> }
 
-/** (`savedBeforeClosure` in catioSettings.ts reads these keys too.) */
+/** (The one-time legacy import, catioLegacyImport.ts, reads these keys too.) */
 export const subassemblyStorageKey = (id: CatioSubassembly) => `canfactory.catio.${id}.v1`;
 
 export function defaultSubassemblySettings<C extends object>(definition: SubassemblyDefinition<C>): SubassemblySettings<C> {

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { CATIO_DOOR_HARDWARE, dimensionOf, findPart } from '@canfactory/contracts';
 import { catioMesh } from '@canfactory/contracts';
-import { buttonOutline, buttonOverlap, buttonsAlong, buttonSweep, COUPLING_CONTROLS, COUPLING_DEFAULT, couplingFacts, couplingLayout, couplingSteps, DOOR, DOOR_SEATS, DOOR_TRAVEL, doorAction, doorBom, doorBounds, doorFasteners, doorLibraryParts, doorPose, doorRetention, doorZone, fastenerClashes, HOOK_FIT, INSERT, insetPanel, LOCK_FROM_PIVOT, MODULAR, MODULAR_DEFAULT, modularPortPanel, modularSteps, PORT_FRAME, setInDoor, slidingGateRise, STANDARD_PORT, TUNNEL, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSiteFor, tunnelSteps, validateModular, validateWindowInsert, vec, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowFrame, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type CouplingSite, type DoorBox, type DoorPanel, type ModularConfig, type TunnelConfig, type TunnelSite, type WindowInsertConfig, type WindowSpec } from './index.ts';
+import { buttonOutline, buttonOverlap, buttonsAlong, buttonSweep, COUPLING_CONTROLS, COUPLING_DEFAULT, couplingFacts, couplingLayout, couplingSteps, DOOR, DOOR_SEATS, DOOR_TRAVEL, doorAction, doorBom, doorBounds, doorFasteners, doorLibraryParts, doorPose, doorRetention, doorZone, fastenerClashes, HOOK_FIT, INSERT, insetPanel, LOCK_FROM_PIVOT, MODULAR, MODULAR_DEFAULT, modularPortPanel, PORT_FRAME, setInDoor, slidingGateRise, STANDARD_PORT, TUNNEL, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelBom, tunnelFacts, tunnelLayout, tunnelSiteFor, tunnelSteps, validateEnclosure, validateModular, validateWindowInsert, vec, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowFrame, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type CouplingSite, type DoorBox, type DoorPanel, type ModularConfig, type TunnelConfig, type TunnelSite, type WindowInsertConfig, type WindowSpec } from './index.ts';
 const SITE = tunnelSiteFor(WINDOW_INSERT_DEFAULT, MODULAR_DEFAULT);
 const COUPLING_SITE: CouplingSite = { tunnel: TUNNEL_DEFAULT, site: SITE, joint: TUNNEL_COUPLING_DEFAULT };
 
-/** The cat port sizes the catio concept page allows (20–45 cm each way), and section lengths between the tunnel's flanges. */
+/** The cat port sizes the planner allows (20–45 cm each way), and section lengths between the tunnel's flanges. */
 const SIZES = [200, 250, 300, 380, 450];
 const BAYS = [300, 440, 690, 940];
 const faces = SIZES.flatMap(width => SIZES.flatMap(height => DOOR_SEATS.flatMap(seat => (['solid', 'mesh'] as const).map(material => setInDoor({ id: 'p', width, height, material, seat, depth: PORT_FRAME, sealed: material === 'solid', sillButton: material !== 'solid' })))));
@@ -16,7 +16,6 @@ const range = (b: DoorBox, i: 0 | 1 | 2): [number, number] => [b.center[i] - b.s
 const fixed = (d: DoorPanel) => d.timber.filter(t => !t.moves).flatMap(t => t.boxes);
 const moving = (d: DoorPanel) => d.timber.filter(t => t.moves).flatMap(t => t.boxes);
 const overlaps = (a: [number, number], b: [number, number]) => Math.min(a[1], b[1]) - Math.max(a[0], b[0]);
-const sliding: ModularConfig = { ...MODULAR_DEFAULT, portClosure: 'sliding-gate' };
 const windowWith = (closure: WindowSpec['closure'], config: WindowInsertConfig = WINDOW_INSERT_DEFAULT): WindowSpec => ({ ...windowFor('modular', config, MODULAR_DEFAULT), closure });
 const siteWith = (closure: WindowSpec['closure'], insert: WindowInsertConfig = WINDOW_INSERT_DEFAULT): TunnelSite => {
   const window = windowWith(closure, insert);
@@ -248,22 +247,25 @@ describe('removable door panel: button sweep and withdrawal', () => {
 
 describe('cat-port closure: sliding travel only for a sliding gate', () => {
   // (the standard port is square: the same clear size both ways)
-  const grid = SIZES.flatMap(size => [500, 700, 910, 1600].flatMap(sash => [900, 1200, 2200].map((height): ModularConfig => ({
-    ...MODULAR_DEFAULT, tunnelSize: size, sashWidth: sash, sashHeight: sash, glassWidth: sash - 110, glassHeight: sash - 110, enclosure: { width: 1200, depth: 1000, height },
+  const grid = SIZES.flatMap(size => [500, 700, 910, 1600].flatMap(sash => [900, 1200, 2200].map(height => ({
+    config: { ...MODULAR_DEFAULT, tunnelSize: size, sashWidth: sash, sashHeight: sash, glassWidth: sash - 110, glassHeight: sash - 110 } as ModularConfig,
+    enclosure: { width: 1200, depth: 1000, height },
   }))));
+  /** The window's checks and an enclosure's, as the planner makes them. */
+  const checks = (config: ModularConfig, enclosure: { width: number; depth: number; height: number }) => [...validateModular(config), ...validateEnclosure(enclosure, config, 'Enclosure A')];
 
   it('asks a sliding gate for its travel over every permitted size, and a removable panel only to fit where it stands', () => {
-    for (const config of grid) {
-      const removable = validateModular(config); const gate = validateModular({ ...config, portClosure: 'sliding-gate' });
-      const label = JSON.stringify([config.tunnelSize, config.sashHeight, config.enclosure.height]);
+    for (const { config, enclosure } of grid) {
+      const removable = checks(config, enclosure); const gate = checks({ ...config, portClosure: 'sliding-gate' }, enclosure);
+      const label = JSON.stringify([config.tunnelSize, config.sashHeight, enclosure.height]);
       // no travel constraint without a sliding gate
       expect(removable.filter(e => /sliding gate|raised cat gate/.test(e)), label).toEqual([]);
       // the same constraints as before for the gate, from the one shared rule
       expect(gate.some(e => /sliding gate needs room for its full upward travel/.test(e)), label).toBe(slidingGateRise(config.tunnelSize, PORT_FRAME) > config.sashHeight - 10);
-      expect(gate.some(e => /too low for the raised cat gate/.test(e)), label).toBe(MODULAR.sill + slidingGateRise(config.tunnelSize, 2 * PORT_FRAME) > config.enclosure.height);
+      expect(gate.some(e => /too low for the raised cat gate/.test(e)), label).toBe(MODULAR.sill + slidingGateRise(config.tunnelSize, 2 * PORT_FRAME) > enclosure.height);
       // a panel only has to fit, with its frame, in the collar and under the enclosure's top rail: never more than the gate asked
       expect(removable.some(e => /must fit inside the window collar/.test(e)), label).toBe(config.tunnelSize + 80 > config.sashWidth - 10 || config.tunnelSize + 80 > config.sashHeight - 10);
-      expect(removable.some(e => /too low for its cat ports/.test(e)), label).toBe(MODULAR.sill + config.tunnelSize + 80 > config.enclosure.height);
+      expect(removable.some(e => /too low for its cat ports/.test(e)), label).toBe(MODULAR.sill + config.tunnelSize + 80 > enclosure.height);
       for (const error of removable) expect(gate.length, `${label}: ${error}`).toBeGreaterThan(0);
       // its seat, buttons and withdrawal are checked from the very panel that is drawn
       if (removable.length === 0) for (const at of ['window', 'enclosure'] as const) {
@@ -273,8 +275,8 @@ describe('cat-port closure: sliding travel only for a sliding gate', () => {
       }
     }
     // a port as high as the sliding gate could never be: 45 cm in a 91 cm sash, and in a 90 cm enclosure
-    const tall = { ...MODULAR_DEFAULT, tunnelSize: 450, enclosure: { width: 1200, depth: 1000, height: 900 } };
-    expect(validateModular(tall)).toEqual([]); expect(validateModular({ ...tall, portClosure: 'sliding-gate' })).toHaveLength(2);
+    const tall = { ...MODULAR_DEFAULT, tunnelSize: 450 }; const low = { width: 1200, depth: 1000, height: 900 };
+    expect(checks(tall, low)).toEqual([]); expect(checks({ ...tall, portClosure: 'sliding-gate' }, low)).toHaveLength(2);
   });
 
   it('applies the window insert’s own travel check to a sliding gate only, and its panel checks to a panel only', () => {
@@ -387,7 +389,7 @@ describe('window insert: the cat port’s removable panel', () => {
       expect(rest(lines)).toEqual(rest(gate));
     }
     const facts = windowInsertFacts('modular', WINDOW_INSERT_DEFAULT, windowWith('removable-panel'));
-    expect(facts.find(f => f.label === 'Cat port · closed by')).toEqual({ label: 'Cat port · closed by', value: 'Removable panel with turn buttons', from: { page: 'concept', settings: ['Cat-port closure'] } });
+    expect(facts.find(f => f.label === 'Cat port · closed by')).toEqual({ label: 'Cat port · closed by', value: 'Removable panel with turn buttons', from: { page: 'planner', settings: ['Cat-port closure'] } });
     expect(facts.find(f => f.label === 'Port panel · kept in by')?.value).toMatch(/^3 turn buttons \(jamb and head\), 12 mm over the panel · seat \d+ mm$/);
     expect(windowInsertFacts('modular', WINDOW_INSERT_DEFAULT, windowWith('sliding-gate')).find(f => f.label === 'Cat port · closed by')?.value).toBe('Vertical sliding gate');
     expect(windowInsertFacts('direct', WINDOW_INSERT_DEFAULT, windowFor('direct', WINDOW_INSERT_DEFAULT, MODULAR_DEFAULT)).some(f => /closed by|Port panel/.test(f.label))).toBe(false);
@@ -431,7 +433,7 @@ describe('insert–tunnel coupling with a removable cat-port panel', () => {
     expect(steps[0]?.detail).toMatch(/with its cat-port panel seated, every turn button turned over it/);
     expect(steps.at(-1)?.detail).toMatch(/lift every button’s locking pin, turn the buttons clear and lift its panel out, and stow it clear of the route/);
     expect(steps.at(-1)?.detail).toMatch(/Before undocking, shut the port at this end and the enclosure’s port at the other/);
-    expect(facts.find(f => f.label === 'Cat port · closed by')).toMatchObject({ value: 'Removable panel with turn buttons', from: { page: 'concept' } });
+    expect(facts.find(f => f.label === 'Cat port · closed by')).toMatchObject({ value: 'Removable panel with turn buttons', from: { page: 'planner' } });
   });
 
 });
@@ -497,28 +499,9 @@ describe('tunnel doors: every section’s end bay', () => {
     }
     expect(tunnelSteps('modular', TUNNEL_DEFAULT, SITE, TUNNEL_COUPLING_DEFAULT)[0]?.detail).toMatch(/cat-port panel seated|cat gate shut and latched/);
     expect(tunnelFacts('modular', TUNNEL_DEFAULT, site, TUNNEL_COUPLING_DEFAULT).find(f => f.label === 'Side doors · end bays')?.value).toMatch(/^\d+ · .* · 4 turn buttons/);
-    expect(tunnelFacts('modular', TUNNEL_DEFAULT, siteWith('sliding-gate'), TUNNEL_COUPLING_DEFAULT).find(f => f.label.startsWith('Cat ports at both ends'))).toMatchObject({ value: 'Vertical sliding gate', from: { page: 'concept', settings: ['Cat-port closure'] } });
+    expect(tunnelFacts('modular', TUNNEL_DEFAULT, siteWith('sliding-gate'), TUNNEL_COUPLING_DEFAULT).find(f => f.label.startsWith('Cat ports at both ends'))).toMatchObject({ value: 'Vertical sliding gate', from: { page: 'planner', settings: ['Cat-port closure'] } });
   });
 
-});
-
-describe('whole catio: every cat port by the chosen closure', () => {
-
-  it('describes the chosen mechanism in its stages', () => {
-    for (const hung of [true, false]) {
-      const panel = modularSteps(MODULAR_DEFAULT, hung); const gate = modularSteps(sliding, hung);
-      expect(panel).toHaveLength(7); expect(gate).toHaveLength(7);
-      expect(panel.map(s => s.title)).toEqual(['Existing window', 'Fit the window insert', 'Position the enclosures', 'Fit landings and cat ports', 'Lay the supported tunnel', 'Couple the connections', 'Open the connected ports']);
-      expect(gate.at(-1)?.title).toBe('Open the connected gates');
-      const text = panel.map(s => s.detail).join(' ');
-      expect(text).not.toMatch(/gate|slid/i);
-      expect(text).toMatch(/lift every button’s locking pin and turn the buttons clear of each panel along the connected route, lift the panel out and stow it clear of the route/);
-      expect(text).toMatch(/Before disconnecting a run, reseat the panels at both of its ends and turn every button back over them/);
-      expect(text).toMatch(/unused ports stay shut/);
-      expect(gate.map(s => s.detail).join(' ')).toMatch(/Before disconnecting a run, close and latch the gates at both ends/);
-      expect(panel[1]?.detail.startsWith(hung ? 'Hang it on the window frame' : 'From inside, tighten the padded recess clamps')).toBe(true);
-    }
-  });
 });
 
 describe('the window frame is the same either way', () => {
