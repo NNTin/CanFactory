@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { catioMesh } from '@canfactory/contracts';
 import {
-  couplingLayout, type EvaluatedEnclosure, type EvaluatedInstance, type EvaluatedPlatform, type EvaluatedTunnel, type EvaluatedWindow, type Project,
+  couplingLayout, TUNNEL, type EvaluatedEnclosure, type EvaluatedInstance, type EvaluatedPlatform, type EvaluatedTunnel, type EvaluatedWindow, type Project,
   type ProjectEvaluation, type Transform, type TunnelConfig, type TunnelFastener, type TunnelLayout,
 } from '@canfactory/catio';
 import { createCatioParts } from './catioParts.ts';
@@ -17,7 +17,8 @@ import { buildInsertContext } from './catioWindowInsertScene.ts';
  * The planner's scene, drawn from an evaluated project (catioProjectEvaluate.ts) with the catio's own builders: the window with its
  * insert, each tunnel as built (with its doors, couplings, supports and fixings), each enclosure, each platform. It is transient: rebuilt from the evaluation after
  * every committed edit, and never part of the document. Every instance is a group (`userData.instanceId`) placed at its transform
- * in its parent's group, so that an enclosure carries what stands in it; picking walks up from a mesh to its instance.
+ * in its parent's group, so that an enclosure carries what stands in it; picking walks up from a mesh to its instance. A tunnel's
+ * pieces carry the route element they are (`userData.elementId`): a click on one picks that element, not the whole tunnel.
  * Millimetres, in the site's frame (Z up); the stage turns it to the scene's Y up.
  */
 const RAD = Math.PI / 180;
@@ -44,6 +45,8 @@ interface Drawn {
   pose: (t: Transform) => void;
   /** A tunnel's: draws it along another route's config and layout, for a drag's preview. */
   redraw?: (layout: TunnelLayout | null, config: TunnelConfig | null) => void;
+  /** A tunnel's: the middle of each of its route elements (in its group), as last drawn. */
+  elements?: Map<string, THREE.Vector3>;
   dispose: () => void;
 }
 
@@ -104,6 +107,7 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     const group = instanceGroup(e);
     const window = e.parent ? evaluation.instances.find((w): w is EvaluatedWindow => w.kind === 'window' && w.id === e.parent) : undefined;
     let dispose = () => {};
+    const elements = new Map<string, THREE.Vector3>();
     /**
      * The tunnel as built, everything its parts list counts (tunnelBom, couplingBom): the sections with their screws and staples,
      * the doors on every opening not coupled, the couplings between pieces and at the enclosure, the supports with their fixings,
@@ -114,17 +118,40 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
       if (!layout) { dispose = () => {}; return; }
       const p = parts(group, layout.mesh); const drawing = tunnelDrawing(p);
       const components = new Map<string, THREE.Group>();
+      // each piece's meshes carry its route element, so that a click picks the element
+      const elementOf = new Map(layout.pieces.flatMap(q => q.element ? [[q.id, q.element] as const] : []));
+      const tag = (piece: string | undefined, object: THREE.Object3D | null | undefined) => { const id = piece && elementOf.get(piece); if (id && object) object.userData['elementId'] = id; };
+      elements.clear();
+      // and an invisible solid round each of them, that a click hits between the mesh's wires
+      const proxies: THREE.BufferGeometry[] = [];
+      for (const q of layout.pieces) if (q.element) {
+        const flange = TUNNEL.flange.width; const geometry = new THREE.BoxGeometry(layout.w + 2 * flange, q.length, layout.h + 2 * flange); proxies.push(geometry);
+        const proxy = new THREE.Mesh(geometry, proxyMaterial); proxy.userData['elementId'] = q.element;
+        const middle = new THREE.Vector3(...q.start.at).add(new THREE.Vector3(...q.end.at)).multiplyScalar(0.5).addScaledVector(new THREE.Vector3(...q.frame.z), layout.h / 2);
+        proxy.matrixAutoUpdate = false;
+        proxy.matrix.makeBasis(new THREE.Vector3(...q.frame.x), new THREE.Vector3(...q.frame.y), new THREE.Vector3(...q.frame.z)).setPosition(middle);
+        group.add(proxy);
+      }
+      for (const q of layout.pieces) if (q.element) {
+        const at = new THREE.Vector3(...q.start.at).add(new THREE.Vector3(...q.end.at)).multiplyScalar(0.5).addScaledVector(new THREE.Vector3(...q.frame.z), layout.h / 2);
+        const known = elements.get(q.element); elements.set(q.element, known ? known.add(at).multiplyScalar(0.5) : at);
+      }
       const add = (id: string, layer: 'timber' | 'mesh' | 'hardware', objects: (THREE.Object3D | null | undefined)[]) => {
         let into = components.get(id); if (!into) { into = p.component(`${e.id}-${id}`, 0, layer); components.set(id, into); }
         for (const o of objects) if (o) into.add(o);
       };
       const fastenersOf = (components: TunnelFastener['component'][]) => layout.fasteners.filter(f => components.includes(f.component)).flatMap(f => drawing.fastener(f)?.group ?? []);
       const sections = buildSectionPieces(p, drawing, layout);
+      for (const q of sections.members) tag(q.member.piece, q.group);
+      for (const q of sections.cleats) tag(q.cleat.piece, q.group);
+      for (const q of sections.panels) tag(q.panel.piece, q.group);
+      for (const q of sections.fasteners) tag(q.fastener.piece, q.group);
       add('sections', 'timber', [...sections.members, ...sections.cleats].map(q => q.group));
       add('mesh', 'mesh', sections.panels.map(q => q.group));
       add('section-fasteners', 'hardware', [...sections.fasteners.map(f => f.group), ...fastenersOf(['flange-screws'])]);
       const doorLayers = { timber: p.component(`${e.id}-doors`, 0, 'timber'), mesh: p.component(`${e.id}-door-mesh`, 0, 'mesh'), hardware: p.component(`${e.id}-door-hardware`, 0, 'hardware') };
       const doors = buildTunnelDoors(p, layout, () => doorLayers);
+      for (const d of doors) for (const root of d.roots) tag(d.access.piece, root);
       const joints = layout.couplings.map(c => buildCouplingJoint(p, drawing, layout, c));
       for (const j of joints) {
         for (const latch of j.latches) latch.setOpen(0);
@@ -146,12 +173,12 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
         add('docking-frame', 'timber', dock.frame.map(f => f.group));
         add('docking-hardware', 'hardware', [dock.seal, ...dock.catches.map(q => q.group), ...dock.latches.map(q => q.group), dock.lip]);
       }
-      dispose = () => { for (const j of joints) j.dispose(); for (const d of doors) d.dispose(); dock?.dispose(); drawing.dispose(); p.dispose(); };
+      dispose = () => { for (const j of joints) j.dispose(); for (const d of doors) d.dispose(); dock?.dispose(); drawing.dispose(); p.dispose(); for (const g of proxies) g.dispose(); };
     };
     draw(e.layout, e.config);
     const middle = e.layout?.pieces[Math.floor((e.layout.pieces.length - 1) / 2)];
     const anchor = middle ? new THREE.Vector3(...middle.end.at).setZ(middle.end.at[2] + (e.layout?.h ?? 0)) : new THREE.Vector3();
-    return { id: e.id, kind: e.kind, group, anchor, pose: t => place(group, t), dispose: () => dispose(), redraw: draw };
+    return { id: e.id, kind: e.kind, group, anchor, pose: t => place(group, t), dispose: () => dispose(), redraw: draw, elements };
   }
 
   function drawEnclosure(e: EvaluatedEnclosure): Drawn {
@@ -159,7 +186,7 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     const p = parts(group);
     const doors: CatioDoor[] = [];
     const { closureName, port } = catPorts(p, portSettings, doors);
-    buildEnclosure(p, e.layout, closureName, { placed: p.placed, doors, port: (q, label) => port(q.id, label, 3, q.connected, 'enclosure') });
+    buildEnclosure(p, e.layout, closureName, { placed: p.placed, doors, port: (q, label) => port(q.id, label, 3, q.connected, 'enclosure', undefined, q.face.at[2]) });
     const { width, depth, height } = e.layout.size;
     const proxy = new THREE.Mesh(new THREE.BoxGeometry(width, depth, height), proxyMaterial);
     proxy.position.set(0, depth / 2, height / 2); group.add(proxy);
@@ -221,19 +248,32 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     const i = byId.get(id);
     return i?.kind === 'enclosure' ? { kind: 'enclosure', params: i.params } : i?.kind === 'platform' ? { kind: 'platform', params: i.params } : null;
   };
+  /** An upright double arrow, its foot's middle at `at`: what raises and lowers the selection. */
+  function uprightArrow(at: THREE.Vector3) {
+    const arrow = new THREE.Group(); arrow.position.copy(at);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 160, 12), handleMaterial); shaft.rotation.x = Math.PI / 2; shaft.position.z = 80;
+    const head = new THREE.Mesh(new THREE.ConeGeometry(45, 110, 16), handleMaterial); head.rotation.x = Math.PI / 2; head.position.z = 215;
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(45, 110, 16), handleMaterial); tail.rotation.x = -Math.PI / 2; tail.position.z = -55;
+    arrow.add(shaft, head, tail);
+    return arrow;
+  }
   function addHandle(d: Drawn, mesh: THREE.Object3D, name: string, data: Record<string, string>, aim = new THREE.Vector3()) {
     mesh.traverse(o => { o.renderOrder = 11; });
     Object.assign(mesh.userData, { handleOf: d.id, ...data });
     frameOf(d).add(mesh); handles.push({ mesh, name, aim });
   }
 
-  /** The bounds of an instance's own meshes (not its children's, nor its site context), in its group's frame. */
-  function localBounds(d: Drawn): THREE.Box3 {
+  /** The tunnel an element is of, as drawn. */
+  const tunnelOfElement = (id: string) => [...drawn.values()].find(d => d.elements?.has(id));
+  /** The bounds of an instance's own meshes (not its children's, nor its site context), or of one of a tunnel's elements, in its group's frame. */
+  function localBounds(d: Drawn, element?: string): THREE.Box3 {
     d.group.updateWorldMatrix(true, true);
     const inverse = d.group.matrixWorld.clone().invert();
     const box = new THREE.Box3(); const part = new THREE.Box3(); const matrix = new THREE.Matrix4();
-    const visit = (o: THREE.Object3D) => {
+    const visit = (o: THREE.Object3D, inElement: boolean) => {
       if (o !== d.group && (o.userData['instanceId'] || CONTEXT.has(o.name))) return;
+      const within = inElement || (element !== undefined && o.userData['elementId'] === element);
+      if (element !== undefined && !within) { for (const child of o.children) visit(child, false); return; }
       if (o instanceof THREE.InstancedMesh) {
         const instanced = o as THREE.InstancedMesh; if (!instanced.boundingBox) instanced.computeBoundingBox();
         if (instanced.boundingBox) box.union(part.copy(instanced.boundingBox).applyMatrix4(matrix.multiplyMatrices(inverse, o.matrixWorld)));
@@ -241,13 +281,13 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
         const geometry = (o as THREE.Mesh).geometry; if (!geometry.boundingBox) geometry.computeBoundingBox();
         if (geometry.boundingBox) box.union(part.copy(geometry.boundingBox).applyMatrix4(matrix.multiplyMatrices(inverse, o.matrixWorld)));
       }
-      for (const child of o.children) visit(child);
+      for (const child of o.children) visit(child, within);
     };
-    visit(d.group);
+    visit(d.group, false);
     return box;
   }
-  function outline(d: Drawn, material: THREE.LineBasicMaterial, grow: number) {
-    const box = localBounds(d); if (box.isEmpty()) return;
+  function outline(d: Drawn, material: THREE.LineBasicMaterial, grow: number, element?: string) {
+    const box = localBounds(d, element); if (box.isEmpty()) return;
     box.expandByScalar(grow);
     const helper = new THREE.Box3Helper(box); helper.material = material; helper.renderOrder = 10;
     d.group.add(helper); outlines.push(helper);
@@ -256,8 +296,22 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
   /** Outlines the selection, and the instances with problems; puts the `tool`'s handles on a single movable selection. */
   function mark(selection: string[], flagged: string[], tool: PlannerTool = 'move') {
     clearOverlays();
-    for (const id of flagged) { const d = drawn.get(id); if (d) outline(d, outlineMaterials[1] as THREE.LineBasicMaterial, 30); }
-    for (const id of selection) { const d = drawn.get(id); if (d) outline(d, outlineMaterials[0] as THREE.LineBasicMaterial, 15); }
+    // an instance's outline, or a tunnel element's round its own pieces
+    const draw = (id: string, material: THREE.LineBasicMaterial, grow: number) => {
+      const d = drawn.get(id); if (d) { outline(d, material, grow); return; }
+      const t = tunnelOfElement(id); if (t) outline(t, material, grow, id);
+    };
+    for (const id of flagged) draw(id, outlineMaterials[1] as THREE.LineBasicMaterial, 30);
+    for (const id of selection) draw(id, outlineMaterials[0] as THREE.LineBasicMaterial, 15);
+    // tunnel elements rise and fall by an upright arrow over the middle of them
+    const tunnels = selection.map(tunnelOfElement);
+    if (tool === 'move' && selection.length && tunnels.every(t => t)) {
+      const t = tunnels[0] as Drawn; const middle = new THREE.Vector3(); let count = 0;
+      for (const id of selection) { const at = tunnels[selection.indexOf(id)]?.elements?.get(id); if (at && tunnels[selection.indexOf(id)] === t) { middle.add(at); count++; } }
+      middle.multiplyScalar(1 / Math.max(1, count));
+      addHandle(t, uprightArrow(middle.clone().setZ(middle.z + 400)), 'elevate', { handle: 'elevate', handleOf: selection[0] ?? '' }, new THREE.Vector3(0, 0, 80));
+      return;
+    }
     const [only] = selection; const d = only && selection.length === 1 ? drawn.get(only) : undefined;
     const sized = d && sizedOf(d.id);
     if (!d || !sized) return;
@@ -272,12 +326,7 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     }
     if (tool === 'move' && d.kind === 'platform') {
       // the arrow raises or lowers the platform: off its front edge, so that seen from above it is not on the board
-      const arrow = new THREE.Group(); arrow.position.set(0, sized.params.depth / 2 + 160, 120);
-      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 160, 12), handleMaterial); shaft.rotation.x = Math.PI / 2; shaft.position.z = 80;
-      const head = new THREE.Mesh(new THREE.ConeGeometry(45, 110, 16), handleMaterial); head.rotation.x = Math.PI / 2; head.position.z = 215;
-      const tail = new THREE.Mesh(new THREE.ConeGeometry(45, 110, 16), handleMaterial); tail.rotation.x = -Math.PI / 2; tail.position.z = -55;
-      arrow.add(shaft, head, tail);
-      addHandle(d, arrow, 'elevate', { handle: 'elevate' }, new THREE.Vector3(0, 0, 80));
+      addHandle(d, uprightArrow(new THREE.Vector3(0, sized.params.depth / 2 + 160, 120)), 'elevate', { handle: 'elevate' }, new THREE.Vector3(0, 0, 80));
       // the double arrow slides it along its one free direction: across its span, the board's own Y (North–South for a West–East
       // platform), beside the upright arrow; its shaft reaches past the board's edges, where it can be held from above
       const reach = sized.params.depth / 2 + 220;
@@ -302,13 +351,16 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
   function pickOf(hits: THREE.Intersection[]): PlannerPick | null {
     const ids: string[] = [];
     for (const hit of hits) {
+      let element: string | undefined;
       for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) {
+        element ??= o.userData['elementId'] as string | undefined;
         const handleOf = o.userData['handleOf'] as string | undefined;
         const handle = o.userData['handle'] as string | undefined;
         if (handleOf && handle === 'resize') return { kind: 'resize', id: handleOf, face: o.userData['face'] as SizeFace };
         if (handleOf && (handle === 'rotate' || handle === 'elevate' || handle === 'slide')) return { kind: handle, id: handleOf };
         const id = o.userData['instanceId'] as string | undefined;
-        if (id) { if (!ids.includes(id)) ids.push(id); break; }
+        // a tunnel's piece picks its route element
+        if (id) { const picked = element ?? id; if (!ids.includes(picked)) ids.push(picked); break; }
       }
     }
     // a click through an enclosure's walls picks what stands in it
@@ -329,7 +381,10 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     root.updateWorldMatrix(true, true); camera.updateMatrixWorld();
     const screen = (v: THREE.Vector3) => { const q = v.clone().project(camera); return [Math.round((q.x + 1) / 2 * size.width), Math.round((1 - q.y) / 2 * size.height)]; };
     const result: Record<string, number[]> = {};
-    for (const d of drawn.values()) result[d.id] = screen(d.anchor.clone().applyMatrix4(d.group.matrixWorld));
+    for (const d of drawn.values()) {
+      result[d.id] = screen(d.anchor.clone().applyMatrix4(d.group.matrixWorld));
+      for (const [id, at] of d.elements ?? []) result[id] = screen(at.clone().applyMatrix4(d.group.matrixWorld));
+    }
     for (const { mesh, name, aim } of handles) {
       result[name] = screen(aim.clone().applyMatrix4(mesh.matrixWorld));
       if (name === 'rotate' || name === 'slide') result[`${name}-centre`] = screen(new THREE.Vector3().applyMatrix4(mesh.matrixWorld));

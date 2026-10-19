@@ -300,7 +300,7 @@ export function tunnelRoute(t: Pick<TunnelInstance, 'params'>, s: ProjectSetting
 export function solveRoute(t: Pick<TunnelInstance, 'id' | 'params'>, s: ProjectSettings, site: TunnelSite, target: Transform, mated: boolean): { route: RouteElement[]; config: TunnelConfig; layout: TunnelLayout } {
   const joint: TunnelCouplingConfig = { ...s.tunnelCoupling, jointShown: 'end-end' };
   const config = tunnelRoute(t, s, target, mated);
-  const previous = t.params.route ?? [];
+  const previous = t.params.route;
   const solved = tunnelLayout({ ...config, portHeight: site.floorZ }, site, joint);
   const taken = new Set(previous.map(e => e.id));
   let n = 0;

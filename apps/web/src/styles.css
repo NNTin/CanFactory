@@ -2383,6 +2383,7 @@ main {
 .planner-tree button:hover { background: #f1f2ea; }
 .planner-tree button[aria-pressed=true] { background: #fdf0de; border-color: #e8b26a; }
 .planner-tree small { color: var(--muted); font-size: 11px; margin-left: auto; }
+.planner-tree .planner-elements button { padding: 3px 8px; font-size: 12px; }
 .planner-badge { display: inline-flex; align-items: center; gap: 3px; color: #b2362b; font-size: 11px; font-weight: 600; }
 .planner-centre { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
 .planner-tools { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px 6px; }

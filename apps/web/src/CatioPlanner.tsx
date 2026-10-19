@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Box, CircleAlert, Copy, Focus, Magnet, Maximize, Move, Plus, Redo2, RotateCw, Scaling, Trash2, Undo2 } from 'lucide-react';
 import {
-  addEnclosure, addPlatform, canRedo, canUndo, deleteDependents, deleteInstance, duplicateInstance, ENCLOSURE_DEFAULT, moveInstance, ORIENTATION_YAW,
-  platformOrientation, platformRangeOf, PLATFORM_ORIENTATIONS, PLATFORM_RECIPES, rangeText, resizeGarden, resizeInstance, rotateInstance, worldTransforms, type CommandResult, type EvaluatedInstance, type Instance, type Project, type ProjectEvaluation, type ProjectIssue,
+  addEnclosure, addPlatform, canRedo, canUndo, deleteDependents, deleteInstance, duplicateInstance, elementTitle, ENCLOSURE_DEFAULT, moveInstance, ORIENTATION_YAW,
+  platformOrientation, platformRangeOf, PLATFORM_ORIENTATIONS, PLATFORM_RECIPES, raiseElements, rangeText, resizeGarden, resizeInstance, rotateInstance, routeElements, worldTransforms,
+  type CommandResult, type EvaluatedElement, type EvaluatedInstance, type Instance, type Project, type ProjectEvaluation, type ProjectIssue,
 } from '@canfactory/catio';
 import { createPlannerStore, PlannerStoreContext, usePlannerHistory, usePlannerStore } from './catioPlannerStore.ts';
 import { CAMERA_VIEWS, createPlannerViewport, tunnelModules, type CameraView, type PlannerViewport, type Readout } from './catioPlannerViewport.ts';
@@ -71,6 +72,7 @@ function PlannerPage() {
         const resized = resizeInstance(present, id, size);
         run(resized.errors.length ? resized : moveInstance(resized.project, id, { x: to.x, y: to.y }));
       },
+      raise(ids, delta) { run(raiseElements(store.get().present, ids, delta)); },
     });
     if (!created) { setUnsupported(true); return; }
     viewport.current = created;
@@ -95,12 +97,17 @@ function PlannerPage() {
   }, [store]);
 
   const selected = selection.length === 1 ? project.instances.find(i => i.id === selection[0]) : undefined;
-  /** Raises (`direction` 1) or lowers the selection one step, 100 mm with Shift: a platform; an enclosure stands on the ground. */
+  /** The selection when it is tunnel elements only (one or several): what rises and falls as `raiseElements` raises them. */
+  const elementIds = useMemo(() => { const known = routeElements(project); return selection.length && selection.every(id => known.has(id)) ? selection : []; }, [project, selection]);
+  /** Raises (`direction` 1) or lowers the selection one step, 100 mm with Shift: tunnel elements, or a platform; an enclosure stands on the ground. */
   const elevate = (direction: 1 | -1, coarse: boolean) => {
     const present = store.get().present;
+    const step = direction * (coarse ? ELEVATION_STEP.coarse : ELEVATION_STEP.fine);
+    const known = routeElements(present);
+    if (present.view.selection.length && present.view.selection.every(id => known.has(id))) { run(raiseElements(present, present.view.selection, step)); return; }
     const [id] = present.view.selection; const instance = present.view.selection.length === 1 ? present.instances.find(i => i.id === id) : undefined;
-    if (instance?.kind !== 'platform') { setStatus({ text: instance?.kind === 'enclosure' ? 'An enclosure stands on the ground: raise or lower a platform in it.' : 'Select a platform to raise or lower it.', alert: true }); return; }
-    run(moveInstance(present, instance.id, { z: instance.transform.z + direction * (coarse ? ELEVATION_STEP.coarse : ELEVATION_STEP.fine) }));
+    if (instance?.kind !== 'platform') { setStatus({ text: instance?.kind === 'enclosure' ? 'An enclosure stands on the ground: raise or lower a platform in it.' : 'Select a platform, or tunnel elements, to raise or lower them.', alert: true }); return; }
+    run(moveInstance(present, instance.id, { z: instance.transform.z + step }));
   };
   const elevateRef = useRef(elevate); elevateRef.current = elevate;
   const movable = selected?.kind === 'enclosure' || selected?.kind === 'platform';
@@ -133,7 +140,7 @@ function PlannerPage() {
           </div>
         </section>
         <section aria-label="Objects"><h2 className="eyebrow">OBJECTS</h2>
-          <ObjectTree project={project} evaluation={evaluation} selection={selection} select={id => store.select([id])} />
+          <ObjectTree project={project} evaluation={evaluation} selection={selection} select={(id, add) => store.select(add ? (selection.includes(id) ? selection.filter(s => s !== id) : [...selection, id]) : [id])} />
         </section>
       </aside>
       <section className="planner-centre" aria-label="Viewport">
@@ -146,8 +153,8 @@ function PlannerPage() {
           </div>
           <div className="planner-selection-tools" role="group" aria-label="Selection tools">
             {TOOLS.map(t => <button key={t.tool} type="button" aria-pressed={tool === t.tool} disabled={unsupported || !movable} title={t.title} onClick={() => setTool(t.tool)}>{t.icon} {t.label}</button>)}
-            <button type="button" disabled={selected?.kind !== 'platform'} title="Raise by 10 mm (Page Up; Shift: 100 mm)" onClick={event => elevate(1, event.shiftKey)}><ArrowUp size={13} aria-hidden="true" /> Raise</button>
-            <button type="button" disabled={selected?.kind !== 'platform'} title="Lower by 10 mm (Page Down; Shift: 100 mm)" onClick={event => elevate(-1, event.shiftKey)}><ArrowDown size={13} aria-hidden="true" /> Lower</button>
+            <button type="button" disabled={selected?.kind !== 'platform' && !elementIds.length} title="Raise by 10 mm (Page Up; Shift: 100 mm)" onClick={event => elevate(1, event.shiftKey)}><ArrowUp size={13} aria-hidden="true" /> Raise</button>
+            <button type="button" disabled={selected?.kind !== 'platform' && !elementIds.length} title="Lower by 10 mm (Page Down; Shift: 100 mm)" onClick={event => elevate(-1, event.shiftKey)}><ArrowDown size={13} aria-hidden="true" /> Lower</button>
           </div>
           <button type="button" className="planner-snap" aria-pressed={snap} onClick={() => setSnap(on => !on)} title="Snap moves to 10 mm (tunnels to whole modules) and turns to 15°"><Magnet size={13} aria-hidden="true" /> Snap {snap ? 'on' : 'off'} · 10 mm · 15°</button>
         </div>
@@ -155,10 +162,10 @@ function PlannerPage() {
           {unsupported && <div className="catio-fallback" role="status"><Box size={32} /><strong>3D is unavailable</strong><p>This browser has no WebGL. The object tree, the inspector and the issues still work.</p></div>}
           {readout && <div className={`planner-readout${readout.ok ? '' : ' invalid'}`} role="status" style={{ left: readout.x + 18, top: readout.y + 18 }}><strong>{readout.title}</strong>{readout.lines.map(line => <span key={line}>{line}</span>)}</div>}
         </div>
-        <p className="planner-hint">Drag an object to move it, its ring to turn it · a platform stays in its enclosure: its double arrow slides it, its upright arrow (or Page Up / Page Down) raises it, its ring turns it West–East or North–South · Resize: drag a face’s handle · empty space: orbit in 3D, pan in Top, Front and Side · middle button pans · scroll zooms · Esc cancels a drag</p>
+        <p className="planner-hint">Drag an object to move it, its ring to turn it · Shift- or Ctrl-click adds to the selection · a click on a tunnel picks one of its elements: its upright arrow (or Page Up / Page Down) raises the selected elements, and the cat port at either end rises with them · a platform stays in its enclosure: its double arrow slides it, its upright arrow raises it, its ring turns it West–East or North–South · Resize: drag a face’s handle · empty space: orbit in 3D, pan in Top, Front and Side · middle button pans · scroll zooms · Esc cancels a drag</p>
       </section>
       <aside className="planner-right">
-        <Inspector project={project} evaluation={evaluation} selected={selected} run={run} remove={id => {
+        <Inspector project={project} evaluation={evaluation} selected={selected} elements={elementIds} run={run} remove={id => {
           const removed = deleteDependents(project, id);
           const others = removed.instances.filter(i => i !== id).map(i => nameOf(project, i));
           const connections = removed.connections.length;
@@ -170,14 +177,17 @@ function PlannerPage() {
         }} />
         <Issues issues={evaluation.issues} project={project} focused={focusedIssue} pick={issue => {
           setFocusedIssue(issue.id);
-          store.select(issue.instanceIds.filter(id => project.instances.some(i => i.id === id)));
+          // a problem on tunnel elements selects them; otherwise the instances it is on
+          const known = routeElements(project);
+          const elements = issue.instanceIds.filter(id => known.has(id));
+          store.select(elements.length ? elements : issue.instanceIds.filter(id => project.instances.some(i => i.id === id)));
         }} />
       </aside>
     </div>
   </div>;
 }
 
-const nameOf = (project: Project, id: string) => project.instances.find(i => i.id === id)?.name ?? id;
+const nameOf = (project: Project, id: string) => project.instances.find(i => i.id === id)?.name ?? elementTitle(project, id) ?? id;
 
 /** A spot on the lawn for a new enclosure, clear of the others (as far as their outlines go), nearest the garden's middle. */
 function freeSpot(project: Project) {
@@ -194,18 +204,26 @@ function freeSpot(project: Project) {
   return candidates.find(c => taken.every(t => c.x + w / 2 < t.x0 || c.x - w / 2 > t.x1 || c.y + d + door < t.y0 || c.y > t.y1)) ?? { x: gw / 2, y: Math.max(0, gd / 2 - d / 2) };
 }
 
-function ObjectTree({ project, evaluation, selection, select }: { project: Project; evaluation: ProjectEvaluation; selection: string[]; select: (id: string) => void }) {
+/** Shift, Ctrl or ⌘ held: a click adds to the selection (or takes out). */
+const adding = (event: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => event.shiftKey || event.ctrlKey || event.metaKey;
+
+function ObjectTree({ project, evaluation, selection, select }: { project: Project; evaluation: ProjectEvaluation; selection: string[]; select: (id: string, add: boolean) => void }) {
   const errors = (id: string) => evaluation.issues.filter(i => flags(i) && i.instanceIds.includes(id)).length;
+  const badge = (count: number) => count > 0 && <span className="planner-badge" title={`${count} problem${count > 1 ? 's' : ''}`}><CircleAlert size={12} aria-hidden="true" /> {count}</span>;
+  // a tunnel's route elements under it, in the chain's order
+  const elements = (id: string): ReactNode => {
+    const tunnel = evaluation.instances.find(e => e.kind === 'tunnel' && e.id === id);
+    if (tunnel?.kind !== 'tunnel' || !tunnel.elements.length) return null;
+    return <ul className="planner-elements">{tunnel.elements.map(e => <li key={e.id}><button type="button" aria-pressed={selection.includes(e.id)} onClick={event => select(e.id, adding(event))} data-element={e.id}>
+      <span>{e.name}</span><small>{Math.abs(e.slope) > 0.05 ? `${e.slope > 0 ? '↗' : '↘'} ${Math.abs(e.slope).toFixed(1)}°` : `${cm(e.floor[0])} cm`}</small>{badge(errors(e.id))}
+    </button></li>)}</ul>;
+  };
   const children = (parent: string | null): ReactNode => {
     const list = project.instances.filter(i => i.parent === parent);
     if (!list.length) return null;
-    return <ul>{list.map(i => {
-      const count = errors(i.id);
-      return <li key={i.id}><button type="button" aria-pressed={selection.includes(i.id)} onClick={() => select(i.id)} data-instance={i.id}>
-        <span>{i.name ?? i.id}</span><small>{KIND_TITLES[i.kind] ?? i.kind}</small>
-        {count > 0 && <span className="planner-badge" title={`${count} problem${count > 1 ? 's' : ''}`}><CircleAlert size={12} aria-hidden="true" /> {count}</span>}
-      </button>{children(i.id)}</li>;
-    })}</ul>;
+    return <ul>{list.map(i => <li key={i.id}><button type="button" aria-pressed={selection.includes(i.id)} onClick={event => select(i.id, adding(event))} data-instance={i.id}>
+        <span>{i.name ?? i.id}</span><small>{KIND_TITLES[i.kind] ?? i.kind}</small>{badge(errors(i.id))}
+      </button>{elements(i.id)}{children(i.id)}</li>)}</ul>;
   };
   return <nav className="planner-tree" aria-label="Object tree">{children(null)}</nav>;
 }
@@ -221,12 +239,15 @@ function Issues({ issues, project, focused, pick }: { issues: ProjectIssue[]; pr
 
 interface InspectorProps {
   project: Project; evaluation: ProjectEvaluation; selected: Instance | undefined;
+  /** The selected tunnel elements, when the selection is only those. */
+  elements: string[];
   run: (result: CommandResult, select?: string | null) => string[]; remove: (id: string) => void;
 }
-function Inspector({ project, evaluation, selected, run, remove }: InspectorProps) {
+function Inspector({ project, evaluation, selected, elements, run, remove }: InspectorProps) {
   const evaluated = selected && evaluation.instances.find(e => e.id === selected.id);
   const issues = selected ? evaluation.issues.filter(i => i.severity !== 'info' && i.instanceIds.includes(selected.id)) : [];
   const { garden } = project;
+  if (elements.length) return <section className="planner-inspector" aria-label="Inspector"><ElementFields project={project} evaluation={evaluation} ids={elements} run={run} /></section>;
   return <section className="planner-inspector" aria-label="Inspector">
     {!selected ? <><h2 className="eyebrow">GARDEN</h2>
       <p className="planner-note">Select an object in the viewport or the tree. Everything outside the garden is flagged, never moved or deleted.</p>
@@ -261,7 +282,8 @@ function InstanceFields({ project, instance, evaluated, run }: { project: Projec
         <NumberField label="Width" unit="cm" value={instance.params.width} scale={10} digits={1} positive onCommit={v => resize({ width: v })} />
         <NumberField label="Depth" unit="cm" value={instance.params.depth} scale={10} digits={1} positive onCommit={v => resize({ depth: v })} />
         <NumberField label="Height" unit="cm" value={instance.params.height} scale={10} digits={1} positive onCommit={v => resize({ height: v })} /></fieldset>
-      <dl className="planner-readonly"><div><dt>Usable inside · W × D × H</dt><dd>{cm(inside.width)} × {cm(inside.depth)} × {cm(inside.height)} <small>cm</small></dd></div></dl>
+      <dl className="planner-readonly"><div><dt>Usable inside · W × D × H</dt><dd>{cm(inside.width)} × {cm(inside.depth)} × {cm(inside.height)} <small>cm</small></dd></div>
+        <div><dt>Cat port sills · {evaluated.layout.ports.map(q => q.side).join(', ')}</dt><dd data-sills={JSON.stringify(evaluated.layout.ports.map(q => q.face.at[2]))}>{evaluated.layout.ports.map(q => cm(q.face.at[2])).join(' · ')} <small>cm</small></dd></div></dl>
     </>;
   }
   if (instance.kind === 'platform') {
@@ -293,7 +315,7 @@ function InstanceFields({ project, instance, evaluated, run }: { project: Projec
     return <dl className="planner-readonly">
       <div><dt>Modules</dt><dd>{layout ? tunnelModules(layout) : '–'} <small>× {layout ? cm(layout.pitch) : '–'} cm</small></dd></div>
       <div><dt>Reaches its port</dt><dd>{evaluated.reaches ? 'Yes' : 'No: an invalid draft'}</dd></div>
-      <p className="planner-note">The tunnel follows the enclosure it couples to. Its route is edited directly in a later step.</p>
+      <p className="planner-note">The tunnel follows the enclosure it couples to. Click one of its elements (Shift or Ctrl for more) to raise or lower it.</p>
     </dl>;
   }
   if (evaluated.kind === 'window') {
@@ -307,6 +329,32 @@ function InstanceFields({ project, instance, evaluated, run }: { project: Projec
   return null;
 }
 const cm = (mm: number) => (Math.round(mm) / 10).toLocaleString('en', { maximumFractionDigits: 1 });
+
+/**
+ * The selected tunnel elements (FR-04.2): each one's floor where it starts and ends, its length and its slope; a single one's floor
+ * as a field. Raising or lowering them is one edit (`raiseElements`): their neighbours slope to them, and the cat port at either end
+ * of their tunnel moves with them.
+ */
+function ElementFields({ project, evaluation, ids, run }: { project: Project; evaluation: ProjectEvaluation; ids: string[]; run: InspectorProps['run'] }) {
+  const laid = new Map(evaluation.instances.flatMap(e => e.kind === 'tunnel' ? e.elements.map(x => [x.id, x] as const) : []));
+  const shown = ids.map(id => laid.get(id)).filter((x): x is EvaluatedElement => !!x);
+  const sloped = (x: EvaluatedElement) => Math.abs(x.floor[1] - x.floor[0]) > 0.5;
+  const issues = evaluation.issues.filter(i => i.severity !== 'info' && i.instanceIds.some(id => ids.includes(id)));
+  const [only] = shown;
+  return <>
+    <h2 className="eyebrow">{ids.length === 1 ? 'TUNNEL ELEMENT' : `TUNNEL ELEMENTS · ${ids.length}`}</h2>
+    {shown.map(x => <dl className="planner-readonly" key={x.id} data-element-fields={x.id}>
+      <div><dt>{elementTitle(project, x.id)}</dt><dd>{x.kind === 'turn' ? 'Side-port turn' : 'Straight'} · {x.modules} {x.modules === 1 ? 'module' : 'modules'}</dd></div>
+      <div><dt>Floor · above the grass</dt><dd data-floor={x.floor[0]}>{cm(x.floor[0])}{sloped(x) ? ` → ${cm(x.floor[1])}` : ''} <small>cm</small></dd></div>
+      <div><dt>Length</dt><dd>{cm(x.length)} <small>cm</small></dd></div>
+      <div><dt>Slope</dt><dd>{sloped(x) ? `${x.slope >= 0 ? 'up' : 'down'} ${Math.abs(x.slope).toFixed(1)}°` : 'level'}</dd></div>
+    </dl>)}
+    {ids.length === 1 && only && <NumberField label="Floor" unit="mm" value={only.floor[0]} scale={1} digits={0} step={10} hint="Where it starts; its neighbours slope to it"
+      onCommit={v => run(raiseElements(project, ids, v - only.floor[0]))} />}
+    <p className="planner-note">Raise or lower {ids.length === 1 ? 'it' : 'them'} with Page Up / Page Down (Shift: 10 cm), the Raise and Lower buttons or the upright arrow. The cat port at an end of the tunnel moves with {ids.length === 1 ? 'it' : 'them'}.</p>
+    {issues.length > 0 && <ul className="planner-object-issues" aria-label="Problems with the selection">{issues.map(i => <li key={i.id} className={i.severity}>{i.message}</li>)}</ul>}
+  </>;
+}
 const AXIS_TITLES = { x: 'West–East', y: 'North–South' } as const;
 
 /**

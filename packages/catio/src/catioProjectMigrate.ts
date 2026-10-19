@@ -2,7 +2,7 @@ import { Value } from 'typebox/value';
 import { MODULAR_DEFAULT } from './catioModularDesign.ts';
 import {
   composeTransform, keepView, projectErrors, PROJECT_SCHEMA_VERSION, ProjectSchema, relativeTransform, worldTransforms,
-  type Project, type ProjectSettings, type TunnelInstance, type WindowParams,
+  type Project, type ProjectSettings, type WindowParams,
 } from './catioProject.ts';
 import { tunnelRoute } from './catioProjectEvaluate.ts';
 import { routeOf, tunnelLayout, tunnelSiteFor } from './catioTunnel.ts';
@@ -18,14 +18,15 @@ export type ParseResult = { ok: true; project: Project } | { ok: false; errors: 
 /** A version 1 document as version 2: every tunnel's route described as version 1 laid it out. Anything else is passed on unchanged. */
 export function migrateProject(raw: unknown): unknown {
   if (typeof raw !== 'object' || raw === null || (raw as { schemaVersion?: unknown }).schemaVersion !== 1) return raw;
+  const shape = raw as { instances?: unknown; ports?: unknown; connections?: unknown; settings?: unknown };
+  if (!Array.isArray(shape.instances) || !Array.isArray(shape.ports) || !Array.isArray(shape.connections) || typeof shape.settings !== 'object' || shape.settings === null) return raw;
   const v1 = raw as Project;
-  if (!Array.isArray(v1.instances) || !Array.isArray(v1.ports) || !Array.isArray(v1.connections) || typeof v1.settings !== 'object' || v1.settings === null) return raw;
   try {
     const settings: ProjectSettings = v1.settings;
     const world = worldTransforms(v1);
     const instances = v1.instances.map(i => {
       if (i.kind !== 'tunnel') return i;
-      const t = i as TunnelInstance;
+      const t = i;
       const window = v1.instances.find(w => w.id === t.parent && w.kind === 'window');
       const end = v1.ports.find(p => p.owner === t.id && p.name === 'end');
       const tunnelWorld = world.get(t.id);

@@ -40,39 +40,39 @@ export function catPorts(p: ReturnType<typeof createCatioParts>, c: Pick<Modular
    * A cat port, in its own frame: its timber frame round the opening, and on its +Y side (the room's, or the enclosure's inside:
    * the side it is operated from, a tunnel docking on the other) what closes it. That is a removable panel on the frame's face
    * behind turn buttons, as on the window insert page (solid at the window, a framed mesh panel at an enclosure), or a gate
-   * sliding up in tracks.
+   * sliding up in tracks. `sill` is its floor, where it is not the modular catio's (a planner's raised or lowered port).
    */
-  function port(id: string, label: string, step: number, connected: boolean, at: 'window' | 'enclosure', stow?: V3) {
+  function port(id: string, label: string, step: number, connected: boolean, at: 'window' | 'enclosure', stow?: V3, sill: number = d.sill) {
     const frame = component(`${id}-frame`, step, 'timber', [0, 0, 100]);
-    ring(frame, span, h + 2 * PORT_FRAME, PORT_FRAME, PORT_FRAME, 0, d.sill - PORT_FRAME, m.timber);
+    ring(frame, span, h + 2 * PORT_FRAME, PORT_FRAME, PORT_FRAME, 0, sill - PORT_FRAME, m.timber);
     if (removable) {
       const panel = modularPortPanel(c, at, id, stow);
       const timber = component(`${id}-panel`, step, 'timber', [0, 0, 100]); const hardware = component(`${id}-panel-buttons`, step, 'hardware', [0, 0, 100]);
       const meshes = panel.mesh ? component(`${id}-panel-mesh`, step, 'mesh', [0, 0, 100]) : timber;
       // its seat is the frame's +Y face; it comes out along +Y
-      const built = buildDoorPanel(p, panel, { origin: [0, PORT_FRAME / 2, d.sill], u: [-1, 0, 0], v: [0, 0, 1], n: [0, 1, 0] }, { timber, mesh: meshes, hardware });
+      const built = buildDoorPanel(p, panel, { origin: [0, PORT_FRAME / 2, sill], u: [-1, 0, 0], v: [0, 0, 1], n: [0, 1, 0] }, { timber, mesh: meshes, hardware });
       doors.push({ id, label, kind: 'cat', connected, mechanism: 'removable-panel', moving: [built.panel, built.panelMesh, built.panelHardware], set: built.set });
     } else {
       const tracks = component(`${id}-tracks`, step, 'hardware', [0, 0, 100]);
-      for (const side of [-1, 1]) box(tracks, [12, 28, 2 * h + 45], [side * (w / 2 + 16), 25, d.sill + h + 12], m.hardware);
+      for (const side of [-1, 1]) box(tracks, [12, 28, 2 * h + 45], [side * (w / 2 + 16), 25, sill + h + 12], m.hardware);
       const leafPart = component(`${id}-gate`, step, 'timber', [0, 0, 100]);
       const leaf = new THREE.Group(); leafPart.add(leaf);
-      box(leaf, [w + 20, 12, h + 20], [0, 25, d.sill + h / 2], m.endgrain);
+      box(leaf, [w + 20, 12, h + 20], [0, 25, sill + h / 2], m.endgrain);
       const hardware = component(`${id}-latch`, step, 'hardware', [0, 0, 100]);
       const movingHardware = new THREE.Group(); hardware.add(movingHardware);
-      box(movingHardware, [42, 20, 12], [0, 42, d.sill + h - 35], m.hardware);
-      rod(movingHardware, [w / 2 - 30, 36, d.sill + 15], [w / 2 + 24, 36, d.sill + 15], 5);
+      box(movingHardware, [42, 20, 12], [0, 42, sill + h - 35], m.hardware);
+      rod(movingHardware, [w / 2 - 30, 36, sill + 15], [w / 2 + 24, 36, sill + 15], 5);
       const moving = [leaf, movingHardware];
       doors.push({ id, label, kind: 'cat', connected, mechanism: 'sliding-gate', moving, set: travel => { for (const part of moving) part.position.z = (h + 30) * travel; } });
     }
-    if (connected) coupling(`${id}-dock`, 0, 0, 0);
+    if (connected) coupling(`${id}-dock`, 0, 0, 0, sill);
   }
-  function coupling(id: string, x: number, y: number, angle: number) {
+  function coupling(id: string, x: number, y: number, angle: number, sill: number = d.sill) {
     placed(x, y, angle, () => {
       const group = component(`${id}-coupling`, 5, 'hardware', [0, 50, 40]);
       // A shallow matching flange overlaps both mating timber end frames.
-      ring(group, span + 8, h + 88, 4, 44, 0, d.sill - 44, m.hardware);
-      for (const side of [-1, 1]) for (const z of [d.sill + 45, d.sill + h - 45]) {
+      ring(group, span + 8, h + 88, 4, 44, 0, sill - 44, m.hardware);
+      for (const side of [-1, 1]) for (const z of [sill + 45, sill + h - 45]) {
         box(group, [12, 65, 20], [side * (w / 2 + 24), 0, z], m.hardware);
         box(group, [20, 25, 8], [side * (w / 2 + 24), 0, z + 14], m.rubber);
       }

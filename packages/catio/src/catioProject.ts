@@ -94,7 +94,7 @@ export type TunnelInstance = Omit<Static<typeof TunnelInstanceSchema>, 'params'>
 /** Every tunnel's route elements by id, with the tunnel and their place in its chain. */
 export function routeElements(project: Pick<Project, 'instances'>): Map<string, { tunnel: TunnelInstance; index: number; element: RouteElement }> {
   const found = new Map<string, { tunnel: TunnelInstance; index: number; element: RouteElement }>();
-  for (const tunnel of project.instances.filter(isKind('tunnel'))) (tunnel.params.route ?? []).forEach((element, index) => found.set(element.id, { tunnel, index, element }));
+  for (const tunnel of project.instances.filter(isKind('tunnel'))) tunnel.params.route.forEach((element, index) => found.set(element.id, { tunnel, index, element }));
   return found;
 }
 export type PlatformInstance = Static<typeof PlatformInstanceSchema>;

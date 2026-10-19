@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyEdit, createHistory, createProject, enclosureSillRange, evaluateProject, MODULAR, moveInstance, parseProject, projectErrors, raiseElements,
-  serializeProject, tunnelLayout, tunnelRoute, undo, type EvaluatedEnclosure, type EvaluatedTunnel, type EvaluatedWindow, type Project,
+  serializeProject, tunnelLayout, tunnelRoute, undo, type EvaluatedEnclosure, type EvaluatedWindow, type Project,
 } from './index.ts';
 
 /** Every document an edit returns is one `parseProject` accepts. */
 const sound = (project: Project) => { expect(projectErrors(JSON.parse(JSON.stringify(project)) as unknown)).toEqual([]); return project; };
 const tunnelOf = (project: Project) => {
-  const t = evaluateProject(project).instances.find(i => i.kind === 'tunnel'); if (t?.kind !== 'tunnel' || !t.layout) throw new Error('no tunnel'); return t as EvaluatedTunnel & { layout: NonNullable<EvaluatedTunnel['layout']> };
+  const t = evaluateProject(project).instances.find(i => i.kind === 'tunnel'); if (t?.kind !== 'tunnel' || !t.layout) throw new Error('no tunnel'); return { ...t, layout: t.layout };
 };
 const enclosureOf = (project: Project) => {
-  const e = evaluateProject(project).instances.find(i => i.kind === 'enclosure'); if (e?.kind !== 'enclosure') throw new Error('no enclosure'); return e as EvaluatedEnclosure;
+  const e = evaluateProject(project).instances.find(i => i.kind === 'enclosure'); if (e?.kind !== 'enclosure') throw new Error('no enclosure'); return e;
 };
 const routeOf = (project: Project) => { const t = project.instances.find(i => i.kind === 'tunnel'); if (t?.kind !== 'tunnel') throw new Error('no tunnel'); return t.params.route; };
 const port = (project: Project, id: string) => project.ports.find(p => p.id === id);
@@ -60,8 +60,7 @@ describe('the route model', () => {
   it('keeps a version 1 climb: the migrated elements lay out the same tunnel', () => {
     const p = longer(4);
     // version 1 solved a climb to an enclosure standing higher
-    const e = p.instances.find(i => i.id === 'enclosure-1'); if (!e) throw new Error('no enclosure');
-    const v1 = JSON.parse(serializeProject(p)) as Project & { schemaVersion: number };
+    const v1 = JSON.parse(serializeProject(p)) as Omit<Project, 'schemaVersion'> & { schemaVersion: number };
     v1.schemaVersion = 1;
     for (const i of v1.instances) { if (i.id === 'enclosure-1') i.transform.z += 120; if (i.kind === 'tunnel') delete (i.params as Partial<typeof i.params>).route; }
     for (const q of v1.ports) if (q.owner === 'enclosure-1') q.frame.z = MODULAR.sill;

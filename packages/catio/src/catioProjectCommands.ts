@@ -412,7 +412,7 @@ export function raiseElements(project: Project, ids: readonly string[], delta: n
     if (Math.hypot(shift.x, shift.y) < 0.5) continue;
     followed.push(owner.id);
     next = replace(next, { ...owner, transform: { ...owner.transform, x: r3(owner.transform.x + shift.x), y: r3(owner.transform.y + shift.y) } });
-    notes.push(`${owner.name ?? owner.id} moved ${Math.round(Math.hypot(shift.x, shift.y))} mm ${Math.hypot(now.E[0], now.E[1]) > Math.hypot(before.E[0], before.E[1]) ? 'away' : 'closer'}: the ${tunnel.name ?? tunnel.id}'s bends change its length, and it stays coupled.`);
+    notes.push(`${owner.name ?? owner.id} moved ${Math.round(Math.hypot(shift.x, shift.y))} mm with the tunnel's end: its bends make ${tunnel.name ?? tunnel.id} ${now.totalLength > before.totalLength ? 'longer' : 'shorter'}, and the enclosure stays coupled.`);
   }
   if (followed.length) next = rerouted(next, followed, [...tunnels.keys()]);
   return noted(ok(project, next), notes);
