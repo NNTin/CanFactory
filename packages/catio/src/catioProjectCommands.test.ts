@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addEnclosure, addPlatform, createProject, DEFAULT_TUNNEL_MODULES, deleteDependents, deleteInstance, duplicateInstance, ENCLOSURE_DEFAULT,
   enclosureLayout, evaluateProject, GARDEN_DEFAULT, MODULAR, moveInstance, parseProject, PRINTED_LATCH_JOINT, projectErrors, resizeGarden,
-  resizeInstance, rotateInstance, sidePortLength, TUNNEL, tunnelPitch, type Project,
+  resizeInstance, resizeWindow, rotateInstance, setCatPorts, sidePortLength, TUNNEL, tunnelPitch, type Project,
 } from './index.ts';
 
 const fresh = () => createProject({ id: 'p1' });
@@ -188,5 +188,33 @@ describe('commands', () => {
       (p: Project) => resizeInstance(p, 'platform-1', { width: 900 }).project, (p: Project) => deleteInstance(p, 'window-1').project,
     ]) project = step(project);
     expect(parseProject(JSON.stringify(project)).ok).toBe(true);
+  });
+});
+
+describe('the window and the cat ports (FR-02.10)', () => {
+  it('resizes the window, and with the cat port every port and tunnel: the enclosure stays where it is and its tunnel runs to it again', () => {
+    const start = fresh();
+    const glass = sound(resizeWindow(start, 'window-1', { glassWidth: 700, sashWidth: 850 }).project);
+    expect(glass.instances[0]?.params).toMatchObject({ glassWidth: 700, sashWidth: 850, tunnelSize: 300 });
+    const wider = resizeWindow(start, 'window-1', { tunnelSize: 350 });
+    expect(wider.errors).toEqual([]); sound(wider.project);
+    expect(new Set(wider.project.ports.map(p => p.interface.size))).toEqual(new Set([350]));
+    expect(wider.project.instances[2]?.transform).toEqual(start.instances[2]?.transform);
+    const t = tunnelOf(wider.project);
+    expect(t.ends.end.owner).toBe('enclosure-1'); expect(t.layout?.w).toBe(350);
+    // a size that cannot be one, another instance, or a size a window has not: refused, the project unchanged
+    for (const result of [resizeWindow(start, 'window-1', { tunnelSize: -1 }), resizeWindow(start, 'window-1', { sashHeight: Number.NaN }), resizeWindow(start, 'enclosure-1', { glassWidth: 700 }),
+      resizeWindow(start, 'window-1', { width: 900 } as never)]) { expect(result.project).toBe(start); expect(result.errors.length).toBeGreaterThan(0); }
+    // too small for its port is a design problem the planner shows, not a refusal
+    expect(evaluateProject(resizeWindow(start, 'window-1', { tunnelSize: 460 }).project).issues.map(i => i.message).join(' ')).toMatch(/Tunnel clear size must be 20–45 cm/);
+  });
+
+  it('chooses the cat ports’ closure and the doors’ seat for the whole catio', () => {
+    const start = fresh();
+    const gate = sound(setCatPorts(start, { portClosure: 'sliding-gate', doorSeat: 'rebate' }).project);
+    expect(gate.settings).toMatchObject({ portClosure: 'sliding-gate', doorSeat: 'rebate' });
+    expect(evaluateProject(gate).instances.find(i => i.kind === 'window')).toMatchObject({ site: { window: { closure: 'sliding-gate', seat: 'rebate' } } });
+    expect(setCatPorts(start, { portClosure: 'curtain' as never }).project).toBe(start);
+    expect(setCatPorts(start, { doorSeat: 'glue' as never }).errors.join()).toMatch(/stop strips or a rebate/);
   });
 });

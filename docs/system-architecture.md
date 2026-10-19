@@ -31,7 +31,8 @@ implementations, registrations and data copies it deletes.
 | `packages/part-geometry` | Library (Node and browser, Three.js) | `partGeometry(part)`: the one drawing of a procedural parts-library part, from its dimensions. The parts library, the editor's reference objects and the assembly check use it. | contracts |
 | `apps/api` | Process (Fastify) | The public HTTP API: render jobs and artifacts, model reference STLs, market and offers. Also serves OpenAPI. The catalogue and parts library are not served; the web app bundles them. | contracts, server |
 | `apps/worker` | Process (no HTTP) | Claims render jobs, runs **OpenSCAD** in a subprocess, validates the meshes, and publishes STL or ZIP artifacts. | contracts, server |
-| `apps/web` | Browser SPA (React, Vite, Three.js) | Model library and editor, viewer with assembly and physics modes, parts library pages, buy list, and the catio concept pages. | client, contracts, physics, part-geometry |
+| `packages/catio` | Library (Node and browser, no Three.js) | The catio's pure domain: the planner's project document, commands, history and `evaluateProject`, and the layouts, parts lists, steps and checks of the enclosure, window insert, tunnel and couplings. Nothing in it reads storage or draws. | contracts |
+| `apps/web` | Browser SPA (React, Vite, Three.js) | Model library and editor, viewer with assembly and physics modes, parts library pages, buy list, and the catio planner and sub-assembly pages. | catio, client, contracts, physics, part-geometry |
 | `tools/` | CLI scripts (`tsx`) | Release, migration and cleanup (`maintenance.ts`), Awin ingest (`offers.ts`), OpenAPI and client generation, renderer, storage and restart tests, geometry sweep, assembly and physics checks, slicer checks, STL-to-SCAD, preview tracking. | contracts, server, physics, part-geometry, `apps/api` (OpenAPI generation; the renderer and storage tests serve their renders through it) |
 | `models/` | Data (SCAD, reference STLs, fonts) | One directory per catalogue model. A model is its SCAD generator(s) plus a `ModelDefinition` in contracts. | (read by the worker and tools) |
 | `parts/` | Data (SCAD and STL) | The SCAD source and STL of each part with an STL preview (an everyday object). Other parts are drawn by `packages/part-geometry`. | (read by tools; STLs bundled into web) |
@@ -139,7 +140,7 @@ flowchart TB
         partGeo["@canfactory/part-geometry<br/>parts drawn from dimensions"]
         partsUi["Parts library pages<br/>PartsLibrary · PartsViewer"]
         shop["Shopping: shopping.ts · Shopping.tsx<br/>Where to buy · Hardware · buy list"]
-        catio["Catio concept pages<br/>Catio*.tsx · catio*.ts (30 modules, ~7.4k lines)"]
+        catio["Catio planner + sub-assembly pages<br/>Catio*.tsx · catio*.ts (26 modules, ~5.4k lines)<br/>domain: @canfactory/catio (22 modules, ~6.3k lines)"]
         pworker["physicsWorker.ts (Web Worker)"]
     end
 
@@ -277,19 +278,35 @@ Status from [physics-plan.md](physics-plan.md): **implemented** (spikes 1–5 do
   scenarios in Node (`integration.yml` → `npm run check:physics`).
 - No Kubernetes service. Physics never runs on the server.
 
-### Catio concept pages
+### Catio planner and sub-assembly pages
 
 The catio is a **concept**, not a catalogue model: no SCAD of its own and no physics. Its one render job is the
 toggle-latch model at its defaults, rendered once and cached (`catioPrintedLatchScene.ts`, through `completedRender` in
-`useRender.ts`), so the printed latch shows the model's own STLs. Routes are `#/concepts/catio`
-(`CatioConcept.tsx`) and `#/concepts/catio/<window-insert|insert-tunnel-coupling|tunnel|tunnel-tunnel-coupling>`
-(`CatioSubassemblyPage.tsx`).
+`useRender.ts`), so the printed latch shows the model's own STLs.
 
-- **Geometry is computed in the browser:** 30 `catio*.ts` and `Catio*.tsx` modules split into designs (`catioTunnel.ts`,
-  `catioWindowInsert.ts`, `catioCoupling.ts`, `catioDoor.ts`, `catioPort.ts`, …) and Three.js scenes (`*Scene.ts`). They
-  draw timber, mesh and hardware with `three` directly, using part dimensions (`findPart`, `dimensionOf`), hardware ids and
-  helpers from `concepts.ts`, and geometry helpers of real catalogue models (`toggleLatchMechanism`, `pressurePad`,
-  `printedCornerBracket`, `printedScreenHook`).
+Routes:
+
+- `#/concepts/catio` is a short overview (`CatioOverview.tsx`) that links to the planner and to each sub-assembly.
+- `#/concepts/catio/planner` is the catio planner (`CatioPlannerRoute.tsx`, `CatioPlanner.tsx`), where the whole catio is
+  designed.
+- `#/concepts/catio/<window-insert|insert-tunnel-coupling|tunnel|tunnel-tunnel-coupling>` are the sub-assembly pages
+  (`CatioSubassemblyPage.tsx`).
+
+The planner replaced the concept page's Direct and Modular modes in #116. No second scene or settings model is left.
+
+- **The domain is `@canfactory/catio`** (`packages/catio`). It holds the designs (`catioTunnel.ts`,
+  `catioWindowInsert.ts`, `catioCoupling.ts`, `catioDoor.ts`, `catioPort.ts`, `catioEnclosure.ts`, …) and the planner's
+  project:
+  - the versioned document `catioProject.ts`, read through `catioProjectMigrate.ts`;
+  - its commands `catioProjectCommands.ts` and their undo history `catioProjectHistory.ts`;
+  - `evaluateProject` in `catioProjectEvaluate.ts`, which derives layouts, checks and the parts list from the document.
+
+  Every function takes its inputs explicitly. None reads storage or draws.
+- **Geometry is drawn in the browser.** The web app's Three.js scenes (`catioPlannerScene.ts` and the sub-assemblies'
+  `*Scene.ts`) draw timber, mesh and hardware with `three` directly. They use part dimensions (`findPart`, `dimensionOf`),
+  hardware ids and helpers from `concepts.ts`, and geometry helpers of real catalogue models (`toggleLatchMechanism`,
+  `pressurePad`, `printedCornerBracket`, `printedScreenHook`). The planner and the sub-assembly pages draw the cat ports and
+  enclosures with the same builders (`catioEnclosureScene.ts`, `catioDoorScene.ts`).
 - **Relation to models:** `concepts.ts` lists, per sub-assembly, the catalogue models it uses (`models: ConceptModelLink[]`)
   and the library parts (`parts`). `modelUsage()` lets a model's editor link back to the catio pages, and `partUsage()` lists
   catio pages under "used by" in the parts library.
@@ -297,8 +314,15 @@ toggle-latch model at its defaults, rendered once and cached (`catioPrintedLatch
   and shows the Buy column and "add to buy list" through `shopping.ts`.
 - **Relation to physics:** none. Neither `docs/physics-plan.md` nor `packages/physics` mentions the catio, and no catio
   module imports physics.
-- **State:** per-page settings in `localStorage`, shared between pages by `catioSubassembly.ts` (`saveShared`,
-  `dependentsOf`), and checked against each other (`CatioCrossPage.tsx`).
+- **State:**
+  - The planner's project is in `localStorage` (`canfactory.catio.planner.v1`, `catioPlannerSaved.ts`), with JSON import
+    and export.
+  - The sub-assembly pages take the window's sizes and the cat ports' settings from that project (`plannerCatPorts` in
+    `catioSaved.ts`).
+  - Until #117 the pages keep their own settings per page, shared between pages by `catioSubassembly.ts` (`saveShared`,
+    `dependentsOf`) and checked against each other (`CatioCrossPage.tsx`).
+  - The old concept page's `canfactory.catio.v1` is read only by the planner's one-time **Import my existing catio**
+    (`catioLegacyImport.ts`), when the owner asks for it. It is never written.
 
 ## Where data lives
 
@@ -309,7 +333,7 @@ toggle-latch model at its defaults, rendered once and cached (`catioPrintedLatch
 | Render jobs, leases, worker heartbeats | PostgreSQL (Kubernetes, Compose, CI and local) | api and worker only |
 | Generated STLs and ZIPs (1 h TTL) | Garage `generated` bucket | Streamed by the API |
 | Awin feed rows | `awin_feeds` and `awin_offers` tables | Written by the offers CronJob, read by `/offers` |
-| Buy list, editor settings, catio settings | Browser `localStorage` | Browser only |
+| Buy list, editor settings, catio planner project, catio sub-assembly settings | Browser `localStorage` | Browser only; the planner's project also as an exported JSON file |
 | Physics decompositions | Browser IndexedDB, `node_modules/.cache` in CI | Speed-up only |
 
 ## Deployment topology

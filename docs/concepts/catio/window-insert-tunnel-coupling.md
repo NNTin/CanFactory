@@ -4,8 +4,8 @@ The coupling is the joint between the window insert's cat port and the tunnel's 
 connection that you dock and undock **by hand, without tools**: a docking frame on the insert, a squashed seal, and toggle
 latches across the joint. The tunnel's own wall support still carries all of its weight; **the insert carries nothing**.
 
-Live page: `#/concepts/catio/insert-tunnel-coupling`, also linked from the catio concept page's heading under
-**Sub-assemblies**. For local development, run `npm run dev --workspace @canfactory/web -- --port 5181`, then open
+Live page: `#/concepts/catio/insert-tunnel-coupling`, also linked from the catio overview
+(`#/concepts/catio`). For local development, run `npm run dev --workspace @canfactory/web -- --port 5181`, then open
 <http://127.0.0.1:5181/#/concepts/catio/insert-tunnel-coupling>. It needs no API.
 
 The page shows only the modular variant, because the direct design has no tunnel. It reuses the sub-assembly page:
@@ -50,7 +50,7 @@ Neither side is redesigned. Both are read as their own pages set them (or from t
 | Latches per side | 1 (2 in all) | 1, 2 | Latches |
 | Floor gap | EPDM lip over it | EPDM lip; left open | Seal |
 
-With the defaults (a 30 × 30 cm cat port, set on the catio concept page), the docking frame is 44 × 37 cm outside and 35
+With the defaults (a 30 × 30 cm cat port, set in the catio planner), the docking frame is 44 × 37 cm outside and 35
 mm deep. Ten 5 × 60 screws fix it to the port frame. Two printed toggle latches close the 3 mm gap. A 1.04 m E-profile
 seal and a 296 × 65 mm lip close the joint. With **Latches: Ganter GN 831**, the frame is 32 mm deep and the gap 6 mm. The
 two GN 831-100-S-NI-2 latches each hold 1000 N, and their hooks take up ±4 mm of the gap.

@@ -128,23 +128,22 @@ couple sections and dock the tunnel to the insert. Those are unchanged.
 
 | Setting | Where | New or reset design | A design saved before the setting existed |
 | --- | --- | --- | --- |
-| **Cat-port closure** | Catio concept page, **Cat ports** | Removable panel with turn buttons | **Vertical sliding gate**, as it was drawn |
-| **Door seat** | Catio concept page, **Cat ports** | Stop strips | Stop strips |
+| **Cat-port closure** | Catio planner, the window's inspector | Removable panel with turn buttons | **Vertical sliding gate**, as it was drawn |
+| **Door seat** | Catio planner, the window's inspector | Stop strips | Stop strips |
 | **Side access** | Tunnel page, **Sections** | One panel, near the middle | **None**, as it was |
 | **Access side** | Tunnel page, **Sections** | Right | (no panel) |
 
-- The whole-catio settings are now version 2. Version 1 settings are migrated when read
-  (`migrateCatioSettings` in [catioSettings.ts](../../../apps/web/src/catioSettings.ts)): every dimension and all viewing
-  state are kept, and the closure is set to the sliding gate. Before, settings lacking a field were rejected whole and
-  replaced by the defaults.
+- The old concept page's whole-catio settings are no longer read, except by the planner's one-time **Import my existing
+  catio** ([catioLegacyImport.ts](../../../apps/web/src/catioLegacyImport.ts), #116). A version 1 design imported there keeps
+  the sliding gate it was drawn with.
 - **No whole-catio settings, but a saved sub-assembly page.** Someone who saved a window insert, tunnel or coupling page
   before the choice existed, and never the concept page, has a design drawn with sliding gates and no closure recorded
-  anywhere. Such a page's save is recognised by what it lacks (`savedBeforeClosure`: it names its variant but no view has
-  `doorOpen`), and the whole-catio settings are then started, and saved, with the sliding gate, so the choice holds once
-  the page saves itself again. A page first saved now, or only another page's shared settings, starts a new design.
+  anywhere. Such a page's save is recognised by what it lacks (it names its variant but no view has `doorOpen`), and the
+  import gives the new project the sliding gate. A page first saved later, or only another page's shared settings, gets the
+  default.
 - A saved tunnel that lacks **Side access** was saved before it existed and gets none (`TUNNEL_LEGACY`). A saved config
   that is only the settings another page shares with the tunnel page is not a saved tunnel, and takes the defaults.
-- The sub-assembly pages follow the concept page's closure, as they follow its window and cat-port sizes, and name it in
+- The sub-assembly pages follow the planner project's closure, as they follow its window and cat-port sizes, and name it in
   their briefs as set there. Each page with a door has a toggle that opens it (**Cat port open**, **Side access open**; on
   the tunnel pages **End doors open** or **Doors open** when there are side ports) once its assembly is complete; older saved
   pages start with it shut.
@@ -214,12 +213,12 @@ To be done on a built door of each kind, from **both sides**. Until then no page
   `doorPose`, `doorBom`, `slidingGateRise`
 - [Door 3D builder](../../../apps/web/src/catioDoorScene.ts): `buildDoorPanel`, used by `buildPortClosure`
   ([catioWindowInsertScene.ts](../../../apps/web/src/catioWindowInsertScene.ts): the insert's own page, and as context on
-  the tunnel's and the coupling's), `port` ([catioModularScene.ts](../../../apps/web/src/catioModularScene.ts)) and
+  the tunnel's and the coupling's), `catPorts` ([catioEnclosureScene.ts](../../../apps/web/src/catioEnclosureScene.ts): the planner's window and enclosure ports) and
   `buildAccessPanels` and `buildEndDoors` ([catioTunnelPieces.ts](../../../apps/web/src/catioTunnelPieces.ts): the
   tunnel's and the tunnel–tunnel coupling's pages)
 - Hardware by role: `CATIO_DOOR_HARDWARE` in [concepts.ts](../../../packages/contracts/src/concepts.ts)
 - [Tests](../../../packages/catio/src/catioDoor.test.ts): seating, retention both ways, button sweep, withdrawal, the sliding
-  gate's travel applied only to a sliding gate over every permitted size, migration of saved settings, each scene's closed
+  gate's travel applied only to a sliding gate over every permitted size, each scene's closed
   and removed states, agreement of parts lists and stage captions with what is drawn, clearance from couplings and
   supports, and that routes, couplings, supports and roofs are the same with and without the doors
 - [Browser tests](../../../tests/browser/catio.spec.ts)

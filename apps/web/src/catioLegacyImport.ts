@@ -103,6 +103,8 @@ export function legacyProject(saves: LegacySaves): LegacyImport {
   const design = saves.catio;
   // with no whole-catio settings, a page saved before the closure could be chosen kept its sliding gates
   const legacyClosure = !design && Object.values(pages).some(page => page.beforeClosure);
+  /** Whether a page's save chose its mesh: a save without one has the page's default, not a choice. */
+  const saved = (id: 'window-insert' | 'tunnel') => { const config = pages[id]?.config; return record(config) && 'mesh' in config; };
   const insert = parseWindowInsert(pages['window-insert']?.config) ?? null;
   const tunnel = parseTunnel(pages.tunnel?.config) ?? null;
   const settings: ProjectSettings = {
@@ -110,11 +112,11 @@ export function legacyProject(saves: LegacySaves): LegacyImport {
     insert: insert ? withoutKeys(insert, ['mesh']) : SETTINGS_DEFAULT.insert,
     insertCoupling: parseCoupling(pages['insert-tunnel-coupling']?.config) ?? SETTINGS_DEFAULT.insertCoupling,
     tunnelCoupling: withoutKeys(parseTunnelCoupling(pages['tunnel-tunnel-coupling']?.config) ?? { ...SETTINGS_DEFAULT.tunnelCoupling, jointShown: 'end-end' }, ['jointShown']),
-    mesh: insert?.mesh ?? tunnel?.mesh ?? SETTINGS_DEFAULT.mesh,
+    mesh: (saved('window-insert') ? insert?.mesh : undefined) ?? (saved('tunnel') ? tunnel?.mesh : undefined) ?? SETTINGS_DEFAULT.mesh,
     portClosure: design?.portClosure ?? (legacyClosure ? LEGACY_CLOSURE : SETTINGS_DEFAULT.portClosure),
     doorSeat: design?.doorSeat ?? SETTINGS_DEFAULT.doorSeat,
   };
-  if (insert && tunnel && insert.mesh !== tunnel.mesh) notes.push(`The window insert and the tunnel were meshed differently; the project takes the window insert's mesh for the whole catio.`);
+  if (saved('window-insert') && saved('tunnel') && insert?.mesh !== tunnel?.mesh) notes.push(`The window insert and the tunnel were meshed differently; the project takes the window insert's mesh for the whole catio.`);
   if (legacyClosure) notes.push('A sub-assembly page was saved before the cat ports’ closure could be chosen: it keeps the sliding gates it was drawn with.');
   if (design?.mode === 'direct') notes.push('The old page showed the direct design, on the window without a tunnel. The planner builds a catio with a tunnel: the modular design’s sizes are imported.');
 
@@ -142,8 +144,8 @@ export function legacyProject(saves: LegacySaves): LegacyImport {
     p = fitGarden(p);
     const errors = projectErrors(p);
     if (errors.length) return { kind: 'failed', errors };
-    const imported = Object.entries(pages).filter(([, page]) => page.ownSave).map(([id]) => id);
-    if (imported.length) notes.push(`Also imported: the saved ${imported.join(', ')} settings.`);
+    const imported = Object.entries(pages).filter(([, page]) => page.ownSave).map(([id]) => id.replaceAll('-', ' '));
+    if (imported.length) notes.push(`Also imported: the settings saved on the ${[imported.slice(0, -1).join(', '), imported.at(-1)].filter(Boolean).join(' and ')} ${imported.length > 1 ? 'pages' : 'page'}.`);
     return { kind: 'imported', project: p, notes };
   } catch (error) {
     return { kind: 'failed', errors: [`The saved catio could not be laid out in the planner: ${(error as Error).message}`] };
