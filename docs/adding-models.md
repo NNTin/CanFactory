@@ -132,7 +132,7 @@ being rendered or downloaded. See [AI rubber ducks](ai-rubber-duck.md).
 **Reference objects (optional).** `assembly.references` lists real-world objects the assembly holds, such as the lighter that
 the cigarette case's round bay is sized for. They get poses and steps like parts, so the preview shows how they fit, but they are
 never printed: they are not in `parts`, the worker does not render them and they are not in the ZIP. Each is a parts-library
-entry with an STL preview, added with `referencePart(poseId, partId)` (see [adding-parts.md](adding-parts.md)): its SCAD file
+entry, either procedural or with an STL preview (see [adding-parts.md](adding-parts.md)). Procedural entries use the same shared geometry builder as the library; add `{ id, part, title }` to the assembly's `references` and a matching pose. Titles may add a row/location label after the library title. For an STL entry, use `referencePart(poseId, partId)`: its SCAD file
 under `parts/` has the real dimensions as named values, and the STL beside it is that file rendered with
 `openscad --backend Manifold --export-format binstl`, which the web app bundles (`apps/web/src/referenceObjects.ts`). Render the
 STL again after changing the SCAD file: `npm run check:assembly` renders the SCAD file, fails if the committed STL's bounds

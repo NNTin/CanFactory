@@ -94,13 +94,14 @@ describe('registered assemblies', () => {
       for (const id of [...Object.keys(data.poses), ...data.steps.flatMap(step => step.parts)]) expect(ids).toContain(id);
       expect(data.steps.length).toBeGreaterThan(0);
       expect(data.lift).toBeGreaterThanOrEqual(0);
-      // Reference objects are shown, never printed: each is a parts-library entry with its source and the STL the preview
-      // bundles, and none is rendered.
+      // Reference objects are shown, never printed. Mesh-backed entries need their source and
+      // bundled STL; procedural entries use the shared library builder (covered in part-geometry tests).
       for (const reference of data.references ?? []) {
         const part = findPart(reference.part);
         if (!part) throw new Error(`${reference.id}: ${reference.part} is not in the parts library`);
-        expect(reference.title).toBe(part.title);
-        for (const extension of ['scad', 'stl'] as const) expect(existsSync(partAssetPath(part, extension) ?? ''), `${reference.id}.${extension}`).toBe(true);
+        expect(reference.title).toContain(part.title);
+        if (part.preview.kind === 'stl') for (const extension of ['scad', 'stl'] as const)
+          expect(existsSync(partAssetPath(part, extension) ?? ''), `${reference.id}.${extension}`).toBe(true);
         expect(activeParts(model, model.defaults).map(active => active.id)).not.toContain(reference.id);
       }
     });

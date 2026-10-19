@@ -1,4 +1,4 @@
-// Technical STEP format conversion; fixed geometry, millimetres.
+// STEP-derived lid with optional LED apertures; millimetres.
 // Source: Case_ESP32-C3-cad.step; solid 1
 // SHA-256: 585a8cd17c842e73d1cced65d44ce4af3e3e7029bf83b4024b1a71100d33ec31
 // Creator: Vinors3DLab

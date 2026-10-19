@@ -13,7 +13,7 @@ test('previews LED openings, board and headers, plays assembly and downloads bot
   await expect(page).toHaveURL(new RegExp(`/#/models/${model.id}$`));
   const download = page.getByRole('button', { name: 'Download ZIP' });
   await expect(download).toBeEnabled();
-  const toggle = page.getByRole('checkbox', { name: 'LED openings', exact: true });
+  const toggle = page.getByRole('switch', { name: 'LED openings', exact: true });
   await expect(toggle).toBeChecked();
   await expect(page.getByRole('link', { name: 'MakerOnline', exact: true })).toHaveAttribute('href', /makeronline.com/);
   await expect(page.getByRole('link', { name: model.license, exact: true })).toHaveAttribute('href', model.licenseUrl);
@@ -61,5 +61,6 @@ test('the new eight-pin headers have a library preview, dimensions, source and m
   await expect(details).toBeVisible();
   await expect(details.getByRole('link', { name: /ESP32-C3 SuperMini case/ })).toBeVisible();
   await expect(details.getByRole('link', { name: /WR-PHD 61300811121/ })).toBeVisible();
+  await expect(page.getByTestId('parts-viewer')).toHaveAttribute('data-parts', ESP32_CASE_HEADER);
   await expect(page.locator('canvas')).toBeVisible();
 });

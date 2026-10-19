@@ -3617,7 +3617,7 @@ export function partUsage(part: Part): PartUsage[] {
     ...models.flatMap(model => [
       ...model.controls.filter(control => control.part?.family === part.family && control.options?.some(option =>
         option.value === (control.part?.attribute ? part.attributes[control.part.attribute] : part.id))).map(control => ({ modelId: model.id, modelTitle: model.title, via: control.label, kind: 'model' as const })),
-      ...(model.assembly?.references ?? []).filter(reference => reference.part === part.id).map(() => ({ modelId: model.id, modelTitle: model.title, via: 'Assembly preview', kind: 'model' as const })),
+      ...(model.assembly?.references?.some(reference => reference.part === part.id) ? [{ modelId: model.id, modelTitle: model.title, via: 'Assembly preview', kind: 'model' as const }] : []),
     ]),
     ...conceptPages.flatMap(page => page.parts.filter(link => link.partId === part.id).map(link => ({ modelId: page.id, modelTitle: page.title, via: link.via, kind: 'concept' as const }))),
   ];

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { artifactFormat, AssemblySchema, esp32C3SuperminiCase as model, RenderRequestSchema, scadDefines, validateParameters, modelBom, ESP32_CASE_LEDS, ESP32_CASE_BOARD, ESP32_CASE_HEADER, ESP32_CASE, ESP32_CASE_GROUND, devBoardLayout, findPart, dimensionOf } from './index.ts';
+import { artifactFormat, AssemblySchema, esp32C3SuperminiCase as model, RenderRequestSchema, scadDefines, validateParameters, modelBom, partUsage, ESP32_CASE_LEDS, ESP32_CASE_BOARD, ESP32_CASE_HEADER, ESP32_CASE, ESP32_CASE_GROUND, devBoardLayout, findPart, dimensionOf } from './index.ts';
 
 describe('ESP32-C3 SuperMini LED case', () => {
   it('enables LED openings by default, supports disabling them, and rejects unknown settings', () => {
@@ -37,6 +37,7 @@ describe('ESP32-C3 SuperMini LED case', () => {
     expect(modelBom(model, model.defaults)).toEqual([{ partId: ESP32_CASE_BOARD, quantity: 1 }, { partId: ESP32_CASE_HEADER, quantity: 2 }]);
     expect(model.assembly.steps.map(step => step.parts)).toEqual([['header-1', 'header-2'], ['top']]);
     const header = findPart(ESP32_CASE_HEADER); if (!header) throw new Error('Missing header');
+    expect(partUsage(header)).toEqual([{ modelId: model.id, modelTitle: model.title, via: 'Assembly preview', kind: 'model' }]);
     const pose = model.assembly.poses['header-1']; if (!pose) throw new Error('Missing pose');
     const tips = (pose.position[2] ?? 0) - dimensionOf(header, 'H');
     const bodyTop = (pose.position[2] ?? 0) - dimensionOf(header, 'tail');

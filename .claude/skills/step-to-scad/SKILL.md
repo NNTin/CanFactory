@@ -77,7 +77,7 @@ limit. Rendered output still needs the worker's connected-body and topology chec
   ZIP parts and attribution. Generate contracts and run `npm run check`, relevant
   real-render and browser checks. Registration also changes the pinned invocation
   snapshot: update `packages/server/src/__snapshots__/openscad-invocations.json`
-  with `npx vitest run -u packages/server/src/render-invocations.test.ts`, then
+  with `npx vitest run packages/server/src/render-invocations.test.ts --update=all`, then
   inspect that the diff adds only the new model's expected calls.
   Record reproducible conversion commands and
   measured results alongside the model; commit and push as requested.
