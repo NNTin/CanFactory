@@ -123,7 +123,7 @@ export const TUNNEL = {
 /** The fixed interfaces: the window insert's port (where the tunnel starts) and the tunnel's clear size. */
 export interface TunnelSite { w: number; h: number; floorZ: number; window: WindowSpec; insert: WindowInsertConfig }
 
-/** The window insert (`insert`, as its page sets it) in the modular window of the catio concept (`catio`). */
+/** The window insert (`insert`, as its page sets it) in the planner project's window (`catio`). */
 export function tunnelSiteFor(insert: WindowInsertConfig, catio: ModularWindowSettings): TunnelSite {
   const window = windowFor('modular', insert, catio);
   const tunnel = window.tunnel ?? { width: 300, height: 300 };

@@ -46,7 +46,7 @@ export type Transform = Static<typeof TransformSchema>;
 export const PointSchema = Type.Object({ x: Type.Number(), y: Type.Number(), z: Type.Number() }, { additionalProperties: false });
 export type Point3 = Static<typeof PointSchema>;
 
-/** The window, site context: the existing window's sizes and the cat port's clear size, as the catio concept page set them. */
+/** The window, site context: the existing window's sizes and the cat port's clear size. */
 export const WindowParamsSchema = Type.Object({ glassWidth: Size, glassHeight: Size, sashWidth: Size, sashHeight: Size, tunnelSize: Size }, { additionalProperties: false });
 export type WindowParams = Static<typeof WindowParamsSchema>;
 /** An enclosure's outside dimensions. */
@@ -186,7 +186,7 @@ export const SETTINGS_DEFAULT: ProjectSettings = {
   insert: withoutKeys(WINDOW_INSERT_DEFAULT, ['mesh']), insertCoupling: COUPLING_DEFAULT, tunnelCoupling: withoutKeys(TUNNEL_COUPLING_DEFAULT, ['jointShown']),
   mesh: CATIO_MESH_DEFAULT, portClosure: PORT_CLOSURE_DEFAULT, doorSeat: DOOR_SEAT_DEFAULT,
 };
-/** The window the catio concept page starts from. */
+/** A new project's window. */
 export const WINDOW_PARAMS_DEFAULT: WindowParams = {
   glassWidth: MODULAR_DEFAULT.glassWidth, glassHeight: MODULAR_DEFAULT.glassHeight, sashWidth: MODULAR_DEFAULT.sashWidth, sashHeight: MODULAR_DEFAULT.sashHeight, tunnelSize: MODULAR_DEFAULT.tunnelSize,
 };

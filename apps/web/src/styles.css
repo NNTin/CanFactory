@@ -2388,6 +2388,7 @@ main {
 .planner-error { grid-column: 2; font-style: normal; color: #b2362b; font-size: 11.5px; padding-top: 3px; }
 .planner-range { grid-column: 2; color: var(--muted); font-size: 11px; padding-top: 2px; font-variant-numeric: tabular-nums; }
 .planner-input:has(input:disabled) { background: #f3f4ee; }
+.planner-field select { min-width: 0; border: 1px solid #d8dacf; border-radius: 6px; background: #fff; padding: 6px 8px; font: inherit; font-size: 12px; }
 .planner-orientation { display: flex; gap: 5px; }
 .planner-orientation button { flex: 1; border: 1px solid #dce1d3; border-radius: 5px; background: #fafbf5; font: inherit; font-size: 12px; padding: 7px 8px; color: #415537; cursor: pointer; }
 .planner-orientation button[aria-pressed=true] { background: #e0e7d7; border-color: #aebea0; font-weight: 600; }
@@ -2432,6 +2433,7 @@ main {
 .planner-notice ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; }
 .planner-notice.warning { background: #fdf6e6; color: #74540f; border: 1px solid #ecd69e; }
 .planner-notice.error { background: #fbefe9; color: #8a3c25; border: 1px solid #dcae9b; }
+.planner-notice.info { background: #eef4ea; color: #3c5530; border: 1px solid #c6d6bb; }
 .planner-build { flex-basis: 100%; max-height: 48vh; overflow: auto; display: grid; gap: 12px; align-content: start; padding: 14px 0 2px; border-top: 1px solid var(--line); }
 .planner-build > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .planner-build h2 { display: flex; align-items: center; gap: 8px; font-size: 18px; margin: 2px 0 0; }

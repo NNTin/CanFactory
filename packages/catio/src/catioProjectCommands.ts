@@ -1,3 +1,4 @@
+import { DOOR_SEATS, isPortClosure } from './catioDoor.ts';
 import { enclosureLayout } from './catioEnclosure.ts';
 import { MODULAR_DEFAULT } from './catioModularDesign.ts';
 import {
@@ -5,7 +6,7 @@ import {
 } from './catioPlatform.ts';
 import {
   applyTransform, composeTransform, isKind, yawDirection, keepView, projectErrors, PROJECT_SCHEMA_VERSION, relativeTransform, routeElements, SETTINGS_DEFAULT, TUNNEL_PARAMS_DEFAULT, WINDOW_PARAMS_DEFAULT, worldTransforms,
-  type Attachment, type Connection, type EnclosureInstance, type EnclosureParams, type Instance, type PlatformParams, type Port, type Project, type Transform, type TunnelInstance,
+  type Attachment, type Connection, type EnclosureInstance, type EnclosureParams, type Instance, type PlatformParams, type Port, type Project, type ProjectSettings, type Transform, type TunnelInstance, type WindowParams,
 } from './catioProject.ts';
 import { evaluateProject, outsideGarden, solveRoute, syncFrames, tunnelFrame, type EvaluatedTunnel, type ProjectEvaluation } from './catioProjectEvaluate.ts';
 import { routeElementName, TUNNEL, tunnelPitch, tunnelSiteFor, type RouteElement } from './catioTunnel.ts';
@@ -58,16 +59,19 @@ function numberErrors(values: Record<string, unknown>, positive: boolean): strin
 const tunnelSize = (p: Project) => p.instances.find(isKind('window'))?.params.tunnelSize ?? MODULAR_DEFAULT.tunnelSize;
 
 /**
- * A new project: a 5 × 5 m lawn; the window (the catio concept's defaults) in the middle of its rear wall with the window insert;
+ * A new project: a 5 × 5 m lawn; the window (`WINDOW_PARAMS_DEFAULT`) in the middle of its rear wall with the window insert;
  * a tunnel of two standard modules straight out from it; and an empty 2 × 2 × 2 m enclosure on the tunnel's end, its maintenance
  * door facing the garden. The enclosure stands where the tunnel's own layout ends (its module pitch, the coupling's gap and the
- * standard port), its rear port's sill level with the window port's floor.
+ * standard port), its rear port's sill level with the window port's floor. `window`, `settings` and `enclosure` start it from other
+ * choices than the defaults (an imported catio).
  */
-export function createProject({ id = 'catio-project', name = 'My catio' }: { id?: string; name?: string } = {}): Project {
+export function createProject({ id = 'catio-project', name = 'My catio', window: windowParams = WINDOW_PARAMS_DEFAULT, settings: chosen = SETTINGS_DEFAULT, enclosure: size = ENCLOSURE_DEFAULT }: {
+  id?: string; name?: string; window?: WindowParams; settings?: ProjectSettings; enclosure?: EnclosureParams;
+} = {}): Project {
   const garden = { ...GARDEN_DEFAULT };
-  const settings = structuredClone(SETTINGS_DEFAULT);
+  const settings = structuredClone(chosen);
   const windowAt: Transform = { x: garden.width / 2, y: 0, z: 0, yaw: 0 };
-  const window: Instance = { id: 'window-1', kind: 'window', name: 'Window', parent: null, transform: windowAt, params: { ...WINDOW_PARAMS_DEFAULT }, material: {} };
+  const window: Instance = { id: 'window-1', kind: 'window', name: 'Window', parent: null, transform: windowAt, params: { ...windowParams }, material: {} };
   // the route the two modules make, straight out from the window port at its floor's height
   const site = tunnelSiteFor({ ...settings.insert, mesh: settings.mesh }, { ...MODULAR_DEFAULT, ...window.params, portClosure: settings.portClosure, doorSeat: settings.doorSeat });
   const joint = { ...settings.tunnelCoupling, jointShown: 'end-end' as const };
@@ -75,9 +79,9 @@ export function createProject({ id = 'catio-project', name = 'My catio' }: { id?
     site, { x: 0, y: TUNNEL.wallGap + DEFAULT_TUNNEL_MODULES * tunnelPitch(site, joint), z: site.floorZ, yaw: 180 }, true);
   const tunnel: Instance = { id: 'tunnel-1', kind: 'tunnel', name: 'Tunnel', parent: null, transform: windowAt, params: { ...TUNNEL_PARAMS_DEFAULT, route: solved.route }, material: {} };
   const { E } = solved.layout;
-  const rear = enclosureLayout(ENCLOSURE_DEFAULT, { id: 'enclosure-1', tunnelSize: site.w, connected: { rear: true, left: false, right: false } }).rear.port.face.at;
+  const rear = enclosureLayout(size, { id: 'enclosure-1', tunnelSize: site.w, connected: { rear: true, left: false, right: false } }).rear.port.face.at;
   const enclosureAt = composeTransform(windowAt, { x: E[0] - rear[0], y: E[1] - rear[1], z: E[2] - rear[2], yaw: 0 });
-  const enclosure: Instance = { id: 'enclosure-1', kind: 'enclosure', name: 'Enclosure', parent: null, transform: enclosureAt, params: { ...ENCLOSURE_DEFAULT }, material: {} };
+  const enclosure: Instance = { id: 'enclosure-1', kind: 'enclosure', name: 'Enclosure', parent: null, transform: enclosureAt, params: { ...size }, material: {} };
   const ports: Port[] = [
     newPort(window.id, 'port', site.w, 'connected'), newPort(tunnel.id, 'start', site.w, 'connected'), newPort(tunnel.id, 'end', site.w, 'connected'),
     ...ENCLOSURE_PORTS.map(side => newPort(enclosure.id, side, site.w, side === 'rear' ? 'connected' : 'closed')),
@@ -227,6 +231,31 @@ export function resizeInstance(project: Project, id: string, size: Partial<Enclo
   // a platform's anchors stay at its ends, so that resizing it moves where it bears, not what it is fixed to
   const resized = { ...instance, params, transform };
   return noted(ok(project, { ...replace(project, resized), attachments: platformAttachments(project.attachments, id, params, transform.yaw) }), notes);
+}
+
+/**
+ * Changes a window's sizes: its glass and sash, and the cat port's clear size (FR-02.10). The cat port is the project's one standard
+ * port, so a new clear size is every port's, and every tunnel is laid out again in the new modules (its ends' mates stay where they
+ * are). What then no longer fits the window or an enclosure is reported by `evaluateProject`.
+ */
+export function resizeWindow(project: Project, id: string, size: Partial<WindowParams>): CommandResult {
+  const window = project.instances.find(i => i.id === id);
+  if (window?.kind !== 'window') return fail(project, `There is no window ${id}.`);
+  const unknown = Object.keys(size).filter(k => !(k in WINDOW_PARAMS_DEFAULT));
+  if (unknown.length) return fail(project, `A window has no ${unknown.join(' or ')} to resize.`);
+  const errors = numberErrors(size, true); if (errors.length) return fail(project, ...errors);
+  const next = replace(project, { ...window, params: { ...window.params, ...size } });
+  if (size.tunnelSize === undefined || size.tunnelSize === window.params.tunnelSize) return ok(project, rerouted(next, [id]));
+  const tunnelSize = size.tunnelSize;
+  const ports = next.ports.map(p => ({ ...p, interface: { ...p.interface, size: tunnelSize } }));
+  return ok(project, rerouted({ ...next, ports }, next.instances.map(i => i.id)));
+}
+
+/** Chooses what closes every cat port, and how every set-in door is seated: the whole catio's choices (FR-02.10). */
+export function setCatPorts(project: Project, choice: Partial<Pick<ProjectSettings, 'portClosure' | 'doorSeat'>>): CommandResult {
+  if (choice.portClosure !== undefined && !isPortClosure(choice.portClosure)) return fail(project, 'Choose a removable panel or a sliding gate for the cat ports.');
+  if (choice.doorSeat !== undefined && !DOOR_SEATS.includes(choice.doorSeat)) return fail(project, 'Choose stop strips or a rebate for the doors’ seats.');
+  return ok(project, { ...project, settings: { ...project.settings, ...choice } });
 }
 
 /**

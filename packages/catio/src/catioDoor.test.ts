@@ -248,7 +248,7 @@ describe('removable door panel: button sweep and withdrawal', () => {
 describe('cat-port closure: sliding travel only for a sliding gate', () => {
   // (the standard port is square: the same clear size both ways)
   const grid = SIZES.flatMap(size => [500, 700, 910, 1600].flatMap(sash => [900, 1200, 2200].map(height => ({
-    config: { ...MODULAR_DEFAULT, tunnelSize: size, sashWidth: sash, sashHeight: sash, glassWidth: sash - 110, glassHeight: sash - 110 } as ModularConfig,
+    config: { ...MODULAR_DEFAULT, tunnelSize: size, sashWidth: sash, sashHeight: sash, glassWidth: sash - 110, glassHeight: sash - 110 },
     enclosure: { width: 1200, depth: 1000, height },
   }))));
   /** The window's checks and an enclosure's, as the planner makes them. */

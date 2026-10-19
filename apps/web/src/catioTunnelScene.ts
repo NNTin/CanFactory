@@ -103,7 +103,7 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     const P = (u: number, z: number): V3 => vec.add([back[0], back[1], z], vec.mul(across, u));
     const ou = w / 2 + 70; const oz0 = layout.E[2] - 70; const oz1 = layout.E[2] + h + 70;
     for (const [u0, u1, a, b] of [[-650, -ou, z0, top], [ou, 650, z0, top], [-ou, ou, oz1, top], [-ou, ou, z0, oz0]] as const) if (b > a) meshQuad(port, [P(u0, a), P(u1, a), P(u1, b), P(u0, b)], [0, 0, 0]);
-    // the enclosure's own cat-port closure, inside it: a framed mesh panel behind turn buttons, as the catio concept page sets for
+    // the enclosure's own cat-port closure, inside it: a framed mesh panel behind turn buttons, as the catio planner sets for
     // every cat port (its sliding gate is drawn there)
     if (site.window.closure === 'removable-panel') {
       const panel = setInDoor({ id: 'enclosure-port-panel', width: w, height: h, material: 'mesh', seat: site.window.seat, depth: PORT_FRAME });
