@@ -34,6 +34,16 @@ and prove the result with `verify` (bounding box, volume, IoU and one closed man
 original in `reference/` together with a manifest and the generated `VERIFICATION.md`; `models/moss-planter/reference/`
 is the worked example.
 
+For STEP/STP sources, use the [`step-to-scad` skill](../.claude/skills/step-to-scad/SKILL.md)
+and `tools/step-to-scad/convert.py`. Inspect each BRep solid, preserve its source
+placement, and derive print and assembly transforms explicitly. A fixed technical
+format conversion may use a compact, verified, self-contained `polyhedron()`;
+retain the STEP as the editable CAD source. This is an exception to the editable
+generator convention above, for format conversions that preserve the design
+(e.g. a NoDerivatives source). Do not expose resizing or remix controls for these
+models. Record tessellation settings, source hashes and verification results.
+The ESP32-C3 SuperMini case is the worked example.
+
 ### Multi-part assemblies
 
 A model that is really a set of independent parts (e.g. moss-planter's five: ground spike, planting helper, cover cap,
