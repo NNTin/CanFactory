@@ -3139,6 +3139,16 @@
      "binstl",
      "-o",
      "<scratch>/job/bottom.stl",
+     "-D",
+     "FLUSH_HEADERS=true",
+     "-D",
+     "HEADER_X=-0.8599999999999977",
+     "-D",
+     "HEADER_Y=7.62",
+     "-D",
+     "HEADER_LENGTH=21.07",
+     "-D",
+     "HEADER_WIDTH=3.09",
      "<root>/models/esp32-c3-supermini-case/bottom.scad"
     ],
     "timeout": 120000,
@@ -3172,7 +3182,8 @@
    }
   ],
   "variants": {
-   "ledHoles=false": "3dc3163acf5987eb5bfc28d0dd4e3242700e1b4bf39e85c17b6085ad08b69c5e"
+   "flushHeaders=false": "9a6e3c5385707f29adaa6679fdeb122fd61e3ccfeb526679dfb6dc6cc1a810c6",
+   "ledHoles=false": "ff48ddd86c653dd1135eabd4e0de1c14a4e9833365c9a95028d06d3916fbb741"
   }
  }
 }

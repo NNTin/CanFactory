@@ -1,4 +1,4 @@
-import { DEFAULT_ESP32_CASE, ESP32_CASE_LED_DEFINES, Esp32CaseParametersSchema, esp32CaseAssembly } from './esp32Case.ts';
+import { DEFAULT_ESP32_CASE, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LED_DEFINES, Esp32CaseParametersSchema, esp32CaseAssembly, type Esp32CaseParameters } from './esp32Case.ts';
 import { CORNER_LATCH, CORNER_LATCH_SCREWS, DEFAULT_CORNER_LATCH, cornerLatchAssembly, cornerLatchIssues, cornerLatchLayout } from './outsideCornerToggleLatch.ts';
 import { magneticCatToyPhysics } from './magneticCatToyPhysics.ts';
 import { DEFAULT_MAGNETIC_CAT_TOY, MagneticCatToyParametersSchema, TOY, TOY_BALL_MAGNETS, TOY_GRID_MAGNETS, magneticCatToyAssembly, magneticCatToyIssues, magneticCatToyLayout, magneticCatToyReferences, type MagneticCatToyParameters } from './magneticCatToy.ts';
@@ -3519,25 +3519,26 @@ export const cameraHousing = {
 
 /** Adaptation of the author's CC BY-NC-SA MakerOnline release; provenance is in ATTRIBUTION.md. */
 export const esp32C3SuperminiCase = {
-  id: 'esp32-c3-supermini-case' as const, version: '2' as const, title: 'ESP32-C3 SuperMini case',
-  description: 'Vinors3DLab’s compact sliding-lid case, with optional openings for both onboard LEDs, enabled by default. The live assembly shows the existing SuperMini board and two eight-pin headers, including their placement below the floor.',
-  attribution: 'Vinors3DLab (MakerWorld / MakerOnline); LED openings by CanFactory',
+  id: 'esp32-c3-supermini-case' as const, version: '3' as const, title: 'ESP32-C3 SuperMini case',
+  description: 'Vinors3DLab’s compact sliding-lid case, with optional LED holes and openings for pin-header insulators, both enabled by default. The live assembly shows the SuperMini board and two eight-pin headers seated to match the selected openings.',
+  attribution: 'Vinors3DLab (MakerWorld / MakerOnline); LED and pin-header openings by CanFactory',
   attributionLinks: [
     { text: 'MakerWorld', url: 'https://makerworld.com/de/models/3419196-ultra-compact-case-esp32-c3-supermini-step-file' },
     { text: 'MakerOnline', url: 'https://www.makeronline.com/en/model/Ultra-Compact-Case-for-ESP---C--SuperMini--step-file-/338531.html' },
   ],
   license: 'CC BY-NC-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
-  printNotes: 'Print base floor down and lid outer face down. The author recommends 0.08 mm layers, 2–3 perimeters and no supports. Seat the bare board with USB-C towards its opening. Insert two 1 × 8 headers from below, keeping their plastic spacers outside the floor, then solder with the board seated; check solder-tail reach and access on your delivered board and headers. Slide the lid in from the antenna end. B and R operate BOOT and RESET. LED openings follow the library board’s estimated LED positions; SuperMini clones can differ. Board and headers appear only in the preview, never the print ZIP. Adapted from the author’s CC BY-NC-SA 4.0 MakerOnline release; noncommercial, share alike.',
+  printNotes: 'Print base floor down and lid outer face down. The author recommends 0.08 mm layers, 2–3 perimeters and no supports. Seat the bare board with USB-C towards its opening. Insert two 1 × 8 headers from below, seating their plastic insulators against the PCB through the widened openings. With Flush pin headers disabled, keep the spacers outside the original narrow slots. Solder with the board seated; check solder-tail reach and access on your delivered board and headers. Slide the lid in from the antenna end. B and R operate BOOT and RESET. LED openings follow the library board’s estimated LED positions; SuperMini clones can differ. Board and headers appear only in the preview, never the print ZIP. Adapted from the author’s CC BY-NC-SA 4.0 MakerOnline release; noncommercial, share alike.',
   parts: [
-    { id: 'bottom', title: 'Case base', sourcePath: 'models/esp32-c3-supermini-case/bottom.scad', scadMapping: {} },
+    { id: 'bottom', title: 'Case base', sourcePath: 'models/esp32-c3-supermini-case/bottom.scad', scadMapping: { flushHeaders: 'FLUSH_HEADERS' }, scadConstants: ESP32_CASE_HEADER_DEFINES },
     { id: 'top', title: 'Sliding button lid', sourcePath: 'models/esp32-c3-supermini-case/top.scad', scadMapping: { ledHoles: 'LED_HOLES' }, scadConstants: ESP32_CASE_LED_DEFINES },
   ],
-  parameterSchema: Esp32CaseParametersSchema, controls: [control(Esp32CaseParametersSchema, 'ledHoles', 'basic')], defaults: DEFAULT_ESP32_CASE, scadMapping: {},
+  parameterSchema: Esp32CaseParametersSchema, controls: [control(Esp32CaseParametersSchema, 'ledHoles', 'basic'), control(Esp32CaseParametersSchema, 'flushHeaders', 'basic')], defaults: DEFAULT_ESP32_CASE, scadMapping: {},
   assembly: esp32CaseAssembly(),
+  assemblyForParameters: parameters => esp32CaseAssembly(parameters as Esp32CaseParameters),
   validate(parameters: unknown): ParameterIssue[] {
-    return Value.Check(Esp32CaseParametersSchema, parameters) ? [] : [{ field: '', message: 'Choose whether to include LED openings.' }];
+    return Value.Check(Esp32CaseParametersSchema, parameters) ? [] : [{ field: '', message: 'Choose whether to include LED openings and flush pin headers.' }];
   },
-  derived(parameters: unknown) { return { slotCount: null, notes: ['Case envelope: 25.8 × 21.8 × 7.56 mm, excluding the pin headers.', Value.Check(Esp32CaseParametersSchema, parameters) && parameters.ledHoles ? 'Two 2 mm LED openings above the power and GPIO8 LEDs.' : 'Closed lid: LED openings disabled.'] }; },
+  derived(parameters: unknown) { return { slotCount: null, notes: ['Case envelope: 25.8 × 21.8 × 7.56 mm, excluding the pin headers.', Value.Check(Esp32CaseParametersSchema, parameters) && parameters.ledHoles ? 'Two 2 mm LED openings above the power and GPIO8 LEDs.' : 'Closed lid: LED openings disabled.', Value.Check(Esp32CaseParametersSchema, parameters) && parameters.flushHeaders ? 'Pin-header insulators pass through 21.07 × 3.09 mm openings and seat against the PCB, extending 0.84 mm below the case.' : 'Original narrow slots: pin-header insulators stay outside the case floor.'] }; },
 } satisfies ModelDefinition;
 
 /** Original magnetic toy: four functional layers, exported as five independently printable components. */

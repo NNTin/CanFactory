@@ -2219,8 +2219,14 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "2";
+                    modelVersion: "3";
                     parameters: {
+                        /**
+                         * Flush pin headers
+                         * @description Widen the base openings so the header insulators pass through the floor and seat against the PCB. Disable for the original narrow slots and external spacers.
+                         * @default true
+                         */
+                        flushHeaders: boolean;
                         /**
                          * LED openings
                          * @description Two 2 mm holes above the red power and blue GPIO8 LEDs. Disable to retain the original closed lid.

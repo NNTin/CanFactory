@@ -4523,15 +4523,22 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "2"
+                          "3"
                         ]
                       },
                       "parameters": {
                         "type": "object",
                         "required": [
+                          "flushHeaders",
                           "ledHoles"
                         ],
                         "properties": {
+                          "flushHeaders": {
+                            "type": "boolean",
+                            "title": "Flush pin headers",
+                            "description": "Widen the base openings so the header insulators pass through the floor and seat against the PCB. Disable for the original narrow slots and external spacers.",
+                            "default": true
+                          },
                           "ledHoles": {
                             "type": "boolean",
                             "title": "LED openings",
