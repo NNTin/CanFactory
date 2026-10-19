@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  applyTransform, clampPlatform, platformOrientation, platformRangeOf, platformYaw, PLATFORM_RECIPES, previewTunnels, rangeText, snapToModules, worldTransforms,
+  applyTransform, clampPlatform, elementTitle, evaluateProject, platformOrientation, platformRangeOf, platformYaw, PLATFORM_RECIPES, previewTunnels, raiseElements, rangeText, routeElements, snapToModules, worldTransforms,
   type EnclosureParams, type PlatformParams, type PlatformRange, type Project, type ProjectEvaluation, type Transform, type TunnelLayout,
 } from '@canfactory/catio';
 import { createStage, type Stage } from './stage.ts';
@@ -19,6 +19,10 @@ import { facePoint, resizeFrom, type SizeFace, type Sized } from './catioPlanner
  *
  * During a drag only the dragged instance's pose and the tunnels coupled to it (`previewTunnels`) are updated; nothing is evaluated
  * and the document is untouched until the drag ends, when `commit` makes it one edit. Esc (`cancel`) puts everything back.
+ *
+ * A click on a tunnel picks the route element under the pointer; Shift- or Ctrl-click adds an object or element to the selection, or
+ * takes it out. Selected elements rise and fall by their upright arrow, in 10 mm steps (snapping), as `raiseElements` would raise
+ * them: the tunnels and the enclosure that follows are previewed, and `raise` makes it one edit.
  */
 export const CAMERA_VIEWS = ['3D', 'Top', 'Front', 'Side'] as const;
 export type CameraView = typeof CAMERA_VIEWS[number];
@@ -37,10 +41,14 @@ export interface ViewportCallbacks {
   readout: (readout: Readout | null) => void;
   /** Ends a drag as one edit. */
   commit: (id: string, result: DragResult) => void;
+  /** Ends a drag of tunnel elements' arrow as one edit: raised by `delta` mm (lowered, negative). */
+  raise: (ids: string[], delta: number) => void;
 }
 
 interface Drag {
-  id: string; how: 'move' | 'rotate' | 'elevate' | 'resize'; pointer: number; start: Transform; current: Transform;
+  id: string; how: 'move' | 'rotate' | 'elevate' | 'resize' | 'raise'; pointer: number; start: Transform; current: Transform;
+  /** Raising tunnel elements: which, how far so far, and the instances the preview has posed elsewhere. */
+  ids?: string[]; delta?: number; posed?: Set<string>;
   /** A resize's face, the instance's size and frame in the site's as it began, and its size so far. */
   face?: SizeFace; sized?: Sized; own: Transform; size?: DragResult['size'];
   /** The plane it is dragged on (z = const), and where the pointer took hold, in the site's frame. */
@@ -198,11 +206,52 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
       ...(face ? { face } : {}), ...(sized ? { sized } : {}),
     };
   }
+  /** Takes hold of the selected tunnel elements' arrow: they rise and fall on an upright plane through it, facing the camera. */
+  function beginRaise(ids: string[], point: [number, number], pointer: number): Drag | null {
+    if (!input || !scene) return null;
+    const at = new THREE.Vector3(); const hitPoint = rayAt(point).intersectObject(scene.root, true)[0]?.point;
+    if (hitPoint) at.copy(group.worldToLocal(hitPoint.clone())); else return null;
+    const toward = looking().setZ(0); if (toward.lengthSq() < 1e-6) toward.set(0, 1, 0);
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(toward.normalize(), at);
+    const grab = siteRay(point).intersectPlane(plane, new THREE.Vector3()); if (!grab) return null;
+    const none = { x: 0, y: 0, z: 0, yaw: 0 };
+    return { id: ids[0] ?? '', how: 'raise', ids, delta: 0, posed: new Set(), pointer, start: none, current: none, plane, grab, parent: none, own: none, down: point, moved: false, tunnels: new Set(), range: null };
+  }
+  /** Shows the selected elements raised by `delta`: their tunnels laid out again, an enclosure that follows moved; the readout says how. */
+  function previewRaise(d: Drag, delta: number, point: [number, number]) {
+    if (!input || !scene) return;
+    const ids = d.ids ?? [];
+    const result = raiseElements(input.project, ids, delta);
+    const title = `${delta >= 0 ? 'Raising' : 'Lowering'} ${ids.length === 1 ? elementTitle(input.project, ids[0] ?? '') ?? 'the element' : `${ids.length} elements`}`;
+    if (result.errors.length) { callbacks.readout({ x: point[0], y: point[1], title, lines: result.errors, ok: false }); return; }
+    const evaluation = evaluateProject(result.project);
+    for (const e of evaluation.instances) if (e.kind === 'tunnel') { scene.redrawTunnel(e.id, e.layout, e.config); d.tunnels.add(e.id); }
+    for (const i of result.project.instances) {
+      const was = input.project.instances.find(q => q.id === i.id);
+      if (was && JSON.stringify(was.transform) !== JSON.stringify(i.transform)) { scene.pose(i.id, i.transform); d.posed?.add(i.id); }
+    }
+    stage?.invalidate(); publishAnchors();
+    const elements = routeElements(result.project);
+    const laid = new Map(evaluation.instances.flatMap(e => e.kind === 'tunnel' ? e.elements.map(x => [x.id, x] as const) : []));
+    const lines = [signed(delta), ...ids.slice(0, 4).map(id => {
+      const x = laid.get(id); const found = elements.get(id);
+      return x && found ? `${elementTitle(result.project, id) ?? id}: floor ${cm(x.floor[0])}${Math.abs(x.floor[1] - x.floor[0]) > 0.5 ? `–${cm(x.floor[1])}` : ''} cm` : id;
+    }), ...(result.notes ?? [])];
+    const steep = evaluation.issues.filter(i => i.severity === 'error' && i.instanceIds.some(id => elements.has(id)));
+    callbacks.readout({ x: point[0], y: point[1], title, lines: [...lines, ...steep.slice(0, 2).map(i => i.message)], ok: steep.length === 0 });
+  }
   function dragTo(point: [number, number]) {
     if (!drag || !input || !scene) return;
     if (!drag.moved && Math.hypot(point[0] - drag.down[0], point[1] - drag.down[1]) < 4) return;
     drag.moved = true;
     const hit = siteRay(point).intersectPlane(drag.plane, new THREE.Vector3()); if (!hit) return;
+    if (drag.how === 'raise') {
+      const delta = snapTo(hit.z - drag.grab.z, input.snap ? SNAP.grid : 1);
+      if (delta === drag.delta) return;
+      drag.delta = delta;
+      previewRaise(drag, delta, point);
+      return;
+    }
     const { start, parent } = drag; const snap = input.snap;
     let to: Transform;
     const name = input.project.instances.find(i => i.id === drag?.id)?.name ?? drag.id;
@@ -271,9 +320,11 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     const d = drag; drag = null; controls.enabled = true;
     callbacks.readout(null);
     if (!d) return;
-    if (commit && d.moved && (d.how !== 'resize' || d.size)) { callbacks.commit(d.id, { how: d.how, to: d.current, ...(d.size ? { size: d.size } : {}) }); return; }
+    if (commit && d.how === 'raise') { if (d.moved && d.delta) { callbacks.raise(d.ids ?? [], d.delta); return; } }
+    else if (commit && d.moved && (d.how !== 'resize' || d.size)) { callbacks.commit(d.id, { how: d.how, to: d.current, ...(d.size ? { size: d.size } : {}) }); return; }
     if (!scene || !input) return;
     scene.pose(d.id, d.start); scene.showGhost(null, null);
+    for (const id of d.posed ?? []) { const i = input.project.instances.find(q => q.id === id); if (i) scene.pose(id, i.transform); }
     for (const id of d.tunnels) {
       const e = input.evaluation.instances.find(i => i.id === id);
       scene.redrawTunnel(id, e?.kind === 'tunnel' ? e.layout : null, e?.kind === 'tunnel' ? e.config : null);
@@ -290,10 +341,17 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     // what the pointer is on is the viewport's: the camera's controls never see it
     event.stopPropagation(); event.preventDefault();
     emptyDown = null;
+    // Shift or Ctrl adds to the selection, or takes out what is in it
+    if (pick.kind === 'instance' && (event.shiftKey || event.ctrlKey || event.metaKey)) {
+      callbacks.select(input.selection.includes(pick.id) ? input.selection.filter(id => id !== pick.id) : [...input.selection, pick.id]);
+      return;
+    }
     if (pick.kind === 'instance' && !(input.selection.length === 1 && input.selection[0] === pick.id)) callbacks.select([pick.id]);
-    // the body moves the selection, or turns it in the Rotate tool; a handle does what it is for
+    // the body moves the selection, or turns it in the Rotate tool; a handle does what it is for; tunnel elements rise by their arrow
+    const elements = routeElements(input.project);
     const how: Drag['how'] = pick.kind === 'instance' ? (input.tool === 'rotate' ? 'rotate' : 'move') : pick.kind === 'slide' ? 'move' : pick.kind;
-    const next = beginDrag(pick.id, how, point, event.pointerId, pick.kind === 'resize' ? pick.face : undefined);
+    const next = pick.kind === 'elevate' && elements.has(pick.id) ? beginRaise(input.selection.filter(id => elements.has(id)), point, event.pointerId)
+      : beginDrag(pick.id, how, point, event.pointerId, pick.kind === 'resize' ? pick.face : undefined);
     if (!next) return;
     drag = next; controls.enabled = false;
     element.setPointerCapture(event.pointerId);

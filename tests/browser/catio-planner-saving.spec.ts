@@ -50,7 +50,7 @@ test('undoing an added platform it had selected saves a project that opens again
   await expect(viewport).toHaveAttribute('data-selection', '["platform-1"]');
   await expect(viewport).toHaveAttribute('data-revision', '2');
   await page.getByRole('button', { name: 'Undo' }).click();
-  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Enclosure/]);
+  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Module 1/, /Module 2/, /Enclosure/]);
   await expect(viewport).toHaveAttribute('data-selection', '[]');
   await expect(saved(page)).toHaveAttribute('data-revision', '1');
   expect(JSON.parse(await stored(page) ?? '{}')).toMatchObject({ revision: 1, view: { selection: [] } });
@@ -79,10 +79,10 @@ test('exports the project as JSON and imports it back into a fresh browser', asy
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await expect(page.getByRole('textbox', { name: 'Project name' })).toHaveValue('My catio');
-  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Enclosure/]);
+  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Module 1/, /Module 2/, /Enclosure/]);
   await page.getByTestId('planner-import').setInputFiles(file);
   await expect(page.getByRole('textbox', { name: 'Project name' })).toHaveValue('Garden catio');
-  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Enclosure/, /Platform 1/]);
+  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Module 1/, /Module 2/, /Enclosure/, /Platform 1/]);
   await expect(viewport).toHaveAttribute('data-revision', '2');
   await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled();
   // the imported project is the saved one now
@@ -116,7 +116,7 @@ test('opens a new project beside invalid saved data, and keeps that data until a
   const { errors } = await open(page);
   const notice = page.getByRole('alert').filter({ hasText: 'The saved project could not be opened' });
   await expect(notice).toBeVisible();
-  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Enclosure/]);
+  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Module 1/, /Module 2/, /Enclosure/]);
   await expect(saved(page)).toHaveAttribute('data-state', 'pending');
   await tree(page).getByRole('button', { name: /Enclosure/ }).click();
   expect(await stored(page)).toBe('{"schemaVersion": 1, "id": "x"}');

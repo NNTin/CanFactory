@@ -1,5 +1,6 @@
 import { CATIO, ROOF_NET, roofBearers } from './catioDesign.ts';
-import { MODULAR as d, type EnclosureSize } from './catioModularDesign.ts';
+import { MODULAR as d, PORT_FRAME, type EnclosureSize } from './catioModularDesign.ts';
+import { slidingGateRise, type PortClosure } from './catioDoor.ts';
 import { frameAlong, type Face } from './catioPort.ts';
 import type { V3 } from './catioSubassembly.ts';
 
@@ -32,29 +33,51 @@ export interface EnclosureOptions {
   tunnelSize: number;
   /** Which of its cat ports a tunnel docks to. */
   connected: Record<EnclosurePort['side'], boolean>;
+  /** Each cat port's sill (its floor) above the grass, where it is not `MODULAR.sill`: a port raised or lowered with its tunnel (#126). */
+  sills?: Partial<Record<EnclosurePort['side'], number>>;
+}
+
+/** The steepest the ramp down from the landing may be, in degrees. */
+export const ENCLOSURE_RAMP_MAX = 35;
+/** The ramp's run: from the landing's front edge to the front sole, in an enclosure `depth` deep (`landingDepth` is the port size + 100). */
+const rampRun = (depth: number, tunnelSize: number) => depth - (tunnelSize + 100) - 80;
+/** The floor the ramp comes down to: the top of the floor mesh's skirts. */
+const RAMP_FOOT = 22;
+
+/**
+ * Where a cat port's sill can be in an enclosure (`EnclosureOptions.sills`): its frame clear above the side frames' sole rails, its
+ * opening, frame and (a sliding gate) the gate's travel below the top rails, and the ramp from the landing at that height no steeper
+ * than `ENCLOSURE_RAMP_MAX`.
+ */
+export function enclosureSillRange(size: EnclosureSize, tunnelSize: number, closure: PortClosure = 'removable-panel'): { min: number; max: number } {
+  const soleTop = 90 + d.timber / 2; const topRail = size.height - d.timber;
+  const head = closure === 'sliding-gate' ? topRail - slidingGateRise(tunnelSize, PORT_FRAME) : topRail - tunnelSize - PORT_FRAME;
+  const ramp = RAMP_FOOT + Math.tan(ENCLOSURE_RAMP_MAX * Math.PI / 180) * rampRun(size.depth, tunnelSize);
+  return { min: Math.ceil(soleTop + PORT_FRAME), max: Math.floor(Math.min(head, ramp)) };
 }
 
 /**
  * Four mesh panels round a port's opening in a wall (`plane` xz, at `y`): either side of it and below and above it. There is no
  * full panel behind the port. The wall runs from `bottom` to `top`; the opening, `size` square, stands on the sill.
  */
-export function meshAroundPort(id: string, width: number, bottom: number, top: number, y: number, size: number, explode: V3 = [0, 0, 140]): EnclosureMesh[] {
+export function meshAroundPort(id: string, width: number, bottom: number, top: number, y: number, size: number, explode: V3 = [0, 0, 140], sill: number = d.sill): EnclosureMesh[] {
   const panel = (suffix: string, w: number, h: number, center: V3): EnclosureMesh => ({ id: `${id}-${suffix}`, width: w, height: h, center, plane: 'xz', explode });
   return [
     ...[-1, 1].map(side => panel(`side-${side}`, (width - size) / 2, top - bottom, [side * (width + size) / 4, y, (top + bottom) / 2])),
-    panel('below', size, d.sill - bottom, [0, y, (bottom + d.sill) / 2]),
-    panel('above', size, top - d.sill - size, [0, y, (top + d.sill + size) / 2]),
+    panel('below', size, sill - bottom, [0, y, (bottom + sill) / 2]),
+    panel('above', size, top - sill - size, [0, y, (top + sill + size) / 2]),
   ];
 }
 
-export function enclosureLayout(size: EnclosureSize, { id, tunnelSize: w, connected }: EnclosureOptions) {
+export function enclosureLayout(size: EnclosureSize, { id, tunnelSize: w, connected, sills = {} }: EnclosureOptions) {
   const { width: ew, depth: ed, height: eh } = size; const half = ew / 2; const h = w;
+  const sill = (side: EnclosurePort['side']) => sills[side] ?? d.sill;
   const landingDepth = w + 100;
   const mesh = (suffix: string, width: number, height: number, center: V3, plane: EnclosureMesh['plane'], explode: V3 = [0, 0, 140]): EnclosureMesh =>
     ({ id: `${id}-${suffix}`, width, height, center, plane, explode });
   const port = (side: EnclosurePort['side'], at: [number, number], angle: number): EnclosurePort => {
     const n: V3 = [Math.round(Math.sin(angle)) || 0, -Math.round(Math.cos(angle)) || 0, 0];
-    return { id: `${id}-${side}`, side, connected: connected[side], at, angle, face: { at: [at[0], at[1], d.sill], n, frame: frameAlong(n) } };
+    return { id: `${id}-${side}`, side, connected: connected[side], at, angle, face: { at: [at[0], at[1], sill(side)], n, frame: frameAlong(n) } };
   };
 
   // posts and sole rails on four feet, top rails, and the floor's sill all round
@@ -79,28 +102,31 @@ export function enclosureLayout(size: EnclosureSize, { id, tunnelSize: w, connec
   const bearers: EnclosureBox[] = roofBearers(ed - 80).map(y => ({ size: [ew - 80, ROOF_NET.bearer.width, ROOF_NET.bearer.depth], center: [0, 40 + y, eh - 10 - CATIO.wire / 2 - ROOF_NET.bearer.depth / 2] }));
   const roof = mesh('roof', ew, ed, [0, ed / 2, eh - 10], 'xy', [0, 0, 400]);
 
-  const rear = { mesh: meshAroundPort(`${id}-rear-mesh`, ew, 90, eh, 0, w), port: port('rear', [0, 0], 0) };
+  const rear = { mesh: meshAroundPort(`${id}-rear-mesh`, ew, 90, eh, 0, w, undefined, sill('rear')), port: port('rear', [0, 0], 0) };
   // Side faces have asymmetric extents around the rear landing's port.
   const sides: EnclosureWall[] = ([-1, 1] as const).map(side => {
     const backRun = landingDepth / 2 - w / 2; const frontRun = ed - landingDepth / 2 - w / 2;
     const name = side < 0 ? 'left' : 'right'; const at: [number, number] = [side * half, landingDepth / 2]; const angle = side * Math.PI / 2;
+    const z = sill(name);
     return { side: name, at, angle, port: port(name, at, angle), mesh: [
       mesh(`side-${side}-rear`, backRun, eh - 90, [-side * (w + backRun) / 2, 0, (eh + 90) / 2], 'xz'),
       mesh(`side-${side}-front`, frontRun, eh - 90, [side * (w + frontRun) / 2, 0, (eh + 90) / 2], 'xz'),
-      mesh(`side-${side}-below`, w, 110, [0, 0, 145], 'xz'),
-      mesh(`side-${side}-above`, w, eh - 200 - h, [0, 0, (eh + 200 + h) / 2], 'xz'),
+      mesh(`side-${side}-below`, w, z - 90, [0, 0, (90 + z) / 2], 'xz'),
+      mesh(`side-${side}-above`, w, eh - z - h, [0, 0, (eh + z + h) / 2], 'xz'),
     ] };
   });
 
-  // the landing behind the rear port, bridged to the side ports' thresholds over the frame's clearance, and the ramp down from it
+  // the landing behind the rear port, level with its sill, bridged to the side ports' thresholds over the frame's clearance (each at
+  // its own port's sill), and the ramp down from it
+  const top = sill('rear');
   const landing: EnclosureBox[] = [
-    { size: [ew - 80, landingDepth, 18], center: [0, landingDepth / 2, 191], material: 'endgrain' },
-    ...[-1, 1].map((side): EnclosureBox => ({ size: [80, w, 18], center: [side * (half - 20), landingDepth / 2, 191], material: 'endgrain' })),
+    { size: [ew - 80, landingDepth, 18], center: [0, landingDepth / 2, top - 9], material: 'endgrain' },
+    ...([-1, 1] as const).map((side): EnclosureBox => ({ size: [80, w, 18], center: [side * (half - 20), landingDepth / 2, sill(side < 0 ? 'left' : 'right') - 9], material: 'endgrain' })),
   ];
-  const run = ed - landingDepth - 80; const drop = 178; const tilt = -Math.atan2(drop, run);
+  const run = rampRun(ed, w); const drop = top - RAMP_FOOT; const tilt = -Math.atan2(drop, run);
   const cleats: EnclosureBox[] = [];
-  for (let dy = 60; dy < run; dy += 100) cleats.push({ size: [w, 18, 8], center: [0, landingDepth + dy, 204 - drop * dy / run] });
-  const ramp: EnclosureRamp = { board: { size: [w, Math.hypot(run, drop), 18], center: [0, landingDepth + run / 2, 102], material: 'endgrain' }, cleats, tilt };
+  for (let dy = 60; dy < run; dy += 100) cleats.push({ size: [w, 18, 8], center: [0, landingDepth + dy, top + 4 - drop * dy / run] });
+  const ramp: EnclosureRamp = { board: { size: [w, Math.hypot(run, drop), 18], center: [0, landingDepth + run / 2, (top + 4) / 2], material: 'endgrain' }, cleats, tilt };
 
   const dw = ew - 86; const dh = eh - 136;
   const door: EnclosureDoor = { width: dw, height: dh, member: 40, depth: 30, hinge: [-dw / 2, ed, 113], hardware: [

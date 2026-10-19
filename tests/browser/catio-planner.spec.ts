@@ -40,7 +40,7 @@ test('opens the default scene from a fresh state, linked from the catio concept'
   await page.getByRole('link', { name: /Catio planner/ }).click();
   await expect(page).toHaveURL(/#\/concepts\/catio\/planner$/);
   const { viewport, errors } = await open(page);
-  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Enclosure/]);
+  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Module 1/, /Module 2/, /Enclosure/]);
   await expect(page.getByRole('textbox', { name: 'Project name' })).toHaveValue('My catio');
   await expect(field(page, 'Width (m)')).toHaveValue('5');
   await expect(field(page, 'Depth (m)')).toHaveValue('5');
@@ -134,7 +134,7 @@ test('shrinking the garden flags what is outside it and deletes nothing; a bad n
   const { viewport, errors } = await open(page);
   await field(page, 'Depth (m)').fill('2.5'); await field(page, 'Depth (m)').press('Enter');
   await expect(viewport).toHaveAttribute('data-revision', '1');
-  await expect(tree(page).getByRole('button')).toHaveCount(3);
+  await expect(tree(page).getByRole('button')).toHaveCount(5);
   await expect(issues(page)).toContainText('Enclosure is outside the garden');
   await expect(tree(page).getByRole('button', { name: /Enclosure/ })).toContainText('1');
   // the issue selects what it is about
@@ -159,7 +159,7 @@ test('shrinking the garden flags what is outside it and deletes nothing; a bad n
 test('adds a platform, moves it within its enclosure, and it follows its enclosure', async ({ page }, testInfo) => {
   const { viewport, errors } = await open(page);
   await page.getByRole('button', { name: /^Platform/ }).click();
-  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Enclosure/, /Platform 1/]);
+  await expect(tree(page).getByRole('button')).toHaveText([/Window/, /Tunnel/, /Module 1/, /Module 2/, /Enclosure/, /Platform 1/]);
   await expect(viewport).toHaveAttribute('data-selection', '["platform-1"]');
   await expect(field(page, 'Elevation (cm)')).toHaveValue('120');
   await page.getByRole('button', { name: 'Top', exact: true }).click();
@@ -448,4 +448,63 @@ test('says 3D is unavailable without WebGL, and the tree and inspector still wor
   await expect(field(page, 'Height (cm)')).toHaveValue('180');
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(field(page, 'Height (cm)')).toHaveValue('200');
+});
+
+test('selects tunnel elements, one and then a second with Shift; raises them by their arrow and Page Up, the enclosure’s opening with them; undo (#126)', async ({ page }, testInfo) => {
+  const { viewport, errors } = await open(page);
+  const inspector = page.getByRole('region', { name: 'Inspector' });
+  const sills = async () => {
+    await tree(page).getByRole('button', { name: /^Enclosure/ }).click();
+    return JSON.parse(await inspector.locator('[data-sills]').getAttribute('data-sills') ?? '[]') as number[];
+  };
+  const [rear0] = await sills();
+  // seen from the side, the tunnel runs across the view: a click picks one of its elements, Shift-click a second
+  await page.getByRole('button', { name: 'Side', exact: true }).click();
+  await expect(viewport).toHaveAttribute('data-view', 'Side');
+  // the camera has settled once the anchors stop moving
+  let last = '';
+  await expect.poll(async () => { const now = JSON.stringify((await anchors(viewport))['tunnel-1-element-2']); const same = now === last; last = now; return same; }, { intervals: [250] }).toBe(true);
+  await page.mouse.click(...await at(viewport, 'tunnel-1-element-1'));
+  await expect(viewport).toHaveAttribute('data-selection', '["tunnel-1-element-1"]');
+  await expect(inspector).toContainText('Tunnel · Module 1');
+  await page.keyboard.down('Shift'); await page.mouse.click(...await at(viewport, 'tunnel-1-element-2')); await page.keyboard.up('Shift');
+  await expect(viewport).toHaveAttribute('data-selection', '["tunnel-1-element-1","tunnel-1-element-2"]');
+  await expect(inspector).toContainText('TUNNEL ELEMENTS · 2');
+  await expect(tree(page).getByRole('button', { name: /Module 1/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(tree(page).getByRole('button', { name: /Module 2/ })).toHaveAttribute('aria-pressed', 'true');
+  // Ctrl-click takes one out again
+  await page.keyboard.down('Control'); await page.mouse.click(...await at(viewport, 'tunnel-1-element-1')); await page.keyboard.up('Control');
+  await expect(viewport).toHaveAttribute('data-selection', '["tunnel-1-element-2"]');
+
+  // the last element, coupled to the enclosure, rises by its arrow: one edit
+  const floorOf = async () => Number(await inspector.locator('[data-floor]').getAttribute('data-floor'));
+  const floor0 = await floorOf();
+  await expect.poll(async () => (await anchors(viewport))['elevate']).toBeTruthy();
+  const arrow = await at(viewport, 'elevate');
+  await drag(page, arrow, [[arrow[0], arrow[1] - 7]], false);
+  await expect(page.locator('.planner-readout')).toContainText('Raising Tunnel · Module 2');
+  await page.mouse.up();
+  await expect(viewport).toHaveAttribute('data-revision', '1');
+  const floor1 = await floorOf();
+  expect(floor1).toBeGreaterThan(floor0);
+  await expect(page.locator('.planner-status')).toContainText(/Enclosure moved \d+ mm with the tunnel's end/);
+  // Page Up: 10 mm more, one more edit; its neighbour slopes up to it
+  await page.locator('body').press('PageUp');
+  await expect(viewport).toHaveAttribute('data-revision', '2');
+  await expect.poll(floorOf).toBe(floor1 + 10);
+  await expect(tree(page).getByRole('button', { name: /Module 1/ })).toContainText('↗');
+  await page.screenshot({ path: testInfo.outputPath('catio-planner-raised-element.png') });
+  // the enclosure's rear opening rose with them, as far
+  const [rear2] = await sills();
+  expect(rear2).toBeCloseTo((rear0 ?? 0) + floor1 + 10 - floor0, 6);
+  await expect(issues(page)).toContainText('0 ERRORS');
+
+  // undo restores the element, the opening and the enclosure
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(viewport).toHaveAttribute('data-revision', '0');
+  expect((await sills())[0]).toBe(rear0);
+  await tree(page).getByRole('button', { name: /Module 2/ }).click();
+  await expect.poll(floorOf).toBe(floor0);
+  expect(errors).toEqual([]);
 });

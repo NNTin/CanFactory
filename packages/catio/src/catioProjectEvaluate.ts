@@ -1,15 +1,18 @@
 import { couplingBom, validateCoupling } from './catioCoupling.ts';
-import { enclosureInside, enclosureLayout, type EnclosureInside, type EnclosureLayout } from './catioEnclosure.ts';
-import { MODULAR_DEFAULT, validateModular, type ModularConfig } from './catioModularDesign.ts';
+import { enclosureInside, enclosureLayout, enclosureSillRange, type EnclosureInside, type EnclosureLayout } from './catioEnclosure.ts';
+import { MODULAR, MODULAR_DEFAULT, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { platformLayout, type PlatformLayout } from './catioPlatform.ts';
 import {
   applyTransform, composeTransform, isKind, relativeTransform, withoutKeys, worldTransforms, yawDirection,
   type EnclosureInstance, type Instance, type Port, type Project, type ProjectIssue, type ProjectSettings, type TunnelInstance, type Transform, type WindowParams,
 } from './catioProject.ts';
 import type { BomLine } from './catioSubassembly.ts';
-import { facePoint, PORT_MOVED, TUNNEL, tunnelBom, tunnelLayout, tunnelPitch, tunnelSiteFor, type TunnelConfig, type TunnelLayout, type TunnelSite } from './catioTunnel.ts';
+import {
+  facePoint, PORT_MOVED, routeElementName, routeOf, TUNNEL, tunnelBom, tunnelLayout, tunnelPitch, tunnelSiteFor, vec,
+  type RouteElement, type TunnelConfig, type TunnelLayout, type TunnelSite,
+} from './catioTunnel.ts';
 import type { TunnelCouplingConfig } from './catioTunnelJoint.ts';
-import { validateWindowInsert, windowInsertBom, windowInsertLayout, type WindowInsertConfig, type WindowInsertLayout } from './catioWindowInsert.ts';
+import { portRaiseRange, validateWindowInsert, windowInsertBom, windowInsertLayout, type WindowInsertConfig, type WindowInsertLayout } from './catioWindowInsert.ts';
 
 /**
  * The evaluated project: every instance placed in the site, its layout from the catio's own builders, the checks and the parts list.
@@ -26,10 +29,20 @@ export interface EvaluatedEnclosure extends Evaluated<'enclosure'> {
   footprint: [number, number][];
 }
 export interface EvaluatedTunnel extends Evaluated<'tunnel'> {
-  /** The tunnel page's config this route solves (in its window's frame), or null when it has nothing to start from. */
+  /** The tunnel page's config for its ends (in its window's frame), or null when it has nothing to start from. */
   config: TunnelConfig | null; joint: TunnelCouplingConfig; layout: TunnelLayout | null;
   /** Whether its whole modules reach the port it couples to. */
   reaches: boolean;
+  /** Its route's elements as laid out, in the chain's order. */
+  elements: EvaluatedElement[];
+}
+/**
+ * A tunnel's route element as laid out: its floor where it starts and where it ends (above the grass at the wall, in the tunnel's
+ * frame), its slope (degrees, + up), its length (its sections'), and the pieces of the layout it is.
+ */
+export interface EvaluatedElement {
+  id: string; tunnel: string; index: number; name: string; kind: RouteElement['kind']; modules: number;
+  floor: [number, number]; slope: number; length: number; pieces: string[];
 }
 export interface EvaluatedPlatform extends Evaluated<'platform'> { layout: PlatformLayout | null }
 export type EvaluatedInstance = EvaluatedWindow | EvaluatedEnclosure | EvaluatedTunnel | EvaluatedPlatform;
@@ -45,7 +58,11 @@ export interface ProjectEvaluation {
   bom: ProjectBomLine[];
   /** What keeps the parts list from being a complete build: every error, every missing recipe and everything unverified. */
   unresolved: ProjectIssue[];
+  /** How far each window's and enclosure's cat port can be raised or lowered (`Port.raise`), by port id. */
+  portRanges: Map<string, PortRange>;
 }
+/** Where a cat port's `raise` can go: from `min` to `max`, and what stops it there. */
+export interface PortRange { min: number; max: number; limits: string }
 
 const RAD = Math.PI / 180;
 /** The yaw a direction faces (0: +Y), in (−180°, 180°]. */
@@ -77,6 +94,7 @@ export function evaluateProject(project: Project): ProjectEvaluation {
   };
   const insertConfig: WindowInsertConfig = { ...s.insert, mesh: s.mesh };
   const joint: TunnelCouplingConfig = { ...s.tunnelCoupling, jointShown: 'end-end' };
+  const portRanges = new Map<string, PortRange>();
   const modular = (w: WindowParams | undefined, enclosure = MODULAR_DEFAULT.enclosure): ModularConfig => ({
     ...MODULAR_DEFAULT, ...w, enclosure, second: enclosure, secondEnabled: false, portClosure: s.portClosure, doorSeat: s.doorSeat,
   });
@@ -88,14 +106,20 @@ export function evaluateProject(project: Project): ProjectEvaluation {
   // Windows: the insert in the window, its cat port where the tunnel starts.
   const windows = new Map<string, EvaluatedWindow>();
   for (const w of project.instances.filter(isKind('window'))) {
+    const port = portByName(w.id, 'port');
     const result = guard([w.id], 'window insert', () => {
-      const site = tunnelSiteFor(insertConfig, modular(w.params));
+      const site = tunnelSiteFor(insertConfig, { ...modular(w.params), portRaise: port?.raise ?? 0 });
       return { site, insert: windowInsertLayout('modular', insertConfig, site.window) };
     });
     if (!result) continue;
     const e: EvaluatedWindow = { ...base(w), ...result, config: insertConfig };
     windows.set(w.id, e); evaluated.push(e);
-    const port = portByName(w.id, 'port');
+    if (port) {
+      const range = portRaiseRange(result.insert);
+      portRanges.set(port.id, { ...range, limits: 'on the threshold at the lowest; at the highest the port, its transom and the docking frame reach the collar’s head rail' });
+      const raise = port.raise ?? 0;
+      if (raise < range.min - 0.5 || raise > range.max + 0.5) issue('geometry', 'error', [w.id], 'port-raise', `${name(w)}'s cat port is raised ${mm(raise)}; the insert allows ${mm(range.min)} to ${mm(range.max)} (${portRanges.get(port.id)?.limits ?? ''}).`);
+    }
     if (port) local.set(port.id, { x: 0, y: TUNNEL.wallGap, z: result.site.floorZ, yaw: 0 });
     for (const message of new Set([...validateModular(modular(w.params)).filter(m => !m.startsWith('Enclosure')), ...validateWindowInsert('modular', insertConfig, result.site.window)]))
       issue('input', 'error', [w.id], `window-${message}`, message);
@@ -112,8 +136,18 @@ export function evaluateProject(project: Project): ProjectEvaluation {
   for (const e of project.instances.filter(isKind('enclosure'))) {
     const tunnelSize = tunnelSizeOf(e);
     const connected = { rear: false, left: false, right: false };
-    for (const side of ['rear', 'left', 'right'] as const) connected[side] = portByName(e.id, side)?.state === 'connected';
-    const layout = guard([e.id], 'enclosure', () => enclosureLayout(e.params, { id: e.id, tunnelSize, connected }));
+    const sills: Partial<Record<'rear' | 'left' | 'right', number>> = {};
+    const range = enclosureSillRange(e.params, tunnelSize, s.portClosure);
+    for (const side of ['rear', 'left', 'right'] as const) {
+      const port = portByName(e.id, side);
+      connected[side] = port?.state === 'connected';
+      if (!port) continue;
+      sills[side] = MODULAR.sill + (port.raise ?? 0);
+      portRanges.set(port.id, { min: range.min - MODULAR.sill, max: range.max - MODULAR.sill, limits: 'its frame above the sole rails at the lowest; at the highest below the top rails, with a ramp no steeper than its limit' });
+      const sill = sills[side] ?? MODULAR.sill;
+      if (sill < range.min - 0.5 || sill > range.max + 0.5) issue('geometry', 'error', [e.id], `port-raise-${side}`, `${name(e)}'s ${side} cat port stands ${mm(sill)} up; the enclosure allows ${mm(range.min)} to ${mm(range.max)}.`);
+    }
+    const layout = guard([e.id], 'enclosure', () => enclosureLayout(e.params, { id: e.id, tunnelSize, connected, sills }));
     if (!layout) continue;
     const t = world.get(e.id) ?? e.transform;
     const reach = e.params.depth + layout.door.width;
@@ -138,7 +172,7 @@ export function evaluateProject(project: Project): ProjectEvaluation {
     evaluated.push(ev);
   }
   function evaluateTunnel(t: TunnelInstance): EvaluatedTunnel {
-    const result: EvaluatedTunnel = { ...base(t), config: null, joint, layout: null, reaches: false };
+    const result: EvaluatedTunnel = { ...base(t), config: null, joint, layout: null, reaches: false, elements: [] };
     const window = t.parent ? windows.get(t.parent) : undefined;
     if (!window) { issue('connection', 'error', [t.id], 'no-window', `${name(t)} has no window to start from.`); return result; }
     const tunnelWorld = result.world;
@@ -151,15 +185,18 @@ export function evaluateProject(project: Project): ProjectEvaluation {
     if (!target) { issue('connection', 'error', [t.id], 'no-end', `${name(t)} has no end port.`); return result; }
     const config = tunnelRoute(t, s, target, mateWorld !== null);
     result.config = config;
-    const layout = guard([t.id], 'tunnel', () => tunnelLayout(config, window.site, joint));
+    const layout = guard([t.id], 'tunnel', () => tunnelLayout(config, window.site, joint, { elements: t.params.route, end: target.z }));
     if (!layout) return result;
     result.layout = layout;
+    result.elements = evaluatedElements(t, layout, target.z);
     if (end && mate) {
       const psi = Math.atan2(layout.dE[0], layout.dE[1]) / RAD;
       local.set(end.id, { x: layout.E[0], y: layout.E[1], z: layout.E[2], yaw: -psi });
     }
     const ids = mate ? [t.id, mate.owner] : [t.id];
-    for (const message of layout.errors) issue('geometry', 'error', [t.id], `tunnel-${message}`, message);
+    const onElements = new Set(layout.routeIssues.map(i => i.message));
+    for (const i of layout.routeIssues) issue('geometry', 'error', [t.id, ...i.elements], `tunnel-${i.message}`, i.message);
+    for (const message of layout.errors.filter(m => !onElements.has(m))) issue('geometry', 'error', [t.id], `tunnel-${message}`, message);
     const pitch = tunnelPitch(window.site, joint);
     result.reaches = layout.moved <= PORT_MOVED && layout.facingMoved <= 0.5;
     if (!result.reaches) {
@@ -168,9 +205,9 @@ export function evaluateProject(project: Project): ProjectEvaluation {
     }
     if (end && !mate) issue('connection', 'error', [t.id], 'open-end', `${name(t)}'s far end is not coupled to a port: an open end is not a finished tunnel.`);
     if (start && mateOf(start)?.owner !== window.id) issue('connection', 'error', [t.id, window.id], 'start', `${name(t)} does not start at its window's cat port.`);
-    const couplingSite = { tunnel: config, site: window.site, joint };
+    const couplingSite = { tunnel: config, site: window.site, joint, layout };
     for (const message of validateCoupling('modular', s.insertCoupling, couplingSite)) issue('geometry', 'error', [window.id, t.id], `coupling-${message}`, message);
-    addBom([t.id], tunnelBom('modular', config, window.site, joint));
+    addBom([t.id], tunnelBom('modular', config, window.site, joint, layout));
     addBom([window.id, t.id], couplingBom('modular', s.insertCoupling, couplingSite));
     return result;
   }
@@ -223,7 +260,20 @@ export function evaluateProject(project: Project): ProjectEvaluation {
   }
 
   const unresolved = issues.filter(i => i.severity === 'error' || i.kind === 'missing-recipe' || i.kind === 'unverified');
-  return { instances: evaluated, ports, issues, bom, unresolved };
+  return { instances: evaluated, ports, issues, bom, unresolved, portRanges };
+}
+
+/** A tunnel's elements as `layout` lays them out, its route ending at the floor `end`. */
+function evaluatedElements(t: TunnelInstance, layout: TunnelLayout, end: number): EvaluatedElement[] {
+  const route = t.params.route;
+  return route.map((e, index) => {
+    const pieces = layout.pieces.filter(p => p.element === e.id);
+    return {
+      id: e.id, tunnel: t.id, index, name: routeElementName(index, e), kind: e.kind, modules: e.modules,
+      floor: [index === 0 ? layout.S[2] : e.floor, route[index + 1]?.floor ?? end], slope: layout.elementSlopes.get(e.id) ?? 0,
+      length: pieces.reduce((n, p) => n + p.length, 0), pieces: pieces.map(p => p.id),
+    };
+  });
 }
 
 /**
@@ -234,13 +284,64 @@ export function evaluateProject(project: Project): ProjectEvaluation {
 export function tunnelRoute(t: Pick<TunnelInstance, 'params'>, s: ProjectSettings, target: Transform, mated: boolean): TunnelConfig {
   const [dx, dy] = mated ? yawDirection(target.yaw).map(v => -v) as [number, number] : yawDirection(target.yaw);
   return {
-    ...withoutKeys(t.params, ['mode']), portX: r6(target.x), portY: r6(target.y), portFacing: r6(Math.atan2(dx, dy) / RAD), portLevel: 'own', portHeight: r6(target.z),
+    ...withoutKeys(t.params, ['mode', 'route']), portX: r6(target.x), portY: r6(target.y), portFacing: r6(Math.atan2(dx, dy) / RAD), portLevel: 'own', portHeight: r6(target.z),
     angleJoint: 'side-port', mesh: s.mesh, supportFixing: s.tunnelCoupling.supportFixing, supportBase: s.tunnelCoupling.supportBase,
   };
 }
 
-/** A tunnel re-solved for a drag's preview: its route's config and layout, and whether its whole modules reach its mate. */
-export interface TunnelPreview { id: string; config: TunnelConfig; layout: TunnelLayout | null; reaches: boolean }
+/**
+ * A tunnel's route solved again from its ends, as a chain of elements: the tunnel page's solver (`tunnelLayout` on `tunnelRoute`) runs
+ * it level from its start port to `target` (its end's face in the tunnel's frame) in whole modules, and its sections become the
+ * elements (`routeOf`). They keep the ids and floors of the route it had (`previous`), place by place, and the chain runs into the
+ * target's floor. Where those floors make it slope, its bends take room: the last straight run along each way is then given whole
+ * modules more or fewer, so that it still ends at the target. The one way a coupled tunnel follows what it couples to: a drag's
+ * preview and the command that commits it both use it.
+ */
+export function solveRoute(t: Pick<TunnelInstance, 'id' | 'params'>, s: ProjectSettings, site: TunnelSite, target: Transform, mated: boolean): { route: RouteElement[]; config: TunnelConfig; layout: TunnelLayout } {
+  const joint: TunnelCouplingConfig = { ...s.tunnelCoupling, jointShown: 'end-end' };
+  const config = tunnelRoute(t, s, target, mated);
+  const previous = t.params.route;
+  const solved = tunnelLayout({ ...config, portHeight: site.floorZ }, site, joint);
+  const taken = new Set(previous.map(e => e.id));
+  let n = 0;
+  const fresh = () => { let id: string; do id = `${t.id}-element-${++n}`; while (taken.has(id)); taken.add(id); return id; };
+  const lastFloor = previous.at(-1)?.floor ?? site.floorZ;
+  let route = routeOf(solved, i => previous[i]?.id ?? fresh()).map((e, i) => ({ ...e, floor: i === 0 ? site.floorZ : previous[i]?.floor ?? lastFloor }));
+  const lay = (elements: RouteElement[]) => tunnelLayout(config, site, joint, { elements, end: target.z });
+  let layout = lay(route);
+  // the last run along each way decides where the route ends that way: give it whole modules more or fewer
+  const segments: number[][] = [[]];
+  route.forEach((e, i) => { if (e.kind === 'turn' && i > 0) segments.push([]); segments.at(-1)?.push(i); });
+  const adjusted = new Set<string>();
+  for (const segment of segments.slice().reverse()) {
+    const first = route[segment[0] ?? 0]; const piece = layout.pieces.find(p => p.element === first?.id);
+    if (!piece) continue;
+    const way = [piece.frame.y[0], piece.frame.y[1]]; const key = `${Math.round(way[0] ?? 0)},${Math.round(way[1] ?? 0)}`;
+    const opposite = `${-Math.round(way[0] ?? 0)},${-Math.round(way[1] ?? 0)}`;
+    if (adjusted.has(key) || adjusted.has(opposite)) continue;
+    adjusted.add(key);
+    const off = vec.dot(vec.sub(layout.E, layout.asked), [way[0] ?? 0, way[1] ?? 0, 0]);
+    const k = Math.round(off / layout.pitch);
+    if (!k) continue;
+    const straights = segment.filter(i => route[i]?.kind === 'straight');
+    const at = straights.at(-1);
+    if (at === undefined) continue;
+    const template = route[at];
+    if (!template) continue;
+    if (k > 0) {
+      const gone = new Set(straights.slice(-Math.min(k, straights.length - (segment.length === straights.length ? 1 : 0))));
+      route = route.filter((_, i) => !gone.has(i));
+    } else {
+      const added = Array.from({ length: -k }, (): RouteElement => ({ id: fresh(), kind: 'straight', modules: template.modules, floor: template.floor }));
+      route = [...route.slice(0, at + 1), ...added, ...route.slice(at + 1)];
+    }
+    layout = lay(route);
+  }
+  return { route, config, layout };
+}
+
+/** A tunnel re-solved for a drag's preview: its route's config, elements and layout, and whether its whole modules reach its mate. */
+export interface TunnelPreview { id: string; config: TunnelConfig; route: RouteElement[]; layout: TunnelLayout | null; reaches: boolean }
 /**
  * A drag's tunnels: with the instances in `moved` at those transforms (each in its parent's frame), every tunnel coupled to a port of
  * one of them (or of anything in them) re-solved, from `evaluation`, the project's before the drag. Nothing else is evaluated (no
@@ -252,7 +353,6 @@ export function previewTunnels(project: Project, evaluation: Pick<ProjectEvaluat
   const affected = (id: string | null): boolean => { const seen = new Set<string>(); for (let at = id; at && !seen.has(at); at = byId.get(at)?.parent ?? null) { if (moved.has(at)) return true; seen.add(at); } return false; };
   const world = worldTransforms({ instances });
   const ports = new Map(evaluation.ports.map(p => [p.id, p]));
-  const joint: TunnelCouplingConfig = { ...project.settings.tunnelCoupling, jointShown: 'end-end' };
   const previews: TunnelPreview[] = [];
   for (const t of instances.filter(isKind('tunnel'))) {
     const end = project.ports.find(p => p.owner === t.id && p.name === 'end');
@@ -262,10 +362,11 @@ export function previewTunnels(project: Project, evaluation: Pick<ProjectEvaluat
     const tunnelWorld = world.get(t.id);
     if (!mate || !window || !tunnelWorld || !(affected(mate.owner) || affected(t.id))) continue;
     const ownerWorld = world.get(mate.owner); if (!ownerWorld) continue;
-    const config = tunnelRoute(t, project.settings, relativeTransform(tunnelWorld, composeTransform(ownerWorld, mate.local)), true);
-    let layout: TunnelLayout | null = null;
-    try { layout = tunnelLayout(config, window.site, joint); } catch { /* an unsolvable route previews as not reaching */ }
-    previews.push({ id: t.id, config, layout, reaches: !!layout && layout.moved <= PORT_MOVED && layout.facingMoved <= 0.5 });
+    const target = relativeTransform(tunnelWorld, composeTransform(ownerWorld, mate.local));
+    try {
+      const { route, config, layout } = solveRoute(t, project.settings, window.site, target, true);
+      previews.push({ id: t.id, config, route, layout, reaches: layout.moved <= PORT_MOVED && layout.facingMoved <= 0.5 });
+    } catch { /* an unsolvable route previews as not reaching */ }
   }
   return previews;
 }
