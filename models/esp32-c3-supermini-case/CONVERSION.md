@@ -103,10 +103,11 @@ Thus the two housing bottoms are coplanar with both toggles on. Only the mating
 pins project below them. With flush headers on but the height toggle off, the
 insulators extend 0.84 mm below the shorter case.
 
-The base extension uses an extrusion of the original constant floor cross-section
-at print z=0.1, joined with 0.01 mm overlap to a vertically translated original
-base. This thickens the floor from 1.50 to 2.34 mm and keeps the internal floor
-surface, board seating, USB opening, rails and lid unchanged relative to the PCB.
+The base extension keeps the original mesh's bottom-plane vertices at print
+z=0 and shifts every higher vertex upward by 0.84 mm. The original floor is a
+constant section from z=0 to 1.50, so this thickens it to 2.34 mm while keeping
+the internal floor surface, board seating, USB opening, rails and lid unchanged
+relative to the PCB. It introduces no overlapping extrusion or Boolean seam.
 The new floor starts at print z=0; all original features above it shift up by
 0.84 mm in the part's print frame. The header cutters extend from print z=−0.1
 to 0.1 mm above the PCB underside in either height, so the wider slots remain
