@@ -9,9 +9,9 @@ import {
 import type { BomLine } from './catioSubassembly.ts';
 import {
   facePoint, PORT_MOVED, routeElementName, routeOf, TUNNEL, tunnelBom, tunnelLayout, tunnelPitch, tunnelSiteFor, vec,
-  type RouteElement, type TunnelConfig, type TunnelLayout, type TunnelSite,
+  type DescribedRoute, type RouteElement, type TunnelConfig, type TunnelLayout, type TunnelSite,
 } from './catioTunnel.ts';
-import type { TunnelCouplingConfig } from './catioTunnelJoint.ts';
+import { couplingGap, type TunnelCouplingConfig } from './catioTunnelJoint.ts';
 import { portRaiseRange, validateWindowInsert, windowInsertBom, windowInsertLayout, type WindowInsertConfig, type WindowInsertLayout } from './catioWindowInsert.ts';
 
 /**
@@ -29,13 +29,18 @@ export interface EvaluatedEnclosure extends Evaluated<'enclosure'> {
   footprint: [number, number][];
 }
 export interface EvaluatedTunnel extends Evaluated<'tunnel'> {
-  /** The tunnel page's config for its ends (in its window's frame), or null when it has nothing to start from. */
+  /** The tunnel page's config for its ends (in the tunnel's frame), or null when it has no end port. */
   config: TunnelConfig | null; joint: TunnelCouplingConfig; layout: TunnelLayout | null;
-  /** Whether its whole modules reach the port it couples to. */
+  /** What it is laid out on: the standard port's size, and its floor where it starts (the port it starts at). */
+  site: TunnelSite;
+  /** Whether its whole modules reach the port its end couples to (a free end has none to reach). */
   reaches: boolean;
   /** Its route's elements as laid out, in the chain's order. */
   elements: EvaluatedElement[];
+  /** Its two ends: its own port, and the port and instance each is coupled to (null: free, an unfinished end). */
+  ends: Record<'start' | 'end', TunnelEnd>;
 }
+export interface TunnelEnd { port: string | null; mate: string | null; owner: string | null }
 /**
  * A tunnel's route element as laid out: its floor where it starts and where it ends (above the grass at the wall, in the tunnel's
  * frame), its slope (degrees, + up), its length (its sections'), and the pieces of the layout it is.
@@ -166,49 +171,62 @@ export function evaluateProject(project: Project): ProjectEvaluation {
     issue('missing-recipe', 'warning', [e.id], 'enclosure', `${name(e)} has no construction recipe yet: its frame, mesh, floor, roof, door, feet and fixings are not in the parts list.`);
   }
 
-  // Tunnels: each solved by the tunnel page's own layout, from its window's port to the port its end couples to, in the window's frame.
+  // Tunnels: each laid out by the tunnel page's own layout along its elements, in the frame of the port it starts at, to the port its
+  // end couples to (or, a free end, where it was left).
+  /** The standard port's site for a tunnel that starts at an enclosure: the project's first window's (its insert's seat, its size). */
+  const standard = [...windows.values()][0]?.site ?? tunnelSiteFor(insertConfig, modular(undefined));
   for (const t of project.instances.filter(isKind('tunnel'))) {
     const ev = evaluateTunnel(t);
     evaluated.push(ev);
   }
   function evaluateTunnel(t: TunnelInstance): EvaluatedTunnel {
-    const result: EvaluatedTunnel = { ...base(t), config: null, joint, layout: null, reaches: false, elements: [] };
-    const window = t.parent ? windows.get(t.parent) : undefined;
-    if (!window) { issue('connection', 'error', [t.id], 'no-window', `${name(t)} has no window to start from.`); return result; }
-    const tunnelWorld = result.world;
     const start = portByName(t.id, 'start'); const end = portByName(t.id, 'end');
-    if (start) local.set(start.id, { x: 0, y: TUNNEL.wallGap, z: window.site.floorZ, yaw: 180 });
+    const startMate = start ? mateOf(start) : null; const mate = end ? mateOf(end) : null;
+    const startOwner = startMate ? byId.get(startMate.owner) : undefined;
+    const atWindow = startOwner?.kind === 'window' ? windows.get(startOwner.id) : undefined;
+    const startFace = startMate && startOwner?.kind !== 'tunnel' ? portWorld(startMate) : null;
+    const placed = tunnelPlacement(t, atWindow?.site ?? standard, joint, startFace && { face: startFace, window: !!atWindow });
+    const endOf = (own: Port | undefined, other: Port | null): TunnelEnd => ({ port: own?.id ?? null, mate: other?.id ?? null, owner: other?.owner ?? null });
+    const result: EvaluatedTunnel = {
+      ...base(t), world: placed.world, config: null, joint, layout: null, site: placed.site, reaches: false, elements: [], ends: { start: endOf(start, startMate), end: endOf(end, mate) },
+    };
+    world.set(t.id, placed.world);
+    if (start && placed.startLocal) local.set(start.id, placed.startLocal);
+    for (const [own, other] of [[start, startMate], [end, mate]] as const) {
+      if (other && byId.get(other.owner)?.kind === 'tunnel') issue('connection', 'error', [t.id, other.owner], `tunnel-mate-${own?.name}`, `${name(t)}'s ${own?.name} is coupled to another tunnel's end: a tunnel couples to a window's or an enclosure's cat port (joining tunnels comes with junctions).`);
+    }
     // where its end is to couple: its mate's face, or (a free end) where the end was left
-    const mate = end ? mateOf(end) : null;
-    const mateWorld = mate ? portWorld(mate) : null;
-    const target = mateWorld ? relativeTransform(tunnelWorld, mateWorld) : end ? end.frame : null;
+    const mateWorld = mate && byId.get(mate.owner)?.kind !== 'tunnel' ? portWorld(mate) : null;
+    const target = mateWorld ? relativeTransform(placed.world, mateWorld) : end ? end.frame : null;
     if (!target) { issue('connection', 'error', [t.id], 'no-end', `${name(t)} has no end port.`); return result; }
     const config = tunnelRoute(t, s, target, mateWorld !== null);
     result.config = config;
-    const layout = guard([t.id], 'tunnel', () => tunnelLayout(config, window.site, joint, { elements: t.params.route, end: target.z }));
+    const route: DescribedRoute = { elements: t.params.route, end: target.z, ports: { start: !!startFace && !atWindow, end: !!mateWorld } };
+    const layout = guard([t.id], 'tunnel', () => tunnelLayout(config, placed.site, joint, route));
     if (!layout) return result;
     result.layout = layout;
     result.elements = evaluatedElements(t, layout, target.z);
-    if (end && mate) {
-      const psi = Math.atan2(layout.dE[0], layout.dE[1]) / RAD;
-      local.set(end.id, { x: layout.E[0], y: layout.E[1], z: layout.E[2], yaw: -psi });
-    }
+    // its end faces out the way it runs: into its mate's face, or (free) where its modules end
+    if (end) local.set(end.id, { x: layout.E[0], y: layout.E[1], z: layout.E[2], yaw: -Math.atan2(layout.dE[0], layout.dE[1]) / RAD });
     const ids = mate ? [t.id, mate.owner] : [t.id];
     const onElements = new Set(layout.routeIssues.map(i => i.message));
     for (const i of layout.routeIssues) issue('geometry', 'error', [t.id, ...i.elements], `tunnel-${i.message}`, i.message);
     for (const message of layout.errors.filter(m => !onElements.has(m))) issue('geometry', 'error', [t.id], `tunnel-${message}`, message);
-    const pitch = tunnelPitch(window.site, joint);
-    result.reaches = layout.moved <= PORT_MOVED && layout.facingMoved <= 0.5;
+    const pitch = tunnelPitch(placed.site, joint);
+    result.reaches = !mateWorld || (layout.moved <= PORT_MOVED && layout.facingMoved <= 0.5);
     if (!result.reaches) {
       const owner = mate ? byId.get(mate.owner) : undefined;
       issue('connection', 'error', ids, 'route', `${name(t)} cannot reach ${owner ? `${name(owner)}'s ${mate?.name} port` : 'its end'} in whole standard modules: they end ${mm(layout.moved)} from it${layout.facingMoved > 0.5 ? `, and it faces ${Math.round(layout.facingMoved)}° from a square turn` : ''}. Move it by whole modules (${mm(pitch)}), or detach the tunnel. The connection is kept.`);
     }
-    if (end && !mate) issue('connection', 'error', [t.id], 'open-end', `${name(t)}'s far end is not coupled to a port: an open end is not a finished tunnel.`);
-    if (start && mateOf(start)?.owner !== window.id) issue('connection', 'error', [t.id, window.id], 'start', `${name(t)} does not start at its window's cat port.`);
-    const couplingSite = { tunnel: config, site: window.site, joint, layout };
-    for (const message of validateCoupling('modular', s.insertCoupling, couplingSite)) issue('geometry', 'error', [window.id, t.id], `coupling-${message}`, message);
-    addBom([t.id], tunnelBom('modular', config, window.site, joint, layout));
-    addBom([window.id, t.id], couplingBom('modular', s.insertCoupling, couplingSite));
+    // FR-04.11: a free end is an unfinished opening, never a finished tunnel
+    if (end && !mate) issue('connection', 'error', [t.id], 'open-end', `${name(t)}'s far end is free: an unfinished end. Extend it to a free cat port and connect it there.`);
+    if (start && !startMate) issue('connection', 'error', [t.id], 'open-start', `${name(t)}'s start is free: an unfinished end. Connect it to a free cat port.`);
+    addBom([t.id], tunnelBom('modular', config, placed.site, joint, layout));
+    if (atWindow && startOwner) {
+      const couplingSite = { tunnel: config, site: atWindow.site, joint, layout };
+      for (const message of validateCoupling('modular', s.insertCoupling, couplingSite)) issue('geometry', 'error', [startOwner.id, t.id], `coupling-${message}`, message);
+      addBom([startOwner.id, t.id], couplingBom('modular', s.insertCoupling, couplingSite));
+    }
     return result;
   }
   function portWorld(port: Port): Transform | null {
@@ -277,7 +295,31 @@ function evaluatedElements(t: TunnelInstance, layout: TunnelLayout, end: number)
 }
 
 /**
- * The tunnel page's config that solves a tunnel's route (in its window's frame): from its window's port to `target`, its end's face
+ * How far behind its first flange a tunnel's start port's face is: a latched coupling's gap from an enclosure's port; none at a window
+ * insert's port, which its own coupling joins it to.
+ */
+const startGap = (window: boolean, joint: Pick<TunnelCouplingConfig, 'mechanism'>) => window ? 0 : couplingGap(joint);
+/**
+ * A tunnel's frame in the site, from the face (in the site) of the port it starts at, a window's or not: on the lawn, +Y the way the
+ * port faces out, its first flange where the tunnel page starts it (`TUNNEL.wallGap` out), across the coupling's gap from the port.
+ */
+export function tunnelFrame(face: Transform, window: boolean, joint: Pick<TunnelCouplingConfig, 'mechanism'>): Transform {
+  const at = applyTransform({ ...face, z: 0 }, { x: 0, y: startGap(window, joint) - TUNNEL.wallGap, z: 0 });
+  return round({ x: at.x, y: at.y, z: 0, yaw: face.yaw });
+}
+/**
+ * Where a tunnel stands and what it is laid out on: coupled at its start (`start`, that port's face in the site), in that port's frame
+ * (`tunnelFrame`) with its floor the port's; free, where it was left (its transform), with its first element's floor. `base` is the
+ * site of the standard port it is made for. `startLocal` is its start port's face in its frame, when coupled.
+ */
+export function tunnelPlacement(t: Pick<TunnelInstance, 'transform' | 'params'>, base: TunnelSite, joint: Pick<TunnelCouplingConfig, 'mechanism'>, start: { face: Transform; window: boolean } | null) {
+  if (!start) return { world: t.transform, site: { ...base, floorZ: t.params.route[0]?.floor ?? base.floorZ }, startLocal: null };
+  const floor = r6(start.face.z);
+  return { world: tunnelFrame(start.face, start.window, joint), site: { ...base, floorZ: floor }, startLocal: { x: 0, y: TUNNEL.wallGap - startGap(start.window, joint), z: floor, yaw: 180 } };
+}
+
+/**
+ * The tunnel page's config that solves a tunnel's route (in its own frame): from its start port to `target`, its end's face
  * in the tunnel's frame. The tunnel runs into a mate's face (`mated`) against the way that faces out; a free end's own face out is
  * the way the tunnel runs.
  */
@@ -297,7 +339,7 @@ export function tunnelRoute(t: Pick<TunnelInstance, 'params'>, s: ProjectSetting
  * modules more or fewer, so that it still ends at the target. The one way a coupled tunnel follows what it couples to: a drag's
  * preview and the command that commits it both use it.
  */
-export function solveRoute(t: Pick<TunnelInstance, 'id' | 'params'>, s: ProjectSettings, site: TunnelSite, target: Transform, mated: boolean): { route: RouteElement[]; config: TunnelConfig; layout: TunnelLayout } {
+export function solveRoute(t: Pick<TunnelInstance, 'id' | 'params'>, s: ProjectSettings, site: TunnelSite, target: Transform, mated: boolean, ports?: DescribedRoute['ports']): { route: RouteElement[]; config: TunnelConfig; layout: TunnelLayout } {
   const joint: TunnelCouplingConfig = { ...s.tunnelCoupling, jointShown: 'end-end' };
   const config = tunnelRoute(t, s, target, mated);
   const previous = t.params.route;
@@ -307,7 +349,7 @@ export function solveRoute(t: Pick<TunnelInstance, 'id' | 'params'>, s: ProjectS
   const fresh = () => { let id: string; do id = `${t.id}-element-${++n}`; while (taken.has(id)); taken.add(id); return id; };
   const lastFloor = previous.at(-1)?.floor ?? site.floorZ;
   let route = routeOf(solved, i => previous[i]?.id ?? fresh()).map((e, i) => ({ ...e, floor: i === 0 ? site.floorZ : previous[i]?.floor ?? lastFloor }));
-  const lay = (elements: RouteElement[]) => tunnelLayout(config, site, joint, { elements, end: target.z });
+  const lay = (elements: RouteElement[]) => tunnelLayout(config, site, joint, { elements, end: target.z, ...(ports ? { ports } : {}) });
   let layout = lay(route);
   // the last run along each way decides where the route ends that way: give it whole modules more or fewer
   const segments: number[][] = [[]];
@@ -340,12 +382,18 @@ export function solveRoute(t: Pick<TunnelInstance, 'id' | 'params'>, s: ProjectS
   return { route, config, layout };
 }
 
-/** A tunnel re-solved for a drag's preview: its route's config, elements and layout, and whether its whole modules reach its mate. */
-export interface TunnelPreview { id: string; config: TunnelConfig; route: RouteElement[]; layout: TunnelLayout | null; reaches: boolean }
+/**
+ * A tunnel re-placed for a drag's preview: its frame in the site (`world`), its route's config, elements and layout, whether its whole
+ * modules reach its mate, and which of its ends' ports moved (`follows`).
+ */
+export interface TunnelPreview {
+  id: string; world: Transform; config: TunnelConfig | null; route: RouteElement[]; layout: TunnelLayout | null; reaches: boolean; follows: 'start' | 'end' | 'both';
+}
 /**
  * A drag's tunnels: with the instances in `moved` at those transforms (each in its parent's frame), every tunnel coupled to a port of
- * one of them (or of anything in them) re-solved, from `evaluation`, the project's before the drag. Nothing else is evaluated (no
- * checks, no parts list), so that a drag stays quick; committing it evaluates the whole project.
+ * one of them (or of anything in them), from `evaluation`, the project's before the drag. A tunnel that starts there moves with that
+ * port; one whose end is coupled is solved again to its mate (FR-04.10). Nothing else is evaluated (no checks, no parts list), so
+ * that a drag stays quick; committing it evaluates the whole project.
  */
 export function previewTunnels(project: Project, evaluation: Pick<ProjectEvaluation, 'instances' | 'ports'>, moved: ReadonlyMap<string, Transform>): TunnelPreview[] {
   const instances = project.instances.map(i => { const t = moved.get(i.id); return t ? { ...i, transform: t } : i; });
@@ -353,38 +401,42 @@ export function previewTunnels(project: Project, evaluation: Pick<ProjectEvaluat
   const affected = (id: string | null): boolean => { const seen = new Set<string>(); for (let at = id; at && !seen.has(at); at = byId.get(at)?.parent ?? null) { if (moved.has(at)) return true; seen.add(at); } return false; };
   const world = worldTransforms({ instances });
   const ports = new Map(evaluation.ports.map(p => [p.id, p]));
+  const face = (id: string | null) => { const p = id ? ports.get(id) : undefined; const owner = p && world.get(p.owner); return p && owner ? composeTransform(owner, p.local) : null; };
   const previews: TunnelPreview[] = [];
-  for (const t of instances.filter(isKind('tunnel'))) {
-    const end = project.ports.find(p => p.owner === t.id && p.name === 'end');
-    const connection = end && project.connections.find(c => c.ports.includes(end.id));
-    const mate = ports.get(connection?.ports.find(id => id !== end?.id) ?? '');
-    const window = evaluation.instances.find((e): e is EvaluatedWindow => e.kind === 'window' && e.id === t.parent);
-    const tunnelWorld = world.get(t.id);
-    if (!mate || !window || !tunnelWorld || !(affected(mate.owner) || affected(t.id))) continue;
-    const ownerWorld = world.get(mate.owner); if (!ownerWorld) continue;
-    const target = relativeTransform(tunnelWorld, composeTransform(ownerWorld, mate.local));
+  for (const e of evaluation.instances) {
+    const t = e.kind === 'tunnel' ? byId.get(e.id) : undefined;
+    if (e.kind !== 'tunnel' || t?.kind !== 'tunnel') continue;
+    const [startOwner, endOwner] = [e.ends.start.owner, e.ends.end.owner];
+    const [startMoved, endMoved] = [!!startOwner && affected(startOwner), !!endOwner && affected(endOwner)];
+    if (!startMoved && !endMoved) continue;
+    const follows = startMoved && endMoved ? 'both' : startMoved ? 'start' : 'end';
+    const startFace = face(e.ends.start.mate);
+    const at = startFace ? tunnelFrame(startFace, byId.get(startOwner ?? '')?.kind === 'window', e.joint) : e.world;
+    const endFace = face(e.ends.end.mate);
+    if (!endFace) { previews.push({ id: e.id, world: at, config: e.config, route: t.params.route, layout: e.layout, reaches: true, follows }); continue; }
     try {
-      const { route, config, layout } = solveRoute(t, project.settings, window.site, target, true);
-      previews.push({ id: t.id, config, route, layout, reaches: layout.moved <= PORT_MOVED && layout.facingMoved <= 0.5 });
+      const { route, config, layout } = solveRoute(t, project.settings, e.site, relativeTransform(at, endFace), true, { start: !!startFace && byId.get(startOwner ?? '')?.kind !== 'window', end: true });
+      previews.push({ id: e.id, world: at, config, route, layout, reaches: layout.moved <= PORT_MOVED && layout.facingMoved <= 0.5, follows });
     } catch { /* an unsolvable route previews as not reaching */ }
   }
   return previews;
 }
 
 /**
- * Where an instance dragged to `to` stands so that the tunnels coupled to it reach it in whole standard modules: moved
- * on the ground by how far the first such tunnel's modules end from its port (FR-02.5: tunnel lengths snap to the module pitch,
- * not the garden grid). `to` itself when no tunnel couples to it, or none can be solved.
+ * Where an instance dragged to `to` stands so that the tunnels coupled to it reach their ports in whole standard modules: moved on
+ * the ground by how far the first such tunnel's modules end from its port (FR-02.5: tunnel lengths snap to the module pitch, not the
+ * garden grid), the other way when the tunnel starts at it. `to` itself when no tunnel couples to it, or none can be solved.
  */
 export function snapToModules(project: Project, evaluation: Pick<ProjectEvaluation, 'instances' | 'ports'>, id: string, to: Transform): Transform {
-  const preview = previewTunnels(project, evaluation, new Map([[id, to]])).find(p => p.layout);
-  const tunnel = preview && project.instances.find(i => i.id === preview.id);
-  if (!preview?.layout || !tunnel) return to;
+  const coupled = new Set(evaluation.instances.flatMap(e => e.kind === 'tunnel' && e.ends.end.mate ? [e.id] : []));
+  const preview = previewTunnels(project, evaluation, new Map([[id, to]])).find(p => p.layout && p.follows !== 'both' && coupled.has(p.id));
+  if (!preview?.layout) return to;
   const { E, asked } = preview.layout;
+  const sign = preview.follows === 'start' ? -1 : 1;
   const world = worldTransforms(project);
   const parent = project.instances.find(i => i.id === id)?.parent;
   // the shift in the tunnel's frame, turned into the dragged instance's parent's
-  const shift = applyTransform({ x: 0, y: 0, z: 0, yaw: (world.get(tunnel.id)?.yaw ?? 0) - (parent ? world.get(parent)?.yaw ?? 0 : 0) }, { x: E[0] - asked[0], y: E[1] - asked[1], z: 0 });
+  const shift = applyTransform({ x: 0, y: 0, z: 0, yaw: preview.world.yaw - (parent ? world.get(parent)?.yaw ?? 0 : 0) }, { x: sign * (E[0] - asked[0]), y: sign * (E[1] - asked[1]), z: 0 });
   return { ...to, x: r6(to.x + shift.x), y: r6(to.y + shift.y) };
 }
 
@@ -393,8 +445,16 @@ export function outsideGarden(evaluation: Pick<ProjectEvaluation, 'issues'>): st
   return [...new Set(evaluation.issues.filter(i => i.id.endsWith(':garden')).flatMap(i => i.instanceIds))];
 }
 
-/** The project with every port's frame where its owner's layout puts it (a free tunnel end stays where it was left). */
-export function syncPorts(project: Project, evaluation: Pick<ProjectEvaluation, 'ports'> = evaluateProject(project)): Project {
+/**
+ * The project with every port's frame where its owner's layout puts it (a free tunnel end where its modules end), and every tunnel
+ * in the frame of the port it starts at (`tunnelFrame`; one with a free start stays where it was left).
+ */
+export function syncFrames(project: Project, evaluation: Pick<ProjectEvaluation, 'ports' | 'instances'> = evaluateProject(project)): Project {
   const frames = new Map(evaluation.ports.map(p => [p.id, p.local]));
-  return { ...project, ports: project.ports.map(p => ({ ...p, frame: frames.get(p.id) ?? p.frame })) };
+  const tunnels = new Map(evaluation.instances.flatMap(e => e.kind === 'tunnel' ? [[e.id, e.world] as const] : []));
+  return {
+    ...project,
+    instances: project.instances.map(i => { const t = tunnels.get(i.id); return t && JSON.stringify(t) !== JSON.stringify(i.transform) ? { ...i, transform: t } : i; }),
+    ports: project.ports.map(p => ({ ...p, frame: frames.get(p.id) ?? p.frame })),
+  };
 }

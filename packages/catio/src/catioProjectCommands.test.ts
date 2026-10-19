@@ -22,8 +22,10 @@ describe('the new project', () => {
   it('is a 5 × 5 m lawn with the window in the middle of its rear wall, a tunnel and an empty 2 × 2 × 2 m enclosure', () => {
     sound(project);
     expect(project.garden).toEqual({ width: 5000, depth: 5000 });
-    expect(project.instances.map(i => [i.id, i.kind, i.parent])).toEqual([['window-1', 'window', null], ['tunnel-1', 'tunnel', 'window-1'], ['enclosure-1', 'enclosure', null]]);
+    expect(project.instances.map(i => [i.id, i.kind, i.parent])).toEqual([['window-1', 'window', null], ['tunnel-1', 'tunnel', null], ['enclosure-1', 'enclosure', null]]);
     expect(project.instances[0]?.transform).toEqual({ x: GARDEN_DEFAULT.width / 2, y: 0, z: 0, yaw: 0 });
+    // the tunnel stands on the site in the frame of the window's port it starts at
+    expect(project.instances[1]?.transform).toEqual(project.instances[0]?.transform);
     expect(project.instances[2]?.params).toEqual({ width: 2000, depth: 2000, height: 2000 });
     expect(project.attachments).toEqual([]);
     expect(project.connections.map(c => c.ports)).toEqual([['window-1-port', 'tunnel-1-start'], ['tunnel-1-end', 'enclosure-1-rear']]);
@@ -152,11 +154,16 @@ describe('commands', () => {
     expect(project.ports.find(p => p.id === 'tunnel-1-end')?.state).toBe('open');
     expect(project.view).toEqual({ selection: [], hidden: [], camera: null });
     expect(evaluateProject(project).issues.map(i => i.id)).toContain('connection:tunnel-1:open-end');
-    // deleting the window takes its tunnel, and shuts the enclosure's rear port
+    // deleting the window leaves the tunnel where it stands, its start free: the tunnel is no longer in the window
     const windowless = deleteInstance(fresh(), 'window-1');
     sound(windowless.project);
-    expect(windowless.removed.instances).toEqual(['window-1', 'tunnel-1']);
-    expect(windowless.project.ports.find(p => p.id === 'enclosure-1-rear')?.state).toBe('closed');
+    expect(windowless.removed.instances).toEqual(['window-1']);
+    expect(windowless.project.ports.find(p => p.id === 'tunnel-1-start')?.state).toBe('open');
+    expect(windowless.project.instances.find(i => i.id === 'tunnel-1')?.transform).toEqual(fresh().instances.find(i => i.id === 'tunnel-1')?.transform);
+    expect(evaluateProject(windowless.project).issues.map(i => i.id)).toContain('connection:tunnel-1:open-start');
+    // deleting the tunnel shuts the enclosure's rear port
+    const tunnelless = deleteInstance(fresh(), 'tunnel-1');
+    expect(tunnelless.project.ports.find(p => p.id === 'enclosure-1-rear')?.state).toBe('closed');
     expect(deleteInstance(fresh(), 'ghost').errors).toEqual(['There is no instance ghost.']);
   });
 

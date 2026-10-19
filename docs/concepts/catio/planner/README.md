@@ -36,6 +36,7 @@ Built on `feat/catio-planner` (umbrella PR #111, tracking issue #109). Each PR e
 | #117 | Full scope | One settings source: sub-assembly pages read and write the project | Open |
 | #125 | PoC fixes | Platform turns West–East or North–South, is locked inside its enclosure, and has a horizontal move arrow | In review: `platformRange` / `clampPlatform` and the North–South recipe in `catioPlatform.ts`; Move tool's double arrow, orientation control |
 | #126 | PoC fixes | Select one or more tunnel elements and raise or lower them; the coupled insert or enclosure port follows | In review: schema v2 route model (`RouteElement`, `tunnelLayout`'s described route, `solveRoute`), `Port.raise`, `raiseElements`, v1 migration in `catioProjectMigrate.ts`; element picking, tree, inspector and arrow |
+| #127 | PoC fixes | Extend the tunnel system: tunnels between any two cat ports, each end coupled or free; connect added enclosures | In review: schema v3 (tunnels on the site, framed by their start port: `tunnelFrame`, v2 migration), `addTunnel`, `extendTunnel`/`shortenTunnel`, `turnTunnel`, `connect`/`connectProblems`, `detach`; port markers, extend arrow, turn buttons, Tunnel catalogue entry, port and tunnel inspectors |
 
 The PoC review (#122) found five defects, which are fixed on `feat/catio-planner`:
 - undo leaving a dangling view reference;

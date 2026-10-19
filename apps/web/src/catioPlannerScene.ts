@@ -18,16 +18,22 @@ import { buildInsertContext } from './catioWindowInsertScene.ts';
  * insert, each tunnel as built (with its doors, couplings, supports and fixings), each enclosure, each platform. It is transient: rebuilt from the evaluation after
  * every committed edit, and never part of the document. Every instance is a group (`userData.instanceId`) placed at its transform
  * in its parent's group, so that an enclosure carries what stands in it; picking walks up from a mesh to its instance. A tunnel's
- * pieces carry the route element they are (`userData.elementId`): a click on one picks that element, not the whole tunnel.
+ * pieces carry the route element they are (`userData.elementId`): a click on one picks that element, not the whole tunnel. Every cat
+ * port that is coupled to nothing shows a marker (a click selects it, a drag from it starts a tunnel), and a tunnel's free end is
+ * drawn unfinished, with its extend arrow and its turn buttons (FR-04.1–3, FR-04.11).
  * Millimetres, in the site's frame (Z up); the stage turns it to the scene's Y up.
  */
 const RAD = Math.PI / 180;
-const SELECTED = 0xe8890c; const FLAGGED = 0xc8352b; const HANDLE = 0x2c6e8f;
+const SELECTED = 0xe8890c; const FLAGGED = 0xc8352b; const HANDLE = 0x2c6e8f; const PORT = 0x3f9a4f;
 /** The site context the selection outline leaves out: what a window stands in, not the window. */
 const CONTEXT = new Set(['wall', 'room-floor', 'terrain']);
 
-/** What the pointer is over: an instance, or a handle of the selected one. */
-export type PlannerPick = { kind: 'instance'; id: string } | { kind: 'rotate' | 'elevate' | 'slide'; id: string } | { kind: 'resize'; id: string; face: SizeFace };
+/**
+ * What the pointer is over: an instance, a handle of the selected one, a free cat port (`id` the port's), or a free tunnel end's
+ * extend arrow or turn button (`id` the end's port).
+ */
+export type PlannerPick = { kind: 'instance'; id: string } | { kind: 'rotate' | 'elevate' | 'slide'; id: string } | { kind: 'resize'; id: string; face: SizeFace }
+  | { kind: 'port' | 'extend'; id: string } | { kind: 'turn'; id: string; side: 'left' | 'right' };
 /**
  * The selection tool (FR-02.4): which handles the selection shows. Move: the body moves it, the ring turns it, a platform's upright
  * arrow raises it and its double arrow slides it along its one free direction. Rotate: the body and the ring turn it. Resize: a handle on each face changes its size.
@@ -47,6 +53,8 @@ interface Drawn {
   redraw?: (layout: TunnelLayout | null, config: TunnelConfig | null) => void;
   /** A tunnel's: the middle of each of its route elements (in its group), as last drawn. */
   elements?: Map<string, THREE.Vector3>;
+  /** Its controls that are always there (a free port's marker, a free end's arrow and buttons): each one's anchor name and point, in its group. */
+  controls: Map<string, THREE.Vector3>;
   dispose: () => void;
 }
 
@@ -87,9 +95,31 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
 
   const instanceGroup = (e: EvaluatedInstance) => {
     const group = new THREE.Group(); group.name = e.id; group.userData['instanceId'] = e.id;
-    place(group, byId.get(e.id)?.transform ?? e.world);
+    // a tunnel stands in the frame of the port it starts at, as evaluated
+    place(group, e.kind === 'tunnel' ? e.world : byId.get(e.id)?.transform ?? e.world);
     return group;
   };
+  const controlMaterial = new THREE.MeshBasicMaterial({ color: PORT, depthTest: false, transparent: true, opacity: 0.8 });
+  const endMaterial = new THREE.MeshBasicMaterial({ color: HANDLE, depthTest: false, transparent: true, opacity: 0.85 });
+  const unfinishedMaterial = new THREE.MeshBasicMaterial({ color: FLAGGED, transparent: true, opacity: 0.45, side: THREE.DoubleSide });
+  const controlGeometries: THREE.BufferGeometry[] = [];
+  disposers.push(() => { controlMaterial.dispose(); endMaterial.dispose(); unfinishedMaterial.dispose(); for (const g of controlGeometries) g.dispose(); });
+  /** A control mesh: drawn over everything, picked as `data` says. */
+  const control = (geometry: THREE.BufferGeometry, data: Record<string, string>, material: THREE.Material = controlMaterial) => {
+    controlGeometries.push(geometry);
+    const mesh = new THREE.Mesh(geometry, material); mesh.renderOrder = 11; Object.assign(mesh.userData, data);
+    return mesh;
+  };
+  /** The free cat ports of `owner` (none coupled to them): a square marker on each face, a little out of it. */
+  function portMarkers(owner: string, into: THREE.Group, controls: Map<string, THREE.Vector3>) {
+    for (const port of evaluation.ports.filter(q => q.owner === owner && q.state !== 'connected')) {
+      const marker = control(new THREE.BoxGeometry(port.size * 0.6, 140, port.size * 0.6), { control: 'port', portId: port.id });
+      const out = 110; const yaw = port.local.yaw * RAD;
+      marker.position.set(port.local.x - Math.sin(yaw) * out, port.local.y + Math.cos(yaw) * out, port.local.z + port.size / 2);
+      marker.rotation.set(0, 0, yaw);
+      into.add(marker); controls.set(`port:${port.id}`, marker.position.clone());
+    }
+  }
   /** A drawing of `createCatioParts` in `into`, disposed with the scene (or when `into` is redrawn). */
   const parts = (into: THREE.Group, spec = mesh) => { const p = createCatioParts(spec); into.add(p.root); return p; };
 
@@ -100,14 +130,16 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     const reach = 2 * Math.max(e.world.x, gw - e.world.x, e.site.window.openingWidth);
     buildWindowContext(p, e.site.window, { width: reach, depth: 1 }, false);
     buildInsertContext(p, e.insert);
-    return { id: e.id, kind: e.kind, group, anchor: new THREE.Vector3(0, -150, e.site.window.recessFloor + e.site.window.openingHeight + 300), pose: t => place(group, t), dispose: p.dispose };
+    const controls = new Map<string, THREE.Vector3>(); portMarkers(e.id, group, controls);
+    return { id: e.id, kind: e.kind, group, anchor: new THREE.Vector3(0, -150, e.site.window.recessFloor + e.site.window.openingHeight + 300), pose: t => place(group, t), dispose: p.dispose, controls };
   }
 
   function drawTunnel(e: EvaluatedTunnel): Drawn {
     const group = instanceGroup(e);
-    const window = e.parent ? evaluation.instances.find((w): w is EvaluatedWindow => w.kind === 'window' && w.id === e.parent) : undefined;
+    const window = evaluation.instances.find((w): w is EvaluatedWindow => w.kind === 'window' && w.id === e.ends.start.owner);
     let dispose = () => {};
     const elements = new Map<string, THREE.Vector3>();
+    const controls = new Map<string, THREE.Vector3>();
     /**
      * The tunnel as built, everything its parts list counts (tunnelBom, couplingBom): the sections with their screws and staples,
      * the doors on every opening not coupled, the couplings between pieces and at the enclosure, the supports with their fixings,
@@ -173,12 +205,34 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
         add('docking-frame', 'timber', dock.frame.map(f => f.group));
         add('docking-hardware', 'hardware', [dock.seal, ...dock.catches.map(q => q.group), ...dock.latches.map(q => q.group), dock.lip]);
       }
+      // a free end is unfinished (FR-04.11): its opening shown open, its arrow to lengthen it and its buttons to turn it
+      controls.clear();
+      const ends = [
+        ...(e.ends.end.port && !e.ends.end.mate ? [{ id: e.ends.end.port, at: layout.E, n: layout.dE, grows: true }] : []),
+        ...(e.ends.start.port && !e.ends.start.mate && layout.pieces[0] ? [{ id: e.ends.start.port, at: layout.pieces[0].start.at, n: layout.pieces[0].start.n.map(v => -v), grows: false }] : []),
+      ];
+      for (const end of ends) {
+        const out = new THREE.Vector3(end.n[0], end.n[1], 0).normalize(); const across = new THREE.Vector3(out.y, -out.x, 0);
+        const centre = new THREE.Vector3(...end.at).setZ(end.at[2] + layout.h / 2);
+        const opening = control(new THREE.PlaneGeometry(layout.w + 2 * TUNNEL.flange.width, layout.h + 2 * TUNNEL.flange.width), { unfinished: end.id }, unfinishedMaterial);
+        opening.position.copy(centre); opening.lookAt(centre.clone().add(out)); opening.renderOrder = 0; group.add(opening);
+        if (!end.grows) continue;
+        const arrow = new THREE.Group(); arrow.position.copy(centre.clone().addScaledVector(out, 380)); arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), out);
+        const shaft = control(new THREE.CylinderGeometry(24, 24, 400, 12), { control: 'extend', portId: end.id }, endMaterial); shaft.position.y = -80;
+        const head = control(new THREE.ConeGeometry(85, 180, 16), { control: 'extend', portId: end.id }, endMaterial); head.position.y = 200;
+        arrow.add(shaft, head); group.add(arrow); controls.set(`extend:${end.id}`, arrow.position.clone());
+        for (const [side, sign] of [['left', -1], ['right', 1]] as const) {
+          const button = control(new THREE.CylinderGeometry(95, 95, 40, 24), { control: 'turn', portId: end.id, side }, endMaterial);
+          button.position.copy(centre.clone().addScaledVector(across, sign * (layout.w / 2 + TUNNEL.flange.width + 200)).addScaledVector(out, 160));
+          button.rotation.x = Math.PI / 2; group.add(button); controls.set(`turn-${side}:${end.id}`, button.position.clone());
+        }
+      }
       dispose = () => { for (const j of joints) j.dispose(); for (const d of doors) d.dispose(); dock?.dispose(); drawing.dispose(); p.dispose(); for (const g of proxies) g.dispose(); };
     };
     draw(e.layout, e.config);
     const middle = e.layout?.pieces[Math.floor((e.layout.pieces.length - 1) / 2)];
     const anchor = middle ? new THREE.Vector3(...middle.end.at).setZ(middle.end.at[2] + (e.layout?.h ?? 0)) : new THREE.Vector3();
-    return { id: e.id, kind: e.kind, group, anchor, pose: t => place(group, t), dispose: () => dispose(), redraw: draw, elements };
+    return { id: e.id, kind: e.kind, group, anchor, pose: t => place(group, t), dispose: () => dispose(), redraw: draw, elements, controls };
   }
 
   function drawEnclosure(e: EvaluatedEnclosure): Drawn {
@@ -190,7 +244,8 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     const { width, depth, height } = e.layout.size;
     const proxy = new THREE.Mesh(new THREE.BoxGeometry(width, depth, height), proxyMaterial);
     proxy.position.set(0, depth / 2, height / 2); group.add(proxy);
-    return { id: e.id, kind: e.kind, group, anchor: new THREE.Vector3(0, depth / 2, height), pose: t => place(group, t), dispose: () => { proxy.geometry.dispose(); p.dispose(); } };
+    const controls = new Map<string, THREE.Vector3>(); portMarkers(e.id, group, controls);
+    return { id: e.id, kind: e.kind, group, anchor: new THREE.Vector3(0, depth / 2, height), pose: t => place(group, t), dispose: () => { proxy.geometry.dispose(); p.dispose(); }, controls };
   }
 
   function drawPlatform(e: EvaluatedPlatform): Drawn {
@@ -206,9 +261,11 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     const start = own?.transform ?? { x: 0, y: 0, z: 0, yaw: 0 };
     place(board, start);
     const pose = (t: Transform) => { place(board, t); supports.position.z = t.z - start.z; };
-    return { id: e.id, kind: e.kind, group, anchor: new THREE.Vector3(start.x, start.y, start.z), pose, dispose: p.dispose };
+    return { id: e.id, kind: e.kind, group, anchor: new THREE.Vector3(start.x, start.y, start.z), pose, dispose: p.dispose, controls: new Map() };
   }
 
+  /** A tunnel drawn that is not in the project yet. */
+  let unsaved: Drawn | null = null;
   for (const e of evaluation.instances) {
     const d = e.kind === 'window' ? drawWindow(e) : e.kind === 'tunnel' ? drawTunnel(e) : e.kind === 'enclosure' ? drawEnclosure(e) : drawPlatform(e);
     drawn.set(e.id, d);
@@ -354,6 +411,9 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
       let element: string | undefined;
       for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) {
         element ??= o.userData['elementId'] as string | undefined;
+        const controlKind = o.userData['control'] as string | undefined; const portId = o.userData['portId'] as string | undefined;
+        if (portId && (controlKind === 'port' || controlKind === 'extend')) return { kind: controlKind, id: portId };
+        if (portId && controlKind === 'turn') return { kind: 'turn', id: portId, side: o.userData['side'] === 'left' ? 'left' : 'right' };
         const handleOf = o.userData['handleOf'] as string | undefined;
         const handle = o.userData['handle'] as string | undefined;
         if (handleOf && handle === 'resize') return { kind: 'resize', id: handleOf, face: o.userData['face'] as SizeFace };
@@ -384,6 +444,7 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     for (const d of drawn.values()) {
       result[d.id] = screen(d.anchor.clone().applyMatrix4(d.group.matrixWorld));
       for (const [id, at] of d.elements ?? []) result[id] = screen(at.clone().applyMatrix4(d.group.matrixWorld));
+      for (const [name, at] of d.controls) result[name] = screen(at.clone().applyMatrix4(d.group.matrixWorld));
     }
     for (const { mesh, name, aim } of handles) {
       result[name] = screen(aim.clone().applyMatrix4(mesh.matrixWorld));
@@ -398,8 +459,14 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
     pose(id: string, t: Transform) { drawn.get(id)?.pose(t); },
     /** Redraws a tunnel along a route (its config and layout), for a drag's preview or to put it back. */
     redrawTunnel(id: string, layout: TunnelLayout | null, config: TunnelConfig | null) { drawn.get(id)?.redraw?.(layout, config); },
+    /** Draws a tunnel that is not in the project yet (a drag from a port), in place of the last one drawn so; null takes it away. */
+    ghostTunnel(e: EvaluatedTunnel | null) {
+      if (unsaved) { unsaved.dispose(); unsaved.group.removeFromParent(); unsaved = null; }
+      if (e) { unsaved = drawTunnel(e); root.add(unsaved.group); }
+    },
     dispose() {
       clearOverlays();
+      if (unsaved) { unsaved.dispose(); unsaved = null; }
       for (const m of [...outlineMaterials, handleMaterial, ghostMaterial]) m.dispose();
       for (const d of drawn.values()) d.dispose();
       for (const f of disposers) f();

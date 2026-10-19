@@ -4,16 +4,17 @@ import {
   clampPlatform, platformAttachments, platformDefaults, platformOrientation, platformRange, platformYaw, PLATFORM_RECIPES, PLATFORM_SHEET, type PlatformRange,
 } from './catioPlatform.ts';
 import {
-  applyTransform, composeTransform, isKind, keepView, projectErrors, PROJECT_SCHEMA_VERSION, relativeTransform, routeElements, SETTINGS_DEFAULT, TUNNEL_PARAMS_DEFAULT, WINDOW_PARAMS_DEFAULT, worldTransforms,
+  applyTransform, composeTransform, isKind, yawDirection, keepView, projectErrors, PROJECT_SCHEMA_VERSION, relativeTransform, routeElements, SETTINGS_DEFAULT, TUNNEL_PARAMS_DEFAULT, WINDOW_PARAMS_DEFAULT, worldTransforms,
   type Attachment, type Connection, type EnclosureInstance, type EnclosureParams, type Instance, type PlatformParams, type Port, type Project, type Transform, type TunnelInstance,
 } from './catioProject.ts';
-import { evaluateProject, outsideGarden, solveRoute, syncPorts, type EvaluatedTunnel, type EvaluatedWindow, type ProjectEvaluation } from './catioProjectEvaluate.ts';
-import { routeElementName, TUNNEL, tunnelPitch, tunnelSiteFor } from './catioTunnel.ts';
+import { evaluateProject, outsideGarden, solveRoute, syncFrames, tunnelFrame, type EvaluatedTunnel, type ProjectEvaluation } from './catioProjectEvaluate.ts';
+import { routeElementName, TUNNEL, tunnelPitch, tunnelSiteFor, type RouteElement } from './catioTunnel.ts';
 
 /**
  * The planner's edits: pure functions from a project to the next one. An edit that cannot be made (a number that is not finite or
  * not positive, an instance that is not there or cannot take it) returns the project unchanged with its `errors`, so that a bad
- * value never reaches the document. After every edit the ports are where their owners' layouts put them (`syncPorts`). Edits do
+ * value never reaches the document. After every edit the ports are where their owners' layouts put them, and each tunnel in the frame
+ * of the port it starts at (`syncFrames`). Edits do
  * not count revisions: a committed history step does (catioProjectHistory.ts: `commitEdit`).
  */
 export interface CommandResult {
@@ -35,15 +36,15 @@ const allIds = (p: Project) => new Set([...p.instances, ...p.ports, ...p.connect
 export function nextId(project: Project, prefix: string, taken: Set<string> = allIds(project)): string {
   for (let n = 1; ; n++) if (!taken.has(`${prefix}-${n}`)) return `${prefix}-${n}`;
 }
-const port = (owner: string, name: string, size: number, state: Port['state']): Port =>
+const newPort = (owner: string, name: string, size: number, state: Port['state']): Port =>
   ({ id: portId(owner, name), owner, name, frame: { x: 0, y: 0, z: 0, yaw: 0 }, interface: { kind: 'standard-port', size }, state });
 const fail = (project: Project, ...errors: string[]): CommandResult => ({ project, errors });
 /**
  * `next`, its ports synced, as the edit's result; or `project` unchanged with the reasons, if `next` is a document `parseProject`
  * would refuse. An edit's own checks say why first; this is the guarantee that no edit puts what cannot be reopened into the history.
  */
-function ok(project: Project, next: Project, evaluation?: Pick<ProjectEvaluation, 'ports'>): CommandResult {
-  const synced = syncPorts(next, evaluation);
+function ok(project: Project, next: Project, evaluation?: Pick<ProjectEvaluation, 'ports' | 'instances'>): CommandResult {
+  const synced = syncFrames(next, evaluation);
   const errors = projectErrors(synced);
   return errors.length ? fail(project, ...errors) : { project: synced, errors: [] };
 }
@@ -72,20 +73,20 @@ export function createProject({ id = 'catio-project', name = 'My catio' }: { id?
   const joint = { ...settings.tunnelCoupling, jointShown: 'end-end' as const };
   const solved = solveRoute({ id: 'tunnel-1', params: { ...TUNNEL_PARAMS_DEFAULT, route: [] } }, settings,
     site, { x: 0, y: TUNNEL.wallGap + DEFAULT_TUNNEL_MODULES * tunnelPitch(site, joint), z: site.floorZ, yaw: 180 }, true);
-  const tunnel: Instance = { id: 'tunnel-1', kind: 'tunnel', name: 'Tunnel', parent: window.id, transform: { x: 0, y: 0, z: 0, yaw: 0 }, params: { ...TUNNEL_PARAMS_DEFAULT, route: solved.route }, material: {} };
+  const tunnel: Instance = { id: 'tunnel-1', kind: 'tunnel', name: 'Tunnel', parent: null, transform: windowAt, params: { ...TUNNEL_PARAMS_DEFAULT, route: solved.route }, material: {} };
   const { E } = solved.layout;
   const rear = enclosureLayout(ENCLOSURE_DEFAULT, { id: 'enclosure-1', tunnelSize: site.w, connected: { rear: true, left: false, right: false } }).rear.port.face.at;
   const enclosureAt = composeTransform(windowAt, { x: E[0] - rear[0], y: E[1] - rear[1], z: E[2] - rear[2], yaw: 0 });
   const enclosure: Instance = { id: 'enclosure-1', kind: 'enclosure', name: 'Enclosure', parent: null, transform: enclosureAt, params: { ...ENCLOSURE_DEFAULT }, material: {} };
   const ports: Port[] = [
-    port(window.id, 'port', site.w, 'connected'), port(tunnel.id, 'start', site.w, 'connected'), port(tunnel.id, 'end', site.w, 'connected'),
-    ...ENCLOSURE_PORTS.map(side => port(enclosure.id, side, site.w, side === 'rear' ? 'connected' : 'closed')),
+    newPort(window.id, 'port', site.w, 'connected'), newPort(tunnel.id, 'start', site.w, 'connected'), newPort(tunnel.id, 'end', site.w, 'connected'),
+    ...ENCLOSURE_PORTS.map(side => newPort(enclosure.id, side, site.w, side === 'rear' ? 'connected' : 'closed')),
   ];
   const connections: Connection[] = [
     { id: 'connection-1', ports: [portId(window.id, 'port'), portId(tunnel.id, 'start')] },
     { id: 'connection-2', ports: [portId(tunnel.id, 'end'), portId(enclosure.id, 'rear')] },
   ];
-  return syncPorts({
+  return syncFrames({
     id, schemaVersion: PROJECT_SCHEMA_VERSION, name, units: 'mm', revision: 0, garden, settings,
     instances: [window, tunnel, enclosure], ports, connections, attachments: [], view: { selection: [], hidden: [], camera: null },
   });
@@ -97,7 +98,7 @@ export function addEnclosure(project: Project, at: { x: number; y: number; yaw?:
   if (errors.length) return { ...fail(project, ...errors), id: null };
   const id = nextId(project, 'enclosure');
   const enclosure: Instance = { id, kind: 'enclosure', name: `Enclosure ${id.split('-')[1]}`, parent: null, transform: { x: at.x, y: at.y, z: 0, yaw: at.yaw ?? 0 }, params: { ...size }, material: {} };
-  const ports = ENCLOSURE_PORTS.map(side => port(id, side, tunnelSize(project), 'closed'));
+  const ports = ENCLOSURE_PORTS.map(side => newPort(id, side, tunnelSize(project), 'closed'));
   return withId(ok(project, { ...project, instances: [...project.instances, enclosure], ports: [...project.ports, ...ports] }), id);
 }
 
@@ -268,9 +269,9 @@ function descendants(project: Project, id: string): Instance[] {
 /** What deleting an instance takes with it: the instance and everything in or on it, their ports, connections and attachments. */
 export interface Dependents { instances: string[]; ports: string[]; connections: string[]; attachments: string[] }
 /**
- * Everything `deleteInstance` would remove, to confirm with the owner first: the instance, its children (a window's tunnel, an
- * enclosure's interior), their ports, the connections to those ports and the attachments of or to them. The mates of those
- * connections are kept, shut (or, a tunnel's end, left open).
+ * Everything `deleteInstance` would remove, to confirm with the owner first: the instance, its children (an enclosure's interior),
+ * their ports, the connections to those ports and the attachments of or to them. The mates of those connections are kept: a
+ * window's or an enclosure's port shut, a tunnel's end left free (where it was, an unfinished end).
  */
 export function deleteDependents(project: Project, id: string): Dependents {
   const root = project.instances.find(i => i.id === id);
@@ -294,7 +295,7 @@ export function deleteInstance(project: Project, id: string): CommandResult & { 
   return {
     ...ok(project, {
       ...project, instances, ports, connections: project.connections.filter(gone(removed.connections)),
-      attachments: project.attachments.filter(gone(removed.attachments)), view: keepView(project.view, { instances }),
+      attachments: project.attachments.filter(gone(removed.attachments)), view: keepView(project.view, { instances, ports }),
     }),
     removed,
   };
@@ -311,25 +312,22 @@ export function resizeGarden(project: Project, size: { width: number; depth: num
 }
 
 /**
- * `project` with every tunnel coupled to a port of `moved` (or of what stands in them, other than `except`) solved again to that port
- * (`solveRoute`): its elements keep their ids and floors where they still are, and run into the port's floor (FR-04.10).
+ * `project` with every tunnel whose end is coupled to a port of `moved` (or of what stands in them, other than `except`), or that
+ * starts at one, solved again to its end's mate (`solveRoute`), from the port it starts at: its elements keep their ids and floors
+ * where they still are, and run into the mate's floor (FR-04.10).
  */
 function rerouted(project: Project, moved: string[], except: string[] = []): Project {
   const evaluation = evaluateProject(project);
   const ports = new Map(evaluation.ports.map(p => [p.id, p]));
   const byId = new Map(project.instances.map(i => [i.id, i]));
-  const inMoved = (id: string) => { for (let at: string | null = id, n = 0; at && n < 50; at = byId.get(at)?.parent ?? null, n++) if (moved.includes(at)) return true; return false; };
-  const world = worldTransforms(project);
+  const inMoved = (id: string | null) => { for (let at: string | null = id, n = 0; at && n < 50; at = byId.get(at)?.parent ?? null, n++) if (moved.includes(at)) return true; return false; };
   let next = project;
-  for (const t of project.instances.filter(isKind('tunnel'))) {
-    if (except.includes(t.id)) continue;
-    const end = project.ports.find(p => p.owner === t.id && p.name === 'end');
-    const mate = end && mateOf(project, end.id);
-    const mateWorld = mate && ports.get(mate.id)?.world;
-    const window = evaluation.instances.find((e): e is EvaluatedWindow => e.kind === 'window' && e.id === t.parent);
-    const tunnelWorld = world.get(t.id);
-    if (!mate || !mateWorld || !window || !tunnelWorld || !(inMoved(mate.owner) || inMoved(t.id))) continue;
-    const { route } = solveRoute(t, project.settings, window.site, relativeTransform(tunnelWorld, mateWorld), true);
+  for (const e of evaluation.instances) {
+    const t = byId.get(e.id);
+    if (e.kind !== 'tunnel' || t?.kind !== 'tunnel' || except.includes(t.id)) continue;
+    const mateWorld = e.ends.end.mate ? ports.get(e.ends.end.mate)?.world : undefined;
+    if (!mateWorld || !(inMoved(e.ends.end.owner) || inMoved(e.ends.start.owner) || inMoved(t.id))) continue;
+    const { route } = solveRoute(t, project.settings, e.site, relativeTransform(e.world, mateWorld), true);
     next = replace(next, { ...t, params: { ...t.params, route } });
   }
   return next;
@@ -338,6 +336,194 @@ function rerouted(project: Project, moved: string[], except: string[] = []): Pro
 function mateOf(project: Project, id: string): Port | undefined {
   const other = project.connections.find(c => c.ports.includes(id))?.ports.find(p => p !== id);
   return other ? project.ports.find(p => p.id === other) : undefined;
+}
+const titleOf = (project: Project, id: string) => { const i = project.instances.find(q => q.id === id); return i?.name ?? id; };
+/** What the planner calls a port: its owner's name and the port's (`Enclosure 2's left port`, `Window's cat port`). */
+export function portTitle(project: Project, id: string): string {
+  const port = project.ports.find(p => p.id === id);
+  if (!port) return id;
+  const owner = project.instances.find(i => i.id === port.owner);
+  return owner?.kind === 'window' ? `${titleOf(project, port.owner)}'s cat port` : owner?.kind === 'tunnel' ? `${titleOf(project, port.owner)}'s ${port.name === 'start' ? 'start' : 'far end'}` : `${titleOf(project, port.owner)}'s ${port.name} port`;
+}
+
+/** The ids taken in the project, its route elements' too. */
+const takenIds = (project: Project) => new Set([...allIds(project), ...routeElements(project).keys()]);
+/** A tunnel's end `end` (its port's id) that is free, or why it cannot be extended or turned there. */
+function freeEnd(project: Project, end: string): { tunnel: TunnelInstance; port: Port } | string {
+  const port = project.ports.find(p => p.id === end);
+  const tunnel = port && project.instances.find(i => i.id === port.owner);
+  if (!port || tunnel?.kind !== 'tunnel') return `There is no tunnel end ${end}.`;
+  if (port.name !== 'end') return `${titleOf(project, tunnel.id)} grows from its far end: its start stays where it starts.`;
+  const mate = mateOf(project, end);
+  if (mate) return `${portTitle(project, end)} is coupled to ${portTitle(project, mate.id)}: detach it first.`;
+  return { tunnel, port };
+}
+
+/**
+ * A new tunnel from the free cat port `from` (a window's or an enclosure's, FR-04.1): `modules` standard modules (one by default)
+ * straight out of it, level with its floor, its start coupled there (the port opens and takes its coupling, FR-04.9) and its far end
+ * free, an unfinished end until it is connected.
+ */
+export function addTunnel(project: Project, from: string, modules = 1): CommandResult & { id: string | null } {
+  if (!Number.isInteger(modules) || modules < 1) return { ...fail(project, 'A tunnel is a whole number of modules, at least one.'), id: null };
+  const port = project.ports.find(p => p.id === from);
+  const owner = port && project.instances.find(i => i.id === port.owner);
+  if (!port || !owner) return { ...fail(project, `There is no port ${from}.`), id: null };
+  if (owner.kind === 'tunnel') return { ...fail(project, `${portTitle(project, from)} is a tunnel's end: extend that tunnel, rather than start another.`), id: null };
+  const mate = mateOf(project, from);
+  if (mate) return { ...fail(project, `${portTitle(project, from)} is already coupled to ${portTitle(project, mate.id)}: a port takes one mate.`), id: null };
+  const evaluation = evaluateProject(project);
+  const face = evaluation.ports.find(p => p.id === from)?.world;
+  if (!face) return { ...fail(project, `${portTitle(project, from)} has no place yet.`), id: null };
+  const taken = takenIds(project);
+  const id = nextId(project, 'tunnel', taken); taken.add(id);
+  const connection = nextId(project, 'connection', taken);
+  const floor = face.z;
+  const joint = { ...project.settings.tunnelCoupling, jointShown: 'end-end' as const };
+  const tunnel: Instance = {
+    id, kind: 'tunnel', name: `Tunnel ${id.split('-')[1]}`, parent: null, transform: tunnelFrame(face, owner.kind === 'window', joint),
+    params: { ...TUNNEL_PARAMS_DEFAULT, route: Array.from({ length: modules }, (_, n) => ({ id: `${id}-element-${n + 1}`, kind: 'straight' as const, modules: 1, floor })) }, material: {},
+  };
+  const ports: Port[] = [
+    ...project.ports.map(p => p.id === from ? { ...p, state: 'connected' as const } : p),
+    newPort(id, 'start', port.interface.size, 'connected'), { ...newPort(id, 'end', port.interface.size, 'open'), frame: { x: 0, y: 0, z: floor, yaw: 0 } },
+  ];
+  return withId(ok(project, { ...project, instances: [...project.instances, tunnel], ports, connections: [...project.connections, { id: connection, ports: [from, portId(id, 'start')] }] }), id);
+}
+
+/**
+ * Lengthens a tunnel at its free far end (`end`, its port's id) by `modules` whole standard modules (FR-04.3), or (negative)
+ * shortens it by as many: added modules run on straight and level with the end; a shortened tunnel loses its last modules, turns
+ * among them, and keeps at least one. A coupled end is anchored: detach it first.
+ */
+export function extendTunnel(project: Project, end: string, modules: number): CommandResult {
+  if (!Number.isInteger(modules) || modules === 0) return fail(project, 'A tunnel is lengthened or shortened by a whole number of modules.');
+  const found = freeEnd(project, end); if (typeof found === 'string') return fail(project, found);
+  const { tunnel, port } = found;
+  let route = tunnel.params.route.map(e => ({ ...e }));
+  if (modules > 0) {
+    const taken = takenIds(project);
+    route = [...route, ...Array.from({ length: modules }, (): RouteElement => { const id = nextId(project, `${tunnel.id}-element`, taken); taken.add(id); return { id, kind: 'straight', modules: 1, floor: port.frame.z }; })];
+  } else {
+    const total = route.reduce((n, e) => n + e.modules, 0);
+    if (total + modules < 1) return fail(project, `${titleOf(project, tunnel.id)} is ${total} ${total === 1 ? 'module' : 'modules'} long: it keeps at least one. Delete it instead.`);
+    for (let left = -modules; left > 0;) {
+      const last = route.at(-1); if (!last) break;
+      if (last.modules > left) { last.modules -= left; left = 0; } else { route.pop(); left -= last.modules; }
+    }
+  }
+  return ok(project, replace(project, { ...tunnel, params: { ...tunnel.params, route } }));
+}
+/** Shortens a tunnel at its free far end by `modules` whole standard modules (`extendTunnel`). */
+export const shortenTunnel = (project: Project, end: string, modules: number): CommandResult => extendTunnel(project, end, -modules);
+
+/**
+ * Turns a tunnel at its free far end (`end`) to the left or the right: a side-port turn, one module (the section whose side port the
+ * run so far couples into), level with the end.
+ */
+export function turnTunnel(project: Project, end: string, direction: 'left' | 'right'): CommandResult {
+  const found = freeEnd(project, end); if (typeof found === 'string') return fail(project, found);
+  const { tunnel, port } = found;
+  const id = nextId(project, `${tunnel.id}-element`, takenIds(project));
+  const turn: RouteElement = { id, kind: 'turn', turn: direction === 'right' ? 90 : -90, modules: 1, floor: port.frame.z };
+  return ok(project, replace(project, { ...tunnel, params: { ...tunnel.params, route: [...tunnel.params.route, turn] } }));
+}
+
+/** How far a tunnel's free end may be from a port for the planner to offer to connect it there. */
+export const CONNECT_REACH = 500;
+/**
+ * Why the free tunnel end `end` cannot be coupled to the port `to` (FR-04.8), or nothing when it can: `to` must be a window's or an
+ * enclosure's cat port without a mate (one mate per port), of the same standard port and size, and, at a far end, face it square on
+ * and stand ahead of it: the tunnel runs on into it. (A start couples anywhere: the tunnel then stands in that port's frame.)
+ */
+export function connectProblems(project: Project, end: string, to: string, evaluation: Pick<ProjectEvaluation, 'ports'> = evaluateProject(project)): string[] {
+  const own = project.ports.find(p => p.id === end); const port = project.ports.find(p => p.id === to);
+  const tunnel = own && project.instances.find(i => i.id === own.owner);
+  const owner = port && project.instances.find(i => i.id === port.owner);
+  if (!own || tunnel?.kind !== 'tunnel') return [`There is no tunnel end ${end}.`];
+  if (!port || !owner) return [`There is no port ${to}.`];
+  const problems: string[] = [];
+  const ownMate = mateOf(project, end); const mate = mateOf(project, to);
+  if (ownMate) problems.push(`${portTitle(project, end)} is already coupled to ${portTitle(project, ownMate.id)}: detach it first.`);
+  if (owner.kind === 'tunnel') problems.push(`${portTitle(project, to)} is a tunnel's end: a tunnel couples to a window's or an enclosure's cat port (joining tunnels comes with junctions).`);
+  else if (mate) problems.push(`${portTitle(project, to)} is already coupled to ${portTitle(project, mate.id)}: a port takes one mate.`);
+  if (Math.abs(port.interface.size - own.interface.size) > 1e-6) {
+    problems.push(`${portTitle(project, to)} is a ${Math.round(port.interface.size)} mm port, ${titleOf(project, tunnel.id)} a ${Math.round(own.interface.size)} mm tunnel: they do not fit.`);
+  }
+  if (own.name === 'end' && owner.kind !== 'tunnel') {
+    const a = evaluation.ports.find(p => p.id === end)?.world; const b = evaluation.ports.find(p => p.id === to)?.world;
+    const off = a && b ? ((b.yaw - a.yaw - 180) % 360 + 540) % 360 - 180 : 0;
+    if (Math.abs(off) > 0.5) problems.push(`${portTitle(project, to)} faces ${Math.abs(Math.round(off))}° off ${titleOf(project, tunnel.id)}'s end: turn ${titleOf(project, owner.id)} (or the tunnel's end) so that they face each other.`);
+    else if (a && b) {
+      const [dx, dy] = yawDirection(a.yaw);
+      // (a little behind it is where whole modules overshoot: the tunnel is laid out again into it)
+      if ((b.x - a.x) * dx + (b.y - a.y) * dy < -CONNECT_REACH) problems.push(`${portTitle(project, to)} is behind ${titleOf(project, tunnel.id)}'s end: the tunnel runs on into a port ahead of it.`);
+    }
+  }
+  return problems;
+}
+/** The ports the free tunnel end `end` can be connected to (`connectProblems`), nearest first, with their distance from it. */
+export function connectTargets(project: Project, end: string, evaluation: Pick<ProjectEvaluation, 'ports'> = evaluateProject(project)): { port: string; distance: number }[] {
+  const at = evaluation.ports.find(p => p.id === end)?.world; if (!at) return [];
+  return evaluation.ports.filter(p => p.owner !== project.ports.find(q => q.id === end)?.owner && !connectProblems(project, end, p.id, evaluation).length)
+    .map(p => ({ port: p.id, distance: Math.hypot(p.world.x - at.x, p.world.y - at.y, p.world.z - at.z) })).sort((a, b) => a.distance - b.distance);
+}
+
+/**
+ * Couples the free tunnel end `end` to the port `to`, when they fit (`connectProblems`): both are then connected, and the port opens
+ * and takes its coupling (FR-04.9). A far end coupled to an enclosure coupled to nothing else moves that enclosure onto it (with what
+ * stands in it), its port level with the end where it can stand so high: the tunnel's modules decide where it stands. An anchored port (a window's, or an enclosure's coupled elsewhere) stays
+ * put: the tunnel is solved again to reach it, and is kept as an invalid draft when its whole modules cannot (FR-04.10). A start
+ * coupled anew puts the tunnel in that port's frame.
+ */
+export function connect(project: Project, end: string, to: string): CommandResult & { id: string | null } {
+  const evaluation = evaluateProject(project);
+  const problems = connectProblems(project, end, to, evaluation);
+  if (problems.length) return { ...fail(project, ...problems), id: null };
+  const own = project.ports.find(p => p.id === end); const port = project.ports.find(p => p.id === to);
+  const tunnel = own && project.instances.find(i => i.id === own.owner);
+  const owner = port && project.instances.find(i => i.id === port.owner);
+  if (!own || !port || !tunnel || !owner) return { ...fail(project, `There is no port ${to}.`), id: null };
+  const id = nextId(project, 'connection', takenIds(project));
+  let next: Project = {
+    ...project, ports: project.ports.map(p => p.id === end || p.id === to ? { ...p, state: 'connected' as const } : p),
+    connections: [...project.connections, { id, ports: [end, to] }],
+  };
+  if (own.name === 'start') return withId(ok(project, rerouted(next, [tunnel.id])), id);
+  const anchored = owner.kind !== 'enclosure' || owner.parent !== null
+    || project.connections.some(c => c.ports.some(q => project.ports.find(p => p.id === q)?.owner === owner.id));
+  if (anchored) return withId(ok(project, rerouted(next, [owner.id])), id);
+  // the enclosure moves onto the tunnel's end: level with it, unless that would sink it into the lawn; then the end slopes down into
+  // its port, and it stands where the modules so laid out end
+  const free = evaluation.ports.find(p => p.id === end)?.world; const face = evaluation.ports.find(p => p.id === to)?.world;
+  if (!free || !face) return withId(ok(project, next), id);
+  let shift = { x: free.x - face.x, y: free.y - face.y, z: free.z - face.z };
+  if (owner.transform.z + shift.z < -0.5) {
+    const after = evaluateProject(next);
+    const e = after.instances.find((i): i is EvaluatedTunnel => i.kind === 'tunnel' && i.id === tunnel.id);
+    const reached = e?.layout && applyTransform(e.world, { x: e.layout.E[0], y: e.layout.E[1], z: e.layout.E[2] });
+    shift = reached ? { x: reached.x - face.x, y: reached.y - face.y, z: 0 } : { x: 0, y: 0, z: 0 };
+  }
+  const notes: string[] = [];
+  if (Math.hypot(shift.x, shift.y, shift.z) >= 0.5) {
+    const t = owner.transform;
+    next = replace(next, { ...owner, transform: { ...t, x: r3(t.x + shift.x), y: r3(t.y + shift.y), z: r3(t.z + shift.z) } });
+    const rise = Math.abs(shift.z) >= 0.5 ? `, ${Math.round(Math.abs(shift.z))} mm ${shift.z > 0 ? 'up' : 'down'} to its floor` : '';
+    notes.push(`${titleOf(project, owner.id)} moved ${Math.round(Math.hypot(shift.x, shift.y))} mm onto ${titleOf(project, tunnel.id)}'s end${rise}: its whole modules decide where it stands.`);
+  }
+  return withId(noted(ok(project, next), notes), id);
+}
+
+/**
+ * Uncouples the connection `id`, explicitly (FR-04.10: a connection is never dropped silently): a window's or an enclosure's port is
+ * shut again by its closure, a tunnel's end is left free where it is, an unfinished end.
+ */
+export function detach(project: Project, id: string): CommandResult {
+  const connection = project.connections.find(c => c.id === id);
+  if (!connection) return fail(project, `There is no connection ${id}.`);
+  const kinds = new Map(project.instances.map(i => [i.id, i.kind]));
+  const ports = project.ports.map(p => !connection.ports.includes(p.id) ? p : { ...p, state: kinds.get(p.owner) === 'tunnel' ? 'open' as const : 'closed' as const });
+  return ok(project, { ...project, ports, connections: project.connections.filter(c => c.id !== id) });
 }
 
 /**

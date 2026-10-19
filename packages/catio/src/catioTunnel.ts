@@ -313,7 +313,15 @@ export const NEARLY_LEVEL = 30;
  * kinds of element; the chain does not rule them out.
  */
 export type RouteElement = { id: string; kind: 'straight'; modules: number; floor: number } | { id: string; kind: 'turn'; turn: 90 | -90; modules: number; floor: number };
-export interface DescribedRoute { elements: readonly RouteElement[]; end: number }
+export interface DescribedRoute {
+  elements: readonly RouteElement[]; end: number;
+  /**
+   * Which ends couple to another standard port, their latches or bolts counted with the tunnel (FR-04.9): by default its end only, as
+   * on the tunnel page, where the window insert's own coupling takes its start. A planner's tunnel starting at an enclosure's port
+   * couples there too, and a free end (not yet coupled) has no coupling.
+   */
+  ports?: { start: boolean; end: boolean };
+}
 /** A problem with a described route, on the elements it concerns. */
 export interface RouteIssue { elements: string[]; message: string }
 
@@ -580,9 +588,10 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: Tunn
   /** How a joint of the sequence is made: turns as chosen, bends with collars when turns are at side ports. */
   function bendTypeOf(j: JointItem['joint']) { return j.kind === 'turn' ? turnType : bendType; }
 
-  // Faces between pieces: the wall end, the couplings, the port end.
+  // Faces between pieces: the wall end (coupled across the gap when it starts at a standard port), the couplings, the port end.
+  const coupledEnds = described?.ports ?? { start: false, end: true };
   const first = pieces[0]; const last = pieces.at(-1);
-  if (first) interfaces.push({ id: 'wall', kind: 'wall', face: first.start, before: null, after: first.id, gap: 0 });
+  if (first) interfaces.push({ id: 'wall', kind: 'wall', face: first.start, before: null, after: first.id, gap: coupledEnds.start ? gap : 0 });
   pieces.slice(1).forEach((p, i) => {
     const prev = pieces[i]; if (!prev) return;
     // at a side-port turn the piece before is coupled to the side port, across the gap; the section's start is the stub's, shut by a door
@@ -608,15 +617,15 @@ export function tunnelLayout(config: TunnelConfig, site: TunnelSite, joint: Tunn
     for (const f of screws.base) fasteners.push({ partId: HW.latchScrew, component: 'latch-screws', ...f, use: 'Latch base plates onto the flanges', of: mount.id, ...(basePiece ? { piece: basePiece } : {}) });
     for (const f of screws.catch) fasteners.push({ partId: HW.latchScrew, component: 'catch-screws', ...f, use: 'Latch catch plates onto the flanges', of: mount.id, ...(catchPiece ? { piece: catchPiece } : {}) });
   };
-  const couplings: Coupling[] = interfaces.filter(i => i.kind !== 'wall').map(i => {
+  const couplings: Coupling[] = interfaces.filter(i => i.kind === 'coupling' || (i.kind === 'port' ? coupledEnds.end : coupledEnds.start)).map(i => {
     const square = dot(i.face.n, i.face.frame.y) > 1 - 1e-9;
     const latched = joint.mechanism === 'printed-latch' && square;
     // into a side opening the section's own sides flank its posts: there the latches lie on the head
     const latches: PortLatch[] = !latched ? [] : portLatches(i.id, i.face, w, joint.latchesPerSide, i.gap, i.side ? 'head' : 'stiles');
     for (const mount of latches) latchFasteners(mount, i.after, i.before);
     return {
-      id: i.id, face: i.face, stage: i.kind === 'port' ? 6 : 5, kind: latched ? 'latched' : 'bolted', gap: i.gap, latches, before: i.before, after: i.after,
-      use: i.kind === 'port' ? 'Last flange to the enclosure’s port flange' : 'Flange to flange',
+      id: i.id, face: i.face, stage: i.kind === 'coupling' ? 5 : 6, kind: latched ? 'latched' : 'bolted', gap: i.gap, latches, before: i.before, after: i.after,
+      use: i.kind === 'port' ? 'Last flange to the enclosure’s port flange' : i.kind === 'wall' ? 'First flange to the port flange it starts at' : 'Flange to flange',
       bolts: latched ? [] : pattern.map(([u, v]) => ({ at: facePoint(i.face, u, v), n: i.face.n })),
       // along the middle of the flange ring's face
       seal: latched && joint.seal === 'e-profile' ? { length: 2 * (w + F) + 2 * (h + F) } : null,
@@ -1252,7 +1261,7 @@ export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: Tunne
     entry.quantity += quantity; entry.uses.add(use); counts.set(partId, entry);
   };
   for (const c of l.couplings.filter(k => k.kind === 'bolted')) {
-    addPart(HW.couplingBolt, c.stage === 6 ? 'Through the last flange and the enclosure’s port flange' : 'Through each bolted pair of flanges', c.bolts.length);
+    addPart(HW.couplingBolt, c.stage === 6 ? 'Through a tunnel end’s flange and the port flange it couples to' : 'Through each bolted pair of flanges', c.bolts.length);
     addPart(HW.couplingWasher, 'Under every bolt head and nut', 2 * c.bolts.length);
     addPart(HW.couplingNut, 'On every coupling bolt', c.bolts.length);
   }

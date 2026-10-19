@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import {
-  applyTransform, clampPlatform, elementTitle, evaluateProject, platformOrientation, platformRangeOf, platformYaw, PLATFORM_RECIPES, previewTunnels, raiseElements, rangeText, routeElements, snapToModules, worldTransforms,
-  type EnclosureParams, type PlatformParams, type PlatformRange, type Project, type ProjectEvaluation, type Transform, type TunnelLayout,
+  addTunnel, applyTransform, clampPlatform, CONNECT_REACH, connectTargets, elementTitle, evaluateProject, extendTunnel, platformOrientation, platformRangeOf, platformYaw, PLATFORM_RECIPES,
+  portTitle, previewTunnels, raiseElements, rangeText, routeElements, snapToModules, tunnelPitch, worldTransforms, yawDirection,
+  type EnclosureParams, type EvaluatedTunnel, type PlatformParams, type PlatformRange, type Project, type ProjectEvaluation, type Transform, type TunnelLayout,
 } from '@canfactory/catio';
 import { createStage, type Stage } from './stage.ts';
 import { createPlannerScene, type PlannerScene, type PlannerTool } from './catioPlannerScene.ts';
@@ -23,6 +24,11 @@ import { facePoint, resizeFrom, type SizeFace, type Sized } from './catioPlanner
  * A click on a tunnel picks the route element under the pointer; Shift- or Ctrl-click adds an object or element to the selection, or
  * takes it out. Selected elements rise and fall by their upright arrow, in 10 mm steps (snapping), as `raiseElements` would raise
  * them: the tunnels and the enclosure that follows are previewed, and `raise` makes it one edit.
+ *
+ * Tunnels grow in whole standard modules (FR-04.1–3): a click on a free cat port's marker selects it, and a drag from it out into the
+ * garden previews a new tunnel (`addTunnel`) as long as the pointer has gone, `grow` making it one edit. A free end's arrow drags it
+ * longer or shorter (`extendTunnel`), previewing the exact length and where the end lands; its buttons turn it left or right. The
+ * readout says when the end is near a port it can be connected to (`connectTargets`).
  */
 export const CAMERA_VIEWS = ['3D', 'Top', 'Front', 'Side'] as const;
 export type CameraView = typeof CAMERA_VIEWS[number];
@@ -43,10 +49,21 @@ export interface ViewportCallbacks {
   commit: (id: string, result: DragResult) => void;
   /** Ends a drag of tunnel elements' arrow as one edit: raised by `delta` mm (lowered, negative). */
   raise: (ids: string[], delta: number) => void;
+  /** Ends a drag from the free cat port `port` as one edit: a new tunnel of `modules` modules from it. */
+  grow: (port: string, modules: number) => void;
+  /** Ends a drag of a free tunnel end's arrow as one edit: `modules` more (fewer, negative). */
+  extend: (end: string, modules: number) => void;
+  /** A free tunnel end's turn button: one edit. */
+  turn: (end: string, side: 'left' | 'right') => void;
 }
 
 interface Drag {
-  id: string; how: 'move' | 'rotate' | 'elevate' | 'resize' | 'raise'; pointer: number; start: Transform; current: Transform;
+  id: string; how: 'move' | 'rotate' | 'elevate' | 'resize' | 'raise' | 'grow' | 'extend'; pointer: number; start: Transform; current: Transform;
+  /**
+   * Growing a tunnel from a port (`id` the port) or extending one at its free end (`id` the end's port): the way it runs out and where
+   * from, in the site's frame, its module pitch, and its modules so far (a new tunnel's), or modules added (an extension's).
+   */
+  run?: { dir: THREE.Vector3; origin: THREE.Vector3; pitch: number; modules: number; least: number; tunnel: string | null };
   /** Raising tunnel elements: which, how far so far, and the instances the preview has posed elsewhere. */
   ids?: string[]; delta?: number; posed?: Set<string>;
   /** A resize's face, the instance's size and frame in the site's as it began, and its size so far. */
@@ -217,6 +234,53 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     const none = { x: 0, y: 0, z: 0, yaw: 0 };
     return { id: ids[0] ?? '', how: 'raise', ids, delta: 0, posed: new Set(), pointer, start: none, current: none, plane, grab, parent: none, own: none, down: point, moved: false, tunnels: new Set(), range: null };
   }
+  /** Takes hold of a free cat port's marker (a new tunnel from it) or a free tunnel end's arrow: the run goes on along the ground. */
+  function beginRun(id: string, how: 'grow' | 'extend', point: [number, number], pointer: number): Drag | null {
+    if (!input) return null;
+    const none = { x: 0, y: 0, z: 0, yaw: 0 };
+    let run: NonNullable<Drag['run']>;
+    if (how === 'grow') {
+      const port = input.evaluation.ports.find(p => p.id === id); if (!port) return null;
+      const [dx, dy] = yawDirection(port.world.yaw);
+      run = { dir: new THREE.Vector3(dx, dy, 0), origin: new THREE.Vector3(port.world.x, port.world.y, port.world.z), pitch: tunnelPitch({ w: port.size }, input.project.settings.tunnelCoupling), modules: 0, least: 1, tunnel: null };
+    } else {
+      const e = input.evaluation.instances.find((t): t is EvaluatedTunnel => t.kind === 'tunnel' && t.ends.end.port === id);
+      const tunnel = e && input.project.instances.find(i => i.id === e.id);
+      if (!e?.layout || tunnel?.kind !== 'tunnel') return null;
+      const yaw = e.world.yaw * RAD; const [ex, ey] = e.layout.dE;
+      const end = applyTransform(e.world, { x: e.layout.E[0], y: e.layout.E[1], z: e.layout.E[2] });
+      const total = tunnel.params.route.reduce((n, x) => n + x.modules, 0);
+      run = { dir: new THREE.Vector3(Math.cos(yaw) * ex - Math.sin(yaw) * ey, Math.sin(yaw) * ex + Math.cos(yaw) * ey, 0).normalize(), origin: new THREE.Vector3(end.x, end.y, end.z), pitch: e.layout.pitch, modules: 0, least: 1 - total, tunnel: e.id };
+    }
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -run.origin.z);
+    const grab = siteRay(point).intersectPlane(plane, new THREE.Vector3()); if (!grab) return null;
+    return { id, how, run, pointer, start: none, current: none, plane, grab, parent: none, own: none, down: point, moved: false, tunnels: new Set(), range: null };
+  }
+  /** Shows the run the pointer has dragged out: a new tunnel drawn, or the tunnel extended; the readout says how long and what is near. */
+  function previewRun(d: Drag, point: [number, number]) {
+    if (!input || !scene || !d.run) return;
+    const { modules, tunnel } = d.run;
+    const result = d.how === 'grow' ? addTunnel(input.project, d.id, modules) : extendTunnel(input.project, d.id, modules);
+    const title = d.how === 'grow' ? `New tunnel from ${portTitle(input.project, d.id)}` : `${modules >= 0 ? 'Extending' : 'Shortening'} ${input.project.instances.find(i => i.id === tunnel)?.name ?? tunnel ?? ''}`;
+    if (d.how === 'extend' && modules === 0) {
+      const e = input.evaluation.instances.find(t => t.id === tunnel);
+      if (e?.kind === 'tunnel') scene.redrawTunnel(e.id, e.layout, e.config);
+      callbacks.readout({ x: point[0], y: point[1], title, lines: ['As it is'], ok: true });
+      stage?.invalidate(); publishAnchors(); return;
+    }
+    if (result.errors.length) { callbacks.readout({ x: point[0], y: point[1], title, lines: result.errors, ok: false }); return; }
+    const evaluation = evaluateProject(result.project);
+    const id = 'id' in result ? result.id : tunnel;
+    const e = evaluation.instances.find((t): t is EvaluatedTunnel => t.kind === 'tunnel' && t.id === id);
+    if (!e?.layout) return;
+    if (d.how === 'grow') scene.ghostTunnel(e); else { scene.redrawTunnel(e.id, e.layout, e.config); d.tunnels.add(e.id); }
+    stage?.invalidate(); publishAnchors();
+    const near = e.ends.end.port ? connectTargets(result.project, e.ends.end.port, evaluation).find(t => t.distance <= CONNECT_REACH) : undefined;
+    callbacks.readout({ x: point[0], y: point[1], title, ok: true, lines: [
+      `${tunnelModules(e.layout)} modules · ${metres(e.layout.totalLength)}${d.how === 'extend' ? ` (${modules > 0 ? '+' : '−'}${Math.abs(modules)})` : ''}`,
+      ...(near ? [`Near ${portTitle(result.project, near.port)} (${Math.round(near.distance)} mm): connect it there`] : []),
+    ] });
+  }
   /** Shows the selected elements raised by `delta`: their tunnels laid out again, an enclosure that follows moved; the readout says how. */
   function previewRaise(d: Drag, delta: number, point: [number, number]) {
     if (!input || !scene) return;
@@ -250,6 +314,15 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
       if (delta === drag.delta) return;
       drag.delta = delta;
       previewRaise(drag, delta, point);
+      return;
+    }
+    if (drag.run) {
+      // whole modules, the pitch the standard element makes (FR-02.5): as far out as the pointer has gone
+      const along = (drag.how === 'grow' ? hit.clone().sub(drag.run.origin) : hit.clone().sub(drag.grab)).dot(drag.run.dir);
+      const modules = Math.max(drag.run.least, Math.round(along / drag.run.pitch));
+      if (modules === drag.run.modules) return;
+      drag.run.modules = modules;
+      previewRun(drag, point);
       return;
     }
     const { start, parent } = drag; const snap = input.snap;
@@ -305,7 +378,7 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     scene.pose(drag.id, to);
     // only the tunnels this moves are solved again
     const tunnels = previewTunnels(input.project, input.evaluation, new Map([[drag.id, to]]));
-    for (const t of tunnels) { scene.redrawTunnel(t.id, t.layout, t.config); drag.tunnels.add(t.id); }
+    for (const t of tunnels) { scene.redrawTunnel(t.id, t.layout, t.config); scene.pose(t.id, t.world); drag.tunnels.add(t.id); }
     stage?.invalidate();
     const turn = `Yaw ${Math.round(to.yaw)}° (${to.yaw - start.yaw >= 0 ? '+' : '−'}${Math.abs(Math.round(normalYaw(to.yaw - start.yaw)))}°)`;
     const lines = drag.how === 'move'
@@ -320,7 +393,12 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     const d = drag; drag = null; controls.enabled = true;
     callbacks.readout(null);
     if (!d) return;
+    scene?.ghostTunnel(null);
     if (commit && d.how === 'raise') { if (d.moved && d.delta) { callbacks.raise(d.ids ?? [], d.delta); return; } }
+    else if (commit && d.run) {
+      if (d.moved && d.how === 'grow' && d.run.modules >= 1) { callbacks.grow(d.id, d.run.modules); return; }
+      if (d.moved && d.how === 'extend' && d.run.modules) { callbacks.extend(d.id, d.run.modules); return; }
+    }
     else if (commit && d.moved && (d.how !== 'resize' || d.size)) { callbacks.commit(d.id, { how: d.how, to: d.current, ...(d.size ? { size: d.size } : {}) }); return; }
     if (!scene || !input) return;
     scene.pose(d.id, d.start); scene.showGhost(null, null);
@@ -328,6 +406,7 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     for (const id of d.tunnels) {
       const e = input.evaluation.instances.find(i => i.id === id);
       scene.redrawTunnel(id, e?.kind === 'tunnel' ? e.layout : null, e?.kind === 'tunnel' ? e.config : null);
+      if (e) scene.pose(id, e.world);
     }
     scene.mark(input.selection, input.flagged, input.tool);
     stage?.invalidate(); publishAnchors();
@@ -346,12 +425,18 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
       callbacks.select(input.selection.includes(pick.id) ? input.selection.filter(id => id !== pick.id) : [...input.selection, pick.id]);
       return;
     }
-    if (pick.kind === 'instance' && !(input.selection.length === 1 && input.selection[0] === pick.id)) callbacks.select([pick.id]);
-    // the body moves the selection, or turns it in the Rotate tool; a handle does what it is for; tunnel elements rise by their arrow
+    if (pick.kind === 'turn') { callbacks.turn(pick.id, pick.side); return; }
+    if ((pick.kind === 'instance' || pick.kind === 'port') && !(input.selection.length === 1 && input.selection[0] === pick.id)) callbacks.select([pick.id]);
+    // the body moves the selection, or turns it in the Rotate tool; a handle does what it is for; tunnel elements rise by their arrow;
+    // a port's marker grows a new tunnel, a free end's arrow extends its tunnel
     const elements = routeElements(input.project);
-    const how: Drag['how'] = pick.kind === 'instance' ? (input.tool === 'rotate' ? 'rotate' : 'move') : pick.kind === 'slide' ? 'move' : pick.kind;
-    const next = pick.kind === 'elevate' && elements.has(pick.id) ? beginRaise(input.selection.filter(id => elements.has(id)), point, event.pointerId)
-      : beginDrag(pick.id, how, point, event.pointerId, pick.kind === 'resize' ? pick.face : undefined);
+    let next: Drag | null;
+    if (pick.kind === 'port' || pick.kind === 'extend') next = beginRun(pick.id, pick.kind === 'port' ? 'grow' : 'extend', point, event.pointerId);
+    else if (pick.kind === 'elevate' && elements.has(pick.id)) next = beginRaise(input.selection.filter(id => elements.has(id)), point, event.pointerId);
+    else {
+      const how: Drag['how'] = pick.kind === 'instance' ? (input.tool === 'rotate' ? 'rotate' : 'move') : pick.kind === 'slide' ? 'move' : pick.kind;
+      next = beginDrag(pick.id, how, point, event.pointerId, pick.kind === 'resize' ? pick.face : undefined);
+    }
     if (!next) return;
     drag = next; controls.enabled = false;
     element.setPointerCapture(event.pointerId);
@@ -365,7 +450,7 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
       hoverFrame = 0; if (!hover) return;
       const pick = pickAt(hover);
       const kind = pick && input?.project.instances.find(i => i.id === pick.id)?.kind;
-      renderer.domElement.style.cursor = pick?.kind === 'rotate' ? 'grab' : pick?.kind === 'elevate' ? 'ns-resize' : pick?.kind === 'slide' ? 'move' : pick?.kind === 'resize' ? (pick.face === '+z' ? 'ns-resize' : 'ew-resize')
+      renderer.domElement.style.cursor = pick?.kind === 'port' ? 'copy' : pick?.kind === 'extend' ? 'move' : pick?.kind === 'turn' ? 'pointer' : pick?.kind === 'rotate' ? 'grab' : pick?.kind === 'elevate' ? 'ns-resize' : pick?.kind === 'slide' ? 'move' : pick?.kind === 'resize' ? (pick.face === '+z' ? 'ns-resize' : 'ew-resize')
         : kind && MOVABLE.includes(kind) ? (input?.tool === 'rotate' ? 'grab' : 'move') : pick ? 'pointer' : '';
     });
   }

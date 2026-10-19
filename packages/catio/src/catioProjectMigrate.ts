@@ -11,12 +11,18 @@ import { routeOf, tunnelLayout, tunnelSiteFor } from './catioTunnel.ts';
  * Reading a project file, of this planner's version or an older one. Version 1 (#113) solved each tunnel's route from its ends;
  * version 2 (#126) describes it as a chain of elements. A version 1 document is migrated by laying its tunnels out as version 1 did
  * (from the window's port to the port each one's end couples to, as its ports' frames hold them) and keeping that layout as their
- * elements: the same tunnel, now with its elements' ids and floors in the document.
+ * elements: the same tunnel, now with its elements' ids and floors in the document. Version 3 (#127) puts each tunnel on the site
+ * rather than in its window: a version 2 tunnel keeps its place, its transform composed with its window's.
  */
 export type ParseResult = { ok: true; project: Project } | { ok: false; errors: string[] };
 
-/** A version 1 document as version 2: every tunnel's route described as version 1 laid it out. Anything else is passed on unchanged. */
+/** An older document as this version: version 1 as version 2, version 2 as version 3. Anything else is passed on unchanged. */
 export function migrateProject(raw: unknown): unknown {
+  return toVersion3(toVersion2(raw));
+}
+
+/** A version 1 document as version 2: every tunnel's route described as version 1 laid it out. */
+function toVersion2(raw: unknown): unknown {
   if (typeof raw !== 'object' || raw === null || (raw as { schemaVersion?: unknown }).schemaVersion !== 1) return raw;
   const shape = raw as { instances?: unknown; ports?: unknown; connections?: unknown; settings?: unknown };
   if (!Array.isArray(shape.instances) || !Array.isArray(shape.ports) || !Array.isArray(shape.connections) || typeof shape.settings !== 'object' || shape.settings === null) return raw;
@@ -40,7 +46,22 @@ export function migrateProject(raw: unknown): unknown {
       const layout = tunnelLayout(tunnelRoute(t, settings, target, !!mateOwner), site, { ...settings.tunnelCoupling, jointShown: 'end-end' });
       return { ...t, params: { ...t.params, route: routeOf(layout, n => `${t.id}-element-${n + 1}`) } };
     });
-    return { ...v1, schemaVersion: PROJECT_SCHEMA_VERSION, instances };
+    return { ...v1, schemaVersion: 2, instances };
+  } catch {
+    return raw;
+  }
+}
+
+/** A version 2 document as version 3: every tunnel on the site where its window put it. */
+function toVersion3(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null || (raw as { schemaVersion?: unknown }).schemaVersion !== 2) return raw;
+  const shape = raw as { instances?: unknown };
+  if (!Array.isArray(shape.instances) || !shape.instances.every(i => typeof i === 'object' && i !== null)) return raw;
+  const v2 = raw as Project;
+  try {
+    const world = worldTransforms(v2);
+    const instances = v2.instances.map(i => i.kind === 'tunnel' ? { ...i, parent: null, transform: world.get(i.id) ?? i.transform } : i);
+    return { ...v2, schemaVersion: PROJECT_SCHEMA_VERSION, instances };
   } catch {
     return raw;
   }
