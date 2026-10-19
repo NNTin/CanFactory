@@ -1,4 +1,4 @@
-// STEP-derived base with optional pin-header insulator openings; millimetres.
+// STEP-derived base with optional height extension and pin-header insulator openings; millimetres.
 // Source: Case_ESP32-C3-cad.step; solid 0
 // SHA-256: 585a8cd17c842e73d1cced65d44ce4af3e3e7029bf83b4024b1a71100d33ec31
 // Creator: Vinors3DLab
@@ -6,8 +6,10 @@
 // Adapted under the author’s MakerOnline CC BY-NC-SA 4.0 release.
 // https://www.makeronline.com/en/model/Ultra-Compact-Case-for-ESP---C--SuperMini--step-file-/338531.html
 // License: CC BY-NC-SA 4.0; https://creativecommons.org/licenses/by-nc-sa/4.0/
-// See ATTRIBUTION.md. CanFactory modification: optional pin-header insulator openings, enabled by default.
+// See ATTRIBUTION.md. CanFactory modification: independent base height extension and pin-header openings, enabled by default.
 FLUSH_HEADERS = true;
+TALLER_ENCLOSURE = true;
+BASE_EXTRA_HEIGHT = 0.84;
 HEADER_X = -0.86;
 HEADER_Y = 7.62;
 HEADER_LENGTH = 21.07;
@@ -21,11 +23,21 @@ polyhedron(
 );
 }
 
+extra_height = TALLER_ENCLOSURE ? BASE_EXTRA_HEIGHT : 0;
+
 difference() {
-  original_base();
-  // Through the floor, stopping above the seated insulators (print z=1.7).
+  union() {
+    // Preserve every feature above the floor relative to the seated PCB.
+    translate([0, 0, extra_height]) original_base();
+    // Extend the original constant floor section down to the print bed.
+    // The 0.01 mm overlap joins it to the translated base without a seam.
+    if (TALLER_ENCLOSURE)
+      linear_extrude(height=extra_height + 0.01)
+        projection(cut=true) translate([0, 0, -0.1]) original_base();
+  }
+  // Through the entire selected floor, ending 0.1 mm above the PCB underside.
   if (FLUSH_HEADERS)
     for (side = [-1, 1])
       translate([HEADER_X - HEADER_LENGTH/2, side*HEADER_Y - HEADER_WIDTH/2, -0.1])
-        cube([HEADER_LENGTH, HEADER_WIDTH, 1.9]);
+        cube([HEADER_LENGTH, HEADER_WIDTH, 1.9 + extra_height]);
 }

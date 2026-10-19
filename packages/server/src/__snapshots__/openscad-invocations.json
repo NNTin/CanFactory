@@ -3142,6 +3142,10 @@
      "-D",
      "FLUSH_HEADERS=true",
      "-D",
+     "TALLER_ENCLOSURE=true",
+     "-D",
+     "BASE_EXTRA_HEIGHT=0.84",
+     "-D",
      "HEADER_X=-0.8599999999999977",
      "-D",
      "HEADER_Y=7.62",
@@ -3182,8 +3186,9 @@
    }
   ],
   "variants": {
-   "flushHeaders=false": "9a6e3c5385707f29adaa6679fdeb122fd61e3ccfeb526679dfb6dc6cc1a810c6",
-   "ledHoles=false": "ff48ddd86c653dd1135eabd4e0de1c14a4e9833365c9a95028d06d3916fbb741"
+   "tallerEnclosure=false": "eb08550031c2f38021405fce07929c645e7fe8669b428180ca8b9a9558b9b2ce",
+   "flushHeaders=false": "f0366c4c3328e1dbdf852acaf375b544114c4500379711f07095b9d167171137",
+   "ledHoles=false": "5136696bdaad3a1fae77c204ac271777a6df2e0d5a169b008c4ccb85d03448c4"
   }
  }
 }

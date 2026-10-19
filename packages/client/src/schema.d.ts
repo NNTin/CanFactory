@@ -2219,8 +2219,14 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "3";
+                    modelVersion: "4";
                     parameters: {
+                        /**
+                         * Taller enclosure
+                         * @description Add 0.84 mm beneath the PCB so seated pin-header insulators align with the exterior case bottom. Independent of Flush pin headers; disable for the shorter original enclosure.
+                         * @default true
+                         */
+                        tallerEnclosure: boolean;
                         /**
                          * Flush pin headers
                          * @description Widen the base openings so the header insulators pass through the floor and seat against the PCB. Disable for the original narrow slots and external spacers.

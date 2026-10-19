@@ -4523,16 +4523,23 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "3"
+                          "4"
                         ]
                       },
                       "parameters": {
                         "type": "object",
                         "required": [
+                          "tallerEnclosure",
                           "flushHeaders",
                           "ledHoles"
                         ],
                         "properties": {
+                          "tallerEnclosure": {
+                            "type": "boolean",
+                            "title": "Taller enclosure",
+                            "description": "Add 0.84 mm beneath the PCB so seated pin-header insulators align with the exterior case bottom. Independent of Flush pin headers; disable for the shorter original enclosure.",
+                            "default": true
+                          },
                           "flushHeaders": {
                             "type": "boolean",
                             "title": "Flush pin headers",
