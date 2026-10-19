@@ -84,3 +84,5 @@ export const IdParamsSchema = Type.Object({ id: Type.String({ minLength: 1, maxL
 export const DownloadQuerySchema = Type.Object({ download: Type.Optional(Type.Literal('true')) }, { additionalProperties: false });
 
 export * from './magneticCatToyPhysics.ts';
+
+export * from './esp32Case.ts';

@@ -1,3 +1,4 @@
+import { ESP32_CASE_LEDS } from '@canfactory/contracts';
 type Point = [number, number, number];
 
 /** Dimension-derived schematic. The editor's STL viewer shows the converted source geometry. */
@@ -18,6 +19,10 @@ export function Esp32CaseIllustration() {
       <g className="esp32-case-card-lid">
         <polygon points={rect(-12.5 + lidX, -9.9, 7.56 + lidZ, 25.4, 19.8)} fill="#e5d9bb" />
         <polygon points={polygon([[-12.5 + lidX, 9.9, 6.56 + lidZ], [12.9 + lidX, 9.9, 6.56 + lidZ], [12.9 + lidX, 9.9, 7.56 + lidZ], [-12.5 + lidX, 9.9, 7.56 + lidZ]])} fill="#c7ba9c" />
+        {ESP32_CASE_LEDS.map(led => <polygon key={led.name} points={polygon(Array.from({ length: 24 }, (_, i): Point => {
+          const a = i * Math.PI / 12;
+          return [led.print[0] + 0.2 + lidX + Math.cos(a), -led.print[1] + Math.sin(a), 7.58 + lidZ];
+        }))} fill="#263f43" stroke="none" />)}
         {[-5.2, 5.2].map((y, index) => {
           const [x, py] = project([-5 + lidX, y, 7.58 + lidZ]);
           return <g key={y}>

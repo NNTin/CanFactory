@@ -2219,8 +2219,15 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "1";
-                    parameters: Record<string, never>;
+                    modelVersion: "2";
+                    parameters: {
+                        /**
+                         * LED openings
+                         * @description Two 2 mm holes above the red power and blue GPIO8 LEDs. Disable to retain the original closed lid.
+                         * @default true
+                         */
+                        ledHoles: boolean;
+                    };
                 };
             };
         };

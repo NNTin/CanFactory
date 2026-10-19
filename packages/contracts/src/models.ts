@@ -1,3 +1,4 @@
+import { DEFAULT_ESP32_CASE, ESP32_CASE_LED_DEFINES, Esp32CaseParametersSchema, esp32CaseAssembly } from './esp32Case.ts';
 import { CORNER_LATCH, CORNER_LATCH_SCREWS, DEFAULT_CORNER_LATCH, cornerLatchAssembly, cornerLatchIssues, cornerLatchLayout } from './outsideCornerToggleLatch.ts';
 import { magneticCatToyPhysics } from './magneticCatToyPhysics.ts';
 import { DEFAULT_MAGNETIC_CAT_TOY, MagneticCatToyParametersSchema, TOY, TOY_BALL_MAGNETS, TOY_GRID_MAGNETS, magneticCatToyAssembly, magneticCatToyIssues, magneticCatToyLayout, magneticCatToyReferences, type MagneticCatToyParameters } from './magneticCatToy.ts';
@@ -3516,32 +3517,27 @@ export const cameraHousing = {
   },
 } satisfies ModelDefinition;
 
-/** Fixed technical conversion of Vinors3DLab's STEP; see the model's CONVERSION.md. */
-const Esp32CaseParametersSchema = Type.Object<Record<string, ReturnType<typeof Type.Never>>>({}, { additionalProperties: false });
+/** Adaptation of the author's CC BY-NC-SA MakerOnline release; provenance is in ATTRIBUTION.md. */
 export const esp32C3SuperminiCase = {
-  id: 'esp32-c3-supermini-case' as const, version: '1' as const, title: 'ESP32-C3 SuperMini case',
-  description: 'Vinors3DLab’s ultra-compact two-piece enclosure with a sliding lid, flexible B (BOOT) and R (RESET) tabs, USB-C opening and bottom GPIO access slots. Original dimensions, supplied as a fixed format conversion for noncommercial printing.',
-  attribution: 'Vinors3DLab (MakerWorld)',
-  attributionLinks: [{ text: 'Vinors3DLab (MakerWorld)', url: 'https://makerworld.com/de/models/3419196-ultra-compact-case-esp32-c3-supermini-step-file' }],
-  license: 'CC BY-NC-ND 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
-  printNotes: 'Print both parts as generated: base floor down, lid outer face down. The author recommends 0.08 mm layers, 2–3 perimeters, PLA/PETG/ABS/ASA and no supports. Seat the ESP32-C3 SuperMini in the base, align USB-C with its opening, then slide the lid along the rails from the USB end until seated. B and R operate BOOT and RESET. Electronics are not included in the print ZIP. Technical format conversion only; original geometry and lettering retained. Noncommercial use; no distribution of adaptations under CC BY-NC-ND 4.0.',
+  id: 'esp32-c3-supermini-case' as const, version: '2' as const, title: 'ESP32-C3 SuperMini case',
+  description: 'Vinors3DLab’s compact sliding-lid case, with optional openings for both onboard LEDs, enabled by default. The live assembly shows the existing SuperMini board and two eight-pin headers, including their placement below the floor.',
+  attribution: 'Vinors3DLab (MakerWorld / MakerOnline); LED openings by CanFactory',
+  attributionLinks: [
+    { text: 'MakerWorld', url: 'https://makerworld.com/de/models/3419196-ultra-compact-case-esp32-c3-supermini-step-file' },
+    { text: 'MakerOnline', url: 'https://www.makeronline.com/en/model/Ultra-Compact-Case-for-ESP---C--SuperMini--step-file-/338531.html' },
+  ],
+  license: 'CC BY-NC-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+  printNotes: 'Print base floor down and lid outer face down. The author recommends 0.08 mm layers, 2–3 perimeters and no supports. Seat the bare board with USB-C towards its opening. Insert two 1 × 8 headers from below, keeping their plastic spacers outside the floor, then solder with the board seated; check solder-tail reach and access on your delivered board and headers. Slide the lid in from the antenna end. B and R operate BOOT and RESET. LED openings follow the library board’s estimated LED positions; SuperMini clones can differ. Board and headers appear only in the preview, never the print ZIP. Adapted from the author’s CC BY-NC-SA 4.0 MakerOnline release; noncommercial, share alike.',
   parts: [
     { id: 'bottom', title: 'Case base', sourcePath: 'models/esp32-c3-supermini-case/bottom.scad', scadMapping: {} },
-    { id: 'top', title: 'Sliding button lid', sourcePath: 'models/esp32-c3-supermini-case/top.scad', scadMapping: {} },
+    { id: 'top', title: 'Sliding button lid', sourcePath: 'models/esp32-c3-supermini-case/top.scad', scadMapping: { ledHoles: 'LED_HOLES' }, scadConstants: ESP32_CASE_LED_DEFINES },
   ],
-  parameterSchema: Esp32CaseParametersSchema, controls: [], defaults: {}, scadMapping: {},
-  assembly: {
-    partColors: { bottom: '#497c85', top: '#e5d9bb' },
-    // Print geometry is centred per part; lid is Rx(180), roof-down. These poses
-    // invert the conversion transforms and ground the original STEP assembly.
-    poses: { bottom: { position: [0, 0, 0] }, top: { position: [0.2, 0, 7.56], rotation: [180, 0, 0] } },
-    steps: [{ title: 'Slide the lid into the rails from the USB end', parts: ['top'], from: [30, 0, 0] }],
-    lift: 5,
-  },
+  parameterSchema: Esp32CaseParametersSchema, controls: [control(Esp32CaseParametersSchema, 'ledHoles', 'basic')], defaults: DEFAULT_ESP32_CASE, scadMapping: {},
+  assembly: esp32CaseAssembly(),
   validate(parameters: unknown): ParameterIssue[] {
-    return Value.Check(Esp32CaseParametersSchema, parameters) ? [] : [{ field: '', message: 'This fixed model accepts no adjustable parameters.' }];
+    return Value.Check(Esp32CaseParametersSchema, parameters) ? [] : [{ field: '', message: 'Choose whether to include LED openings.' }];
   },
-  derived() { return { slotCount: null, notes: ['Original assembled envelope: 25.8 × 21.8 × 7.56 mm, including projecting features. Fixed geometry; no design changes.'] }; },
+  derived(parameters: unknown) { return { slotCount: null, notes: ['Case envelope: 25.8 × 21.8 × 7.56 mm, excluding the pin headers.', Value.Check(Esp32CaseParametersSchema, parameters) && parameters.ledHoles ? 'Two 2 mm LED openings above the power and GPIO8 LEDs.' : 'Closed lid: LED openings disabled.'] }; },
 } satisfies ModelDefinition;
 
 /** Original magnetic toy: four functional layers, exported as five independently printable components. */

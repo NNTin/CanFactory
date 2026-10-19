@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, ObjectStorage, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair, type RenderJob } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { startStorageServices } from './storage-services.ts';
@@ -1128,9 +1128,9 @@ try {
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
     console.log(`PASS magnetic cat toy ${name}: 5 connected prints, ${l.mountBase} mm tray / M3×${l.screwLength} screws, ${l.columns} × ${l.rows} flush sockets with push-out holes, no raised ribs, hollow grip shells, rear-loaded magnet pairs, thin touching bearing floors, staggered push-out bores and adjustable grip holes, ball-retaining slots`);
   }
-  if (!only || only === 'esp32-c3-supermini-case') {
+  for (const ledHoles of !only || only === 'esp32-c3-supermini-case' ? [true, false] : []) {
     const model = esp32C3SuperminiCase;
-    const queued = await store.enqueue(model, {});
+    const queued = await store.enqueue(model, { ledHoles });
     const job = await store.claim(); assert.ok(job?.leaseToken);
     assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true);
     const result = await store.getJob(queued.id);
@@ -1145,13 +1145,28 @@ try {
         assert.ok(Math.abs(info.dimensions[axis as 'x' | 'y' | 'z'] - (size ?? 0)) < 0.001);
       assert.equal(shells(parseStl(stl)), 1);
       assert.ok(stl.subarray(0, 80).toString().includes('Vinors3DLab'));
-      assert.ok(stl.subarray(0, 80).toString().includes('CC BY-NC-ND 4.0'));
+      assert.ok(stl.subarray(0, 80).toString().includes('CC BY-NC-SA 4.0'));
+    }
+    const lid = parseStl(Buffer.from(entries['top.stl'] ?? []));
+    const originalLid = parseStl(await readFile(join(repositoryRoot, 'models/esp32-c3-supermini-case/top.stl')));
+    for (const led of ESP32_CASE_LEDS) {
+      let newlyOpen = 0;
+      for (const z of [0.1, 0.6, 1.2]) for (let angle = 0; angle < 8; angle++) {
+        const a = angle * Math.PI / 4;
+        const p: [number, number, number] = [led.print[0] + 0.85 * Math.cos(a), led.print[1] + 0.85 * Math.sin(a), z];
+        const wasSolid = housingSolid(originalLid, p);
+        if (wasSolid) newlyOpen++;
+        assert.equal(housingSolid(lid, p), ledHoles ? false : wasSolid, `${led.name}: aperture reflects toggle`);
+        const outside: [number, number, number] = [led.print[0] + 1.15 * Math.cos(a), led.print[1] + 1.15 * Math.sin(a), z];
+        assert.equal(housingSolid(lid, outside), housingSolid(originalLid, outside), `${led.name}: surrounding source roof retained`);
+      }
+      assert.ok(newlyOpen > 0, `${led.name}: enabled aperture enlarges optical clearance`);
     }
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`);
     const download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log('PASS ESP32-C3 SuperMini case: two closed parts, original dimensions, attributed ZIP and matching preview/download bytes');
+    console.log(`PASS ESP32-C3 SuperMini case LED openings ${ledHoles}: two closed attributed prints, aperture probes and matching preview/download bytes`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

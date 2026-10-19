@@ -3154,6 +3154,16 @@
      "binstl",
      "-o",
      "<scratch>/job/top.stl",
+     "-D",
+     "LED_HOLES=true",
+     "-D",
+     "LED_RED_X=-6.309999999999997",
+     "-D",
+     "LED_RED_Y=6.01",
+     "-D",
+     "LED_BLUE_X=-0.4399999999999977",
+     "-D",
+     "LED_BLUE_Y=-4.5600000000000005",
      "<root>/models/esp32-c3-supermini-case/top.scad"
     ],
     "timeout": 120000,
@@ -3161,6 +3171,8 @@
     "fontPath": "<root>/models/fonts"
    }
   ],
-  "variants": {}
+  "variants": {
+   "ledHoles=false": "3dc3163acf5987eb5bfc28d0dd4e3242700e1b4bf39e85c17b6085ad08b69c5e"
+  }
  }
 }

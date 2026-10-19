@@ -1,21 +1,38 @@
 # Attribution
 
-**Ultra-Compact Case ESP32-C3 SuperMini (step file)** by **Vinors3DLab**.
+**Ultra-Compact Case for ESP32-C3 SuperMini (step file)** by **Vinors3DLab**.
 
-- Original: https://makerworld.com/de/models/3419196-ultra-compact-case-esp32-c3-supermini-step-file
-- License supplied with this model: [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/).
-- Author's matching listing: https://www.makeronline.com/en/model/Ultra-Compact-Case-for-ESP---C--SuperMini--step-file-/338531.html
-  (used to confirm authorship and assembly instructions; this integration uses the MakerWorld license above).
+- MakerWorld original: https://makerworld.com/de/models/3419196-ultra-compact-case-esp32-c3-supermini-step-file
+  — [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/), as supplied by the user.
+- Author's matching MakerOnline release: https://www.makeronline.com/en/model/Ultra-Compact-Case-for-ESP---C--SuperMini--step-file-/338531.html
+  — [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/), verified 2026-10-19.
 
-The files in `references/` are the supplied, unmodified STEP and 3MF originals.
-CanFactory converts the geometry to self-contained OpenSCAD and STL for preview
-and printing. This is a technical format conversion: no altered dimensions,
-resizing controls, added features, removed lettering, or remixed geometry.
-Print placement and the assembly animation apply rigid transformations only.
-The original STEP remains the editable CAD source; the SCAD files are fixed
-geometry, not parametric reconstructions.
+**The LED-hole adaptation uses the author's CC BY-NC-SA 4.0 release.** The
+MakerOnline listing names the same author, model and three source files
+(`case_esp32-c3-cad.step`, `bottom.3mf`, `top.3mf`), with matching byte sizes
+265782, 7199 and 33087. Its license link explicitly resolves to BY-NC-SA 4.0.
+Direct file downloads require access to MakerOnline's private storage, so an
+independent byte-for-byte download comparison was not available.
 
-The original geometry and its converted representations retain CC BY-NC-ND 4.0:
-noncommercial use, attribution required, no distribution of adaptations.
-CanFactory's conversion tooling and interface do not replace the model's license
-or imply endorsement by its author.
+The supplied files in `references/` remain unmodified. The root `bottom.stl`,
+`top.stl` and JSON records document the earlier technical conversion of the
+original, without LED holes; their original MakerWorld license notices remain.
+They are comparison references, not dependencies of the live model.
+
+CanFactory's changes in model version 2:
+
+- Two optional 2 mm openings above the board library's red power and blue GPIO8
+  LEDs, enabled by default; disabling them retains the original closed lid.
+- A preview with the existing Nologo SuperMini board and two sourced 1 × 8 pin
+  headers. These reference objects are not included in the print ZIP.
+- Rigid print placement and assembly animation. All original case details and
+  lettering are retained apart from the two requested apertures.
+
+The adapted model and its downloaded STLs use **CC BY-NC-SA 4.0**: attribution,
+noncommercial use and share alike. This does not change the license of the
+separately preserved MakerWorld originals or imply the creator's endorsement.
+
+The board and pin-header previews are CanFactory's procedural dimension models,
+with their own manufacturer sources in the parts library; no manufacturer CAD
+files are redistributed. LED and component positions are partly estimated in
+the existing SuperMini entry; clone boards can differ.

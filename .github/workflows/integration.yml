@@ -54,7 +54,9 @@ jobs:
       # Source detents cross the USB end during insertion. Analytic STEP overlap
       # is 0.666 mm³; the existing coarse ray sampler reports 3.31 mm³ (CONVERSION.md).
       - name: Check ESP32-C3 SuperMini sliding assembly
-        run: npm run check:assembly -- esp32-c3-supermini-case --tolerance 4 --snap-tolerance 0.1
+        run: |
+          npm run check:assembly -- esp32-c3-supermini-case --tolerance 4 --snap-tolerance 0.1
+          npm run check:assembly -- esp32-c3-supermini-case --tolerance 4 --snap-tolerance 0.1 --parameters '{"ledHoles":false}'
         env:
           OPENSCAD_RUNNER: docker
 
