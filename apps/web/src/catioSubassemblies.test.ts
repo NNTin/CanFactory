@@ -1,101 +1,63 @@
 import { describe, expect, it } from 'vitest';
-import { withShared } from './catioSubassembly.ts';
-import { CATIO_SUBASSEMBLY_ENTRIES, dependentsOf, tunnelCouplingDefinition } from './catioSubassemblies.ts';
-import { clearOf, COUPLING_DEFAULT, MODULAR_DEFAULT, couplingBom, couplingLayout, fastenerClashes, TUNNEL_CONTROLS, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelBom, tunnelCouplingBom, tunnelCouplingLayout, tunnelLayout, tunnelSiteFor, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowInsertLayout, type TunnelConfig, type TunnelCouplingConfig, type TunnelSite, type WindowInsertConfig } from '@canfactory/catio';
+import { CATIO_SUBASSEMBLY_DEFINITIONS } from './catioSubassemblies.ts';
+import type { SubassemblyDefinition } from './catioSubassembly.ts';
+import { CATIO_SUBASSEMBLIES, clearOf, configureSubassembly, createProject, evaluateProject, fastenerClashes, hasSubject, type CatioSubassembly, type Project } from '@canfactory/catio';
 
-const base = tunnelSiteFor(WINDOW_INSERT_DEFAULT, MODULAR_DEFAULT);
-const withInsert = (insert: WindowInsertConfig): TunnelSite => ({ ...base, insert, floorZ: windowInsertLayout('modular', insert, base.window).floor });
-/** What a page builds from the other pages' settings: anything a followed setting changes shows up here. */
-const builds = {
-  tunnel: (site: TunnelSite, joint: TunnelCouplingConfig = TUNNEL_COUPLING_DEFAULT) => {
-    const l = tunnelLayout(TUNNEL_DEFAULT, site, joint);
-    return JSON.stringify([l.S, l.pieces, l.couplings, l.supports, tunnelBom('modular', TUNNEL_DEFAULT, site, joint), l.errors]);
-  },
-  tunnelCoupling: (tunnel: TunnelConfig, site: TunnelSite = base, own: TunnelCouplingConfig = TUNNEL_COUPLING_DEFAULT) => {
-    // the settings it shares with the tunnel page come from there, as the page loads them
-    const config = withShared(tunnelCouplingDefinition, own, page => page === 'tunnel' ? tunnel : undefined);
-    const l = tunnelCouplingLayout(config, { tunnel, site });
-    return JSON.stringify([l.before, l.after, l.coupling, l.support, l.tl.pad, l.tl.members.filter(m => l.pieces.includes(m.piece)), l.tl.doors.filter(d => l.pieces.includes(d.piece)).map(d => d.id), tunnelCouplingBom('modular', config, { tunnel, site }), l.errors]);
-  },
-  coupling: (site: TunnelSite, tunnel: TunnelConfig = TUNNEL_DEFAULT) => {
-    const l = couplingLayout(COUPLING_DEFAULT, { tunnel, site, joint: TUNNEL_COUPLING_DEFAULT });
-    return JSON.stringify([l.frame, l.fasteners, l.floor, couplingBom('modular', COUPLING_DEFAULT, { tunnel, site, joint: TUNNEL_COUPLING_DEFAULT }), l.errors]);
-  },
+const definition = (id: CatioSubassembly) => CATIO_SUBASSEMBLY_DEFINITIONS[id] as unknown as SubassemblyDefinition<object, unknown>;
+/** What a view of `id` shows of the project's first window or tunnel: its config, checks and parts list. */
+function view(project: Project, id: CatioSubassembly) {
+  const d = definition(id);
+  const subject = d.subject(project, evaluateProject(project), null);
+  if (!hasSubject(subject)) throw new Error(`${id}: ${subject.problem}`);
+  return { subject, errors: d.validate(subject.config, subject.site), bom: JSON.stringify(d.bom(subject.config, subject.site)), facts: d.facts(subject.config, subject.site) };
+}
+const edit = (project: Project, id: CatioSubassembly, instance: string, patch: Record<string, unknown>) => {
+  const result = configureSubassembly(project, id, instance, patch);
+  expect(result.errors).toEqual([]);
+  return result.project;
 };
 
-describe('catio pages that follow each other', () => {
-  it('declares exactly the window insert settings that change each page fitted to it', () => {
-    const follows = (page: 'tunnel' | 'insert-tunnel-coupling') => CATIO_SUBASSEMBLY_ENTRIES[page].follows.find(f => f.page === 'window-insert')?.settings ?? [];
-    for (const [page, build] of [['tunnel', builds.tunnel], ['insert-tunnel-coupling', (s: TunnelSite) => builds.coupling(s)]] as const) {
-      // the default printed pad keeps the 32 mm Ganter foot's gap, so the choice of feet shows only with another pad height; the
-      // diameter changes the gap only with the Ganter feet, whose height grows with it
-      for (const control of WINDOW_INSERT_CONTROLS) {
-        const values = control.range ? [control.range.min, control.range.max] : control.options.map(option => option.value);
-        const changes = [WINDOW_INSERT_DEFAULT, { ...WINDOW_INSERT_DEFAULT, padHeight: 30 }, { ...WINDOW_INSERT_DEFAULT, clampPad: 'ganter' as const }].some(base => {
-          const reference = build(withInsert(base));
-          return values.some(value => build(withInsert({ ...base, [control.key]: value })) !== reference);
-        });
-        expect(changes, `${page} · ${control.key}`).toBe(follows(page).includes(control.key));
-      }
+describe('sub-assembly views of the project (#117)', () => {
+  it('shows every sub-assembly of a new project fitted to it, with nothing that does not fit', () => {
+    const project = createProject();
+    for (const id of CATIO_SUBASSEMBLIES) {
+      const shown = view(project, id);
+      expect(shown.subject.instance, id).toBe(id === 'window-insert' || id === 'insert-tunnel-coupling' ? 'window-1' : 'tunnel-1');
+      expect(shown.errors, id).toEqual([]);
+      expect(shown.bom.length, id).toBeGreaterThan(2);
     }
   });
 
-  it('declares exactly the window insert settings that change the tunnel–tunnel coupling: none, it stands at its own height', () => {
-    expect(CATIO_SUBASSEMBLY_ENTRIES['tunnel-tunnel-coupling'].follows.some(f => f.page === 'window-insert')).toBe(false);
-    const reference = builds.tunnelCoupling(TUNNEL_DEFAULT, withInsert(WINDOW_INSERT_DEFAULT));
-    for (const control of WINDOW_INSERT_CONTROLS) for (const value of control.range ? [control.range.min, control.range.max] : control.options.map(option => option.value)) {
-      expect(builds.tunnelCoupling(TUNNEL_DEFAULT, withInsert({ ...WINDOW_INSERT_DEFAULT, [control.key]: value })), control.key).toBe(reference);
-    }
+  it('reads one source: a choice made on one view is what every other view and the planner show', () => {
+    let project = createProject();
+    // the insert's feet move the window port's floor: the tunnel and the coupling start from it
+    const floor = view(project, 'tunnel').facts.find(f => f.label.startsWith('Window port floor'))?.value;
+    project = edit(project, 'window-insert', 'window-1', { padHeight: 30 });
+    expect(view(project, 'window-insert').subject.config).toMatchObject({ padHeight: 30 });
+    expect(view(project, 'tunnel').facts.find(f => f.label.startsWith('Window port floor'))?.value).not.toBe(floor);
+    // the mesh is the whole catio's: set on the tunnel, the insert has it too
+    project = edit(project, 'tunnel', 'tunnel-1', { mesh: 'welded' });
+    expect(view(project, 'window-insert').subject.config).toMatchObject({ mesh: 'welded' });
+    expect(project.settings.mesh).toBe('welded');
+    // how the tunnel is held on its supports: one setting, on the tunnel and on its couplings
+    project = edit(project, 'tunnel-tunnel-coupling', 'tunnel-1', { supportFixing: 'strap' });
+    expect(view(project, 'tunnel').subject.config).toMatchObject({ supportFixing: 'strap' });
+    // the couplings' mechanism is every coupling's: the tunnel is bolted throughout
+    const latched = view(project, 'tunnel').bom;
+    project = edit(project, 'tunnel-tunnel-coupling', 'tunnel-1', { mechanism: 'bolts' });
+    expect(view(project, 'tunnel').bom).not.toBe(latched);
+    expect(view(project, 'tunnel').bom).not.toMatch(/Toggle latch, printed/);
+    // bolted face to face, the module pitch loses the latches' gap: the enclosure is no longer whole modules away, and the planner says so
+    expect(evaluateProject(project).issues.filter(i => i.severity === 'error').map(i => i.id)).toEqual(['connection:tunnel-1+enclosure-1:route']);
   });
 
-  it('declares exactly the tunnel–tunnel coupling settings that change the tunnel, and the tunnel settings that change the coupling', () => {
-    // the tunnel follows the coupling's mechanism at every coupling, its bolts where they are bolted, and how its cubes' doors are held
-    const followed = CATIO_SUBASSEMBLY_ENTRIES.tunnel.follows.find(f => f.page === 'tunnel-tunnel-coupling')?.settings ?? [];
-    const mechanisms = [TUNNEL_COUPLING_DEFAULT, { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' as const }];
-    for (const control of TUNNEL_COUPLING_CONTROLS) {
-      const changes = mechanisms.some(m => control.options.some(option => builds.tunnel(base, { ...m, [control.key]: option.value }) !== builds.tunnel(base, m)));
-      expect(changes, `tunnel · ${control.key}`).toBe(followed.includes(control.key));
-    }
-    // the coupling page is built from the tunnel's sections, one of its supports and its feet and ground
-    const entry = CATIO_SUBASSEMBLY_ENTRIES['tunnel-tunnel-coupling'];
-    const follows = [...entry.follows, ...entry.shares].filter(f => f.page === 'tunnel').flatMap(f => f.settings);
-    for (const mechanism of ['printed-latch', 'bolts'] as const) {
-      const config = { ...TUNNEL_COUPLING_DEFAULT, mechanism };
-      const own = builds.tunnelCoupling(TUNNEL_DEFAULT, base, config);
-      for (const control of TUNNEL_CONTROLS) {
-        const values = control.range ? [control.range.min, control.range.max] : control.options.map(option => option.value);
-        const changes = values.some(value => builds.tunnelCoupling({ ...TUNNEL_DEFAULT, [control.key]: value }, base, config) !== own)
-          // the printed feet's sole changes only them, and the Ganter feet's diameter only with the Ganter feet
-          || values.some(value => builds.tunnelCoupling({ ...TUNNEL_DEFAULT, footPad: 'ganter', [control.key]: value }, base, config) !== builds.tunnelCoupling({ ...TUNNEL_DEFAULT, footPad: 'ganter' }, base, config));
-        expect(changes, `tunnel–tunnel coupling (${mechanism}) · ${control.key}`).toBe(follows.includes(control.key));
-      }
-    }
-  });
-
-  it('only shows the tunnel on the coupling page: no tunnel setting changes the coupling’s parts', () => {
-    expect(CATIO_SUBASSEMBLY_ENTRIES['insert-tunnel-coupling'].follows.find(f => f.page === 'tunnel')?.settings).toEqual([]);
-    const reference = builds.coupling(base);
-    for (const control of TUNNEL_CONTROLS.filter(c => !c.range)) for (const option of control.options) {
-      expect(builds.coupling(base, { ...TUNNEL_DEFAULT, [control.key]: option.value }), `${control.key} ${String(option.value)}`).toBe(reference);
-    }
-  });
-
-  it('finds the pages fitted to each page, with the settings they follow', () => {
-    expect(dependentsOf('window-insert')).toEqual([
-      { page: 'tunnel', settings: ['attachment', 'clampPad', 'padHeight', 'footDiameter'] },
-      { page: 'insert-tunnel-coupling', settings: ['meshFixing', 'fixingPitch', 'attachment', 'clampPad', 'padHeight', 'footDiameter'] },
-    ]);
-    expect(dependentsOf('tunnel')).toEqual([
-      { page: 'insert-tunnel-coupling', settings: [] },
-      { page: 'tunnel-tunnel-coupling', settings: ['mesh', 'sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance', 'supportFixing', 'supportBase'] },
-    ]);
-    expect(dependentsOf('insert-tunnel-coupling')).toEqual([]);
-    expect(dependentsOf('tunnel-tunnel-coupling')).toEqual([{ page: 'tunnel', settings: ['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal', 'doorFixing'] }]);
-    for (const entry of Object.values(CATIO_SUBASSEMBLY_ENTRIES)) {
-      for (const f of entry.follows) for (const key of f.settings) expect(CATIO_SUBASSEMBLY_ENTRIES[f.page].label(key), `${entry.id} → ${f.page}.${key}`).not.toBe(key);
-      // without storage every page reads the others' defaults, which fit
-      expect(entry.savedErrors(), entry.id).toEqual([]);
-    }
+  it('says why an instance has no such sub-assembly, rather than showing another', () => {
+    const project = createProject();
+    const alone = { ...project, instances: project.instances.filter(i => i.kind !== 'tunnel'), ports: project.ports.filter(p => !p.owner.startsWith('tunnel')), connections: [] };
+    const evaluation = evaluateProject(alone);
+    expect(definition('insert-tunnel-coupling').subject(alone, evaluation, null)).toEqual({ instance: 'window-1', problem: "No tunnel starts at Window's cat port: draw one from it in the planner." });
+    expect(definition('tunnel').subject(alone, evaluation, null)).toEqual({ instance: null, problem: 'The project has no tunnel: add one in the planner.' });
+    expect(definition('tunnel').subject(project, evaluateProject(project), 'window-1')).toEqual({ instance: null, problem: 'Window is a window, not a tunnel.' });
   });
 });
 

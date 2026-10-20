@@ -14,7 +14,7 @@ export { parseTunnelCoupling, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT,
  * The tunnel–tunnel coupling: how two of the tunnel's sections are joined, flange to flange. Millimetres; X across the tunnel, +Y
  * along it (out from the wall), Z up, the grass at the wall Z=0, as on the tunnel page.
  *
- * The page owns the mechanism; the tunnel page follows it at every section and collar coupling. It shows one coupling of a straight,
+ * The mechanism is the project's: every tunnel is coupled so at every section and collar. The view shows one coupling of a straight,
  * level tunnel built by the tunnel's own layout (`tunnelLayout`), so the sections, the support under the joint, its feet and the
  * latches or bolts are exactly the tunnel's: two identical sections of the tunnel page's longest length, on the support between
  * them, at a fixed height above the grass (the joint is the same wherever it is on the route).
@@ -48,7 +48,7 @@ function part(id: string): Part {
 
 /** The coupling, placed: the two sections either side of it, the support under it, and its latches or bolts. */
 export function tunnelCouplingLayout(config: TunnelCouplingConfig, { tunnel: saved, site }: TunnelCouplingSite) {
-  // how the tunnel is held on its supports is shared with the tunnel page, and set on this page too (`shares`)
+  // how the tunnel is held on its supports: the project's one setting, which the tunnel's view edits too
   const tunnel: TunnelConfig = { ...saved, supportFixing: config.supportFixing, supportBase: config.supportBase };
   const straight = straightTunnel(tunnel, config, site);
   const tl = tunnelLayout(straight, { ...site, floorZ: TUNNEL_COUPLING.floor }, config);
@@ -204,11 +204,6 @@ export const TUNNEL_COUPLING_DECISIONS: DesignDecision[] = [
     choice: `Every flange is the same standard port: a ${STANDARD_PORT.ring.thickness} × ${STANDARD_PORT.ring.width} ring round the square clear opening, its latch and bolt stations the same on all four sides. Seen from outside, every port carries its latches’ base plates on its left side and their catch plates on its right. The enclosure’s port is one too, coupled like any other. A side port, on the rails of the section after a turn, is one too. A port that is not coupled (the stub’s end behind every side port) is closed by a door: set into it on turn buttons by default, or a blank ring closed by mesh on the port’s own latches.`,
     why: 'With one port, and base and catch on fixed sides of it, any element meets any other: two ports facing each other have a base across from every catch, whichever elements they belong to, and a door latched on is a blank element’s port. Stations the same on every side let a port fit another at any quarter turn, so a side port takes a section’s end like any other. The window end is the insert–tunnel coupling page’s docking frame, set out to the same stations.' },
 ];
-
-/** The cross-page settings of the tunnel this page is built from: its sections' length, and the support's feet and ground. */
-export const TUNNEL_SETTINGS_FOLLOWED = ['mesh', 'sectionLength', 'footPad', 'padHeight', 'padSurface', 'footDiameter', 'groundFall', 'groundTolerance'];
-/** The tunnel's settings this page shows and sets too: how the tunnel is held on its supports. */
-export const TUNNEL_SETTINGS_SHARED = ['supportFixing', 'supportBase'];
 
 /** Where the second section waits before it comes in, beyond the first, along the tunnel. */
 export const ENTRY = (l: TunnelCouplingLayout): V3 => vec.mul(l.coupling.face.n, 1.4 * l.sectionLength);

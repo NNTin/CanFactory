@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { CatioPlanner } from './CatioPlanner.tsx';
-import { readSavedProject, SavedProjectContext } from './catioPlannerSaved.ts';
+import { projectSession, ProjectSessionContext } from './catioPlannerSaved.ts';
 
-/** The planner's page: it opens the project saved in this browser (#115), or a new one when none is, or none can be read. */
+/** The planner's page: the project open in this tab (#117), the one sub-assemblies' views show too; first opened from storage (#115). */
 export function CatioPlannerRoute() {
-  const [saved] = useState(() => readSavedProject());
-  return <SavedProjectContext.Provider value={saved}>{saved.project ? <CatioPlanner initial={saved.project} /> : <CatioPlanner />}</SavedProjectContext.Provider>;
+  const [session] = useState(projectSession);
+  return <ProjectSessionContext.Provider value={session}><CatioPlanner store={session.store} /></ProjectSessionContext.Provider>;
 }

@@ -103,15 +103,20 @@ function legacyProject(saves: LegacySaves): LegacyImport {
   const design = saves.catio;
   // with no whole-catio settings, a page saved before the closure could be chosen kept its sliding gates
   const legacyClosure = !design && Object.values(pages).some(page => page.beforeClosure);
-  /** Whether a page's save chose its mesh: a save without one has the page's default, not a choice. */
-  const saved = (id: 'window-insert' | 'tunnel') => { const config = pages[id]?.config; return record(config) && 'mesh' in config; };
+  /** Whether a page's save chose a setting (its mesh, by default): a save without it has the page's default, not a choice. */
+  const savedKey = (id: 'window-insert' | 'tunnel', key: string) => { const config = pages[id]?.config; return record(config) && key in config; };
+  const saved = (id: 'window-insert' | 'tunnel') => savedKey(id, 'mesh');
   const insert = parseWindowInsert(pages['window-insert']?.config) ?? null;
   const tunnel = parseTunnel(pages.tunnel?.config) ?? null;
   const settings: ProjectSettings = {
     ...SETTINGS_DEFAULT,
     insert: insert ? withoutKeys(insert, ['mesh']) : SETTINGS_DEFAULT.insert,
     insertCoupling: parseCoupling(pages['insert-tunnel-coupling']?.config) ?? SETTINGS_DEFAULT.insertCoupling,
-    tunnelCoupling: withoutKeys(parseTunnelCoupling(pages['tunnel-tunnel-coupling']?.config) ?? { ...SETTINGS_DEFAULT.tunnelCoupling, jointShown: 'end-end' }, ['jointShown']),
+    // how the tunnel was held on its supports was the tunnel page's setting, which the coupling page showed and wrote back there
+    tunnelCoupling: {
+      ...withoutKeys(parseTunnelCoupling(pages['tunnel-tunnel-coupling']?.config) ?? { ...SETTINGS_DEFAULT.tunnelCoupling, jointShown: 'end-end' }, ['jointShown']),
+      ...Object.fromEntries((['supportFixing', 'supportBase'] as const).flatMap(key => tunnel && savedKey('tunnel', key) ? [[key, tunnel[key]]] : [])),
+    },
     mesh: (saved('window-insert') ? insert?.mesh : undefined) ?? (saved('tunnel') ? tunnel?.mesh : undefined) ?? SETTINGS_DEFAULT.mesh,
     portClosure: design?.portClosure ?? (legacyClosure ? LEGACY_CLOSURE : SETTINGS_DEFAULT.portClosure),
     doorSeat: design?.doorSeat ?? SETTINGS_DEFAULT.doorSeat,

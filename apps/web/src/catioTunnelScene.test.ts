@@ -2,10 +2,8 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { toggleLatchMechanism as TL } from '@canfactory/contracts';
 import type { CatioState } from './catioParts.ts';
-import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
-import { tunnelDefinition } from './catioSubassemblies.ts';
 import { createTunnelScene, LIFT } from './catioTunnelScene.ts';
-import { COUPLING_DEFAULT, MODULAR_DEFAULT, PORT_MOVED, SUPPORT_FIXINGS, TUNNEL_CONTROLS, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelLayout, tunnelPresets, tunnelSiteFor, tunnelSteps, WINDOW_INSERT_DEFAULT, type TunnelConfig, type TunnelCouplingConfig } from '@canfactory/catio';
+import { COUPLING_DEFAULT, MODULAR_DEFAULT, parseTunnel, PORT_MOVED, SUPPORT_FIXINGS, TUNNEL_CONTROLS, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelLayout, tunnelPresets, tunnelSiteFor, tunnelSteps, WINDOW_INSERT_DEFAULT, type TunnelConfig, type TunnelCouplingConfig } from '@canfactory/catio';
 const site = tunnelSiteFor(WINDOW_INSERT_DEFAULT, MODULAR_DEFAULT);
 const TUNNEL_PRESETS = tunnelPresets(() => ({ site, joint: TUNNEL_COUPLING_DEFAULT }));
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: true, cutaway: false, hidden: new Set() };
@@ -147,42 +145,38 @@ describe('tunnel presets', () => {
     for (const p of TUNNEL_PRESETS) {
       const config = p.config();
       expect(tunnelLayout(config, site, TUNNEL_COUPLING_DEFAULT).errors, p.id).toEqual([]);
-      expect(parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config })).config, p.id).toEqual(config);
+      expect(parseTunnel(config), p.id).toEqual(config);
     }
   });
 
 });
 
-describe('tunnel page settings', () => {
-  it('offers only the modular variant and restores valid saved settings', () => {
-    expect(defaultSubassemblySettings(tunnelDefinition).variant).toBe('modular');
-    const saved = JSON.stringify({ version: 1, variant: 'direct', config: { ...TUNNEL_DEFAULT, portHeight: 655, portFacing: 400, angleJoint: 'glued' }, views: { modular: { progress: 2, view: 'Top' } } });
-    const settings = parseSubassemblySettings(tunnelDefinition, saved);
-    expect(settings.variant).toBe('modular');
-    expect(settings.config.portHeight).toBe(655);
-    expect(settings.config.portFacing).toBe(TUNNEL_DEFAULT.portFacing);
-    expect(settings.config.angleJoint).toBe(TUNNEL_DEFAULT.angleJoint);
-    expect(settings.views.modular).toMatchObject({ progress: 2, view: 'Top' });
+describe('saved tunnel settings', () => {
+  it('reads a saved tunnel (the legacy import’s), keeping only valid settings', () => {
+    const config = parseTunnel({ ...TUNNEL_DEFAULT, portHeight: 655, portFacing: 400, angleJoint: 'glued' });
+    expect(config?.portHeight).toBe(655);
+    expect(config?.portFacing).toBe(TUNNEL_DEFAULT.portFacing);
+    expect(config?.angleJoint).toBe(TUNNEL_DEFAULT.angleJoint);
     // a tunnel saved before the standard elements: its route and its joints as saved, its longest section the nearest whole pitches
     for (const [sectionLength, pitches] of [[500, 1], [750, 2], [1000, 2]] as const) {
-      const old = parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar', portX: 1200, portY: 3000, sectionLength } }));
-      expect(old.config).toMatchObject({ angleJoint: 'angle-collar', portX: 1200, portY: 3000, sectionLength: pitches });
+      const old = parseTunnel({ ...TUNNEL_DEFAULT, angleJoint: 'angle-collar', portX: 1200, portY: 3000, sectionLength }) ?? TUNNEL_DEFAULT;
+      expect(old).toMatchObject({ angleJoint: 'angle-collar', portX: 1200, portY: 3000, sectionLength: pitches });
       // laid out on whole elements: the brief says where that puts the port
-      expect(tunnelLayout(old.config, site, TUNNEL_COUPLING_DEFAULT).moved).toBeGreaterThan(PORT_MOVED);
+      expect(tunnelLayout(old, site, TUNNEL_COUPLING_DEFAULT).moved).toBeGreaterThan(PORT_MOVED);
     }
     // off a step is not accepted either
-    expect(parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, portHeight: 657.3 } })).config.portHeight).toBe(TUNNEL_DEFAULT.portHeight);
+    expect(parseTunnel({ ...TUNNEL_DEFAULT, portHeight: 657.3 })?.portHeight).toBe(TUNNEL_DEFAULT.portHeight);
   });
 });
 
 describe('tunnel: the rest of the standard elements', () => {
   it('loads a tunnel saved with cube corners as one turning at side ports, its runs of cubes as long sections', () => {
-    const saved = parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, angleJoint: 'cube-corner', straights: 'cubes', portFacing: 90, portX: 2200 } })).config;
+    const saved = parseTunnel({ ...TUNNEL_DEFAULT, angleJoint: 'cube-corner', straights: 'cubes', portFacing: 90, portX: 2200 }) ?? TUNNEL_DEFAULT;
     expect(saved).toEqual({ ...TUNNEL_DEFAULT, angleJoint: 'side-port', portFacing: 90, portX: 2200 });
     expect(Object.keys(saved)).not.toContain('straights');
     expect(tunnelLayout(saved, site, TUNNEL_COUPLING_DEFAULT).joints.filter(j => j.kind === 'turn').every(j => j.side !== null)).toBe(true);
     // collars and mitres saved stay as they were
-    expect(parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends', straights: 'long' } })).config.angleJoint).toBe('mitred-ends');
+    expect(parseTunnel({ ...TUNNEL_DEFAULT, angleJoint: 'mitred-ends', straights: 'long' })?.angleJoint).toBe('mitred-ends');
   });
 
   it('offers only what side-port turns can make for the port’s facing, and any facing with collars', () => {
@@ -191,7 +185,7 @@ describe('tunnel: the rest of the standard elements', () => {
     expect(square[0]?.range).toBeUndefined(); expect(square[0]?.options.map(o => o.value)).toEqual([-90, 0, 90]);
     const collar = facing({ ...TUNNEL_DEFAULT, angleJoint: 'angle-collar' }); expect(collar).toHaveLength(1); expect(collar[0]?.range).toBeDefined();
     // a facing saved at another angle stays saved, and is laid out at the nearest a side port makes
-    const saved = parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, portFacing: 37 } })).config;
+    const saved = parseTunnel({ ...TUNNEL_DEFAULT, portFacing: 37 }) ?? TUNNEL_DEFAULT;
     expect(saved.portFacing).toBe(37);
     expect(tunnelLayout(saved, site, TUNNEL_COUPLING_DEFAULT).facingMoved).toBeCloseTo(37, 9);
   });

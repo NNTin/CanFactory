@@ -1,16 +1,21 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ArrowLeft, ArrowRight, Box, RotateCcw } from 'lucide-react';
 import * as THREE from 'three';
 import { bomRequirements, findPart } from '@canfactory/contracts';
+import {
+  BOM_GROUPS, configureSubassembly, hasSubject, SUBASSEMBLY_CONTROLS, SUBASSEMBLY_OWNERS, subassemblyInstances,
+  type BomLine, type CatioLayer, type CatioSubassembly, type CatioView, type SettingRef, type SubassemblyControl, type Subject,
+} from '@canfactory/catio';
 import { createStage, type Stage } from './stage.ts';
 import { latchPartsStatus, watchLatchParts } from './catioPrintedLatchScene.ts';
-import { loadSubassemblySettings, saveShared, subassemblyStorageKey, defaultSubassemblySettings, type SubassemblyDefinition, type SubassemblyModel, type SubassemblyViewing } from './catioSubassembly.ts';
-import { CATIO_SUBASSEMBLY_TITLES, couplingDefinition, dependentsOf, tunnelCouplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
-import { ChangesNote, OtherPageIssues, PageRelations, SettingSource, SharedNote, useOtherPageIssues } from './CatioCrossPage.tsx';
+import { defaultViewing, type SubassemblyDefinition, type SubassemblyModel, type SubassemblyViewing } from './catioSubassembly.ts';
+import { CATIO_SUBASSEMBLY_DEFINITIONS, CATIO_SUBASSEMBLY_TITLES } from './catioSubassemblies.ts';
+import { ControlFields, HistoryButtons, SharedNote } from './CatioControls.tsx';
+import { projectSession } from './catioPlannerSaved.ts';
+import { PlannerStoreContext, usePlannerHistory, usePlannerStore } from './catioPlannerStore.ts';
 import { formatHash } from './route.ts';
 import { AffiliateNote, OfferLink } from './Shopping.tsx';
 import { addToBuyList, useMarket, useOffers, type BuyListSource } from './shopping.ts';
-import { BOM_GROUPS, inRange, type BomLine, type CatioLayer, type CatioMode, type CatioView, type NumberRange, type CatioSubassembly } from '@canfactory/catio';
 
 const VIEWS: CatioView[] = ['Exterior', 'Interior', 'Front', 'Side', 'Top', 'Mounting'];
 const LAYERS: { id: CatioLayer; title: string }[] = [
@@ -18,54 +23,91 @@ const LAYERS: { id: CatioLayer; title: string }[] = [
 ];
 /** How long a door takes to open or shut on the stage, in ms: its buttons turn, then its panel comes out. */
 const DOOR_MS = 1600;
-const VARIANTS: { id: CatioMode; label: string }[] = [{ id: 'direct', label: 'Direct · original design' }, { id: 'modular', label: 'Modular · with tunnel' }];
+const OWNER_TITLES = { window: 'Window', tunnel: 'Tunnel' } as const;
 
-/** The page of one catio sub-assembly, picked by its route. */
-export function CatioSubassemblyRoute({ id }: { id: CatioSubassembly }) {
-  // The enclosure becomes a case here.
-  const pages: Record<CatioSubassembly, () => React.JSX.Element> = {
-    'window-insert': () => <CatioSubassemblyPage definition={windowInsertDefinition} />,
-    'insert-tunnel-coupling': () => <CatioSubassemblyPage definition={couplingDefinition} />,
-    tunnel: () => <CatioSubassemblyPage definition={tunnelDefinition} />,
-    'tunnel-tunnel-coupling': () => <CatioSubassemblyPage definition={tunnelCouplingDefinition} />,
-  };
-  return pages[id]();
+/** The view of one catio sub-assembly of an instance of the project open in this tab (#117), picked by its route. */
+export function CatioSubassemblyRoute({ id, instance }: { id: CatioSubassembly; instance: string | null }) {
+  const [session] = useState(projectSession);
+  const definition: SubassemblyDefinition<object, unknown> = CATIO_SUBASSEMBLY_DEFINITIONS[id] as unknown as SubassemblyDefinition<object, unknown>;
+  return <PlannerStoreContext.Provider value={session.store}><CatioSubassemblyPage definition={definition} instance={instance} /></PlannerStoreContext.Provider>;
 }
 
-/** Any sub-assembly: variants, its design parameters, a staged live preview, a parts list and the reasons behind its defaults. */
-export function CatioSubassemblyPage<C extends object>({ definition }: { definition: SubassemblyDefinition<C> }) {
+/**
+ * Any sub-assembly of an instance of the project: its construction choices (the project's: an edit is an edit of the project, one
+ * undo step, and shows in the planner), a staged live preview, a parts list and the reasons behind its defaults.
+ */
+export function CatioSubassemblyPage<C extends object, S>({ definition, instance }: { definition: SubassemblyDefinition<C, S>; instance: string | null }) {
+  const store = usePlannerStore();
+  const project = usePlannerHistory().present;
+  const evaluation = store.evaluation();
+  // the evaluation is the design's: a new one for every edit, the same while only the view changes
+  const subject = useMemo(() => definition.subject(store.get().present, evaluation, instance), [definition, evaluation, instance]);
+  const owner = SUBASSEMBLY_OWNERS[definition.id];
+  const instances = subassemblyInstances(project, definition.id);
+  const shown = subject.instance ?? '';
+  return <>
+    <div className="page-heading catio-heading"><div><div className="eyebrow">{definition.eyebrow}</div><h1>{definition.heading}</h1><p>{definition.summary}</p></div>
+      <span className="model-tag"><span /> SUB-ASSEMBLY</span></div>
+    <div className="subassembly-project" role="group" aria-label="Project">
+      <span>Of the project <strong>{project.name}</strong></span>
+      {instances.length > 0 && <label><span>{OWNER_TITLES[owner]}</span><select aria-label={OWNER_TITLES[owner]} value={shown} onChange={event => {
+        window.location.hash = formatHash({ view: 'concepts', concept: 'catio', subassembly: definition.id, instance: event.target.value });
+      }}>{instances.map(i => <option key={i.id} value={i.id}>{i.name ?? i.id}</option>)}</select></label>}
+      <a href={formatHash({ view: 'catio-planner' })} onClick={() => { if (shown) store.select([shown]); }}>Show in the planner</a>
+      <HistoryButtons />
+    </div>
+    {hasSubject(subject) ? <SubassemblyDetail key={subject.instance} definition={definition} subject={subject} />
+      : <p className="catio-errors subassembly-missing" role="status">{subject.problem} <a href={formatHash({ view: 'catio-planner' })}>Open the planner</a></p>}
+  </>;
+}
+
+function SubassemblyDetail<C extends object, S>({ definition, subject }: { definition: SubassemblyDefinition<C, S>; subject: Subject<C, S> }) {
+  const store = usePlannerStore();
+  const evaluation = store.evaluation();
   const container = useRef<HTMLDivElement>(null);
   const controller = useRef<{ stage: Stage; model: SubassemblyModel } | null>(null);
-  const [settings, setSettings] = useState(() => loadSubassemblySettings(definition));
   const [unsupported, setUnsupported] = useState(false);
   // the printed latches' parts arrive after the scene is drawn (or fail to): redraw, and say so on the viewer
   const latchParts = useSyncExternalStore(watchLatchParts, latchPartsStatus, () => 'idle' as const);
   useEffect(() => { controller.current?.stage.invalidate(); }, [latchParts]);
   const [action, setAction] = useState<string | null>(null);
-  const { variant, config } = settings;
-  const variants = VARIANTS.filter(option => !definition.variants || definition.variants.includes(option.id));
+  const [refused, setRefused] = useState<string[]>([]);
+  // how the view shows it (which joint), the view's own choices over the project's config
+  const [own, setOwn] = useState<Partial<C>>({});
+  const config = useMemo(() => ({ ...subject.config, ...own }), [subject, own]);
+  const { site } = subject;
   const toggles = definition.toggles ?? { windowOpen: 'Window open', cutaway: 'Wall cutaway' };
-  const viewing = settings.views[variant];
+  const steps = definition.steps(config, site); const last = steps.length - 1;
+  const [viewingState, setViewing] = useState<SubassemblyViewing>(() => defaultViewing(definition, last));
+  const viewing = viewingState.progress > last ? { ...viewingState, progress: last } : viewingState;
   const { progress, exploded, windowOpen, cutaway, view } = viewing;
   const hidden = new Set(viewing.hidden);
-  const steps = definition.steps(variant, config); const last = steps.length - 1;
   // The design's door (a cat port's panel or gate, a side-access panel), when it has one: shut until the assembly is complete, then
   // opened by its toggle. `door` is how far it is on its way out, which the stage follows from frame to frame.
-  const doorLabel = definition.doorToggle?.(variant, config) ?? null;
+  const doorLabel = definition.doorToggle?.(config, site) ?? null;
   const doorOpen = doorLabel !== null && viewing.doorOpen && progress >= last;
   const door = useRef(doorOpen ? 1 : 0);
   const stateRef = useRef({ ...viewing, hidden, door: door.current });
   stateRef.current = { ...viewing, hidden, door: door.current };
   const index = Math.ceil(progress); const step = steps[index] ?? steps[last];
-  const errors = definition.validate(variant, config);
-  const bom = definition.bom(variant, config);
-  const drawings = definition.drawings?.(variant, config) ?? [];
-  const controls = definition.controls.filter(control => (!control.variants || control.variants.includes(variant)) && (!control.when || control.when(config)));
-  const groups = [...new Set(controls.map(control => control.group))];
-  const editView = (patch: Partial<SubassemblyViewing>) => setSettings(current => ({ ...current, views: { ...current.views, [current.variant]: { ...current.views[current.variant], ...patch } } }));
+  const errors = definition.validate(config, site);
+  // the project's problems with this instance that its own checks do not already name
+  const problems = evaluation.issues.filter(i => i.severity !== 'info' && i.instanceIds.includes(subject.instance) && !errors.includes(i.message));
+  const bom = definition.bom(config, site);
+  const drawings = definition.drawings?.(config, site) ?? [];
+  const controls = [...(definition.viewControls ?? []), ...SUBASSEMBLY_CONTROLS[definition.id] as unknown as SubassemblyControl<C>[]];
+  const viewKeys = new Set((definition.viewControls ?? []).map(control => control.key));
+  const editView = (patch: Partial<SubassemblyViewing>) => setViewing(current => ({ ...current, ...patch }));
+  const change = (key: keyof C & string, value: C[keyof C]): string[] => {
+    if (viewKeys.has(key)) { setOwn(current => ({ ...current, [key]: value })); return []; }
+    const result = configureSubassembly(store.get().present, definition.id, subject.instance, { [key]: value });
+    setRefused(result.errors);
+    if (!result.errors.length) store.apply(result.project);
+    return result.errors;
+  };
   const focus = useRef('');
   const camera = (name: CatioView) => {
-    const preset = definition.views(variant, config)[name];
+    const preset = definition.views(config, site)[name];
     const offset = new THREE.Vector3(...(controller.current?.model.focusOffset?.() ?? [0, 0, 0])); focus.current = offset.toArray().join();
     const target = new THREE.Vector3(...preset.target).add(offset); const position = new THREE.Vector3(...preset.position).add(offset);
     if (stateRef.current.exploded) position.sub(target).multiplyScalar(1.45).add(target);
@@ -73,31 +115,24 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   };
   const visibleParts = () => controller.current?.model.components.filter(part => part.group.visible).map(part => part.id).join(' ') ?? '';
   useEffect(() => {
-    try { localStorage.setItem(subassemblyStorageKey(definition.id), JSON.stringify(settings)); } catch { /* The page works without storage. */ }
-    // settings shared with the page that owns them are kept there too
-    saveShared(definition, settings.config);
-  }, [settings, definition.id]);
-  // after the save above, so the pages fitted to this one read the new settings
-  const otherIssues = useOtherPageIssues(dependentsOf(definition.id).map(d => d.page), JSON.stringify(config));
-  useEffect(() => {
     const element = container.current; if (!element) return;
     const stage = createStage(element, `Interactive ${definition.title.toLowerCase()} concept. Drag to orbit, scroll to zoom, right-drag to pan.`, { scale: definition.stageScale ?? 10, workshopFloor: false });
     if (!stage) { setUnsupported(true); return; }
     setUnsupported(false);
-    const model = definition.build(variant, config);
+    const model = definition.build(config, site);
     stage.group.add(model.root); controller.current = { stage, model };
     model.update(stateRef.current); camera(stateRef.current.view); stage.invalidate(); setAction(model.caption?.() ?? null);
     element.dataset['ready'] = 'true'; element.dataset['visibleParts'] = visibleParts();
     return () => { delete element.dataset['ready']; model.dispose(); stage.dispose(); controller.current = null; };
     // camera and visibleParts read the current refs; the scene is rebuilt only for a new design
-  }, [definition, variant, config]);
+  }, [definition, config, site]);
   useEffect(() => {
     controller.current?.model.update(stateRef.current); controller.current?.stage.invalidate();
     setAction(controller.current?.model.caption?.() ?? null);
     // the cameras follow the sub-assembly when it moves somewhere else, e.g. between the bench and the window
     if ((controller.current?.model.focusOffset?.() ?? [0, 0, 0]).join() !== focus.current) camera(stateRef.current.view);
     if (container.current) container.current.dataset['visibleParts'] = visibleParts();
-  }, [viewing]);
+  }, [viewingState, config]);
   useEffect(() => { camera(view); }, [exploded, view]);
   useEffect(() => {
     const element = container.current; const target = doorOpen ? 1 : 0; const from = door.current;
@@ -121,45 +156,20 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   }, [doorOpen]);
   const selectView = (name: CatioView) => { camera(name); editView({ view: name, cutaway: (definition.cutawayViews ?? ['Interior', 'Mounting']).includes(name) }); };
   const toggleLayer = (id: CatioLayer) => editView({ hidden: hidden.has(id) ? viewing.hidden.filter(layer => layer !== id) : [...viewing.hidden, id] });
-  const change = (key: keyof C & string, value: C[keyof C]) => setSettings(current => ({ ...current, config: { ...current.config, [key]: value } }));
-  const activePreset = [{ id: 'recommended', config: () => definition.defaults }, ...(definition.presets ?? [])].find(preset => JSON.stringify(preset.config()) === JSON.stringify(config))?.id ?? null;
-  const reset = () => setSettings(current => ({ ...current, config: structuredClone(defaultSubassemblySettings(definition).config) }));
 
   return <>
-    <div className="page-heading catio-heading"><div><div className="eyebrow">{definition.eyebrow}</div><h1>{definition.heading}</h1><p>{definition.summary}</p></div>
-      <span className="model-tag"><span /> SUB-ASSEMBLY</span></div>
-    <div className="catio-modes" role="group" aria-label={`${definition.title} variant`}>{variants.map(option =>
-      <button type="button" key={option.id} aria-pressed={variant === option.id} onClick={() => setSettings(current => ({ ...current, variant: option.id }))}>{option.label}</button>)}</div>
     <div className="catio-layout">
       <aside className="catio-brief" aria-label={`${definition.title} parameters`}>
         <span className="eyebrow">{definition.briefLabel}</span>
-        <dl className="catio-dimensions">{definition.facts(variant, config).map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd>{fact.from && <SettingSource from={fact.from} />}</div>)}</dl>
+        <dl className="catio-dimensions">{definition.facts(config, site).map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd>{fact.from && <SettingSource from={fact.from} />}</div>)}</dl>
         <div className="catio-parameters subassembly-parameters">
-          {definition.presets && <div className="subassembly-presets" role="group" aria-label="Presets"><span className="eyebrow">PRESETS</span>
-            <div>{[{ id: 'recommended', label: 'Recommended', description: 'The recommended defaults.', config: () => structuredClone(definition.defaults) }, ...definition.presets].map(preset => {
-              return <button type="button" key={preset.id} title={preset.description} aria-pressed={activePreset === preset.id}
-                onClick={() => setSettings(current => ({ ...current, config: preset.config() }))}>{preset.label}</button>;
-            })}</div>
-            <small>{[{ id: 'recommended', description: 'The recommended defaults.' }, ...definition.presets].find(preset => preset.id === activePreset)?.description ?? 'Your own design: start again from a preset or the recommended defaults.'}</small></div>}
-          {groups.map(group => <fieldset key={group}><legend>{group}</legend>{controls.filter(control => control.group === group).map(control => {
-            const current = config[control.key];
-            const shared = definition.shares?.find(share => share.settings.includes(control.key));
-            const note = shared ? <SharedNote page={shared.page} /> : <ChangesNote page={definition.id} setting={control.key} />;
-            if (control.range) return <NumberField key={control.key} label={control.label} help={control.help} range={control.range} value={Number(current)}
-              onCommit={value => change(control.key, value as C[keyof C])} note={note} />;
-            return <label className="catio-field subassembly-field" key={control.key}><span>{control.label}</span>
-              <select aria-label={control.label} value={String(current)} onChange={event => {
-                const option = control.options.find(candidate => String(candidate.value) === event.target.value);
-                if (option) change(control.key, option.value);
-              }}>{control.options.map(option => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}</select>
-              <small>{control.help}</small>{note}</label>;
-          })}</fieldset>)}
+          <ControlFields controls={controls} config={config} change={change} note={key => viewKeys.has(key) ? null : <SharedNote id={definition.id} setting={key} />} />
+          {refused.length > 0 && <div role="alert" className="catio-errors"><strong>Not changed.</strong><ul>{refused.map(error => <li key={error}>{error}</li>)}</ul></div>}
           {errors.length > 0 && <div role="alert" className="catio-errors"><strong>This combination does not fit.</strong><ul>{errors.map(error => <li key={error}>{error}</li>)}</ul></div>}
-          <OtherPageIssues issues={otherIssues}>These settings do not fit another page.</OtherPageIssues>
-          <button type="button" className="catio-reset" onClick={reset}>Reset to the recommended defaults</button>
+          {problems.length > 0 && <div role="status" aria-label="Problems in the project" className="catio-errors subassembly-other-errors"><strong>In the project:</strong>
+            <ul>{problems.map(issue => <li key={issue.id}>{issue.message}</li>)}</ul></div>}
         </div>
-        {variant === 'modular' && <p>The window and cat port sizes follow the window in your <a href={formatHash({ view: 'catio-planner' })}>catio planner</a> project.</p>}
-        <PageRelations page={definition.id} follows={definition.follows ?? []} />
+        <p>These are the project’s settings: a change here is a change in the planner too, and Undo takes it back.</p>
       </aside>
       <section className="catio-preview" aria-label={`Live ${definition.title.toLowerCase()} concept`}>
         <div className="catio-preview-title"><span className="eyebrow"><Box size={14} /> LIVE ASSEMBLY</span><span>Dimensions in millimetres</span></div>
@@ -167,7 +177,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
           <button key={name} type="button" aria-pressed={name === view} onClick={() => selectView(name)} disabled={unsupported}>{definition.viewLabels?.[name] ?? name}</button>)}
           <button type="button" aria-label="Reset view" title="Reset view" disabled={unsupported} onClick={() => selectView('Exterior')}><RotateCcw size={14} /></button>
         </div>
-        <div className="catio-canvas" ref={container} data-testid="subassembly-viewer" data-subassembly={definition.id} data-variant={variant} data-config={JSON.stringify(config)} data-step={index} data-window={windowOpen ? 'open' : 'closed'} data-exploded={exploded} data-door={doorLabel === null ? undefined : doorOpen ? 'open' : 'closed'} data-latch-parts={latchParts === 'idle' ? undefined : latchParts}>
+        <div className="catio-canvas" ref={container} data-testid="subassembly-viewer" data-subassembly={definition.id} data-instance={subject.instance} data-config={JSON.stringify(config)} data-step={index} data-window={windowOpen ? 'open' : 'closed'} data-exploded={exploded} data-door={doorLabel === null ? undefined : doorOpen ? 'open' : 'closed'} data-latch-parts={latchParts === 'idle' ? undefined : latchParts}>
           {unsupported && <div className="catio-fallback"><Box size={32} /><strong>3D preview needs WebGL</strong><p>The parts list and assembly instructions below are still available.</p></div>}
           {latchParts === 'missing' && <p className="catio-latch-note" role="status">The printed latches’ parts could not be loaded. They are shown without them and tried again shortly.</p>}
         </div>
@@ -202,25 +212,15 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
   </>;
 }
 
-/** A free number: typed in its display unit, kept while it is being typed, and stored once its range accepts it. */
-function NumberField({ label, help, range, value, onCommit, note }: { label: string; help: string; range: NumberRange; value: number; onCommit: (value: number) => void; note?: ReactNode }) {
-  const scale = range.scale ?? 1;
-  const shown = (stored: number) => String(Number((stored / scale).toFixed(3)));
-  const [text, setText] = useState(() => shown(value));
-  useEffect(() => { setText(shown(value)); }, [value, scale]);
-  /** The stored value a typed text stands for, or null when its range does not accept it. */
-  const parse = (typed: string) => {
-    const stored = Math.round(Number(typed) * scale * 1e6) / 1e6;
-    return typed.trim() !== '' && inRange(range, stored) ? stored : null;
-  };
-  return <label className="catio-field subassembly-field"><span>{label} <em className="subassembly-unit">{range.unit}</em></span>
-    <input type="number" aria-label={label} aria-invalid={parse(text) === null} min={range.min / scale} max={range.max / scale} step={range.step / scale} value={text}
-      onChange={event => {
-        setText(event.target.value);
-        const next = parse(event.target.value); if (next !== null) onCommit(next);
-      }}
-      onBlur={() => setText(shown(value))} />
-    <small>{help} {`${shown(range.min)}–${shown(range.max)} ${range.unit}.`}</small>{note}</label>;
+/**
+ * Under a fact or a decision that another sub-assembly's settings change: where they are set, the view of that sub-assembly in the
+ * project (or the planner, for the cat ports and a tunnel's route).
+ */
+function SettingSource({ from }: { from: SettingRef }) {
+  const labels = from.page === 'planner' ? from.settings
+    : from.settings.flatMap(key => (SUBASSEMBLY_CONTROLS[from.page] as SubassemblyControl<object>[]).find(control => control.key === key)?.label ?? []);
+  if (from.page === 'planner' || !labels.length) return <small className="subassembly-source">Set in the <a href={formatHash({ view: 'catio-planner' })}>catio planner</a>{from.page === 'planner' ? `: ${labels.join(', ')}` : ', by the tunnel’s route'}</small>;
+  return <small className="subassembly-source">Set on the <a href={formatHash({ view: 'concepts', concept: 'catio', subassembly: from.page })}>{CATIO_SUBASSEMBLY_TITLES[from.page].toLowerCase()}</a>: {labels.join(', ')}</small>;
 }
 
 function PartsList({ lines, from }: { lines: BomLine[]; from: BuyListSource }) {

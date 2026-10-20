@@ -75,19 +75,21 @@ test('imports a version 1 catio once into a new project: its sizes, its sliding 
   await page.reload();
   await expect(tree(page).getByRole('button', { name: /Turn 7/ })).toBeVisible();
 
-  // the sub-assembly pages take the window and the cat ports from the project: the window insert has its gate
+  // the sub-assemblies' views show the imported project: the window insert has its gate
   await page.goto('/#/concepts/catio/window-insert');
   const sub = page.getByTestId('subassembly-viewer');
   await expect(sub).toHaveAttribute('data-ready', 'true');
-  await expect(sub).toHaveAttribute('data-variant', 'modular');
   await expect(sub).toHaveAttribute('data-visible-parts', /gate-tracks cat-gate gate-latch/);
-  await expect(page.getByRole('complementary', { name: 'Window insert parameters' })).toContainText('Set on the catio planner page: Cat-port closure');
-  // the tunnel page keeps its own save as it was
+  await expect(sub).toHaveAttribute('data-config', /"footDiameter":40/);
+  await expect(page.getByRole('complementary', { name: 'Window insert parameters' })).toContainText('Set in the catio planner: Cat-port closure');
+  // the tunnel the tunnel page's save gave its feet, its mesh and how it is held on its supports, along the imported route
   await page.goto('/#/concepts/catio/tunnel');
   await expect(sub).toHaveAttribute('data-ready', 'true');
-  await expect(sub).toHaveAttribute('data-config', /"portX":800.*"mesh":"welded".*"supportFixing":"dowels"/);
+  await expect(sub).toHaveAttribute('data-config', /"footPad":"ganter"/);
+  await expect(sub).toHaveAttribute('data-config', /"mesh":"welded"/);
+  await expect(sub).toHaveAttribute('data-config', /"supportFixing":"dowels"/);
   await expect(page.getByRole('complementary', { name: 'Tunnel parameters' })).toContainText('Vertical sliding gate');
-  // choosing the removable panel in the planner: the pages follow
+  // choosing the removable panel in the planner: the views follow
   await page.goto('/#/concepts/catio/planner');
   await tree(page).getByRole('button', { name: /Window/ }).click();
   await inspector(page).getByRole('combobox', { name: 'Cat-port closure' }).selectOption('removable-panel');
@@ -95,8 +97,8 @@ test('imports a version 1 catio once into a new project: its sizes, its sliding 
   await page.goto('/#/concepts/catio/window-insert');
   await expect(sub).toHaveAttribute('data-ready', 'true');
   await expect(sub).toHaveAttribute('data-visible-parts', /port-panel port-panel-hardware/);
-  // (the sub-assembly pages still keep their own saves, #117, and rewrite them when opened; the old catio's stays as it was)
-  expect((await legacyKeys(page))[LEGACY]).toBe(before[LEGACY]);
+  // the views write nothing of their own: the old saves are as they were
+  expect(await legacyKeys(page)).toEqual(before);
   expect(errors).toEqual([]);
 });
 

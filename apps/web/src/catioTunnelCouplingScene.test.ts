@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { toggleLatchMechanism as TL } from '@canfactory/contracts';
 import type { CatioState } from './catioParts.ts';
-import { defaultSubassemblySettings, loadSubassemblySettings, parseSubassemblySettings, saveShared, subassemblyStorageKey } from './catioSubassembly.ts';
-import { dependentsOf, tunnelCouplingDefinition, tunnelDefinition } from './catioSubassemblies.ts';
+import { tunnelCouplingDefinition } from './catioSubassemblies.ts';
 import { createTunnelCouplingScene, LIFT } from './catioTunnelCouplingScene.ts';
-import { MODULAR_DEFAULT, SUPPORT_FIXINGS, TUNNEL, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelCouplingLayout, tunnelCouplingSteps, tunnelSiteFor, validateTunnelCoupling, vec, WINDOW_INSERT_DEFAULT, type SupportFixing, type TunnelConfig, type TunnelCouplingConfig, type TunnelCouplingSite } from '@canfactory/catio';
+import { MODULAR_DEFAULT, parseTunnel, parseTunnelCoupling, settingHome, SUBASSEMBLY_CONTROLS, SUPPORT_FIXINGS, TUNNEL, TUNNEL_CONTROLS, TUNNEL_COUPLING_CONTROLS, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelCouplingLayout, tunnelCouplingSteps, tunnelSiteFor, validateTunnelCoupling, vec, WINDOW_INSERT_DEFAULT, type SupportFixing, type TunnelConfig, type TunnelCouplingConfig, type TunnelCouplingSite } from '@canfactory/catio';
 
 const base = tunnelSiteFor(WINDOW_INSERT_DEFAULT, MODULAR_DEFAULT);
 const site: TunnelCouplingSite = { tunnel: TUNNEL_DEFAULT, site: base };
@@ -259,68 +258,40 @@ describe('tunnel–tunnel coupling on its support, as the tunnel page holds it',
   });
 });
 
-describe('tunnel–tunnel coupling page settings', () => {
-  it('offers only the modular variant, starts coupled and restores valid saved settings', () => {
-    const defaults = defaultSubassemblySettings(tunnelCouplingDefinition);
-    expect(defaults.variant).toBe('modular');
-    expect(defaults.views.modular.windowOpen).toBe(false);
-    expect(defaults.config).toEqual({ mechanism: 'printed-latch', latchesPerSide: 2, boltsPerCoupling: 8, seal: 'e-profile', doorFixing: 'turn-buttons', jointShown: 'end-end', supportFixing: 'screws', supportBase: 'trestle' });
-    const saved = JSON.stringify({ version: 1, variant: 'direct', config: { ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 12, latchesPerSide: 5, seal: 'foam', doorFixing: 'latches' }, views: { modular: { progress: 3, windowOpen: true, view: 'Mounting' } } });
-    const settings = parseSubassemblySettings(tunnelCouplingDefinition, saved);
-    expect(settings.variant).toBe('modular');
-    expect(settings.config).toEqual({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 12, doorFixing: 'latches' });
+describe('tunnel–tunnel coupling settings', () => {
+  it('starts coupled, and reads a saved coupling (the legacy import’s), keeping only valid settings', () => {
+    expect(tunnelCouplingDefinition.defaultViewing?.windowOpen).toBe(false);
+    expect(TUNNEL_COUPLING_DEFAULT).toEqual({ mechanism: 'printed-latch', latchesPerSide: 2, boltsPerCoupling: 8, seal: 'e-profile', doorFixing: 'turn-buttons', jointShown: 'end-end', supportFixing: 'screws', supportBase: 'trestle' });
+    expect(parseTunnelCoupling({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 12, latchesPerSide: 5, seal: 'foam', doorFixing: 'latches' }))
+      .toEqual({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', boltsPerCoupling: 12, doorFixing: 'latches' });
     // saved before cubes were dropped: the nearest joint, a section's end at a side port for one that met a cube
     for (const [before, now] of [['tunnel', 'end-end'], ['section-section', 'end-end'], ['section-cube', 'end-side'], ['cube-cube', 'end-side']] as const) {
-      expect(parseSubassemblySettings(tunnelCouplingDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_COUPLING_DEFAULT, jointShown: before } })).config.jointShown).toBe(now);
+      expect(parseTunnelCoupling({ ...TUNNEL_COUPLING_DEFAULT, jointShown: before })?.jointShown).toBe(now);
     }
     // saved before the bolts were the same on all four sides of the port: 6 (three a side, on two sides) is not offered, and takes the default
-    expect(parseSubassemblySettings(tunnelCouplingDefinition, JSON.stringify({ version: 1, config: { ...TUNNEL_COUPLING_DEFAULT, boltsPerCoupling: 6 } })).config.boltsPerCoupling).toBe(8);
-    expect(settings.views.modular).toMatchObject({ progress: 3, windowOpen: true, view: 'Mounting' });
-    expect(parseSubassemblySettings(tunnelCouplingDefinition, '{oops')).toEqual(defaults);
+    expect(parseTunnelCoupling({ ...TUNNEL_COUPLING_DEFAULT, boltsPerCoupling: 6 })?.boltsPerCoupling).toBe(8);
+    expect(parseTunnelCoupling('oops')).toBeNull();
     // the latches' own settings show only with the latches
     const shown = (config: TunnelCouplingConfig) => TUNNEL_COUPLING_CONTROLS.filter(c => !c.when || c.when(config)).map(c => c.key);
     expect(shown(TUNNEL_COUPLING_DEFAULT)).toEqual(['mechanism', 'latchesPerSide', 'boltsPerCoupling', 'seal', 'doorFixing', 'jointShown', 'supportFixing', 'supportBase']);
     expect(shown({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts' })).toEqual(['mechanism', 'boltsPerCoupling', 'doorFixing', 'jointShown', 'supportFixing', 'supportBase']);
   });
 
-  it('shares how the tunnel is held on its supports with the tunnel page: set on either, both show it', () => {
-    const store = new Map<string, string>();
-    const storage = { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => void store.set(key, value), removeItem: (key: string) => void store.delete(key), clear: () => store.clear(), key: () => null, length: 0 };
-    const previous = (globalThis as { localStorage?: Storage }).localStorage;
-    Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
-    try {
-      expect(tunnelCouplingDefinition.shares).toEqual([{ page: 'tunnel', settings: ['supportFixing', 'supportBase'] }]);
-      // the same settings, offered alike on both pages
-      for (const key of ['supportFixing', 'supportBase'] as const) {
-        const here = tunnelCouplingDefinition.controls.find(c => c.key === key); const there = tunnelDefinition.controls.find(c => c.key === key);
-        expect(here?.options).toEqual(there?.options); expect(here?.label).toBe(there?.label);
-      }
-      // set on the tunnel page: this page loads with it, whatever it saved itself
-      store.set(subassemblyStorageKey('tunnel'), JSON.stringify({ version: 1, config: { ...TUNNEL_DEFAULT, supportFixing: 'dowels', portHeight: 655 } }));
-      store.set(subassemblyStorageKey('tunnel-tunnel-coupling'), JSON.stringify({ version: 1, config: { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'strap', mechanism: 'bolts' } }));
-      expect(loadSubassemblySettings(tunnelCouplingDefinition).config).toEqual({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', supportFixing: 'dowels' });
-      // set here: written back to the tunnel page, its other settings kept
-      saveShared<TunnelCouplingConfig>(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'turn-buttons', supportBase: 'self-standing' });
-      expect(loadSubassemblySettings(tunnelDefinition).config).toEqual({ ...TUNNEL_DEFAULT, supportFixing: 'turn-buttons', supportBase: 'self-standing', portHeight: 655 });
-      // with nothing saved on the tunnel page yet, it is started with just these
-      store.clear();
-      saveShared<TunnelCouplingConfig>(tunnelCouplingDefinition, { ...TUNNEL_COUPLING_DEFAULT, supportFixing: 'strap' });
-      expect(loadSubassemblySettings(tunnelDefinition).config).toEqual({ ...TUNNEL_DEFAULT, supportFixing: 'strap' });
-      // an invalid value saved on the tunnel page is not taken
-      store.set(subassemblyStorageKey('tunnel'), JSON.stringify({ version: 1, config: { supportFixing: 'glue' } }));
-      expect(loadSubassemblySettings(tunnelCouplingDefinition).config.supportFixing).toBe('screws');
-      // the tunnel page names this page under the shared settings
-      expect(dependentsOf('tunnel').find(d => d.page === 'tunnel-tunnel-coupling')?.settings).toEqual(expect.arrayContaining(['supportFixing', 'supportBase', 'sectionLength']));
-    } finally {
-      if (previous) Object.defineProperty(globalThis, 'localStorage', { value: previous, configurable: true }); else delete (globalThis as { localStorage?: Storage }).localStorage;
+  it('offers how the tunnel is held on its supports alike on the tunnel and on its couplings: one setting of the project', () => {
+    for (const key of ['supportFixing', 'supportBase'] as const) {
+      const here = SUBASSEMBLY_CONTROLS['tunnel-tunnel-coupling'].find(c => c.key === key); const there = SUBASSEMBLY_CONTROLS.tunnel.find(c => c.key === key);
+      expect(here?.options).toEqual(there?.options); expect(here?.label).toBe(there?.label);
+      expect(settingHome('tunnel', key)).toBe('tunnelCoupling'); expect(settingHome('tunnel-tunnel-coupling', key)).toBe('tunnelCoupling');
     }
+    // which joint the view shows is the view's own, not the project's
+    expect(SUBASSEMBLY_CONTROLS['tunnel-tunnel-coupling'].map(c => c.key)).not.toContain('jointShown');
+    expect(tunnelCouplingDefinition.viewControls?.map(c => c.key)).toEqual(['jointShown']);
   });
 
-  it('drops the tunnel page’s old coupling bolts from its saved settings: they are set here now', () => {
-    const saved = JSON.stringify({ version: 1, variant: 'modular', config: { ...TUNNEL_DEFAULT, couplingBolts: 8, portHeight: 655 } });
-    const config = parseSubassemblySettings(tunnelDefinition, saved).config;
+  it('drops the tunnel’s old coupling bolts from a saved tunnel: they are the coupling’s now', () => {
+    const config = parseTunnel({ ...TUNNEL_DEFAULT, couplingBolts: 8, portHeight: 655 });
     expect(config).toEqual({ ...TUNNEL_DEFAULT, portHeight: 655 });
-    expect('couplingBolts' in config).toBe(false);
-    expect(tunnelDefinition.controls.map(c => c.key)).not.toContain('couplingBolts');
+    expect(config && 'couplingBolts' in config).toBe(false);
+    expect(TUNNEL_CONTROLS.map(c => c.key)).not.toContain('couplingBolts');
   });
 });

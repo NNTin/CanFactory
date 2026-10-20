@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { dimensionOf, WINDOW_INSERT_FOOT } from '@canfactory/contracts';
-import { parseSubassemblySettings, defaultSubassemblySettings } from './catioSubassembly.ts';
-import { windowInsertDefinition } from './catioSubassemblies.ts';
 import { BENCH_OFFSET, buildInsertContext, createWindowInsertScene } from './catioWindowInsertScene.ts';
 import { createCatioParts, type CatioState } from './catioParts.ts';
-import { HOOK_FIT, INSERT, MODULAR_DEFAULT, PAD_HEIGHT, PORT_CLOSURE_DEFAULT, PORT_CLOSURES, TILT_MAX, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowFrame, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from '@canfactory/catio';
+import { HOOK_FIT, INSERT, MODULAR_DEFAULT, PAD_HEIGHT, parseWindowInsert, PORT_CLOSURE_DEFAULT, PORT_CLOSURES, TILT_MAX, validateWindowInsert, WINDOW_INSERT_CONTROLS, WINDOW_INSERT_DEFAULT, windowFor, windowFrame, windowInsertBom, windowInsertFacts, windowInsertLayout, windowInsertSteps, type WindowInsertConfig } from '@canfactory/catio';
 
 const installed: CatioState = { progress: 6, exploded: false, windowOpen: false, cutaway: false, hidden: new Set() };
 const bounds = (object: THREE.Object3D) => new THREE.Box3().setFromObject(object, true);
@@ -183,14 +181,11 @@ describe('window insert', () => {
     }
   });
 
-  it('restores valid saved settings and drops invalid ones', () => {
-    const saved = JSON.stringify({ version: 1, variant: 'modular', config: { ...WINDOW_INSERT_DEFAULT, footDiameter: 40, cornerJoint: 'nailed' }, views: { modular: { progress: 3, view: 'Mounting', hidden: ['mesh', 'bogus'], windowOpen: false } } });
-    const settings = parseSubassemblySettings(windowInsertDefinition, saved);
-    expect(settings.variant).toBe('modular');
-    expect(settings.config.footDiameter).toBe(40);
-    expect(settings.config.cornerJoint).toBe('corner-bracket');
-    expect(settings.views.modular).toMatchObject({ progress: 3, view: 'Mounting', hidden: ['mesh'], windowOpen: false });
-    expect(parseSubassemblySettings(windowInsertDefinition, '{oops')).toEqual(defaultSubassemblySettings(windowInsertDefinition));
+  it('reads a saved insert (the legacy import’s), keeping valid settings and dropping invalid ones', () => {
+    const config = parseWindowInsert({ ...WINDOW_INSERT_DEFAULT, footDiameter: 40, cornerJoint: 'nailed' });
+    expect(config?.footDiameter).toBe(40);
+    expect(config?.cornerJoint).toBe('corner-bracket');
+    expect(parseWindowInsert('oops')).toBeNull();
   });
 });
 

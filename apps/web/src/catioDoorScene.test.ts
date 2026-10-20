@@ -3,14 +3,13 @@ import * as THREE from 'three';
 import { buildDoorPanel } from './catioDoorScene.ts';
 import { createCatioParts, type CatioState } from './catioParts.ts';
 import { catPorts, type CatioDoor } from './catioEnclosureScene.ts';
-import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
+import { defaultViewing, type SubassemblyDefinition } from './catioSubassembly.ts';
 import { couplingDefinition, tunnelCouplingDefinition, tunnelDefinition, windowInsertDefinition } from './catioSubassemblies.ts';
 import { createCouplingScene } from './catioCouplingScene.ts';
 import { createTunnelCouplingScene } from './catioTunnelCouplingScene.ts';
 import { createTunnelScene } from './catioTunnelScene.ts';
 import { createWindowInsertScene } from './catioWindowInsertScene.ts';
-import { COUPLING_DEFAULT, DOOR, DOOR_SEATS, DOOR_TRAVEL, doorBounds, INSERT, insetPanel, MODULAR_DEFAULT, parseTunnel, PORT_CLOSURE_DEFAULT, PORT_CLOSURES, PORT_FRAME, setInDoor, slidingGateRise, TUNNEL, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, validateModular, WINDOW_INSERT_DEFAULT, windowFor, windowInsertLayout, type DoorPanel, type ModularConfig, type TunnelSite, type WindowInsertConfig, type WindowSpec } from '@canfactory/catio';
-import { tunnelSite } from './catioSaved.ts';
+import { COUPLING_DEFAULT, createProject, DOOR, DOOR_SEATS, evaluateProject, hasSubject, tunnelSiteFor, DOOR_TRAVEL, doorBounds, INSERT, insetPanel, MODULAR_DEFAULT, parseTunnel, PORT_CLOSURE_DEFAULT, PORT_CLOSURES, PORT_FRAME, setInDoor, slidingGateRise, TUNNEL, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, validateModular, WINDOW_INSERT_DEFAULT, windowFor, windowInsertLayout, type DoorPanel, type ModularConfig, type TunnelSite, type WindowInsertConfig, type WindowSpec } from '@canfactory/catio';
 
 /** The cat port sizes the planner allows (20–45 cm each way), and section lengths between the tunnel's flanges. */
 const SIZES = [200, 250, 300, 380, 450];
@@ -25,7 +24,7 @@ const sliding: ModularConfig = { ...MODULAR_DEFAULT, portClosure: 'sliding-gate'
 const windowWith = (closure: WindowSpec['closure'], config: WindowInsertConfig = WINDOW_INSERT_DEFAULT): WindowSpec => ({ ...windowFor('modular', config, MODULAR_DEFAULT), closure });
 const siteWith = (closure: WindowSpec['closure'], insert: WindowInsertConfig = WINDOW_INSERT_DEFAULT): TunnelSite => {
   const window = windowWith(closure, insert);
-  return { ...tunnelSite(), insert, window, floorZ: windowInsertLayout('modular', insert, window).floor };
+  return { ...tunnelSiteFor(insert, MODULAR_DEFAULT), insert, window, floorZ: windowInsertLayout('modular', insert, window).floor };
 };
 
 describe('removable door panel: button sweep and withdrawal', () => {
@@ -80,31 +79,27 @@ describe('cat-port closure: sliding travel only for a sliding gate', () => {
 });
 
 describe('saved sub-assembly settings', () => {
-  it('keeps a saved tunnel’s settings and viewing state, dropping the side access its end bays’ doors replaced', () => {
+  it('reads a saved tunnel (the legacy import’s), dropping the side access its end bays’ doors replaced', () => {
     const config = { ...TUNNEL_DEFAULT, portX: 800, portHeight: 655, supportFixing: 'dowels' as const, mesh: 'welded' as const };
-    const saved = parseSubassemblySettings(tunnelDefinition, JSON.stringify({ version: 1, variant: 'modular', config: { ...config, sideAccess: 'all', sideAccessSide: 'left' }, views: { modular: { progress: 3, view: 'Top', hidden: ['mesh'], cutaway: true, exploded: true, windowOpen: false } } }));
-    expect(saved.config).toEqual(config); expect(Object.keys(saved.config)).not.toContain('sideAccess');
-    expect(saved.views.modular).toEqual({ progress: 3, view: 'Top', hidden: ['mesh'], cutaway: true, exploded: true, windowOpen: false, doorOpen: false });
-    expect(parseTunnel(saved.config)).toEqual(saved.config);
-    // only the settings another page shares with it, written before the tunnel page was ever opened: not a saved tunnel
+    const saved = parseTunnel({ ...config, sideAccess: 'all', sideAccessSide: 'left' });
+    expect(saved).toEqual(config); expect(Object.keys(saved ?? {})).not.toContain('sideAccess');
+    // only the settings another page once shared with it, written before the tunnel page was ever opened: not a saved tunnel
     expect(parseTunnel({ supportFixing: 'strap', supportBase: 'self-standing' })).toEqual({ ...TUNNEL_DEFAULT, supportFixing: 'strap', supportBase: 'self-standing' });
   });
 
-  it('remembers an opened door per page, and starts every older page with its door shut', () => {
-    for (const definition of [windowInsertDefinition, couplingDefinition, tunnelDefinition, tunnelCouplingDefinition] as const) {
-      const d = definition as typeof windowInsertDefinition;
-      expect(defaultSubassemblySettings(d).views.modular.doorOpen, d.id).toBe(false);
-      const last = d.steps('modular', d.defaults).length - 1;
-      expect(parseSubassemblySettings(d, JSON.stringify({ version: 1, variant: 'modular', config: d.defaults, views: { modular: { progress: last, doorOpen: true } } })).views.modular).toMatchObject({ progress: last, doorOpen: true });
-      expect(parseSubassemblySettings(d, JSON.stringify({ version: 1, variant: 'modular', config: d.defaults, views: { modular: { progress: last, doorOpen: 'yes' } } })).views.modular.doorOpen).toBe(false);
-    }
-    // each page offers the toggle only where its design has a door
-    expect(windowInsertDefinition.doorToggle?.('modular', WINDOW_INSERT_DEFAULT)).toBe('Cat port open');
-    expect(windowInsertDefinition.doorToggle?.('direct', WINDOW_INSERT_DEFAULT)).toBeNull();
-    expect(couplingDefinition.doorToggle?.('modular', COUPLING_DEFAULT)).toBe('Cat port open');
+  it('offers each view’s door where its design has one, shut until it is opened', () => {
+    const project = createProject(); const evaluation = evaluateProject(project);
+    const toggle = <C extends object, S>(d: SubassemblyDefinition<C, S>) => {
+      const subject = d.subject(project, evaluation, null);
+      if (!hasSubject(subject)) throw new Error(`${d.id}: ${subject.problem}`);
+      expect(defaultViewing(d, d.steps(subject.config, subject.site).length - 1).doorOpen, d.id).toBe(false);
+      return d.doorToggle?.(subject.config, subject.site);
+    };
+    expect(toggle(windowInsertDefinition)).toBe('Cat port open');
+    expect(toggle(couplingDefinition)).toBe('Cat port open');
     // the tunnel's doors, every opening not coupled, open together
-    expect(tunnelDefinition.doorToggle?.('modular', TUNNEL_DEFAULT)).toBe('Doors open');
-    expect(tunnelDefinition.doorToggle?.('modular', { ...TUNNEL_DEFAULT, angleJoint: 'angle-collar' as const })).toBe('Doors open');
+    expect(toggle(tunnelDefinition)).toBe('Doors open');
+    expect(toggle(tunnelCouplingDefinition)).toBe('Doors open');
   });
 });
 
