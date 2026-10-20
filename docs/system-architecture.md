@@ -108,9 +108,9 @@ browser carries its own copy of the whole model registry, parts library, offers 
 ```mermaid
 flowchart TB
     subgraph C["packages/contracts: data and pure logic (bundled into web, api, worker, tools)"]
-        registry["Model registry<br/>models.ts: 17 ModelDefinitions<br/>schemas · controls · scadMapping · partDefines<br/>assembly · physics()"]
+        registry["Model registry<br/>models.ts: 18 ModelDefinitions<br/>schemas · controls · scadMapping · partDefines<br/>assembly · physics()"]
         reqUnion["RenderRequestSchema union<br/>index.ts: derived from registeredModels"]
-        partsLib["Parts library<br/>parts/: 24 families · sources · ids.lock"]
+        partsLib["Parts library<br/>parts/: 25 families · sources · ids.lock"]
         offersData["Curated offers + accounts<br/>offers.ts · affiliateAccounts.ts"]
         matcher["Matcher<br/>matcher.ts: matchOffers · markets"]
         bom["BOM<br/>bom.ts: modelBom · BomLine"]
@@ -231,7 +231,7 @@ The only geometry *renderer* is OpenSCAD in the worker. The browser *previews*:
 
 ### Parts library
 
-- **Data:** `packages/contracts/src/parts/` has one file per family (24 families), a `schema.ts` for the shape of `Part`,
+- **Data:** `packages/contracts/src/parts/` has one file per family (25 families), a `schema.ts` for the shape of `Part`,
   `PartFamily` and `Dimension`, cited `sources.ts`, and `ids.lock` to keep part ids permanent. A part with an STL preview
   (an everyday object) has its SCAD and STL in `parts/<family>/`; every other part is drawn by `@canfactory/part-geometry`.
 - **Bundled** into the web app from contracts (`partFamilies`, `partsOfFamily`, `findPartSource`); no API route or

@@ -12,7 +12,7 @@ type PartsRoute = Extract<Route, { view: 'parts' }>;
 const FAMILY_ICONS: Record<string, LucideIcon> = {
   magnet: Magnet, screw: Bolt, nut: Hexagon, washer: Disc, 'threaded-insert': CircleDot, bearing: Cog, pin: Pin, 'everyday-object': Flame,
   'wood-screw': Drill, nail: Paperclip, 'insert-nut': CircleDot, 'levelling-foot': Footprints, 'toggle-latch': Lock, 'screen-hook': Anchor, 'corner-bracket': SquareDashedBottom,
-  'set-screw': Bolt, ball: Circle, spring: WavesVertical, 'split-ring': KeyRound, 'nfc-tag': Nfc, 'cat-collar': Cat, 'dev-board': Cpu, heatsink: Flame, mesh: Grid3x3,
+  'set-screw': Bolt, ball: Circle, spring: WavesVertical, 'split-ring': KeyRound, 'nfc-tag': Nfc, 'cat-collar': Cat, 'dev-board': Cpu, 'pin-header': Grid3x3, heatsink: Flame, mesh: Grid3x3,
 };
 const BASIS_TEXT: Record<string, string> = { standard: 'Standard', manufacturer: 'Manufacturer', estimated: 'Estimated' };
 /** Search text is kept with the filters, under this key. */

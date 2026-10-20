@@ -51,6 +51,21 @@ jobs:
       - name: Run renderer geometry checks
         run: npm run test:renderer
 
+      # Source detents cross the USB end during insertion. Analytic STEP overlap
+      # is 0.666 mm³; the existing coarse ray sampler reports 3.31 mm³ (CONVERSION.md).
+      - name: Check ESP32-C3 SuperMini sliding assembly
+        run: |
+          for led in true false; do
+            for flush in true false; do
+              for taller in true false; do
+                npm run check:assembly -- esp32-c3-supermini-case --tolerance 4 --snap-tolerance 0.1 \
+                  --parameters "{\"ledHoles\":$led,\"flushHeaders\":$flush,\"tallerEnclosure\":$taller}"
+              done
+            done
+          done
+        env:
+          OPENSCAD_RUNNER: docker
+
       - name: Check magnetic cat toy assembly paths (centred and eccentric)
         run: |
           npm run check:assembly -- magnetic-cat-toy

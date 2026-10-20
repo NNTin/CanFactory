@@ -3127,5 +3127,68 @@
    "slotWidth=12": "6b0a1b333baf92d63d12f3299ddbb540f2d66888bfc75bebdb35050560e26062",
    "clearance=0.4": "3a7996202462e574ae87dc133d7da9350af968a1da79821b7b3ee9c8b90b7a5d"
   }
+ },
+ "esp32-c3-supermini-case": {
+  "defaults": [
+   {
+    "file": "openscad",
+    "args": [
+     "--backend",
+     "Manifold",
+     "--export-format",
+     "binstl",
+     "-o",
+     "<scratch>/job/bottom.stl",
+     "-D",
+     "FLUSH_HEADERS=true",
+     "-D",
+     "TALLER_ENCLOSURE=true",
+     "-D",
+     "BASE_EXTRA_HEIGHT=0.84",
+     "-D",
+     "HEADER_X=-0.8599999999999977",
+     "-D",
+     "HEADER_Y=7.62",
+     "-D",
+     "HEADER_LENGTH=21.07",
+     "-D",
+     "HEADER_WIDTH=3.09",
+     "<root>/models/esp32-c3-supermini-case/bottom.scad"
+    ],
+    "timeout": 120000,
+    "killSignal": "SIGKILL",
+    "fontPath": "<root>/models/fonts"
+   },
+   {
+    "file": "openscad",
+    "args": [
+     "--backend",
+     "Manifold",
+     "--export-format",
+     "binstl",
+     "-o",
+     "<scratch>/job/top.stl",
+     "-D",
+     "LED_HOLES=true",
+     "-D",
+     "LED_RED_X=-6.309999999999997",
+     "-D",
+     "LED_RED_Y=6.01",
+     "-D",
+     "LED_BLUE_X=-0.4399999999999977",
+     "-D",
+     "LED_BLUE_Y=-4.5600000000000005",
+     "<root>/models/esp32-c3-supermini-case/top.scad"
+    ],
+    "timeout": 120000,
+    "killSignal": "SIGKILL",
+    "fontPath": "<root>/models/fonts"
+   }
+  ],
+  "variants": {
+   "tallerEnclosure=false": "eb08550031c2f38021405fce07929c645e7fe8669b428180ca8b9a9558b9b2ce",
+   "flushHeaders=false": "f0366c4c3328e1dbdf852acaf375b544114c4500379711f07095b9d167171137",
+   "ledHoles=false": "5136696bdaad3a1fae77c204ac271777a6df2e0d5a169b008c4ccb85d03448c4"
+  }
  }
 }
