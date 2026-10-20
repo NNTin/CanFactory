@@ -67,9 +67,13 @@ export function createStage(element: HTMLElement, label: string, options: { scal
     orthographic.top = orthoHalf; orthographic.bottom = -orthoHalf; orthographic.updateProjectionMatrix();
   };
   const controls = new OrbitControls<THREE.Camera>(camera, renderer.domElement);
+  // The shadows are cast by the scene in the light's fixed frame: wherever the camera looks they are the same, so only a change to
+  // the scene (`invalidate()`) draws them again, and a camera move reuses them.
+  renderer.shadowMap.autoUpdate = false;
   let dirty = true;
-  const invalidate = () => { dirty = true; };
-  controls.addEventListener('change', invalidate);
+  const invalidate = () => { dirty = true; renderer.shadowMap.needsUpdate = true; };
+  invalidate();
+  controls.addEventListener('change', () => { dirty = true; });
   controls.enableDamping = true; controls.dampingFactor = 0.075;
   controls.minDistance = 10 * scale; controls.maxDistance = 2000 * scale;
   const ambient = new THREE.HemisphereLight(0xffffff, 0xa1a797, 2.3); world.add(ambient);
