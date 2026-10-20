@@ -20,6 +20,8 @@ import { screwFamily, screwParts } from './screws.ts';
 import { setScrewFamily, setScrewParts } from './set-screws.ts';
 import { splitRingFamily, splitRingParts } from './split-rings.ts';
 import { springFamily, springParts } from './springs.ts';
+import { stepperDriverFamily, stepperDriverParts } from './stepper-drivers.ts';
+import { stepperMotorFamily, stepperMotorParts } from './stepper-motors.ts';
 import { toggleLatchFamily, toggleLatchParts } from './toggle-latches.ts';
 import { washerFamily, washerParts } from './washers.ts';
 import { woodScrewFamily, woodScrewParts } from './wood-screws.ts';
@@ -32,6 +34,7 @@ export { PART_SOURCES, findPartSource } from './sources.ts';
 export { cornerBracketHoles } from './corner-brackets.ts';
 export { componentTop, devBoardLayout, type DevBoardArea, type DevBoardComponent, type DevBoardComponentTop, type DevBoardExternalAntenna, type DevBoardLayout, type DevBoardPin, type DevBoardPoint } from './dev-boards.ts';
 export { springRate } from './springs.ts';
+export { stepperDriverComponentTop, stepperDriverLayout, type StepperDriverComponent, type StepperDriverLayout, type StepperDriverPin, type StepperDriverPoint } from './stepper-drivers.ts';
 
 /**
  * The parts library: real-world items that models are made to fit, grouped into families. Each family is one file with its
@@ -44,12 +47,14 @@ export const partFamilies: readonly PartFamily[] = [
   magnetFamily, screwFamily, nutFamily, washerFamily, insertFamily, bearingFamily, pinFamily, everydayObjectFamily,
   woodScrewFamily, nailFamily, insertNutFamily, levellingFootFamily, toggleLatchFamily, screenHookFamily, cornerBracketFamily,
   setScrewFamily, ballFamily, springFamily, splitRingFamily, nfcTagFamily, catCollarFamily, devBoardFamily, heatsinkFamily, meshFamily,
+  stepperMotorFamily, stepperDriverFamily,
 ];
 
 export const parts: readonly Part[] = [
   ...magnetParts, ...screwParts, ...nutParts, ...washerParts, ...insertParts, ...bearingParts, ...pinParts, ...everydayObjectParts,
   ...woodScrewParts, ...nailParts, ...insertNutParts, ...levellingFootParts, ...toggleLatchParts, ...screenHookParts, ...cornerBracketParts,
   ...setScrewParts, ...ballParts, ...springParts, ...splitRingParts, ...nfcTagParts, ...catCollarParts, ...devBoardParts, ...heatsinkParts, ...meshParts,
+  ...stepperMotorParts, ...stepperDriverParts,
 ];
 
 export function findPart(id: string): Part | undefined { return parts.find(part => part.id === id); }

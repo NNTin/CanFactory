@@ -43,4 +43,18 @@ describe('part geometry', () => {
       expect(size(part).z, part.id).toBeCloseTo(dimensionOf(part, 'l'), 6);
     }
   });
+  it('draws a stepper motor and its driver board at their own sizes: over the ears and the shaft, the board with the plug in it', () => {
+    for (const part of parts.filter(p => p.family === 'stepper-motor')) {
+      const box = size(part);
+      expect(box.x, part.id).toBeCloseTo(dimensionOf(part, 'W'), 4);
+      // from the wire housing's face past the body's far side
+      expect(box.y, part.id).toBeCloseTo(dimensionOf(part, 'bh', 'max') + dimensionOf(part, 'D', 'max') / 2, 2);
+      expect(box.z, part.id).toBeCloseTo(dimensionOf(part, 'L', 'max') + dimensionOf(part, 'l', 'max'), 4);
+    }
+    for (const part of parts.filter(p => p.family === 'stepper-driver')) {
+      const box = size(part);
+      expect([box.x, box.y], part.id).toEqual([expect.closeTo(dimensionOf(part, 'W'), 4), expect.closeTo(dimensionOf(part, 'L'), 4)]);
+      expect(box.z, part.id).toBeCloseTo(dimensionOf(part, 'Hm'), 4);
+    }
+  });
 });

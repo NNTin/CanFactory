@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
 import { cigaretteCase, models, partUsage, plankConnector } from '../models.ts';
-import { componentTop, devBoardLayout, findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, springRate, type Part } from './index.ts';
+import { componentTop, devBoardLayout, findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, springRate, stepperDriverComponentTop, stepperDriverLayout, type Part } from './index.ts';
 
 const root = (path: string) => new URL(`../../../../${path}`, import.meta.url);
 const dimension = (part: Part, key: string) => part.dimensions[key]?.value ?? Number.NaN;
@@ -242,6 +242,75 @@ describe('parts library', () => {
       }
       // the overall height is the PCB and the tallest thing on it
       expect(dimension(part, 'H'), message).toBeCloseTo(t + Math.max(usb.height, ...layout.components.map(componentTop)), 2);
+    }
+  });
+
+  it('keeps every stepper motor consistent: the ears round their holes, the shaft and its boss on the body, its flats on the shaft', () => {
+    const motors = parts.filter(part => part.family === 'stepper-motor');
+    expect(motors.map(part => part.id)).toEqual(['kiatronics-28byj-48-5v']);
+    for (const part of motors) {
+      const [D, a, dh, r, W, e, d, l, s, lf, db, hb, bw, bh, bl, L] = (['D', 'a', 'dh', 'r', 'W', 'e', 'd', 'l', 's', 'lf', 'db', 'hb', 'bw', 'bh', 'bl', 'L'] as const).map(key => dimension(part, key)) as [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
+      const message = part.id;
+      // the holes outside the body, in the ears' round ends, which make the width over the ears
+      expect(a / 2 - dh / 2, message).toBeGreaterThan(D / 2);
+      expect(r, message).toBeGreaterThan(dh / 2);
+      expect(W, message).toBeCloseTo(a + 2 * r, 6);
+      // the shaft's boss on the body's face, the flats across the shaft at its tip, the boss below the flats
+      expect(e + db / 2, message).toBeLessThan(D / 2);
+      expect(db, message).toBeGreaterThan(d);
+      expect(s, message).toBeLessThan(d);
+      expect(lf, message).toBeLessThan(l - hb);
+      // the wire housing stands out of the body on the side away from the shaft, narrower than it and shorter than it
+      expect(bh, message).toBeGreaterThan(D / 2);
+      expect(bw, message).toBeLessThan(D);
+      expect(bl, message).toBeLessThanOrEqual(L);
+      // the plug at the end of the lead: JST's XHP-5, which fits through a slot its own size
+      expect([dimension(part, 'pw'), dimension(part, 'pt'), dimension(part, 'ph')], message).toEqual([14.8, 5.7, 7.5]);
+    }
+  });
+
+  it('lays out every stepper driver board inside its outline: holes in the corners, pins on their pitch, the plug standing above its connector', () => {
+    const boards = parts.filter(part => part.family === 'stepper-driver');
+    expect(boards.map(part => part.id)).toEqual(['uln2003-stepper-driver-board']);
+    for (const part of boards) {
+      const layout = stepperDriverLayout(part); const message = part.id;
+      if (!layout) throw new Error(`${part.id} has no layout`);
+      const [L, W, t, d, hx, hy, c, e, em] = ['L', 'W', 't', 'd', 'hx', 'hy', 'c', 'e', 'em'].map(key => dimension(part, key)) as [number, number, number, number, number, number, number, number, number];
+      // one hole in each corner, c from both edges, hx × hy apart
+      expect(layout.holes.length, message).toBe(4);
+      for (const hole of layout.holes) {
+        expect(Math.min(hole.x, W - hole.x), message).toBeCloseTo(c, 6);
+        expect(Math.min(hole.y, L - hole.y), message).toBeCloseTo(c, 6);
+      }
+      const xs = layout.holes.map(hole => hole.x); const ys = layout.holes.map(hole => hole.y);
+      expect(Math.max(...xs) - Math.min(...xs), message).toBeCloseTo(hx, 6);
+      expect(Math.max(...ys) - Math.min(...ys), message).toBeCloseTo(hy, 6);
+      // the motor's five pins at the connector's pitch, the other headers at the pin header pitch, each name once
+      expect(new Set(layout.pins.map(pin => pin.name)).size, message).toBe(layout.pins.length);
+      for (const [header, pitch, count] of [['motor', em, 5], ['input', e, 4], ['power', e, 4]] as const) {
+        const row = layout.pins.filter(pin => pin.header === header);
+        expect(row.length, `${message}: ${header}`).toBe(count);
+        for (let i = 1; i < row.length; i++) {
+          const [p, q] = [row[i - 1], row[i]]; if (!p || !q) continue;
+          expect(Math.hypot(q.x - p.x, q.y - p.y), `${message}: ${header}`).toBeCloseTo(pitch, 6);
+        }
+      }
+      // every part on the board and clear of the mounting holes; every pin inside its header's or connector's body
+      for (const component of [...layout.components, layout.plug]) {
+        const where = `${message}: ${component.name}`;
+        expect(component.x - component.width / 2, where).toBeGreaterThanOrEqual(0); expect(component.x + component.width / 2, where).toBeLessThanOrEqual(W);
+        expect(component.y - component.length / 2, where).toBeGreaterThanOrEqual(0); expect(component.y + component.length / 2, where).toBeLessThanOrEqual(L);
+        for (const hole of layout.holes) expect(Math.max(Math.abs(hole.x - component.x) - component.width / 2, Math.abs(hole.y - component.y) - component.length / 2), `${where} × hole`).toBeGreaterThan(d / 2);
+      }
+      for (const pin of layout.pins) {
+        const body = layout.components.find(component => (component.kind === 'header' || component.kind === 'connector') && Math.abs(pin.x - component.x) < component.width / 2 && Math.abs(pin.y - component.y) < component.length / 2);
+        expect(body?.kind, `${message}: ${pin.name}`).toBe(pin.header === 'motor' ? 'connector' : 'header');
+      }
+      // the chip in its socket; the plug in its connector, standing above it; the heights are the PCB and the tallest thing on it
+      const connector = layout.components.find(component => component.kind === 'connector');
+      expect(connector && stepperDriverComponentTop(layout.plug) > stepperDriverComponentTop(connector), message).toBe(true);
+      expect(dimension(part, 'H'), message).toBeCloseTo(t + Math.max(layout.pinHeight, ...layout.components.map(stepperDriverComponentTop)), 6);
+      expect(dimension(part, 'Hm'), message).toBeCloseTo(t + stepperDriverComponentTop(layout.plug), 6);
     }
   });
 

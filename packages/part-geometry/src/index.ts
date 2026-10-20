@@ -1,4 +1,4 @@
-import { CATIO_NET_CORD, cornerBracketHoles, devBoardLayout, METRIC_THREADS, type DevBoardComponent, type MetricThread, type Part } from '@canfactory/contracts';
+import { CATIO_NET_CORD, cornerBracketHoles, devBoardLayout, METRIC_THREADS, stepperDriverLayout, type DevBoardComponent, type MetricThread, type Part, type StepperDriverComponent } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -439,9 +439,73 @@ function mesh(part: Part): Piece[] {
   return pieces;
 }
 
+const HOUSING = 0x3f7fd0;
+
+function stepperMotor(part: Part): Piece[] {
+  // standing on its back: the body's axis on x = y = 0, the mounting face (the ears) at z = L, the shaft at y = +e and the wire
+  // housing towards −Y; diameters and lengths at their largest, as a bracket's pocket must take them
+  const D = largest(part, 'D'); const L = largest(part, 'L'); const a = value(part, 'a'); const dh = value(part, 'dh'); const r = value(part, 'r');
+  const t = value(part, 't'); const e = value(part, 'e'); const d = largest(part, 'd'); const l = largest(part, 'l'); const s = largest(part, 's');
+  const lf = largest(part, 'lf'); const db = largest(part, 'db'); const hb = largest(part, 'hb');
+  const bw = largest(part, 'bw'); const bh = largest(part, 'bh'); const bl = largest(part, 'bl');
+  const body = revolve([[0, 0], [D / 2, 0], [D / 2, L], [0, L]], STEEL, 64);
+  // the ears: a lug each side, from the body's wall out to the round end round its hole; drawn outside the body, as the wire
+  // housing is, so that no face lies on the body's
+  const R = D / 2;
+  const lug = (side: 1 | -1): THREE.Shape => {
+    const shape = new THREE.Shape(); const wall = Math.asin(r / R); const x0 = R * Math.cos(wall);
+    shape.moveTo(side * x0, -r); shape.lineTo(side * a / 2, -r);
+    shape.absarc(side * a / 2, 0, r, -Math.PI / 2, Math.PI / 2, side < 0);
+    shape.lineTo(side * x0, r);
+    if (side > 0) shape.absarc(0, 0, R, wall, -wall, true); else shape.absarc(0, 0, R, Math.PI - wall, Math.PI + wall, false);
+    const hole = new THREE.Path(); hole.absarc(side * a / 2, 0, dh / 2, 0, Math.PI * 2, true); shape.holes.push(hole);
+    return shape;
+  };
+  // the wire housing from the body's wall out to bh, from the mounting face back by bl
+  const housing = new THREE.Shape(); const side = Math.asin(bw / 2 / R);
+  housing.moveTo(-bw / 2, -bh); housing.lineTo(bw / 2, -bh); housing.lineTo(bw / 2, -R * Math.cos(side));
+  housing.absarc(0, 0, R, -Math.PI / 2 + side, -Math.PI / 2 - side, true);
+  const boss = revolve([[0, L], [db / 2, L], [db / 2, L + hb], [0, L + hb]], STEEL); boss.translate(0, e, 0);
+  // the shaft: round up to its flats, then cut to s across them (parallel to the line through the holes) up to its tip
+  const tip = L + l; const round = revolve([[0, L + hb], [d / 2, L + hb], [d / 2, tip - lf], [0, tip - lf]], BRASS, 32); round.translate(0, e, 0);
+  const half = Math.asin(Math.min(1, s / d));
+  const flatted = new THREE.Shape();
+  flatted.absarc(0, 0, d / 2, -half, half, false); flatted.absarc(0, 0, d / 2, Math.PI - half, Math.PI + half, false);
+  // the two arcs joined by the chords at y = ±s/2: the flats
+  const flats = prism(flatted, tip - lf, lf, BRASS); flats.translate(0, e, 0);
+  return [body, prism(lug(1), L - t, t, STEEL), prism(lug(-1), L - t, t, STEEL), prism(housing, L - bl, bl, HOUSING), boss, round, flats];
+}
+
+const DRIVER_PCB = 0x1d6b3e;
+const DRIVER_COLOURS: Record<StepperDriverComponent['kind'], number> = { chip: 0x1f2226, socket: DARK, led: 0xd8433b, resistor: 0x3a72c4, connector: 0xf4f1e8, header: 0x1f2226 };
+
+function stepperDriver(part: Part): Piece[] {
+  // the board lying component side up, as its layout places everything: corner at the origin, W along X and L along Y
+  const layout = stepperDriverLayout(part);
+  if (!layout) return [];
+  const w = value(part, 'W'); const l = value(part, 'L'); const t = value(part, 't'); const d = value(part, 'd');
+  const outline = new THREE.Shape(); outline.moveTo(0, 0); outline.lineTo(w, 0); outline.lineTo(w, l); outline.lineTo(0, l); outline.lineTo(0, 0);
+  for (const hole of layout.holes) { const path = new THREE.Path(); path.absarc(hole.x, hole.y, d / 2, 0, Math.PI * 2, true); outline.holes.push(path); }
+  const solid = (component: StepperDriverComponent, color: number): Piece => {
+    const z0 = t + (component.base ?? 0);
+    if (component.shape === 'round') {
+      const cylinder = revolve([[0, z0], [component.width / 2, z0], [component.width / 2, z0 + component.height], [0, z0 + component.height]], color, 24);
+      cylinder.translate(component.x, component.y, 0); return cylinder;
+    }
+    const box = new THREE.BoxGeometry(component.width, component.length, component.height);
+    box.translate(component.x, component.y, z0 + component.height / 2); return paint(box, color);
+  };
+  // the header pins as square posts (the motor connector's inside its housing); the plug in the connector, as a case must leave room for it
+  const pins = layout.pins.map(pin => {
+    const post = new THREE.BoxGeometry(0.64, 0.64, layout.pinHeight); post.translate(pin.x, pin.y, t + layout.pinHeight / 2); return paint(post, GOLD);
+  });
+  return [prism(outline, 0, t, DRIVER_PCB), ...layout.components.map(component => solid(component, DRIVER_COLOURS[component.kind])), ...pins, solid(layout.plug, NYLON)];
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
   'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, heatsink, mesh,
+  'stepper-motor': stepperMotor, 'stepper-driver': stepperDriver,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */
