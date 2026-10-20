@@ -187,10 +187,17 @@ copies differ.
 - **`stepper-motor`** (`stepper-motors.ts`): the 28BYJ-48, 5 V (`kiatronics-28byj-48-5v`).
   - **The drawing:** Kiatronics's data sheet (published by Mouser) gives the body, the ears and their holes, the offset shaft with
     its flats and boss, the wire housing and the lead. These values are `manufacturer`, with the drawing's tolerances.
-  - **The rest** comes from Philip McGaw's fit-check model, made to that drawing (Printables 121424) and `estimated`: the ears'
-    thickness, the width over the ears and the wire housing's length. The model also orients the flats (parallel to the line
-    through the holes).
-  - **Conflicts:** where the model differs from the drawing (body 20 mm long, housing 15 mm wide), the drawing is used.
+  - **The rest** comes from Joe's detailed model (Printables 343236) and is `estimated`: the ears' thickness and the blue wire
+    housing. Only its measured values are used, never its file (CC BY-NC-ND). The housing's values:
+    - its length from the mounting face;
+    - the side ledges down the body, with their chamfer into the housing's side and where they stop short of the mounting face;
+    - the wire slot in the outer face;
+    - the lip over the body's back rim, with its middle gap;
+    - the body's rounded back edge.
+  - **Flats:** both 343236 and Philip McGaw's fit-check model (Printables 121424) orient them parallel to the line through the
+    holes.
+  - **Conflicts:** where a model differs from the drawing (343236's body 19.3 mm long and housing 14.5 mm wide, 121424's body
+    20 mm long), the drawing is used.
   - **The plug:** the JST XHP-5 at the end of the lead is JST's catalogue.
   - **The 12 V version:** Changzhou Fulling's drawing is cited in the notes; it is not a separate part yet.
   - **Preview frame:** the body's back on z = 0, the mounting face at z = `L`, the body's axis at the origin, the ears along X, the
@@ -209,7 +216,7 @@ copies differ.
 
 The test checks:
 - **The motor:** the holes outside the body and inside the ears, the width over the ears, the boss on the body's face, the flats
-  inside the shaft and the plug's size.
+  inside the shaft, the housing's ledges, slot and lip, and the plug's size.
 - **The board:** the holes in the corners, each header's pitch, every part on the board and clear of the holes, every pin inside
   its header, the plug above its connector, and both heights.
 

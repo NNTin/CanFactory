@@ -448,7 +448,10 @@ function stepperMotor(part: Part): Piece[] {
   const t = value(part, 't'); const e = value(part, 'e'); const d = largest(part, 'd'); const l = largest(part, 'l'); const s = largest(part, 's');
   const lf = largest(part, 'lf'); const db = largest(part, 'db'); const hb = largest(part, 'hb');
   const bw = largest(part, 'bw'); const bh = largest(part, 'bh'); const bl = largest(part, 'bl');
-  const body = revolve([[0, 0], [D / 2, 0], [D / 2, L], [0, L]], STEEL, 64);
+  // the body, its back edge rounded
+  const rb = value(part, 'rb');
+  const edge: [number, number][] = Array.from({ length: 7 }, (_, i) => { const angle = -Math.PI / 2 + i / 6 * Math.PI / 2; return [D / 2 - rb + rb * Math.cos(angle), rb + rb * Math.sin(angle)]; });
+  const body = revolve([[0, 0], ...edge, [D / 2, L], [0, L]], STEEL, 64);
   // the ears: a lug each side, from the body's wall out to the round end round its hole; drawn outside the body, as the wire
   // housing is, so that no face lies on the body's
   const R = D / 2;
@@ -461,10 +464,33 @@ function stepperMotor(part: Part): Piece[] {
     const hole = new THREE.Path(); hole.absarc(side * a / 2, 0, dh / 2, 0, Math.PI * 2, true); shape.holes.push(hole);
     return shape;
   };
-  // the wire housing from the body's wall out to bh, from the mounting face back by bl
-  const housing = new THREE.Shape(); const side = Math.asin(bw / 2 / R);
-  housing.moveTo(-bw / 2, -bh); housing.lineTo(bw / 2, -bh); housing.lineTo(bw / 2, -R * Math.cos(side));
-  housing.absarc(0, 0, R, -Math.PI / 2 + side, -Math.PI / 2 - side, true);
+  // the wire housing: its section from its outer face (at bh, with the wire slot sd deep when `slot`) up its sides to the body's
+  // wall, out over the side ledges (ww over them, chamfered in from wh to wb) when `ledges`, closed along the body's wall
+  const ww = value(part, 'ww'); const wh = value(part, 'wh'); const wb = value(part, 'wb'); const wf = value(part, 'wf');
+  const sw = value(part, 'sw'); const sl = value(part, 'sl'); const sd = value(part, 'sd'); const sf = value(part, 'sf');
+  const section = (ledges: boolean, slot: boolean): THREE.Shape => {
+    const shape = new THREE.Shape(); const half = (ledges ? ww : bw) / 2; const side = Math.asin(half / R);
+    shape.moveTo(-bw / 2, -bh);
+    if (slot) { shape.lineTo(-sw / 2, -bh); shape.lineTo(-sw / 2, -bh + sd); shape.lineTo(sw / 2, -bh + sd); shape.lineTo(sw / 2, -bh); }
+    shape.lineTo(bw / 2, -bh);
+    if (ledges) { shape.lineTo(bw / 2, -wb); shape.lineTo(ww / 2, -wh); }
+    shape.lineTo(half, -R * Math.cos(side));
+    shape.absarc(0, 0, R, -Math.PI / 2 + side, -Math.PI / 2 - side, true);
+    if (ledges) { shape.lineTo(-ww / 2, -wh); shape.lineTo(-bw / 2, -wb); }
+    return shape;
+  };
+  // back to front: the ledged part, the plain part, the slot, the plain part up to the mounting face
+  const back = L - bl; const slot0 = L - sf - sl;
+  const housing = [prism(section(true, false), back, bl - wf, HOUSING), prism(section(false, false), L - wf, slot0 - (L - wf), HOUSING),
+    prism(section(false, true), slot0, sl, HOUSING), prism(section(false, false), L - sf, sf, HOUSING)];
+  // the lip over the body's back rim, either side of its middle gap, out to the ledges
+  const lt = value(part, 'lt'); const ll = value(part, 'll'); const lg = value(part, 'lg');
+  const lip = (sign: 1 | -1): Piece => {
+    const shape = new THREE.Shape(); const inner = Math.asin(lg / 2 / R); const outer = Math.asin(ww / 2 / (R + lt));
+    const [from, to] = sign > 0 ? [-Math.PI / 2 + inner, -Math.PI / 2 + outer] : [-Math.PI / 2 - outer, -Math.PI / 2 - inner];
+    shape.absarc(0, 0, R + lt, from, to, false); shape.absarc(0, 0, R, to, from, true);
+    return prism(shape, back - ll, ll, HOUSING);
+  };
   const boss = revolve([[0, L], [db / 2, L], [db / 2, L + hb], [0, L + hb]], STEEL); boss.translate(0, e, 0);
   // the shaft: round up to its flats, then cut to s across them (parallel to the line through the holes) up to its tip
   const tip = L + l; const round = revolve([[0, L + hb], [d / 2, L + hb], [d / 2, tip - lf], [0, tip - lf]], BRASS, 32); round.translate(0, e, 0);
@@ -473,7 +499,7 @@ function stepperMotor(part: Part): Piece[] {
   flatted.absarc(0, 0, d / 2, -half, half, false); flatted.absarc(0, 0, d / 2, Math.PI - half, Math.PI + half, false);
   // the two arcs joined by the chords at y = ±s/2: the flats
   const flats = prism(flatted, tip - lf, lf, BRASS); flats.translate(0, e, 0);
-  return [body, prism(lug(1), L - t, t, STEEL), prism(lug(-1), L - t, t, STEEL), prism(housing, L - bl, bl, HOUSING), boss, round, flats];
+  return [body, prism(lug(1), L - t, t, STEEL), prism(lug(-1), L - t, t, STEEL), ...housing, lip(1), lip(-1), boss, round, flats];
 }
 
 const DRIVER_PCB = 0x1d6b3e;

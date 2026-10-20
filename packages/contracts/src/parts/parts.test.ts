@@ -264,6 +264,15 @@ describe('parts library', () => {
       expect(bh, message).toBeGreaterThan(D / 2);
       expect(bw, message).toBeLessThan(D);
       expect(bl, message).toBeLessThanOrEqual(L);
+      // its side ledges wider than it and on the body, chamfered in above its outer face; the wire slot in that face, in front of
+      // the ledges; the lip's gap narrower than the ledges
+      const [ww, wh, wb, wf, sw, sl, sf, lg] = (['ww', 'wh', 'wb', 'wf', 'sw', 'sl', 'sf', 'lg'] as const).map(key => dimension(part, key)) as [number, number, number, number, number, number, number, number];
+      expect(ww, message).toBeGreaterThan(bw); expect(ww / 2, message).toBeLessThan(D / 2);
+      expect(Math.hypot(ww / 2, wh), message).toBeGreaterThan(D / 2);
+      expect(wh, message).toBeLessThan(wb); expect(wb, message).toBeLessThan(bh);
+      expect(sw, message).toBeLessThan(bw); expect(sf + sl, message).toBeLessThan(wf);
+      expect(dimension(part, 'sd'), message).toBeLessThan(bh - D / 2);
+      expect(lg, message).toBeLessThan(ww); expect(wf, message).toBeLessThan(bl);
       // the plug at the end of the lead: JST's XHP-5, which fits through a slot its own size
       expect([dimension(part, 'pw'), dimension(part, 'pt'), dimension(part, 'ph')], message).toEqual([14.8, 5.7, 7.5]);
     }
