@@ -57,7 +57,10 @@ export const parts: readonly Part[] = [
   ...stepperMotorParts, ...stepperDriverParts,
 ];
 
-export function findPart(id: string): Part | undefined { return parts.find(part => part.id === id); }
+/** The parts by id (the first of an id), so that a drawing's hundreds of fasteners each find theirs at once. */
+const partsById = new Map<string, Part>();
+for (const part of parts) if (!partsById.has(part.id)) partsById.set(part.id, part);
+export function findPart(id: string): Part | undefined { return partsById.get(id); }
 export function findPartFamily(id: string): PartFamily | undefined { return partFamilies.find(family => family.id === id); }
 export function partsOfFamily(family: string): Part[] { return parts.filter(part => part.family === family); }
 
