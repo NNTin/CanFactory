@@ -34,11 +34,11 @@ export interface SubassemblyControl<C> {
 }
 
 /**
- * Settings of another page that a page reads: control keys of another sub-assembly page, or setting labels on the catio concept
- * page. A sub-assembly's `follows` lists them; a fact names the ones it comes from.
+ * Settings of another page that a page reads: control keys of another sub-assembly page, or setting labels in the catio planner
+ * (its project's window and cat ports). A sub-assembly's `follows` lists them; a fact names the ones it comes from.
  */
 export interface Follow { page: CatioSubassembly; settings: string[] }
-export type SettingRef = Follow | { page: 'concept'; settings: string[] };
+export type SettingRef = Follow | { page: 'planner'; settings: string[] };
 /** A short fact for the brief, and where it is set when that is another page. */
 export interface SubassemblyFact { label: string; value: string; from?: SettingRef }
 export interface NumberRange { min: number; max: number; step: number; unit: string; scale?: number }

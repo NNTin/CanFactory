@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  COUPLING_DEFAULT, couplingBom, couplingFacts, couplingLayout, couplingSteps, couplingViews, enclosureLayout, MODULAR_DEFAULT, modularLayout,
-  modularSteps, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelBom, tunnelCouplingBom, tunnelCouplingLayout, tunnelCouplingSteps, tunnelFacts,
+  COUPLING_DEFAULT, couplingBom, couplingFacts, couplingLayout, couplingSteps, couplingViews, enclosureLayout, MODULAR_DEFAULT, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelBom, tunnelCouplingBom, tunnelCouplingLayout, tunnelCouplingSteps, tunnelFacts,
   tunnelLayout, tunnelSiteFor, tunnelSteps, tunnelViews, validateCoupling, validateModular, validateTunnel, validateTunnelCoupling,
   validateWindowInsert, WINDOW_INSERT_DEFAULT, windowFor, windowInsertBom, windowInsertLayout, windowInsertSteps, type CouplingSite,
 } from '@canfactory/catio';
@@ -22,8 +21,8 @@ function evaluateAll() {
     couplingFacts('modular', COUPLING_DEFAULT, coupling), couplingViews('modular', COUPLING_DEFAULT, coupling), validateCoupling('modular', COUPLING_DEFAULT, coupling),
     tunnelCouplingLayout(TUNNEL_COUPLING_DEFAULT, sections), tunnelCouplingBom('modular', TUNNEL_COUPLING_DEFAULT, sections),
     tunnelCouplingSteps('modular', TUNNEL_COUPLING_DEFAULT, sections), validateTunnelCoupling('modular', TUNNEL_COUPLING_DEFAULT, sections),
-    modularLayout(MODULAR_DEFAULT), modularSteps(MODULAR_DEFAULT, true), validateModular(MODULAR_DEFAULT),
-    enclosureLayout(MODULAR_DEFAULT.enclosure, { id: 'a', tunnelSize: MODULAR_DEFAULT.tunnelSize, connected: { rear: true, left: false, right: false } }),
+    validateModular(MODULAR_DEFAULT),
+    enclosureLayout({ width: 1200, depth: 1000, height: 1200 }, { id: 'a', tunnelSize: MODULAR_DEFAULT.tunnelSize, connected: { rear: true, left: false, right: false } }),
   ]);
 }
 

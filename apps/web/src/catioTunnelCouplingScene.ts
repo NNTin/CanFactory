@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { toggleLatchMechanism as TL } from '@canfactory/contracts';
-import { createCatioParts } from './catioParts.ts';
-import type { CatioState } from './catioScene.ts';
+import { createCatioParts, type CatioState } from './catioParts.ts';
 import type { SubassemblyModel } from './catioSubassembly.ts';
 import { buildTunnelDoors, buildCouplingJoint, buildSectionPieces, buildSupportHold, buildSupportPieces, supportOf, tunnelDrawing } from './catioTunnelPieces.ts';
 import { memberApproach } from './catioTunnelScene.ts';

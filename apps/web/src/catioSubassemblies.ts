@@ -13,7 +13,7 @@ export const windowInsertDefinition: SubassemblyDefinition<WindowInsertConfig> =
   id: 'window-insert', title: 'Window insert', eyebrow: 'CATIO SUB-ASSEMBLY · WINDOW INSERT',
   heading: 'Held by the window, not fixed to it.', briefLabel: 'THE INSERT', assemblyHeading: 'From the bench to the window.',
   summary: 'The removable timber collar that sits in the exterior recess: its pieces, the joints between them, how the mesh is held, and the padded clamps that grip the recess, or the screen hooks that hang it on the window frame, without a single hole in the wall or the window.',
-  // with tunnel, the cat port is shut by what the catio concept page sets for every cat port, and the page can open it
+  // with tunnel, the cat port is shut by what the planner's project sets for every cat port, and the page can open it
   doorToggle: variant => variant === 'modular' ? 'Cat port open' : null,
   defaults: WINDOW_INSERT_DEFAULT, controls: WINDOW_INSERT_CONTROLS, parse: parseWindowInsert,
   validate: (variant, config) => validateWindowInsert(variant, config, savedWindow(variant, config)),

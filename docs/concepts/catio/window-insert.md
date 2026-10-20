@@ -6,7 +6,7 @@ wall or the window**: by default the insert hangs on the window's fixed frame li
 [Hung on the window frame](#hung-on-the-window-frame)), so the window still closes with the insert in place; it can instead be
 pressed into the recess by spreader feet or folding wedges.
 
-Live page: `#/concepts/catio/window-insert`, also linked from the catio concept page under **Sub-assemblies**. For local
+Live page: `#/concepts/catio/window-insert`, also linked from the catio overview (`#/concepts/catio`). For local
 development, `npm run dev --workspace @canfactory/web -- --port 5181`, then
 <http://127.0.0.1:5181/#/concepts/catio/window-insert>. It needs no API.
 
@@ -38,7 +38,7 @@ a parts list with every piece's dimensions, and the design decisions below. Choi
 | Frame depth | 82 mm | 58 to 120 mm | The window (drawing only) |
 
 The direct variant uses the original fixed window (100 × 100 cm recess, 91 cm sash). With tunnel follows the window and
-tunnel clear size saved on the catio concept page (recess = sash + 9 cm, as the modular scene assumes). How a tunnel docks to the
+cat ports' clear size of the catio planner's project (recess = sash + 9 cm). How a tunnel docks to the
 cat port (a docking frame on the port, a seal and toggle latches) is on the
 [insert–tunnel coupling](window-insert-tunnel-coupling.md) page.
 
@@ -196,7 +196,7 @@ before; the printed hooks are no reason to leave the feet out or make them small
    - The parts list names one roll, linked to a shop, and the panels cut from it; more rolls may be needed.
 8. **The modular cat port.** A full-width transom over the port and two jambs give every infill mesh panel timber on all
    four edges. They sit in 10 mm housings (or butt joints), the jambs screwed from under the sill rail with DIN 7997 6 × 90.
-   What closes the port is set on the catio concept page (**Cat-port closure**), for every cat port, and named in this
+   What closes the port is set in the catio planner (**Cat-port closure**, in the window's inspector), for every cat port, and named in this
    page's brief:
    - **A removable panel** (the default): solid 12 mm plywood on the port frame's room side, lapping 13 mm onto the jambs
      and the transom, pressed onto an E-profile seal that runs round that seat and over a 12 × 10 stop strip across the

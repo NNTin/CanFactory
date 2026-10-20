@@ -1,10 +1,11 @@
 import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { CircleAlert, ClipboardList, Download, HardDriveDownload, Upload, X } from 'lucide-react';
+import { CircleAlert, ClipboardList, Download, HardDriveDownload, History, Info, Upload, X } from 'lucide-react';
 import { findPart } from '@canfactory/contracts';
 import { parseProject, serializeProject } from '@canfactory/catio';
 import { usePlannerHistory, usePlannerStore } from './catioPlannerStore.ts';
 import { draftBuildList } from './catioPlannerDraft.ts';
-import { createAutosave, download, exportFileName, SavedProjectContext, type Autosave, type SaveState } from './catioPlannerSaved.ts';
+import { importLegacyCatio } from './catioLegacyImport.ts';
+import { browserStorage, createAutosave, download, exportFileName, SavedProjectContext, type Autosave, type SaveState } from './catioPlannerSaved.ts';
 import { formatHash } from './route.ts';
 import { addToBuyList, useMarket, useOffers, type BuyListSource } from './shopping.ts';
 import { AffiliateNote, OfferLink } from './Shopping.tsx';
@@ -12,7 +13,8 @@ import { AffiliateNote, OfferLink } from './Shopping.tsx';
 /**
  * The planner's top-bar project and build-list actions (#115): it saves the project in this browser after every committed edit
  * (catioPlannerSaved.ts; the page opened what was saved, CatioPlannerRoute.tsx), exports and imports it as JSON, and opens the
- * draft build list of the present revision.
+ * draft build list of the present revision. "Import my existing catio" makes a new project, once, from what the old concept page saved
+ * (catioLegacyImport.ts).
  */
 const BUY_LIST_SOURCE: BuyListSource = { kind: 'concept', id: 'catio-planner', label: 'Catio planner' };
 
@@ -28,6 +30,7 @@ export function BuildListSlot() {
   const saving = useSyncExternalStore(autosave?.subscribe ?? noSubscribe, () => autosave?.get() ?? null);
   const [savedProblem, setSavedProblem] = useState(saved.problem);
   const [importErrors, setImportErrors] = useState<{ file: string; errors: string[] } | null>(null);
+  const [legacy, setLegacy] = useState<{ text: string; notes: string[] } | null>(null);
   const [open, setOpen] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   // the kept invalid data is gone once the first edit is saved
@@ -37,8 +40,18 @@ export function BuildListSlot() {
   const importProject = async (chosen: File) => {
     const parsed = parseProject(await chosen.text());
     if (!parsed.ok) { setImportErrors({ file: chosen.name, errors: parsed.errors }); return; }
-    setImportErrors(null); setSavedProblem(null);
+    setImportErrors(null); setSavedProblem(null); setLegacy(null);
     store.load(parsed.project);
+  };
+  const importLegacy = () => {
+    let result;
+    try { result = importLegacyCatio(browserStorage()); } catch { result = { kind: 'failed' as const, errors: ["This browser's storage is unavailable."] }; }
+    if (result.kind === 'none') { setLegacy({ text: 'No catio saved by the old catio concept page was found in this browser.', notes: [] }); return; }
+    if (result.kind === 'failed') { setLegacy(null); setImportErrors({ file: 'Your existing catio', errors: result.errors }); return; }
+    if (store.get().present.revision > 0 && !window.confirm('Importing your existing catio opens it as a new project in place of this one. Export this one first to keep it. Import now?')) return;
+    setImportErrors(null); setSavedProblem(null);
+    store.load(result.project);
+    setLegacy({ text: 'Your existing catio is open as a new project. What the old page saved is left as it was.', notes: result.notes });
   };
 
   return <>
@@ -46,6 +59,7 @@ export function BuildListSlot() {
       <SaveStatus state={saving} />
       <button type="button" onClick={exportProject} title="Download the project as a JSON file, whatever state it is in"><Download size={15} aria-hidden="true" /> Export</button>
       <button type="button" onClick={() => file.current?.click()} title="Open a project from a JSON file; the current one is kept if the file cannot be read"><Upload size={15} aria-hidden="true" /> Import</button>
+      <button type="button" onClick={importLegacy} title="Make a new project from the catio the old concept page saved in this browser; that save is left as it is"><History size={15} aria-hidden="true" /> Import my existing catio</button>
       <input ref={file} type="file" accept="application/json,.json" hidden data-testid="planner-import" onChange={event => {
         const chosen = event.target.files?.[0]; event.target.value = '';
         if (chosen) void importProject(chosen);
@@ -65,6 +79,9 @@ export function BuildListSlot() {
       <div><strong>{importErrors.file} was not imported.</strong> The current project is unchanged.
         <ul>{importErrors.errors.slice(0, 10).map(error => <li key={error}>{error}</li>)}</ul></div>
       <button type="button" aria-label="Dismiss" onClick={() => setImportErrors(null)}><X size={14} aria-hidden="true" /></button></div>}
+    {legacy && <div className="planner-notice info" role="status" aria-label="Existing catio"><Info size={15} aria-hidden="true" />
+      <div><strong>{legacy.text}</strong>{legacy.notes.length > 0 && <ul>{legacy.notes.map(note => <li key={note}>{note}</li>)}</ul>}</div>
+      <button type="button" aria-label="Dismiss" onClick={() => setLegacy(null)}><X size={14} aria-hidden="true" /></button></div>}
     {open && <BuildList close={() => setOpen(false)} />}
   </>;
 }

@@ -16,7 +16,7 @@ enclosure's rear cat port.
   toggle latches across a sealed 3 mm gap by default, or bolted flanges. The stub's end behind every side port is closed by
   a door, held as that page's **Door held by** sets.
 
-Live page: `#/concepts/catio/tunnel`, also linked from the catio concept page's heading under **Sub-assemblies**. For local
+Live page: `#/concepts/catio/tunnel`, also linked from the catio overview (`#/concepts/catio`). For local
 development, run `npm run dev --workspace @canfactory/web -- --port 5181`, then open
 <http://127.0.0.1:5181/#/concepts/catio/tunnel>. It needs no API.
 
@@ -318,7 +318,7 @@ shows, what is unverified and the checks to make on a built panel.
    - Close the latches between the first flange and the insert's docking frame (the coupling page).
    - Couple the last flange to the enclosure's port, a standard port: latched (by default) or bolted, as every coupling.
    - Open the cat ports at both ends: turn every button clear and lift each panel out, or slide the gates up, as the
-     catio concept page's **Cat-port closure** sets.
+     catio planner's **Cat-port closure** sets.
    - Before any part of the tunnel is uncoupled again, shut both ends' ports first.
    - A side-access panel is for reaching in from outside. Opening one opens the tunnel to the garden: secure the cats
      elsewhere first, with both ends' ports shut.

@@ -1,175 +1,29 @@
 import { test, expect } from '@playwright/test';
 
-test('explores the catio and its assembly without a catalogue or render service', async ({ page }, testInfo) => {
-  test.setTimeout(180_000);
+test('opens the catio concept’s overview: the planner and every sub-assembly linked, without a catalogue or render service, on a phone too', async ({ page }, testInfo) => {
   const errors: string[] = []; const jobs: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (request.url().includes('/renders') && request.method() === 'POST') jobs.push(request.url()); });
   await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
-  await page.goto('/#/concepts/catio');
-  const viewer = page.getByTestId('catio-viewer');
-  await expect(viewer).toHaveAttribute('data-ready', 'true');
+  await page.goto('/#/models');
+  await page.getByRole('button', { name: /Window catio/ }).click();
+  await expect(page).toHaveURL(/#\/concepts\/catio$/);
   await expect(page.getByRole('heading', { name: 'A little closer to the grass.' })).toBeVisible();
-  await expect(viewer).toHaveAttribute('data-visible-parts', /continuous-floor/);
-  await page.getByRole('button', { name: 'Interior', exact: true }).click();
-  await expect(page.getByRole('checkbox', { name: 'Wall cutaway' })).toBeChecked();
-  await expect(viewer).not.toHaveAttribute('data-visible-parts', /\bwall\b/);
-  await page.getByRole('checkbox', { name: 'Window open' }).uncheck();
-  await expect(viewer).toHaveAttribute('data-window', 'closed');
-  const slider = page.getByRole('slider', { name: 'Catio assembly' });
-  await slider.press('Home');
-  await expect(viewer).toHaveAttribute('data-step', '0');
-  await expect(viewer).not.toHaveAttribute('data-visible-parts', /recess-collar/);
-  for (let stage = 1; stage <= 6; stage++) {
-    await page.getByRole('button', { name: 'Next assembly stage' }).click();
-    await expect(viewer).toHaveAttribute('data-step', String(stage));
-  }
-  await page.getByRole('checkbox', { name: 'Exploded view' }).check();
-  await expect(viewer).toHaveAttribute('data-exploded', 'true');
-  await page.getByRole('button', { name: 'Mesh', exact: true }).click();
-  await expect(viewer).not.toHaveAttribute('data-visible-parts', /continuous-floor/);
-  await page.getByRole('button', { name: 'Mesh', exact: true }).click();
-  await expect(viewer).toHaveAttribute('data-visible-parts', /continuous-floor/);
-  await page.getByRole('checkbox', { name: 'Exploded view' }).uncheck();
-  await page.getByRole('button', { name: 'Reset catio view' }).click();
-  await expect(page.getByRole('checkbox', { name: 'Wall cutaway' })).not.toBeChecked();
-  for (const name of ['Front', 'Side', 'Top', 'Mounting', 'Exterior']) {
-    await page.getByRole('button', { name, exact: true }).click();
-    await expect(page.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
-  }
-  const gallery = page.getByRole('region', { name: 'Catio concept images' });
-  await expect(gallery.getByRole('img')).toHaveCount(12);
-  await gallery.getByRole('button', { name: 'Direct', exact: true }).click();
-  await expect(gallery.getByRole('img')).toHaveCount(6);
-  for (const img of await gallery.getByRole('img').all()) {
-    await img.scrollIntoViewIfNeeded();
-    await expect(img).toHaveJSProperty('complete', true);
-    expect(await img.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(1000);
-  }
-  const downloads = gallery.getByRole('link', { name: 'Download PNG' });
-  await expect(downloads).toHaveCount(6);
-  const [download] = await Promise.all([page.waitForEvent('download'), downloads.first().click()]);
-  expect(download.suggestedFilename()).toBe('01-overview.png');
-  await page.screenshot({ path: testInfo.outputPath('catio-desktop.png'), fullPage: true });
-  await page.getByRole('button', { name: 'Model library', exact: false }).first().click();
-  await expect(page).toHaveURL(/#\/models$/);
-  await page.goBack(); await expect(viewer).toHaveAttribute('data-ready', 'true');
-  expect(errors).toEqual([]); expect(jobs).toEqual([]);
-});
-
-test('keeps the gallery and all six assembly instructions available without WebGL on mobile', async ({ page }, testInfo) => {
+  const links = page.getByRole('navigation', { name: 'Catio planner and sub-assemblies' }).getByRole('link');
+  await expect(links).toHaveText([/Catio planner/, /Window insert/, /Insert–tunnel coupling/, /^Tunnelpieces/, /Tunnel–tunnel coupling/]);
+  await expect(links.first()).toHaveAttribute('href', '#/concepts/catio/planner');
+  // no second design here: the planner is where the catio is designed
+  await expect(page.getByTestId('catio-viewer')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Direct|Modular/ })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('catio-overview.png'), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.addInitScript(() => {
-    // Preserve the browser method and explicitly restore its receiver with apply below.
-    // eslint-disable-next-line @typescript-eslint/unbound-method
-    const original = HTMLCanvasElement.prototype.getContext;
-    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, ...args: Parameters<typeof original>) {
-      if (args[0].startsWith('webgl')) return null;
-      return original.apply(this, args);
-    } as typeof original;
-  });
-  await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
-  await page.goto('/#/concepts/catio');
-  await expect(page.getByText('3D preview needs WebGL', { exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Assembly instructions' }).getByRole('listitem')).toHaveCount(6);
-  await expect(page.getByRole('region', { name: 'Catio concept images' }).getByRole('img')).toHaveCount(12);
-  await page.getByRole('button', { name: 'Modular · with tunnel', exact: true }).click();
-  await expect(page.getByRole('spinbutton', { name: 'Glass width', exact: true })).toHaveValue('80');
-  await expect(page.getByRole('region', { name: 'Assembly instructions' }).getByText('Fit the window insert', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: testInfo.outputPath('catio-mobile-fallback.png'), fullPage: true });
-});
-
-test('configures modular routes, gates and independent enclosures, retaining valid saved designs', async ({ page }, testInfo) => {
-  const errors: string[] = []; const jobs: string[] = [];
-  page.on('pageerror', error => errors.push(error.message));
-  page.on('request', request => { if (request.url().includes('/renders') && request.method() === 'POST') jobs.push(request.url()); });
-  await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
-  await page.goto('/#/concepts/catio');
-  const viewer = page.getByTestId('catio-viewer');
-  await expect(viewer).toHaveAttribute('data-mode', 'direct');
-  await page.getByRole('button', { name: 'Interior', exact: true }).click();
-  await page.getByRole('button', { name: 'Modular · with tunnel', exact: true }).click();
-  await expect(viewer).toHaveAttribute('data-ready', 'true');
-  await expect(viewer).toHaveAttribute('data-mode', 'modular');
-  await expect(page.getByRole('button', { name: 'Exterior', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('combobox', { name: 'Tunnel route' }).selectOption('right');
-  await expect(viewer).toHaveAttribute('data-config', /"route":"right"/);
-  await expect(page.getByRole('spinbutton', { name: 'Lateral modules' })).toBeVisible();
-  await page.getByRole('spinbutton', { name: 'Approach modules' }).fill('3');
-  await page.getByRole('checkbox', { name: 'Add second enclosure' }).check();
-  await page.getByRole('spinbutton', { name: 'Enclosure B width', exact: true }).fill('180');
-  await expect(page.getByRole('spinbutton', { name: 'Enclosure A width', exact: true })).toHaveValue('120');
-  await expect(viewer).toHaveAttribute('data-visible-parts', /b-continuous-floor/);
-  // a new design shuts every cat port with a removable panel: unused ports stay shut, connected ones are open at the last stage
-  await expect(page.getByRole('combobox', { name: 'Cat-port closure' })).toHaveValue('removable-panel');
-  await expect(page.getByRole('group', { name: 'Doors and gates' })).toHaveAttribute('data-closure', 'removable-panel');
-  await expect(page.getByRole('checkbox', { name: 'Enclosure B rear cat-port panel' })).toBeDisabled();
-  await expect(page.getByRole('checkbox', { name: 'Enclosure B left cat-port panel' })).toBeChecked();
-  await expect(viewer).toHaveAttribute('data-visible-parts', /window-cat-panel .*a-rear-panel-mesh/);
-  await expect(viewer).not.toHaveAttribute('data-visible-parts', /-gate|-tracks/);
-  // the sliding gate stays selectable, and every port changes with it
-  await page.getByRole('combobox', { name: 'Cat-port closure' }).selectOption('sliding-gate');
-  await expect(viewer).toHaveAttribute('data-config', /"portClosure":"sliding-gate"/);
-  await expect(page.getByRole('checkbox', { name: 'Enclosure B left cat gate' })).toBeChecked();
-  await expect(viewer).toHaveAttribute('data-visible-parts', /window-cat-gate/);
-  await expect(viewer).not.toHaveAttribute('data-visible-parts', /-panel/);
-  await expect(page.getByRole('region', { name: 'Assembly instructions' })).toContainText('close and latch the gates at both ends');
-  await page.getByRole('combobox', { name: 'Cat-port closure' }).selectOption('removable-panel');
-  await expect(page.getByRole('region', { name: 'Assembly instructions' })).toContainText('reseat the panels at both of its ends and turn every button back over them');
-  // every door is set into its opening: on stop strips by default, or in a rebate
-  await expect(page.getByRole('combobox', { name: 'Door seat' })).toHaveValue('stops');
-  await page.getByRole('combobox', { name: 'Door seat' }).selectOption('rebate');
-  await expect(viewer).toHaveAttribute('data-config', /"doorSeat":"rebate"/);
-  await page.getByRole('combobox', { name: 'Door seat' }).selectOption('stops');
-  await expect(viewer).toHaveAttribute('data-config', /"doorSeat":"stops"/);
-  const before = await viewer.getAttribute('data-config');
-  await page.getByRole('spinbutton', { name: 'Sash width', exact: true }).fill('60');
-  await expect(page.getByRole('alert')).toContainText('Showing the last valid design.');
-  await expect(viewer).toHaveAttribute('data-config', before ?? '');
-  await page.getByRole('spinbutton', { name: 'Sash width', exact: true }).fill('100');
-  await expect(page.getByRole('alert')).toHaveCount(0);
-  await page.getByRole('checkbox', { name: 'Window cat-port panel', exact: true }).uncheck();
-  await page.getByRole('checkbox', { name: 'Enclosure A maintenance door', exact: true }).check();
-  await page.getByRole('button', { name: 'Top', exact: true }).click();
-  await page.screenshot({ path: testInfo.outputPath('modular-offset-two-enclosures.png'), fullPage: true });
-  await page.reload();
-  await expect(viewer).toHaveAttribute('data-ready', 'true');
-  await expect(viewer).toHaveAttribute('data-mode', 'modular');
-  await expect(page.getByRole('spinbutton', { name: 'Enclosure B width', exact: true })).toHaveValue('180');
-  await expect(page.getByRole('checkbox', { name: 'Window cat-port panel', exact: true })).not.toBeChecked();
-  await expect(page.getByRole('checkbox', { name: 'Enclosure A maintenance door', exact: true })).toBeChecked();
-  await expect(page.getByRole('button', { name: 'Top', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: 'Direct · original design', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Interior', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(viewer).toHaveAttribute('data-visible-parts', /continuous-floor/);
-  await expect(viewer).not.toHaveAttribute('data-visible-parts', /tunnel-/);
-  await page.getByRole('button', { name: 'Modular · with tunnel', exact: true }).click();
-  await page.getByRole('button', { name: 'Reset modular dimensions', exact: true }).click();
-  await expect(page.getByRole('spinbutton', { name: 'Sash width', exact: true })).toHaveValue('91');
-  await expect(page.getByRole('combobox', { name: 'Tunnel route' })).toHaveValue('straight');
-  await expect(page.getByRole('combobox', { name: 'Cat-port closure' })).toHaveValue('removable-panel');
-  await expect(page.getByRole('checkbox', { name: 'Add second enclosure' })).not.toBeChecked();
-  const slider = page.getByRole('slider', { name: 'Catio assembly' });
-  await slider.press('Home');
-  for (let stage = 1; stage <= 6; stage++) {
-    await page.getByRole('button', { name: 'Next assembly stage' }).click();
-    await expect(viewer).toHaveAttribute('data-step', String(stage));
-  }
-  for (const camera of ['Exterior', 'Interior', 'Front', 'Side', 'Top', 'Mounting']) {
-    await page.getByRole('button', { name: camera, exact: true }).click();
-    await expect(page.getByRole('button', { name: camera, exact: true })).toHaveAttribute('aria-pressed', 'true');
-  }
-  const gallery = page.getByRole('region', { name: 'Catio concept images' });
-  await gallery.getByRole('button', { name: 'Modular', exact: true }).click();
-  await expect(gallery.getByRole('img')).toHaveCount(6);
-  for (const img of await gallery.getByRole('img').all()) {
-    await img.scrollIntoViewIfNeeded(); await expect(img).toHaveJSProperty('complete', true);
-    expect(await img.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(1000);
-  }
-  const [download] = await Promise.all([page.waitForEvent('download'), gallery.getByRole('link', { name: 'Download PNG' }).first().click()]);
-  expect(download.suggestedFilename()).toBe('07-modular-overview.png');
-  expect(errors).toEqual([]); expect(jobs).toEqual([]);
+  // the overview renders nothing (the planner asks for the printed latch's render)
+  expect(jobs).toEqual([]);
+  await links.first().click();
+  await expect(page.getByTestId('planner-viewport')).toHaveAttribute('data-ready', 'true');
+  await page.goBack(); await expect(page.getByRole('heading', { name: 'A little closer to the grass.' })).toBeVisible();
+  expect(errors).toEqual([]);
 });
 
 test('opens the window insert, adjusts its joints and clamps, and stages its assembly with a parts list', async ({ page }, testInfo) => {
@@ -178,7 +32,7 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
   await page.goto('/#/concepts/catio');
-  await page.getByRole('navigation', { name: 'Catio sub-assemblies' }).getByRole('link', { name: /Window insert/ }).click();
+  await page.getByRole('navigation', { name: 'Catio planner and sub-assemblies' }).getByRole('link', { name: /Window insert/ }).click();
   await expect(page).toHaveURL(/#\/concepts\/catio\/window-insert$/);
   const viewer = page.getByTestId('subassembly-viewer');
   await expect(viewer).toHaveAttribute('data-ready', 'true');
@@ -272,11 +126,11 @@ test('opens the window insert, adjusts its joints and clamps, and stages its ass
   await expect(viewer).toHaveAttribute('data-visible-parts', /docking-brackets/);
   await page.getByRole('button', { name: 'Modular · with tunnel', exact: true }).click();
   await expect(viewer).toHaveAttribute('data-variant', 'modular');
-  // with tunnel, the cat port is shut by a removable panel (the catio concept page's default), named in the brief and the parts list
+  // with tunnel, the cat port is shut by a removable panel (the planner's default), named in the brief and the parts list
   await expect(viewer).toHaveAttribute('data-visible-parts', /port-panel port-panel-hardware/);
   await expect(viewer).not.toHaveAttribute('data-visible-parts', /gate/);
   await expect(page.getByRole('complementary', { name: 'Window insert parameters' })).toContainText('Removable panel with turn buttons');
-  await expect(page.getByRole('complementary', { name: 'Window insert parameters' })).toContainText('Set on the catio concept page: Cat-port closure');
+  await expect(page.getByRole('complementary', { name: 'Window insert parameters' })).toContainText('Set on the catio planner page: Cat-port closure');
   await expect(page.getByRole('table', { name: 'Hardware parts' })).toContainText('Door turn button, printed (custom)');
   await expect(page.getByRole('table', { name: 'Timber parts' })).toContainText('Door stop, side');
   await expect(page.getByRole('region', { name: 'Assembly instructions' })).toContainText('Panel and check');
@@ -330,7 +184,7 @@ test('opens the tunnel, solves its route to the enclosure port, switches its joi
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
   await page.goto('/#/concepts/catio');
-  await page.getByRole('navigation', { name: 'Catio sub-assemblies' }).getByRole('link', { name: /^Tunnel pieces/ }).click();
+  await page.getByRole('navigation', { name: 'Catio planner and sub-assemblies' }).getByRole('link', { name: /^Tunnel pieces/ }).click();
   await expect(page).toHaveURL(/#\/concepts\/catio\/tunnel$/);
   const viewer = page.getByTestId('subassembly-viewer');
   await expect(viewer).toHaveAttribute('data-ready', 'true');
@@ -430,7 +284,7 @@ test('opens the insert–tunnel coupling, switches its latches, stages the docki
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
   await page.goto('/#/concepts/catio');
-  await page.getByRole('navigation', { name: 'Catio sub-assemblies' }).getByRole('link', { name: /Insert–tunnel coupling/ }).click();
+  await page.getByRole('navigation', { name: 'Catio planner and sub-assemblies' }).getByRole('link', { name: /Insert–tunnel coupling/ }).click();
   await expect(page).toHaveURL(/#\/concepts\/catio\/insert-tunnel-coupling$/);
   const viewer = page.getByTestId('subassembly-viewer');
   await expect(viewer).toHaveAttribute('data-ready', 'true');
@@ -524,7 +378,7 @@ test('opens the tunnel–tunnel coupling, brings the second section in, switches
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
   await page.goto('/#/concepts/catio');
-  await page.getByRole('navigation', { name: 'Catio sub-assemblies' }).getByRole('link', { name: /Tunnel–tunnel coupling/ }).click();
+  await page.getByRole('navigation', { name: 'Catio planner and sub-assemblies' }).getByRole('link', { name: /Tunnel–tunnel coupling/ }).click();
   await expect(page).toHaveURL(/#\/concepts\/catio\/tunnel-tunnel-coupling$/);
   const viewer = page.getByTestId('subassembly-viewer');
   await expect(viewer).toHaveAttribute('data-ready', 'true');
@@ -666,129 +520,5 @@ test('builds the tunnel of flush standard elements: turning into side openings, 
   await page.getByRole('combobox', { name: 'Turns and bends' }).selectOption('angle-collar');
   await expect(facts).not.toContainText('at the turns');
   await expect(page.getByRole('spinbutton', { name: 'Straight into the port' })).toBeVisible();
-  expect(errors).toEqual([]);
-});
-
-test('keeps a catio saved before the closure could be chosen as it was, and takes the new doors only on reset', async ({ page }, testInfo) => {
-  test.setTimeout(180_000);
-  const errors: string[] = [];
-  page.on('pageerror', error => errors.push(error.message));
-  await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
-  // settings as the pages saved them before: version 1, no closure, no side access, no door toggle
-  await page.addInitScript(() => {
-    if (localStorage.getItem('canfactory.test.seeded')) return;
-    localStorage.setItem('canfactory.test.seeded', '1');
-    const viewing = { progress: 6, exploded: false, windowOpen: true, cutaway: false, hidden: [], view: 'Exterior', doors: {} };
-    localStorage.setItem('canfactory.catio.v1', JSON.stringify({ version: 1, mode: 'modular', views: { direct: viewing, modular: { ...viewing, view: 'Top', hidden: ['environment'], doors: { 'window-cat': false } } }, config: {
-      glassWidth: 800, glassHeight: 800, sashWidth: 1000, sashHeight: 910, enclosure: { width: 1500, depth: 1000, height: 1200 }, second: { width: 1200, depth: 1000, height: 1200 }, secondEnabled: false,
-      tunnelWidth: 350, tunnelHeight: 300, route: 'left', approach: 3, lateral: 2, final: 1, link: 2 } }));
-    localStorage.setItem('canfactory.catio.window-insert.v1', JSON.stringify({ version: 1, variant: 'modular', config: { attachment: 'frame-hooks', footDiameter: 32 }, views: {} }));
-    localStorage.setItem('canfactory.catio.tunnel.v1', JSON.stringify({ version: 1, variant: 'modular', views: { modular: { progress: 6, view: 'Top', hidden: ['mesh'], exploded: false, windowOpen: true, cutaway: false } }, config: {
-      portX: 800, portY: 3000, portFacing: 0, portLevel: 'own', portHeight: 500, approach: 700, final: 700, slopeLeg: 'middle', maxSlope: 20, angleJoint: 'angle-collar', mesh: 'welded', sectionLength: 750,
-      footPad: 'printed', padHeight: 27.5, padSurface: 'grooved', footDiameter: 40, groundFall: 2, groundTolerance: 15, supportFixing: 'dowels', supportBase: 'trestle' } }));
-  });
-  await page.goto('/#/concepts/catio');
-  const viewer = page.getByTestId('catio-viewer');
-  await expect(viewer).toHaveAttribute('data-ready', 'true');
-  // every dimension and the viewing state are kept, with the sliding gates the design was drawn with
-  await expect(viewer).toHaveAttribute('data-mode', 'modular');
-  await expect(page.getByRole('spinbutton', { name: 'Sash width', exact: true })).toHaveValue('100');
-  await expect(page.getByRole('spinbutton', { name: 'Enclosure A width', exact: true })).toHaveValue('150');
-  // (a 35 × 30 cm tunnel saved then is the standard square port now: 35 cm both ways)
-  await expect(page.getByRole('spinbutton', { name: 'Tunnel clear size', exact: true })).toHaveValue('35');
-  await expect(page.getByRole('combobox', { name: 'Tunnel route' })).toHaveValue('left');
-  await expect(page.getByRole('spinbutton', { name: 'Approach modules' })).toHaveValue('3');
-  await expect(page.getByRole('button', { name: 'Top', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: 'Wall & grass', exact: true })).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByRole('combobox', { name: 'Cat-port closure' })).toHaveValue('sliding-gate');
-  await expect(page.getByRole('checkbox', { name: 'Window cat gate', exact: true })).not.toBeChecked();
-  await expect(viewer).toHaveAttribute('data-visible-parts', /window-cat-gate/);
-  await expect(viewer).not.toHaveAttribute('data-visible-parts', /-panel/);
-  expect(await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem('canfactory.catio.v1') ?? '{}') as { version: number; config: { portClosure: string; tunnelSize: number } }; return [saved.version, saved.config.portClosure, saved.config.tunnelSize]; })).toEqual([3, 'sliding-gate', 350]);
-  // sliding gates keep their travel limit; the window insert page, fitted to this one, reports its own
-  await page.getByRole('spinbutton', { name: 'Tunnel clear size', exact: true }).fill('44');
-  await expect(page.getByRole('alert')).toContainText('The sliding gate needs room for its full upward travel inside the window collar.');
-  await page.getByRole('spinbutton', { name: 'Tunnel clear size', exact: true }).fill('38');
-  await expect(page.getByRole('alert')).toHaveCount(0);
-  await expect(page.getByRole('status', { name: 'Other pages' })).toContainText('window insert: The sliding gate needs room above the port for its full travel inside the collar.');
-  // a removable panel has no travel: the same port fits, on this page and on the insert's
-  await page.getByRole('combobox', { name: 'Cat-port closure' }).selectOption('removable-panel');
-  await expect(page.getByRole('status', { name: 'Other pages' })).toHaveCount(0);
-  await page.getByRole('spinbutton', { name: 'Tunnel clear size', exact: true }).fill('44');
-  await expect(page.getByRole('alert')).toHaveCount(0);
-  await expect(viewer).toHaveAttribute('data-config', /^(?=.*"tunnelSize":440)(?=.*"portClosure":"removable-panel")/);
-  await page.getByRole('combobox', { name: 'Cat-port closure' }).selectOption('sliding-gate');
-  await expect(page.getByRole('alert')).toContainText('The sliding gate needs room');
-  await page.getByRole('spinbutton', { name: 'Tunnel clear size', exact: true }).fill('30');
-  await expect(viewer).toHaveAttribute('data-config', /^(?=.*"tunnelSize":300)(?=.*"portClosure":"sliding-gate")/);
-  // the sub-assembly pages follow: the window insert has its gate, tracks and latch
-  await page.goto('/#/concepts/catio/window-insert');
-  const sub = page.getByTestId('subassembly-viewer');
-  await expect(sub).toHaveAttribute('data-variant', 'modular');
-  await expect(sub).toHaveAttribute('data-ready', 'true');
-  await expect(sub).toHaveAttribute('data-visible-parts', /gate-tracks cat-gate gate-latch/);
-  await expect(sub).not.toHaveAttribute('data-visible-parts', /port-panel/);
-  await expect(page.getByRole('complementary', { name: 'Window insert parameters' })).toContainText('Vertical sliding gate');
-  await expect(page.getByRole('table', { name: 'Timber parts' })).toContainText('Sliding cat gate');
-  await expect(page.getByRole('table', { name: 'Hardware parts' })).not.toContainText('Door turn button');
-  await expect(page.getByRole('region', { name: 'Assembly instructions' })).toContainText('Gate and check');
-  // the saved tunnel keeps its own settings and view; its old side access is dropped, the end bays' doors replace it
-  await page.goto('/#/concepts/catio/tunnel');
-  await expect(sub).toHaveAttribute('data-subassembly', 'tunnel');
-  await expect(sub).toHaveAttribute('data-ready', 'true');
-  await expect(sub).toHaveAttribute('data-config', /"portX":800.*"mesh":"welded".*"supportFixing":"dowels"/);
-  await expect(sub).not.toHaveAttribute('data-config', /sideAccess/);
-  await expect(page.getByRole('combobox', { name: 'Side access', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Top · the turns', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: 'Mesh', exact: true })).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByRole('complementary', { name: 'Tunnel parameters' })).toContainText('Vertical sliding gate');
-  await page.getByRole('button', { name: 'Reset to the recommended defaults' }).click();
-  await page.getByRole('button', { name: 'Mesh', exact: true }).click();
-  await expect(sub).toHaveAttribute('data-visible-parts', /doors door-mesh door-hardware/);
-  await expect(page.getByRole('table', { name: 'Hardware parts' })).toContainText('Door turn button, printed (custom)');
-  await expect(page.getByRole('table', { name: 'Mesh parts' })).toContainText('Removable panel mesh');
-  await page.getByRole('checkbox', { name: 'Doors open' }).check();
-  await expect(sub).toHaveAttribute('data-door-travel', '1');
-  await page.screenshot({ path: testInfo.outputPath('tunnel-doors-open.png'), fullPage: true });
-  await expect(sub).toHaveAttribute('data-door', 'open');
-  await page.reload();
-  await expect(sub).toHaveAttribute('data-ready', 'true');
-  await expect(page.getByRole('checkbox', { name: 'Doors open' })).toBeChecked();
-  // the tunnel–tunnel coupling shows its two sections' doors
-  await page.goto('/#/concepts/catio/tunnel-tunnel-coupling');
-  await expect(sub).toHaveAttribute('data-subassembly', 'tunnel-tunnel-coupling');
-  await expect(sub).toHaveAttribute('data-ready', 'true');
-  await expect(sub).toHaveAttribute('data-visible-parts', /second-section-doors/);
-  await expect(page.getByRole('checkbox', { name: 'Doors open' })).toBeVisible();
-  // resetting the catio is what takes the new doors: every page then shows the removable panel
-  await page.goto('/#/concepts/catio');
-  await expect(viewer).toHaveAttribute('data-ready', 'true');
-  await page.getByRole('button', { name: 'Reset modular dimensions', exact: true }).click();
-  await expect(page.getByRole('combobox', { name: 'Cat-port closure' })).toHaveValue('removable-panel');
-  await expect(page.getByRole('spinbutton', { name: 'Sash width', exact: true })).toHaveValue('91');
-  await expect(page.getByRole('checkbox', { name: 'Window cat-port panel', exact: true })).not.toBeChecked();
-  await expect(viewer).toHaveAttribute('data-visible-parts', /window-cat-panel/);
-  for (let stage = 0; stage < 6; stage++) await page.getByRole('button', { name: 'Previous assembly stage' }).click();
-  await expect(viewer).toHaveAttribute('data-step', '0');
-  await expect(viewer).not.toHaveAttribute('data-visible-parts', /window-cat-panel/);
-  for (let stage = 1; stage <= 6; stage++) {
-    await page.getByRole('button', { name: 'Next assembly stage' }).click();
-    await expect(viewer).toHaveAttribute('data-step', String(stage));
-    await expect(viewer).toHaveAttribute('data-visible-parts', stage >= 3 ? /window-cat-panel.*a-rear-panel/ : /window-cat-panel/);
-  }
-  await expect(page.getByRole('region', { name: 'Live catio concept' }).getByText('Open the connected ports')).toBeVisible();
-  await page.goto('/#/concepts/catio/insert-tunnel-coupling');
-  await expect(sub).toHaveAttribute('data-subassembly', 'insert-tunnel-coupling');
-  await expect(sub).toHaveAttribute('data-ready', 'true');
-  await expect(sub).toHaveAttribute('data-visible-parts', /window-port-closure window-port-closure-hardware/);
-  await expect(page.getByRole('complementary', { name: 'Insert–tunnel coupling parameters' })).toContainText('Removable panel with turn buttons');
-  await expect(page.getByRole('region', { name: 'Assembly instructions' })).toContainText('lift every button’s locking pin, turn the buttons clear and lift its panel out');
-  await page.getByRole('checkbox', { name: 'Cat port open' }).check();
-  await expect(sub).toHaveAttribute('data-door-travel', '1');
-  // hiding the hardware hides the buttons, not the panel
-  await page.getByRole('button', { name: 'Latches, seal & screws', exact: true }).click();
-  await expect(sub).toHaveAttribute('data-visible-parts', /window-port-closure(?!-hardware)/);
-  await expect(sub).not.toHaveAttribute('data-visible-parts', /window-port-closure-hardware/);
-  await page.screenshot({ path: testInfo.outputPath('coupling-port-open.png'), fullPage: true });
   expect(errors).toEqual([]);
 });

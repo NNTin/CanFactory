@@ -1,6 +1,6 @@
 import { couplingBom, validateCoupling } from './catioCoupling.ts';
 import { enclosureInside, enclosureLayout, enclosureSillRange, type EnclosureInside, type EnclosureLayout } from './catioEnclosure.ts';
-import { MODULAR, MODULAR_DEFAULT, validateModular, type ModularConfig } from './catioModularDesign.ts';
+import { MODULAR, MODULAR_DEFAULT, validateEnclosure, validateModular, type ModularConfig } from './catioModularDesign.ts';
 import { platformLayout, type PlatformLayout } from './catioPlatform.ts';
 import {
   applyTransform, composeTransform, isKind, relativeTransform, withoutKeys, worldTransforms, yawDirection,
@@ -100,9 +100,7 @@ export function evaluateProject(project: Project): ProjectEvaluation {
   const insertConfig: WindowInsertConfig = { ...s.insert, mesh: s.mesh };
   const joint: TunnelCouplingConfig = { ...s.tunnelCoupling, jointShown: 'end-end' };
   const portRanges = new Map<string, PortRange>();
-  const modular = (w: WindowParams | undefined, enclosure = MODULAR_DEFAULT.enclosure): ModularConfig => ({
-    ...MODULAR_DEFAULT, ...w, enclosure, second: enclosure, secondEnabled: false, portClosure: s.portClosure, doorSeat: s.doorSeat,
-  });
+  const modular = (w: WindowParams | undefined): ModularConfig => ({ ...MODULAR_DEFAULT, ...w, portClosure: s.portClosure, doorSeat: s.doorSeat });
   const name = (i: Instance) => i.name ?? i.id;
   const local = new Map<string, Transform>();
   const evaluated: EvaluatedInstance[] = [];
@@ -126,7 +124,7 @@ export function evaluateProject(project: Project): ProjectEvaluation {
       if (raise < range.min - 0.5 || raise > range.max + 0.5) issue('geometry', 'error', [w.id], 'port-raise', `${name(w)}'s cat port is raised ${mm(raise)}; the insert allows ${mm(range.min)} to ${mm(range.max)} (${portRanges.get(port.id)?.limits ?? ''}).`);
     }
     if (port) local.set(port.id, { x: 0, y: TUNNEL.wallGap, z: result.site.floorZ, yaw: 0 });
-    for (const message of new Set([...validateModular(modular(w.params)).filter(m => !m.startsWith('Enclosure')), ...validateWindowInsert('modular', insertConfig, result.site.window)]))
+    for (const message of new Set([...validateModular(modular(w.params)), ...validateWindowInsert('modular', insertConfig, result.site.window)]))
       issue('input', 'error', [w.id], `window-${message}`, message);
     addBom([w.id], windowInsertBom('modular', insertConfig, result.site.window));
   }
@@ -165,8 +163,7 @@ export function evaluateProject(project: Project): ProjectEvaluation {
       const port = portByName(e.id, p.side);
       if (port) local.set(port.id, { x: p.face.at[0], y: p.face.at[1], z: p.face.at[2], yaw: yawOf(p.face.n) });
     }
-    const checks = validateModular(modular(project.instances.find(isKind('window'))?.params, e.params)).filter(m => m.startsWith('Enclosure A'));
-    for (const message of checks) issue('input', 'error', [e.id], `enclosure-${message}`, message.replace('Enclosure A', name(e)));
+    for (const message of validateEnclosure(e.params, { tunnelSize, portClosure: s.portClosure, doorSeat: s.doorSeat }, name(e))) issue('input', 'error', [e.id], `enclosure-${message}`, message);
     if (t.z < -0.5) issue('geometry', 'error', [e.id], 'below-ground', `${name(e)} stands ${mm(-t.z)} below the lawn.`);
     issue('missing-recipe', 'warning', [e.id], 'enclosure', `${name(e)} has no construction recipe yet: its frame, mesh, floor, roof, door, feet and fixings are not in the parts list.`);
   }

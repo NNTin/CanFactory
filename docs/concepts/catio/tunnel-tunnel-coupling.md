@@ -5,8 +5,8 @@ they are joined by **printed toggle latches** (the [toggle latch](../../toggle-l
 which close **by hand, without tools**. **Bolted flanges** (M8 bolts through both flanges, face to face) remain an option.
 This page owns the mechanism: the [tunnel](tunnel.md) page couples every section and angle collar this way.
 
-Live page: `#/concepts/catio/tunnel-tunnel-coupling`, also linked from the catio concept page's heading under
-**Sub-assemblies**. For local development, run `npm run dev --workspace @canfactory/web -- --port 5181`, then open
+Live page: `#/concepts/catio/tunnel-tunnel-coupling`, also linked from the catio overview
+(`#/concepts/catio`). For local development, run `npm run dev --workspace @canfactory/web -- --port 5181`, then open
 <http://127.0.0.1:5181/#/concepts/catio/tunnel-tunnel-coupling>. It needs no API.
 
 The page shows only the modular variant, because the direct design has no tunnel. It reuses the sub-assembly page:
@@ -31,7 +31,7 @@ tunnel page's. **Joint shown** picks which:
   square across it. The second has its side ring, a pocket and a pocket post each side, and its stub's end port closed by
   its door ([standard-port.md](standard-port.md)). It comes in along the first one's axis, sideways, onto the same bearer.
 
-  Both are at the catio's clear tunnel size (30 × 30 cm by default, set on the catio concept page). Every element ends in the
+  Both are at the catio's clear tunnel size (30 × 30 cm by default, set in the catio planner). Every element ends in the
   [standard port](standard-port.md).
 - **Support.** The tunnel's support under the joint: a 45 × 70 bearer on two legs, on the tunnel page's feet (printed
   pressure pads by default), on paving slabs, levelled. The feet and the ground (its fall and unevenness) are the tunnel

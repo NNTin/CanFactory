@@ -3,7 +3,13 @@ import * as THREE from 'three';
 import type { CatioLayer } from '@canfactory/catio';
 
 type V3 = [number, number, number];
-import type { CatioState, MeshPanel } from './catioScene.ts';
+/** How a catio scene is shown: its assembly stage, exploded or not, the window open, the wall cut away, the layers hidden. */
+export interface CatioState {
+  progress: number; exploded: boolean; windowOpen: boolean; cutaway: boolean; hidden: ReadonlySet<CatioLayer>;
+  /** How far the page's door is on its way out (catioDoor.ts): 0 closed and retained, also when absent; 1 open, its panel set aside. */
+  door?: number;
+}
+interface MeshPanel { id: string; width: number; height: number; center: V3; plane: 'xy' | 'xz' | 'yz' }
 interface Component { id: string; group: THREE.Group; step: number; layer?: CatioLayer; offset: V3 }
 
 /**

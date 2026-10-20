@@ -36,7 +36,7 @@ export function buildWindowContext(parts: ReturnType<typeof createCatioParts>, w
  * The tilt-and-turn window itself (catioWindow.ts): its fixed frame and seal (`fixed-window-frame`) and its sash (`opening-sash`),
  * whose hinge `windowOpen` turns and whose `tilt` tilts it. The whole catio's scenes draw it too.
  */
-export function buildWindowFrame(parts: ReturnType<typeof createCatioParts>, w: WindowContextSpec) {
+function buildWindowFrame(parts: ReturnType<typeof createCatioParts>, w: WindowContextSpec) {
   const { component, box, ring, materials: m } = parts;
   // The fixed frame in section: its outer lip (frameFace wide, frameLip thick) overlaps the sash; its body behind stops the Falzluft
   // short of the sash's edge; the outer seal fills the gap between the lip's back and the closed sash, just outside the lip's tips.

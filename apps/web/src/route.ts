@@ -3,7 +3,7 @@ import { CATIO_SUBASSEMBLIES, type CatioSubassembly } from '@canfactory/catio';
  * Where the app is, mirrored to the URL's hash so that every page can be linked to and the browser's back button works:
  * `#/models` (the model library), `#/models/<id>` (a model's editor), `#/parts` (the parts library's families),
  * `#/parts/<family>` and `#/parts/<family>/<part>`, each optionally with filters as a query, e.g. `#/parts/screw?thread=M3`.
- * `#/concepts/catio` is the whole catio concept, `#/concepts/catio/planner` the catio planner and `#/concepts/catio/<sub-assembly>` one of
+ * `#/concepts/catio` is the catio concept's overview, `#/concepts/catio/planner` the catio planner and `#/concepts/catio/<sub-assembly>` one of
  * its sub-assemblies' own pages.
  * `#/buy-list` is the buy list, `#/disclosure` the affiliate disclosure and `#/privacy` the privacy page.
  * A URL without a hash, or with one that names no page, opens the model library.

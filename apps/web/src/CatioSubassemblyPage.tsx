@@ -158,7 +158,7 @@ export function CatioSubassemblyPage<C extends object>({ definition }: { definit
           <OtherPageIssues issues={otherIssues}>These settings do not fit another page.</OtherPageIssues>
           <button type="button" className="catio-reset" onClick={reset}>Reset to the recommended defaults</button>
         </div>
-        {variant === 'modular' && <p>The window and cat port sizes follow the modular design on the <a href={formatHash({ view: 'concepts', concept: 'catio', subassembly: null })}>catio concept</a> page.</p>}
+        {variant === 'modular' && <p>The window and cat port sizes follow the window in your <a href={formatHash({ view: 'catio-planner' })}>catio planner</a> project.</p>}
         <PageRelations page={definition.id} follows={definition.follows ?? []} />
       </aside>
       <section className="catio-preview" aria-label={`Live ${definition.title.toLowerCase()} concept`}>

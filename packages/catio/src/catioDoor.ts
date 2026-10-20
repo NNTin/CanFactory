@@ -28,10 +28,8 @@ export const PORT_CLOSURES = ['removable-panel', 'sliding-gate'] as const;
 export type PortClosure = typeof PORT_CLOSURES[number];
 /** What a new or reset design closes its cat ports with. */
 export const PORT_CLOSURE_DEFAULT: PortClosure = 'removable-panel';
-/** What every design saved before the choice existed has: the mechanism it was drawn with. */
-export const PORT_CLOSURE_LEGACY: PortClosure = 'sliding-gate';
 export const PORT_CLOSURE_LABELS: Record<PortClosure, string> = { 'removable-panel': 'Removable panel with turn buttons', 'sliding-gate': 'Vertical sliding gate' };
-/** The setting's label on the catio concept page, as the sub-assembly pages name where it is set. */
+/** The setting's label in the catio planner, as the sub-assembly pages name where it is set. */
 export const PORT_CLOSURE_SETTING = 'Cat-port closure';
 export const isPortClosure = (value: unknown): value is PortClosure => PORT_CLOSURES.includes(value as PortClosure);
 

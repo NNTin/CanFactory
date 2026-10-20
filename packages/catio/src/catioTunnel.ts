@@ -123,7 +123,7 @@ export const TUNNEL = {
 /** The fixed interfaces: the window insert's port (where the tunnel starts) and the tunnel's clear size. */
 export interface TunnelSite { w: number; h: number; floorZ: number; window: WindowSpec; insert: WindowInsertConfig }
 
-/** The window insert (`insert`, as its page sets it) in the modular window of the catio concept (`catio`). */
+/** The window insert (`insert`, as its page sets it) in the planner project's window (`catio`). */
 export function tunnelSiteFor(insert: WindowInsertConfig, catio: ModularWindowSettings): TunnelSite {
   const window = windowFor('modular', insert, catio);
   const tunnel = window.tunnel ?? { width: 300, height: 300 };
@@ -1326,7 +1326,7 @@ export function tunnelFacts(_variant: CatioMode, config: TunnelConfig, site: Tun
     { label: 'Supports', value: `${l.supports.length} (${tallest > 0 ? `longest leg ${cm(tallest)} cm` : 'low bearers, no legs'})` },
     { label: 'Foot travel · ground taken up', value: `${fmt(l.travel.max - l.travel.min, 0)} mm · ±${config.groundTolerance} mm` },
     ...(access ? [{ label: 'Side doors · end bays', value: `${l.doors.filter(d => d.at !== 'start').length} · ${access.panel} · ${access.retention}` }] : []),
-    { label: 'Cat ports at both ends · closed by', value: PORT_CLOSURE_LABELS[l.site.window.closure], from: { page: 'concept' as const, settings: [PORT_CLOSURE_SETTING] } },
+    { label: 'Cat ports at both ends · closed by', value: PORT_CLOSURE_LABELS[l.site.window.closure], from: { page: 'planner' as const, settings: [PORT_CLOSURE_SETTING] } },
     { label: 'On the supports', value: `${SUPPORT_FIXING_LABELS[config.supportFixing]}${l.supports.some(s => !s.hold.attached) && config.supportFixing !== 'gravity' ? ` (${l.supports.filter(s => s.hold.attached).length} of ${l.supports.length})` : ''} · ${config.supportBase === 'self-standing' ? 'self-standing' : 'trestles'}` },
   ];
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { enclosureLayout, MODULAR, MODULAR_DEFAULT, modularLayout, type EnclosureBox } from './index.ts';
+import { enclosureLayout, MODULAR, MODULAR_DEFAULT, type EnclosureBox } from './index.ts';
 
-const size = MODULAR_DEFAULT.enclosure;
+const size = { width: 1200, depth: 1000, height: 1200 };
 const layout = (connected = { rear: true, left: false, right: false }, tunnelSize = MODULAR_DEFAULT.tunnelSize) => enclosureLayout(size, { id: 'a', tunnelSize, connected });
 const range = (b: EnclosureBox, i: 0 | 1 | 2): [number, number] => [b.center[i] - b.size[i] / 2, b.center[i] + b.size[i] / 2];
 
@@ -56,8 +56,4 @@ describe('enclosure layout', () => {
     for (const id of ids) expect(id.startsWith('b-')).toBe(true);
   });
 
-  it('is laid out for every enclosure the modular layout places', () => {
-    const c = { ...MODULAR_DEFAULT, secondEnabled: true };
-    for (const placed of modularLayout(c).enclosures) expect(enclosureLayout(placed.size, { id: placed.id, tunnelSize: c.tunnelSize, connected: { rear: placed.id === 'a', left: placed.id === 'b', right: placed.id === 'a' } }).size).toEqual(placed.size);
-  });
 });

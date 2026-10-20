@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Box, CircleAlert, Copy, CornerUpLeft, CornerUpRight, Focus, Link, Magnet, Maximize, Minus, Move, Plus, Redo2, RotateCw, Scaling, Trash2, Undo2, Unlink } from 'lucide-react';
 import {
-  addEnclosure, addPlatform, addTunnel, canRedo, canUndo, connect, CONNECT_REACH, connectTargets, deleteDependents, deleteInstance, detach, duplicateInstance, elementTitle, ENCLOSURE_DEFAULT,
-  extendTunnel, moveInstance, ORIENTATION_YAW, platformOrientation, platformRangeOf, PLATFORM_ORIENTATIONS, PLATFORM_RECIPES, portTitle, raiseElements, rangeText, resizeGarden, resizeInstance,
-  rotateInstance, routeElements, turnTunnel, worldTransforms,
+  addEnclosure, addPlatform, addTunnel, canRedo, canUndo, connect, CONNECT_REACH, connectTargets, deleteDependents, deleteInstance, detach, DOOR_SEAT_LABELS, DOOR_SEAT_SETTING, DOOR_SEATS,
+  duplicateInstance, elementTitle, ENCLOSURE_DEFAULT, extendTunnel, moveInstance, ORIENTATION_YAW, platformOrientation, platformRangeOf, PLATFORM_ORIENTATIONS, PLATFORM_RECIPES,
+  PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, PORT_CLOSURES, portTitle, raiseElements, rangeText, resizeGarden, resizeInstance, resizeWindow, rotateInstance, routeElements, setCatPorts,
+  turnTunnel, worldTransforms, type DoorSeat, type PortClosure,
   type CommandResult, type EvaluatedElement, type EvaluatedInstance, type EvaluatedTunnel, type Instance, type Port, type Project, type ProjectEvaluation, type ProjectIssue, type TunnelEnd,
 } from '@canfactory/catio';
 import { createPlannerStore, PlannerStoreContext, usePlannerHistory, usePlannerStore } from './catioPlannerStore.ts';
@@ -328,13 +329,26 @@ function InstanceFields({ project, instance, evaluated, run }: { project: Projec
     </>;
   }
   if (evaluated.kind === 'tunnel') return <TunnelFields project={project} tunnel={evaluated} run={run} />;
-  if (evaluated.kind === 'window') {
-    const w = evaluated.site.window;
-    return <dl className="planner-readonly">
-      <div><dt>Window opening · W × H</dt><dd>{cm(w.openingWidth)} × {cm(w.openingHeight)} <small>cm</small></dd></div>
-      <div><dt>Cat port</dt><dd>{cm(evaluated.site.w)} × {cm(evaluated.site.h)} <small>cm</small></dd></div>
-      <p className="planner-note">Site context: the existing wall and window are not in the build list.</p>
-    </dl>;
+  if (instance.kind === 'window' && evaluated.kind === 'window') {
+    const w = evaluated.site.window; const p = instance.params; const { portClosure, doorSeat } = project.settings;
+    const size = (patch: Partial<typeof p>) => run(resizeWindow(project, instance.id, patch));
+    const field = (label: string, key: keyof typeof p, hint?: string) => <NumberField label={label} unit="cm" value={p[key]} scale={10} digits={1} positive hint={hint} onCommit={v => size({ [key]: v })} />;
+    return <>
+      <fieldset><legend>Existing window</legend>
+        {field('Glass width', 'glassWidth')}{field('Glass height', 'glassHeight')}{field('Sash width', 'sashWidth')}{field('Sash height', 'sashHeight')}</fieldset>
+      <fieldset><legend>Cat ports</legend>
+        {field('Clear size', 'tunnelSize', 'Every port, both ways: the tunnels follow')}
+        <label className="planner-field"><span>{PORT_CLOSURE_SETTING}</span><select aria-label={PORT_CLOSURE_SETTING} value={portClosure}
+          onChange={event => run(setCatPorts(project, { portClosure: event.target.value as PortClosure }))}>{PORT_CLOSURES.map(o => <option key={o} value={o}>{PORT_CLOSURE_LABELS[o]}</option>)}</select></label>
+        <label className="planner-field"><span>{DOOR_SEAT_SETTING}</span><select aria-label={DOOR_SEAT_SETTING} value={doorSeat}
+          onChange={event => run(setCatPorts(project, { doorSeat: event.target.value as DoorSeat }))}>{DOOR_SEATS.map(o => <option key={o} value={o}>{DOOR_SEAT_LABELS[o]}</option>)}</select></label>
+        <p className="planner-note">The window’s and every enclosure’s cat port, and the tunnels’ doors.</p></fieldset>
+      <dl className="planner-readonly">
+        <div><dt>Window opening · W × H</dt><dd>{cm(w.openingWidth)} × {cm(w.openingHeight)} <small>cm</small></dd></div>
+        <div><dt>Cat port</dt><dd>{cm(evaluated.site.w)} × {cm(evaluated.site.h)} <small>cm</small></dd></div>
+        <p className="planner-note">Site context: the existing wall and window are not in the build list.</p>
+      </dl>
+    </>;
   }
   return null;
 }
