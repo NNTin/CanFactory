@@ -1,7 +1,7 @@
 # The parts library
 
 The parts library is a catalogue of real-world parts that models are made to fit: screws, nuts, washers, magnets, threaded
-inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, development boards, mesh and netting by the roll, and everyday objects such as the BIC
+inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, development boards, stepper motors and their driver boards, mesh and netting by the roll, and everyday objects such as the BIC
 Mini lighter the cigarette case holds. Every entry is one real
 item, a size of a standard part (ISO 4762 M3 × 10) or a named product (supermagnete S-06-02-N), with its dimensions, their
 tolerances where the source gives them, and the source of every value.
@@ -177,6 +177,50 @@ layout:
 - the pads underneath clear of the holes;
 - the external antenna consistent with its connector or near the antenna;
 - the antenna inside its keep-out.
+
+### Stepper motors and driver boards
+
+Two families for prints built round the 28BYJ-48 geared stepper motor and the ULN2003 board it is sold with. Neither part has
+one canonical maker: many shops sell copies, which differ slightly. Each entry is one documented version, and its notes say how
+copies differ.
+
+- **`stepper-motor`** (`stepper-motors.ts`): the 28BYJ-48, 5 V (`kiatronics-28byj-48-5v`).
+  - **The drawing:** Kiatronics's data sheet (published by Mouser) gives the body, the ears and their holes, the offset shaft with
+    its flats and boss, the wire housing and the lead. These values are `manufacturer`, with the drawing's tolerances.
+  - **The rest** comes from Joe's detailed model (Printables 343236) and is `estimated`: the ears' thickness and the blue wire
+    housing. Only its measured values are used, never its file (CC BY-NC-ND). The housing's values:
+    - its length from the mounting face;
+    - the side ledges down the body, with their chamfer into the housing's side and where they stop short of the mounting face;
+    - the wire slot in the outer face;
+    - the lip over the body's back rim, with its middle gap;
+    - the body's rounded back edge.
+  - **Flats:** both 343236 and Philip McGaw's fit-check model (Printables 121424) orient them parallel to the line through the
+    holes.
+  - **Conflicts:** where a model differs from the drawing (343236's body 19.3 mm long and housing 14.5 mm wide, 121424's body
+    20 mm long), the drawing is used.
+  - **The plug:** the JST XHP-5 at the end of the lead is JST's catalogue.
+  - **The 12 V version:** Changzhou Fulling's drawing is cited in the notes; it is not a separate part yet.
+  - **Preview frame:** the body's back on z = 0, the mounting face at z = `L`, the body's axis at the origin, the ears along X, the
+    shaft at y = +`e`, the wire housing towards −Y. Diameters and lengths are at their largest, as a bracket's pocket must take
+    them.
+- **`stepper-driver`** (`stepper-drivers.ts`): the green ULN2003 board (`uln2003-stepper-driver-board`).
+  - **Source:** no maker publishes a drawing. Every value is read off Karaneko's public-domain STEP model (Printables 1404255),
+    which draws the board with its parts and the motor's plug in place, and is `estimated`.
+  - **Exceptions:** the motor connector's 2.5 mm pitch (JST). The header pins are drawn at the 2.54 mm pitch of a pin header,
+    centred where the model has them (it spaces them 2.47 mm apart).
+  - **Layout,** `stepperDriverLayout(part)`: the PCB's underside on z = 0 with its corner at the origin, W along X and L along Y.
+    It holds the mounting holes, the pins (`motor`, `input`, `power`), the components (the ULN2003 in its DIP socket, the
+    connector, the headers, the LEDs and their resistors) and the motor's `plug` in its connector.
+  - **Heights:** `H` is to the chip's top, `Hm` to the plug's.
+  - **Not in the model:** the order of the input and supply pins, the jumper, and the leads under the PCB.
+
+The test checks:
+- **The motor:** the holes outside the body and inside the ears, the width over the ears, the boss on the body's face, the flats
+  inside the shaft, the housing's ledges, slot and lip, and the plug's size.
+- **The board:** the holes in the corners, each header's pitch, every part on the board and clear of the holes, every pin inside
+  its header, the plug above its connector, and both heights.
+
+Measure your motor and board before a tight fit, and correct a value under the same id.
 
 ## Previews
 

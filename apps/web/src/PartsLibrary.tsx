@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowRight, BookOpen, Bolt, CircleAlert, CircleDot, Cog, Disc, ExternalLink, Flame, Hexagon, Magnet, Pin, Search, Footprints, Paperclip, Drill, Lock, Anchor, SquareDashedBottom, Circle, WavesVertical, KeyRound, Nfc, Cat, Cpu, Grid3x3, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BookOpen, Bolt, CircleAlert, CircleDot, Cog, Disc, ExternalLink, Flame, Hexagon, Magnet, Pin, Search, Footprints, Paperclip, Drill, Lock, Anchor, SquareDashedBottom, Circle, WavesVertical, KeyRound, Nfc, Cat, Cpu, Grid3x3, RotateCw, CircuitBoard, type LucideIcon } from 'lucide-react';
 import { findPartFamily, findPartSource, partFamilies, partsOfFamily, partUsage, type Part, type PartFamily } from '@canfactory/contracts';
 import { facetLabel } from './facetLabel.ts';
 import { PartsViewer, VIEWER_LIMIT } from './PartsViewer.tsx';
@@ -13,6 +13,7 @@ const FAMILY_ICONS: Record<string, LucideIcon> = {
   magnet: Magnet, screw: Bolt, nut: Hexagon, washer: Disc, 'threaded-insert': CircleDot, bearing: Cog, pin: Pin, 'everyday-object': Flame,
   'wood-screw': Drill, nail: Paperclip, 'insert-nut': CircleDot, 'levelling-foot': Footprints, 'toggle-latch': Lock, 'screen-hook': Anchor, 'corner-bracket': SquareDashedBottom,
   'set-screw': Bolt, ball: Circle, spring: WavesVertical, 'split-ring': KeyRound, 'nfc-tag': Nfc, 'cat-collar': Cat, 'dev-board': Cpu, heatsink: Flame, mesh: Grid3x3,
+  'stepper-motor': RotateCw, 'stepper-driver': CircuitBoard,
 };
 const BASIS_TEXT: Record<string, string> = { standard: 'Standard', manufacturer: 'Manufacturer', estimated: 'Estimated' };
 /** Search text is kept with the filters, under this key. */
