@@ -5,30 +5,25 @@ import { parseProject, serializeProject } from '@canfactory/catio';
 import { usePlannerHistory, usePlannerStore } from './catioPlannerStore.ts';
 import { draftBuildList } from './catioPlannerDraft.ts';
 import { importLegacyCatio } from './catioLegacyImport.ts';
-import { browserStorage, createAutosave, download, exportFileName, SavedProjectContext, type Autosave, type SaveState } from './catioPlannerSaved.ts';
+import { browserStorage, download, exportFileName, ProjectSessionContext, type SaveState } from './catioPlannerSaved.ts';
 import { formatHash } from './route.ts';
 import { addToBuyList, useMarket, useOffers, type BuyListSource } from './shopping.ts';
 import { AffiliateNote, OfferLink } from './Shopping.tsx';
 
 /**
- * The planner's top-bar project and build-list actions (#115): it saves the project in this browser after every committed edit
- * (catioPlannerSaved.ts; the page opened what was saved, CatioPlannerRoute.tsx), exports and imports it as JSON, and opens the
- * draft build list of the present revision. "Import my existing catio" makes a new project, once, from what the old concept page saved
+ * The planner's top-bar project and build-list actions (#115): whether the project is saved in this browser (the session's autosave,
+ * catioPlannerSaved.ts, saves it after every committed edit, here or on a sub-assembly's view), its export and import as JSON, and
+ * the draft build list of the present revision. "Import my existing catio" makes a new project, once, from what the old concept page saved
  * (catioLegacyImport.ts).
  */
 const BUY_LIST_SOURCE: BuyListSource = { kind: 'concept', id: 'catio-planner', label: 'Catio planner' };
 
 export function BuildListSlot() {
   const store = usePlannerStore();
-  const saved = useContext(SavedProjectContext);
-  const [autosave, setAutosave] = useState<Autosave | null>(null);
-  useEffect(() => {
-    const created = createAutosave(store, { keepUntilEdit: saved.problem?.kind === 'invalid' });
-    setAutosave(created);
-    return () => { created.dispose(); setAutosave(null); };
-  }, [store, saved]);
+  const session = useContext(ProjectSessionContext);
+  const autosave = session?.autosave;
   const saving = useSyncExternalStore(autosave?.subscribe ?? noSubscribe, () => autosave?.get() ?? null);
-  const [savedProblem, setSavedProblem] = useState(saved.problem);
+  const [savedProblem, setSavedProblem] = useState(session?.saved.problem ?? null);
   const [importErrors, setImportErrors] = useState<{ file: string; errors: string[] } | null>(null);
   const [legacy, setLegacy] = useState<{ text: string; notes: string[] } | null>(null);
   const [open, setOpen] = useState(false);

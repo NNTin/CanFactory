@@ -660,7 +660,7 @@ export function App() {
         <CatioPlannerRoute /></>
         : route.view === 'concepts' ? <><div className="breadcrumb"><button type="button" onClick={openLibrary}><ArrowLeft size={13} /> Model library</button><span>/</span>
         {route.subassembly ? <><button type="button" onClick={() => navigate({ view: 'concepts', concept: 'catio', subassembly: null })}>Catio concept</button><span>/</span><span>{CATIO_SUBASSEMBLY_TITLES[route.subassembly]}</span></> : <span>Catio concept</span>}</div>
-        {route.subassembly ? <CatioSubassemblyRoute key={route.subassembly} id={route.subassembly} /> : <CatioOverview />}</> : partsRoute ? <>
+        {route.subassembly ? <CatioSubassemblyRoute key={route.subassembly} id={route.subassembly} instance={route.instance ?? null} /> : <CatioOverview />}</> : partsRoute ? <>
         <div className="breadcrumb"><button type="button" onClick={openParts}><ArrowLeft size={13} /> Parts library</button>
           {partsRoute.family && <><span>/</span>{partsRoute.part
             ? <button type="button" onClick={() => navigate({ ...partsRoute, part: null })}>{family?.title ?? partsRoute.family}</button>

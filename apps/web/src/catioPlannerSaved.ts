@@ -1,6 +1,6 @@
 import { createContext } from 'react';
 import { parseProject, serializeProject, type Project } from '@canfactory/catio';
-import type { PlannerStore } from './catioPlannerStore.ts';
+import { createPlannerStore, type PlannerStore } from './catioPlannerStore.ts';
 
 /**
  * The catio planner's project in this browser (#115, FR-08.1–4): one project slot in localStorage, saved after each committed edit
@@ -13,8 +13,6 @@ export const PLANNER_STORAGE_KEY = 'canfactory.catio.planner.v1';
 export type StorageAccess = () => Pick<Storage, 'getItem' | 'setItem'>;
 export const browserStorage: StorageAccess = () => window.localStorage;
 
-/** What the page opened from storage, for its saving to know (an invalid saved project is kept until the first edit). */
-export const SavedProjectContext = createContext<SavedProject>({ project: null, problem: null });
 
 /** Why the saved project did not open: storage that cannot be read, or data that is not a project this planner reads. */
 export type SavedProblem = { kind: 'unavailable'; message: string } | { kind: 'invalid'; errors: string[]; text: string };
@@ -64,6 +62,24 @@ export function createAutosave(store: PlannerStore, { storage = browserStorage, 
   save();
   return { get: () => state, subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; }, dispose: unsubscribe };
 }
+
+/**
+ * The catio project open in this tab (#117): one store, one history and one autosave for the planner and every sub-assembly's view,
+ * so that an edit on either is the other's too and one undo takes it back. Opened on first use from what is saved (or a new
+ * project), and kept for the tab's life.
+ */
+export interface ProjectSession { store: PlannerStore; saved: SavedProject; autosave: Autosave }
+let session: ProjectSession | null = null;
+export function projectSession(): ProjectSession {
+  if (!session) {
+    const saved = readSavedProject();
+    const store = createPlannerStore(saved.project ?? undefined);
+    session = { store, saved, autosave: createAutosave(store, { keepUntilEdit: saved.problem?.kind === 'invalid' }) };
+  }
+  return session;
+}
+/** The session the planner's page shows, with what it opened from storage (an invalid saved project is kept until the first edit). */
+export const ProjectSessionContext = createContext<ProjectSession | null>(null);
 
 function storageMessage(error: unknown): string {
   const name = error instanceof Error ? error.name : '';

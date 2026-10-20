@@ -153,9 +153,11 @@ export function keepView(view: ProjectView, project: Viewable): ProjectView {
 }
 
 /**
- * The sub-assemblies' settings, held by the project (PoC: copies starting from each page's defaults; #117 makes the project their
- * one source). The mesh, the cat ports' closure and the doors' seat are the whole catio's. The insert's own mesh is the project's,
- * and the tunnel coupling page's `jointShown` is only that page's view, so neither is held here.
+ * The whole catio's construction choices, the one source of them (#117): the window insert's, the insert–tunnel coupling's, the
+ * tunnel–tunnel coupling's (with how every tunnel is held on its supports), the mesh, the cat ports' closure and the doors' seat. A
+ * tunnel's own choices are its params. The sub-assemblies' views and the planner's inspector read and change them here
+ * (catioProjectDetail.ts, `configureSubassembly`). The insert's mesh is the project's, and which joint the tunnel–tunnel coupling's
+ * view shows is only that view's, so neither is held in its sub-assembly's settings.
  */
 export type InsertSettings = Omit<WindowInsertConfig, 'mesh'>;
 export type TunnelCouplingSettings = Omit<TunnelCouplingConfig, 'jointShown'>;

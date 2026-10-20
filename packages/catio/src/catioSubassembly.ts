@@ -1,13 +1,13 @@
 import type { CatioMode } from './catioDesign.ts';
 
-/** The catio's sub-assemblies, each with its own page (`#/concepts/catio/<id>`). */
+/** The catio's sub-assemblies, each with its own view of an instance of the project (`#/concepts/catio/<id>`). */
 export const CATIO_SUBASSEMBLIES = ['window-insert', 'insert-tunnel-coupling', 'tunnel', 'tunnel-tunnel-coupling'] as const;
 export type CatioSubassembly = typeof CATIO_SUBASSEMBLIES[number];
 
 /**
- * A sub-assembly of the catio (the window insert, the tunnel and the coupling between them now; the enclosure later) with its own live page
- * (`#/concepts/catio/<id>`): the same two variants as the whole catio, design choices as parameters, its pieces staged
- * into an assembly, and a parts list. Its pure parts are here: the web app's `CatioSubassemblyPage` renders any
+ * A sub-assembly of the catio (the window insert, the tunnel and the couplings now; the enclosure later), shown in its own live view
+ * of an instance of the project (`#/concepts/catio/<id>`): its design choices as parameters (the project's, catioProjectDetail.ts),
+ * its pieces staged into an assembly, and a parts list. Its pure parts are here: the web app's `CatioSubassemblyPage` renders any
  * definition (`apps/web/src/catioSubassembly.ts`).
  */
 export type V3 = [number, number, number];
@@ -34,11 +34,10 @@ export interface SubassemblyControl<C> {
 }
 
 /**
- * Settings of another page that a page reads: control keys of another sub-assembly page, or setting labels in the catio planner
- * (its project's window and cat ports). A sub-assembly's `follows` lists them; a fact names the ones it comes from.
+ * Where a setting of the project is edited, when it is not on the sub-assembly's own view: control keys of another sub-assembly's
+ * view, or setting labels in the catio planner (its window's cat ports). A fact or a decision names the ones it comes from.
  */
-export interface Follow { page: CatioSubassembly; settings: string[] }
-export type SettingRef = Follow | { page: 'planner'; settings: string[] };
+export type SettingRef = { page: CatioSubassembly; settings: string[] } | { page: 'planner'; settings: string[] };
 /** A short fact for the brief, and where it is set when that is another page. */
 export interface SubassemblyFact { label: string; value: string; from?: SettingRef }
 export interface NumberRange { min: number; max: number; step: number; unit: string; scale?: number }
@@ -99,7 +98,7 @@ export function fastenersAlong(length: number, pitch: number): number { return M
  * What a config saved before a setting existed has for it: the design as it was then, not today's default, so that a saved design
  * does not change when a new choice gets a new default. A config the page saved itself always holds `witness` (a setting the page
  * has had from the start); one that holds it but lacks a setting of `values` was saved before that setting existed. A config
- * without the witness is not a design of the page's (e.g. only the settings another page shares with it), and takes the defaults.
+ * without the witness is not a design of the page's (e.g. only the settings another page once shared with it), and takes the defaults.
  */
 export interface LegacySettings<C> { witness: keyof C & string; values: Partial<C> }
 

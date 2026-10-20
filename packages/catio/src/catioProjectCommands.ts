@@ -9,6 +9,8 @@ import {
   type Attachment, type Connection, type EnclosureInstance, type EnclosureParams, type Instance, type PlatformParams, type Port, type Project, type ProjectSettings, type Transform, type TunnelInstance, type WindowParams,
 } from './catioProject.ts';
 import { evaluateProject, outsideGarden, solveRoute, syncFrames, tunnelFrame, type EvaluatedTunnel, type ProjectEvaluation } from './catioProjectEvaluate.ts';
+import { settingHome, SUBASSEMBLY_CONTROLS, SUBASSEMBLY_OWNERS } from './catioProjectDetail.ts';
+import { inRange, type CatioSubassembly, type SubassemblyControl } from './catioSubassembly.ts';
 import { routeElementName, TUNNEL, tunnelPitch, tunnelSiteFor, type RouteElement } from './catioTunnel.ts';
 
 /**
@@ -256,6 +258,35 @@ export function setCatPorts(project: Project, choice: Partial<Pick<ProjectSettin
   if (choice.portClosure !== undefined && !isPortClosure(choice.portClosure)) return fail(project, 'Choose a removable panel or a sliding gate for the cat ports.');
   if (choice.doorSeat !== undefined && !DOOR_SEATS.includes(choice.doorSeat)) return fail(project, 'Choose stop strips or a rebate for the doors’ seats.');
   return ok(project, { ...project, settings: { ...project.settings, ...choice } });
+}
+
+/**
+ * Changes construction choices of a sub-assembly of `instance` (FR-02.10, #117): its window's insert or insert–tunnel coupling, or its
+ * tunnel or tunnel–tunnel coupling, by the keys of that sub-assembly's controls (`SUBASSEMBLY_CONTROLS`). Each is kept where the
+ * project holds it (`settingHome`): the whole catio's choices for every instance, a tunnel's own in its params. A value its control
+ * does not offer, or a setting its route sets, is refused. Every tunnel is then laid out again, since the insert's clamps move the
+ * window port's floor and the coupling sets the module pitch.
+ */
+export function configureSubassembly(project: Project, id: CatioSubassembly, instance: string, patch: Record<string, unknown>): CommandResult {
+  const owner = project.instances.find(i => i.id === instance);
+  if (owner?.kind !== SUBASSEMBLY_OWNERS[id]) return fail(project, `There is no ${SUBASSEMBLY_OWNERS[id]} ${instance}.`);
+  const controls = SUBASSEMBLY_CONTROLS[id] as SubassemblyControl<object>[];
+  const errors = Object.entries(patch).flatMap(([key, value]) => {
+    const offered = controls.filter(c => c.key === key);
+    if (!offered.length) return [`${key} is not a setting of the ${id.replaceAll('-', ' ')} here.`];
+    return offered.some(c => c.range ? inRange(c.range, value) : c.options.some(o => o.value === value)) ? [] : [`${offered[0]?.label ?? key} cannot be ${JSON.stringify(value)}.`];
+  });
+  if (errors.length) return fail(project, ...errors);
+  let { settings } = project;
+  let instances = project.instances;
+  for (const [key, value] of Object.entries(patch)) {
+    const home = settingHome(id, key);
+    if (home === 'mesh') settings = { ...settings, mesh: value as ProjectSettings['mesh'] };
+    else if (home === 'tunnel') instances = instances.map(i => i.id === instance && i.kind === 'tunnel' ? { ...i, params: { ...i.params, [key]: value } } : i);
+    else settings = { ...settings, [home]: { ...settings[home], [key]: value } };
+  }
+  const next = { ...project, settings, instances };
+  return ok(project, rerouted(next, next.instances.map(i => i.id)));
 }
 
 /**

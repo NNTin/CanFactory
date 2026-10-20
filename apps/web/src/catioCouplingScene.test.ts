@@ -2,11 +2,10 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { dimensionOf, parts, toggleLatchMechanism as TL } from '@canfactory/contracts';
 import type { CatioState } from './catioParts.ts';
-import { defaultSubassemblySettings, parseSubassemblySettings } from './catioSubassembly.ts';
 import { couplingDefinition } from './catioSubassemblies.ts';
 import { createCouplingScene, LIFT, OPEN } from './catioCouplingScene.ts';
 import { partGeometry } from '@canfactory/part-geometry';
-import { COUPLING, COUPLING_CONTROLS, COUPLING_DEFAULT, couplingSteps, MODULAR_DEFAULT, TUNNEL, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelSiteFor, WINDOW_INSERT_DEFAULT, type CouplingConfig, type CouplingSite } from '@canfactory/catio';
+import { COUPLING, COUPLING_CONTROLS, COUPLING_DEFAULT, couplingSteps, parseCoupling, MODULAR_DEFAULT, TUNNEL, TUNNEL_COUPLING_DEFAULT, TUNNEL_DEFAULT, tunnelSiteFor, WINDOW_INSERT_DEFAULT, type CouplingConfig, type CouplingSite } from '@canfactory/catio';
 
 const base = tunnelSiteFor(WINDOW_INSERT_DEFAULT, MODULAR_DEFAULT);
 const site: CouplingSite = { tunnel: TUNNEL_DEFAULT, joint: TUNNEL_COUPLING_DEFAULT, site: base };
@@ -125,17 +124,11 @@ describe('insert–tunnel coupling scene', () => {
   });
 });
 
-describe('insert–tunnel coupling page settings', () => {
-  it('offers only the modular variant, starts docked and restores valid saved settings', () => {
-    const defaults = defaultSubassemblySettings(couplingDefinition);
-    expect(defaults.variant).toBe('modular');
-    expect(defaults.views.modular.windowOpen).toBe(false);
-    const saved = JSON.stringify({ version: 1, variant: 'direct', config: { ...COUPLING_DEFAULT, latchType: 'SV', latchesPerSide: 3 }, views: { modular: { progress: 2, windowOpen: true, view: 'Mounting' } } });
-    const settings = parseSubassemblySettings(couplingDefinition, saved);
-    expect(settings.variant).toBe('modular');
-    expect(settings.config).toEqual({ ...COUPLING_DEFAULT, latchType: 'SV' });
-    expect(settings.views.modular).toMatchObject({ progress: 2, windowOpen: true, view: 'Mounting' });
-    expect(parseSubassemblySettings(couplingDefinition, '{oops')).toEqual(defaults);
+describe('insert–tunnel coupling settings', () => {
+  it('starts docked, and reads a saved coupling (the legacy import’s), keeping only valid settings', () => {
+    expect(couplingDefinition.defaultViewing?.windowOpen).toBe(false);
+    expect(parseCoupling({ ...COUPLING_DEFAULT, latchType: 'SV', latchesPerSide: 3 })).toEqual({ ...COUPLING_DEFAULT, latchType: 'SV' });
+    expect(parseCoupling('oops')).toBeNull();
   });
 });
 

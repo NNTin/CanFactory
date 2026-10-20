@@ -4,7 +4,8 @@ import { formatHash, parseHash, partLink, type Route } from './route.ts';
 describe('hash routes', () => {
   it('round-trips every page through the hash', () => {
     const routes: Route[] = [
-      { view: 'concepts', concept: 'catio', subassembly: null }, { view: 'concepts', concept: 'catio', subassembly: 'window-insert' }, { view: 'catio-planner' },
+      { view: 'concepts', concept: 'catio', subassembly: null }, { view: 'concepts', concept: 'catio', subassembly: 'window-insert' },
+      { view: 'concepts', concept: 'catio', subassembly: 'tunnel', instance: 'tunnel 2' }, { view: 'catio-planner' },
       { view: 'models', model: null }, { view: 'models', model: 'plank-connector' },
       { view: 'parts', family: null, part: null, filters: {} }, { view: 'parts', family: 'screw', part: null, filters: { thread: 'M3', q: 'din 912' } },
       { view: 'parts', family: 'magnet', part: 'supermagnete-s-06-02-n', filters: {} },
@@ -22,6 +23,7 @@ describe('hash routes', () => {
     expect(formatHash({ view: 'buy-list' })).toBe('#/buy-list');
     expect(formatHash({ view: 'catio-planner' })).toBe('#/concepts/catio/planner');
     expect(formatHash({ view: 'concepts', concept: 'catio', subassembly: 'window-insert' })).toBe('#/concepts/catio/window-insert');
+    expect(formatHash({ view: 'concepts', concept: 'catio', subassembly: 'tunnel', instance: 'tunnel-2' })).toBe('#/concepts/catio/tunnel/tunnel-2');
   });
 
   it('links a part-linked option to its part, or to every part with that attribute value', () => {

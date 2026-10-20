@@ -4,8 +4,8 @@ import { PRINTED_LATCH_JOINT } from './catioPrintedLatch.ts';
 
 /**
  * How the tunnel is held on its supports: screwed up through the bearers (the original), strapped over each support with a rubber
- * strap, dropped over dowels in the bearer top, held by turn buttons hooked under keepers on the bearer, or resting by its own weight. The tunnel page owns it; the
- * tunnel–tunnel coupling page shares it.
+ * strap, dropped over dowels in the bearer top, held by turn buttons hooked under keepers on the bearer, or resting by its own weight. One setting of the project
+ * (`settings.tunnelCoupling`), every tunnel's, which the tunnel's view and the tunnel–tunnel coupling's both edit.
  */
 export const SUPPORT_FIXINGS = ['screws', 'strap', 'dowels', 'turn-buttons', 'gravity'] as const;
 export type SupportFixing = typeof SUPPORT_FIXINGS[number];
@@ -35,9 +35,9 @@ export function supportControls<C extends { supportFixing: SupportFixing; suppor
 }
 
 /**
- * How the tunnel's sections are joined flange to flange: the tunnel–tunnel coupling page's settings. They live here, apart from
- * that page (catioTunnelCoupling.ts), because the tunnel's own layout (catioTunnel.ts) follows them at every coupling and that page
- * is built from the tunnel's layout in turn.
+ * How the tunnel's sections are joined flange to flange: the tunnel–tunnel coupling's settings, the project's for every tunnel. They
+ * live here, apart from that sub-assembly (catioTunnelCoupling.ts), because the tunnel's own layout (catioTunnel.ts) uses them at
+ * every coupling and that sub-assembly is built from the tunnel's layout in turn.
  */
 export interface TunnelCouplingConfig {
   /** The printed toggle latch (the `toggle-latch` model) across a sealed gap, or M8 bolts through both flanges, face to face. */
@@ -53,9 +53,9 @@ export interface TunnelCouplingConfig {
   seal: 'e-profile' | 'none';
   /** How a door closing a port is held there: by the port's own latches, as a coupling, or by turn buttons on its ring. */
   doorFixing: DoorFixing;
-  /** Which joint the coupling page shows: a section's end to the next one's, or to a side port at a turn. Only that page's. */
+  /** Which joint the coupling's view shows: a section's end to the next one's, or to a side port at a turn. Only that view's. */
   jointShown: JointShown;
-  /** How the tunnel is held on its supports, and whether they stand on their own: the tunnel page's settings, shared here. */
+  /** How the tunnel is held on its supports, and whether they stand on their own: every tunnel's, the tunnel's view edits them too. */
   supportFixing: SupportFixing;
   supportBase: SupportBase;
 }

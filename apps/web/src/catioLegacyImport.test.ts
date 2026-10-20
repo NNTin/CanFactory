@@ -64,9 +64,10 @@ describe('legacy catio import (FR-08.5)', () => {
     const entries = {
       [LEGACY_CATIO_KEY]: JSON.stringify(saved),
       'canfactory.catio.window-insert.v1': page({ ...WINDOW_INSERT_DEFAULT, footDiameter: 40, mesh: 'welded' }),
-      'canfactory.catio.tunnel.v1': page({ ...TUNNEL_DEFAULT, footPad: 'ganter', maxSlope: 15 }),
+      'canfactory.catio.tunnel.v1': page({ ...TUNNEL_DEFAULT, footPad: 'ganter', maxSlope: 15, supportFixing: 'strap' }),
       'canfactory.catio.insert-tunnel-coupling.v1': page({ ...COUPLING_DEFAULT, latchesPerSide: 2 }),
-      'canfactory.catio.tunnel-tunnel-coupling.v1': page({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', supportFixing: 'strap' }),
+      // its copy of how the tunnel is held, which the pages took from the tunnel page's
+      'canfactory.catio.tunnel-tunnel-coupling.v1': page({ ...TUNNEL_COUPLING_DEFAULT, mechanism: 'bolts', supportFixing: 'dowels', supportBase: 'self-standing' }),
     };
     const s = storage(entries);
     const result = importLegacyCatio(s);
@@ -82,7 +83,7 @@ describe('legacy catio import (FR-08.5)', () => {
     expect(window?.params).toEqual(design.window);
     expect(project.settings).toMatchObject({ portClosure: design.portClosure, doorSeat: design.doorSeat, mesh: 'welded' });
     expect(project.settings.insert.footDiameter).toBe(40); expect(project.settings.insertCoupling.latchesPerSide).toBe(2);
-    expect(project.settings.tunnelCoupling).toMatchObject({ mechanism: 'bolts', supportFixing: 'strap' });
+    expect(project.settings.tunnelCoupling).toMatchObject({ mechanism: 'bolts', supportFixing: 'strap', supportBase: 'trestle' });
     expect(project.ports.every(p => p.interface.size === design.window.tunnelSize)).toBe(true);
     // the enclosure at the end of the window's tunnel, the saved modules long, coupled at both ends
     const [enclosure] = project.instances.filter(isKind('enclosure'));

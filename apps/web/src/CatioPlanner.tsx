@@ -1,24 +1,27 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Box, CircleAlert, Copy, CornerUpLeft, CornerUpRight, Focus, Link, Magnet, Maximize, Minus, Move, Plus, Redo2, RotateCw, Scaling, Trash2, Undo2, Unlink } from 'lucide-react';
+import { ArrowDown, ArrowUp, Box, CircleAlert, Copy, CornerUpLeft, CornerUpRight, Focus, Link, Magnet, Maximize, Minus, Move, Plus, RotateCw, Scaling, Trash2, Unlink } from 'lucide-react';
 import {
-  addEnclosure, addPlatform, addTunnel, canRedo, canUndo, connect, CONNECT_REACH, connectTargets, deleteDependents, deleteInstance, detach, DOOR_SEAT_LABELS, DOOR_SEAT_SETTING, DOOR_SEATS,
+  addEnclosure, addPlatform, addTunnel, configureSubassembly, connect, CONNECT_REACH, connectTargets, deleteDependents, deleteInstance, detach, DOOR_SEAT_LABELS, DOOR_SEAT_SETTING, DOOR_SEATS,
   duplicateInstance, elementTitle, ENCLOSURE_DEFAULT, extendTunnel, moveInstance, ORIENTATION_YAW, platformOrientation, platformRangeOf, PLATFORM_ORIENTATIONS, PLATFORM_RECIPES,
   PORT_CLOSURE_LABELS, PORT_CLOSURE_SETTING, PORT_CLOSURES, portTitle, raiseElements, rangeText, resizeGarden, resizeInstance, resizeWindow, rotateInstance, routeElements, setCatPorts,
-  turnTunnel, worldTransforms, type DoorSeat, type PortClosure,
+  hasSubject, SUBASSEMBLY_CONTROLS, turnTunnel, worldTransforms, type CatioSubassembly, type DoorSeat, type PortClosure, type SubassemblyControl,
   type CommandResult, type EvaluatedElement, type EvaluatedInstance, type EvaluatedTunnel, type Instance, type Port, type Project, type ProjectEvaluation, type ProjectIssue, type TunnelEnd,
 } from '@canfactory/catio';
-import { createPlannerStore, PlannerStoreContext, usePlannerHistory, usePlannerStore } from './catioPlannerStore.ts';
+import { PlannerStoreContext, usePlannerHistory, usePlannerStore, type PlannerStore } from './catioPlannerStore.ts';
 import { CAMERA_VIEWS, createPlannerViewport, tunnelModules, type CameraView, type PlannerViewport, type Readout } from './catioPlannerViewport.ts';
 import type { PlannerTool } from './catioPlannerScene.ts';
 import { BuildListSlot } from './CatioPlannerBuildList.tsx';
+import { ControlFields, HistoryButtons, SharedNote } from './CatioControls.tsx';
+import { CATIO_SUBASSEMBLY_DEFINITIONS } from './catioSubassemblies.ts';
+import type { SubassemblyDefinition } from './catioSubassembly.ts';
+import { formatHash } from './route.ts';
 
 /**
  * The catio planner (#109, FR-01/02): an IKEA-planner-style editor over the project document. The catalogue and object tree on the
  * left, the viewport in the middle, the selection's inspector and the design's issues on the right, the project's name, undo and
  * redo and the build list along the top. Every edit is a command of @canfactory/catio committed to the store as one undo step.
  */
-export function CatioPlanner({ initial }: { initial?: Project } = {}) {
-  const [store] = useState(() => createPlannerStore(initial));
+export function CatioPlanner({ store }: { store: PlannerStore }) {
   return <PlannerStoreContext.Provider value={store}><PlannerPage /></PlannerStoreContext.Provider>;
 }
 
@@ -135,10 +138,7 @@ function PlannerPage() {
     <div className="planner-bar">
       <label className="planner-name"><span className="eyebrow">PROJECT</span>
         <TextField label="Project name" value={project.name} maxLength={200} onCommit={name => { if (name !== project.name) store.apply({ ...project, name }); }} /></label>
-      <div className="planner-history" role="group" aria-label="Undo and redo">
-        <button type="button" onClick={store.undo} disabled={!canUndo(history)} title="Undo (Ctrl+Z)"><Undo2 size={15} aria-hidden="true" /> Undo</button>
-        <button type="button" onClick={store.redo} disabled={!canRedo(history)} title="Redo (Ctrl+Shift+Z)"><Redo2 size={15} aria-hidden="true" /> Redo</button>
-      </div>
+      <HistoryButtons />
       <BuildListSlot />
     </div>
     {status && <p className={`planner-status${status.alert ? '' : ' note'}`} role={status.alert ? 'alert' : 'status'}>{status.text}</p>}
@@ -270,7 +270,7 @@ function Inspector({ project, evaluation, selected, elements, run, remove }: Ins
     </> : <>
       <h2 className="eyebrow">{(KIND_TITLES[selected.kind] ?? selected.kind).toUpperCase()}</h2>
       <TextField label="Name" value={selected.name ?? selected.id} maxLength={200} onCommit={name => { if (name !== selected.name) run({ project: { ...project, instances: project.instances.map(i => i.id === selected.id ? { ...i, name } : i) }, errors: [] }); }} />
-      {evaluated && <InstanceFields project={project} instance={selected} evaluated={evaluated} run={run} />}
+      {evaluated && <InstanceFields project={project} evaluation={evaluation} instance={selected} evaluated={evaluated} run={run} />}
       {(selected.kind === 'enclosure' || selected.kind === 'platform' || selected.kind === 'tunnel') && <div className="planner-actions">
         {selected.kind !== 'tunnel' && <button type="button" onClick={() => { const result = duplicateInstance(project, selected.id); run(result, result.id); }}><Copy size={14} aria-hidden="true" /> Duplicate</button>}
         <button type="button" onClick={() => remove(selected.id)}><Trash2 size={14} aria-hidden="true" /> Delete</button>
@@ -280,7 +280,7 @@ function Inspector({ project, evaluation, selected, elements, run, remove }: Ins
   </section>;
 }
 
-function InstanceFields({ project, instance, evaluated, run }: { project: Project; instance: Instance; evaluated: EvaluatedInstance; run: InspectorProps['run'] }) {
+function InstanceFields({ project, evaluation, instance, evaluated, run }: { project: Project; evaluation: ProjectEvaluation; instance: Instance; evaluated: EvaluatedInstance; run: InspectorProps['run'] }) {
   const t = instance.transform;
   const move = (patch: { x?: number; y?: number; z?: number }) => run(moveInstance(project, instance.id, patch));
   const resize = (patch: Record<string, number>) => run(resizeInstance(project, instance.id, patch));
@@ -328,7 +328,8 @@ function InstanceFields({ project, instance, evaluated, run }: { project: Projec
         <NumberField label="Thickness" unit="mm" value={instance.params.thickness} scale={1} digits={0} positive onCommit={v => resize({ thickness: v })} /></fieldset>
     </>;
   }
-  if (evaluated.kind === 'tunnel') return <TunnelFields project={project} tunnel={evaluated} run={run} />;
+  if (evaluated.kind === 'tunnel') return <><TunnelFields project={project} tunnel={evaluated} run={run} />
+    <Construction project={project} evaluation={evaluation} instance={instance.id} parts={['tunnel', 'tunnel-tunnel-coupling']} run={run} /></>;
   if (instance.kind === 'window' && evaluated.kind === 'window') {
     const w = evaluated.site.window; const p = instance.params; const { portClosure, doorSeat } = project.settings;
     const size = (patch: Partial<typeof p>) => run(resizeWindow(project, instance.id, patch));
@@ -343,6 +344,7 @@ function InstanceFields({ project, instance, evaluated, run }: { project: Projec
         <label className="planner-field"><span>{DOOR_SEAT_SETTING}</span><select aria-label={DOOR_SEAT_SETTING} value={doorSeat}
           onChange={event => run(setCatPorts(project, { doorSeat: event.target.value as DoorSeat }))}>{DOOR_SEATS.map(o => <option key={o} value={o}>{DOOR_SEAT_LABELS[o]}</option>)}</select></label>
         <p className="planner-note">The window’s and every enclosure’s cat port, and the tunnels’ doors.</p></fieldset>
+      <Construction project={project} evaluation={evaluation} instance={instance.id} parts={['window-insert', 'insert-tunnel-coupling']} run={run} />
       <dl className="planner-readonly">
         <div><dt>Window opening · W × H</dt><dd>{cm(w.openingWidth)} × {cm(w.openingHeight)} <small>cm</small></dd></div>
         <div><dt>Cat port</dt><dd>{cm(evaluated.site.w)} × {cm(evaluated.site.h)} <small>cm</small></dd></div>
@@ -351,6 +353,26 @@ function InstanceFields({ project, instance, evaluated, run }: { project: Projec
     </>;
   }
   return null;
+}
+/**
+ * An instance's construction choices (FR-02.10, #117): each of its sub-assemblies in a section of its own, edited as on that
+ * sub-assembly's view (the same project settings, each change one undo step), with a link to the view's pieces, steps and parts list.
+ */
+function Construction({ project, evaluation, instance, parts, run }: { project: Project; evaluation: ProjectEvaluation; instance: string; parts: CatioSubassembly[]; run: InspectorProps['run'] }) {
+  return <>{parts.map(id => <SubassemblySettings key={id} definition={CATIO_SUBASSEMBLY_DEFINITIONS[id] as unknown as SubassemblyDefinition<object, unknown>}
+    project={project} evaluation={evaluation} instance={instance} run={run} />)}</>;
+}
+function SubassemblySettings<C extends object, S>({ definition, project, evaluation, instance, run }: {
+  definition: SubassemblyDefinition<C, S>; project: Project; evaluation: ProjectEvaluation; instance: string; run: InspectorProps['run'];
+}) {
+  const subject = definition.subject(project, evaluation, instance);
+  const id = definition.id;
+  return <details className="planner-construction" data-subassembly={id}><summary>{definition.title}</summary>
+    {hasSubject(subject) ? <ControlFields compact controls={SUBASSEMBLY_CONTROLS[id] as unknown as SubassemblyControl<C>[]} config={subject.config}
+      change={(key, value) => run(configureSubassembly(project, id, instance, { [key]: value }))} note={key => <SharedNote id={id} setting={key} />} />
+      : <p className="planner-note">{subject.problem}</p>}
+    <a href={formatHash({ view: 'concepts', concept: 'catio', subassembly: id, instance })}>Its pieces, steps and parts list</a>
+  </details>;
 }
 const cm = (mm: number) => (Math.round(mm) / 10).toLocaleString('en', { maximumFractionDigits: 1 });
 

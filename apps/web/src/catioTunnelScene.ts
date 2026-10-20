@@ -40,20 +40,23 @@ export function memberCaption(layout: TunnelLayout, mem: Member, collars: boolea
     : mem.kind === 'rail' ? `${layout.members.filter(n => n.kind === 'rail' && of(n.piece)).length} × Rail: offered between the flanges from the side` : `${count} × Floor board: laid onto the bottom rails`;
 }
 
-/** The tunnel on its site: every piece of `tunnelLayout`, staged as `tunnelSteps` describes. */
-export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig, couplingConfig: CouplingConfig): SubassemblyModel & {
+/**
+ * The tunnel on its site: every piece of its layout (by default `tunnelLayout`'s solved route; a project tunnel's along its own),
+ * staged as `tunnelSteps` describes. `couplingConfig` is the insert–tunnel coupling at its start, at a window's cat port, drawn with
+ * the window and its insert; null for a tunnel that starts at an enclosure's port, or free, which is then shown without them.
+ */
+export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig, couplingConfig: CouplingConfig | null, layout: TunnelLayout = tunnelLayout(config, site, joint)): SubassemblyModel & {
   layout: ReturnType<typeof tunnelLayout>; motions: PieceMotion[]; carriers: Map<string, number>; drops: Map<string, number>;
   levers: { mount: LatchMount; lever: THREE.Group; setOpen: (open: number) => void }[];
   holds: ReturnType<typeof buildSupportHold>[]; doors: ReturnType<typeof buildTunnelDoors>;
   /** The enclosure's own cat-port panel at the tunnel's far end, seated: null with sliding gates. */
   enclosureClosure: ReturnType<typeof buildDoorPanel> | null;
 } {
-  const layout = tunnelLayout(config, site, joint);
   const { w, h } = layout;
   const p = createCatioParts(layout.mesh); const { component, materials: m } = p;
   const b = tunnelBounds(layout);
   const groundWidth = 2 * Math.max(Math.abs(b.minX), Math.abs(b.maxX)) + 1200;
-  const { hinge } = buildWindowContext(p, site.window, { width: groundWidth, depth: 1 }, false);
+  const hinge = couplingConfig ? buildWindowContext(p, site.window, { width: groundWidth, depth: 1 }, false).hinge : new THREE.Group();
   const first = p.components.length;
   const draw = tunnelDrawing(p); const { vector, hexahedron, corners, beam, meshQuad } = draw;
   const geometries: THREE.BufferGeometry[] = [];
@@ -68,7 +71,7 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     const created = component(id, step, layer, [0, 0, 0]); groups.set(id, created); return created;
   };
 
-  // Stage 0: the site. Uneven ground, the window insert as set on its page with the coupling's docking frame on its port, and the
+  // Stage 0: the site. Uneven ground; at a window, the window insert with the coupling's docking frame on its port; and the
   // enclosure's port flange.
   const terrain = component('terrain', 0, 'environment');
   const depth = b.maxY + 900;
@@ -80,16 +83,19 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
   }
   ground.computeVertexNormals();
   const turf = new THREE.Mesh(ground, m.grass); turf.receiveShadow = true; terrain.add(turf);
-  buildInsertContext(p, windowInsertLayout('modular', site.insert, site.window));
-  // the coupling as set on its page, docked to this tunnel: its frame, seal and catches are on the insert from the start; the
-  // latch bodies and lip come with the first section and are closed in the last stage (the coupling page shows how)
-  const dock = buildCouplingPieces(p, couplingLayout(couplingConfig, { tunnel: config, site, joint }), couplingConfig.latchType);
-  const dockingFrame = component('docking-frame', 0, undefined);
-  // (at the standard port, the printed latch's base is on the frame's right side and its catch on the flange: see catioCoupling.ts)
-  const baseOnFrame = (id: string) => dock.latches.some(q => q.latch.id === id && q.latch.printed?.baseOn === 'frame');
-  for (const g of [...dock.frame.map(f => f.group), dock.seal, ...dock.catches.filter(c => !baseOnFrame(c.latch.id)).map(c => c.group), ...dock.latches.filter(q => baseOnFrame(q.latch.id)).map(q => q.group)]) dockingFrame.add(g);
-  const latches = component('coupling-latches', 6, 'hardware', [0, 160, 0]);
-  for (const g of [...dock.latches.filter(q => !baseOnFrame(q.latch.id)).map(q => q.group), ...dock.catches.filter(c => baseOnFrame(c.latch.id)).map(c => c.group), ...(dock.lip ? [dock.lip] : [])]) latches.add(g);
+  let dock: ReturnType<typeof buildCouplingPieces> | null = null;
+  if (couplingConfig) {
+    buildInsertContext(p, windowInsertLayout('modular', site.insert, site.window));
+    // the insert–tunnel coupling docked to this tunnel: its frame, seal and catches are on the insert from the start; the latch
+    // bodies and lip come with the first section and are closed in the last stage (the coupling's own view shows how)
+    const docked = buildCouplingPieces(p, couplingLayout(couplingConfig, { tunnel: config, site, joint, layout }), couplingConfig.latchType); dock = docked;
+    const dockingFrame = component('docking-frame', 0, undefined);
+    // (at the standard port, the printed latch's base is on the frame's right side and its catch on the flange: see catioCoupling.ts)
+    const baseOnFrame = (id: string) => docked.latches.some(q => q.latch.id === id && q.latch.printed?.baseOn === 'frame');
+    for (const g of [...docked.frame.map(f => f.group), docked.seal, ...docked.catches.filter(c => !baseOnFrame(c.latch.id)).map(c => c.group), ...docked.latches.filter(q => baseOnFrame(q.latch.id)).map(q => q.group)]) dockingFrame.add(g);
+    const latches = component('coupling-latches', 6, 'hardware', [0, 160, 0]);
+    for (const g of [...docked.latches.filter(q => !baseOnFrame(q.latch.id)).map(q => q.group), ...docked.catches.filter(c => baseOnFrame(c.latch.id)).map(c => c.group), ...(docked.lip ? [docked.lip] : [])]) latches.add(g);
+  }
   const port = component('enclosure-port', 0, undefined);
   let enclosureClosure: ReturnType<typeof buildDoorPanel> | null = null;
   const last = layout.pieces.at(-1);
@@ -346,6 +352,6 @@ export function createTunnelScene(_variant: CatioMode, config: TunnelConfig, sit
     hinge.rotation.z = state.windowOpen ? -Math.PI / 2 : 0;
     p.root.updateMatrixWorld(true);
   }
-  function dispose() { p.dispose(); dock.dispose(); draw.dispose(); for (const j of joints) j.dispose(); for (const d of doors) d.dispose(); for (const g of geometries) g.dispose(); }
+  function dispose() { p.dispose(); dock?.dispose(); draw.dispose(); for (const j of joints) j.dispose(); for (const d of doors) d.dispose(); for (const g of geometries) g.dispose(); }
   return { root: p.root, hinge, components: p.components, update, dispose, layout, motions, carriers, drops, levers, holds, doors, enclosureClosure, caption: () => currentAction };
 }

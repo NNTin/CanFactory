@@ -1057,8 +1057,8 @@ export function routeOf(layout: Pick<TunnelLayout, 'pieces' | 'joints' | 'S' | '
   });
 }
 
-export function validateTunnel(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig): string[] {
-  return tunnelLayout(config, site, joint).errors;
+export function validateTunnel(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig, l: TunnelLayout = tunnelLayout(config, site, joint)): string[] {
+  return l.errors;
 }
 
 const side = (angle: number) => angle > 0 ? 'right' : 'left';
@@ -1097,8 +1097,7 @@ export function supportFixingSteps(l: TunnelLayout, scope: 'all' | 'one' = 'all'
 }
 
 /** Stage 0 is the site; 1–2 the supports; 3–4 the sections, framed and meshed on the trestles' line, raised; 5–6 laid and fixed. */
-export function tunnelSteps(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig): readonly AssemblyStep[] {
-  const l = tunnelLayout(config, site, joint);
+export function tunnelSteps(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig, l: TunnelLayout = tunnelLayout(config, site, joint)): readonly AssemblyStep[] {
   const joints = l.joints.length ? l.joints.map(describeJoint).join(', ') : 'no angle joints';
   const collar = l.pieces.some(p => p.kind === 'collar'); const ported = l.pieces.filter(p => p.sidePort).length;
   const legs = l.supports.filter(s => s.kind === 'trestle').length; const blocks = l.supports.length - legs;
@@ -1307,8 +1306,7 @@ export function tunnelBom(_variant: CatioMode, config: TunnelConfig, site: Tunne
   return lines;
 }
 
-export function tunnelFacts(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig): SubassemblyFact[] {
-  const l = tunnelLayout(config, site, joint);
+export function tunnelFacts(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig, l: TunnelLayout = tunnelLayout(config, site, joint)): SubassemblyFact[] {
   const cm = (mm: number) => fmt(mm / 10);
   const turns = l.joints.filter(j => j.kind === 'turn');
   const tallest = Math.max(0, ...l.supports.flatMap(s => s.feet.map(f => f.leg)));
@@ -1338,8 +1336,7 @@ export function tunnelBounds(l: TunnelLayout) {
   return { minX: Math.min(...xs) - 500, maxX: Math.max(...xs) + 500, minY: 0, maxY: Math.max(...ys) + 400, maxZ: Math.max(...zs) + l.h + 200 };
 }
 
-export function tunnelViews(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig): Record<CatioView, CameraPreset> {
-  const l = tunnelLayout(config, site, joint);
+export function tunnelViews(_variant: CatioMode, config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig, l: TunnelLayout = tunnelLayout(config, site, joint)): Record<CatioView, CameraPreset> {
   const b = tunnelBounds(l);
   const center: V3 = [(b.minX + b.maxX) / 2, b.maxY / 2, b.maxZ / 3];
   const extent = Math.max(b.maxX - b.minX, b.maxY, b.maxZ);
