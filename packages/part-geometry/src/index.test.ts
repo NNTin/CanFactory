@@ -58,3 +58,22 @@ describe('part geometry', () => {
     }
   });
 });
+
+describe('eight-pin headers', () => {
+  it('draws the contact pitch, plastic spacer and exposed lengths from the library', () => {
+    const header = parts.find(part => part.id === 'wurth-61300811121');
+    if (!header) throw new Error('Missing header');
+    const s = size(header);
+    expect(s.x).toBeCloseTo(dimensionOf(header, 'W'), 5);
+    expect(s.y).toBeCloseTo(dimensionOf(header, 'L'), 5);
+    expect(s.z).toBeCloseTo(dimensionOf(header, 'H'), 5);
+    const geometry = partGeometry(header); if (!geometry) throw new Error('Missing geometry');
+    const position = geometry.getAttribute('position');
+    const ys: number[] = [];
+    // Short-tail tip vertices, before the plastic starts, expose all eight equally spaced contacts.
+    for (let i = 0; i < position.count; i++) if (Math.abs(position.getZ(i)) < 1e-6) ys.push(position.getY(i));
+    const centres = [...new Set(ys.map(y => Math.round((y + dimensionOf(header, 'L') / 2) / dimensionOf(header, 'e') - 0.5)))].sort((a, b) => a - b);
+    expect(centres).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    geometry.dispose();
+  });
+});

@@ -64,6 +64,16 @@ Interactive physics starts fully assembled with empty sockets: drag the ball and
 without resetting it (approximate dipole forces/torques; virtual switches, not switchable hardware).
 Physics assumes the ball stays closed; seam strength and grip-hole interaction require physical tests.
 
+The [ESP32-C3 SuperMini case](models/esp32-c3-supermini-case/CONVERSION.md) adds
+independent toggles for LED holes, pin-header insulator openings and a taller
+enclosure, all enabled by default, to Vinors3DLab’s two-part design.
+Its live assembly shows the existing SuperMini board and two sourced eight-pin
+headers; only the base and lid are printed. The adaptation uses the author’s
+[CC BY-NC-SA release](models/esp32-c3-supermini-case/ATTRIBUTION.md), while the
+supplied MakerWorld originals retain their CC BY-NC-ND notices. The reusable
+[STEP-to-SCAD skill](.claude/skills/step-to-scad/SKILL.md) documents conversion and
+verification against the supplied 3MFs.
+
 ## Run with Docker
 
 Requires Docker Engine/Desktop and Docker Compose.
