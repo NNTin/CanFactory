@@ -370,7 +370,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         bodies.current = update.bodies; movableBodies.current = update.movable; element.dataset['physics'] = 'running';
         setPhysicsStatus(spec.magnets?.some(magnet => magnet.switchable) ? 'Drag the ball or toggle grid magnets below' : 'Drag a part to move it');
       }
-      else {
+      else if (update.type === 'poses') {
         scene.current?.setBodyPoses(bodies.current, update.poses);
         // for the page's tests: the simulated time, and every tenth frame the bodies' poses (id: x y z qw qx qy qz, mm) and where
         // their centres are on the screen
