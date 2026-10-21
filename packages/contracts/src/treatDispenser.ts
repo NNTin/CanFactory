@@ -1,6 +1,6 @@
 import { Type, type Static } from 'typebox';
 import type { Assembly, ParameterIssue } from './models.ts';
-import type { PhysicsBody, PhysicsController, PhysicsSpec } from './physics.ts';
+import type { PhysicsBody, PhysicsCheck, PhysicsController, PhysicsDrive, PhysicsScenario, PhysicsSpec } from './physics.ts';
 import { DEFAULT_ESP32_CASE, esp32CaseAssembly, esp32CaseBase, esp32CaseGround, ESP32_CASE, ESP32_CASE_BOARD } from './esp32Case.ts';
 import { stepperDriverLayout } from './parts/index.ts';
 import { devBoardLayout } from './parts/index.ts';
@@ -215,10 +215,14 @@ export function tubePieces(origin: readonly number[], axis: Vec3, r: number, t: 
   });
 }
 
-/** The disc's pieces in D: one 90° sector per notch, less the notch (the spindle's bore is inside, where nothing reaches). */
+/**
+ * The disc's pieces in D: one 90° sector per notch, less the notch. Each sector starts at a chord just outside the spindle's bore (the
+ * spindle fills the bore to 0.5 mm below the face, where no treat reaches), so that no piece lies where the printed disc is open.
+ */
 export function discPieces(l: TreatDispenserLayout): number[][] {
+  const inner = (TREAT_DISPENSER.spindle / 2 + TREAT_DISPENSER.fit + 0.2) / Math.cos(45 * DEG);
   return l.notchAngles.flatMap(angle => {
-    const sector: Point2[] = [[0, 0], ...Array.from({ length: 13 }, (_, i): Point2 => {
+    const sector: Point2[] = [[inner * Math.cos((angle + 45) * DEG), inner * Math.sin((angle + 45) * DEG)], [inner * Math.cos((angle - 45) * DEG), inner * Math.sin((angle - 45) * DEG)], ...Array.from({ length: 13 }, (_, i): Point2 => {
       const a = (angle - 45 + 90 * i / 12) * DEG; return [l.discRadius * Math.cos(a), l.discRadius * Math.sin(a)];
     })];
     return minusHole(sector, notchOutline(l, angle)).flatMap(piece => extrudedPieces(piece, [0, 1], -l.discThickness, 0));
@@ -230,6 +234,8 @@ export function discPieces(l: TreatDispenserLayout): number[][] {
  * ----------------------------------------------------------------------------------------------------------------------------- */
 
 type Mat3 = [Vec3, Vec3, Vec3];
+/** An element of a matrix (rows). */
+const g = (m: Mat3, i: number, j: number): number => m[i]?.[j] ?? 0;
 /** A pose rotation (degrees about X, then Y, then Z, fixed axes: Rz Ry Rx) as a matrix (rows). */
 export function rotationMatrix([x = 0, y = 0, z = 0]: readonly number[]): Mat3 {
   const [cx, sx, cy, sy, cz, sz] = [Math.cos(x * DEG), Math.sin(x * DEG), Math.cos(y * DEG), Math.sin(y * DEG), Math.cos(z * DEG), Math.sin(z * DEG)];
@@ -239,15 +245,15 @@ export function rotationMatrix([x = 0, y = 0, z = 0]: readonly number[]): Mat3 {
     [-sy, cy * sx, cy * cx],
   ];
 }
-const mul = (a: Mat3, b: Mat3): Mat3 => [0, 1, 2].map(i => [0, 1, 2].map(j => a[i]![0]! * b[0]![j]! + a[i]![1]! * b[1]![j]! + a[i]![2]! * b[2]![j]!) as Vec3) as Mat3;
-const apply = (m: Mat3, v: readonly number[]): Vec3 => [0, 1, 2].map(i => m[i]![0]! * (v[0] ?? 0) + m[i]![1]! * (v[1] ?? 0) + m[i]![2]! * (v[2] ?? 0)) as Vec3;
-const transpose = (m: Mat3): Mat3 => [0, 1, 2].map(i => [m[0]![i]!, m[1]![i]!, m[2]![i]!] as Vec3) as Mat3;
+const mul = (a: Mat3, b: Mat3): Mat3 => [0, 1, 2].map(i => [0, 1, 2].map(j => g(a, i, 0) * g(b, 0, j) + g(a, i, 1) * g(b, 1, j) + g(a, i, 2) * g(b, 2, j)) as Vec3) as Mat3;
+const apply = (m: Mat3, v: readonly number[]): Vec3 => [0, 1, 2].map(i => g(m, i, 0) * (v[0] ?? 0) + g(m, i, 1) * (v[1] ?? 0) + g(m, i, 2) * (v[2] ?? 0)) as Vec3;
+const transpose = (m: Mat3): Mat3 => [0, 1, 2].map(i => [g(m, 0, i), g(m, 1, i), g(m, 2, i)] as Vec3) as Mat3;
 /** The pose rotation (degrees, X then Y then Z) of a matrix, rounded to 1e-9°. */
 export function rotationAngles(m: Mat3): Vec3 {
   const round = (a: number) => Math.round(a / DEG * 1e9) / 1e9 + 0;
-  const sy = -m[2]![0]!;
-  if (Math.abs(sy) > 1 - 1e-12) return [round(Math.atan2(-m[1]![2]!, m[1]![1]!)), round(Math.asin(Math.max(-1, Math.min(1, sy)))), 0];
-  return [round(Math.atan2(m[2]![1]!, m[2]![2]!)), round(Math.asin(sy)), round(Math.atan2(m[1]![0]!, m[0]![0]!))];
+  const sy = -g(m, 2, 0);
+  if (Math.abs(sy) > 1 - 1e-12) return [round(Math.atan2(-g(m, 1, 2), g(m, 1, 1))), round(Math.asin(Math.max(-1, Math.min(1, sy)))), 0];
+  return [round(Math.atan2(g(m, 2, 1), g(m, 2, 2))), round(Math.asin(sy)), round(Math.atan2(g(m, 1, 0), g(m, 0, 0)))];
 }
 export interface Pose { position: Vec3; rotation: Vec3 }
 /** `outer` ∘ `inner`: a part posed by `inner` inside a frame posed by `outer`. */
@@ -324,7 +330,7 @@ export function treatDispenserPlacement(p: TreatDispenserParameters) {
   const low = Math.min(...[-1, 1].flatMap(sx => [l.canAt[1] - 14, l.canAt[1] - housing].flatMap(y => [l.motorFace, l.motorFace - l.motorLength].map(z => d2w([sx * 14, y, z])[2]))));
   const offset: Vec3 = [0, 0, Math.ceil(-low + 6)];
   const wallY = mouthW[1] + p.bottleDiameter / 2 + 4;
-  return { l, mouthW, seatD, seatW: posePoint({ position: offset, rotation: [0, 0, 0] }, d2w(seatD)), tubeLength, offset, wallY, adapterHeight, discPose: { position: offset, rotation: DISC_ROTATION } as Pose, T };
+  return { l, mouthW, seatD, seatW: posePoint({ position: offset, rotation: [0, 0, 0] }, d2w(seatD)), tubeLength, offset, wallY, adapterHeight, discPose: { position: offset, rotation: DISC_ROTATION }, T };
 }
 
 /** The pose (print frame → W) of a part drawn in D. */
@@ -345,7 +351,7 @@ export function treatVertices(p: Pick<TreatDispenserParameters, 'treatLength' | 
   for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
     for (const [a, b] of [[0, 0], [45, 0], [90, 0], [0, 45], [45, 45], [90, 45], [0, 90]] as const) {
       const ca = Math.cos(a * DEG), sa = Math.sin(a * DEG), cb = Math.cos(b * DEG), sb = Math.sin(b * DEG);
-      vertices.push(sx * (half[0]! + r * ca * cb), sy * (half[1]! + r * sa * cb), sz * (half[2]! + r * sb));
+      vertices.push(sx * ((half[0] ?? 0) + r * ca * cb), sy * ((half[1] ?? 0) + r * sa * cb), sz * ((half[2] ?? 0) + r * sb));
     }
   }
   return vertices;
@@ -368,7 +374,7 @@ function lcg(seed: number): () => number {
 
 /** Whether two boxes (centre, rotation, half sizes) overlap, by separating axes. */
 function boxesOverlap(a: { c: Vec3; m: Mat3 }, b: { c: Vec3; m: Mat3 }, half: Vec3): boolean {
-  const col = (m: Mat3, k: number): Vec3 => [m[0]![k]!, m[1]![k]!, m[2]![k]!];
+  const col = (m: Mat3, k: number): Vec3 => [g(m, 0, k), g(m, 1, k), g(m, 2, k)];
   const axes: Vec3[] = [];
   for (let i = 0; i < 3; i++) {
     axes.push(col(a.m, i), col(b.m, i));
@@ -379,8 +385,8 @@ function boxesOverlap(a: { c: Vec3; m: Mat3 }, b: { c: Vec3; m: Mat3 }, half: Ve
   return axes.every(axis => {
     const n = Math.hypot(...axis); if (n < 1e-9) return true;
     const u: Vec3 = [axis[0] / n, axis[1] / n, axis[2] / n];
-    const ra = [0, 1, 2].reduce((sum, k) => sum + half[k]! * Math.abs(dot(col(a.m, k), u)), 0);
-    const rb = [0, 1, 2].reduce((sum, k) => sum + half[k]! * Math.abs(dot(col(b.m, k), u)), 0);
+    const ra = [0, 1, 2].reduce((sum, k) => sum + (half[k] ?? 0) * Math.abs(dot(col(a.m, k), u)), 0);
+    const rb = [0, 1, 2].reduce((sum, k) => sum + (half[k] ?? 0) * Math.abs(dot(col(b.m, k), u)), 0);
     return Math.abs(dot(d, u)) <= ra + rb;
   });
 }
@@ -405,7 +411,7 @@ export function treatFill(p: TreatDispenserParameters, count: number, seed: numb
       default: return qmul(spin, qaxis([random() - 0.5, random() - 0.5, random() - 0.5], random() * Math.PI));
     }
   };
-  const extent = (m: Mat3, axis: Vec3) => [0, 1, 2].reduce((sum, k) => sum + half[k]! * Math.abs(m[0]![k]! * axis[0] + m[1]![k]! * axis[1] + m[2]![k]! * axis[2]), 0);
+  const extent = (m: Mat3, axis: Vec3) => [0, 1, 2].reduce((sum, k) => sum + (half[k] ?? 0) * Math.abs(g(m, 0, k) * axis[0] + g(m, 1, k) * axis[1] + g(m, 2, k) * axis[2]), 0);
   const placed: { c: Vec3; m: Mat3 }[] = [];
   const free = (c: Vec3, m: Mat3) => !placed.some(other => boxesOverlap(other, { c, m }, half));
   const tubeR = TREAT_DISPENSER.tubeBore / 2 - 0.4;
@@ -427,7 +433,7 @@ export function treatFill(p: TreatDispenserParameters, count: number, seed: numb
       const o1 = (random() - 0.5) * 4, o2 = (random() - 0.5) * 4;
       if (Math.hypot(o1, o2) + Math.max(extent(m, e1), extent(m, e2)) > tubeR) continue;
       for (let s = 0; s < 400; s += 0.5) {
-        const c: Vec3 = [0, 1, 2].map(k => l.mouth[k]! + o1 * e1[k]! + o2 * e2[k]! + s * UP_D[k]!) as Vec3;
+        const c: Vec3 = [0, 1, 2].map(k => (l.mouth[k] ?? 0) + o1 * (e1[k] ?? 0) + o2 * (e2[k] ?? 0) + s * (UP_D[k] ?? 0)) as Vec3;
         if (free(c, m)) { placed.push({ c, m }); done = true; break; }
       }
     }
@@ -493,7 +499,7 @@ export function treatBayLayout(p: TreatDispenserParameters): BayLayout {
   };
 }
 
-export interface TreatDispenserPhysicsOptions { treats?: number; seed?: number; mode?: FillMode }
+export interface TreatDispenserPhysicsOptions { treats?: number; seed?: number; mode?: FillMode; /** false: leave the CI scenarios out (the editor does not run them). */ scenarios?: boolean }
 
 /** The treats' bodies for a fill (W poses). */
 export function treatItems(p: TreatDispenserParameters, placement: ReturnType<typeof treatDispenserPlacement>, count: number, seed: number, mode: FillMode) {
@@ -579,7 +585,7 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
       },
     ],
     controller,
-    scenarios: [],
+    scenarios: options.scenarios === false ? [] : treatDispenserScenarios(placement, count, options.seed ?? 1, options.mode ?? 'random'),
   };
 }
 
@@ -733,4 +739,90 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
     ],
     lift: 60,
   };
+}
+
+/* -------------------------------------------------------------------------------------------------------------------------------
+ * CI scenarios (npm run check:physics -- treat-dispenser). The wider study of fills and treat variations is
+ * tools/physics/treat-dispenser-trials.ts; docs/treat-dispenser.md reports both.
+ * ----------------------------------------------------------------------------------------------------------------------------- */
+
+/** How long one move of `degrees` takes with the firmware's speed and acceleration (a trapezoid), s. */
+function moveSeconds(degrees: number): number {
+  const v = firmwareDegrees(TREAT_FIRMWARE.halfSteps), a = firmwareDegrees(TREAT_FIRMWARE.acceleration), d = Math.abs(degrees);
+  return d < v * v / a ? 2 * Math.sqrt(d / a) : d / v + v / a;
+}
+/** One dispense cycle from the press to the controller's "done", s (two moves, the pause, the settle, the debounce). */
+export function treatCycleSeconds(): number {
+  const half = firmwareDegrees(treatCycleSteps() / 2);
+  return TREAT_FIRMWARE.debounce + 2 * moveSeconds(half) + TREAT_FIRMWARE.pause + TREAT_FIRMWARE.settle;
+}
+
+export function treatDispenserScenarios(placement: ReturnType<typeof treatDispenserPlacement>, count: number, seed: number, mode: FillMode): PhysicsScenario[] {
+  const { l } = placement;
+  const cycle = treatCycleSeconds() + 0.15;
+  const settle = 0.8;
+  const press = (control: string, at: number, hold = 0.1): PhysicsDrive => ({ kind: 'press', control, at, hold });
+  const counter = (at: number, value: number, id = 'out'): PhysicsCheck => ({ kind: 'counter', at, counter: id, min: value, max: value });
+
+  const state = (at: number, name: string): PhysicsCheck => ({ kind: 'controller', at, field: 'state', state: name });
+  const field = (at: number, name: 'cycles' | 'rejected' | 'queued' | 'idleExits', min: number, max = min): PhysicsCheck => ({ kind: 'controller', at, field: name, min, max });
+  // a fingertip (a 1 mm ball, kinematic: it does not give) in the space of the notch at rest left of the outlet: a foreign object
+  const notch = l.notchAngles[0] ?? 45, r = l.notchInner + l.notchWidth / 2;
+  const obstruction = posePoint(placement.discPose, [r * Math.cos(notch * DEG), r * Math.sin(notch * DEG), -l.discThickness / 2]);
+  const presses = 4;
+  const primeEnd = settle + 2 * cycle + 0.3;
+  // Whether each press releases exactly one is not asserted here: in the trials it does not always (docs/treat-dispenser.md). CI
+  // asserts what does hold: real treats leave through the chute while cycles run, never between them, never into the gearbox.
+  const dispense: PhysicsScenario = {
+    id: 'prime-and-dispense', title: `Filled (${count} treats, fill ${mode} ${seed}): Prime (up to two out), then ${presses} presses: treats actually leave through the chute, none between cycles, none into the gearbox`,
+    duration: primeEnd + presses * cycle + 0.3,
+    drives: [press('prime', settle), ...Array.from({ length: presses }, (_, k) => press('boot', primeEnd + k * cycle))],
+    checks: [
+      { kind: 'counter', at: primeEnd - 0.05, counter: 'out', min: 0, max: 2 },
+      { kind: 'counter', at: primeEnd + presses * cycle + 0.25, counter: 'out', min: 1 },
+      field(primeEnd + presses * cycle + 0.25, 'cycles', presses), field(primeEnd + presses * cycle + 0.25, 'idleExits', 0),
+      counter(primeEnd + presses * cycle + 0.25, 0, 'dry'),
+    ],
+  };
+  return [
+    dispense,
+    {
+      id: 'idle', title: 'Filled and left alone for 6 s: no treat leaves, none reaches the gearbox', duration: 6,
+      checks: [counter(6, 0), counter(6, 0, 'dry'), field(6, 'idleExits', 0)],
+    },
+    {
+      id: 'empty', title: 'Empty bottle: Prime and two presses command four cycles and release nothing (no fabricated success)', items: [],
+      duration: settle + 4.3 * cycle, drives: [press('prime', settle), press('boot', settle + 2 * cycle + 0.3), press('boot', settle + 3.1 * cycle + 0.3)],
+      checks: [counter(settle + 4.3 * cycle - 0.05, 0), field(settle + 4.3 * cycle - 0.05, 'cycles', 2)],
+    },
+    {
+      id: 'jam', title: 'A foreign object stuck in a notch: the motor stalls against it (torque-limited, steps lost) instead of forcing the disc through, and the cycle is a fault', items: [],
+      duration: 1 + cycle,
+      drives: [{ kind: 'push', body: 'disc', point: obstruction, timeline: [[0, 0, 0, -0.0001], [100, 0, 0, -0.0002]] }, press('boot', 0.5)],
+      checks: [
+        { kind: 'joint', at: 0.5 + cycle, body: 'disc', min: 0, max: 30 },
+        { kind: 'contact', at: 0.5 + cycle, bodies: ['disc', 'drive-0'], touching: true },
+        { kind: 'controller', at: 0.5 + cycle, field: 'lost', min: TREAT_FIRMWARE.stall },
+        state(0.5 + cycle, 'fault'),
+      ],
+    },
+    {
+      id: 'reset', title: 'RESET mid-cycle stops the motor and reboots without moving; presses during boot and while unaligned are rejected; after a jog and “aligned” one press runs one cycle', items: [],
+      duration: 7.5 + cycle,
+      drives: [press('boot', 0.3), press('reset', 1.6), press('boot', 1.8), press('boot', 3.2), press('jog', 3.6), press('aligned', 5.0), press('boot', 5.4)],
+      checks: [
+        state(1.75, 'booting'), state(3.0, 'unaligned'), field(3.0, 'cycles', 0), field(3.5, 'rejected', 2),
+        state(5.3, 'ready'), field(5.4 + cycle + 0.2, 'cycles', 1), state(5.4 + cycle + 0.2, 'ready'),
+      ],
+    },
+    {
+      id: 'hold-and-burst', title: 'BOOT held 3 s runs one cycle, not more; then three quick presses run one, queue one and reject one', items: [],
+      duration: 0.4 + 4 * cycle,
+      drives: [press('boot', 0.3, 3), press('boot', 0.4 + cycle), press('boot', 0.6 + cycle), press('boot', 0.8 + cycle)],
+      checks: [
+        field(0.35 + cycle, 'cycles', 1), field(1.0 + cycle, 'queued', 1), field(1.0 + cycle, 'rejected', 1),
+        field(0.4 + 3 * cycle, 'cycles', 3), field(0.4 + 3 * cycle, 'queued', 0),
+      ],
+    },
+  ];
 }

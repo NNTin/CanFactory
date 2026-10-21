@@ -62,6 +62,8 @@ export class InteractiveSession {
   private magnetStates: Record<string, boolean> = {};
   private controller: CycleController | undefined;
   private reported = '';
+  /** Presses let go too soon: the simulated time to let each go at. */
+  private readonly releases = new Map<string, number>();
 
   constructor(private readonly engine: Engine, private readonly report: (update: PhysicsUpdate) => void, private readonly cache?: PieceCache) {}
 
@@ -79,7 +81,7 @@ export class InteractiveSession {
         this.reportMagnets();
         break;
       }
-      case 'control': this.controller?.press(request.id, request.pressed); return;
+      case 'control': this.control(request.id, request.pressed); return;
       case 'restart': this.rebuild(); return;
       case 'stop': this.simulation?.dispose(); this.simulation = undefined; return;
     }
@@ -122,6 +124,8 @@ export class InteractiveSession {
     // a scene restart is a refill: the device restarts with it (its controller starts afresh), unlike the controller's reset button
     this.controller = start.spec.controller ? new CycleController(simulation, start.spec.controller) : undefined;
     this.reported = '';
+    this.releases.clear();
+    this.pressedAt.clear();
     for (const [id, enabled] of Object.entries(this.magnetStates)) simulation.setMagnetEnabled(id, enabled);
     this.report({ type: 'ready', bodies: [...simulation.bodies], movable: simulation.bodies.filter(id => simulation.movableBody(id)) });
     this.reportMagnets();
@@ -136,11 +140,35 @@ export class InteractiveSession {
     const steps = Math.floor(wanted / simulation.scene.options.timestep);
     this.lag = wanted - steps * simulation.scene.options.timestep;
     const begun = performance.now();
-    simulation.step(steps);
+    // let go of presses that were released too soon, once they have been held long enough in simulated time
+    let remaining = steps;
+    for (const [id, at] of [...this.releases].sort((a, b) => a[1] - b[1])) {
+      const ahead = Math.max(0, Math.ceil((at - simulation.time) / simulation.scene.options.timestep));
+      if (ahead > remaining) break;
+      simulation.step(ahead);
+      remaining -= ahead;
+      this.controller?.press(id, false);
+      this.releases.delete(id);
+    }
+    simulation.step(remaining);
     const spent = (performance.now() - begun) / 1000;
     this.report(this.poses(spent > 0 ? steps * simulation.scene.options.timestep / spent : 1));
     this.reportController();
   }
+
+  /**
+   * A control pressed or let go. The controller debounces in simulated time, but a person presses in real time, and the simulation
+   * runs in slow motion: a 100 ms click can be 20 ms of simulation, shorter than the debounce. So a press is held down, in simulated
+   * time, at least the debounce and a step more; holding longer is a longer press, as on the real button.
+   */
+  private control(id: string, pressed: boolean): void {
+    const simulation = this.simulation, controller = this.controller, settings = this.start?.spec.controller;
+    if (!simulation || !controller || !settings) return;
+    if (pressed) { this.releases.delete(id); controller.press(id, true); this.pressedAt.set(id, simulation.time); return; }
+    const earliest = (this.pressedAt.get(id) ?? simulation.time) + settings.debounce + 2 * simulation.scene.options.timestep;
+    if (simulation.time >= earliest) controller.press(id, false); else this.releases.set(id, earliest);
+  }
+  private readonly pressedAt = new Map<string, number>();
 
   /** The controller's state, when it has changed (its travel rounded to a degree, so that it is not sent every frame). */
   private reportController(): void {

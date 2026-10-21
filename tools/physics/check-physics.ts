@@ -3,9 +3,10 @@
  * as the worker does, decomposes them into convex pieces, simulates each scenario with packages/physics, and checks its outcome.
  * Exits 1 if any check fails. docs/physics-plan.md.
  *
- *   npm run check:physics -- [model-id ... | spur-gear-pair] [--parameters '<json>'] [--fit]
+ *   npm run check:physics -- [model-id ... | spur-gear-pair] [--parameters '<json>'] [--fit [--fit-spacing <mm>] [--intrusion-only]]
  *
- * --fit also reports how well each decomposed part's pieces fit it. Decompositions are cached in node_modules/.cache by the mesh's
+ * --fit also reports how well each decomposed part's pieces fit it; --fit-spacing samples the pieces' faces more coarsely (default
+ * 0.25 mm) and --intrusion-only skips the slow gap measurement, for large parts with many given pieces (the treat dispenser's). Decompositions are cached in node_modules/.cache by the mesh's
  * hash and the settings. Needs an OpenSCAD runtime (selectRunner in @canfactory/server).
  */
 import { createHash } from 'node:crypto';
@@ -21,7 +22,7 @@ import { parseStl } from '../stl-to-scad/stl.ts';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
-  options: { parameters: { type: 'string' }, fit: { type: 'boolean', default: false } },
+  options: { parameters: { type: 'string' }, fit: { type: 'boolean', default: false }, 'fit-spacing': { type: 'string', default: '0.25' }, 'intrusion-only': { type: 'boolean', default: false } },
 });
 const SETTINGS: DecomposeSettings = { decomposer: 'vhacd' };
 const CACHE = 'node_modules/.cache/canfactory-physics';
@@ -55,8 +56,8 @@ async function checkModel(model: ModelDefinition, parameters: ParameterValues): 
     if (collision.kind === 'pieces' && collision.pieces) {
       geometry[body.id] = { triangles: mesh.tris };
       if (values.fit) {
-        const fit = pieceFit(mesh.tris, collision.pieces.map(vertices => ({ vertices, triangles: hullTriangles(vertices) })));
-        console.log(`${body.id}: ${collision.pieces.length} given pieces; deepest intrusion ${fit.intrusion.toFixed(3)} mm (99 %: ${fit.intrusion99.toFixed(3)}), widest gap ${fit.gap.toFixed(3)} mm`);
+        const fit = pieceFit(mesh.tris, collision.pieces.map(vertices => ({ vertices, triangles: hullTriangles(vertices) })), Number(values['fit-spacing']), { gaps: !values['intrusion-only'] });
+        console.log(`${body.id}: ${collision.pieces.length} given pieces; deepest intrusion ${fit.intrusion.toFixed(3)} mm (99 %: ${fit.intrusion99.toFixed(3)})${values['intrusion-only'] ? '' : `, widest gap ${fit.gap.toFixed(3)} mm`}`);
       }
       continue;
     }

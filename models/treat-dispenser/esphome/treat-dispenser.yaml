@@ -1,0 +1,319 @@
+# PET-bottle treat dispenser (CanFactory model treat-dispenser, docs/treat-dispenser.md): an ESP32-C3 SuperMini drives a 28BYJ-48
+# through a ULN2003 board; its BOOT button dispenses one treat. One USB-C cable into the SuperMini powers everything.
+#
+# Validated with ESPHome 2026.10.0 (`esphome config`, `esphome compile`): it is valid and builds. It has NOT been run on hardware.
+# Everything marked CALIBRATE or VERIFY needs the real device.
+#
+# What it knows and what it does not: a "cycle" here is a commanded motion of the motor. The device has no sensor that sees a treat
+# leave, a jam, an empty bottle or where the disc really is; a stalled 28BYJ-48 loses steps silently. The simulator's
+# "treats seen leaving" counter has no counterpart here.
+#
+# Wiring (verify against your board before powering; see docs/treat-dispenser.md):
+#   SuperMini 5V (VBUS, straight from USB-C) -> ULN2003 "+" (5-12 V)      SuperMini GND -> ULN2003 "-"   (common ground)
+#   SuperMini GPIO5  -> ULN2003 IN1        GPIO6 -> IN2        GPIO7 -> IN3        GPIO10 -> IN4
+#   28BYJ-48 plug -> ULN2003 motor socket (keyed); keep the board's motor-power jumper fitted.
+# Avoided: GPIO2, GPIO8, GPIO9 (strapping pins; GPIO8 is the blue LED, GPIO9 the BOOT button), GPIO18/19 (USB), GPIO20/21 (UART).
+
+substitutions:
+  name: treat-dispenser
+  friendly_name: Treat dispenser
+  # CALIBRATE: half-steps per turn of the motor's output shaft. Nominal 4096 (64 x 64); the gear train is about 1:63.68, so
+  # 4076 is closer for most 28BYJ-48s. Mark the disc, run "Calibrate: 4 cycles" and adjust until it returns to its mark.
+  steps_per_turn: "4076"
+  # One dispense is a quarter turn of the disc = half a turn of the motor (15:30 gears), in two halves with a pause between:
+  # the notch stops over the outlet so its treat can drop. half_cycle = steps_per_turn / 4.
+  half_cycle: "1019"
+  # VERIFY: +1 or -1, so that the disc turns with its notches rising on the side away from the outlet's exit (the pinion turns
+  # clockwise seen from the motor's back in the simulation). Depends on how IN1-IN4 are wired.
+  direction: "-1"
+  # Half-steps per second and per second squared. Faster loses torque (and steps) on a 5 V supply.
+  max_speed: "700"
+  acceleration: "2000"
+  # A small jog for re-alignment after an interrupted cycle (about 2 degrees of motor).
+  jog_steps: "23"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  on_boot:
+    # Nothing moves on boot. If power was lost or RESET pressed mid-cycle, where the disc is is unknown: wait to be re-aligned.
+    priority: -100
+    then:
+      - lambda: |-
+          if (id(cycle_in_progress)) {
+            id(aligned) = false;
+            ESP_LOGW("dispenser", "A cycle was interrupted (reset or power loss): jog the disc to its index mark, then press Mark aligned.");
+          }
+          id(motor).report_position(0);
+          id(motor).set_target(0);
+      - script.execute: publish_status
+
+esp32:
+  variant: esp32c3
+  framework:
+    type: esp-idf
+
+# Commit restore_value globals to flash within a second, so that a power cut mid-cycle (about 4 s long) is remembered: about two
+# small writes per dispense, which ESP-IDF's NVS spreads over its pages. (0s is coerced to 1 ms and would spin the main loop.)
+preferences:
+  flash_write_interval: 1s
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+  actions:
+    # Home Assistant: esphome.treat_dispenser_dispense, and so on. The same paths as the button.
+    - action: dispense
+      then:
+        - script.execute: request_dispense
+    - action: prime
+      then:
+        - script.execute: request_prime
+    - action: jog
+      variables:
+        steps: int
+      then:
+        - script.execute:
+            id: jog_motor
+            steps: !lambda "return steps;"
+    - action: mark_aligned
+      then:
+        - script.execute: mark_aligned
+
+ota:
+  # encrypted with the API's key (ESPHome recommends this over an OTA password)
+  - platform: esphome
+    encryption: {}
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+globals:
+  # Persisted: set when a cycle starts, cleared when it ends, so that a reset or power loss mid-cycle is noticed on boot.
+  - id: cycle_in_progress
+    type: bool
+    restore_value: true
+    initial_value: "false"
+  - id: aligned
+    type: bool
+    initial_value: "true"
+  # Presses waiting while a cycle runs: at most one (the simulation's queue).
+  - id: pending
+    type: int
+    initial_value: "0"
+  - id: cycles
+    type: int
+    initial_value: "0"
+  - id: rejected
+    type: int
+    initial_value: "0"
+  - id: faulted
+    type: bool
+    initial_value: "false"
+
+stepper:
+  - platform: uln2003
+    id: motor
+    pin_a: GPIO5
+    pin_b: GPIO6
+    pin_c: GPIO7
+    pin_d: GPIO10
+    step_mode: HALF_STEP
+    max_speed: ${max_speed} steps/s
+    acceleration: ${acceleration} steps/s^2
+    deceleration: ${acceleration} steps/s^2
+    # coils off between cycles: no holding current or heat; the motor's 1:64 gearbox holds the disc
+    sleep_when_done: true
+
+binary_sensor:
+  # The SuperMini's BOOT button: GPIO9, pulled up by the board (10 kOhm), pressed = low. Held low during a reset it selects the
+  # ROM bootloader instead (that is how you flash it); while the firmware runs it is an ordinary input.
+  - platform: gpio
+    id: boot_button
+    name: BOOT button
+    pin:
+      number: GPIO9
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+      ignore_strapping_warning: true
+    filters:
+      # debounce: a press must last 30 ms; one press fires once, however long it is held
+      - delayed_on: 30ms
+      - delayed_off: 30ms
+    on_press:
+      - script.execute: request_dispense
+
+button:
+  - platform: template
+    name: Dispense
+    on_press:
+      - script.execute: request_dispense
+  - platform: template
+    name: Prime
+    on_press:
+      - script.execute: request_prime
+  - platform: template
+    name: Jog forward
+    on_press:
+      - script.execute:
+          id: jog_motor
+          steps: ${jog_steps}
+  - platform: template
+    name: Mark aligned
+    on_press:
+      - script.execute: mark_aligned
+  - platform: template
+    name: "Calibrate: 4 cycles"
+    on_press:
+      - script.execute:
+          id: run_cycles
+          count: 4
+
+sensor:
+  - platform: template
+    name: Cycles commanded
+    id: cycles_sensor
+    accuracy_decimals: 0
+    lambda: "return id(cycles);"
+    update_interval: never
+  - platform: template
+    name: Presses rejected
+    id: rejected_sensor
+    accuracy_decimals: 0
+    lambda: "return id(rejected);"
+    update_interval: never
+
+text_sensor:
+  - platform: template
+    name: Status
+    id: status
+    update_interval: never
+
+script:
+  # A press: run a cycle, or queue one if a cycle is running, or reject it (and count it) if one is already queued, the device
+  # is not aligned, or a cycle faulted.
+  - id: request_dispense
+    then:
+      - lambda: |-
+          if (!id(aligned) || id(faulted)) {
+            id(rejected) += 1;
+            ESP_LOGW("dispenser", "Press rejected: %s", id(faulted) ? "a cycle did not finish (reboot)" : "not aligned");
+          } else if (id(dispense_cycle).is_running() || id(prime_cycles).is_running() || id(run_cycles).is_running()) {
+            if (id(pending) < 1) { id(pending) += 1; ESP_LOGI("dispenser", "Press queued"); }
+            else { id(rejected) += 1; ESP_LOGW("dispenser", "Press rejected: one is already queued"); }
+          } else {
+            id(dispense_cycle).execute();
+          }
+      - script.execute: publish_status
+
+  # One dispense: half a quarter turn of the disc (its notch over the outlet), a pause, the other half. Commanded, not observed.
+  - id: dispense_cycle
+    mode: single
+    then:
+      - script.execute: one_cycle
+      - script.wait: one_cycle
+      - lambda: |-
+          if (!id(faulted)) id(cycles) += 1;
+          id(cycles_sensor).publish_state(id(cycles));
+      # let the treat clear the chute before the next one
+      - delay: 500ms
+      - lambda: |-
+          if (id(pending) > 0 && !id(faulted)) { id(pending) -= 1; id(dispense_cycle).execute(); }
+      - script.execute: publish_status
+
+  - id: one_cycle
+    mode: single
+    then:
+      - lambda: |-
+          id(cycle_in_progress) = true;
+      - script.execute: publish_status
+      - stepper.set_target:
+          id: motor
+          target: !lambda "return id(motor).current_position + ${direction} * ${half_cycle};"
+      - wait_until:
+          condition:
+            lambda: "return id(motor).current_position == id(motor).target_position;"
+          timeout: 5s
+      - delay: 300ms
+      - stepper.set_target:
+          id: motor
+          target: !lambda "return id(motor).current_position + ${direction} * ${half_cycle};"
+      - wait_until:
+          condition:
+            lambda: "return id(motor).current_position == id(motor).target_position;"
+          timeout: 5s
+      - lambda: |-
+          if (id(motor).current_position != id(motor).target_position) {
+            // the step generator itself overran its time: something is wrong with the firmware or timing, not a detected jam
+            id(faulted) = true;
+            ESP_LOGE("dispenser", "Cycle did not finish in time");
+          } else {
+            id(cycle_in_progress) = false;
+          }
+
+  # Prime: two cycles over the bowl after filling, so that the notches on the way up hold treats; up to two treats come out.
+  - id: request_prime
+    then:
+      - if:
+          condition:
+            lambda: "return id(aligned) && !id(faulted) && !id(dispense_cycle).is_running() && !id(prime_cycles).is_running() && !id(run_cycles).is_running();"
+          then:
+            - script.execute: prime_cycles
+          else:
+            - lambda: 'id(rejected) += 1; ESP_LOGW("dispenser", "Prime rejected: busy, not aligned or faulted");'
+  - id: prime_cycles
+    mode: single
+    then:
+      - script.execute:
+          id: run_cycles
+          count: 2
+      - script.wait: run_cycles
+
+  - id: run_cycles
+    mode: single
+    parameters:
+      count: int
+    then:
+      - repeat:
+          count: !lambda "return count;"
+          then:
+            - script.execute: one_cycle
+            - script.wait: one_cycle
+            - delay: 500ms
+      - script.execute: publish_status
+
+  # Re-alignment: jog the disc until its index mark lines up with the chamber's, then mark it aligned.
+  - id: jog_motor
+    mode: single
+    parameters:
+      steps: int
+    then:
+      - stepper.set_target:
+          id: motor
+          target: !lambda "return id(motor).current_position + ${direction} * steps;"
+      - wait_until:
+          condition:
+            lambda: "return id(motor).current_position == id(motor).target_position;"
+          timeout: 5s
+  - id: mark_aligned
+    then:
+      - lambda: |-
+          id(aligned) = true;
+          id(faulted) = false;
+          id(cycle_in_progress) = false;
+          id(motor).report_position(0);
+          id(motor).set_target(0);
+      - script.execute: publish_status
+
+  - id: publish_status
+    then:
+      - lambda: |-
+          const char *state = id(faulted) ? "fault: reboot" : !id(aligned) ? "needs re-alignment"
+            : (id(dispense_cycle).is_running() || id(prime_cycles).is_running() || id(run_cycles).is_running()) ? "running" : "ready";
+          id(status).publish_state(state);
+          id(rejected_sensor).publish_state(id(rejected));

@@ -1,0 +1,137 @@
+/**
+ * The treat dispenser's singulation study (docs/treat-dispenser.md, "Simulation results"): many fills and treat variations, each
+ * primed and then pressed a fixed number of times, counting the treats that actually leave per press. CI runs only a few scenarios
+ * (`npm run check:physics -- treat-dispenser`); this runs the wider set in parallel and prints a table. Slow: tens of minutes.
+ *
+ *   npx tsx tools/physics/treat-dispenser-trials.ts [--presses 8] [--jobs 8] [--quick] [--json out.json]
+ *
+ * Needs an OpenSCAD runtime (the parts are rendered once, for their mass properties).
+ */
+import { fork } from 'node:child_process';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { availableParallelism } from 'node:os';
+import { join } from 'node:path';
+import { parseArgs } from 'node:util';
+import { fileURLToPath } from 'node:url';
+import { DEFAULT_TREAT_DISPENSER, findModel, resolveAssembly, treatDispenserPhysics, treatVertices, type FillMode, type TreatDispenserParameters } from '@canfactory/contracts';
+import { buildScene, CycleController, loadEngine, Simulation, type BodyGeometry } from '@canfactory/physics';
+
+const { values } = parseArgs({ options: { presses: { type: 'string', default: '8' }, jobs: { type: 'string' }, quick: { type: 'boolean', default: false }, json: { type: 'string' }, child: { type: 'string' } } });
+
+/** One trial: a fill and, optionally, treats that differ from the nominal ones the dispenser is sized for. */
+export interface Trial {
+  name: string; group: string; seed: number; mode: FillMode; count: number;
+  /** The treats themselves (the dispenser stays sized for 14 × 9 × 5 mm, r 1.5). */
+  treat?: { length?: number; width?: number; thickness?: number; radius?: number; mass?: number; friction?: number };
+}
+export interface TrialResult { trial: Trial; prime: number; perPress: number[]; idle: number; dry: number; lost: number; error?: string; seconds: number }
+
+const CACHE = 'node_modules/.cache/canfactory-treat-trials';
+
+function trials(quick: boolean): Trial[] {
+  const list: Trial[] = [];
+  const seeds = quick ? [1, 2] : [1, 2, 3, 4, 5, 6];
+  for (const seed of seeds) list.push({ name: `random ${seed}`, group: 'Random fills, 10 treats', seed, mode: 'random', count: 10 });
+  for (const mode of ['flat', 'edge', 'end', 'diagonal'] as const) list.push({ name: `${mode} 1`, group: 'One orientation, 10 treats', seed: 1, mode, count: 10 });
+  if (quick) return list;
+  const variations: [string, Trial['treat'], number?][] = [
+    ['friction 0.3', { friction: 0.3 }], ['friction 0.55', { friction: 0.55 }],
+    ['mass 0.3 g', { mass: 0.3 }], ['mass 0.8 g', { mass: 0.8 }],
+    ['13 × 8.5 × 4.5', { length: 13, width: 8.5, thickness: 4.5 }], ['15 × 9.5 × 5.5', { length: 15, width: 9.5, thickness: 5.5 }],
+    ['corner r 1.0', { radius: 1 }], ['corner r 2.2', { radius: 2.2 }],
+    ['6 treats', undefined, 6], ['14 treats', undefined, 14],
+  ];
+  for (const [name, treat, count] of variations) for (const seed of [1, 2, 3]) list.push({ name: `${name}, random ${seed}`, group: name, seed, mode: 'random', count: count ?? 10, ...(treat ? { treat } : {}) });
+  return list;
+}
+
+/** Renders the parts once (mass properties come from their meshes, as in CI). */
+async function geometry(): Promise<Record<string, number[]>> {
+  const file = join(CACHE, 'meshes.json');
+  try { return JSON.parse(await readFile(file, 'utf8')) as Record<string, number[]>; } catch { /* render below */ }
+  const { renderAssemblyMeshes } = await import('../assembly-meshes.ts');
+  const model = findModel('treat-dispenser');
+  if (!model?.assembly) throw new Error('No treat dispenser model.');
+  const assembly = resolveAssembly(model, model.assembly, model.defaults) ?? model.assembly;
+  const meshes = await renderAssemblyMeshes(model as never, assembly, model.defaults);
+  const result: Record<string, number[]> = {};
+  for (const id of ['disc', 'gear', 'pinion', 'body', 'hopper']) { const mesh = meshes.get(id); if (mesh) result[id] = Array.from(mesh.tris); }
+  await mkdir(CACHE, { recursive: true });
+  await writeFile(file, JSON.stringify(result));
+  return result;
+}
+
+async function runTrial(trial: Trial, presses: number, meshes: Record<string, number[]>): Promise<TrialResult> {
+  const started = performance.now();
+  const p: TreatDispenserParameters = { ...DEFAULT_TREAT_DISPENSER };
+  const spec = treatDispenserPhysics(p, { treats: trial.count, seed: trial.seed, mode: trial.mode, scenarios: false });
+  if (trial.treat) {
+    const t = trial.treat;
+    const vertices = treatVertices({ treatLength: t.length ?? p.treatLength, treatWidth: t.width ?? p.treatWidth, treatThickness: t.thickness ?? p.treatThickness, treatCornerRadius: t.radius ?? p.treatCornerRadius });
+    spec.items = (spec.items ?? []).map(item => ({ ...item, vertices, ...(t.mass ? { mass: t.mass } : {}), ...(t.friction ? { friction: t.friction } : {}) }));
+  }
+  const model = findModel('treat-dispenser');
+  if (!model?.assembly) throw new Error('No treat dispenser model.');
+  const geometryById: Record<string, BodyGeometry> = Object.fromEntries(Object.entries(meshes).map(([id, tris]) => [id, { triangles: tris }]));
+  const engine = await loadEngine();
+  const simulation = new Simulation(engine, buildScene({ spec, poses: model.assembly.poses, geometry: geometryById }));
+  try {
+    const settings = spec.controller;
+    if (!settings) throw new Error('No controller.');
+    const controller = new CycleController(simulation, settings);
+    const tap = (control: string) => { controller.press(control, true); simulation.advance(0.1); controller.press(control, false); };
+    const wait = () => { let guard = 0; while (controller.report().state === 'running' && guard++ < 400) simulation.advance(0.1); };
+    simulation.advance(0.8);
+    tap('prime'); wait();
+    const prime = controller.report().exits;
+    const perPress: number[] = [];
+    for (let k = 0; k < presses; k++) {
+      const before = controller.report().exits;
+      tap('boot'); wait();
+      perPress.push(controller.report().exits - before);
+    }
+    const report = controller.report();
+    return { trial, prime, perPress, idle: report.idleExits, dry: simulation.counted('dry').length, lost: report.lost, seconds: (performance.now() - started) / 1000 };
+  } finally { simulation.dispose(); }
+}
+
+if (values.child) {
+  // a worker process: run the trials it is sent, one at a time
+  const meshes = JSON.parse(await readFile(values.child, 'utf8')) as Record<string, number[]>;
+  process.on('message', (message: { trial: Trial; presses: number } | 'exit') => {
+    if (message === 'exit') { process.exit(0); }
+    void runTrial(message.trial, message.presses, meshes)
+      .then(result => process.send?.(result))
+      .catch((error: unknown) => process.send?.({ trial: message.trial, prime: 0, perPress: [], idle: 0, dry: 0, lost: 0, seconds: 0, error: error instanceof Error ? error.message : String(error) } satisfies TrialResult));
+  });
+} else {
+  const presses = Number(values.presses);
+  const list = trials(values.quick);
+  await geometry();
+  const meshFile = join(CACHE, 'meshes.json');
+  const jobs = Math.min(list.length, Number(values.jobs ?? Math.max(1, availableParallelism() - 1)));
+  console.log(`${list.length} trials, ${presses} presses each after Prime, ${jobs} processes`);
+  const results: TrialResult[] = [];
+  const queue = [...list];
+  await Promise.all(Array.from({ length: jobs }, () => new Promise<void>(resolve => {
+    const child = fork(fileURLToPath(import.meta.url), ['--child', meshFile], { execArgv: ['--import', 'tsx'] });
+    const next = () => { const trial = queue.shift(); if (trial) child.send({ trial, presses }); else { child.send('exit'); resolve(); } };
+    child.on('message', (result: TrialResult) => {
+      results.push(result);
+      const exact = result.perPress.filter(n => n === 1).length;
+      console.log(`${result.error ? 'ERROR' : exact === result.perPress.length ? 'ok   ' : 'MISS '} ${result.trial.name}: prime ${result.prime}, presses ${result.perPress.join(' ')} (${exact}/${result.perPress.length} exactly one), idle ${result.idle}, gearbox ${result.dry}, lost ${result.lost.toFixed(1)}° ${result.error ?? ''} [${result.seconds.toFixed(0)} s]`);
+      next();
+    });
+    next();
+  })));
+  // per group: presses with 0, 1, 2+ treats
+  const groups = [...new Set(list.map(trial => trial.group))];
+  console.log('\n| Trials | Presses | Exactly one | None | Two or more | Leaked between cycles | Into the gearbox |\n| --- | --- | --- | --- | --- | --- | --- |');
+  const line = (name: string, rs: TrialResult[]) => {
+    const all = rs.flatMap(r => r.perPress);
+    console.log(`| ${name} (${rs.length}) | ${all.length} | ${all.filter(n => n === 1).length} | ${all.filter(n => n === 0).length} | ${all.filter(n => n >= 2).length} | ${rs.reduce((s, r) => s + r.idle, 0)} | ${rs.reduce((s, r) => s + r.dry, 0)} |`);
+  };
+  for (const group of groups) line(group, results.filter(r => r.trial.group === group && !r.error));
+  line('All', results.filter(r => !r.error));
+  if (values.json) await writeFile(values.json, JSON.stringify(results, null, 2));
+}

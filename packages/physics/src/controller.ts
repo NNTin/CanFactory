@@ -67,6 +67,8 @@ export class CycleController {
   private run: { kind: CycleResult['kind']; moves: number[]; next: number; stopped: number | undefined; exits: number; lost: number; primesLeft: number } | undefined;
   private last: CycleResult | undefined;
   private message = 'Ready';
+  /** Whether the rotor is where the firmware thinks: false after a reset interrupted a cycle, until confirmed aligned. */
+  private aligned = true;
   private readonly start: number;
 
   constructor(private readonly simulation: Simulation, private readonly spec: PhysicsController) {
@@ -93,7 +95,7 @@ export class CycleController {
       if (button.down && !button.fired && this.time - button.since >= this.spec.debounce) { button.fired = true; this.act(id); }
     }
     if (this.state === 'booting' && this.time >= this.bootUntil) {
-      this.state = this.last?.interrupted === true ? 'unaligned' : 'ready';
+      this.state = this.aligned ? 'ready' : 'unaligned';
       this.message = this.state === 'unaligned' ? 'Rebooted after an interrupted cycle: jog the rotor into line, then confirm it is aligned' : 'Rebooted: ready, nothing moved';
     }
     const exits = this.exitsNow();
@@ -106,18 +108,14 @@ export class CycleController {
     const action = this.spec.controls.find(candidate => candidate.id === control)?.action;
     if (action === 'reset') { this.reset(); return; }
     if (this.state === 'booting' || this.state === 'fault') { this.rejected++; return; }
-    if (this.state === 'unaligned') {
-      if (action === 'jog') this.begin('jog');
-      else if (action === 'aligned') { this.state = 'ready'; this.message = 'Aligned: ready'; }
-      else this.rejected++;
-      return;
-    }
+    if (action === 'jog') { if (this.run) this.rejected++; else this.begin('jog'); return; }
+    if (action === 'aligned') { if (this.run) this.rejected++; else { this.aligned = true; this.state = 'ready'; this.message = 'Aligned: ready'; } return; }
+    if (this.state === 'unaligned') { this.rejected++; this.message = 'Rejected: jog the disc into line and confirm it is aligned first'; return; }
     if (action === 'dispense') {
-      if (this.run) { if (this.queue < this.spec.queue) this.queue++; else { this.rejected++; this.message = 'Busy: press rejected (queue full)'; } return; }
+      if (this.run) { if (this.queue < this.spec.queue && this.run.kind === 'dispense') this.queue++; else { this.rejected++; this.message = 'Busy: press rejected (queue full)'; } return; }
       this.begin('dispense');
     } else if (action === 'prime' && !this.run) this.begin('prime');
-    else if (action === 'jog' && !this.run) this.begin('jog');
-    else if (action !== 'aligned') this.rejected++;
+    else this.rejected++;
   }
 
   private begin(kind: CycleResult['kind']): void {
@@ -161,7 +159,7 @@ export class CycleController {
     if (run.kind === 'prime' && run.primesLeft > 0) { this.begin('prime'); if (this.run) this.run.primesLeft = run.primesLeft - 1; return; }
     if (run.kind === 'dispense') this.cycles++;
     this.run = undefined;
-    this.state = 'ready';
+    this.state = this.aligned ? 'ready' : 'unaligned';
     this.message = run.kind === 'dispense' ? `Cycle ${this.cycles} commanded; ${result.exits} observed leaving` : run.kind === 'prime' ? 'Primed' : 'Jogged';
     if (this.queue > 0 && run.kind === 'dispense') { this.queue--; this.begin('dispense'); }
   }
@@ -176,11 +174,10 @@ export class CycleController {
     }
     this.run = undefined;
     this.queue = 0;
+    if (interrupted) this.aligned = false;
     this.state = 'booting';
     this.bootUntil = this.time + this.spec.boot;
     this.message = 'Resetting';
-    // a reset interrupting nothing does not leave the rotor unaligned, even after an earlier interrupted cycle was aligned
-    if (!interrupted && this.last) this.last = { ...this.last, interrupted: false };
   }
 
   report(): ControllerReport {

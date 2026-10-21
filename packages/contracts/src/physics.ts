@@ -234,10 +234,10 @@ export const PhysicsCheckSchema = Type.Union([
   Type.Object({
     kind: Type.Literal('controller'),
     at: Type.Number({ minimum: 0 }),
-    field: Type.Union([Type.Literal('cycles'), Type.Literal('rejected'), Type.Literal('lost'), Type.Literal('state')]),
+    field: Type.Union([Type.Literal('cycles'), Type.Literal('rejected'), Type.Literal('queued'), Type.Literal('lost'), Type.Literal('idleExits'), Type.Literal('state')]),
     min: Type.Optional(Type.Number()), max: Type.Optional(Type.Number()),
     state: Type.Optional(Type.String({ description: 'The state it must be in (field state).' })),
-  }, { additionalProperties: false, description: 'The controller’s commanded cycles, rejected presses, lost motor travel (degrees) or state.' }),
+  }, { additionalProperties: false, description: 'The controller’s commanded cycles, rejected or queued presses, lost motor travel (degrees), items that left outside a cycle, or its state.' }),
 ]);
 export type PhysicsCheck = Static<typeof PhysicsCheckSchema>;
 
