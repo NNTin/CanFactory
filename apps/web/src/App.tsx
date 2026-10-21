@@ -1,3 +1,4 @@
+import { Esp32CaseIllustration } from './Esp32CaseIllustration.tsx';
 import { MagneticCatToyIllustration } from './MagneticCatToyIllustration.tsx';
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Atom, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, ShoppingBasket, SlidersHorizontal, Sparkles, X } from 'lucide-react';
@@ -293,6 +294,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'spring-ball-detent': SpringBallDetentIllustration,
   'cat-collar-tag': CatCollarTagIllustration,
   'xiao-sense-camera-housing': CameraHousingIllustration,
+  'esp32-c3-supermini-case': Esp32CaseIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names

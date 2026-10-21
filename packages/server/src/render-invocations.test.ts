@@ -54,7 +54,7 @@ async function invocationsFor(model: ModelDefinition, parameters: ParameterValue
  * The production command lines, pinned: the command, argv, timeout, kill signal and font path of every OpenSCAD call the worker
  * makes for each model's defaults (in full) and each one-parameter boundary variant (as a sha256). RENDERER_FINGERPRINT and the
  * render cache assume these never change by accident; a model change that alters them on purpose updates the snapshot
- * (`npx vitest run -u packages/server/src/render-invocations.test.ts`).
+ * (`npx vitest run packages/server/src/render-invocations.test.ts --update=all`).
  */
 it('renders every model with the pinned OpenSCAD command lines', async () => {
   const snapshot: Record<string, unknown> = { rendererFingerprint: RENDERER_FINGERPRINT };

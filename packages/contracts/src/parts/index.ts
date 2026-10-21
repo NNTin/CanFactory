@@ -1,3 +1,4 @@
+import { pinHeaderFamily, pinHeaderParts } from './pin-headers.ts';
 import { ballFamily, ballParts } from './balls.ts';
 import { bearingFamily, bearingParts } from './bearings.ts';
 import { catCollarFamily, catCollarParts } from './cat-collars.ts';
@@ -46,14 +47,14 @@ export { stepperDriverComponentTop, stepperDriverLayout, type StepperDriverCompo
 export const partFamilies: readonly PartFamily[] = [
   magnetFamily, screwFamily, nutFamily, washerFamily, insertFamily, bearingFamily, pinFamily, everydayObjectFamily,
   woodScrewFamily, nailFamily, insertNutFamily, levellingFootFamily, toggleLatchFamily, screenHookFamily, cornerBracketFamily,
-  setScrewFamily, ballFamily, springFamily, splitRingFamily, nfcTagFamily, catCollarFamily, devBoardFamily, heatsinkFamily, meshFamily,
+  setScrewFamily, ballFamily, springFamily, splitRingFamily, nfcTagFamily, catCollarFamily, devBoardFamily, pinHeaderFamily, heatsinkFamily, meshFamily,
   stepperMotorFamily, stepperDriverFamily,
 ];
 
 export const parts: readonly Part[] = [
   ...magnetParts, ...screwParts, ...nutParts, ...washerParts, ...insertParts, ...bearingParts, ...pinParts, ...everydayObjectParts,
   ...woodScrewParts, ...nailParts, ...insertNutParts, ...levellingFootParts, ...toggleLatchParts, ...screenHookParts, ...cornerBracketParts,
-  ...setScrewParts, ...ballParts, ...springParts, ...splitRingParts, ...nfcTagParts, ...catCollarParts, ...devBoardParts, ...heatsinkParts, ...meshParts,
+  ...setScrewParts, ...ballParts, ...springParts, ...splitRingParts, ...nfcTagParts, ...catCollarParts, ...devBoardParts, ...pinHeaderParts, ...heatsinkParts, ...meshParts,
   ...stepperMotorParts, ...stepperDriverParts,
 ];
 

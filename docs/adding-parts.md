@@ -90,6 +90,27 @@ whole catalogue:
 nominal diameter: a hole it is turned into must be cut to clear it (as a tap-drill hole does not), or the check counts its
 thread.
 
+### Pin headers
+
+The `pin-header` family (`pin-headers.ts`) starts with Würth Elektronik's WR-PHD
+61300811121: one straight row of eight 0.64 mm square contacts at 2.54 mm pitch.
+The manufacturer's drawing supplies the footprint, body size, 3 mm solder tails,
+6 mm mating posts, overall length and stated tolerances. One instance is one
+strip; the SuperMini case uses two.
+
+The procedural preview uses nominal dimensions: row along Y, centred XY,
+solder-tail tips at z=0, plastic from z=3 to 5.54, mating tips at z=11.54.
+It omits moulding notches and tip chamfers. Rotate about X by 180° to point the
+mating pins down. The SuperMini case defaults to 21.07 × 3.09 mm floor openings,
+clearing the maximum insulator envelope by 0.2 mm per side so it can seat against
+the PCB. The independent Taller enclosure switch adds 0.84 mm below the PCB,
+aligning the case bottom with seated insulator bottoms. Disabling it keeps the
+original shorter case. Disabling Flush pin headers restores the narrow slots:
+spacers stay outside the floor and only solder tails pass through. Check actual tail reach
+and solder access before fitting generic replacement strips. The taller case
+with external spacers needs longer tails for through-board soldering: the
+nominal 3 mm tails enter the PCB by only 0.36 mm in that combination.
+
 ### Development boards
 
 The **`dev-board`** family (`dev-boards.ts`) holds small microcontroller boards that a print holds (a smart lamp's controller):
