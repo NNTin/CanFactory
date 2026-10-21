@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { DEFAULT_TREAT_DISPENSER, printFrames, toPrint, treatDispenser, treatDispenserLayout, TREAT_DISPENSER, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, ObjectStorage, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair, type RenderJob } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { startStorageServices } from './storage-services.ts';
@@ -83,7 +83,7 @@ const store = new PostgresStorage(services.databaseUrl, repositoryRoot, director
 await store.migrate(); await store.seed();
 const app = await createApp(store);
 const artifactBytes = async (job: RenderJob) => Buffer.concat(await (await store.readArtifact(job)).toArray() as Buffer[]);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy, esp32-c3-supermini-case, treat-dispenser) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = (await selectRunner(directory, ['docker'], WORKER_LIMITS)).run;
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -1188,6 +1188,37 @@ try {
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
     console.log(`PASS ESP32-C3 SuperMini case LED openings ${ledHoles}, flush headers ${flushHeaders}, taller enclosure ${tallerEnclosure}: two closed attributed prints, maximum-insulator clearance and aperture probes and matching preview/download bytes`);
+  }
+  // treat dispenser: default, the smallest and largest treats it takes, the other bottle neck
+  for (const [name, overrides] of (!only || only === 'treat-dispenser' ? [
+    ['default', {}], ['small treats', { treatLength: 10, treatWidth: 6, treatThickness: 3, treatCornerRadius: 0.5 }],
+    ['large treats', { treatLength: 18, treatWidth: 10, treatThickness: 7, notchClearance: 0.4 }], ['PCO 1810', { bottleNeck: 'pco-1810', threadClearance: 0.5 }],
+  ] as const : [])) {
+    const parameters: TreatDispenserParameters = { ...DEFAULT_TREAT_DISPENSER, ...overrides };
+    assert.deepEqual(validateParameters(treatDispenser, parameters), [], name);
+    const queued = await store.enqueue(treatDispenser, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
+    assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true);
+    const result = await store.getJob(queued.id);
+    assert.equal(result?.status, 'succeeded');
+    if (!result.artifact || !('parts' in result.artifact)) throw new Error('Expected the treat dispenser ZIP.');
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['disc', 'gear', 'pinion', 'body', 'cover', 'hopper', 'adapter', 'coupon', 'bracket', 'case-bottom', 'case-top']);
+    const bytes = await artifactBytes(result), entries = unzipSync(bytes);
+    const mesh = (id: string) => parseStl(Buffer.from(entries[`${id}.stl`] ?? []));
+    for (const id of Object.keys(entries)) assert.equal(shells(mesh(id.replace(/\.stl$/, ''))), 1, `${name}: ${id} is one closed solid`);
+    const l = treatDispenserLayout(parameters), frames = printFrames(l), rad = Math.PI / 180;
+    // each notch is open through the disc, the web between two is solid
+    const disc = mesh('disc'), r = l.notchInner + l.notchWidth / 2;
+    for (const a of l.notchAngles) assert.equal(housingSolid(disc, toPrint(frames.disc, [r * Math.cos(a * rad), r * Math.sin(a * rad), -l.discThickness / 2])), false, `${name}: notch at ${a}°`);
+    assert.equal(housingSolid(disc, toPrint(frames.disc, [r, 0, -l.discThickness / 2])), true, `${name}: web between notches`);
+    // the back plate is open at the outlet and closed under the resting notches and the pile
+    const body = mesh('body'), mid = (l.notchInner - TREAT_DISPENSER.outletIn + l.rimOuter) / 2, z = (l.plateTop + l.plateBottom) / 2;
+    assert.equal(housingSolid(body, toPrint(frames.body, [0, mid, z])), false, `${name}: outlet`);
+    for (const a of l.notchAngles) assert.equal(housingSolid(body, toPrint(frames.body, [r * Math.cos(a * rad), r * Math.sin(a * rad), z])), true, `${name}: plate under the notch at rest at ${a}°`);
+    const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
+    assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
+    assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
+    console.log(`PASS treat dispenser ${name}: 11 closed prints, open notches and outlet, plate under the resting notches, matching preview/download bytes`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

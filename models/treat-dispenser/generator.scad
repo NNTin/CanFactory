@@ -20,7 +20,7 @@ GEAR = L("GEAR"); GEAR_TIP = L("GEAR_TIP"); PINION = L("PINION"); PINION_TIP = L
 GEAR_TOP = L("GEAR_TOP"); GEAR_BOTTOM = L("GEAR_BOTTOM"); PINION_AT = L("PINION_AT"); CAN_AT = L("CAN_AT");
 COVER_FRONT = L("COVER_FRONT"); COVER_BACK = L("COVER_BACK"); EAR_SPAN = L("EAR_SPAN");
 BOSS_D = L("BOSS_D"); SHAFT_D = L("SHAFT_D"); SHAFT_FLATS = L("SHAFT_FLATS");
-CHUTE_FLOOR = L("CHUTE_FLOOR"); CHUTE_W = L("CHUTE_W"); CHUTE_DEPTH = L("CHUTE_DEPTH"); CHUTE_WALL = L("CHUTE_WALL"); WALL = L("WALL");
+CHUTE_FLOOR = L("CHUTE_FLOOR"); CHUTE_DEPTH = L("CHUTE_DEPTH"); CHUTE_WALL = L("CHUTE_WALL"); WALL = L("WALL");
 RIM_IN = L("RIM_IN"); RIM_OUT = L("RIM_OUT"); LID = L("LID"); LID_TOP = L("LID_TOP");
 BETA = L("BETA"); MOUTH = L("MOUTH"); TUBE_BORE = L("TUBE_BORE"); TUBE_WALL = L("TUBE_WALL"); TUBE_LENGTH = L("TUBE_LENGTH");
 NECK_T = L("NECK_T"); NECK_E = L("NECK_E"); NECK_PITCH = L("NECK_PITCH"); NECK_TURNS = L("NECK_TURNS");
@@ -82,14 +82,11 @@ module pinion() {
 }
 
 // ------------------------------------------------------------------------------------------- the body: plate, gearbox and chute
-module gearbox_inner() { hull() { pad(GEAR_TIP + 1); translate(PINION_AT) pad(PINION_TIP + 1); } }
+// 0.05 mm past the gear's clearance, so its wall overlaps the chute's rather than sharing a face with it
+module gearbox_inner() { hull() { pad(GEAR_TIP + 1.05); translate(PINION_AT) pad(PINION_TIP + 1); } }
 module gearbox_outer() { offset(r = WALL) gearbox_inner(); }
-CHUTE_OUTER = RIM_OUT + 0.5;
-module chute_walls() {
-  w = CHUTE_W / 2;
-  translate([-w - WALL, CHUTE_FLOOR - CHUTE_WALL]) square([CHUTE_W + 2 * WALL, CHUTE_OUTER + WALL - CHUTE_FLOOR + CHUTE_WALL]);
-}
-module chute_channel() { translate([-CHUTE_W / 2, CHUTE_FLOOR]) square([CHUTE_W, CHUTE_OUTER - CHUTE_FLOOR]); }
+// the chute is the outlet's own outline carried straight back, its walls round it: one cut through the plate and the chute
+module chute_walls() { difference() { offset(delta = CHUTE_WALL) polygon(OUTLET); polygon(OUTLET); } }
 // cover screws: outside the gearbox wall, either side of the gear and below the pinion
 COVER_SCREWS = [[GEAR_TIP + 1 + WALL + 3.5, 0], [-(GEAR_TIP + 1 + WALL + 3.5), 0], [0, PINION_AT[1] - PINION_TIP - 1 - WALL - 3.5]];
 module body() {
@@ -105,8 +102,7 @@ module body() {
       translate([0, 0, PLATE_BOTTOM - CHUTE_DEPTH]) linear_extrude(CHUTE_DEPTH + 0.01) chute_walls();
       for (q = COVER_SCREWS) translate([q[0], q[1], COVER_FRONT]) cylinder(d = INSERT_HOLE + 2 * 1.8, h = PLATE_BOTTOM - COVER_FRONT + 0.01);
     }
-    translate([0, 0, PLATE_BOTTOM - 1]) linear_extrude(PLATE_TOP - PLATE_BOTTOM + 2) polygon(OUTLET);
-    translate([0, 0, PLATE_BOTTOM - CHUTE_DEPTH - 1]) linear_extrude(CHUTE_DEPTH + 1) chute_channel();
+    translate([0, 0, PLATE_BOTTOM - CHUTE_DEPTH - 1]) linear_extrude(CHUTE_DEPTH + PLATE_TOP - PLATE_BOTTOM + 2) polygon(OUTLET);
     translate([0, 0, PLATE_BOTTOM - 2]) cylinder(d = COLLAR + 2 * FIT, h = PLATE_TOP - PLATE_BOTTOM + 3, $fn = 64);
     for (a = concat(HOPPER_LUGS, [0, 180])) rotate([0, 0, a]) translate([LUG_R, 0, PLATE_BOTTOM - 1]) cylinder(d = M3_HOLE, h = 10, $fn = 24);
     for (q = COVER_SCREWS) translate([q[0], q[1], COVER_FRONT - 0.01]) cylinder(d = INSERT_HOLE, h = INSERT_DEPTH, $fn = 24);

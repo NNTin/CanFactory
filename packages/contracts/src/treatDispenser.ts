@@ -43,8 +43,8 @@ export const TREAT_DISPENSER = {
   gearAir: 1, cover: 3,
   /** The chamber's lid above the disc face, and the feed tube's mouth (below the lid, over the low side of the disc). */
   lid: 42, mouthY: -14, mouthZ: 22, tubeBore: 28, tubeWall: 2.4,
-  /** The chute: across, from the duct's floor outwards, and how far it runs back from the plate. */
-  chuteWidth: 22, chuteDepth: 40,
+  /** How far the chute runs back from the plate. */
+  chuteDepth: 40,
   wall: 2.4,
   /** The chute's floor wall, between the treats and the gear's teeth. */
   chuteWall: 1.6,
@@ -577,7 +577,7 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
       {
         id: 'out', title: 'Treats out of the chute', group: 'treats', kind: 'crossing', frame: placement.discPose,
         point: [0, 0, l.plateBottom - 25], along: [0, 0, -1],
-        min: [-T.chuteWidth / 2 - 1, l.chuteFloor - 1, l.plateBottom - T.chuteDepth - 5], max: [T.chuteWidth / 2 + 1, l.rimOuter + 6, l.plateBottom - 5],
+        min: [-l.outletLength / 2 - 1, l.chuteFloor - 1, l.plateBottom - T.chuteDepth - 5], max: [l.outletLength / 2 + 1, l.rimOuter + 6, l.plateBottom - 5],
       },
       {
         id: 'dry', title: 'Treats in the gearbox', group: 'treats', kind: 'inside', frame: placement.discPose,
@@ -593,15 +593,8 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
 export function treatBodyPieces(l: TreatDispenserLayout): number[][] {
   const T = TREAT_DISPENSER;
   const plate = minusHole(circle(0, 0, l.plateRadius, 48), outletOutline(l)).flatMap(piece => extrudedPieces(piece, [0, 1], l.plateBottom, l.plateTop));
-  const w = T.chuteWidth / 2, outer = l.rimOuter + 0.5, bottom = l.plateBottom - T.chuteDepth;
-  const box = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number) => [z0, z1].flatMap(z => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].flatMap(([x, y]) => [x ?? 0, y ?? 0, z]));
-  // the chute runs straight back from the outlet: its floor (towards the axis), its sides and its roof, the full depth of the gearbox
-  const chute = [
-    box(-w - T.wall, w + T.wall, l.chuteFloor - T.chuteWall, l.chuteFloor, bottom, l.plateBottom),
-    box(-w - T.wall, -w, l.chuteFloor, outer, bottom, l.plateBottom),
-    box(w, w + T.wall, l.chuteFloor, outer, bottom, l.plateBottom),
-    box(-w - T.wall, w + T.wall, outer, outer + T.wall, bottom, l.plateBottom),
-  ];
+  // the chute is the outlet's outline carried straight back from the plate, its walls round it (its floor wall towards the gear)
+  const chute = ringPieces(outletOutline(l), T.chuteWall, l.plateBottom - T.chuteDepth, l.plateBottom);
   return [...plate, ...chute];
 }
 
@@ -655,7 +648,7 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     ['GEAR_TOP', l.gearTop], ['GEAR_BOTTOM', l.gearBottom], ['PINION_AT', [...l.pinionAt]], ['CAN_AT', [...l.canAt]],
     ['COVER_FRONT', l.coverFront], ['COVER_BACK', l.coverBack], ['EAR_SPAN', l.earSpan],
     ['BOSS_D', dimensionOf(motor, 'db', 'max')], ['SHAFT_D', dimensionOf(motor, 'd', 'max')], ['SHAFT_FLATS', dimensionOf(motor, 's', 'max')],
-    ['CHUTE_FLOOR', round(l.chuteFloor)], ['CHUTE_W', T.chuteWidth], ['CHUTE_DEPTH', T.chuteDepth], ['CHUTE_WALL', T.chuteWall], ['WALL', T.wall],
+    ['CHUTE_FLOOR', round(l.chuteFloor)], ['CHUTE_DEPTH', T.chuteDepth], ['CHUTE_WALL', T.chuteWall], ['WALL', T.wall],
     ['RIM_IN', round(l.rimInner)], ['RIM_OUT', round(l.rimOuter)], ['LID', T.lid], ['LID_TOP', l.lidTop],
     ['MOUTH', [...l.mouth]], ['UP', UP_D.map(round)], ['TUBE_BORE', T.tubeBore], ['TUBE_WALL', T.tubeWall], ['TUBE_LENGTH', round(placement.tubeLength)],
     ['NECK_T', l.neck.T], ['NECK_E', l.neck.E], ['NECK_BORE', l.neck.bore], ['NECK_PITCH', l.neck.pitch], ['NECK_TURNS', round(l.neck.turns)], ['NECK_RING', l.neck.ring],
