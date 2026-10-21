@@ -158,7 +158,9 @@ The editor's Simulate mode and `npm run check:physics -- treat-dispenser` simula
   feed tube at the start (seeded, the same in the browser and CI) and never spawned, deleted or moved by a press.
 - **Collision pieces keep the openings**: the disc is four sectors less their notches, split into wedges from each notch's centroid
   (no slivers), the plate less its outlet the same way; the chute, rim wall, lid and tube are slabs. They come from the same layout as
-  the CAD; against the rendered parts the gear and pinion pieces reach 0.000 mm out of their meshes (see below for the others).
+  the CAD. Against the rendered parts (`pieceFit`, intrusion only), the gear and pinion pieces reach 0.000 mm out of their meshes; the
+  disc's 0.5 mm (its index groove; 99 % 0.000 mm); the body's 4.9 mm (99 %: 0.19 mm) where its plate pieces fill the spindle's bushing,
+  which the spindle fills; the chamber's 4.0 mm (99 %: 1.5 mm) where its lid pieces span the lugs' nut traps and the tube's facets.
 - **Exits are counted, not assumed**: each treat is counted once, the first time its centre crosses a plane 25 mm down the chute,
   inside the chute. A second counter flags any treat inside the gearbox.
 - **The controller is the firmware's logic** (`packages/physics/src/controller.ts`): debounce, one queued press, rejection, boot time,

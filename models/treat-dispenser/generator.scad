@@ -140,9 +140,14 @@ module tube_frame() { translate(MOUTH) rotate([-BETA, 0, 0]) children(); }
 module hopper() {
   difference() {
     union() {
-      translate([0, 0, PLATE_TOP]) cylinder(r = RIM_OUT, h = LID_TOP - PLATE_TOP, $fn = 144);
+      // the rim wall and lid round the chamber, then the feed tube down through the lid to its mouth inside it
+      difference() {
+        translate([0, 0, PLATE_TOP]) cylinder(r = RIM_OUT, h = LID_TOP - PLATE_TOP, $fn = 144);
+        translate([0, 0, PLATE_TOP - 1]) cylinder(r = RIM_IN, h = LID - PLATE_TOP + 1, $fn = 144);
+      }
+      // lugs from inside the rim wall (never into the chamber) out to the plate's lugs
       for (a = HOPPER_LUGS) rotate([0, 0, a]) hull() {
-        translate([RIM_OUT - 3, 0, PLATE_TOP]) cylinder(r = LUG_PAD / 2, h = 4);
+        translate([RIM_IN + 0.5 + LUG_PAD / 2, 0, PLATE_TOP]) cylinder(r = LUG_PAD / 2, h = 4);
         translate([LUG_R, 0, PLATE_TOP]) cylinder(r = LUG_PAD / 2, h = 4);
       }
       tube_frame() {
@@ -150,7 +155,6 @@ module hopper() {
         translate([0, 0, TUBE_LENGTH - FLANGE_T]) cylinder(d = FLANGE_D, h = FLANGE_T, $fn = 72);
       }
     }
-    translate([0, 0, PLATE_TOP - 1]) cylinder(r = RIM_IN, h = LID - PLATE_TOP + 1, $fn = 144);
     tube_frame() {
       translate([0, 0, -1]) cylinder(r = TUBE_BORE / 2, h = TUBE_LENGTH + 2, $fn = 72);
       for (s = [-1, 1]) translate([s * FLANGE_HOLE, 0, TUBE_LENGTH - FLANGE_T - 8]) {
