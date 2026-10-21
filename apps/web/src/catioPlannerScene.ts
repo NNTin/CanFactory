@@ -48,7 +48,7 @@ interface Drawn {
   anchor: THREE.Vector3;
   /** Shows it at `t` (in its parent's frame) while a drag is in progress. */
   pose: (t: Transform) => void;
-  /** A tunnel's: draws it along another route's config and layout, for a drag's preview. */
+  /** A tunnel's: draws it along another route's config and layout, for a drag's preview (nothing to do if it is drawn along those already). */
   redraw?: (layout: TunnelLayout | null, config: TunnelConfig | null) => void;
   /** A tunnel's: the middle of each of its route elements (in its group), as last drawn. */
   elements?: Map<string, THREE.Vector3>;
@@ -229,9 +229,16 @@ export function createPlannerScene(project: Project, evaluation: ProjectEvaluati
       dispose = () => { for (const j of joints) j.dispose(); for (const d of doors) d.dispose(); dock?.dispose(); drawing.dispose(); p.dispose(); for (const g of proxies) g.dispose(); };
     };
     draw(e.layout, e.config);
+    // what it is drawn along: a drag's preview asks again for what it has not changed, and that is not built again
+    let shown = { layout: e.layout, config: JSON.stringify(e.config) };
+    const redraw = (layout: TunnelLayout | null, config: TunnelConfig | null) => {
+      const next = { layout, config: JSON.stringify(config) };
+      if (next.layout === shown.layout && next.config === shown.config) return;
+      shown = next; draw(layout, config);
+    };
     const middle = e.layout?.pieces[Math.floor((e.layout.pieces.length - 1) / 2)];
     const anchor = middle ? new THREE.Vector3(...middle.end.at).setZ(middle.end.at[2] + (e.layout?.h ?? 0)) : new THREE.Vector3();
-    return { id: e.id, kind: e.kind, group, anchor, pose: t => place(group, t), dispose: () => dispose(), redraw: draw, elements, controls };
+    return { id: e.id, kind: e.kind, group, anchor, pose: t => place(group, t), dispose: () => dispose(), redraw, elements, controls };
   }
 
   function drawEnclosure(e: EvaluatedEnclosure): Drawn {

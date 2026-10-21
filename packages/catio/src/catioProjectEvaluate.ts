@@ -76,6 +76,28 @@ const round = (t: Transform): Transform => ({ x: r6(t.x), y: r6(t.y), z: r6(t.z)
 const r6 = (v: number) => Math.round(v * 1e6) / 1e6 || 0;
 const mm = (v: number) => `${Math.round(v)} mm`;
 
+/**
+ * What the project's builders laid out lately, by what they laid it out from. A drag's preview evaluates the whole project at every
+ * step (with the very commands that commit it), and a step changes a tunnel or two: what it does not change is not laid out again.
+ * The builders are pure, so a layout kept is the one they would make again; the last `KEPT` are kept, those used last.
+ */
+const laidOut = new Map<string, unknown>();
+const KEPT = 128;
+function kept<T>(key: string, build: () => T): T {
+  if (laidOut.has(key)) { const value = laidOut.get(key) as T; laidOut.delete(key); laidOut.set(key, value); return value; }
+  const value = build();
+  laidOut.set(key, value);
+  if (laidOut.size > KEPT) laidOut.delete(laidOut.keys().next().value as string);
+  return value;
+}
+/** What a layout is made from, as a key: every value, also those JSON would lose or merge (undefined, −0, NaN, ±Infinity, a Map's or Set's entries). */
+const keyOf = (...from: unknown[]) => JSON.stringify(from, (_, v: unknown) =>
+  v === undefined ? { '#': 'undefined' } : typeof v === 'number' && (!Number.isFinite(v) || Object.is(v, -0)) ? { '#': Object.is(v, -0) ? '-0' : String(v) }
+    : v instanceof Map || v instanceof Set ? { '#': v.constructor.name, entries: [...v] } : v);
+/** `tunnelLayout`, kept (`kept`). */
+const laidOutTunnel = (config: TunnelConfig, site: TunnelSite, joint: TunnelCouplingConfig, route?: DescribedRoute) =>
+  kept(keyOf('tunnel', config, site, joint, route), () => tunnelLayout(config, site, joint, route));
+
 export function evaluateProject(project: Project): ProjectEvaluation {
   const issues: ProjectIssue[] = [];
   const issue = (kind: ProjectIssue['kind'], severity: ProjectIssue['severity'], instanceIds: string[], code: string, message: string) => {
@@ -110,10 +132,11 @@ export function evaluateProject(project: Project): ProjectEvaluation {
   const windows = new Map<string, EvaluatedWindow>();
   for (const w of project.instances.filter(isKind('window'))) {
     const port = portByName(w.id, 'port');
-    const result = guard([w.id], 'window insert', () => {
-      const site = tunnelSiteFor(insertConfig, { ...modular(w.params), portRaise: port?.raise ?? 0 });
+    const catio = { ...modular(w.params), portRaise: port?.raise ?? 0 };
+    const result = guard([w.id], 'window insert', () => kept(keyOf('window', insertConfig, catio), () => {
+      const site = tunnelSiteFor(insertConfig, catio);
       return { site, insert: windowInsertLayout('modular', insertConfig, site.window) };
-    });
+    }));
     if (!result) continue;
     const e: EvaluatedWindow = { ...base(w), ...result, config: insertConfig };
     windows.set(w.id, e); evaluated.push(e);
@@ -124,9 +147,12 @@ export function evaluateProject(project: Project): ProjectEvaluation {
       if (raise < range.min - 0.5 || raise > range.max + 0.5) issue('geometry', 'error', [w.id], 'port-raise', `${name(w)}'s cat port is raised ${mm(raise)}; the insert allows ${mm(range.min)} to ${mm(range.max)} (${portRanges.get(port.id)?.limits ?? ''}).`);
     }
     if (port) local.set(port.id, { x: 0, y: TUNNEL.wallGap, z: result.site.floorZ, yaw: 0 });
-    for (const message of new Set([...validateModular(modular(w.params)), ...validateWindowInsert('modular', insertConfig, result.site.window)]))
-      issue('input', 'error', [w.id], `window-${message}`, message);
-    addBom([w.id], windowInsertBom('modular', insertConfig, result.site.window));
+    const checked = kept(keyOf('window-checks', insertConfig, modular(w.params), result.site.window), () => ({
+      messages: new Set([...validateModular(modular(w.params)), ...validateWindowInsert('modular', insertConfig, result.site.window)]),
+      bom: windowInsertBom('modular', insertConfig, result.site.window),
+    }));
+    for (const message of checked.messages) issue('input', 'error', [w.id], `window-${message}`, message);
+    addBom([w.id], checked.bom);
   }
 
   // Enclosures: their layout, the room inside, and their ports.
@@ -199,7 +225,7 @@ export function evaluateProject(project: Project): ProjectEvaluation {
     const config = tunnelRoute(t, s, target, mateWorld !== null);
     result.config = config;
     const route: DescribedRoute = { elements: t.params.route, end: target.z, ports: { start: !!startFace && !atWindow, end: !!mateWorld } };
-    const layout = guard([t.id], 'tunnel', () => tunnelLayout(config, placed.site, joint, route));
+    const layout = guard([t.id], 'tunnel', () => laidOutTunnel(config, placed.site, joint, route));
     if (!layout) return result;
     result.layout = layout;
     result.elements = evaluatedElements(t, layout, target.z);
@@ -218,11 +244,16 @@ export function evaluateProject(project: Project): ProjectEvaluation {
     // FR-04.11: a free end is an unfinished opening, never a finished tunnel
     if (end && !mate) issue('connection', 'error', [t.id], 'open-end', `${name(t)}'s far end is free: an unfinished end. Extend it to a free cat port and connect it there.`);
     if (start && !startMate) issue('connection', 'error', [t.id], 'open-start', `${name(t)}'s start is free: an unfinished end. Connect it to a free cat port.`);
-    addBom([t.id], tunnelBom('modular', config, placed.site, joint, layout));
+    // (the layout is made from what its key is: its parts and its coupling's are kept by the same)
+    const laid = keyOf(config, placed.site, joint, route);
+    addBom([t.id], kept(`tunnel-bom ${laid}`, () => tunnelBom('modular', config, placed.site, joint, layout)));
     if (atWindow && startOwner) {
       const couplingSite = { tunnel: config, site: atWindow.site, joint, layout };
-      for (const message of validateCoupling('modular', s.insertCoupling, couplingSite)) issue('geometry', 'error', [startOwner.id, t.id], `coupling-${message}`, message);
-      addBom([startOwner.id, t.id], couplingBom('modular', s.insertCoupling, couplingSite));
+      const coupling = kept(`coupling ${keyOf(s.insertCoupling, atWindow.site)} ${laid}`, () => ({
+        messages: validateCoupling('modular', s.insertCoupling, couplingSite), bom: couplingBom('modular', s.insertCoupling, couplingSite),
+      }));
+      for (const message of coupling.messages) issue('geometry', 'error', [startOwner.id, t.id], `coupling-${message}`, message);
+      addBom([startOwner.id, t.id], coupling.bom);
     }
     return result;
   }
@@ -340,13 +371,13 @@ export function solveRoute(t: Pick<TunnelInstance, 'id' | 'params'>, s: ProjectS
   const joint: TunnelCouplingConfig = { ...s.tunnelCoupling, jointShown: 'end-end' };
   const config = tunnelRoute(t, s, target, mated);
   const previous = t.params.route;
-  const solved = tunnelLayout({ ...config, portHeight: site.floorZ }, site, joint);
+  const solved = laidOutTunnel({ ...config, portHeight: site.floorZ }, site, joint);
   const taken = new Set(previous.map(e => e.id));
   let n = 0;
   const fresh = () => { let id: string; do id = `${t.id}-element-${++n}`; while (taken.has(id)); taken.add(id); return id; };
   const lastFloor = previous.at(-1)?.floor ?? site.floorZ;
   let route = routeOf(solved, i => previous[i]?.id ?? fresh()).map((e, i) => ({ ...e, floor: i === 0 ? site.floorZ : previous[i]?.floor ?? lastFloor }));
-  const lay = (elements: RouteElement[]) => tunnelLayout(config, site, joint, { elements, end: target.z, ...(ports ? { ports } : {}) });
+  const lay = (elements: RouteElement[]) => laidOutTunnel(config, site, joint, { elements, end: target.z, ...(ports ? { ports } : {}) });
   let layout = lay(route);
   // the last run along each way decides where the route ends that way: give it whole modules more or fewer
   const segments: number[][] = [[]];

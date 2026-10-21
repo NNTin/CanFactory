@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { ArrowDown, ArrowUp, Box, CircleAlert, Copy, CornerUpLeft, CornerUpRight, Focus, Link, Magnet, Maximize, Minus, Move, Plus, RotateCw, Scaling, Trash2, Unlink } from 'lucide-react';
 import {
   addEnclosure, addPlatform, addTunnel, configureSubassembly, connect, CONNECT_REACH, connectTargets, deleteDependents, deleteInstance, detach, DOOR_SEAT_LABELS, DOOR_SEAT_SETTING, DOOR_SEATS,
@@ -63,12 +63,12 @@ function PlannerPage() {
   const container = useRef<HTMLDivElement>(null);
   const viewport = useRef<PlannerViewport | null>(null);
   const [unsupported, setUnsupported] = useState(false);
-  const [readout, setReadout] = useState<Readout | null>(null);
+  const showReadout = useRef<(readout: Readout | null) => void>(() => {});
   useEffect(() => {
     const element = container.current; if (!element) return;
     const created = createPlannerViewport(element, {
       select: ids => store.select(ids),
-      readout: setReadout,
+      readout: readout => showReadout.current(readout),
       commit(id, { how, to, size }) {
         const present = store.get().present;
         if (how === 'rotate') { run(rotateInstance(present, id, to.yaw)); return; }
@@ -170,9 +170,9 @@ function PlannerPage() {
           </div>
           <button type="button" className="planner-snap" aria-pressed={snap} onClick={() => setSnap(on => !on)} title="Snap moves to 10 mm (tunnels to whole modules) and turns to 15°"><Magnet size={13} aria-hidden="true" /> Snap {snap ? 'on' : 'off'} · 10 mm · 15°</button>
         </div>
-        <div className="planner-canvas" ref={container} data-testid="planner-viewport" data-selection={JSON.stringify(selection)} data-revision={project.revision} data-dragging={readout ? 'true' : 'false'}>
+        <div className="planner-canvas" ref={container} data-testid="planner-viewport" data-selection={JSON.stringify(selection)} data-revision={project.revision}>
           {unsupported && <div className="catio-fallback" role="status"><Box size={32} /><strong>3D is unavailable</strong><p>This browser has no WebGL. The object tree, the inspector and the issues still work.</p></div>}
-          {readout && <div className={`planner-readout${readout.ok ? '' : ' invalid'}`} role="status" style={{ left: readout.x + 18, top: readout.y + 18 }}><strong>{readout.title}</strong>{readout.lines.map(line => <span key={line}>{line}</span>)}</div>}
+          <DragReadout show={showReadout} canvas={container} />
         </div>
         <p className="planner-hint">Drag an object to move it, its ring to turn it · Shift- or Ctrl-click adds to the selection · a click on a tunnel picks one of its elements: its upright arrow (or Page Up / Page Down) raises the selected elements, and the cat port at either end rises with them · drag from a green cat port to draw a tunnel; a free end’s arrow lengthens or shortens it in whole modules, its round buttons turn it, and the inspector connects it to a port nearby · a platform stays in its enclosure: its double arrow slides it, its upright arrow raises it, its ring turns it West–East or North–South · Resize: drag a face’s handle · empty space: orbit in 3D, pan in Top, Front and Side · middle button pans · scroll zooms · Esc cancels a drag</p>
       </section>
@@ -197,6 +197,14 @@ function PlannerPage() {
       </aside>
     </div>
   </div>;
+}
+
+/** The readout beside a drag, with its own state: a drag step draws it again, not the whole page. It marks the canvas while it shows. */
+function DragReadout({ show, canvas }: { show: RefObject<(readout: Readout | null) => void>; canvas: RefObject<HTMLDivElement | null> }) {
+  const [readout, setReadout] = useState<Readout | null>(null);
+  useLayoutEffect(() => { show.current = setReadout; }, [show]);
+  useLayoutEffect(() => { if (canvas.current) canvas.current.dataset['dragging'] = readout ? 'true' : 'false'; }, [canvas, readout]);
+  return readout && <div className={`planner-readout${readout.ok ? '' : ' invalid'}`} role="status" style={{ left: readout.x + 18, top: readout.y + 18 }}><strong>{readout.title}</strong>{readout.lines.map(line => <span key={line}>{line}</span>)}</div>;
 }
 
 const nameOf = (project: Project, id: string) => project.instances.find(i => i.id === id)?.name ?? elementTitle(project, id) ?? id;

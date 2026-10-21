@@ -19,7 +19,9 @@ import { facePoint, resizeFrom, type SizeFace, type Sized } from './catioPlanner
  * zooms.
  *
  * During a drag only the dragged instance's pose and the tunnels coupled to it (`previewTunnels`) are updated; nothing is evaluated
- * and the document is untouched until the drag ends, when `commit` makes it one edit. Esc (`cancel`) puts everything back.
+ * and the document is untouched until the drag ends, when `commit` makes it one edit. Esc (`cancel`) puts everything back. Raising
+ * elements and growing or extending a tunnel preview the very edit they commit, evaluated: the evaluation lays out again only what a
+ * step changes, and the scene builds again only the tunnels whose layout changed.
  *
  * A click on a tunnel picks the route element under the pointer; Shift- or Ctrl-click adds an object or element to the selection, or
  * takes it out. Selected elements rise and fall by their upright arrow, in 10 mm steps (snapping), as `raiseElements` would raise
@@ -289,6 +291,7 @@ export function createPlannerViewport(element: HTMLElement, callbacks: ViewportC
     const title = `${delta >= 0 ? 'Raising' : 'Lowering'} ${ids.length === 1 ? elementTitle(input.project, ids[0] ?? '') ?? 'the element' : `${ids.length} elements`}`;
     if (result.errors.length) { callbacks.readout({ x: point[0], y: point[1], title, lines: result.errors, ok: false }); return; }
     const evaluation = evaluateProject(result.project);
+    // (a tunnel the step leaves as it is keeps its layout, and is not built again)
     for (const e of evaluation.instances) if (e.kind === 'tunnel') { scene.redrawTunnel(e.id, e.layout, e.config); d.tunnels.add(e.id); }
     for (const i of result.project.instances) {
       const was = input.project.instances.find(q => q.id === i.id);

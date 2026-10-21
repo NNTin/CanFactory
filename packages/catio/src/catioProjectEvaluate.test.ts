@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dimensionOf } from '@canfactory/contracts';
 import {
   addEnclosure, addPlatform, boardScrewFor, composeTransform, createProject, evaluateProject, moveInstance, parseProject, PLATFORM, resizeInstance, rotateInstance, serializeProject,
-  previewTunnels, snapToModules, tunnelBom, tunnelPitch, withoutKeys, type Project,
+  previewTunnels, raiseElements, snapToModules, tunnelBom, tunnelPitch, withoutKeys, type Project,
 } from './index.ts';
 
 const furnished = () => addPlatform(createProject({ id: 'p1' }), 'enclosure-1').project;
@@ -23,6 +23,29 @@ describe('evaluateProject', () => {
     const parsed = parseProject(serializeProject(project));
     if (!parsed.ok) throw new Error(parsed.errors.join('\n'));
     expect(evaluateProject(parsed.project)).toEqual(evaluateProject(project));
+  });
+
+  it('lays out again only what an edit changed: what it keeps is what laying it out again gives', () => {
+    const project = createProject({ id: 'p1' });
+    const before = evaluateProject(project);
+    // a drag's step: the same project evaluated again reuses every layout
+    const again = evaluateProject(project);
+    expect(again).toEqual(before);
+    for (const [i, e] of again.instances.entries()) {
+      const was = before.instances[i];
+      if (e.kind === 'tunnel' && was?.kind === 'tunnel') expect(e.layout).toBe(was.layout);
+      if (e.kind === 'window' && was?.kind === 'window') expect(e.insert).toBe(was.insert);
+    }
+    // a raised element: its tunnel laid out anew, and the window (its port raised with it); undone, as before
+    const raised = raiseElements(project, ['tunnel-1-element-1'], 40);
+    expect(raised.errors).toEqual([]);
+    const after = evaluateProject(raised.project);
+    expect(tunnelOf(raised.project).layout).not.toBe(tunnelOf(project).layout);
+    expect(after.bom).not.toEqual(before.bom);
+    const parsed = parseProject(serializeProject(raised.project));
+    if (!parsed.ok) throw new Error(parsed.errors.join('\n'));
+    expect(evaluateProject(parsed.project)).toEqual(after);
+    expect(evaluateProject(project)).toEqual(before);
   });
 
   it('places every instance in the site: the platform through its enclosure', () => {
