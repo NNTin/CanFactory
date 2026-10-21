@@ -125,7 +125,8 @@ export const PhysicsCounterSchema = Type.Object({
   along: Type.Optional(Vec3('The direction an item crosses in (crossing).')),
   min: Vec3('The box’s lower corner, mm.'),
   max: Vec3('The box’s upper corner, mm.'),
-}, { additionalProperties: false });
+  frame: Type.Optional(PhysicsPoseSchema),
+}, { additionalProperties: false, description: 'Its point, direction and box are in `frame` (a pose in the assembled frame) when given, e.g. a chute’s own axes.' });
 export type PhysicsCounter = Static<typeof PhysicsCounterSchema>;
 
 /** A button of the controller: where it is (on a body, mm in its part's frame) and what it does. */

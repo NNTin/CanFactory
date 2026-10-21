@@ -7,6 +7,7 @@ import { conceptPages } from './concepts.ts';
 import { QUASI_STATIC, type PhysicsSpec } from './physics.ts';
 import { revolvedPieces, type Point2 } from './physicsPieces.ts';
 import { cigaretteCasePhysics } from './cigaretteCasePhysics.ts';
+import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, TREAT_FIRMWARE, TreatDispenserParametersSchema, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout, treatDispenserPhysics, treatDispenserPlacement, treatScadLayout, type BottleNeck, type TreatDispenserParameters } from './treatDispenser.ts';
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
@@ -3550,6 +3551,57 @@ export const esp32C3SuperminiCase = {
   },
 } satisfies ModelDefinition;
 
+/**
+ * PET-bottle treat dispenser (#138): an inclined notch disc lifts one treat at a time out of the pile, a 28BYJ-48 turns it through a
+ * 15:30 spur pair, the existing ESP32-C3 SuperMini case sits in the bracket's electronics bay. Every dimension comes from
+ * treatDispenser.ts (its `treatScadLayout` is passed to the generator as one list), the same numbers its physics is made from.
+ */
+// the layout rides on the one string setting (scadEncode takes strings); every setting is mapped, so each is in the cache fingerprint
+const TREAT_MAPPING = { bottleNeck: 'LAYOUT', treatLength: 'TREAT_LENGTH', treatWidth: 'TREAT_WIDTH', treatThickness: 'TREAT_THICKNESS', treatCornerRadius: 'TREAT_CORNER_RADIUS', notchClearance: 'NOTCH_CLEARANCE', threadClearance: 'THREAD_CLEARANCE_SETTING', bottleDiameter: 'BOTTLE_DIAMETER' };
+const treatSchema = TreatDispenserParametersSchema;
+const treatParts: { id: string; title: string }[] = [
+  { id: 'disc', title: 'Notch disc' }, { id: 'gear', title: 'Spindle gear (30 teeth)' }, { id: 'pinion', title: 'Motor pinion (15 teeth)' },
+  { id: 'body', title: 'Body: back plate, gearbox and chute' }, { id: 'cover', title: 'Gearbox cover and motor mount' }, { id: 'hopper', title: 'Chamber and feed tube' },
+  { id: 'adapter', title: 'Bottle adapter' }, { id: 'coupon', title: 'Bottle thread coupon' }, { id: 'bracket', title: 'Wall bracket and electronics bay' },
+];
+export const treatDispenser = {
+  id: 'treat-dispenser' as const, version: '1' as const, title: 'PET-bottle treat dispenser',
+  description: 'Dispenses one treat per press from an inverted PET bottle: an inclined disc with four notches open at its rim lifts one treat at a time out of the pile, extra treats slide back off the incline, and at the top each notch passes over the outlet in the back plate. A 28BYJ-48 turns the disc through a 15:30 spur pair, driven by a ULN2003 board and an ESP32-C3 SuperMini in the existing sliding-lid case, its BOOT button dispensing; one USB-C cable powers everything. Simulate it: press B on the case.',
+  attribution: 'CanFactory (original dispenser); ESP32-C3 SuperMini case by Vinors3DLab, adapted by CanFactory',
+  attributionLinks: [{ text: 'Vinors3DLab', url: 'https://www.makeronline.com/en/model/Ultra-Compact-Case-for-ESP---C--SuperMini--step-file-/338531.html' }],
+  printNotes: 'PETG, 0.2 mm layers, four perimeters; the gears and pinion at 0.12 mm layers and 100 % infill. The disc, gear, pinion and cover print flat as exported; the body plate face down (gearbox and chute rise from it); the chamber rim down, with supports under its lid and its leaning feed tube; the adapter and coupon upright; the bracket on its wall face. Print the thread coupon first and screw it onto your bottle: tune Thread clearance until it runs on and off by hand without wobble. Fasteners: M3 × 10 ISO 4762 screws with ISO 4032 nuts for the motor, chamber, adapter and bracket arms; three CNC Kitchen M3 × 5.7 heat-set inserts in the body for the cover; M2.5 × 8 screws for the ULN2003 board. Clean the disc and chamber by lifting the bottle off, unscrewing the chamber and lifting the disc off its spindle. Printed plastic is not automatically food-safe. Prototype: not validated for unattended feeding (docs/treat-dispenser.md). The ESP32 case parts are adapted from Vinors3DLab’s CC BY-NC-SA 4.0 release, so the whole model is shared under CC BY-NC-SA 4.0.',
+  license: 'CC BY-NC-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+  parts: [
+    ...treatParts.map(({ id, title }): ModelPart => ({ id, title, sourcePath: 'models/treat-dispenser/generator.scad', scadMapping: TREAT_MAPPING, scadConstants: { PART: id } })),
+    { id: 'case-bottom', title: 'ESP32-C3 case base (Vinors3DLab, adapted)', sourcePath: 'models/esp32-c3-supermini-case/bottom.scad', scadConstants: { FLUSH_HEADERS: DEFAULT_ESP32_CASE.flushHeaders, TALLER_ENCLOSURE: DEFAULT_ESP32_CASE.tallerEnclosure, ...ESP32_CASE_HEADER_DEFINES } },
+    { id: 'case-top', title: 'ESP32-C3 case sliding B/R lid (Vinors3DLab, adapted)', sourcePath: 'models/esp32-c3-supermini-case/top.scad', scadConstants: { LED_HOLES: DEFAULT_ESP32_CASE.ledHoles, ...ESP32_CASE_LED_DEFINES } },
+  ],
+  parameterSchema: treatSchema, defaults: DEFAULT_TREAT_DISPENSER, scadMapping: {},
+  scadEncode: { bottleNeck: (_value: string, parameters: ParameterValues) => treatScadLayout(parameters as TreatDispenserParameters) },
+  controls: [
+    control(treatSchema, 'treatLength', 'basic'), control(treatSchema, 'treatWidth', 'basic'), control(treatSchema, 'treatThickness', 'basic'),
+    enumControl(treatSchema, 'bottleNeck', 'basic', (Object.keys(BOTTLE_NECKS) as BottleNeck[]).map(value => ({ value, label: BOTTLE_NECKS[value].title, description: `Thread ${BOTTLE_NECKS[value].T} mm over ${BOTTLE_NECKS[value].E} mm, pitch ${BOTTLE_NECKS[value].pitch} mm, bore ${BOTTLE_NECKS[value].bore} mm.` }))),
+    control(treatSchema, 'bottleDiameter', 'basic'),
+    control(treatSchema, 'notchClearance', 'advanced'), control(treatSchema, 'threadClearance', 'advanced'), control(treatSchema, 'treatCornerRadius', 'advanced'),
+  ],
+  physics: parameters => treatDispenserPhysics(parameters as TreatDispenserParameters, { treats: 8 }),
+  assembly: treatDispenserAssembly(DEFAULT_TREAT_DISPENSER),
+  assemblyForParameters: parameters => treatDispenserAssembly(parameters as TreatDispenserParameters),
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(treatSchema, parameters) ? treatDispenserIssues(parameters) : [{ field: '', message: 'Parameters do not match the treat dispenser schema.' }];
+  },
+  derived(parameters: unknown) {
+    if (!Value.Check(treatSchema, parameters) || treatDispenserIssues(parameters).length) return { slotCount: null };
+    const l = treatDispenserLayout(parameters), placement = treatDispenserPlacement(parameters);
+    return { slotCount: null, notes: [
+      `Notches ${l.notchLength.toFixed(1)} × ${l.notchWidth.toFixed(1)} mm, ${TREAT_DISPENSER.notches} on a Ø${(2 * l.discRadius).toFixed(1)} × ${l.discThickness} mm disc inclined at 55°.`,
+      `One press: ${treatCycleSteps()} half-steps (${TREAT_FIRMWARE.stepsPerTurn} per motor turn, calibrate yours), half a motor turn, a quarter turn of the disc.`,
+      `Feed tube ${placement.tubeLength.toFixed(0)} mm (Ø${TREAT_DISPENSER.tubeBore} bore) so a Ø${parameters.bottleDiameter} mm bottle clears the chamber; bottle neck bore ${l.neck.bore} mm.`,
+      'Before the first dispense: Prime (two cycles, over the bowl). No sensor sees a treat leave: a cycle is only commanded.',
+    ] };
+  },
+} satisfies ModelDefinition;
+
 /** Original magnetic toy: four functional layers, exported as five independently printable components. */
 const toyNut = findPart('iso-4032-m3');
 if (!toyNut) throw new Error('Missing magnetic cat toy cover nut.');
@@ -3610,7 +3662,7 @@ export const magneticCatToy = {
   },
 } satisfies ModelDefinition;
 /** The one registration of each catalogue model. A `const` tuple, so that `RenderRequestSchema` (index.ts) derives a typed branch per model from it. */
-export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase] as const satisfies readonly ModelDefinition[];
+export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser] as const satisfies readonly ModelDefinition[];
 export const models: readonly ModelDefinition[] = registeredModels;
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }

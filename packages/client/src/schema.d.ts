@@ -2240,6 +2240,65 @@ export interface operations {
                          */
                         ledHoles: boolean;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "treat-dispenser";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    parameters: {
+                        /**
+                         * Treat length
+                         * @description Longest side of the treats, mm. Measure the largest of a bag; the notch is sized from it.
+                         * @default 14
+                         */
+                        treatLength: number;
+                        /**
+                         * Treat width
+                         * @description Middle side of the treats, mm.
+                         * @default 9
+                         */
+                        treatWidth: number;
+                        /**
+                         * Treat thickness
+                         * @description Thinnest side of the treats, mm. The disc is as thick as this, so a treat lies flush in its notch and a second one cannot catch on it.
+                         * @default 5
+                         */
+                        treatThickness: number;
+                        /**
+                         * Treat corner radius
+                         * @description Rounding of the treats’ edges and corners, mm (used by the simulation only).
+                         * @default 1.5
+                         */
+                        treatCornerRadius: number;
+                        /**
+                         * Notch clearance
+                         * @description Play around a treat in its notch on each side, mm. More takes bigger treats but lets two thin ones in.
+                         * @default 0.7
+                         */
+                        notchClearance: number;
+                        /**
+                         * Bottle neck
+                         * @description The thread of the bottle the adapter screws onto. Print the thread coupon first: real bottles vary.
+                         * @default pco-1881
+                         * @enum {unknown}
+                         */
+                        bottleNeck: "pco-1881" | "pco-1810";
+                        /**
+                         * Thread clearance
+                         * @description Radial play of the adapter’s thread on the bottle’s, mm; tune it with the coupon.
+                         * @default 0.3
+                         */
+                        threadClearance: number;
+                        /**
+                         * Bottle diameter
+                         * @description Largest diameter of the bottle, mm (1.5 l PET bottles are about 90 mm). Sets the strap holder and how high the adapter stands, so the bottle clears the chamber.
+                         * @default 90
+                         */
+                        bottleDiameter: number;
+                    };
                 };
             };
         };

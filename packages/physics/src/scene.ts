@@ -89,7 +89,7 @@ export interface SceneMagnet { id: string; body: string; pos: Vec3; moment: Vec3
 export interface SceneMotor { name: string; body: string; kp: number; kv: number; torque: number; speed: number; acceleration: number; slip: number }
 
 /** A counter (contracts `PhysicsCounter`) over these bodies, in metres. */
-export interface SceneCounter { name: string; bodies: string[]; kind: 'crossing' | 'inside'; point: Vec3; along: Vec3; min: Vec3; max: Vec3 }
+export interface SceneCounter { name: string; bodies: string[]; kind: 'crossing' | 'inside'; point: Vec3; along: Vec3; min: Vec3; max: Vec3; /** The frame they are in (world when omitted). */ frame?: { pos: Vec3; quat: Quat } }
 
 export interface Scene {
   magnets?: SceneMagnet[];

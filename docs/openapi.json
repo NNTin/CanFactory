@@ -4557,6 +4557,118 @@
                       }
                     },
                     "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "modelId",
+                      "modelVersion",
+                      "parameters"
+                    ],
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "enum": [
+                          "treat-dispenser"
+                        ]
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
+                        "enum": [
+                          "1"
+                        ]
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "required": [
+                          "treatLength",
+                          "treatWidth",
+                          "treatThickness",
+                          "treatCornerRadius",
+                          "notchClearance",
+                          "bottleNeck",
+                          "threadClearance",
+                          "bottleDiameter"
+                        ],
+                        "properties": {
+                          "treatLength": {
+                            "type": "number",
+                            "title": "Treat length",
+                            "description": "Longest side of the treats, mm. Measure the largest of a bag; the notch is sized from it.",
+                            "default": 14,
+                            "minimum": 10,
+                            "maximum": 18,
+                            "multipleOf": 0.1
+                          },
+                          "treatWidth": {
+                            "type": "number",
+                            "title": "Treat width",
+                            "description": "Middle side of the treats, mm.",
+                            "default": 9,
+                            "minimum": 6,
+                            "maximum": 12,
+                            "multipleOf": 0.1
+                          },
+                          "treatThickness": {
+                            "type": "number",
+                            "title": "Treat thickness",
+                            "description": "Thinnest side of the treats, mm. The disc is as thick as this, so a treat lies flush in its notch and a second one cannot catch on it.",
+                            "default": 5,
+                            "minimum": 3,
+                            "maximum": 7,
+                            "multipleOf": 0.1
+                          },
+                          "treatCornerRadius": {
+                            "type": "number",
+                            "title": "Treat corner radius",
+                            "description": "Rounding of the treats’ edges and corners, mm (used by the simulation only).",
+                            "default": 1.5,
+                            "minimum": 0.5,
+                            "maximum": 2.5,
+                            "multipleOf": 0.1
+                          },
+                          "notchClearance": {
+                            "type": "number",
+                            "title": "Notch clearance",
+                            "description": "Play around a treat in its notch on each side, mm. More takes bigger treats but lets two thin ones in.",
+                            "default": 0.7,
+                            "minimum": 0.4,
+                            "maximum": 1.5,
+                            "multipleOf": 0.05
+                          },
+                          "bottleNeck": {
+                            "enum": [
+                              "pco-1881",
+                              "pco-1810"
+                            ],
+                            "title": "Bottle neck",
+                            "description": "The thread of the bottle the adapter screws onto. Print the thread coupon first: real bottles vary.",
+                            "default": "pco-1881"
+                          },
+                          "threadClearance": {
+                            "type": "number",
+                            "title": "Thread clearance",
+                            "description": "Radial play of the adapter’s thread on the bottle’s, mm; tune it with the coupon.",
+                            "default": 0.3,
+                            "minimum": 0.1,
+                            "maximum": 0.8,
+                            "multipleOf": 0.05
+                          },
+                          "bottleDiameter": {
+                            "type": "number",
+                            "title": "Bottle diameter",
+                            "description": "Largest diameter of the bottle, mm (1.5 l PET bottles are about 90 mm). Sets the strap holder and how high the adapter stands, so the bottle clears the chamber.",
+                            "default": 90,
+                            "minimum": 60,
+                            "maximum": 110,
+                            "multipleOf": 1
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 ],
                 "description": "Complete, uncoerced settings for one model version."

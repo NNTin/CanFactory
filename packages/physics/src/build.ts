@@ -242,6 +242,7 @@ export function buildScene(input: BuildInput): Scene {
       bodies: (spec.items ?? []).filter(item => item.group === counter.group && (!present || present.has(item.id))).map(item => item.id),
       point: toSI(counter.point ?? [0, 0, 0]), along: [counter.along?.[0] ?? 0, counter.along?.[1] ?? 0, counter.along?.[2] ?? -1] as Vec3,
       min: toSI(counter.min), max: toSI(counter.max),
+      ...(counter.frame ? { frame: { pos: toSI(counter.frame.position), quat: quatFromPoseRotation(counter.frame.rotation) } } : {}),
     })) } : {}),
     ...(magnets ? { magnets } : {}),
     exclude: (spec.exclude ?? []).map(([a = '', b = '']) => [a, b] as [string, string]),

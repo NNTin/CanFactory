@@ -99,7 +99,9 @@ export class Simulation {
 
   /** Which side of the counter's plane the body's centre is on (−1 before, 1 past), or 0 outside its box. */
   private counterSide(counter: SceneCounter, id: number): number {
-    const p: Vec3 = [this.data.xpos[3 * id] ?? 0, this.data.xpos[3 * id + 1] ?? 0, this.data.xpos[3 * id + 2] ?? 0];
+    const world: Vec3 = [this.data.xpos[3 * id] ?? 0, this.data.xpos[3 * id + 1] ?? 0, this.data.xpos[3 * id + 2] ?? 0];
+    const frame = counter.frame;
+    const p = frame ? rotate([frame.quat[0], -frame.quat[1], -frame.quat[2], -frame.quat[3]], sub(world, frame.pos)) : world;
     for (let k = 0; k < 3; k++) if ((p[k] ?? 0) < (counter.min[k] ?? 0) || (p[k] ?? 0) > (counter.max[k] ?? 0)) return 0;
     if (counter.kind === 'inside') return 1;
     const d = sub(p, counter.point);
