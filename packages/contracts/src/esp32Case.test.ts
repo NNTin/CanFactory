@@ -43,7 +43,8 @@ describe('ESP32-C3 SuperMini LED case', () => {
     expect(modelBom(model, model.defaults)).toEqual([{ partId: ESP32_CASE_BOARD, quantity: 1 }, { partId: ESP32_CASE_HEADER, quantity: 2 }]);
     expect(model.assembly.steps.map(step => step.parts)).toEqual([['header-1', 'header-2'], ['top']]);
     const header = findPart(ESP32_CASE_HEADER); if (!header) throw new Error('Missing header');
-    expect(partUsage(header)).toEqual([{ modelId: model.id, modelTitle: model.title, via: 'Assembly preview', kind: 'model' }]);
+    // the treat dispenser shows the same case, board and headers in its electronics bay
+    expect(partUsage(header)).toEqual([{ modelId: model.id, modelTitle: model.title, via: 'Assembly preview', kind: 'model' }, { modelId: 'treat-dispenser', modelTitle: 'PET-bottle treat dispenser', via: 'Assembly preview', kind: 'model' }]);
     const board = findPart(ESP32_CASE_BOARD); if (!board) throw new Error('Missing board');
     expect(ESP32_CASE_HEADER_DEFINES.HEADER_LENGTH).toBeCloseTo(dimensionOf(header, 'L', 'max') + 0.4, 8);
     expect(ESP32_CASE_HEADER_DEFINES.HEADER_WIDTH).toBeCloseTo(dimensionOf(header, 'W', 'max') + 0.4, 8);
