@@ -164,6 +164,10 @@ The editor's Simulate mode and `npm run check:physics -- treat-dispenser` simula
 - **The controller is the firmware's logic** (`packages/physics/src/controller.ts`): debounce, one queued press, rejection, boot time,
   RESET, re-alignment, Prime and Jog. It reports cycles commanded apart from treats seen leaving.
 
+![The assembled dispenser in the editor: chamber and feed tube, adapter, gearbox with the motor, chute, and the bracket's bay with the ULN2003 and the ESP32-C3 case](treat-dispenser/assembled.png)
+
+![Simulate mode after Prime and one press of B: treats that left the chute lie below it; the panel shows one cycle commanded, two treats seen leaving in it](treat-dispenser/simulate-after-press.png)
+
 In the editor: **press B on the case** (or the buttons under the viewer). The panel shows the state, cycles commanded, treats seen
 leaving, treats that left outside a cycle, the motor's commanded and actual travel and any travel lost to a stall. **Refill** restarts
 the scene and the device; **R** reboots only the device. It runs in slow motion (the 0.1 ms steps the gear teeth need, with a pile of
@@ -184,7 +188,44 @@ CI does **not** assert exactly one treat per press, because that is not what the
 
 ### Simulation results
 
-TRIALS_RESULTS
+`npx tsx tools/physics/treat-dispenser-trials.ts` primes and then presses eight times per trial, counting what actually crosses the
+outlet. Twelve trials were run (2026-10-21; a full run is 40 trials and about two hours on 6 cores; the rest, the treat-variation
+groups, were cut short and are still to run):
+
+| Trials (10 treats each) | Presses | Exactly one | None | Two |
+| --- | --- | --- | --- | --- |
+| Random fills, seeds 1–6 | 48 | 27 | 15 | 6 |
+| One orientation (flat, edge, end, diagonal), seed 1 | 32 | 19 | 12 | 1 |
+| Treat friction 0.3, seeds 1–2 | 16 | 10 | 4 | 2 |
+| **All** | **96** | **56 (58 %)** | **31 (32 %)** | **9 (9 %)** |
+
+Prime released 0 to 2 treats. In every trial: **no treat left between cycles, none reached the gearbox, the motor lost no steps**.
+Ten treats run low by the last presses (the bottle is not simulated; see below), which adds empties late; over the first four presses
+of each trial it is 29 of 48 exactly one (60 %), 12 none, 7 two. Per trial (presses 1–8):
+
+| Fill | Prime | Presses |
+| --- | --- | --- |
+| random 1 | 2 | 0 1 1 1 0 1 1 1 |
+| random 2 | 1 | 1 0 1 1 1 0 1 0 |
+| random 3 | 0 | 2 1 0 1 0 0 0 0 |
+| random 4 | 1 | 2 0 2 0 1 1 1 0 |
+| random 5 | 0 | 2 1 2 1 1 1 1 0 |
+| random 6 | 0 | 1 2 1 0 1 1 1 1 |
+| flat 1 | 1 | 1 1 0 1 1 0 1 1 |
+| edge 1 | 1 | 1 1 0 1 2 1 0 0 |
+| end 1 | 1 | 1 1 0 1 0 0 0 0 |
+| diagonal 1 | 0 | 0 1 1 1 0 1 1 1 |
+| friction 0.3, random 1 | 1 | 2 1 1 0 1 1 1 1 |
+| friction 0.3, random 2 | 1 | 1 1 0 1 2 1 0 0 |
+
+**The requirement (exactly one per press) is not met.** Watching the runs: most treats in the pile lie on edge or across a notch
+rather than flat in it, so a notch often rises empty; and the turning face drags the pile up the rising side against the rim wall,
+so the notch passing the top sometimes takes a second treat (or one rides on the first). The variants tried in the prototype (six
+notches, a longer outlet reaching further in, a pause over it, 65°, slower motion; a few trials each, not this study) did no better;
+none came near 100 %. Four notches were chosen because six left too little plate between the outlet and the resting notches. The simulation is finite and soft-contact: 100 % in it would not have proven the real device either.
+
+What the simulation leaves out: the bottle above the feed tube (the pile's weight on the tube, refilling), crumbs and dust, the
+treats' variation in a bag (the trials' size and mass variations did not run), wear, and humidity.
 
 ## Bottle thread
 
