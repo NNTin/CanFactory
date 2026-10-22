@@ -12,8 +12,9 @@ import type { Simulation } from './simulation.ts';
 
 /**
  * booting: after a reset, presses are not seen; ready: waiting for a press; running: a cycle (or a prime, or a jog) is moving;
- * fault: a cycle lost more motor travel than allowed (stalled), until a reset; unaligned: a cycle was interrupted by a reset, so the
- * rotor's position is unknown, until it is jogged into line and confirmed aligned.
+ * fault: a cycle lost more motor travel than allowed (stalled), until a reset; unaligned: the rotor is not known to be at a rest
+ * position (a reset interrupted a cycle, or it was jogged), until it is confirmed aligned. The firmware (treat_dispenser.h) follows
+ * the same policy, except that it cannot see a stall (no sensor): its fault is a move that overran its time.
  */
 export type ControllerState = 'booting' | 'ready' | 'running' | 'fault' | 'unaligned';
 
@@ -108,7 +109,8 @@ export class CycleController {
     const action = this.spec.controls.find(candidate => candidate.id === control)?.action;
     if (action === 'reset') { this.reset(); return; }
     if (this.state === 'booting' || this.state === 'fault') { this.rejected++; return; }
-    if (action === 'jog') { if (this.run) this.rejected++; else this.begin('jog'); return; }
+    // a jog moves the rotor off its rest: it stays unaligned until confirmed
+    if (action === 'jog') { if (this.run) this.rejected++; else { this.aligned = false; this.begin('jog'); } return; }
     if (action === 'aligned') { if (this.run) this.rejected++; else { this.aligned = true; this.state = 'ready'; this.message = 'Aligned: ready'; } return; }
     if (this.state === 'unaligned') { this.rejected++; this.message = 'Rejected: jog the disc into line and confirm it is aligned first'; return; }
     if (action === 'dispense') {
@@ -167,7 +169,7 @@ export class CycleController {
   /** A reset: the motor stops where it is, the queue is dropped, and the device boots; nothing moves on boot. */
   private reset(): void {
     this.simulation.stopMotor(this.spec.motor);
-    const interrupted = this.run !== undefined && this.run.kind !== 'jog';
+    const interrupted = this.run !== undefined;
     if (this.run) {
       this.index++;
       this.last = { index: this.index, kind: this.run.kind, exits: this.exitsNow() - this.run.exits, lost: this.lostNow() - this.run.lost, interrupted };

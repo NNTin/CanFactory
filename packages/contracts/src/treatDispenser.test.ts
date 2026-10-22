@@ -63,16 +63,34 @@ describe('treat dispenser firmware', () => {
   const yaml = readFileSync(new URL('../../../models/treat-dispenser/esphome/treat-dispenser.yaml', import.meta.url), 'utf8');
   const substitution = (name: string) => Number(new RegExp(`^  ${name}: "(-?[\\d.]+)"`, 'm').exec(yaml)?.[1]);
 
-  it('moves one notch pitch per press, in two halves, at the simulated speed', () => {
+  const header = readFileSync(new URL('../../../models/treat-dispenser/esphome/treat_dispenser.h', import.meta.url), 'utf8');
+  const field = (name: string) => Number(new RegExp(`\\b${name} = (-?[\\d.]+)`).exec(header)?.[1]);
+
+  it('moves one notch pitch per press, in two halves, at the simulated speed, every move derived from the calibration', () => {
     expect(substitution('steps_per_turn')).toBe(TREAT_FIRMWARE.stepsPerTurn);
-    expect(2 * substitution('half_cycle')).toBe(treatCycleSteps());
+    expect(yaml).not.toMatch(/half_cycle/);
+    expect(yaml).toContain('config.steps_per_turn = ${steps_per_turn};');
     expect(substitution('max_speed')).toBe(TREAT_FIRMWARE.halfSteps);
     expect(substitution('acceleration')).toBe(TREAT_FIRMWARE.acceleration);
     expect(substitution('jog_steps')).toBe(TREAT_FIRMWARE.jogSteps);
-    expect(yaml).toContain(`delay: ${TREAT_FIRMWARE.pause * 1000}ms`);
-    expect(yaml).toContain(`delay: ${TREAT_FIRMWARE.settle * 1000}ms`);
+    expect(substitution('pause_ms')).toBe(TREAT_FIRMWARE.pause * 1000);
+    expect(substitution('settle_ms')).toBe(TREAT_FIRMWARE.settle * 1000);
     expect(yaml).toContain(`delayed_on: ${TREAT_FIRMWARE.debounce * 1000}ms`);
+    // the logic's defaults are the simulated controller's
+    expect(field('steps_per_turn')).toBe(TREAT_FIRMWARE.stepsPerTurn);
+    expect(field('steps_per_turn') * field('turns_per_cycle')).toBe(treatCycleSteps());
+    expect(field('pause_ms')).toBe(TREAT_FIRMWARE.pause * 1000);
+    expect(field('settle_ms')).toBe(TREAT_FIRMWARE.settle * 1000);
+    expect(field('prime_cycles')).toBe(TREAT_FIRMWARE.prime);
+    expect(field('queue')).toBe(TREAT_FIRMWARE.queue);
     expect(treatCycleSeconds()).toBeGreaterThan(3);
+  });
+
+  it('sends every request through the one runner', () => {
+    // no script or lambda moves the motor except the logic's hooks
+    expect(yaml.match(/set_target\(/g)?.length).toBe(3); // boot, and the logic's move and stop hooks
+    expect(yaml).not.toMatch(/stepper\.set_target|script\.execute: (dispense_cycle|one_cycle|run_cycles|jog_motor)/);
+    for (const request of ['Dispense', 'Prime', 'Jog', 'MarkAligned', 'Calibrate']) expect(yaml).toContain(`dispenser_submit(treat_dispenser::Request::${request}`);
   });
 
   it('reads BOOT on GPIO9 and drives the ULN2003 from pins that are not strapping, USB or UART pins', () => {
