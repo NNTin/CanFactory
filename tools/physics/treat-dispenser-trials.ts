@@ -44,7 +44,7 @@ function trials(quick: boolean): Trial[] {
     ['mass 0.3 g', { mass: 0.3 }], ['mass 0.8 g', { mass: 0.8 }],
     ['13 × 8.5 × 4.5', { length: 13, width: 8.5, thickness: 4.5 }], ['15 × 9.5 × 5.5', { length: 15, width: 9.5, thickness: 5.5 }],
     ['corner r 1.0', { radius: 1 }], ['corner r 2.2', { radius: 2.2 }],
-    ['6 treats', undefined, 6], ['14 treats', undefined, 14],
+    ['6 treats', undefined, 6], ['12 treats', undefined, 12],
   ];
   for (const [name, treat, count] of variations) for (const seed of [1, 2, 3]) list.push({ name: `${name}, random ${seed}`, group: name, seed, mode: 'random', count: count ?? 10, ...(treat ? { treat } : {}) });
   return list;
@@ -118,7 +118,7 @@ async function runTrial(trial: Trial, presses: number, meshes: Record<string, nu
       perPress.push(controller.report().exits - before);
     }
     const report = controller.report();
-    return { trial, prime, perPress, idle: report.idleExits, dry: simulation.counted('stray').length, lost: report.lost, faults, maxSpeed, seconds: (performance.now() - started) / 1000 };
+    return { trial, prime, perPress, idle: report.idleExits, dry: simulation.counted('stray').length + simulation.counted('stray-motor').length, lost: report.lost, faults, maxSpeed, seconds: (performance.now() - started) / 1000 };
   } finally { simulation.dispose(); }
 }
 

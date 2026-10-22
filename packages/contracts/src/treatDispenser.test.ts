@@ -31,8 +31,8 @@ describe('treat dispenser layout', () => {
 
   it('leaves no tight edge a pocket leaves under: the flap closes it, a cavity deeper than a treat is long lies behind it', () => {
     expect(l.cavityR - l.R).toBeGreaterThan(p.treatLength);
-    // the flap's root stands higher over the rotor than a treat can stand out of a pocket
-    expect(l.flap.root.z - (l.axisZ + l.R)).toBeGreaterThan(p.treatLength - l.pocket.depth);
+    // the flap's root stands higher over the rotor than a treat standing on end on it
+    expect(l.flap.root.z - (l.axisZ + l.R)).toBeGreaterThan(p.treatLength);
     expect(Math.hypot(l.flap.tip.y, l.flap.tip.z - l.axisZ)).toBeCloseTo(l.R, 9);
   });
 
