@@ -25,7 +25,12 @@ export interface Trial {
   /** The treats themselves (the dispenser stays sized for 14 × 9 × 5 mm, r 1.5). */
   treat?: { length?: number; width?: number; thickness?: number; radius?: number; mass?: number; friction?: number };
 }
-export interface TrialResult { trial: Trial; prime: number; perPress: number[]; idle: number; dry: number; lost: number; error?: string; seconds: number }
+/**
+ * perPress: treats past the chute's mouth from each press until the next (0.5 s after its cycle ends); faults: cycles that stalled
+ * (lost more than the controller's limit: a wedged treat or a jam); maxSpeed: the fastest a treat moved (m/s) — far above a falling
+ * treat's ~1 m/s means the solver flung it (instability), not physics.
+ */
+export interface TrialResult { trial: Trial; prime: number; perPress: number[]; idle: number; dry: number; lost: number; faults: number; maxSpeed: number; error?: string; seconds: number }
 
 
 function trials(quick: boolean): Trial[] {
@@ -78,9 +83,29 @@ async function runTrial(trial: Trial, presses: number, meshes: Record<string, nu
     const settings = spec.controller;
     if (!settings) throw new Error('No controller.');
     const controller = new CycleController(simulation, settings);
-    const tap = (control: string) => { controller.press(control, true); simulation.advance(0.1); controller.press(control, false); };
-    const wait = () => { let guard = 0; while (controller.report().state === 'running' && guard++ < 400) simulation.advance(0.1); };
-    simulation.advance(0.8);
+    let maxSpeed = 0, faults = 0;
+    const items = (spec.items ?? []).map(item => item.id);
+    const last = new Map<string, number[]>(items.map(id => [id, simulation.pose(id).pos]));
+    const step = (seconds: number) => {
+      simulation.advance(seconds);
+      for (const id of items) {
+        const now = simulation.pose(id).pos, before = last.get(id) ?? now;
+        maxSpeed = Math.max(maxSpeed, Math.hypot(now[0] - (before[0] ?? 0), now[1] - (before[1] ?? 0), now[2] - (before[2] ?? 0)) / seconds);
+        last.set(id, now);
+      }
+    };
+    const tap = (control: string) => { controller.press(control, true); step(0.1); controller.press(control, false); };
+    const wait = () => {
+      let guard = 0;
+      while (controller.report().state === 'running' && guard++ < 400) step(0.1);
+      if (controller.report().state === 'fault') {
+        // a stall: count it, then reset and re-align as the owner would, and carry on
+        faults++;
+        tap('reset'); step(1); tap('aligned'); step(0.1);
+      }
+      step(0.5);
+    };
+    step(0.8);
     tap('prime'); wait();
     const prime = controller.report().exits;
     const perPress: number[] = [];
@@ -90,7 +115,7 @@ async function runTrial(trial: Trial, presses: number, meshes: Record<string, nu
       perPress.push(controller.report().exits - before);
     }
     const report = controller.report();
-    return { trial, prime, perPress, idle: report.idleExits, dry: simulation.counted('dry').length, lost: report.lost, seconds: (performance.now() - started) / 1000 };
+    return { trial, prime, perPress, idle: report.idleExits, dry: simulation.counted('dry').length, lost: report.lost, faults, maxSpeed, seconds: (performance.now() - started) / 1000 };
   } finally { simulation.dispose(); }
 }
 
@@ -101,7 +126,7 @@ if (values.child) {
     if (message === 'exit') { process.exit(0); }
     void runTrial(message.trial, message.presses, meshes)
       .then(result => process.send?.(result))
-      .catch((error: unknown) => process.send?.({ trial: message.trial, prime: 0, perPress: [], idle: 0, dry: 0, lost: 0, seconds: 0, error: error instanceof Error ? error.message : String(error) } satisfies TrialResult));
+      .catch((error: unknown) => process.send?.({ trial: message.trial, prime: 0, perPress: [], idle: 0, dry: 0, lost: 0, faults: 0, maxSpeed: 0, seconds: 0, error: error instanceof Error ? error.message : String(error) } satisfies TrialResult));
   });
 } else {
   const presses = Number(values.presses);
@@ -118,17 +143,18 @@ if (values.child) {
     child.on('message', (result: TrialResult) => {
       results.push(result);
       const exact = result.perPress.filter(n => n === 1).length;
-      console.log(`${result.error ? 'ERROR' : exact === result.perPress.length ? 'ok   ' : 'MISS '} ${result.trial.name}: prime ${result.prime}, presses ${result.perPress.join(' ')} (${exact}/${result.perPress.length} exactly one), idle ${result.idle}, gearbox ${result.dry}, lost ${result.lost.toFixed(1)}° ${result.error ?? ''} [${result.seconds.toFixed(0)} s]`);
+      console.log(`${result.error ? 'ERROR' : exact === result.perPress.length ? 'ok   ' : 'MISS '} ${result.trial.name}: prime ${result.prime}, presses ${result.perPress.join(' ')} (${exact}/${result.perPress.length} exactly one), idle ${result.idle}, gearbox ${result.dry}, lost ${result.lost.toFixed(1)}°, stalls ${result.faults}, max speed ${result.maxSpeed.toFixed(2)} m/s ${result.error ?? ''} [${result.seconds.toFixed(0)} s]`);
       next();
     });
     next();
   })));
   // per group: presses with 0, 1, 2+ treats
   const groups = [...new Set(list.map(trial => trial.group))];
-  console.log('\n| Trials | Presses | Exactly one | None | Two or more | Leaked between cycles | Into the gearbox |\n| --- | --- | --- | --- | --- | --- | --- |');
+  console.log('\n| Trials | Presses | First press: 0 / 1 / 2+ | All presses: 0 / 1 / 2+ | Stalls | Leaked between cycles | Into the gearbox | Fastest treat |\n| --- | --- | --- | --- | --- | --- | --- | --- |');
   const line = (name: string, rs: TrialResult[]) => {
-    const all = rs.flatMap(r => r.perPress);
-    console.log(`| ${name} (${rs.length}) | ${all.length} | ${all.filter(n => n === 1).length} | ${all.filter(n => n === 0).length} | ${all.filter(n => n >= 2).length} | ${rs.reduce((s, r) => s + r.idle, 0)} | ${rs.reduce((s, r) => s + r.dry, 0)} |`);
+    const all = rs.flatMap(r => r.perPress), first = rs.map(r => r.perPress[0] ?? 0);
+    const split = (ns: number[]) => `${ns.filter(n => n === 0).length} / ${ns.filter(n => n === 1).length} / ${ns.filter(n => n >= 2).length}`;
+    console.log(`| ${name} (${rs.length}) | ${all.length} | ${split(first)} | ${split(all)} | ${rs.reduce((s, r) => s + r.faults, 0)} | ${rs.reduce((s, r) => s + r.idle, 0)} | ${rs.reduce((s, r) => s + r.dry, 0)} | ${Math.max(0, ...rs.map(r => r.maxSpeed)).toFixed(2)} m/s |`);
   };
   for (const group of groups) line(group, results.filter(r => r.trial.group === group && !r.error));
   line('All', results.filter(r => !r.error));
