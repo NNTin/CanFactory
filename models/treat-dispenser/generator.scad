@@ -17,7 +17,7 @@ $fn = 64;
 WALL = L("WALL"); SHELL = L("SHELL"); BASE = L("BASE"); HALF_W = L("HALF_W"); FRONT = L("FRONT"); BACK = L("BACK"); BASE_RECT = L("BASE_RECT");
 R = L("R"); ROTOR_END = L("ROTOR_END"); POCKET = L("POCKET"); POCKETS = L("POCKETS");
 BORE_R = L("BORE_R"); BORE_HALF = L("BORE_HALF"); BLOCK = L("BLOCK"); SLOT = L("SLOT");
-AXIS_Z = L("AXIS_Z"); BLOCK_BOTTOM = L("BLOCK_BOTTOM"); BLOCK_TOP = L("BLOCK_TOP"); BLOCK_BACK = L("BLOCK_BACK"); CAVITY_R = L("CAVITY_R"); CAVITY_CAP = L("CAVITY_CAP"); CEILING = L("CEILING"); FLAP = L("FLAP"); LIP_Z = L("LIP_Z"); LIP_R = L("LIP_R"); BOSS_TOP = L("BOSS_TOP");
+AXIS_Z = L("AXIS_Z"); BLOCK_BOTTOM = L("BLOCK_BOTTOM"); BLOCK_TOP = L("BLOCK_TOP"); BLOCK_BACK = L("BLOCK_BACK"); CAVITY_R = L("CAVITY_R"); FLAP = L("FLAP"); LIP_Z = L("LIP_Z"); LIP_R = L("LIP_R"); BOSS_TOP = L("BOSS_TOP");
 CHUTE = L("CHUTE"); CHUTE_END = L("CHUTE_END"); CHUTE_BACK = L("CHUTE_BACK"); CHUTE_SLOPE = L("CHUTE_SLOPE"); EXIT_Z = L("EXIT_Z");
 CHUTE_FLOOR = L("CHUTE_FLOOR"); CHUTE_WALL = L("CHUTE_WALL"); CHUTE_SIDE = L("CHUTE_SIDE");
 NECK_T = L("NECK_T"); NECK_E = L("NECK_E"); NECK_PITCH = L("NECK_PITCH"); NECK_TURNS = L("NECK_TURNS");
@@ -58,8 +58,6 @@ module hole_x(r, h) {
 // the flap's root block in section (y, z from the root): as deep as its side, its top sloping up to the front at STEEP (1.5 times its
 // side high at the slot's back wall), so that the recess it sits in prints without support; grown by g for the recess
 FLAP_KNEE = 1.5 * FLAP[5] - FLAP[5] * tan(STEEP);
-// how far below the root the cavity's ceiling is behind the root block: the flap's way up to its recess goes down that far
-FLAP_WAY = max(0.5, FLAP[1] - (AXIS_Z + (CAVITY_CAP - (FLAP[0] + FLAP[5] + 0.37) * sin(CEILING)) / cos(CEILING)) + 0.5);
 function flap_block(g) = [[-g, -g], [FLAP_BLOCK + g, -g], [FLAP_BLOCK + g, FLAP_KNEE + g], [-g, FLAP_KNEE + g + (FLAP_BLOCK + 2 * g) * tan(STEEP)]];
 module flap_block_x(x0, x1, g) { translate([x0, FLAP[0], FLAP[1]]) rotate([90, 0, 90]) linear_extrude(x1 - x0) polygon(flap_block(g)); }
 
@@ -117,10 +115,10 @@ module body_w() {
       }
       // the rotor's block (deep behind, round the cavity), its +X face carrying the motor (wide enough for its ears), its −X face a ring
       // for the cap
-      // (its top slopes down behind the flap's recess as the cavity's ceiling does, over a wall, under the shell's back slope)
+      // (its top slopes down to the back at STEEP, a wall clear of the cavity's round, under the shell's back slope)
       intersection() {
         translate([-BLOCK[0], -BLOCK[1], BLOCK_BOTTOM]) cube([2 * BLOCK[0], BLOCK[1] + BLOCK_BACK, BLOCK_TOP - BLOCK_BOTTOM]);
-        translate([-BLOCK[0] - 1, (CAVITY_CAP + WALL + 5) * sin(CEILING), AXIS_Z + (CAVITY_CAP + WALL + 5) * cos(CEILING)]) rotate([-CEILING, 0, 0]) translate([0, -100, -200]) cube([2 * BLOCK[0] + 2, 200, 200]);
+        translate([-BLOCK[0] - 1, (CAVITY_R + WALL) * sin(STEEP), AXIS_Z + (CAVITY_R + WALL) * cos(STEEP)]) rotate([-STEEP, 0, 0]) translate([0, -100, -200]) cube([2 * BLOCK[0] + 2, 200, 200]);
       }
       difference() {
         translate([BLOCK[0] - PLATE, -(EAR_SPAN / 2 + 5), CAN_Z - 6]) cube([PLATE, EAR_SPAN + 10, 14]);
@@ -156,18 +154,15 @@ module body_w() {
     translate([-SLOT[0], -SLOT[1], AXIS_Z]) cube([2 * SLOT[0], 2 * SLOT[1], BLOCK_TOP - AXIS_Z + 0.02]);
     // the drop: from the tight bore's lower front edge back into the cavity
     translate([-SLOT[0], DROP_Y, BLOCK_BOTTOM - 1]) cube([2 * SLOT[0], CAVITY_R - DROP_Y, AXIS_Z - BLOCK_BOTTOM + 1]);
-    // the cavity round the rotor's descending (back) side, under a roof at the flap's root and a ceiling sloping down to the back at
-    // CEILING (CAVITY_CAP from the axis)
+    // the cavity round the rotor's descending (back) side, under a roof at the flap's root (its round top prints as bridges between its
+    // side walls)
     intersection() {
       translate([-SLOT[0], 0, AXIS_Z]) rotate([0, 90, 0]) cylinder(r = CAVITY_R, h = 2 * SLOT[0], $fn = 144);
       translate([-SLOT[0] - 1, SLOT[1], BLOCK_BOTTOM - 20]) cube([2 * SLOT[0] + 2, CAVITY_R, FLAP[1] - BLOCK_BOTTOM + 20]);
-      translate([-SLOT[0] - 1, CAVITY_CAP * sin(CEILING), AXIS_Z + CAVITY_CAP * cos(CEILING)]) rotate([-CEILING, 0, 0]) translate([0, -100, -200]) cube([2 * SLOT[0] + 2, 200, 200]);
     }
     // the flap's recess over the cavity's roof, open to the slot and to the cavity below (the flap goes in from below), and its pin's hole,
     // through the left wall and the block, blind at the right
     flap_block_x(-SLOT[0], SLOT[0], 0.16);
-    // the flap's way up into its recess, through the cavity's ceiling
-    translate([-SLOT[0], SLOT[1] - 0.01, FLAP[1] - FLAP_WAY]) cube([2 * SLOT[0], FLAP[0] - SLOT[1] + FLAP_BLOCK + 0.37, FLAP_WAY + 0.01]);
     translate([-HALF_W - 1, FLAP_PIN[0], FLAP_PIN[1]]) hole_x((PIN + 0.15) / 2, HALF_W + SLOT[0] + 4);
     // the motor: its boss and shaft through the +X face, and a slot under them, down out of the block and through the right leg, for the
     // shaft to come up as the motor is lifted in from below; its ears' screws into inserts in the plate
