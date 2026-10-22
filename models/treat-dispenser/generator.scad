@@ -23,20 +23,24 @@ CHUTE_FLOOR = L("CHUTE_FLOOR"); CHUTE_WALL = L("CHUTE_WALL"); CHUTE_SIDE = L("CH
 NECK_T = L("NECK_T"); NECK_E = L("NECK_E"); NECK_PITCH = L("NECK_PITCH"); NECK_TURNS = L("NECK_TURNS");
 THREAD_CLEARANCE = L("THREAD_CLEARANCE"); THREAD_R = L("THREAD_R"); BOSS_R = L("BOSS_R");
 MOTOR_FACE = L("MOTOR_FACE"); CAN_Z = L("CAN_Z"); CAN_R = L("CAN_R"); MOTOR_L = L("MOTOR_L"); EAR_SPAN = L("EAR_SPAN");
-BOSS_D = L("BOSS_D"); SHAFT_D = L("SHAFT_D"); SHAFT_FLATS = L("SHAFT_FLATS");
-CAP = L("CAP"); M3_HOLE = L("M3_HOLE"); M3_NUT_S = L("M3_NUT_S"); M3_NUT_M = L("M3_NUT_M"); M25_PILOT = L("M25_PILOT");
+BOSS_D = L("BOSS_D"); SHAFT_D = L("SHAFT_D"); SHAFT_FLATS = L("SHAFT_FLATS"); SHAFT_ROUND = L("SHAFT_ROUND"); SHAFT_L = L("SHAFT_L");
+CAP = L("CAP"); M3_HOLE = L("M3_HOLE"); PIN = L("PIN"); M25_PILOT = L("M25_PILOT");
 INSERT_HOLE = L("INSERT_HOLE"); INSERT_DEPTH = L("INSERT_DEPTH");
-CASE_POS = L("CASE_POS"); USB = L("USB"); DRIVER_POS = L("DRIVER_POS"); DRIVER_HOLES = L("DRIVER_HOLES");
+CASE_POS = L("CASE_POS"); USB = L("USB"); DRIVER_POS = L("DRIVER_POS");
+// the ULN2003 board's holes on the +X wall, as (y, z)
+DRIVER_HOLES = L("DRIVER_HOLES");
 
-// the ESP32 case's outline (its base 25.8 × 21.8, its lid 25.4 × 19.8) and its roof, from the case model's own parts
-CASE_L = 25.8; CASE_W = 21.8; LID_L = 25.4; LID_W = 19.8; LIP = 0.6; CASE_ROOF = 14.4; CASE_FLOOR = 6;
-// the cap's screws: on the bore's −X face, outside the bore, into heat-set inserts
+// the ESP32 case's outline (its base 25.8 × 21.8) and its floor's depth, from the case model's own parts
+CASE_L = 25.8; CASE_W = 21.8; CASE_FLOOR = 6;
+// the cap's screws: through its flange into heat-set inserts in the left wall, round the opening
 CAP_SCREW_R = (BORE_R + CAP[1]) / 2;
-// the base plate's screws: into inserts in four columns inside the body's sides, clear of the boards
-BASE_SCREWS = [[HALF_W - 6, -22], [-(HALF_W - 6), -22], [HALF_W - 6, -4], [-(HALF_W - 6), -4]];
-// the flap: its root (y, z) on the slot's back wall, length, angle from the vertical (towards the back), thickness, root bead
-FLAP_DIR = [sin(FLAP[3]), -cos(FLAP[3])]; FLAP_BACK = [cos(FLAP[3]), sin(FLAP[3])];
-FLAP_BEAD = [FLAP[0] + FLAP_BACK[0] * FLAP[5] / 2, FLAP[1] + FLAP_BACK[1] * FLAP[5] / 2];
+// the base plate's screws: into inserts in four columns in the body's corners, clear of the motor's way in and of the boards
+BASE_SCREWS = [[HALF_W - 6, -30], [-(HALF_W - 6), -30], [HALF_W - 6, 44], [-(HALF_W - 6), 44]];
+// the flap: its root (y, z) on the slot's back wall, length, angle from the vertical (towards the back), thickness, and its root block's
+// side; the block sits over the root, behind the slot's back wall, the filament pin through its middle
+FLAP_BLOCK = FLAP[5]; FLAP_PIN = [FLAP[0] + FLAP_BLOCK / 2, FLAP[1] + FLAP_BLOCK / 2];
+// the motor's plate on the block's +X face: deep enough for the ears' inserts
+PLATE = INSERT_DEPTH + 1.5;
 DROP_Y = -BORE_R * sin(30);
 TAN = tan(CHUTE_SLOPE);
 function chute_at(y) = EXIT_Z + (y - CHUTE_END) * TAN;
@@ -68,14 +72,15 @@ module body_w() {
       // the rotor's block (deep behind, round the cavity), its +X face carrying the motor (wide enough for its ears), its −X face a ring
       // for the cap
       translate([-BLOCK[0], -BLOCK[1], BLOCK_BOTTOM]) cube([2 * BLOCK[0], BLOCK[1] + BLOCK_BACK, BLOCK_TOP - BLOCK_BOTTOM]);
-      translate([BLOCK[0] - WALL - 2, -(EAR_SPAN / 2 + 5), CAN_Z - 6]) cube([WALL + 2, EAR_SPAN + 10, BLOCK_TOP - CAN_Z + 6]);
-      translate([-BLOCK[0], 0, AXIS_Z]) rotate([0, 90, 0]) cylinder(r = CAP[1], h = 5, $fn = 96);
+      translate([BLOCK[0] - PLATE, -(EAR_SPAN / 2 + 5), CAN_Z - 6]) cube([PLATE, EAR_SPAN + 10, BLOCK_TOP - CAN_Z + 6]);
+      // a ring inside the left wall round the rotor's opening, for the cap's inserts
+      translate([-HALF_W + 0.01, 0, AXIS_Z]) rotate([0, 90, 0]) cylinder(r = CAP[1], h = INSERT_DEPTH + 1, $fn = 96);
       // the legs either side of the chute, from the base to the block
       for (s = [-1, 1]) translate([s > 0 ? CHUTE[2] : -CHUTE[3], -BLOCK[1], BASE]) cube([CHUTE[3] - CHUTE[2], BLOCK[1] + BLOCK_BACK, BLOCK_BOTTOM - BASE + 0.01]);
       // the base plate's screw columns
       for (q = BASE_SCREWS) translate([q[0], q[1], BASE]) cylinder(d = INSERT_HOLE + 4, h = INSERT_DEPTH + 3, $fn = 32);
       // standoffs for the ULN2003 board on the right side wall
-      for (h = DRIVER_HOLES) translate([HALF_W - WALL + 0.01, DRIVER_POS[1] + h[0], DRIVER_POS[2] + h[1]]) rotate([0, -90, 0]) cylinder(d = 6, h = HALF_W - WALL - DRIVER_POS[0] + 0.01, $fn = 24);
+      for (h = DRIVER_HOLES) translate([HALF_W - WALL + 0.01, h[0], h[1]]) rotate([0, -90, 0]) cylinder(d = 6, h = HALF_W - WALL - DRIVER_POS[0] + 0.01, $fn = 24);
     }
     // the thread, and the lip's opening into the funnel
     translate([0, 0, LIP_Z]) bottle_bore(BOSS_TOP - LIP_Z, NECK_TURNS, BOSS_TOP - LIP_Z - 1);
@@ -94,33 +99,34 @@ module body_w() {
       translate([-SLOT[0], 0, AXIS_Z]) rotate([0, 90, 0]) cylinder(r = CAVITY_R, h = 2 * SLOT[0], $fn = 144);
       translate([-SLOT[0] - 1, SLOT[1], BLOCK_BOTTOM - 20]) cube([2 * SLOT[0] + 2, CAVITY_R, FLAP[1] - BLOCK_BOTTOM + 20]);
     }
-    // the flap's groove: its bead along X, the slit for its strip
-    translate([-SLOT[0] - 0.4, FLAP_BEAD[0], FLAP_BEAD[1]]) rotate([0, 90, 0]) cylinder(d = FLAP[5] + 0.2, h = 2 * SLOT[0] + 0.8, $fn = 24);
-    translate([-SLOT[0], FLAP[0], FLAP[1]]) rotate([FLAP[3] - 90, 0, 0]) translate([0, -1, -0.1]) cube([2 * SLOT[0], 3, FLAP[4] + 0.2]);
-    // the motor: its boss and shaft through the +X face, its ears' screws with nuts on the block's side
+    // the flap's recess over the cavity's roof, open to the slot and to the cavity below (the flap goes in from below), and its pin's hole,
+    // through the left wall and the block, blind at the right
+    translate([-SLOT[0], SLOT[1] - 0.01, FLAP[1] - 0.01]) cube([2 * SLOT[0], FLAP[0] - SLOT[1] + FLAP_BLOCK + 0.16, FLAP_BLOCK + 0.16]);
+    translate([-HALF_W - 1, FLAP_PIN[0], FLAP_PIN[1]]) rotate([0, 90, 0]) cylinder(d = PIN + 0.15, h = HALF_W + SLOT[0] + 4, $fn = 16);
+    // the motor: its boss and shaft through the +X face, and a slot under them, down out of the block and through the right leg, for the
+    // shaft to come up as the motor is lifted in from below; its ears' screws into inserts in the plate
     translate([BORE_HALF - 0.01, 0, AXIS_Z]) rotate([0, 90, 0]) cylinder(d = BOSS_D + 1, h = BLOCK[0] - BORE_HALF + 1, $fn = 48);
-    for (s = [-1, 1]) translate([BLOCK[0] - WALL - 3, s * EAR_SPAN / 2, CAN_Z]) rotate([0, 90, 0]) {
-      cylinder(d = M3_HOLE, h = 10, $fn = 24);
-      translate([0, 0, -1]) cylinder(d = M3_NUT_S / cos(30) + 0.3, h = M3_NUT_M + 1, $fn = 6);
-    }
-    // the cap's inserts
-    for (a = [45, 225]) translate([-BLOCK[0] - 0.01, CAP_SCREW_R * cos(a), AXIS_Z + CAP_SCREW_R * sin(a)]) rotate([0, 90, 0]) cylinder(d = INSERT_HOLE, h = INSERT_DEPTH, $fn = 24);
+    translate([BORE_HALF - 0.01, -(BOSS_D + 1) / 2, BLOCK_BOTTOM - 1]) cube([BLOCK[0] - BORE_HALF + 1, BOSS_D + 1, AXIS_Z - BLOCK_BOTTOM + 1]);
+    translate([MOTOR_FACE - SHAFT_L - 0.5, -(SHAFT_D + 1) / 2, BASE - 1]) cube([SHAFT_L + 1.5, SHAFT_D + 1, AXIS_Z - BASE + 1]);
+    for (s = [-1, 1]) translate([BLOCK[0] + 0.01, s * EAR_SPAN / 2, CAN_Z]) rotate([0, -90, 0]) cylinder(d = INSERT_HOLE, h = INSERT_DEPTH, $fn = 24);
+    // the rotor's way in through the left wall, and the cap's inserts round it
+    translate([-HALF_W - 1, 0, AXIS_Z]) rotate([0, 90, 0]) cylinder(r = BORE_R, h = INSERT_DEPTH + 3, $fn = 96);
+    for (a = [45, 225]) translate([-HALF_W - 0.01, CAP_SCREW_R * cos(a), AXIS_Z + CAP_SCREW_R * sin(a)]) rotate([0, 90, 0]) cylinder(d = INSERT_HOLE, h = INSERT_DEPTH, $fn = 24);
     // the chute's way out of the front, its top pointed so that it prints without support
     hull() {
       translate([-CHUTE[1] - 0.5, FRONT - 1, BASE - 1]) cube([2 * CHUTE[1] + 1, WALL + 2, chute_at(FRONT) + CHUTE_SIDE - BASE + 1]);
       translate([0, FRONT - 1, chute_at(FRONT) + CHUTE_SIDE + CHUTE[1]]) cube([0.01, WALL + 2, 0.01]);
     }
-    // the chute's way in between the legs, under the block (the legs hold it)
-    translate([-CHUTE[2], -BLOCK[1] - 1, BASE - 1]) cube([2 * CHUTE[2], BLOCK[1] + BLOCK_BACK + 2, BLOCK_BOTTOM - BASE + 1]);
-    // the ESP32 case's window in the back wall (it stands upright, its width across): its base's walls held by lips at the outer face,
-    // its lid flush
-    translate([CASE_POS[0] - CASE_W / 2 - 0.3, BACK - WALL - 1, CASE_POS[2] - CASE_L / 2 - 0.3]) cube([CASE_W + 0.6, WALL + 1 - LIP, CASE_L + 0.6]);
-    translate([CASE_POS[0] - LID_W / 2 - 0.3, BACK - LIP - 0.01, CASE_POS[2] - LID_L / 2 - 0.3]) cube([LID_W + 0.6, LIP + 1, LID_L + 0.6]);
+    // the chute's way in between the legs, from below, up to its walls' tops along its slope (the legs hold it)
+    hull() for (y = [-BLOCK[1] - 1, BLOCK_BACK + 1]) translate([-CHUTE[2], y, BASE - 1]) cube([2 * CHUTE[2], 0.01, max(BLOCK_BOTTOM, chute_at(y) + CHUTE_SIDE + 0.3) - BASE + 1]);
+    // the ESP32 case's window in the back wall (it stands upright, its width across): pushed in from behind, its lid out, a snug fit;
+    // the base plate's keeper stops it behind its floor. 0.6 more at the bottom, where the board stands 0.4 out of the case's USB end
+    translate([CASE_POS[0] - CASE_W / 2 - 0.15, BACK - WALL - 1, CASE_POS[2] - CASE_L / 2 - 0.75]) cube([CASE_W + 0.3, WALL + 2, CASE_L + 0.9]);
     // the USB cable comes in at the foot of the back wall, under the case
     translate([CASE_POS[0] - 6, BACK - WALL - 1, BASE - 1]) cube([12, WALL + 2, 9]);
     // the base plate's screws
     for (q = BASE_SCREWS) translate([q[0], q[1], BASE - 0.01]) cylinder(d = INSERT_HOLE, h = INSERT_DEPTH, $fn = 24);
-    for (h = DRIVER_HOLES) translate([HALF_W - WALL + 1, DRIVER_POS[1] + h[0], DRIVER_POS[2] + h[1]]) rotate([0, -90, 0]) cylinder(d = M25_PILOT, h = 20, $fn = 16);
+    for (h = DRIVER_HOLES) translate([HALF_W - WALL + 1, h[0], h[1]]) rotate([0, -90, 0]) cylinder(d = M25_PILOT, h = 20, $fn = 16);
   }
 }
 module body() { print_pose(L("P_BODY")) body_w(); }
@@ -138,22 +144,29 @@ module rotor_w() {
       translate([-POCKET[0] / 2, -POCKET[1] / 2, s > 0 ? R - POCKET[2] : -R - 1]) cube([POCKET[0], POCKET[1], POCKET[2] + 1]);
       translate([-POCKET[0] / 2 - POCKET[2], -POCKET[1] / 2, s > 0 ? R : -R - 1]) cube([0.01, POCKET[1], 1]);
     }
-    // the motor's flatted shaft, from the +X end
-    translate([ROTOR_END + 0.01, 0, 0]) rotate([0, -90, 0]) linear_extrude(8) intersection() {
-      circle(d = SHAFT_D + 0.2, $fn = 48);
-      square([SHAFT_FLATS + 0.15, SHAFT_D + 1], center = true);
+    // the motor's shaft, from the +X end: round where it leaves the motor, flatted from there to its tip
+    translate([ROTOR_END + 0.01, 0, 0]) rotate([0, -90, 0]) {
+      linear_extrude(8) intersection() {
+        circle(d = SHAFT_D + 0.2, $fn = 48);
+        square([SHAFT_FLATS + 0.15, SHAFT_D + 1], center = true);
+      }
+      cylinder(d = SHAFT_D + 0.2, h = max(0, SHAFT_ROUND - (MOTOR_FACE - ROTOR_END)) + 0.5, $fn = 48);
     }
   }
 }
 module rotor() { print_pose(L("P_ROTOR")) rotor_w(); }
 
 // ---------------------------------------------------------------------------------------------------------------------- the flap
-// TPU, printed flat: a strip from its root's bead to its tip, which rests on the rotor just behind the slot
+// TPU, printed flat: a strip from its root block to its tip, which rests on the rotor just behind the slot; the block (its pin's hole
+// through it) holds the strip's root square, so that the strip, not the block, bends
 module flap_w() {
   intersection() {
-    union() {
-      translate([-SLOT[0] + 0.2, FLAP[0], FLAP[1]]) rotate([FLAP[3] - 90, 0, 0]) cube([2 * SLOT[0] - 0.4, FLAP[2], FLAP[4]]);
-      translate([-SLOT[0] - 0.2, FLAP_BEAD[0], FLAP_BEAD[1]]) rotate([0, 90, 0]) cylinder(d = FLAP[5], h = 2 * SLOT[0] + 0.4, $fn = 24);
+    difference() {
+      union() {
+        translate([-SLOT[0] + 0.2, FLAP[0], FLAP[1]]) rotate([FLAP[3] - 90, 0, 0]) cube([2 * SLOT[0] - 0.4, FLAP[2], FLAP[4]]);
+        translate([-SLOT[0] + 0.2, FLAP[0], FLAP[1]]) cube([2 * SLOT[0] - 0.4, FLAP_BLOCK, FLAP_BLOCK]);
+      }
+      translate([-SLOT[0], FLAP_PIN[0], FLAP_PIN[1]]) rotate([0, 90, 0]) cylinder(d = PIN + 0.15, h = 2 * SLOT[0], $fn = 16);
     }
     // its tip trimmed to the rotor's surface
     difference() {
@@ -165,14 +178,21 @@ module flap_w() {
 module flap() { print_pose(L("P_FLAP")) flap_w(); }
 
 // --------------------------------------------------------------------------------------------------------------- the bearing cap
+// a flange on the left wall's outside and a tube from it through the opening into the bore, up to the rotor's end, where it takes the
+// rotor's stub; hollow, its far end closed by a 45° cone so that it prints on its flange without support
 module cap_w() {
-  translate([-BLOCK[0], 0, AXIS_Z]) rotate([0, 90, 0]) difference() {
+  long = HALF_W - BORE_HALF; r = BORE_R - 0.15; ri = r - 2;
+  // 2 mm of the tube's end left under the stub's hole
+  hollow = CAP[0] + long - CAP[3] - 2.5 - ri;
+  translate([-HALF_W, 0, AXIS_Z]) rotate([0, 90, 0]) difference() {
     union() {
       translate([0, 0, -CAP[0]]) cylinder(r = CAP[1], h = CAP[0], $fn = 96);
-      cylinder(r = BORE_R - 0.15, h = BLOCK[0] - BORE_HALF, $fn = 96);
+      cylinder(r = r, h = long, $fn = 96);
     }
-    translate([0, 0, BLOCK[0] - BORE_HALF - CAP[3] - 0.5]) cylinder(d = CAP[2] + 0.4, h = CAP[3] + 1, $fn = 48);
-    for (a = [45, 225]) rotate([0, 0, 0]) translate([-CAP_SCREW_R * sin(a), CAP_SCREW_R * cos(a), -CAP[0] - 1]) cylinder(d = M3_HOLE, h = CAP[0] + 2, $fn = 24);
+    translate([0, 0, -CAP[0] - 0.01]) cylinder(r = ri, h = hollow + 0.02, $fn = 96);
+    translate([0, 0, -CAP[0] + hollow]) cylinder(r1 = ri, r2 = 0, h = ri, $fn = 96);
+    translate([0, 0, long - CAP[3] - 0.5]) cylinder(d = CAP[2] + 0.4, h = CAP[3] + 1, $fn = 48);
+    for (a = [45, 225]) translate([-CAP_SCREW_R * sin(a), CAP_SCREW_R * cos(a), -CAP[0] - 1]) cylinder(d = M3_HOLE, h = CAP[0] + 2, $fn = 24);
   }
 }
 module cap() { print_pose(L("P_CAP")) cap_w(); }
@@ -199,8 +219,6 @@ module base() {
       hull() for (x = [BASE_RECT[0] + 8, BASE_RECT[1] - 8]) for (y = [BASE_RECT[2] + 8, BASE_RECT[3] - 8]) translate([x, y, 0]) cylinder(r = 8, h = BASE, $fn = 48);
       // a keeper behind the ESP32 case's floor, beside its header pins, so that it cannot be pushed in
       translate([CASE_POS[0] + CASE_W / 2 - 2.5, CASE_POS[1] + CASE_FLOOR - 2.5, BASE - 0.01]) cube([2, 2.5, CASE_POS[2] + CASE_L / 2 - BASE]);
-      // a lip either side of the chute's foot, to locate it
-      for (s = [-1, 1]) translate([s * (CHUTE[1] + 0.2) - (s < 0 ? 2 : 0), CHUTE_BACK - 10, BASE - 0.01]) cube([2, 10, 2]);
     }
     for (q = BASE_SCREWS) translate([q[0], q[1], -1]) {
       cylinder(d = M3_HOLE, h = BASE + 2, $fn = 24);

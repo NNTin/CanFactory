@@ -124,9 +124,10 @@ describe('treat dispenser assembly and electronics', () => {
     const bay = treatBayLayout(p);
     expect(bay.bootPoint[2]).toBe(0);
     expect(Math.hypot(bay.bootPoint[0] - bay.resetPoint[0], bay.bootPoint[1] - bay.resetPoint[1])).toBeCloseTo(11.66 - 6.11, 6);
-    // the case upright inside the body, clear of its side wall and of the rotor's block, its lid in the back wall
-    expect(bay.caseFrame.position[0] - 10.9).toBeGreaterThan(-l.halfWidth + TREAT_DISPENSER.wall);
-    expect(bay.caseFrame.position[0] + 10.9).toBeLessThan(-l.block.halfX);
+    // the case upright inside the body, clear of the side wall's rounded inside corner (R 5.6) and behind the rotor's block, its lid
+    // in the back wall (its base 8.4 deep)
+    expect(bay.caseFrame.position[0] - 10.9).toBeGreaterThanOrEqual(-l.halfWidth + TREAT_DISPENSER.wall + 5.6);
+    expect(bay.caseFrame.position[1] + 14.4 - 8.4).toBeGreaterThan(l.blockBack);
     expect(bay.caseFrame.position[1] + 14.4).toBeCloseTo(l.back + 0.5, 9);
     // USB-C at its lower end, high enough over the base for the plug and its cable's bend
     expect(bay.usb[2]).toBeGreaterThan(TREAT_DISPENSER.base + 20);

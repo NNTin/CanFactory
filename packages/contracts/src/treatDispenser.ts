@@ -37,15 +37,17 @@ export const TREAT_DISPENSER = {
   threadHeight: 18, bossWall: 3,
   /** How much of the bottle's neck (its bore, from the lip up) the simulation stands in the thread, to hold the treats above. */
   neckLength: 160,
-  /** The bearing cap at the rotor's −X end: flange thickness and radius; the rotor's stub into it (diameter, length). */
+  /** The bearing cap: a tube through the left wall's opening to the rotor's −X end, its flange (thickness, radius) screwed to the wall's
+   * outside; the rotor's stub into it (diameter, length). The rotor slides in and out through that opening. */
   capFlange: 3, capRadius: 19, stub: 8, stubLength: 4.5,
   /** Behind the flap, round the rotor's descending side, a cavity this much deeper than the rotor: more than a treat is long, so that a
    * treat carried past the flap can neither be pinched nor wedge across it. */
   cavityClear: 15,
-  /** The flap (TPU) that closes the slot's back edge on the rotor: thickness, its root's bead, how far it is sprung past touching
+  /** The flap (TPU) that closes the slot's back edge on the rotor: thickness, its root's square block (held in a recess over the
+   * cavity's roof by a pin of 1.75 mm filament through it, pushed in from outside the left wall), how far it is sprung past touching
    * (degrees), its stiffness and mass (g). 0.03 N·mm per degree is a 0.6 × 16 × 14 mm strip of 95A TPU (E ≈ 26 MPa): soft enough
    * that a treat pushed into it near its root still bends it (stiffer, 0.3, wedged treats there in the trials). */
-  flap: { thickness: 0.6, bead: 2.6, preload: 10, stiffness: 0.03, mass: 0.15 },
+  flap: { thickness: 0.6, bead: 3.2, pin: 1.75, preload: 10, stiffness: 0.03, mass: 0.15 },
 } as const;
 
 /** Bottle necks with an ISBT drawing (drawings 3784253-21 and 1165362-2). Values read off the drawings; see docs/treat-dispenser.md. */
@@ -97,7 +99,8 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   const cavityR = Math.max(R + T.cavityClear, root.z - axisZ + 4);
   const tipY = slot.halfY + 1, tip = { y: tipY, z: axisZ + Math.sqrt(R * R - tipY * tipY) };
   const flap = { root, tip, length: Math.hypot(tip.y - root.y, root.z - tip.z), angle: Math.atan2(tip.y - root.y, root.z - tip.z) / DEG };
-  const blockBottom = axisZ - block.halfY, blockTop = root.z + T.wall, blockBack = cavityR + T.wall;
+  // the block's top: over the flap's root block (and its pin), with a wall above it
+  const blockBottom = axisZ - block.halfY, blockTop = root.z + Math.max(T.wall, T.flap.bead + 1.2), blockBack = cavityR + T.wall;
   const lipZ = blockTop + T.funnel;
   const neck = BOTTLE_NECKS[p.bottleNeck];
   const threadR = neck.T / 2 + p.threadClearance, bossR = threadR + T.bossWall, lipR = neck.bore / 2 + 0.5;
@@ -149,6 +152,9 @@ const apply = (m: Mat3, v: readonly number[]): Vec3 => [0, 1, 2].map(i => g(m, i
 const transpose = (m: Mat3): Mat3 => [0, 1, 2].map(i => [g(m, 0, i), g(m, 1, i), g(m, 2, i)] as Vec3) as Mat3;
 /** The pose rotation (degrees, X then Y then Z) of a matrix, rounded to 1e-9°. */
 export function rotationAngles(m: Mat3): Vec3 {
+  const det = g(m, 0, 0) * (g(m, 1, 1) * g(m, 2, 2) - g(m, 1, 2) * g(m, 2, 1)) - g(m, 0, 1) * (g(m, 1, 0) * g(m, 2, 2) - g(m, 1, 2) * g(m, 2, 0)) + g(m, 0, 2) * (g(m, 1, 0) * g(m, 2, 1) - g(m, 1, 1) * g(m, 2, 0));
+  // a mirror has no pose: it would come out as some other rotation
+  if (Math.abs(det - 1) > 1e-6) throw new Error(`Not a rotation (determinant ${det}).`);
   const round = (a: number) => Math.round(a / DEG * 1e9) / 1e9 + 0;
   const sy = -g(m, 2, 0);
   if (Math.abs(sy) > 1 - 1e-12) return [round(Math.atan2(-g(m, 1, 2), g(m, 1, 1))), round(Math.asin(Math.max(-1, Math.min(1, sy)))), 0];
@@ -185,7 +191,7 @@ export function treatPartPoses(l: TreatDispenserLayout): Record<'body' | 'base' 
     // its axis up, the motor's end (+X) on the bed
     rotor: { position: [l.rotorEnd, 0, l.axisZ], rotation: [0, -90, 0] },
     // its flange down
-    cap: { position: [-(l.block.halfX + T.capFlange), 0, l.axisZ], rotation: [0, 90, 0] },
+    cap: { position: [-(l.halfWidth + T.capFlange), 0, l.axisZ], rotation: [0, 90, 0] },
     // flat, its root's bead along X at the origin: drawn hanging from the root along −Z, turned back by its angle, then laid down
     flap: { position: [0, l.flap.root.y, l.flap.root.z], rotation: [l.flap.angle - 90, 0, 0] },
   };
@@ -418,7 +424,7 @@ export function treatFill(p: TreatDispenserParameters, count: number, seed: numb
   const free = (c: Vec3, m: Mat3) => !placed.some(other => boxesOverlap(other, { c, m }, half));
   for (let i = 0; i < count; i++) {
     let done = false;
-    for (let attempt = 0; attempt < 400 && !done; attempt++) {
+    for (let attempt = 0; attempt < 2000 && !done; attempt++) {
       const m = qmat(orient()), r = reach(m);
       for (let z = l.blockTop + r.up + 0.5; z + r.up < top && !done; z += 0.5) {
         let c: Vec3;
@@ -475,7 +481,8 @@ export const treatCycleSteps = (): number => TREAT_FIRMWARE.stepsPerTurn / TREAT
  * board library's button positions.
  */
 export interface BayLayout { caseFrame: Pose; driverPose: Pose; bootPoint: Vec3; resetPoint: Vec3; usb: Vec3 }
-export const BAY = { lidProud: 0.5, caseLength: 25.8, caseWidth: 21.8, driverStandoff: 4, plugRoom: 25, gap: 0.3 } as const;
+/** corner: the case's distance from the side wall, clear of the shell's rounded inside corner (R 5.6). */
+export const BAY = { lidProud: 0.5, caseLength: 25.8, caseWidth: 21.8, driverStandoff: 4, plugRoom: 25, corner: 6 } as const;
 
 export function treatBayLayout(p: TreatDispenserParameters): BayLayout {
   const l = treatDispenserLayout(p);
@@ -488,7 +495,7 @@ export function treatBayLayout(p: TreatDispenserParameters): BayLayout {
   const roof = esp32CaseGround(DEFAULT_ESP32_CASE) + ESP32_CASE.lidRoof;
   const inner = l.halfWidth - T.wall;
   const caseFrame: Pose = {
-    position: [-inner + BAY.gap + BAY.caseWidth / 2, l.back + BAY.lidProud - roof, T.base + BAY.plugRoom + BAY.caseLength / 2],
+    position: [-inner + BAY.corner + BAY.caseWidth / 2, l.back + BAY.lidProud - roof, T.base + BAY.plugRoom + BAY.caseLength / 2],
     rotation: rotationAngles([[0, 1, 0], [0, 0, 1], [1, 0, 0]]),
   };
   const button = (prefix: string): Vec3 => {
@@ -502,8 +509,9 @@ export function treatBayLayout(p: TreatDispenserParameters): BayLayout {
   const usb = posePoint(caseFrame, [-BAY.caseLength / 2, 0, esp32CaseGround(DEFAULT_ESP32_CASE) + 1.6]);
   return {
     caseFrame, bootPoint: button('BOOT'), resetPoint: button('RST'), usb,
-    // the board (35.3 × 31.4) on the right side wall, its parts facing in (−X): board +X → +Y, +Y → +Z, +Z → −X
-    driverPose: { position: [inner - BAY.driverStandoff, 8, T.base + T.wall + 1], rotation: rotationAngles([[0, 0, -1], [1, 0, 0], [0, 1, 0]]) },
+    // the board (31.4 wide, 35.3 long) on the right side wall, its parts facing in (−X): board +X → −Y, +Y → +Z, +Z → −X; it spans
+    // y 8 … 39.4
+    driverPose: { position: [inner - BAY.driverStandoff, 8 + 31.4, T.base + T.wall + 1], rotation: rotationAngles([[0, 0, -1], [-1, 0, 0], [0, 1, 0]]) },
   };
 }
 
@@ -621,8 +629,8 @@ export function treatFootprint(p: TreatDispenserParameters): [number, number, nu
  * The SCAD file's numbers: every dimension the generator draws, from this file, so that CAD, physics and assembly cannot drift
  * ----------------------------------------------------------------------------------------------------------------------------- */
 
-/** The motor screws, their nuts, the inserts for the base and the cap, and the ULN2003's screws, from the parts library. */
-export const TREAT_FASTENERS = { screw: 'iso-4762-m3x10', nut: 'iso-4032-m3', insert: 'cnc-kitchen-m3x5-7', boardScrew: 'iso-4762-m2-5x8' } as const;
+/** The screws into heat-set inserts (motor: `motorScrew`; cap and base: `screw`) and the ULN2003's screws, from the parts library. */
+export const TREAT_FASTENERS = { screw: 'iso-4762-m3x10', motorScrew: 'iso-4762-m3x6', insert: 'cnc-kitchen-m3x5-7', boardScrew: 'iso-4762-m2-5x8' } as const;
 
 /** Every value the generator needs, as `[name, value]` pairs (an OpenSCAD list it looks names up in). */
 export function treatScadValues(p: TreatDispenserParameters): [string, number | number[] | number[][] | boolean][] {
@@ -630,8 +638,8 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
   const T = TREAT_DISPENSER;
   const bay = treatBayLayout(p);
   const poses = treatPartPoses(l);
-  const nut = findPart(TREAT_FASTENERS.nut), boardScrew = findPart(TREAT_FASTENERS.boardScrew), insert = findPart(TREAT_FASTENERS.insert), motor = motorPart();
-  if (!nut || !boardScrew || !insert) throw new Error('Missing treat dispenser fasteners.');
+  const boardScrew = findPart(TREAT_FASTENERS.boardScrew), insert = findPart(TREAT_FASTENERS.insert), motor = motorPart();
+  if (!boardScrew || !insert) throw new Error('Missing treat dispenser fasteners.');
   const round = (value: number) => Math.round(value * 1e6) / 1e6;
   const pose = (q: Pose) => [...q.position.map(round), ...q.rotation];
   return [
@@ -646,21 +654,24 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     ['THREAD_CLEARANCE', p.threadClearance], ['THREAD_R', round(l.threadR)], ['BOSS_R', round(l.bossR)],
     ['MOTOR_FACE', round(l.motorFace)], ['CAN_Z', round(l.canZ)], ['CAN_R', l.canR], ['MOTOR_L', l.motorLength], ['EAR_SPAN', l.earSpan],
     ['BOSS_D', dimensionOf(motor, 'db', 'max')], ['SHAFT_D', dimensionOf(motor, 'd', 'max')], ['SHAFT_FLATS', dimensionOf(motor, 's', 'max')],
+    // the shaft's round part, from the mounting face to where its flats begin (the longest shaft, the shortest flats)
+    ['SHAFT_ROUND', round(dimensionOf(motor, 'l', 'max') - dimensionOf(motor, 'lf', 'min'))], ['SHAFT_L', dimensionOf(motor, 'l', 'max')],
     ['HOUSING_W', dimensionOf(motor, 'bw', 'max')], ['HOUSING_R', dimensionOf(motor, 'bh')],
     ['CAP', [T.capFlange, T.capRadius, T.stub, T.stubLength]],
-    ['M3_HOLE', ISO_273_CLEARANCE_HOLES.M3.medium], ['M3_NUT_S', dimensionOf(nut, 's', 'max')], ['M3_NUT_M', dimensionOf(nut, 'm', 'max')],
+    ['M3_HOLE', ISO_273_CLEARANCE_HOLES.M3.medium], ['PIN', T.flap.pin],
     ['M25_PILOT', 2.2], ['INSERT_HOLE', dimensionOf(insert, 'hole')], ['INSERT_DEPTH', dimensionOf(insert, 'holeDepth')],
     ['CASE_POS', bay.caseFrame.position.map(round)], ['CASE_ROT', bay.caseFrame.rotation], ['USB', bay.usb.map(round)],
-    ['DRIVER_POS', bay.driverPose.position.map(round)], ['DRIVER_HOLES', driverHoles()],
+    ['DRIVER_POS', bay.driverPose.position.map(round)], ['DRIVER_HOLES', driverHoles(bay.driverPose)],
     ['P_BODY', pose(poses.body)], ['P_CHUTE', pose(poses.chute)], ['P_ROTOR', pose(poses.rotor)], ['P_CAP', pose(poses.cap)], ['P_FLAP', pose(poses.flap)],
   ];
 }
 
 /** The ULN2003 board's mounting holes, in its own frame (its corner at the origin). */
-function driverHoles(): number[][] {
+/** The ULN2003 board's mounting holes on the side wall, as W (y, z). */
+function driverHoles(pose: Pose): number[][] {
   const part = findPart('uln2003-stepper-driver-board'), layout = part ? stepperDriverLayout(part) : undefined;
   if (!layout) throw new Error('Missing the ULN2003 board.');
-  return layout.holes.map(hole => [hole.x, hole.y]);
+  return layout.holes.map(hole => posePoint(pose, [hole.x, hole.y, 0]).slice(1).map(v => Math.round(v * 1e6) / 1e6));
 }
 
 /** `treatScadValues` as an OpenSCAD literal. */
@@ -709,16 +720,16 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
       { id: 'header-2', part: header.part, title: `${header.title.replace(/ \(row \d\)$/, '')} (row 2)` },
     ],
     steps: [
-      { title: 'Screw the motor to the block’s side inside the body (M3 × 10, nuts behind)', parts: ['motor'], from: [0, 0, -80] },
-      { title: 'Snap the flap’s bead into its groove under the cavity’s roof, through the bore', parts: ['flap'], from: [-70, 0, 0] },
-      { title: 'Slide the rotor into its bore from the left, onto the motor’s flatted shaft', parts: ['rotor'], from: [-70, 0, 0] },
-      { title: 'Close the bore with the bearing cap (two M3 screws into inserts)', parts: ['cap'], from: [-40, 0, 0] },
-      { title: 'Screw the ULN2003 board to its standoffs on the back wall; plug in the motor', parts: ['driver'], from: [0, 0, -80] },
-      { title: 'Push the ESP32-C3 case into the back wall’s window, lid out, USB-C to the side', parts: ['case-bottom', 'case-top', 'board', 'header-1', 'header-2'], from: [0, 0, -80] },
-      { title: 'Slide the chute in between the legs, from the front', parts: ['chute'], from: [0, -60, 0] },
-      { title: 'Screw the base plate on (four M3 screws into inserts)', parts: ['base'], from: [0, 0, -40] },
+      // everything that comes up from below waits under the body, the later the lower, clear of each other's paths
+      { title: 'Lift the motor in from below, its shaft up the slot under the bore; screw it to the block’s side (M3 × 6 into inserts)', parts: ['motor'], from: [0, 0, -80] },
+      { title: 'Push the flap up into its recess over the cavity’s roof, from below; pin it with 1.75 mm filament through the left wall', parts: ['flap'], from: [0, 0, -50] },
+      { title: 'Slide the rotor in through the left wall onto the motor’s shaft; close the opening with the cap (two M3 screws into inserts)', parts: ['rotor', 'cap'], from: [-90, 0, 0] },
+      { title: 'Screw the ULN2003 board to its standoffs on the right side wall; plug in the motor', parts: ['driver'], from: [0, 0, -90] },
+      { title: 'Push the ESP32-C3 case into the back wall’s window from behind, lid out, USB-C down', parts: ['case-bottom', 'case-top', 'board', 'header-1', 'header-2'], from: [0, 60, 0] },
+      { title: 'Push the chute up between the legs, from below, its end through the front wall', parts: ['chute'], from: [0, 0, -85] },
+      { title: 'Screw the base plate on (four M3 screws into inserts)', parts: ['base'], from: [0, 0, -120] },
     ],
-    lift: 60,
+    lift: 125,
   };
 }
 
