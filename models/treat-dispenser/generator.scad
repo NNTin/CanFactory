@@ -150,7 +150,8 @@ module rotor_w() {
         circle(d = SHAFT_D + 0.2, $fn = 48);
         square([SHAFT_FLATS + 0.15, SHAFT_D + 1], center = true);
       }
-      cylinder(d = SHAFT_D + 0.2, h = max(0, SHAFT_ROUND - (MOTOR_FACE - ROTOR_END)) + 0.5, $fn = 48);
+      // (a little wider than the flatted bore's round sides, so that their faces do not coincide)
+      cylinder(d = SHAFT_D + 0.5, h = max(0, SHAFT_ROUND - (MOTOR_FACE - ROTOR_END)) + 0.5, $fn = 48);
     }
   }
 }
@@ -217,8 +218,9 @@ module base() {
   difference() {
     union() {
       hull() for (x = [BASE_RECT[0] + 8, BASE_RECT[1] - 8]) for (y = [BASE_RECT[2] + 8, BASE_RECT[3] - 8]) translate([x, y, 0]) cylinder(r = 8, h = BASE, $fn = 48);
-      // a keeper behind the ESP32 case's floor, beside its header pins, so that it cannot be pushed in
-      translate([CASE_POS[0] + CASE_W / 2 - 2.5, CASE_POS[1] + CASE_FLOOR - 2.5, BASE - 0.01]) cube([2, 2.5, CASE_POS[2] + CASE_L / 2 - BASE]);
+      // a keeper behind the ESP32 case's floor, at its edge away from the rotor's block and legs (beside its header pins), so that it
+      // cannot be pushed in
+      translate([CASE_POS[0] - CASE_W / 2 + 0.5, CASE_POS[1] + CASE_FLOOR - 2.5, BASE - 0.01]) cube([2, 2.5, CASE_POS[2] + CASE_L / 2 - BASE]);
     }
     for (q = BASE_SCREWS) translate([q[0], q[1], -1]) {
       cylinder(d = M3_HOLE, h = BASE + 2, $fn = 24);
