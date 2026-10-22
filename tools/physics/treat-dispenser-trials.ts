@@ -13,7 +13,7 @@ import { availableParallelism } from 'node:os';
 import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_TREAT_DISPENSER, findModel, resolveAssembly, treatDispenserPhysics, treatVertices, type FillMode, type TreatDispenserParameters } from '@canfactory/contracts';
+import { DEFAULT_TREAT_DISPENSER, findModel, resolveAssembly, treatDispenserPhysics, treatDispenserPlacement, treatVertices, type FillMode, type TreatDispenserParameters } from '@canfactory/contracts';
 import { buildScene, CycleController, loadEngine, Simulation, type BodyGeometry } from '@canfactory/physics';
 import { meshCacheFile } from './treat-trial-cache.ts';
 
@@ -27,8 +27,8 @@ export interface Trial {
 }
 /**
  * perPress: treats past the chute's mouth from each press until the next (0.5 s after its cycle ends); faults: cycles that stalled
- * (lost more than the controller's limit: a wedged treat or a jam); maxSpeed: the fastest a treat moved (m/s) — far above a falling
- * treat's ~1 m/s means the solver flung it (instability), not physics.
+ * (lost more than the controller's limit: a wedged treat or a jam); maxSpeed: the fastest a treat moved (m/s) while still in the
+ * mechanism — far above a falling treat's ~1 m/s means the solver flung it (instability), not physics.
  */
 export interface TrialResult { trial: Trial; prime: number; perPress: number[]; idle: number; dry: number; lost: number; faults: number; maxSpeed: number; error?: string; seconds: number }
 
@@ -85,12 +85,14 @@ async function runTrial(trial: Trial, presses: number, meshes: Record<string, nu
     const controller = new CycleController(simulation, settings);
     let maxSpeed = 0, faults = 0;
     const items = (spec.items ?? []).map(item => item.id);
+    const [cx, cy, cz] = treatDispenserPlacement(p).discPose.position.map(value => value / 1000) as [number, number, number];
     const last = new Map<string, number[]>(items.map(id => [id, simulation.pose(id).pos]));
     const step = (seconds: number) => {
       simulation.advance(seconds);
       for (const id of items) {
         const now = simulation.pose(id).pos, before = last.get(id) ?? now;
-        maxSpeed = Math.max(maxSpeed, Math.hypot(now[0] - (before[0] ?? 0), now[1] - (before[1] ?? 0), now[2] - (before[2] ?? 0)) / seconds);
+        // only treats still in the mechanism (within 120 mm of the disc's centre): one that has left falls freely, with no floor
+        if (Math.hypot(now[0] - cx, now[1] - cy, now[2] - cz) < 0.12) maxSpeed = Math.max(maxSpeed, Math.hypot(now[0] - (before[0] ?? 0), now[1] - (before[1] ?? 0), now[2] - (before[2] ?? 0)) / seconds);
         last.set(id, now);
       }
     };

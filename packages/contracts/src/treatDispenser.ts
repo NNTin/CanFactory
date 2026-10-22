@@ -43,12 +43,21 @@ export const TREAT_DISPENSER = {
   gearAir: 1, cover: 3,
   /** The chamber's lid above the disc face, and the feed tube's mouth (below the lid, over the low side of the disc). */
   lid: 42, mouthY: -14, mouthZ: 22, tubeBore: 28, tubeWall: 2.4,
+  /** The feed tube's edge stays this far off the disc's face everywhere (more than a treat is long), so that no treat carried up the
+   * face can be wedged under it: its mouth is cut level (which sets the pile's height) and, nearer the disc, parallel to the face. */
+  mouthClear: 18,
   /** How far the chute runs back from the plate. */
   chuteDepth: 40,
   wall: 2.4,
   /** The chute's floor wall, between the treats and the gear's teeth. */
   chuteWall: 1.6,
 } as const;
+
+/** The electronics pod against the wall bracket (treatBayLayout): its size, wall, cover and corner radius, the ULN2003's standoffs. */
+export const POD = { halfWidth: 40, depth: 31, height: 60, wall: 2, cover: 2, radius: 4, driverStandoff: 6, lidProud: 0.5, plugRoom: 0 } as const;
+/** The feed tube's collar on the chamber's lid: its radial width and height, and its two screw tabs (across, and down the incline from
+ * the tube's axis on the lid, so that the collar holds them up as the tube prints flange down). */
+export const TREAT_FEED = { collar: 3, collarHeight: 3, tab: [16, -25], tabPad: 9, fit: 0.2, boss: 9 } as const;
 
 /** Bottle necks with an ISBT drawing (drawings 3784253-21 and 1165362-2). Values read off the drawings; see docs/treat-dispenser.md. */
 export const BOTTLE_NECKS = {
@@ -279,8 +288,11 @@ export const poseLocal = (pose: { position: readonly number[]; rotation?: readon
  * A part drawn in D and printed in its own frame: `flip` turns it over (180° about X), then it moves by `offset`. Its SCAD file draws
  * it in D and applies the same transform, so its STL lies on the bed as printed.
  */
+/** The motor hood: wall, clearance round the motor, and its rim's gap behind the motor's ears (their thickness). */
+export const HOOD = { wall: 1.6, clearance: 0.8, earGap: 0.9, tab: 1.6 } as const;
+
 export interface PrintFrame { flip: boolean; offset: Vec3 }
-export function printFrames(l: TreatDispenserLayout): Record<'disc' | 'gear' | 'pinion' | 'body' | 'cover' | 'hopper', PrintFrame> {
+export function printFrames(l: TreatDispenserLayout): Record<'disc' | 'gear' | 'pinion' | 'body' | 'cover' | 'hopper' | 'hood', PrintFrame> {
   return {
     disc: { flip: false, offset: [0, 0, l.discThickness] },
     gear: { flip: false, offset: [0, 0, -l.gearBottom] },
@@ -288,7 +300,10 @@ export function printFrames(l: TreatDispenserLayout): Record<'disc' | 'gear' | '
     // plate face down on the bed: the gearbox and the chute rise from it
     body: { flip: true, offset: [0, 0, l.plateTop] },
     cover: { flip: false, offset: [0, 0, -l.coverBack] },
-    hopper: { flip: false, offset: [0, 0, -l.plateTop] },
+    // lid down on the bed: the rim wall rises from it, with no roof to support
+    hopper: { flip: true, offset: [0, 0, l.lidTop] },
+    // rim down (just behind the motor's ears), its cone closing at the top
+    hood: { flip: true, offset: [-l.canAt[0], l.canAt[1], l.motorFace - HOOD.earGap] },
   };
 }
 /** A point of D in a part's print frame. */
@@ -324,13 +339,26 @@ export function treatDispenserPlacement(p: TreatDispenserParameters) {
   // the tube is vertical in W, so its length is the rise from the mouth to the seat
   const tubeLength = seatZ - mouthW[2];
   const seatD: Vec3 = [l.mouth[0], l.mouth[1] + UP_D[1] * tubeLength, l.mouth[2] + UP_D[2] * tubeLength];
-  // the motor's lowest point sets the floor: its can and wire housing, below the cover
+  // the motor's lowest point: its can and wire housing, below the cover
   const motor = motorPart();
   const housing = dimensionOf(motor, 'bh');
   const low = Math.min(...[-1, 1].flatMap(sx => [l.canAt[1] - 14, l.canAt[1] - housing].flatMap(y => [l.motorFace, l.motorFace - l.motorLength].map(z => d2w([sx * 14, y, z])[2]))));
-  const offset: Vec3 = [0, 0, Math.ceil(-low + 6)];
   const wallY = mouthW[1] + p.bottleDiameter / 2 + 4;
-  return { l, mouthW, seatD, seatW: posePoint({ position: offset, rotation: [0, 0, 0] }, d2w(seatD)), tubeLength, offset, wallY, adapterHeight, discPose: { position: offset, rotation: DISC_ROTATION }, T };
+  // the electronics pod (treatBayLayout) stands against the wall under the chamber: its top 4 mm below anything of the chamber, the
+  // plate or their lugs that lies within 3 mm of its front
+  const podFront = wallY - POD.depth;
+  const around: Vec3[] = [];
+  for (let i = 0; i < 72; i++) for (const r of [l.rimOuter, l.plateRadius, l.plateRadius + 6 + 5.5]) for (const z of [l.plateBottom, l.plateTop, 4, l.lidTop]) {
+    const a = i * 5 * DEG;
+    around.push(d2w([r * Math.cos(a), r * Math.sin(a), z]));
+  }
+  const podTopRelative = Math.min(...around.filter(q => q[1] >= podFront - 3).map(q => q[2])) - 4;
+  // the lowest part sets the floor: the motor's can and wire housing, or the pod
+  const offset: Vec3 = [0, 0, Math.ceil(Math.max(-low + 6, -(podTopRelative - POD.height) + 4))];
+  return {
+    l, mouthW, seatD, seatW: posePoint({ position: offset, rotation: [0, 0, 0] }, d2w(seatD)), tubeLength, offset, wallY, adapterHeight,
+    podTop: podTopRelative + offset[2], discPose: { position: offset, rotation: DISC_ROTATION }, T,
+  };
 }
 
 /** The pose (print frame → W) of a part drawn in D. */
@@ -468,23 +496,32 @@ export const firmwareDegrees = (steps: number): number => steps * 360 / TREAT_FI
 export const treatCycleSteps = (): number => TREAT_FIRMWARE.stepsPerTurn * (TREAT_DISPENSER.gearTeeth / TREAT_DISPENSER.pinionTeeth) / TREAT_DISPENSER.notches;
 
 /**
- * The electronics bay on the wall bracket, beside the dispenser (W, the assembly's offset included): the ESP32 case's own assembly
- * (esp32CaseAssembly, its parts and boards as that model places them) stood on edge, its lid facing the front so that B and R can be
- * pressed and the lid slides out upwards, USB-C pointing down to the one cable; the ULN2003 board on standoffs beside it. `bootPoint`
- * and `resetPoint` are the buttons' actuators in the lid's own frame (its outer face), from the board library's button positions.
+ * The electronics pod (W, the assembly's offset included): a box against the wall bracket, under the chamber's low side and behind
+ * the motor, closed in front by a removable cover. Inside, the ULN2003 board stands on standoffs off its back (components to the
+ * front, the motor's plug reachable with the cover off); the ESP32 case's own assembly (esp32CaseAssembly, its parts and boards as
+ * that model places them) stands at its +X end with its lid flush in a slot of the pod's side wall, so that B and R are pressed from
+ * the side, USB-C points down through the pod's floor to the one cable, and the lid slides up in the slot to come off.
+ * `bootPoint` and `resetPoint` are the buttons' actuators in the lid's own frame (its outer face), from the board library's button
+ * positions.
  */
-export interface BayLayout { caseFrame: Pose; driverPose: Pose; bootPoint: Vec3; resetPoint: Vec3; floor: number; x0: number; x1: number; z0: number; z1: number }
-export const BAY = { caseX: 104, caseZ: -22, caseStandoff: 16, driverX: 52, driverZ: -48, driverStandoff: 6, width: 72, height: 62 } as const;
+export interface PodBox { x0: number; x1: number; y0: number; y1: number; z0: number; z1: number }
+export interface BayLayout { caseFrame: Pose; driverPose: Pose; bootPoint: Vec3; resetPoint: Vec3; floor: number; pod: PodBox }
 
 export function treatBayLayout(p: TreatDispenserParameters): BayLayout {
   const placement = treatDispenserPlacement(p);
-  const o = placement.offset, floor = placement.wallY;
+  const floor = placement.wallY;
+  const pod: PodBox = { x0: -POD.halfWidth, x1: POD.halfWidth, y0: floor - POD.depth, y1: floor, z0: placement.podTop - POD.height, z1: placement.podTop };
   const caseAssembly = esp32CaseAssembly(DEFAULT_ESP32_CASE);
-  // case +Z (lid out) → −Y (front), case −X (USB) → −Z (down)
-  const caseFrame: Pose = { position: [BAY.caseX, floor - BAY.caseStandoff, BAY.caseZ + o[2]], rotation: [0, -90, 90] };
   const board = findPart(ESP32_CASE_BOARD), layout = board ? devBoardLayout(board) : undefined;
   const boardPose = caseAssembly.poses['board'], lidPose = caseAssembly.poses['top'];
   if (!layout || !boardPose || !lidPose) throw new Error('The ESP32 case has no board or lid.');
+  // case +Z (lid out) → +X (the pod's side), case +X → +Z (USB, at case −X, down), case +Y → −Y
+  const roof = esp32CaseGround(DEFAULT_ESP32_CASE) + ESP32_CASE.lidRoof;
+  const length = 25.8;
+  const caseFrame: Pose = {
+    position: [pod.x1 + POD.lidProud - roof, (pod.y0 + pod.y1) / 2, pod.z0 + POD.wall + POD.plugRoom + length / 2],
+    rotation: rotationAngles([[0, 0, 1], [0, -1, 0], [1, 0, 0]]),
+  };
   const button = (prefix: string): Vec3 => {
     const component = layout.components.find(candidate => candidate.name.startsWith(prefix));
     if (!component) throw new Error(`The SuperMini has no ${prefix} button.`);
@@ -492,10 +529,12 @@ export function treatBayLayout(p: TreatDispenserParameters): BayLayout {
     // on the lid's outer face (z = 0 of the roof-down lid)
     return [local[0], local[1], 0];
   };
+  // the ULN2003 board (35.3 × 31.4 mm) upright against the pod's back, at its −X end, centred in height
+  const driver = findPart('uln2003-stepper-driver-board');
+  const size = driver ? [dimensionOf(driver, 'L'), dimensionOf(driver, 'W')] : [35.3, 31.4];
   return {
-    caseFrame, bootPoint: button('BOOT'), resetPoint: button('RST'), floor,
-    driverPose: { position: [BAY.driverX, floor - BAY.driverStandoff, BAY.driverZ + o[2]], rotation: [90, 0, 0] },
-    x0: BAY.driverX - 6, x1: BAY.driverX - 6 + BAY.width, z0: BAY.driverZ - 8 + o[2], z1: BAY.driverZ - 8 + BAY.height + o[2],
+    caseFrame, bootPoint: button('BOOT'), resetPoint: button('RST'), floor, pod,
+    driverPose: { position: [pod.x0 + POD.wall + 1.5, floor - POD.driverStandoff, (pod.z0 + pod.z1) / 2 - (size[1] ?? 0) / 2], rotation: [90, 0, 0] },
   };
 }
 
@@ -532,7 +571,9 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
   const gearPieces = turn(teeth(l.gear), 0, 0, 0, l.gearBottom);
   const pinionPieces = turn(teeth(l.pinion), phase, l.pinionAt[0], l.pinionAt[1], l.gearBottom);
   const bodyPieces = treatBodyPieces(l);
-  const hopperPieces = treatHopperPieces(l, placement.tubeLength);
+  const hopperPieces = treatHopperPieces(l);
+  const feed = feedPose(placement);
+  const feedPieces = treatFeedPieces(l, placement.tubeLength).map(piece => { const out: number[] = []; for (let i = 0; i < piece.length; i += 3) out.push(...poseLocal(feed, posePoint(placement.discPose, [piece[i] ?? 0, piece[i + 1] ?? 0, piece[i + 2] ?? 0]))); return out; });
   const count = options.treats ?? 10;
   const items = treatItems(p, placement, count, options.seed ?? 1, options.mode ?? 'random');
   // the pinion starts against the gear's tooth on the side it drives (half the pair's play), as it is left after every cycle
@@ -569,8 +610,9 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
       },
       fixed('body', piecesIn(frames.body, bodyPieces)),
       fixed('hopper', piecesIn(frames.hopper, hopperPieces)),
+      fixed('feed', feedPieces),
     ],
-    exclude: [['disc', 'body'], ['disc', 'hopper'], ['gear', 'body'], ['pinion', 'body'], ['gear', 'hopper'], ['pinion', 'hopper']],
+    exclude: [['disc', 'body'], ['disc', 'hopper'], ['disc', 'feed'], ['gear', 'body'], ['pinion', 'body'], ['gear', 'hopper'], ['pinion', 'hopper'], ['gear', 'feed'], ['pinion', 'feed']],
     motors: [{ id: 'motor', title: '28BYJ-48 (output shaft)', body: 'pinion', ...TREAT_MOTOR, speed: firmwareDegrees(firmware.halfSteps), acceleration: firmwareDegrees(firmware.acceleration) }],
     items,
     counters: [
@@ -615,18 +657,39 @@ export function treatBodyPieces(l: TreatDispenserLayout): number[][] {
   return [...plate, ...chute];
 }
 
-/** The chamber in D: the rim wall round the disc, the lid with the feed tube's hole, and the tube down to its mouth. */
-export function treatHopperPieces(l: TreatDispenserLayout, tubeLength: number): number[][] {
+/** The chamber in D: the rim wall round the disc and the lid, with the hole the feed tube passes through (its outside, plus the fit). */
+export function treatHopperPieces(l: TreatDispenserLayout): number[][] {
   const T = TREAT_DISPENSER;
   const rim = ringPieces(circle(0, 0, l.rimInner, 48), T.rimWall, l.plateTop, T.lid);
-  // where the tube crosses the lid: an ellipse, its bore r across and r / cos β along the incline
+  // where the tube crosses the lid: an ellipse, its outside r across and r / cos β along the incline
   const t = (T.lid - l.mouth[2]) / UP_D[2];
-  const cy = l.mouth[1] + UP_D[1] * t, r = T.tubeBore / 2;
+  const cy = l.mouth[1] + UP_D[1] * t, r = T.tubeBore / 2 + T.tubeWall + TREAT_FEED.fit;
   const hole: Point2[] = Array.from({ length: 32 }, (_, i): Point2 => [r * Math.cos(2 * Math.PI * i / 32), cy + r / C * Math.sin(2 * Math.PI * i / 32)]);
   const lid = minusHole(circle(0, 0, l.rimOuter, 48), hole).flatMap(piece => extrudedPieces(piece, [0, 1], T.lid, l.lidTop));
-  const tube = tubePieces(l.mouth, UP_D, r, T.tubeWall, tubeLength);
-  return [...rim, ...lid, ...tube];
+  return [...rim, ...lid];
 }
+
+/**
+ * The feed tube in D: from its mouth inside the chamber up to the adapter's seat (a separate part since it prints flange down), as one
+ * slab per segment. Each generator of the tube starts where it leaves the level cut through the mouth or the plane `mouthClear` off the
+ * disc's face, whichever is higher.
+ */
+export function treatFeedPieces(l: TreatDispenserLayout, tubeLength: number, segments = 48): number[][] {
+  const T = TREAT_DISPENSER;
+  const e1: Vec3 = [1, 0, 0], e2: Vec3 = [0, UP_D[2], -UP_D[1]];
+  const point = (angle: number, r: number, along: number): number[] => [0, 1, 2].map(k => (l.mouth[k] ?? 0) + r * (Math.cos(angle) * (e1[k] ?? 0) + Math.sin(angle) * (e2[k] ?? 0)) + along * (UP_D[k] ?? 0));
+  // along the axis from the level mouth to where this generator reaches z = mouthClear in D
+  const start = (angle: number, r: number) => Math.max(0, (T.mouthClear - l.mouth[2] - r * Math.sin(angle) * e2[2]) / UP_D[2]);
+  return Array.from({ length: segments }, (_, i) => {
+    const a0 = 2 * Math.PI * i / segments, a1 = 2 * Math.PI * (i + 1) / segments;
+    const out: number[] = [];
+    for (const a of [a0, a1]) for (const r of [T.tubeBore / 2, T.tubeBore / 2 + T.tubeWall]) out.push(...point(a, r, start(a, r)), ...point(a, r, tubeLength));
+    return out;
+  });
+}
+
+/** The feed tube's pose: drawn in W about the adapter's seat (its flange's top at the origin), printed upside down, flange on the bed. */
+export const feedPose = (placement: ReturnType<typeof treatDispenserPlacement>): Pose => ({ position: placement.seatW, rotation: [180, 0, 0] });
 
 /* -------------------------------------------------------------------------------------------------------------------------------
  * The SCAD file's numbers: every dimension the generator draws, from this file, so that CAD, physics and assembly cannot drift
@@ -667,14 +730,20 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     ['BOSS_D', dimensionOf(motor, 'db', 'max')], ['SHAFT_D', dimensionOf(motor, 'd', 'max')], ['SHAFT_FLATS', dimensionOf(motor, 's', 'max')],
     ['CHUTE_FLOOR', round(l.chuteFloor)], ['CHUTE_DEPTH', T.chuteDepth], ['CHUTE_WALL', T.chuteWall], ['WALL', T.wall],
     ['RIM_IN', round(l.rimInner)], ['RIM_OUT', round(l.rimOuter)], ['LID', T.lid], ['LID_TOP', l.lidTop],
-    ['MOUTH', [...l.mouth]], ['UP', UP_D.map(round)], ['TUBE_BORE', T.tubeBore], ['TUBE_WALL', T.tubeWall], ['TUBE_LENGTH', round(placement.tubeLength)],
+    ['MOUTH', [...l.mouth]], ['MOUTH_CLEAR', T.mouthClear], ['UP', UP_D.map(round)], ['TUBE_BORE', T.tubeBore], ['TUBE_WALL', T.tubeWall], ['TUBE_LENGTH', round(placement.tubeLength)],
     ['NECK_T', l.neck.T], ['NECK_E', l.neck.E], ['NECK_BORE', l.neck.bore], ['NECK_PITCH', l.neck.pitch], ['NECK_TURNS', round(l.neck.turns)], ['NECK_RING', l.neck.ring],
     ['THREAD_CLEARANCE', p.threadClearance], ['ADAPTER_H', placement.adapterHeight],
     ['M3_HOLE', ISO_273_CLEARANCE_HOLES.M3.medium], ['M3_NUT_S', dimensionOf(nut, 's', 'max')], ['M3_NUT_M', dimensionOf(nut, 'm', 'max')],
     ['M25_PILOT', 2.2], ['M25_LENGTH', dimensionOf(boardScrew, 'l')], ['INSERT_HOLE', dimensionOf(insert, 'hole')], ['INSERT_DEPTH', dimensionOf(insert, 'holeDepth')],
     ['F_DISC', frame(frames.disc)], ['F_GEAR', frame(frames.gear)], ['F_PINION', frame(frames.pinion)], ['F_BODY', frame(frames.body)], ['F_COVER', frame(frames.cover)], ['F_HOPPER', frame(frames.hopper)],
     ['WALL_Y', round(placement.wallY)], ['LUGS', lugs.map(q => q.map(round))], ['SEAT_W', placement.seatW.map(round)], ['BOTTLE_D', p.bottleDiameter],
-    ['BAY', [round(bay.x0), round(bay.x1), round(bay.z0), round(bay.z1)]],
+    ['POD', [bay.pod.x0, bay.pod.x1, round(bay.pod.y0), round(bay.pod.y1), round(bay.pod.z0), round(bay.pod.z1)]],
+    ['POD_WALL', POD.wall], ['POD_COVER', POD.cover], ['POD_R', POD.radius], ['POD_PLUG', POD.plugRoom], ['LID_PROUD', POD.lidProud],
+    ['FEED_COLLAR', TREAT_FEED.collar], ['FEED_COLLAR_H', TREAT_FEED.collarHeight], ['FEED_TAB', [...TREAT_FEED.tab]], ['FEED_TAB_PAD', TREAT_FEED.tabPad], ['FEED_FIT', TREAT_FEED.fit], ['FEED_BOSS', TREAT_FEED.boss],
+    ['F_FEED', [...feedPose(placement).position.map(round), ...feedPose(placement).rotation]],
+    ['MOTOR_D', dimensionOf(motor, 'D')], ['MOTOR_L', dimensionOf(motor, 'L')], ['HOUSING_W', dimensionOf(motor, 'bw', 'max')], ['HOUSING_R', dimensionOf(motor, 'bh')],
+    ['EAR_R', dimensionOf(motor, 'r')], ['HOOD_WALL', HOOD.wall], ['HOOD_CLEAR', HOOD.clearance], ['HOOD_EAR_GAP', HOOD.earGap], ['HOOD_TAB', HOOD.tab], ['F_HOOD', frame(frames.hood)],
+    ['MOTOR_FACE', l.motorFace], ['F_POD_COVER', [...podCoverPose(bay).position.map(round), ...podCoverPose(bay).rotation]],
     ['DRIVER_POS', bay.driverPose.position.map(round)], ['DRIVER_HOLES', driverHoles()],
     ['CASE_POS', bay.caseFrame.position.map(round)], ['CASE_ROT', bay.caseFrame.rotation],
     // the case base in its own assembly's frame: its centre at x = y = 0, from its floor up to the lid's roof
@@ -699,7 +768,12 @@ export function treatScadLayout(p: TreatDispenserParameters): string {
  * The assembly
  * ----------------------------------------------------------------------------------------------------------------------------- */
 
-export const TREAT_PRINTED_PARTS = ['disc', 'gear', 'pinion', 'body', 'cover', 'hopper', 'adapter', 'coupon', 'bracket', 'case-bottom', 'case-top'] as const;
+export const TREAT_PRINTED_PARTS = ['disc', 'gear', 'pinion', 'body', 'cover', 'hood', 'hopper', 'feed', 'adapter', 'coupon', 'bracket', 'pod-cover', 'case-bottom', 'case-top'] as const;
+
+/** The electronics pod's cover pose: drawn in W, printed outer face down (W +Y up, the pod's top edge at the origin). */
+export const podCoverPose = (bay: BayLayout): Pose => ({ position: [0, bay.pod.y0 - POD.cover, bay.pod.z1], rotation: [-90, 0, 0] });
+
+const HOUSING = '#5d6b70';
 
 export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
   const placement = treatDispenserPlacement(p);
@@ -717,11 +791,16 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
   const along = (d: readonly number[], length: number): Vec3 => d2w(d).map(value => value * length) as Vec3;
   const coupon: Pose = { position: [-90, placement.wallY - 30, 0], rotation: [0, 0, 0] };
   return {
-    partColors: { disc: '#e8d9a8', gear: '#3d6f8e', pinion: '#3d6f8e', body: '#7d8c7a', cover: '#7d8c7a', hopper: '#c9d6d3', adapter: '#d9822b', coupon: '#d9822b', bracket: '#5b5f66', 'case-bottom': '#497c85', 'case-top': '#e5d9bb' },
+    // one housing colour for everything that is shell or frame, the moving mechanism and the bottle's parts set apart
+    partColors: {
+      disc: '#e8d9a8', gear: '#c98f3a', pinion: '#c98f3a', body: HOUSING, cover: HOUSING, hood: HOUSING, hopper: '#d9dfe0', feed: '#d9dfe0',
+      adapter: '#d9822b', coupon: '#d9822b', bracket: HOUSING, 'pod-cover': HOUSING, 'case-bottom': '#497c85', 'case-top': '#e5d9bb',
+    },
     poses: {
       disc: discPartPose(placement, frames.disc), gear: discPartPose(placement, frames.gear), pinion: discPartPose(placement, frames.pinion),
-      body: discPartPose(placement, frames.body), cover: discPartPose(placement, frames.cover), hopper: discPartPose(placement, frames.hopper),
-      adapter: { position: placement.seatW, rotation: [0, 0, 0] }, coupon,
+      body: discPartPose(placement, frames.body), cover: discPartPose(placement, frames.cover), hood: discPartPose(placement, frames.hood),
+      hopper: discPartPose(placement, frames.hopper), feed: feedPose(placement),
+      adapter: { position: placement.seatW, rotation: [0, 0, 0] }, coupon, 'pod-cover': podCoverPose(bay),
       bracket: { position: [0, placement.wallY + 3, 0], rotation: [90, 0, 0] },
       'case-bottom': inCase('bottom'), 'case-top': inCase('top'),
       motor: composePose(placement.discPose, { position: [l.canAt[0], l.canAt[1], l.motorFace - l.motorLength] }),
@@ -736,16 +815,18 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
       { id: 'header-2', part: header.part, title: `${header.title.replace(/ \(row \d\)$/, '')} (row 2)` },
     ],
     steps: [
-      { title: 'Screw the motor to the cover by its ears (M3 × 10, nuts on the gearbox side)', parts: ['motor'], from: along([0, 0, -1], 30) },
+      { title: 'Screw the motor to the cover by its ears (M3 × 10, nuts on the gearbox side), the hood’s tabs under the screw heads', parts: ['motor', 'hood'], from: along([0, 0, -1], 30) },
       { title: 'Push the pinion onto the motor’s flatted shaft', parts: ['pinion'], from: along([0, 0, 1], 25) },
       { title: 'Slide the gear’s spindle up through the body’s bushing', parts: ['gear'], from: along([0, 0, -1], 30) },
-      { title: 'Close the gearbox: screw the cover into the body’s heat-set inserts', parts: ['cover', 'motor', 'pinion'], from: along([0, 0, -1], 40) },
+      { title: 'Close the gearbox: screw the cover into the body’s heat-set inserts', parts: ['cover', 'motor', 'hood', 'pinion'], from: along([0, 0, -1], 40) },
       { title: 'Drop the disc onto the spindle’s D, index mark to the chamber’s mark', parts: ['disc'], from: along([0, 0, 1], 40) },
       { title: 'Screw the chamber onto the plate', parts: ['hopper'], from: along([0, 0, 1], 60) },
-      { title: 'Screw the bottle adapter onto the feed tube', parts: ['adapter'], from: [0, 0, 40] },
+      { title: 'Push the feed tube through the lid until its collar sits on it; two M3 screws into the lid’s inserts', parts: ['feed'], from: [0, 0, 120] },
+      { title: 'Screw the bottle adapter onto the feed tube', parts: ['adapter'], from: [0, 0, 160] },
       { title: 'Hang the dispenser on the wall bracket: two M3 screws through the arms and the plate’s lugs', parts: ['bracket'], from: [0, 90, 0] },
-      { title: 'Seat the ESP32-C3 case in its cradle, USB-C down', parts: ['case-bottom', 'case-top', 'board', 'header-1', 'header-2'], from: [0, -40, 0] },
-      { title: 'Screw the ULN2003 board to its standoffs', parts: ['driver'], from: [0, -40, 0] },
+      { title: 'Screw the ULN2003 board to its standoffs in the pod; plug in the motor', parts: ['driver'], from: [0, -12, 0] },
+      { title: 'Slide the ESP32-C3 case into the pod’s side, USB-C down, lid outwards', parts: ['case-bottom', 'case-top', 'board', 'header-1', 'header-2'], from: [40, 0, 0] },
+      { title: 'Close the pod with its cover (four M2.5 screws)', parts: ['pod-cover'], from: [0, -20, -30] },
     ],
     lift: 60,
   };
