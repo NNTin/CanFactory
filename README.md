@@ -64,6 +64,12 @@ Interactive physics starts fully assembled with empty sockets: drag the ball and
 without resetting it (approximate dipole forces/torques; virtual switches, not switchable hardware).
 Physics assumes the ball stays closed; seam strength and grip-hole interaction require physical tests.
 
+The [PET-bottle treat dispenser](docs/treat-dispenser.md) is a gumball-style dispenser after bovineblitz's (CC BY-NC 4.0): an
+inverted 0.5 l bottle over a two-pocket rotor that a 28BYJ-48 turns half a turn per press, a sprung TPU flap and a cavity against
+jams, and an ESP32-C3 SuperMini with ESPHome firmware inside the body, all on one USB-C cable. Its Simulate mode drops real treats
+through the mechanism (MuJoCo); press B on the case to dispense. A prototype: 0, 1 or a few treats per press, and treats can bridge
+in the bottle's neck (#140).
+
 The [ESP32-C3 SuperMini case](models/esp32-c3-supermini-case/CONVERSION.md) adds
 independent toggles for LED holes, pin-header insulator openings and a taller
 enclosure, all enabled by default, to Vinors3DLab’s two-part design.

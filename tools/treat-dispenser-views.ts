@@ -2,7 +2,10 @@
  * Evidence for the treat dispenser's form (docs/treat-dispenser.md, "Packaging"): renders every part as the worker does, then
  *   - parts.json / a table: each printed part's geometric volume and bounding box, and the assembly's overall size;
  *   - with PRUSA_SLICER set (a PrusaSlicer executable): each printed part sliced with one fixed profile (tools/treat-dispenser.ini:
- *     0.4 mm nozzle, 0.2 mm layers, PETG, automatic supports), its filament and support estimate as the slicer reports them;
+ *     0.4 mm nozzle, 0.2 mm layers, PETG), its filament and support estimate as the slicer reports them. CanFactory's parts are
+ *     sliced without supports (they are drawn to need none: every overhang is at least 50°, a short bridge, or the bottle thread's
+ *     1.6 mm groove, which a slicer's automatic supports would fill down through the mechanism); the reused ESP32 case parts with
+ *     automatic supports, as their own model prints them. AUTO_SUPPORTS=1 slices every part with automatic supports, for comparison;
  *   - views/*.png: front, side, three-quarter and cutaway views of the assembly with a representative bottle envelope.
  *
  *   PATH=/path/to/openscad:$PATH OPENSCAD_RUNNER=native npx tsx tools/treat-dispenser-views.ts <out-dir>
@@ -40,6 +43,8 @@ function measure(mesh: Mesh): { volume: number; min: number[]; max: number[] } {
 
 const rows: { id: string; volume: number; size: number[]; filament?: string; support?: string; time?: string }[] = [];
 const slicer = process.env['PRUSA_SLICER'];
+const autoSupports = process.env['AUTO_SUPPORTS'] === '1';
+const reused = new Set(['case-bottom', 'case-top']);
 for (const id of TREAT_PRINTED_PARTS) {
   const mesh = meshes.get(id);
   if (!mesh) throw new Error(`No mesh for ${id}.`);
@@ -50,7 +55,8 @@ for (const id of TREAT_PRINTED_PARTS) {
   if (slicer) {
     const gcode = join(out, 'stl', `${id}.gcode`);
     // the part as exported (its print orientation), centred on the bed; supports wherever the profile's overhang rule asks
-    await exec(slicer, ['--load', resolve('tools/treat-dispenser.ini'), '--center', '125,105', '--export-gcode', '--output', gcode, file], { maxBuffer: 1 << 26 });
+    const supports = autoSupports || reused.has(id) ? [] : ['--no-support-material'];
+    await exec(slicer, ['--load', resolve('tools/treat-dispenser.ini'), ...supports, '--center', '125,105', '--export-gcode', '--output', gcode, file], { maxBuffer: 1 << 26 });
     const text = await readFile(gcode, 'utf8');
     const read = (pattern: RegExp) => pattern.exec(text)?.[1]?.trim();
     row.filament = read(/; filament used \[g\] = ([\d.]+)/) ?? '?';

@@ -17,8 +17,8 @@ async function report(page: Page): Promise<Report | undefined> {
   return text ? JSON.parse(text) as Report : undefined;
 }
 
-test('dispenses from the BOOT button on the case: the motor turns the pinion, its teeth turn the disc, and treats leave through the chute', async ({ page }) => {
-  // the mechanism's 0.1 ms steps with a pile of treats run in slow motion in software WebGL
+test('dispenses from the BOOT button on the case in the back wall: the motor turns the rotor half a turn, and treats leave down the chute', async ({ page }) => {
+  // the mechanism's 0.1 ms steps with a pile of treats in contact run in slow motion
   test.setTimeout(1_500_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -40,7 +40,7 @@ test('dispenses from the BOOT button on the case: the motor turns the pinion, it
   // eight treats, each its own body
   await expect.poll(async () => Object.keys(await poses(page)).filter(id => id.startsWith('treat-')).length, { timeout: 60_000 }).toBe(8);
 
-  // the visible B on the model: one press commands one cycle; the pinion turns half a turn and its teeth turn the disc a quarter
+  // the visible B on the model: one press commands one cycle, and the rotor, on the motor's shaft, turns half a turn forwards
   const start = await poses(page);
   await boot.click();
   await expect.poll(async () => (await report(page))?.state, { timeout: 120_000 }).toBe('running');
@@ -49,12 +49,10 @@ test('dispenses from the BOOT button on the case: the motor turns the pinion, it
   expect(one?.commanded).toBeCloseTo(-180, 0);
   expect(Math.abs((one?.actual ?? 0) + 180)).toBeLessThan(2);
   expect(one?.lost).toBeLessThan(1);
-  await expect.poll(async () => angle((await poses(page))['pinion'] ?? [], start['pinion'] ?? []), { timeout: 30_000 }).toBeGreaterThan(178);
-  // the disc follows by contact, through the gears' play: a quarter turn, not exactly
-  const disc = angle((await poses(page))['disc'] ?? [], start['disc'] ?? []);
-  expect(disc).toBeGreaterThan(88); expect(disc).toBeLessThan(91);
+  await expect.poll(async () => angle((await poses(page))['rotor'] ?? [], start['rotor'] ?? []), { timeout: 30_000 }).toBeGreaterThan(178);
 
-  // Prime (two cycles) from the panel, then B again: treats actually cross the chute's outlet, none between cycles
+  // Prime (one cycle) from the panel, then B again: treats actually leave past the chute's end, none between cycles (0, 1 or more
+  // per press is accepted; at least one over the three cycles from a fresh fill)
   await panel.getByRole('button', { name: /Prime/ }).click();
   await expect.poll(async () => (await report(page))?.state, { timeout: 120_000 }).toBe('running');
   await expect.poll(async () => (await report(page))?.state, { timeout: 900_000, intervals: [2_000] }).toBe('ready');

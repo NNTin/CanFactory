@@ -26,7 +26,8 @@ substitutions:
   friendly_name: Treat dispenser
   # CALIBRATE: half-steps per turn of the motor's output shaft. Nominal 4096 (64 x 64); the gear train is about 1:63.68, so
   # 4076 is closer for most 28BYJ-48s. Mark the rotor, run "Calibrate: 4 cycles" (two turns) and adjust until it returns to its mark.
-  # Every move is derived from it: a cycle rocks back 20 degrees, then turns half a turn and the 20 degrees (two pockets).
+  # Every move is derived from it: a cycle turns half a turn forward (two pockets), never back (backwards, the slot's tight front
+  # edge could pinch a treat).
   steps_per_turn: "4076"
   # VERIFY: +1 or -1, so that the rotor's top turns towards the back and its underside towards the chute (in the simulation the
   # shaft turns clockwise seen from the motor's back). Depends on how IN1-IN4 are wired.
@@ -34,7 +35,7 @@ substitutions:
   # Half-steps per second and per second squared. Faster loses torque (and steps) on a 5 V supply.
   max_speed: "700"
   acceleration: "2000"
-  # The pause after the rock back, and the settle after a cycle (the treat clears the chute), ms.
+  # The pause between a cycle's moves (unused while it has one move), and the settle after a cycle (the treat clears the chute), ms.
   pause_ms: "200"
   settle_ms: "500"
   # A small jog for re-alignment (about 2 degrees of motor).

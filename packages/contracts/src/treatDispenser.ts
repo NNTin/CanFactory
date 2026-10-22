@@ -20,7 +20,8 @@ import type { Point2 } from './physicsPieces.ts';
 export const TREAT_DISPENSER = {
   /** The rotor: radius, the solid hub beyond each end of its pockets, its gap in the bore. Two pockets, opposite each other. */
   rotorRadius: 13, rotorHub: 4, boreGap: 0.4, pockets: 2,
-  wall: 2.4,
+  /** The walls of the rotor's block, the deck and the boss; the outer shell's walls are four 0.4 mm perimeters. */
+  wall: 2.4, shell: 1.6,
   /** The slot over the rotor is as long as a pocket (X), and across (Y) wider than a treat is long by this each side, so that a treat
    * lying either way can drop through it (a narrower one let treats bridge over it). */
   slotMargin: 1.5,
@@ -39,15 +40,16 @@ export const TREAT_DISPENSER = {
   neckLength: 160,
   /** The bearing cap: a tube through the left wall's opening to the rotor's −X end, its flange (thickness, radius) screwed to the wall's
    * outside; the rotor's stub into it (diameter, length). The rotor slides in and out through that opening. */
-  capFlange: 3, capRadius: 19, stub: 8, stubLength: 4.5,
+  capFlange: 3, capRadius: 23, stub: 8, stubLength: 4.5,
   /** Behind the flap, round the rotor's descending side, a cavity this much deeper than the rotor: more than a treat is long, so that a
-   * treat carried past the flap can neither be pinched nor wedge across it. */
-  cavityClear: 15,
+   * treat carried past the flap can neither be pinched nor wedge across it. Its ceiling is a plane at that distance from the axis,
+   * sloping down to the back at `ceiling` degrees, so that it prints without support (steeper than a slicer's 45° overhang limit). */
+  cavityClear: 15, ceiling: 50,
   /** The flap (TPU) that closes the slot's back edge on the rotor: thickness, its root's square block (held in a recess over the
    * cavity's roof by a pin of 1.75 mm filament through it, pushed in from outside the left wall), how far it is sprung past touching
    * (degrees), its stiffness and mass (g). 0.03 N·mm per degree is a 0.6 × 16 × 14 mm strip of 95A TPU (E ≈ 26 MPa): soft enough
    * that a treat pushed into it near its root still bends it (stiffer, 0.3, wedged treats there in the trials). */
-  flap: { thickness: 0.6, bead: 3.2, pin: 1.75, preload: 10, stiffness: 0.03, mass: 0.15 },
+  flap: { thickness: 0.6, bead: 3.6, pin: 1.75, preload: 10, stiffness: 0.03, mass: 0.15 },
 } as const;
 
 /** Bottle necks with an ISBT drawing (drawings 3784253-21 and 1165362-2). Values read off the drawings; see docs/treat-dispenser.md. */
@@ -86,7 +88,8 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   const block = { halfX: bore.half + T.wall, halfY: bore.radius + T.wall };
   const slot = { halfX: pocket.length / 2, halfY: Math.max(pocket.width, p.treatLength) / 2 + T.slotMargin };
   // the chute: inside as wide as the slot is long plus play; the body's legs hold it between them
-  const chuteIn = slot.halfX + 0.5, chuteOut = chuteIn + T.chuteWall, legIn = chuteOut + 0.2, legOut = legIn + T.wall;
+  // (the legs are flush with the block's sides, so that the block's underside has no overhang beside them)
+  const chuteIn = slot.halfX + 0.5, chuteOut = chuteIn + T.chuteWall, legIn = chuteOut + 0.2, legOut = block.halfX;
   const tan = Math.tan(T.chuteSlope * DEG);
   const chuteAt = (y: number) => T.base + T.exitZ + (y - T.chuteEnd) * tan;
   // the rotor's underside is `dropClear` above the chute wherever a pocket drops (|y| ≤ the slot's half width)
@@ -100,7 +103,10 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   const tipY = slot.halfY + 1, tip = { y: tipY, z: axisZ + Math.sqrt(R * R - tipY * tipY) };
   const flap = { root, tip, length: Math.hypot(tip.y - root.y, root.z - tip.z), angle: Math.atan2(tip.y - root.y, root.z - tip.z) / DEG };
   // the block's top: over the flap's root block (and its pin), with a wall above it
-  const blockBottom = axisZ - block.halfY, blockTop = root.z + Math.max(T.wall, T.flap.bead + 1.2), blockBack = cavityR + T.wall;
+  // (its root block's top slopes up to the front at 45°, as high as 1.5 times its side)
+  const blockBottom = axisZ - block.halfY, blockTop = root.z + 1.5 * T.flap.bead + 1.2, blockBack = cavityR + T.wall;
+  // the cavity's sloping ceiling: tangent to a circle `cavityClear` outside the rotor
+  const cavityCap = R + T.cavityClear;
   const lipZ = blockTop + T.funnel;
   const neck = BOTTLE_NECKS[p.bottleNeck];
   const threadR = neck.T / 2 + p.threadClearance, bossR = threadR + T.bossWall, lipR = neck.bore / 2 + 0.5;
@@ -110,9 +116,10 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   const motor = motorPart();
   const shaftOffset = dimensionOf(motor, 'e'), motorLength = dimensionOf(motor, 'L'), earSpan = dimensionOf(motor, 'a'), canR = dimensionOf(motor, 'D') / 2;
   return {
-    pocket, R, rotorEnd, bore, block, slot, chuteIn, chuteOut, legIn, legOut, tan, chuteAt, axisZ, blockBottom, blockTop, blockBack, cavityR, flap, lipZ, lipR, neck, threadR, bossR, bossTop,
+    pocket, R, rotorEnd, bore, block, slot, chuteIn, chuteOut, legIn, legOut, tan, chuteAt, axisZ, blockBottom, blockTop, blockBack, cavityR, cavityCap, flap, lipZ, lipR, neck, threadR, bossR, bossTop,
     motorFace: block.halfX, canZ: axisZ - shaftOffset, canR, motorLength, earSpan, shaftOffset,
-    halfWidth: T.halfWidth, front: T.front, back: T.back,
+    // the back wall leaves room behind the block for the ESP32 case (8.4 deep) and its header pins (bigger treats, a deeper block)
+    halfWidth: T.halfWidth, front: T.front, back: Math.max(T.back, blockBack + 13.6),
     /** The chute's top end, under the back of the cavity. */
     chuteBack: blockBack,
   };
@@ -186,8 +193,8 @@ export function treatPartPoses(l: TreatDispenserLayout): Record<'body' | 'base' 
     // upright on its open bottom, as it stands
     body: { position: [0, 0, T.base], rotation: [0, 0, 0] },
     base: { position: [0, 0, 0], rotation: [0, 0, 0] },
-    // on its +X side wall
-    chute: { position: [l.chuteOut, 0, 0], rotation: [0, -90, 0] },
+    // on its floor: turned by its slope, the floor's underside on the bed
+    chute: { position: [0, T.chuteEnd, l.chuteAt(T.chuteEnd) - T.chuteFloor], rotation: [T.chuteSlope, 0, 0] },
     // its axis up, the motor's end (+X) on the bed
     rotor: { position: [l.rotorEnd, 0, l.axisZ], rotation: [0, -90, 0] },
     // its flange down
@@ -295,9 +302,17 @@ export function treatBodyPieces(l: TreatDispenserLayout, segments = 24): number[
   pieces.push(across([[dropY - t, blockBottom], [dropY, blockBottom], [dropY, dropTop], [dropY - t, dropTop]]));
   // the slot's back wall down to the flap's root, the cavity's roof from there to its arc, the arc down to the chute
   pieces.push(across([[flap.root.y, flap.root.z], [flap.root.y + t, flap.root.z], [flap.root.y + t, blockTop], [flap.root.y, blockTop]]));
-  const roofEnd = Math.sqrt(cavityR ** 2 - (flap.root.z - axisZ) ** 2);
+  // the roof is flat from the root over the flap's root block (and the channel it goes up through), then the sloping ceiling
+  // (y·sin φ + (z − axisZ)·cos φ = cavityCap) runs down to the arc
+  const [sn, cs] = [Math.sin(T.ceiling * DEG), Math.cos(T.ceiling * DEG)], plane = (y: number) => axisZ + (l.cavityCap - y * sn) / cs;
+  const roofEnd = Math.max(flap.root.y + T.flap.bead + 0.16, (l.cavityCap - (flap.root.z - axisZ) * cs) / sn), start: [number, number] = [roofEnd, Math.min(flap.root.z, plane(roofEnd))];
   pieces.push(across([[flap.root.y, flap.root.z], [roofEnd, flap.root.z], [roofEnd, flap.root.z + t], [flap.root.y, flap.root.z + t]]));
-  const roofAngle = Math.acos((flap.root.z - axisZ) / cavityR) / DEG;
+  if (start[1] < flap.root.z) pieces.push(across([[roofEnd, start[1]], [roofEnd + t, start[1]], [roofEnd + t, flap.root.z], [roofEnd, flap.root.z]]));
+  // where the ceiling meets the arc: from its tangent point, half the chord on
+  const half = Math.sqrt(Math.max(0, cavityR ** 2 - l.cavityCap ** 2));
+  const meet: [number, number] = [l.cavityCap * sn + half * cs, axisZ + l.cavityCap * cs - half * sn];
+  pieces.push(across([start, meet, [meet[0] + t * sn, meet[1] + t * cs], [start[0] + t * sn, start[1] + t * cs]]));
+  const roofAngle = Math.atan2(meet[0], meet[1] - axisZ) / DEG;
   // the arc ends where it meets the chute
   let footAngle = roofAngle;
   while (footAngle < 180 && axisZ + cavityR * Math.cos(footAngle * DEG) > chuteAt(cavityR * Math.sin(footAngle * DEG))) footAngle += 1;
@@ -481,8 +496,8 @@ export const treatCycleSteps = (): number => TREAT_FIRMWARE.stepsPerTurn / TREAT
  * board library's button positions.
  */
 export interface BayLayout { caseFrame: Pose; driverPose: Pose; bootPoint: Vec3; resetPoint: Vec3; usb: Vec3 }
-/** corner: the case's distance from the side wall, clear of the shell's rounded inside corner (R 5.6). */
-export const BAY = { lidProud: 0.5, caseLength: 25.8, caseWidth: 21.8, driverStandoff: 4, plugRoom: 25, corner: 6 } as const;
+/** corner: the case's distance from the side wall, clear of the shell's rounded inside corner (R 8 − shell). */
+export const BAY = { lidProud: 0.5, caseLength: 25.8, caseWidth: 21.8, driverStandoff: 4, plugRoom: 25, corner: 6.5 } as const;
 
 export function treatBayLayout(p: TreatDispenserParameters): BayLayout {
   const l = treatDispenserLayout(p);
@@ -493,7 +508,7 @@ export function treatBayLayout(p: TreatDispenserParameters): BayLayout {
   if (!layout || !boardPose || !lidPose) throw new Error('The ESP32 case has no board or lid.');
   // case +X → +Z (its USB end, at −X, down), case +Y → +X, case +Z (lid out) → +Y (the back)
   const roof = esp32CaseGround(DEFAULT_ESP32_CASE) + ESP32_CASE.lidRoof;
-  const inner = l.halfWidth - T.wall;
+  const inner = l.halfWidth - T.shell;
   const caseFrame: Pose = {
     position: [-inner + BAY.corner + BAY.caseWidth / 2, l.back + BAY.lidProud - roof, T.base + BAY.plugRoom + BAY.caseLength / 2],
     rotation: rotationAngles([[0, 1, 0], [0, 0, 1], [1, 0, 0]]),
@@ -643,10 +658,10 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
   const round = (value: number) => Math.round(value * 1e6) / 1e6;
   const pose = (q: Pose) => [...q.position.map(round), ...q.rotation];
   return [
-    ['WALL', T.wall], ['BASE', T.base], ['HALF_W', l.halfWidth], ['FRONT', l.front], ['BACK', l.back], ['BASE_RECT', treatFootprint(p).map(round)],
+    ['WALL', T.wall], ['SHELL', T.shell], ['BASE', T.base], ['HALF_W', l.halfWidth], ['FRONT', l.front], ['BACK', l.back], ['BASE_RECT', treatFootprint(p).map(round)],
     ['R', l.R], ['ROTOR_END', round(l.rotorEnd)], ['POCKET', [round(l.pocket.length), round(l.pocket.width), round(l.pocket.depth)]], ['POCKETS', T.pockets],
     ['BORE_R', round(l.bore.radius)], ['BORE_HALF', round(l.bore.half)], ['BLOCK', [round(l.block.halfX), round(l.block.halfY)]], ['SLOT', [round(l.slot.halfX), round(l.slot.halfY)]],
-    ['AXIS_Z', round(l.axisZ)], ['BLOCK_BOTTOM', round(l.blockBottom)], ['BLOCK_TOP', round(l.blockTop)], ['BLOCK_BACK', round(l.blockBack)], ['CAVITY_R', round(l.cavityR)],
+    ['AXIS_Z', round(l.axisZ)], ['BLOCK_BOTTOM', round(l.blockBottom)], ['BLOCK_TOP', round(l.blockTop)], ['BLOCK_BACK', round(l.blockBack)], ['CAVITY_R', round(l.cavityR)], ['CAVITY_CAP', round(l.cavityCap)], ['CEILING', T.ceiling],
     ['FLAP', [round(l.flap.root.y), round(l.flap.root.z), round(l.flap.length), round(l.flap.angle), T.flap.thickness, T.flap.bead]], ['LIP_Z', round(l.lipZ)], ['LIP_R', round(l.lipR)], ['BOSS_TOP', round(l.bossTop)],
     ['CHUTE', [round(l.chuteIn), round(l.chuteOut), round(l.legIn), round(l.legOut)]], ['CHUTE_END', T.chuteEnd], ['CHUTE_BACK', round(l.chuteBack)],
     ['CHUTE_SLOPE', T.chuteSlope], ['EXIT_Z', T.base + T.exitZ], ['CHUTE_FLOOR', T.chuteFloor], ['CHUTE_WALL', T.chuteWall], ['CHUTE_SIDE', T.chuteSide],

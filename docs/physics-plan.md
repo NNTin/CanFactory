@@ -405,8 +405,22 @@ Found on the way, with @mujoco/mujoco 3.14.0:
 - Treats falling far reach metres per second and, with the 2 ms contact time constant, sink through 3 mm walls: fills are packed in
   place (each treat as low as it fits without overlapping, by separating axes) rather than dropped.
 
+Then, for the gumball-style redesign (a rotor driven directly, no gears):
+
+- The TPU flap is a hinged body with the existing `joint.spring` (rest angle past touching, stiffness) and a little damping, held
+  against the rotor by contact.
+- Turning a pocketed rotor **backwards** pinched a treat at the slot's front edge every time (the edge the pocket leaves under);
+  forwards only, it never did. A **fixed** back edge pinched the same way; a soft sprung flap with a deep cavity behind it did not.
+- A **stiff** flap (0.3 N·mm/°) pushed treats into its root's corner and wedged them; 0.03 N·mm/° let them pass. A root lower than a
+  treat standing on end in a pocket wedged edge-on treats in that corner.
+- Fills stacked above the body flew out at the start: the bottle's neck is now a stand-in (convex pieces round its bore, 160 mm up),
+  and fills stay inside it.
+- Collision walls must stop where the CAD's do: side walls that reached down into the chute dammed the drop, and no treat left.
+- A stall is told apart from solver trouble by the fastest treat in the mechanism (a falling treat moves at about 1 m/s; a flung one
+  at several) and by replaying the stall with its contacts logged (`maxStep` 10⁻⁴ s and `precise` throughout).
+
 | Step | State |
 | --- | --- |
 | Items, motors, counters, controller | Done: `packages/physics` (`controller.test.ts`), contracts `physics.ts` |
 | Treat dispenser mechanism and scenarios | Done: `treatDispenserPhysics`; `npm run check:physics -- treat-dispenser`; the wider study `tools/physics/treat-dispenser-trials.ts` |
-| Clickable controls in the editor | Done: B and R on the model, an accessible panel, `tests/browser/treat-dispenser.spec.ts` |
+| Clickable controls in the editor | Done: B and R on the model (the case in the back wall), an accessible panel, `tests/browser/treat-dispenser.spec.ts` |
