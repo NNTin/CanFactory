@@ -3552,7 +3552,7 @@ export const esp32C3SuperminiCase = {
 } satisfies ModelDefinition;
 
 /**
- * PET-bottle treat dispenser (#138): an inclined notch disc lifts one treat at a time out of the pile, a 28BYJ-48 turns it through a
+ * PET-bottle treat dispenser (#138): an inclined notch disc lifts treats out of the pile, a 28BYJ-48 turns it through a
  * 15:30 spur pair, the existing ESP32-C3 SuperMini case sits in the bracket's electronics bay. Every dimension comes from
  * treatDispenser.ts (its `treatScadLayout` is passed to the generator as one list), the same numbers its physics is made from.
  */
@@ -3566,7 +3566,7 @@ const treatParts: { id: string; title: string }[] = [
 ];
 export const treatDispenser = {
   id: 'treat-dispenser' as const, version: '1' as const, title: 'PET-bottle treat dispenser',
-  description: 'Dispenses one treat per press from an inverted PET bottle: an inclined disc with four notches open at its rim lifts one treat at a time out of the pile, extra treats slide back off the incline, and at the top each notch passes over the outlet in the back plate. A 28BYJ-48 turns the disc through a 15:30 spur pair, driven by a ULN2003 board and an ESP32-C3 SuperMini in the existing sliding-lid case, its BOOT button dispensing; one USB-C cable powers everything. Simulate it: press B on the case.',
+  description: 'Dispenses treats from an inverted PET bottle, one press commanding one cycle: an inclined disc with four notches open at its rim lifts treats out of the pile (usually one per notch; the simulation also sees empty and double feeds), extra treats slide back off the incline, and at the top each notch passes over the outlet in the back plate. Prototype: treats can bridge in the bottle’s neck (#140). A 28BYJ-48 turns the disc through a 15:30 spur pair, driven by a ULN2003 board and an ESP32-C3 SuperMini in the existing sliding-lid case, its BOOT button dispensing; one USB-C cable powers everything. Simulate it: press B on the case.',
   attribution: 'CanFactory (original dispenser); ESP32-C3 SuperMini case by Vinors3DLab, adapted by CanFactory',
   attributionLinks: [{ text: 'Vinors3DLab', url: 'https://www.makeronline.com/en/model/Ultra-Compact-Case-for-ESP---C--SuperMini--step-file-/338531.html' }],
   printNotes: 'PETG, 0.2 mm layers, four perimeters; the gears and pinion at 0.12 mm layers and 100 % infill. The disc, gear, pinion and cover print flat as exported; the body plate face down (gearbox and chute rise from it); the chamber rim down, with supports under its lid and its leaning feed tube; the adapter and coupon upright; the bracket on its wall face. Print the thread coupon first and screw it onto your bottle: tune Thread clearance until it runs on and off by hand without wobble. Fasteners: M3 × 10 ISO 4762 screws with ISO 4032 nuts for the motor, chamber, adapter and bracket arms; three CNC Kitchen M3 × 5.7 heat-set inserts in the body for the cover; M2.5 × 8 screws for the ULN2003 board. Clean the disc and chamber by lifting the bottle off, unscrewing the chamber and lifting the disc off its spindle. Printed plastic is not automatically food-safe. Prototype: not validated for unattended feeding (docs/treat-dispenser.md). The ESP32 case parts are adapted from Vinors3DLab’s CC BY-NC-SA 4.0 release, so the whole model is shared under CC BY-NC-SA 4.0.',

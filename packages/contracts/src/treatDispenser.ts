@@ -11,7 +11,7 @@ import { spurGearRadii, type SpurGear } from './spurGear.ts';
 
 /**
  * A PET-bottle treat dispenser (docs/treat-dispenser.md, issue #138): an inverted bottle feeds a chamber whose floor is an inclined
- * disc with four notches open at its rim. Turning, the disc lifts one treat per notch out of the pile; extra treats slide back off
+ * disc with four notches open at its rim. Turning, the disc lifts treats (usually one per notch) out of the pile; extra treats slide back off
  * the incline; at the top a notch passes over a hole in the fixed back plate and its treat drops into the chute. There is no fixed
  * edge close to the moving disc in the pile, so nothing is sheared. A 28BYJ-48 turns the disc through a 15:30 spur pair.
  *
@@ -545,7 +545,7 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
     motor: 'motor', moves: [-half, -half], pause: firmware.pause, settle: firmware.settle, debounce: firmware.debounce, queue: firmware.queue,
     boot: firmware.boot, prime: firmware.prime, jog: -firmwareDegrees(firmware.jogSteps), stall: firmware.stall, counter: 'out',
     controls: [
-      { id: 'boot', title: 'BOOT button (GPIO9): dispense one treat', label: 'B', action: 'dispense', body: 'case-top', point: bay.bootPoint },
+      { id: 'boot', title: 'BOOT button (GPIO9): command one dispense cycle', label: 'B', action: 'dispense', body: 'case-top', point: bay.bootPoint },
       { id: 'reset', title: 'RESET button (EN): reboot, never dispenses', label: 'R', action: 'reset', body: 'case-top', point: bay.resetPoint },
       { id: 'prime', title: 'Prime (Home Assistant action): load the notches over the bowl', label: 'P', action: 'prime' },
       { id: 'jog', title: 'Jog (Home Assistant action): turn the disc a little forwards', label: 'J', action: 'jog' },

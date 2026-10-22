@@ -1,4 +1,4 @@
-// PET-bottle treat dispenser: an inclined disc with four rim notches lifts one treat at a time out of the pile and drops it through
+// PET-bottle treat dispenser: an inclined disc with four rim notches lifts treats out of the pile and drops them through
 // the back plate into the chute; a 28BYJ-48 turns it through a 15:30 spur pair. Original CanFactory design, CC BY 4.0.
 //
 // Every dimension comes from LAYOUT, a list of [name, value] pairs written by packages/contracts/src/treatDispenser.ts
