@@ -1,6 +1,6 @@
 import { Type, type Static } from 'typebox';
 import type { Assembly, ParameterIssue } from './models.ts';
-import type { PhysicsBody, PhysicsCheck, PhysicsController, PhysicsDrive, PhysicsScenario, PhysicsSpec } from './physics.ts';
+import type { PhysicsBody, PhysicsCheck, PhysicsController, PhysicsCounter, PhysicsDrive, PhysicsScenario, PhysicsSpec } from './physics.ts';
 import { DEFAULT_ESP32_CASE, esp32CaseAssembly, esp32CaseBase, esp32CaseGround, ESP32_CASE, ESP32_CASE_BOARD } from './esp32Case.ts';
 import { stepperDriverLayout } from './parts/index.ts';
 import { devBoardLayout } from './parts/index.ts';
@@ -574,11 +574,7 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
     motors: [{ id: 'motor', title: '28BYJ-48 (output shaft)', body: 'pinion', ...TREAT_MOTOR, speed: firmwareDegrees(firmware.halfSteps), acceleration: firmwareDegrees(firmware.acceleration) }],
     items,
     counters: [
-      {
-        id: 'out', title: 'Treats out of the chute', group: 'treats', kind: 'crossing', frame: placement.discPose,
-        point: [0, 0, l.plateBottom - 25], along: [0, 0, -1],
-        min: [-l.outletLength / 2 - 1, l.chuteFloor - 1, l.plateBottom - T.chuteDepth - 5], max: [l.outletLength / 2 + 1, l.rimOuter + 6, l.plateBottom - 5],
-      },
+      treatOutletCounter(placement),
       {
         id: 'dry', title: 'Treats in the gearbox', group: 'treats', kind: 'inside', frame: placement.discPose,
         min: [-l.rimOuter, -l.rimOuter - 20, l.coverBack], max: [l.rimOuter, l.chuteFloor - T.chuteWall, l.plateBottom],
@@ -586,6 +582,27 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
     ],
     controller,
     scenarios: options.scenarios === false ? [] : treatDispenserScenarios(placement, count, options.seed ?? 1, options.mode ?? 'random'),
+  };
+}
+
+/**
+ * How far past the chute's mouth a treat's centre must be before it counts as out: half its longest diagonal (14 × 9 × 5 mm: 8.7),
+ * so that no part of it is still inside the chute. A treat stuck in the chute, or resting on its lip, never counts.
+ */
+export const TREAT_EXIT_MARGIN = 9;
+
+/**
+ * The outlet counter (D frame, posed with the disc): a plane `TREAT_EXIT_MARGIN` beyond the chute's mouth, crossed outwards along
+ * the chute (−Z in D). Its box runs from inside the chute (so a treat is first seen on the near side) to well past the mouth, wide
+ * enough below it for a treat falling forwards out of the mouth.
+ */
+export function treatOutletCounter(placement: ReturnType<typeof treatDispenserPlacement>): PhysicsCounter {
+  const { l, T } = placement;
+  const mouth = l.plateBottom - T.chuteDepth;
+  return {
+    id: 'out', title: 'Treats out of the chute (past its mouth)', group: 'treats', kind: 'crossing', frame: placement.discPose,
+    point: [0, 0, mouth - TREAT_EXIT_MARGIN], along: [0, 0, -1],
+    min: [-l.outletLength / 2 - 10, l.chuteFloor - 60, mouth - 60], max: [l.outletLength / 2 + 10, l.rimOuter + 10, l.plateBottom - 5],
   };
 }
 
