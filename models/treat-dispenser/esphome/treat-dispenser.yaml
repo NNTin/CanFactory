@@ -1,13 +1,13 @@
 # PET-bottle treat dispenser (CanFactory model treat-dispenser, docs/treat-dispenser.md): an ESP32-C3 SuperMini drives a 28BYJ-48
-# through a ULN2003 board; its BOOT button commands one dispense cycle (0, 1 or more treats may come out: see the docs). One USB-C
-# cable into the SuperMini powers everything.
+# through a ULN2003 board, turning the gumball-style rotor directly; its BOOT button commands one dispense cycle (0, 1 or more treats
+# may come out: see the docs). One USB-C cable into the SuperMini powers everything.
 #
 # Validated with ESPHome 2026.10.0 (`esphome config`, `esphome compile`): it is valid and builds. Its logic (treat_dispenser.h,
 # included below) is tested on the host (treat_dispenser_test.cpp). It has NOT been run on hardware. Everything marked CALIBRATE or
 # VERIFY needs the real device.
 #
 # What it knows and what it does not: a "cycle" here is a commanded motion of the motor that ran to its end. The device has no
-# sensor that sees a treat leave, a jam, an empty bottle or where the disc really is; a stalled 28BYJ-48 loses steps silently. The
+# sensor that sees a treat leave, a jam, an empty bottle or where the rotor really is; a stalled 28BYJ-48 loses steps silently. The
 # simulator's "treats seen leaving" counter has no counterpart here.
 #
 # One runner owns the motor (treat_dispenser::Logic): dispense, prime, calibration, jog and "mark aligned" all go through it, and
@@ -25,17 +25,17 @@ substitutions:
   name: treat-dispenser
   friendly_name: Treat dispenser
   # CALIBRATE: half-steps per turn of the motor's output shaft. Nominal 4096 (64 x 64); the gear train is about 1:63.68, so
-  # 4076 is closer for most 28BYJ-48s. Mark the disc, run "Calibrate: 4 cycles" (two turns of the motor, one of the disc) and adjust
-  # until it returns to its mark. Every move is derived from it: a cycle is half a turn of the motor (a quarter of the disc, 15:30).
+  # 4076 is closer for most 28BYJ-48s. Mark the rotor, run "Calibrate: 4 cycles" (two turns) and adjust until it returns to its mark.
+  # Every move is derived from it: a cycle rocks back 20 degrees, then turns half a turn and the 20 degrees (two pockets).
   steps_per_turn: "4076"
-  # VERIFY: +1 or -1, so that the disc turns with its notches rising on the side away from the outlet's exit (the pinion turns
-  # clockwise seen from the motor's back in the simulation). Depends on how IN1-IN4 are wired.
+  # VERIFY: +1 or -1, so that the rotor's top turns towards the back and its underside towards the chute (in the simulation the
+  # shaft turns clockwise seen from the motor's back). Depends on how IN1-IN4 are wired.
   direction: "-1"
   # Half-steps per second and per second squared. Faster loses torque (and steps) on a 5 V supply.
   max_speed: "700"
   acceleration: "2000"
-  # The pause with a notch over the outlet, and the settle after a cycle (the treat clears the chute), ms.
-  pause_ms: "300"
+  # The pause after the rock back, and the settle after a cycle (the treat clears the chute), ms.
+  pause_ms: "200"
   settle_ms: "500"
   # A small jog for re-alignment (about 2 degrees of motor).
   jog_steps: "23"
@@ -47,7 +47,7 @@ esphome:
     - treat_dispenser.h
     - treat_dispenser_esphome.h
   on_boot:
-    # Nothing moves on boot. The disc is at rest only if flash says a cycle ended there (or it was marked aligned).
+    # Nothing moves on boot. The rotor is at rest only if flash says a cycle ended there (or it was marked aligned).
     priority: -100
     then:
       - lambda: |-
@@ -73,7 +73,7 @@ esphome:
               global_preferences->sync();
             }});
           dispenser()->boot(at_rest == 1);
-          if (at_rest != 1) ESP_LOGW("dispenser", "Not known to be at rest (first boot, or power lost / RESET during a motion): jog the disc to its index mark, then press Mark aligned.");
+          if (at_rest != 1) ESP_LOGW("dispenser", "Not known to be at rest (first boot, or power lost / RESET during a motion): jog the rotor until its pockets face up and down, then press Mark aligned.");
       - script.execute: publish_status
 
 esp32:
@@ -123,7 +123,7 @@ stepper:
     max_speed: ${max_speed} steps/s
     acceleration: ${acceleration} steps/s^2
     deceleration: ${acceleration} steps/s^2
-    # coils off between cycles: no holding current or heat; the motor's 1:64 gearbox holds the disc
+    # coils off between cycles: no holding current or heat; the motor's 1:64 gearbox holds the rotor
     sleep_when_done: true
 
 # The runner: issues the running job's moves, its pauses, and the queued press when a job ends.

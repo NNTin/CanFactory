@@ -4576,7 +4576,7 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "1"
+                          "2"
                         ]
                       },
                       "parameters": {
@@ -4586,7 +4586,7 @@
                           "treatWidth",
                           "treatThickness",
                           "treatCornerRadius",
-                          "notchClearance",
+                          "pocketClearance",
                           "bottleNeck",
                           "threadClearance",
                           "bottleDiameter"
@@ -4595,7 +4595,7 @@
                           "treatLength": {
                             "type": "number",
                             "title": "Treat length",
-                            "description": "Longest side of the treats, mm. Measure the largest of a bag; the notch is sized from it.",
+                            "description": "Longest side of the treats, mm. Measure the largest of a bag; the rotor’s pockets are sized from it.",
                             "default": 14,
                             "minimum": 10,
                             "maximum": 18,
@@ -4613,7 +4613,7 @@
                           "treatThickness": {
                             "type": "number",
                             "title": "Treat thickness",
-                            "description": "Thinnest side of the treats, mm. The disc is as thick as this, so a treat lies flush in its notch and a second one cannot catch on it.",
+                            "description": "Thinnest side of the treats, mm. A pocket is as deep as this plus the clearance.",
                             "default": 5,
                             "minimum": 3,
                             "maximum": 7,
@@ -4628,13 +4628,13 @@
                             "maximum": 2.5,
                             "multipleOf": 0.1
                           },
-                          "notchClearance": {
+                          "pocketClearance": {
                             "type": "number",
-                            "title": "Notch clearance",
-                            "description": "Play around a treat in its notch on each side, mm. More takes bigger treats but lets two thin ones in.",
-                            "default": 0.7,
+                            "title": "Pocket clearance",
+                            "description": "Play round a treat in a rotor pocket, mm. More takes bigger treats, and lets two thin ones in.",
+                            "default": 1,
                             "minimum": 0.4,
-                            "maximum": 1.5,
+                            "maximum": 2,
                             "multipleOf": 0.05
                           },
                           "bottleNeck": {
@@ -4643,13 +4643,13 @@
                               "pco-1810"
                             ],
                             "title": "Bottle neck",
-                            "description": "The thread of the bottle the adapter screws onto. Print the thread coupon first: real bottles vary.",
+                            "description": "The thread of the bottle that screws into the top. Print the thread coupon first: real bottles vary.",
                             "default": "pco-1881"
                           },
                           "threadClearance": {
                             "type": "number",
                             "title": "Thread clearance",
-                            "description": "Radial play of the adapter’s thread on the bottle’s, mm; tune it with the coupon.",
+                            "description": "Radial play of the body’s thread on the bottle’s, mm; tune it with the coupon.",
                             "default": 0.3,
                             "minimum": 0.1,
                             "maximum": 0.8,
@@ -4658,10 +4658,10 @@
                           "bottleDiameter": {
                             "type": "number",
                             "title": "Bottle diameter",
-                            "description": "Largest diameter of the bottle, mm (1.5 l PET bottles are about 90 mm). Sets the strap holder and how high the adapter stands, so the bottle clears the chamber.",
-                            "default": 90,
-                            "minimum": 60,
-                            "maximum": 110,
+                            "description": "Largest diameter of the bottle, mm (0.5 l PET bottles are about 65 mm). Sets the base plate’s size so that a full bottle cannot easily tip the dispenser over.",
+                            "default": 65,
+                            "minimum": 55,
+                            "maximum": 95,
                             "multipleOf": 1
                           }
                         },

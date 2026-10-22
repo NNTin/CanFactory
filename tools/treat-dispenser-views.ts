@@ -11,7 +11,7 @@ import { execFile } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { findModel, posePoint, resolveAssembly, treatDispenserPlacement, TREAT_PRINTED_PARTS, type TreatDispenserParameters } from '@canfactory/contracts';
+import { findModel, posePoint, resolveAssembly, treatDispenserLayout, TREAT_PRINTED_PARTS, type TreatDispenserParameters } from '@canfactory/contracts';
 import { renderAssemblyMeshes } from './assembly-meshes.ts';
 import { writeBinaryStl, type Mesh } from './stl-to-scad/stl.ts';
 
@@ -71,21 +71,22 @@ for (const id of TREAT_PRINTED_PARTS) {
 
 // the posed scene: every part and reference at its assembly pose, and a representative 1.5 l bottle (Ø per the parameters)
 const colors = assembly.partColors ?? {};
-const placement = treatDispenserPlacement(p);
+const layout = treatDispenserLayout(p);
 const all = new Map(meshes);
 const lines: string[] = [];
 let lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
 for (const [id, mesh] of all) {
   const pose = assembly.poses[id];
-  if (!pose) continue;
+  // the thread coupon is a loose test print, not part of the dispenser
+  if (!pose || id === 'coupon') continue;
   const file = join(out, 'stl', `${id}.stl`);
   if (!(TREAT_PRINTED_PARTS as readonly string[]).includes(id)) await writeFile(file, writeBinaryStl(mesh));
   const rotation = pose.rotation ?? [0, 0, 0];
   lines.push(`color("${colors[id] ?? '#9aa0a6'}") translate([${pose.position.join(',')}]) rotate([${rotation.join(',')}]) import("${file}");`);
 }
-const seat = placement.seatW, r = p.bottleDiameter / 2;
-// inverted bottle: neck (Ø28, 20 mm) up from the adapter, a 40 mm shoulder, then the body to 300 mm
-const bottle = `translate([${seat[0]},${seat[1]},${seat[2] + 4}]) { cylinder(d = 28, h = 22, $fn = 48); translate([0, 0, 22]) cylinder(d1 = 28, d2 = ${2 * r}, h = 40, $fn = 96); translate([0, 0, 62]) cylinder(r = ${r}, h = 238, $fn = 96); }`;
+const r = p.bottleDiameter / 2;
+// an inverted 0.5 l bottle: neck (Ø28, 20 mm) up from the lip, a 25 mm shoulder, then its body, about 200 mm in all
+const bottle = `translate([0, 0, ${layout.lipZ}]) { cylinder(d = 28, h = 20, $fn = 48); translate([0, 0, 20]) cylinder(d1 = 28, d2 = ${2 * r}, h = 25, $fn = 96); translate([0, 0, 45]) cylinder(r = ${r}, h = 155, $fn = 96); }`;
 const scene = (cut: boolean, withBottle: boolean) => [
   cut ? 'difference() { union() {' : 'union() {',
   ...lines,
@@ -106,16 +107,21 @@ for (const [id, mesh] of all) {
   }
 }
 const overall = hi.map((value, k) => value - (lo[k] ?? 0));
-const views: [string, string, number[]][] = [
-  ['front', 'scene.scad', [0, -600, 150, 0, 0, 120]],
-  ['side', 'scene.scad', [600, 0, 150, 0, 0, 120]],
-  ['three-quarter', 'scene.scad', [420, -460, 330, 20, 0, 110]],
-  ['three-quarter-close', 'mechanism.scad', [260, -300, 200, 20, 20, 60]],
-  ['cutaway', 'cutaway.scad', [600, -60, 120, 0, 20, 90]],
-  ['back', 'mechanism.scad', [-200, 500, 200, 20, 20, 60]],
+// close-ups framed on the dispenser (the bottle envelope translucent behind them), one full view with the whole bottle, and a cutaway
+// through the dispenser's middle (X = 0), rendered as solids so that the cut faces are clean
+const centre = [0, 0, layout.axisZ - 10];
+const close = (eye: number[]): number[] => [...eye.map((value, k) => 0.8 * value + (centre[k] ?? 0)), ...centre];
+const views: [string, string, number[], boolean][] = [
+  ['front', 'scene.scad', close([0, -430, 60]), false],
+  ['side', 'scene.scad', close([430, 0, 60]), false],
+  ['three-quarter', 'scene.scad', close([300, -320, 200]), false],
+  ['back', 'mechanism.scad', close([-260, 380, 160]), false],
+  ['cutaway', 'cutaway.scad', close([430, -40, 40]), true],
+  ['full', 'scene.scad', [420, -460, 330, 20, 0, 110], false],
 ];
-for (const [name, file, camera] of views) {
-  await exec('openscad', ['-o', join(out, 'views', `${name}.png`), `--camera=${camera.join(',')}`, '--projection=p', '--autocenter', '--viewall', '--imgsize=1400,1100', '--colorscheme=Tomorrow', join(out, file)], { maxBuffer: 1 << 26 });
+for (const [name, file, camera, solid] of views) {
+  const fit = name === 'full' ? ['--autocenter', '--viewall'] : [];
+  await exec('openscad', ['-o', join(out, 'views', `${name}.png`), `--camera=${camera.join(',')}`, '--projection=p', ...fit, ...(solid ? ['--render', '--backend=manifold'] : []), '--imgsize=1400,1100', '--colorscheme=Tomorrow', join(out, file)], { maxBuffer: 1 << 26 });
   console.log(`view ${name}`);
 }
 

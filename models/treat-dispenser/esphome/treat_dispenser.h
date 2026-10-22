@@ -6,7 +6,7 @@
 // queues or rejects it under one policy; poll() then issues the moves of the job that is running, one at a time, with the pauses
 // between them, and starts the queued dispense when a job ends. Nothing else may move the motor.
 //
-// It knows only what it commands. It has no sensor: it cannot see a treat leave, a jam or where the disc really is, and a stalled
+// It knows only what it commands. It has no sensor: it cannot see a treat leave, a jam or where the rotor really is, and a stalled
 // 28BYJ-48 loses steps silently. A "cycle" here is a commanded motion that ran to its end, never an observed treat.
 //
 // Alignment is fail-safe: before any motion it persists "not at rest" and waits until that is committed (the caller's persist()
@@ -29,16 +29,19 @@ enum class Outcome : uint8_t { Started, Queued, Done, Rejected };
 struct Config {
   /** Half-steps per turn of the motor's output shaft (CALIBRATE; nominally 4096, about 4076 for most 28BYJ-48s). */
   double steps_per_turn = 4076;
-  /** Motor turns per dispense cycle: one notch pitch of the disc (a quarter turn) through the 15:30 gears = half a turn. */
+  /** Motor turns per dispense cycle: one pocket pitch of the rotor, which the motor turns directly (two pockets: half a turn). */
   double turns_per_cycle = 0.5;
-  /** +1 or −1, so that the disc turns the right way (VERIFY on the device). */
+  /** A cycle may first turn back this much, then forward the cycle and this again. 0 for the gumball dispenser: backwards, the slot's
+   *  tight front edge would become the edge its pockets leave under. */
+  double rock_turns = 0.0;
+  /** +1 or −1, so that the rotor turns the right way (VERIFY on the device). */
   int direction = -1;
   /** Half-steps per second and per second squared: how long a move may take before it is a fault. */
   double max_speed = 700, acceleration = 2000;
-  /** The pause with the notch over the outlet, and the settle after a cycle before the next may start, ms. */
-  uint32_t pause_ms = 300, settle_ms = 500;
+  /** The pause after the rock back, and the settle after a cycle before the next may start, ms. */
+  uint32_t pause_ms = 200, settle_ms = 500;
   /** Cycles of a prime and of a calibration run. */
-  int prime_cycles = 2, calibrate_cycles = 4;
+  int prime_cycles = 1, calibrate_cycles = 4;
   /** Dispense presses that may wait while a dispense runs. */
   int queue = 1;
 };
@@ -48,7 +51,7 @@ struct Hooks {
   std::function<void(long)> move;
   /** Stop the motor where it is. */
   std::function<void()> stop;
-  /** Persist whether the disc is at a rest position, and return only once it is committed to flash. */
+  /** Persist whether the rotor is at a rest position, and return only once it is committed to flash. */
   std::function<void(bool)> persist;
 };
 
@@ -79,7 +82,7 @@ class Logic {
         start(Job::Calibrate, config_.calibrate_cycles);
         return Outcome::Started;
       case Request::Jog:
-        // re-alignment: allowed when nothing runs and no fault is pending; afterwards the disc is off its rest until confirmed
+        // re-alignment: allowed when nothing runs and no fault is pending; afterwards the rotor is off its rest until confirmed
         if (state_ != State::Ready && state_ != State::Unaligned) return reject();
         jog_ = jog_steps;
         start(Job::Jog, 1);
@@ -106,22 +109,23 @@ class Logic {
       moving_ = false;
       since_ = now_ms;
     }
-    // between moves: the pause after the first half, the settle after a cycle
-    const bool cycle_end = step_ % 2 == 0;
+    // between moves: the pause after a rock back (if any), the settle after a cycle
+    const long rock = std::lround(config_.rock_turns * config_.steps_per_turn);
+    const int per_cycle = rock > 0 ? 2 : 1;
+    const bool cycle_end = step_ % per_cycle == 0;
     if (step_ > 0 && now_ms - since_ < (job_ == Job::Jog || cycle_end ? config_.settle_ms : config_.pause_ms)) return;
     if (job_ == Job::Jog) { if (step_ == 0) issue(config_.direction * jog_); else end(); return; }
     if (step_ > 0 && cycle_end) {
-      // a cycle ran to its end: only now is it counted, and the disc is at rest again
+      // a cycle ran to its end: only now is it counted, and the rotor is at rest again
       completed_++;
       if (job_ == Job::Dispense) cycles_++;
       if (completed_ == cycles_wanted_) { end(); return; }
     }
-    // the next half of a cycle: to the cumulative rounded target, so that a non-integer cycle never drifts
-    const double half = config_.steps_per_turn * config_.turns_per_cycle / 2;
-    const long from = std::lround(half * static_cast<double>(2 * index_ + (step_ % 2)));
-    const long to = std::lround(half * static_cast<double>(2 * index_ + (step_ % 2) + 1));
-    if (step_ % 2 == 1) index_++;
-    issue(config_.direction * (to - from));
+    // the rock back (if any), then forward to the cumulative rounded target, so that a non-integer cycle never drifts
+    if (per_cycle == 2 && step_ % 2 == 0) { issue(-config_.direction * rock); return; }
+    const long steps = cycle_steps(index_) + rock;
+    index_++;
+    issue(config_.direction * steps);
   }
 
   /** RESET or power loss is a reboot: the caller calls boot() with the committed flag. This only stops the motor (e.g. a stop action). */

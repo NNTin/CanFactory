@@ -84,20 +84,19 @@ int main() {
     CHECK(d.logic.rejected() == 3);
   }
 
-  // one press: two half moves of a quarter disc turn (4076 / 4 = 1019 half-steps each, signed by the direction), the pause between,
-  // counted only once both have finished and the settle has passed; "not at rest" committed before the first step
+  // one press: half a turn (4076 / 2 = 2038 half-steps, signed by the direction), counted only once it has finished and the settle has
+  // passed; "not at rest" committed before the first step
   {
     Device d(defaults(), true);
     CHECK(d.logic.state() == State::Ready);
     CHECK(d.logic.request(Request::Dispense) == Outcome::Started);
     CHECK(!d.committed);
     d.run(5);
-    CHECK(d.moves.size() == 1 && d.moves[0] == -1019);
-    d.run(1000);
+    CHECK(d.moves.size() == 1 && d.moves[0] == -2038);
+    d.run(2900);
     CHECK(d.logic.cycles() == 0);
     d.settle();
-    CHECK(d.moves.size() == 2 && d.moves[1] == -1019);
-    CHECK(d.move_times[1] - d.move_times[0] >= 1019 * 1000 / 700 + 300);
+    CHECK(d.moves.size() == 1);
     CHECK(d.logic.cycles() == 1 && d.logic.state() == State::Ready && d.committed);
     CHECK(d.position == -2038);
   }
@@ -111,7 +110,7 @@ int main() {
     CHECK(d.logic.request(Request::Dispense) == Outcome::Rejected);
     CHECK(d.logic.queued() == 1);
     d.settle();
-    CHECK(d.logic.cycles() == 2 && d.moves.size() == 4 && d.position == -4076);
+    CHECK(d.logic.cycles() == 2 && d.moves.size() == 2 && d.position == -4076);
     CHECK(d.logic.queued() == 0 && d.logic.rejected() == 1 && d.committed);
   }
 
@@ -127,28 +126,28 @@ int main() {
     CHECK(d.logic.request(Request::MarkAligned) == Outcome::Rejected);
     CHECK(d.target == target && d.logic.state() == State::Running);
     d.settle();
-    CHECK(d.logic.cycles() == 1 && d.moves.size() == 2);
+    CHECK(d.logic.cycles() == 1 && d.moves.size() == 1);
   }
 
-  // prime runs two cycles that are not counted as dispenses; a press during a prime is rejected, not queued
+  // prime runs a cycle that is not counted as a dispense; a press during a prime is rejected, not queued
   {
     Device d(defaults(), true);
     CHECK(d.logic.request(Request::Prime) == Outcome::Started);
     d.run(100);
     CHECK(d.logic.request(Request::Dispense) == Outcome::Rejected);
     d.settle();
-    CHECK(d.moves.size() == 4 && d.position == -4076 && d.logic.cycles() == 0 && d.logic.state() == State::Ready);
+    CHECK(d.moves.size() == 1 && d.position == -2038 && d.logic.cycles() == 0 && d.logic.state() == State::Ready);
   }
 
-  // calibration follows steps_per_turn: 4096 gives 1024-step halves; 4075 gives halves that round but never drift (4 cycles = 2 turns)
+  // calibration follows steps_per_turn: 4096 gives 2048-step cycles; 4075 gives cycles that round but never drift (4 cycles = 2 turns)
   {
     Config c = defaults();
     c.steps_per_turn = 4096;
     Device d(c, true);
     CHECK(d.logic.request(Request::Calibrate) == Outcome::Started);
     d.settle();
-    CHECK(d.moves.size() == 8 && d.position == -8192);
-    for (long m : d.moves) CHECK(m == -1024);
+    CHECK(d.moves.size() == 4 && d.position == -8192);
+    for (long m : d.moves) CHECK(m == -2048);
     CHECK(d.logic.cycles() == 0);
   }
   {
@@ -159,12 +158,12 @@ int main() {
     d.logic.request(Request::Calibrate);
     d.settle();
     CHECK(d.position == 8150);
-    for (long m : d.moves) CHECK(m == 1018 || m == 1019);
+    for (long m : d.moves) CHECK(m == 2037 || m == 2038);
     CHECK(d.logic.cycle_steps(0) + d.logic.cycle_steps(1) == 4075);
   }
 
   // a power cut at any moment of a cycle (before the first step, between the halves, in the settle, just after it): the device boots
-  // unaligned unless the cycle had finished and committed its rest; booting "ready" with the disc off its rest never happens
+  // unaligned unless the cycle had finished and committed its rest; booting "ready" with the rotor off its rest never happens
   {
     int unaligned = 0, ready = 0;
     for (uint32_t cut = 0; cut <= 5000; cut += 25) {
@@ -195,7 +194,19 @@ int main() {
     CHECK(d.logic.state() == State::Unaligned);
   }
 
-  // a jog from ready leaves the disc off its rest: it must be confirmed again
+  // a configured rock (off for this dispenser): back first, the pause, then forward the cycle and the rock; it still lands on the cycle
+  {
+    Config c = defaults();
+    c.rock_turns = 20.0 / 360.0;
+    Device d(c, true);
+    d.logic.request(Request::Dispense);
+    d.settle();
+    CHECK(d.moves.size() == 2 && d.moves[0] == 226 && d.moves[1] == -2264 && d.position == -2038);
+    CHECK(d.move_times[1] - d.move_times[0] >= 226 * 1000 / 700 + c.pause_ms);
+    CHECK(d.logic.cycles() == 1);
+  }
+
+  // a jog from ready leaves the rotor off its rest: it must be confirmed again
   {
     Device d(defaults(), true);
     d.logic.request(Request::Jog, 23);

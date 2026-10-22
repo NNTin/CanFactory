@@ -2247,11 +2247,11 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "1";
+                    modelVersion: "2";
                     parameters: {
                         /**
                          * Treat length
-                         * @description Longest side of the treats, mm. Measure the largest of a bag; the notch is sized from it.
+                         * @description Longest side of the treats, mm. Measure the largest of a bag; the rotor’s pockets are sized from it.
                          * @default 14
                          */
                         treatLength: number;
@@ -2263,7 +2263,7 @@ export interface operations {
                         treatWidth: number;
                         /**
                          * Treat thickness
-                         * @description Thinnest side of the treats, mm. The disc is as thick as this, so a treat lies flush in its notch and a second one cannot catch on it.
+                         * @description Thinnest side of the treats, mm. A pocket is as deep as this plus the clearance.
                          * @default 5
                          */
                         treatThickness: number;
@@ -2274,28 +2274,28 @@ export interface operations {
                          */
                         treatCornerRadius: number;
                         /**
-                         * Notch clearance
-                         * @description Play around a treat in its notch on each side, mm. More takes bigger treats but lets two thin ones in.
-                         * @default 0.7
+                         * Pocket clearance
+                         * @description Play round a treat in a rotor pocket, mm. More takes bigger treats, and lets two thin ones in.
+                         * @default 1
                          */
-                        notchClearance: number;
+                        pocketClearance: number;
                         /**
                          * Bottle neck
-                         * @description The thread of the bottle the adapter screws onto. Print the thread coupon first: real bottles vary.
+                         * @description The thread of the bottle that screws into the top. Print the thread coupon first: real bottles vary.
                          * @default pco-1881
                          * @enum {unknown}
                          */
                         bottleNeck: "pco-1881" | "pco-1810";
                         /**
                          * Thread clearance
-                         * @description Radial play of the adapter’s thread on the bottle’s, mm; tune it with the coupon.
+                         * @description Radial play of the body’s thread on the bottle’s, mm; tune it with the coupon.
                          * @default 0.3
                          */
                         threadClearance: number;
                         /**
                          * Bottle diameter
-                         * @description Largest diameter of the bottle, mm (1.5 l PET bottles are about 90 mm). Sets the strap holder and how high the adapter stands, so the bottle clears the chamber.
-                         * @default 90
+                         * @description Largest diameter of the bottle, mm (0.5 l PET bottles are about 65 mm). Sets the base plate’s size so that a full bottle cannot easily tip the dispenser over.
+                         * @default 65
                          */
                         bottleDiameter: number;
                     };

@@ -7,7 +7,7 @@ import { conceptPages } from './concepts.ts';
 import { QUASI_STATIC, type PhysicsSpec } from './physics.ts';
 import { revolvedPieces, type Point2 } from './physicsPieces.ts';
 import { cigaretteCasePhysics } from './cigaretteCasePhysics.ts';
-import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, TREAT_FIRMWARE, TreatDispenserParametersSchema, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout, treatDispenserPhysics, treatDispenserPlacement, treatScadLayout, type BottleNeck, type TreatDispenserParameters } from './treatDispenser.ts';
+import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TIP_ANGLE, TREAT_FIRMWARE, TreatDispenserParametersSchema, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout, treatDispenserPhysics, treatFootprint, treatScadLayout, type BottleNeck, type TreatDispenserParameters } from './treatDispenser.ts';
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
@@ -3552,26 +3552,29 @@ export const esp32C3SuperminiCase = {
 } satisfies ModelDefinition;
 
 /**
- * PET-bottle treat dispenser (#138): an inclined notch disc lifts treats out of the pile, a 28BYJ-48 turns it through a
- * 15:30 spur pair, the existing ESP32-C3 SuperMini case sits in the side of the bracket's electronics pod. Every dimension comes from
- * treatDispenser.ts (its `treatScadLayout` is passed to the generator as one list), the same numbers its physics is made from.
+ * PET-bottle treat dispenser (#138), gumball style after bovineblitz's (MakerWorld 190887) and cylus80's (Thingiverse 2103924)
+ * dispensers: a rotor with two pockets under the bottle, turned directly by a 28BYJ-48, the ULN2003 and the existing ESP32-C3
+ * SuperMini case inside the body. Every dimension comes from treatDispenser.ts (its `treatScadLayout` is passed to the generator as
+ * one list), the same numbers its physics is made from.
  */
 // the layout rides on the one string setting (scadEncode takes strings); every setting is mapped, so each is in the cache fingerprint
-const TREAT_MAPPING = { bottleNeck: 'LAYOUT', treatLength: 'TREAT_LENGTH', treatWidth: 'TREAT_WIDTH', treatThickness: 'TREAT_THICKNESS', treatCornerRadius: 'TREAT_CORNER_RADIUS', notchClearance: 'NOTCH_CLEARANCE', threadClearance: 'THREAD_CLEARANCE_SETTING', bottleDiameter: 'BOTTLE_DIAMETER' };
+const TREAT_MAPPING = { bottleNeck: 'LAYOUT', treatLength: 'TREAT_LENGTH', treatWidth: 'TREAT_WIDTH', treatThickness: 'TREAT_THICKNESS', treatCornerRadius: 'TREAT_CORNER_RADIUS', pocketClearance: 'POCKET_CLEARANCE', threadClearance: 'THREAD_CLEARANCE_SETTING', bottleDiameter: 'BOTTLE_DIAMETER' };
 const treatSchema = TreatDispenserParametersSchema;
 const treatParts: { id: string; title: string }[] = [
-  { id: 'disc', title: 'Notch disc' }, { id: 'gear', title: 'Spindle gear (30 teeth)' }, { id: 'pinion', title: 'Motor pinion (15 teeth)' },
-  { id: 'body', title: 'Body: back plate, gearbox and chute' }, { id: 'cover', title: 'Gearbox cover and motor mount' }, { id: 'hood', title: 'Motor hood' },
-  { id: 'hopper', title: 'Chamber (rim wall and lid)' }, { id: 'feed', title: 'Feed tube' },
-  { id: 'adapter', title: 'Bottle adapter' }, { id: 'coupon', title: 'Bottle thread coupon' }, { id: 'bracket', title: 'Wall bracket: electronics pod, spine and bottle saddle' },
-  { id: 'pod-cover', title: 'Electronics pod cover' },
+  { id: 'body', title: 'Body: bottle thread, funnel, rotor block, motor mount and electronics bay' }, { id: 'rotor', title: 'Rotor (two pockets)' },
+  { id: 'flap', title: 'Flap (TPU)' },
+  { id: 'cap', title: 'Bearing cap' }, { id: 'chute', title: 'Chute' }, { id: 'base', title: 'Base plate' }, { id: 'coupon', title: 'Bottle thread coupon' },
 ];
 export const treatDispenser = {
-  id: 'treat-dispenser' as const, version: '1' as const, title: 'PET-bottle treat dispenser',
-  description: 'Dispenses treats from an inverted PET bottle, one press commanding one cycle: an inclined disc with four notches open at its rim lifts treats out of the pile (usually one per notch; the simulation also sees empty and double feeds), extra treats slide back off the incline, and at the top each notch passes over the outlet in the back plate. Prototype: treats can bridge in the bottle’s neck (#140). A 28BYJ-48 turns the disc through a 15:30 spur pair, driven by a ULN2003 board and an ESP32-C3 SuperMini in the existing sliding-lid case, both in a pod against the wall under the chamber, the case’s B and R buttons on its side; one USB-C cable powers everything. Simulate it: press B on the case.',
-  attribution: 'CanFactory (original dispenser); ESP32-C3 SuperMini case by Vinors3DLab, adapted by CanFactory',
-  attributionLinks: [{ text: 'Vinors3DLab', url: 'https://www.makeronline.com/en/model/Ultra-Compact-Case-for-ESP---C--SuperMini--step-file-/338531.html' }],
-  printNotes: 'PETG, 0.2 mm layers, four perimeters; the gears and pinion at 0.12 mm layers and 100 % infill. Every part prints as exported without supports except the reused ESP32 case parts (print those as their own model says): the disc, gear, pinion and cover flat; the body plate face down (gearbox and chute rise from it); the chamber lid down (its rim wall rises from it); the feed tube flange down; the motor hood rim down (its cone closes it); the adapter and coupon upright; the bracket on its wall face; the pod cover face down. Print the thread coupon first and screw it onto your bottle: tune Thread clearance until it runs on and off by hand without wobble. Fasteners: M3 × 10 ISO 4762 screws with ISO 4032 nuts for the motor (the hood’s tabs under its heads), the chamber, the adapter and the bracket arms; M3 × 10 screws into two CNC Kitchen M3 × 5.7 heat-set inserts under the lid for the feed tube, and three in the body for the cover; M2.5 × 8 screws for the ULN2003 board and the pod cover. Clean the disc and chamber by lifting the bottle off, unscrewing the chamber and lifting the disc off its spindle. Printed plastic is not automatically food-safe. Prototype: not validated for unattended feeding; treats can bridge in the bottle’s neck (docs/treat-dispenser.md). The ESP32 case parts are adapted from Vinors3DLab’s CC BY-NC-SA 4.0 release, so the whole model is shared under CC BY-NC-SA 4.0.',
+  id: 'treat-dispenser' as const, version: '2' as const, title: 'PET-bottle treat dispenser',
+  description: 'A gumball-style treat dispenser for an inverted 0.5 l PET bottle: the treats fall onto a rotor with two pockets, which a 28BYJ-48 turns half a turn per press (rocking back first to free a caught treat), and a pocket drops what it holds down a chute out of the front. 0, 1 or a few treats may come out per press. The ULN2003 board and an ESP32-C3 SuperMini in the existing sliding-lid case sit inside the body, the case’s B and R buttons in its back wall; one USB-C cable powers everything. Prototype: treats can bridge in the bottle’s neck (#140). Simulate it: press B on the back.',
+  attribution: 'After bovineblitz’s Cat treat gumball-style dispenser (CC BY-NC 4.0) and cylus80’s Mason Jar Candy Dispenser (CC BY 4.0), redrawn by CanFactory; ESP32-C3 SuperMini case by Vinors3DLab, adapted by CanFactory',
+  attributionLinks: [
+    { text: 'bovineblitz', url: 'https://makerworld.com/en/models/190887' },
+    { text: 'cylus80', url: 'https://www.thingiverse.com/thing:2103924' },
+    { text: 'Vinors3DLab', url: 'https://www.makeronline.com/en/model/Ultra-Compact-Case-for-ESP---C--SuperMini--step-file-/338531.html' },
+  ],
+  printNotes: 'PETG, 0.2 mm layers, four perimeters. The body prints upright on its open bottom (the deck bridges between its inner walls); the rotor on its motor end; the bearing cap on its flange; the chute on its side; the base plate and the coupon flat. The reused ESP32 case parts print as their own model says. Print the thread coupon first and screw it onto your bottle: tune Thread clearance until it runs on and off by hand without wobble. Fasteners: two M3 × 10 ISO 4762 screws with ISO 4032 nuts for the motor; M3 × 10 screws into CNC Kitchen M3 × 5.7 heat-set inserts for the cap (two) and the base plate (four); M2.5 × 8 screws for the ULN2003 board. Clean it by unscrewing the base plate and the cap and sliding the rotor out. Printed plastic is not automatically food-safe. Prototype: not validated for unattended feeding; treats can bridge in the bottle’s neck (docs/treat-dispenser.md). The ESP32 case parts are adapted from Vinors3DLab’s CC BY-NC-SA 4.0 release and the mechanism from bovineblitz’s CC BY-NC 4.0 one, so the whole model is shared under CC BY-NC-SA 4.0.',
   license: 'CC BY-NC-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
   parts: [
     ...treatParts.map(({ id, title }): ModelPart => ({ id, title, sourcePath: 'models/treat-dispenser/generator.scad', scadMapping: TREAT_MAPPING, scadConstants: { PART: id } })),
@@ -3584,7 +3587,7 @@ export const treatDispenser = {
     control(treatSchema, 'treatLength', 'basic'), control(treatSchema, 'treatWidth', 'basic'), control(treatSchema, 'treatThickness', 'basic'),
     enumControl(treatSchema, 'bottleNeck', 'basic', (Object.keys(BOTTLE_NECKS) as BottleNeck[]).map(value => ({ value, label: BOTTLE_NECKS[value].title, description: `Thread ${BOTTLE_NECKS[value].T} mm over ${BOTTLE_NECKS[value].E} mm, pitch ${BOTTLE_NECKS[value].pitch} mm, bore ${BOTTLE_NECKS[value].bore} mm.` }))),
     control(treatSchema, 'bottleDiameter', 'basic'),
-    control(treatSchema, 'notchClearance', 'advanced'), control(treatSchema, 'threadClearance', 'advanced'), control(treatSchema, 'treatCornerRadius', 'advanced'),
+    control(treatSchema, 'pocketClearance', 'advanced'), control(treatSchema, 'threadClearance', 'advanced'), control(treatSchema, 'treatCornerRadius', 'advanced'),
   ],
   physics: parameters => treatDispenserPhysics(parameters as TreatDispenserParameters, { treats: 8 }),
   assembly: treatDispenserAssembly(DEFAULT_TREAT_DISPENSER),
@@ -3594,12 +3597,12 @@ export const treatDispenser = {
   },
   derived(parameters: unknown) {
     if (!Value.Check(treatSchema, parameters) || treatDispenserIssues(parameters).length) return { slotCount: null };
-    const l = treatDispenserLayout(parameters), placement = treatDispenserPlacement(parameters);
+    const l = treatDispenserLayout(parameters), base = treatFootprint(parameters);
     return { slotCount: null, notes: [
-      `Notches ${l.notchLength.toFixed(1)} × ${l.notchWidth.toFixed(1)} mm, ${TREAT_DISPENSER.notches} on a Ø${(2 * l.discRadius).toFixed(1)} × ${l.discThickness} mm disc inclined at 55°.`,
-      `One press: ${treatCycleSteps()} half-steps (${TREAT_FIRMWARE.stepsPerTurn} per motor turn, calibrate yours), half a motor turn, a quarter turn of the disc.`,
-      `Feed tube ${placement.tubeLength.toFixed(0)} mm (Ø${TREAT_DISPENSER.tubeBore} bore) so a Ø${parameters.bottleDiameter} mm bottle clears the chamber; bottle neck bore ${l.neck.bore} mm.`,
-      'Before the first dispense: Prime (two cycles, over the bowl). No sensor sees a treat leave: a cycle is only commanded.',
+      `Two pockets ${l.pocket.length.toFixed(1)} × ${l.pocket.width.toFixed(1)} × ${l.pocket.depth.toFixed(1)} mm in a Ø${2 * l.R} mm rotor.`,
+      `One press: ${treatCycleSteps()} half-steps net (${TREAT_FIRMWARE.stepsPerTurn} per turn, calibrate yours): back ${TREAT_FIRMWARE.rock}°, then half a turn and ${TREAT_FIRMWARE.rock}° on.`,
+      `Base plate ${(base[1] - base[0]).toFixed(0)} × ${(base[3] - base[2]).toFixed(0)} mm: a full 0.5 l bottle of Ø${parameters.bottleDiameter} mm leans ${TIP_ANGLE}° before the dispenser tips.`,
+      'No sensor sees a treat leave: a cycle is only commanded. Treats can bridge in the bottle’s neck (#140).',
     ] };
   },
 } satisfies ModelDefinition;

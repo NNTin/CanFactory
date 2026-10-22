@@ -13,7 +13,7 @@ describe('treat dispenser trial mesh cache', () => {
   });
 
   it('names a different file for different parameters', async () => {
-    const a = await meshCacheFile(DEFAULT_TREAT_DISPENSER), b = await meshCacheFile({ ...DEFAULT_TREAT_DISPENSER, notchClearance: 0.9 });
+    const a = await meshCacheFile(DEFAULT_TREAT_DISPENSER), b = await meshCacheFile({ ...DEFAULT_TREAT_DISPENSER, pocketClearance: 1.4 });
     expect(a).toMatch(/meshes-[0-9a-f]{24}\.json$/);
     expect(a).not.toBe(b);
   });

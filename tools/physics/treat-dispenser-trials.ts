@@ -13,7 +13,7 @@ import { availableParallelism } from 'node:os';
 import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_TREAT_DISPENSER, findModel, resolveAssembly, treatDispenserPhysics, treatDispenserPlacement, treatVertices, type FillMode, type TreatDispenserParameters } from '@canfactory/contracts';
+import { DEFAULT_TREAT_DISPENSER, findModel, resolveAssembly, treatDispenserPhysics, treatDispenserLayout, treatVertices, type FillMode, type TreatDispenserParameters } from '@canfactory/contracts';
 import { buildScene, CycleController, loadEngine, Simulation, type BodyGeometry } from '@canfactory/physics';
 import { meshCacheFile } from './treat-trial-cache.ts';
 
@@ -59,7 +59,7 @@ async function geometry(file: string): Promise<Record<string, number[]>> {
   const assembly = resolveAssembly(model, model.assembly, model.defaults) ?? model.assembly;
   const meshes = await renderAssemblyMeshes(model as never, assembly, model.defaults);
   const result: Record<string, number[]> = {};
-  for (const id of ['disc', 'gear', 'pinion', 'body', 'hopper']) { const mesh = meshes.get(id); if (mesh) result[id] = Array.from(mesh.tris); }
+  for (const id of ['rotor', 'body', 'chute']) { const mesh = meshes.get(id); if (mesh) result[id] = Array.from(mesh.tris); }
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, JSON.stringify(result));
   return result;
@@ -85,13 +85,14 @@ async function runTrial(trial: Trial, presses: number, meshes: Record<string, nu
     const controller = new CycleController(simulation, settings);
     let maxSpeed = 0, faults = 0;
     const items = (spec.items ?? []).map(item => item.id);
-    const [cx, cy, cz] = treatDispenserPlacement(p).discPose.position.map(value => value / 1000) as [number, number, number];
+    const l = treatDispenserLayout(p);
+    const [cx, cy, cz] = [0, 0, l.axisZ / 1000];
     const last = new Map<string, number[]>(items.map(id => [id, simulation.pose(id).pos]));
     const step = (seconds: number) => {
       simulation.advance(seconds);
       for (const id of items) {
         const now = simulation.pose(id).pos, before = last.get(id) ?? now;
-        // only treats still in the mechanism (within 120 mm of the disc's centre): one that has left falls freely, with no floor
+        // only treats still in the mechanism (within 120 mm of the rotor's axis): one that has left falls freely, with no floor
         if (Math.hypot(now[0] - cx, now[1] - cy, now[2] - cz) < 0.12) maxSpeed = Math.max(maxSpeed, Math.hypot(now[0] - (before[0] ?? 0), now[1] - (before[1] ?? 0), now[2] - (before[2] ?? 0)) / seconds);
         last.set(id, now);
       }
@@ -117,7 +118,7 @@ async function runTrial(trial: Trial, presses: number, meshes: Record<string, nu
       perPress.push(controller.report().exits - before);
     }
     const report = controller.report();
-    return { trial, prime, perPress, idle: report.idleExits, dry: simulation.counted('dry').length, lost: report.lost, faults, maxSpeed, seconds: (performance.now() - started) / 1000 };
+    return { trial, prime, perPress, idle: report.idleExits, dry: simulation.counted('stray').length, lost: report.lost, faults, maxSpeed, seconds: (performance.now() - started) / 1000 };
   } finally { simulation.dispose(); }
 }
 
@@ -145,14 +146,14 @@ if (values.child) {
     child.on('message', (result: TrialResult) => {
       results.push(result);
       const exact = result.perPress.filter(n => n === 1).length;
-      console.log(`${result.error ? 'ERROR' : exact === result.perPress.length ? 'ok   ' : 'MISS '} ${result.trial.name}: prime ${result.prime}, presses ${result.perPress.join(' ')} (${exact}/${result.perPress.length} exactly one), idle ${result.idle}, gearbox ${result.dry}, lost ${result.lost.toFixed(1)}°, stalls ${result.faults}, max speed ${result.maxSpeed.toFixed(2)} m/s ${result.error ?? ''} [${result.seconds.toFixed(0)} s]`);
+      console.log(`${result.error ? 'ERROR' : exact === result.perPress.length ? 'ok   ' : 'MISS '} ${result.trial.name}: prime ${result.prime}, presses ${result.perPress.join(' ')} (${exact}/${result.perPress.length} exactly one), idle ${result.idle}, stray ${result.dry}, lost ${result.lost.toFixed(1)}°, stalls ${result.faults}, max speed ${result.maxSpeed.toFixed(2)} m/s ${result.error ?? ''} [${result.seconds.toFixed(0)} s]`);
       next();
     });
     next();
   })));
   // per group: presses with 0, 1, 2+ treats
   const groups = [...new Set(list.map(trial => trial.group))];
-  console.log('\n| Trials | Presses | First press: 0 / 1 / 2+ | All presses: 0 / 1 / 2+ | Stalls | Leaked between cycles | Into the gearbox | Fastest treat |\n| --- | --- | --- | --- | --- | --- | --- | --- |');
+  console.log('\n| Trials | Presses | First press: 0 / 1 / 2+ | All presses: 0 / 1 / 2+ | Stalls | Leaked between cycles | Strayed into the electronics | Fastest treat |\n| --- | --- | --- | --- | --- | --- | --- | --- |');
   const line = (name: string, rs: TrialResult[]) => {
     const all = rs.flatMap(r => r.perPress), first = rs.map(r => r.perPress[0] ?? 0);
     const split = (ns: number[]) => `${ns.filter(n => n === 0).length} / ${ns.filter(n => n === 1).length} / ${ns.filter(n => n >= 2).length}`;
