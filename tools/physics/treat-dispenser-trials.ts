@@ -10,11 +10,12 @@
 import { fork } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
-import { join } from 'node:path';
+import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_TREAT_DISPENSER, findModel, resolveAssembly, treatDispenserPhysics, treatVertices, type FillMode, type TreatDispenserParameters } from '@canfactory/contracts';
 import { buildScene, CycleController, loadEngine, Simulation, type BodyGeometry } from '@canfactory/physics';
+import { meshCacheFile } from './treat-trial-cache.ts';
 
 const { values } = parseArgs({ options: { presses: { type: 'string', default: '8' }, jobs: { type: 'string' }, quick: { type: 'boolean', default: false }, json: { type: 'string' }, child: { type: 'string' } } });
 
@@ -26,7 +27,6 @@ export interface Trial {
 }
 export interface TrialResult { trial: Trial; prime: number; perPress: number[]; idle: number; dry: number; lost: number; error?: string; seconds: number }
 
-const CACHE = 'node_modules/.cache/canfactory-treat-trials';
 
 function trials(quick: boolean): Trial[] {
   const list: Trial[] = [];
@@ -45,9 +45,8 @@ function trials(quick: boolean): Trial[] {
   return list;
 }
 
-/** Renders the parts once (mass properties come from their meshes, as in CI). */
-async function geometry(): Promise<Record<string, number[]>> {
-  const file = join(CACHE, 'meshes.json');
+/** Renders the parts once per geometry (mass properties come from their meshes, as in CI); `file` is keyed on their sources. */
+async function geometry(file: string): Promise<Record<string, number[]>> {
   try { return JSON.parse(await readFile(file, 'utf8')) as Record<string, number[]>; } catch { /* render below */ }
   const { renderAssemblyMeshes } = await import('../assembly-meshes.ts');
   const model = findModel('treat-dispenser');
@@ -56,7 +55,7 @@ async function geometry(): Promise<Record<string, number[]>> {
   const meshes = await renderAssemblyMeshes(model as never, assembly, model.defaults);
   const result: Record<string, number[]> = {};
   for (const id of ['disc', 'gear', 'pinion', 'body', 'hopper']) { const mesh = meshes.get(id); if (mesh) result[id] = Array.from(mesh.tris); }
-  await mkdir(CACHE, { recursive: true });
+  await mkdir(dirname(file), { recursive: true });
   await writeFile(file, JSON.stringify(result));
   return result;
 }
@@ -107,8 +106,8 @@ if (values.child) {
 } else {
   const presses = Number(values.presses);
   const list = trials(values.quick);
-  await geometry();
-  const meshFile = join(CACHE, 'meshes.json');
+  const meshFile = await meshCacheFile({ ...DEFAULT_TREAT_DISPENSER });
+  await geometry(meshFile);
   const jobs = Math.min(list.length, Number(values.jobs ?? Math.max(1, availableParallelism() - 1)));
   console.log(`${list.length} trials, ${presses} presses each after Prime, ${jobs} processes`);
   const results: TrialResult[] = [];
