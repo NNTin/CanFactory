@@ -25,8 +25,8 @@ substitutions:
   name: treat-dispenser
   friendly_name: Treat dispenser
   # CALIBRATE: half-steps per turn of the motor's output shaft. Nominal 4096 (64 x 64); the gear train is about 1:63.68, so
-  # 4076 is closer for most 28BYJ-48s. Mark the rotor, run "Calibrate: 4 cycles" (two turns) and adjust until it returns to its mark.
-  # Every move is derived from it: a cycle turns half a turn forward (two pockets), never back (backwards, the slot's tight front
+  # 4076 is closer for most 28BYJ-48s. Mark the rotor, run "Calibrate: 2 turns" and adjust until it returns to its mark.
+  # Every move is derived from it: a cycle turns a full turn forward (one pocket), never back (backwards, the slot's tight front
   # edge could pinch a treat).
   steps_per_turn: "4076"
   # VERIFY: +1 or -1, so that the rotor's top turns towards the back and its underside towards the chute (in the simulation the
@@ -74,7 +74,7 @@ esphome:
               global_preferences->sync();
             }});
           dispenser()->boot(at_rest == 1);
-          if (at_rest != 1) ESP_LOGW("dispenser", "Not known to be at rest (first boot, or power lost / RESET during a motion): jog the rotor until its pockets face up and down, then press Mark aligned.");
+          if (at_rest != 1) ESP_LOGW("dispenser", "Not known to be at rest (first boot, or power lost / RESET during a motion): jog the rotor until its pocket faces up, then press Mark aligned.");
       - script.execute: publish_status
 
 esp32:
@@ -180,7 +180,7 @@ button:
     on_press:
       - lambda: "dispenser_submit(treat_dispenser::Request::MarkAligned, 0);"
   - platform: template
-    name: "Calibrate: 4 cycles"
+    name: "Calibrate: 2 turns"
     on_press:
       - lambda: "dispenser_submit(treat_dispenser::Request::Calibrate, 0);"
 

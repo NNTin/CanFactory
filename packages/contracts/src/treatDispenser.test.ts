@@ -17,7 +17,6 @@ describe('treat dispenser layout', () => {
     expect(validateParameters(model, p)).toEqual([]);
     expect(treatDispenserIssues({ ...p, treatWidth: 15 })).not.toEqual([]);
     expect(treatDispenserIssues({ ...p, treatCornerRadius: 2.5, treatThickness: 4 })).not.toEqual([]);
-    expect(treatDispenserIssues({ ...p, treatThickness: 7, pocketClearance: 2 })).not.toEqual([]);
   });
 
   it('keeps the thread’s grooves apart at every thread clearance: the cutter’s turns never overlap, so a bottle still catches', () => {
@@ -33,20 +32,40 @@ describe('treat dispenser layout', () => {
     for (const neck of Object.values(BOTTLE_NECKS)) expect(neck.pitch * (1 - Number(grown[1])) - 2 * maximum, neck.title).toBeGreaterThan(0.05);
   });
 
-  it('sizes a pocket for one treat lying flat, under a slot as long as the pocket', () => {
+  it('sizes one pocket for a treat lying along it, down to the axis (the shaft pokes in), under a slot as long as the pocket', () => {
+    expect(TREAT_DISPENSER.pockets).toBe(1);
     expect(l.pocket.length).toBeCloseTo(p.treatLength + 2 * p.pocketClearance, 9);
     expect(l.pocket.width).toBeCloseTo(p.treatWidth + 2 * p.pocketClearance, 9);
-    expect(l.pocket.depth).toBeCloseTo(p.treatThickness + p.pocketClearance, 9);
+    expect(l.pocket.depth).toBe(l.R);
     expect(2 * l.slot.halfX).toBeCloseTo(l.pocket.length, 9);
-    // a core round the axis for the shaft
-    expect(l.R - l.pocket.depth).toBeGreaterThanOrEqual(5);
+    // a treat lying flat or on edge stays below the rotor's surface (one leaning across it may stand out a little: the trailing face
+    // lifts it, see below)
+    expect(p.treatWidth + p.pocketClearance).toBeLessThan(l.pocket.depth);
   });
 
-  it('leaves no tight edge a pocket leaves under: the flap closes it, a cavity deeper than a treat is long lies behind it', () => {
+  it('closes the slot’s back edge with a rigid, counterweighted flap on the rotor, a cavity deeper than a treat is long behind it', () => {
+    const F = TREAT_DISPENSER.flap;
+    // at rest the slot's walls stand clear of the pocket's mouth, which is centred on the top
+    expect(l.bore.radius * Math.sin(l.pocket.mouth * Math.PI / 180)).toBeLessThan(l.slot.halfY);
+    expect(l.pocket.turn).toBeGreaterThan(0);
+    expect(TREAT_DISPENSER.dropFront).toBeGreaterThan(l.pocket.mouth);
     expect(l.cavityR - l.R).toBeGreaterThan(p.treatLength);
-    // the flap's root stands higher over the rotor than a treat standing on end on it
-    expect(l.flap.root.z - (l.axisZ + l.R)).toBeGreaterThan(p.treatLength);
+    // the hinge stands higher over the rotor than a treat standing on end on it; the tip rests on the rotor, behind the hinge, so that
+    // the flap's weight turns it onto the rotor (a treat pushes it back and up)
+    expect(l.flap.hinge.z - (l.axisZ + l.R)).toBeGreaterThan(p.treatLength);
     expect(Math.hypot(l.flap.tip.y, l.flap.tip.z - l.axisZ)).toBeCloseTo(l.R, 9);
+    expect(l.flap.tip.y).toBeGreaterThan(l.flap.hinge.y);
+    // its counterweight holds it shut with about the closing torque of the old TPU flap's preload (0.3 N·mm, which the trials with a
+    // plain hanging plate, about 0.01 N·mm, showed it needs), and swings up its whole travel behind the slot's back wall (a wall between)
+    expect(l.flap.closing).toBeGreaterThan(0.25);
+    const [wy, wz] = F.weight, a = F.swing * Math.PI / 180;
+    expect(l.flap.hinge.y + (F.reach - wy / 2) * Math.cos(a) - wz / 2 * Math.sin(a) - 0.5 - (l.slot.halfY + TREAT_DISPENSER.wall)).toBeGreaterThan(0);
+    expect(l.blockTop - l.flap.hinge.z).toBeGreaterThan(l.flap.sweepTop + TREAT_DISPENSER.wall - 1e-9);
+    // the snap: the hub's hole turns freely on a boss, its mouth narrower than a boss (it holds), each boss reaches into the hub
+    expect(F.hole).toBeGreaterThan(F.boss);
+    expect(F.mouth).toBeLessThan(2 * F.boss);
+    expect(F.bossLength).toBeGreaterThan((2 * l.slot.halfX - l.flap.width) / 2);
+    expect(F.hub - F.hole).toBeGreaterThanOrEqual(1.2);
   });
 
   it('keeps the rotor more than a treat’s length above the chute where its pockets drop, so that none can be caught between them', () => {
@@ -56,9 +75,9 @@ describe('treat dispenser layout', () => {
     expect(Math.tan(TREAT_DISPENSER.chuteSlope * Math.PI / 180)).toBeGreaterThan(0.4);
   });
 
-  it('gives the rotor its pockets as pieces within its cylinder', () => {
+  it('gives the rotor its pocket as pieces within its cylinder', () => {
     const pieces = treatRotorPieces(l);
-    expect(pieces.length).toBe(7);
+    expect(pieces.length).toBe(5);
     for (const piece of pieces) for (let i = 0; i < piece.length; i += 3) {
       expect(Math.abs(piece[i] ?? 0)).toBeLessThanOrEqual(l.rotorEnd + 1e-9);
       expect(Math.hypot(piece[i + 1] ?? 0, (piece[i + 2] ?? 0) - l.axisZ)).toBeLessThanOrEqual(l.R + 1e-6);
@@ -240,10 +259,12 @@ describe('treat dispenser mechanism', () => {
     expect(spec.controller?.counter).toBe('out');
     // one press: forward a pocket pitch (negative about +X), never back
     expect(spec.controller?.moves).toEqual([-360 / TREAT_DISPENSER.pockets]);
-    // the flap: a sprung hinge, pressed on the rotor
+    // the flap: free on its hinge (no spring), held on the rotor by its counterweight; its mass and inertia come from its mesh, so that
+    // the counterweight's moment is the printed part's
     const flap = spec.bodies.find(body => body.id === 'flap');
     expect(flap?.joint?.type).toBe('hinge');
-    expect(flap?.joint?.spring?.rest).toBeLessThan(0);
+    expect(flap?.joint?.spring).toBeUndefined();
+    expect(flap?.mass).toBeUndefined();
   });
 
   it('models each treat as a rounded cuboid of the stated size, not a sphere', () => {

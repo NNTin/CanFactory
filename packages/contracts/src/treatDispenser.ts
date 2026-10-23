@@ -8,9 +8,10 @@ import type { Point2 } from './physicsPieces.ts';
 /**
  * A gumball-style treat dispenser (docs/treat-dispenser.md, issue #138), after bovineblitz's "Cat treat gumball-style dispenser"
  * (MakerWorld 190887, CC BY-NC 4.0), itself after cylus80's "Mason Jar Candy Dispenser" (Thingiverse 2103924, CC BY 4.0). An
- * inverted 0.5 l PET bottle screws into the top of the body; its treats fall through a funnel onto a horizontal rotor with two
- * pockets, which a 28BYJ-48 turns directly (in place of the original's handle); each half turn a pocket carries what it holds from
- * under the funnel to the drop below it, onto a chute that runs out of the front. Two bodies: the inner body carries the thread, the
+ * inverted 0.5 l PET bottle screws into the top of the body; its treats fall through a funnel onto a horizontal rotor with one deep
+ * pocket, which a 28BYJ-48 turns directly (in place of the original's handle); each full turn the pocket carries what it holds from
+ * under the funnel, past a counterweighted rigid flap, to the drop below it, onto a chute that runs out of the front. Every part
+ * prints in PLA or PETG. Two bodies: the inner body carries the thread, the
  * mechanism, the motor and the ULN2003 board; the outer body covers it, the ESP32-C3 SuperMini case's lid flush in its back wall so
  * that B and R can be pressed. Every fastener is an M3 screw into a hex nut in a printed bay (`treatBolts`).
  *
@@ -19,8 +20,14 @@ import type { Point2 } from './physicsPieces.ts';
  */
 
 export const TREAT_DISPENSER = {
-  /** The rotor: radius, the solid hub beyond each end of its pockets, its gap in the bore. Two pockets, opposite each other. */
-  rotorRadius: 13, rotorHub: 4, boreGap: 0.4, pockets: 2,
+  /** The rotor: radius, the solid hub beyond each end of its pocket, its gap in the bore. One pocket, its floor through the axis (the
+   * motor's shaft pokes into it there, its flats held in the floor's half of the D-bore), so deep that a treat lying across it stays
+   * below the rotor's surface; its trailing face (the one that carries treats forwards) leans out from the radial by `pocketRamp`
+   * (degrees), so that what sticks out of it rides up the flap rather than catching its tip. */
+  rotorRadius: 13, rotorHub: 4, boreGap: 0.4, pockets: 1, pocketRamp: 30,
+  /** The drop under the rotor: the bore stops this far (degrees) from the bottom towards the front (behind, it opens into the cavity),
+   * wider than the pocket's mouth, so that it empties before the pocket's leading face reaches the bore again. */
+  dropFront: 55,
   /** The walls of the rotor's block, the deck and the boss; the outer shell's walls are four 0.4 mm perimeters. */
   wall: 2.4, shell: 1.6,
   /** The slot over the rotor is as long as a pocket (X), and across (Y) wider than a treat is long by this each side, so that a treat
@@ -56,15 +63,23 @@ export const TREAT_DISPENSER = {
    * outside; the rotor's stub into it (diameter, length). The rotor slides in and out through that opening. */
   capFlange: 3, capRadius: 23, stub: 8, stubLength: 4.5,
   /** Behind the flap, round the rotor's descending side, a cavity this much deeper than the rotor: more than a treat is long, so that a
-   * treat carried past the flap can neither be pinched nor wedge across it, and the flap can swing back out of a treat's way (a
-   * ceiling sloped at 50° to print without support stopped it at about 45° and wedged treats under it: the cavity's round top is
-   * bridged between its side walls instead). */
+   * treat carried past the flap can neither be pinched nor wedge across it, and the flap can swing back out of a treat's way (its round
+   * top is bridged between its side walls: a ceiling sloped at 50° stopped the old flap at about 45° and wedged treats under it). */
   cavityClear: 15,
-  /** The flap (TPU) that closes the slot's back edge on the rotor: thickness, its root's square block (held in a recess over the
-   * cavity's roof by a pin of 1.75 mm filament through it, pushed in from outside the left wall), how far it is sprung past touching
-   * (degrees), its stiffness and mass (g). 0.03 N·mm per degree is a 0.6 × 16 × 14 mm strip of 95A TPU (E ≈ 26 MPa): soft enough
-   * that a treat pushed into it near its root still bends it (stiffer, 0.3, wedged treats there in the trials). */
-  flap: { thickness: 0.6, bead: 3.6, pin: 1.75, preload: 10, stiffness: 0.03, mass: 0.15 },
+  /** The flap that closes the slot's back edge on the rotor: rigid, printed in PLA or PETG (no flexible filament), swinging freely on a
+   * hinge and held on the rotor by its own weight. Its plate's thickness; the hub along its top (radius) with a hole (radius) that
+   * snaps over two bosses on the slot's side walls (radius, how far each stands out) through a mouth narrower than a boss, opening
+   * `mouthAngle` below the back (towards the front and down, between the plate and the front: it is pushed on up and back from the
+   * slot and the empty bore, the rotor not yet in; neither its weight nor a treat pulls it off); how far behind the
+   * hinge its plate's tip rests on the rotor (mm). Hanging nearly upright, the plate's own weight barely holds it shut (the trials
+   * let most of the funnel through on a turn): a counterweight on an arm straight back from the hub at rest (the arm's thickness, the
+   * weight's size (y, z) and its centre's distance behind the hinge) closes it with about the torque of the old TPU flap's preload,
+   * and swings up into a recess as the flap opens, up to `swing` degrees (further, it would swing forwards through the slot's back wall:
+   * long and flat, it reaches the farthest back for the least). The plastic's density (g/cm³). */
+  flap: {
+    thickness: 1.6, hub: 2.9, hole: 1.7, boss: 1.5, bossLength: 1.5, mouth: 2.6, mouthAngle: 135, lean: 1.5,
+    arm: 2, weight: [10, 8.5] as readonly [number, number], reach: 15, swing: 55, density: 1.27,
+  },
 } as const;
 
 /** Bottle necks with an ISBT drawing (drawings 3784253-21 and 1165362-2). Values read off the drawings; see docs/treat-dispenser.md. */
@@ -79,7 +94,7 @@ const mm = (title: string, description: string, value: number, minimum: number, 
 export const TreatDispenserParametersSchema = Type.Object({
   treatLength: mm('Treat length', 'Longest side of the treats, mm. Measure the largest of a bag; the rotor’s pockets are sized from it.', 14, 10, 18),
   treatWidth: mm('Treat width', 'Middle side of the treats, mm.', 9, 6, 12),
-  treatThickness: mm('Treat thickness', 'Thinnest side of the treats, mm. A pocket is as deep as this plus the clearance.', 5, 3, 7),
+  treatThickness: mm('Treat thickness', 'Thinnest side of the treats, mm (the rotor’s pocket reaches its axis whatever it is: the simulation’s treats are this thick).', 5, 3, 7),
   treatCornerRadius: mm('Treat corner radius', 'Rounding of the treats’ edges and corners, mm (used by the simulation only).', 1.5, 0.5, 2.5),
   pocketClearance: mm('Pocket clearance', 'Play round a treat in a rotor pocket, mm. More takes bigger treats, and lets two thin ones in.', 1, 0.4, 2, 0.05),
   bottleNeck: Type.Enum(Object.keys(BOTTLE_NECKS) as BottleNeck[], { title: 'Bottle neck', description: 'The thread of the bottle that screws into the top. Print the thread coupon first: real bottles vary.', default: 'pco-1881' }),
@@ -106,11 +121,21 @@ export const JUMPER = { width: 2.54, housing: 14, mate: 6, bend: 6, reach: 14 - 
 export function treatDispenserLayout(p: TreatDispenserParameters) {
   const T = TREAT_DISPENSER;
   const c = p.pocketClearance;
-  const pocket = { length: p.treatLength + 2 * c, width: p.treatWidth + 2 * c, depth: p.treatThickness + c };
-  const R = T.rotorRadius, rotorEnd = pocket.length / 2 + T.rotorHub;
+  const R = T.rotorRadius, w = (p.treatWidth + 2 * c) / 2, ramp = Math.tan(T.pocketRamp * DEG);
+  // the pocket drawn with its floor on the axis and its mouth up: its leading face (+Y) radial, its trailing face (−Y) leaning out; where
+  // each meets the rotor's surface (degrees from the top, towards +Y), and the turn (towards +Y) that centres its mouth on the top
+  // (its floor's height over the axis: 0, the floor through the axis)
+  const depth = R, floor = R - depth;
+  const lead = Math.asin(w / R) / DEG;
+  const k = w - floor * ramp;
+  const zt = (-ramp * k + Math.sqrt(ramp * ramp * k * k - (1 + ramp * ramp) * (k * k - R * R))) / (1 + ramp * ramp);
+  const trail = Math.atan2(-w - (zt - floor) * ramp, zt) / DEG;
+  const pocket = { length: p.treatLength + 2 * c, width: 2 * w, depth, floor, turn: -(lead + trail) / 2, mouth: (lead - trail) / 2 };
+  const rotorEnd = pocket.length / 2 + T.rotorHub;
   const bore = { radius: R + T.boreGap, half: rotorEnd + T.boreGap };
   const block = { halfX: bore.half + T.wall, halfY: bore.radius + T.wall };
-  const slot = { halfX: pocket.length / 2, halfY: Math.max(pocket.width, p.treatLength) / 2 + T.slotMargin };
+  // (at rest the pocket's whole mouth lies under the slot, 0.5 inside its walls, so that the slot's back edge never stands over it)
+  const slot = { halfX: pocket.length / 2, halfY: Math.max(Math.max(pocket.width, p.treatLength) / 2 + T.slotMargin, (R + T.boreGap) * Math.sin(pocket.mouth * DEG) + 0.5) };
   // the chute: inside as wide as the slot is long plus play; the body's legs hold it between them
   // (the legs are flush with the block's sides, so that the block's underside has no overhang beside them)
   const chuteIn = slot.halfX + 0.5, chuteOut = chuteIn + T.chuteWall, legIn = chuteOut + 0.2, legOut = block.halfX;
@@ -118,21 +143,46 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   const chuteAt = (y: number) => T.base + T.exitZ + (y - T.chuteEnd) * tan;
   // the rotor's underside is `dropClear` above the chute wherever a pocket drops (|y| ≤ the slot's half width)
   const axisZ = chuteAt(slot.halfY) + T.dropClear + R;
-  // the flap hangs from the slot's back wall, its root higher over the rotor than a treat standing on end on it reaches (the slot is
-  // wider than a pocket: treats lie on the rotor beside it), its tip on the rotor just behind the slot; behind it the cavity, under a
-  // roof at the flap's root
-  const root = { y: slot.halfY, z: axisZ + R + p.treatLength + 2 };
-  // the cavity reaches past the flap's root, so that its roof meets its arc
-  const cavityR = Math.max(R + T.cavityClear, root.z - axisZ + 4);
-  const tipY = slot.halfY + 1, tip = { y: tipY, z: axisZ + Math.sqrt(R * R - tipY * tipY) };
-  const flap = { root, tip, length: Math.hypot(tip.y - root.y, root.z - tip.z), angle: Math.atan2(tip.y - root.y, root.z - tip.z) / DEG };
-  // the block's top: over the flap's root block (and its pin), with a wall above it
-  // (its root block's top slopes up to the front at 45°, as high as 1.5 times its side)
-  const blockBottom = axisZ - block.halfY, blockTop = root.z + 1.5 * T.flap.bead + 1.2, blockBack = cavityR + T.wall;
+  // the flap hangs from a hinge just behind the slot's back wall (its plate's front face flush with it), higher over the rotor than a
+  // treat standing on end on it reaches; its plate leans back `lean` to its tip on the rotor; behind it the cavity, under a roof at
+  // the hinge
+  const F = T.flap;
+  const hinge = { y: slot.halfY + F.thickness / 2, z: axisZ + R + p.treatLength + 2 };
+  const cavityR = Math.max(R + T.cavityClear, hinge.z - axisZ + 4);
+  // its plate's centreline from the hinge to its tip on the rotor, `lean` behind the hinge (on the rotor at least)
+  const hy = hinge.y, hz = hinge.z - axisZ, tipY = Math.min(hy + F.lean, R - 0.3);
+  const tip = { y: tipY, z: axisZ + Math.sqrt(R * R - tipY * tipY) };
+  const reach = Math.hypot(tip.y - hy, hinge.z - tip.z), lean = Math.atan2(tip.y - hy, hinge.z - tip.z);
+  const width = 2 * (pocket.length / 2) - 0.4;
+  // its pieces' volumes (mm³) and how far behind the hinge their centres lie at rest: the plate (along its leaning centreline), the hub
+  // (on the hinge), the arm and the counterweight; their moment closes the flap
+  const [wy, wz] = F.weight, armLength = F.reach - wy / 2 - F.hub;
+  const pieces = [
+    { volume: width * reach * F.thickness, behind: reach / 2 * Math.sin(lean) },
+    { volume: width * Math.PI * (F.hub ** 2 - F.hole ** 2), behind: 0 },
+    { volume: width * armLength * F.arm, behind: F.hub + armLength / 2 },
+    { volume: width * wy * wz, behind: F.reach },
+  ];
+  const mass = pieces.reduce((sum, piece) => sum + piece.volume, 0) * F.density / 1000;
+  const closing = pieces.reduce((sum, piece) => sum + piece.volume * F.density / 1000 * piece.behind, 0) * 9.81e-3;
+  // the counterweight's farthest corner from the hinge (the recess's radius) and how high over the hinge it swings, which the recess and
+  // the block's top must clear as the flap swings open
+  const sweep = Math.hypot(F.reach + wy / 2, wz / 2) + 0.5;
+  const sweepTop = (sweep - 0.5) * Math.sin(Math.min(90, F.swing + Math.atan2(wz / 2, F.reach + wy / 2) / DEG) * DEG) + 0.5;
+  // the cavity's back reaches behind the counterweight up to its roof
+  const flap = { hinge, tip, length: reach, angle: lean / DEG, width, mass, closing, sweep, sweepTop, cavityBack: hinge.y + F.reach + wy / 2 + 0.5 };
+  // the block's top: over the counterweight's recess, with a wall above it; its top slopes down to the back at STEEP (50°) clear of the
+  // cavity's round and of the recess (`blockSlope`: the slope's distance from the axis)
+  const blockBottom = axisZ - block.halfY, blockTop = hinge.z + Math.max(6.6, sweepTop + T.wall), blockBack = cavityR + T.wall;
+  const blockSlope = Math.max(blockBack, hinge.y * Math.sin(50 * DEG) + hz * Math.cos(50 * DEG) + sweep + T.wall);
+  // the drop: the bore's front edge under the rotor (y); behind, the drop opens into the cavity
+  const drop = { front: -bore.radius * Math.sin(T.dropFront * DEG) };
   const lipZ = blockTop + T.funnel;
   const neck = BOTTLE_NECKS[p.bottleNeck];
   const threadR = neck.T / 2 + p.threadClearance, bossR = threadR + T.bossWall, lipR = neck.bore / 2 + 0.5;
   const bossTop = lipZ + T.threadHeight;
+  // the outer body's gable: its flat top as wide as the boss at least, and wide enough that its back slope clears the block's (by the gap)
+  const gableHalf = Math.max(bossR + 0.5, (blockSlope + T.gap + T.shell - (lipZ - axisZ) * Math.cos(50 * DEG)) / Math.sin(50 * DEG));
   // the motor: its shaft on the rotor's axis, its can in front of it (Kiatronics: the shaft is 8 mm off the can's axis), so that its
   // ears lie above and below the axis on the block's and the right leg's +X face, where their nuts slide in from the front; its
   // mounting face on that face, its wire housing to the front
@@ -151,7 +201,7 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   // the bearing cap's screws, either side of the bore, into nuts in two lugs on the inner body, just inside the outer body's left wall
   const capScrewR = (bore.radius + T.capRadius) / 2;
   return {
-    pocket, R, rotorEnd, bore, block, slot, chuteIn, chuteOut, legIn, legOut, tan, chuteAt, axisZ, blockBottom, blockTop, blockBack, cavityR, flap, lipZ, lipR, neck, threadR, bossR, bossTop,
+    pocket, R, rotorEnd, bore, block, slot, chuteIn, chuteOut, legIn, legOut, tan, chuteAt, axisZ, blockBottom, blockTop, blockBack, blockSlope, cavityR, flap, drop, lipZ, lipR, neck, threadR, bossR, bossTop, gableHalf,
     motorFace: block.halfX, canY: -shaftOffset, canR, motorLength, earSpan, shaftOffset, bay, standoffLength, driverTop, capScrewR,
     lugFace: -(halfWidth - T.shell) + T.gap,
     // the back wall leaves room behind the block for the ESP32 case (8.4 deep) and its header pins (bigger treats, a deeper block)
@@ -168,9 +218,7 @@ export function treatDispenserIssues(p: TreatDispenserParameters): ParameterIssu
   if (p.treatWidth > p.treatLength) issues.push({ field: 'treatWidth', message: 'The width must not exceed the length: give the sides longest first.' });
   if (p.treatThickness > p.treatWidth) issues.push({ field: 'treatThickness', message: 'The thickness must not exceed the width.' });
   if (2 * p.treatCornerRadius > p.treatThickness - 0.2) issues.push({ field: 'treatCornerRadius', message: 'The corner radius must be less than half the thickness.' });
-  // the pockets' floors must leave a core round the axis for the motor's shaft (Ø5)
-  if (l.R - l.pocket.depth < 5) issues.push({ field: 'treatThickness', message: 'Treats this thick leave too little of the rotor under its pockets.' });
-  if (l.pocket.width / 2 > l.R - 3) issues.push({ field: 'treatWidth', message: 'Treats this wide do not fit the rotor’s pockets.' });
+  if (l.pocket.width / 2 > l.R - 3) issues.push({ field: 'treatWidth', message: 'Treats this wide do not fit the rotor’s pocket.' });
   return issues;
 }
 
@@ -236,8 +284,8 @@ export function treatPartPoses(l: TreatDispenserLayout): Record<'inner-body' | '
     rotor: { position: [l.rotorEnd, 0, l.axisZ], rotation: [0, -90, 0] },
     // its flange down
     cap: { position: [-(l.halfWidth + T.capFlange), 0, l.axisZ], rotation: [0, 90, 0] },
-    // flat, its root's bead along X at the origin: drawn hanging from the root along −Z, turned back by its angle, then laid down
-    flap: { position: [0, l.flap.root.y, l.flap.root.z], rotation: [l.flap.angle - 90, 0, 0] },
+    // standing on its −X end, its hub upright (a round hole and a clean mouth for the snap)
+    flap: { position: [-l.flap.width / 2, l.flap.hinge.y, l.flap.hinge.z], rotation: [0, 90, 0] },
   };
 }
 
@@ -272,32 +320,36 @@ function clipSection(polygon: Point2[], cuts: [number, number, number][]): Point
 }
 
 /**
- * The rotor about its axis (along X; at rest, its pockets at the top and the bottom): its two end hubs as full cylinders and, between
- * them, its section less the two pockets as five convex prisms: the band between the pockets' floors and four side lobes.
+ * The rotor about its axis (along X; at rest, its pocket's mouth centred on the top): its two end hubs as full cylinders and, between
+ * them, its section less the pocket as three convex prisms: the half under the pocket's floor, and the lobes beyond its leading and
+ * its trailing (leaning) face; drawn with the mouth up, then turned by `pocket.turn` towards +Y, as the SCAD file draws it.
  */
 export function treatRotorPieces(l: TreatDispenserLayout, segments = 32): number[][] {
   const { R, rotorEnd, pocket, axisZ } = l;
-  const half = pocket.length / 2, floor = R - pocket.depth, w = pocket.width / 2;
+  const half = pocket.length / 2, w = pocket.width / 2, ramp = Math.tan(TREAT_DISPENSER.pocketRamp * DEG);
   const circle: Point2[] = Array.from({ length: segments }, (_, i): Point2 => [R * Math.cos(2 * Math.PI * i / segments), R * Math.sin(2 * Math.PI * i / segments)]);
-  const prism = (section: Point2[], x0: number, x1: number) => [x0, x1].flatMap(x => section.flatMap(([y, z]) => [x, y, axisZ + z]));
-  const band = clipSection(circle, [[0, 1, floor], [0, -1, floor]]);
-  const lobes = [1, -1].flatMap(sy => [1, -1].map(sz => clipSection(circle, [[-sy, 0, -w], [0, -sz, -floor]])));
+  const turn = -pocket.turn * DEG, c = Math.cos(turn), s = Math.sin(turn);
+  const prism = (section: Point2[], x0: number, x1: number) => [x0, x1].flatMap(x => section.flatMap(([y, z]) => [x, y * c - z * s, axisZ + y * s + z * c]));
+  const f = pocket.floor;
+  const under = clipSection(circle, [[0, 1, f]]);
+  const leading = clipSection(circle, [[0, -1, -f], [-1, 0, -w]]);
+  const trailing = clipSection(circle, [[0, -1, -f], [1, ramp, -w + ramp * f]]);
   return [
     prism(circle, -rotorEnd, -half), prism(circle, half, rotorEnd),
-    prism(band, -half, half), ...lobes.filter(lobe => lobe.length >= 3).map(lobe => prism(lobe, -half, half)),
+    ...[under, leading, trailing].filter(piece => piece.length >= 3).map(piece => prism(piece, -half, half)),
   ];
 }
 
 /**
  * The body where treats go, as convex pieces: the thread's bore above the lip and, standing in it, the bottle's neck (not a part: the
- * simulation's stand-in for the bottle), the deck the lip rests
- * on, the funnel from the lip to the slot, and below the slot the housing's section (YZ) carried across between the slot's side walls:
- * the slot's front wall and the tight bore on the rotor's rising (front) side down to the drop, the slot's back wall down to the flap's
- * root, the cavity's roof and its arc round the descending (back) side down to the chute; the side walls themselves; the legs.
+ * simulation's stand-in for the bottle), the deck the lip rests on, the funnel from the lip to the slot, and below the slot the
+ * housing's section (YZ) carried across between the slot's side walls: the slot's front wall and the tight bore on the rotor's rising
+ * (front) side down to the drop, the slot's back wall down to the flap's hinge, the cavity's roof and its arc round the descending (back)
+ * side down to the chute; the side walls themselves; the legs.
  */
 export function treatBodyPieces(l: TreatDispenserLayout, segments = 24): number[][] {
   const T = TREAT_DISPENSER;
-  const { slot, bore, axisZ, blockBottom, blockTop, lipZ, lipR, threadR, bossTop, legIn, legOut, cavityR, flap, blockBack, chuteAt } = l;
+  const { slot, bore, axisZ, blockBottom, blockTop, lipZ, lipR, threadR, bossTop, legIn, legOut, drop, cavityR, flap, blockBack, chuteAt } = l;
   const t = T.wall, x0 = -slot.halfX, x1 = slot.halfX;
   const pieces: number[][] = [];
   const annulus = (r0: number, r1: number, z0: number, z1: number, n: number) => Array.from({ length: n }, (_, i) => {
@@ -330,37 +382,44 @@ export function treatBodyPieces(l: TreatDispenserLayout, segments = 24): number[
     const pt = (a: number, rr: number): [number, number] => [rr * Math.sin(a), axisZ + rr * Math.cos(a)];
     return across([pt(a0, r), pt(a1, r), pt(a1, r + t), pt(a0, r + t)]);
   });
-  // the slot's front wall, down to where it meets the bore; the tight bore round the front, down to the drop's front edge
-  const slotFront = Math.asin(slot.halfY / bore.radius) / DEG;
+  // the slot's front wall, down to where it meets the bore; the tight bore round the front, down to the drop's front edge; the drop's
+  // front wall down to the block's bottom (below it the chute runs out to the front)
+  const slotFront = Math.asin(slot.halfY / bore.radius) / DEG, dropTop = axisZ - bore.radius * Math.cos(T.dropFront * DEG);
   pieces.push(across([[-slot.halfY - t, axisZ + bore.radius * Math.cos(slotFront * DEG)], [-slot.halfY, axisZ + bore.radius * Math.cos(slotFront * DEG)], [-slot.halfY, blockTop], [-slot.halfY - t, blockTop]]));
-  pieces.push(...arc(bore.radius, -slotFront, -150, 10));
-  // the drop's front wall, down to the block's bottom (below it the chute runs out to the front)
-  const dropY = -bore.radius * Math.sin(30 * DEG), dropTop = axisZ - bore.radius * Math.cos(30 * DEG);
-  pieces.push(across([[dropY - t, blockBottom], [dropY, blockBottom], [dropY, dropTop], [dropY - t, dropTop]]));
-  // the slot's back wall down to the flap's root, the cavity's roof from there to its arc, the arc down to the chute
-  pieces.push(across([[flap.root.y, flap.root.z], [flap.root.y + t, flap.root.z], [flap.root.y + t, blockTop], [flap.root.y, blockTop]]));
-  const roofEnd = Math.sqrt(cavityR ** 2 - (flap.root.z - axisZ) ** 2);
-  pieces.push(across([[flap.root.y, flap.root.z], [roofEnd, flap.root.z], [roofEnd, flap.root.z + t], [flap.root.y, flap.root.z + t]]));
-  const roofAngle = Math.acos((flap.root.z - axisZ) / cavityR) / DEG;
+  pieces.push(...arc(bore.radius, -slotFront, -(180 - T.dropFront), 10));
+  pieces.push(across([[drop.front - t, blockBottom], [drop.front, blockBottom], [drop.front, dropTop], [drop.front - t, dropTop]]));
+  // the slot's back wall down to the flap's hinge, the cavity's roof from there back over the counterweight, its back wall down to the
+  // arc, the arc down to the chute
+  const { hinge, cavityBack } = flap;
+  pieces.push(across([[slot.halfY, hinge.z], [slot.halfY + t, hinge.z], [slot.halfY + t, blockTop], [slot.halfY, blockTop]]));
+  pieces.push(across([[slot.halfY, hinge.z], [cavityBack + t, hinge.z], [cavityBack + t, hinge.z + t], [slot.halfY, hinge.z + t]]));
+  const backFoot = axisZ + Math.sqrt(cavityR ** 2 - cavityBack ** 2);
+  pieces.push(across([[cavityBack, backFoot], [cavityBack + t, backFoot], [cavityBack + t, hinge.z], [cavityBack, hinge.z]]));
+  const roofAngle = Math.asin(cavityBack / cavityR) / DEG;
   // the arc ends where it meets the chute
   let footAngle = roofAngle;
   while (footAngle < 180 && axisZ + cavityR * Math.cos(footAngle * DEG) > chuteAt(cavityR * Math.sin(footAngle * DEG))) footAngle += 1;
   pieces.push(...arc(cavityR, roofAngle, footAngle, Math.max(2, Math.ceil((footAngle - roofAngle) / 10))));
   // the side walls, over the whole section, from the block's bottom to its top; below, the legs either side of the chute
-  for (const [a, b] of [[x0 - t, x0], [x1, x1 + t]] as const) pieces.push(box(a, b, dropY - t, blockBack, blockBottom, blockTop));
+  for (const [a, b] of [[x0 - t, x0], [x1, x1 + t]] as const) pieces.push(box(a, b, drop.front - t, blockBack, blockBottom, blockTop));
   pieces.push(box(-legOut, -legIn, -l.block.halfY, blockBack, T.base, blockBottom), box(legIn, legOut, -l.block.halfY, blockBack, T.base, blockBottom));
   return pieces;
 }
 
-/** The flap (W, at rest on the rotor): a plate from its root to its tip, across the slot. */
+/** The flap (W, at rest on the rotor): its plate from the hinge to its tip, across the slot, and its counterweight's arm and block behind
+ * the hinge (its hub stays out of the treats' way). */
 export function treatFlapPieces(l: TreatDispenserLayout): number[][] {
-  const { root, tip } = l.flap;
-  const t = TREAT_DISPENSER.flap.thickness;
-  // its face towards the slot (front) is the line root–tip; the plate lies behind it
-  const d = [tip.y - root.y, tip.z - root.z], n = Math.hypot(d[0] ?? 0, d[1] ?? 0);
-  const back: [number, number] = [-(d[1] ?? 0) / n * t, (d[0] ?? 0) / n * t];
-  const quad: [number, number][] = [[root.y, root.z], [tip.y, tip.z], [tip.y + back[0], tip.z + back[1]], [root.y + back[0], root.z + back[1]]];
-  return [[-l.slot.halfX + 0.2, l.slot.halfX - 0.2].flatMap(x => quad.flatMap(([y, z]) => [x, y, z]))];
+  const { hinge, tip, width } = l.flap;
+  const t = TREAT_DISPENSER.flap.thickness / 2, lean = l.flap.angle * DEG;
+  // the plate either side of its centreline: towards the front (−Y) and the back
+  const n: [number, number] = [-Math.cos(lean) * t, -Math.sin(lean) * t];
+  const quad: [number, number][] = [[hinge.y + n[0], hinge.z + n[1]], [tip.y + n[0], tip.z + n[1]], [tip.y - n[0], tip.z - n[1]], [hinge.y - n[0], hinge.z - n[1]]];
+  const F = TREAT_DISPENSER.flap, [wy, wz] = F.weight;
+  const box2 = (y0: number, y1: number, z0: number, z1: number): [number, number][] => [[y0, z0], [y1, z0], [y1, z1], [y0, z1]];
+  return [
+    quad, box2(hinge.y + F.hub - 0.5, hinge.y + F.reach - wy / 2, hinge.z - F.arm / 2, hinge.z + F.arm / 2),
+    box2(hinge.y + F.reach - wy / 2, hinge.y + F.reach + wy / 2, hinge.z - wz / 2, hinge.z + wz / 2),
+  ].map(section => [-width / 2, width / 2].flatMap(x => section.flatMap(([y, z]) => [x, y, z])));
 }
 
 /** The chute (W): its floor (sloped), its side walls and its top end. */
@@ -505,8 +564,8 @@ export function treatFill(p: TreatDispenserParameters, count: number, seed: numb
 export const TREAT_MOTOR = { torque: 29.4, stiffness: 165.8, damping: 0.7, inertia: 2e5, slip: 0.35 } as const;
 
 /**
- * The firmware's cycle (models/treat-dispenser/esphome/treat_dispenser.h): forward half a turn, the full pocket over the drop, the next
- * one under the funnel. It never turns back: backwards, the slot's tight front edge would become the edge the pockets leave under, and
+ * The firmware's cycle (models/treat-dispenser/esphome/treat_dispenser.h): forward a full turn, the pocket over the drop and back under
+ * the funnel. It never turns back: backwards, the slot's tight front edge would become the edge the pocket leaves under, and
  * could pinch a treat (`rock` stays 0; the logic supports one). 700 half-steps/s with a 4076-step turn is 61.8°/s at the rotor.
  */
 export const TREAT_FIRMWARE = {
@@ -514,7 +573,7 @@ export const TREAT_FIRMWARE = {
   stall: 10, rock: 0 as number,
 } as const;
 export const firmwareDegrees = (steps: number): number => steps * 360 / TREAT_FIRMWARE.stepsPerTurn;
-/** Motor steps per dispense cycle, net: one pocket pitch of the rotor (two pockets: half a turn). */
+/** Motor steps per dispense cycle, net: one pocket pitch of the rotor (one pocket: a full turn). */
 export const treatCycleSteps = (): number => TREAT_FIRMWARE.stepsPerTurn / TREAT_DISPENSER.pockets;
 
 /**
@@ -754,9 +813,10 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
       fixed('inner-body', piecesIn(poses['inner-body'], treatBodyPieces(l))),
       fixed('chute', piecesIn(poses.chute, treatChutePieces(l))),
       {
-        // the flap, sprung against the rotor: a treat standing out of a pocket bends it back and passes under it
-        id: 'flap', material: 'petg', mass: T.flap.mass, collision: { kind: 'pieces', pieces: piecesIn(poses.flap, treatFlapPieces(l)) },
-        joint: { type: 'hinge', anchor: [0, l.flap.root.y, l.flap.root.z], axis: [1, 0, 0], spring: { rest: -T.flap.preload, stiffness: T.flap.stiffness }, damping: 0.002, range: [-T.flap.preload - 5, 100] },
+        // the flap, free on its hinge: its counterweight holds it on the rotor, and a treat standing out of the pocket swings it back (its
+        // mass and inertia from its mesh)
+        id: 'flap', material: 'petg', collision: { kind: 'pieces', pieces: piecesIn(poses.flap, treatFlapPieces(l)) },
+        joint: { type: 'hinge', anchor: [0, l.flap.hinge.y, l.flap.hinge.z], axis: [1, 0, 0], damping: 0.002, range: [-5, T.flap.swing] },
       },
     ],
     exclude: [['rotor', 'inner-body'], ['rotor', 'chute'], ['flap', 'inner-body'], ['flap', 'chute']],
@@ -821,10 +881,14 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
   const length = (id: string) => { const part = findPart(id); if (!part) throw new Error(`Missing ${id}.`); return dimensionOf(part, 'l'); };
   return [
     ['WALL', T.wall], ['SHELL', T.shell], ['BASE', T.base], ['HALF_W', l.halfWidth], ['FRONT', l.front], ['BACK', l.back], ['BASE_RECT', treatFootprint(p).map(round)],
-    ['R', l.R], ['ROTOR_END', round(l.rotorEnd)], ['POCKET', [round(l.pocket.length), round(l.pocket.width), round(l.pocket.depth)]], ['POCKETS', T.pockets],
+    ['R', l.R], ['ROTOR_END', round(l.rotorEnd)], ['POCKET', [round(l.pocket.length), round(l.pocket.width), T.pocketRamp, round(l.pocket.turn), round(l.pocket.floor)]],
     ['BORE_R', round(l.bore.radius)], ['BORE_HALF', round(l.bore.half)], ['BLOCK', [round(l.block.halfX), round(l.block.halfY)]], ['SLOT', [round(l.slot.halfX), round(l.slot.halfY)]],
-    ['AXIS_Z', round(l.axisZ)], ['BLOCK_BOTTOM', round(l.blockBottom)], ['BLOCK_TOP', round(l.blockTop)], ['BLOCK_BACK', round(l.blockBack)], ['CAVITY_R', round(l.cavityR)],
-    ['FLAP', [round(l.flap.root.y), round(l.flap.root.z), round(l.flap.length), round(l.flap.angle), T.flap.thickness, T.flap.bead]], ['LIP_Z', round(l.lipZ)], ['LIP_R', round(l.lipR)], ['BOSS_TOP', round(l.bossTop)],
+    ['AXIS_Z', round(l.axisZ)], ['BLOCK_BOTTOM', round(l.blockBottom)], ['BLOCK_TOP', round(l.blockTop)], ['BLOCK_BACK', round(l.blockBack)], ['CAVITY_R', round(l.cavityR)], ['DROP_Y', round(l.drop.front)],
+    // the flap: hinge (y, z), plate length and lean, thickness, hub, hole, boss, boss length, mouth, width
+    ['FLAP', [round(l.flap.hinge.y), round(l.flap.hinge.z), round(l.flap.length), round(l.flap.angle), T.flap.thickness, T.flap.hub, T.flap.hole, T.flap.boss, T.flap.bossLength, T.flap.mouth, round(l.flap.width), T.flap.mouthAngle]],
+    // its counterweight: arm thickness, weight (y, z), the weight's centre behind the hinge, the swing, the recess's radius round the hinge
+    ['WEIGHT', [T.flap.arm, ...T.flap.weight, T.flap.reach, T.flap.swing, round(l.flap.sweep)]], ['BLOCK_SLOPE', round(l.blockSlope)], ['CAVITY_BACK', round(l.flap.cavityBack)], ['GABLE_HALF', round(l.gableHalf)],
+    ['LIP_Z', round(l.lipZ)], ['LIP_R', round(l.lipR)], ['BOSS_TOP', round(l.bossTop)],
     ['CHUTE', [round(l.chuteIn), round(l.chuteOut), round(l.legIn), round(l.legOut)]], ['CHUTE_END', T.chuteEnd], ['CHUTE_BACK', round(l.chuteBack)],
     ['CHUTE_SLOPE', T.chuteSlope], ['EXIT_Z', T.base + T.exitZ], ['CHUTE_FLOOR', T.chuteFloor], ['CHUTE_WALL', T.chuteWall], ['CHUTE_SIDE', T.chuteSide],
     ['NECK_T', l.neck.T], ['NECK_E', l.neck.E], ['NECK_BORE', l.neck.bore], ['NECK_PITCH', l.neck.pitch], ['NECK_TURNS', round(l.neck.turns)],
@@ -832,7 +896,7 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     ['MOTOR_FACE', round(l.motorFace)], ['BOSS_D', dimensionOf(motor, 'db', 'max')], ['SHAFT_D', dimensionOf(motor, 'd', 'max')], ['SHAFT_FLATS', dimensionOf(motor, 's', 'max')],
     // the shaft's round part, from the mounting face to where its flats begin (the longest shaft, the shortest flats)
     ['SHAFT_ROUND', round(dimensionOf(motor, 'l', 'max') - dimensionOf(motor, 'lf', 'min'))],
-    ['CAP', [T.capFlange, T.capRadius, T.stub, T.stubLength]], ['PIN', T.flap.pin], ['GAP', T.gap],
+    ['CAP', [T.capFlange, T.capRadius, T.stub, T.stubLength]], ['GAP', T.gap],
     // the cap's lugs: their face towards the outer body's left wall, thickness, half side, the screws' distance from the axis
     ['LUG', [round(l.lugFace), T.lugThickness, T.lug, round(l.capScrewR)]],
     ['FOOT', T.foot], ['FEET', treatFeet(l).map(foot => foot.map(round))], ['RIM', [T.rim, T.rimHeight]], ['COLLAR', [T.collar, T.collarDepth]], ['STANDOFF', [T.standoff, round(l.standoffLength)]], ['COLUMN_R', CORNER_COLUMN.radius],
@@ -903,9 +967,9 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
     steps: [
       { title: 'Push two M3 nuts into the inner body’s motor bays, from the front', parts: ids('motor', 'nut'), from: [0, -16, 0] },
       { title: 'Drop M3 nuts into the ULN2003’s standoffs and the cap’s lugs', parts: [...ids('driver', 'nut'), ...ids('cap', 'nut')], from: [0, 0, 8] },
+      { title: 'Snap the flap’s hub onto the two bosses behind the slot, pushed up and back from the bore (before the motor and the rotor: their shafts fill the bore); it swings freely', parts: ['flap'], from: [0, -12, -12] },
       { title: 'Screw the motor to the inner body’s right side, its shaft into the block (two M3 × 6)', parts: ['motor', ...ids('motor', 'screw')], from: [45, 0, 0] },
       { title: 'Screw the ULN2003 board to its standoffs under the motor (four M3 × 8); plug in the motor', parts: ['driver', ...ids('driver', 'screw')], from: [45, 0, 0] },
-      { title: 'Push the flap up into its recess over the cavity’s roof, from below; pin it with 1.75 mm filament through the block’s left face', parts: ['flap'], from: [0, 0, -50] },
       { title: 'Push M3 nuts into the outer body’s left corner columns, from inside', parts: ids('corner-left', 'nut'), from: [14, 0, 0] },
       { title: 'Push M3 nuts into the outer body’s right corner columns, from inside', parts: ids('corner-right', 'nut'), from: [-14, 0, 0] },
       { title: 'Lower the outer body over the inner body, the thread through its top (plug the jumper wires into the ULN2003 first)', parts: ['outer-body', ...ids('corner', 'nut')], from: [0, 0, 150] },
@@ -943,8 +1007,10 @@ export function treatDispenserScenarios(p: TreatDispenserParameters, count: numb
   const counter = (at: number, value: number, id = 'out'): PhysicsCheck => ({ kind: 'counter', at, counter: id, min: value, max: value });
   const state = (at: number, name: string): PhysicsCheck => ({ kind: 'controller', at, field: 'state', state: name });
   const field = (at: number, name: 'cycles' | 'rejected' | 'queued' | 'idleExits', min: number, max = min): PhysicsCheck => ({ kind: 'controller', at, field: name, min, max });
-  // a fingertip (a 1 mm ball, kinematic: it does not give) in the pocket under the funnel, at its back: a foreign object
-  const obstruction: Vec3 = [0, l.pocket.width / 2 - 1.5, l.axisZ + l.R - l.pocket.depth / 2];
+  // a fingertip (a 1 mm ball, kinematic: it does not give) in the pocket under the funnel, by its leading face, halfway up: a foreign
+  // object (the pocket drawn mouth up, turned by `pocket.turn` towards +Y)
+  const lean = l.pocket.turn * Math.PI / 180, py = l.pocket.width / 2 - 1.5, pz = l.R / 2;
+  const obstruction: Vec3 = [0, py * Math.cos(lean) + pz * Math.sin(lean), l.axisZ - py * Math.sin(lean) + pz * Math.cos(lean)];
   const presses = 4;
   const primeEnd = settle + cycle + 0.3;
   // Whether each press releases exactly one is not asserted: the owner accepts 0, 1 or several (docs/treat-dispenser.md). CI asserts

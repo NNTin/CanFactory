@@ -29,10 +29,10 @@ enum class Outcome : uint8_t { Started, Queued, Done, Rejected };
 struct Config {
   /** Half-steps per turn of the motor's output shaft (CALIBRATE; nominally 4096, about 4076 for most 28BYJ-48s). */
   double steps_per_turn = 4076;
-  /** Motor turns per dispense cycle: one pocket pitch of the rotor, which the motor turns directly (two pockets: half a turn). */
-  double turns_per_cycle = 0.5;
+  /** Motor turns per dispense cycle: one pocket pitch of the rotor, which the motor turns directly (one pocket: a full turn). */
+  double turns_per_cycle = 1.0;
   /** A cycle may first turn back this much, then forward the cycle and this again. 0 for the gumball dispenser: backwards, the slot's
-   *  tight front edge would become the edge its pockets leave under. */
+   *  tight front edge would become the edge its pocket leaves under. */
   double rock_turns = 0.0;
   /** +1 or −1, so that the rotor turns the right way (VERIFY on the device). */
   int direction = -1;
@@ -41,7 +41,7 @@ struct Config {
   /** The pause after the rock back, and the settle after a cycle before the next may start, ms. */
   uint32_t pause_ms = 200, settle_ms = 500;
   /** Cycles of a prime and of a calibration run. */
-  int prime_cycles = 1, calibrate_cycles = 4;
+  int prime_cycles = 1, calibrate_cycles = 2;
   /** Dispense presses that may wait while a dispense runs. */
   int queue = 1;
 };

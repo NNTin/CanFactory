@@ -84,7 +84,7 @@ int main() {
     CHECK(d.logic.rejected() == 3);
   }
 
-  // one press: half a turn (4076 / 2 = 2038 half-steps, signed by the direction), counted only once it has finished and the settle has
+  // one press: a full turn (4076 half-steps, signed by the direction), counted only once it has finished and the settle has
   // passed; "not at rest" committed before the first step
   {
     Device d(defaults(), true);
@@ -92,13 +92,13 @@ int main() {
     CHECK(d.logic.request(Request::Dispense) == Outcome::Started);
     CHECK(!d.committed);
     d.run(5);
-    CHECK(d.moves.size() == 1 && d.moves[0] == -2038);
-    d.run(2900);
+    CHECK(d.moves.size() == 1 && d.moves[0] == -4076);
+    d.run(5800);
     CHECK(d.logic.cycles() == 0);
     d.settle();
     CHECK(d.moves.size() == 1);
     CHECK(d.logic.cycles() == 1 && d.logic.state() == State::Ready && d.committed);
-    CHECK(d.position == -2038);
+    CHECK(d.position == -4076);
   }
 
   // presses while a dispense runs: one queues and then really runs, a further one is rejected (the old script lost the queued one)
@@ -110,7 +110,7 @@ int main() {
     CHECK(d.logic.request(Request::Dispense) == Outcome::Rejected);
     CHECK(d.logic.queued() == 1);
     d.settle();
-    CHECK(d.logic.cycles() == 2 && d.moves.size() == 2 && d.position == -4076);
+    CHECK(d.logic.cycles() == 2 && d.moves.size() == 2 && d.position == -8152);
     CHECK(d.logic.queued() == 0 && d.logic.rejected() == 1 && d.committed);
   }
 
@@ -136,23 +136,26 @@ int main() {
     d.run(100);
     CHECK(d.logic.request(Request::Dispense) == Outcome::Rejected);
     d.settle();
-    CHECK(d.moves.size() == 1 && d.position == -2038 && d.logic.cycles() == 0 && d.logic.state() == State::Ready);
+    CHECK(d.moves.size() == 1 && d.position == -4076 && d.logic.cycles() == 0 && d.logic.state() == State::Ready);
   }
 
-  // calibration follows steps_per_turn: 4096 gives 2048-step cycles; 4075 gives cycles that round but never drift (4 cycles = 2 turns)
+  // calibration follows steps_per_turn: 4096 gives 4096-step cycles (2 cycles = 2 turns); with half-turn cycles, 4075 gives cycles that
+  // round but never drift
   {
     Config c = defaults();
     c.steps_per_turn = 4096;
     Device d(c, true);
     CHECK(d.logic.request(Request::Calibrate) == Outcome::Started);
     d.settle();
-    CHECK(d.moves.size() == 4 && d.position == -8192);
-    for (long m : d.moves) CHECK(m == -2048);
+    CHECK(d.moves.size() == 2 && d.position == -8192);
+    for (long m : d.moves) CHECK(m == -4096);
     CHECK(d.logic.cycles() == 0);
   }
   {
     Config c = defaults();
     c.steps_per_turn = 4075;
+    c.turns_per_cycle = 0.5;
+    c.calibrate_cycles = 4;
     c.direction = 1;
     Device d(c, true);
     d.logic.request(Request::Calibrate);
@@ -166,13 +169,13 @@ int main() {
   // unaligned unless the cycle had finished and committed its rest; booting "ready" with the rotor off its rest never happens
   {
     int unaligned = 0, ready = 0;
-    for (uint32_t cut = 0; cut <= 5000; cut += 25) {
+    for (uint32_t cut = 0; cut <= 7000; cut += 25) {
       Device d(defaults(), true);
       d.logic.request(Request::Dispense);
       d.run(cut);
       const bool finished = d.logic.state() == State::Ready;
       d.power_cycle();
-      const bool at_rest = d.position % 2038 == 0;
+      const bool at_rest = d.position % 4076 == 0;
       if (d.logic.state() == State::Ready) { ready++; CHECK(at_rest); CHECK(finished || d.position == 0); }
       else { unaligned++; CHECK(d.logic.state() == State::Unaligned); CHECK(d.logic.request(Request::Dispense) == Outcome::Rejected); }
     }
@@ -201,7 +204,7 @@ int main() {
     Device d(c, true);
     d.logic.request(Request::Dispense);
     d.settle();
-    CHECK(d.moves.size() == 2 && d.moves[0] == 226 && d.moves[1] == -2264 && d.position == -2038);
+    CHECK(d.moves.size() == 2 && d.moves[0] == 226 && d.moves[1] == -4302 && d.position == -4076);
     CHECK(d.move_times[1] - d.move_times[0] >= 226 * 1000 / 700 + c.pause_ms);
     CHECK(d.logic.cycles() == 1);
   }

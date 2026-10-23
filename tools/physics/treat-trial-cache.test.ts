@@ -8,7 +8,7 @@ describe('treat dispenser trial mesh cache', () => {
     const key = meshCacheKey('module disc() {}', layout, 1);
     expect(meshCacheKey('module disc() {}', layout, 1)).toBe(key);
     expect(meshCacheKey('module disc() { }', layout, 1)).not.toBe(key);
-    expect(meshCacheKey('module disc() {}', treatScadLayout({ ...DEFAULT_TREAT_DISPENSER, treatThickness: 5.5 }), 1)).not.toBe(key);
+    expect(meshCacheKey('module disc() {}', treatScadLayout({ ...DEFAULT_TREAT_DISPENSER, treatWidth: 8 }), 1)).not.toBe(key);
     expect(meshCacheKey('module disc() {}', layout, 2)).not.toBe(key);
   });
 

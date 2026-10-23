@@ -59,7 +59,7 @@ async function geometry(file: string): Promise<Record<string, number[]>> {
   const assembly = resolveAssembly(model, model.assembly, model.defaults) ?? model.assembly;
   const meshes = await renderAssemblyMeshes(model as never, assembly, model.defaults);
   const result: Record<string, number[]> = {};
-  for (const id of ['rotor', 'body', 'chute']) { const mesh = meshes.get(id); if (mesh) result[id] = Array.from(mesh.tris); }
+  for (const id of ['rotor', 'inner-body', 'chute', 'flap']) { const mesh = meshes.get(id); if (mesh) result[id] = Array.from(mesh.tris); }
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, JSON.stringify(result));
   return result;

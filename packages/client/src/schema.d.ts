@@ -2263,7 +2263,7 @@ export interface operations {
                         treatWidth: number;
                         /**
                          * Treat thickness
-                         * @description Thinnest side of the treats, mm. A pocket is as deep as this plus the clearance.
+                         * @description Thinnest side of the treats, mm (the rotor’s pocket reaches its axis whatever it is: the simulation’s treats are this thick).
                          * @default 5
                          */
                         treatThickness: number;

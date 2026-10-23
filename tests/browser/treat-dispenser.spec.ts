@@ -18,7 +18,7 @@ async function report(page: Page): Promise<Report | undefined> {
   return text ? JSON.parse(text) as Report : undefined;
 }
 
-test('dispenses from the BOOT button on the case in the back wall: the motor turns the rotor half a turn, and treats leave down the chute', async ({ page }) => {
+test('dispenses from the BOOT button on the case in the back wall: the motor turns the rotor a full turn, and treats leave down the chute', async ({ page }) => {
   // the mechanism's 0.1 ms steps with a pile of treats in contact run in slow motion
   test.setTimeout(1_500_000);
   const errors: string[] = [];
@@ -41,16 +41,17 @@ test('dispenses from the BOOT button on the case in the back wall: the motor tur
   // eight treats, each its own body
   await expect.poll(async () => Object.keys(await poses(page)).filter(id => id.startsWith('treat-')).length, { timeout: 60_000 }).toBe(8);
 
-  // the visible B on the model: one press commands one cycle, and the rotor, on the motor's shaft, turns half a turn forwards
+  // the visible B on the model: one press commands one cycle, and the rotor, on the motor's shaft, turns a full turn forwards (its one
+  // pocket back under the slot)
   const start = await poses(page);
   await boot.click();
   await expect.poll(async () => (await report(page))?.state, { timeout: 120_000 }).toBe('running');
   await expect.poll(async () => { const now = await report(page); return now?.state === 'ready' && now.cycles; }, { timeout: 900_000, intervals: [2_000] }).toBe(1);
   const one = await report(page);
-  expect(one?.commanded).toBeCloseTo(-180, 0);
-  expect(Math.abs((one?.actual ?? 0) + 180)).toBeLessThan(2);
+  expect(one?.commanded).toBeCloseTo(-360, 0);
+  expect(Math.abs((one?.actual ?? 0) + 360)).toBeLessThan(2);
   expect(one?.lost).toBeLessThan(1);
-  await expect.poll(async () => angle((await poses(page))['rotor'] ?? [], start['rotor'] ?? []), { timeout: 30_000 }).toBeGreaterThan(178);
+  await expect.poll(async () => angle((await poses(page))['rotor'] ?? [], start['rotor'] ?? []), { timeout: 30_000 }).toBeLessThan(2);
 
   // Prime (one cycle) from the panel, then B again: treats actually leave past the chute's end, none between cycles (0, 1 or more
   // per press is accepted; at least one over the three cycles from a fresh fill)
@@ -99,7 +100,7 @@ test('shows the inner and outer bodies, the motor, the ULN2003 and every M3 scre
   expect(fasteners).toHaveLength(24);
   const visible = async () => new Set((await viewer.getAttribute('data-visible-parts') ?? '').split(' '));
   await expect.poll(async () => [...await visible()].filter(id => fasteners.includes(id)).length, { timeout: 60_000 }).toBe(24);
-  for (const id of ['inner-body', 'outer-body', 'motor', 'driver', 'board', 'header-1', 'header-2']) expect((await visible()).has(id), id).toBe(true);
+  for (const id of ['inner-body', 'outer-body', 'flap', 'motor', 'driver', 'board', 'header-1', 'header-2']) expect((await visible()).has(id), id).toBe(true);
   // hide the outer body: the mechanism, the boards and every fastener stay in view
   const outer = treatDispenser.parts.find(part => part.id === 'outer-body');
   await page.getByTitle(`Hide ${outer?.title ?? ''}`).click();

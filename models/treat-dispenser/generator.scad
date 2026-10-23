@@ -1,5 +1,6 @@
-// Gumball-style treat dispenser: an inverted PET bottle screws into the top; a horizontal rotor with two pockets, turned directly by
-// a 28BYJ-48, carries treats from under the funnel to the drop onto a chute out of the front. After bovineblitz's "Cat treat
+// Gumball-style treat dispenser: an inverted PET bottle screws into the top; a horizontal rotor with one pocket, turned directly by
+// a 28BYJ-48, carries treats from under the funnel past a rigid flap, which swings by its own weight, to the drop onto a chute out of
+// the front. Every part prints in PLA or PETG. After bovineblitz's "Cat treat
 // gumball-style dispenser" (MakerWorld 190887, CC BY-NC 4.0), itself after cylus80's "Mason Jar Candy Dispenser" (Thingiverse
 // 2103924, CC BY 4.0); see ATTRIBUTION.md. Redrawn for CanFactory: PET thread, motor, electronics inside.
 //
@@ -15,25 +16,32 @@ function L(name) = let(i = search([name], LAYOUT, 1, 0)[0]) i == undef ? undef :
 
 $fn = 64;
 WALL = L("WALL"); SHELL = L("SHELL"); BASE = L("BASE"); HALF_W = L("HALF_W"); FRONT = L("FRONT"); BACK = L("BACK"); BASE_RECT = L("BASE_RECT");
-R = L("R"); ROTOR_END = L("ROTOR_END"); POCKET = L("POCKET"); POCKETS = L("POCKETS");
+R = L("R"); ROTOR_END = L("ROTOR_END"); POCKET = L("POCKET");
 BORE_R = L("BORE_R"); BORE_HALF = L("BORE_HALF"); BLOCK = L("BLOCK"); SLOT = L("SLOT");
-AXIS_Z = L("AXIS_Z"); BLOCK_BOTTOM = L("BLOCK_BOTTOM"); BLOCK_TOP = L("BLOCK_TOP"); BLOCK_BACK = L("BLOCK_BACK"); CAVITY_R = L("CAVITY_R"); FLAP = L("FLAP"); LIP_Z = L("LIP_Z"); LIP_R = L("LIP_R"); BOSS_TOP = L("BOSS_TOP");
+AXIS_Z = L("AXIS_Z"); BLOCK_BOTTOM = L("BLOCK_BOTTOM"); BLOCK_TOP = L("BLOCK_TOP"); BLOCK_BACK = L("BLOCK_BACK"); CAVITY_R = L("CAVITY_R"); DROP_Y = L("DROP_Y"); FLAP = L("FLAP"); WEIGHT = L("WEIGHT"); BLOCK_SLOPE = L("BLOCK_SLOPE"); CAVITY_BACK = L("CAVITY_BACK"); GABLE_HALF = L("GABLE_HALF"); LIP_Z = L("LIP_Z"); LIP_R = L("LIP_R"); BOSS_TOP = L("BOSS_TOP");
 CHUTE = L("CHUTE"); CHUTE_END = L("CHUTE_END"); CHUTE_BACK = L("CHUTE_BACK"); CHUTE_SLOPE = L("CHUTE_SLOPE"); EXIT_Z = L("EXIT_Z");
 CHUTE_FLOOR = L("CHUTE_FLOOR"); CHUTE_WALL = L("CHUTE_WALL"); CHUTE_SIDE = L("CHUTE_SIDE");
 NECK_T = L("NECK_T"); NECK_E = L("NECK_E"); NECK_PITCH = L("NECK_PITCH"); NECK_TURNS = L("NECK_TURNS");
 THREAD_CLEARANCE = L("THREAD_CLEARANCE"); THREAD_R = L("THREAD_R"); BOSS_R = L("BOSS_R");
 MOTOR_FACE = L("MOTOR_FACE"); BOSS_D = L("BOSS_D"); SHAFT_D = L("SHAFT_D"); SHAFT_FLATS = L("SHAFT_FLATS"); SHAFT_ROUND = L("SHAFT_ROUND");
-CAP = L("CAP"); PIN = L("PIN"); GAP = L("GAP"); LUG = L("LUG"); FOOT = L("FOOT"); FEET = L("FEET"); RIM = L("RIM"); COLLAR = L("COLLAR"); STANDOFF = L("STANDOFF"); COLUMN_R = L("COLUMN_R");
+CAP = L("CAP"); GAP = L("GAP"); LUG = L("LUG"); FOOT = L("FOOT"); FEET = L("FEET"); RIM = L("RIM"); COLLAR = L("COLLAR"); STANDOFF = L("STANDOFF"); COLUMN_R = L("COLUMN_R");
 BOLTS = L("BOLTS"); NUT = L("NUT"); M3_HOLE = L("M3_HOLE"); HEAD = L("HEAD");
 CASE_POS = L("CASE_POS"); USB = L("USB");
 
 // the ESP32 case's outline (its base 25.8 × 21.8) and its floor's depth, from the case model's own parts
 CASE_L = 25.8; CASE_W = 21.8; CASE_FLOOR = 6;
-// the flap: its root (y, z) on the slot's back wall, length, angle from the vertical (towards the back), thickness, and its root block's
-// side; the block sits over the root, behind the slot's back wall, the filament pin through its middle
-FLAP_BLOCK = FLAP[5]; FLAP_PIN = [FLAP[0] + FLAP_BLOCK / 2, FLAP[1] + 0.45 * FLAP_BLOCK];
-DROP_Y = -BORE_R * sin(30);
 TAN = tan(CHUTE_SLOPE);
+// the flap's hinge (y, z), and the way its hub's mouth opens (towards the front and down: it is pushed on up and back from the bore)
+HINGE = [FLAP[0], FLAP[1]]; MOUTH_DIR = [cos(FLAP[11]), -sin(FLAP[11])];
+// the flap's counterweight in section (y, z, at rest): its arm straight back from the hub and the weight at its end
+module weight_section(g = 0) {
+  translate(HINGE) offset(delta = g) {
+    translate([FLAP[5] - 0.5, -WEIGHT[0] / 2]) square([WEIGHT[3] - WEIGHT[1] / 2 - FLAP[5] + 0.5, WEIGHT[0]]);
+    translate([WEIGHT[3] - WEIGHT[1] / 2, -WEIGHT[2] / 2]) square([WEIGHT[1], WEIGHT[2]]);
+  }
+}
+// turned about the hinge by a (degrees, opening: the counterweight up)
+module about_hinge(a) { translate(HINGE) rotate(a) translate(-HINGE) children(); }
 function chute_at(y) = EXIT_Z + (y - CHUTE_END) * TAN;
 
 // overhangs are kept at least this steep (degrees from the horizontal), so that nothing inside needs support
@@ -42,20 +50,15 @@ STEEP = 50;
 module hole_x(r, h) {
   rotate([0, 90, 0]) linear_extrude(h) polygon(concat([[-r / cos(STEEP), 0]], [for (i = [0:48]) let(a = -(180 - STEEP) + i * (360 - 2 * STEEP) / 48) r * [cos(a), sin(a)]]));
 }
-// the flap's root block in section (y, z from the root): as deep as its side, its top sloping up to the front at STEEP (1.5 times its
-// side high at the slot's back wall), so that the recess it sits in prints without support; grown by g for the recess
-FLAP_KNEE = 1.5 * FLAP[5] - FLAP[5] * tan(STEEP);
-function flap_block(g) = [[-g, -g], [FLAP_BLOCK + g, -g], [FLAP_BLOCK + g, FLAP_KNEE + g], [-g, FLAP_KNEE + g + (FLAP_BLOCK + 2 * g) * tan(STEEP)]];
-module flap_block_x(x0, x1, g) { translate([x0, FLAP[0], FLAP[1]]) rotate([90, 0, 90]) linear_extrude(x1 - x0) polygon(flap_block(g)); }
 
 // the shell's section across X (y, z): a gable, its front and back sloping up at STEEP to a flat top as wide as the thread's boss, so
 // that the top prints without support (bridged from slope to slope; a little wider than the boss, so that its round never touches the
-// slopes' edges); the side walls stay upright for the cap and the flap's pin
+// slopes' edges); the side walls stay upright for the cap
 function gable(front, back, base, top, half) = [[front, base], [back, base], [back, top - (back - half) * tan(STEEP)], [half, top], [-half, top], [front, top - (-half - front) * tan(STEEP)]];
 // below the right side's hip: a plane down from just beyond the boss at the top to the right at STEEP, moved in by d. It starts 2.75
 // further out than the gable's flat top: at 2.5 its edge with the back slope would run through the rounded box's corner edge whenever
 // HALF_W = BACK − 5.5 (a 43.5 wide shell at the 49 back), leaving float32 slivers; HALF_W steps by 0.5, so 2.75 never meets it
-module hip(d) { translate([BOSS_R + 3.25 - d / sin(STEEP), 0, LIP_Z]) rotate([0, STEEP, 0]) translate([-200, -200, -400]) cube([400, 400, 400]); }
+module hip(d) { translate([GABLE_HALF + 2.75 - d / sin(STEEP), 0, LIP_Z]) rotate([0, STEEP, 0]) translate([-200, -200, -400]) cube([400, 400, 400]); }
 module along_x(x0, x1) { translate([x0, 0, 0]) rotate([90, 0, 90]) linear_extrude(x1 - x0) children(); }
 
 // the chute's way's section at y (x, z): up to the chute's walls (and 0.3 over them) at the legs, then sloping up at STEEP to a peak, or
@@ -110,6 +113,16 @@ module teardrop_yz(r) { hull() { translate([0, AXIS_Z]) circle(r = r, $fn = 72);
 // the motor (on its +X face) and the ULN2003 board (on standoffs off the right leg), and a sleeve carrying the bore out to the left,
 // with two lugs for the bearing cap's screws just inside the outer body's left wall
 module inner_body_w() {
+  inner_body_shell();
+  // the flap's hinge: a boss on each side wall, standing out into the hub's hole; peaked like a teardrop so that it prints, the peak cut
+  // inside the hub's hole so that the hub turns freely on it
+  for (s = [-1, 1]) translate([s * SLOT[0], HINGE[0], HINGE[1]]) rotate([0, s * -90, 0]) translate([0, 0, -0.01]) linear_extrude(FLAP[8] + 0.01)
+    rotate([0, 0, -s * 90]) intersection() {
+      hull() { circle(r = FLAP[7], $fn = 32); translate([0, FLAP[7] / cos(STEEP)]) square(0.01, center = true); }
+      circle(r = (FLAP[7] + FLAP[6]) / 2, $fn = 32);
+    }
+}
+module inner_body_shell() {
   difference() {
     union() {
       // the thread's boss, on a cone (STEEP) from the funnel's top
@@ -121,10 +134,10 @@ module inner_body_w() {
         translate([0, 0, LIP_Z - WALL]) cylinder(r = LIP_R + WALL, h = WALL, $fn = 72);
         translate([-SLOT[0] - WALL, -SLOT[1] - WALL, BLOCK_TOP - 1]) cube([2 * (SLOT[0] + WALL), 2 * (SLOT[1] + WALL), 1]);
       }
-      // the rotor's block (deep behind, round the cavity); its top slopes down to the back at STEEP, a wall clear of the cavity's round
+      // the rotor's block (deep behind, round its hollow); its top slopes down to the back at STEEP, a wall clear of the hollow's round
       intersection() {
         translate([-BLOCK[0], -BLOCK[1], BLOCK_BOTTOM]) cube([2 * BLOCK[0], BLOCK[1] + BLOCK_BACK, BLOCK_TOP - BLOCK_BOTTOM]);
-        translate([-BLOCK[0] - 1, (CAVITY_R + WALL) * sin(STEEP), AXIS_Z + (CAVITY_R + WALL) * cos(STEEP)]) rotate([-STEEP, 0, 0]) translate([0, -100, -200]) cube([2 * BLOCK[0] + 2, 200, 200]);
+        translate([-BLOCK[0] - 1, BLOCK_SLOPE * sin(STEEP), AXIS_Z + BLOCK_SLOPE * cos(STEEP)]) rotate([-STEEP, 0, 0]) translate([0, -100, -200]) cube([2 * BLOCK[0] + 2, 200, 200]);
       }
       // under the block, from the base up: the chute's way is cut out of it (below), which leaves the legs either side of the chute and,
       // between them, the way's sloping ceiling
@@ -166,18 +179,27 @@ module inner_body_w() {
     // the bore, through the sleeve (open at −X for the rotor and its cap), the slot above it and the drop below it
     translate([LUG[0] - 1, 0, AXIS_Z]) hole_x(BORE_R, BORE_HALF - LUG[0] + 1);
     translate([-SLOT[0], -SLOT[1], AXIS_Z]) cube([2 * SLOT[0], 2 * SLOT[1], BLOCK_TOP - AXIS_Z + 0.02]);
-    // the drop: from the tight bore's lower front edge back into the cavity
-    translate([-SLOT[0], DROP_Y, BLOCK_BOTTOM - 1]) cube([2 * SLOT[0], CAVITY_R - DROP_Y, AXIS_Z - BLOCK_BOTTOM + 1]);
-    // the cavity round the rotor's descending (back) side, under a roof at the flap's root (its round top prints as bridges between its
-    // side walls)
-    intersection() {
-      translate([-SLOT[0], 0, AXIS_Z]) rotate([0, 90, 0]) cylinder(r = CAVITY_R, h = 2 * SLOT[0], $fn = 144);
-      translate([-SLOT[0] - 1, SLOT[1], BLOCK_BOTTOM - 20]) cube([2 * SLOT[0] + 2, CAVITY_R, FLAP[1] - BLOCK_BOTTOM + 20]);
+    // between the slot's side walls, as one section (so that no two cuts end on the side walls' faces apart): the drop below the bore,
+    // from the tight bore's lower front edge back into the cavity; the cavity round the rotor's descending (back) side,
+    // under a roof at the flap's hinge (its round top prints as bridges between its side walls); the counterweight's recess (the room it
+    // sweeps as the flap swings open, its round top bridged likewise) and the hub's recess round the hinge (peaked so that it prints
+    // without support), each with the way it comes in, up and back from the bore
+    translate([-SLOT[0], 0, 0]) rotate([90, 0, 90]) linear_extrude(2 * SLOT[0]) {
+      translate([DROP_Y, BLOCK_BOTTOM - 1]) square([CAVITY_R - DROP_Y, AXIS_Z - BLOCK_BOTTOM + 1]);
+      intersection() {
+        translate([0, AXIS_Z]) circle(r = CAVITY_R, $fn = 144);
+        // (from 1 mm inside the slot, which is open there anyway: the two cuts overlap rather than meet face to face)
+        translate([SLOT[1] - 1, BLOCK_BOTTOM - 20]) square([CAVITY_R + 1, HINGE[1] - BLOCK_BOTTOM + 20]);
+      }
+      // behind, up to the roof as far back as the counterweight reaches, so that the flap goes in straight up from below
+      translate([SLOT[1] - 1, AXIS_Z]) square([CAVITY_BACK - SLOT[1] + 1, HINGE[1] - AXIS_Z]);
+      for (a = [0:5:WEIGHT[4] - 5]) hull() { about_hinge(a) weight_section(0.5); about_hinge(a + 5) weight_section(0.5); }
+      hull() { weight_section(0.5); translate(26 * MOUTH_DIR) weight_section(0.5); }
+      hull() for (d = [0, 2 * FLAP[5]]) {
+        translate(HINGE + d * MOUTH_DIR) circle(r = FLAP[5] + 0.3, $fn = 48);
+        translate(HINGE + d * MOUTH_DIR + [0, (FLAP[5] + 0.3) / cos(STEEP)]) square(0.01, center = true);
+      }
     }
-    // the flap's recess over the cavity's roof, open to the slot and to the cavity below (the flap goes in from below), and its pin's hole,
-    // from the block's left face, blind at the right
-    flap_block_x(-SLOT[0], SLOT[0], 0.16);
-    translate([-BLOCK[0] - 1, FLAP_PIN[0], FLAP_PIN[1]]) hole_x((PIN + 0.15) / 2, BLOCK[0] + SLOT[0] + 5);
     // the motor's boss and shaft through the +X face (the motor goes on from the side; its ears' screws are bolts)
     translate([BORE_HALF - 0.01, 0, AXIS_Z]) hole_x((BOSS_D + 1) / 2, BLOCK[0] - BORE_HALF + 1);
     // the chute's way in between the legs, from below, up over its walls' tops along its slope (the legs hold it); its ceiling slopes up
@@ -198,7 +220,7 @@ module outer_cavity() {
   inner_x = HALF_W - SHELL;
   intersection() {
     rbox(-inner_x, inner_x, FRONT + SHELL, BACK - SHELL, BASE - 1, LIP_Z, 8 - SHELL);
-    along_x(-HALF_W, HALF_W) offset(delta = -SHELL) polygon(gable(FRONT, BACK, BASE - 10, LIP_Z, BOSS_R + 0.5));
+    along_x(-HALF_W, HALF_W) offset(delta = -SHELL) polygon(gable(FRONT, BACK, BASE - 10, LIP_Z, GABLE_HALF));
     hip(SHELL);
   }
 }
@@ -208,7 +230,7 @@ module outer_body_w() {
       difference() {
         intersection() {
           rbox(-HALF_W, HALF_W, FRONT, BACK, BASE, LIP_Z, 8);
-          along_x(-HALF_W - 1, HALF_W + 1) polygon(gable(FRONT, BACK, BASE, LIP_Z, BOSS_R + 0.5));
+          along_x(-HALF_W - 1, HALF_W + 1) polygon(gable(FRONT, BACK, BASE, LIP_Z, GABLE_HALF));
           hip(0);
         }
         outer_cavity();
@@ -243,10 +265,13 @@ module rotor_w() {
       // the stub into the cap's bearing
       rotate([0, -90, 0]) translate([0, 0, ROTOR_END - 0.01]) cylinder(d = CAP[2], h = CAP[3] + 0.01, $fn = 48);
     }
-    // two pockets, top and bottom, square-ended within the rotor's hubs (standing on its +X end, each pocket's −X end bridges its width)
-    for (s = [1, -1]) translate([-POCKET[0] / 2, -POCKET[1] / 2, s > 0 ? R - POCKET[2] : -R - 1]) cube([POCKET[0], POCKET[1], POCKET[2] + 1]);
+    // one pocket, square-ended within the rotor's hubs (standing on its +X end, its −X end bridges its width): drawn mouth up, its floor
+    // on the axis, its leading face (+Y) radial and its trailing face (−Y) leaning out by POCKET[2]; turned by POCKET[3] towards +Y, so
+    // that its mouth is centred on the top at rest
+    rotate([-POCKET[3], 0, 0]) translate([-POCKET[0] / 2, 0, 0]) rotate([90, 0, 90]) linear_extrude(POCKET[0])
+      polygon([[POCKET[1] / 2, POCKET[4]], [POCKET[1] / 2, R + 1], [-POCKET[1] / 2 - (R + 1 - POCKET[4]) * tan(POCKET[2]), R + 1], [-POCKET[1] / 2, POCKET[4]]]);
     // the motor's shaft, from the +X end: round where it leaves the motor, flatted from there to its tip (its flats facing ±Y, as the
-    // motor stands, its can in front of the shaft)
+    // motor stands, its can in front of the shaft); its tip pokes into the pocket, its flats held there by the floor's half of the bore
     translate([ROTOR_END + 0.01, 0, 0]) rotate([0, -90, 0]) {
       linear_extrude(8) intersection() {
         circle(d = SHAFT_D + 0.2, $fn = 48);
@@ -259,23 +284,27 @@ module rotor_w() {
 }
 module rotor() { print_pose(L("P_ROTOR")) rotor_w(); }
 
+
 // ---------------------------------------------------------------------------------------------------------------------- the flap
-// TPU, printed flat: a strip from its root block to its tip, which rests on the rotor just behind the slot; the block (its pin's hole
-// through it) holds the strip's root square, so that the strip, not the block, bends
+// rigid (PLA or PETG): a plate hanging from a hub on the hinge, leaning back FLAP[3]° to its tip, which is trimmed to the rotor, and a
+// counterweight straight back from the hub that holds the tip on the rotor; the hub's hole snaps over the side walls' bosses through a
+// mouth narrower than a boss, and then turns freely on them
 module flap_w() {
-  intersection() {
-    difference() {
-      union() {
-        translate([-SLOT[0] + 0.2, FLAP[0], FLAP[1]]) rotate([FLAP[3] - 90, 0, 0]) cube([2 * SLOT[0] - 0.4, FLAP[2], FLAP[4]]);
-        flap_block_x(-SLOT[0] + 0.2, SLOT[0] - 0.2, 0);
+  difference() {
+    union() {
+      translate([0, HINGE[0], HINGE[1]]) rotate([FLAP[3], 0, 0]) {
+        rotate([0, 90, 0]) cylinder(r = FLAP[5], h = FLAP[10], center = true, $fn = 48);
+        translate([-FLAP[10] / 2, -FLAP[4] / 2, -FLAP[2] - 2]) cube([FLAP[10], FLAP[4], FLAP[2] + 2]);
       }
-      translate([-SLOT[0], FLAP_PIN[0], FLAP_PIN[1]]) rotate([0, 90, 0]) cylinder(d = PIN + 0.15, h = 2 * SLOT[0], $fn = 16);
+      // the counterweight, straight back from the hub
+      translate([-FLAP[10] / 2, 0, 0]) rotate([90, 0, 90]) linear_extrude(FLAP[10]) weight_section();
     }
-    // its tip trimmed to the rotor's surface
-    difference() {
-      translate([-50, -50, -50]) cube([100, 200, 300]);
-      translate([-50, 0, AXIS_Z]) rotate([0, 90, 0]) cylinder(r = R, h = 100, $fn = 144);
+    translate([0, HINGE[0], HINGE[1]]) {
+      rotate([0, 90, 0]) cylinder(r = FLAP[6], h = FLAP[10] + 2, center = true, $fn = 48);
+      // the mouth, from the hole out through the hub
+      rotate([atan2(MOUTH_DIR[1], MOUTH_DIR[0]), 0, 0]) translate([-FLAP[10] / 2 - 1, 0, -FLAP[9] / 2]) cube([FLAP[10] + 2, FLAP[5] + 1, FLAP[9]]);
     }
+    translate([-FLAP[10], 0, AXIS_Z]) rotate([0, 90, 0]) cylinder(r = R, h = 2 * FLAP[10], $fn = 144);
   }
 }
 module flap() { print_pose(L("P_FLAP")) flap_w(); }

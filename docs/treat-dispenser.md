@@ -3,9 +3,9 @@
 Model `treat-dispenser` (issue #138; the first concept is in [concepts/treat-dispenser](concepts/treat-dispenser/README.md)). A
 gumball-style dispenser after bovineblitz's [Cat treat gumball-style dispenser](https://makerworld.com/en/models/190887)
 ([attribution](../models/treat-dispenser/ATTRIBUTION.md)): an inverted 0.5 l PET bottle screws into the top, the treats fall through
-a funnel onto a horizontal rotor with two pockets, and each press of the ESP32-C3 SuperMini's BOOT button (or a Home Assistant
-action) turns the rotor half a turn forwards with a 28BYJ-48, directly on its shaft. A pocket that reaches the bottom drops what it
-holds onto a chute out of the front. The ULN2003 board and the SuperMini, in its existing sliding-lid case, sit inside the body; one
+a funnel onto a horizontal rotor with one pocket, and each press of the ESP32-C3 SuperMini's BOOT button (or a Home Assistant
+action) turns the rotor a full turn forwards with a 28BYJ-48, directly on its shaft. The pocket drops what it holds onto a chute out of
+the front as it passes the bottom. Every part prints in PLA or PETG: no flexible filament. The ULN2003 board and the SuperMini, in its existing sliding-lid case, sit inside the body; one
 USB-C cable powers everything.
 
 **Status: prototype, not validated.** Nothing here has been printed or run on hardware. A press releases **0, 1 or several
@@ -19,8 +19,8 @@ anything; that is issue #140, left for later.
 | --- | --- |
 | Inner body | The bottle's thread, a funnel into the slot, the rotor's block (bore, slot, the drop under the rotor and a cavity behind it), legs either side of the chute and four feet; a collar round the thread's boss, shaped to the outer body's inside under its top. It is not screwed down: the outer body's top presses on the collar and the base plate's rims hold the feet. The motor on the block's +X face; the ULN2003 board on four standoffs off the right leg; a sleeve carrying the bore out to the left, ending in two lugs for the bearing cap's screws. Every nut sits in a bay of its own. |
 | Outer body | The cover: walls and a gable top, open at the bottom, lowered over the inner body (the thread's boss comes up through its top) and screwed to the base plate at its four corners; its top bears on the inner body's collar, so the corner screws clamp the inner body onto the plate. The ESP32 case's window in its back wall, the rotor's opening in its left wall, the chute's way out of the front. |
-| Rotor | Ø26 × 24 mm, two pockets 16 × 11 × 6 mm (for 14 × 9 × 5 treats with 1 mm of clearance), a D-bore onto the motor's flatted shaft at one end, a Ø8 stub into the cap at the other. |
-| Flap | 95A TPU, 0.6 mm thick: rests on the rotor just behind the slot, sprung 10° past touching, its square root block held in a recess over the cavity by a 1.75 mm filament pin through the block's left face. |
+| Rotor | Ø26 × 24 mm, one pocket 16 × 11 mm (for 14 × 9 × 5 treats with 1 mm of clearance) as deep as the axis, its trailing face leaning out 30°, turned 13° so that its mouth is centred under the slot; a D-bore onto the motor's flatted shaft at one end, whose tip pokes into the pocket (the floor's half of the bore still holds the flats), a Ø8 stub into the cap at the other. |
+| Flap | Rigid PLA or PETG, 1.6 mm plate: rests on the rotor just behind the slot, swinging freely on a hub whose hole snaps over two bosses on the slot's side walls (Ø3, through a 2.6 mm mouth); a counterweight on an arm behind the hub (10 × 8.5 mm, 15 mm behind the hinge) holds it on the rotor with 0.27 N·mm and swings up into a recess, up to 55°, as a treat pushes the flap back. |
 | Bearing cap | A tube through the outer body's left wall and the inner body's sleeve into the bore, up to the rotor's end, where it takes the rotor's stub; its flange sits on the wall's outside, its two M3 × 10 screws through the wall into nuts in the inner body's lugs (clamping the wall). |
 | Chute | 30°, from under the rotor out through the front wall; pushed up between the legs from below and held by the base plate. |
 | Base plate | 5 mm; closes the bottom; four M3 × 8 screws from below in counterbores, into the outer body's corners; a low rim (1.6 × 2.5 mm, 0.2 mm off the foot) round three sides of each of the inner body's feet; sized so that a full bottle leans 20° before the dispenser tips; a keeper behind the ESP32 case. |
@@ -28,8 +28,7 @@ anything; that is issue #140, left for later.
 | ESP32-C3 case base and lid | The existing case's two parts, unchanged ([attribution](../models/treat-dispenser/ATTRIBUTION.md)). |
 
 Bought: a 28BYJ-48 (5 V), a ULN2003 board, an ESP32-C3 SuperMini, 12 ISO 4032 M3 hex nuts and ISO 4762 M3 screws (2 × 6 mm for the
-motor, 8 × 8 mm for the ULN2003 board and the corners, 2 × 10 mm for the cap), jumper wires, and a few centimetres of 1.75
-mm filament for the flap's pin. No heat-set inserts.
+motor, 8 × 8 mm for the ULN2003 board and the corners, 2 × 10 mm for the cap), and jumper wires. No heat-set inserts, no flexible filament.
 
 **Fasteners.** Every screw goes into an ISO 4032 M3 nut held in a printed bay (`treatBolts`): a hexagon 5.8 mm across its flats (the
 library's 5.5 mm at its largest, 0.15 mm of play each side; 6.70 across its corners against the nut's 6.01) and 2.7 mm deep (2.4
@@ -48,10 +47,17 @@ then laid on the print bed by the inverse of its pose (`treatPartPoses`).
 
 ## How it works, and why it should not jam
 
-From the top: the bottle's neck, the funnel, a slot 16 × 17 mm over the rotor, the rotor in its bore, the drop under it, the chute.
-The rotor turns **forwards only**: its top moves towards the back, so a pocket filled under the slot goes down the back, past the flap,
-through the cavity, and over the drop, where its treats fall onto the chute. Each press is half a turn, so the other pocket comes up
-under the slot. At rest a pocket faces up and the other down; between them the rotor closes the slot (0.4 mm of play in the bore).
+From the top: the bottle's neck, the funnel, a slot 16 × 17.6 mm over the rotor, the rotor in its bore, the drop under it, the chute.
+The rotor turns **forwards only**: its top moves towards the back, so the pocket, filled under the slot, goes down the back, past the
+flap, through the cavity, and over the drop, where its treats fall onto the chute. Each press is a full turn, so the pocket comes back
+up under the slot. At rest the pocket faces up; the rest of the rotor closes the slot (0.4 mm of play in the bore).
+
+**No TPU.** The first version's flap was 0.6 mm of TPU, which many printers cannot print. Removing the flap outright, a fixed back
+edge, jammed in every simulated fill (41 stalls in 42 cycles): a treat standing out of the pocket is pushed down into the fixed edge,
+whatever the pocket's shape, because by the time the edge reaches it the pocket has turned some 80°. A rigid flap hanging on a pin
+still gives way, but its own weight barely holds it shut (about 0.01 N·mm against the TPU flap's 0.3 N·mm preload), and a turn let most
+of the funnel through. Constant closing torques in the simulation (0.05, 0.15, 0.3 N·mm) showed it needs about the TPU flap's: hence
+the counterweight. A sliding gate was considered and dropped: a treat's push along the rotor's sloping surface cannot lift it.
 
 Each rule below came out of a simulation that jammed (`tools/physics/treat-dispenser-trials.ts` and a replay that logs the contacts
 at a stall):
@@ -59,14 +65,14 @@ at a stall):
 - **Never backwards.** A first version rocked back 20° before each turn to shake loose a caught treat. Backwards, the slot's front edge
   is the edge a pocket leaves under, and it pinched a treat standing in the pocket every time. Forwards, the front edge only ever
   meets the rotor's closed face coming up out of the tight bore.
-- **The slot's back edge is a sprung flap, not a fixed edge.** A fixed edge where the pocket leaves the slot is the same pinch. The
-  TPU flap (0.03 N·mm per degree, 10° of preload) lies on the rotor and gives way to a treat that sticks out of a pocket, then closes
-  behind it so that the next treats in the slot do not follow it into the cavity. A stiffer flap (0.3 N·mm/°) wedged treats near its
-  root.
+- **The slot's back edge is a flap, not a fixed edge.** A fixed edge where the pocket leaves the slot is the same pinch. The flap
+  lies on the rotor and gives way to a treat that sticks out of the pocket, then closes behind it so that the next treats in the slot
+  do not follow it into the cavity. Its counterweight closes it with about the old TPU flap's preload (0.27 N·mm); the TPU flap's
+  trials found a stiffer one (0.3 N·mm per degree) wedged treats near its root.
 - **A cavity behind the flap, deeper than a treat is long** (15 mm more than the rotor's radius): a treat carried past the flap has
   room to tumble and fall to the drop; it can neither be pinched against the bore nor wedge across it.
-- **The flap's root is higher than a treat standing on end in a pocket** (the rotor's radius plus the treat's length plus 2 mm above the
-  axis): an edge-on treat stuck in the root's corner was the last jam found.
+- **The flap's hinge is higher than a treat standing on end in the pocket** (the rotor's radius plus the treat's length plus 2 mm above
+  the axis): an edge-on treat stuck in the root's corner was the last jam the TPU flap's trials found.
 - **The slot is wider than a treat is long** (17 mm for 14 mm treats): a 13 mm slot let treats bridge across it over the rotor.
 - **The drop and the chute are wide open**: the walls of the block stop at the block's underside, so nothing dams the drop.
 
@@ -79,11 +85,12 @@ path collide nowhere (also for the smallest and largest treats and the PCO 1810 
 
 1. Slide the nuts into the inner body's bays: two into the motor's from the block's front face, four into the ULN2003's standoffs and
    two into the cap's lugs from above.
-2. Put the motor on the block's +X face from the side, its shaft and boss into the hole, its can in front; two M3 × 6 through its ears.
-3. Screw the ULN2003 board to its standoffs under the motor (four M3 × 8), its parts facing out; plug in the motor and the jumper
+2. Snap the flap on, before the motor: from the inner body's open bottom, holding it by its counterweight, bring it up through the drop
+   into the empty bore, then push it up and back until its hub's mouth clicks over the two bosses behind the slot; it then swings
+   freely, and rests on the bore until the rotor is in.
+3. Put the motor on the block's +X face from the side, its shaft and boss into the hole, its can in front; two M3 × 6 through its ears.
+4. Screw the ULN2003 board to its standoffs under the motor (four M3 × 8), its parts facing out; plug in the motor and the jumper
    wires (IN1–IN4, + and −).
-4. Push the flap up into its recess over the cavity's roof, from below, and pin it: push the filament through the hole in the
-   block's left face, through the flap's root block, into the blind hole beyond; trim it flush.
 5. Slide four nuts into the outer body's corner columns from inside; lower it over the inner body, the thread through its top, the
    jumper wires out through the case's window.
 6. Push the chute up between the legs from below, its end through the front wall.
@@ -97,7 +104,8 @@ path collide nowhere (also for the smallest and largest treats and the PCO 1810 
 **To clear the rotor** (a broken treat, crumbs): unscrew the cap on the left and slide the rotor out; nothing else comes apart. **To
 reach the motor, the ULN2003 or the SuperMini's pins**: unscrew the bottle, the cap and the four corner screws under the base plate,
 and lift the outer body off (pull the case out of its window first, or unplug its jumpers); the inner body with everything on it
-stays standing in the base plate's rims. To change the flap, also pull its pin.
+stays standing in the base plate's rims. To change the flap, also take the motor off (its shaft fills the bore) and pull the flap
+down and forwards off its bosses.
 
 ![Inside, the outer body left out: the motor on the block's right face with its two screws, the ULN2003 board on its standoffs under it, the feet in the base plate's rims](treat-dispenser/inside-right.png)
 
@@ -105,24 +113,24 @@ stays standing in the base plate's rims. To change the flap, also pull its pin.
 
 ### Packaging
 
-105 × 101 × 131 mm assembled (without the bottle), on a 105 × 99 mm base plate: with a full 0.5 l bottle (Ø65 mm) it leans 20° before
-it tips. The outer body is 89 mm wide (41.5 → 44.5 mm half width) so that the jumper plugs on the ULN2003's pins have room to the
+105 × 101 × 146 mm assembled (without the bottle), on a 105 × 99 mm base plate: with a full 0.5 l bottle (Ø65 mm) it leans 20° before
+it tips. It is 15 mm taller than with the TPU flap: the rigid flap's counterweight needs room to swing up over its hinge. The outer body is 89 mm wide (41.5 → 44.5 mm half width) so that the jumper plugs on the ULN2003's pins have room to the
 wall, and the base plate is 5 mm thick (was 3) for the screw heads' counterbores. `tools/treat-dispenser-views.ts` renders every part
 as the worker does; the solid volumes of this revision (no slicer was available when it was made, so the slicer figures below are
 not re-run):
 
 | Part | Solid volume (cm³) | Size as printed (mm) |
 | --- | --- | --- |
-| Inner body | 82.3 | 66 × 59 × 126 |
-| Outer body | 57.7 | 89 × 87 × 108 |
-| Rotor | 10.8 | 26 × 26 × 29 |
-| Flap (TPU) | 0.3 | 16 × 26 × 4 |
+| Inner body | 97.8 | 66 × 59 × 141 |
+| Outer body | 65.8 | 89 × 87 × 123 |
+| Rotor | 10.2 | 26 × 26 × 29 |
+| Flap (PLA or PETG, on its end) | 2.3 | 28 × 23 × 16 |
 | Bearing cap | 14.7 | 46 × 46 × 35 |
 | Chute | 7.2 | 20 × 100 × 15 |
 | Base plate | 54.0 | 105 × 99 × 5 (with its posts and keeper, 61 high) |
 | Thread coupon | 3.8 | 34 × 34 × 10 |
 | ESP32 case base and lid | 2.2 | |
-| **All** | **233.1** (one body before the split: 197.9) | |
+| **All** | **258.0** (with the TPU flap: 233.1; one body before the split: 197.9) | |
 
 With PrusaSlicer 2.5 and `tools/treat-dispenser.ini` (0.4 mm nozzle, 0.2 mm layers, PETG, four perimeters) the single-body revision
 came to 217.7 g; set `PRUSA_SLICER` to re-slice this one.
@@ -132,15 +140,17 @@ rows (by a 14 mm housing less the 6 mm it takes of a pin, and a 6 mm bend; a hou
 ULN2003's input pins, supply pins and motor socket, no part reaches in; it fails otherwise.
 
 **CanFactory's parts print without supports**: every overhang is 50° or steeper (the gable top and the right side's hip, the
-teardrop holes, the sleeve's teardrop section and the lugs' undersides, the chute way's ceiling, the standoffs' gussets), a short bridge (the flat strip either side of the boss's opening, 31 mm; the
-cavity's round top, across its 16 mm between the side walls; the case window, 22 mm; the nut slots' ceilings, at most 5.8 mm), or the thread's own groove (1.6 mm deep). The
-cavity keeps its round top on purpose: a ceiling sloped at 50° stopped the flap swinging back at about 45° and wedged treats under it
-in the trials (6 stalls in 40). With automatic supports on every part the slicer added 31.8 g to the
+teardrop holes, the sleeve's teardrop section and the lugs' undersides, the chute way's ceiling, the standoffs' gussets, the hinge's
+bosses and the hub's recess), a short bridge (the flat strip either side of the boss's opening, 31 mm; the cavity's roof and the
+counterweight's recess, across their 16 mm between the side walls; the case window, 22 mm; the nut slots' ceilings, at most 5.8 mm),
+or the thread's own groove (1.6 mm deep). The flap prints standing on its end, so that its hub's hole and mouth come out round and
+clean. The cavity and the recess leave the flap 55° of swing on purpose: a ceiling that stopped the TPU flap at about 45° wedged
+treats under it in the trials (6 stalls in 40). With automatic supports on every part the slicer added 31.8 g to the
 single-body revision, most of it in the thread, from columns that would stand in the slot, the bore and the drop: switch supports off
 for the inner body. For comparison, the same tool and profile gave 283.4 g (49.4 g of support) for the first notch-disc design and 233.3 g
 (23.2 g) for its compact revision.
 
-![Cutaway through the middle: the bottle's thread and funnel, the slot over the rotor, the flap on the rotor's back and the cavity behind it, the chute under the drop, the outer body round it](treat-dispenser/cutaway.png)
+![Cutaway through the middle: the bottle's thread and funnel, the slot over the rotor and its one deep pocket, the flap on the rotor's back with its counterweight in the recess behind its hinge, the cavity behind it, the chute under the drop, the outer body round it](treat-dispenser/cutaway.png)
 
 ![The assembled dispenser: gable top round the thread's boss, the chute's way out of the front, the base plate](treat-dispenser/three-quarter.png)
 
@@ -215,8 +225,8 @@ committed). ESP32-C3 (`variant: esp32c3`, ESP-IDF), ULN2003 stepper platform in 
 | Behaviour | How |
 | --- | --- |
 | One press, one cycle | GPIO binary sensor, `delayed_on`/`delayed_off` 30 ms, `on_press` |
-| Remote | Home Assistant actions `dispense`, `prime`, `jog`, `mark_aligned`, and template buttons (Dispense, Prime, Jog forward, Mark aligned, Calibrate: 4 cycles) |
-| Cycle | 2038 half-steps forwards (half a turn: the next pocket under the slot), then 500 ms for the treats to clear the chute. Never backwards. Moves are cumulative targets rounded once, so a non-integer half turn does not drift |
+| Remote | Home Assistant actions `dispense`, `prime`, `jog`, `mark_aligned`, and template buttons (Dispense, Prime, Jog forward, Mark aligned, Calibrate: 2 turns) |
+| Cycle | 4076 half-steps forwards (a full turn: the one pocket back under the slot), then 500 ms for the treats to clear the chute. Never backwards. Moves are cumulative targets rounded once, so a non-integer turn does not drift |
 | One runner | dispense, prime, calibration, jog and mark-aligned all go through it; whatever conflicts with a running job is rejected and counted (`Presses rejected`), except one dispense press, which waits |
 | Prime | one cycle, to fill the pocket under the slot; its treats are not counted as dispensed |
 | Boot | nothing moves. "Not at rest" is written to flash and committed before every motion, "at rest" only after a cycle has run to its end: after a power cut or RESET during any motion (or on the first boot) presses are rejected until the rotor is jogged into line (a pocket facing up) and `Mark aligned` is pressed |
@@ -224,8 +234,8 @@ committed). ESP32-C3 (`variant: esp32c3`, ESP-IDF), ULN2003 stepper platform in 
 | What it cannot know | whether a treat left, a jam, an empty bottle, where the rotor really is. A stalled 28BYJ-48 loses steps silently. `Cycles commanded` counts commanded motion only; it is never shown as treats dispensed |
 
 **Calibrate** the half-steps per output turn (nominal 4096; the gear train is ≈ 1:63.68, so ≈ 4076): mark the rotor, run "Calibrate:
-4 cycles" (two turns) and adjust `steps_per_turn` until it comes back to its mark. Speed: 700 half-steps/s (62° per second at the
-rotor) with 2000 steps/s² of acceleration; a cycle takes about 3.8 s. Kiatronics gives the torque only at 120 Hz (in-traction
+2 turns" and adjust `steps_per_turn` until it comes back to its mark. Speed: 700 half-steps/s (62° per second at the
+rotor) with 2000 steps/s² of acceleration; a cycle (a full turn) takes about 6.7 s. Kiatronics gives the torque only at 120 Hz (in-traction
 > 34.3 mN·m) and the idle start-stop rate (> 600 Hz); the torque at 700 Hz is not published. Slow down if steps are lost.
 
 Validation: ESPHome 2026.10.0, `esphome config` is valid and `esphome compile` builds (RAM 31.8 %, flash 43.8 %). **Not run on
@@ -238,13 +248,13 @@ The editor's Simulate mode and `npm run check:physics -- treat-dispenser` simula
 
 - **Only the rotor's hinge is driven**, by a torque-limited actuator (≤ 29.4 N·mm, the data sheet's 300 gf·cm pull-in torque, with
   the stiffness of one full step), directly, as the motor's shaft is. It slips like a stepper and reports the travel it lost.
-- **The flap is a hinged body** at its root with a spring (0.03 N·mm per degree, at rest 10° past touching the rotor) and a little
-  damping; it lies on the rotor by contact.
+- **The flap is a hinged body** free on its hinge (no spring), its mass and inertia from its rendered mesh, so that its counterweight
+  closes it as the printed part's would; a little damping; it lies on the rotor by contact and swings up to 55°.
 - **Treats are independent rounded cuboids**, 14 × 9 × 5 mm with 1.5 mm corners, 0.5 g, friction 0.4, colliding with everything and
   with each other under gravity. They are packed into the funnel and a 160 mm stand-in for the bottle's neck (its 21.7 mm bore) at the
   start (seeded, the same in the browser and CI) and never spawned, deleted or moved by a press.
 - **Collision pieces keep the openings**: slot, bore, drop, cavity and chute are built from convex slabs and arcs out of the same layout
-  as the CAD, and the rotor from seven pieces round its two pockets.
+  as the CAD, and the rotor from five pieces round its one pocket.
 - **Exits are counted, not assumed**: each treat is counted once, the first time its centre crosses a plane 9 mm beyond the chute's
   end (half a treat's diagonal), so a treat still on the chute is never counted (a regression test holds a treat on a blocked chute).
   Two more counters flag any treat that reaches the electronics either side of the rotor's block.
@@ -256,7 +266,7 @@ commanded, treats seen leaving, treats that left outside a cycle, the motor's co
 stall. **Refill** restarts the scene and the device; **R** reboots only the device. It runs in slow motion (0.1 ms steps with a pile of
 treats in contact).
 
-![Simulate mode after Prime and one press of B: the treats that left lie below the chute; the panel shows one cycle commanded and five treats seen leaving (Prime's and the press's), none outside a cycle, no travel lost](treat-dispenser/simulate-after-press.png)
+![Simulate mode after Prime and one press of B: the treats that left lie below the chute; the panel shows one cycle commanded and seven treats seen leaving (six from Prime, one from the press), none outside a cycle, no travel lost](treat-dispenser/simulate-after-press.png)
 
 ### CI scenarios
 
@@ -274,90 +284,92 @@ CI asserts no count per press: 0, 1 or more treats per press is the accepted beh
 ### Simulation results
 
 `npx tsx tools/physics/treat-dispenser-trials.ts` fills the bottle's neck and the funnel (seeded), primes, then presses eight times per
-trial and counts what actually crosses the plane past the chute's end. Forty trials (2026-10-22, the final geometry): random fills,
-one orientation for all treats (flat, on edge, on end, diagonal: the edge-on, diagonal and stacked fills the review asked for), and
+trial and counts what actually crosses the plane past the chute's end. Forty trials (2026-10-23, this geometry: one pocket, a full
+turn per press, the counterweighted rigid flap): random fills, one orientation for all treats (flat, on edge, on end, diagonal), and
 variations of friction, mass, size, corner rounding and the number of treats; the dispenser stays sized for 14 × 9 × 5 mm treats.
 
 | Trials | Presses | First press: 0 / 1 / 2+ | All presses: 0 / 1 / 2+ | Stalls | Leaked between cycles | Strayed into the electronics | Fastest treat |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Random fills, 10 treats (6) | 48 | 0 / 2 / 4 | 26 / 10 / 12 | 0 | 0 | 0 | 0.62 m/s |
-| One orientation, 10 treats (4) | 32 | 0 / 1 / 3 | 21 / 1 / 10 | 0 | 0 | 0 | 0.61 m/s |
-| friction 0.3 (3) | 24 | 0 / 0 / 3 | 14 / 4 / 6 | 0 | 0 | 0 | 0.70 m/s |
-| friction 0.55 (3) | 24 | 0 / 0 / 3 | 18 / 1 / 5 | 0 | 1 | 0 | 0.50 m/s |
-| mass 0.3 g (3) | 24 | 0 / 0 / 3 | 19 / 2 / 3 | 0 | 1 | 0 | 0.64 m/s |
-| mass 0.8 g (3) | 24 | 0 / 0 / 3 | 18 / 2 / 4 | 0 | 0 | 0 | 0.62 m/s |
-| 13 × 8.5 × 4.5 (3) | 24 | 0 / 0 / 3 | 17 / 1 / 6 | 0 | 0 | 0 | 0.61 m/s |
-| 15 × 9.5 × 5.5 (3) | 24 | 0 / 0 / 3 | 15 / 1 / 8 | 0 | 0 | 0 | 0.66 m/s |
-| corner r 1.0 (3) | 24 | 0 / 0 / 3 | 17 / 1 / 6 | 0 | 0 | 0 | 0.62 m/s |
-| corner r 2.2 (3) | 24 | 0 / 0 / 3 | 17 / 1 / 6 | 0 | 0 | 0 | 0.68 m/s |
-| 6 treats (3) | 24 | 0 / 1 / 2 | 20 / 2 / 2 | 0 | 1 | 0 | 0.58 m/s |
-| 12 treats (3) | 24 | 0 / 0 / 3 | 13 / 4 / 7 | 0 | 0 | 0 | 0.63 m/s |
-| All (40) | 320 | 0 / 4 / 36 | 215 / 30 / 75 | 0 | 3 | 0 | 0.70 m/s |
+| Random fills, 10 treats (6) | 48 | 4 / 1 / 1 | 45 / 2 / 1 | 0 | 0 | 0 | 0.61 m/s |
+| One orientation, 10 treats (4) | 32 | 2 / 0 / 2 | 29 / 0 / 3 | 0 | 0 | 0 | 0.63 m/s |
+| friction 0.3 (3) | 24 | 0 / 1 / 2 | 20 / 1 / 3 | 0 | 0 | 0 | 0.70 m/s |
+| friction 0.55 (3) | 24 | 2 / 0 / 1 | 23 / 0 / 1 | 0 | 0 | 0 | 0.50 m/s |
+| mass 0.3 g (3) | 24 | 2 / 0 / 1 | 21 / 1 / 2 | 0 | 0 | 0 | 0.65 m/s |
+| mass 0.8 g (3) | 24 | 3 / 0 / 0 | 24 / 0 / 0 | 0 | 0 | 0 | 0.61 m/s |
+| 13 × 8.5 × 4.5 (3) | 24 | 2 / 0 / 1 | 23 / 0 / 1 | 0 | 0 | 0 | 0.61 m/s |
+| 15 × 9.5 × 5.5 (3) | 24 | 0 / 0 / 3 | 20 / 0 / 4 | 0 | 0 | 0 | 0.60 m/s |
+| corner r 1.0 (3) | 24 | 0 / 0 / 3 | 20 / 0 / 4 | 0 | 0 | 0 | 0.59 m/s |
+| corner r 2.2 (3) | 24 | 2 / 0 / 1 | 23 / 0 / 1 | 0 | 0 | 0 | 0.57 m/s |
+| 6 treats (3) | 24 | 0 / 1 / 2 | 21 / 1 / 2 | 0 | 0 | 0 | 0.59 m/s |
+| 12 treats (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.61 m/s |
+| All (40) | 320 | 18 / 4 / 18 | 291 / 6 / 23 | 0 | 0 | 0 | 0.70 m/s |
 
-**No stall in 320 presses**, none leaked into the electronics, and the fastest treat in the mechanism moved at 0.70 m/s (a falling
-treat moves at about 1 m/s; the solver flinging one would show several): nothing was wedged and nothing was solver trouble. Three
-trials lost a little travel (0.6°, 6.3° and 15.1° over all their presses, each cycle under the 10° that faults it): a treat
-pressed against the flap for a moment. Three trials had one treat cross the counting plane between cycles, after the 0.5 s settle:
-seen leaving, but late (why was not traced; a treat slow on the chute is the likely cause).
+**No stall in 320 presses**, nothing left between cycles, nothing strayed into the electronics, and the fastest treat in the
+mechanism moved at 0.70 m/s (a falling treat moves at about 1 m/s; the solver flinging one would show several). One trial lost 1.4°
+of travel over all its presses (a treat against the flap for a moment), far under the 10° a cycle faults at.
 
-**0, 1 or several per press**, as accepted: the first press after Prime gives two or more in 36 of 40 trials, and then the flow
-stops: 215 of 320 presses give nothing, almost all late in a trial. Replaying a fill (all on edge, seed 1) shows four treats left over sitting
-still at the top of the funnel and in the bottle's neck, bridged across the 21.7 mm bore, through presses 2 to 4 while the rotor turns
-freely under them; at press 5 the bridge gave way and the rest came out over the next two presses. That is the neck
-bridging of issue #140, deferred; the printed parts cannot widen a PET bottle's neck.
-
-Earlier states of this design, for the record (the same tool): with the rotor rocking back 20° before each turn, every press stalled
-(the slot's front edge pinched a treat in the pocket); with a fixed back edge or a stiff flap (0.3 N·mm/°), treats wedged at the flap's
-root; with a slot narrower than a treat is long, the column bridged over the rotor; with a cavity ceiling sloped at 50°, 6 stalls in 40
-(the flap could not swing back far enough).
+**But one turn lets out most of what is in the funnel**: Prime alone released 7.5 of the 10 or so treats on average (2 to 12), and the
+first press or two the rest; after that the presses give nothing because the funnel is empty (the trials do not refill it). With the TPU
+flap and two pockets turned half a turn per press, Prime gave 2.05 on average (0 to 5) and the first press two or more. The flap is not the
+cause: the counterweight closes it with the TPU flap's preload, and the TPU flap's own spring on this rotor did no better (Prime 2 to
+10 in six quick trials). A full turn carries the pocket, and the closed rotor that drags the treats lying on it, past the flap twice as
+far per press. Two pockets at half a turn per press would halve it; with a full bottle bearing on the funnel, expect more per press than
+these ten-treat fills show.
 
 Per trial (Prime, then presses 1–8):
 
 | Fill | Prime | Presses |
 | --- | --- | --- |
-| 12 treats, random 1 | 3 | 6 1 0 0 0 1 1 0 |
-| 12 treats, random 2 | 1 | 5 3 2 1 0 0 0 0 |
-| 12 treats, random 3 | 2 | 3 0 0 0 0 0 3 4 |
-| 13 × 8.5 × 4.5, random 1 | 1 | 3 3 1 0 0 0 0 0 |
-| 13 × 8.5 × 4.5, random 2 | 4 | 3 3 0 0 0 0 0 0 |
-| 13 × 8.5 × 4.5, random 3 | 2 | 6 2 0 0 0 0 0 0 |
-| 15 × 9.5 × 5.5, random 1 | 2 | 3 2 2 1 0 0 0 0 |
-| 15 × 9.5 × 5.5, random 2 | 1 | 2 2 0 0 0 0 0 0 |
-| 15 × 9.5 × 5.5, random 3 | 2 | 3 2 3 0 0 0 0 0 |
-| 6 treats, random 1 | 5 | 1 0 0 0 0 0 0 0 |
-| 6 treats, random 2 | 1 | 4 1 0 0 0 0 0 0 |
-| 6 treats, random 3 | 1 | 5 0 0 0 0 0 0 0 |
-| corner r 1.0, random 1 | 2 | 3 1 0 0 0 0 0 0 |
-| corner r 1.0, random 2 | 2 | 2 4 2 0 0 0 0 0 |
-| corner r 1.0, random 3 | 1 | 2 7 0 0 0 0 0 0 |
-| corner r 2.2, random 1 | 1 | 4 2 0 0 0 0 0 0 |
-| corner r 2.2, random 2 | 2 | 6 2 0 0 0 0 0 0 |
-| corner r 2.2, random 3 | 2 | 3 4 1 0 0 0 0 0 |
-| diagonal 1 | 4 | 4 0 0 2 0 0 0 0 |
-| edge 1 | 5 | 1 0 0 0 0 2 2 0 |
-| end 1 | 3 | 5 2 0 0 0 0 0 0 |
-| flat 1 | 1 | 2 2 2 3 0 0 0 0 |
-| friction 0.3, random 1 | 3 | 2 1 0 0 0 3 1 0 |
-| friction 0.3, random 2 | 2 | 5 1 2 0 0 0 0 0 |
-| friction 0.3, random 3 | 1 | 3 5 1 0 0 0 0 0 |
-| friction 0.55, random 1 | 2 | 7 1 0 0 0 0 0 0 |
-| friction 0.55, random 2 | 1 | 4 5 0 0 0 0 0 0 |
-| friction 0.55, random 3 | 0 | 6 4 0 0 0 0 0 0 |
-| mass 0.3 g, random 1 | 4 | 5 1 0 0 0 0 0 0 |
-| mass 0.3 g, random 2 | 1 | 8 1 0 0 0 0 0 0 |
-| mass 0.3 g, random 3 | 1 | 5 0 0 0 0 0 0 0 |
-| mass 0.8 g, random 1 | 3 | 2 4 1 0 0 0 0 0 |
-| mass 0.8 g, random 2 | 3 | 6 1 0 0 0 0 0 0 |
-| mass 0.8 g, random 3 | 1 | 5 0 0 0 0 0 0 0 |
-| random 1 | 5 | 1 1 1 1 1 0 0 0 |
-| random 2 | 2 | 1 5 2 0 0 0 0 0 |
-| random 3 | 1 | 3 2 0 0 1 3 0 0 |
-| random 4 | 1 | 3 2 0 1 1 0 0 0 |
-| random 5 | 2 | 2 5 1 0 0 0 0 0 |
-| random 6 | 1 | 3 4 2 0 0 0 0 0 |
+| 12 treats, random 1 | 11 | 1 0 0 0 0 0 0 0 |
+| 12 treats, random 2 | 12 | 0 0 0 0 0 0 0 0 |
+| 12 treats, random 3 | 7 | 5 0 0 0 0 0 0 0 |
+| 13 × 8.5 × 4.5, random 1 | 10 | 0 0 0 0 0 0 0 0 |
+| 13 × 8.5 × 4.5, random 2 | 10 | 0 0 0 0 0 0 0 0 |
+| 13 × 8.5 × 4.5, random 3 | 6 | 4 0 0 0 0 0 0 0 |
+| 15 × 9.5 × 5.5, random 1 | 8 | 2 0 0 0 0 0 0 0 |
+| 15 × 9.5 × 5.5, random 2 | 5 | 5 0 0 0 0 0 0 0 |
+| 15 × 9.5 × 5.5, random 3 | 4 | 3 3 0 0 0 0 0 0 |
+| 6 treats, random 1 | 2 | 4 0 0 0 0 0 0 0 |
+| 6 treats, random 2 | 3 | 3 0 0 0 0 0 0 0 |
+| 6 treats, random 3 | 5 | 1 0 0 0 0 0 0 0 |
+| corner r 1.0, random 1 | 2 | 3 5 0 0 0 0 0 0 |
+| corner r 1.0, random 2 | 5 | 5 0 0 0 0 0 0 0 |
+| corner r 1.0, random 3 | 8 | 2 0 0 0 0 0 0 0 |
+| corner r 2.2, random 1 | 10 | 0 0 0 0 0 0 0 0 |
+| corner r 2.2, random 2 | 6 | 4 0 0 0 0 0 0 0 |
+| corner r 2.2, random 3 | 10 | 0 0 0 0 0 0 0 0 |
+| diagonal 1 | 10 | 0 0 0 0 0 0 0 0 |
+| edge 1 | 7 | 3 0 0 0 0 0 0 0 |
+| end 1 | 10 | 0 0 0 0 0 0 0 0 |
+| flat 1 | 2 | 3 5 0 0 0 0 0 0 |
+| friction 0.3, random 1 | 2 | 3 5 0 0 0 0 0 0 |
+| friction 0.3, random 2 | 9 | 1 0 0 0 0 0 0 0 |
+| friction 0.3, random 3 | 8 | 2 0 0 0 0 0 0 0 |
+| friction 0.55, random 1 | 10 | 0 0 0 0 0 0 0 0 |
+| friction 0.55, random 2 | 3 | 7 0 0 0 0 0 0 0 |
+| friction 0.55, random 3 | 10 | 0 0 0 0 0 0 0 0 |
+| mass 0.3 g, random 1 | 2 | 3 4 1 0 0 0 0 0 |
+| mass 0.3 g, random 2 | 10 | 0 0 0 0 0 0 0 0 |
+| mass 0.3 g, random 3 | 10 | 0 0 0 0 0 0 0 0 |
+| mass 0.8 g, random 1 | 10 | 0 0 0 0 0 0 0 0 |
+| mass 0.8 g, random 2 | 10 | 0 0 0 0 0 0 0 0 |
+| mass 0.8 g, random 3 | 10 | 0 0 0 0 0 0 0 0 |
+| random 1 | 2 | 7 1 0 0 0 0 0 0 |
+| random 2 | 10 | 0 0 0 0 0 0 0 0 |
+| random 3 | 10 | 0 0 0 0 0 0 0 0 |
+| random 4 | 9 | 1 0 0 0 0 0 0 0 |
+| random 5 | 10 | 0 0 0 0 0 0 0 0 |
+| random 6 | 10 | 0 0 0 0 0 0 0 0 |
+
+Earlier states of this design, for the record (the same tool): the TPU flap with two pockets (40 trials, 2026-10-22): no stall in 320
+presses, Prime 0 to 5 (2.05 on average), the first press two or more in 36 of 40, then the neck bridged (#140). Without any flap (a fixed back edge):
+41 stalls in 42 cycles. A rigid flap held only by its own weight: no stall, but Prime 6 to 10 of 10. With the rotor rocking back 20°
+before each turn, every press stalled (the slot's front edge pinched a treat in the pocket); with a fixed back edge or a stiff flap
+(0.3 N·mm/°), treats wedged at the flap's root; with a slot narrower than a treat is long, the column bridged over the rotor; with a
+cavity ceiling sloped at 50°, 6 stalls in 40 (the flap could not swing back far enough).
 
 What the simulation leaves out: the bottle above its neck (refilling, the pile's weight), crumbs and dust, broken treats, wear,
-humidity, and the TPU flap's real stiffness and creep.
+humidity, and the flap's hinge friction (a stiff snap would hold it open; a sticky one slow to close).
 
 ## Bottle thread
 
@@ -378,7 +390,7 @@ change it.
 | Treat | 14 × 9 × 5 mm, corners 1.5 mm, 0.5 g, friction 0.4 on PETG | owner's size; mass, rounding and friction unmeasured (trials vary them) |
 | Motor torque | 29.4 N·mm at the output, slipping beyond 0.35° of lag | Kiatronics: pull-in 300 gf·cm; > 34.3 mN·m at 120 Hz; nothing at 700 Hz |
 | Steps per turn | 4076 | gear train ≈ 1:63.68 (library notes); calibrate |
-| Flap | 0.6 mm 95A TPU, 0.03 N·mm per degree, 10° preload | E ≈ 26 MPa for 95A TPU (typical, not measured); a strip 0.6 × 16 × 14 mm |
+| Flap | Rigid, free on its hinge; its counterweight closes it with 0.27 N·mm (PETG 1.27 g/cm³, 2.9 g in all); the snap's mouth 2.6 mm over Ø3 bosses | the closing torque the TPU flap's trials needed (a constant-torque study, see above); PLA (1.24) is a little lighter. The snap's fit in PLA, and the hub's friction on its bosses, are not simulated |
 | Plastic friction | 0.29 | `PHYSICS_MATERIALS` (PETG on acrylic) |
 | Bottle | PCO 1881, 0.5 l, Ø65 mm | ISBT drawing; diameter is a parameter |
 | Print fits | 0.4 mm rotor–bore, 0.15 mm cap in the bore, 0.3 mm thread, nut bays 0.15 mm each side across the flats and 0.3 mm deeper than the nut | typical FDM; check with the coupon and a test print |
@@ -394,9 +406,10 @@ change it.
    of a test print and does not turn in it.
 3. Measure a bag of treats (largest length, width, thickness); set the parameters.
 4. Print the rotor and the cap; check that the rotor turns freely in the bore by hand and slides out through the left wall.
-5. Print the flap in TPU; check that it lies on the rotor with a little preload and gives way easily to a fingertip.
+5. Print the flap on its end; snap it onto its bosses and check that it swings freely, falls back onto the rotor by itself, and gives
+   way easily to a fingertip. If the snap is too tight, sand the mouth; too loose, print the hub again with 0.1 mm less play.
 6. Wire as above; flash with BOOT held during reset; then check that RESET alone never moves anything.
-7. Calibrate the steps per turn (4 cycles = two turns) and the direction (the rotor's top must move towards the back).
+7. Calibrate the steps per turn ("Calibrate: 2 turns") and the direction (the rotor's top must move towards the back).
 8. With USB power from a ≥ 1 A supply, run 50 cycles with Wi-Fi active: watch for resets (brown-out) and lost steps (a pocket no longer
    faces up at rest).
 9. Fill the bottle; Prime over a bowl; count treats over 100 presses: how many per press, none between presses, none in the
