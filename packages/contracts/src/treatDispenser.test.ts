@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, PhysicsSpecSchema, TIP_ANGLE, TREAT_DISPENSER, TREAT_FASTENERS, TREAT_FIRMWARE, TREAT_PRINTED_PARTS, dimensionOf, findModel, findPart,
   posePoint, treatBayLayout, treatBoltPoses, treatBolts, treatCycleSeconds, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout,
-  treatDispenserPhysics, treatFill, treatFootprint, treatRotorPieces, treatScadValues, treatVertices, treatWiringRoom, validateParameters, type TreatDispenserParameters,
+  treatDispenserPhysics, treatFeet, treatFill, treatFootprint, treatRotorPieces, treatScadValues, treatVertices, treatWiringRoom, validateParameters, type TreatDispenserParameters,
 } from './index.ts';
 
 const p = DEFAULT_TREAT_DISPENSER;
@@ -164,6 +164,14 @@ describe('treat dispenser assembly and electronics', () => {
     expect(Math.abs((rows[0]?.min[0] ?? 0) - (rows[1]?.min[0] ?? 0))).toBeCloseTo(15.24, 1);
   });
 
+  it('screws nothing into the inner body’s feet: they stand in the base plate’s rims, and the outer body’s top bears on its collar', () => {
+    expect(treatBolts(p).filter(bolt => bolt.nutIn === 'inner-body' && bolt.axis[2] === 1)).toEqual([]);
+    expect(treatFeet(l)).toHaveLength(4);
+    const values = Object.fromEntries(treatScadValues(p));
+    expect(values['COLLAR']).toEqual([TREAT_DISPENSER.collar, TREAT_DISPENSER.collarDepth]);
+    expect(values['RIM']).toEqual([TREAT_DISPENSER.rim, TREAT_DISPENSER.rimHeight]);
+  });
+
   it('sizes every nut bay from the library’s ISO 4032 M3 nut, flat to flat, and every screw to pass through its nut', () => {
     const nut = findPart(TREAT_FASTENERS.nut);
     if (!nut) throw new Error('Missing the nut.');
@@ -178,7 +186,7 @@ describe('treat dispenser assembly and electronics', () => {
     const values = new Map(treatScadValues(p));
     expect(values.get('NUT')).toEqual([l.bay.across, l.bay.depth].map(v => Math.round(v * 1e6) / 1e6));
     const bolts = treatBolts(p);
-    expect(bolts).toHaveLength(16);
+    expect(bolts).toHaveLength(12);
     for (const bolt of bolts) {
       const screw = findPart(bolt.screw);
       expect(screw?.attributes['standard'], bolt.id).toBe('ISO 4762');

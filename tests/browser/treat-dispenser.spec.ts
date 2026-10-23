@@ -96,9 +96,9 @@ test('shows the inner and outer bodies, the motor, the ULN2003 and every M3 scre
   await expect(slider).toHaveAttribute('aria-valuetext', 'Assembled');
   const bolts = treatBolts(DEFAULT_TREAT_DISPENSER);
   const fasteners = bolts.flatMap(bolt => [`${bolt.id}-screw`, `${bolt.id}-nut`]);
-  expect(fasteners).toHaveLength(32);
+  expect(fasteners).toHaveLength(24);
   const visible = async () => new Set((await viewer.getAttribute('data-visible-parts') ?? '').split(' '));
-  await expect.poll(async () => [...await visible()].filter(id => fasteners.includes(id)).length, { timeout: 60_000 }).toBe(32);
+  await expect.poll(async () => [...await visible()].filter(id => fasteners.includes(id)).length, { timeout: 60_000 }).toBe(24);
   for (const id of ['inner-body', 'outer-body', 'motor', 'driver', 'board', 'header-1', 'header-2']) expect((await visible()).has(id), id).toBe(true);
   // hide the outer body: the mechanism, the boards and every fastener stay in view
   const outer = treatDispenser.parts.find(part => part.id === 'outer-body');

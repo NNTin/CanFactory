@@ -17,24 +17,24 @@ anything; that is issue #140, left for later.
 
 | Part | What it does |
 | --- | --- |
-| Inner body | The bottle's thread, a funnel into the slot, the rotor's block (bore, slot, the drop under the rotor and a cavity behind it), legs either side of the chute and four feet screwed to the base plate; the motor on the block's +X face; the ULN2003 board on four standoffs off the right leg; a sleeve carrying the bore out to the left, ending in two lugs for the bearing cap's screws. Every nut sits in a bay of its own. |
-| Outer body | The cover: walls and a gable top, open at the bottom, lowered over the inner body (the thread's boss comes up through its top) and screwed to the base plate at its four corners. The ESP32 case's window in its back wall, the rotor's opening in its left wall, the chute's way out of the front. |
+| Inner body | The bottle's thread, a funnel into the slot, the rotor's block (bore, slot, the drop under the rotor and a cavity behind it), legs either side of the chute and four feet; a collar round the thread's boss, shaped to the outer body's inside under its top. It is not screwed down: the outer body's top presses on the collar and the base plate's rims hold the feet. The motor on the block's +X face; the ULN2003 board on four standoffs off the right leg; a sleeve carrying the bore out to the left, ending in two lugs for the bearing cap's screws. Every nut sits in a bay of its own. |
+| Outer body | The cover: walls and a gable top, open at the bottom, lowered over the inner body (the thread's boss comes up through its top) and screwed to the base plate at its four corners; its top bears on the inner body's collar, so the corner screws clamp the inner body onto the plate. The ESP32 case's window in its back wall, the rotor's opening in its left wall, the chute's way out of the front. |
 | Rotor | Ø26 × 24 mm, two pockets 16 × 11 × 6 mm (for 14 × 9 × 5 treats with 1 mm of clearance), a D-bore onto the motor's flatted shaft at one end, a Ø8 stub into the cap at the other. |
 | Flap | 95A TPU, 0.6 mm thick: rests on the rotor just behind the slot, sprung 10° past touching, its square root block held in a recess over the cavity by a 1.75 mm filament pin through the block's left face. |
 | Bearing cap | A tube through the outer body's left wall and the inner body's sleeve into the bore, up to the rotor's end, where it takes the rotor's stub; its flange sits on the wall's outside, its two M3 × 10 screws through the wall into nuts in the inner body's lugs (clamping the wall). |
 | Chute | 30°, from under the rotor out through the front wall; pushed up between the legs from below and held by the base plate. |
-| Base plate | 5 mm; closes the bottom; eight M3 × 8 screws from below in counterbores (four into the inner body's feet, four into the outer body's corners); sized so that a full bottle leans 20° before the dispenser tips; a keeper behind the ESP32 case. |
+| Base plate | 5 mm; closes the bottom; four M3 × 8 screws from below in counterbores, into the outer body's corners; a low rim (1.6 × 2.5 mm, 0.2 mm off the foot) round three sides of each of the inner body's feet; sized so that a full bottle leans 20° before the dispenser tips; a keeper behind the ESP32 case. |
 | Thread coupon | Ten millimetres of the body's thread: print it first and fit it to your bottle. |
 | ESP32-C3 case base and lid | The existing case's two parts, unchanged ([attribution](../models/treat-dispenser/ATTRIBUTION.md)). |
 
-Bought: a 28BYJ-48 (5 V), a ULN2003 board, an ESP32-C3 SuperMini, 16 ISO 4032 M3 hex nuts and ISO 4762 M3 screws (2 × 6 mm for the
-motor, 12 × 8 mm for the ULN2003 board, the feet and the corners, 2 × 10 mm for the cap), jumper wires, and a few centimetres of 1.75
+Bought: a 28BYJ-48 (5 V), a ULN2003 board, an ESP32-C3 SuperMini, 12 ISO 4032 M3 hex nuts and ISO 4762 M3 screws (2 × 6 mm for the
+motor, 8 × 8 mm for the ULN2003 board and the corners, 2 × 10 mm for the cap), jumper wires, and a few centimetres of 1.75
 mm filament for the flap's pin. No heat-set inserts.
 
 **Fasteners.** Every screw goes into an ISO 4032 M3 nut held in a printed bay (`treatBolts`): a hexagon 5.8 mm across its flats (the
 library's 5.5 mm at its largest, 0.15 mm of play each side; 6.70 across its corners against the nut's 6.01) and 2.7 mm deep (2.4
 nut), and a slot as wide as across the flats into which the nut slides from one side, so that it cannot turn. The bays open where they
-can be reached: the motor's from the block's front face, the ULN2003's and the cap's from above, the feet's outwards, the corners'
+can be reached: the motor's from the block's front face, the ULN2003's and the cap's from above, the corners'
 from inside. Each screw and nut is a part-library reference in the assembly, at its pose, and moves in its step; the editor's
 hardware list counts them.
 
@@ -78,7 +78,7 @@ What it cannot prevent: treats that arch in the bottle's 21.7 mm neck (#140) or 
 path collide nowhere (also for the smallest and largest treats and the PCO 1810 neck). In order:
 
 1. Slide the nuts into the inner body's bays: two into the motor's from the block's front face, four into the ULN2003's standoffs and
-   two into the cap's lugs from above, four into the feet from the side.
+   two into the cap's lugs from above.
 2. Put the motor on the block's +X face from the side, its shaft and boss into the hole, its can in front; two M3 × 6 through its ears.
 3. Screw the ULN2003 board to its standoffs under the motor (four M3 × 8), its parts facing out; plug in the motor and the jumper
    wires (IN1–IN4, + and −).
@@ -87,8 +87,9 @@ path collide nowhere (also for the smallest and largest treats and the PCO 1810 
 5. Slide four nuts into the outer body's corner columns from inside; lower it over the inner body, the thread through its top, the
    jumper wires out through the case's window.
 6. Push the chute up between the legs from below, its end through the front wall.
-7. Screw the base plate on from below: four M3 × 8 into the inner body's feet, four into the outer body's corners; it holds the chute
-   and stops the case from being pushed in.
+7. Screw the base plate on from below, the inner body's feet into its rims: four M3 × 8 into the outer body's corners. Tightening
+   them pulls the outer body's top down onto the inner body's collar and clamps the inner body onto the plate. The plate also holds
+   the chute and stops the case from being pushed in.
 8. Slide the rotor in through the left wall onto the motor's shaft; close the opening with the cap (two M3 × 10 into the lugs).
 9. Plug the jumper wires onto either of the SuperMini's header rows; push the case into the back wall's window from behind, lid out,
    USB-C down.
@@ -96,9 +97,9 @@ path collide nowhere (also for the smallest and largest treats and the PCO 1810 
 **To clear the rotor** (a broken treat, crumbs): unscrew the cap on the left and slide the rotor out; nothing else comes apart. **To
 reach the motor, the ULN2003 or the SuperMini's pins**: unscrew the bottle, the cap and the four corner screws under the base plate,
 and lift the outer body off (pull the case out of its window first, or unplug its jumpers); the inner body with everything on it
-stays on the base plate. To change the flap, also pull its pin.
+stays standing in the base plate's rims. To change the flap, also pull its pin.
 
-![Inside, the outer body left out: the motor on the block's right face with its two screws, the ULN2003 board on its standoffs under it, the feet's nuts and screws](treat-dispenser/inside-right.png)
+![Inside, the outer body left out: the motor on the block's right face with its two screws, the ULN2003 board on its standoffs under it, the feet in the base plate's rims](treat-dispenser/inside-right.png)
 
 ![Inside from the front left: the cap's flange and screws on the sleeve's lugs, the ESP32 case in the back with both header rows free in front](treat-dispenser/inside-left.png)
 
@@ -112,16 +113,16 @@ not re-run):
 
 | Part | Solid volume (cm³) | Size as printed (mm) |
 | --- | --- | --- |
-| Inner body | 76.9 | 66 × 59 × 126 |
-| Outer body | 57.6 | 89 × 87 × 108 |
+| Inner body | 82.3 | 66 × 59 × 126 |
+| Outer body | 57.7 | 89 × 87 × 108 |
 | Rotor | 10.8 | 26 × 26 × 29 |
 | Flap (TPU) | 0.3 | 16 × 26 × 4 |
 | Bearing cap | 14.7 | 46 × 46 × 35 |
 | Chute | 7.2 | 20 × 100 × 15 |
-| Base plate | 53.1 | 105 × 99 × 5 (with its posts and keeper, 61 high) |
+| Base plate | 54.0 | 105 × 99 × 5 (with its posts and keeper, 61 high) |
 | Thread coupon | 3.8 | 34 × 34 × 10 |
 | ESP32 case base and lid | 2.2 | |
-| **All** | **226.8** (one body before the split: 197.9) | |
+| **All** | **233.1** (one body before the split: 197.9) | |
 
 With PrusaSlicer 2.5 and `tools/treat-dispenser.ini` (0.4 mm nozzle, 0.2 mm layers, PETG, four perimeters) the single-body revision
 came to 217.7 g; set `PRUSA_SLICER` to re-slice this one.
@@ -381,6 +382,7 @@ change it.
 | Plastic friction | 0.29 | `PHYSICS_MATERIALS` (PETG on acrylic) |
 | Bottle | PCO 1881, 0.5 l, Ø65 mm | ISBT drawing; diameter is a parameter |
 | Print fits | 0.4 mm rotor–bore, 0.15 mm cap in the bore, 0.3 mm thread, nut bays 0.15 mm each side across the flats and 0.3 mm deeper than the nut | typical FDM; check with the coupon and a test print |
+| Inner body clamp | The outer body's top meets the inner body's collar at nominal contact (0 mm), so the four corner screws clamp it onto the base plate; its feet stand 0.2 mm inside the rims | printed heights vary by a layer or so: if it rattles, a turn of tape on the collar; if the outer body stands proud of the plate, sand the collar |
 | Jumper wires | DuPont-style housings 2.54 mm square, 14 mm long, taking 6 mm of a pin; 6 mm for the wire's bend | common jumper wires; no data sheet; measure yours |
 | ULN2003 board holes | Ø3 mm: M3 screws pass | library entry (estimated from Printables 1404255); measure your board |
 | USB supply | ≥ 1 A, 5 V | recommendation; the board's rating is unknown |

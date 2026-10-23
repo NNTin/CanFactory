@@ -39,8 +39,10 @@ export const TREAT_DISPENSER = {
   /** M3 nut bays: play across the flats (each side) and along the axis; the wall between a nut and the face its screw comes in
    * through; how far the outer body's walls stand off the inner body. */
   nutPlay: 0.15, nutDepthPlay: 0.3, bayWall: 1.5, gap: 0.2,
-  /** The inner body's feet, either side of its legs at their front and back ends (square, as high as their nut bays need). */
-  foot: 8,
+  /** The inner body's feet, either side of its legs at their front and back ends (square). It is not screwed down: the outer body's top
+   * presses on a collar round the thread's boss (reaching `collar` past the boss, `collarDepth` thick under the top), and low rims on the
+   * base plate (`rim` thick, `rimHeight` high, `gap` off the feet) round each foot's three free sides keep it from sliding. */
+  foot: 8, collar: 5, collarDepth: 3, rim: 1.6, rimHeight: 2.5,
   /** The ULN2003 board's standoffs on the inner body's right leg (their diameter round a nut bay), the board's lowest edge over the
    * base, and its back edge in front of the block's back face. */
   standoff: 9, driverLift: 9, driverBack: 4,
@@ -572,12 +574,17 @@ export function treatBayLayout(p: TreatDispenserParameters): BayLayout {
  * - motor: through the 28BYJ-48's ears into the block's and the right leg's +X face (nuts from the front);
  * - driver: through the ULN2003 board into its standoffs (nuts dropped in from above);
  * - cap: through the bearing cap's flange and the outer body's left wall into the inner body's lugs (nuts dropped in from above);
- * - feet: up through the base plate into the inner body's feet (nuts from the side, outwards);
  * - corners: up through the base plate into the outer body's corner columns (nuts from the inside).
  */
 export interface TreatBolt {
   id: string; label: string; screw: string; nutIn: 'inner-body' | 'outer-body';
   at: Vec3; axis: Vec3; entry: Vec3; nutAt: number; slot: number;
+}
+/** The centres of the inner body's feet (x, y; −X side first), outside its legs at their front and back ends. They stand in rims on
+ * the base plate; nothing screws them down (the outer body's top presses the inner body onto the plate). */
+export function treatFeet(l: TreatDispenserLayout): [number, number][] {
+  const T = TREAT_DISPENSER;
+  return [-1, 1].flatMap(sx => [-l.block.halfY + T.foot / 2, l.blockBack - T.foot / 2].map((y): [number, number] => [sx * (l.legOut + T.foot / 2), y]));
 }
 /** The outer body's corner columns: their radius, and how far out along the diagonal from its rounded corner's centre (R 8). */
 export const CORNER_COLUMN = { radius: 5, out: 2.5 } as const;
@@ -607,10 +614,6 @@ export function treatBolts(p: TreatDispenserParameters): TreatBolt[] {
     id: `cap-${name}`, label: `bearing cap, ${name}`, screw: TREAT_FASTENERS.capScrew, nutIn: 'inner-body',
     at: [-(l.halfWidth + T.capFlange), s * l.capScrewR, l.axisZ], axis: [1, 0, 0], entry: up,
     nutAt: T.capFlange + T.shell + T.gap + T.bayWall, slot: T.lug + 1,
-  });
-  for (const [side, sx] of [['left', -1], ['right', 1]] as const) for (const [end, y] of [['front', -l.block.halfY + T.foot / 2], ['back', l.blockBack - T.foot / 2]] as const) bolts.push({
-    id: `foot-${side}-${end}`, label: `inner body, ${side} ${end} foot`, screw: TREAT_FASTENERS.screw, nutIn: 'inner-body',
-    at: [sx * (l.legOut + T.foot / 2), y, seat], axis: up, entry: [sx, 0, 0], nutAt: T.base - seat + 2, slot: T.foot / 2 + 1,
   });
   const out = (8 - CORNER_COLUMN.out / Math.SQRT2);
   for (const [side, sx] of [['left', -1], ['right', 1]] as const) for (const [end, y] of [['front', l.front + out], ['back', l.back - out]] as const) bolts.push({
@@ -832,7 +835,7 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     ['CAP', [T.capFlange, T.capRadius, T.stub, T.stubLength]], ['PIN', T.flap.pin], ['GAP', T.gap],
     // the cap's lugs: their face towards the outer body's left wall, thickness, half side, the screws' distance from the axis
     ['LUG', [round(l.lugFace), T.lugThickness, T.lug, round(l.capScrewR)]],
-    ['FOOT', T.foot], ['STANDOFF', [T.standoff, round(l.standoffLength)]], ['COLUMN_R', CORNER_COLUMN.radius],
+    ['FOOT', T.foot], ['FEET', treatFeet(l).map(foot => foot.map(round))], ['RIM', [T.rim, T.rimHeight]], ['COLLAR', [T.collar, T.collarDepth]], ['STANDOFF', [T.standoff, round(l.standoffLength)]], ['COLUMN_R', CORNER_COLUMN.radius],
     // the screws: [head's seat x, y, z, axis x, y, z, the nut's way in x, y, z, length, nut's face along the axis, slot, part]
     ['BOLTS', bolts.map(bolt => [...bolt.at.map(round), ...bolt.axis, ...bolt.entry, length(bolt.screw), round(bolt.nutAt), round(bolt.slot), parts[bolt.nutIn]])],
     // a nut's bay across its flats and along its axis; a screw's clearance hole; room for its head (diameter, height)
@@ -900,8 +903,6 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
     steps: [
       { title: 'Push two M3 nuts into the inner body’s motor bays, from the front', parts: ids('motor', 'nut'), from: [0, -16, 0] },
       { title: 'Drop M3 nuts into the ULN2003’s standoffs and the cap’s lugs', parts: [...ids('driver', 'nut'), ...ids('cap', 'nut')], from: [0, 0, 8] },
-      { title: 'Push M3 nuts into the left feet', parts: ids('foot-left', 'nut'), from: [-14, 0, 0] },
-      { title: 'Push M3 nuts into the right feet', parts: ids('foot-right', 'nut'), from: [14, 0, 0] },
       { title: 'Screw the motor to the inner body’s right side, its shaft into the block (two M3 × 6)', parts: ['motor', ...ids('motor', 'screw')], from: [45, 0, 0] },
       { title: 'Screw the ULN2003 board to its standoffs under the motor (four M3 × 8); plug in the motor', parts: ['driver', ...ids('driver', 'screw')], from: [45, 0, 0] },
       { title: 'Push the flap up into its recess over the cavity’s roof, from below; pin it with 1.75 mm filament through the block’s left face', parts: ['flap'], from: [0, 0, -50] },
@@ -909,7 +910,7 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
       { title: 'Push M3 nuts into the outer body’s right corner columns, from inside', parts: ids('corner-right', 'nut'), from: [-14, 0, 0] },
       { title: 'Lower the outer body over the inner body, the thread through its top (plug the jumper wires into the ULN2003 first)', parts: ['outer-body', ...ids('corner', 'nut')], from: [0, 0, 150] },
       { title: 'Push the chute up between the inner body’s legs, from below, its end through the front wall', parts: ['chute'], from: [0, 0, -85] },
-      { title: 'Screw the base plate on from below: four M3 × 8 into the inner body’s feet, four into the outer body’s corners', parts: ['base', ...ids('foot', 'screw'), ...ids('corner', 'screw')], from: [0, 0, -120] },
+      { title: 'Screw the base plate on from below, the inner body’s feet in its rims: four M3 × 8 into the outer body’s corners, whose top clamps the inner body’s collar', parts: ['base', ...ids('corner', 'screw')], from: [0, 0, -120] },
       { title: 'Slide the rotor in through the left wall onto the motor’s shaft; close the opening with the cap (two M3 × 10 into the lugs)', parts: ['rotor', 'cap', ...ids('cap', 'screw')], from: [-90, 0, 0] },
       { title: 'Plug the jumper wires onto either header row; push the ESP32-C3 case into the back wall’s window from behind, lid out, USB-C down', parts: ['case-bottom', 'case-top', 'board', 'header-1', 'header-2'], from: [0, 60, 0] },
     ],

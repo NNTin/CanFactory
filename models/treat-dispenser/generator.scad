@@ -23,7 +23,7 @@ CHUTE_FLOOR = L("CHUTE_FLOOR"); CHUTE_WALL = L("CHUTE_WALL"); CHUTE_SIDE = L("CH
 NECK_T = L("NECK_T"); NECK_E = L("NECK_E"); NECK_PITCH = L("NECK_PITCH"); NECK_TURNS = L("NECK_TURNS");
 THREAD_CLEARANCE = L("THREAD_CLEARANCE"); THREAD_R = L("THREAD_R"); BOSS_R = L("BOSS_R");
 MOTOR_FACE = L("MOTOR_FACE"); BOSS_D = L("BOSS_D"); SHAFT_D = L("SHAFT_D"); SHAFT_FLATS = L("SHAFT_FLATS"); SHAFT_ROUND = L("SHAFT_ROUND");
-CAP = L("CAP"); PIN = L("PIN"); GAP = L("GAP"); LUG = L("LUG"); FOOT = L("FOOT"); STANDOFF = L("STANDOFF"); COLUMN_R = L("COLUMN_R");
+CAP = L("CAP"); PIN = L("PIN"); GAP = L("GAP"); LUG = L("LUG"); FOOT = L("FOOT"); FEET = L("FEET"); RIM = L("RIM"); COLLAR = L("COLLAR"); STANDOFF = L("STANDOFF"); COLUMN_R = L("COLUMN_R");
 BOLTS = L("BOLTS"); NUT = L("NUT"); M3_HOLE = L("M3_HOLE"); HEAD = L("HEAD");
 CASE_POS = L("CASE_POS"); USB = L("USB");
 
@@ -105,7 +105,8 @@ module bolt_cuts(part) { for (b = BOLTS) { bolt_hole(b); if (b[12] == part) nut_
 module teardrop_yz(r) { hull() { translate([0, AXIS_Z]) circle(r = r, $fn = 72); translate([0, AXIS_Z - r / cos(STEEP)]) square(0.01, center = true); } }
 
 // --------------------------------------------------------------------------------------------------------------- the inner body
-// Everything the mechanism needs, on legs and four feet screwed to the base plate: the bottle's thread, the funnel, the rotor's block,
+// Everything the mechanism needs, on legs and four feet (in the base plate's rims, not screwed: the outer body's top presses on its
+// collar round the thread's boss): the bottle's thread, the funnel, the rotor's block,
 // the motor (on its +X face) and the ULN2003 board (on standoffs off the right leg), and a sleeve carrying the bore out to the left,
 // with two lugs for the bearing cap's screws just inside the outer body's left wall
 module inner_body_w() {
@@ -129,7 +130,17 @@ module inner_body_w() {
       // between them, the way's sloping ceiling
       translate([-CHUTE[3], -BLOCK[1], BASE]) cube([2 * CHUTE[3], BLOCK[1] + BLOCK_BACK, BLOCK_BOTTOM - BASE + 0.01]);
       // the feet, outside the legs at their front and back ends
-      for (b = BOLTS) if (b[12] == 1 && b[5] == 1) translate([b[0] - FOOT / 2 - 0.01, b[1] - FOOT / 2, BASE]) cube([FOOT + 0.02, FOOT, FOOT]);
+      for (f = FEET) translate([f[0] - FOOT / 2 - 0.01, f[1] - FOOT / 2, BASE]) cube([FOOT + 0.02, FOOT, FOOT]);
+      // the collar the outer body's top bears on, round the boss: up to the outer body's inside (its flat top and slopes), COLLAR[1]
+      // thick under its flat top, on a cone (STEEP) from the funnel's top so that it prints without support
+      intersection() {
+        outer_cavity();
+        collar_z = LIP_Z - SHELL - COLLAR[1]; collar_r = BOSS_R + COLLAR[0]; cone = (collar_r - LIP_R - WALL) * tan(STEEP);
+        union() {
+          translate([0, 0, collar_z]) cylinder(r = collar_r, h = LIP_Z - collar_z, $fn = 96);
+          translate([0, 0, collar_z - cone]) cylinder(r1 = LIP_R + WALL, r2 = collar_r, h = cone + 0.01, $fn = 96);
+        }
+      }
       // the sleeve from the block's left face to the lugs, and the lugs: their undersides at STEEP down to a point under the axis
       along_x(LUG[0], -BLOCK[0] + 0.01) teardrop_yz(BORE_R + WALL);
       along_x(LUG[0], LUG[0] + LUG[1]) {
@@ -182,8 +193,16 @@ module inner_body() { print_pose(L("P_INNER")) inner_body_w(); }
 // The cover: walls and a gable top, hipped down to the right side too (the left side stays upright for the cap), open at the bottom,
 // lowered over the inner body (the thread's boss comes up through its top) and screwed to the base plate at its corners; the cap's
 // screws clamp its left wall to the inner body's lugs. The ESP32 case in a window of its back wall.
-module outer_body_w() {
+// the outer body's inside (the inner body's collar is shaped by it, so that the outer body's top bears on it all round)
+module outer_cavity() {
   inner_x = HALF_W - SHELL;
+  intersection() {
+    rbox(-inner_x, inner_x, FRONT + SHELL, BACK - SHELL, BASE - 1, LIP_Z, 8 - SHELL);
+    along_x(-HALF_W, HALF_W) offset(delta = -SHELL) polygon(gable(FRONT, BACK, BASE - 10, LIP_Z, BOSS_R + 0.5));
+    hip(SHELL);
+  }
+}
+module outer_body_w() {
   difference() {
     union() {
       difference() {
@@ -192,11 +211,7 @@ module outer_body_w() {
           along_x(-HALF_W - 1, HALF_W + 1) polygon(gable(FRONT, BACK, BASE, LIP_Z, BOSS_R + 0.5));
           hip(0);
         }
-        intersection() {
-          rbox(-inner_x, inner_x, FRONT + SHELL, BACK - SHELL, BASE - 1, LIP_Z, 8 - SHELL);
-          along_x(-HALF_W, HALF_W) offset(delta = -SHELL) polygon(gable(FRONT, BACK, BASE - 10, LIP_Z, BOSS_R + 0.5));
-          hip(SHELL);
-        }
+        outer_cavity();
       }
       // the corner columns, for the base plate's screws
       for (b = BOLTS) if (b[12] == 2) translate([b[0], b[1], BASE]) cylinder(r = COLUMN_R, h = FOOT + 1, $fn = 40);
@@ -309,10 +324,16 @@ module base() {
         hull() for (y = [CHUTE_BACK - 12, CHUTE_BACK]) translate([0, y - 0.01, BASE - 0.01]) cube([1.6, 0.01, chute_at(y) - CHUTE_FLOOR - BASE + 0.01]);
         translate([0, CHUTE_BACK, BASE - 0.01]) cube([1.6, 1.6, chute_at(CHUTE_BACK) + 4 - BASE]);
       }
+      // a rim round each of the inner body's feet, on its three free sides (the leg is on the fourth), so that it cannot slide
+      for (f = FEET) translate([f[0], f[1], BASE - 0.01]) difference() {
+        o = FOOT / 2 + GAP + RIM[0];
+        translate([f[0] < 0 ? -o : -FOOT / 2, -o, 0]) cube([FOOT / 2 + o, 2 * o, RIM[1] + 0.01]);
+        translate([f[0] < 0 ? -o + RIM[0] : -FOOT / 2 - 1, -o + RIM[0], -1]) cube([FOOT / 2 + o - RIM[0] + 1, 2 * (o - RIM[0]), RIM[1] + 2]);
+      }
       // a keeper behind the middle of the ESP32 case's floor, between its two rows of header pins, so that it cannot be pushed in
       translate([CASE_POS[0] - 1, CASE_POS[1] + CASE_FLOOR - 2.5, BASE - 0.01]) cube([2, 2.5, CASE_POS[2] + CASE_L / 2 - BASE]);
     }
-    // the screws into the inner body's feet and the outer body's corners, their heads in counterbores from below
+    // the screws into the outer body's corners, their heads in counterbores from below
     for (b = BOLTS) bolt_hole(b);
   }
 }
