@@ -10,8 +10,9 @@ import type { Point2 } from './physicsPieces.ts';
  * (MakerWorld 190887, CC BY-NC 4.0), itself after cylus80's "Mason Jar Candy Dispenser" (Thingiverse 2103924, CC BY 4.0). An
  * inverted 0.5 l PET bottle screws into the top of the body; its treats fall through a funnel onto a horizontal rotor with two
  * pockets, which a 28BYJ-48 turns directly (in place of the original's handle); each half turn a pocket carries what it holds from
- * under the funnel to the drop below it, onto a chute that runs out of the front. The ULN2003 board and the ESP32-C3 SuperMini case
- * live inside the body, the case's lid flush in its back wall so that B and R can be pressed.
+ * under the funnel to the drop below it, onto a chute that runs out of the front. Two bodies: the inner body carries the thread, the
+ * mechanism, the motor and the ULN2003 board; the outer body covers it, the ESP32-C3 SuperMini case's lid flush in its back wall so
+ * that B and R can be pressed. Every fastener is an M3 screw into a hex nut in a printed bay (`treatBolts`).
  *
  * One frame for everything, the assembled frame W: Z up, the floor at z = 0, the rotor's axis along X at y = 0, the chute running out
  * towards −Y (the front). All lengths mm, angles degrees. Each part is drawn in W and printed in its own orientation (its pose).

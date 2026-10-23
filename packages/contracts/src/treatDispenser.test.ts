@@ -192,7 +192,7 @@ describe('treat dispenser assembly and electronics', () => {
       expect(assembly.poses[`${bolt.id}-screw`]).toEqual(poses.screw);
       expect(assembly.poses[`${bolt.id}-nut`]).toEqual(poses.nut);
       // the screw's head (its own frame: tip at z = 0, the head from z = l) bears at the bolt's seat; the nut's flats lie along its slot
-      const length = dimensionOf(findPart(bolt.screw) ?? findPart(TREAT_FASTENERS.nut)!, 'l');
+      const length = dimensionOf(findPart(bolt.screw) ?? findPart(TREAT_FASTENERS.nut) ?? (() => { throw new Error('Missing the nut.'); })(), 'l');
       posePoint(poses.screw, [0, 0, length]).forEach((v, k) => expect(v).toBeCloseTo(bolt.at[k] ?? 0, 6));
       // the nut's flats are across its own X: its +X maps to the bay's axis × entry
       const across = posePoint({ position: [0, 0, 0], rotation: poses.nut.rotation }, [1, 0, 0]);

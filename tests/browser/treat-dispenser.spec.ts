@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { DEFAULT_TREAT_DISPENSER, treatBolts, treatDispenser } from '@canfactory/contracts';
 
 /** The bodies' poses the viewer last reported (`data-physics-poses`): id → [x, y, z, qw, qx, qy, qz]. */
 async function poses(page: Page): Promise<Record<string, number[]>> {
@@ -77,5 +78,33 @@ test('dispenses from the BOOT button on the case in the back wall: the motor tur
   await page.getByRole('button', { name: 'Simulate', exact: true }).click();
   await expect(viewer).not.toHaveAttribute('data-physics', /.*/);
   await expect(page.locator('.controller-hotspot')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('shows the inner and outer bodies, the motor, the ULN2003 and every M3 screw and nut in the live assembly; the outer body hides', async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/#/models/treat-dispenser');
+  await expect(page.getByRole('button', { name: 'Download ZIP', exact: true })).toBeEnabled({ timeout: 300_000 });
+  const viewer = page.getByTestId('stl-viewer');
+  const slider = page.getByRole('slider', { name: 'Assembly' });
+  await slider.press('Home');
+  await slider.press('ArrowRight');
+  await slider.press('ArrowRight');
+  await expect(slider).toHaveAttribute('aria-valuetext', /^Step 1 of \d+ · Push two M3 nuts into the inner body’s motor bays, from the front$/);
+  await slider.press('End');
+  await expect(slider).toHaveAttribute('aria-valuetext', 'Assembled');
+  const bolts = treatBolts(DEFAULT_TREAT_DISPENSER);
+  const fasteners = bolts.flatMap(bolt => [`${bolt.id}-screw`, `${bolt.id}-nut`]);
+  expect(fasteners).toHaveLength(32);
+  const visible = async () => new Set((await viewer.getAttribute('data-visible-parts') ?? '').split(' '));
+  await expect.poll(async () => [...await visible()].filter(id => fasteners.includes(id)).length, { timeout: 60_000 }).toBe(32);
+  for (const id of ['inner-body', 'outer-body', 'motor', 'driver', 'board', 'header-1', 'header-2']) expect((await visible()).has(id), id).toBe(true);
+  // hide the outer body: the mechanism, the boards and every fastener stay in view
+  const outer = treatDispenser.parts.find(part => part.id === 'outer-body');
+  await page.getByTitle(`Hide ${outer?.title ?? ''}`).click();
+  await expect.poll(async () => (await visible()).has('outer-body')).toBe(false);
+  for (const id of ['inner-body', 'motor', 'driver', ...fasteners]) expect((await visible()).has(id), id).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('inside.png'), fullPage: true });
   expect(errors).toEqual([]);
 });

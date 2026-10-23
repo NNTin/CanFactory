@@ -129,9 +129,8 @@ module inner_body_w() {
       // the feet, outside the legs at their front and back ends
       for (b = BOLTS) if (b[12] == 1 && b[5] == 1) translate([b[0] - FOOT / 2 - 0.01, b[1] - FOOT / 2, BASE]) cube([FOOT + 0.02, FOOT, FOOT]);
       // the sleeve from the block's left face to the lugs, and the lugs: their undersides at STEEP down to a point under the axis
-      along_x(LUG[0] + LUG[1] - 0.01, -BLOCK[0] + 0.01) teardrop_yz(BORE_R + WALL);
+      along_x(LUG[0], -BLOCK[0] + 0.01) teardrop_yz(BORE_R + WALL);
       along_x(LUG[0], LUG[0] + LUG[1]) {
-        teardrop_yz(BORE_R + WALL);
         // flat on top, so that the nuts' slots open upwards
         hull() {
           for (s = [-1, 1]) translate([s * LUG[3], AXIS_Z]) square(2 * LUG[2], center = true);

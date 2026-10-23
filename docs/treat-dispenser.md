@@ -17,18 +17,26 @@ anything; that is issue #140, left for later.
 
 | Part | What it does |
 | --- | --- |
-| Body | One print: the bottle's thread and the deck its lip rests on, a funnel into the slot, the rotor's block (bore, slot, the drop under the rotor and a cavity behind it), the motor's plate, legs either side of the chute, the ESP32 case's window in the back wall, standoffs for the ULN2003 board, and an opening in the left wall for the rotor. Open at the bottom. |
+| Inner body | The bottle's thread, a funnel into the slot, the rotor's block (bore, slot, the drop under the rotor and a cavity behind it), legs either side of the chute and four feet screwed to the base plate; the motor on the block's +X face; the ULN2003 board on four standoffs off the right leg; a sleeve carrying the bore out to the left, ending in two lugs for the bearing cap's screws. Every nut sits in a bay of its own. |
+| Outer body | The cover: walls and a gable top, open at the bottom, lowered over the inner body (the thread's boss comes up through its top) and screwed to the base plate at its four corners. The ESP32 case's window in its back wall, the rotor's opening in its left wall, the chute's way out of the front. |
 | Rotor | Ø26 × 24 mm, two pockets 16 × 11 × 6 mm (for 14 × 9 × 5 treats with 1 mm of clearance), a D-bore onto the motor's flatted shaft at one end, a Ø8 stub into the cap at the other. |
-| Flap | 95A TPU, 0.6 mm thick: rests on the rotor just behind the slot, sprung 10° past touching, its square root block held in a recess over the cavity by a 1.75 mm filament pin through the left wall. |
-| Bearing cap | A tube through the left wall's opening into the bore, up to the rotor's end, where it takes the rotor's stub; its flange screws to the wall's outside (two M3 into inserts). |
+| Flap | 95A TPU, 0.6 mm thick: rests on the rotor just behind the slot, sprung 10° past touching, its square root block held in a recess over the cavity by a 1.75 mm filament pin through the block's left face. |
+| Bearing cap | A tube through the outer body's left wall and the inner body's sleeve into the bore, up to the rotor's end, where it takes the rotor's stub; its flange sits on the wall's outside, its two M3 × 10 screws through the wall into nuts in the inner body's lugs (clamping the wall). |
 | Chute | 30°, from under the rotor out through the front wall; pushed up between the legs from below and held by the base plate. |
-| Base plate | Closes the bottom (four M3 into inserts); sized so that a full bottle leans 20° before the dispenser tips; a keeper behind the ESP32 case. |
+| Base plate | 5 mm; closes the bottom; eight M3 × 8 screws from below in counterbores (four into the inner body's feet, four into the outer body's corners); sized so that a full bottle leans 20° before the dispenser tips; a keeper behind the ESP32 case. |
 | Thread coupon | Ten millimetres of the body's thread: print it first and fit it to your bottle. |
 | ESP32-C3 case base and lid | The existing case's two parts, unchanged ([attribution](../models/treat-dispenser/ATTRIBUTION.md)). |
 
-Bought: a 28BYJ-48 (5 V), a ULN2003 board, an ESP32-C3 SuperMini, 8 CNC Kitchen M3 × 5.7 heat-set inserts, M3 ISO 4762 screws (2 ×
-6 mm for the motor, 6 × 10 mm for the cap and the base plate), 4 M2.5 × 8 for the ULN2003 board, jumper wires, and a few centimetres
-of 1.75 mm filament for the flap's pin.
+Bought: a 28BYJ-48 (5 V), a ULN2003 board, an ESP32-C3 SuperMini, 16 ISO 4032 M3 hex nuts and ISO 4762 M3 screws (2 × 6 mm for the
+motor, 12 × 8 mm for the ULN2003 board, the feet and the corners, 2 × 10 mm for the cap), jumper wires, and a few centimetres of 1.75
+mm filament for the flap's pin. No heat-set inserts.
+
+**Fasteners.** Every screw goes into an ISO 4032 M3 nut held in a printed bay (`treatBolts`): a hexagon 5.8 mm across its flats (the
+library's 5.5 mm at its largest, 0.15 mm of play each side; 6.70 across its corners against the nut's 6.01) and 2.7 mm deep (2.4
+nut), and a slot as wide as across the flats into which the nut slides from one side, so that it cannot turn. The bays open where they
+can be reached: the motor's from the block's front face, the ULN2003's and the cap's from above, the feet's outwards, the corners'
+from inside. Each screw and nut is a part-library reference in the assembly, at its pose, and moves in its step; the editor's
+hardware list counts them.
 
 Every dimension is computed in `packages/contracts/src/treatDispenser.ts` and passed to `models/treat-dispenser/generator.scad` as one
 list (`treatScadLayout`), so the CAD, the assembly poses and the physics' collision pieces come from the same numbers; a test checks
@@ -66,50 +74,72 @@ What it cannot prevent: treats that arch in the bottle's 21.7 mm neck (#140) or 
 
 ### Assembly and service
 
-`npm run check:assembly -- treat-dispenser` passes: the assembled parts, the exploded layout and every step's path collide nowhere
-(also for the smallest and largest treats and the PCO 1810 neck). In order:
+`npm run check:assembly -- treat-dispenser` passes: the assembled parts, every screw and nut, the exploded layout and every step's
+path collide nowhere (also for the smallest and largest treats and the PCO 1810 neck). In order:
 
-1. Lift the motor in from below: its shaft comes up a slot under the bore; two M3 × 6 screws through its ears into inserts in the
-   block's plate.
-2. Push the flap up into its recess over the cavity's roof, from below, and pin it: push the filament through the hole in the left
-   wall, through the flap's root block, into the blind hole beyond; trim it flush.
-3. Slide the rotor in through the left wall onto the motor's shaft; close the opening with the cap (two M3 × 10 into inserts).
-4. Screw the ULN2003 board to its standoffs on the right side wall; plug in the motor.
-5. Push the ESP32-C3 case into the back wall's window from behind, lid out, USB-C down.
+1. Slide the nuts into the inner body's bays: two into the motor's from the block's front face, four into the ULN2003's standoffs and
+   two into the cap's lugs from above, four into the feet from the side.
+2. Put the motor on the block's +X face from the side, its shaft and boss into the hole, its can in front; two M3 × 6 through its ears.
+3. Screw the ULN2003 board to its standoffs under the motor (four M3 × 8), its parts facing out; plug in the motor and the jumper
+   wires (IN1–IN4, + and −).
+4. Push the flap up into its recess over the cavity's roof, from below, and pin it: push the filament through the hole in the
+   block's left face, through the flap's root block, into the blind hole beyond; trim it flush.
+5. Slide four nuts into the outer body's corner columns from inside; lower it over the inner body, the thread through its top, the
+   jumper wires out through the case's window.
 6. Push the chute up between the legs from below, its end through the front wall.
-7. Screw the base plate on (four M3 × 10 into inserts); it holds the chute and stops the case from being pushed in.
+7. Screw the base plate on from below: four M3 × 8 into the inner body's feet, four into the outer body's corners; it holds the chute
+   and stops the case from being pushed in.
+8. Slide the rotor in through the left wall onto the motor's shaft; close the opening with the cap (two M3 × 10 into the lugs).
+9. Plug the jumper wires onto either of the SuperMini's header rows; push the case into the back wall's window from behind, lid out,
+   USB-C down.
 
-**To clear the rotor** (a broken treat, crumbs): unscrew the cap on the left and slide the rotor out; nothing else comes apart. To
-change the flap, also pull its pin.
+**To clear the rotor** (a broken treat, crumbs): unscrew the cap on the left and slide the rotor out; nothing else comes apart. **To
+reach the motor, the ULN2003 or the SuperMini's pins**: unscrew the bottle, the cap and the four corner screws under the base plate,
+and lift the outer body off (pull the case out of its window first, or unplug its jumpers); the inner body with everything on it
+stays on the base plate. To change the flap, also pull its pin.
+
+![Inside, the outer body left out: the motor on the block's right face with its two screws, the ULN2003 board on its standoffs under it, the feet's nuts and screws](treat-dispenser/inside-right.png)
+
+![Inside from the front left: the cap's flange and screws on the sleeve's lugs, the ESP32 case in the back with both header rows free in front](treat-dispenser/inside-left.png)
 
 ### Packaging
 
-99 × 101 × 129 mm assembled (without the bottle), on a 99 × 99 mm base plate: with a full 0.5 l bottle (Ø65 mm) it leans 20° before it
-tips. `tools/treat-dispenser-views.ts` renders every part as the worker does and slices it with PrusaSlicer 2.5 and one fixed profile
-(`tools/treat-dispenser.ini`: 0.4 mm nozzle, 0.2 mm layers, PETG, four perimeters):
+105 × 101 × 131 mm assembled (without the bottle), on a 105 × 99 mm base plate: with a full 0.5 l bottle (Ø65 mm) it leans 20° before
+it tips. The outer body is 89 mm wide (41.5 → 44.5 mm half width) so that the jumper plugs on the ULN2003's pins have room to the
+wall, and the base plate is 5 mm thick (was 3) for the screw heads' counterbores. `tools/treat-dispenser-views.ts` renders every part
+as the worker does; the solid volumes of this revision (no slicer was available when it was made, so the slicer figures below are
+not re-run):
 
-| Part | Filament (g) | Print time |
+| Part | Solid volume (cm³) | Size as printed (mm) |
 | --- | --- | --- |
-| Body | 149.3 | 12 h 48 min |
-| Rotor | 8.3 | 44 min |
-| Flap (TPU) | 0.4 | 4 min |
-| Bearing cap | 12.5 | 1 h 7 min |
-| Chute | 9.1 | 54 min |
-| Base plate | 29.8 | 3 h 43 min |
-| Thread coupon | 4.7 | 22 min |
-| ESP32 case base and lid (automatic supports, 1.8 g of it) | 3.5 | 21 min |
-| **All** | **217.7** | |
+| Inner body | 76.9 | 66 × 59 × 126 |
+| Outer body | 57.6 | 89 × 87 × 108 |
+| Rotor | 10.8 | 26 × 26 × 29 |
+| Flap (TPU) | 0.3 | 16 × 26 × 4 |
+| Bearing cap | 14.7 | 46 × 46 × 35 |
+| Chute | 7.2 | 20 × 100 × 15 |
+| Base plate | 53.1 | 105 × 99 × 5 (with its posts and keeper, 61 high) |
+| Thread coupon | 3.8 | 34 × 34 × 10 |
+| ESP32 case base and lid | 2.2 | |
+| **All** | **226.8** (one body before the split: 197.9) | |
+
+With PrusaSlicer 2.5 and `tools/treat-dispenser.ini` (0.4 mm nozzle, 0.2 mm layers, PETG, four perimeters) the single-body revision
+came to 217.7 g; set `PRUSA_SLICER` to re-slice this one.
+
+The same tool measures the **jumper wires' room** (`treatWiringRoom`) on the meshes: beyond the tips of both of the SuperMini's header
+rows (by a 14 mm housing less the 6 mm it takes of a pin, and a 6 mm bend; a housing's width and 1.5 mm to each side), and beyond the
+ULN2003's input pins, supply pins and motor socket, no part reaches in; it fails otherwise.
 
 **CanFactory's parts print without supports**: every overhang is 50° or steeper (the gable top and the right side's hip, the
-teardrop holes, the chute way's ceiling, the gussets), a short bridge (the flat strip either side of the thread's boss, 31 mm; the
-cavity's round top, across its 16 mm between the side walls; the case window, 22 mm), or the thread's own groove (1.6 mm deep). The
+teardrop holes, the sleeve's teardrop section and the lugs' undersides, the chute way's ceiling, the standoffs' gussets), a short bridge (the flat strip either side of the boss's opening, 31 mm; the
+cavity's round top, across its 16 mm between the side walls; the case window, 22 mm; the nut slots' ceilings, at most 5.8 mm), or the thread's own groove (1.6 mm deep). The
 cavity keeps its round top on purpose: a ceiling sloped at 50° stopped the flap swinging back at about 45° and wedged treats under it
-in the trials (6 stalls in 40). With automatic supports on every part the slicer adds 31.8 g
-(230.9 g in all), most of it in the thread, from columns that would stand in the slot, the bore and the drop: switch supports off for
-the body. For comparison, the same tool and profile gave 283.4 g (49.4 g of support) for the first notch-disc design and 233.3 g
+in the trials (6 stalls in 40). With automatic supports on every part the slicer added 31.8 g to the
+single-body revision, most of it in the thread, from columns that would stand in the slot, the bore and the drop: switch supports off
+for the inner body. For comparison, the same tool and profile gave 283.4 g (49.4 g of support) for the first notch-disc design and 233.3 g
 (23.2 g) for its compact revision.
 
-![Cutaway through the middle: the bottle's thread and funnel, the slot over the rotor, the flap on the rotor's back and the cavity behind it, the chute under the drop, the ULN2003 on the right wall](treat-dispenser/cutaway.png)
+![Cutaway through the middle: the bottle's thread and funnel, the slot over the rotor, the flap on the rotor's back and the cavity behind it, the chute under the drop, the outer body round it](treat-dispenser/cutaway.png)
 
 ![The assembled dispenser: gable top round the thread's boss, the chute's way out of the front, the base plate](treat-dispenser/three-quarter.png)
 
@@ -156,10 +186,14 @@ Avoided: GPIO2, GPIO8 and GPIO9 (strapping pins; GPIO8 is the blue LED and must 
 GPIO18/19 (USB), GPIO20/21 (UART). GPIO5, 6, 7 and 10 are on the same header row (H1). The library does not know which ULN2003 header
 pin is which on every clone: read your board's silkscreen. If the rotor turns backwards, change the firmware's `direction`.
 
-Inside the body: the ESP32 case stands upright in a window in the **back wall**, its lid flush with the outside, so that **B and R
-are pressable from behind**; its USB-C end points down, 25 mm over the floor, and the cable comes in through a notch at the foot of
-the back wall. The ULN2003 board stands on four standoffs on the **right side wall**, its parts facing in, under the motor. The
-motor's 250 mm lead reaches it with room to spare.
+Inside: the ESP32 case stands upright in a window in the outer body's **back wall**, its lid flush with the outside, so that **B and
+R are pressable from behind**; its USB-C end points down, 25 mm over the base plate, and the cable comes in through a notch at the
+foot of the back wall. **Both header rows can be wired**: the pins point into the body, and the case sits far enough left that even
+the row nearer the rotor's block has a jumper plug's width and 1.5 mm beside the inner body's left face, with 14 mm free beyond the
+pins' tips for the housings and the wires' bend (an earlier revision had that row against the block). Which row you use depends on
+the GPIOs you choose; the default wiring above uses H1. The ULN2003 board stands on four standoffs off the **inner body's right
+leg**, under the motor, its parts facing out towards the outer body's right wall, which is far enough away for the plugs on its
+pins. The motor's 250 mm lead reaches it with room to spare.
 
 ### BOOT and RESET
 
@@ -346,13 +380,16 @@ change it.
 | Flap | 0.6 mm 95A TPU, 0.03 N·mm per degree, 10° preload | E ≈ 26 MPa for 95A TPU (typical, not measured); a strip 0.6 × 16 × 14 mm |
 | Plastic friction | 0.29 | `PHYSICS_MATERIALS` (PETG on acrylic) |
 | Bottle | PCO 1881, 0.5 l, Ø65 mm | ISBT drawing; diameter is a parameter |
-| Print fits | 0.4 mm rotor–bore, 0.15 mm cap in the bore, 0.3 mm thread | typical FDM; check with the coupon and a test print |
+| Print fits | 0.4 mm rotor–bore, 0.15 mm cap in the bore, 0.3 mm thread, nut bays 0.15 mm each side across the flats and 0.3 mm deeper than the nut | typical FDM; check with the coupon and a test print |
+| Jumper wires | DuPont-style housings 2.54 mm square, 14 mm long, taking 6 mm of a pin; 6 mm for the wire's bend | common jumper wires; no data sheet; measure yours |
+| ULN2003 board holes | Ø3 mm: M3 screws pass | library entry (estimated from Printables 1404255); measure your board |
 | USB supply | ≥ 1 A, 5 V | recommendation; the board's rating is unknown |
 
 ## Physical validation checklist
 
 1. Measure the delivered motor, ULN2003 board and SuperMini (the library's entries flag estimated values) before printing the body.
-2. Print the thread coupon; tune Thread clearance until it runs on by hand without wobble.
+2. Print the thread coupon; tune Thread clearance until it runs on by hand without wobble. Check that an M3 nut slides into a bay
+   of a test print and does not turn in it.
 3. Measure a bag of treats (largest length, width, thickness); set the parameters.
 4. Print the rotor and the cap; check that the rotor turns freely in the bore by hand and slides out through the left wall.
 5. Print the flap in TPU; check that it lies on the rotor with a little preload and gives way easily to a fingertip.
