@@ -63,6 +63,8 @@ export interface SceneBody {
   friction: Vec3;
   /** Whether it collides with its parent body (MuJoCo's default is not to). */
   collideWithParent?: boolean;
+  /** Frictionless contacts (MuJoCo's condim 1), e.g. gear teeth. */
+  frictionless?: boolean;
 }
 
 export interface SceneOptions {
@@ -71,13 +73,28 @@ export interface SceneOptions {
   /** `solref` (time constant, damping ratio) and `solimp` of every contact and limit. */
   solref: [number, number];
   solimp: [number, number, number];
+  /** The constraint solver's iterations, line-search iterations and tolerance, where a scene needs them tighter than MuJoCo's. */
+  iterations?: number;
+  lsIterations?: number;
+  tolerance?: number;
 }
 
 /** Body-local dipole, metres and A·m² (the moment is already SI in contracts). */
 export interface SceneMagnet { id: string; body: string; pos: Vec3; moment: Vec3; softening: number; enabled: boolean }
 
+/**
+ * A torque-limited motor (contracts `PhysicsMotor`) in SI: a position actuator on `body`'s hinge, stiffness `kp` (N·m/rad), damping
+ * `kv` (N·m·s/rad), its force capped at `torque` (N·m); `speed` (rad/s), `acceleration` (rad/s²) and `slip` (rad) are its command's.
+ */
+export interface SceneMotor { name: string; body: string; kp: number; kv: number; torque: number; speed: number; acceleration: number; slip: number }
+
+/** A counter (contracts `PhysicsCounter`) over these bodies, in metres. */
+export interface SceneCounter { name: string; bodies: string[]; kind: 'crossing' | 'inside'; point: Vec3; along: Vec3; min: Vec3; max: Vec3; /** The frame they are in (world when omitted). */ frame?: { pos: Vec3; quat: Quat } }
+
 export interface Scene {
   magnets?: SceneMagnet[];
+  motors?: SceneMotor[];
+  counters?: SceneCounter[];
   options: SceneOptions;
   bodies: SceneBody[];
   /** Pairs of bodies that never collide. */

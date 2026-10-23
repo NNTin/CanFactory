@@ -2455,3 +2455,23 @@ main {
 .planner-build tr.selected td { background: #fdf0de; }
 .planner-build .planner-sources { border: 1px solid transparent; border-radius: 5px; background: transparent; padding: 2px 4px; font-size: 11.5px; color: #415537; text-align: left; text-decoration: underline dotted; }
 .planner-build .planner-sources[aria-pressed=true] { border-color: #e8b26a; text-decoration: none; }
+
+/* A simulated device's controller (treat dispenser): buttons on the model, and its panel under the viewer. */
+.controller-overlay { position: absolute; inset: 0; pointer-events: none; }
+.controller-hotspot { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff; background: #c76743; color: #fff; font-weight: 700; font-size: 13px; box-shadow: 0 0 0 3px #c7674366, 0 2px 6px #0004; cursor: pointer; touch-action: none; }
+.controller-hotspot.controller-reset { background: #4a5560; box-shadow: 0 0 0 3px #4a556066, 0 2px 6px #0004; }
+.controller-hotspot:active { transform: translate(-50%, -50%) scale(0.92); }
+.controller-hotspot:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.controller-panel { display: grid; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.controller-state { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.controller-state strong { padding: 2px 10px; border-radius: 999px; background: #e7ece9; font-size: 13px; }
+.controller-state strong[data-state="running"] { background: #f6e3c8; }
+.controller-state strong[data-state="fault"], .controller-state strong[data-state="unaligned"] { background: #f6d2c8; }
+.controller-figures { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; margin: 0; }
+.controller-figures div { display: grid; gap: 2px; }
+.controller-figures dt { font-size: 11px; color: var(--muted); }
+.controller-figures dd { margin: 0; font-variant-numeric: tabular-nums; }
+.controller-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.controller-buttons button { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); cursor: pointer; touch-action: none; }
+.controller-buttons button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controller-panel small { color: var(--muted); }

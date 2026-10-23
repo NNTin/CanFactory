@@ -1,0 +1,212 @@
+# PET-bottle treat dispenser (CanFactory model treat-dispenser, docs/treat-dispenser.md): an ESP32-C3 SuperMini drives a 28BYJ-48
+# through a ULN2003 board, turning the gumball-style rotor directly; its BOOT button commands one dispense cycle (0, 1 or more treats
+# may come out: see the docs). One USB-C cable into the SuperMini powers everything.
+#
+# Validated with ESPHome 2026.10.0 (`esphome config`, `esphome compile`): it is valid and builds. Its logic (treat_dispenser.h,
+# included below) is tested on the host (treat_dispenser_test.cpp). It has NOT been run on hardware. Everything marked CALIBRATE or
+# VERIFY needs the real device.
+#
+# What it knows and what it does not: a "cycle" here is a commanded motion of the motor that ran to its end. The device has no
+# sensor that sees a treat leave, a jam, an empty bottle or where the rotor really is; a stalled 28BYJ-48 loses steps silently. The
+# simulator's "treats seen leaving" counter has no counterpart here.
+#
+# One runner owns the motor (treat_dispenser::Logic): dispense, prime, calibration, jog and "mark aligned" all go through it, and
+# whatever conflicts with a running job is rejected (and counted), except one dispense press, which queues. Alignment is fail-safe:
+# "not at rest" is written to flash and committed before every motion, "at rest" only after a cycle has run to its end, so a device
+# that boots after a power cut or RESET during any motion (or on its very first boot) waits to be jogged into line and marked aligned.
+#
+# Wiring (verify against your board before powering; see docs/treat-dispenser.md):
+#   SuperMini 5V (VBUS, straight from USB-C) -> ULN2003 "+" (5-12 V)      SuperMini GND -> ULN2003 "-"   (common ground)
+#   SuperMini GPIO5  -> ULN2003 IN1        GPIO6 -> IN2        GPIO7 -> IN3        GPIO10 -> IN4
+#   28BYJ-48 plug -> ULN2003 motor socket (keyed); keep the board's motor-power jumper fitted.
+# Avoided: GPIO2, GPIO8, GPIO9 (strapping pins; GPIO8 is the blue LED, GPIO9 the BOOT button), GPIO18/19 (USB), GPIO20/21 (UART).
+
+substitutions:
+  name: treat-dispenser
+  friendly_name: Treat dispenser
+  # CALIBRATE: half-steps per turn of the motor's output shaft. Nominal 4096 (64 x 64); the gear train is about 1:63.68, so
+  # 4076 is closer for most 28BYJ-48s. Mark the rotor, run "Calibrate: 4 cycles" (two turns) and adjust until it returns to its mark.
+  # Every move is derived from it: a cycle turns half a turn forward (two pockets), never back (backwards, the slot's tight front
+  # edge could pinch a treat).
+  steps_per_turn: "4076"
+  # VERIFY: +1 or -1, so that the rotor's top turns towards the back and its underside towards the chute (in the simulation the
+  # shaft turns clockwise seen from the motor's back). Depends on how IN1-IN4 are wired.
+  direction: "-1"
+  # Half-steps per second and per second squared. Faster loses torque (and steps) on a 5 V supply.
+  max_speed: "700"
+  acceleration: "2000"
+  # The pause between a cycle's moves (unused while it has one move), and the settle after a cycle (the treat clears the chute), ms.
+  pause_ms: "200"
+  settle_ms: "500"
+  # A small jog for re-alignment (about 2 degrees of motor).
+  jog_steps: "23"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  includes:
+    - treat_dispenser.h
+    - treat_dispenser_esphome.h
+  on_boot:
+    # Nothing moves on boot. The rotor is at rest only if flash says a cycle ended there (or it was marked aligned).
+    priority: -100
+    then:
+      - lambda: |-
+          dispenser_rest_flag() = global_preferences->make_preference<uint8_t>(fnv1_hash("treat_dispenser_at_rest"), true);
+          uint8_t at_rest = 0;
+          if (!dispenser_rest_flag().load(&at_rest)) at_rest = 0;
+          id(motor).report_position(0);
+          id(motor).set_target(0);
+          treat_dispenser::Config config;
+          config.steps_per_turn = ${steps_per_turn};
+          config.direction = ${direction};
+          config.max_speed = ${max_speed};
+          config.acceleration = ${acceleration};
+          config.pause_ms = ${pause_ms};
+          config.settle_ms = ${settle_ms};
+          dispenser() = new treat_dispenser::Logic(config, treat_dispenser::Hooks{
+            [](long steps) { id(motor).set_target(id(motor).target_position + steps); },
+            []() { id(motor).set_target(id(motor).current_position); },
+            [](bool rest) {
+              // committed before returning: the logic moves the motor only after this
+              uint8_t value = rest ? 1 : 0;
+              dispenser_rest_flag().save(&value);
+              global_preferences->sync();
+            }});
+          dispenser()->boot(at_rest == 1);
+          if (at_rest != 1) ESP_LOGW("dispenser", "Not known to be at rest (first boot, or power lost / RESET during a motion): jog the rotor until its pockets face up and down, then press Mark aligned.");
+      - script.execute: publish_status
+
+esp32:
+  variant: esp32c3
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+  actions:
+    # Home Assistant: esphome.treat_dispenser_dispense, and so on. The same paths as the buttons.
+    - action: dispense
+      then:
+        - lambda: "dispenser_submit(treat_dispenser::Request::Dispense, 0);"
+    - action: prime
+      then:
+        - lambda: "dispenser_submit(treat_dispenser::Request::Prime, 0);"
+    - action: jog
+      variables:
+        steps: int
+      then:
+        - lambda: "dispenser_submit(treat_dispenser::Request::Jog, steps);"
+    - action: mark_aligned
+      then:
+        - lambda: "dispenser_submit(treat_dispenser::Request::MarkAligned, 0);"
+
+ota:
+  # encrypted with the API's key (ESPHome recommends this over an OTA password)
+  - platform: esphome
+    encryption: {}
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+stepper:
+  - platform: uln2003
+    id: motor
+    pin_a: GPIO5
+    pin_b: GPIO6
+    pin_c: GPIO7
+    pin_d: GPIO10
+    step_mode: HALF_STEP
+    max_speed: ${max_speed} steps/s
+    acceleration: ${acceleration} steps/s^2
+    deceleration: ${acceleration} steps/s^2
+    # coils off between cycles: no holding current or heat; the motor's 1:64 gearbox holds the rotor
+    sleep_when_done: true
+
+# The runner: issues the running job's moves, its pauses, and the queued press when a job ends.
+interval:
+  - interval: 10ms
+    then:
+      - lambda: |-
+          if (dispenser() == nullptr) return;
+          static const char *last = nullptr;
+          static int last_cycles = -1, last_rejected = -1;
+          dispenser()->poll(millis(), id(motor).current_position == id(motor).target_position);
+          const char *state = dispenser()->state_name();
+          if (state != last || dispenser()->cycles() != last_cycles || dispenser()->rejected() != last_rejected) {
+            last = state; last_cycles = dispenser()->cycles(); last_rejected = dispenser()->rejected();
+            id(publish_status).execute();
+          }
+
+binary_sensor:
+  # The SuperMini's BOOT button: GPIO9, pulled up by the board (10 kOhm), pressed = low. Held low during a reset it selects the
+  # ROM bootloader instead (that is how you flash it); while the firmware runs it is an ordinary input.
+  - platform: gpio
+    id: boot_button
+    name: BOOT button
+    pin:
+      number: GPIO9
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+      ignore_strapping_warning: true
+    filters:
+      # debounce: a press must last 30 ms; one press fires once, however long it is held
+      - delayed_on: 30ms
+      - delayed_off: 30ms
+    on_press:
+      - lambda: "dispenser_submit(treat_dispenser::Request::Dispense, 0);"
+
+button:
+  - platform: template
+    name: Dispense
+    on_press:
+      - lambda: "dispenser_submit(treat_dispenser::Request::Dispense, 0);"
+  - platform: template
+    name: Prime
+    on_press:
+      - lambda: "dispenser_submit(treat_dispenser::Request::Prime, 0);"
+  - platform: template
+    name: Jog forward
+    on_press:
+      - lambda: "dispenser_submit(treat_dispenser::Request::Jog, ${jog_steps});"
+  - platform: template
+    name: Mark aligned
+    on_press:
+      - lambda: "dispenser_submit(treat_dispenser::Request::MarkAligned, 0);"
+  - platform: template
+    name: "Calibrate: 4 cycles"
+    on_press:
+      - lambda: "dispenser_submit(treat_dispenser::Request::Calibrate, 0);"
+
+sensor:
+  - platform: template
+    name: Cycles commanded
+    id: cycles_sensor
+    accuracy_decimals: 0
+    update_interval: never
+  - platform: template
+    name: Requests rejected
+    id: rejected_sensor
+    accuracy_decimals: 0
+    update_interval: never
+
+text_sensor:
+  - platform: template
+    name: Status
+    id: status
+    update_interval: never
+
+script:
+  - id: publish_status
+    then:
+      - lambda: |-
+          if (dispenser() == nullptr) return;
+          id(status).publish_state(dispenser()->state_name());
+          id(cycles_sensor).publish_state(dispenser()->cycles());
+          id(rejected_sensor).publish_state(dispenser()->rejected());

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { Atom, Box, Eye, EyeOff, FlipVertical2, Grid2X2, Pause, Play, RotateCcw } from 'lucide-react';
 import { assemblyOffset, assemblyScale, assemblyState, assemblyStops, motionFrames, motionPose, type Assembly, type AssemblyState, type PhysicsSpec } from '@canfactory/contracts';
-import type { PhysicsRequest, PhysicsUpdate } from '@canfactory/physics';
+import type { ControllerReport, PhysicsRequest, PhysicsUpdate } from '@canfactory/physics';
 import { unzipSync } from 'fflate';
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import type { ReferenceObject } from './referenceObjects.ts';
 import { MagnetControls } from './MagnetControls.tsx';
+import { ControllerHotspots, ControllerPanel } from './ControllerControls.tsx';
 import { viewerGrid } from './viewerLayout.ts';
 import { createStage, smoothNormals } from './stage.ts';
 
@@ -42,6 +44,10 @@ interface SceneController {
   setOrbit: (enabled: boolean) => void;
   /** Where each of these parts' bounding-box centres is on the screen (client pixels), for the page's tests. */
   screenCentres: (ids: readonly string[]) => Record<string, [number, number]>;
+  /** Loose items of the physics (e.g. treats), each its convex hull, at their start poses; replaces those shown before. */
+  setItems: (items: readonly { id: string; vertices: readonly number[]; pose: Pose }[]) => void;
+  /** Where a point of a shown part (its own frame, mm) is on the screen, in pixels from the viewer's top left. */
+  screenPoint: (id: string, point: readonly number[]) => [number, number] | undefined;
 }
 
 /** A part as the viewer shows it, for the parts list: its id (the STL name without `.stl`) and whether it is a reference object. */
@@ -137,6 +143,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
   const [physicsStatus, setPhysicsStatus] = useState('');
   const [activePhysics, setActivePhysics] = useState<PhysicsSpec>();
   const [enabledMagnets, setEnabledMagnets] = useState<Record<string, boolean>>({});
+  const [controllerReport, setControllerReport] = useState<ControllerReport>();
+  const [controlPositions, setControlPositions] = useState<Record<string, [number, number]>>({});
   const movableBodies = useRef<string[]>([]);
   const [upsideDown, setUpsideDown] = useState(false);
   const worker = useRef<Worker | undefined>(undefined);
@@ -151,6 +159,9 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     const { group } = stage;
     const material = new THREE.MeshStandardMaterial({ color: 0xc76743, metalness: 0.06, roughness: 0.58, side: THREE.DoubleSide });
     const referenceMaterial = new THREE.MeshStandardMaterial({ color: 0x3f6ea6, metalness: 0.2, roughness: 0.45, side: THREE.DoubleSide });
+    // loose items of the physics (treats): drawn only while it runs
+    const itemMaterial = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, metalness: 0, roughness: 0.8 });
+    const itemMeshes = new Map<string, THREE.Mesh>();
     let coloredMaterials: THREE.MeshStandardMaterial[] = [];
     let isWireframe = false;
     let placements: Placement[] = []; let currentAssembly: Assembly | undefined; let sliderValue = 0;
@@ -265,9 +276,32 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         stage.invalidate();
         return restoreLayoutFrame;
       },
+      setItems(items) {
+        for (const mesh of itemMeshes.values()) { group.remove(mesh); mesh.geometry.dispose(); }
+        itemMeshes.clear();
+        for (const item of items) {
+          const points: THREE.Vector3[] = [];
+          for (let i = 0; i + 2 < item.vertices.length; i += 3) points.push(new THREE.Vector3(item.vertices[i], item.vertices[i + 1], item.vertices[i + 2]));
+          const mesh = new THREE.Mesh(new ConvexGeometry(points), itemMaterial);
+          mesh.castShadow = true;
+          poseRotation(item.pose, mesh.quaternion);
+          mesh.position.fromArray(item.pose.position);
+          group.add(mesh);
+          itemMeshes.set(item.id, mesh);
+        }
+        stage.invalidate();
+      },
+      screenPoint(id, point) {
+        const mesh = placements.find(placement => placement.id === id)?.mesh;
+        if (!mesh?.visible) return undefined;
+        const rect = stage.renderer.domElement.getBoundingClientRect(), box = element.getBoundingClientRect();
+        const projected = mesh.localToWorld(new THREE.Vector3(point[0], point[1], point[2])).project(stage.camera);
+        if (projected.z > 1) return undefined;
+        return [rect.left - box.left + (projected.x + 1) / 2 * rect.width, rect.top - box.top + (1 - projected.y) / 2 * rect.height];
+      },
       setBodyPoses(bodies, poses) {
         bodies.forEach((id, index) => {
-          const mesh = placements.find(placement => placement.id === id)?.mesh;
+          const mesh = placements.find(placement => placement.id === id)?.mesh ?? itemMeshes.get(id);
           if (!mesh) return;
           const at = (k: number) => poses[7 * index + k] ?? 0;
           mesh.position.set(at(0), at(1), at(2));
@@ -307,7 +341,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
       scene.current = null;
       for (const geometry of geometries) geometry.dispose();
       for (const current of coloredMaterials) current.dispose();
-      material.dispose(); referenceMaterial.dispose(); stage.dispose();
+      for (const mesh of itemMeshes.values()) mesh.geometry.dispose();
+      material.dispose(); referenceMaterial.dispose(); itemMaterial.dispose(); stage.dispose();
     };
   }, []);
 
@@ -359,16 +394,19 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     setPhysicsStatus('Starting the physics');
     setActivePhysics(spec);
     setEnabledMagnets({});
+    setControllerReport(undefined);
+    controller.setItems(spec.items ?? []);
     let frames = 0, generation = 0;
     thread.onmessage = (event: MessageEvent<PhysicsUpdate>) => {
       const update = event.data;
       if (update.type === 'status') setPhysicsStatus(update.text);
       else if (update.type === 'error') { element.dataset['physics'] = 'error'; setPhysicsStatus(update.message); }
       else if (update.type === 'magnets') { setEnabledMagnets(update.enabled); element.dataset['physicsMagnets'] = JSON.stringify(update.enabled); }
+      else if (update.type === 'controller') { setControllerReport(update.report); element.dataset['physicsController'] = JSON.stringify(update.report); }
       else if (update.type === 'ready') {
         element.dataset['physicsGeneration'] = String(++generation);
         bodies.current = update.bodies; movableBodies.current = update.movable; element.dataset['physics'] = 'running';
-        setPhysicsStatus(spec.magnets?.some(magnet => magnet.switchable) ? 'Drag the ball or toggle grid magnets below' : 'Drag a part to move it');
+        setPhysicsStatus(spec.controller ? 'Press B on the case (or the buttons below) to dispense; slow motion is normal' : spec.magnets?.some(magnet => magnet.switchable) ? 'Drag the ball or toggle grid magnets below' : 'Drag a part to move it');
       }
       else {
         scene.current?.setBodyPoses(bodies.current, update.poses);
@@ -386,7 +424,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     return () => {
       thread.terminate();
       worker.current = undefined; bodies.current = []; movableBodies.current = []; dragging.current = false;
-      for (const attribute of ['data-physics', 'data-physics-time', 'data-physics-poses', 'data-physics-screen', 'data-physics-hover', 'data-physics-magnets', 'data-physics-generation']) element.removeAttribute(attribute);
+      for (const attribute of ['data-physics', 'data-physics-time', 'data-physics-poses', 'data-physics-screen', 'data-physics-hover', 'data-physics-magnets', 'data-physics-generation', 'data-physics-controller']) element.removeAttribute(attribute);
+      scene.current?.setItems([]);
       element.style.cursor = '';
       scene.current?.setOrbit(true);
       scene.current?.setProgress(progressRef.current);
@@ -394,6 +433,34 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     };
   }, [simulating, shownAssembly]);
   useEffect(() => { setSimulating(false); setUpsideDown(false); }, [url]);
+  // the controller's buttons on the model follow the camera: their screen positions, ten times a second
+  useEffect(() => {
+    const controls = simulating ? activePhysics?.controller?.controls ?? [] : [];
+    if (controls.length === 0) { setControlPositions({}); return; }
+    const update = () => {
+      const next: Record<string, [number, number]> = {};
+      for (const control of controls) {
+        const at = control.body && control.point ? scene.current?.screenPoint(control.body, control.point) : undefined;
+        if (at) next[control.id] = [at[0], at[1]];
+      }
+      // buttons a few millimetres apart (B and R on the case's lid) would cover each other: push each pair 34 px apart about its middle
+      const ids = Object.keys(next);
+      for (let pass = 0; pass < 3; pass++) for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+        const a = next[ids[i] ?? ''], b = next[ids[j] ?? ''];
+        if (!a || !b) continue;
+        const dx = b[0] - a[0], dy = b[1] - a[1], distance = Math.hypot(dx, dy);
+        if (distance >= 34) continue;
+        const [ux, uy] = distance > 1e-6 ? [dx / distance, dy / distance] : [1, 0], push = (34 - distance) / 2;
+        a[0] -= ux * push; a[1] -= uy * push; b[0] += ux * push; b[1] += uy * push;
+      }
+      for (const id of ids) { const at = next[id]; if (at) next[id] = [Math.round(at[0]), Math.round(at[1])]; }
+      setControlPositions(current => JSON.stringify(current) === JSON.stringify(next) ? current : next);
+    };
+    update();
+    const timer = window.setInterval(update, 100);
+    return () => { window.clearInterval(timer); };
+  }, [simulating, activePhysics]);
+  const pressControl = (id: string, pressed: boolean) => { worker.current?.postMessage({ type: 'control', id, pressed } satisfies PhysicsRequest); };
   const turnOver = () => {
     const next = !upsideDown;
     setUpsideDown(next);
@@ -484,6 +551,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         {physics && displayedAssembly && format === 'zip' && url && <button type="button" aria-label="Simulate" aria-pressed={simulating} title={simulating ? 'Stop the physics' : 'Simulate: drag the parts and see them move'}
           onClick={() => { setPlaying(false); setSimulating(value => !value); }}><Atom size={17} /></button>}
       </div>
+      {simulating && activePhysics?.controller && <ControllerHotspots controller={activePhysics.controller} positions={controlPositions} onPress={pressControl} />}
       <div className="viewer-instructions"><span>Drag to orbit</span><i /><span>Scroll to zoom</span><i /><span>Right-drag to pan</span></div>
       <div className="axis-label"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
     </div>
@@ -492,10 +560,11 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
       <button type="button" aria-pressed={upsideDown} title={upsideDown ? 'Turn it upright again' : 'Turn it upside down (gravity pulls the other way)'} onClick={turnOver}>
         <FlipVertical2 size={15} aria-hidden="true" />{upsideDown ? 'Upside down' : 'Upright'}
       </button>
-      <button type="button" title="Start again from the assembled parts" onClick={() => worker.current?.postMessage({ type: 'restart' } satisfies PhysicsRequest)}>
-        <RotateCcw size={15} aria-hidden="true" />Restart
+      <button type="button" title={activePhysics?.controller ? 'Start the scene again: refill the treats and restart the device (not the device’s own reset)' : 'Start again from the assembled parts'} onClick={() => worker.current?.postMessage({ type: 'restart' } satisfies PhysicsRequest)}>
+        <RotateCcw size={15} aria-hidden="true" />{activePhysics?.controller ? 'Refill' : 'Restart'}
       </button>
     </div>}
+    {simulating && activePhysics?.controller && <ControllerPanel controller={activePhysics.controller} report={controllerReport} onPress={pressControl} />}
     {simulating && activePhysics?.magnets?.some(magnet => magnet.switchable) && displayedAssembly && <MagnetControls spec={activePhysics} poses={displayedAssembly.poses} enabled={enabledMagnets}
       onChange={(id, enabled) => worker.current?.postMessage({ type: 'magnet', id, enabled } satisfies PhysicsRequest)} />}
     {!simulating && displayedAssembly && format === 'zip' && url && <div className="assembly-bar">
