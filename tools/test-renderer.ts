@@ -1202,26 +1202,26 @@ try {
     const result = await store.getJob(queued.id);
     assert.equal(result?.status, 'succeeded');
     if (!result.artifact || !('parts' in result.artifact)) throw new Error('Expected the treat dispenser ZIP.');
-    assert.deepEqual(result.artifact.parts.map(part => part.id), ['body', 'rotor', 'flap', 'cap', 'chute', 'base', 'coupon', 'case-bottom', 'case-top']);
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['inner-body', 'outer-body', 'rotor', 'flap', 'cap', 'chute', 'base', 'coupon', 'case-bottom', 'case-top']);
     const bytes = await artifactBytes(result), entries = unzipSync(bytes);
     const mesh = (id: string) => parseStl(Buffer.from(entries[`${id}.stl`] ?? []));
     for (const id of Object.keys(entries)) assert.equal(shells(mesh(id.replace(/\.stl$/, ''))), 1, `${name}: ${id} is one closed solid`);
     const l = treatDispenserLayout(parameters), poses = treatPartPoses(l);
     // a point of W inside a part's print
-    const solid = (id: 'body' | 'rotor', point: [number, number, number]) => housingSolid(mesh(id), poseLocal(poses[id], point));
+    const solid = (id: 'inner-body' | 'rotor', point: [number, number, number]) => housingSolid(mesh(id), poseLocal(poses[id], point));
     // the rotor: open at both pockets, solid at its core and between them
     assert.equal(solid('rotor', [0, 0, l.axisZ + l.R - l.pocket.depth / 2]), false, `${name}: top pocket`);
     assert.equal(solid('rotor', [0, 0, l.axisZ - l.R + l.pocket.depth / 2]), false, `${name}: bottom pocket`);
     assert.equal(solid('rotor', [0, l.R - 1, l.axisZ]), true, `${name}: rotor between the pockets`);
-    // the body: the slot open over the rotor, the cavity open behind it, the tight bore's wall solid in front, the funnel open
-    assert.equal(solid('body', [0, 0, (l.axisZ + l.R + l.blockTop) / 2]), false, `${name}: slot`);
-    assert.equal(solid('body', [0, (l.R + l.cavityR) / 2, l.axisZ]), false, `${name}: cavity`);
-    assert.equal(solid('body', [0, -l.bore.radius - 1, l.axisZ]), true, `${name}: tight bore's wall in front`);
-    assert.equal(solid('body', [0, 0, (l.blockTop + l.lipZ) / 2]), false, `${name}: funnel`);
+    // the inner body: the slot open over the rotor, the cavity open behind it, the tight bore's wall solid in front, the funnel open
+    assert.equal(solid('inner-body', [0, 0, (l.axisZ + l.R + l.blockTop) / 2]), false, `${name}: slot`);
+    assert.equal(solid('inner-body', [0, (l.R + l.cavityR) / 2, l.axisZ]), false, `${name}: cavity`);
+    assert.equal(solid('inner-body', [0, -l.bore.radius - 1, l.axisZ]), true, `${name}: tight bore's wall in front`);
+    assert.equal(solid('inner-body', [0, 0, (l.blockTop + l.lipZ) / 2]), false, `${name}: funnel`);
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log(`PASS treat dispenser ${name}: 9 closed prints, open pockets, slot, cavity and funnel, a solid tight bore, matching preview/download bytes`);
+    console.log(`PASS treat dispenser ${name}: 10 closed prints, open pockets, slot, cavity and funnel, a solid tight bore, matching preview/download bytes`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

@@ -4576,7 +4576,7 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "2"
+                          "3"
                         ]
                       },
                       "parameters": {

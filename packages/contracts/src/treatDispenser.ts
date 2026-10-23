@@ -1,7 +1,7 @@
 import { Type, type Static } from 'typebox';
 import type { Assembly, ParameterIssue } from './models.ts';
 import type { PhysicsBody, PhysicsCheck, PhysicsController, PhysicsCounter, PhysicsDrive, PhysicsScenario, PhysicsSpec } from './physics.ts';
-import { DEFAULT_ESP32_CASE, esp32CaseAssembly, esp32CaseGround, ESP32_CASE, ESP32_CASE_BOARD } from './esp32Case.ts';
+import { DEFAULT_ESP32_CASE, esp32CaseAssembly, esp32CaseGround, ESP32_CASE, ESP32_CASE_BOARD, ESP32_CASE_HEADER } from './esp32Case.ts';
 import { devBoardLayout, dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, stepperDriverLayout } from './parts/index.ts';
 import type { Point2 } from './physicsPieces.ts';
 
@@ -30,10 +30,21 @@ export const TREAT_DISPENSER = {
   /** The chute: its slope; the rotor's clearance above it (more than a treat is long, so that none can be caught between them); the
    * height of its end above the base and where it ends (y); its wall and floor. The body's front face (y). */
   chuteSlope: 30, dropClear: 15, exitZ: 6, chuteEnd: -44, chuteWall: 1.6, chuteFloor: 2, chuteSide: 14, front: -38,
-  /** The body: half its width (X) and its back face (y). */
+  /** The outer body: half its width (X) at least (wider where the ULN2003's jumper wires need it) and its back face (y). */
   halfWidth: 41.5, back: 49,
-  /** The base plate: its thickness, and how far it reaches past the body at least (but not under the chute's end). */
-  base: 3, baseMargin: 8,
+  /** The base plate: its thickness (a socket head's counterbore from below and 1.7 mm over it), and how far it reaches past the
+   * outer body at least (but not under the chute's end). */
+  base: 5, baseMargin: 8,
+  /** M3 nut bays: play across the flats (each side) and along the axis; the wall between a nut and the face its screw comes in
+   * through; how far the outer body's walls stand off the inner body. */
+  nutPlay: 0.15, nutDepthPlay: 0.3, bayWall: 1.5, gap: 0.2,
+  /** The inner body's feet, either side of its legs at their front and back ends (square, as high as their nut bays need). */
+  foot: 8,
+  /** The ULN2003 board's standoffs on the inner body's right leg (their diameter round a nut bay), the board's lowest edge over the
+   * base, and its back edge in front of the block's back face. */
+  standoff: 9, driverLift: 9, driverBack: 4,
+  /** The cap's two lugs on the inner body (half their side, their thickness along X). */
+  lug: 5, lugThickness: 7,
   /** The bottle's thread: how high above the lip the boss reaches, and its wall outside the thread. */
   threadHeight: 18, bossWall: 3,
   /** How much of the bottle's neck (its bore, from the lip up) the simulation stands in the thread, to hold the treats above. */
@@ -78,6 +89,15 @@ export const DEFAULT_TREAT_DISPENSER = Object.fromEntries(Object.entries(TreatDi
 export type Vec3 = [number, number, number];
 const DEG = Math.PI / 180;
 const motorPart = () => findPart('kiatronics-28byj-48-5v') ?? (() => { throw new Error('Missing 28BYJ-48.'); })();
+const driverPart = () => findPart('uln2003-stepper-driver-board') ?? (() => { throw new Error('Missing the ULN2003 board.'); })();
+const nutPart = () => findPart(TREAT_FASTENERS.nut) ?? (() => { throw new Error('Missing the M3 nut.'); })();
+
+/**
+ * Jumper wires on 2.54 mm pins (assumed, not from a data sheet: common DuPont-style female housings are about 2.54 mm square and 14
+ * mm long and take about 6 mm of a pin): the room beyond a pin's tip for a housing and its wire's bend (`reach`), and how much more
+ * room than the housing's half width a row of them needs beside it (`side`).
+ */
+export const JUMPER = { width: 2.54, housing: 14, mate: 6, bend: 6, reach: 14 - 6 + 6, side: 1.5 } as const;
 
 /** Every dimension of the dispenser for these parameters (W). */
 export function treatDispenserLayout(p: TreatDispenserParameters) {
@@ -110,15 +130,29 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   const neck = BOTTLE_NECKS[p.bottleNeck];
   const threadR = neck.T / 2 + p.threadClearance, bossR = threadR + T.bossWall, lipR = neck.bore / 2 + 0.5;
   const bossTop = lipZ + T.threadHeight;
-  // the motor: its shaft on the rotor's axis, its can below it (Kiatronics: the shaft is 8 mm off the can's axis), its mounting face
-  // on the block's +X face, its wire housing down
+  // the motor: its shaft on the rotor's axis, its can in front of it (Kiatronics: the shaft is 8 mm off the can's axis), so that its
+  // ears lie above and below the axis on the block's and the right leg's +X face, where their nuts slide in from the front; its
+  // mounting face on that face, its wire housing to the front
   const motor = motorPart();
   const shaftOffset = dimensionOf(motor, 'e'), motorLength = dimensionOf(motor, 'L'), earSpan = dimensionOf(motor, 'a'), canR = dimensionOf(motor, 'D') / 2;
+  // an M3 nut's bay: across its flats and along its axis, from the library's ISO 4032 M3 at its largest
+  const nut = nutPart();
+  const bay = { across: dimensionOf(nut, 's', 'max') + 2 * T.nutPlay, depth: dimensionOf(nut, 'm', 'max') + T.nutDepthPlay };
+  // the ULN2003 board on standoffs off the right leg, its parts facing out (+X): each standoff holds a nut behind the board, so it is
+  // as long as the bay's wall and the nut's bay; the outer body is as wide as the jumper wires on its pins need
+  const driver = driverPart(), driverLayout = stepperDriverLayout(driver);
+  if (!driverLayout) throw new Error('The ULN2003 board has no layout.');
+  const standoffLength = T.bayWall + bay.depth;
+  const driverTop = block.halfX + standoffLength + dimensionOf(driver, 't');
+  const halfWidth = Math.max(T.halfWidth, Math.ceil((driverTop + driverLayout.pinHeight + JUMPER.reach + T.shell) * 2) / 2);
+  // the bearing cap's screws, either side of the bore, into nuts in two lugs on the inner body, just inside the outer body's left wall
+  const capScrewR = (bore.radius + T.capRadius) / 2;
   return {
     pocket, R, rotorEnd, bore, block, slot, chuteIn, chuteOut, legIn, legOut, tan, chuteAt, axisZ, blockBottom, blockTop, blockBack, cavityR, flap, lipZ, lipR, neck, threadR, bossR, bossTop,
-    motorFace: block.halfX, canZ: axisZ - shaftOffset, canR, motorLength, earSpan, shaftOffset,
+    motorFace: block.halfX, canY: -shaftOffset, canR, motorLength, earSpan, shaftOffset, bay, standoffLength, driverTop, capScrewR,
+    lugFace: -(halfWidth - T.shell) + T.gap,
     // the back wall leaves room behind the block for the ESP32 case (8.4 deep) and its header pins (bigger treats, a deeper block)
-    halfWidth: T.halfWidth, front: T.front, back: Math.max(T.back, blockBack + 13.6),
+    halfWidth, front: T.front, back: Math.max(T.back, blockBack + 13.6),
     /** The chute's top end, under the back of the cavity. */
     chuteBack: blockBack,
   };
@@ -186,11 +220,12 @@ export const poseLocal = (pose: { position: readonly number[]; rotation?: readon
  * Parts and where they stand. Each is drawn in W; its pose maps its print frame (as its SCAD exports it, on the bed) to W.
  * ----------------------------------------------------------------------------------------------------------------------------- */
 
-export function treatPartPoses(l: TreatDispenserLayout): Record<'body' | 'base' | 'chute' | 'rotor' | 'cap' | 'flap', Pose> {
+export function treatPartPoses(l: TreatDispenserLayout): Record<'inner-body' | 'outer-body' | 'base' | 'chute' | 'rotor' | 'cap' | 'flap', Pose> {
   const T = TREAT_DISPENSER;
   return {
-    // upright on its open bottom, as it stands
-    body: { position: [0, 0, T.base], rotation: [0, 0, 0] },
+    // upright on its feet and legs, and on its open bottom, as they stand
+    'inner-body': { position: [0, 0, T.base], rotation: [0, 0, 0] },
+    'outer-body': { position: [0, 0, T.base], rotation: [0, 0, 0] },
     base: { position: [0, 0, 0], rotation: [0, 0, 0] },
     // on its floor: turned by its slope, the floor's underside on the bed
     chute: { position: [0, T.chuteEnd, l.chuteAt(T.chuteEnd) - T.chuteFloor], rotation: [T.chuteSlope, 0, 0] },
@@ -482,28 +517,36 @@ export const treatCycleSteps = (): number => TREAT_FIRMWARE.stepsPerTurn / TREAT
 /**
  * The electronics inside the body (W): the ESP32 case's own assembly (esp32CaseAssembly, its parts and boards as that model places
  * them) upright left of the rotor's block, its lid flush in a window of the back wall so that B and R are pressed from behind, USB-C at
- * its lower end (the cable comes in through a notch at the foot of the back wall); the ULN2003 board on standoffs off the right side
- * wall, under the motor. `bootPoint` and `resetPoint` are the buttons' actuators in the lid's own frame (its outer face), from the
+ * its lower end (the cable comes in through a notch at the foot of the back wall); the ULN2003 board on standoffs off the inner body's
+ * right leg, under the motor. `bootPoint` and `resetPoint` are the buttons' actuators in the lid's own frame (its outer face), from the
  * board library's button positions.
  */
-export interface BayLayout { caseFrame: Pose; driverPose: Pose; bootPoint: Vec3; resetPoint: Vec3; usb: Vec3 }
-/** corner: the case's distance from the side wall, clear of the shell's rounded inside corner (R 8 − shell). */
-export const BAY = { lidProud: 0.5, caseLength: 25.8, caseWidth: 21.8, driverStandoff: 4, plugRoom: 25, corner: 6.5 } as const;
+export interface BayLayout { caseFrame: Pose; driverPose: Pose; bootPoint: Vec3; resetPoint: Vec3; usb: Vec3; rows: number[]; pinTip: number }
+export const BAY = { lidProud: 0.5, caseLength: 25.8, caseWidth: 21.8, plugRoom: 25 } as const;
 
 export function treatBayLayout(p: TreatDispenserParameters): BayLayout {
   const l = treatDispenserLayout(p);
   const T = TREAT_DISPENSER;
   const caseAssembly = esp32CaseAssembly(DEFAULT_ESP32_CASE);
   const board = findPart(ESP32_CASE_BOARD), layout = board ? devBoardLayout(board) : undefined;
+  const header = findPart(ESP32_CASE_HEADER);
   const boardPose = caseAssembly.poses['board'], lidPose = caseAssembly.poses['top'];
-  if (!layout || !boardPose || !lidPose) throw new Error('The ESP32 case has no board or lid.');
+  const headerPoses = ['header-1', 'header-2'].map(id => caseAssembly.poses[id]);
+  if (!layout || !header || !boardPose || !lidPose || headerPoses.some(pose => !pose)) throw new Error('The ESP32 case has no board, lid or headers.');
   // case +X → +Z (its USB end, at −X, down), case +Y → +X, case +Z (lid out) → +Y (the back)
   const roof = esp32CaseGround(DEFAULT_ESP32_CASE) + ESP32_CASE.lidRoof;
-  const inner = l.halfWidth - T.shell;
-  const caseFrame: Pose = {
-    position: [-inner + BAY.corner + BAY.caseWidth / 2, l.back + BAY.lidProud - roof, T.base + BAY.plugRoom + BAY.caseLength / 2],
+  const frame = (x: number): Pose => ({
+    position: [x, l.back + BAY.lidProud - roof, T.base + BAY.plugRoom + BAY.caseLength / 2],
     rotation: rotationAngles([[0, 1, 0], [0, 0, 1], [1, 0, 0]]),
-  };
+  });
+  // the header rows' pins point into the body (−Y): the case sits so far left that the row nearer the rotor's block leaves a row of
+  // jumper plugs room beside the inner body's left face, so that either row can be wired
+  const rowsAt = (x: number) => headerPoses.map(pose => composePose(frame(x), pose ?? { position: [0, 0, 0] }).position[0]);
+  const caseFrame = frame(-l.block.halfX - JUMPER.side - JUMPER.width / 2 - Math.max(...rowsAt(0)));
+  const rows = rowsAt(caseFrame.position[0]);
+  // the pins' mating tips (the header's own frame: tails at z = 0, tips at z = H)
+  const tip = composePose(caseFrame, headerPoses[0] ?? { position: [0, 0, 0] });
+  const pinTip = posePoint(tip, [0, 0, dimensionOf(header, 'H')])[1];
   const button = (prefix: string): Vec3 => {
     const component = layout.components.find(candidate => candidate.name.startsWith(prefix));
     if (!component) throw new Error(`The SuperMini has no ${prefix} button.`);
@@ -514,10 +557,130 @@ export function treatBayLayout(p: TreatDispenserParameters): BayLayout {
   // the USB-C receptacle: at the case's −X end, level with the board
   const usb = posePoint(caseFrame, [-BAY.caseLength / 2, 0, esp32CaseGround(DEFAULT_ESP32_CASE) + 1.6]);
   return {
-    caseFrame, bootPoint: button('BOOT'), resetPoint: button('RST'), usb,
-    // the board (31.4 wide, 35.3 long) on the right side wall, its parts facing in (−X): board +X → −Y, +Y → +Z, +Z → −X; it spans
-    // y 8 … 39.4
-    driverPose: { position: [inner - BAY.driverStandoff, 8 + 31.4, T.base + T.wall + 1], rotation: rotationAngles([[0, 0, -1], [-1, 0, 0], [0, 1, 0]]) },
+    caseFrame, bootPoint: button('BOOT'), resetPoint: button('RST'), usb, rows, pinTip,
+    // the board on its standoffs off the right leg, under the motor, its parts facing out (+X): board +X → +Z, +Y → −Y, +Z → +X; its
+    // back edge (board y = 0) `driverBack` in front of the block's back face, its lowest edge `driverLift` over the base
+    driverPose: { position: [l.driverTop - dimensionOf(driverPart(), 't'), l.blockBack - T.driverBack, T.base + T.driverLift], rotation: rotationAngles([[0, 0, 1], [0, -1, 0], [1, 0, 0]]) },
+  };
+}
+
+/**
+ * Every screw of the dispenser: ISO 4762 M3 into an ISO 4032 M3 nut in a printed bay, which a nut slides into from `entry`'s side
+ * (its flats along the slot, so that it cannot turn). `at` is where the screw's head bears, `axis` the screw's direction (head to
+ * tip), `nutAt` how far along it the nut's face towards the head lies.
+ * - motor: through the 28BYJ-48's ears into the block's and the right leg's +X face (nuts from the front);
+ * - driver: through the ULN2003 board into its standoffs (nuts dropped in from above);
+ * - cap: through the bearing cap's flange and the outer body's left wall into the inner body's lugs (nuts dropped in from above);
+ * - feet: up through the base plate into the inner body's feet (nuts from the side, outwards);
+ * - corners: up through the base plate into the outer body's corner columns (nuts from the inside).
+ */
+export interface TreatBolt {
+  id: string; label: string; screw: string; nutIn: 'inner-body' | 'outer-body';
+  at: Vec3; axis: Vec3; entry: Vec3; nutAt: number; slot: number;
+}
+/** The outer body's corner columns: their radius, and how far out along the diagonal from its rounded corner's centre (R 8). */
+export const CORNER_COLUMN = { radius: 5, out: 2.5 } as const;
+
+export function treatBolts(p: TreatDispenserParameters): TreatBolt[] {
+  const l = treatDispenserLayout(p);
+  const T = TREAT_DISPENSER;
+  const bay = treatBayLayout(p);
+  const motor = motorPart(), driver = driverPart(), layout = stepperDriverLayout(driver);
+  if (!layout) throw new Error('The ULN2003 board has no layout.');
+  const ear = dimensionOf(motor, 't');
+  // the base plate's screws stand in counterbores from below, their heads 0.3 mm in
+  const seat = baseSeat();
+  const up: Vec3 = [0, 0, 1];
+  const bolts: TreatBolt[] = [];
+  for (const [name, s] of [['top', 1], ['bottom', -1]] as const) bolts.push({
+    id: `motor-${name}`, label: `motor, ${name} ear`, screw: TREAT_FASTENERS.motorScrew, nutIn: 'inner-body',
+    at: [l.motorFace + ear, l.canY, l.axisZ + s * l.earSpan / 2], axis: [-1, 0, 0], entry: [0, -1, 0],
+    nutAt: ear + T.bayWall, slot: l.canY + l.block.halfY + 1,
+  });
+  layout.holes.forEach((hole, i) => bolts.push({
+    id: `driver-${i + 1}`, label: `ULN2003 board, hole ${i + 1}`, screw: TREAT_FASTENERS.screw, nutIn: 'inner-body',
+    at: posePoint(bay.driverPose, [hole.x, hole.y, dimensionOf(driver, 't')]), axis: [-1, 0, 0], entry: up,
+    nutAt: dimensionOf(driver, 't') + T.bayWall, slot: T.standoff / 2 + 1,
+  }));
+  for (const [name, s] of [['front', -1], ['back', 1]] as const) bolts.push({
+    id: `cap-${name}`, label: `bearing cap, ${name}`, screw: TREAT_FASTENERS.capScrew, nutIn: 'inner-body',
+    at: [-(l.halfWidth + T.capFlange), s * l.capScrewR, l.axisZ], axis: [1, 0, 0], entry: up,
+    nutAt: T.capFlange + T.shell + T.gap + T.bayWall, slot: T.lug + 1,
+  });
+  for (const [side, sx] of [['left', -1], ['right', 1]] as const) for (const [end, y] of [['front', -l.block.halfY + T.foot / 2], ['back', l.blockBack - T.foot / 2]] as const) bolts.push({
+    id: `foot-${side}-${end}`, label: `inner body, ${side} ${end} foot`, screw: TREAT_FASTENERS.screw, nutIn: 'inner-body',
+    at: [sx * (l.legOut + T.foot / 2), y, seat], axis: up, entry: [sx, 0, 0], nutAt: T.base - seat + 2, slot: T.foot / 2 + 1,
+  });
+  const out = (8 - CORNER_COLUMN.out / Math.SQRT2);
+  for (const [side, sx] of [['left', -1], ['right', 1]] as const) for (const [end, y] of [['front', l.front + out], ['back', l.back - out]] as const) bolts.push({
+    id: `corner-${side}-${end}`, label: `outer body, ${side} ${end} corner`, screw: TREAT_FASTENERS.screw, nutIn: 'outer-body',
+    at: [sx * (l.halfWidth - out), y, seat], axis: up, entry: [-sx, 0, 0], nutAt: T.base - seat + 2, slot: CORNER_COLUMN.radius + 1,
+  });
+  return bolts;
+}
+
+/**
+ * Room the jumper wires need (W boxes, `JUMPER`): beyond the tips of both rows of the SuperMini's header pins (either row may be wired,
+ * depending on the GPIOs used), over the housings' length, a wire's bend and a little to each side of the row; and beyond the ULN2003's
+ * input and supply pins and its motor socket. No part may reach into them (tested, and measured on the meshes by
+ * tools/treat-dispenser-views.ts).
+ */
+export interface WiringRoom { id: string; title: string; min: Vec3; max: Vec3 }
+export function treatWiringRoom(p: TreatDispenserParameters): WiringRoom[] {
+  const bay = treatBayLayout(p);
+  const header = findPart(ESP32_CASE_HEADER), driver = driverPart(), layout = stepperDriverLayout(driver);
+  const caseAssembly = esp32CaseAssembly(DEFAULT_ESP32_CASE);
+  if (!header || !layout) throw new Error('Missing the header or the ULN2003’s layout.');
+  const half = JUMPER.width / 2 + JUMPER.side, length = dimensionOf(header, 'L'), post = dimensionOf(header, 'post');
+  const box = (id: string, title: string, points: Vec3[], pad: Vec3): WiringRoom => ({
+    id, title,
+    min: [0, 1, 2].map(k => Math.min(...points.map(q => q[k] ?? 0)) - (pad[k] ?? 0)) as Vec3,
+    max: [0, 1, 2].map(k => Math.max(...points.map(q => q[k] ?? 0)) + (pad[k] ?? 0)) as Vec3,
+  });
+  const rows = (['header-1', 'header-2'] as const).map((id, i) => {
+    const pose = composePose(bay.caseFrame, caseAssembly.poses[id] ?? { position: [0, 0, 0] });
+    // the row along the header's Y; its pins' tips at its z = H, the housings over the last `post` of them
+    const ends = [-1, 1].map(s => posePoint(pose, [0, s * length / 2, 0]));
+    return box(`row-${i + 1}`, `Jumper plugs on the SuperMini’s header row ${i + 1}`, [...ends.map(q => [q[0], bay.pinTip - JUMPER.reach, q[2]] as Vec3), ...ends.map(q => [q[0], bay.pinTip + post, q[2]] as Vec3)], [half, 0, half]);
+  });
+  const t = dimensionOf(driver, 't');
+  const pins = (group: string) => layout.pins.filter(pin => pin.header === group).map(pin => posePoint(bay.driverPose, [pin.x, pin.y, t]));
+  const driverBox = (group: string, title: string, side: number) => {
+    const at = pins(group);
+    return box(`uln2003-${group}`, title, [...at.map(q => [q[0] + layout.pinHeight - JUMPER.mate, q[1], q[2]] as Vec3), ...at.map(q => [q[0] + layout.pinHeight + JUMPER.reach, q[1], q[2]] as Vec3)], [0, side, side]);
+  };
+  return [
+    ...rows,
+    // on the board, beside its own screws' heads, the housings need only their own width and a little
+    driverBox('input', 'Jumper plugs on the ULN2003’s IN1–IN4 pins', JUMPER.width / 2 + 0.5),
+    driverBox('power', 'Jumper plugs on the ULN2003’s supply pins', JUMPER.width / 2 + 0.5),
+    // the motor's XH plug, as thick as the library's housing
+    driverBox('motor', 'The motor’s plug in the ULN2003’s socket', dimensionOf(motorPart(), 'pt') / 2 + 0.5),
+  ];
+}
+
+/** How high the base plate's screw heads bear: their counterbore's depth (the head at its tallest and 0.3 mm). */
+function baseSeat(): number {
+  const screw = findPart(TREAT_FASTENERS.screw);
+  if (!screw) throw new Error('Missing the M3 screw.');
+  return dimensionOf(screw, 'k', 'max') + 0.3;
+}
+
+const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const columns = (x: Vec3, y: Vec3, z: Vec3): Mat3 => [[x[0], y[0], z[0]], [x[1], y[1], z[1]], [x[2], y[2], z[2]]];
+
+/** A bolt's screw and nut as the library draws them: a screw's tip at z = 0, its head up; a nut from z = 0 to its height along its
+ * axis, its corners along its own Y (its flats across X), turned so that its flats lie along its bay's slot. */
+export function treatBoltPoses(bolt: TreatBolt): { screw: Pose; nut: Pose } {
+  const screw = findPart(bolt.screw);
+  if (!screw) throw new Error(`Missing ${bolt.screw}.`);
+  const length = dimensionOf(screw, 'l');
+  const minus: Vec3 = [-bolt.axis[0], -bolt.axis[1], -bolt.axis[2]];
+  const along = (d: number): Vec3 => [0, 1, 2].map(k => (bolt.at[k] ?? 0) + (bolt.axis[k] ?? 0) * d) as Vec3;
+  const side = cross(bolt.axis, bolt.entry);
+  return {
+    screw: { position: along(length), rotation: rotationAngles(columns(bolt.entry, cross(minus, bolt.entry), minus)) },
+    nut: { position: along(bolt.nutAt), rotation: rotationAngles(columns(side, [-bolt.entry[0], -bolt.entry[1], -bolt.entry[2]], bolt.axis)) },
   };
 }
 
@@ -584,7 +747,7 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
         // quasi-static added inertia and a little bearing friction keep the light rotor from rattling against the treats
         inertia: 2e6, joint: { type: 'hinge', anchor: [0, 0, l.axisZ], axis: [1, 0, 0], friction: 2 },
       },
-      fixed('body', piecesIn(poses.body, treatBodyPieces(l))),
+      fixed('inner-body', piecesIn(poses['inner-body'], treatBodyPieces(l))),
       fixed('chute', piecesIn(poses.chute, treatChutePieces(l))),
       {
         // the flap, sprung against the rotor: a treat standing out of a pocket bends it back and passes under it
@@ -592,7 +755,7 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
         joint: { type: 'hinge', anchor: [0, l.flap.root.y, l.flap.root.z], axis: [1, 0, 0], spring: { rest: -T.flap.preload, stiffness: T.flap.stiffness }, damping: 0.002, range: [-T.flap.preload - 5, 100] },
       },
     ],
-    exclude: [['rotor', 'body'], ['rotor', 'chute'], ['flap', 'body'], ['flap', 'chute']],
+    exclude: [['rotor', 'inner-body'], ['rotor', 'chute'], ['flap', 'inner-body'], ['flap', 'chute']],
     motors: [{ id: 'motor', title: '28BYJ-48 (output shaft, on the rotor)', body: 'rotor', ...TREAT_MOTOR, speed: firmwareDegrees(firmware.halfSteps), acceleration: firmwareDegrees(firmware.acceleration) }],
     items,
     counters: [
@@ -635,8 +798,9 @@ export function treatFootprint(p: TreatDispenserParameters): [number, number, nu
  * The SCAD file's numbers: every dimension the generator draws, from this file, so that CAD, physics and assembly cannot drift
  * ----------------------------------------------------------------------------------------------------------------------------- */
 
-/** The screws into heat-set inserts (motor: `motorScrew`; cap and base: `screw`) and the ULN2003's screws, from the parts library. */
-export const TREAT_FASTENERS = { screw: 'iso-4762-m3x10', motorScrew: 'iso-4762-m3x6', insert: 'cnc-kitchen-m3x5-7', boardScrew: 'iso-4762-m2-5x8' } as const;
+/** The fasteners, from the parts library: ISO 4762 M3 screws (the motor's ears: `motorScrew`; the cap: `capScrew`; the ULN2003 board
+ * and the base plate: `screw`), each into an ISO 4032 M3 nut (`treatBolts`). */
+export const TREAT_FASTENERS = { screw: 'iso-4762-m3x8', motorScrew: 'iso-4762-m3x6', capScrew: 'iso-4762-m3x10', nut: 'iso-4032-m3' } as const;
 
 /** Every value the generator needs, as `[name, value]` pairs (an OpenSCAD list it looks names up in). */
 export function treatScadValues(p: TreatDispenserParameters): [string, number | number[] | number[][] | boolean][] {
@@ -644,10 +808,13 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
   const T = TREAT_DISPENSER;
   const bay = treatBayLayout(p);
   const poses = treatPartPoses(l);
-  const boardScrew = findPart(TREAT_FASTENERS.boardScrew), insert = findPart(TREAT_FASTENERS.insert), motor = motorPart();
-  if (!boardScrew || !insert) throw new Error('Missing treat dispenser fasteners.');
+  const motor = motorPart(), screw = findPart(TREAT_FASTENERS.screw);
+  if (!screw) throw new Error('Missing the M3 screw.');
   const round = (value: number) => Math.round(value * 1e6) / 1e6;
   const pose = (q: Pose) => [...q.position.map(round), ...q.rotation];
+  const parts = { 'inner-body': 1, 'outer-body': 2 } as const;
+  const bolts = treatBolts(p);
+  const length = (id: string) => { const part = findPart(id); if (!part) throw new Error(`Missing ${id}.`); return dimensionOf(part, 'l'); };
   return [
     ['WALL', T.wall], ['SHELL', T.shell], ['BASE', T.base], ['HALF_W', l.halfWidth], ['FRONT', l.front], ['BACK', l.back], ['BASE_RECT', treatFootprint(p).map(round)],
     ['R', l.R], ['ROTOR_END', round(l.rotorEnd)], ['POCKET', [round(l.pocket.length), round(l.pocket.width), round(l.pocket.depth)]], ['POCKETS', T.pockets],
@@ -658,26 +825,21 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     ['CHUTE_SLOPE', T.chuteSlope], ['EXIT_Z', T.base + T.exitZ], ['CHUTE_FLOOR', T.chuteFloor], ['CHUTE_WALL', T.chuteWall], ['CHUTE_SIDE', T.chuteSide],
     ['NECK_T', l.neck.T], ['NECK_E', l.neck.E], ['NECK_BORE', l.neck.bore], ['NECK_PITCH', l.neck.pitch], ['NECK_TURNS', round(l.neck.turns)],
     ['THREAD_CLEARANCE', p.threadClearance], ['THREAD_R', round(l.threadR)], ['BOSS_R', round(l.bossR)],
-    ['MOTOR_FACE', round(l.motorFace)], ['CAN_Z', round(l.canZ)], ['CAN_R', l.canR], ['MOTOR_L', l.motorLength], ['EAR_SPAN', l.earSpan],
-    ['BOSS_D', dimensionOf(motor, 'db', 'max')], ['SHAFT_D', dimensionOf(motor, 'd', 'max')], ['SHAFT_FLATS', dimensionOf(motor, 's', 'max')],
+    ['MOTOR_FACE', round(l.motorFace)], ['BOSS_D', dimensionOf(motor, 'db', 'max')], ['SHAFT_D', dimensionOf(motor, 'd', 'max')], ['SHAFT_FLATS', dimensionOf(motor, 's', 'max')],
     // the shaft's round part, from the mounting face to where its flats begin (the longest shaft, the shortest flats)
-    ['SHAFT_ROUND', round(dimensionOf(motor, 'l', 'max') - dimensionOf(motor, 'lf', 'min'))], ['SHAFT_L', dimensionOf(motor, 'l', 'max')],
-    ['HOUSING_W', dimensionOf(motor, 'bw', 'max')], ['HOUSING_R', dimensionOf(motor, 'bh')],
-    ['CAP', [T.capFlange, T.capRadius, T.stub, T.stubLength]],
-    ['M3_HOLE', ISO_273_CLEARANCE_HOLES.M3.medium], ['PIN', T.flap.pin],
-    ['M25_PILOT', 2.2], ['INSERT_HOLE', dimensionOf(insert, 'hole')], ['INSERT_DEPTH', dimensionOf(insert, 'holeDepth')],
+    ['SHAFT_ROUND', round(dimensionOf(motor, 'l', 'max') - dimensionOf(motor, 'lf', 'min'))],
+    ['CAP', [T.capFlange, T.capRadius, T.stub, T.stubLength]], ['PIN', T.flap.pin], ['GAP', T.gap],
+    // the cap's lugs: their face towards the outer body's left wall, thickness, half side, the screws' distance from the axis
+    ['LUG', [round(l.lugFace), T.lugThickness, T.lug, round(l.capScrewR)]],
+    ['FOOT', T.foot], ['STANDOFF', [T.standoff, round(l.standoffLength)]], ['COLUMN_R', CORNER_COLUMN.radius],
+    // the screws: [head's seat x, y, z, axis x, y, z, the nut's way in x, y, z, length, nut's face along the axis, slot, part]
+    ['BOLTS', bolts.map(bolt => [...bolt.at.map(round), ...bolt.axis, ...bolt.entry, length(bolt.screw), round(bolt.nutAt), round(bolt.slot), parts[bolt.nutIn]])],
+    // a nut's bay across its flats and along its axis; a screw's clearance hole; room for its head (diameter, height)
+    ['NUT', [round(l.bay.across), round(l.bay.depth)]], ['M3_HOLE', ISO_273_CLEARANCE_HOLES.M3.medium],
+    ['HEAD', [round(dimensionOf(screw, 'dk', 'max') + 0.6), round(dimensionOf(screw, 'k', 'max') + 0.3)]],
     ['CASE_POS', bay.caseFrame.position.map(round)], ['CASE_ROT', bay.caseFrame.rotation], ['USB', bay.usb.map(round)],
-    ['DRIVER_POS', bay.driverPose.position.map(round)], ['DRIVER_HOLES', driverHoles(bay.driverPose)],
-    ['P_BODY', pose(poses.body)], ['P_CHUTE', pose(poses.chute)], ['P_ROTOR', pose(poses.rotor)], ['P_CAP', pose(poses.cap)], ['P_FLAP', pose(poses.flap)],
+    ['P_INNER', pose(poses['inner-body'])], ['P_OUTER', pose(poses['outer-body'])], ['P_CHUTE', pose(poses.chute)], ['P_ROTOR', pose(poses.rotor)], ['P_CAP', pose(poses.cap)], ['P_FLAP', pose(poses.flap)],
   ];
-}
-
-/** The ULN2003 board's mounting holes, in its own frame (its corner at the origin). */
-/** The ULN2003 board's mounting holes on the side wall, as W (y, z). */
-function driverHoles(pose: Pose): number[][] {
-  const part = findPart('uln2003-stepper-driver-board'), layout = part ? stepperDriverLayout(part) : undefined;
-  if (!layout) throw new Error('Missing the ULN2003 board.');
-  return layout.holes.map(hole => posePoint(pose, [hole.x, hole.y, 0]).slice(1).map(v => Math.round(v * 1e6) / 1e6));
 }
 
 /** `treatScadValues` as an OpenSCAD literal. */
@@ -690,7 +852,7 @@ export function treatScadLayout(p: TreatDispenserParameters): string {
  * The assembly
  * ----------------------------------------------------------------------------------------------------------------------------- */
 
-export const TREAT_PRINTED_PARTS = ['body', 'rotor', 'flap', 'cap', 'chute', 'base', 'coupon', 'case-bottom', 'case-top'] as const;
+export const TREAT_PRINTED_PARTS = ['inner-body', 'outer-body', 'rotor', 'flap', 'cap', 'chute', 'base', 'coupon', 'case-bottom', 'case-top'] as const;
 
 const HOUSING = '#cdbfe3';
 
@@ -704,19 +866,24 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
     if (!pose) throw new Error(`The ESP32 case has no ${id}.`);
     return composePose(bay.caseFrame, pose);
   };
-  const motor = motorPart(), driver = findPart('uln2003-stepper-driver-board'), board = findPart(ESP32_CASE_BOARD), header = caseAssembly.references?.find(reference => reference.id === 'header-1');
-  if (!driver || !board || !header) throw new Error('Missing the treat dispenser’s electronics.');
+  const motor = motorPart(), driver = driverPart(), board = findPart(ESP32_CASE_BOARD), nut = nutPart(), header = caseAssembly.references?.find(reference => reference.id === 'header-1');
+  if (!board || !header) throw new Error('Missing the treat dispenser’s electronics.');
   const coupon: Pose = { position: [-110, 0, 0], rotation: [0, 0, 0] };
   // the motor's own frame: its can's back at z = 0, its mounting face at z = L, the shaft at +Y; here the shaft points −X along the
-  // rotor's axis, 8 mm above the can's axis
-  const motorPose: Pose = { position: [l.motorFace + l.motorLength, 0, l.canZ], rotation: rotationAngles([[0, 0, -1], [-1, 0, 0], [0, 1, 0]]) };
+  // rotor's axis, 8 mm behind the can's axis (its can in front), its ears above and below
+  const motorPose: Pose = { position: [l.motorFace + l.motorLength, l.canY, l.axisZ], rotation: rotationAngles([[0, 0, -1], [0, 1, 0], [1, 0, 0]]) };
+  // every screw and nut where it sits; each moves in the step of the part it holds (the nuts first, into their bays)
+  const bolts = treatBolts(p).map(bolt => ({ bolt, ...treatBoltPoses(bolt) }));
+  const ids = (group: string, kind: 'screw' | 'nut') => bolts.filter(({ bolt }) => bolt.id.startsWith(group)).map(({ bolt }) => `${bolt.id}-${kind}`);
+  const screw = (id: string) => findPart(id)?.title ?? id;
   return {
-    partColors: { body: HOUSING, base: '#3d3f45', chute: HOUSING, rotor: '#2f3136', flap: '#d9822b', cap: '#2f3136', coupon: '#d9822b', 'case-bottom': '#497c85', 'case-top': '#e5d9bb' },
+    partColors: { 'inner-body': HOUSING, 'outer-body': '#e8e2f2', base: '#3d3f45', chute: HOUSING, rotor: '#2f3136', flap: '#d9822b', cap: '#2f3136', coupon: '#d9822b', 'case-bottom': '#497c85', 'case-top': '#e5d9bb' },
     poses: {
-      body: poses.body, base: poses.base, chute: poses.chute, rotor: poses.rotor, flap: poses.flap, cap: poses.cap, coupon,
+      'inner-body': poses['inner-body'], 'outer-body': poses['outer-body'], base: poses.base, chute: poses.chute, rotor: poses.rotor, flap: poses.flap, cap: poses.cap, coupon,
       'case-bottom': inCase('bottom'), 'case-top': inCase('top'),
       motor: motorPose, driver: bay.driverPose,
       board: inCase('board'), 'header-1': inCase('header-1'), 'header-2': inCase('header-2'),
+      ...Object.fromEntries(bolts.flatMap(({ bolt, screw, nut }) => [[`${bolt.id}-screw`, screw], [`${bolt.id}-nut`, nut]])),
     },
     references: [
       { id: 'motor', part: motor.id, title: motor.title },
@@ -724,16 +891,26 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
       { id: 'board', part: board.id, title: board.title },
       { id: 'header-1', part: header.part, title: `${header.title.replace(/ \(row \d\)$/, '')} (row 1)` },
       { id: 'header-2', part: header.part, title: `${header.title.replace(/ \(row \d\)$/, '')} (row 2)` },
+      ...bolts.flatMap(({ bolt }) => [
+        { id: `${bolt.id}-screw`, part: bolt.screw, title: `${screw(bolt.screw)} (${bolt.label})` },
+        { id: `${bolt.id}-nut`, part: nut.id, title: `${nut.title} (${bolt.label})` },
+      ]),
     ],
     steps: [
-      // everything that comes up from below waits under the body, the later the lower, clear of each other's paths
-      { title: 'Lift the motor in from below, its shaft up the slot under the bore; screw it to the block’s side (M3 × 6 into inserts)', parts: ['motor'], from: [0, 0, -80] },
-      { title: 'Push the flap up into its recess over the cavity’s roof, from below; pin it with 1.75 mm filament through the left wall', parts: ['flap'], from: [0, 0, -50] },
-      { title: 'Slide the rotor in through the left wall onto the motor’s shaft; close the opening with the cap (two M3 screws into inserts)', parts: ['rotor', 'cap'], from: [-90, 0, 0] },
-      { title: 'Screw the ULN2003 board to its standoffs on the right side wall; plug in the motor', parts: ['driver'], from: [0, 0, -90] },
-      { title: 'Push the ESP32-C3 case into the back wall’s window from behind, lid out, USB-C down', parts: ['case-bottom', 'case-top', 'board', 'header-1', 'header-2'], from: [0, 60, 0] },
-      { title: 'Push the chute up between the legs, from below, its end through the front wall', parts: ['chute'], from: [0, 0, -85] },
-      { title: 'Screw the base plate on (four M3 screws into inserts)', parts: ['base'], from: [0, 0, -120] },
+      { title: 'Push two M3 nuts into the inner body’s motor bays, from the front', parts: ids('motor', 'nut'), from: [0, -16, 0] },
+      { title: 'Drop M3 nuts into the ULN2003’s standoffs and the cap’s lugs', parts: [...ids('driver', 'nut'), ...ids('cap', 'nut')], from: [0, 0, 8] },
+      { title: 'Push M3 nuts into the left feet', parts: ids('foot-left', 'nut'), from: [-14, 0, 0] },
+      { title: 'Push M3 nuts into the right feet', parts: ids('foot-right', 'nut'), from: [14, 0, 0] },
+      { title: 'Screw the motor to the inner body’s right side, its shaft into the block (two M3 × 6)', parts: ['motor', ...ids('motor', 'screw')], from: [45, 0, 0] },
+      { title: 'Screw the ULN2003 board to its standoffs under the motor (four M3 × 8); plug in the motor', parts: ['driver', ...ids('driver', 'screw')], from: [45, 0, 0] },
+      { title: 'Push the flap up into its recess over the cavity’s roof, from below; pin it with 1.75 mm filament through the block’s left face', parts: ['flap'], from: [0, 0, -50] },
+      { title: 'Push M3 nuts into the outer body’s left corner columns, from inside', parts: ids('corner-left', 'nut'), from: [14, 0, 0] },
+      { title: 'Push M3 nuts into the outer body’s right corner columns, from inside', parts: ids('corner-right', 'nut'), from: [-14, 0, 0] },
+      { title: 'Lower the outer body over the inner body, the thread through its top (plug the jumper wires into the ULN2003 first)', parts: ['outer-body', ...ids('corner', 'nut')], from: [0, 0, 150] },
+      { title: 'Push the chute up between the inner body’s legs, from below, its end through the front wall', parts: ['chute'], from: [0, 0, -85] },
+      { title: 'Screw the base plate on from below: four M3 × 8 into the inner body’s feet, four into the outer body’s corners', parts: ['base', ...ids('foot', 'screw'), ...ids('corner', 'screw')], from: [0, 0, -120] },
+      { title: 'Slide the rotor in through the left wall onto the motor’s shaft; close the opening with the cap (two M3 × 10 into the lugs)', parts: ['rotor', 'cap', ...ids('cap', 'screw')], from: [-90, 0, 0] },
+      { title: 'Plug the jumper wires onto either header row; push the ESP32-C3 case into the back wall’s window from behind, lid out, USB-C down', parts: ['case-bottom', 'case-top', 'board', 'header-1', 'header-2'], from: [0, 60, 0] },
     ],
     lift: 125,
   };

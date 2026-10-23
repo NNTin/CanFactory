@@ -43,7 +43,9 @@ describe('the bundled catalogue', () => {
     expect(partFamilies.reduce((sum, family) => sum + partsOfFamily(family.id).length, 0)).toBe(parts.length);
     // the plank connector links every M3 screw through its screw-hole sizes; the toggle latch by its thread and as a machine screw
     expect(partUsage(part('iso-4762-m3x10'))).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes', kind: 'model' },
-      { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Thread', kind: 'model' }, { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Machine screw', kind: 'model' }]);
+      { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Thread', kind: 'model' }, { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Machine screw', kind: 'model' },
+      // the treat dispenser shows its bearing cap's screws in its assembly
+      { modelId: 'treat-dispenser', modelTitle: 'PET-bottle treat dispenser', via: 'Assembly preview', kind: 'model' }]);
     // a concept page that uses a part is listed too, as a concept
     expect(partUsage(part('ganter-gn-343-2-32-m8-63-kr'))).toEqual([
       { modelId: 'catio/window-insert', modelTitle: 'Window catio: window insert', via: 'Spreader feet (32 mm)', kind: 'concept' },

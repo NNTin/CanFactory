@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_TREAT_DISPENSER, PhysicsSpecSchema, TIP_ANGLE, TREAT_DISPENSER, TREAT_FIRMWARE, TREAT_PRINTED_PARTS, findModel, treatBayLayout, treatCycleSeconds,
-  treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout, treatDispenserPhysics, treatFill, treatFootprint, treatRotorPieces,
-  treatScadValues, treatVertices, validateParameters, type TreatDispenserParameters,
+  DEFAULT_TREAT_DISPENSER, PhysicsSpecSchema, TIP_ANGLE, TREAT_DISPENSER, TREAT_FASTENERS, TREAT_FIRMWARE, TREAT_PRINTED_PARTS, dimensionOf, findModel, findPart,
+  posePoint, treatBayLayout, treatBoltPoses, treatBolts, treatCycleSeconds, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout,
+  treatDispenserPhysics, treatFill, treatFootprint, treatRotorPieces, treatScadValues, treatVertices, treatWiringRoom, validateParameters, type TreatDispenserParameters,
 } from './index.ts';
 
 const p = DEFAULT_TREAT_DISPENSER;
@@ -124,13 +124,81 @@ describe('treat dispenser assembly and electronics', () => {
     const bay = treatBayLayout(p);
     expect(bay.bootPoint[2]).toBe(0);
     expect(Math.hypot(bay.bootPoint[0] - bay.resetPoint[0], bay.bootPoint[1] - bay.resetPoint[1])).toBeCloseTo(11.66 - 6.11, 6);
-    // the case upright inside the body, clear of the shell's rounded inside corner (R 8 − shell) and behind the rotor's block, its lid
-    // in the back wall (its base 8.4 deep)
-    expect(bay.caseFrame.position[0] - 10.9).toBeGreaterThanOrEqual(-l.halfWidth + 8);
+    // the case upright inside the outer body and behind the rotor's block, its lid in the back wall (its base 8.4 deep)
+    expect(bay.caseFrame.position[0] - 10.9).toBeGreaterThanOrEqual(-l.halfWidth + TREAT_DISPENSER.shell + 1);
     expect(bay.caseFrame.position[1] + 14.4 - 8.4).toBeGreaterThan(l.blockBack);
     expect(bay.caseFrame.position[1] + 14.4).toBeCloseTo(l.back + 0.5, 9);
     // USB-C at its lower end, high enough over the base for the plug and its cable's bend
     expect(bay.usb[2]).toBeGreaterThan(TREAT_DISPENSER.base + 20);
+  });
+
+  it('leaves both of the SuperMini’s header rows room for jumper plugs, beside the inner body, not against it', () => {
+    const T = TREAT_DISPENSER;
+    const rows = treatWiringRoom(p).filter(room => room.id.startsWith('row-'));
+    expect(rows).toHaveLength(2);
+    for (const room of rows) {
+      // inside the outer body, left of the inner body's block and legs, in front of the pins' tips by a housing and a bend
+      expect(room.min[0]).toBeGreaterThanOrEqual(-(l.halfWidth - T.shell));
+      expect(room.max[0]).toBeLessThanOrEqual(-l.block.halfX + 1e-9);
+      expect(room.min[1]).toBeLessThan(treatBayLayout(p).pinTip - 13);
+      // clear of the cap's lugs and the sleeve (left of the block, round the rotor's axis) and of the feet
+      const lugBottom = l.axisZ - T.lug - (l.capScrewR + T.lug) * Math.tan(50 * Math.PI / 180);
+      expect(room.min[0] >= l.lugFace + T.lugThickness || room.max[2] <= lugBottom).toBe(true);
+      expect(room.min[1] > l.bore.radius + T.wall || room.max[2] < l.axisZ - (l.bore.radius + T.wall) / Math.cos(50 * Math.PI / 180)).toBe(true);
+      expect(room.min[2]).toBeGreaterThan(T.base + T.foot);
+    }
+    // the two rows face the same way, a row's pitch apart across the case
+    expect(Math.abs((rows[0]?.min[0] ?? 0) - (rows[1]?.min[0] ?? 0))).toBeCloseTo(15.24, 1);
+  });
+
+  it('sizes every nut bay from the library’s ISO 4032 M3 nut, flat to flat, and every screw to pass through its nut', () => {
+    const nut = findPart(TREAT_FASTENERS.nut);
+    if (!nut) throw new Error('Missing the nut.');
+    const s = dimensionOf(nut, 's', 'max'), e = dimensionOf(nut, 'e', 'min'), m = dimensionOf(nut, 'm', 'max');
+    expect([s, e, m]).toEqual([5.5, 6.01, 2.4]);
+    // a hexagon across its flats with play, its corners clear of the nut's, its slot as wide as across the flats, narrower than the
+    // nut across its corners, so that it cannot turn in it
+    expect(l.bay.across).toBeCloseTo(s + 2 * TREAT_DISPENSER.nutPlay, 9);
+    expect(l.bay.across * 2 / Math.sqrt(3)).toBeGreaterThan(e);
+    expect(l.bay.across).toBeLessThan(e);
+    expect(l.bay.depth).toBeGreaterThan(m);
+    const values = new Map(treatScadValues(p));
+    expect(values.get('NUT')).toEqual([l.bay.across, l.bay.depth].map(v => Math.round(v * 1e6) / 1e6));
+    const bolts = treatBolts(p);
+    expect(bolts).toHaveLength(16);
+    for (const bolt of bolts) {
+      const screw = findPart(bolt.screw);
+      expect(screw?.attributes['standard'], bolt.id).toBe('ISO 4762');
+      expect(screw?.attributes['thread'], bolt.id).toBe('M3');
+      // the tip passes the whole nut
+      expect(dimensionOf(screw ?? nut, 'l'), bolt.id).toBeGreaterThanOrEqual(bolt.nutAt + m);
+      expect(Math.hypot(...bolt.axis)).toBeCloseTo(1, 9); expect(Math.hypot(...bolt.entry)).toBeCloseTo(1, 9);
+      expect(bolt.axis.reduce((sum, v, k) => sum + v * (bolt.entry[k] ?? 0), 0)).toBeCloseTo(0, 9);
+    }
+    // the motor's screws stay in the block's and the right leg's side wall: their tips (and the holes 0.5 past them) short of the slot
+    for (const bolt of bolts.filter(b => b.id.startsWith('motor'))) expect(bolt.at[0] - dimensionOf(findPart(bolt.screw) ?? nut, 'l') - 0.5).toBeGreaterThan(l.slot.halfX + 1);
+    // their nuts slide in from the block's front face
+    for (const bolt of bolts.filter(b => b.id.startsWith('motor'))) expect(bolt.at[1] - bolt.slot).toBeLessThan(-l.block.halfY);
+  });
+
+  it('shows every screw and nut in the assembly, where its bolt puts it, and moves each in a step', () => {
+    const bolts = treatBolts(p);
+    const references = new Map((assembly.references ?? []).map(reference => [reference.id, reference]));
+    const stepped = new Set(assembly.steps.flatMap(step => step.parts));
+    for (const bolt of bolts) {
+      expect(references.get(`${bolt.id}-screw`)?.part).toBe(bolt.screw);
+      expect(references.get(`${bolt.id}-nut`)?.part).toBe(TREAT_FASTENERS.nut);
+      const poses = treatBoltPoses(bolt);
+      expect(assembly.poses[`${bolt.id}-screw`]).toEqual(poses.screw);
+      expect(assembly.poses[`${bolt.id}-nut`]).toEqual(poses.nut);
+      // the screw's head (its own frame: tip at z = 0, the head from z = l) bears at the bolt's seat; the nut's flats lie along its slot
+      const length = dimensionOf(findPart(bolt.screw) ?? findPart(TREAT_FASTENERS.nut)!, 'l');
+      posePoint(poses.screw, [0, 0, length]).forEach((v, k) => expect(v).toBeCloseTo(bolt.at[k] ?? 0, 6));
+      // the nut's flats are across its own X: its +X maps to the bay's axis × entry
+      const across = posePoint({ position: [0, 0, 0], rotation: poses.nut.rotation }, [1, 0, 0]);
+      expect(Math.abs(across.reduce((sum, v, k) => sum + v * (bolt.entry[k] ?? 0), 0))).toBeCloseTo(0, 9);
+      for (const id of [`${bolt.id}-screw`, `${bolt.id}-nut`]) expect(stepped.has(id), id).toBe(true);
+    }
   });
 
   it('passes the generator every value it reads', () => {
@@ -147,7 +215,7 @@ describe('treat dispenser mechanism', () => {
     expect(Value.Check(PhysicsSpecSchema, spec)).toBe(true);
     expect(spec.motors?.map(motor => motor.body)).toEqual(['rotor']);
     expect(spec.bodies.find(body => body.id === 'rotor')?.joint?.type).toBe('hinge');
-    expect(spec.bodies.filter(body => body.fixed).map(body => body.id)).toEqual(['body', 'chute']);
+    expect(spec.bodies.filter(body => body.fixed).map(body => body.id)).toEqual(['inner-body', 'chute']);
     expect(spec.controller?.counter).toBe('out');
     // one press: forward a pocket pitch (negative about +X), never back
     expect(spec.controller?.moves).toEqual([-360 / TREAT_DISPENSER.pockets]);

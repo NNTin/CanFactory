@@ -3561,12 +3561,13 @@ export const esp32C3SuperminiCase = {
 const TREAT_MAPPING = { bottleNeck: 'LAYOUT', treatLength: 'TREAT_LENGTH', treatWidth: 'TREAT_WIDTH', treatThickness: 'TREAT_THICKNESS', treatCornerRadius: 'TREAT_CORNER_RADIUS', pocketClearance: 'POCKET_CLEARANCE', threadClearance: 'THREAD_CLEARANCE_SETTING', bottleDiameter: 'BOTTLE_DIAMETER' };
 const treatSchema = TreatDispenserParametersSchema;
 const treatParts: { id: string; title: string }[] = [
-  { id: 'body', title: 'Body: bottle thread, funnel, rotor block, motor mount and electronics bay' }, { id: 'rotor', title: 'Rotor (two pockets)' },
+  { id: 'inner-body', title: 'Inner body: bottle thread, funnel, rotor block, motor and ULN2003 mounts, the cap’s lugs' },
+  { id: 'outer-body', title: 'Outer body: cover with the ESP32 case’s window' }, { id: 'rotor', title: 'Rotor (two pockets)' },
   { id: 'flap', title: 'Flap (TPU)' },
   { id: 'cap', title: 'Bearing cap' }, { id: 'chute', title: 'Chute' }, { id: 'base', title: 'Base plate' }, { id: 'coupon', title: 'Bottle thread coupon' },
 ];
 export const treatDispenser = {
-  id: 'treat-dispenser' as const, version: '2' as const, title: 'PET-bottle treat dispenser',
+  id: 'treat-dispenser' as const, version: '3' as const, title: 'PET-bottle treat dispenser',
   description: 'A gumball-style treat dispenser for an inverted 0.5 l PET bottle: the treats fall onto a rotor with two pockets, which a 28BYJ-48 turns half a turn per press, only ever forwards; a sprung TPU flap closes the slot behind the rotor, and a pocket drops what it holds down a chute out of the front. 0, 1 or a few treats may come out per press. The ULN2003 board and an ESP32-C3 SuperMini in the existing sliding-lid case sit inside the body, the case’s B and R buttons in its back wall; one USB-C cable powers everything. Prototype: treats can bridge in the bottle’s neck (#140). Simulate it: press B on the back.',
   attribution: 'After bovineblitz’s Cat treat gumball-style dispenser (CC BY-NC 4.0) and cylus80’s Mason Jar Candy Dispenser (CC BY 4.0), redrawn by CanFactory; ESP32-C3 SuperMini case by Vinors3DLab, adapted by CanFactory',
   attributionLinks: [
