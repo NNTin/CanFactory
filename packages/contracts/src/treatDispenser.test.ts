@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_TREAT_DISPENSER, PhysicsSpecSchema, TIP_ANGLE, TREAT_DISPENSER, TREAT_FASTENERS, TREAT_FIRMWARE, TREAT_PRINTED_PARTS, dimensionOf, findModel, findPart,
+  BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, PhysicsSpecSchema, TIP_ANGLE, TREAT_DISPENSER, TREAT_FASTENERS, TREAT_FIRMWARE, TREAT_PRINTED_PARTS, dimensionOf, findModel, findPart,
   posePoint, treatBayLayout, treatBoltPoses, treatBolts, treatCycleSeconds, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout,
   treatDispenserPhysics, treatFill, treatFootprint, treatRotorPieces, treatScadValues, treatVertices, treatWiringRoom, validateParameters, type TreatDispenserParameters,
 } from './index.ts';
@@ -18,6 +18,19 @@ describe('treat dispenser layout', () => {
     expect(treatDispenserIssues({ ...p, treatWidth: 15 })).not.toEqual([]);
     expect(treatDispenserIssues({ ...p, treatCornerRadius: 2.5, treatThickness: 4 })).not.toEqual([]);
     expect(treatDispenserIssues({ ...p, treatThickness: 7, pocketClearance: 2 })).not.toEqual([]);
+  });
+
+  it('keeps the thread’s grooves apart at every thread clearance: the cutter’s turns never overlap, so a bottle still catches', () => {
+    // thread_cutter's widths in the generator: the bottle's ridge (base and crest, fractions of the pitch) grown by the clearance
+    const scad = readFileSync(new URL('../../../models/treat-dispenser/generator.scad', import.meta.url), 'utf8');
+    const grown = /base = NECK_PITCH \* ([\d.]+) \+ 2 \* THREAD_CLEARANCE/.exec(scad);
+    if (!grown) throw new Error('thread_cutter’s ridge base was not found in the generator.');
+    const model = findModel('treat-dispenser');
+    if (!model) throw new Error('The treat dispenser is not registered.');
+    const maximum = 0.5;
+    expect(validateParameters(model, { ...p, threadClearance: maximum })).toEqual([]);
+    expect(validateParameters(model, { ...p, threadClearance: maximum + 0.05 })).not.toEqual([]);
+    for (const neck of Object.values(BOTTLE_NECKS)) expect(neck.pitch * (1 - Number(grown[1])) - 2 * maximum, neck.title).toBeGreaterThan(0.05);
   });
 
   it('sizes a pocket for one treat lying flat, under a slot as long as the pocket', () => {

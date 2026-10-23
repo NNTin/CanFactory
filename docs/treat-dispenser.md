@@ -363,7 +363,7 @@ humidity, and the TPU flap's real stiffness and creep.
 The body's default thread is **PCO 1881**, the common 28 mm carbonated soft-drink finish, from ISBT's drawing 3784253-21: thread
 outside diameter T 27.40 ± 0.13 mm, root E 24.20 mm, bore 21.72 ± 0.13 mm, pitch 2.70 mm, single start, right hand, 650° of full-depth
 thread, support ring Ø33.0 mm. **PCO 1810** (drawing 1165362-2: T 27.43, E 24.51, bore 21.74, pitch 3.18, two turns) is the other
-option. The thread is printed as the bottle's ridge grown by the thread clearance (0.3 mm default) and swept along its helix. Not
+option. The thread is printed as the bottle's ridge grown by the thread clearance (0.3 mm default, 0.1–0.5 mm: beyond about 0.54 mm on PCO 1881 the grown ridge is wider than the pitch, its grooves merge and the bottle no longer catches) and swept along its helix. Not
 every "28 mm" bottle is either finish: **print the coupon first** and tune the clearance; nothing here claims a universal fit. The
 default bottle is a 0.5 l one (Ø65 mm); the base plate is sized from it.
 

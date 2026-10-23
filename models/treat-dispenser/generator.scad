@@ -52,8 +52,10 @@ module flap_block_x(x0, x1, g) { translate([x0, FLAP[0], FLAP[1]]) rotate([90, 0
 // that the top prints without support (bridged from slope to slope; a little wider than the boss, so that its round never touches the
 // slopes' edges); the side walls stay upright for the cap and the flap's pin
 function gable(front, back, base, top, half) = [[front, base], [back, base], [back, top - (back - half) * tan(STEEP)], [half, top], [-half, top], [front, top - (-half - front) * tan(STEEP)]];
-// below the right side's hip: a plane down from just beyond the boss at the top to the right at STEEP, moved in by d
-module hip(d) { translate([BOSS_R + 3 - d / sin(STEEP), 0, LIP_Z]) rotate([0, STEEP, 0]) translate([-200, -200, -400]) cube([400, 400, 400]); }
+// below the right side's hip: a plane down from just beyond the boss at the top to the right at STEEP, moved in by d. It starts 2.75
+// further out than the gable's flat top: at 2.5 its edge with the back slope would run through the rounded box's corner edge whenever
+// HALF_W = BACK − 5.5 (a 43.5 wide shell at the 49 back), leaving float32 slivers; HALF_W steps by 0.5, so 2.75 never meets it
+module hip(d) { translate([BOSS_R + 3.25 - d / sin(STEEP), 0, LIP_Z]) rotate([0, STEEP, 0]) translate([-200, -200, -400]) cube([400, 400, 400]); }
 module along_x(x0, x1) { translate([x0, 0, 0]) rotate([90, 0, 90]) linear_extrude(x1 - x0) children(); }
 
 // the chute's way's section at y (x, z): up to the chute's walls (and 0.3 over them) at the legs, then sloping up at STEEP to a peak, or
