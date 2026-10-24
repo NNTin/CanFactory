@@ -10,3 +10,4 @@ export * from './decompose.ts';
 export * from './pieceFit.ts';
 export * from './hull.ts';
 export * from './interactive.ts';
+export * from './controller.ts';

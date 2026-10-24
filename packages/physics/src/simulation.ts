@@ -4,8 +4,8 @@
  * Worker (interactive mode) and in Node (CI scenarios).
  */
 import { contacts, OBJ, STATE_PHYSICS, type DoubleBuffer, type Engine, type MjData, type MjModel } from './engine.ts';
-import { driveName, geomName, toMjcf, TOUCH } from './mjcf.ts';
-import type { Quat, Scene, Vec3 } from './scene.ts';
+import { driveName, geomName, motorName, toMjcf, TOUCH } from './mjcf.ts';
+import type { Quat, Scene, SceneCounter, SceneMotor, Vec3 } from './scene.ts';
 import { dipoleInteraction } from './magnets.ts';
 import { add, cross, rotate, scale, sub } from './transform.ts';
 
@@ -37,6 +37,17 @@ export const DRAG: HoldOptions = { omega: 300, damping: 1, maxForce: 20, spinDam
  */
 interface Hold { name: string; body: number; local: Vec3; target: Vec3; options: HoldOptions; mass: number; maxForce: number }
 
+/**
+ * A motor's command, as a stepper driver's: it moves `commanded` towards `target` at the motor's speed with its acceleration (a
+ * trapezoid), and the actuator pulls the hinge towards `commanded − lost`. If the hinge lags that by more than the slip window in the
+ * direction of travel, the motor slips: the lag beyond the window is added to `lost`, as steps a real stepper loses. Pushed ahead, it
+ * holds (its force saturates) and nothing is lost.
+ */
+export interface MotorState { target: number; commanded: number; velocity: number; lost: number; direction: number }
+
+/** A counter's state: the bodies it has counted, and which side of its plane each body's centre was on. */
+interface CounterState { counter: SceneCounter; ids: number[]; counted: Set<string>; side: Map<string, number> }
+
 /** A force (N, world frame) at a body point (body frame, metres). */
 interface Load { name: string; body: number; local: Vec3; force: Vec3 }
 
@@ -52,6 +63,9 @@ export class Simulation {
   private readonly velocity: DoubleBuffer;
   private disposed = false;
   private readonly enabledMagnets = new Map<string, boolean>();
+  private readonly motors = new Map<string, { motor: SceneMotor; actuator: number; qpos: number; state: MotorState }>();
+  private readonly counters = new Map<string, CounterState>();
+  private readonly tickers: ((dt: number) => void)[] = [];
   private readonly magnetRoots = new Map<string, string | undefined>();
 
   constructor(private readonly engine: Engine, readonly scene: Scene) {
@@ -69,6 +83,85 @@ export class Simulation {
     }
     this.setInitialJoints();
     engine.mj_forward(this.model, this.data);
+    for (const motor of scene.motors ?? []) {
+      const qpos = this.qposAddress(motor.body);
+      const start = this.data.qpos[qpos] ?? 0;
+      this.motors.set(motor.name, { motor, actuator: this.id(OBJ.actuator, motorName(motor.name)), qpos, state: { target: start, commanded: start, velocity: 0, lost: 0, direction: 1 } });
+      this.data.ctrl[this.id(OBJ.actuator, motorName(motor.name))] = start;
+    }
+    for (const counter of scene.counters ?? []) {
+      const ids = counter.bodies.map(name => this.bodyId(name));
+      const state: CounterState = { counter, ids, counted: new Set(), side: new Map() };
+      counter.bodies.forEach((name, index) => state.side.set(name, this.counterSide(counter, ids[index] ?? 0)));
+      this.counters.set(counter.name, state);
+    }
+  }
+
+  /** Which side of the counter's plane the body's centre is on (−1 before, 1 past), or 0 outside its box. */
+  private counterSide(counter: SceneCounter, id: number): number {
+    const world: Vec3 = [this.data.xpos[3 * id] ?? 0, this.data.xpos[3 * id + 1] ?? 0, this.data.xpos[3 * id + 2] ?? 0];
+    const frame = counter.frame;
+    const p = frame ? rotate([frame.quat[0], -frame.quat[1], -frame.quat[2], -frame.quat[3]], sub(world, frame.pos)) : world;
+    for (let k = 0; k < 3; k++) if ((p[k] ?? 0) < (counter.min[k] ?? 0) || (p[k] ?? 0) > (counter.max[k] ?? 0)) return 0;
+    if (counter.kind === 'inside') return 1;
+    const d = sub(p, counter.point);
+    return d[0] * counter.along[0] + d[1] * counter.along[1] + d[2] * counter.along[2] >= 0 ? 1 : -1;
+  }
+
+  private updateCounters(): void {
+    for (const state of this.counters.values()) {
+      state.counter.bodies.forEach((name, index) => {
+        const side = this.counterSide(state.counter, state.ids[index] ?? 0);
+        const before = state.side.get(name) ?? 0;
+        if (!state.counted.has(name) && (state.counter.kind === 'inside' ? side === 1 : before === -1 && side === 1)) state.counted.add(name);
+        // outside the box the side is unknown: keep the last one, so leaving and re-entering past the plane does not count
+        if (side !== 0) state.side.set(name, side);
+      });
+    }
+  }
+
+  /** How many bodies a counter has counted, and which. */
+  counted(name: string): string[] {
+    const state = this.counters.get(name);
+    if (!state) throw new Error(`The scene has no counter ${name}.`);
+    return [...state.counted];
+  }
+
+  /** Moves a motor's target by `delta` (radians at its hinge). */
+  moveMotor(name: string, delta: number): void { this.motorEntry(name).state.target += delta; }
+
+  /** Stops a motor where its command is now (a reset), without deceleration. */
+  stopMotor(name: string): void { const { state } = this.motorEntry(name); state.target = state.commanded; state.velocity = 0; }
+
+  /** A motor's command (radians at its hinge) and its hinge's actual angle. */
+  motor(name: string): MotorState & { actual: number; moving: boolean } {
+    const entry = this.motorEntry(name);
+    return { ...entry.state, actual: this.data.qpos[entry.qpos] ?? Number.NaN, moving: entry.state.commanded !== entry.state.target || entry.state.velocity !== 0 };
+  }
+
+  private motorEntry(name: string) {
+    const entry = this.motors.get(name);
+    if (!entry) throw new Error(`The scene has no motor ${name}.`);
+    return entry;
+  }
+
+  /** Calls `ticker` before every step with the time step (s), e.g. a controller. */
+  addTicker(ticker: (dt: number) => void): void { this.tickers.push(ticker); }
+
+  private updateMotors(dt: number): void {
+    for (const { motor, actuator, qpos, state } of this.motors.values()) {
+      const remaining = state.target - state.commanded, direction = Math.sign(remaining);
+      // a trapezoid: no faster than the speed, and slow enough to stop at the target with the acceleration
+      state.velocity = direction === 0 ? 0 : direction * Math.min(motor.speed, Math.sqrt(2 * motor.acceleration * Math.abs(remaining)), Math.abs(state.velocity) + motor.acceleration * dt);
+      state.commanded = Math.abs(state.velocity * dt) >= Math.abs(remaining) ? state.target : state.commanded + state.velocity * dt;
+      if (direction !== 0) state.direction = direction;
+      const actual = this.data.qpos[qpos] ?? 0;
+      let drive = state.commanded - state.lost;
+      const lag = (drive - actual) * state.direction;
+      if (lag > motor.slip) { state.lost += (lag - motor.slip) * state.direction; drive = actual + motor.slip * state.direction; }
+      else if (lag < -motor.slip) drive = actual - motor.slip * state.direction;
+      this.data.ctrl[actuator] = drive;
+    }
   }
 
   private id(type: number, name: string): number {
@@ -91,9 +184,13 @@ export class Simulation {
   /** Advances `steps` time steps. */
   step(steps = 1): void {
     if (this.disposed) throw new Error('The simulation has been disposed.');
+    const dt = this.scene.options.timestep;
     for (let i = 0; i < steps; i++) {
+      for (const ticker of this.tickers) ticker(dt);
+      this.updateMotors(dt);
       this.applyLoads();
       this.engine.mj_step(this.model, this.data);
+      if (this.counters.size > 0) this.updateCounters();
     }
   }
 

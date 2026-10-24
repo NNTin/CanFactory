@@ -2240,6 +2240,71 @@ export interface operations {
                          */
                         ledHoles: boolean;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "treat-dispenser";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "3";
+                    parameters: {
+                        /**
+                         * Treat length
+                         * @description Longest side of the treats, mm. Measure the largest of a bag; the rotor’s pockets are sized from it.
+                         * @default 14
+                         */
+                        treatLength: number;
+                        /**
+                         * Treat width
+                         * @description Middle side of the treats, mm.
+                         * @default 9
+                         */
+                        treatWidth: number;
+                        /**
+                         * Treat thickness
+                         * @description Thinnest side of the treats, mm (the rotor’s pocket reaches its axis whatever it is: the simulation’s treats are this thick).
+                         * @default 5
+                         */
+                        treatThickness: number;
+                        /**
+                         * Treat corner radius
+                         * @description Rounding of the treats’ edges and corners, mm (used by the simulation only).
+                         * @default 1.5
+                         */
+                        treatCornerRadius: number;
+                        /**
+                         * Pocket clearance
+                         * @description Play round a treat in a rotor pocket, mm. More takes bigger treats, and lets two thin ones in.
+                         * @default 1
+                         */
+                        pocketClearance: number;
+                        /**
+                         * Bottle neck
+                         * @description The thread of the bottle that screws into the top. Print the thread coupon first: real bottles vary.
+                         * @default pco-1881
+                         * @enum {unknown}
+                         */
+                        bottleNeck: "pco-1881" | "pco-1810";
+                        /**
+                         * Thread clearance
+                         * @description Radial play of the body’s thread on the bottle’s, mm; tune it with the coupon.
+                         * @default 0.3
+                         */
+                        threadClearance: number;
+                        /**
+                         * Flap magnets
+                         * @description Embed two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N) that repel each other: one in the flap’s counterweight, one in the inner body above it. They add to the counterweight’s closing force, the more the further the flap opens. Both prints pause for you to drop a magnet in.
+                         * @default false
+                         */
+                        flapMagnets: boolean;
+                        /**
+                         * Bottle diameter
+                         * @description Largest diameter of the bottle, mm (0.5 l PET bottles are about 65 mm). Sets the base plate’s size so that a full bottle cannot easily tip the dispenser over.
+                         * @default 65
+                         */
+                        bottleDiameter: number;
+                    };
                 };
             };
         };
