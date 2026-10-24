@@ -3,7 +3,9 @@
  * primed and then pressed a fixed number of times, counting the treats that actually leave per press. CI runs only a few scenarios
  * (`npm run check:physics -- treat-dispenser`); this runs the wider set in parallel and prints a table. Slow: tens of minutes.
  *
- *   npx tsx tools/physics/treat-dispenser-trials.ts [--presses 8] [--jobs 8] [--quick] [--json out.json]
+ *   npx tsx tools/physics/treat-dispenser-trials.ts [--presses 8] [--jobs 8] [--quick] [--magnets] [--json out.json]
+ *
+ * `--magnets` runs them with the flap's repelling magnets (`flapMagnets`).
  *
  * Needs an OpenSCAD runtime (the parts are rendered once, for their mass properties).
  */
@@ -17,7 +19,7 @@ import { DEFAULT_TREAT_DISPENSER, findModel, resolveAssembly, treatDispenserPhys
 import { buildScene, CycleController, loadEngine, Simulation, type BodyGeometry } from '@canfactory/physics';
 import { meshCacheFile } from './treat-trial-cache.ts';
 
-const { values } = parseArgs({ options: { presses: { type: 'string', default: '8' }, jobs: { type: 'string' }, quick: { type: 'boolean', default: false }, json: { type: 'string' }, child: { type: 'string' } } });
+const { values } = parseArgs({ options: { presses: { type: 'string', default: '8' }, jobs: { type: 'string' }, quick: { type: 'boolean', default: false }, magnets: { type: 'boolean', default: false }, json: { type: 'string' }, child: { type: 'string' } } });
 
 /** One trial: a fill and, optionally, treats that differ from the nominal ones the dispenser is sized for. */
 export interface Trial {
@@ -51,13 +53,16 @@ function trials(quick: boolean): Trial[] {
 }
 
 /** Renders the parts once per geometry (mass properties come from their meshes, as in CI); `file` is keyed on their sources. */
+/** The settings every trial starts from: the defaults, with or without the flap's magnets. */
+const base = (): TreatDispenserParameters => ({ ...DEFAULT_TREAT_DISPENSER, flapMagnets: values.magnets });
+
 async function geometry(file: string): Promise<Record<string, number[]>> {
   try { return JSON.parse(await readFile(file, 'utf8')) as Record<string, number[]>; } catch { /* render below */ }
   const { renderAssemblyMeshes } = await import('../assembly-meshes.ts');
   const model = findModel('treat-dispenser');
   if (!model?.assembly) throw new Error('No treat dispenser model.');
-  const assembly = resolveAssembly(model, model.assembly, model.defaults) ?? model.assembly;
-  const meshes = await renderAssemblyMeshes(model as never, assembly, model.defaults);
+  const assembly = resolveAssembly(model, model.assemblyForParameters?.(base()) ?? model.assembly, base()) ?? model.assembly;
+  const meshes = await renderAssemblyMeshes(model as never, assembly, base());
   const result: Record<string, number[]> = {};
   for (const id of ['rotor', 'inner-body', 'chute', 'flap']) { const mesh = meshes.get(id); if (mesh) result[id] = Array.from(mesh.tris); }
   await mkdir(dirname(file), { recursive: true });
@@ -67,7 +72,7 @@ async function geometry(file: string): Promise<Record<string, number[]>> {
 
 async function runTrial(trial: Trial, presses: number, meshes: Record<string, number[]>): Promise<TrialResult> {
   const started = performance.now();
-  const p: TreatDispenserParameters = { ...DEFAULT_TREAT_DISPENSER };
+  const p: TreatDispenserParameters = base();
   const spec = treatDispenserPhysics(p, { treats: trial.count, seed: trial.seed, mode: trial.mode, scenarios: false });
   if (trial.treat) {
     const t = trial.treat;
@@ -134,14 +139,14 @@ if (values.child) {
 } else {
   const presses = Number(values.presses);
   const list = trials(values.quick);
-  const meshFile = await meshCacheFile({ ...DEFAULT_TREAT_DISPENSER });
+  const meshFile = await meshCacheFile(base());
   await geometry(meshFile);
   const jobs = Math.min(list.length, Number(values.jobs ?? Math.max(1, availableParallelism() - 1)));
   console.log(`${list.length} trials, ${presses} presses each after Prime, ${jobs} processes`);
   const results: TrialResult[] = [];
   const queue = [...list];
   await Promise.all(Array.from({ length: jobs }, () => new Promise<void>(resolve => {
-    const child = fork(fileURLToPath(import.meta.url), ['--child', meshFile], { execArgv: ['--import', 'tsx'] });
+    const child = fork(fileURLToPath(import.meta.url), ['--child', meshFile, ...(values.magnets ? ['--magnets'] : [])], { execArgv: ['--import', 'tsx'] });
     const next = () => { const trial = queue.shift(); if (trial) child.send({ trial, presses }); else { child.send('exit'); resolve(); } };
     child.on('message', (result: TrialResult) => {
       results.push(result);

@@ -82,7 +82,7 @@ test('dispenses from the BOOT button on the case in the back wall: the motor tur
   expect(errors).toEqual([]);
 });
 
-test('shows the inner and outer bodies, the motor, the ULN2003 and every M3 screw and nut in the live assembly; the outer body hides', async ({ page }, testInfo) => {
+test('shows the inner and outer bodies, the motor, the ULN2003 and every M3 screw and nut in the live assembly; the outer body hides; the flap magnets appear when on', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/#/models/treat-dispenser');
@@ -107,5 +107,10 @@ test('shows the inner and outer bodies, the motor, the ULN2003 and every M3 scre
   await expect.poll(async () => (await visible()).has('outer-body')).toBe(false);
   for (const id of ['inner-body', 'motor', 'driver', ...fasteners]) expect((await visible()).has(id), id).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('inside.png'), fullPage: true });
+  // the flap magnets: off by default; switched on, both are in the assembly (sealed in the flap and the inner body)
+  expect((await visible()).has('flap-magnet')).toBe(false);
+  await page.getByRole('switch', { name: 'Flap magnets' }).click();
+  await expect(page.getByRole('button', { name: 'Download ZIP', exact: true })).toBeEnabled({ timeout: 300_000 });
+  await expect.poll(async () => { const now = await visible(); return now.has('flap-magnet') && now.has('body-magnet'); }, { timeout: 120_000 }).toBe(true);
   expect(errors).toEqual([]);
 });

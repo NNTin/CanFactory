@@ -20,7 +20,7 @@ anything; that is issue #140, left for later.
 | Inner body | The bottle's thread, a funnel into the slot, the rotor's block (bore, slot, the drop under the rotor and a cavity behind it), legs either side of the chute and four feet; a collar round the thread's boss, shaped to the outer body's inside under its top. It is not screwed down: the outer body's top presses on the collar and the base plate's rims hold the feet. The motor on the block's +X face; the ULN2003 board on four standoffs off the right leg; a sleeve carrying the bore out to the left, ending in two lugs for the bearing cap's screws. Every nut sits in a bay of its own. |
 | Outer body | The cover: walls and a gable top, open at the bottom, lowered over the inner body (the thread's boss comes up through its top) and screwed to the base plate at its four corners; its top bears on the inner body's collar, so the corner screws clamp the inner body onto the plate. The ESP32 case's window in its back wall, the rotor's opening in its left wall, the chute's way out of the front. |
 | Rotor | Ø26 × 24 mm, one pocket 16 × 11 mm (for 14 × 9 × 5 treats with 1 mm of clearance) as deep as the axis, its trailing face leaning out 30°, turned 13° so that its mouth is centred under the slot; a D-bore onto the motor's flatted shaft at one end, whose tip pokes into the pocket (the floor's half of the bore still holds the flats), a Ø8 stub into the cap at the other. |
-| Flap | Rigid PLA or PETG, 1.6 mm plate: rests on the rotor just behind the slot, swinging freely on a hub whose hole snaps over two bosses on the slot's side walls (Ø3, through a 2.6 mm mouth); a counterweight on an arm behind the hub (10 × 8.5 mm, 15 mm behind the hinge) holds it on the rotor with 0.27 N·mm and swings up into a recess, up to 55°, as a treat pushes the flap back. |
+| Flap | Rigid PLA or PETG, 1.6 mm plate: rests on the rotor just behind the slot, swinging freely on a hub whose hole snaps over two bosses on the slot's side walls (Ø3, through a 2.6 mm mouth); a counterweight on an arm behind the hub (10 × 8.5 mm, 15 mm behind the hinge) holds it on the rotor with 0.27 N·mm and swings up into a recess, up to 55°, as a treat pushes the flap back. It prints upside down on the flat tops of its hub, arm and counterweight. Optionally (**Flap magnets**) a magnet in the counterweight and one in the inner body above it push the flap shut harder ([below](#flap-magnets-option)). |
 | Bearing cap | A tube through the outer body's left wall and the inner body's sleeve into the bore, up to the rotor's end, where it takes the rotor's stub; its flange sits on the wall's outside, its two M3 × 10 screws through the wall into nuts in the inner body's lugs (clamping the wall). |
 | Chute | 30°, from under the rotor out through the front wall; pushed up between the legs from below and held by the base plate. |
 | Base plate | 5 mm; closes the bottom; four M3 × 8 screws from below in counterbores, into the outer body's corners; a low rim (1.6 × 2.5 mm, 0.2 mm off the foot) round three sides of each of the inner body's feet; sized so that a full bottle leans 20° before the dispenser tips; a keeper behind the ESP32 case. |
@@ -28,7 +28,8 @@ anything; that is issue #140, left for later.
 | ESP32-C3 case base and lid | The existing case's two parts, unchanged ([attribution](../models/treat-dispenser/ATTRIBUTION.md)). |
 
 Bought: a 28BYJ-48 (5 V), a ULN2003 board, an ESP32-C3 SuperMini, 12 ISO 4032 M3 hex nuts and ISO 4762 M3 screws (2 × 6 mm for the
-motor, 8 × 8 mm for the ULN2003 board and the corners, 2 × 10 mm for the cap), and jumper wires. No heat-set inserts, no flexible filament.
+motor, 8 × 8 mm for the ULN2003 board and the corners, 2 × 10 mm for the cap), and jumper wires; with Flap magnets, two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N). No
+heat-set inserts, no flexible filament.
 
 **Fasteners.** Every screw goes into an ISO 4032 M3 nut held in a printed bay (`treatBolts`): a hexagon 5.8 mm across its flats (the
 library's 5.5 mm at its largest, 0.15 mm of play each side; 6.70 across its corners against the nut's 6.01) and 2.7 mm deep (2.4
@@ -78,6 +79,97 @@ at a stall):
 
 What it cannot prevent: treats that arch in the bottle's 21.7 mm neck (#140) or in the funnel. That stops the flow, not the motor.
 
+### Flap magnets (option)
+
+**Flap magnets** embeds two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N, from the parts library) that repel each other: one in
+the flap's counterweight, under its top face, and one in the inner body, above and just behind the hinge (4.5 mm behind it, 20 mm over
+it). A magnet facing the counterweight from straight above would stand in its way as it swings up, so the inner body's sits beyond the
+room it sweeps, near the block's top. A search over the places that fit, both magnets lying flat so that the prints can pause for them,
+picked the one with the most closing torque at rest that still closes all the way to the 55° stop. As point dipoles (as the
+simulation takes them) they add, to the counterweight's 0.27 N·mm:
+
+| Flap open | 0° | 10° | 20° | 30° | 40° | 50° | 55° |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Magnets' closing torque (N·mm) | 0.08 | 0.14 | 0.25 | 0.49 | 0.97 | 1.49 | 1.07 |
+
+So the flap shuts a little harder at rest (+30 %, and the magnet's own weight in the counterweight adds about 0.05 N·mm more) and much
+harder as it opens, as the TPU flap's spring did (0.3 N·mm at rest, 0.9 more per 30°). They never push it open. With the option off, the
+cavities are not cut, and the parts are otherwise the same (the block's top leaves room for the inner body's magnet either way).
+
+**Printing.** Each part pauses once, at 0.2 mm layers (the editor's notes give the heights for your settings; at the defaults the flap
+at 2.0 mm, before layer 11, and the inner body at 114.4 mm, before layer 573). Hold the two magnets so that they push each other apart:
+the faces that push go **down** in both cavities (the flap prints upside down and the inner body upright, so that is the face towards
+the other magnet in both). Drop each in, check it lies flat, resume: the next layer bridges over it.
+
+**Simulated** (the same forty trials, `--magnets`): the flap holds back more on the first turn, and the flow lasts a press longer:
+
+| Trials | Presses | First press: 0 / 1 / 2+ | All presses: 0 / 1 / 2+ | Stalls | Leaked between cycles | Strayed into the electronics | Fastest treat |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Random fills, 10 treats (6) | 48 | 0 / 1 / 5 | 39 / 2 / 7 | 0 | 0 | 0 | 0.64 m/s |
+| One orientation, 10 treats (4) | 32 | 0 / 1 / 3 | 28 / 1 / 3 | 0 | 0 | 0 | 0.61 m/s |
+| friction 0.3 (3) | 24 | 1 / 0 / 2 | 20 / 1 / 3 | 1 | 0 | 0 | 0.68 m/s |
+| friction 0.55 (3) | 24 | 0 / 0 / 3 | 21 / 0 / 3 | 0 | 0 | 0 | 0.52 m/s |
+| mass 0.3 g (3) | 24 | 0 / 0 / 3 | 21 / 0 / 3 | 0 | 0 | 0 | 0.62 m/s |
+| mass 0.8 g (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.61 m/s |
+| 13 × 8.5 × 4.5 (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.60 m/s |
+| 15 × 9.5 × 5.5 (3) | 24 | 0 / 0 / 3 | 19 / 1 / 4 | 0 | 0 | 0 | 0.58 m/s |
+| corner r 1.0 (3) | 24 | 0 / 0 / 3 | 21 / 0 / 3 | 0 | 0 | 0 | 0.61 m/s |
+| corner r 2.2 (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.59 m/s |
+| 6 treats (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.61 m/s |
+| 12 treats (3) | 24 | 0 / 1 / 2 | 21 / 1 / 2 | 0 | 0 | 0 | 0.58 m/s |
+| All (40) | 320 | 5 / 7 / 28 | 278 / 10 / 32 | 1 | 0 | 0 | 0.68 m/s |
+
+Prime released 6.4 of the 10 or so on average (2 to 11; without the magnets 8.0), and the first press two or more in 28 of 40 (14
+without). But **one stall in 320 presses** (friction 0.3, random 2, the first press: 285° lost): with the flap 31° open a treat lay
+from the rotor's surface in the slot to the flap's face, and the stiffer flap held it there against the rotor until the motor
+slipped; the cycle ended and all ten had left. That is the wedge the TPU flap's trials found with a stiffer flap. So the option is off by
+default: it trades a little more holding back for a small risk of a stall with slippery treats.
+
+Per trial with the magnets (Prime, then presses 1–8):
+
+| Fill | Prime | Presses |
+| --- | --- | --- |
+| 12 treats, random 1 | 5 | 7 0 0 0 0 0 0 0 |
+| 12 treats, random 2 | 9 | 3 0 0 0 0 0 0 0 |
+| 12 treats, random 3 | 11 | 1 0 0 0 0 0 0 0 |
+| 13 × 8.5 × 4.5, random 1 | 10 | 0 0 0 0 0 0 0 0 |
+| 13 × 8.5 × 4.5, random 2 | 7 | 3 0 0 0 0 0 0 0 |
+| 13 × 8.5 × 4.5, random 3 | 9 | 1 0 0 0 0 0 0 0 |
+| 15 × 9.5 × 5.5, random 1 | 5 | 5 0 0 0 0 0 0 0 |
+| 15 × 9.5 × 5.5, random 2 | 2 | 3 4 0 0 1 0 0 0 |
+| 15 × 9.5 × 5.5, random 3 | 8 | 2 0 0 0 0 0 0 0 |
+| 6 treats, random 1 | 3 | 3 0 0 0 0 0 0 0 |
+| 6 treats, random 2 | 6 | 0 0 0 0 0 0 0 0 |
+| 6 treats, random 3 | 5 | 1 0 0 0 0 0 0 0 |
+| corner r 1.0, random 1 | 6 | 4 0 0 0 0 0 0 0 |
+| corner r 1.0, random 2 | 6 | 4 0 0 0 0 0 0 0 |
+| corner r 1.0, random 3 | 7 | 3 0 0 0 0 0 0 0 |
+| corner r 2.2, random 1 | 10 | 0 0 0 0 0 0 0 0 |
+| corner r 2.2, random 2 | 9 | 1 0 0 0 0 0 0 0 |
+| corner r 2.2, random 3 | 7 | 3 0 0 0 0 0 0 0 |
+| diagonal 1 | 4 | 6 0 0 0 0 0 0 0 |
+| edge 1 | 9 | 1 0 0 0 0 0 0 0 |
+| end 1 | 5 | 5 0 0 0 0 0 0 0 |
+| flat 1 | 7 | 3 0 0 0 0 0 0 0 |
+| friction 0.3, random 1 | 2 | 4 3 1 0 0 0 0 0 |
+| friction 0.3, random 2 | 2 | 8 0 0 0 0 0 0 0 |
+| friction 0.3, random 3 | 10 | 0 0 0 0 0 0 0 0 |
+| friction 0.55, random 1 | 4 | 6 0 0 0 0 0 0 0 |
+| friction 0.55, random 2 | 5 | 5 0 0 0 0 0 0 0 |
+| friction 0.55, random 3 | 6 | 4 0 0 0 0 0 0 0 |
+| mass 0.3 g, random 1 | 5 | 5 0 0 0 0 0 0 0 |
+| mass 0.3 g, random 2 | 8 | 2 0 0 0 0 0 0 0 |
+| mass 0.3 g, random 3 | 6 | 4 0 0 0 0 0 0 0 |
+| mass 0.8 g, random 1 | 5 | 5 0 0 0 0 0 0 0 |
+| mass 0.8 g, random 2 | 9 | 1 0 0 0 0 0 0 0 |
+| mass 0.8 g, random 3 | 10 | 0 0 0 0 0 0 0 0 |
+| random 1 | 5 | 3 2 0 0 0 0 0 0 |
+| random 2 | 8 | 2 0 0 0 0 0 0 0 |
+| random 3 | 9 | 1 0 0 0 0 0 0 0 |
+| random 4 | 3 | 5 2 0 0 0 0 0 0 |
+| random 5 | 3 | 6 1 0 0 0 0 0 0 |
+| random 6 | 5 | 5 0 0 0 0 0 0 0 |
+
 ### Assembly and service
 
 `npm run check:assembly -- treat-dispenser` passes: the assembled parts, every screw and nut, the exploded layout and every step's
@@ -121,16 +213,16 @@ not re-run):
 
 | Part | Solid volume (cm³) | Size as printed (mm) |
 | --- | --- | --- |
-| Inner body | 97.8 | 66 × 59 × 141 |
-| Outer body | 65.8 | 89 × 87 × 123 |
+| Inner body | 98.1 | 66 × 59 × 141 |
+| Outer body | 66.0 | 89 × 87 × 123 |
 | Rotor | 10.2 | 26 × 26 × 29 |
-| Flap (PLA or PETG, on its end) | 2.3 | 28 × 23 × 16 |
+| Flap (PLA or PETG, upside down) | 2.2 | 16 × 23 × 27 |
 | Bearing cap | 14.7 | 46 × 46 × 35 |
 | Chute | 7.2 | 20 × 100 × 15 |
 | Base plate | 54.0 | 105 × 99 × 5 (with its posts and keeper, 61 high) |
 | Thread coupon | 3.8 | 34 × 34 × 10 |
 | ESP32 case base and lid | 2.2 | |
-| **All** | **258.0** (with the TPU flap: 233.1; one body before the split: 197.9) | |
+| **All** | **258.4** (with the TPU flap: 233.1; one body before the split: 197.9) | |
 
 With PrusaSlicer 2.5 and `tools/treat-dispenser.ini` (0.4 mm nozzle, 0.2 mm layers, PETG, four perimeters) the single-body revision
 came to 217.7 g; set `PRUSA_SLICER` to re-slice this one.
@@ -143,8 +235,9 @@ ULN2003's input pins, supply pins and motor socket, no part reaches in; it fails
 teardrop holes, the sleeve's teardrop section and the lugs' undersides, the chute way's ceiling, the standoffs' gussets, the hinge's
 bosses and the hub's recess), a short bridge (the flat strip either side of the boss's opening, 31 mm; the cavity's roof and the
 counterweight's recess, across their 16 mm between the side walls; the case window, 22 mm; the nut slots' ceilings, at most 5.8 mm),
-or the thread's own groove (1.6 mm deep). The flap prints standing on its end, so that its hub's hole and mouth come out round and
-clean. The cavity and the recess leave the flap 55° of swing on purpose: a ceiling that stopped the TPU flap at about 45° wedged
+or the thread's own groove (1.6 mm deep). The flap prints upside down, on the flush tops of its hub, its arm and its counterweight
+(the hub's hole along the bed is a 3.4 mm bridge), so that the magnet's cavity under the counterweight's top lies flat and the print can
+pause over it. The cavity and the recess leave the flap 55° of swing on purpose: a ceiling that stopped the TPU flap at about 45° wedged
 treats under it in the trials (6 stalls in 40). With automatic supports on every part the slicer added 31.8 g to the
 single-body revision, most of it in the thread, from columns that would stand in the slot, the bore and the drop: switch supports off
 for the inner body. For comparison, the same tool and profile gave 283.4 g (49.4 g of support) for the first notch-disc design and 233.3 g
@@ -249,7 +342,8 @@ The editor's Simulate mode and `npm run check:physics -- treat-dispenser` simula
 - **Only the rotor's hinge is driven**, by a torque-limited actuator (≤ 29.4 N·mm, the data sheet's 300 gf·cm pull-in torque, with
   the stiffness of one full step), directly, as the motor's shaft is. It slips like a stepper and reports the travel it lost.
 - **The flap is a hinged body** free on its hinge (no spring), its mass and inertia from its rendered mesh, so that its counterweight
-  closes it as the printed part's would; a little damping; it lies on the rotor by contact and swings up to 55°.
+  closes it as the printed part's would; a little damping; it lies on the rotor by contact and swings up to 55°. With Flap magnets, its
+  magnet and the inner body's are softened point dipoles (the physics plan's magnets), repelling.
 - **Treats are independent rounded cuboids**, 14 × 9 × 5 mm with 1.5 mm corners, 0.5 g, friction 0.4, colliding with everything and
   with each other under gravity. They are packed into the funnel and a 160 mm stand-in for the bottle's neck (its 21.7 mm bore) at the
   start (seeded, the same in the browser and CI) and never spawned, deleted or moved by a press.
@@ -279,7 +373,8 @@ treats in contact).
 | Reset | RESET mid-cycle stops the motor; boot does not move it; presses during boot and while unaligned are rejected; jog + aligned → one press runs one cycle |
 | Hold and burst | BOOT held 3 s runs one cycle; three quick presses: one runs, one queues, one is rejected |
 
-CI asserts no count per press: 0, 1 or more treats per press is the accepted behaviour.
+CI asserts no count per press: 0, 1 or more treats per press is the accepted behaviour. It runs these scenarios twice: at the
+defaults and with Flap magnets.
 
 ### Simulation results
 
@@ -287,28 +382,29 @@ CI asserts no count per press: 0, 1 or more treats per press is the accepted beh
 trial and counts what actually crosses the plane past the chute's end. Forty trials (2026-10-23, this geometry: one pocket, a full
 turn per press, the counterweighted rigid flap): random fills, one orientation for all treats (flat, on edge, on end, diagonal), and
 variations of friction, mass, size, corner rounding and the number of treats; the dispenser stays sized for 14 × 9 × 5 mm treats.
+Without the flap magnets (the default; with them, see [Flap magnets](#flap-magnets-option)):
 
 | Trials | Presses | First press: 0 / 1 / 2+ | All presses: 0 / 1 / 2+ | Stalls | Leaked between cycles | Strayed into the electronics | Fastest treat |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Random fills, 10 treats (6) | 48 | 4 / 1 / 1 | 45 / 2 / 1 | 0 | 0 | 0 | 0.61 m/s |
-| One orientation, 10 treats (4) | 32 | 2 / 0 / 2 | 29 / 0 / 3 | 0 | 0 | 0 | 0.63 m/s |
-| friction 0.3 (3) | 24 | 0 / 1 / 2 | 20 / 1 / 3 | 0 | 0 | 0 | 0.70 m/s |
-| friction 0.55 (3) | 24 | 2 / 0 / 1 | 23 / 0 / 1 | 0 | 0 | 0 | 0.50 m/s |
-| mass 0.3 g (3) | 24 | 2 / 0 / 1 | 21 / 1 / 2 | 0 | 0 | 0 | 0.65 m/s |
-| mass 0.8 g (3) | 24 | 3 / 0 / 0 | 24 / 0 / 0 | 0 | 0 | 0 | 0.61 m/s |
-| 13 × 8.5 × 4.5 (3) | 24 | 2 / 0 / 1 | 23 / 0 / 1 | 0 | 0 | 0 | 0.61 m/s |
-| 15 × 9.5 × 5.5 (3) | 24 | 0 / 0 / 3 | 20 / 0 / 4 | 0 | 0 | 0 | 0.60 m/s |
-| corner r 1.0 (3) | 24 | 0 / 0 / 3 | 20 / 0 / 4 | 0 | 0 | 0 | 0.59 m/s |
-| corner r 2.2 (3) | 24 | 2 / 0 / 1 | 23 / 0 / 1 | 0 | 0 | 0 | 0.57 m/s |
-| 6 treats (3) | 24 | 0 / 1 / 2 | 21 / 1 / 2 | 0 | 0 | 0 | 0.59 m/s |
-| 12 treats (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.61 m/s |
-| All (40) | 320 | 18 / 4 / 18 | 291 / 6 / 23 | 0 | 0 | 0 | 0.70 m/s |
+| Random fills, 10 treats (6) | 48 | 3 / 0 / 3 | 45 / 0 / 3 | 0 | 0 | 0 | 0.63 m/s |
+| One orientation, 10 treats (4) | 32 | 2 / 1 / 1 | 30 / 1 / 1 | 0 | 0 | 0 | 0.67 m/s |
+| friction 0.3 (3) | 24 | 1 / 1 / 1 | 21 / 1 / 2 | 0 | 0 | 0 | 0.68 m/s |
+| friction 0.55 (3) | 24 | 3 / 0 / 0 | 24 / 0 / 0 | 0 | 0 | 0 | 0.53 m/s |
+| mass 0.3 g (3) | 24 | 0 / 1 / 2 | 21 / 1 / 2 | 0 | 0 | 0 | 0.63 m/s |
+| mass 0.8 g (3) | 24 | 1 / 0 / 2 | 22 / 0 / 2 | 0 | 0 | 0 | 0.58 m/s |
+| 13 × 8.5 × 4.5 (3) | 24 | 2 / 0 / 1 | 23 / 0 / 1 | 0 | 0 | 0 | 0.59 m/s |
+| 15 × 9.5 × 5.5 (3) | 24 | 1 / 0 / 2 | 21 / 0 / 3 | 0 | 0 | 0 | 0.66 m/s |
+| corner r 1.0 (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.62 m/s |
+| corner r 2.2 (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.59 m/s |
+| 6 treats (3) | 24 | 2 / 1 / 0 | 23 / 1 / 0 | 0 | 0 | 0 | 0.58 m/s |
+| 12 treats (3) | 24 | 3 / 0 / 0 | 24 / 0 / 0 | 0 | 0 | 0 | 0.66 m/s |
+| All (40) | 320 | 20 / 6 / 14 | 298 / 6 / 16 | 0 | 0 | 0 | 0.68 m/s |
 
 **No stall in 320 presses**, nothing left between cycles, nothing strayed into the electronics, and the fastest treat in the
-mechanism moved at 0.70 m/s (a falling treat moves at about 1 m/s; the solver flinging one would show several). One trial lost 1.4°
-of travel over all its presses (a treat against the flap for a moment), far under the 10° a cycle faults at.
+mechanism moved at 0.68 m/s (a falling treat moves at about 1 m/s; the solver flinging one would show several). One trial lost 4.1°
+of travel over all its presses (a treat against the flap for a moment), under the 10° a cycle faults at.
 
-**But one turn lets out most of what is in the funnel**: Prime alone released 7.5 of the 10 or so treats on average (2 to 12), and the
+**But one turn lets out most of what is in the funnel**: Prime alone released 8.0 of the 10 or so treats on average (2 to 12), and the
 first press or two the rest; after that the presses give nothing because the funnel is empty (the trials do not refill it). With the TPU
 flap and two pockets turned half a turn per press, Prime gave 2.05 on average (0 to 5) and the first press two or more. The flap is not the
 cause: the counterweight closes it with the TPU flap's preload, and the TPU flap's own spring on this rotor did no better (Prime 2 to
@@ -320,46 +416,46 @@ Per trial (Prime, then presses 1–8):
 
 | Fill | Prime | Presses |
 | --- | --- | --- |
-| 12 treats, random 1 | 11 | 1 0 0 0 0 0 0 0 |
+| 12 treats, random 1 | 12 | 0 0 0 0 0 0 0 0 |
 | 12 treats, random 2 | 12 | 0 0 0 0 0 0 0 0 |
-| 12 treats, random 3 | 7 | 5 0 0 0 0 0 0 0 |
+| 12 treats, random 3 | 12 | 0 0 0 0 0 0 0 0 |
 | 13 × 8.5 × 4.5, random 1 | 10 | 0 0 0 0 0 0 0 0 |
-| 13 × 8.5 × 4.5, random 2 | 10 | 0 0 0 0 0 0 0 0 |
-| 13 × 8.5 × 4.5, random 3 | 6 | 4 0 0 0 0 0 0 0 |
-| 15 × 9.5 × 5.5, random 1 | 8 | 2 0 0 0 0 0 0 0 |
-| 15 × 9.5 × 5.5, random 2 | 5 | 5 0 0 0 0 0 0 0 |
-| 15 × 9.5 × 5.5, random 3 | 4 | 3 3 0 0 0 0 0 0 |
-| 6 treats, random 1 | 2 | 4 0 0 0 0 0 0 0 |
-| 6 treats, random 2 | 3 | 3 0 0 0 0 0 0 0 |
-| 6 treats, random 3 | 5 | 1 0 0 0 0 0 0 0 |
-| corner r 1.0, random 1 | 2 | 3 5 0 0 0 0 0 0 |
-| corner r 1.0, random 2 | 5 | 5 0 0 0 0 0 0 0 |
-| corner r 1.0, random 3 | 8 | 2 0 0 0 0 0 0 0 |
-| corner r 2.2, random 1 | 10 | 0 0 0 0 0 0 0 0 |
-| corner r 2.2, random 2 | 6 | 4 0 0 0 0 0 0 0 |
-| corner r 2.2, random 3 | 10 | 0 0 0 0 0 0 0 0 |
+| 13 × 8.5 × 4.5, random 2 | 6 | 0 0 0 0 0 0 0 0 |
+| 13 × 8.5 × 4.5, random 3 | 8 | 2 0 0 0 0 0 0 0 |
+| 15 × 9.5 × 5.5, random 1 | 6 | 4 0 0 0 0 0 0 0 |
+| 15 × 9.5 × 5.5, random 2 | 2 | 4 4 0 0 0 0 0 0 |
+| 15 × 9.5 × 5.5, random 3 | 10 | 0 0 0 0 0 0 0 0 |
+| 6 treats, random 1 | 6 | 0 0 0 0 0 0 0 0 |
+| 6 treats, random 2 | 5 | 1 0 0 0 0 0 0 0 |
+| 6 treats, random 3 | 6 | 0 0 0 0 0 0 0 0 |
+| corner r 1.0, random 1 | 9 | 1 0 0 0 0 0 0 0 |
+| corner r 1.0, random 2 | 8 | 2 0 0 0 0 0 0 0 |
+| corner r 1.0, random 3 | 10 | 0 0 0 0 0 0 0 0 |
+| corner r 2.2, random 1 | 4 | 6 0 0 0 0 0 0 0 |
+| corner r 2.2, random 2 | 10 | 0 0 0 0 0 0 0 0 |
+| corner r 2.2, random 3 | 9 | 1 0 0 0 0 0 0 0 |
 | diagonal 1 | 10 | 0 0 0 0 0 0 0 0 |
-| edge 1 | 7 | 3 0 0 0 0 0 0 0 |
+| edge 1 | 9 | 1 0 0 0 0 0 0 0 |
 | end 1 | 10 | 0 0 0 0 0 0 0 0 |
-| flat 1 | 2 | 3 5 0 0 0 0 0 0 |
+| flat 1 | 7 | 3 0 0 0 0 0 0 0 |
 | friction 0.3, random 1 | 2 | 3 5 0 0 0 0 0 0 |
 | friction 0.3, random 2 | 9 | 1 0 0 0 0 0 0 0 |
-| friction 0.3, random 3 | 8 | 2 0 0 0 0 0 0 0 |
+| friction 0.3, random 3 | 10 | 0 0 0 0 0 0 0 0 |
 | friction 0.55, random 1 | 10 | 0 0 0 0 0 0 0 0 |
-| friction 0.55, random 2 | 3 | 7 0 0 0 0 0 0 0 |
-| friction 0.55, random 3 | 10 | 0 0 0 0 0 0 0 0 |
-| mass 0.3 g, random 1 | 2 | 3 4 1 0 0 0 0 0 |
-| mass 0.3 g, random 2 | 10 | 0 0 0 0 0 0 0 0 |
-| mass 0.3 g, random 3 | 10 | 0 0 0 0 0 0 0 0 |
-| mass 0.8 g, random 1 | 10 | 0 0 0 0 0 0 0 0 |
+| friction 0.55, random 2 | 10 | 0 0 0 0 0 0 0 0 |
+| friction 0.55, random 3 | 6 | 0 0 0 0 0 0 0 0 |
+| mass 0.3 g, random 1 | 5 | 5 0 0 0 0 0 0 0 |
+| mass 0.3 g, random 2 | 9 | 1 0 0 0 0 0 0 0 |
+| mass 0.3 g, random 3 | 8 | 2 0 0 0 0 0 0 0 |
+| mass 0.8 g, random 1 | 8 | 2 0 0 0 0 0 0 0 |
 | mass 0.8 g, random 2 | 10 | 0 0 0 0 0 0 0 0 |
-| mass 0.8 g, random 3 | 10 | 0 0 0 0 0 0 0 0 |
-| random 1 | 2 | 7 1 0 0 0 0 0 0 |
+| mass 0.8 g, random 3 | 8 | 2 0 0 0 0 0 0 0 |
+| random 1 | 5 | 5 0 0 0 0 0 0 0 |
 | random 2 | 10 | 0 0 0 0 0 0 0 0 |
 | random 3 | 10 | 0 0 0 0 0 0 0 0 |
-| random 4 | 9 | 1 0 0 0 0 0 0 0 |
+| random 4 | 5 | 5 0 0 0 0 0 0 0 |
 | random 5 | 10 | 0 0 0 0 0 0 0 0 |
-| random 6 | 10 | 0 0 0 0 0 0 0 0 |
+| random 6 | 5 | 5 0 0 0 0 0 0 0 |
 
 Earlier states of this design, for the record (the same tool): the TPU flap with two pockets (40 trials, 2026-10-22): no stall in 320
 presses, Prime 0 to 5 (2.05 on average), the first press two or more in 36 of 40, then the neck bridged (#140). Without any flap (a fixed back edge):
@@ -391,6 +487,7 @@ change it.
 | Motor torque | 29.4 N·mm at the output, slipping beyond 0.35° of lag | Kiatronics: pull-in 300 gf·cm; > 34.3 mN·m at 120 Hz; nothing at 700 Hz |
 | Steps per turn | 4076 | gear train ≈ 1:63.68 (library notes); calibrate |
 | Flap | Rigid, free on its hinge; its counterweight closes it with 0.27 N·mm (PETG 1.27 g/cm³, 2.9 g in all); the snap's mouth 2.6 mm over Ø3 bosses | the closing torque the TPU flap's trials needed (a constant-torque study, see above); PLA (1.24) is a little lighter. The snap's fit in PLA, and the hub's friction on its bosses, are not simulated |
+| Flap magnets | Two Ø8 × 1 mm N45 discs, point dipoles of Br V / μ₀ (Br 1.345 T, the middle of supermagnete's N45 range) softened over their radius, as the engine takes them | not measured: a point dipole 6 to 25 mm from another is rough at the short end; the magnet's own 0.38 g (about 0.05 N·mm more closing) is not in the simulation |
 | Plastic friction | 0.29 | `PHYSICS_MATERIALS` (PETG on acrylic) |
 | Bottle | PCO 1881, 0.5 l, Ø65 mm | ISBT drawing; diameter is a parameter |
 | Print fits | 0.4 mm rotor–bore, 0.15 mm cap in the bore, 0.3 mm thread, nut bays 0.15 mm each side across the flats and 0.3 mm deeper than the nut | typical FDM; check with the coupon and a test print |
@@ -406,7 +503,7 @@ change it.
    of a test print and does not turn in it.
 3. Measure a bag of treats (largest length, width, thickness); set the parameters.
 4. Print the rotor and the cap; check that the rotor turns freely in the bore by hand and slides out through the left wall.
-5. Print the flap on its end; snap it onto its bosses and check that it swings freely, falls back onto the rotor by itself, and gives
+5. Print the flap upside down (with Flap magnets, pausing for its magnet); snap it onto its bosses and check that it swings freely, falls back onto the rotor by itself, and gives
    way easily to a fingertip. If the snap is too tight, sand the mouth; too loose, print the hub again with 0.1 mm less play.
 6. Wire as above; flash with BOOT held during reset; then check that RESET alone never moves anything.
 7. Calibrate the steps per turn ("Calibrate: 2 turns") and the direction (the rotor's top must move towards the back).

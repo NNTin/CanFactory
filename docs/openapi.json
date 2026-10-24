@@ -4589,6 +4589,7 @@
                           "pocketClearance",
                           "bottleNeck",
                           "threadClearance",
+                          "flapMagnets",
                           "bottleDiameter"
                         ],
                         "properties": {
@@ -4654,6 +4655,12 @@
                             "minimum": 0.1,
                             "maximum": 0.5,
                             "multipleOf": 0.05
+                          },
+                          "flapMagnets": {
+                            "type": "boolean",
+                            "title": "Flap magnets",
+                            "description": "Embed two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N) that repel each other: one in the flap’s counterweight, one in the inner body above it. They add to the counterweight’s closing force, the more the further the flap opens. Both prints pause for you to drop a magnet in.",
+                            "default": false
                           },
                           "bottleDiameter": {
                             "type": "number",

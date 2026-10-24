@@ -1193,6 +1193,7 @@ try {
   for (const [name, overrides] of (!only || only === 'treat-dispenser' ? [
     ['default', {}], ['small treats', { treatLength: 10, treatWidth: 6, treatThickness: 3, treatCornerRadius: 0.5 }],
     ['large treats', { treatLength: 18, treatWidth: 10, treatThickness: 7, pocketClearance: 0.4 }], ['PCO 1810', { bottleNeck: 'pco-1810', threadClearance: 0.5 }],
+    ['flap magnets', { flapMagnets: true }],
   ] as const : [])) {
     const parameters: TreatDispenserParameters = { ...DEFAULT_TREAT_DISPENSER, ...overrides };
     assert.deepEqual(validateParameters(treatDispenser, parameters), [], name);
@@ -1205,7 +1206,8 @@ try {
     assert.deepEqual(result.artifact.parts.map(part => part.id), ['inner-body', 'outer-body', 'rotor', 'flap', 'cap', 'chute', 'base', 'coupon', 'case-bottom', 'case-top']);
     const bytes = await artifactBytes(result), entries = unzipSync(bytes);
     const mesh = (id: string) => parseStl(Buffer.from(entries[`${id}.stl`] ?? []));
-    for (const id of Object.keys(entries)) assert.equal(shells(mesh(id.replace(/\.stl$/, ''))), 1, `${name}: ${id} is one closed solid`);
+    // (with the flap magnets, the inner body and the flap each enclose one sealed cavity: a second, inward-facing shell)
+    for (const id of Object.keys(entries)) assert.equal(shells(mesh(id.replace(/\.stl$/, ''))), parameters.flapMagnets && ['inner-body.stl', 'flap.stl'].includes(id) ? 2 : 1, `${name}: ${id} is one closed solid`);
     const l = treatDispenserLayout(parameters), poses = treatPartPoses(l);
     // a point of W inside a part's print
     const solid = (id: 'inner-body' | 'outer-body' | 'rotor' | 'flap', point: [number, number, number]) => housingSolid(mesh(id), poseLocal(poses[id], point));
@@ -1229,6 +1231,13 @@ try {
     }
     assert.equal(solid('flap', [0, hinge.y, hinge.z - (F.hole + F.hub) / 2]), true, `${name}: flap's hub`);
     assert.equal(solid('flap', [0, (hinge.y + l.flap.tip.y) / 2, (hinge.z + l.flap.tip.z) / 2]), true, `${name}: flap's plate`);
+    // the magnets' cavities: open at the magnet, closed by a skin over and under it (sealed in at the pause), only when they are fitted
+    const m = l.magnets;
+    for (const [part, cavity] of [['flap', m.flap], ['inner-body', m.body]] as const) {
+      assert.equal(solid(part, [0, cavity.y, (cavity.z0 + cavity.z1) / 2]), !parameters.flapMagnets, `${name}: ${part}'s magnet cavity`);
+      assert.equal(solid(part, [0, cavity.y, cavity.z0 - 0.3]), true, `${name}: ${part}'s skin under the magnet`);
+      assert.equal(solid(part, [0, cavity.y, cavity.z1 + 0.3]), true, `${name}: ${part}'s skin over the magnet`);
+    }
     assert.equal(solid('inner-body', [0, 0, (l.blockTop + l.lipZ) / 2]), false, `${name}: funnel`);
     // every nut's bay is open at the nut's centre and at the mouth of its slot, in the part that holds it; solid round the hexagon's
     // corners' side, beyond its flats (the slot is no wider than the flats)
@@ -1245,7 +1254,7 @@ try {
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log(`PASS treat dispenser ${name}: 10 closed prints, an open pocket with the shaft's tip in it, slot, drop, cavity and funnel, a solid tight bore, the flap's snap hinge, open nut bays, matching preview/download bytes`);
+    console.log(`PASS treat dispenser ${name}: 10 closed prints, an open pocket with the shaft's tip in it, slot, drop, cavity and funnel, a solid tight bore, the flap's snap hinge, open nut bays, the magnets' cavities sealed when fitted, matching preview/download bytes`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

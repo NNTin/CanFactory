@@ -7,7 +7,7 @@ import { conceptPages } from './concepts.ts';
 import { QUASI_STATIC, type PhysicsSpec } from './physics.ts';
 import { revolvedPieces, type Point2 } from './physicsPieces.ts';
 import { cigaretteCasePhysics } from './cigaretteCasePhysics.ts';
-import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TIP_ANGLE, TREAT_FIRMWARE, TreatDispenserParametersSchema, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout, treatDispenserPhysics, treatFootprint, treatScadLayout, type BottleNeck, type TreatDispenserParameters } from './treatDispenser.ts';
+import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TIP_ANGLE, TREAT_DISPENSER, TREAT_FIRMWARE, TreatDispenserParametersSchema, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout, treatDispenserPhysics, treatFootprint, treatScadLayout, type BottleNeck, type TreatDispenserParameters } from './treatDispenser.ts';
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
@@ -3558,7 +3558,7 @@ export const esp32C3SuperminiCase = {
  * one list), the same numbers its physics is made from.
  */
 // the layout rides on the one string setting (scadEncode takes strings); every setting is mapped, so each is in the cache fingerprint
-const TREAT_MAPPING = { bottleNeck: 'LAYOUT', treatLength: 'TREAT_LENGTH', treatWidth: 'TREAT_WIDTH', treatThickness: 'TREAT_THICKNESS', treatCornerRadius: 'TREAT_CORNER_RADIUS', pocketClearance: 'POCKET_CLEARANCE', threadClearance: 'THREAD_CLEARANCE_SETTING', bottleDiameter: 'BOTTLE_DIAMETER' };
+const TREAT_MAPPING = { bottleNeck: 'LAYOUT', treatLength: 'TREAT_LENGTH', treatWidth: 'TREAT_WIDTH', treatThickness: 'TREAT_THICKNESS', treatCornerRadius: 'TREAT_CORNER_RADIUS', pocketClearance: 'POCKET_CLEARANCE', threadClearance: 'THREAD_CLEARANCE_SETTING', flapMagnets: 'FLAP_MAGNETS', bottleDiameter: 'BOTTLE_DIAMETER' };
 const treatSchema = TreatDispenserParametersSchema;
 const treatParts: { id: string; title: string }[] = [
   { id: 'inner-body', title: 'Inner body: bottle thread, funnel, rotor block, motor and ULN2003 mounts, the cap’s lugs' },
@@ -3575,10 +3575,11 @@ export const treatDispenser = {
     { text: 'cylus80', url: 'https://www.thingiverse.com/thing:2103924' },
     { text: 'Vinors3DLab', url: 'https://www.makeronline.com/en/model/Ultra-Compact-Case-for-ESP---C--SuperMini--step-file-/338531.html' },
   ],
-  printNotes: 'PETG (or PLA), 0.2 mm layers, four perimeters; no flexible filament. Print every part without supports (they are drawn to need none; automatic supports would fill the thread and stand in the rotor’s bore and slot): the inner body upright on its legs and feet, the outer body upright on its open bottom, the rotor on its motor end, the bearing cap on its flange, the chute on its floor, the flap standing on its end (its hub upright), the base plate and the coupon flat. The reused ESP32 case parts print as their own model says. Print the thread coupon first and screw it onto your bottle: tune Thread clearance until it runs on and off by hand without wobble. Fasteners: 12 ISO 4032 M3 hex nuts in printed bays (slide each in before its screw; the bays are 5.8 mm across the flats) and ISO 4762 M3 screws: M3 × 6 for the motor’s ears (two), M3 × 8 for the ULN2003 board (four) and the outer body’s corners (four), M3 × 10 for the bearing cap (two). The flap snaps onto two bosses behind the slot before the motor goes on (push it up and back through the empty bore) and then swings freely: check that it falls back onto the rotor by itself. The inner body is not screwed down: it stands in rims on the base plate, and the corner screws pull the outer body’s top down onto its collar. To clear or clean the rotor, unscrew the cap on the left side and slide the rotor out. To reach the motor, the ULN2003 or the SuperMini’s header pins, unscrew the bottle, the cap and the four corner screws under the base plate and lift the outer body off. Printed plastic is not automatically food-safe. Prototype: not validated for unattended feeding; treats can bridge in the bottle’s neck (docs/treat-dispenser.md). The ESP32 case parts are adapted from Vinors3DLab’s CC BY-NC-SA 4.0 release and the mechanism from bovineblitz’s CC BY-NC 4.0 one, so the whole model is shared under CC BY-NC-SA 4.0.',
+  printNotes: 'PETG (or PLA), 0.2 mm layers, four perimeters; no flexible filament. Print every part without supports (they are drawn to need none; automatic supports would fill the thread and stand in the rotor’s bore and slot): the inner body upright on its legs and feet, the outer body upright on its open bottom, the rotor on its motor end, the bearing cap on its flange, the chute on its floor, the flap upside down on the flat tops of its hub and counterweight, the base plate and the coupon flat. The reused ESP32 case parts print as their own model says. Print the thread coupon first and screw it onto your bottle: tune Thread clearance until it runs on and off by hand without wobble. Fasteners: 12 ISO 4032 M3 hex nuts in printed bays (slide each in before its screw; the bays are 5.8 mm across the flats) and ISO 4762 M3 screws: M3 × 6 for the motor’s ears (two), M3 × 8 for the ULN2003 board (four) and the outer body’s corners (four), M3 × 10 for the bearing cap (two). With Flap magnets on, each of the flap and the inner body pauses once (the heights are in the notes): hold the two Ø8 × 1 mm magnets so that they push each other apart, and drop each into its cavity with that face down. The flap snaps onto two bosses behind the slot before the motor goes on (push it up and back through the empty bore) and then swings freely: check that it falls back onto the rotor by itself. The inner body is not screwed down: it stands in rims on the base plate, and the corner screws pull the outer body’s top down onto its collar. To clear or clean the rotor, unscrew the cap on the left side and slide the rotor out. To reach the motor, the ULN2003 or the SuperMini’s header pins, unscrew the bottle, the cap and the four corner screws under the base plate and lift the outer body off. Printed plastic is not automatically food-safe. Prototype: not validated for unattended feeding; treats can bridge in the bottle’s neck (docs/treat-dispenser.md). The ESP32 case parts are adapted from Vinors3DLab’s CC BY-NC-SA 4.0 release and the mechanism from bovineblitz’s CC BY-NC 4.0 one, so the whole model is shared under CC BY-NC-SA 4.0.',
   license: 'CC BY-NC-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
   parts: [
-    ...treatParts.map(({ id, title }): ModelPart => ({ id, title, sourcePath: 'models/treat-dispenser/generator.scad', scadMapping: TREAT_MAPPING, scadConstants: { PART: id } })),
+    // the inner body and the flap may hold a magnet sealed in at a print pause (`flapMagnets`): a closed void inside
+    ...treatParts.map(({ id, title }): ModelPart => ({ id, title, sourcePath: 'models/treat-dispenser/generator.scad', scadMapping: TREAT_MAPPING, scadConstants: { PART: id }, ...(id === 'inner-body' || id === 'flap' ? { sealedVoids: true } : {}) })),
     { id: 'case-bottom', title: 'ESP32-C3 case base (Vinors3DLab, adapted)', sourcePath: 'models/esp32-c3-supermini-case/bottom.scad', scadConstants: { FLUSH_HEADERS: DEFAULT_ESP32_CASE.flushHeaders, TALLER_ENCLOSURE: DEFAULT_ESP32_CASE.tallerEnclosure, ...ESP32_CASE_HEADER_DEFINES } },
     { id: 'case-top', title: 'ESP32-C3 case sliding B/R lid (Vinors3DLab, adapted)', sourcePath: 'models/esp32-c3-supermini-case/top.scad', scadConstants: { LED_HOLES: DEFAULT_ESP32_CASE.ledHoles, ...ESP32_CASE_LED_DEFINES } },
   ],
@@ -3587,7 +3588,7 @@ export const treatDispenser = {
   controls: [
     control(treatSchema, 'treatLength', 'basic'), control(treatSchema, 'treatWidth', 'basic'), control(treatSchema, 'treatThickness', 'basic'),
     enumControl(treatSchema, 'bottleNeck', 'basic', (Object.keys(BOTTLE_NECKS) as BottleNeck[]).map(value => ({ value, label: BOTTLE_NECKS[value].title, description: `Thread ${BOTTLE_NECKS[value].T} mm over ${BOTTLE_NECKS[value].E} mm, pitch ${BOTTLE_NECKS[value].pitch} mm, bore ${BOTTLE_NECKS[value].bore} mm.` }))),
-    control(treatSchema, 'bottleDiameter', 'basic'),
+    control(treatSchema, 'bottleDiameter', 'basic'), control(treatSchema, 'flapMagnets', 'basic'),
     control(treatSchema, 'pocketClearance', 'advanced'), control(treatSchema, 'threadClearance', 'advanced'), control(treatSchema, 'treatCornerRadius', 'advanced'),
   ],
   physics: parameters => treatDispenserPhysics(parameters as TreatDispenserParameters, { treats: 8 }),
@@ -3605,6 +3606,9 @@ export const treatDispenser = {
         ? `One press: ${treatCycleSteps()} half-steps net (${TREAT_FIRMWARE.stepsPerTurn} per turn, calibrate yours): back ${TREAT_FIRMWARE.rock}°, then a full turn and ${TREAT_FIRMWARE.rock}° on.`
         : `One press: ${treatCycleSteps()} half-steps forward, a full turn (calibrate yours); never backwards.`,
       `Base plate ${(base[1] - base[0]).toFixed(0)} × ${(base[3] - base[2]).toFixed(0)} mm: a full 0.5 l bottle of Ø${parameters.bottleDiameter} mm leans ${TIP_ANGLE}° before the dispenser tips.`,
+      ...(parameters.flapMagnets ? [
+        `Flap magnets: pause the flap’s print at ${l.magnets.flap.pause} mm (before layer ${layerAbove(l.magnets.flap.pause, TREAT_DISPENSER.flap.magnet.layer)}) and the inner body’s at ${l.magnets.body.pause} mm (before layer ${layerAbove(l.magnets.body.pause, TREAT_DISPENSER.flap.magnet.layer)}), at ${TREAT_DISPENSER.flap.magnet.layer} mm layers; drop an Ø8 × 1 mm magnet into each cavity, the faces that repel each other facing down in both, then resume.`,
+      ] : []),
       'No sensor sees a treat leave: a cycle is only commanded. Treats can bridge in the bottle’s neck (#140).',
     ] };
   },

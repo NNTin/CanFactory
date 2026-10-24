@@ -1,9 +1,11 @@
 import { Type, type Static } from 'typebox';
 import type { Assembly, ParameterIssue } from './models.ts';
-import type { PhysicsBody, PhysicsCheck, PhysicsController, PhysicsCounter, PhysicsDrive, PhysicsScenario, PhysicsSpec } from './physics.ts';
+import type { PhysicsBody, PhysicsCheck, PhysicsController, PhysicsCounter, PhysicsDrive, PhysicsMagnet, PhysicsScenario, PhysicsSpec } from './physics.ts';
 import { DEFAULT_ESP32_CASE, esp32CaseAssembly, esp32CaseGround, ESP32_CASE, ESP32_CASE_BOARD, ESP32_CASE_HEADER } from './esp32Case.ts';
 import { devBoardLayout, dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, stepperDriverLayout } from './parts/index.ts';
 import type { Point2 } from './physicsPieces.ts';
+import { embedCavity, toLayers } from './printPause.ts';
+import { toyDipole } from './magneticCatToyPhysics.ts';
 
 /**
  * A gumball-style treat dispenser (docs/treat-dispenser.md, issue #138), after bovineblitz's "Cat treat gumball-style dispenser"
@@ -79,6 +81,11 @@ export const TREAT_DISPENSER = {
   flap: {
     thickness: 1.6, hub: 2.9, hole: 1.7, boss: 1.5, bossLength: 1.5, mouth: 2.6, mouthAngle: 135, lean: 1.5,
     arm: 2, weight: [10, 8.5] as readonly [number, number], reach: 15, swing: 55, density: 1.27,
+    /** The optional magnets (`flapMagnets`): the library part; a cavity's play round it (radially), headroom over it before the pause,
+     * the skin under it (whole layers at the print notes' 0.2 mm); the inner body's magnet's centre from the hinge (y, z), above and behind
+     * the counterweight, clear of its swing and of the slot (a search over the places that fit: the most closing torque at rest that
+     * stays closing up to the stop); the flap's lies in the counterweight under its top face. Their faces that repel face each other. */
+    magnet: { part: 'supermagnete-s-08-01-n', play: 0.15, headroom: 0.2, skin: 0.6, layer: 0.2, body: [4.5, 20] as readonly [number, number] },
   },
 } as const;
 
@@ -99,6 +106,7 @@ export const TreatDispenserParametersSchema = Type.Object({
   pocketClearance: mm('Pocket clearance', 'Play round a treat in a rotor pocket, mm. More takes bigger treats, and lets two thin ones in.', 1, 0.4, 2, 0.05),
   bottleNeck: Type.Enum(Object.keys(BOTTLE_NECKS) as BottleNeck[], { title: 'Bottle neck', description: 'The thread of the bottle that screws into the top. Print the thread coupon first: real bottles vary.', default: 'pco-1881' }),
   threadClearance: mm('Thread clearance', 'Radial play of the body’s thread on the bottle’s, mm; tune it with the coupon.', 0.3, 0.1, 0.5, 0.05),
+  flapMagnets: Type.Boolean({ title: 'Flap magnets', description: 'Embed two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N) that repel each other: one in the flap’s counterweight, one in the inner body above it. They add to the counterweight’s closing force, the more the further the flap opens. Both prints pause for you to drop a magnet in.', default: false }),
   bottleDiameter: mm('Bottle diameter', 'Largest diameter of the bottle, mm (0.5 l PET bottles are about 65 mm). Sets the base plate’s size so that a full bottle cannot easily tip the dispenser over.', 65, 55, 95, 1),
 }, { additionalProperties: false });
 export type TreatDispenserParameters = Static<typeof TreatDispenserParametersSchema>;
@@ -160,20 +168,36 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   const pieces = [
     { volume: width * reach * F.thickness, behind: reach / 2 * Math.sin(lean) },
     { volume: width * Math.PI * (F.hub ** 2 - F.hole ** 2), behind: 0 },
-    { volume: width * armLength * F.arm, behind: F.hub + armLength / 2 },
+    { volume: (width - 2 * (F.bossLength + 0.3)) * armLength * F.arm, behind: F.hub + armLength / 2 },
     { volume: width * wy * wz, behind: F.reach },
   ];
   const mass = pieces.reduce((sum, piece) => sum + piece.volume, 0) * F.density / 1000;
   const closing = pieces.reduce((sum, piece) => sum + piece.volume * F.density / 1000 * piece.behind, 0) * 9.81e-3;
-  // the counterweight's farthest corner from the hinge (the recess's radius) and how high over the hinge it swings, which the recess and
-  // the block's top must clear as the flap swings open
-  const sweep = Math.hypot(F.reach + wy / 2, wz / 2) + 0.5;
-  const sweepTop = (sweep - 0.5) * Math.sin(Math.min(90, F.swing + Math.atan2(wz / 2, F.reach + wy / 2) / DEG) * DEG) + 0.5;
+  // the counterweight and its arm hang from flush tops, level with the hub's (the flap prints upside down on them): its corners from the
+  // hinge (y, z); the farthest (the recess's radius) and how high over the hinge they swing, which the recess and the block's top must
+  // clear as the flap swings open
+  const corners: [number, number][] = [F.reach - wy / 2, F.reach + wy / 2].flatMap(y => [F.hub, F.hub - wz].map((z): [number, number] => [y, z]));
+  const sweep = Math.max(...corners.map(([y, z]) => Math.hypot(y, z))) + 0.5;
+  const sweepTop = Math.max(...Array.from({ length: F.swing + 1 }, (_, a) => Math.max(...corners.map(([y, z]) => y * Math.sin(a * DEG) + z * Math.cos(a * DEG))))) + 0.5;
+  // the magnets' cavities (whether or not they are fitted, so that the option does not change the body): the flap's under the
+  // counterweight's top face (its skin on the bed, the flap printed upside down), the inner body's a flat disc on a layer boundary
+  // (the inner body prints upright from z = base); each magnet lies on its cavity's floor as printed
+  const M = F.magnet, magnet = findPart(M.part);
+  if (!magnet) throw new Error(`Missing the flap magnet ${M.part}.`);
+  const magnetT = dimensionOf(magnet, 'thickness', 'max'), magnetR = dimensionOf(magnet, 'diameter', 'max') / 2 + M.play;
+  const flapCavity = embedCavity(M.skin, magnetT, M.headroom, M.layer), flapTop = hinge.z + F.hub;
+  const bodyFloor = toLayers(hinge.z + M.body[1] - magnetT / 2 - T.base, M.layer), bodyPause = toLayers(bodyFloor + magnetT + M.headroom, M.layer);
+  const magnets = {
+    radius: magnetR, thickness: magnetT,
+    flap: { y: hinge.y + F.reach, z0: flapTop - flapCavity.pause, z1: flapTop - flapCavity.skin, centre: flapTop - flapCavity.skin - magnetT / 2, pause: flapCavity.pause },
+    body: { y: hinge.y + M.body[0], z0: T.base + bodyFloor, z1: T.base + bodyPause, centre: T.base + bodyFloor + magnetT / 2, pause: bodyPause },
+  };
   // the cavity's back reaches behind the counterweight up to its roof
   const flap = { hinge, tip, length: reach, angle: lean / DEG, width, mass, closing, sweep, sweepTop, cavityBack: hinge.y + F.reach + wy / 2 + 0.5 };
-  // the block's top: over the counterweight's recess, with a wall above it; its top slopes down to the back at STEEP (50°) clear of the
-  // cavity's round and of the recess (`blockSlope`: the slope's distance from the axis)
-  const blockBottom = axisZ - block.halfY, blockTop = hinge.z + Math.max(6.6, sweepTop + T.wall), blockBack = cavityR + T.wall;
+  // the block's top: over the counterweight's recess and the inner body's magnet, with a wall above them; its top slopes down to the back
+  // at STEEP (50°) clear of the cavity's round and of the recess (`blockSlope`: the slope's distance from the axis)
+  const blockBottom = axisZ - block.halfY, blockBack = cavityR + T.wall;
+  const blockTop = Math.max(hinge.z + Math.max(6.6, sweepTop + T.wall), magnets.body.z1 + M.skin);
   const blockSlope = Math.max(blockBack, hinge.y * Math.sin(50 * DEG) + hz * Math.cos(50 * DEG) + sweep + T.wall);
   // the drop: the bore's front edge under the rotor (y); behind, the drop opens into the cavity
   const drop = { front: -bore.radius * Math.sin(T.dropFront * DEG) };
@@ -201,7 +225,7 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   // the bearing cap's screws, either side of the bore, into nuts in two lugs on the inner body, just inside the outer body's left wall
   const capScrewR = (bore.radius + T.capRadius) / 2;
   return {
-    pocket, R, rotorEnd, bore, block, slot, chuteIn, chuteOut, legIn, legOut, tan, chuteAt, axisZ, blockBottom, blockTop, blockBack, blockSlope, cavityR, flap, drop, lipZ, lipR, neck, threadR, bossR, bossTop, gableHalf,
+    pocket, R, rotorEnd, bore, block, slot, chuteIn, chuteOut, legIn, legOut, tan, chuteAt, axisZ, blockBottom, blockTop, blockBack, blockSlope, cavityR, flap, magnets, drop, lipZ, lipR, neck, threadR, bossR, bossTop, gableHalf,
     motorFace: block.halfX, canY: -shaftOffset, canR, motorLength, earSpan, shaftOffset, bay, standoffLength, driverTop, capScrewR,
     lugFace: -(halfWidth - T.shell) + T.gap,
     // the back wall leaves room behind the block for the ESP32 case (8.4 deep) and its header pins (bigger treats, a deeper block)
@@ -284,8 +308,9 @@ export function treatPartPoses(l: TreatDispenserLayout): Record<'inner-body' | '
     rotor: { position: [l.rotorEnd, 0, l.axisZ], rotation: [0, -90, 0] },
     // its flange down
     cap: { position: [-(l.halfWidth + T.capFlange), 0, l.axisZ], rotation: [0, 90, 0] },
-    // standing on its −X end, its hub upright (a round hole and a clean mouth for the snap)
-    flap: { position: [-l.flap.width / 2, l.flap.hinge.y, l.flap.hinge.z], rotation: [0, 90, 0] },
+    // upside down, on the flush tops of its hub, arm and counterweight: the magnet's cavity under the counterweight's top lies flat, so
+    // that the print can pause to take the magnet
+    flap: { position: [0, l.flap.hinge.y, l.flap.hinge.z + TREAT_DISPENSER.flap.hub], rotation: [180, 0, 0] },
   };
 }
 
@@ -417,8 +442,8 @@ export function treatFlapPieces(l: TreatDispenserLayout): number[][] {
   const F = TREAT_DISPENSER.flap, [wy, wz] = F.weight;
   const box2 = (y0: number, y1: number, z0: number, z1: number): [number, number][] => [[y0, z0], [y1, z0], [y1, z1], [y0, z1]];
   return [
-    quad, box2(hinge.y + F.hub - 0.5, hinge.y + F.reach - wy / 2, hinge.z - F.arm / 2, hinge.z + F.arm / 2),
-    box2(hinge.y + F.reach - wy / 2, hinge.y + F.reach + wy / 2, hinge.z - wz / 2, hinge.z + wz / 2),
+    quad, box2(hinge.y + F.hub - 0.5, hinge.y + F.reach - wy / 2, hinge.z + F.hub - F.arm, hinge.z + F.hub),
+    box2(hinge.y + F.reach - wy / 2, hinge.y + F.reach + wy / 2, hinge.z + F.hub - wz, hinge.z + F.hub),
   ].map(section => [-width / 2, width / 2].flatMap(x => section.flatMap(([y, z]) => [x, y, z])));
 }
 
@@ -778,6 +803,22 @@ export function treatOutletCounter(p: TreatDispenserParameters): PhysicsCounter 
   };
 }
 
+/**
+ * The optional flap magnets as dipoles (`flapMagnets`): the flap's in its counterweight, its moment up (W) at rest; the inner body's
+ * above it, its moment down, so that they repel (Br V / μ₀ of the library's N45 disc, as the magnetic cat toy takes it).
+ */
+export function treatFlapMagnets(l: TreatDispenserLayout, poses: ReturnType<typeof treatPartPoses>): PhysicsMagnet[] {
+  const dipole = toyDipole(TREAT_DISPENSER.flap.magnet.part);
+  const local = (pose: Pose, at: Vec3, up: number) => {
+    const p = poseLocal(pose, at), q = poseLocal(pose, [at[0], at[1], at[2] + up]);
+    return { position: p, moment: [0, 1, 2].map(k => ((q[k] ?? 0) - (p[k] ?? 0)) * dipole.moment) as Vec3 };
+  };
+  return [
+    { id: 'flap-magnet', title: 'Flap magnet (Ø8 × 1 N45, in the counterweight)', body: 'flap', softening: dipole.radius, ...local(poses.flap, [0, l.magnets.flap.y, l.magnets.flap.centre], 1) },
+    { id: 'body-magnet', title: 'Inner body magnet (Ø8 × 1 N45, above the counterweight)', body: 'inner-body', softening: dipole.radius, ...local(poses['inner-body'], [0, l.magnets.body.y, l.magnets.body.centre], -1) },
+  ];
+}
+
 export function treatDispenserPhysics(p: TreatDispenserParameters, options: TreatDispenserPhysicsOptions = {}): PhysicsSpec {
   const l = treatDispenserLayout(p);
   const T = TREAT_DISPENSER;
@@ -820,6 +861,7 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
       },
     ],
     exclude: [['rotor', 'inner-body'], ['rotor', 'chute'], ['flap', 'inner-body'], ['flap', 'chute']],
+    ...(p.flapMagnets ? { magnets: treatFlapMagnets(l, poses) } : {}),
     motors: [{ id: 'motor', title: '28BYJ-48 (output shaft, on the rotor)', body: 'rotor', ...TREAT_MOTOR, speed: firmwareDegrees(firmware.halfSteps), acceleration: firmwareDegrees(firmware.acceleration) }],
     items,
     counters: [
@@ -887,7 +929,9 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     // the flap: hinge (y, z), plate length and lean, thickness, hub, hole, boss, boss length, mouth, width
     ['FLAP', [round(l.flap.hinge.y), round(l.flap.hinge.z), round(l.flap.length), round(l.flap.angle), T.flap.thickness, T.flap.hub, T.flap.hole, T.flap.boss, T.flap.bossLength, T.flap.mouth, round(l.flap.width), T.flap.mouthAngle]],
     // its counterweight: arm thickness, weight (y, z), the weight's centre behind the hinge, the swing, the recess's radius round the hinge
-    ['WEIGHT', [T.flap.arm, ...T.flap.weight, T.flap.reach, T.flap.swing, round(l.flap.sweep)]], ['BLOCK_SLOPE', round(l.blockSlope)], ['CAVITY_BACK', round(l.flap.cavityBack)], ['GABLE_HALF', round(l.gableHalf)],
+    ['WEIGHT', [T.flap.arm, ...T.flap.weight, T.flap.reach, T.flap.swing, round(l.flap.sweep)]],
+    // the magnets (`flapMagnets`): fitted (1) or not, the cavities' radius, the flap's cavity (y, z from, z to) and the inner body's
+    ['MAGNET', [p.flapMagnets ? 1 : 0, round(l.magnets.radius), round(l.magnets.flap.y), round(l.magnets.flap.z0), round(l.magnets.flap.z1), round(l.magnets.body.y), round(l.magnets.body.z0), round(l.magnets.body.z1)]], ['BLOCK_SLOPE', round(l.blockSlope)], ['CAVITY_BACK', round(l.flap.cavityBack)], ['GABLE_HALF', round(l.gableHalf)],
     ['LIP_Z', round(l.lipZ)], ['LIP_R', round(l.lipR)], ['BOSS_TOP', round(l.bossTop)],
     ['CHUTE', [round(l.chuteIn), round(l.chuteOut), round(l.legIn), round(l.legOut)]], ['CHUTE_END', T.chuteEnd], ['CHUTE_BACK', round(l.chuteBack)],
     ['CHUTE_SLOPE', T.chuteSlope], ['EXIT_Z', T.base + T.exitZ], ['CHUTE_FLOOR', T.chuteFloor], ['CHUTE_WALL', T.chuteWall], ['CHUTE_SIDE', T.chuteSide],
@@ -952,6 +996,11 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
       motor: motorPose, driver: bay.driverPose,
       board: inCase('board'), 'header-1': inCase('header-1'), 'header-2': inCase('header-2'),
       ...Object.fromEntries(bolts.flatMap(({ bolt, screw, nut }) => [[`${bolt.id}-screw`, screw], [`${bolt.id}-nut`, nut]])),
+      // the optional magnets, sealed in at print pauses (the library's disc: its axis Z, its bottom face at z = 0)
+      ...(p.flapMagnets ? {
+        'flap-magnet': { position: [0, l.magnets.flap.y, l.magnets.flap.centre - l.magnets.thickness / 2], rotation: [0, 0, 0] },
+        'body-magnet': { position: [0, l.magnets.body.y, l.magnets.body.centre - l.magnets.thickness / 2], rotation: [0, 0, 0] },
+      } : {}),
     },
     references: [
       { id: 'motor', part: motor.id, title: motor.title },
@@ -963,11 +1012,15 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
         { id: `${bolt.id}-screw`, part: bolt.screw, title: `${screw(bolt.screw)} (${bolt.label})` },
         { id: `${bolt.id}-nut`, part: nut.id, title: `${nut.title} (${bolt.label})` },
       ]),
+      ...(p.flapMagnets ? [
+        { id: 'flap-magnet', part: TREAT_DISPENSER.flap.magnet.part, title: `${screw(TREAT_DISPENSER.flap.magnet.part)} (in the flap’s counterweight, sealed in at a print pause)` },
+        { id: 'body-magnet', part: TREAT_DISPENSER.flap.magnet.part, title: `${screw(TREAT_DISPENSER.flap.magnet.part)} (in the inner body over the counterweight, sealed in at a print pause; repelling the flap’s)` },
+      ] : []),
     ],
     steps: [
       { title: 'Push two M3 nuts into the inner body’s motor bays, from the front', parts: ids('motor', 'nut'), from: [0, -16, 0] },
       { title: 'Drop M3 nuts into the ULN2003’s standoffs and the cap’s lugs', parts: [...ids('driver', 'nut'), ...ids('cap', 'nut')], from: [0, 0, 8] },
-      { title: 'Snap the flap’s hub onto the two bosses behind the slot, pushed up and back from the bore (before the motor and the rotor: their shafts fill the bore); it swings freely', parts: ['flap'], from: [0, -12, -12] },
+      { title: 'Snap the flap’s hub onto the two bosses behind the slot, pushed up and back from the bore (before the motor and the rotor: their shafts fill the bore); it swings freely', parts: ['flap', ...(p.flapMagnets ? ['flap-magnet'] : [])], from: [0, -12, -12] },
       { title: 'Screw the motor to the inner body’s right side, its shaft into the block (two M3 × 6)', parts: ['motor', ...ids('motor', 'screw')], from: [45, 0, 0] },
       { title: 'Screw the ULN2003 board to its standoffs under the motor (four M3 × 8); plug in the motor', parts: ['driver', ...ids('driver', 'screw')], from: [45, 0, 0] },
       { title: 'Push M3 nuts into the outer body’s left corner columns, from inside', parts: ids('corner-left', 'nut'), from: [14, 0, 0] },

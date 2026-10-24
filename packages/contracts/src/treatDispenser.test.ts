@@ -3,7 +3,7 @@ import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
 import {
   BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, PhysicsSpecSchema, TIP_ANGLE, TREAT_DISPENSER, TREAT_FASTENERS, TREAT_FIRMWARE, TREAT_PRINTED_PARTS, dimensionOf, findModel, findPart,
-  posePoint, treatBayLayout, treatBoltPoses, treatBolts, treatCycleSeconds, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout,
+  posePoint, treatBayLayout, treatPartPoses, treatBoltPoses, treatBolts, treatCycleSeconds, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout,
   treatDispenserPhysics, treatFeet, treatFill, treatFootprint, treatRotorPieces, treatScadValues, treatVertices, treatWiringRoom, validateParameters, type TreatDispenserParameters,
 } from './index.ts';
 
@@ -58,14 +58,64 @@ describe('treat dispenser layout', () => {
     // its counterweight holds it shut with about the closing torque of the old TPU flap's preload (0.3 N·mm, which the trials with a
     // plain hanging plate, about 0.01 N·mm, showed it needs), and swings up its whole travel behind the slot's back wall (a wall between)
     expect(l.flap.closing).toBeGreaterThan(0.25);
-    const [wy, wz] = F.weight, a = F.swing * Math.PI / 180;
-    expect(l.flap.hinge.y + (F.reach - wy / 2) * Math.cos(a) - wz / 2 * Math.sin(a) - 0.5 - (l.slot.halfY + TREAT_DISPENSER.wall)).toBeGreaterThan(0);
+    // (the counterweight's top is flush with the hub's: its leading top corner swings nearest the wall)
+    const [wy] = F.weight, a = F.swing * Math.PI / 180;
+    expect(l.flap.hinge.y + (F.reach - wy / 2) * Math.cos(a) - F.hub * Math.sin(a) - 0.5 - (l.slot.halfY + TREAT_DISPENSER.wall)).toBeGreaterThan(0);
     expect(l.blockTop - l.flap.hinge.z).toBeGreaterThan(l.flap.sweepTop + TREAT_DISPENSER.wall - 1e-9);
     // the snap: the hub's hole turns freely on a boss, its mouth narrower than a boss (it holds), each boss reaches into the hub
     expect(F.hole).toBeGreaterThan(F.boss);
     expect(F.mouth).toBeLessThan(2 * F.boss);
     expect(F.bossLength).toBeGreaterThan((2 * l.slot.halfX - l.flap.width) / 2);
     expect(F.hub - F.hole).toBeGreaterThanOrEqual(1.2);
+  });
+
+  it('seals the optional flap magnets in at a print pause each, the inner body’s clear of the counterweight’s swing, repelling so as to close the flap', () => {
+    const F = TREAT_DISPENSER.flap, M = F.magnet, m = l.magnets, { hinge } = l.flap;
+    const magnet = findPart(M.part);
+    if (!magnet) throw new Error('No flap magnet in the library.');
+    // cavities from the library part's greatest size, play round it and headroom over it; the pauses on layer boundaries
+    expect(2 * m.radius).toBeCloseTo(dimensionOf(magnet, 'diameter', 'max') + 2 * M.play, 9);
+    for (const cavity of [m.flap, m.body]) {
+      expect(cavity.z1 - cavity.z0).toBeGreaterThanOrEqual(m.thickness + M.headroom - 1e-9);
+      expect(Math.abs(cavity.pause / M.layer - Math.round(cavity.pause / M.layer))).toBeLessThan(1e-6);
+    }
+    // the flap's under the counterweight's top face (its skin on the bed), within the counterweight's length
+    expect(hinge.z + F.hub - m.flap.z1).toBeCloseTo(M.skin, 6);
+    expect(m.flap.y - m.radius).toBeGreaterThan(hinge.y + F.reach - F.weight[0] / 2);
+    expect(m.flap.y + m.radius).toBeLessThan(hinge.y + F.reach + F.weight[0] / 2);
+    // the inner body's under the block's top and behind the slot, a skin from each; outside the room the counterweight sweeps
+    expect(l.blockTop - m.body.z1).toBeGreaterThanOrEqual(M.skin - 1e-9);
+    expect(m.body.y - m.radius - (l.slot.halfY + M.skin)).toBeGreaterThan(0);
+    const [wy, wz] = F.weight;
+    const inSweep = (y: number, z: number) => Array.from({ length: F.swing + 1 }, (_, a) => a * Math.PI / 180).some(a => {
+      const dy = y - hinge.y, dz = z - hinge.z, ry = dy * Math.cos(a) + dz * Math.sin(a), rz = -dy * Math.sin(a) + dz * Math.cos(a);
+      return ry > F.reach - wy / 2 - 0.5 - M.skin && ry < F.reach + wy / 2 + 0.5 + M.skin && rz > F.hub - wz - 0.5 - M.skin && rz < F.hub + 0.5 + M.skin;
+    });
+    for (let dy = -m.radius; dy <= m.radius; dy += 0.5) for (const z of [m.body.z0, m.body.z1]) expect(inSweep(m.body.y + dy, z)).toBe(false);
+    // in the physics only when fitted: two dipoles, opposed (they repel), the inner body's above the flap's
+    expect(treatDispenserPhysics(p).magnets ?? []).toEqual([]);
+    const magnets = treatDispenserPhysics({ ...p, flapMagnets: true }).magnets ?? [];
+    expect(magnets.map(item => item.body)).toEqual(['flap', 'inner-body']);
+    const poses = treatPartPoses(l), world = (body: string, v: number[]) => posePoint({ position: [0, 0, 0], rotation: (body === 'flap' ? poses.flap : poses['inner-body']).rotation }, v);
+    const [up, down] = magnets.map(item => world(item.body, item.moment));
+    expect(up?.[2]).toBeGreaterThan(0); expect(down?.[2]).toBeLessThan(0);
+    expect(m.body.centre).toBeGreaterThan(m.flap.centre);
+    // their closing torque about the hinge (softened point dipoles, as the engine takes them): closing at rest and as the flap opens
+    const MU = 4e-7 * Math.PI, moment = Math.hypot(...(up ?? [])), soft = (dimensionOf(magnet, 'diameter') / 2) * 1e-3;
+    const energy = (deg: number) => {
+      const a = deg * Math.PI / 180, dy = m.flap.y - hinge.y, dz = m.flap.centre - hinge.z;
+      const py = hinge.y + dy * Math.cos(a) - dz * Math.sin(a), pz = hinge.z + dy * Math.sin(a) + dz * Math.cos(a);
+      const ry = (py - m.body.y) * 1e-3, rz = (pz - m.body.centre) * 1e-3, d2 = ry ** 2 + rz ** 2 + soft ** 2, d = Math.sqrt(d2);
+      // the inner body's moment points down (0, −moment): its field at the flap's magnet, and the flap's moment turned with the flap
+      const dot = -moment * rz / d, k = MU / (4 * Math.PI) / (d2 * d);
+      const by = k * 3 * ry / d * dot, bz = k * (3 * rz / d * dot + moment);
+      return -(-Math.sin(a) * moment * by + Math.cos(a) * moment * bz);
+    };
+    // (N·mm: the energy rising as the flap opens is a torque closing it)
+    const closing = (deg: number) => (energy(deg + 0.01) - energy(deg - 0.01)) / (0.02 * Math.PI / 180) * 1000;
+    for (const deg of [0, 20, 40, 50, F.swing]) expect(closing(deg), `${deg}°`).toBeGreaterThan(0);
+    expect(closing(0)).toBeGreaterThan(0.05);
+    expect(closing(50)).toBeGreaterThan(10 * closing(0));
   });
 
   it('keeps the rotor more than a treat’s length above the chute where its pockets drop, so that none can be caught between them', () => {

@@ -2293,6 +2293,12 @@ export interface operations {
                          */
                         threadClearance: number;
                         /**
+                         * Flap magnets
+                         * @description Embed two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N) that repel each other: one in the flap’s counterweight, one in the inner body above it. They add to the counterweight’s closing force, the more the further the flap opens. Both prints pause for you to drop a magnet in.
+                         * @default false
+                         */
+                        flapMagnets: boolean;
+                        /**
                          * Bottle diameter
                          * @description Largest diameter of the bottle, mm (0.5 l PET bottles are about 65 mm). Sets the base plate’s size so that a full bottle cannot easily tip the dispenser over.
                          * @default 65

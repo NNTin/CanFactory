@@ -18,7 +18,7 @@ $fn = 64;
 WALL = L("WALL"); SHELL = L("SHELL"); BASE = L("BASE"); HALF_W = L("HALF_W"); FRONT = L("FRONT"); BACK = L("BACK"); BASE_RECT = L("BASE_RECT");
 R = L("R"); ROTOR_END = L("ROTOR_END"); POCKET = L("POCKET");
 BORE_R = L("BORE_R"); BORE_HALF = L("BORE_HALF"); BLOCK = L("BLOCK"); SLOT = L("SLOT");
-AXIS_Z = L("AXIS_Z"); BLOCK_BOTTOM = L("BLOCK_BOTTOM"); BLOCK_TOP = L("BLOCK_TOP"); BLOCK_BACK = L("BLOCK_BACK"); CAVITY_R = L("CAVITY_R"); DROP_Y = L("DROP_Y"); FLAP = L("FLAP"); WEIGHT = L("WEIGHT"); BLOCK_SLOPE = L("BLOCK_SLOPE"); CAVITY_BACK = L("CAVITY_BACK"); GABLE_HALF = L("GABLE_HALF"); LIP_Z = L("LIP_Z"); LIP_R = L("LIP_R"); BOSS_TOP = L("BOSS_TOP");
+AXIS_Z = L("AXIS_Z"); BLOCK_BOTTOM = L("BLOCK_BOTTOM"); BLOCK_TOP = L("BLOCK_TOP"); BLOCK_BACK = L("BLOCK_BACK"); CAVITY_R = L("CAVITY_R"); DROP_Y = L("DROP_Y"); FLAP = L("FLAP"); WEIGHT = L("WEIGHT"); MAGNET = L("MAGNET"); BLOCK_SLOPE = L("BLOCK_SLOPE"); CAVITY_BACK = L("CAVITY_BACK"); GABLE_HALF = L("GABLE_HALF"); LIP_Z = L("LIP_Z"); LIP_R = L("LIP_R"); BOSS_TOP = L("BOSS_TOP");
 CHUTE = L("CHUTE"); CHUTE_END = L("CHUTE_END"); CHUTE_BACK = L("CHUTE_BACK"); CHUTE_SLOPE = L("CHUTE_SLOPE"); EXIT_Z = L("EXIT_Z");
 CHUTE_FLOOR = L("CHUTE_FLOOR"); CHUTE_WALL = L("CHUTE_WALL"); CHUTE_SIDE = L("CHUTE_SIDE");
 NECK_T = L("NECK_T"); NECK_E = L("NECK_E"); NECK_PITCH = L("NECK_PITCH"); NECK_TURNS = L("NECK_TURNS");
@@ -33,13 +33,15 @@ CASE_L = 25.8; CASE_W = 21.8; CASE_FLOOR = 6;
 TAN = tan(CHUTE_SLOPE);
 // the flap's hinge (y, z), and the way its hub's mouth opens (towards the front and down: it is pushed on up and back from the bore)
 HINGE = [FLAP[0], FLAP[1]]; MOUTH_DIR = [cos(FLAP[11]), -sin(FLAP[11])];
-// the flap's counterweight in section (y, z, at rest): its arm straight back from the hub and the weight at its end
-module weight_section(g = 0) {
-  translate(HINGE) offset(delta = g) {
-    translate([FLAP[5] - 0.5, -WEIGHT[0] / 2]) square([WEIGHT[3] - WEIGHT[1] / 2 - FLAP[5] + 0.5, WEIGHT[0]]);
-    translate([WEIGHT[3] - WEIGHT[1] / 2, -WEIGHT[2] / 2]) square([WEIGHT[1], WEIGHT[2]]);
-  }
-}
+// the flap's counterweight in section (y, z, at rest): its arm straight back from the hub and the weight at its end, their tops flush with
+// the hub's (the flap prints upside down on them)
+module arm_section(g = 0) { translate(HINGE) offset(delta = g) translate([FLAP[5] - 0.5, FLAP[5] - WEIGHT[0]]) square([WEIGHT[3] - WEIGHT[1] / 2 - FLAP[5] + 0.5, WEIGHT[0]]); }
+module block_section(g = 0) { translate(HINGE) offset(delta = g) translate([WEIGHT[3] - WEIGHT[1] / 2, FLAP[5] - WEIGHT[2]]) square([WEIGHT[1], WEIGHT[2]]); }
+module weight_section(g = 0) { arm_section(g); block_section(g); }
+// the arm stops short of the hinge's bosses at either end, so that they pass beside it as the flap snaps on
+ARM_W = FLAP[10] - 2 * (FLAP[8] + 0.3);
+// a magnet's sealed cavity (MAGNET: fitted, radius, the flap's y, z from, z to, the inner body's y, z from, z to): a flat disc
+module magnet_cavity(y, z0, z1) { translate([0, y, z0]) cylinder(r = MAGNET[1], h = z1 - z0, $fn = 64); }
 // turned about the hinge by a (degrees, opening: the counterweight up)
 module about_hinge(a) { translate(HINGE) rotate(a) translate(-HINGE) children(); }
 function chute_at(y) = EXIT_Z + (y - CHUTE_END) * TAN;
@@ -207,6 +209,8 @@ module inner_body_shell() {
     // without support
     for (i = [0:2]) if (WAY_YS[i + 1] > WAY_YS[i] + 0.01) hull() for (y = [WAY_YS[i], WAY_YS[i + 1]]) translate([0, y, 0]) rotate([90, 0, 0]) linear_extrude(0.01, center = true) polygon(way(y));
     bolt_cuts(1);
+    // the optional magnet over the counterweight, sealed in at a print pause (the faces that repel the flap's face down)
+    if (MAGNET[0] == 1) magnet_cavity(MAGNET[5], MAGNET[6], MAGNET[7]);
   }
 }
 module inner_body() { print_pose(L("P_INNER")) inner_body_w(); }
@@ -297,7 +301,8 @@ module flap_w() {
         translate([-FLAP[10] / 2, -FLAP[4] / 2, -FLAP[2] - 2]) cube([FLAP[10], FLAP[4], FLAP[2] + 2]);
       }
       // the counterweight, straight back from the hub
-      translate([-FLAP[10] / 2, 0, 0]) rotate([90, 0, 90]) linear_extrude(FLAP[10]) weight_section();
+      translate([-FLAP[10] / 2, 0, 0]) rotate([90, 0, 90]) linear_extrude(FLAP[10]) block_section();
+      translate([-ARM_W / 2, 0, 0]) rotate([90, 0, 90]) linear_extrude(ARM_W) arm_section();
     }
     translate([0, HINGE[0], HINGE[1]]) {
       rotate([0, 90, 0]) cylinder(r = FLAP[6], h = FLAP[10] + 2, center = true, $fn = 48);
@@ -305,6 +310,8 @@ module flap_w() {
       rotate([atan2(MOUTH_DIR[1], MOUTH_DIR[0]), 0, 0]) translate([-FLAP[10] / 2 - 1, 0, -FLAP[9] / 2]) cube([FLAP[10] + 2, FLAP[5] + 1, FLAP[9]]);
     }
     translate([-FLAP[10], 0, AXIS_Z]) rotate([0, 90, 0]) cylinder(r = R, h = 2 * FLAP[10], $fn = 144);
+    // the optional magnet in the counterweight, under its top face, sealed in at a print pause
+    if (MAGNET[0] == 1) magnet_cavity(MAGNET[2], MAGNET[3], MAGNET[4]);
   }
 }
 module flap() { print_pose(L("P_FLAP")) flap_w(); }
