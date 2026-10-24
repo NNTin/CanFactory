@@ -84,7 +84,10 @@ What it cannot prevent: treats that arch in the bottle's 21.7 mm neck (#140) or 
 **Flap magnets** embeds two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N, from the parts library) that repel each other: one in
 the flap's counterweight, under its top face, and one in the inner body, above and just behind the hinge (4.5 mm behind it, 20 mm over
 it). A magnet facing the counterweight from straight above would stand in its way as it swings up, so the inner body's sits beyond the
-room it sweeps, near the block's top. A search over the places that fit, both magnets lying flat so that the prints can pause for them,
+room it sweeps, near the block's top. They are not on one line: the line between them stands 30° off their axes at rest (21° to 35° over
+the swing). Two flat magnets repel while that line is within 54.7° of their axes and attract beyond it, so they repel all the way,
+with some 20° to spare (a test holds the line within 45°); summing over each disc's volume, rather than taking it as one point, gives
+the same sign and a little more torque. A search over the places that fit, both magnets lying flat so that the prints can pause for them,
 picked the one with the most closing torque at rest that still closes all the way to the 55° stop. As point dipoles (as the
 simulation takes them) they add, to the counterweight's 0.27 N·mm:
 
@@ -504,7 +507,9 @@ change it.
 3. Measure a bag of treats (largest length, width, thickness); set the parameters.
 4. Print the rotor and the cap; check that the rotor turns freely in the bore by hand and slides out through the left wall.
 5. Print the flap upside down (with Flap magnets, pausing for its magnet); snap it onto its bosses and check that it swings freely, falls back onto the rotor by itself, and gives
-   way easily to a fingertip. If the snap is too tight, sand the mouth; too loose, print the hub again with 0.1 mm less play.
+   way easily to a fingertip. If the snap is too tight, sand the mouth; too loose, print the hub again with 0.1 mm less play. With
+   Flap magnets, lift the flap 40° by hand and let go: it must spring back faster than without them. If it is pulled open instead, or
+   held open, a magnet went in upside down (they then attract): the cavity is sealed, so print that part again.
 6. Wire as above; flash with BOOT held during reset; then check that RESET alone never moves anything.
 7. Calibrate the steps per turn ("Calibrate: 2 turns") and the direction (the rotor's top must move towards the back).
 8. With USB power from a ≥ 1 A supply, run 50 cycles with Wi-Fi active: watch for resets (brown-out) and lost steps (a pocket no longer

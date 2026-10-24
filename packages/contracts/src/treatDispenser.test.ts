@@ -100,6 +100,15 @@ describe('treat dispenser layout', () => {
     const [up, down] = magnets.map(item => world(item.body, item.moment));
     expect(up?.[2]).toBeGreaterThan(0); expect(down?.[2]).toBeLessThan(0);
     expect(m.body.centre).toBeGreaterThan(m.flap.centre);
+    // two flat magnets side by side repel only while the line between them stays within 54.7° of their axes (beyond it the same faces
+    // attract): over the whole swing it stays within 45°, so that neither a little placement error nor the flap's turn flips it
+    for (let deg = 0; deg <= F.swing; deg++) {
+      const a = deg * Math.PI / 180, dy = m.flap.y - hinge.y, dz = m.flap.centre - hinge.z;
+      const ry = hinge.y + dy * Math.cos(a) - dz * Math.sin(a) - m.body.y, rz = hinge.z + dy * Math.sin(a) + dz * Math.cos(a) - m.body.centre;
+      // (from the inner body's axis, which points down; the flap's axis is turned by the swing, so take the larger of the two)
+      const offBody = Math.acos(-rz / Math.hypot(ry, rz)) * 180 / Math.PI, offFlap = Math.abs(offBody - deg);
+      expect(Math.max(offBody, offFlap), `${deg}°`).toBeLessThan(45);
+    }
     // their closing torque about the hinge (softened point dipoles, as the engine takes them): closing at rest and as the flap opens
     const MU = 4e-7 * Math.PI, moment = Math.hypot(...(up ?? [])), soft = (dimensionOf(magnet, 'diameter') / 2) * 1e-3;
     const energy = (deg: number) => {
