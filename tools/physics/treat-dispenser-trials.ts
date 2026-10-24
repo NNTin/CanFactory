@@ -32,7 +32,7 @@ export interface Trial {
  * (lost more than the controller's limit: a wedged treat or a jam); maxSpeed: the fastest a treat moved (m/s) while still in the
  * mechanism — far above a falling treat's ~1 m/s means the solver flung it (instability), not physics.
  */
-export interface TrialResult { trial: Trial; prime: number; perPress: number[]; idle: number; dry: number; lost: number; faults: number; maxSpeed: number; error?: string; seconds: number }
+export interface TrialResult { trial: Trial; prime: number; perPress: number[]; idle: number; dry: number; lost: number; faults: number; maxSpeed: number; maxFlap: number; flapAbove: Record<number, number>; error?: string; seconds: number }
 
 
 function trials(quick: boolean): Trial[] {
@@ -88,13 +88,20 @@ async function runTrial(trial: Trial, presses: number, meshes: Record<string, nu
     const settings = spec.controller;
     if (!settings) throw new Error('No controller.');
     const controller = new CycleController(simulation, settings);
-    let maxSpeed = 0, faults = 0;
+    let maxSpeed = 0, faults = 0, maxFlap = 0;
+    // how far the flap opens: its widest, and how long it spends past 20°, 30° and 40° (s)
+    const flapAbove: Record<number, number> = { 20: 0, 30: 0, 40: 0 };
     const items = (spec.items ?? []).map(item => item.id);
     const l = treatDispenserLayout(p);
     const [cx, cy, cz] = [0, 0, l.axisZ / 1000];
     const last = new Map<string, number[]>(items.map(id => [id, simulation.pose(id).pos]));
     const step = (seconds: number) => {
-      simulation.advance(seconds);
+      for (let done = 0; done < seconds - 1e-9; done += 0.005) {
+        simulation.advance(0.005);
+        const open = simulation.jointValue('flap') * 180 / Math.PI;
+        maxFlap = Math.max(maxFlap, open);
+        for (const limit of [20, 30, 40]) if (open > limit) flapAbove[limit] = (flapAbove[limit] ?? 0) + 0.005;
+      }
       for (const id of items) {
         const now = simulation.pose(id).pos, before = last.get(id) ?? now;
         // only treats still in the mechanism (within 120 mm of the rotor's axis): one that has left falls freely, with no floor
@@ -123,7 +130,7 @@ async function runTrial(trial: Trial, presses: number, meshes: Record<string, nu
       perPress.push(controller.report().exits - before);
     }
     const report = controller.report();
-    return { trial, prime, perPress, idle: report.idleExits, dry: simulation.counted('stray').length + simulation.counted('stray-motor').length, lost: report.lost, faults, maxSpeed, seconds: (performance.now() - started) / 1000 };
+    return { trial, prime, perPress, idle: report.idleExits, dry: simulation.counted('stray').length + simulation.counted('stray-motor').length, lost: report.lost, faults, maxSpeed, maxFlap, flapAbove, seconds: (performance.now() - started) / 1000 };
   } finally { simulation.dispose(); }
 }
 
@@ -134,7 +141,7 @@ if (values.child) {
     if (message === 'exit') { process.exit(0); }
     void runTrial(message.trial, message.presses, meshes)
       .then(result => process.send?.(result))
-      .catch((error: unknown) => process.send?.({ trial: message.trial, prime: 0, perPress: [], idle: 0, dry: 0, lost: 0, faults: 0, maxSpeed: 0, seconds: 0, error: error instanceof Error ? error.message : String(error) } satisfies TrialResult));
+      .catch((error: unknown) => process.send?.({ trial: message.trial, prime: 0, perPress: [], idle: 0, dry: 0, lost: 0, faults: 0, maxSpeed: 0, maxFlap: 0, flapAbove: {}, seconds: 0, error: error instanceof Error ? error.message : String(error) } satisfies TrialResult));
   });
 } else {
   const presses = Number(values.presses);
@@ -151,7 +158,7 @@ if (values.child) {
     child.on('message', (result: TrialResult) => {
       results.push(result);
       const exact = result.perPress.filter(n => n === 1).length;
-      console.log(`${result.error ? 'ERROR' : exact === result.perPress.length ? 'ok   ' : 'MISS '} ${result.trial.name}: prime ${result.prime}, presses ${result.perPress.join(' ')} (${exact}/${result.perPress.length} exactly one), idle ${result.idle}, stray ${result.dry}, lost ${result.lost.toFixed(1)}°, stalls ${result.faults}, max speed ${result.maxSpeed.toFixed(2)} m/s ${result.error ?? ''} [${result.seconds.toFixed(0)} s]`);
+      console.log(`${result.error ? 'ERROR' : exact === result.perPress.length ? 'ok   ' : 'MISS '} ${result.trial.name}: prime ${result.prime}, presses ${result.perPress.join(' ')} (${exact}/${result.perPress.length} exactly one), idle ${result.idle}, stray ${result.dry}, lost ${result.lost.toFixed(1)}°, stalls ${result.faults}, max speed ${result.maxSpeed.toFixed(2)} m/s, flap at most ${result.maxFlap.toFixed(0)}° (past 20/30/40°: ${[20, 30, 40].map(k => (result.flapAbove[k] ?? 0).toFixed(2)).join('/')} s) ${result.error ?? ''} [${result.seconds.toFixed(0)} s]`);
       next();
     });
     next();

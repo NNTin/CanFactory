@@ -80,12 +80,12 @@ export const TREAT_DISPENSER = {
    * long and flat, it reaches the farthest back for the least). The plastic's density (g/cm³). */
   flap: {
     thickness: 1.6, hub: 2.9, hole: 1.7, boss: 1.5, bossLength: 1.5, mouth: 2.6, mouthAngle: 135, lean: 1.5,
-    arm: 2, weight: [10, 8.5] as readonly [number, number], reach: 15, swing: 55, density: 1.27,
+    arm: 2, weight: [10, 8.5] as readonly [number, number], reach: 15, swing: 45, density: 1.27,
     /** The optional magnets (`flapMagnets`): the library part; a cavity's play round it (radially), headroom over it before the pause,
      * the skin under it (whole layers at the print notes' 0.2 mm); the inner body's magnet's centre from the hinge (y, z), above and behind
      * the counterweight, clear of its swing and of the slot (a search over the places that fit: the most closing torque at rest that
      * stays closing up to the stop); the flap's lies in the counterweight under its top face. Their faces that repel face each other. */
-    magnet: { part: 'supermagnete-s-08-01-n', play: 0.15, headroom: 0.2, skin: 0.6, layer: 0.2, body: [4.5, 20] as readonly [number, number] },
+    magnet: { part: 'supermagnete-s-08-01-n', play: 0.15, headroom: 0.2, skin: 0.6, layer: 0.2, body: [7, 18] as readonly [number, number] },
   },
 } as const;
 
@@ -178,7 +178,8 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   // clear as the flap swings open
   const corners: [number, number][] = [F.reach - wy / 2, F.reach + wy / 2].flatMap(y => [F.hub, F.hub - wz].map((z): [number, number] => [y, z]));
   const sweep = Math.max(...corners.map(([y, z]) => Math.hypot(y, z))) + 0.5;
-  const sweepTop = Math.max(...Array.from({ length: F.swing + 1 }, (_, a) => Math.max(...corners.map(([y, z]) => y * Math.sin(a * DEG) + z * Math.cos(a * DEG))))) + 0.5;
+  const swing = F.swing;
+  const sweepTop = Math.max(...Array.from({ length: swing + 1 }, (_, a) => Math.max(...corners.map(([y, z]) => y * Math.sin(a * DEG) + z * Math.cos(a * DEG))))) + 0.5;
   // the magnets' cavities (whether or not they are fitted, so that the option does not change the body): the flap's under the
   // counterweight's top face (its skin on the bed, the flap printed upside down), the inner body's a flat disc on a layer boundary
   // (the inner body prints upright from z = base); each magnet lies on its cavity's floor as printed
@@ -193,7 +194,7 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
     body: { y: hinge.y + M.body[0], z0: T.base + bodyFloor, z1: T.base + bodyPause, centre: T.base + bodyFloor + magnetT / 2, pause: bodyPause },
   };
   // the cavity's back reaches behind the counterweight up to its roof
-  const flap = { hinge, tip, length: reach, angle: lean / DEG, width, mass, closing, sweep, sweepTop, cavityBack: hinge.y + F.reach + wy / 2 + 0.5 };
+  const flap = { hinge, tip, length: reach, angle: lean / DEG, width, mass, closing, sweep, sweepTop, swing, cavityBack: hinge.y + F.reach + wy / 2 + 0.5 };
   // the block's top: over the counterweight's recess and the inner body's magnet, with a wall above them; its top slopes down to the back
   // at STEEP (50°) clear of the cavity's round and of the recess (`blockSlope`: the slope's distance from the axis)
   const blockBottom = axisZ - block.halfY, blockBack = cavityR + T.wall;
@@ -857,7 +858,7 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
         // the flap, free on its hinge: its counterweight holds it on the rotor, and a treat standing out of the pocket swings it back (its
         // mass and inertia from its mesh)
         id: 'flap', material: 'petg', collision: { kind: 'pieces', pieces: piecesIn(poses.flap, treatFlapPieces(l)) },
-        joint: { type: 'hinge', anchor: [0, l.flap.hinge.y, l.flap.hinge.z], axis: [1, 0, 0], damping: 0.002, range: [-5, T.flap.swing] },
+        joint: { type: 'hinge', anchor: [0, l.flap.hinge.y, l.flap.hinge.z], axis: [1, 0, 0], damping: 0.002, range: [-5, l.flap.swing] },
       },
     ],
     exclude: [['rotor', 'inner-body'], ['rotor', 'chute'], ['flap', 'inner-body'], ['flap', 'chute']],
@@ -930,7 +931,7 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     // the flap: hinge (y, z), plate length and lean, thickness, hub, hole, boss, boss length, mouth, width
     ['FLAP', [round(l.flap.hinge.y), round(l.flap.hinge.z), round(l.flap.length), round(l.flap.angle), T.flap.thickness, T.flap.hub, T.flap.hole, T.flap.boss, T.flap.bossLength, T.flap.mouth, round(l.flap.width), T.flap.mouthAngle]],
     // its counterweight: arm thickness, weight (y, z), the weight's centre behind the hinge, the swing, the recess's radius round the hinge
-    ['WEIGHT', [T.flap.arm, ...T.flap.weight, T.flap.reach, T.flap.swing, round(l.flap.sweep)]],
+    ['WEIGHT', [T.flap.arm, ...T.flap.weight, T.flap.reach, l.flap.swing, round(l.flap.sweep)]],
     // the magnets (`flapMagnets`): fitted (1) or not, the cavities' radius, the flap's cavity (y, z from, z to) and the inner body's
     ['MAGNET', [p.flapMagnets ? 1 : 0, round(l.magnets.radius), round(l.magnets.flap.y), round(l.magnets.flap.z0), round(l.magnets.flap.z1), round(l.magnets.body.y), round(l.magnets.body.z0), round(l.magnets.body.z1)]], ['BLOCK_SLOPE', round(l.blockSlope)], ['CAVITY_BACK', round(l.flap.cavityBack)], ['GABLE_HALF', round(l.gableHalf)],
     ['LIP_Z', round(l.lipZ)], ['LIP_R', round(l.lipR)], ['BOSS_TOP', round(l.bossTop)],

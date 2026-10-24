@@ -129,9 +129,9 @@ describe('treat dispenser layout', () => {
     };
     // (N·mm: the energy rising as the flap opens is a torque closing it)
     const closing = (deg: number) => (energy(deg + 0.01) - energy(deg - 0.01)) / (0.02 * Math.PI / 180) * 1000;
-    for (const deg of [0, 20, 40, 50, F.swing]) expect(closing(deg), `${deg}°`).toBeGreaterThan(0);
-    expect(closing(0)).toBeGreaterThan(0.05);
-    expect(closing(40)).toBeGreaterThan(5 * closing(0));
+    for (let deg = 0; deg <= F.swing; deg += 5) expect(closing(deg), `${deg}°`).toBeGreaterThan(0);
+    expect(closing(0)).toBeGreaterThan(0.1);
+    expect(closing(0.75 * F.swing)).toBeGreaterThan(2 * closing(0));
   });
 
   it('keeps the rotor more than a treat’s length above the chute where its pockets drop, so that none can be caught between them', () => {
