@@ -261,6 +261,7 @@ export const PhysicsSpecSchema = Type.Object({
   exclude: Type.Optional(Type.Array(Type.Array(Type.String(), { minItems: 2, maxItems: 2 }), { description: 'Pairs of bodies that never collide.' })),
   maxStep: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: 'The longest time step (s) the mechanism simulates faithfully with, where it needs a shorter one than the default 0.5 ms: e.g. gears meshing by their teeth (0.1 ms; with longer steps their teeth skip).' })),
   precise: Type.Optional(Type.Boolean({ description: 'Solve contacts to a tight tolerance: many loose items pressed against parts that a motor turns through gear teeth (docs/physics-plan.md, "Motors and loose items").' })),
+  attached: Type.Optional(Type.Record(Type.String(), Type.String(), { description: 'Parts or reference objects that ride rigidly on a body, part id → body id (e.g. a magnet sealed into a moving part): the viewer moves each with its body, keeping where it starts relative to it. They are not bodies themselves.' })),
   items: Type.Optional(Type.Array(PhysicsItemSchema)),
   motors: Type.Optional(Type.Array(PhysicsMotorSchema)),
   counters: Type.Optional(Type.Array(PhysicsCounterSchema)),

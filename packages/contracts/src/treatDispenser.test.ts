@@ -96,6 +96,12 @@ describe('treat dispenser layout', () => {
     expect(treatDispenserPhysics(p).magnets ?? []).toEqual([]);
     const magnets = treatDispenserPhysics({ ...p, flapMagnets: true }).magnets ?? [];
     expect(magnets.map(item => item.body)).toEqual(['flap', 'inner-body']);
+    // the flap's magnet, a reference object in the assembly, rides on the flap in the simulation
+    const withMagnets = treatDispenserPhysics({ ...p, flapMagnets: true });
+    expect(withMagnets.attached).toEqual({ 'flap-magnet': 'flap' });
+    expect(withMagnets.bodies.some(body => body.id === 'flap')).toBe(true);
+    expect(treatDispenserAssembly({ ...p, flapMagnets: true }).references?.some(reference => reference.id === 'flap-magnet')).toBe(true);
+    expect(treatDispenserPhysics(p).attached).toBeUndefined();
     const poses = treatPartPoses(l), world = (body: string, v: number[]) => posePoint({ position: [0, 0, 0], rotation: (body === 'flap' ? poses.flap : poses['inner-body']).rotation }, v);
     const [up, down] = magnets.map(item => world(item.body, item.moment));
     expect(up?.[2]).toBeGreaterThan(0); expect(down?.[2]).toBeLessThan(0);

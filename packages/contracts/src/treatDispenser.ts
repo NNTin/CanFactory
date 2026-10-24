@@ -861,7 +861,8 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
       },
     ],
     exclude: [['rotor', 'inner-body'], ['rotor', 'chute'], ['flap', 'inner-body'], ['flap', 'chute']],
-    ...(p.flapMagnets ? { magnets: treatFlapMagnets(l, poses) } : {}),
+    // the flap's magnet, sealed in its counterweight, swings with it
+    ...(p.flapMagnets ? { magnets: treatFlapMagnets(l, poses), attached: { 'flap-magnet': 'flap' } } : {}),
     motors: [{ id: 'motor', title: '28BYJ-48 (output shaft, on the rotor)', body: 'rotor', ...TREAT_MOTOR, speed: firmwareDegrees(firmware.halfSteps), acceleration: firmwareDegrees(firmware.acceleration) }],
     items,
     counters: [

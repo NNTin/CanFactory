@@ -114,3 +114,41 @@ test('shows the inner and outer bodies, the motor, the ULN2003 and every M3 scre
   await expect.poll(async () => { const now = await visible(); return now.has('flap-magnet') && now.has('body-magnet'); }, { timeout: 120_000 }).toBe(true);
   expect(errors).toEqual([]);
 });
+
+/** A vector turned by an orientation (w, x, y, z). */
+const turn = (q: number[], v: number[]): number[] => {
+  const [w = 1, x = 0, y = 0, z = 0] = q, [a = 0, b = 0, c = 0] = v;
+  const tx = 2 * (y * c - z * b), ty = 2 * (z * a - x * c), tz = 2 * (x * b - y * a);
+  return [a + w * tx + y * tz - z * ty, b + w * ty + z * tx - x * tz, c + w * tz + x * ty - y * tx];
+};
+
+test('with the flap magnets, the flap’s magnet swings with the flap in the simulation', async ({ page }) => {
+  test.setTimeout(1_500_000);
+  await page.goto('/#/models/treat-dispenser');
+  await page.getByRole('switch', { name: 'Flap magnets' }).click();
+  await expect(page.getByRole('button', { name: 'Download ZIP', exact: true })).toBeEnabled({ timeout: 300_000 });
+  const viewer = page.getByTestId('stl-viewer');
+  await page.getByRole('button', { name: 'Simulate', exact: true }).click();
+  await expect(viewer).toHaveAttribute('data-physics', 'running', { timeout: 300_000 });
+  const attached = async () => Object.fromEntries((await viewer.getAttribute('data-physics-attached') ?? '').split(';').filter(Boolean).map(entry => {
+    const [id = '', values = ''] = entry.split(':');
+    return [id, values.split(' ').map(Number)];
+  }));
+  await expect.poll(async () => Object.keys(await attached()), { timeout: 60_000 }).toEqual(['flap-magnet']);
+  // where the magnet sits in the flap's frame at the start
+  const flap0 = (await poses(page))['flap'] ?? [], magnet0 = (await attached())['flap-magnet'] ?? [];
+  const inverse = [flap0[3] ?? 1, -(flap0[4] ?? 0), -(flap0[5] ?? 0), -(flap0[6] ?? 0)];
+  const local = turn(inverse, [0, 1, 2].map(k => (magnet0[k] ?? 0) - (flap0[k] ?? 0)));
+  // Prime turns the rotor a full turn: the treats it carries swing the flap open; whenever it is open, the magnet is where the flap
+  // carries it
+  await page.getByRole('group', { name: 'Dispenser controller' }).getByRole('button', { name: /Prime/ }).click();
+  let swung = 0;
+  await expect.poll(async () => {
+    const flap = (await poses(page))['flap'] ?? [], magnet = (await attached())['flap-magnet'] ?? [];
+    const open = angle(flap, flap0);
+    const expected = turn(flap.slice(3), local).map((value, k) => value + (flap[k] ?? 0));
+    expect(Math.hypot(...expected.map((value, k) => value - (magnet[k] ?? 0)))).toBeLessThan(0.05);
+    swung = Math.max(swung, open);
+    return swung;
+  }, { timeout: 900_000, intervals: [500] }).toBeGreaterThan(3);
+});

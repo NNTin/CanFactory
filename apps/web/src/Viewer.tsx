@@ -34,8 +34,13 @@ interface SceneController {
   physicsMeshes: (ids: readonly string[]) => Record<string, Float32Array>;
   /** Places the parts at these poses (the physics' start), leaving the others where they are. */
   placeAt: (poses: Record<string, Pose>) => () => void;
-  /** Moves the bodies to the physics' poses: per body, its position (mm) and orientation (w, x, y, z). */
+  /** Moves the bodies to the physics' poses: per body, its position (mm) and orientation (w, x, y, z); and the parts attached to them. */
   setBodyPoses: (bodies: readonly string[], poses: Float64Array) => void;
+  /** Parts that ride on a body (`PhysicsSpec.attached`, part id → body id): from now on each keeps where it is now relative to its body as
+   * `setBodyPoses` moves the body; `{}` lets them go. */
+  attach: (pairs: Readonly<Record<string, string>>) => void;
+  /** The attached parts' positions (mm, the parts' frame), for the page's tests. */
+  attachedPositions: () => Record<string, [number, number, number]>;
   /** The body under the pointer and the point hit (mm, the parts' frame); it also fixes the plane `dragPoint` moves in. */
   pick: (clientX: number, clientY: number, bodies: readonly string[]) => { id: string; point: [number, number, number] } | undefined;
   /** Where the pointer is on the plane through the picked point, facing the camera (mm, the parts' frame). */
@@ -162,6 +167,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     // loose items of the physics (treats): drawn only while it runs
     const itemMaterial = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, metalness: 0, roughness: 0.8 });
     const itemMeshes = new Map<string, THREE.Mesh>();
+    // parts riding on a body in the physics: where each sits in its body's frame
+    let attached: { mesh: THREE.Object3D; body: THREE.Object3D; relative: THREE.Matrix4 }[] = [];
     let coloredMaterials: THREE.MeshStandardMaterial[] = [];
     let isWireframe = false;
     let placements: Placement[] = []; let currentAssembly: Assembly | undefined; let sliderValue = 0;
@@ -307,7 +314,25 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
           mesh.position.set(at(0), at(1), at(2));
           mesh.quaternion.set(at(4), at(5), at(6), at(3));
         });
+        for (const { mesh, body, relative } of attached) {
+          body.updateMatrix();
+          new THREE.Matrix4().multiplyMatrices(body.matrix, relative).decompose(mesh.position, mesh.quaternion, mesh.scale);
+        }
         stage.invalidate();
+      },
+      attachedPositions() {
+        return Object.fromEntries(attached.flatMap(({ mesh }) => {
+          const id = placements.find(placement => placement.mesh === mesh)?.id;
+          return id ? [[id, [mesh.position.x, mesh.position.y, mesh.position.z]]] : [];
+        }));
+      },
+      attach(pairs) {
+        attached = Object.entries(pairs).flatMap(([id, bodyId]) => {
+          const mesh = placements.find(placement => placement.id === id)?.mesh, body = placements.find(placement => placement.id === bodyId)?.mesh;
+          if (!mesh || !body) return [];
+          mesh.updateMatrix(); body.updateMatrix();
+          return [{ mesh, body, relative: body.matrix.clone().invert().multiply(mesh.matrix) }];
+        });
       },
       pick(clientX, clientY, bodies) {
         raycaster.setFromCamera(pointer(clientX, clientY), stage.camera);
@@ -386,6 +411,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     if (!simulating || !spec || !shownAssembly || !controller || !element) return;
     const start = { ...shownAssembly.poses, ...spec.poses };
     const restoreFrame = controller.placeAt(start);
+    controller.attach(spec.attached ?? {});
     const meshes = controller.physicsMeshes(spec.bodies.map(body => body.id));
     const thread = new Worker(new URL('./physicsWorker.ts', import.meta.url), { type: 'module' });
     worker.current = thread;
@@ -416,6 +442,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         if (frames++ % 10 === 0) {
           element.dataset['physicsPoses'] = bodies.current.map((id, index) => `${id}:${Array.from(update.poses.subarray(7 * index, 7 * index + 7), value => value.toFixed(4)).join(' ')}`).join(';');
           element.dataset['physicsScreen'] = Object.entries(scene.current?.screenCentres(bodies.current) ?? {}).map(([id, [x, y]]) => `${id}:${x.toFixed(0)} ${y.toFixed(0)}`).join(';');
+          element.dataset['physicsAttached'] = Object.entries(scene.current?.attachedPositions() ?? {}).map(([id, at]) => `${id}:${at.map(value => value.toFixed(4)).join(' ')}`).join(';');
         }
       }
     };
@@ -424,8 +451,9 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     return () => {
       thread.terminate();
       worker.current = undefined; bodies.current = []; movableBodies.current = []; dragging.current = false;
-      for (const attribute of ['data-physics', 'data-physics-time', 'data-physics-poses', 'data-physics-screen', 'data-physics-hover', 'data-physics-magnets', 'data-physics-generation', 'data-physics-controller']) element.removeAttribute(attribute);
+      for (const attribute of ['data-physics', 'data-physics-time', 'data-physics-poses', 'data-physics-screen', 'data-physics-attached', 'data-physics-hover', 'data-physics-magnets', 'data-physics-generation', 'data-physics-controller']) element.removeAttribute(attribute);
       scene.current?.setItems([]);
+      scene.current?.attach({});
       element.style.cursor = '';
       scene.current?.setOrbit(true);
       scene.current?.setProgress(progressRef.current);

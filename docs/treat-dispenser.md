@@ -346,7 +346,8 @@ The editor's Simulate mode and `npm run check:physics -- treat-dispenser` simula
   the stiffness of one full step), directly, as the motor's shaft is. It slips like a stepper and reports the travel it lost.
 - **The flap is a hinged body** free on its hinge (no spring), its mass and inertia from its rendered mesh, so that its counterweight
   closes it as the printed part's would; a little damping; it lies on the rotor by contact and swings up to 55°. With Flap magnets, its
-  magnet and the inner body's are softened point dipoles (the physics plan's magnets), repelling.
+  magnet and the inner body's are softened point dipoles (the physics plan's magnets), repelling; in the editor the flap's magnet
+  swings with the flap (the spec's `attached`: a part that rides rigidly on a body).
 - **Treats are independent rounded cuboids**, 14 × 9 × 5 mm with 1.5 mm corners, 0.5 g, friction 0.4, colliding with everything and
   with each other under gravity. They are packed into the funnel and a 160 mm stand-in for the bottle's neck (its 21.7 mm bore) at the
   start (seeded, the same in the browser and CI) and never spawned, deleted or moved by a press.
