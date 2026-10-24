@@ -8,6 +8,7 @@ const COLLAR_ACCESSED = '2026-10-07';
 const BOARD_ACCESSED = '2026-10-09';
 const MESH_ACCESSED = '2026-10-13';
 const STEPPER_ACCESSED = '2026-10-20';
+const BAND_ACCESSED = '2026-10-24';
 
 const iso = (number: string, title: string): PartSource => ({
   id: `iso-${number.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, title: `ISO ${number}: ${title}`, publisher: 'ISO',
@@ -139,6 +140,7 @@ export const PART_SOURCES: readonly PartSource[] = [
   { id: 'printables-121424', title: '28BYJ-48 – 5V Stepper Motor: fit-check model (STL and Fusion 360) made to the Kiatronics drawing, by Philip McGaw (CC BY)', publisher: 'Printables', url: 'https://www.printables.com/model/121424-28byj-48-5v-stepper-motor', kind: 'reference', accessed: STEPPER_ACCESSED },
   { id: 'printables-343236', title: 'model of a 28BYJ-48 stepper motor: a detailed design-aid model (3MF) with the wire housing’s side ledges, wire slot and lip over the back rim, by Joe (CC BY-NC-ND; only its measured values are used)', publisher: 'Printables', url: 'https://www.printables.com/model/343236-model-of-a-28byj-48-stepper-motor', kind: 'reference', accessed: STEPPER_ACCESSED },
   { id: 'printables-1404255', title: 'ULN2003 5V Stepper Motor: STEP model of the ULN2003 driver board (PCB, socket and chip, connector, headers, LEDs, resistors) with a 28BYJ-48 plugged in, by Karaneko (public domain)', publisher: 'Printables', url: 'https://www.printables.com/model/1404255-uln2003-5v-stepper-motor', kind: 'reference', accessed: STEPPER_ACCESSED },
+  { id: 'alliance-rubber-size-chart', title: 'Rubber Band Size Chart: size, length and width (inches), approximate count per pound for the Pale Crepe Gold®, Sterling® and Advantage® compounds; their ultimate elongation, permanent set, specific gravity and durometer', publisher: 'Alliance Rubber Company', url: 'https://www.rubberband.com/about-us/rubber-band-size-chart/', kind: 'manufacturer', accessed: BAND_ACCESSED },
   { id: 'jst-xh', title: 'XH Connector catalogue: housing XHP-5 (A 10.0, B 14.8, 7.5 high, 5.7 deep), top-entry header B5B-XH-A (14.9 × 5.75, 7.0 high), 2.5 mm pitch', publisher: 'J.S.T. Mfg. Co., Ltd.', url: 'https://www.jst-mfg.com/product/pdf/eng/eXH.pdf', kind: 'manufacturer', accessed: STEPPER_ACCESSED },
   { id: 'trixie-44291-44295', title: 'Katzenschutznetz, drahtverstärkt (articles 44291–44295): Maschenweite 3 × 3 cm, Nylon/Draht, olivgrün, sizes 2 × 1,5 m to 8 × 3 m', publisher: 'TRIXIE Heimtierbedarf', url: 'https://www.trixie.de/de/katze/katzenklappen-sicherheit/katzennetze-schutzgitter/katzenschutznetz-drahtverstaerkt-1001435861-1001449597', kind: 'manufacturer', accessed: MESH_ACCESSED },
   { id: 'kraptrap-19x19x1-45', title: 'Kraptrap feuerverzinktes Drahtgitter 19 x 19 mm mit 1,45 mm Stärke: Maschengröße 19.0 mm, Drahtstärke 1.45 mm, Breite 101.0 cm, lengths 5, 12 and 20 m, feuerverzinkt und punktgeschweißt', publisher: 'KrapTrap (drahtexpress.de)', url: 'https://drahtexpress.de/products/kraptrap-volierendraht-drahtgitter-19-mm-masche-100-cm-breit-1-45mm-starke', kind: 'manufacturer', accessed: MESH_ACCESSED },

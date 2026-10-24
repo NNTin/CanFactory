@@ -334,6 +334,14 @@ function nfcTag(part: Part): Piece[] {
   return [body, ring([[antenna - 0.8, h], [antenna, h], [antenna, h + 0.02], [antenna - 0.8, h + 0.02]], STEEL, 64)];
 }
 
+const RUBBER = 0xc8a46a;
+
+function rubberBand(part: Part): Piece[] {
+  // a loose band: a round loop as long round as twice its flat length, its width along Z, its wall `thickness` thick
+  const r2 = value(part, 'length') / Math.PI; const r1 = r2 - value(part, 'thickness'); const w = value(part, 'width');
+  return [ring([[r1, 0], [r2, 0], [r2, w], [r1, w]], RUBBER, 64)];
+}
+
 function catCollar(part: Part): Piece[] {
   // a 60 mm piece of the strap, lying flat along X
   const strap = new THREE.BoxGeometry(60, value(part, 'width'), largest(part, 'thickness')); strap.translate(0, 0, largest(part, 'thickness') / 2);
@@ -545,7 +553,7 @@ function pinHeader(part: Part): Piece[] {
 
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
-  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, 'pin-header': pinHeader, heatsink, mesh,
+  'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'rubber-band': rubberBand, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, 'pin-header': pinHeader, heatsink, mesh,
   'stepper-motor': stepperMotor, 'stepper-driver': stepperDriver,
 };
 
