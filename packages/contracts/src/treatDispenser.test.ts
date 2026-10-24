@@ -115,8 +115,9 @@ describe('treat dispenser layout', () => {
       const offBody = Math.acos(-rz / Math.hypot(ry, rz)) * 180 / Math.PI, offFlap = Math.abs(offBody - deg);
       expect(Math.max(offBody, offFlap), `${deg}°`).toBeLessThan(45);
     }
-    // their closing torque about the hinge (softened point dipoles, as the engine takes them): closing at rest and as the flap opens
-    const MU = 4e-7 * Math.PI, moment = Math.hypot(...(up ?? [])), soft = (dimensionOf(magnet, 'diameter') / 2) * 1e-3;
+    // their closing torque about the hinge (softened point dipoles, as the engine takes them: each softened by its radius, the pair's
+    // lengths in quadrature): closing at rest and as the flap opens
+    const MU = 4e-7 * Math.PI, moment = Math.hypot(...(up ?? [])), soft = Math.SQRT2 * (dimensionOf(magnet, 'diameter') / 2) * 1e-3;
     const energy = (deg: number) => {
       const a = deg * Math.PI / 180, dy = m.flap.y - hinge.y, dz = m.flap.centre - hinge.z;
       const py = hinge.y + dy * Math.cos(a) - dz * Math.sin(a), pz = hinge.z + dy * Math.sin(a) + dz * Math.cos(a);
@@ -130,7 +131,7 @@ describe('treat dispenser layout', () => {
     const closing = (deg: number) => (energy(deg + 0.01) - energy(deg - 0.01)) / (0.02 * Math.PI / 180) * 1000;
     for (const deg of [0, 20, 40, 50, F.swing]) expect(closing(deg), `${deg}°`).toBeGreaterThan(0);
     expect(closing(0)).toBeGreaterThan(0.05);
-    expect(closing(50)).toBeGreaterThan(10 * closing(0));
+    expect(closing(40)).toBeGreaterThan(5 * closing(0));
   });
 
   it('keeps the rotor more than a treat’s length above the chute where its pockets drop, so that none can be caught between them', () => {

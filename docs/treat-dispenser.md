@@ -88,12 +88,19 @@ room it sweeps, near the block's top. They are not on one line: the line between
 the swing). Two flat magnets repel while that line is within 54.7° of their axes and attract beyond it, so they repel all the way,
 with some 20° to spare (a test holds the line within 45°); summing over each disc's volume, rather than taking it as one point, gives
 the same sign and a little more torque. A search over the places that fit, both magnets lying flat so that the prints can pause for them,
-picked the one with the most closing torque at rest that still closes all the way to the 55° stop. As point dipoles (as the
-simulation takes them) they add, to the counterweight's 0.27 N·mm:
+picked the one with the most closing torque at rest that still closes all the way to the 55° stop. They add, to the counterweight's
+0.27 N·mm:
 
 | Flap open | 0° | 10° | 20° | 30° | 40° | 50° | 55° |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Magnets' closing torque (N·mm) | 0.08 | 0.14 | 0.25 | 0.49 | 0.97 | 1.49 | 1.07 |
+| Magnets' closing torque, each disc summed over its volume (N·mm) | 0.09 | 0.16 | 0.29 | 0.58 | 1.22 | 2.55 | 3.17 |
+| The same, as the simulation applies it (N·mm) | 0.07 | 0.11 | 0.19 | 0.33 | 0.54 | 0.53 | 0.08 |
+
+The simulation recomputes the pair at every step (0.1 ms) from both magnets' positions and their moments as the flap has turned them,
+force and twisting torque alike. But it takes each magnet as a point dipole softened by its radius (the pair's 4 mm in quadrature,
+5.7 mm), which barely matters 21 mm apart, at rest, and flattens the force once they are within about 10 mm of each other: near full
+open the real flap shuts several times harder than simulated. So the simulated holding back at rest is about right, and the real flap
+is stiffer when wide open than the trials below assume (stiffness there is what wedged a treat in the TPU flap's trials).
 
 So the flap shuts a little harder at rest (+30 %, and the magnet's own weight in the counterweight adds about 0.05 N·mm more) and much
 harder as it opens, as the TPU flap's spring did (0.3 N·mm at rest, 0.9 more per 30°). They never push it open. With the option off, the
