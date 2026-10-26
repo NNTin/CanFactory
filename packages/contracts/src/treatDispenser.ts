@@ -2,7 +2,7 @@ import { Type, type Static } from 'typebox';
 import type { Assembly, ParameterIssue } from './models.ts';
 import type { PhysicsBody, PhysicsCheck, PhysicsController, PhysicsCounter, PhysicsDrive, PhysicsMagnet, PhysicsScenario, PhysicsSpec } from './physics.ts';
 import { DEFAULT_ESP32_CASE, esp32CaseAssembly, esp32CaseGround, ESP32_CASE, ESP32_CASE_BOARD, ESP32_CASE_HEADER } from './esp32Case.ts';
-import { devBoardLayout, dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, stepperDriverLayout } from './parts/index.ts';
+import { devBoardLayout, dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, STERLING, stepperDriverLayout } from './parts/index.ts';
 import type { Point2 } from './physicsPieces.ts';
 import { embedCavity, toLayers } from './printPause.ts';
 import { toyDipole } from './magneticCatToyPhysics.ts';
@@ -80,14 +80,33 @@ export const TREAT_DISPENSER = {
    * long and flat, it reaches the farthest back for the least). The plastic's density (g/cm³). */
   flap: {
     thickness: 1.6, hub: 2.9, hole: 1.7, boss: 1.5, bossLength: 1.5, mouth: 2.6, mouthAngle: 135, lean: 1.5,
-    arm: 2, weight: [10, 8.5] as readonly [number, number], reach: 15, swing: 45, density: 1.27,
+    arm: 2, weight: [10, 8.5] as readonly [number, number], reach: 15, swing: 55, density: 1.27,
     /** The optional magnets (`flapMagnets`): the library part; a cavity's play round it (radially), headroom over it before the pause,
      * the skin under it (whole layers at the print notes' 0.2 mm); the inner body's magnet's centre from the hinge (y, z), above and behind
      * the counterweight, clear of its swing and of the slot (a search over the places that fit: the most closing torque at rest that
      * stays closing up to the stop); the flap's lies in the counterweight under its top face. Their faces that repel face each other. */
-    magnet: { part: 'supermagnete-s-08-01-n', play: 0.15, headroom: 0.2, skin: 0.6, layer: 0.2, body: [7, 18] as readonly [number, number] },
+    magnet: { part: 'supermagnete-s-08-01-n', play: 0.15, headroom: 0.2, skin: 0.6, layer: 0.2, body: [4.5, 20] as readonly [number, number] },
+  },
+  /** The optional rubber band (`flapBand`): an office band stretched across the flap's arm `lever` behind the hinge (the nearer the
+   * hinge, the softer: a band's tension is a few newtons, and across the counterweight it held the flap 3–30 times too firmly), through
+   * a slot `slot` wide in each side wall, to a notch on one of the grooved pegs on a ledge outside each wall. The pegs' grooves hold its
+   * ends `line` below the arm's top, so that it presses on the arm at rest and the more the further the flap opens. `notches`: how far
+   * the grooves' floors are from the middle (X), one per tension setting; the pegs (x, y), how far they stand over the grooves' openings
+   * (the band pulls inwards and, the flap open, up its strands at less than the grooves' 45° flanks: it cannot climb out), the
+   * grooves' depth, their opening and floor (half heights, 45° between: printable); the ledge (y, its thickness) on a gusset at 50°.
+   * At the stop the band's torque may not exceed `maxStop` (N·mm), so that a treat can still swing the flap open. */
+  band: {
+    lever: 5, slot: 5, line: 1.5, notches: [20, 24, 28, 32, 36], peg: [2.5, 1.2] as readonly [number, number], pegAbove: 0.5, groove: 0.8, grooveOpen: 1.8, grooveFloor: 1,
+    ledge: [6, 2] as readonly [number, number], maxStop: 6,
   },
 } as const;
+
+/**
+ * The rubber band sizes the flap takes (`flapBand`): the library's numbered bands that are taut at rest in some notch and not too firm
+ * at the stop (`treatBandTorque`, the test keeps this list to that). Shorter or wider ones (#8, #10, #27, #30) hold the flap too firmly in every
+ * notch; longer ones (#18, #19, #32, #33) hang slack.
+ */
+export const TREAT_BAND_SIZES = ['12', '14', '16', '31'] as const;
 
 /** Bottle necks with an ISBT drawing (drawings 3784253-21 and 1165362-2). Values read off the drawings; see docs/treat-dispenser.md. */
 export const BOTTLE_NECKS = {
@@ -107,6 +126,8 @@ export const TreatDispenserParametersSchema = Type.Object({
   bottleNeck: Type.Enum(Object.keys(BOTTLE_NECKS) as BottleNeck[], { title: 'Bottle neck', description: 'The thread of the bottle that screws into the top. Print the thread coupon first: real bottles vary.', default: 'pco-1881' }),
   threadClearance: mm('Thread clearance', 'Radial play of the body’s thread on the bottle’s, mm; tune it with the coupon.', 0.3, 0.1, 0.5, 0.05),
   flapMagnets: Type.Boolean({ title: 'Flap magnets', description: 'Embed two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N) that repel each other: one in the flap’s counterweight, one in the inner body above it. They add to the counterweight’s closing force, the more the further the flap opens. Both prints pause for you to drop a magnet in.', default: false }),
+  flapBand: Type.Enum(['none', ...TREAT_BAND_SIZES], { title: 'Flap band', description: 'An office rubber band by size number, stretched across the flap’s arm to hold it shut more firmly the further it opens: hooked into a pair of notches outside the inner body’s side walls (`Band notch`). None: the counterweight alone.', default: 'none' }),
+  flapBandNotch: Type.Integer({ title: 'Band notch', description: 'Which pair of notches the band is hooked into, 1 (innermost, softest) to 4 (outermost, firmest).', default: 2, minimum: 1, maximum: TREAT_DISPENSER.band.notches.length }),
   bottleDiameter: mm('Bottle diameter', 'Largest diameter of the bottle, mm (0.5 l PET bottles are about 65 mm). Sets the base plate’s size so that a full bottle cannot easily tip the dispenser over.', 65, 55, 95, 1),
 }, { additionalProperties: false });
 export type TreatDispenserParameters = Static<typeof TreatDispenserParametersSchema>;
@@ -116,6 +137,8 @@ export type Vec3 = [number, number, number];
 const DEG = Math.PI / 180;
 const motorPart = () => findPart('kiatronics-28byj-48-5v') ?? (() => { throw new Error('Missing 28BYJ-48.'); })();
 const driverPart = () => findPart('uln2003-stepper-driver-board') ?? (() => { throw new Error('Missing the ULN2003 board.'); })();
+/** The library's rubber bands the flap takes (`flapBand`). */
+const bandParts = () => TREAT_BAND_SIZES.map(size => findPart(`alliance-sterling-${size}`) ?? (() => { throw new Error(`Missing the rubber band #${size}.`); })());
 const nutPart = () => findPart(TREAT_FASTENERS.nut) ?? (() => { throw new Error('Missing the M3 nut.'); })();
 
 /**
@@ -195,6 +218,25 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   };
   // the cavity's back reaches behind the counterweight up to its roof
   const flap = { hinge, tip, length: reach, angle: lean / DEG, width, mass, closing, sweep, sweepTop, swing, cavityBack: hinge.y + F.reach + wy / 2 + 0.5 };
+  // the rubber band's way (`flapBand`): its plane `lever` behind the hinge; where it crosses the flap's top there, turned by a degrees
+  // (z from the hinge, and half the flap's width there: the arm's, or the counterweight's beyond it); the slots through the side walls
+  // from below the band's line to over the highest it lies on the flap, with room for the widest band; the ledges and pegs outside
+  const B = T.band, bandY = hinge.y + B.lever, bandZ = hinge.z + F.hub - B.line, armHalf = width / 2 - (F.bossLength + 0.3);
+  const bandOver = (a: number): { z: number; half: number } | undefined => {
+    const c = Math.cos(a * DEG), s = Math.sin(a * DEG), along = (B.lever + F.hub * s) / c;
+    if (along < F.hub - 0.5 || along > F.reach + wy / 2) return undefined;
+    return { z: along * s + F.hub * c, half: along < F.reach - wy / 2 ? armHalf : width / 2 };
+  };
+  const widest = Math.max(...bandParts().map(part => dimensionOf(part, 'width')));
+  const pegOut = (notch: number) => (B.notches[notch] ?? 0) + B.groove;
+  const band = {
+    y: bandY, z: bandZ, armHalf, over: bandOver, widest,
+    // (the slots reach 0.5 below the ledges' tops, into their roots, so that no cut ends on a ledge's top face)
+    slot: { y0: bandY - B.slot / 2, y1: bandY + B.slot / 2, z0: bandZ - B.grooveOpen - 1.2, z1: hinge.z + (bandOver(swing)?.z ?? F.hub) + widest + 0.5 },
+    ledge: { x0: block.halfX, x1: pegOut(B.notches.length - 1) + 1, top: bandZ - B.grooveOpen - 0.7 },
+    pegTop: bandZ + B.grooveOpen + B.pegAbove,
+    pegOut,
+  };
   // the block's top: over the counterweight's recess and the inner body's magnet, with a wall above them; its top slopes down to the back
   // at STEEP (50°) clear of the cavity's round and of the recess (`blockSlope`: the slope's distance from the axis)
   const blockBottom = axisZ - block.halfY, blockBack = cavityR + T.wall;
@@ -226,7 +268,7 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   // the bearing cap's screws, either side of the bore, into nuts in two lugs on the inner body, just inside the outer body's left wall
   const capScrewR = (bore.radius + T.capRadius) / 2;
   return {
-    pocket, R, rotorEnd, bore, block, slot, chuteIn, chuteOut, legIn, legOut, tan, chuteAt, axisZ, blockBottom, blockTop, blockBack, blockSlope, cavityR, flap, magnets, drop, lipZ, lipR, neck, threadR, bossR, bossTop, gableHalf,
+    pocket, R, rotorEnd, bore, block, slot, chuteIn, chuteOut, legIn, legOut, tan, chuteAt, axisZ, blockBottom, blockTop, blockBack, blockSlope, cavityR, flap, magnets, band, drop, lipZ, lipR, neck, threadR, bossR, bossTop, gableHalf,
     motorFace: block.halfX, canY: -shaftOffset, canR, motorLength, earSpan, shaftOffset, bay, standoffLength, driverTop, capScrewR,
     lugFace: -(halfWidth - T.shell) + T.gap,
     // the back wall leaves room behind the block for the ESP32 case (8.4 deep) and its header pins (bigger treats, a deeper block)
@@ -237,6 +279,40 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
 }
 export type TreatDispenserLayout = ReturnType<typeof treatDispenserLayout>;
 
+/**
+ * The rubber band's Young's modulus (MPa) from its hardness: Gent's relation, E = 0.0981 (56 + 7.62336 S) / (0.137505 (254 − 2.54 S))
+ * (A. N. Gent, "On the relation between indentation hardness and Young's modulus", Trans. IRI 34, 1958), at Sterling's 42 Shore A:
+ * about 1.8 MPa.
+ */
+export const BAND_MODULUS = 0.0981 * (56 + 7.62336 * STERLING.durometer) / (0.137505 * (254 - 2.54 * STERLING.durometer));
+
+/** The band part of a `flapBand` setting, or undefined for none. */
+export function treatBandPart(p: Pick<TreatDispenserParameters, 'flapBand'>) {
+  return p.flapBand === 'none' ? undefined : findPart(`alliance-sterling-${p.flapBand}`);
+}
+
+/**
+ * The band's torque on the flap (N·mm; negative closes it) at each angle in `angles` (degrees, opening positive), hooked into notch
+ * `notch` (1 the innermost). The band is a loop round the two pegs' groove floors (x = ±X) and over the flap's top, its two strands
+ * straight from the grooves (`line` below the flap's top at rest) to the flap's edges and across it: its stretch is that loop's length
+ * over its own (twice its flat length). Its tension, neo-Hookean (nominal stress E/3 (λ − λ⁻²) on its unstretched section, width ×
+ * thickness), turned down at the flap's edges by the strands' slope, presses on the flap `lever` behind the hinge. Zero while slack.
+ */
+export function treatBandTorque(l: TreatDispenserLayout, p: Pick<TreatDispenserParameters, 'flapBand' | 'flapBandNotch'>, angles: readonly number[]): number[] {
+  const part = treatBandPart(p);
+  if (!part) return angles.map(() => 0);
+  const B = TREAT_DISPENSER.band, X = B.notches[p.flapBandNotch - 1] ?? 0, line = l.band.z - l.flap.hinge.z;
+  const own = 2 * dimensionOf(part, 'length'), section = dimensionOf(part, 'width') * dimensionOf(part, 'thickness');
+  return angles.map(a => {
+    const over = l.band.over(a);
+    if (!over) return 0;
+    const drop = Math.max(0, over.z - line), side = Math.hypot(X - over.half, drop);
+    const stretch = (4 * side + 4 * over.half + 2 * B.peg[1]) / own;
+    const tension = stretch > 1 ? BAND_MODULUS / 3 * (stretch - stretch ** -2) * section : 0;
+    return -4 * tension * drop / side * B.lever;
+  });
+}
+
 export function treatDispenserIssues(p: TreatDispenserParameters): ParameterIssue[] {
   const issues: ParameterIssue[] = [];
   const l = treatDispenserLayout(p);
@@ -244,6 +320,9 @@ export function treatDispenserIssues(p: TreatDispenserParameters): ParameterIssu
   if (p.treatThickness > p.treatWidth) issues.push({ field: 'treatThickness', message: 'The thickness must not exceed the width.' });
   if (2 * p.treatCornerRadius > p.treatThickness - 0.2) issues.push({ field: 'treatCornerRadius', message: 'The corner radius must be less than half the thickness.' });
   if (l.pocket.width / 2 > l.R - 3) issues.push({ field: 'treatWidth', message: 'Treats this wide do not fit the rotor’s pocket.' });
+  const [rest = 0, stop = 0] = treatBandTorque(l, p, [0, l.flap.swing]).map(torque => -torque);
+  if (p.flapBand !== 'none' && rest <= 0) issues.push({ field: 'flapBandNotch', message: `Band #${p.flapBand} hangs slack in notch ${p.flapBandNotch}: hook it into a notch further out, or use a shorter band.` });
+  if (stop > TREAT_DISPENSER.band.maxStop) issues.push({ field: 'flapBandNotch', message: `Band #${p.flapBand} in notch ${p.flapBandNotch} holds the flap too firmly (${stop.toFixed(1)} N·mm at the stop, at most ${TREAT_DISPENSER.band.maxStop}): hook it into a notch further in, or use a longer band.` });
   return issues;
 }
 
@@ -843,6 +922,9 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
     ],
   };
   const fixed = (id: string, pieces: number[][]): PhysicsBody => ({ id, material: 'petg', fixed: true, collision: { kind: 'pieces', pieces } });
+  // the optional rubber band: its torque on the flap's hinge by the flap's angle, every 5° over its range
+  const bandAngles = Array.from({ length: Math.round((l.flap.swing + 5) / 5) + 1 }, (_, k) => k * 5 - 5);
+  const band = p.flapBand === 'none' ? undefined : { at: bandAngles, values: treatBandTorque(l, p, bandAngles) };
   return {
     // treats in contact with a motor-driven rotor need short steps and the precise solve
     maxStep: 0.0001, precise: true,
@@ -858,7 +940,7 @@ export function treatDispenserPhysics(p: TreatDispenserParameters, options: Trea
         // the flap, free on its hinge: its counterweight holds it on the rotor, and a treat standing out of the pocket swings it back (its
         // mass and inertia from its mesh)
         id: 'flap', material: 'petg', collision: { kind: 'pieces', pieces: piecesIn(poses.flap, treatFlapPieces(l)) },
-        joint: { type: 'hinge', anchor: [0, l.flap.hinge.y, l.flap.hinge.z], axis: [1, 0, 0], damping: 0.002, range: [-5, l.flap.swing] },
+        joint: { type: 'hinge', anchor: [0, l.flap.hinge.y, l.flap.hinge.z], axis: [1, 0, 0], damping: 0.002, range: [-5, l.flap.swing], ...(band ? { load: band } : {}) },
       },
     ],
     exclude: [['rotor', 'inner-body'], ['rotor', 'chute'], ['flap', 'inner-body'], ['flap', 'chute']],
@@ -934,6 +1016,11 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     ['WEIGHT', [T.flap.arm, ...T.flap.weight, T.flap.reach, l.flap.swing, round(l.flap.sweep)]],
     // the magnets (`flapMagnets`): fitted (1) or not, the cavities' radius, the flap's cavity (y, z from, z to) and the inner body's
     ['MAGNET', [p.flapMagnets ? 1 : 0, round(l.magnets.radius), round(l.magnets.flap.y), round(l.magnets.flap.z0), round(l.magnets.flap.z1), round(l.magnets.body.y), round(l.magnets.body.z0), round(l.magnets.body.z1)]], ['BLOCK_SLOPE', round(l.blockSlope)], ['CAVITY_BACK', round(l.flap.cavityBack)], ['GABLE_HALF', round(l.gableHalf)],
+    // the rubber band's way (`flapBand`, cut and built whether or not one is fitted): its plane (y) and line (z); the side walls' slots
+    // (y from, to; z from, to); the ledges (x from, to; top, thickness, width), the pegs (x, y, top), their grooves (depth, opening and
+    // floor half heights round the line); the grooves' floors from the middle
+    ['BAND', [round(l.band.y), round(l.band.z), round(l.band.slot.y0), round(l.band.slot.y1), round(l.band.slot.z0), round(l.band.slot.z1), round(l.band.ledge.x0), round(l.band.ledge.x1), round(l.band.ledge.top), T.band.ledge[1], T.band.ledge[0], ...T.band.peg, round(l.band.pegTop), T.band.groove, T.band.grooveOpen, T.band.grooveFloor]],
+    ['BAND_NOTCHES', [...T.band.notches]],
     ['LIP_Z', round(l.lipZ)], ['LIP_R', round(l.lipR)], ['BOSS_TOP', round(l.bossTop)],
     ['CHUTE', [round(l.chuteIn), round(l.chuteOut), round(l.legIn), round(l.legOut)]], ['CHUTE_END', T.chuteEnd], ['CHUTE_BACK', round(l.chuteBack)],
     ['CHUTE_SLOPE', T.chuteSlope], ['EXIT_Z', T.base + T.exitZ], ['CHUTE_FLOOR', T.chuteFloor], ['CHUTE_WALL', T.chuteWall], ['CHUTE_SIDE', T.chuteSide],
@@ -970,6 +1057,20 @@ export const TREAT_PRINTED_PARTS = ['inner-body', 'outer-body', 'rotor', 'flap',
 
 const HOUSING = '#cdbfe3';
 
+/**
+ * Where the assembly draws the optional band: the library's loose loop (round, its width along Z), squeezed into an ellipse over the
+ * flap's arm, as wide (y) as the slots allow and reaching the pegs' outer faces of its notch. The real band dips into the pegs' grooves
+ * and lies on the arm; a scaled ring cannot, so it is drawn straight, just over the pegs' tops (less than a millimetre over the arm).
+ */
+export function treatBandPose(l: TreatDispenserLayout, p: Pick<TreatDispenserParameters, 'flapBand' | 'flapBandNotch'>) {
+  const part = treatBandPart(p);
+  if (!part) return undefined;
+  const outer = dimensionOf(part, 'length') / Math.PI, inner = outer - dimensionOf(part, 'thickness');
+  const along = l.band.pegOut(p.flapBandNotch - 1), across = (TREAT_DISPENSER.band.slot / 2 - 0.5) * inner / outer;
+  const z = Math.max(l.flap.hinge.z + TREAT_DISPENSER.flap.hub, l.band.pegTop) + 0.05;
+  return { part, pose: { position: [0, l.band.y, z] as Vec3, rotation: [0, 0, 0] as Vec3, scale: [along / inner, across / inner, 1] as Vec3 } };
+}
+
 export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
   const l = treatDispenserLayout(p);
   const poses = treatPartPoses(l);
@@ -990,6 +1091,7 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
   const bolts = treatBolts(p).map(bolt => ({ bolt, ...treatBoltPoses(bolt) }));
   const ids = (group: string, kind: 'screw' | 'nut') => bolts.filter(({ bolt }) => bolt.id.startsWith(group)).map(({ bolt }) => `${bolt.id}-${kind}`);
   const screw = (id: string) => findPart(id)?.title ?? id;
+  const band = treatBandPose(l, p);
   return {
     partColors: { 'inner-body': HOUSING, 'outer-body': '#e8e2f2', base: '#3d3f45', chute: HOUSING, rotor: '#2f3136', flap: '#d9822b', cap: '#2f3136', coupon: '#d9822b', 'case-bottom': '#497c85', 'case-top': '#e5d9bb' },
     poses: {
@@ -998,6 +1100,7 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
       motor: motorPose, driver: bay.driverPose,
       board: inCase('board'), 'header-1': inCase('header-1'), 'header-2': inCase('header-2'),
       ...Object.fromEntries(bolts.flatMap(({ bolt, screw, nut }) => [[`${bolt.id}-screw`, screw], [`${bolt.id}-nut`, nut]])),
+      ...(band ? { band: band.pose } : {}),
       // the optional magnets, sealed in at print pauses (the library's disc: its axis Z, its bottom face at z = 0)
       ...(p.flapMagnets ? {
         'flap-magnet': { position: [0, l.magnets.flap.y, l.magnets.flap.centre - l.magnets.thickness / 2], rotation: [0, 0, 0] },
@@ -1014,6 +1117,7 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
         { id: `${bolt.id}-screw`, part: bolt.screw, title: `${screw(bolt.screw)} (${bolt.label})` },
         { id: `${bolt.id}-nut`, part: nut.id, title: `${nut.title} (${bolt.label})` },
       ]),
+      ...(band ? [{ id: 'band', part: band.part.id, title: `${band.part.title} (across the flap’s arm, in notch ${p.flapBandNotch}; drawn straight over the pegs: it lies on the arm and dips into the pegs’ grooves)` }] : []),
       ...(p.flapMagnets ? [
         { id: 'flap-magnet', part: TREAT_DISPENSER.flap.magnet.part, title: `${screw(TREAT_DISPENSER.flap.magnet.part)} (in the flap’s counterweight, sealed in at a print pause)` },
         { id: 'body-magnet', part: TREAT_DISPENSER.flap.magnet.part, title: `${screw(TREAT_DISPENSER.flap.magnet.part)} (in the inner body over the counterweight, sealed in at a print pause; repelling the flap’s)` },
@@ -1023,6 +1127,7 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
       { title: 'Push two M3 nuts into the inner body’s motor bays, from the front', parts: ids('motor', 'nut'), from: [0, -16, 0] },
       { title: 'Drop M3 nuts into the ULN2003’s standoffs and the cap’s lugs', parts: [...ids('driver', 'nut'), ...ids('cap', 'nut')], from: [0, 0, 8] },
       { title: 'Snap the flap’s hub onto the two bosses behind the slot, pushed up and back from the bore (before the motor and the rotor: their shafts fill the bore); it swings freely', parts: ['flap', ...(p.flapMagnets ? ['flap-magnet'] : [])], from: [0, -12, -12] },
+      ...(band ? [{ title: `Thread the rubber band (#${p.flapBand}) through the slot in one side wall, over the flap’s arm and out through the other (a bent paper clip pulls it through); hook its ends round the pegs of notch ${p.flapBandNotch} on both sides, into their grooves`, parts: ['band'], from: [0, 0, 6] }] : []),
       { title: 'Screw the motor to the inner body’s right side, its shaft into the block (two M3 × 6)', parts: ['motor', ...ids('motor', 'screw')], from: [45, 0, 0] },
       { title: 'Screw the ULN2003 board to its standoffs under the motor (four M3 × 8); plug in the motor', parts: ['driver', ...ids('driver', 'screw')], from: [45, 0, 0] },
       { title: 'Push M3 nuts into the outer body’s left corner columns, from inside', parts: ids('corner-left', 'nut'), from: [14, 0, 0] },

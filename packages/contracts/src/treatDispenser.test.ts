@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
 import {
-  BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, PhysicsSpecSchema, TIP_ANGLE, TREAT_DISPENSER, TREAT_FASTENERS, TREAT_FIRMWARE, TREAT_PRINTED_PARTS, dimensionOf, findModel, findPart,
+  BAND_MODULUS, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, PhysicsSpecSchema, TREAT_BAND_SIZES, partsOfFamily, treatBandPose, treatBandTorque, TIP_ANGLE, TREAT_DISPENSER, TREAT_FASTENERS, TREAT_FIRMWARE, TREAT_PRINTED_PARTS, dimensionOf, findModel, findPart,
   posePoint, treatBayLayout, treatPartPoses, treatBoltPoses, treatBolts, treatCycleSeconds, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout,
   treatDispenserPhysics, treatFeet, treatFill, treatFootprint, treatRotorPieces, treatScadValues, treatVertices, treatWiringRoom, validateParameters, type TreatDispenserParameters,
 } from './index.ts';
@@ -86,6 +86,8 @@ describe('treat dispenser layout', () => {
     // the inner body's under the block's top and behind the slot, a skin from each; outside the room the counterweight sweeps
     expect(l.blockTop - m.body.z1).toBeGreaterThanOrEqual(M.skin - 1e-9);
     expect(m.body.y - m.radius - (l.slot.halfY + M.skin)).toBeGreaterThan(0);
+    // and a skin over the rubber band's way across under it
+    if (m.body.y + m.radius > l.band.slot.y0 && m.body.y - m.radius < l.band.slot.y1) expect(m.body.z0 - l.band.slot.z1).toBeGreaterThanOrEqual(M.skin - 1e-9);
     const [wy, wz] = F.weight;
     const inSweep = (y: number, z: number) => Array.from({ length: F.swing + 1 }, (_, a) => a * Math.PI / 180).some(a => {
       const dy = y - hinge.y, dz = z - hinge.z, ry = dy * Math.cos(a) + dz * Math.sin(a), rz = -dy * Math.sin(a) + dz * Math.cos(a);
@@ -130,8 +132,75 @@ describe('treat dispenser layout', () => {
     // (N·mm: the energy rising as the flap opens is a torque closing it)
     const closing = (deg: number) => (energy(deg + 0.01) - energy(deg - 0.01)) / (0.02 * Math.PI / 180) * 1000;
     for (let deg = 0; deg <= F.swing; deg += 5) expect(closing(deg), `${deg}°`).toBeGreaterThan(0);
-    expect(closing(0)).toBeGreaterThan(0.1);
+    // (at the 55° stop the magnets must sit high and far back to stay repelling over the whole swing: they add little at rest)
+    expect(closing(0)).toBeGreaterThan(0.05);
     expect(closing(0.75 * F.swing)).toBeGreaterThan(2 * closing(0));
+  });
+
+  it('offers the rubber bands that are taut at rest in some notch and not too firm at the stop, firmer the further out', () => {
+    // Gent's relation at Sterling's 42 Shore A
+    expect(BAND_MODULUS).toBeCloseTo(1.82, 2);
+    const B = TREAT_DISPENSER.band, notches = B.notches.map((_, k) => k + 1);
+    const torques = (flapBand: TreatDispenserParameters['flapBand'], flapBandNotch: number) => treatBandTorque(l, { flapBand, flapBandNotch }, [0, l.flap.swing]).map(torque => -torque);
+    const usable = (size: string) => notches.some(notch => {
+      const [rest = 0, stop = 0] = torques(size as TreatDispenserParameters['flapBand'], notch);
+      return rest > 0 && stop <= B.maxStop;
+    });
+    const sizes = partsOfFamily('rubber-band').map(part => part.id.replace('alliance-sterling-', ''));
+    expect([...TREAT_BAND_SIZES]).toEqual(sizes.filter(usable));
+    expect(torques('none', 3).map(Math.abs)).toEqual([0, 0]);
+    for (const size of TREAT_BAND_SIZES) {
+      // each closes the flap, the more the further it opens and the further out it is hooked
+      const angles = Array.from({ length: l.flap.swing / 5 + 1 }, (_, k) => 5 * k);
+      for (const notch of notches) {
+        const curve = treatBandTorque(l, { flapBand: size, flapBandNotch: notch }, angles).map(torque => -torque);
+        curve.forEach((torque, k) => { expect(torque).toBeGreaterThanOrEqual(k > 0 ? (curve[k - 1] ?? 0) : 0); });
+        if (notch > 1) expect(curve.at(-1)).toBeGreaterThanOrEqual(treatBandTorque(l, { flapBand: size, flapBandNotch: notch - 1 }, [l.flap.swing]).map(torque => -torque)[0] ?? 0);
+      }
+      // the issues say which settings hang slack or hold too firmly
+      for (const notch of notches) {
+        const [rest = 0, stop = 0] = torques(size, notch);
+        expect(treatDispenserIssues({ ...p, flapBand: size, flapBandNotch: notch }).length > 0).toBe(rest <= 0 || stop > B.maxStop);
+      }
+    }
+  });
+
+  it('gives the band its way across behind the hinge, clear of the bosses, and grooved pegs inside the outer body', () => {
+    const B = TREAT_DISPENSER.band, F = TREAT_DISPENSER.flap, { hinge } = l.flap, band = l.band;
+    expect(band.y - hinge.y).toBeCloseTo(B.lever, 9);
+    // the slots: behind the bosses (and the hub's teardrop peak over them), round the band's plane
+    expect(band.slot.y0).toBeGreaterThan(hinge.y + F.boss + 0.5);
+    expect(band.slot.y1 - band.slot.y0).toBeCloseTo(B.slot, 9);
+    // from below the grooves' openings to over the highest the widest band lies on the flap
+    expect(band.slot.z0).toBeLessThan(band.z - B.grooveOpen);
+    for (let a = -5; a <= l.flap.swing; a += 5) expect(band.slot.z1).toBeGreaterThanOrEqual(hinge.z + (band.over(a)?.z ?? 0) + band.widest);
+    // it lies on the flap's top over the whole swing, `line` above the grooves at rest
+    for (let a = -5; a <= l.flap.swing; a += 5) expect(band.over(a)).toBeDefined();
+    expect(hinge.z + (band.over(0)?.z ?? 0) - band.z).toBeCloseTo(B.line, 9);
+    // the grooves round the line, under the pegs' tops; the outermost peg and its ledge inside the outer body's wall
+    expect(band.pegTop).toBeGreaterThan(band.z + B.grooveOpen);
+    expect(band.ledge.top).toBeLessThan(band.z - B.grooveOpen);
+    expect(band.ledge.x1).toBeLessThan(l.halfWidth - TREAT_DISPENSER.shell - TREAT_DISPENSER.gap);
+    expect(band.ledge.x0).toBeCloseTo(l.block.halfX, 9);
+  });
+
+  it('puts the band on the flap’s hinge in the simulation and in the assembly only when fitted', () => {
+    const fitted = { ...p, flapBand: '14', flapBandNotch: 3 } as const;
+    const joint = treatDispenserPhysics(fitted).bodies.find(body => body.id === 'flap')?.joint;
+    expect(joint?.load?.at[0]).toBe(-5);
+    expect(joint?.load?.at.at(-1)).toBe(l.flap.swing);
+    expect(joint?.load?.values).toEqual(treatBandTorque(l, fitted, joint?.load?.at ?? []));
+    expect(Value.Check(PhysicsSpecSchema, treatDispenserPhysics(fitted))).toBe(true);
+    expect(treatDispenserPhysics(p).bodies.find(body => body.id === 'flap')?.joint?.load).toBeUndefined();
+    const assembly = treatDispenserAssembly(fitted);
+    expect(assembly.references?.find(reference => reference.id === 'band')?.part).toBe('alliance-sterling-14');
+    expect(assembly.steps.some(step => step.parts.includes('band'))).toBe(true);
+    // drawn over the pegs, reaching the outer faces of its notch's
+    const pose = treatBandPose(l, fitted)?.pose, part = findPart('alliance-sterling-14');
+    if (!pose || !part) throw new Error('No band pose.');
+    expect(pose.position[2]).toBeGreaterThan(l.band.pegTop);
+    expect(pose.scale[0] * (dimensionOf(part, 'length') / Math.PI - dimensionOf(part, 'thickness'))).toBeCloseTo(l.band.pegOut(2), 9);
+    expect(treatDispenserAssembly(p).references?.some(reference => reference.id === 'band')).toBe(false);
   });
 
   it('keeps the rotor more than a treat’s length above the chute where its pockets drop, so that none can be caught between them', () => {

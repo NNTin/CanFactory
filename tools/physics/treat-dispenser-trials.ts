@@ -3,9 +3,9 @@
  * primed and then pressed a fixed number of times, counting the treats that actually leave per press. CI runs only a few scenarios
  * (`npm run check:physics -- treat-dispenser`); this runs the wider set in parallel and prints a table. Slow: tens of minutes.
  *
- *   npx tsx tools/physics/treat-dispenser-trials.ts [--presses 8] [--jobs 8] [--quick] [--magnets] [--json out.json]
+ *   npx tsx tools/physics/treat-dispenser-trials.ts [--presses 8] [--jobs 8] [--quick] [--magnets] [--band 14 --notch 3] [--json out.json]
  *
- * `--magnets` runs them with the flap's repelling magnets (`flapMagnets`).
+ * `--magnets` runs them with the flap's repelling magnets (`flapMagnets`); `--band` with a rubber band (`flapBand`) in notch `--notch`.
  *
  * Needs an OpenSCAD runtime (the parts are rendered once, for their mass properties).
  */
@@ -19,7 +19,7 @@ import { DEFAULT_TREAT_DISPENSER, findModel, resolveAssembly, treatDispenserPhys
 import { buildScene, CycleController, loadEngine, Simulation, type BodyGeometry } from '@canfactory/physics';
 import { meshCacheFile } from './treat-trial-cache.ts';
 
-const { values } = parseArgs({ options: { presses: { type: 'string', default: '8' }, jobs: { type: 'string' }, quick: { type: 'boolean', default: false }, magnets: { type: 'boolean', default: false }, json: { type: 'string' }, child: { type: 'string' } } });
+const { values } = parseArgs({ options: { presses: { type: 'string', default: '8' }, jobs: { type: 'string' }, quick: { type: 'boolean', default: false }, magnets: { type: 'boolean', default: false }, band: { type: 'string', default: 'none' }, notch: { type: 'string', default: '2' }, json: { type: 'string' }, child: { type: 'string' } } });
 
 /** One trial: a fill and, optionally, treats that differ from the nominal ones the dispenser is sized for. */
 export interface Trial {
@@ -53,8 +53,8 @@ function trials(quick: boolean): Trial[] {
 }
 
 /** Renders the parts once per geometry (mass properties come from their meshes, as in CI); `file` is keyed on their sources. */
-/** The settings every trial starts from: the defaults, with or without the flap's magnets. */
-const base = (): TreatDispenserParameters => ({ ...DEFAULT_TREAT_DISPENSER, flapMagnets: values.magnets });
+/** The settings every trial starts from: the defaults, with or without the flap's magnets and band. */
+const base = (): TreatDispenserParameters => ({ ...DEFAULT_TREAT_DISPENSER, flapMagnets: values.magnets, flapBand: values.band as TreatDispenserParameters['flapBand'], flapBandNotch: Number(values.notch) });
 
 async function geometry(file: string): Promise<Record<string, number[]>> {
   try { return JSON.parse(await readFile(file, 'utf8')) as Record<string, number[]>; } catch { /* render below */ }
@@ -153,7 +153,7 @@ if (values.child) {
   const results: TrialResult[] = [];
   const queue = [...list];
   await Promise.all(Array.from({ length: jobs }, () => new Promise<void>(resolve => {
-    const child = fork(fileURLToPath(import.meta.url), ['--child', meshFile, ...(values.magnets ? ['--magnets'] : [])], { execArgv: ['--import', 'tsx'] });
+    const child = fork(fileURLToPath(import.meta.url), ['--child', meshFile, ...(values.magnets ? ['--magnets'] : []), '--band', values.band, '--notch', values.notch], { execArgv: ['--import', 'tsx'] });
     const next = () => { const trial = queue.shift(); if (trial) child.send({ trial, presses }); else { child.send('exit'); resolve(); } };
     child.on('message', (result: TrialResult) => {
       results.push(result);

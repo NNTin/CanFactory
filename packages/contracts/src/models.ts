@@ -7,7 +7,7 @@ import { conceptPages } from './concepts.ts';
 import { QUASI_STATIC, type PhysicsSpec } from './physics.ts';
 import { revolvedPieces, type Point2 } from './physicsPieces.ts';
 import { cigaretteCasePhysics } from './cigaretteCasePhysics.ts';
-import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TIP_ANGLE, TREAT_DISPENSER, TREAT_FIRMWARE, TreatDispenserParametersSchema, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout, treatDispenserPhysics, treatFootprint, treatScadLayout, type BottleNeck, type TreatDispenserParameters } from './treatDispenser.ts';
+import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TIP_ANGLE, TREAT_BAND_SIZES, TREAT_DISPENSER, TREAT_FIRMWARE, TreatDispenserParametersSchema, treatBandPart, treatBandTorque, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout, treatDispenserPhysics, treatFootprint, treatScadLayout, type BottleNeck, type TreatDispenserParameters } from './treatDispenser.ts';
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
@@ -3558,7 +3558,7 @@ export const esp32C3SuperminiCase = {
  * one list), the same numbers its physics is made from.
  */
 // the layout rides on the one string setting (scadEncode takes strings); every setting is mapped, so each is in the cache fingerprint
-const TREAT_MAPPING = { bottleNeck: 'LAYOUT', treatLength: 'TREAT_LENGTH', treatWidth: 'TREAT_WIDTH', treatThickness: 'TREAT_THICKNESS', treatCornerRadius: 'TREAT_CORNER_RADIUS', pocketClearance: 'POCKET_CLEARANCE', threadClearance: 'THREAD_CLEARANCE_SETTING', flapMagnets: 'FLAP_MAGNETS', bottleDiameter: 'BOTTLE_DIAMETER' };
+const TREAT_MAPPING = { bottleNeck: 'LAYOUT', treatLength: 'TREAT_LENGTH', treatWidth: 'TREAT_WIDTH', treatThickness: 'TREAT_THICKNESS', treatCornerRadius: 'TREAT_CORNER_RADIUS', pocketClearance: 'POCKET_CLEARANCE', threadClearance: 'THREAD_CLEARANCE_SETTING', flapMagnets: 'FLAP_MAGNETS', flapBand: 'FLAP_BAND', flapBandNotch: 'FLAP_BAND_NOTCH', bottleDiameter: 'BOTTLE_DIAMETER' };
 const treatSchema = TreatDispenserParametersSchema;
 const treatParts: { id: string; title: string }[] = [
   { id: 'inner-body', title: 'Inner body: bottle thread, funnel, rotor block, motor and ULN2003 mounts, the cap’s lugs' },
@@ -3589,6 +3589,11 @@ export const treatDispenser = {
     control(treatSchema, 'treatLength', 'basic'), control(treatSchema, 'treatWidth', 'basic'), control(treatSchema, 'treatThickness', 'basic'),
     enumControl(treatSchema, 'bottleNeck', 'basic', (Object.keys(BOTTLE_NECKS) as BottleNeck[]).map(value => ({ value, label: BOTTLE_NECKS[value].title, description: `Thread ${BOTTLE_NECKS[value].T} mm over ${BOTTLE_NECKS[value].E} mm, pitch ${BOTTLE_NECKS[value].pitch} mm, bore ${BOTTLE_NECKS[value].bore} mm.` }))),
     control(treatSchema, 'bottleDiameter', 'basic'), control(treatSchema, 'flapMagnets', 'basic'),
+    enumControl(treatSchema, 'flapBand', 'basic', (['none', ...TREAT_BAND_SIZES] as const).map(value => {
+      const band = treatBandPart({ flapBand: value });
+      return band ? { value, label: band.title, description: band.description } : { value, label: 'None', description: 'The counterweight alone holds the flap shut.' };
+    })),
+    control(treatSchema, 'flapBandNotch', 'basic'),
     control(treatSchema, 'pocketClearance', 'advanced'), control(treatSchema, 'threadClearance', 'advanced'), control(treatSchema, 'treatCornerRadius', 'advanced'),
   ],
   physics: parameters => treatDispenserPhysics(parameters as TreatDispenserParameters, { treats: 8 }),
@@ -3609,6 +3614,10 @@ export const treatDispenser = {
       ...(parameters.flapMagnets ? [
         `Flap magnets: pause the flap’s print at ${l.magnets.flap.pause} mm (before layer ${layerAbove(l.magnets.flap.pause, TREAT_DISPENSER.flap.magnet.layer)}) and the inner body’s at ${l.magnets.body.pause} mm (before layer ${layerAbove(l.magnets.body.pause, TREAT_DISPENSER.flap.magnet.layer)}), at ${TREAT_DISPENSER.flap.magnet.layer} mm layers; drop an Ø8 × 1 mm magnet into each cavity, the faces that repel each other facing down in both, then resume.`,
       ] : []),
+      ...(parameters.flapBand === 'none' ? [] : [(() => {
+        const [rest = 0, half = 0, stop = 0] = treatBandTorque(l, parameters, [0, l.flap.swing / 2, l.flap.swing]).map(torque => -torque);
+        return `Flap band #${parameters.flapBand} in notch ${parameters.flapBandNotch} (${TREAT_DISPENSER.band.notches[parameters.flapBandNotch - 1]} mm out): about ${rest.toFixed(2)} N·mm at rest, ${half.toFixed(2)} at ${l.flap.swing / 2}° and ${stop.toFixed(2)} at the stop (${l.flap.swing}°), on top of the counterweight’s ${l.flap.closing.toFixed(2)}. Estimated from the band’s size and Sterling’s hardness; other makers’ bands differ.`;
+      })()]),
       'No sensor sees a treat leave: a cycle is only commanded. Treats can bridge in the bottle’s neck (#140).',
     ] };
   },

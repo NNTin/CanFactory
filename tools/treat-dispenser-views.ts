@@ -11,7 +11,9 @@
  *   - views/*.png: front, side, three-quarter and cutaway views of the assembly with a representative bottle envelope, and three views
  *     inside it (the outer body left out).
  *
- *   PATH=/path/to/openscad:$PATH OPENSCAD_RUNNER=native npx tsx tools/treat-dispenser-views.ts <out-dir>
+ *   PATH=/path/to/openscad:$PATH OPENSCAD_RUNNER=native npx tsx tools/treat-dispenser-views.ts <out-dir> ['<parameters json>']
+ *
+ * The parameters (merged over the defaults) e.g. fit a rubber band: '{"flapBand":"14","flapBandNotch":3}'.
  */
 import { execFile } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -26,9 +28,9 @@ const exec = promisify(execFile);
 const out = resolve(process.argv[2] ?? 'treat-dispenser-views');
 const model = findModel('treat-dispenser');
 if (!model?.assembly) throw new Error('No treat dispenser model.');
-const p = model.defaults as TreatDispenserParameters;
-const assembly = resolveAssembly(model, model.assembly, model.defaults) ?? model.assembly;
-const meshes = await renderAssemblyMeshes(model as never, assembly, model.defaults);
+const p = { ...model.defaults, ...JSON.parse(process.argv[3] ?? '{}') as Partial<TreatDispenserParameters> } as TreatDispenserParameters;
+const assembly = resolveAssembly(model, model.assembly, p) ?? model.assembly;
+const meshes = await renderAssemblyMeshes(model as never, assembly, p);
 await mkdir(join(out, 'stl'), { recursive: true });
 await mkdir(join(out, 'views'), { recursive: true });
 
@@ -92,7 +94,7 @@ for (const [id, mesh] of all) {
   const file = join(out, 'stl', `${id}.stl`);
   if (!(TREAT_PRINTED_PARTS as readonly string[]).includes(id)) await writeFile(file, writeBinaryStl(mesh));
   const rotation = pose.rotation ?? [0, 0, 0];
-  const line = `color("${colors[id] ?? '#9aa0a6'}") translate([${pose.position.join(',')}]) rotate([${rotation.join(',')}]) import("${file}");`;
+  const line = `color("${colors[id] ?? '#9aa0a6'}") translate([${pose.position.join(',')}]) rotate([${rotation.join(',')}]) scale([${(pose.scale ?? [1, 1, 1]).join(',')}]) import("${file}");`;
   lines.push(line);
   // the inside views leave the outer body out
   if (id !== 'outer-body') inside.push(line);
@@ -103,7 +105,8 @@ for (const [id, mesh] of all) {
   const pose = assembly.poses[id];
   if (!pose || id === 'coupon') continue;
   const tris = new Float64Array(mesh.tris.length);
-  for (let i = 0; i < tris.length; i += 3) tris.set(posePoint({ position: pose.position, rotation: pose.rotation ?? [0, 0, 0] }, [mesh.tris[i] ?? 0, mesh.tris[i + 1] ?? 0, mesh.tris[i + 2] ?? 0]), i);
+  const [sx = 1, sy = 1, sz = 1] = pose.scale ?? [];
+  for (let i = 0; i < tris.length; i += 3) tris.set(posePoint({ position: pose.position, rotation: pose.rotation ?? [0, 0, 0] }, [(mesh.tris[i] ?? 0) * sx, (mesh.tris[i + 1] ?? 0) * sy, (mesh.tris[i + 2] ?? 0) * sz]), i);
   placed.set(id, { tris });
 }
 const boxMesh = (min: number[], max: number[]): Mesh => {
@@ -159,6 +162,8 @@ const views: [string, string, number[], boolean][] = [
   ['inside-right', 'inside.scad', close([330, -300, 120]), false],
   ['inside-left', 'inside.scad', close([-330, -260, 60]), false],
   ['inside-back', 'inside.scad', close([-120, 420, 60]), false],
+  // the flap's counterweight and the rubber band's way: its slots, ledges and pegs, from above behind the right
+  ['band', 'inside.scad', [150, 120, layout.flap.hinge.z + 110, 0, layout.band.y, layout.band.z], false],
 ];
 for (const [name, file, camera, solid] of views) {
   const fit = name === 'full' ? ['--autocenter', '--viewall'] : [];

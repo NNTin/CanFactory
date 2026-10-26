@@ -27,6 +27,7 @@ MOTOR_FACE = L("MOTOR_FACE"); BOSS_D = L("BOSS_D"); SHAFT_D = L("SHAFT_D"); SHAF
 CAP = L("CAP"); GAP = L("GAP"); LUG = L("LUG"); FOOT = L("FOOT"); FEET = L("FEET"); RIM = L("RIM"); COLLAR = L("COLLAR"); STANDOFF = L("STANDOFF"); COLUMN_R = L("COLUMN_R");
 BOLTS = L("BOLTS"); NUT = L("NUT"); M3_HOLE = L("M3_HOLE"); HEAD = L("HEAD");
 CASE_POS = L("CASE_POS"); USB = L("USB");
+BAND = L("BAND"); BAND_NOTCHES = L("BAND_NOTCHES");
 
 // the ESP32 case's outline (its base 25.8 × 21.8) and its floor's depth, from the case model's own parts
 CASE_L = 25.8; CASE_W = 21.8; CASE_FLOOR = 6;
@@ -165,6 +166,16 @@ module inner_body_shell() {
           translate([0, AXIS_Z - LUG[2] - (LUG[3] + LUG[2]) * tan(STEEP)]) square(0.01, center = true);
         }
       }
+      // the rubber band's ledges outside the side walls behind the hinge, each on a gusset down the wall (STEEP), with a grooved peg
+      // per notch standing on it (BAND: plane y, line z, slots y0 y1 z0 z1, ledges x0 x1 top thickness width, pegs x y top, grooves
+      // depth opening floor)
+      for (s = [0, 1]) mirror([s, 0, 0]) {
+        hull() {
+          translate([BAND[6] - 0.01, BAND[0] - BAND[10] / 2, BAND[8] - BAND[9]]) cube([BAND[7] - BAND[6] + 0.01, BAND[10], BAND[9]]);
+          translate([BAND[6] - 0.01, BAND[0] - BAND[10] / 2, BAND[8] - BAND[9] - (BAND[7] - BAND[6]) * tan(STEEP)]) cube([0.01, BAND[10], BAND[9]]);
+        }
+        for (x = BAND_NOTCHES) translate([x + BAND[14] - BAND[11], BAND[0] - BAND[12] / 2, BAND[8] - 0.01]) cube([BAND[11], BAND[12], BAND[13] - BAND[8] + 0.01]);
+      }
       // the ULN2003 board's standoffs on the right leg, each with a gusset under it down the leg
       for (b = BOLTS) if (b[12] == 1 && b[3] == -1 && b[8] == 1) hull() {
         translate([MOTOR_FACE - 0.01, b[1], b[2]]) rotate([0, 90, 0]) cylinder(d = STANDOFF[0], h = STANDOFF[1] + 0.01, $fn = 32);
@@ -209,6 +220,16 @@ module inner_body_shell() {
     // without support
     for (i = [0:2]) if (WAY_YS[i + 1] > WAY_YS[i] + 0.01) hull() for (y = [WAY_YS[i], WAY_YS[i + 1]]) translate([0, y, 0]) rotate([90, 0, 0]) linear_extrude(0.01, center = true) polygon(way(y));
     bolt_cuts(1);
+    // the band's way across, through both side walls and the counterweight's recess (over the arm's top as high as the band lies on
+    // it fully open) out over the ledges' roots, and each peg's groove round the band's line in its outer face (its faces at 45°, so
+    // that it prints)
+    translate([-BLOCK[0] - 0.5, BAND[2], BAND[4]]) cube([2 * BLOCK[0] + 1, BAND[3] - BAND[2], BAND[5] - BAND[4]]);
+    for (s = [0, 1]) mirror([s, 0, 0]) {
+      for (x = BAND_NOTCHES) translate([0, BAND[0] + BAND[12] / 2 + 1, 0]) rotate([90, 0, 0]) linear_extrude(BAND[12] + 2) {
+        out = BAND[14] + 1; flare = (BAND[15] - BAND[16]) / BAND[14] * out;
+        polygon([[x, BAND[1] - BAND[16]], [x + out, BAND[1] - BAND[16] - flare], [x + out, BAND[1] + BAND[16] + flare], [x, BAND[1] + BAND[16]]]);
+      }
+    }
     // the optional magnet over the counterweight, sealed in at a print pause (the faces that repel the flap's face down)
     if (MAGNET[0] == 1) magnet_cavity(MAGNET[5], MAGNET[6], MAGNET[7]);
   }
