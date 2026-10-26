@@ -226,7 +226,7 @@ module inner_body_shell() {
     translate([-BLOCK[0] - 0.5, BAND[2], BAND[4]]) cube([2 * BLOCK[0] + 1, BAND[3] - BAND[2], BAND[5] - BAND[4]]);
     for (s = [0, 1]) mirror([s, 0, 0]) {
       for (x = BAND_NOTCHES) translate([0, BAND[0] + BAND[12] / 2 + 1, 0]) rotate([90, 0, 0]) linear_extrude(BAND[12] + 2) {
-        out = BAND[14] + 1; flare = (BAND[15] - BAND[16]) / BAND[14] * out;
+        out = BAND[14] + 0.4; flare = (BAND[15] - BAND[16]) / BAND[14] * out;
         polygon([[x, BAND[1] - BAND[16]], [x + out, BAND[1] - BAND[16] - flare], [x + out, BAND[1] + BAND[16] + flare], [x, BAND[1] + BAND[16]]]);
       }
     }

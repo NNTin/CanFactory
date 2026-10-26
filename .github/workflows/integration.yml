@@ -191,5 +191,6 @@ jobs:
           npm run check:physics
           npm run check:physics -- magnetic-cat-toy --parameters '{"magnetPlacement":"eccentric","socketSpacing":40}'
           npm run check:physics -- treat-dispenser --parameters '{"flapMagnets":true}'
+          npm run check:physics -- treat-dispenser --parameters '{"flapBand":"14","flapBandNotch":4}'
         env:
           OPENSCAD_RUNNER: docker

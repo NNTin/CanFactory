@@ -1193,7 +1193,7 @@ try {
   for (const [name, overrides] of (!only || only === 'treat-dispenser' ? [
     ['default', {}], ['small treats', { treatLength: 10, treatWidth: 6, treatThickness: 3, treatCornerRadius: 0.5 }],
     ['large treats', { treatLength: 18, treatWidth: 10, treatThickness: 7, pocketClearance: 0.4 }], ['PCO 1810', { bottleNeck: 'pco-1810', threadClearance: 0.5 }],
-    ['flap magnets', { flapMagnets: true }],
+    ['flap magnets', { flapMagnets: true }], ['flap band', { flapBand: '14', flapBandNotch: 4 }],
   ] as const : [])) {
     const parameters: TreatDispenserParameters = { ...DEFAULT_TREAT_DISPENSER, ...overrides };
     assert.deepEqual(validateParameters(treatDispenser, parameters), [], name);
@@ -1238,6 +1238,18 @@ try {
       assert.equal(solid(part, [0, cavity.y, cavity.z0 - 0.3]), true, `${name}: ${part}'s skin under the magnet`);
       assert.equal(solid(part, [0, cavity.y, cavity.z1 + 0.3]), true, `${name}: ${part}'s skin over the magnet`);
     }
+    // the rubber band's way (cut whether or not one is fitted): open through both side walls behind the hinge, a peg per notch on
+    // each side's ledge, its groove open round the band's line and the peg solid above it
+    const B = TREAT_DISPENSER.band, band = l.band, wallX = (l.slot.halfX + l.block.halfX) / 2;
+    for (const s of [-1, 1]) {
+      assert.equal(solid('inner-body', [s * wallX, band.y, (band.slot.z0 + band.slot.z1) / 2]), false, `${name}: band's slot ${s}`);
+      assert.equal(solid('inner-body', [s * wallX, band.slot.y1 + 0.5, (band.slot.z0 + band.slot.z1) / 2]), true, `${name}: side wall behind the band's slot ${s}`);
+      B.notches.forEach((x, k) => {
+        assert.equal(solid('inner-body', [s * (band.pegOut(k) - B.groove / 2), band.y, band.z]), false, `${name}: notch ${k + 1}'s groove ${s}`);
+        assert.equal(solid('inner-body', [s * (band.pegOut(k) - B.groove / 2), band.y, band.pegTop - 0.2]), true, `${name}: notch ${k + 1}'s peg ${s}`);
+        assert.equal(solid('inner-body', [s * (x - B.peg[0] / 2), band.y, band.ledge.top - 0.5]), true, `${name}: ledge under notch ${k + 1} ${s}`);
+      });
+    }
     assert.equal(solid('inner-body', [0, 0, (l.blockTop + l.lipZ) / 2]), false, `${name}: funnel`);
     // every nut's bay is open at the nut's centre and at the mouth of its slot, in the part that holds it; solid round the hexagon's
     // corners' side, beyond its flats (the slot is no wider than the flats)
@@ -1254,7 +1266,7 @@ try {
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log(`PASS treat dispenser ${name}: 10 closed prints, an open pocket with the shaft's tip in it, slot, drop, cavity and funnel, a solid tight bore, the flap's snap hinge, open nut bays, the magnets' cavities sealed when fitted, matching preview/download bytes`);
+    console.log(`PASS treat dispenser ${name}: 10 closed prints, an open pocket with the shaft's tip in it, slot, drop, cavity and funnel, a solid tight bore, the flap's snap hinge, open nut bays, the magnets' cavities sealed when fitted, the band's slots and grooved pegs, matching preview/download bytes`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

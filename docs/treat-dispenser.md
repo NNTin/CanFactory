@@ -20,7 +20,7 @@ anything; that is issue #140, left for later.
 | Inner body | The bottle's thread, a funnel into the slot, the rotor's block (bore, slot, the drop under the rotor and a cavity behind it), legs either side of the chute and four feet; a collar round the thread's boss, shaped to the outer body's inside under its top. It is not screwed down: the outer body's top presses on the collar and the base plate's rims hold the feet. The motor on the block's +X face; the ULN2003 board on four standoffs off the right leg; a sleeve carrying the bore out to the left, ending in two lugs for the bearing cap's screws. Every nut sits in a bay of its own. |
 | Outer body | The cover: walls and a gable top, open at the bottom, lowered over the inner body (the thread's boss comes up through its top) and screwed to the base plate at its four corners; its top bears on the inner body's collar, so the corner screws clamp the inner body onto the plate. The ESP32 case's window in its back wall, the rotor's opening in its left wall, the chute's way out of the front. |
 | Rotor | Ø26 × 24 mm, one pocket 16 × 11 mm (for 14 × 9 × 5 treats with 1 mm of clearance) as deep as the axis, its trailing face leaning out 30°, turned 13° so that its mouth is centred under the slot; a D-bore onto the motor's flatted shaft at one end, whose tip pokes into the pocket (the floor's half of the bore still holds the flats), a Ø8 stub into the cap at the other. |
-| Flap | Rigid PLA or PETG, 1.6 mm plate: rests on the rotor just behind the slot, swinging freely on a hub whose hole snaps over two bosses on the slot's side walls (Ø3, through a 2.6 mm mouth); a counterweight on an arm behind the hub (10 × 8.5 mm, 15 mm behind the hinge) holds it on the rotor with 0.27 N·mm and swings up into a recess, up to 45°, as a treat pushes the flap back. It prints upside down on the flat tops of its hub, arm and counterweight. Optionally (**Flap magnets**) a magnet in the counterweight and one in the inner body above it push the flap shut harder ([below](#flap-magnets-option)). |
+| Flap | Rigid PLA or PETG, 1.6 mm plate: rests on the rotor just behind the slot, swinging freely on a hub whose hole snaps over two bosses on the slot's side walls (Ø3, through a 2.6 mm mouth); a counterweight on an arm behind the hub (10 × 8.5 mm, 15 mm behind the hinge) holds it on the rotor with 0.27 N·mm and swings up into a recess, up to 55°, as a treat pushes the flap back. It prints upside down on the flat tops of its hub, arm and counterweight. Optionally an office rubber band across its arm (**Flap band**, [below](#flap-band-option)) and/or a magnet in the counterweight and one in the inner body above it (**Flap magnets**, [below](#flap-magnets-option)) hold it shut harder. |
 | Bearing cap | A tube through the outer body's left wall and the inner body's sleeve into the bore, up to the rotor's end, where it takes the rotor's stub; its flange sits on the wall's outside, its two M3 × 10 screws through the wall into nuts in the inner body's lugs (clamping the wall). |
 | Chute | 30°, from under the rotor out through the front wall; pushed up between the legs from below and held by the base plate. |
 | Base plate | 5 mm; closes the bottom; four M3 × 8 screws from below in counterbores, into the outer body's corners; a low rim (1.6 × 2.5 mm, 0.2 mm off the foot) round three sides of each of the inner body's feet; sized so that a full bottle leans 20° before the dispenser tips; a keeper behind the ESP32 case. |
@@ -74,13 +74,14 @@ at a stall):
   room to tumble and fall to the drop; it can neither be pinched against the bore nor wedge across it.
 - **The flap's hinge is higher than a treat standing on end in the pocket** (the rotor's radius plus the treat's length plus 2 mm above
   the axis): an edge-on treat stuck in the root's corner was the last jam the TPU flap's trials found.
-- **The flap opens up to 45°, no less.** A stop at a smaller angle does not hold back more treats, it jams: in six simulated fills
+- **The flap opens up to 55°.** A stop at a smaller angle does not hold back more treats, it jams: in six simulated fills
   (no magnets, six presses each) a 20° stop stalled 22 times in 36 cycles, 30° 6 times, 40° once, 45°, 50° and 55° never, and Prime let
   out much the same at every stop (5 to 10 of 10). The flap seldom opens wide (at a 55° stop it peaked at 33° to 51° per fill, past 20°
   for 1 to 4 s and past 40° for at most 1.3 s of some 45 s); the treats that pass mostly ride under it barely open. The wide openings are
-  an awkward treat getting through, which a lower stop turns into a jam. 45° is the smallest stop that kept clear of it in those
-  fills; over the full forty trials it held back a little more than 55° (Prime 6.4 of 10 against 8.0) but stalled once in 312 presses,
-  with treats bigger than the dispenser is set for, where 55° never did. It also lets the magnets sit closer (below).
+  an awkward treat getting through, which a lower stop turns into a jam. A 45° stop held back a little more over the full forty trials
+  (Prime 6.4 of 10 against 8.0) but stalled once in 312 presses, with treats bigger than the dispenser is set for. To let less through
+  without that, the stop stays at 55° and the **flap band** holds the flap shut harder the further it opens ([below](#flap-band-option)):
+  it keeps the flap from opening wide unless a treat needs it to.
 - **The slot is wider than a treat is long** (17 mm for 14 mm treats): a 13 mm slot let treats bridge across it over the rotor.
 - **The drop and the chute are wide open**: the walls of the block stop at the block's underside, so nothing dams the drop.
 
@@ -89,22 +90,22 @@ What it cannot prevent: treats that arch in the bottle's 21.7 mm neck (#140) or 
 ### Flap magnets (option)
 
 **Flap magnets** embeds two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N, from the parts library) that repel each other: one in
-the flap's counterweight, under its top face, and one in the inner body, above and behind the hinge (7 mm behind it, 18 mm over it,
-18 mm from the flap's at rest). A magnet facing the counterweight from straight above would stand in its way as it swings up, so the
-inner body's sits beyond the room it sweeps up to the 45° stop, near the block's top. They are not on one line: the line between them
-stands 25° to 30° off their axes over the swing. Two flat magnets repel while that line is within 54.7° of their axes and attract
-beyond it, so they repel all the way, with some 25° to spare (a test holds the line within 45°); summing over each disc's volume,
+the flap's counterweight, under its top face, and one in the inner body, above and behind the hinge (4.5 mm behind it, 20 mm over it,
+21 mm from the flap's at rest). A magnet facing the counterweight from straight above would stand in its way as it swings up, so the
+inner body's sits beyond the room it sweeps up to the 55° stop, near the block's top (over the band's way across, with a skin between). They are not on one line: the line between them
+stands 27° to 35° off their axes over the swing. Two flat magnets repel while that line is within 54.7° of their axes and attract
+beyond it, so they repel all the way, with some 20° to spare (a test holds the line within 45°); summing over each disc's volume,
 rather than taking it as one point, gives the same sign and a little more torque. A search over the places that fit, both magnets
 lying flat so that the prints can pause for them, picked the one with the most closing torque at rest (real magnets) that still closes
 all the way to the stop. They add, to the counterweight's 0.27 N·mm:
 
-| Flap open | 0° | 10° | 20° | 30° | 40° | 45° (stop) |
-| --- | --- | --- | --- | --- | --- | --- |
-| Magnets' closing torque, each disc summed over its volume (N·mm) | 0.17 | 0.32 | 0.63 | 1.36 | 3.16 | 4.74 |
-| The same, as the simulation applies it (N·mm) | 0.12 | 0.20 | 0.34 | 0.56 | 0.55 | 0.06 |
+| Flap open | 0° | 10° | 20° | 30° | 40° | 50° | 55° (stop) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Magnets' closing torque, each disc summed over its volume (N·mm) | 0.09 | 0.15 | 0.28 | 0.56 | 1.17 | 2.45 | 3.04 |
+| The same, as the simulation applies it (N·mm) | 0.07 | 0.11 | 0.19 | 0.33 | 0.54 | 0.53 | 0.08 |
 
-The smaller the stop, the closer the magnets can sit: the search gave 0.09 N·mm at rest for a 55° stop, 0.19 for 45°, 0.53 for 30°,
-1.17 for 20°. But the flap needs its 45° (below).
+The smaller the stop, the closer the magnets can sit: the search gave 0.09 N·mm at rest for the 55° stop, 0.19 for 45°, 0.53 for 30°,
+1.17 for 20°. But the flap needs its 55° (above); for a firmer flap at rest, the band does more.
 
 The simulation recomputes the pair at every step (0.1 ms) from both magnets' positions and their moments as the flap has turned them,
 force and twisting torque alike. But it takes each magnet as a point dipole softened by its radius (the pair's 4 mm in quadrature,
@@ -112,82 +113,110 @@ force and twisting torque alike. But it takes each magnet as a point dipole soft
 open the real flap shuts several times harder than simulated. So the simulated holding back at rest is about right, and the real flap
 is stiffer when wide open than the trials below assume (stiffness there is what wedged a treat in the TPU flap's trials).
 
-So the flap shuts harder at rest (+60 %, and the magnet's own weight in the counterweight adds about 0.05 N·mm more) and much
+So the flap shuts harder at rest (+30 %, and the magnet's own weight in the counterweight adds about 0.05 N·mm more) and much
 harder as it opens, as the TPU flap's spring did (0.3 N·mm at rest, 0.9 more per 30°). They never push it open. With the option off, the
 cavities are not cut, and the parts are otherwise the same (the block's top leaves room for the inner body's magnet either way).
 
 **Printing.** Each part pauses once, at 0.2 mm layers (the editor's notes give the heights for your settings; at the defaults the flap
-at 2.0 mm, before layer 11, and the inner body at 112.4 mm, before layer 563). Hold the two magnets so that they push each other apart:
+at 2.0 mm, before layer 11, and the inner body at 114.4 mm, before layer 573). Hold the two magnets so that they push each other apart:
 the faces that push go **down** in both cavities (the flap prints upside down and the inner body upright, so that is the face towards
 the other magnet in both). Drop each in, check it lies flat, resume: the next layer bridges over it.
 
-**Simulated** (the same trials, `--magnets`, at the 45° stop): the flap holds back more on the first turn, and the flow lasts a press longer:
+**Simulated** (the same forty trials as [below](#simulation-results), `--magnets`, at the 55° stop):
 
 | Trials | Presses | First press: 0 / 1 / 2+ | All presses: 0 / 1 / 2+ | Stalls | Leaked between cycles | Strayed into the electronics | Fastest treat |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Random fills, 10 treats (6) | 48 | 0 / 1 / 5 | 39 / 3 / 6 | 0 | 0 | 0 | 0.61 m/s |
-| One orientation, 10 treats (4) | 32 | 1 / 0 / 3 | 27 / 1 / 4 | 0 | 0 | 0 | 0.63 m/s |
-| friction 0.3 (3) | 24 | 0 / 0 / 3 | 20 / 0 / 4 | 0 | 0 | 0 | 0.68 m/s |
-| friction 0.55 (3) | 24 | 0 / 1 / 2 | 20 / 1 / 3 | 0 | 0 | 0 | 0.47 m/s |
-| mass 0.3 g (3) | 24 | 0 / 0 / 3 | 21 / 0 / 3 | 0 | 0 | 0 | 0.59 m/s |
-| mass 0.8 g (3) | 24 | 0 / 0 / 3 | 20 / 0 / 4 | 0 | 0 | 0 | 0.61 m/s |
-| 13 × 8.5 × 4.5 (3) | 24 | 1 / 0 / 2 | 22 / 0 / 2 | 0 | 0 | 0 | 0.60 m/s |
-| 15 × 9.5 × 5.5 (3) | 24 | 0 / 0 / 3 | 19 / 1 / 4 | 6 | 0 | 0 | 0.62 m/s |
-| corner r 1.0 (3) | 24 | 0 / 0 / 3 | 19 / 0 / 5 | 0 | 0 | 0 | 0.61 m/s |
-| corner r 2.2 (3) | 24 | 1 / 0 / 2 | 22 / 0 / 2 | 0 | 0 | 0 | 0.61 m/s |
-| 6 treats (3) | 24 | 0 / 0 / 3 | 21 / 0 / 3 | 0 | 0 | 0 | 0.65 m/s |
-| 12 treats (2) | 16 | 0 / 0 / 2 | 11 / 0 / 5 | 0 | 0 | 0 | 0.66 m/s |
-| All (39) | 312 | 3 / 2 / 34 | 261 / 6 / 45 | 6 | 0 | 0 | 0.68 m/s |
+| Random fills, 10 treats (6) | 48 | 0 / 1 / 5 | 39 / 2 / 7 | 0 | 0 | 0 | 0.64 m/s |
+| One orientation, 10 treats (4) | 32 | 0 / 1 / 3 | 28 / 1 / 3 | 0 | 0 | 0 | 0.61 m/s |
+| friction 0.3 (3) | 24 | 1 / 0 / 2 | 20 / 1 / 3 | 1 | 0 | 0 | 0.68 m/s |
+| friction 0.55 (3) | 24 | 0 / 0 / 3 | 21 / 0 / 3 | 0 | 0 | 0 | 0.52 m/s |
+| mass 0.3 g (3) | 24 | 0 / 0 / 3 | 21 / 0 / 3 | 0 | 0 | 0 | 0.62 m/s |
+| mass 0.8 g (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.61 m/s |
+| 13 × 8.5 × 4.5 (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.60 m/s |
+| 15 × 9.5 × 5.5 (3) | 24 | 0 / 0 / 3 | 19 / 1 / 4 | 0 | 0 | 0 | 0.58 m/s |
+| corner r 1.0 (3) | 24 | 0 / 0 / 3 | 21 / 0 / 3 | 0 | 0 | 0 | 0.61 m/s |
+| corner r 2.2 (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.59 m/s |
+| 6 treats (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.61 m/s |
+| 12 treats (3) | 24 | 0 / 1 / 2 | 21 / 1 / 2 | 0 | 0 | 0 | 0.58 m/s |
+| All (40) | 320 | 5 / 7 / 28 | 278 / 10 / 32 | 1 | 0 | 0 | 0.68 m/s |
 
-Prime released 5.0 of the 10 or so on average (2 to 10; without the magnets 6.4), and the first press two or more in 34 of 39 (24
-without). But **six stalls in 312 presses, all in one trial** (15 × 9.5 × 5.5 mm treats, random 2): an oversized treat held the flap
-at its stop for some 40 s and wedged against the rotor again and again. The stiffer flap and the lower stop together leave a treat
-bigger than the dispenser is set for too little room. With the default treats, no stall. So the option stays off by default: set the
-treat size to your treats' largest, and keep the magnets for treats no bigger than that.
+Prime released 6.4 of the 10 or so on average (without the magnets 8.0), and the first press two or more in 28 of 40 (14 without).
+**One stall in 320 presses** (friction 0.3, random 2: 285° lost on the first press, the flap at its stop for 5 s), where neither the
+bare flap nor the band stalled. The band holds back more (Prime 5.0) without it, so the magnets stay off by default; keep them for
+treats with ordinary friction, or use the band.
 
-Per trial with the magnets (Prime, then presses 1–8):
+### Flap band (option)
 
-| Fill | Prime | Presses |
-| --- | --- | --- |
-| 12 treats, random 1 | 4 | 5 3 0 0 0 0 0 0 |
-| 12 treats, random 2 | 3 | 3 3 3 0 0 0 0 0 |
-| 13 × 8.5 × 4.5, random 1 | 6 | 4 0 0 0 0 0 0 0 |
-| 13 × 8.5 × 4.5, random 2 | 6 | 4 0 0 0 0 0 0 0 |
-| 13 × 8.5 × 4.5, random 3 | 10 | 0 0 0 0 0 0 0 0 |
-| 15 × 9.5 × 5.5, random 1 | 4 | 4 1 0 0 0 0 0 0 |
-| 15 × 9.5 × 5.5, random 2 | 2 | 3 0 0 0 0 0 5 0 |
-| 15 × 9.5 × 5.5, random 3 | 5 | 5 0 0 0 0 0 0 0 |
-| 6 treats, random 1 | 4 | 2 0 0 0 0 0 0 0 |
-| 6 treats, random 2 | 3 | 3 0 0 0 0 0 0 0 |
-| 6 treats, random 3 | 4 | 2 0 0 0 0 0 0 0 |
-| corner r 1.0, random 1 | 2 | 3 5 0 0 0 0 0 0 |
-| corner r 1.0, random 2 | 5 | 5 0 0 0 0 0 0 0 |
-| corner r 1.0, random 3 | 4 | 2 0 0 0 4 0 0 0 |
-| corner r 2.2, random 1 | 7 | 3 0 0 0 0 0 0 0 |
-| corner r 2.2, random 2 | 6 | 4 0 0 0 0 0 0 0 |
-| corner r 2.2, random 3 | 10 | 0 0 0 0 0 0 0 0 |
-| diagonal 1 | 4 | 4 2 0 0 0 0 0 0 |
-| edge 1 | 4 | 5 1 0 0 0 0 0 0 |
-| end 1 | 10 | 0 0 0 0 0 0 0 0 |
-| flat 1 | 6 | 4 0 0 0 0 0 0 0 |
-| friction 0.3, random 1 | 2 | 3 5 0 0 0 0 0 0 |
-| friction 0.3, random 2 | 4 | 6 0 0 0 0 0 0 0 |
-| friction 0.3, random 3 | 8 | 2 0 0 0 0 0 0 0 |
-| friction 0.55, random 1 | 4 | 6 0 0 0 0 0 0 0 |
-| friction 0.55, random 2 | 5 | 5 0 0 0 0 0 0 0 |
-| friction 0.55, random 3 | 6 | 1 3 0 0 0 0 0 0 |
-| mass 0.3 g, random 1 | 4 | 6 0 0 0 0 0 0 0 |
-| mass 0.3 g, random 2 | 3 | 7 0 0 0 0 0 0 0 |
-| mass 0.3 g, random 3 | 3 | 7 0 0 0 0 0 0 0 |
-| mass 0.8 g, random 1 | 4 | 3 3 0 0 0 0 0 0 |
-| mass 0.8 g, random 2 | 3 | 7 0 0 0 0 0 0 0 |
-| mass 0.8 g, random 3 | 8 | 2 0 0 0 0 0 0 0 |
-| random 1 | 5 | 5 0 0 0 0 0 0 0 |
-| random 2 | 3 | 3 3 1 0 0 0 0 0 |
-| random 3 | 8 | 2 0 0 0 0 0 0 0 |
-| random 4 | 5 | 5 0 0 0 0 0 0 0 |
-| random 5 | 3 | 6 1 0 0 0 0 0 0 |
-| random 6 | 9 | 1 0 0 0 0 0 0 0 |
+**Flap band** stretches an ordinary numbered office rubber band across the flap's arm, so that it presses the arm down and the flap
+shut, the more the further it opens. The inner body always has its way (the option changes nothing printed): a 5 mm slot through
+both side walls of the counterweight's recess, 5 mm behind the hinge and clear of the hinge's bosses, and outside each wall a ledge
+on a 50° gusset with five pegs, their grooves' floors 20, 24, 28, 32 and 36 mm from the middle (**Band notch** 1 to 5). Thread the
+band in through one slot, over the arm and out through the other (a bent paper clip pulls it through), and hook its ends round the
+pegs of the same notch on both sides. The grooves hold its ends 1.5 mm below the arm's top, so that it already presses at rest; the
+band pulls inwards and, the flap open, up along its strands at less than the grooves' 45° flanks, so it cannot climb out.
+
+**Why near the hinge.** A band's tension is a few newtons. Across the counterweight, 15 mm behind the hinge, every office band held
+the flap 3 to 30 times harder than the old TPU flap's spring; 5 mm behind it they give TPU-like torques, and the notch tunes them.
+
+**The torque, estimated** (`treatBandTorque`): the band is a loop round the two grooves' floors and over the flap's top, its strands
+straight; its stretch is that loop's length over its own (twice the band's flat length, Alliance Rubber's size chart). Its tension is
+neo-Hookean on its unstretched section (nominal stress E/3 (λ − λ⁻²)), with E = 1.8 MPa from Gent's relation for Sterling's 42 Shore A,
+and the thickness from the chart's count per pound and specific gravity (the chart gives no thickness; the parts library marks it
+estimated). Turned down at the flap's edges by the strands' slope, it presses on the flap 5 mm behind the hinge. Other makers' bands
+of the same number differ in rubber and thickness, so treat the numbers as a guide and try the next notch. At the defaults (N·mm;
+the counterweight adds 0.27 throughout):
+
+| Band, notch | 0° | 10° | 20° | 30° | 40° | 50° | 55° (stop) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| #10, 1 | 1.17 | 1.92 | 2.83 | 4.02 | 5.73 | 9.52 | 11.68 |
+| #12, 2 | 0.40 | 0.67 | 1.02 | 1.51 | 2.31 | 4.23 | 5.55 |
+| #12, 3 | 0.76 | 1.23 | 1.80 | 2.53 | 3.55 | 5.61 | 6.91 |
+| #12, 4 | 0.94 | 1.52 | 2.21 | 3.06 | 4.22 | 6.37 | 7.69 |
+| #12, 5 | 1.04 | 1.68 | 2.43 | 3.36 | 4.60 | 6.79 | 8.14 |
+| #14, 3 | 0.36 | 0.60 | 0.89 | 1.29 | 1.91 | 3.27 | 4.23 |
+| #14, 4 | 0.61 | 0.99 | 1.45 | 2.03 | 2.83 | 4.38 | 5.37 |
+| #14, 5 | 0.75 | 1.22 | 1.76 | 2.45 | 3.37 | 5.03 | 6.07 |
+| #16, 4 | 0.08 | 0.14 | 0.22 | 0.36 | 0.62 | 1.29 | 1.86 |
+| #16, 5 | 0.34 | 0.55 | 0.81 | 1.14 | 1.62 | 2.57 | 3.23 |
+| #30, 3 | 0.75 | 1.24 | 1.85 | 2.68 | 3.95 | 6.78 | 8.77 |
+| #30, 4 | 1.27 | 2.06 | 3.01 | 4.21 | 5.87 | 9.07 | 11.14 |
+| #31, 4 | 0.15 | 0.27 | 0.43 | 0.70 | 1.19 | 2.49 | 3.58 |
+| #31, 5 | 0.65 | 1.06 | 1.56 | 2.21 | 3.13 | 4.96 | 6.24 |
+
+The editor offers the sizes that are taut at rest in some notch and hold the flap at most 12 N·mm at its stop (#10, #12, #14, #16,
+#30, #31; a test keeps that list honest), and flags a notch where the chosen band hangs slack or holds too firmly. Shorter or wider
+bands (#8, #27) are too firm everywhere, longer ones (#18, #19, #32, #33) slack. Every offered band but #10 works in notch 4, the
+default.
+
+**In the simulation** the band is a torque on the flap's hinge by its angle (the joint's `load` table, applied at every step: the
+physics plan's joints), not a body: its strands are not simulated and treats cannot touch it (they never reach the recess's top). In
+the 3D view it is the library's loop squeezed into an ellipse, drawn straight just over the pegs' tops (a scaled ring cannot dip into
+the grooves and over the arm as the real band does).
+
+**Simulated** (the same forty trials as [below](#simulation-results), `--band 14 --notch 4`, the #14 band in notch 4: 0.61 N·mm at
+rest, 5.37 at the stop):
+
+| Trials | Presses | First press: 0 / 1 / 2+ | All presses: 0 / 1 / 2+ | Stalls | Leaked between cycles | Strayed into the electronics | Fastest treat |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Random fills, 10 treats (6) | 48 | 0 / 1 / 5 | 38 / 2 / 8 | 0 | 0 | 0 | 0.64 m/s |
+| One orientation, 10 treats (4) | 32 | 0 / 0 / 4 | 25 / 1 / 6 | 0 | 0 | 0 | 0.64 m/s |
+| friction 0.3 (3) | 24 | 1 / 0 / 2 | 20 / 2 / 2 | 0 | 0 | 0 | 0.72 m/s |
+| friction 0.55 (3) | 24 | 0 / 0 / 3 | 21 / 0 / 3 | 0 | 0 | 0 | 0.52 m/s |
+| mass 0.3 g (3) | 24 | 0 / 0 / 3 | 20 / 0 / 4 | 0 | 0 | 0 | 0.60 m/s |
+| mass 0.8 g (3) | 24 | 0 / 1 / 2 | 21 / 1 / 2 | 0 | 0 | 0 | 0.61 m/s |
+| 13 × 8.5 × 4.5 (3) | 24 | 0 / 0 / 3 | 20 / 1 / 3 | 0 | 0 | 0 | 0.61 m/s |
+| 15 × 9.5 × 5.5 (3) | 24 | 0 / 0 / 3 | 18 / 1 / 5 | 0 | 0 | 0 | 0.63 m/s |
+| corner r 1.0 (3) | 24 | 0 / 0 / 3 | 21 / 0 / 3 | 0 | 0 | 0 | 0.62 m/s |
+| corner r 2.2 (3) | 24 | 0 / 0 / 3 | 19 / 0 / 5 | 0 | 0 | 0 | 0.60 m/s |
+| 6 treats (3) | 24 | 2 / 0 / 1 | 23 / 0 / 1 | 0 | 0 | 0 | 0.61 m/s |
+| 12 treats (3) | 24 | 0 / 1 / 2 | 19 / 1 / 4 | 0 | 0 | 0 | 0.61 m/s |
+| All (40) | 320 | 3 / 3 / 34 | 265 / 9 / 46 | 0 | 0 | 0 | 0.72 m/s |
+
+**No stall in 320 presses**, nothing between cycles or in the electronics. Prime released 5.0 of the 10 or so on average (without the
+band 8.0), and the first press two or more in 34 of 40 (14 without): the band spreads a fill over more presses rather than letting it
+all out on the first turn. It also keeps the flap lower: it peaked at 16° to 52° per fill, median 30° (39° without). Quick runs (six
+fills) of firmer settings gave Prime 3.2 (#12 in notch 3, 6.9 N·mm at the stop) and 3.0 to 3.5 (#30 in notches 3 and 4, up to 11.1),
+none stalling; softer ones 4.3 (#14 in notch 3) and 5.8 (#16 in notch 5). So it helps, but a full turn still lets several treats past.
 
 ### Assembly and service
 
@@ -199,6 +228,8 @@ path collide nowhere (also for the smallest and largest treats and the PCO 1810 
 2. Snap the flap on, before the motor: from the inner body's open bottom, holding it by its counterweight, bring it up through the drop
    into the empty bore, then push it up and back until its hub's mouth clicks over the two bosses behind the slot; it then swings
    freely, and rests on the bore until the rotor is in.
+   With a flap band: thread it through the side walls' slots over the flap's arm, and hook its ends into the grooves of one notch
+   on both sides.
 3. Put the motor on the block's +X face from the side, its shaft and boss into the hole, its can in front; two M3 × 6 through its ears.
 4. Screw the ULN2003 board to its standoffs under the motor (four M3 × 8), its parts facing out; plug in the motor and the jumper
    wires (IN1–IN4, + and −).
@@ -224,16 +255,16 @@ down and forwards off its bosses.
 
 ### Packaging
 
-105 × 101 × 144 mm assembled (without the bottle), on a 105 × 99 mm base plate: with a full 0.5 l bottle (Ø65 mm) it leans 20° before
-it tips. It is 13 mm taller than with the TPU flap: the rigid flap's counterweight needs room to swing up over its hinge. The outer body is 89 mm wide (41.5 → 44.5 mm half width) so that the jumper plugs on the ULN2003's pins have room to the
+105 × 101 × 146 mm assembled (without the bottle), on a 105 × 99 mm base plate: with a full 0.5 l bottle (Ø65 mm) it leans 20° before
+it tips. It is 15 mm taller than with the TPU flap: the rigid flap's counterweight needs room to swing up over its hinge. The outer body is 89 mm wide (41.5 → 44.5 mm half width) so that the jumper plugs on the ULN2003's pins have room to the
 wall, and the base plate is 5 mm thick (was 3) for the screw heads' counterbores. `tools/treat-dispenser-views.ts` renders every part
 as the worker does; the solid volumes of this revision (no slicer was available when it was made, so the slicer figures below are
 not re-run):
 
 | Part | Solid volume (cm³) | Size as printed (mm) |
 | --- | --- | --- |
-| Inner body | 97.2 | 66 × 59 × 139 |
-| Outer body | 65.6 | 89 × 87 × 121 |
+| Inner body | 100.7 | 81 × 59 × 141 (the band's ledges make it wider) |
+| Outer body | 66.0 | 89 × 87 × 123 |
 | Rotor | 10.2 | 26 × 26 × 29 |
 | Flap (PLA or PETG, upside down) | 2.2 | 16 × 23 × 27 |
 | Bearing cap | 14.7 | 46 × 46 × 35 |
@@ -241,7 +272,7 @@ not re-run):
 | Base plate | 54.0 | 105 × 99 × 5 (with its posts and keeper, 61 high) |
 | Thread coupon | 3.8 | 34 × 34 × 10 |
 | ESP32 case base and lid | 2.2 | |
-| **All** | **257.1** (with the TPU flap: 233.1; one body before the split: 197.9) | |
+| **All** | **261.0** (with the TPU flap: 233.1; one body before the split: 197.9) | |
 
 With PrusaSlicer 2.5 and `tools/treat-dispenser.ini` (0.4 mm nozzle, 0.2 mm layers, PETG, four perimeters) the single-body revision
 came to 217.7 g; set `PRUSA_SLICER` to re-slice this one.
@@ -256,7 +287,7 @@ bosses and the hub's recess), a short bridge (the flat strip either side of the 
 counterweight's recess, across their 16 mm between the side walls; the case window, 22 mm; the nut slots' ceilings, at most 5.8 mm),
 or the thread's own groove (1.6 mm deep). The flap prints upside down, on the flush tops of its hub, its arm and its counterweight
 (the hub's hole along the bed is a 3.4 mm bridge), so that the magnet's cavity under the counterweight's top lies flat and the print can
-pause over it. The cavity and the recess leave the flap 45° of swing, the least that does not jam (see the flap's opening below). With automatic supports on every part the slicer added 31.8 g to the
+pause over it. The cavity and the recess leave the flap 55° of swing (see the flap's opening above). The band's slots are 5 mm bridges, its ledges stand on 50° gussets and its pegs' grooves have 45° flanks. With automatic supports on every part the slicer added 31.8 g to the
 single-body revision, most of it in the thread, from columns that would stand in the slot, the bore and the drop: switch supports off
 for the inner body. For comparison, the same tool and profile gave 283.4 g (49.4 g of support) for the first notch-disc design and 233.3 g
 (23.2 g) for its compact revision.
@@ -360,7 +391,7 @@ The editor's Simulate mode and `npm run check:physics -- treat-dispenser` simula
 - **Only the rotor's hinge is driven**, by a torque-limited actuator (≤ 29.4 N·mm, the data sheet's 300 gf·cm pull-in torque, with
   the stiffness of one full step), directly, as the motor's shaft is. It slips like a stepper and reports the travel it lost.
 - **The flap is a hinged body** free on its hinge (no spring), its mass and inertia from its rendered mesh, so that its counterweight
-  closes it as the printed part's would; a little damping; it lies on the rotor by contact and swings up to 45°. With Flap magnets, its
+  closes it as the printed part's would; a little damping; it lies on the rotor by contact and swings up to 55°. With a Flap band, the band's torque acts on its hinge (by its angle); with Flap magnets, its
   magnet and the inner body's are softened point dipoles (the physics plan's magnets), repelling; in the editor the flap's magnet
   swings with the flap (the spec's `attached`: a part that rides rigidly on a body).
 - **Treats are independent rounded cuboids**, 14 × 9 × 5 mm with 1.5 mm corners, 0.5 g, friction 0.4, colliding with everything and
@@ -392,92 +423,90 @@ treats in contact).
 | Reset | RESET mid-cycle stops the motor; boot does not move it; presses during boot and while unaligned are rejected; jog + aligned → one press runs one cycle |
 | Hold and burst | BOOT held 3 s runs one cycle; three quick presses: one runs, one queues, one is rejected |
 
-CI asserts no count per press: 0, 1 or more treats per press is the accepted behaviour. It runs these scenarios twice: at the
-defaults and with Flap magnets.
+CI asserts no count per press: 0, 1 or more treats per press is the accepted behaviour. It runs these scenarios three times: at the
+defaults, with Flap magnets and with a #14 Flap band in notch 4.
 
 ### Simulation results
 
 `npx tsx tools/physics/treat-dispenser-trials.ts` fills the bottle's neck and the funnel (seeded), primes, then presses eight times per
-trial and counts what actually crosses the plane past the chute's end. Forty trials (2026-10-23, this geometry: one pocket, a full
-turn per press, the counterweighted rigid flap): random fills, one orientation for all treats (flat, on edge, on end, diagonal), and
+trial and counts what actually crosses the plane past the chute's end. Forty trials (2026-10-26, this geometry: one pocket, a full
+turn per press, the counterweighted rigid flap, its stop at 55°): random fills, one orientation for all treats (flat, on edge, on end, diagonal), and
 variations of friction, mass, size, corner rounding and the number of treats; the dispenser stays sized for 14 × 9 × 5 mm treats.
-Without the flap magnets (the default; with them, see [Flap magnets](#flap-magnets-option)), at the 45° stop:
+At the 55° stop, without the band or the magnets (the defaults; with them, see [Flap band](#flap-band-option) and
+[Flap magnets](#flap-magnets-option)):
 
 | Trials | Presses | First press: 0 / 1 / 2+ | All presses: 0 / 1 / 2+ | Stalls | Leaked between cycles | Strayed into the electronics | Fastest treat |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Random fills, 10 treats (6) | 48 | 3 / 0 / 3 | 44 / 0 / 4 | 0 | 0 | 0 | 0.62 m/s |
-| One orientation, 10 treats (4) | 32 | 0 / 2 / 2 | 27 / 2 / 3 | 0 | 0 | 0 | 0.62 m/s |
-| friction 0.3 (3) | 24 | 0 / 0 / 3 | 21 / 0 / 3 | 0 | 0 | 0 | 0.69 m/s |
-| friction 0.55 (3) | 24 | 1 / 0 / 2 | 22 / 0 / 2 | 0 | 0 | 0 | 0.52 m/s |
-| mass 0.3 g (3) | 24 | 0 / 0 / 3 | 21 / 0 / 3 | 0 | 0 | 0 | 0.58 m/s |
-| mass 0.8 g (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.61 m/s |
-| 13 × 8.5 × 4.5 (3) | 24 | 2 / 0 / 1 | 23 / 0 / 1 | 0 | 0 | 0 | 0.62 m/s |
-| 15 × 9.5 × 5.5 (3) | 24 | 0 / 0 / 3 | 18 / 1 / 5 | 1 | 1 | 0 | 0.57 m/s |
-| corner r 1.0 (3) | 24 | 0 / 0 / 3 | 19 / 0 / 5 | 0 | 0 | 0 | 0.60 m/s |
-| corner r 2.2 (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.65 m/s |
-| 6 treats (3) | 24 | 2 / 1 / 0 | 23 / 1 / 0 | 0 | 0 | 0 | 0.60 m/s |
-| 12 treats (2) | 16 | 0 / 0 / 2 | 13 / 0 / 3 | 0 | 0 | 0 | 0.61 m/s |
-| All (39) | 312 | 10 / 5 / 24 | 275 / 6 / 31 | 1 | 1 | 0 | 0.69 m/s |
+| Random fills, 10 treats (6) | 48 | 3 / 0 / 3 | 45 / 0 / 3 | 0 | 0 | 0 | 0.63 m/s |
+| One orientation, 10 treats (4) | 32 | 2 / 1 / 1 | 30 / 1 / 1 | 0 | 0 | 0 | 0.67 m/s |
+| friction 0.3 (3) | 24 | 1 / 1 / 1 | 21 / 1 / 2 | 0 | 0 | 0 | 0.68 m/s |
+| friction 0.55 (3) | 24 | 3 / 0 / 0 | 24 / 0 / 0 | 0 | 0 | 0 | 0.53 m/s |
+| mass 0.3 g (3) | 24 | 0 / 1 / 2 | 21 / 1 / 2 | 0 | 0 | 0 | 0.63 m/s |
+| mass 0.8 g (3) | 24 | 1 / 0 / 2 | 22 / 0 / 2 | 0 | 0 | 0 | 0.58 m/s |
+| 13 × 8.5 × 4.5 (3) | 24 | 2 / 0 / 1 | 23 / 0 / 1 | 0 | 0 | 0 | 0.59 m/s |
+| 15 × 9.5 × 5.5 (3) | 24 | 1 / 0 / 2 | 21 / 0 / 3 | 0 | 0 | 0 | 0.66 m/s |
+| corner r 1.0 (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.62 m/s |
+| corner r 2.2 (3) | 24 | 1 / 1 / 1 | 22 / 1 / 1 | 0 | 0 | 0 | 0.59 m/s |
+| 6 treats (3) | 24 | 2 / 1 / 0 | 23 / 1 / 0 | 0 | 0 | 0 | 0.58 m/s |
+| 12 treats (3) | 24 | 3 / 0 / 0 | 24 / 0 / 0 | 0 | 0 | 0 | 0.66 m/s |
+| All (40) | 320 | 20 / 6 / 14 | 298 / 6 / 16 | 0 | 0 | 0 | 0.68 m/s |
 
-**One stall in 312 presses**, with oversized treats (15 × 9.5 × 5.5 mm in a dispenser sized for 14 × 9 × 5; random 3: 14° lost on the
-first press, the flap at its stop for 7.5 s), and one treat that left between cycles in the same trial; nothing strayed into the
-electronics, and the fastest treat in the mechanism moved at 0.69 m/s (a falling treat moves at about 1 m/s; the solver flinging one
-would show several). With the stop at 55° the same forty trials had no stall: the 45° stop holds back more (below) at the price of
-that one, with treats bigger than the dispenser is set for. One trial (12 treats, random 3) did not start: the lower block leaves
-the funnel too small to pack twelve treats into it at the start.
+**No stall in 320 presses**, nothing left between cycles, nothing strayed into the electronics, and the fastest treat in the mechanism
+moved at 0.68 m/s (a falling treat moves at about 1 m/s; the solver flinging one would show several). The flap peaked at 16° to 55°
+per fill (median 39°).
 
-**But one turn lets out most of what is in the funnel**: Prime alone released 6.4 of the 10 or so treats on average (2 to 10; with the
-55° stop 8.0), and the
-first press or two the rest; after that the presses give nothing because the funnel is empty (the trials do not refill it). With the TPU
-flap and two pockets turned half a turn per press, Prime gave 2.05 on average (0 to 5) and the first press two or more. The flap is not the
-cause: the counterweight closes it with the TPU flap's preload, and the TPU flap's own spring on this rotor did no better (Prime 2 to
-10 in six quick trials). A full turn carries the pocket, and the closed rotor that drags the treats lying on it, past the flap twice as
-far per press. Two pockets at half a turn per press would halve it; with a full bottle bearing on the funnel, expect more per press than
-these ten-treat fills show.
+**But one turn lets out most of what is in the funnel**: Prime alone released 8.0 of the 10 or so treats on average (at the 45° stop
+6.4, but with a stall), and the first press or two the rest; after that the presses give nothing because the funnel is empty (the
+trials do not refill it). With the TPU flap and two pockets turned half a turn per press, Prime gave 2.05 on average (0 to 5) and the
+first press two or more. The flap is not the whole cause: the counterweight closes it with the TPU flap's preload, and the TPU flap's
+own spring on this rotor did no better (Prime 2 to 10 in six quick trials). A full turn carries the pocket, and the closed rotor that
+drags the treats lying on it, past the flap twice as far per press. The flap band holds back more (Prime 5.0); two pockets at half a
+turn per press would halve it; with a full bottle bearing on the funnel, expect more per press than these ten-treat fills show.
 
 Per trial (Prime, then presses 1–8):
 
 | Fill | Prime | Presses |
 | --- | --- | --- |
-| 12 treats, random 1 | 8 | 4 0 0 0 0 0 0 0 |
-| 12 treats, random 2 | 3 | 6 3 0 0 0 0 0 0 |
-| 13 × 8.5 × 4.5, random 1 | 8 | 2 0 0 0 0 0 0 0 |
-| 13 × 8.5 × 4.5, random 2 | 10 | 0 0 0 0 0 0 0 0 |
-| 13 × 8.5 × 4.5, random 3 | 10 | 0 0 0 0 0 0 0 0 |
-| 15 × 9.5 × 5.5, random 1 | 5 | 3 1 0 0 0 0 0 0 |
-| 15 × 9.5 × 5.5, random 2 | 2 | 3 3 0 0 0 0 0 0 |
-| 15 × 9.5 × 5.5, random 3 | 4 | 3 3 0 0 0 0 0 0 |
+| 12 treats, random 1 | 12 | 0 0 0 0 0 0 0 0 |
+| 12 treats, random 2 | 12 | 0 0 0 0 0 0 0 0 |
+| 12 treats, random 3 | 12 | 0 0 0 0 0 0 0 0 |
+| 13 × 8.5 × 4.5, random 1 | 10 | 0 0 0 0 0 0 0 0 |
+| 13 × 8.5 × 4.5, random 2 | 6 | 0 0 0 0 0 0 0 0 |
+| 13 × 8.5 × 4.5, random 3 | 8 | 2 0 0 0 0 0 0 0 |
+| 15 × 9.5 × 5.5, random 1 | 6 | 4 0 0 0 0 0 0 0 |
+| 15 × 9.5 × 5.5, random 2 | 2 | 4 4 0 0 0 0 0 0 |
+| 15 × 9.5 × 5.5, random 3 | 10 | 0 0 0 0 0 0 0 0 |
 | 6 treats, random 1 | 6 | 0 0 0 0 0 0 0 0 |
 | 6 treats, random 2 | 5 | 1 0 0 0 0 0 0 0 |
 | 6 treats, random 3 | 6 | 0 0 0 0 0 0 0 0 |
-| corner r 1.0, random 1 | 2 | 3 5 0 0 0 0 0 0 |
-| corner r 1.0, random 2 | 3 | 2 5 0 0 0 0 0 0 |
-| corner r 1.0, random 3 | 5 | 5 0 0 0 0 0 0 0 |
-| corner r 2.2, random 1 | 10 | 0 0 0 0 0 0 0 0 |
-| corner r 2.2, random 2 | 6 | 4 0 0 0 0 0 0 0 |
+| corner r 1.0, random 1 | 9 | 1 0 0 0 0 0 0 0 |
+| corner r 1.0, random 2 | 8 | 2 0 0 0 0 0 0 0 |
+| corner r 1.0, random 3 | 10 | 0 0 0 0 0 0 0 0 |
+| corner r 2.2, random 1 | 4 | 6 0 0 0 0 0 0 0 |
+| corner r 2.2, random 2 | 10 | 0 0 0 0 0 0 0 0 |
 | corner r 2.2, random 3 | 9 | 1 0 0 0 0 0 0 0 |
-| diagonal 1 | 5 | 5 0 0 0 0 0 0 0 |
-| edge 1 | 7 | 1 2 0 0 0 0 0 0 |
-| end 1 | 8 | 2 0 0 0 0 0 0 0 |
-| flat 1 | 9 | 1 0 0 0 0 0 0 0 |
-| friction 0.3, random 1 | 5 | 5 0 0 0 0 0 0 0 |
-| friction 0.3, random 2 | 4 | 6 0 0 0 0 0 0 0 |
-| friction 0.3, random 3 | 8 | 2 0 0 0 0 0 0 0 |
-| friction 0.55, random 1 | 4 | 6 0 0 0 0 0 0 0 |
+| diagonal 1 | 10 | 0 0 0 0 0 0 0 0 |
+| edge 1 | 9 | 1 0 0 0 0 0 0 0 |
+| end 1 | 10 | 0 0 0 0 0 0 0 0 |
+| flat 1 | 7 | 3 0 0 0 0 0 0 0 |
+| friction 0.3, random 1 | 2 | 3 5 0 0 0 0 0 0 |
+| friction 0.3, random 2 | 9 | 1 0 0 0 0 0 0 0 |
+| friction 0.3, random 3 | 10 | 0 0 0 0 0 0 0 0 |
+| friction 0.55, random 1 | 10 | 0 0 0 0 0 0 0 0 |
 | friction 0.55, random 2 | 10 | 0 0 0 0 0 0 0 0 |
-| friction 0.55, random 3 | 8 | 2 0 0 0 0 0 0 0 |
-| mass 0.3 g, random 1 | 3 | 7 0 0 0 0 0 0 0 |
-| mass 0.3 g, random 2 | 3 | 7 0 0 0 0 0 0 0 |
-| mass 0.3 g, random 3 | 7 | 3 0 0 0 0 0 0 0 |
-| mass 0.8 g, random 1 | 6 | 4 0 0 0 0 0 0 0 |
-| mass 0.8 g, random 2 | 9 | 1 0 0 0 0 0 0 0 |
-| mass 0.8 g, random 3 | 10 | 0 0 0 0 0 0 0 0 |
-| random 1 | 4 | 6 0 0 0 0 0 0 0 |
-| random 2 | 3 | 4 3 0 0 0 0 0 0 |
+| friction 0.55, random 3 | 6 | 0 0 0 0 0 0 0 0 |
+| mass 0.3 g, random 1 | 5 | 5 0 0 0 0 0 0 0 |
+| mass 0.3 g, random 2 | 9 | 1 0 0 0 0 0 0 0 |
+| mass 0.3 g, random 3 | 8 | 2 0 0 0 0 0 0 0 |
+| mass 0.8 g, random 1 | 8 | 2 0 0 0 0 0 0 0 |
+| mass 0.8 g, random 2 | 10 | 0 0 0 0 0 0 0 0 |
+| mass 0.8 g, random 3 | 8 | 2 0 0 0 0 0 0 0 |
+| random 1 | 5 | 5 0 0 0 0 0 0 0 |
+| random 2 | 10 | 0 0 0 0 0 0 0 0 |
 | random 3 | 10 | 0 0 0 0 0 0 0 0 |
-| random 4 | 10 | 0 0 0 0 0 0 0 0 |
-| random 5 | 3 | 7 0 0 0 0 0 0 0 |
-| random 6 | 10 | 0 0 0 0 0 0 0 0 |
+| random 4 | 5 | 5 0 0 0 0 0 0 0 |
+| random 5 | 10 | 0 0 0 0 0 0 0 0 |
+| random 6 | 5 | 5 0 0 0 0 0 0 0 |
 
 Earlier states of this design, for the record (the same tool): the TPU flap with two pockets (40 trials, 2026-10-22): no stall in 320
 presses, Prime 0 to 5 (2.05 on average), the first press two or more in 36 of 40, then the neck bridged (#140). Without any flap (a fixed back edge):
