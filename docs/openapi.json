@@ -4590,6 +4590,8 @@
                           "bottleNeck",
                           "threadClearance",
                           "flapMagnets",
+                          "flapBand",
+                          "flapBandNotch",
                           "bottleDiameter"
                         ],
                         "properties": {
@@ -4661,6 +4663,28 @@
                             "title": "Flap magnets",
                             "description": "Embed two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N) that repel each other: one in the flap’s counterweight, one in the inner body above it. They add to the counterweight’s closing force, the more the further the flap opens. Both prints pause for you to drop a magnet in.",
                             "default": false
+                          },
+                          "flapBand": {
+                            "enum": [
+                              "none",
+                              "10",
+                              "12",
+                              "14",
+                              "16",
+                              "30",
+                              "31"
+                            ],
+                            "title": "Flap band",
+                            "description": "An office rubber band by size number, stretched across the flap’s arm to hold it shut more firmly the further it opens: hooked into a pair of notches outside the inner body’s side walls (`Band notch`). None: the counterweight alone.",
+                            "default": "none"
+                          },
+                          "flapBandNotch": {
+                            "type": "integer",
+                            "title": "Band notch",
+                            "description": "Which pair of notches the band is hooked into, 1 (innermost, softest) to 5 (outermost, firmest). Every band offered but #10 works in notch 4.",
+                            "default": 4,
+                            "minimum": 1,
+                            "maximum": 5
                           },
                           "bottleDiameter": {
                             "type": "number",

@@ -2299,6 +2299,19 @@ export interface operations {
                          */
                         flapMagnets: boolean;
                         /**
+                         * Flap band
+                         * @description An office rubber band by size number, stretched across the flap’s arm to hold it shut more firmly the further it opens: hooked into a pair of notches outside the inner body’s side walls (`Band notch`). None: the counterweight alone.
+                         * @default none
+                         * @enum {unknown}
+                         */
+                        flapBand: "none" | "10" | "12" | "14" | "16" | "30" | "31";
+                        /**
+                         * Band notch
+                         * @description Which pair of notches the band is hooked into, 1 (innermost, softest) to 5 (outermost, firmest). Every band offered but #10 works in notch 4.
+                         * @default 4
+                         */
+                        flapBandNotch: number;
+                        /**
                          * Bottle diameter
                          * @description Largest diameter of the bottle, mm (0.5 l PET bottles are about 65 mm). Sets the base plate’s size so that a full bottle cannot easily tip the dispenser over.
                          * @default 65
