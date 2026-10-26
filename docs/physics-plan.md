@@ -76,7 +76,7 @@ A model's assembly may carry a `physics` section (engine-neutral; units mm, g, s
 - **bodies**: one per part or reference object (by its id in the assembly's poses), its **material** (density from
   `materials`), whether it is **fixed** (welded to the world), and optional overrides (mass, centre of mass).
 - **joints**: between a body and its parent (or the world), each with a type (`hinge`, `slide`, `ball`, `free`, `weld`), an
-  anchor and axis in the assembled frame, optional range, stiffness with a rest position (a spring), damping and dry friction
+  anchor and axis in the assembled frame, optional range, stiffness with a rest position (a spring), damping and dry friction, and a load table (force or torque by the joint's value, applied to its degree of freedom every step) for springs that are not linear, such as a rubber band over a hinge
   (`frictionloss`, e.g. a snap's retention), and a **model**: `ideal` (default) or `contact`.
 - **springs** from the parts library: a compression spring between two bodies takes its rate and lengths from the library entry.
 - **collision**: per body, where its collision shape comes from: `primitive` (library hardware), `pieces` (authored convex

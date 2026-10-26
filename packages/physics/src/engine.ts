@@ -59,6 +59,8 @@ export interface MjData extends Handle {
   readonly mocap_quat: Float64Array;
   /** Per joint degree of freedom: the constraint force (contacts, limits, equalities) on it. */
   readonly qfrc_constraint: Float64Array;
+  /** Per joint degree of freedom: a force or torque applied to it. */
+  readonly qfrc_applied: Float64Array;
   readonly sensordata: Float64Array;
 }
 

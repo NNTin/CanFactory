@@ -32,6 +32,10 @@ export const PhysicsJointSchema = Type.Object({
   damping: Type.Optional(Type.Number({ minimum: 0, description: 'N·s/mm (slide) or N·mm·s per degree (hinge).' })),
   friction: Type.Optional(Type.Number({ minimum: 0, description: 'Dry friction in the joint: N (slide) or N·mm (hinge). E.g. how firmly a snap or a press fit holds.' })),
   initial: Type.Optional(Type.Number({ description: 'The joint’s value at the start, in mm or degrees from the assembled pose; 0 by default.' })),
+  load: Type.Optional(Type.Object({
+    at: Type.Array(Type.Number(), { minItems: 2, description: 'Joint values, ascending: mm (slide) or degrees (hinge) from the assembled pose.' }),
+    values: Type.Array(Type.Number(), { minItems: 2, description: 'The force (N, slide) or torque (N·mm, hinge) on the joint at each value, positive along or about `axis`.' }),
+  }, { additionalProperties: false, description: 'A force or torque that depends on where the joint is, interpolated linearly and held beyond the ends: a spring whose stiffness is not constant, such as a rubber band over a hinge.' })),
   model: Type.Optional(Type.Union([Type.Literal('ideal'), Type.Literal('contact')], { description: 'ideal (default): the joint holds exactly. contact: there is no joint; the body’s pins and holes hold it by contact, with their real clearance.' })),
   collideWithParent: Type.Optional(Type.Boolean({ description: 'Whether the body also collides with its parent; by default jointed bodies do not.' })),
 }, { additionalProperties: false });

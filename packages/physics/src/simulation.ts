@@ -67,6 +67,7 @@ export class Simulation {
   private readonly counters = new Map<string, CounterState>();
   private readonly tickers: ((dt: number) => void)[] = [];
   private readonly magnetRoots = new Map<string, string | undefined>();
+  private readonly jointLoads: { dof: number; qpos: number; load: { at: number[]; values: number[] } }[] = [];
 
   constructor(private readonly engine: Engine, readonly scene: Scene) {
     this.xml = toMjcf(scene);
@@ -82,6 +83,11 @@ export class Simulation {
       this.magnetRoots.set(magnet.id, this.movableBody(magnet.body));
     }
     this.setInitialJoints();
+    for (const body of scene.bodies) {
+      if (typeof body.motion !== 'object' || !body.motion.load) continue;
+      const joint = this.id(OBJ.joint, body.name);
+      this.jointLoads.push({ dof: this.model.jnt_dofadr[joint] ?? -1, qpos: this.qposAddress(body.name), load: body.motion.load });
+    }
     engine.mj_forward(this.model, this.data);
     for (const motor of scene.motors ?? []) {
       const qpos = this.qposAddress(motor.body);
@@ -365,6 +371,7 @@ export class Simulation {
    * and capped.
    */
   private applyLoads(): void {
+    for (const { dof, qpos, load } of this.jointLoads) this.data.qfrc_applied[dof] = interpolate(load.at, load.values, this.data.qpos[qpos] ?? 0);
     const applied = this.data.xfrc_applied;
     applied.fill(0);
     const com = (id: number): Vec3 => [this.data.xipos[3 * id] ?? 0, this.data.xipos[3 * id + 1] ?? 0, this.data.xipos[3 * id + 2] ?? 0];
@@ -431,4 +438,15 @@ export function fnv1a(bytes: Uint8Array): string {
   let hash = 0xcbf29ce484222325n;
   for (const byte of bytes) hash = BigInt.asUintN(64, (hash ^ BigInt(byte)) * 0x100000001b3n);
   return hash.toString(16).padStart(16, '0');
+}
+
+/** Linear interpolation in an ascending table, held beyond its ends. */
+function interpolate(at: number[], values: number[], x: number): number {
+  const last = at.length - 1;
+  if (x <= (at[0] ?? 0)) return values[0] ?? 0;
+  if (x >= (at[last] ?? 0)) return values[last] ?? 0;
+  let i = 1;
+  while ((at[i] ?? 0) < x) i++;
+  const x0 = at[i - 1] ?? 0, x1 = at[i] ?? 0, y0 = values[i - 1] ?? 0, y1 = values[i] ?? 0;
+  return y0 + (y1 - y0) * (x - x0) / (x1 - x0);
 }

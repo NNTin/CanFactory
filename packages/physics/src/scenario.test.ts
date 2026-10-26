@@ -89,6 +89,23 @@ describe('scenarios', () => {
     }
   });
 
+  it('applies a joint load by the joint’s value', async () => {
+    // the plunger's spring as a table: 2 N/mm towards 2 mm, through (−5, 14 N) and (5, −6 N)
+    const ball = { ...spec.bodies[1] ?? { id: '', material: 'petg' }, joint: { type: 'slide', parent: 'block', anchor: [10, 10, 23.25], axis: [0, 0, 1], range: [-5, 5], damping: 0.002, load: { at: [-5, 5], values: [14, -6] } } } as const;
+    const scene = buildScene({ ...input, spec: { bodies: [spec.bodies[0] ?? { id: '', material: 'petg' }, ball] } });
+    const motion = scene.bodies.find(body => body.name === 'ball')?.motion;
+    if (typeof motion !== 'object') throw new Error('The ball should have a joint.');
+    expect(motion.load?.at).toEqual([-0.005, 0.005].map(value => expect.closeTo(value, 12) as number));
+    expect(motion.load?.values).toEqual([14, -6]);
+    const simulation = new Simulation(await loadEngine(), scene);
+    try {
+      simulation.advance(1);
+      expect(simulation.jointValue('ball') * 1000).toBeCloseTo(2, 2);
+    } finally {
+      simulation.dispose();
+    }
+  });
+
   it('rests a free body on a fixed one', async () => {
     const simulation = new Simulation(await loadEngine(), buildScene({
       spec: { bodies: [{ id: 'block', material: 'petg', fixed: true }, { id: 'cube', material: 'petg' }] },

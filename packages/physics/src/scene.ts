@@ -38,6 +38,8 @@ export interface SceneJoint {
   frictionLoss?: number;
   /** The joint's value at the start (the assembled pose is 0). */
   initial?: number;
+  /** A force (N) or torque (N·m) on the joint by its value (m or radians), interpolated linearly and held beyond the ends. */
+  load?: { at: number[]; values: number[] };
 }
 
 export interface Inertial {

@@ -105,6 +105,8 @@ function jointValues(joint: PhysicsJoint): Omit<SceneJoint, 'type' | 'pos' | 'ax
   if (joint.damping !== undefined) result.damping = joint.damping * stiffness;
   if (joint.friction !== undefined) result.frictionLoss = joint.friction * (hinge ? MM : 1);
   if (joint.initial !== undefined) result.initial = joint.initial * value;
+  if (joint.load && joint.load.at.length !== joint.load.values.length) throw new Error('A joint load needs one value per joint value.');
+  if (joint.load) result.load = { at: joint.load.at.map(at => at * value), values: joint.load.values.map(load => load * (hinge ? MM : 1)) };
   return result;
 }
 
