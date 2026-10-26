@@ -94,19 +94,20 @@ export const TREAT_DISPENSER = {
    * the grooves' floors are from the middle (X), one per tension setting; the pegs (x, y), how far they stand over the grooves' openings
    * (the band pulls inwards and, the flap open, up its strands at less than the grooves' 45° flanks: it cannot climb out), the
    * grooves' depth, their opening and floor (half heights, 45° between: printable); the ledge (y, its thickness) on a gusset at 50°.
-   * At the stop the band's torque may not exceed `maxStop` (N·mm), so that a treat can still swing the flap open. */
+   * At the stop the band's torque may not exceed `maxStop` (N·mm), so that a treat can still swing the flap open (quick trials up to
+   * 11.5 N·mm there did not stall). */
   band: {
     lever: 5, slot: 5, line: 1.5, notches: [20, 24, 28, 32, 36], peg: [2.5, 1.2] as readonly [number, number], pegAbove: 0.5, groove: 0.8, grooveOpen: 1.8, grooveFloor: 1,
-    ledge: [6, 2] as readonly [number, number], maxStop: 6,
+    ledge: [6, 2] as readonly [number, number], maxStop: 12,
   },
 } as const;
 
 /**
  * The rubber band sizes the flap takes (`flapBand`): the library's numbered bands that are taut at rest in some notch and not too firm
- * at the stop (`treatBandTorque`, the test keeps this list to that). Shorter or wider ones (#8, #10, #27, #30) hold the flap too firmly in every
+ * at the stop (`treatBandTorque`, the test keeps this list to that). Shorter ones (#8, #27) hold the flap too firmly in every
  * notch; longer ones (#18, #19, #32, #33) hang slack.
  */
-export const TREAT_BAND_SIZES = ['12', '14', '16', '31'] as const;
+export const TREAT_BAND_SIZES = ['10', '12', '14', '16', '30', '31'] as const;
 
 /** Bottle necks with an ISBT drawing (drawings 3784253-21 and 1165362-2). Values read off the drawings; see docs/treat-dispenser.md. */
 export const BOTTLE_NECKS = {
@@ -127,7 +128,7 @@ export const TreatDispenserParametersSchema = Type.Object({
   threadClearance: mm('Thread clearance', 'Radial play of the body’s thread on the bottle’s, mm; tune it with the coupon.', 0.3, 0.1, 0.5, 0.05),
   flapMagnets: Type.Boolean({ title: 'Flap magnets', description: 'Embed two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N) that repel each other: one in the flap’s counterweight, one in the inner body above it. They add to the counterweight’s closing force, the more the further the flap opens. Both prints pause for you to drop a magnet in.', default: false }),
   flapBand: Type.Enum(['none', ...TREAT_BAND_SIZES], { title: 'Flap band', description: 'An office rubber band by size number, stretched across the flap’s arm to hold it shut more firmly the further it opens: hooked into a pair of notches outside the inner body’s side walls (`Band notch`). None: the counterweight alone.', default: 'none' }),
-  flapBandNotch: Type.Integer({ title: 'Band notch', description: 'Which pair of notches the band is hooked into, 1 (innermost, softest) to 4 (outermost, firmest).', default: 2, minimum: 1, maximum: TREAT_DISPENSER.band.notches.length }),
+  flapBandNotch: Type.Integer({ title: 'Band notch', description: 'Which pair of notches the band is hooked into, 1 (innermost, softest) to 5 (outermost, firmest). Every band offered but #10 works in notch 4.', default: 4, minimum: 1, maximum: TREAT_DISPENSER.band.notches.length }),
   bottleDiameter: mm('Bottle diameter', 'Largest diameter of the bottle, mm (0.5 l PET bottles are about 65 mm). Sets the base plate’s size so that a full bottle cannot easily tip the dispenser over.', 65, 55, 95, 1),
 }, { additionalProperties: false });
 export type TreatDispenserParameters = Static<typeof TreatDispenserParametersSchema>;

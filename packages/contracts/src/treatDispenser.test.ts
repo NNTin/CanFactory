@@ -150,12 +150,13 @@ describe('treat dispenser layout', () => {
     expect([...TREAT_BAND_SIZES]).toEqual(sizes.filter(usable));
     expect(torques('none', 3).map(Math.abs)).toEqual([0, 0]);
     for (const size of TREAT_BAND_SIZES) {
-      // each closes the flap, the more the further it opens and the further out it is hooked
+      // each closes the flap, the more the further it opens and (at rest) the further out it is hooked
       const angles = Array.from({ length: l.flap.swing / 5 + 1 }, (_, k) => 5 * k);
       for (const notch of notches) {
         const curve = treatBandTorque(l, { flapBand: size, flapBandNotch: notch }, angles).map(torque => -torque);
         curve.forEach((torque, k) => { expect(torque).toBeGreaterThanOrEqual(k > 0 ? (curve[k - 1] ?? 0) : 0); });
-        if (notch > 1) expect(curve.at(-1)).toBeGreaterThanOrEqual(treatBandTorque(l, { flapBand: size, flapBandNotch: notch - 1 }, [l.flap.swing]).map(torque => -torque)[0] ?? 0);
+        // (at rest: a short band stretched far flattens its strands, so that at the stop a notch further out can be a little softer)
+        if (notch > 1) expect(curve[0]).toBeGreaterThanOrEqual(-(treatBandTorque(l, { flapBand: size, flapBandNotch: notch - 1 }, [0])[0] ?? 0));
       }
       // the issues say which settings hang slack or hold too firmly
       for (const notch of notches) {

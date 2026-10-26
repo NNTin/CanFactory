@@ -112,6 +112,12 @@ test('shows the inner and outer bodies, the motor, the ULN2003 and every M3 scre
   await page.getByRole('switch', { name: 'Flap magnets' }).click();
   await expect(page.getByRole('button', { name: 'Download ZIP', exact: true })).toBeEnabled({ timeout: 300_000 });
   await expect.poll(async () => { const now = await visible(); return now.has('flap-magnet') && now.has('body-magnet'); }, { timeout: 120_000 }).toBe(true);
+  // the flap band: none by default; a #14 in notch 4 is in the assembly, across the flap's arm
+  expect((await visible()).has('band')).toBe(false);
+  await page.getByRole('combobox', { name: 'Flap band', exact: true }).selectOption('14');
+  await expect(page.getByRole('button', { name: 'Download ZIP', exact: true })).toBeEnabled({ timeout: 300_000 });
+  await expect.poll(async () => (await visible()).has('band'), { timeout: 120_000 }).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('band.png'), fullPage: true });
   expect(errors).toEqual([]);
 });
 
