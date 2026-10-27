@@ -17,13 +17,13 @@ anything; that is issue #140, left for later.
 
 | Part | What it does |
 | --- | --- |
-| Inner body | The bottle's thread, a funnel into the slot, the rotor's block (bore, slot, the drop under the rotor and a cavity behind it), legs either side of the chute and four feet; a collar round the thread's boss, shaped to the outer body's inside under its top. It is not screwed down: the outer body's top presses on the collar and the base plate's rims hold the feet. The motor on the block's +X face; the ULN2003 board on four standoffs off the right leg; a sleeve carrying the bore out to the left, ending in two lugs for the bearing cap's screws. Every nut sits in a bay of its own. |
+| Inner body | The bottle's thread (its groove one helix from the boss's top face down), a funnel into the slot, the rotor's block (bore, slot, the drop under the rotor and a cavity behind it), legs either side of the chute and four feet; a collar round the thread's boss, shaped to the outer body's inside under its top. It is not screwed down: the outer body's top presses on the collar and the base plate's rims hold the feet. The motor on the block's +X face; the ULN2003 board on four standoffs off the right leg; a sleeve carrying the bore out to the left, ending in two lugs for the bearing cap's screws. Every nut sits in a bay of its own. |
 | Outer body | The cover: walls and a gable top, open at the bottom, lowered over the inner body (the thread's boss comes up through its top) and screwed to the base plate at its four corners; its top bears on the inner body's collar, so the corner screws clamp the inner body onto the plate. The ESP32 case's window in its back wall, the rotor's opening in its left wall, the chute's way out of the front. |
 | Rotor | Ø26 × 24 mm, one pocket 16 × 11 mm (for 14 × 9 × 5 treats with 1 mm of clearance) as deep as the axis, its trailing face leaning out 30°, turned 13° so that its mouth is centred under the slot; a D-bore onto the motor's flatted shaft at one end, whose tip pokes into the pocket (the floor's half of the bore still holds the flats), a Ø8 stub into the cap at the other. |
-| Flap | Rigid PLA or PETG, 1.6 mm plate: rests on the rotor just behind the slot, swinging freely on a hub whose hole snaps over two bosses on the slot's side walls (Ø3, through a 2.6 mm mouth); a counterweight on an arm behind the hub (10 × 8.5 mm, 15 mm behind the hinge) holds it on the rotor with 0.27 N·mm and swings up into a recess, up to 55°, as a treat pushes the flap back. It prints upside down on the flat tops of its hub, arm and counterweight. Optionally an office rubber band across its arm (**Flap band**, [below](#flap-band-option)) and/or a magnet in the counterweight and one in the inner body above it (**Flap magnets**, [below](#flap-magnets-option)) hold it shut harder. |
+| Flap | Rigid PLA or PETG, 1.6 mm plate: rests on the rotor just behind the slot, swinging freely on a hub whose hole snaps over two bosses on its side walls (Ø3, through a 2.6 mm mouth); 18 mm wide, a millimetre wider than the pocket at each end, so that its tip rests on the rotor's rims (the rails) and never drops into the pocket; a counterweight on an arm behind the hub (10 × 8.5 mm, 15 mm behind the hinge) holds it on the rotor with 0.31 N·mm and swings up into a recess, up to 55°, as a treat pushes the flap back. It prints upside down on the flat tops of its hub, arm and counterweight. Optionally an office rubber band across its arm (**Flap band**, [below](#flap-band-option)) and/or a magnet in the counterweight and one in the inner body above it (**Flap magnets**, [below](#flap-magnets-option)) hold it shut harder. |
 | Bearing cap | A tube through the outer body's left wall and the inner body's sleeve into the bore, up to the rotor's end, where it takes the rotor's stub; its flange sits on the wall's outside, its two M3 × 10 screws through the wall into nuts in the inner body's lugs (clamping the wall). |
 | Chute | 30°, from under the rotor out through the front wall; pushed up between the legs from below and held by the base plate. |
-| Base plate | 5 mm; closes the bottom; four M3 × 8 screws from below in counterbores, into the outer body's corners; a low rim (1.6 × 2.5 mm, 0.2 mm off the foot) round three sides of each of the inner body's feet; sized so that a full bottle leans 20° before the dispenser tips; a keeper behind the ESP32 case. |
+| Base plate | 5 mm; closes the bottom; four M3 × 8 screws from below in counterbores, into the outer body's corners; a low rim (1.6 × 2.5 mm, 0.2 mm off the foot) round three sides of each of the inner body's feet; sized so that a full bottle leans 20° before the dispenser tips; a keeper behind the ESP32 case: a 7.7 × 3.5 mm wall between its header rows up to its middle, with a buttress in front. |
 | Thread coupon | Ten millimetres of the body's thread: print it first and fit it to your bottle. |
 | ESP32-C3 case base and lid | The existing case's two parts, unchanged ([attribution](../models/treat-dispenser/ATTRIBUTION.md)). |
 
@@ -66,9 +66,15 @@ at a stall):
 - **Never backwards.** A first version rocked back 20° before each turn to shake loose a caught treat. Backwards, the slot's front edge
   is the edge a pocket leaves under, and it pinched a treat standing in the pocket every time. Forwards, the front edge only ever
   meets the rotor's closed face coming up out of the tight bore.
+- **The flap rides on the rotor's rails.** Its tip is wider than the pocket and rests on the rotor's full-radius rims either side of
+  it, so it stays at the rotor's surface while the pocket passes under it. A flap that could drop into the empty pocket would be
+  driven into by the pocket's face if the rotor were ever turned backwards (by hand, say: the firmware never does). The rotor turns
+  in a bore with 0.4 mm of play, so nothing can stand out of its cylinder: the rims are the rails, and the flap's side walls stand
+  1.2 mm further out than the slot's (along its way in too). A CI scenario turns the empty rotor a full turn backwards and holds the
+  flap within 0.5° of its rest all the way; without the rails it dips 5° into the pocket.
 - **The slot's back edge is a flap, not a fixed edge.** A fixed edge where the pocket leaves the slot is the same pinch. The flap
   lies on the rotor and gives way to a treat that sticks out of the pocket, then closes behind it so that the next treats in the slot
-  do not follow it into the cavity. Its counterweight closes it with about the old TPU flap's preload (0.27 N·mm); the TPU flap's
+  do not follow it into the cavity. Its counterweight closes it with about the old TPU flap's preload (0.31 N·mm); the TPU flap's
   trials found a stiffer one (0.3 N·mm per degree) wedged treats near its root.
 - **A cavity behind the flap, deeper than a treat is long** (15 mm more than the rotor's radius): a treat carried past the flap has
   room to tumble and fall to the drop; it can neither be pinched against the bore nor wedge across it.
@@ -97,7 +103,7 @@ stands 27° to 35° off their axes over the swing. Two flat magnets repel while 
 beyond it, so they repel all the way, with some 20° to spare (a test holds the line within 45°); summing over each disc's volume,
 rather than taking it as one point, gives the same sign and a little more torque. A search over the places that fit, both magnets
 lying flat so that the prints can pause for them, picked the one with the most closing torque at rest (real magnets) that still closes
-all the way to the stop. They add, to the counterweight's 0.27 N·mm:
+all the way to the stop. They add, to the counterweight's 0.31 N·mm:
 
 | Flap open | 0° | 10° | 20° | 30° | 40° | 50° | 55° (stop) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -164,28 +170,27 @@ neo-Hookean on its unstretched section (nominal stress E/3 (λ − λ⁻²)), wi
 and the thickness from the chart's count per pound and specific gravity (the chart gives no thickness; the parts library marks it
 estimated). Turned down at the flap's edges by the strands' slope, it presses on the flap 5 mm behind the hinge. Other makers' bands
 of the same number differ in rubber and thickness, so treat the numbers as a guide and try the next notch. At the defaults (N·mm;
-the counterweight adds 0.27 throughout):
+the counterweight adds 0.31 throughout):
 
 | Band, notch | 0° | 10° | 20° | 30° | 40° | 50° | 55° (stop) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| #10, 1 | 1.17 | 1.92 | 2.83 | 4.02 | 5.73 | 9.52 | 11.68 |
-| #12, 2 | 0.40 | 0.67 | 1.02 | 1.51 | 2.31 | 4.23 | 5.55 |
-| #12, 3 | 0.76 | 1.23 | 1.80 | 2.53 | 3.55 | 5.61 | 6.91 |
-| #12, 4 | 0.94 | 1.52 | 2.21 | 3.06 | 4.22 | 6.37 | 7.69 |
-| #12, 5 | 1.04 | 1.68 | 2.43 | 3.36 | 4.60 | 6.79 | 8.14 |
-| #14, 3 | 0.36 | 0.60 | 0.89 | 1.29 | 1.91 | 3.27 | 4.23 |
-| #14, 4 | 0.61 | 0.99 | 1.45 | 2.03 | 2.83 | 4.38 | 5.37 |
-| #14, 5 | 0.75 | 1.22 | 1.76 | 2.45 | 3.37 | 5.03 | 6.07 |
-| #16, 4 | 0.08 | 0.14 | 0.22 | 0.36 | 0.62 | 1.29 | 1.86 |
-| #16, 5 | 0.34 | 0.55 | 0.81 | 1.14 | 1.62 | 2.57 | 3.23 |
-| #30, 3 | 0.75 | 1.24 | 1.85 | 2.68 | 3.95 | 6.78 | 8.77 |
-| #30, 4 | 1.27 | 2.06 | 3.01 | 4.21 | 5.87 | 9.07 | 11.14 |
-| #31, 4 | 0.15 | 0.27 | 0.43 | 0.70 | 1.19 | 2.49 | 3.58 |
-| #31, 5 | 0.65 | 1.06 | 1.56 | 2.21 | 3.13 | 4.96 | 6.24 |
+| #12, 2 | 0.43 | 0.72 | 1.09 | 1.63 | 2.50 | 4.61 | 6.03 |
+| #12, 3 | 0.80 | 1.30 | 1.91 | 2.68 | 3.76 | 5.96 | 7.33 |
+| #12, 4 | 0.98 | 1.59 | 2.31 | 3.21 | 4.42 | 6.69 | 8.07 |
+| #12, 5 | 1.08 | 1.75 | 2.53 | 3.50 | 4.79 | 7.08 | 8.48 |
+| #14, 3 | 0.38 | 0.63 | 0.95 | 1.38 | 2.03 | 3.50 | 4.52 |
+| #14, 4 | 0.64 | 1.04 | 1.52 | 2.13 | 2.97 | 4.61 | 5.65 |
+| #14, 5 | 0.78 | 1.27 | 1.84 | 2.55 | 3.51 | 5.25 | 6.33 |
+| #16, 4 | 0.08 | 0.15 | 0.24 | 0.38 | 0.66 | 1.39 | 2.00 |
+| #16, 5 | 0.35 | 0.57 | 0.84 | 1.19 | 1.69 | 2.70 | 3.39 |
+| #30, 3 | 0.80 | 1.32 | 1.96 | 2.85 | 4.21 | 7.26 | 9.38 |
+| #30, 4 | 1.33 | 2.16 | 3.15 | 4.41 | 6.16 | 9.55 | 11.72 |
+| #31, 4 | 0.16 | 0.28 | 0.45 | 0.74 | 1.27 | 2.68 | 3.86 |
+| #31, 5 | 0.68 | 1.11 | 1.63 | 2.30 | 3.27 | 5.20 | 6.55 |
 
-The editor offers the sizes that are taut at rest in some notch and hold the flap at most 12 N·mm at its stop (#10, #12, #14, #16,
+The editor offers the sizes that are taut at rest in some notch and hold the flap at most 12 N·mm at its stop (#12, #14, #16,
 #30, #31; a test keeps that list honest), and flags a notch where the chosen band hangs slack or holds too firmly. Shorter or wider
-bands (#8, #27) are too firm everywhere, longer ones (#18, #19, #32, #33) slack. Every offered band but #10 works in notch 4, the
+bands (#8, #10, #27) are too firm everywhere, longer ones (#18, #19, #32, #33) slack. Every offered band works in notch 4, the
 default.
 
 **In the simulation** the band is a torque on the flap's hinge by its angle (the joint's `load` table, applied at every step: the
@@ -420,6 +425,7 @@ treats in contact).
 | Idle | filled and left alone for 6 s: nothing leaves, nothing strays |
 | Empty bottle | Prime and two presses: nothing leaves (no fabricated success), three cycles commanded |
 | Jam | a fixed obstruction (a kinematic fingertip) in a pocket: the motor stalls against it and loses travel, the cycle is a fault; the rotor does not pass through it |
+| Backwards | the empty rotor turned a full turn backwards (a stiff drive on its hinge): the flap stays within 0.5° of its rest, on the rails, all the way round |
 | Reset | RESET mid-cycle stops the motor; boot does not move it; presses during boot and while unaligned are rejected; jog + aligned → one press runs one cycle |
 | Hold and burst | BOOT held 3 s runs one cycle; three quick presses: one runs, one queues, one is rejected |
 
@@ -523,7 +529,9 @@ humidity, and the flap's hinge friction (a stiff snap would hold it open; a stic
 The body's default thread is **PCO 1881**, the common 28 mm carbonated soft-drink finish, from ISBT's drawing 3784253-21: thread
 outside diameter T 27.40 ± 0.13 mm, root E 24.20 mm, bore 21.72 ± 0.13 mm, pitch 2.70 mm, single start, right hand, 650° of full-depth
 thread, support ring Ø33.0 mm. **PCO 1810** (drawing 1165362-2: T 27.43, E 24.51, bore 21.74, pitch 3.18, two turns) is the other
-option. The thread is printed as the bottle's ridge grown by the thread clearance (0.3 mm default, 0.1–0.5 mm: beyond about 0.54 mm on PCO 1881 the grown ridge is wider than the pitch, its grooves merge and the bottle no longer catches) and swept along its helix. Not
+option. The thread is printed as the bottle's ridge grown by the thread clearance (0.3 mm default, 0.1–0.5 mm: beyond about 0.54 mm on PCO 1881 the grown ridge is wider than the pitch, its grooves merge and the bottle no longer catches) and swept along its helix, as one groove from the boss's top face (where the bottle's thread starts) down to its last turn, the
+coupon's likewise (a first version stopped the groove 1 mm under the face, so no bottle could start in it; the renderer test now
+probes the groove along its whole helix and out through the face). Not
 every "28 mm" bottle is either finish: **print the coupon first** and tune the clearance; nothing here claims a universal fit. The
 default bottle is a 0.5 l one (Ø65 mm); the base plate is sized from it.
 
@@ -537,7 +545,7 @@ change it.
 | Treat | 14 × 9 × 5 mm, corners 1.5 mm, 0.5 g, friction 0.4 on PETG | owner's size; mass, rounding and friction unmeasured (trials vary them) |
 | Motor torque | 29.4 N·mm at the output, slipping beyond 0.35° of lag | Kiatronics: pull-in 300 gf·cm; > 34.3 mN·m at 120 Hz; nothing at 700 Hz |
 | Steps per turn | 4076 | gear train ≈ 1:63.68 (library notes); calibrate |
-| Flap | Rigid, free on its hinge; its counterweight closes it with 0.27 N·mm (PETG 1.27 g/cm³, 2.9 g in all); the snap's mouth 2.6 mm over Ø3 bosses | the closing torque the TPU flap's trials needed (a constant-torque study, see above); PLA (1.24) is a little lighter. The snap's fit in PLA, and the hub's friction on its bosses, are not simulated |
+| Flap | Rigid, free on its hinge; its counterweight closes it with 0.31 N·mm (PETG 1.27 g/cm³, 3.4 g in all); the snap's mouth 2.6 mm over Ø3 bosses | the closing torque the TPU flap's trials needed (a constant-torque study, see above); PLA (1.24) is a little lighter. The snap's fit in PLA, and the hub's friction on its bosses, are not simulated |
 | Flap magnets | Two Ø8 × 1 mm N45 discs, point dipoles of Br V / μ₀ (Br 1.345 T, the middle of supermagnete's N45 range) softened over their radius, as the engine takes them | not measured: a point dipole 6 to 25 mm from another is rough at the short end; the magnet's own 0.38 g (about 0.05 N·mm more closing) is not in the simulation |
 | Plastic friction | 0.29 | `PHYSICS_MATERIALS` (PETG on acrylic) |
 | Bottle | PCO 1881, 0.5 l, Ø65 mm | ISBT drawing; diameter is a parameter |
