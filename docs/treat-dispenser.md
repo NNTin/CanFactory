@@ -72,6 +72,8 @@ at a stall):
   in a bore with 0.4 mm of play, so nothing can stand out of its cylinder: the rims are the rails, and the flap's side walls stand
   1.2 mm further out than the slot's (along its way in too). A CI scenario turns the empty rotor a full turn backwards and holds the
   flap within 0.5° of its rest all the way; without the rails it dips 5° into the pocket.
+  The forty-trial tables below predate the rails; six quick fills each after them gave no stall, Prime 7.0 of 10 without a band
+  (8.5 before) and 4.5 with the #14 band in notch 4 (4.0 before): the same within the fills' spread.
 - **The slot's back edge is a flap, not a fixed edge.** A fixed edge where the pocket leaves the slot is the same pinch. The flap
   lies on the rotor and gives way to a treat that sticks out of the pocket, then closes behind it so that the next treats in the slot
   do not follow it into the cavity. Its counterweight closes it with about the old TPU flap's preload (0.31 N·mm); the TPU flap's
@@ -268,16 +270,16 @@ not re-run):
 
 | Part | Solid volume (cm³) | Size as printed (mm) |
 | --- | --- | --- |
-| Inner body | 100.7 | 81 × 59 × 141 (the band's ledges make it wider) |
+| Inner body | 98.0 | 81 × 59 × 141 (the band's ledges make it wider) |
 | Outer body | 66.0 | 89 × 87 × 123 |
 | Rotor | 10.2 | 26 × 26 × 29 |
-| Flap (PLA or PETG, upside down) | 2.2 | 16 × 23 × 27 |
+| Flap (PLA or PETG, upside down) | 2.6 | 18 × 23 × 27 |
 | Bearing cap | 14.7 | 46 × 46 × 35 |
 | Chute | 7.2 | 20 × 100 × 15 |
-| Base plate | 54.0 | 105 × 99 × 5 (with its posts and keeper, 61 high) |
+| Base plate | 54.9 | 105 × 99 × 5 (with its posts and keeper, 61 high) |
 | Thread coupon | 3.8 | 34 × 34 × 10 |
 | ESP32 case base and lid | 2.2 | |
-| **All** | **261.0** (with the TPU flap: 233.1; one body before the split: 197.9) | |
+| **All** | **259.2** (with the TPU flap: 233.1; one body before the split: 197.9) | |
 
 With PrusaSlicer 2.5 and `tools/treat-dispenser.ini` (0.4 mm nozzle, 0.2 mm layers, PETG, four perimeters) the single-body revision
 came to 217.7 g; set `PRUSA_SLICER` to re-slice this one.
