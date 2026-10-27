@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, ObjectStorage, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair, type RenderJob } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { startStorageServices } from './storage-services.ts';
@@ -1226,8 +1226,8 @@ try {
     assert.equal(solid('inner-body', [0, -l.bore.radius - 1, l.axisZ]), true, `${name}: tight bore's wall in front`);
     const F = TREAT_DISPENSER.flap, { hinge } = l.flap;
     for (const s of [-1, 1]) {
-      assert.equal(solid('inner-body', [s * (l.slot.halfX - F.bossLength / 2), hinge.y, hinge.z]), true, `${name}: hinge boss ${s}`);
-      assert.equal(solid('flap', [s * (l.slot.halfX - F.bossLength / 2), hinge.y, hinge.z]), false, `${name}: hub's hole round boss ${s}`);
+      assert.equal(solid('inner-body', [s * (l.flap.half - F.bossLength / 2), hinge.y, hinge.z]), true, `${name}: hinge boss ${s}`);
+      assert.equal(solid('flap', [s * (l.flap.half - F.bossLength / 2), hinge.y, hinge.z]), false, `${name}: hub's hole round boss ${s}`);
     }
     assert.equal(solid('flap', [0, hinge.y, hinge.z - (F.hole + F.hub) / 2]), true, `${name}: flap's hub`);
     assert.equal(solid('flap', [0, (hinge.y + l.flap.tip.y) / 2, (hinge.z + l.flap.tip.z) / 2]), true, `${name}: flap's plate`);
@@ -1251,6 +1251,24 @@ try {
       });
     }
     assert.equal(solid('inner-body', [0, 0, (l.blockTop + l.lipZ) / 2]), false, `${name}: funnel`);
+    // the bottle's thread: one groove along its helix (as generator.scad's bottle_bore starts it), open all the way from its bottom
+    // turn up and out through the face the bottle comes in at, so that the bottle's thread can start; solid between the turns
+    const neck = BOTTLE_NECKS[parameters.bottleNeck], c = parameters.threadClearance, groove = (neck.E / 2 + c + neck.T / 2 + c) / 2;
+    const helix = (height: number, turns: number, top: number) => {
+      const z0 = top - turns * neck.pitch - neck.pitch;
+      return Array.from({ length: Math.floor((height - 0.3 - z0) / neck.pitch * 8) + 1 }, (_, k): [number, number, number] => {
+        const a = k * Math.PI / 4, z = z0 + k / 8 * neck.pitch;
+        return [groove * Math.cos(a), groove * Math.sin(a), z];
+      }).filter(point => point[2] > z0 + neck.pitch);
+    };
+    const thread = TREAT_DISPENSER.threadHeight, along = helix(thread, neck.turns, thread - 1);
+    for (const [x, y, z] of along) assert.equal(solid('inner-body', [x, y, l.lipZ + z]), false, `${name}: the thread's groove at ${z.toFixed(1)} mm`);
+    const [ex = 0, ey = 0, ez = 0] = along.at(-1) ?? [];
+    assert.ok(ez > thread - 0.3 - neck.pitch / 8 - 1e-9, `${name}: the thread's groove reaches the top face`);
+    assert.equal(solid('inner-body', [ex, ey, l.lipZ + ez - neck.pitch / 2]), true, `${name}: the boss between the thread's turns`);
+    // and the coupon (printed where it is drawn): the same groove, out through its top
+    const couponHeight = 10, coupon = mesh('coupon');
+    for (const [x, y, z] of helix(couponHeight, Math.min(neck.turns, (couponHeight - 2) / neck.pitch - 1), couponHeight - 1)) assert.equal(housingSolid(coupon, [x, y, z]), false, `${name}: the coupon's groove at ${z.toFixed(1)} mm`);
     // every nut's bay is open at the nut's centre and at the mouth of its slot, in the part that holds it; solid round the hexagon's
     // corners' side, beyond its flats (the slot is no wider than the flats)
     for (const bolt of treatBolts(parameters)) {
@@ -1266,7 +1284,7 @@ try {
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log(`PASS treat dispenser ${name}: 10 closed prints, an open pocket with the shaft's tip in it, slot, drop, cavity and funnel, a solid tight bore, the flap's snap hinge, open nut bays, the magnets' cavities sealed when fitted, the band's slots and grooved pegs, matching preview/download bytes`);
+    console.log(`PASS treat dispenser ${name}: 10 closed prints, an open pocket with the shaft's tip in it, slot, drop, cavity and funnel, a solid tight bore, the flap's snap hinge, open nut bays, the magnets' cavities sealed when fitted, the band's slots and grooved pegs, the bottle's thread open from its entry down, matching preview/download bytes`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

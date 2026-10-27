@@ -3,7 +3,7 @@ import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
 import {
   BAND_MODULUS, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, PhysicsSpecSchema, TREAT_BAND_SIZES, partsOfFamily, treatBandPose, treatBandTorque, TIP_ANGLE, TREAT_DISPENSER, TREAT_FASTENERS, TREAT_FIRMWARE, TREAT_PRINTED_PARTS, dimensionOf, findModel, findPart,
-  posePoint, treatBayLayout, treatPartPoses, treatBoltPoses, treatBolts, treatCycleSeconds, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout,
+  posePoint, treatBayLayout, treatKeeper, treatPartPoses, treatBoltPoses, treatBolts, treatCycleSeconds, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout,
   treatDispenserPhysics, treatFeet, treatFill, treatFootprint, treatRotorPieces, treatScadValues, treatVertices, treatWiringRoom, validateParameters, type TreatDispenserParameters,
 } from './index.ts';
 
@@ -202,6 +202,38 @@ describe('treat dispenser layout', () => {
     expect(pose.position[2]).toBeGreaterThan(l.band.pegTop);
     expect(pose.scale[0] * (dimensionOf(part, 'length') / Math.PI - dimensionOf(part, 'thickness'))).toBeCloseTo(l.band.pegOut(2), 9);
     expect(treatDispenserAssembly(p).references?.some(reference => reference.id === 'band')).toBe(false);
+  });
+
+  it('rests the flap’s tip on the rotor’s rails, its full-radius rims either side of the pocket, so that it cannot drop into the pocket', () => {
+    for (const q of [p, { ...p, treatLength: 10, treatWidth: 6, treatThickness: 3, treatCornerRadius: 0.5 }, { ...p, treatLength: 18, treatWidth: 10, treatThickness: 7, pocketClearance: 0.4 }]) {
+      const k = treatDispenserLayout(q);
+      // a millimetre over each rim, 0.2 inside its side walls, and on the rotor (short of its ends)
+      expect(k.flap.width / 2 - k.pocket.length / 2).toBeGreaterThanOrEqual(1 - 1e-9);
+      expect(k.flap.half - k.flap.width / 2).toBeCloseTo(0.2, 9);
+      expect(k.flap.width / 2).toBeLessThan(k.rotorEnd - 1);
+      // the slot stays as long as the pocket, its walls clear of the motor's top screw
+      expect(2 * k.slot.halfX).toBeCloseTo(k.pocket.length, 9);
+    }
+    // the simulation turns it backwards a full turn and holds the flap out of the pocket all the way
+    const backwards = treatDispenserPhysics(p).scenarios?.find(scenario => scenario.id === 'backwards');
+    expect(backwards?.checks.filter(check => check.kind === 'joint' && check.body === 'flap').length).toBeGreaterThan(20);
+  });
+
+  it('stops the ESP32 case with a sturdy keeper on the base plate, clear of both header rows’ jumper plugs and the foot rims', () => {
+    const k = treatKeeper(p), bay = treatBayLayout(p);
+    // a wall at least 6 mm wide and 3 mm deep (it was a 2 × 2.5 mm post), its back on the case's floor, up to the case's middle
+    expect(k.x1 - k.x0).toBeGreaterThanOrEqual(6);
+    expect(k.y1 - k.y0).toBeGreaterThanOrEqual(3);
+    expect(k.y1).toBeCloseTo(bay.caseFrame.position[1] + TREAT_DISPENSER.keeper.caseFloor, 9);
+    expect(k.top).toBeCloseTo(bay.caseFrame.position[2], 9);
+    // with a buttress in front of it on the plate
+    expect(k.buttress.x1 - k.buttress.x0).toBeGreaterThan(3);
+    expect(k.y0 - k.buttress.y0).toBeCloseTo(TREAT_DISPENSER.keeper.buttress[0], 9);
+    // clear of the jumper plugs' room on both rows
+    for (const room of treatWiringRoom(p).filter(item => item.id.startsWith('row'))) expect(k.x1 < room.min[0] || k.x0 > room.max[0], room.id).toBe(true);
+    // and of the foot's rim: the wall behind it, the buttress beside it
+    expect(k.y0).toBeGreaterThan(k.rim.y1);
+    expect(k.buttress.x1).toBeLessThan(k.rim.x0);
   });
 
   it('keeps the rotor more than a treat’s length above the chute where its pockets drop, so that none can be caught between them', () => {
@@ -421,7 +453,7 @@ describe('treat dispenser mechanism', () => {
     for (const mode of ['flat', 'edge', 'end', 'diagonal'] as const) expect(treatFill(settings, 8, 1, mode)).toHaveLength(8);
   });
 
-  it('runs the CI scenarios: dispensing invariants, idle, empty, jam, reset, hold and burst', () => {
-    expect(spec.scenarios?.map(scenario => scenario.id)).toEqual(['prime-and-dispense', 'idle', 'empty', 'jam', 'reset', 'hold-and-burst']);
+  it('runs the CI scenarios: dispensing invariants, idle, empty, jam, backwards, reset, hold and burst', () => {
+    expect(spec.scenarios?.map(scenario => scenario.id)).toEqual(['prime-and-dispense', 'idle', 'empty', 'jam', 'backwards', 'reset', 'hold-and-burst']);
   });
 });

@@ -35,6 +35,12 @@ export const TREAT_DISPENSER = {
   /** The slot over the rotor is as long as a pocket (X), and across (Y) wider than a treat is long by this each side, so that a treat
    * lying either way can drop through it (a narrower one let treats bridge over it). */
   slotMargin: 1.5,
+  /** The rotor's guard rails: its full-radius rims either side of the pocket. Where the flap hangs (its cavity and recess, and the drop
+   * it goes in through) the side walls stand this much further out than the slot's, and the flap is that much wider than the pocket at
+   * each end (0.2 inside the walls), so that its tip rests on the rims over the pocket and cannot drop into it: turning backwards, the
+   * pocket's trailing face would drive into a flap that had (the rotor turns in a bore with 0.4 mm of play, so rails cannot stand out
+   * of its cylinder; the rims are the rails). The slot itself stays as long as the pocket: the motor's top screw ends just outside it. */
+  rail: 1.2,
   /** Funnel height, from the top of the rotor's block to the bottle's lip. */
   funnel: 8,
   /** The chute: its slope; the rotor's clearance above it (more than a treat is long, so that none can be caught between them); the
@@ -52,6 +58,11 @@ export const TREAT_DISPENSER = {
    * presses on a collar round the thread's boss (reaching `collar` past the boss, `collarDepth` thick under the top), and low rims on the
    * base plate (`rim` thick, `rimHeight` high, `gap` off the feet) round each foot's three free sides keep it from sliding. */
   foot: 8, collar: 5, collarDepth: 3, rim: 1.6, rimHeight: 2.5,
+  /** The base plate's keeper behind the ESP32 case's floor, between its header rows, that stops the case being pushed in: how far it
+   * keeps from the jumper plugs' room either side, its depth (y), the play it leaves round the inner body's foot rims; a buttress in
+   * front of it (depth, height over the plate) beside the rim. It reaches up to the case's middle, not its top: the window holds the
+   * case square, so its lower half is where it is pushed against. The case's floor is `caseFloor` behind the pins' tips (CASE_FLOOR). */
+  keeper: { margin: 1, depth: 3.5, play: 0.4, buttress: [4, 12] as readonly [number, number], caseFloor: 6 },
   /** The ULN2003 board's standoffs on the inner body's right leg (their diameter round a nut bay), the board's lowest edge over the
    * base, and its back edge in front of the block's back face. */
   standoff: 9, driverLift: 9, driverBack: 4,
@@ -104,10 +115,10 @@ export const TREAT_DISPENSER = {
 
 /**
  * The rubber band sizes the flap takes (`flapBand`): the library's numbered bands that are taut at rest in some notch and not too firm
- * at the stop (`treatBandTorque`, the test keeps this list to that). Shorter ones (#8, #27) hold the flap too firmly in every
+ * at the stop (`treatBandTorque`, the test keeps this list to that). Shorter ones (#8, #10, #27) hold the flap too firmly in every
  * notch; longer ones (#18, #19, #32, #33) hang slack.
  */
-export const TREAT_BAND_SIZES = ['10', '12', '14', '16', '30', '31'] as const;
+export const TREAT_BAND_SIZES = ['12', '14', '16', '30', '31'] as const;
 
 /** Bottle necks with an ISBT drawing (drawings 3784253-21 and 1165362-2). Values read off the drawings; see docs/treat-dispenser.md. */
 export const BOTTLE_NECKS = {
@@ -128,7 +139,7 @@ export const TreatDispenserParametersSchema = Type.Object({
   threadClearance: mm('Thread clearance', 'Radial play of the body’s thread on the bottle’s, mm; tune it with the coupon.', 0.3, 0.1, 0.5, 0.05),
   flapMagnets: Type.Boolean({ title: 'Flap magnets', description: 'Embed two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N) that repel each other: one in the flap’s counterweight, one in the inner body above it. They add to the counterweight’s closing force, the more the further the flap opens. Both prints pause for you to drop a magnet in.', default: false }),
   flapBand: Type.Enum(['none', ...TREAT_BAND_SIZES], { title: 'Flap band', description: 'An office rubber band by size number, stretched across the flap’s arm to hold it shut more firmly the further it opens: hooked into a pair of notches outside the inner body’s side walls (`Band notch`). None: the counterweight alone.', default: 'none' }),
-  flapBandNotch: Type.Integer({ title: 'Band notch', description: 'Which pair of notches the band is hooked into, 1 (innermost, softest) to 5 (outermost, firmest). Every band offered but #10 works in notch 4.', default: 4, minimum: 1, maximum: TREAT_DISPENSER.band.notches.length }),
+  flapBandNotch: Type.Integer({ title: 'Band notch', description: 'Which pair of notches the band is hooked into, 1 (innermost, softest) to 5 (outermost, firmest). Every band offered works in notch 4.', default: 4, minimum: 1, maximum: TREAT_DISPENSER.band.notches.length }),
   bottleDiameter: mm('Bottle diameter', 'Largest diameter of the bottle, mm (0.5 l PET bottles are about 65 mm). Sets the base plate’s size so that a full bottle cannot easily tip the dispenser over.', 65, 55, 95, 1),
 }, { additionalProperties: false });
 export type TreatDispenserParameters = Static<typeof TreatDispenserParametersSchema>;
@@ -185,7 +196,8 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
   const hy = hinge.y, hz = hinge.z - axisZ, tipY = Math.min(hy + F.lean, R - 0.3);
   const tip = { y: tipY, z: axisZ + Math.sqrt(R * R - tipY * tipY) };
   const reach = Math.hypot(tip.y - hy, hinge.z - tip.z), lean = Math.atan2(tip.y - hy, hinge.z - tip.z);
-  const width = 2 * (pocket.length / 2) - 0.4;
+  // the flap's side walls, over the rotor's rails; the flap as wide as they are apart less 0.2 each side
+  const flapHalf = slot.halfX + T.rail, width = 2 * flapHalf - 0.4;
   // its pieces' volumes (mm³) and how far behind the hinge their centres lie at rest: the plate (along its leaning centreline), the hub
   // (on the hinge), the arm and the counterweight; their moment closes the flap
   const [wy, wz] = F.weight, armLength = F.reach - wy / 2 - F.hub;
@@ -218,7 +230,7 @@ export function treatDispenserLayout(p: TreatDispenserParameters) {
     body: { y: hinge.y + M.body[0], z0: T.base + bodyFloor, z1: T.base + bodyPause, centre: T.base + bodyFloor + magnetT / 2, pause: bodyPause },
   };
   // the cavity's back reaches behind the counterweight up to its roof
-  const flap = { hinge, tip, length: reach, angle: lean / DEG, width, mass, closing, sweep, sweepTop, swing, cavityBack: hinge.y + F.reach + wy / 2 + 0.5 };
+  const flap = { hinge, tip, length: reach, angle: lean / DEG, width, half: flapHalf, mass, closing, sweep, sweepTop, swing, cavityBack: hinge.y + F.reach + wy / 2 + 0.5 };
   // the rubber band's way (`flapBand`): its plane `lever` behind the hinge; where it crosses the flap's top there, turned by a degrees
   // (z from the hinge, and half the flap's width there: the arm's, or the counterweight's beyond it); the slots through the side walls
   // from below the band's line to over the highest it lies on the flap, with room for the widest band; the ledges and pegs outside
@@ -747,6 +759,26 @@ export interface TreatBolt {
 }
 /** The centres of the inner body's feet (x, y; −X side first), outside its legs at their front and back ends. They stand in rims on
  * the base plate; nothing screws them down (the outer body's top presses the inner body onto the plate). */
+/**
+ * The base plate's keeper (W): a wall between the SuperMini's header rows, their jumper plugs' room `margin` clear either side, its back
+ * face on the case's floor, up to the case's middle; a buttress in front of it, on the plate, only where it clears the inner body's
+ * nearest foot rim (by `play`), as the wall's foot does.
+ */
+export function treatKeeper(p: TreatDispenserParameters) {
+  const T = TREAT_DISPENSER, K = T.keeper, l = treatDispenserLayout(p), bay = treatBayLayout(p);
+  const room = JUMPER.width / 2 + JUMPER.side, [a = 0, b = 0] = [...bay.rows].sort((u, v) => u - v);
+  const x0 = a + room + K.margin, x1 = b - room - K.margin, y1 = bay.caseFrame.position[1] + K.caseFloor;
+  // the rim round the nearest foot: its outer edges
+  const rimOut = T.foot / 2 + T.gap + T.rim;
+  const foot = treatFeet(l).reduce((best, f) => Math.hypot(f[0] - (x0 + x1) / 2, f[1] - y1) < Math.hypot(best[0] - (x0 + x1) / 2, best[1] - y1) ? f : best);
+  const rim = { x0: foot[0] - rimOut, x1: foot[0] + rimOut, y1: foot[1] + rimOut };
+  const y0 = Math.max(y1 - K.depth, x1 > rim.x0 - K.play && x0 < rim.x1 + K.play ? rim.y1 + K.play : -Infinity);
+  return {
+    x0, x1, y0, y1, top: bay.caseFrame.position[2], rim,
+    buttress: { x0, x1: Math.min(x1, rim.x0 - K.play), y0: y0 - K.buttress[0], top: T.base + K.buttress[1] },
+  };
+}
+
 export function treatFeet(l: TreatDispenserLayout): [number, number][] {
   const T = TREAT_DISPENSER;
   return [-1, 1].flatMap(sx => [-l.block.halfY + T.foot / 2, l.blockBack - T.foot / 2].map((y): [number, number] => [sx * (l.legOut + T.foot / 2), y]));
@@ -1016,7 +1048,7 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     // its counterweight: arm thickness, weight (y, z), the weight's centre behind the hinge, the swing, the recess's radius round the hinge
     ['WEIGHT', [T.flap.arm, ...T.flap.weight, T.flap.reach, l.flap.swing, round(l.flap.sweep)]],
     // the magnets (`flapMagnets`): fitted (1) or not, the cavities' radius, the flap's cavity (y, z from, z to) and the inner body's
-    ['MAGNET', [p.flapMagnets ? 1 : 0, round(l.magnets.radius), round(l.magnets.flap.y), round(l.magnets.flap.z0), round(l.magnets.flap.z1), round(l.magnets.body.y), round(l.magnets.body.z0), round(l.magnets.body.z1)]], ['BLOCK_SLOPE', round(l.blockSlope)], ['CAVITY_BACK', round(l.flap.cavityBack)], ['GABLE_HALF', round(l.gableHalf)],
+    ['MAGNET', [p.flapMagnets ? 1 : 0, round(l.magnets.radius), round(l.magnets.flap.y), round(l.magnets.flap.z0), round(l.magnets.flap.z1), round(l.magnets.body.y), round(l.magnets.body.z0), round(l.magnets.body.z1)]], ['BLOCK_SLOPE', round(l.blockSlope)], ['CAVITY_BACK', round(l.flap.cavityBack)], ['FLAP_HALF', round(l.flap.half)], ['GABLE_HALF', round(l.gableHalf)],
     // the rubber band's way (`flapBand`, cut and built whether or not one is fitted): its plane (y) and line (z); the side walls' slots
     // (y from, to; z from, to); the ledges (x from, to; top, thickness, width), the pegs (x, y, top), their grooves (depth, opening and
     // floor half heights round the line); the grooves' floors from the middle
@@ -1039,6 +1071,7 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     // a nut's bay across its flats and along its axis; a screw's clearance hole; room for its head (diameter, height)
     ['NUT', [round(l.bay.across), round(l.bay.depth)]], ['M3_HOLE', ISO_273_CLEARANCE_HOLES.M3.medium],
     ['HEAD', [round(dimensionOf(screw, 'dk', 'max') + 0.6), round(dimensionOf(screw, 'k', 'max') + 0.3)]],
+    ['KEEPER', (() => { const k = treatKeeper(p); return [k.x0, k.x1, k.y0, k.y1, k.top, k.buttress.x1, k.buttress.y0, k.buttress.top].map(round); })()],
     ['CASE_POS', bay.caseFrame.position.map(round)], ['CASE_ROT', bay.caseFrame.rotation], ['USB', bay.usb.map(round)],
     ['P_INNER', pose(poses['inner-body'])], ['P_OUTER', pose(poses['outer-body'])], ['P_CHUTE', pose(poses.chute)], ['P_ROTOR', pose(poses.rotor)], ['P_CAP', pose(poses.cap)], ['P_FLAP', pose(poses.flap)],
   ];
@@ -1204,6 +1237,17 @@ export function treatDispenserScenarios(p: TreatDispenserParameters, count: numb
       checks: [
         { kind: 'controller', at: 0.5 + cycle, field: 'lost', min: TREAT_FIRMWARE.stall },
         state(0.5 + cycle, 'fault'),
+      ],
+    },
+    {
+      // the rotor turned a full turn backwards by hand (the firmware never does): the flap's tip rides on the rotor's rims, the rails
+      // either side of the pocket, and never dips into it, where the pocket's face would drive into it
+      id: 'backwards', title: 'Turned a full turn backwards: the flap rides on the rotor’s rails over the pocket and never dips into it', items: [],
+      duration: 3.6,
+      drives: [{ kind: 'joint', body: 'rotor', timeline: [[0, 0], [0.3, 0], [3.3, 360]] }],
+      checks: [
+        ...Array.from({ length: 31 }, (_, k): PhysicsCheck => ({ kind: 'joint', at: 0.3 + 0.1 * k, body: 'flap', min: -0.5 })),
+        { kind: 'joint', at: 3.6, body: 'rotor', min: 359, max: 361 },
       ],
     },
     {

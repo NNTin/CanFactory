@@ -18,7 +18,7 @@ $fn = 64;
 WALL = L("WALL"); SHELL = L("SHELL"); BASE = L("BASE"); HALF_W = L("HALF_W"); FRONT = L("FRONT"); BACK = L("BACK"); BASE_RECT = L("BASE_RECT");
 R = L("R"); ROTOR_END = L("ROTOR_END"); POCKET = L("POCKET");
 BORE_R = L("BORE_R"); BORE_HALF = L("BORE_HALF"); BLOCK = L("BLOCK"); SLOT = L("SLOT");
-AXIS_Z = L("AXIS_Z"); BLOCK_BOTTOM = L("BLOCK_BOTTOM"); BLOCK_TOP = L("BLOCK_TOP"); BLOCK_BACK = L("BLOCK_BACK"); CAVITY_R = L("CAVITY_R"); DROP_Y = L("DROP_Y"); FLAP = L("FLAP"); WEIGHT = L("WEIGHT"); MAGNET = L("MAGNET"); BLOCK_SLOPE = L("BLOCK_SLOPE"); CAVITY_BACK = L("CAVITY_BACK"); GABLE_HALF = L("GABLE_HALF"); LIP_Z = L("LIP_Z"); LIP_R = L("LIP_R"); BOSS_TOP = L("BOSS_TOP");
+AXIS_Z = L("AXIS_Z"); BLOCK_BOTTOM = L("BLOCK_BOTTOM"); BLOCK_TOP = L("BLOCK_TOP"); BLOCK_BACK = L("BLOCK_BACK"); CAVITY_R = L("CAVITY_R"); DROP_Y = L("DROP_Y"); FLAP = L("FLAP"); WEIGHT = L("WEIGHT"); MAGNET = L("MAGNET"); BLOCK_SLOPE = L("BLOCK_SLOPE"); CAVITY_BACK = L("CAVITY_BACK"); FLAP_HALF = L("FLAP_HALF"); GABLE_HALF = L("GABLE_HALF"); LIP_Z = L("LIP_Z"); LIP_R = L("LIP_R"); BOSS_TOP = L("BOSS_TOP");
 CHUTE = L("CHUTE"); CHUTE_END = L("CHUTE_END"); CHUTE_BACK = L("CHUTE_BACK"); CHUTE_SLOPE = L("CHUTE_SLOPE"); EXIT_Z = L("EXIT_Z");
 CHUTE_FLOOR = L("CHUTE_FLOOR"); CHUTE_WALL = L("CHUTE_WALL"); CHUTE_SIDE = L("CHUTE_SIDE");
 NECK_T = L("NECK_T"); NECK_E = L("NECK_E"); NECK_PITCH = L("NECK_PITCH"); NECK_TURNS = L("NECK_TURNS");
@@ -26,7 +26,7 @@ THREAD_CLEARANCE = L("THREAD_CLEARANCE"); THREAD_R = L("THREAD_R"); BOSS_R = L("
 MOTOR_FACE = L("MOTOR_FACE"); BOSS_D = L("BOSS_D"); SHAFT_D = L("SHAFT_D"); SHAFT_FLATS = L("SHAFT_FLATS"); SHAFT_ROUND = L("SHAFT_ROUND");
 CAP = L("CAP"); GAP = L("GAP"); LUG = L("LUG"); FOOT = L("FOOT"); FEET = L("FEET"); RIM = L("RIM"); COLLAR = L("COLLAR"); STANDOFF = L("STANDOFF"); COLUMN_R = L("COLUMN_R");
 BOLTS = L("BOLTS"); NUT = L("NUT"); M3_HOLE = L("M3_HOLE"); HEAD = L("HEAD");
-CASE_POS = L("CASE_POS"); USB = L("USB");
+CASE_POS = L("CASE_POS"); USB = L("USB"); KEEPER = L("KEEPER");
 BAND = L("BAND"); BAND_NOTCHES = L("BAND_NOTCHES");
 
 // the ESP32 case's outline (its base 25.8 × 21.8) and its floor's depth, from the case model's own parts
@@ -119,7 +119,7 @@ module inner_body_w() {
   inner_body_shell();
   // the flap's hinge: a boss on each side wall, standing out into the hub's hole; peaked like a teardrop so that it prints, the peak cut
   // inside the hub's hole so that the hub turns freely on it
-  for (s = [-1, 1]) translate([s * SLOT[0], HINGE[0], HINGE[1]]) rotate([0, s * -90, 0]) translate([0, 0, -0.01]) linear_extrude(FLAP[8] + 0.01)
+  for (s = [-1, 1]) translate([s * FLAP_HALF, HINGE[0], HINGE[1]]) rotate([0, s * -90, 0]) translate([0, 0, -0.01]) linear_extrude(FLAP[8] + 0.01)
     rotate([0, 0, -s * 90]) intersection() {
       hull() { circle(r = FLAP[7], $fn = 32); translate([0, FLAP[7] / cos(STEEP)]) square(0.01, center = true); }
       circle(r = (FLAP[7] + FLAP[6]) / 2, $fn = 32);
@@ -197,7 +197,9 @@ module inner_body_shell() {
     // under a roof at the flap's hinge (its round top prints as bridges between its side walls); the counterweight's recess (the room it
     // sweeps as the flap swings open, its round top bridged likewise) and the hub's recess round the hinge (peaked so that it prints
     // without support), each with the way it comes in, up and back from the bore
-    translate([-SLOT[0], 0, 0]) rotate([90, 0, 90]) linear_extrude(2 * SLOT[0]) {
+    // (as wide as the flap's side walls, FLAP_HALF: wider than the slot, so that the flap rests on the rotor's rims either side of the
+    // pocket)
+    translate([-FLAP_HALF, 0, 0]) rotate([90, 0, 90]) linear_extrude(2 * FLAP_HALF) {
       translate([DROP_Y, BLOCK_BOTTOM - 1]) square([CAVITY_R - DROP_Y, AXIS_Z - BLOCK_BOTTOM + 1]);
       intersection() {
         translate([0, AXIS_Z]) circle(r = CAVITY_R, $fn = 144);
@@ -387,8 +389,13 @@ module base() {
         translate([f[0] < 0 ? -o : -FOOT / 2, -o, 0]) cube([FOOT / 2 + o, 2 * o, RIM[1] + 0.01]);
         translate([f[0] < 0 ? -o + RIM[0] : -FOOT / 2 - 1, -o + RIM[0], -1]) cube([FOOT / 2 + o - RIM[0] + 1, 2 * (o - RIM[0]), RIM[1] + 2]);
       }
-      // a keeper behind the middle of the ESP32 case's floor, between its two rows of header pins, so that it cannot be pushed in
-      translate([CASE_POS[0] - 1, CASE_POS[1] + CASE_FLOOR - 2.5, BASE - 0.01]) cube([2, 2.5, CASE_POS[2] + CASE_L / 2 - BASE]);
+      // a keeper behind the ESP32 case's floor, between its two rows of header pins, so that it cannot be pushed in (KEEPER: x from, to,
+      // y from, to, top; its buttress in front, beside the inner body's foot rim: x to, y from, top)
+      translate([KEEPER[0], KEEPER[2], BASE - 0.01]) cube([KEEPER[1] - KEEPER[0], KEEPER[3] - KEEPER[2], KEEPER[4] - BASE + 0.01]);
+      hull() {
+        translate([KEEPER[0], KEEPER[6], BASE - 0.01]) cube([KEEPER[5] - KEEPER[0], KEEPER[2] - KEEPER[6] + 0.01, 0.01]);
+        translate([KEEPER[0], KEEPER[2] - 0.01, BASE - 0.01]) cube([KEEPER[5] - KEEPER[0], 0.02, KEEPER[7] - BASE + 0.01]);
+      }
     }
     // the screws into the outer body's corners, their heads in counterbores from below
     for (b = BOLTS) bolt_hole(b);
@@ -411,9 +418,12 @@ module thread_cutter(turns) {
   );
   polyhedron(points, faces, convexity = 6);
 }
+// The bore h high and its thread: the groove reaches down as deep as `turns` of the bottle's thread below `top`, and runs on up out
+// through the top face (h), so that the bottle's thread can start in it: one continuous helix from the entry down.
 module bottle_bore(h, turns, top) {
   translate([0, 0, -0.01]) cylinder(d = NECK_E + 2 * THREAD_CLEARANCE, h = h + 0.02, $fn = 96);
-  translate([0, 0, top - turns * NECK_PITCH - NECK_PITCH]) thread_cutter(turns);
+  z0 = top - turns * NECK_PITCH - NECK_PITCH;
+  translate([0, 0, z0]) thread_cutter((h - z0) / NECK_PITCH + 1);
 }
 module coupon() {
   h = 10;
