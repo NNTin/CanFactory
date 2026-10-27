@@ -92,6 +92,9 @@ export const TREAT_DISPENSER = {
   flap: {
     thickness: 1.6, hub: 2.9, hole: 1.7, boss: 1.5, bossLength: 1.5, mouth: 2.6, mouthAngle: 135, lean: 1.5,
     arm: 2, weight: [10, 8.5] as readonly [number, number], reach: 15, swing: 55, density: 1.27,
+    /** The way it goes in (y, z, mm): the snap-on step's path, straight up and back from the bore to its bosses; its side walls follow
+     * it out to the rails' width, the flap being wider than the slot. */
+    insert: [-12, -12] as readonly [number, number],
     /** The optional magnets (`flapMagnets`): the library part; a cavity's play round it (radially), headroom over it before the pause,
      * the skin under it (whole layers at the print notes' 0.2 mm); the inner body's magnet's centre from the hinge (y, z), above and behind
      * the counterweight, clear of its swing and of the slot (a search over the places that fit: the most closing torque at rest that
@@ -1048,7 +1051,7 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     // its counterweight: arm thickness, weight (y, z), the weight's centre behind the hinge, the swing, the recess's radius round the hinge
     ['WEIGHT', [T.flap.arm, ...T.flap.weight, T.flap.reach, l.flap.swing, round(l.flap.sweep)]],
     // the magnets (`flapMagnets`): fitted (1) or not, the cavities' radius, the flap's cavity (y, z from, z to) and the inner body's
-    ['MAGNET', [p.flapMagnets ? 1 : 0, round(l.magnets.radius), round(l.magnets.flap.y), round(l.magnets.flap.z0), round(l.magnets.flap.z1), round(l.magnets.body.y), round(l.magnets.body.z0), round(l.magnets.body.z1)]], ['BLOCK_SLOPE', round(l.blockSlope)], ['CAVITY_BACK', round(l.flap.cavityBack)], ['FLAP_HALF', round(l.flap.half)], ['GABLE_HALF', round(l.gableHalf)],
+    ['MAGNET', [p.flapMagnets ? 1 : 0, round(l.magnets.radius), round(l.magnets.flap.y), round(l.magnets.flap.z0), round(l.magnets.flap.z1), round(l.magnets.body.y), round(l.magnets.body.z0), round(l.magnets.body.z1)]], ['BLOCK_SLOPE', round(l.blockSlope)], ['CAVITY_BACK', round(l.flap.cavityBack)], ['FLAP_HALF', round(l.flap.half)], ['FLAP_IN', [...T.flap.insert]], ['GABLE_HALF', round(l.gableHalf)],
     // the rubber band's way (`flapBand`, cut and built whether or not one is fitted): its plane (y) and line (z); the side walls' slots
     // (y from, to; z from, to); the ledges (x from, to; top, thickness, width), the pegs (x, y, top), their grooves (depth, opening and
     // floor half heights round the line); the grooves' floors from the middle
@@ -1160,7 +1163,7 @@ export function treatDispenserAssembly(p: TreatDispenserParameters): Assembly {
     steps: [
       { title: 'Push two M3 nuts into the inner body’s motor bays, from the front', parts: ids('motor', 'nut'), from: [0, -16, 0] },
       { title: 'Drop M3 nuts into the ULN2003’s standoffs and the cap’s lugs', parts: [...ids('driver', 'nut'), ...ids('cap', 'nut')], from: [0, 0, 8] },
-      { title: 'Snap the flap’s hub onto the two bosses behind the slot, pushed up and back from the bore (before the motor and the rotor: their shafts fill the bore); it swings freely', parts: ['flap', ...(p.flapMagnets ? ['flap-magnet'] : [])], from: [0, -12, -12] },
+      { title: 'Snap the flap’s hub onto the two bosses behind the slot, pushed up and back from the bore (before the motor and the rotor: their shafts fill the bore); it swings freely', parts: ['flap', ...(p.flapMagnets ? ['flap-magnet'] : [])], from: [0, ...TREAT_DISPENSER.flap.insert] },
       ...(band ? [{ title: `Thread the rubber band (#${p.flapBand}) through the slot in one side wall, over the flap’s arm and out through the other (a bent paper clip pulls it through); hook its ends round the pegs of notch ${p.flapBandNotch} on both sides, into their grooves`, parts: ['band'], from: [0, 0, 6] }] : []),
       { title: 'Screw the motor to the inner body’s right side, its shaft into the block (two M3 × 6)', parts: ['motor', ...ids('motor', 'screw')], from: [45, 0, 0] },
       { title: 'Screw the ULN2003 board to its standoffs under the motor (four M3 × 8); plug in the motor', parts: ['driver', ...ids('driver', 'screw')], from: [45, 0, 0] },
