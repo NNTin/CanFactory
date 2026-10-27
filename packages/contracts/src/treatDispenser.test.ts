@@ -233,7 +233,7 @@ describe('treat dispenser layout', () => {
       expect(k.flare.x1).toBeGreaterThan(k.x1 + 3.5);
       // short of the outer body's corner columns
       for (const bolt of treatBolts(q).filter(item => item.id.startsWith('corner'))) {
-        const [cx = 0, cy = 0] = bolt.at, nearest = [Math.min(Math.max(cx, k.flare.x0), k.flare.x1), Math.min(Math.max(cy, k.y0), k.y1)];
+        const [cx, cy] = bolt.at, nearest = [Math.min(Math.max(cx, k.flare.x0), k.flare.x1), Math.min(Math.max(cy, k.y0), k.y1)];
         expect(Math.hypot(cx - (nearest[0] ?? 0), cy - (nearest[1] ?? 0)), bolt.id).toBeGreaterThanOrEqual(5.5 - 1e-6);
       }
       for (const room of rows) {

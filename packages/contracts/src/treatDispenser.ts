@@ -789,7 +789,7 @@ export function treatKeeper(p: TreatDispenserParameters) {
   const y0 = rim.back - K.overlap;
   let fx0 = x0 - K.flare, fx1 = x1 + K.flare;
   for (const bolt of treatBolts(p).filter(item => item.id.startsWith('corner'))) {
-    const [cx = 0, cy = 0] = bolt.at, dy = Math.max(0, y0 - cy, cy - y1), reach = (CORNER_COLUMN.radius + 0.5) ** 2 - dy ** 2;
+    const [cx, cy] = bolt.at, dy = Math.max(0, y0 - cy, cy - y1), reach = (CORNER_COLUMN.radius + 0.5) ** 2 - dy ** 2;
     if (reach <= 0) continue;
     if (cx < x0) fx0 = Math.max(fx0, cx + Math.sqrt(reach)); else if (cx > x1) fx1 = Math.min(fx1, cx - Math.sqrt(reach));
   }
