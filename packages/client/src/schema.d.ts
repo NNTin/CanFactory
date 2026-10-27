@@ -2304,10 +2304,10 @@ export interface operations {
                          * @default none
                          * @enum {unknown}
                          */
-                        flapBand: "none" | "10" | "12" | "14" | "16" | "30" | "31";
+                        flapBand: "none" | "12" | "14" | "16" | "30" | "31";
                         /**
                          * Band notch
-                         * @description Which pair of notches the band is hooked into, 1 (innermost, softest) to 5 (outermost, firmest). Every band offered but #10 works in notch 4.
+                         * @description Which pair of notches the band is hooked into, 1 (innermost, softest) to 5 (outermost, firmest). Every band offered works in notch 4.
                          * @default 4
                          */
                         flapBandNotch: number;
