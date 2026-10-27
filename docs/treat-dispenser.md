@@ -23,7 +23,7 @@ anything; that is issue #140, left for later.
 | Flap | Rigid PLA or PETG, 1.6 mm plate: rests on the rotor just behind the slot, swinging freely on a hub whose hole snaps over two bosses on its side walls (Ø3, through a 2.6 mm mouth); 18 mm wide, a millimetre wider than the pocket at each end, so that its tip rests on the rotor's rims (the rails) and never drops into the pocket; a counterweight on an arm behind the hub (10 × 8.5 mm, 15 mm behind the hinge) holds it on the rotor with 0.31 N·mm and swings up into a recess, up to 55°, as a treat pushes the flap back. It prints upside down on the flat tops of its hub, arm and counterweight. Optionally an office rubber band across its arm (**Flap band**, [below](#flap-band-option)) and/or a magnet in the counterweight and one in the inner body above it (**Flap magnets**, [below](#flap-magnets-option)) hold it shut harder. |
 | Bearing cap | A tube through the outer body's left wall and the inner body's sleeve into the bore, up to the rotor's end, where it takes the rotor's stub; its flange sits on the wall's outside, its two M3 × 10 screws through the wall into nuts in the inner body's lugs (clamping the wall). |
 | Chute | 30°, from under the rotor out through the front wall; pushed up between the legs from below and held by the base plate. |
-| Base plate | 5 mm; closes the bottom; four M3 × 8 screws from below in counterbores, into the outer body's corners; a low rim (1.6 × 2.5 mm, 0.2 mm off the foot) round three sides of each of the inner body's feet; sized so that a full bottle leans 20° before the dispenser tips; a keeper behind the ESP32 case: a 7.7 × 3.5 mm wall between its header rows up to its middle, with a buttress in front. |
+| Base plate | 5 mm; closes the bottom; four M3 × 8 screws from below in counterbores, into the outer body's corners; a low rim (1.6 × 2.5 mm, 0.2 mm off the foot) round three sides of each of the inner body's feet; sized so that a full bottle leans 20° before the dispenser tips; a keeper behind the ESP32 case: a T-shaped post, its bar a 7.7 mm wall on the case's floor between the header rows, up to the case's middle and flaring 4–5 mm wider at each side down to the plate below the jumper plugs, its stem a rib sloping forwards along the outer wall of the nearest foot rim; both stand in the rim's walls, so that the rim anchors them. |
 | Thread coupon | Ten millimetres of the body's thread: print it first and fit it to your bottle. |
 | ESP32-C3 case base and lid | The existing case's two parts, unchanged ([attribution](../models/treat-dispenser/ATTRIBUTION.md)). |
 
@@ -276,10 +276,10 @@ not re-run):
 | Flap (PLA or PETG, upside down) | 2.6 | 18 × 23 × 27 |
 | Bearing cap | 14.7 | 46 × 46 × 35 |
 | Chute | 7.2 | 20 × 100 × 15 |
-| Base plate | 54.9 | 105 × 99 × 5 (with its posts and keeper, 61 high) |
+| Base plate | 56.0 | 105 × 99 × 5 (with its posts and keeper, 61 high) |
 | Thread coupon | 3.8 | 34 × 34 × 10 |
 | ESP32 case base and lid | 2.2 | |
-| **All** | **259.2** (with the TPU flap: 233.1; one body before the split: 197.9) | |
+| **All** | **260.3** (with the TPU flap: 233.1; one body before the split: 197.9) | |
 
 With PrusaSlicer 2.5 and `tools/treat-dispenser.ini` (0.4 mm nozzle, 0.2 mm layers, PETG, four perimeters) the single-body revision
 came to 217.7 g; set `PRUSA_SLICER` to re-slice this one.

@@ -219,21 +219,38 @@ describe('treat dispenser layout', () => {
     expect(backwards?.checks.filter(check => check.kind === 'joint' && check.body === 'flap').length).toBeGreaterThan(20);
   });
 
-  it('stops the ESP32 case with a sturdy keeper on the base plate, clear of both header rows’ jumper plugs and the foot rims', () => {
-    const k = treatKeeper(p), bay = treatBayLayout(p);
-    // a wall at least 6 mm wide and 3 mm deep (it was a 2 × 2.5 mm post), its back on the case's floor, up to the case's middle
-    expect(k.x1 - k.x0).toBeGreaterThanOrEqual(6);
-    expect(k.y1 - k.y0).toBeGreaterThanOrEqual(3);
-    expect(k.y1).toBeCloseTo(bay.caseFrame.position[1] + TREAT_DISPENSER.keeper.caseFloor, 9);
-    expect(k.top).toBeCloseTo(bay.caseFrame.position[2], 9);
-    // with a buttress in front of it on the plate
-    expect(k.buttress.x1 - k.buttress.x0).toBeGreaterThan(3);
-    expect(k.y0 - k.buttress.y0).toBeCloseTo(TREAT_DISPENSER.keeper.buttress[0], 9);
-    // clear of the jumper plugs' room on both rows
-    for (const room of treatWiringRoom(p).filter(item => item.id.startsWith('row'))) expect(k.x1 < room.min[0] || k.x0 > room.max[0], room.id).toBe(true);
-    // and of the foot's rim: the wall behind it, the buttress beside it
-    expect(k.y0).toBeGreaterThan(k.rim.y1);
-    expect(k.buttress.x1).toBeLessThan(k.rim.x0);
+  it('stops the ESP32 case with a T-shaped keeper on the base plate, anchored in a foot rim, clear of the jumper plugs, the foot and the USB plug', () => {
+    const T = TREAT_DISPENSER, K = T.keeper;
+    for (const q of [p, { ...p, treatLength: 10, treatWidth: 6, treatThickness: 3, treatCornerRadius: 0.5 }, { ...p, treatLength: 18, treatWidth: 10, treatThickness: 7, pocketClearance: 0.4 }]) {
+      const k = treatKeeper(q), bay = treatBayLayout(q), rows = treatWiringRoom(q).filter(item => item.id.startsWith('row'));
+      // the bar: a wall at least 6 mm wide on the case's floor, up to the case's middle, from the rim's back wall (into it)
+      expect(k.x1 - k.x0).toBeGreaterThanOrEqual(6);
+      expect(k.y1).toBeCloseTo(bay.caseFrame.position[1] + K.caseFloor, 9);
+      expect(k.top).toBeCloseTo(bay.caseFrame.position[2], 9);
+      expect(k.y0).toBeCloseTo(k.rim.back - K.overlap, 9);
+      // wider at the bottom: it flares at both sides, below the plugs' room
+      expect(k.flare.x0).toBeLessThan(k.x0 - 3.5);
+      expect(k.flare.x1).toBeGreaterThan(k.x1 + 3.5);
+      // short of the outer body's corner columns
+      for (const bolt of treatBolts(q).filter(item => item.id.startsWith('corner'))) {
+        const [cx = 0, cy = 0] = bolt.at, nearest = [Math.min(Math.max(cx, k.flare.x0), k.flare.x1), Math.min(Math.max(cy, k.y0), k.y1)];
+        expect(Math.hypot(cx - (nearest[0] ?? 0), cy - (nearest[1] ?? 0)), bolt.id).toBeGreaterThanOrEqual(5.5 - 1e-6);
+      }
+      for (const room of rows) {
+        expect(k.flare.z).toBeLessThan(room.min[2]);
+        // the bar, above its flare, and the stem clear of both rows' plugs
+        for (const [x0, x1] of [[k.x0, k.x1], [k.stem.x0, k.stem.x1]] as const) expect(x1 < room.min[0] || x0 > room.max[0], room.id).toBe(true);
+      }
+      // the stem: forwards along the rim's outer wall, standing in it, never in the groove the foot stands in
+      expect(k.stem.x1 - k.stem.x0).toBeCloseTo(K.stem, 9);
+      const groove = [Math.min(k.rim.inner, k.foot[0]), Math.max(k.rim.inner, k.foot[0])];
+      expect(k.stem.x1 <= (groove[0] ?? 0) + 1e-9 || k.stem.x0 >= (groove[1] ?? 0) - 1e-9).toBe(true);
+      expect(Math.min(Math.abs(k.stem.x0 - k.rim.inner), Math.abs(k.stem.x1 - k.rim.inner))).toBeCloseTo(K.overlap, 9);
+      expect(k.stem.y0).toBeCloseTo(k.rim.front + K.overlap, 9);
+      expect(k.stem.z0).toBeGreaterThan(k.rim.height);
+      // nothing behind the case's floor, where the USB-C plug comes down (its overmold some 3.3 mm either side of the board)
+      expect(bay.usb[1] - 3.3).toBeGreaterThan(k.y1);
+    }
   });
 
   it('keeps the rotor more than a treat’s length above the chute where its pockets drop, so that none can be caught between them', () => {

@@ -396,12 +396,18 @@ module base() {
         translate([f[0] < 0 ? -o : -FOOT / 2, -o, 0]) cube([FOOT / 2 + o, 2 * o, RIM[1] + 0.01]);
         translate([f[0] < 0 ? -o + RIM[0] : -FOOT / 2 - 1, -o + RIM[0], -1]) cube([FOOT / 2 + o - RIM[0] + 1, 2 * (o - RIM[0]), RIM[1] + 2]);
       }
-      // a keeper behind the ESP32 case's floor, between its two rows of header pins, so that it cannot be pushed in (KEEPER: x from, to,
-      // y from, to, top; its buttress in front, beside the inner body's foot rim: x to, y from, top)
+      // a keeper behind the ESP32 case's floor, between its two rows of header pins, so that it cannot be pushed in: a T-shaped post
+      // (KEEPER: its bar's x from, to, y from, to, top; flaring to x from, to at the plate below z; its stem's x from, to, front y and
+      // height): its bar a wall on the case's floor, wider down to the plate, its stem a rib forwards along the foot rim's outer wall,
+      // its top sloping down to the rim's front; both stand in the rim's walls
       translate([KEEPER[0], KEEPER[2], BASE - 0.01]) cube([KEEPER[1] - KEEPER[0], KEEPER[3] - KEEPER[2], KEEPER[4] - BASE + 0.01]);
       hull() {
-        translate([KEEPER[0], KEEPER[6], BASE - 0.01]) cube([KEEPER[5] - KEEPER[0], KEEPER[2] - KEEPER[6] + 0.01, 0.01]);
-        translate([KEEPER[0], KEEPER[2] - 0.01, BASE - 0.01]) cube([KEEPER[5] - KEEPER[0], 0.02, KEEPER[7] - BASE + 0.01]);
+        translate([KEEPER[0], KEEPER[2], KEEPER[7] - 0.01]) cube([KEEPER[1] - KEEPER[0], KEEPER[3] - KEEPER[2], 0.01]);
+        translate([KEEPER[5], KEEPER[2], BASE - 0.01]) cube([KEEPER[6] - KEEPER[5], KEEPER[3] - KEEPER[2], 0.01]);
+      }
+      hull() {
+        translate([KEEPER[8], KEEPER[10], BASE - 0.01]) cube([KEEPER[9] - KEEPER[8], 0.01, KEEPER[11] - BASE + 0.01]);
+        translate([KEEPER[8], KEEPER[2], BASE - 0.01]) cube([KEEPER[9] - KEEPER[8], KEEPER[3] - KEEPER[2], KEEPER[4] - BASE + 0.01]);
       }
     }
     // the screws into the outer body's corners, their heads in counterbores from below

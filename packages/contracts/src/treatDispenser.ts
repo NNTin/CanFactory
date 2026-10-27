@@ -58,11 +58,15 @@ export const TREAT_DISPENSER = {
    * presses on a collar round the thread's boss (reaching `collar` past the boss, `collarDepth` thick under the top), and low rims on the
    * base plate (`rim` thick, `rimHeight` high, `gap` off the feet) round each foot's three free sides keep it from sliding. */
   foot: 8, collar: 5, collarDepth: 3, rim: 1.6, rimHeight: 2.5,
-  /** The base plate's keeper behind the ESP32 case's floor, between its header rows, that stops the case being pushed in: how far it
-   * keeps from the jumper plugs' room either side, its depth (y), the play it leaves round the inner body's foot rims; a buttress in
-   * front of it (depth, height over the plate) beside the rim. It reaches up to the case's middle, not its top: the window holds the
-   * case square, so its lower half is where it is pushed against. The case's floor is `caseFloor` behind the pins' tips (CASE_FLOOR). */
-  keeper: { margin: 1, depth: 3.5, play: 0.4, buttress: [4, 12] as readonly [number, number], caseFloor: 6 },
+  /** The base plate's keeper behind the ESP32 case's floor, between its header rows, that stops the case being pushed in: a T-shaped
+   * post. Its bar a wall on the case's floor, `margin` clear of the jumper plugs' room either side, flaring `flare` wider at each side
+   * down to the plate below that room; its stem a rib forwards along the outer wall of the nearest foot rim (the groove the inner
+   * body's foot stands in), `stem` wide, its top sloping down to the rim's front end (the flare stops short of the outer body's corner
+   * columns). Bar and stem reach `overlap` into the rim's walls,
+   * so that the rim anchors them; the foot keeps its gap. It reaches up to the case's middle, not its top: the window holds the case
+   * square, so its lower half is where it is pushed against. The case's floor is `caseFloor` behind the pins' tips (CASE_FLOOR); the
+   * USB-C plug comes down just behind it. */
+  keeper: { margin: 1, flare: 5, stem: 2.7, overlap: 0.3, caseFloor: 6 },
   /** The ULN2003 board's standoffs on the inner body's right leg (their diameter round a nut bay), the board's lowest edge over the
    * base, and its back edge in front of the block's back face. */
   standoff: 9, driverLift: 9, driverBack: 4,
@@ -763,22 +767,36 @@ export interface TreatBolt {
 /** The centres of the inner body's feet (x, y; −X side first), outside its legs at their front and back ends. They stand in rims on
  * the base plate; nothing screws them down (the outer body's top presses the inner body onto the plate). */
 /**
- * The base plate's keeper (W): a wall between the SuperMini's header rows, their jumper plugs' room `margin` clear either side, its back
- * face on the case's floor, up to the case's middle; a buttress in front of it, on the plate, only where it clears the inner body's
- * nearest foot rim (by `play`), as the wall's foot does.
+ * The base plate's keeper (W), a T-shaped post: its bar, a wall between the SuperMini's header rows (their jumper plugs' room `margin`
+ * clear either side) from the nearest foot rim's back wall to the case's floor, up to the case's middle, flaring wider down to the
+ * plate below the plugs' room; its stem, a rib forwards on the rim's outer wall, its top sloping from the bar's top down to just over
+ * the rim at its front end. Both reach `overlap` into the rim's walls, never into the groove the foot stands in.
  */
 export function treatKeeper(p: TreatDispenserParameters) {
   const T = TREAT_DISPENSER, K = T.keeper, l = treatDispenserLayout(p), bay = treatBayLayout(p);
   const room = JUMPER.width / 2 + JUMPER.side, [a = 0, b = 0] = [...bay.rows].sort((u, v) => u - v);
   const x0 = a + room + K.margin, x1 = b - room - K.margin, y1 = bay.caseFrame.position[1] + K.caseFloor;
-  // the rim round the nearest foot: its outer edges
-  const rimOut = T.foot / 2 + T.gap + T.rim;
+  // the nearest foot's rim (on its three free sides, the leg on the fourth): its outer edges and the groove's (the foot and its gap)
+  const outer = T.foot / 2 + T.gap + T.rim, inner = T.foot / 2 + T.gap;
   const foot = treatFeet(l).reduce((best, f) => Math.hypot(f[0] - (x0 + x1) / 2, f[1] - y1) < Math.hypot(best[0] - (x0 + x1) / 2, best[1] - y1) ? f : best);
-  const rim = { x0: foot[0] - rimOut, x1: foot[0] + rimOut, y1: foot[1] + rimOut };
-  const y0 = Math.max(y1 - K.depth, x1 > rim.x0 - K.play && x0 < rim.x1 + K.play ? rim.y1 + K.play : -Infinity);
+  const side = Math.sign(foot[0]) || -1;
+  const rim = { outer: foot[0] + side * outer, inner: foot[0] + side * inner, front: foot[1] - outer, back: foot[1] + outer, height: T.base + T.rimHeight };
+  // the plugs' room starts this high: the bar keeps its width above it
+  const roomBottom = Math.min(...treatWiringRoom(p).filter(item => item.id.startsWith('row')).map(item => item.min[2]));
+  // the stem's face towards the foot `overlap` into the rim's wall from the groove, its other face `stem` further out
+  const stemIn = rim.inner + side * K.overlap, stemOut = stemIn + side * K.stem;
+  // the flare stops 0.5 short of the outer body's corner columns (round the corner screws)
+  const y0 = rim.back - K.overlap;
+  let fx0 = x0 - K.flare, fx1 = x1 + K.flare;
+  for (const bolt of treatBolts(p).filter(item => item.id.startsWith('corner'))) {
+    const [cx = 0, cy = 0] = bolt.at, dy = Math.max(0, y0 - cy, cy - y1), reach = (CORNER_COLUMN.radius + 0.5) ** 2 - dy ** 2;
+    if (reach <= 0) continue;
+    if (cx < x0) fx0 = Math.max(fx0, cx + Math.sqrt(reach)); else if (cx > x1) fx1 = Math.min(fx1, cx - Math.sqrt(reach));
+  }
   return {
-    x0, x1, y0, y1, top: bay.caseFrame.position[2], rim,
-    buttress: { x0, x1: Math.min(x1, rim.x0 - K.play), y0: y0 - K.buttress[0], top: T.base + K.buttress[1] },
+    x0, x1, y0, y1, top: bay.caseFrame.position[2], rim, foot,
+    flare: { x0: fx0, x1: fx1, z: roomBottom - 0.5 },
+    stem: { x0: Math.min(stemIn, stemOut), x1: Math.max(stemIn, stemOut), y0: rim.front + K.overlap, z0: rim.height + 0.5 },
   };
 }
 
@@ -1074,7 +1092,9 @@ export function treatScadValues(p: TreatDispenserParameters): [string, number | 
     // a nut's bay across its flats and along its axis; a screw's clearance hole; room for its head (diameter, height)
     ['NUT', [round(l.bay.across), round(l.bay.depth)]], ['M3_HOLE', ISO_273_CLEARANCE_HOLES.M3.medium],
     ['HEAD', [round(dimensionOf(screw, 'dk', 'max') + 0.6), round(dimensionOf(screw, 'k', 'max') + 0.3)]],
-    ['KEEPER', (() => { const k = treatKeeper(p); return [k.x0, k.x1, k.y0, k.y1, k.top, k.buttress.x1, k.buttress.y0, k.buttress.top].map(round); })()],
+    // the case keeper: its bar (x from, to; y from, to; top), flaring down to the plate (x from, to; from z), its stem (x from, to; its
+    // front's y and height)
+    ['KEEPER', (() => { const k = treatKeeper(p); return [k.x0, k.x1, k.y0, k.y1, k.top, k.flare.x0, k.flare.x1, k.flare.z, k.stem.x0, k.stem.x1, k.stem.y0, k.stem.z0].map(round); })()],
     ['CASE_POS', bay.caseFrame.position.map(round)], ['CASE_ROT', bay.caseFrame.rotation], ['USB', bay.usb.map(round)],
     ['P_INNER', pose(poses['inner-body'])], ['P_OUTER', pose(poses['outer-body'])], ['P_CHUTE', pose(poses.chute)], ['P_ROTOR', pose(poses.rotor)], ['P_CAP', pose(poses.cap)], ['P_FLAP', pose(poses.flap)],
   ];
