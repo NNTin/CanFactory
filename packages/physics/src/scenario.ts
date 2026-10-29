@@ -7,6 +7,7 @@ import { buildScene, type BuildInput } from './build.ts';
 import type { Engine } from './engine.ts';
 import { DEG, MM, type Vec3 } from './scene.ts';
 import { Simulation, type BodyPose } from './simulation.ts';
+import { CycleController } from './controller.ts';
 import { add, rotate, scale, sub } from './transform.ts';
 
 /** A push's fingertip: a ball of 1 mm radius, touching the pushed point from outside at the start. */
@@ -37,7 +38,7 @@ function jointUnit(input: BuildInput, body: string): number {
   return joint.type === 'hinge' ? DEG : MM;
 }
 
-function measure(simulation: Simulation, input: BuildInput, start: Map<string, BodyPose>, check: PhysicsCheck): { value: number | boolean; description: string } {
+function measure(simulation: Simulation, input: BuildInput, start: Map<string, BodyPose>, check: PhysicsCheck, controller: CycleController | undefined): { value: number | boolean; description: string } {
   switch (check.kind) {
     case 'position': {
       const before = start.get(check.body), now = simulation.pose(check.body);
@@ -60,17 +61,29 @@ function measure(simulation: Simulation, input: BuildInput, start: Map<string, B
       const touching = simulation.touching(a, b);
       return { value: touching, description: `${a} and ${b} ${touching ? 'touch' : 'do not touch'}` };
     }
+    case 'counter': {
+      const value = simulation.counted(check.counter).length;
+      return { value, description: `${check.counter} counted ${value}` };
+    }
+    case 'controller': {
+      if (!controller) throw new Error('Scenario: the mechanism has no controller.');
+      const report = controller.report();
+      if (check.field === 'state') return { value: report.state === check.state, description: `the controller is ${report.state}` };
+      const value = report[check.field];
+      return { value, description: `the controller's ${check.field}: ${check.field === 'lost' ? `${value.toFixed(2)}°` : value}` };
+    }
   }
 }
 
 function passes(check: PhysicsCheck, value: number | boolean): boolean {
   if (check.kind === 'contact') return value === check.touching;
+  if (check.kind === 'controller' && check.field === 'state') return value === true;
   if (typeof value !== 'number' || !Number.isFinite(value)) return false;
   return (check.min === undefined || value >= check.min) && (check.max === undefined || value <= check.max);
 }
 
 /** Applies the drives at time `t` (s). */
-function drive(simulation: Simulation, input: BuildInput, drives: readonly PhysicsDrive[], t: number, origins: Map<number, Vec3>): void {
+function drive(simulation: Simulation, input: BuildInput, drives: readonly PhysicsDrive[], t: number, origins: Map<number, Vec3>, controller: CycleController | undefined): void {
   drives.forEach((item, index) => {
     const key = `drive-${index}`;
     switch (item.kind) {
@@ -89,6 +102,14 @@ function drive(simulation: Simulation, input: BuildInput, drives: readonly Physi
         if (item.until !== undefined && t > item.until) { simulation.moveFinger(key, add(origin, [0, 0, 1])); return; }
         const [x = 0, y = 0, z = 0] = interpolate(item.timeline, t);
         simulation.moveFinger(key, add(origin, [x * MM, y * MM, z * MM]));
+        return;
+      }
+      case 'press': {
+        if (!controller) throw new Error('Scenario: the mechanism has no controller to press.');
+        const dt = simulation.scene.options.timestep;
+        // edges only: down on the step that reaches `at`, up on the step that reaches `at + hold`
+        if (t >= item.at && t - dt < item.at) controller.press(item.control, true);
+        if (t >= item.at + item.hold && t - dt < item.at + item.hold) controller.press(item.control, false);
         return;
       }
       case 'force': {
@@ -112,7 +133,9 @@ export function runScenario(engine: Engine, input: BuildInput, scenario: Physics
     ...(scenario.poses ? { startPoses: scenario.poses } : {}),
     drives: [...new Set(drives.flatMap(item => item.kind === 'joint' ? [item.body] : []))],
     fingers: drives.flatMap((item, index) => item.kind === 'push' ? [{ name: `drive-${index}`, radius: FINGER_RADIUS }] : []),
+    ...(scenario.items ? { items: scenario.items } : {}),
   }));
+  const controller = input.spec.controller ? new CycleController(simulation, input.spec.controller) : undefined;
   try {
     for (const [id, enabled] of Object.entries(scenario.magnets ?? {})) simulation.setMagnetEnabled(id, enabled);
     const dt = simulation.scene.options.timestep;
@@ -135,11 +158,11 @@ export function runScenario(engine: Engine, input: BuildInput, scenario: Physics
       while (next < checks.length && (checks[next]?.at ?? Infinity) <= t + dt / 2) {
         const check = checks[next++];
         if (!check) break;
-        const { value, description } = measure(simulation, input, start, check);
+        const { value, description } = measure(simulation, input, start, check, controller);
         results.push({ check, value, pass: passes(check, value), description: `${description} at ${check.at} s` });
       }
       if (step === steps) break;
-      drive(simulation, input, drives, t + dt, origins);
+      drive(simulation, input, drives, t + dt, origins, controller);
       simulation.step();
     }
     for (const check of checks.slice(next)) results.push({ check, value: Number.NaN, pass: false, description: `${check.at} s is after the scenario's end` });

@@ -7,6 +7,7 @@ import { conceptPages } from './concepts.ts';
 import { QUASI_STATIC, type PhysicsSpec } from './physics.ts';
 import { revolvedPieces, type Point2 } from './physicsPieces.ts';
 import { cigaretteCasePhysics } from './cigaretteCasePhysics.ts';
+import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TIP_ANGLE, TREAT_BAND_SIZES, TREAT_DISPENSER, TREAT_FIRMWARE, TreatDispenserParametersSchema, treatBandPart, treatBandTorque, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout, treatDispenserPhysics, treatFootprint, treatScadLayout, type BottleNeck, type TreatDispenserParameters } from './treatDispenser.ts';
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
@@ -3550,6 +3551,78 @@ export const esp32C3SuperminiCase = {
   },
 } satisfies ModelDefinition;
 
+/**
+ * PET-bottle treat dispenser (#138), gumball style after bovineblitz's (MakerWorld 190887) and cylus80's (Thingiverse 2103924)
+ * dispensers: a rotor with one pocket under the bottle, turned directly by a 28BYJ-48, the ULN2003 and the existing ESP32-C3
+ * SuperMini case inside the body. Every dimension comes from treatDispenser.ts (its `treatScadLayout` is passed to the generator as
+ * one list), the same numbers its physics is made from.
+ */
+// the layout rides on the one string setting (scadEncode takes strings); every setting is mapped, so each is in the cache fingerprint
+const TREAT_MAPPING = { bottleNeck: 'LAYOUT', treatLength: 'TREAT_LENGTH', treatWidth: 'TREAT_WIDTH', treatThickness: 'TREAT_THICKNESS', treatCornerRadius: 'TREAT_CORNER_RADIUS', pocketClearance: 'POCKET_CLEARANCE', threadClearance: 'THREAD_CLEARANCE_SETTING', flapMagnets: 'FLAP_MAGNETS', flapBand: 'FLAP_BAND', flapBandNotch: 'FLAP_BAND_NOTCH', bottleDiameter: 'BOTTLE_DIAMETER' };
+const treatSchema = TreatDispenserParametersSchema;
+const treatParts: { id: string; title: string }[] = [
+  { id: 'inner-body', title: 'Inner body: bottle thread, funnel, rotor block, motor and ULN2003 mounts, the cap’s lugs' },
+  { id: 'outer-body', title: 'Outer body: cover with the ESP32 case’s window' }, { id: 'rotor', title: 'Rotor (one pocket)' },
+  { id: 'flap', title: 'Flap (rigid, snaps onto its hinge)' },
+  { id: 'cap', title: 'Bearing cap' }, { id: 'chute', title: 'Chute' }, { id: 'base', title: 'Base plate' }, { id: 'coupon', title: 'Bottle thread coupon' },
+];
+export const treatDispenser = {
+  id: 'treat-dispenser' as const, version: '3' as const, title: 'PET-bottle treat dispenser',
+  description: 'A gumball-style treat dispenser for an inverted 0.5 l PET bottle: the treats fall onto a rotor with one deep pocket, which a 28BYJ-48 turns a full turn per press, only ever forwards; a counterweighted rigid flap closes the slot behind the rotor, and the pocket drops what it holds down a chute out of the front. Every part prints in PLA or PETG: no flexible filament. 0, 1 or a few treats may come out per press. An inner body carries the mechanism, the motor and the ULN2003 board; an outer body covers it, with an ESP32-C3 SuperMini in the existing sliding-lid case in its back wall (B and R pressable, both header rows free for jumper wires); everything is held by M3 screws and hex nuts; one USB-C cable powers everything. Prototype: treats can bridge in the bottle’s neck (#140). Simulate it: press B on the back.',
+  attribution: 'After bovineblitz’s Cat treat gumball-style dispenser (CC BY-NC 4.0) and cylus80’s Mason Jar Candy Dispenser (CC BY 4.0), redrawn by CanFactory; ESP32-C3 SuperMini case by Vinors3DLab, adapted by CanFactory',
+  attributionLinks: [
+    { text: 'bovineblitz', url: 'https://makerworld.com/en/models/190887' },
+    { text: 'cylus80', url: 'https://www.thingiverse.com/thing:2103924' },
+    { text: 'Vinors3DLab', url: 'https://www.makeronline.com/en/model/Ultra-Compact-Case-for-ESP---C--SuperMini--step-file-/338531.html' },
+  ],
+  printNotes: 'PETG (or PLA), 0.2 mm layers, four perimeters; no flexible filament. Print every part without supports (they are drawn to need none; automatic supports would fill the thread and stand in the rotor’s bore and slot): the inner body upright on its legs and feet, the outer body upright on its open bottom, the rotor on its motor end, the bearing cap on its flange, the chute on its floor, the flap upside down on the flat tops of its hub and counterweight, the base plate and the coupon flat. The reused ESP32 case parts print as their own model says. Print the thread coupon first and screw it onto your bottle: tune Thread clearance until it runs on and off by hand without wobble. Fasteners: 12 ISO 4032 M3 hex nuts in printed bays (slide each in before its screw; the bays are 5.8 mm across the flats) and ISO 4762 M3 screws: M3 × 6 for the motor’s ears (two), M3 × 8 for the ULN2003 board (four) and the outer body’s corners (four), M3 × 10 for the bearing cap (two). With Flap magnets on, each of the flap and the inner body pauses once (the heights are in the notes): hold the two Ø8 × 1 mm magnets so that they push each other apart, and drop each into its cavity with that face down. The flap snaps onto two bosses behind the slot before the motor goes on (push it up and back through the empty bore) and then swings freely: check that it falls back onto the rotor by itself. The inner body is not screwed down: it stands in rims on the base plate, and the corner screws pull the outer body’s top down onto its collar. To clear or clean the rotor, unscrew the cap on the left side and slide the rotor out. To reach the motor, the ULN2003 or the SuperMini’s header pins, unscrew the bottle, the cap and the four corner screws under the base plate and lift the outer body off. Printed plastic is not automatically food-safe. Prototype: not validated for unattended feeding; treats can bridge in the bottle’s neck (docs/treat-dispenser.md). The ESP32 case parts are adapted from Vinors3DLab’s CC BY-NC-SA 4.0 release and the mechanism from bovineblitz’s CC BY-NC 4.0 one, so the whole model is shared under CC BY-NC-SA 4.0.',
+  license: 'CC BY-NC-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+  parts: [
+    // the inner body and the flap may hold a magnet sealed in at a print pause (`flapMagnets`): a closed void inside
+    ...treatParts.map(({ id, title }): ModelPart => ({ id, title, sourcePath: 'models/treat-dispenser/generator.scad', scadMapping: TREAT_MAPPING, scadConstants: { PART: id }, ...(id === 'inner-body' || id === 'flap' ? { sealedVoids: true } : {}) })),
+    { id: 'case-bottom', title: 'ESP32-C3 case base (Vinors3DLab, adapted)', sourcePath: 'models/esp32-c3-supermini-case/bottom.scad', scadConstants: { FLUSH_HEADERS: DEFAULT_ESP32_CASE.flushHeaders, TALLER_ENCLOSURE: DEFAULT_ESP32_CASE.tallerEnclosure, ...ESP32_CASE_HEADER_DEFINES } },
+    { id: 'case-top', title: 'ESP32-C3 case sliding B/R lid (Vinors3DLab, adapted)', sourcePath: 'models/esp32-c3-supermini-case/top.scad', scadConstants: { LED_HOLES: DEFAULT_ESP32_CASE.ledHoles, ...ESP32_CASE_LED_DEFINES } },
+  ],
+  parameterSchema: treatSchema, defaults: DEFAULT_TREAT_DISPENSER, scadMapping: {},
+  scadEncode: { bottleNeck: (_value: string, parameters: ParameterValues) => treatScadLayout(parameters as TreatDispenserParameters) },
+  controls: [
+    control(treatSchema, 'treatLength', 'basic'), control(treatSchema, 'treatWidth', 'basic'), control(treatSchema, 'treatThickness', 'basic'),
+    enumControl(treatSchema, 'bottleNeck', 'basic', (Object.keys(BOTTLE_NECKS) as BottleNeck[]).map(value => ({ value, label: BOTTLE_NECKS[value].title, description: `Thread ${BOTTLE_NECKS[value].T} mm over ${BOTTLE_NECKS[value].E} mm, pitch ${BOTTLE_NECKS[value].pitch} mm, bore ${BOTTLE_NECKS[value].bore} mm.` }))),
+    control(treatSchema, 'bottleDiameter', 'basic'), control(treatSchema, 'flapMagnets', 'basic'),
+    enumControl(treatSchema, 'flapBand', 'basic', (['none', ...TREAT_BAND_SIZES] as const).map(value => {
+      const band = treatBandPart({ flapBand: value });
+      return band ? { value, label: band.title, description: band.description } : { value, label: 'None', description: 'The counterweight alone holds the flap shut.' };
+    })),
+    control(treatSchema, 'flapBandNotch', 'basic'),
+    control(treatSchema, 'pocketClearance', 'advanced'), control(treatSchema, 'threadClearance', 'advanced'), control(treatSchema, 'treatCornerRadius', 'advanced'),
+  ],
+  physics: parameters => treatDispenserPhysics(parameters as TreatDispenserParameters, { treats: 8 }),
+  assembly: treatDispenserAssembly(DEFAULT_TREAT_DISPENSER),
+  assemblyForParameters: parameters => treatDispenserAssembly(parameters as TreatDispenserParameters),
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(treatSchema, parameters) ? treatDispenserIssues(parameters) : [{ field: '', message: 'Parameters do not match the treat dispenser schema.' }];
+  },
+  derived(parameters: unknown) {
+    if (!Value.Check(treatSchema, parameters) || treatDispenserIssues(parameters).length) return { slotCount: null };
+    const l = treatDispenserLayout(parameters), base = treatFootprint(parameters);
+    return { slotCount: null, notes: [
+      `One pocket ${l.pocket.length.toFixed(1)} × ${l.pocket.width.toFixed(1)} mm, ${l.pocket.depth.toFixed(1)} mm deep (to the axis), in a Ø${2 * l.R} mm rotor; a rigid flap with a counterweight (${l.flap.closing.toFixed(2)} N·mm) behind it.`,
+      TREAT_FIRMWARE.rock > 0
+        ? `One press: ${treatCycleSteps()} half-steps net (${TREAT_FIRMWARE.stepsPerTurn} per turn, calibrate yours): back ${TREAT_FIRMWARE.rock}°, then a full turn and ${TREAT_FIRMWARE.rock}° on.`
+        : `One press: ${treatCycleSteps()} half-steps forward, a full turn (calibrate yours); never backwards.`,
+      `Base plate ${(base[1] - base[0]).toFixed(0)} × ${(base[3] - base[2]).toFixed(0)} mm: a full 0.5 l bottle of Ø${parameters.bottleDiameter} mm leans ${TIP_ANGLE}° before the dispenser tips.`,
+      ...(parameters.flapMagnets ? [
+        `Flap magnets: pause the flap’s print at ${l.magnets.flap.pause} mm (before layer ${layerAbove(l.magnets.flap.pause, TREAT_DISPENSER.flap.magnet.layer)}) and the inner body’s at ${l.magnets.body.pause} mm (before layer ${layerAbove(l.magnets.body.pause, TREAT_DISPENSER.flap.magnet.layer)}), at ${TREAT_DISPENSER.flap.magnet.layer} mm layers; drop an Ø8 × 1 mm magnet into each cavity, the faces that repel each other facing down in both, then resume.`,
+      ] : []),
+      ...(parameters.flapBand === 'none' ? [] : [(() => {
+        const [rest = 0, half = 0, stop = 0] = treatBandTorque(l, parameters, [0, l.flap.swing / 2, l.flap.swing]).map(torque => -torque);
+        return `Flap band #${parameters.flapBand} in notch ${parameters.flapBandNotch} (${TREAT_DISPENSER.band.notches[parameters.flapBandNotch - 1]} mm out): about ${rest.toFixed(2)} N·mm at rest, ${half.toFixed(2)} at ${l.flap.swing / 2}° and ${stop.toFixed(2)} at the stop (${l.flap.swing}°), on top of the counterweight’s ${l.flap.closing.toFixed(2)}. Estimated from the band’s size and Sterling’s hardness; other makers’ bands differ.`;
+      })()]),
+      'No sensor sees a treat leave: a cycle is only commanded. Treats can bridge in the bottle’s neck (#140).',
+    ] };
+  },
+} satisfies ModelDefinition;
+
 /** Original magnetic toy: four functional layers, exported as five independently printable components. */
 const toyNut = findPart('iso-4032-m3');
 if (!toyNut) throw new Error('Missing magnetic cat toy cover nut.');
@@ -3610,7 +3683,7 @@ export const magneticCatToy = {
   },
 } satisfies ModelDefinition;
 /** The one registration of each catalogue model. A `const` tuple, so that `RenderRequestSchema` (index.ts) derives a typed branch per model from it. */
-export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase] as const satisfies readonly ModelDefinition[];
+export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser] as const satisfies readonly ModelDefinition[];
 export const models: readonly ModelDefinition[] = registeredModels;
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }

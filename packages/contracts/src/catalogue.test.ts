@@ -6,7 +6,7 @@ const part = (id: string) => findPart(id) ?? (() => { throw new Error(id); })();
 // The web app reads the catalogue straight from this registry; no API serves it (#95).
 describe('the bundled catalogue', () => {
   it('lists every model, with its file format', () => {
-    expect(models.map(model => model.id).sort()).toEqual(['ai-rubber-duck', 'cat-collar-tag', 'cigarette-case', 'esp32-c3-supermini-case', 'fruit-fly-trap', 'litter-shovel', 'magnetic-cat-toy', 'moss-planter', 'outside-corner-toggle-latch', 'plank-connector', 'pressure-pad', 'printed-corner-bracket', 'printed-screen-hook', 'qr-magnet-tag', 'spring-ball-detent', 'toggle-latch', 'window-cat-guard', 'xiao-sense-camera-housing']);
+    expect(models.map(model => model.id).sort()).toEqual(['ai-rubber-duck', 'cat-collar-tag', 'cigarette-case', 'esp32-c3-supermini-case', 'fruit-fly-trap', 'litter-shovel', 'magnetic-cat-toy', 'moss-planter', 'outside-corner-toggle-latch', 'plank-connector', 'pressure-pad', 'printed-corner-bracket', 'printed-screen-hook', 'qr-magnet-tag', 'spring-ball-detent', 'toggle-latch', 'treat-dispenser', 'window-cat-guard', 'xiao-sense-camera-housing']);
     expect(fruitFlyTrap.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false, properties: { trapDiameter: { type: 'number', minimum: 20, maximum: 200 } } });
     expect([fruitFlyTrap, plankConnector].map(artifactFormat)).toEqual(['stl', 'stl']);
     expect([aiRubberDuck, mossPlanter, cigaretteCase, litterShovel].map(artifactFormat)).toEqual(['zip', 'zip', 'zip', 'zip']);
@@ -43,7 +43,9 @@ describe('the bundled catalogue', () => {
     expect(partFamilies.reduce((sum, family) => sum + partsOfFamily(family.id).length, 0)).toBe(parts.length);
     // the plank connector links every M3 screw through its screw-hole sizes; the toggle latch by its thread and as a machine screw
     expect(partUsage(part('iso-4762-m3x10'))).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes', kind: 'model' },
-      { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Thread', kind: 'model' }, { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Machine screw', kind: 'model' }]);
+      { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Thread', kind: 'model' }, { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Machine screw', kind: 'model' },
+      // the treat dispenser shows its bearing cap's screws in its assembly
+      { modelId: 'treat-dispenser', modelTitle: 'PET-bottle treat dispenser', via: 'Assembly preview', kind: 'model' }]);
     // a concept page that uses a part is listed too, as a concept
     expect(partUsage(part('ganter-gn-343-2-32-m8-63-kr'))).toEqual([
       { modelId: 'catio/window-insert', modelTitle: 'Window catio: window insert', via: 'Spreader feet (32 mm)', kind: 'concept' },

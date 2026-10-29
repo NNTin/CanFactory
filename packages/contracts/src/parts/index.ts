@@ -20,6 +20,7 @@ import { screenHookFamily, screenHookParts } from './screen-hooks.ts';
 import { screwFamily, screwParts } from './screws.ts';
 import { setScrewFamily, setScrewParts } from './set-screws.ts';
 import { splitRingFamily, splitRingParts } from './split-rings.ts';
+import { rubberBandFamily, rubberBandParts } from './rubber-bands.ts';
 import { springFamily, springParts } from './springs.ts';
 import { stepperDriverFamily, stepperDriverParts } from './stepper-drivers.ts';
 import { stepperMotorFamily, stepperMotorParts } from './stepper-motors.ts';
@@ -35,6 +36,7 @@ export { PART_SOURCES, findPartSource } from './sources.ts';
 export { cornerBracketHoles } from './corner-brackets.ts';
 export { componentTop, devBoardLayout, type DevBoardArea, type DevBoardComponent, type DevBoardComponentTop, type DevBoardExternalAntenna, type DevBoardLayout, type DevBoardPin, type DevBoardPoint } from './dev-boards.ts';
 export { springRate } from './springs.ts';
+export { STERLING } from './rubber-bands.ts';
 export { stepperDriverComponentTop, stepperDriverLayout, type StepperDriverComponent, type StepperDriverLayout, type StepperDriverPin, type StepperDriverPoint } from './stepper-drivers.ts';
 
 /**
@@ -47,14 +49,14 @@ export { stepperDriverComponentTop, stepperDriverLayout, type StepperDriverCompo
 export const partFamilies: readonly PartFamily[] = [
   magnetFamily, screwFamily, nutFamily, washerFamily, insertFamily, bearingFamily, pinFamily, everydayObjectFamily,
   woodScrewFamily, nailFamily, insertNutFamily, levellingFootFamily, toggleLatchFamily, screenHookFamily, cornerBracketFamily,
-  setScrewFamily, ballFamily, springFamily, splitRingFamily, nfcTagFamily, catCollarFamily, devBoardFamily, pinHeaderFamily, heatsinkFamily, meshFamily,
+  setScrewFamily, ballFamily, springFamily, splitRingFamily, rubberBandFamily, nfcTagFamily, catCollarFamily, devBoardFamily, pinHeaderFamily, heatsinkFamily, meshFamily,
   stepperMotorFamily, stepperDriverFamily,
 ];
 
 export const parts: readonly Part[] = [
   ...magnetParts, ...screwParts, ...nutParts, ...washerParts, ...insertParts, ...bearingParts, ...pinParts, ...everydayObjectParts,
   ...woodScrewParts, ...nailParts, ...insertNutParts, ...levellingFootParts, ...toggleLatchParts, ...screenHookParts, ...cornerBracketParts,
-  ...setScrewParts, ...ballParts, ...springParts, ...splitRingParts, ...nfcTagParts, ...catCollarParts, ...devBoardParts, ...pinHeaderParts, ...heatsinkParts, ...meshParts,
+  ...setScrewParts, ...ballParts, ...springParts, ...splitRingParts, ...rubberBandParts, ...nfcTagParts, ...catCollarParts, ...devBoardParts, ...pinHeaderParts, ...heatsinkParts, ...meshParts,
   ...stepperMotorParts, ...stepperDriverParts,
 ];
 

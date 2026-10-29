@@ -86,3 +86,4 @@ export const DownloadQuerySchema = Type.Object({ download: Type.Optional(Type.Li
 export * from './magneticCatToyPhysics.ts';
 
 export * from './esp32Case.ts';
+export * from './treatDispenser.ts';

@@ -166,7 +166,8 @@ jobs:
   physics:
     name: Physics scenarios (MuJoCo)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # the treat dispenser's scenarios (a pile of treats against 0.1 ms gear steps) take about five minutes on their own
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -189,5 +190,7 @@ jobs:
         run: |
           npm run check:physics
           npm run check:physics -- magnetic-cat-toy --parameters '{"magnetPlacement":"eccentric","socketSpacing":40}'
+          npm run check:physics -- treat-dispenser --parameters '{"flapMagnets":true}'
+          npm run check:physics -- treat-dispenser --parameters '{"flapBand":"14","flapBandNotch":4}'
         env:
           OPENSCAD_RUNNER: docker

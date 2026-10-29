@@ -20,7 +20,7 @@ export const TOUCH = 1e-5;
 export const geomName = (body: string, index: number): string => `${body}#${index}`;
 
 function geomXml(body: SceneBody, geom: SceneGeom, index: number): string {
-  const common = { name: geomName(body.name, index), friction: list(body.friction) };
+  const common = { name: geomName(body.name, index), friction: list(body.friction), condim: body.frictionless === true ? '1' : undefined };
   switch (geom.type) {
     case 'mesh': return `<geom${attrs({ ...common, type: 'mesh', mesh: geomName(body.name, index) })}/>`;
     case 'sphere': return `<geom${attrs({ ...common, type: 'sphere', size: num(geom.radius), pos: list(geom.pos) })}/>`;
@@ -81,7 +81,12 @@ export function toMjcf(scene: Scene): string {
     // Explicit inertials win; geoms of a body without one take their mass from the density (kg/m³ of PETG by default).
     '  <compiler angle="radian" inertiafromgeom="auto" boundmass="1e-6" boundinertia="1e-12"/>',
     // implicitfast integrates joint springs and damping implicitly: a steel ball on a stiff spring oscillates at ω·Δt above 1.
-    `  <option${attrs({ timestep: num(options.timestep), gravity: list(options.gravity), integrator: 'implicitfast' })}>`,
+    `  <option${attrs({
+      timestep: num(options.timestep), gravity: list(options.gravity), integrator: 'implicitfast',
+      iterations: options.iterations === undefined ? undefined : num(options.iterations),
+      ls_iterations: options.lsIterations === undefined ? undefined : num(options.lsIterations),
+      tolerance: options.tolerance === undefined ? undefined : num(options.tolerance),
+    })}>`,
     // MuJoCo leaves out contacts between a body and its parent; a body that should collide with its parent adds the pair below.
     `    <flag${attrs({ filterparent: parentCollisions ? 'disable' : undefined })}/>`,
     '  </option>',
@@ -99,6 +104,7 @@ export function toMjcf(scene: Scene): string {
     '  </worldbody>',
     contactXml(scene, parentCollisions),
     driveXml(scene),
+    motorXml(scene),
     '</mujoco>',
   ].filter(line => line !== '').join('\n');
 }
@@ -117,6 +123,19 @@ function driveXml(scene: Scene): string {
   if (drives.length === 0) return '';
   const solref = list([2 * scene.options.timestep, 1]);
   return ['  <equality>', ...drives.map(({ body }) => `    <joint${attrs({ name: driveName(body), joint1: body, polycoef: '0 0 0 0 0', solref, solimp: '0.9999 0.9999 0.0001' })}/>`), '  </equality>'].join('\n');
+}
+
+/** The name of a motor's actuator. */
+export const motorName = (motor: string): string => `motor:${motor}`;
+
+/**
+ * A position actuator per motor, its force capped at the motor's torque. Its damping is the actuator's own (kv), not the joint's: the
+ * motor's lag is what limits it, and a joint damping would brake it even where the actuator is saturated.
+ */
+function motorXml(scene: Scene): string {
+  const motors = scene.motors ?? [];
+  if (motors.length === 0) return '';
+  return ['  <actuator>', ...motors.map(motor => `    <position${attrs({ name: motorName(motor.name), joint: motor.body, kp: num(motor.kp), kv: num(motor.kv), forcelimited: 'true', forcerange: list([-motor.torque, motor.torque]) })}/>`), '  </actuator>'].join('\n');
 }
 
 /** Exclusions: the scene's own, and, when parent filtering is off for some bodies, every other body–parent pair. */

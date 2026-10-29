@@ -3,9 +3,10 @@
  * parts' geometry (meshes and convex pieces, millimetres, each part in its own frame) become a scene in SI units. `toMjcf` is
  * the second half. Nothing here reads files or renders: the geometry comes in as numbers.
  */
-import { physicsMaterial, type PhysicsBody, type PhysicsJoint, type PhysicsSpec } from '@canfactory/contracts';
+import { physicsMaterial, type PhysicsBody, type PhysicsItem, type PhysicsJoint, type PhysicsSpec } from '@canfactory/contracts';
+import { hullTriangles } from './hull.ts';
 import { inertialOf, massProperties } from './massProperties.ts';
-import { DEFAULT_OPTIONS, DEG, GRAM, MM, type Inertial, type Scene, type SceneBody, type SceneGeom, type SceneJoint, type SceneOptions, type Vec3 } from './scene.ts';
+import { DEFAULT_OPTIONS, DEG, GRAM, MM, type Inertial, type Scene, type SceneBody, type SceneGeom, type SceneJoint, type SceneMotor, type SceneOptions, type Vec3 } from './scene.ts';
 import { IDENTITY, quatAxisAngle, quatFromPoseRotation, relative, rotate, scale, sub, type Transform } from './transform.ts';
 
 /** An assembly pose (`Assembly['poses']`): the part's STL turned (degrees, X then Y then Z), then moved (mm). */
@@ -34,6 +35,38 @@ export interface BuildInput {
   floor?: boolean;
   /** Fingertips (`Scene.fingers`). */
   fingers?: { name: string; radius: number }[];
+  /** The loose items present (`PhysicsScenario.items`); all of the spec's by default. */
+  items?: readonly string[];
+}
+
+/**
+ * Contact solving where `PhysicsSpec.precise` asks for it: with MuJoCo's defaults, loose items pressed against a rotor that a motor
+ * turns through gear teeth were now and then flung at metres per second, as if the solve had stopped short; these settings removed it
+ * (docs/physics-plan.md, "Motors and loose items").
+ */
+export const PRECISE: Pick<SceneOptions, 'iterations' | 'lsIterations' | 'tolerance'> = { iterations: 300, lsIterations: 100, tolerance: 1e-10 };
+
+/** An item's body: free, its one convex shape, its inertia that of its hull at its mass. */
+function itemBody(item: PhysicsItem, pose: PartPose | undefined): SceneBody {
+  const vertices = item.vertices;
+  const indices = hullTriangles(vertices);
+  if (indices.length === 0) throw new Error(`Physics item ${item.id}: its vertices span no volume.`);
+  const triangles = indices.flatMap(index => [vertices[3 * index] ?? 0, vertices[3 * index + 1] ?? 0, vertices[3 * index + 2] ?? 0]);
+  const properties = massProperties(triangles);
+  const inertial = inertialOf(properties, item.mass * GRAM / (properties.volume * MM ** 3), MM);
+  const at = pose ?? item.pose;
+  return {
+    name: item.id, parent: null, pos: toSI(at.position), quat: quatFromPoseRotation(at.rotation), motion: 'free', inertial,
+    geoms: [{ type: 'mesh', vertices: vertices.map(value => value * MM) }], friction: [item.friction, TORSION, ROLLING],
+  };
+}
+
+/** A motor's actuator in SI (N·mm per degree → N·m per radian, and so on). */
+function sceneMotor(motor: NonNullable<PhysicsSpec['motors']>[number]): SceneMotor {
+  return {
+    name: motor.id, body: motor.body, kp: motor.stiffness * MM / DEG, kv: motor.damping * MM / DEG, torque: motor.torque * MM,
+    speed: motor.speed * DEG, acceleration: motor.acceleration * DEG, slip: motor.slip * DEG,
+  };
 }
 
 /** Torsional and rolling friction, which the materials do not give: MuJoCo's defaults for a body of a few centimetres. */
@@ -72,6 +105,8 @@ function jointValues(joint: PhysicsJoint): Omit<SceneJoint, 'type' | 'pos' | 'ax
   if (joint.damping !== undefined) result.damping = joint.damping * stiffness;
   if (joint.friction !== undefined) result.frictionLoss = joint.friction * (hinge ? MM : 1);
   if (joint.initial !== undefined) result.initial = joint.initial * value;
+  if (joint.load && joint.load.at.length !== joint.load.values.length) throw new Error('A joint load needs one value per joint value.');
+  if (joint.load) result.load = { at: joint.load.at.map(at => at * value), values: joint.load.values.map(load => load * (hinge ? MM : 1)) };
   return result;
 }
 
@@ -158,7 +193,9 @@ export function buildScene(input: BuildInput): Scene {
       const inverse: Transform['quat'] = [pose.quat[0], -pose.quat[1], -pose.quat[2], -pose.quat[3]];
       const axis = joint.axis ?? [0, 0, 1];
       const values = jointValues(joint);
-      const armature = jointArmature(values.stiffness ?? 0, values.damping ?? 0, timestep);
+      // g·mm² → kg·m²: the body's own added inertia and any motor's on this hinge
+      const added = ((body.inertia ?? 0) + (spec.motors ?? []).filter(motor => motor.body === body.id).reduce((sum, motor) => sum + motor.inertia, 0)) * GRAM * MM * MM;
+      const armature = jointArmature(values.stiffness ?? 0, values.damping ?? 0, timestep) + (joint.type === 'hinge' ? added : 0);
       motion = {
         type: joint.type,
         pos: rotate(inverse, sub(toSI(joint.anchor), pose.pos)),
@@ -174,8 +211,19 @@ export function buildScene(input: BuildInput): Scene {
     const inertial = body.fixed === true && parent === null ? undefined : inertialFor(body, geometry[body.id], geoms);
     if (inertial) result.inertial = inertial;
     if (joint?.collideWithParent === true && parent !== null) result.collideWithParent = true;
+    if (body.frictionless === true) result.frictionless = true;
     return result;
   });
+  const present = input.items ? new Set(input.items) : undefined;
+  for (const item of spec.items ?? []) {
+    if (present && !present.has(item.id)) continue;
+    if (ids.has(item.id)) throw new Error(`Physics item ${item.id} has the id of a body.`);
+    bodies.push(itemBody(item, input.startPoses?.[item.id] ?? spec.poses?.[item.id]));
+  }
+  for (const motor of spec.motors ?? []) {
+    const joint = spec.bodies.find(body => body.id === motor.body)?.joint;
+    if (!joint || joint.type !== 'hinge' || joint.model === 'contact') throw new Error(`Motor ${motor.id}: ${motor.body} has no ideal hinge.`);
+  }
   const magnetIds = new Set<string>();
   const magnets = spec.magnets?.map(magnet => {
     if (magnetIds.has(magnet.id)) throw new Error(`Duplicate magnet ${magnet.id}.`);
@@ -188,8 +236,16 @@ export function buildScene(input: BuildInput): Scene {
   const g = Math.hypot(...gravity);
   if (g === 0) throw new Error('Gravity needs a direction.');
   return {
-    options: { ...DEFAULT_OPTIONS, ...input.options, timestep, gravity: scale(gravity, 9.81 / g) },
+    options: { ...DEFAULT_OPTIONS, ...(spec.precise === true ? PRECISE : {}), ...input.options, timestep, gravity: scale(gravity, 9.81 / g) },
     bodies,
+    ...(spec.motors && spec.motors.length > 0 ? { motors: spec.motors.map(sceneMotor) } : {}),
+    ...(spec.counters && spec.counters.length > 0 ? { counters: spec.counters.map(counter => ({
+      name: counter.id, kind: counter.kind,
+      bodies: (spec.items ?? []).filter(item => item.group === counter.group && (!present || present.has(item.id))).map(item => item.id),
+      point: toSI(counter.point ?? [0, 0, 0]), along: [counter.along?.[0] ?? 0, counter.along?.[1] ?? 0, counter.along?.[2] ?? -1] as Vec3,
+      min: toSI(counter.min), max: toSI(counter.max),
+      ...(counter.frame ? { frame: { pos: toSI(counter.frame.position), quat: quatFromPoseRotation(counter.frame.rotation) } } : {}),
+    })) } : {}),
     ...(magnets ? { magnets } : {}),
     exclude: (spec.exclude ?? []).map(([a = '', b = '']) => [a, b] as [string, string]),
     ...(input.drives && input.drives.length > 0 ? { drives: input.drives.map(body => driveOf(spec, body)) } : {}),

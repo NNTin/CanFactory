@@ -76,7 +76,7 @@ A model's assembly may carry a `physics` section (engine-neutral; units mm, g, s
 - **bodies**: one per part or reference object (by its id in the assembly's poses), its **material** (density from
   `materials`), whether it is **fixed** (welded to the world), and optional overrides (mass, centre of mass).
 - **joints**: between a body and its parent (or the world), each with a type (`hinge`, `slide`, `ball`, `free`, `weld`), an
-  anchor and axis in the assembled frame, optional range, stiffness with a rest position (a spring), damping and dry friction
+  anchor and axis in the assembled frame, optional range, stiffness with a rest position (a spring), damping and dry friction, and a load table (force or torque by the joint's value, applied to its degree of freedom every step) for springs that are not linear, such as a rubber band over a hinge
   (`frictionloss`, e.g. a snap's retention), and a **model**: `ideal` (default) or `contact`.
 - **springs** from the parts library: a compression spring between two bodies takes its rate and lengths from the library entry.
 - **collision**: per body, where its collision shape comes from: `primitive` (library hardware), `pieces` (authored convex
@@ -363,3 +363,64 @@ Both closure dipoles sit behind the configurable thin contacting floors and
 act on grid magnets, but their internal welded pair is
 skipped. Near-field closure strength requires a physical test, not this softened
 point-dipole approximation.
+
+## Motors and loose items
+
+Added for the treat dispenser (issue #138, [treat-dispenser.md](treat-dispenser.md)). All engine-neutral, in `PhysicsSpec`:
+
+- **`items`**: loose rigid objects that are neither printed parts nor library hardware (treats): one convex shape given by its
+  vertices, a mass and a friction. They become free bodies whose inertia is their hull's at that mass; the viewer draws their hulls
+  while the physics runs. A scenario's `items` lists the ones present (none for an empty hopper).
+- **`motors`**: a torque-limited motor on a body's hinge, as a geared stepper's output shaft: a MuJoCo position actuator (stiffness,
+  damping, its force capped at `torque`) whose command follows a trapezoid (speed, acceleration). When the hinge lags the command by
+  more than `slip` in the direction of travel, the lag beyond it is added to the motor's lost travel, as steps a real stepper loses;
+  pushed ahead, it only holds. Its rotor's inertia through the gearbox (`inertia`) is added to the hinge. It never forces a hinge
+  through an obstruction harder than its torque: the dispenser's jam scenario stalls against a fixed fingertip.
+- **`counters`**: count items of a group once each, the first time their centre crosses a plane in a direction inside a box
+  (`crossing`), or enters a box (`inside`), in an optional frame. Moving back and forth over the plane counts once.
+- **`controller`**: a firmware-like controller of one motor (`packages/physics/src/controller.ts`): debounced presses, one cycle of
+  moves per press, a bounded queue (more presses are rejected and counted), a boot time after a reset, re-alignment (jog, then
+  aligned) after a reset interrupted a cycle, Prime, and a fault when a cycle loses more travel than allowed. It commands only;
+  `counter` is what the simulation observes leaving. Scenarios press its controls (`press` drives) and check it (`controller`
+  checks) and the counters (`counter` checks); the interactive mode takes `control` requests and reports `controller` updates.
+- **`frictionless`** bodies (gear teeth), **`inertia`** added to a body's hinge, and **`precise`** contact solving.
+
+Found on the way, with @mujoco/mujoco 3.14.0:
+
+- Two gears that both turn freely (a driven pinion and a loaded gear) set the solver off once their tooth flanks had friction
+  (condim 3): within tens of milliseconds the gear spun up from a slow contact and the state diverged. Spike 4 never had two free
+  gears: one was always held or driven by a constraint. With frictionless flanks (condim 1) the pair turns at exactly its ratio.
+- A position actuator on a light pinion (armature 10⁻⁵ kg·m²) meshing with a free gear diverged; at 2 × 10⁻⁴ kg·m² (a plausible
+  28BYJ-48 rotor seen through its 1:64 gearbox, not measured) it is stable. A joint-equality drive with a torque check after each step
+  was stable without load but forced its way through jams before the check could react.
+- Treats in contact with a disc that the gear turns were now and then flung at metres per second: the constraint solve stopped short.
+  `precise` (300 iterations, 100 line-search iterations, tolerance 10⁻¹⁰) and 2 kg·mm² of quasi-static inertia on the disc removed it.
+  Driving the disc directly (no gear contact) never showed it.
+- A fixed edge across a moving pocket (the concept's shear edge) pinched edge-on treats; MuJoCo's soft contacts let the light treat
+  sink millimetres and then threw it out. That is also a real crushing point; the design was changed rather than the solver.
+- A plate with a hole split into convex pieces by clipping against each edge in turn leaves slivers along the hole, which push a treat
+  sideways when it presses on them. Wedges from the hole's centroid through each edge, clipped to the plate, have none.
+- Contacts dominate the cost: 12 treats in a pile with the gears at 0.1 ms steps cost 0.4–0.6 ms a step in Node (8 cores, WebAssembly),
+  so the interactive mode runs in slow motion. 0.2 ms steps let the teeth skip under load; 0.25 ms skipped unloaded.
+- Treats falling far reach metres per second and, with the 2 ms contact time constant, sink through 3 mm walls: fills are packed in
+  place (each treat as low as it fits without overlapping, by separating axes) rather than dropped.
+
+Then, for the gumball-style redesign (a rotor driven directly, no gears):
+
+- The TPU flap is a hinged body with the existing `joint.spring` (rest angle past touching, stiffness) and a little damping, held
+  against the rotor by contact.
+- Turning a pocketed rotor **backwards** pinched a treat at the slot's front edge every time (the edge the pocket leaves under);
+  forwards only, it never did. A **fixed** back edge pinched the same way; a soft sprung flap with a deep cavity behind it did not.
+- A **stiff** flap (0.3 N·mm/°) pushed treats into its root's corner and wedged them; 0.03 N·mm/° let them pass. A root lower than a
+  treat standing on end in a pocket wedged edge-on treats in that corner.
+- Fills stacked above the body flew out at the start: the bottle's neck is now a stand-in (convex pieces round its bore, 160 mm up),
+  and fills stay inside it.
+- Collision walls must stop where the CAD's do: side walls that reached down into the chute dammed the drop, and no treat left.
+- A stall is told apart from solver trouble by the fastest treat in the mechanism (a falling treat moves at about 1 m/s; a flung one
+  at several) and by replaying the stall with its contacts logged (`maxStep` 10⁻⁴ s and `precise` throughout).
+
+| Step | State |
+| --- | --- |
+| Items, motors, counters, controller | Done: `packages/physics` (`controller.test.ts`), contracts `physics.ts` |
+| Treat dispenser mechanism and scenarios | Done: `treatDispenserPhysics`; `npm run check:physics -- treat-dispenser`; the wider study `tools/physics/treat-dispenser-trials.ts` |
+| Clickable controls in the editor | Done: B and R on the model (the case in the back wall), an accessible panel, `tests/browser/treat-dispenser.spec.ts` |

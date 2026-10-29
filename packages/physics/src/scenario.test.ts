@@ -1,6 +1,6 @@
 import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
-import { PhysicsSpecSchema, type PhysicsSpec } from '@canfactory/contracts';
+import { PhysicsSpecSchema, type PhysicsBody, type PhysicsSpec } from '@canfactory/contracts';
 import { buildScene, type BuildInput } from './build.ts';
 import { loadEngine } from './engine.ts';
 import { interpolate, runScenario } from './scenario.ts';
@@ -86,6 +86,23 @@ describe('scenarios', () => {
     for (const scenario of spec.scenarios ?? []) {
       const result = runScenario(engine, input, scenario);
       expect(result.checks.map(check => `${String(check.pass)} ${check.description}`)).toEqual(result.checks.map(check => `true ${check.description}`));
+    }
+  });
+
+  it('applies a joint load by the joint’s value', async () => {
+    // the plunger's spring as a table: 2 N/mm towards 2 mm, through (−5, 14 N) and (5, −6 N)
+    const ball: PhysicsBody = { ...spec.bodies[1] ?? { id: '', material: 'petg' }, joint: { type: 'slide', parent: 'block', anchor: [10, 10, 23.25], axis: [0, 0, 1], range: [-5, 5], damping: 0.002, load: { at: [-5, 5], values: [14, -6] } } };
+    const scene = buildScene({ ...input, spec: { bodies: [spec.bodies[0] ?? { id: '', material: 'petg' }, ball] } });
+    const motion = scene.bodies.find(body => body.name === 'ball')?.motion;
+    if (typeof motion !== 'object') throw new Error('The ball should have a joint.');
+    expect(motion.load?.at).toEqual([-0.005, 0.005].map(value => expect.closeTo(value, 12) as number));
+    expect(motion.load?.values).toEqual([14, -6]);
+    const simulation = new Simulation(await loadEngine(), scene);
+    try {
+      simulation.advance(1);
+      expect(simulation.jointValue('ball') * 1000).toBeCloseTo(2, 2);
+    } finally {
+      simulation.dispose();
     }
   });
 

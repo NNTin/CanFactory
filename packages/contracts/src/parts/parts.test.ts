@@ -351,7 +351,9 @@ describe('parts library', () => {
     if (!m3) throw new Error('Expected ISO 4762 M3 × 10');
     expect(partUsage(m3)).toEqual([{ modelId: 'plank-connector', modelTitle: plankConnector.title, via: 'Screw holes', kind: 'model' },
       // the toggle latch links it by its thread and as a machine screw it offers
-      { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Thread', kind: 'model' }, { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Machine screw', kind: 'model' }]);
+      { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Thread', kind: 'model' }, { modelId: 'toggle-latch', modelTitle: 'Toggle latch', via: 'Machine screw', kind: 'model' },
+      // the treat dispenser shows its bearing cap's screws in its assembly
+      { modelId: 'treat-dispenser', modelTitle: 'PET-bottle treat dispenser', via: 'Assembly preview', kind: 'model' }]);
     const lighter = findPart('bic-j25-mini-lighter');
     if (!lighter) throw new Error('Expected the lighter');
     expect(partUsage(lighter)).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview', kind: 'model' }]);

@@ -32,6 +32,10 @@ export const PhysicsJointSchema = Type.Object({
   damping: Type.Optional(Type.Number({ minimum: 0, description: 'N·s/mm (slide) or N·mm·s per degree (hinge).' })),
   friction: Type.Optional(Type.Number({ minimum: 0, description: 'Dry friction in the joint: N (slide) or N·mm (hinge). E.g. how firmly a snap or a press fit holds.' })),
   initial: Type.Optional(Type.Number({ description: 'The joint’s value at the start, in mm or degrees from the assembled pose; 0 by default.' })),
+  load: Type.Optional(Type.Object({
+    at: Type.Array(Type.Number(), { minItems: 2, description: 'Joint values, ascending: mm (slide) or degrees (hinge) from the assembled pose.' }),
+    values: Type.Array(Type.Number(), { minItems: 2, description: 'The force (N, slide) or torque (N·mm, hinge) on the joint at each value, positive along or about `axis`.' }),
+  }, { additionalProperties: false, description: 'A force or torque that depends on where the joint is, interpolated linearly and held beyond the ends: a spring whose stiffness is not constant, such as a rubber band over a hinge.' })),
   model: Type.Optional(Type.Union([Type.Literal('ideal'), Type.Literal('contact')], { description: 'ideal (default): the joint holds exactly. contact: there is no joint; the body’s pins and holes hold it by contact, with their real clearance.' })),
   collideWithParent: Type.Optional(Type.Boolean({ description: 'Whether the body also collides with its parent; by default jointed bodies do not.' })),
 }, { additionalProperties: false });
@@ -57,6 +61,8 @@ export const PhysicsBodySchema = Type.Object({
   mass: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: 'Its mass in g, when known better than from its volume and material (e.g. a bought object); the centre of mass and inertia stay those of its mesh.' })),
   joint: Type.Optional(PhysicsJointSchema),
   collision: Type.Optional(PhysicsCollisionSchema),
+  inertia: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: 'Rotational inertia added to its hinge, g·mm² (e.g. what is geared to it but not modelled, or quasi-static inertia that keeps a light part from rattling). Changes nothing at rest.' })),
+  frictionless: Type.Optional(Type.Boolean({ description: 'Its contacts have no friction. Gear teeth: with friction on their flanks two gears that both turn freely made the engine unstable (docs/physics-plan.md, "Motors and loose items").' })),
 }, { additionalProperties: false, description: 'A rigid body. Without a joint and not fixed it moves freely.' });
 export type PhysicsBody = Static<typeof PhysicsBodySchema>;
 
@@ -73,6 +79,92 @@ export const PhysicsMagnetSchema = Type.Object({
   hideWhenDisabled: Type.Optional(Type.Boolean({ description: 'Hide this optional magnet body while all its dipoles are disabled, representing an empty socket. Fixed body mass/geometry stay in the engine; dynamic bodies should use force-only switches instead.' })),
 }, { additionalProperties: false });
 export type PhysicsMagnet = Static<typeof PhysicsMagnetSchema>;
+
+
+/**
+ * A loose rigid object that the mechanism handles but that is neither a printed part nor library hardware, e.g. a pet treat: one
+ * convex shape, given by its vertices about its own centre. The viewer draws its hull; it is never printed.
+ */
+export const PhysicsItemSchema = Type.Object({
+  id: Type.String({ pattern: '^[a-z0-9-]+$' }),
+  title: Type.String(),
+  group: Type.Optional(Type.String({ description: 'Items counted together (`PhysicsCounter.group`).' })),
+  vertices: Type.Array(Type.Number(), { minItems: 12, description: 'x, y, z, ... in mm about its centre; the engine collides their convex hull.' }),
+  mass: Type.Number({ exclusiveMinimum: 0, description: 'g; its inertia is that of its hull at uniform density.' }),
+  friction: Type.Number({ minimum: 0, description: 'Its coefficient of sliding friction; a pair of bodies uses the larger of their two.' }),
+  pose: PhysicsPoseSchema,
+}, { additionalProperties: false });
+export type PhysicsItem = Static<typeof PhysicsItemSchema>;
+
+/**
+ * A torque-limited motor on a body's hinge, such as a geared stepper: a stiff spring pulls the hinge towards the commanded angle,
+ * with at most `torque`; when the hinge lags the command by more than `slip` it slips, as a stepper loses steps, and the lost travel
+ * is reported. It never drives a hinge through an obstruction harder than its torque.
+ */
+export const PhysicsMotorSchema = Type.Object({
+  id: Type.String({ pattern: '^[a-z0-9-]+$' }),
+  title: Type.String(),
+  body: Type.String({ description: 'The body whose hinge it turns.' }),
+  torque: Type.Number({ exclusiveMinimum: 0, description: 'The most torque it exerts, N·mm.' }),
+  stiffness: Type.Number({ exclusiveMinimum: 0, description: 'N·mm per degree of lag.' }),
+  damping: Type.Number({ minimum: 0, description: 'N·mm·s per degree.' }),
+  inertia: Type.Number({ exclusiveMinimum: 0, description: 'Inertia it adds to the hinge (its rotor as seen through its gearbox), g·mm².' }),
+  speed: Type.Number({ exclusiveMinimum: 0, description: 'Commanded speed, degrees per second.' }),
+  acceleration: Type.Number({ exclusiveMinimum: 0, description: 'Commanded acceleration and deceleration, degrees per second².' }),
+  slip: Type.Number({ exclusiveMinimum: 0, description: 'The lag, in degrees, beyond which it slips.' }),
+}, { additionalProperties: false });
+export type PhysicsMotor = Static<typeof PhysicsMotorSchema>;
+
+/**
+ * Counts items of a group: `crossing` counts each item once, the first time its centre passes the plane through `point` in the
+ * direction `along` while inside the box (`min`..`max`, assembled frame); `inside` counts each item once, the first time its centre is
+ * inside the box. Moving back and forth over the plane counts once.
+ */
+export const PhysicsCounterSchema = Type.Object({
+  id: Type.String({ pattern: '^[a-z0-9-]+$' }),
+  title: Type.String(),
+  group: Type.String(),
+  kind: Type.Union([Type.Literal('crossing'), Type.Literal('inside')]),
+  point: Type.Optional(Vec3('A point on the plane (crossing), mm.')),
+  along: Type.Optional(Vec3('The direction an item crosses in (crossing).')),
+  min: Vec3('The box’s lower corner, mm.'),
+  max: Vec3('The box’s upper corner, mm.'),
+  frame: Type.Optional(PhysicsPoseSchema),
+}, { additionalProperties: false, description: 'Its point, direction and box are in `frame` (a pose in the assembled frame) when given, e.g. a chute’s own axes.' });
+export type PhysicsCounter = Static<typeof PhysicsCounterSchema>;
+
+/** A button of the controller: where it is (on a body, mm in its part's frame) and what it does. */
+export const PhysicsControlSchema = Type.Object({
+  id: Type.String({ pattern: '^[a-z0-9-]+$' }),
+  title: Type.String(),
+  label: Type.String({ maxLength: 3, description: 'The short mark on the button, e.g. B.' }),
+  action: Type.Union([Type.Literal('dispense'), Type.Literal('reset'), Type.Literal('prime'), Type.Literal('jog'), Type.Literal('aligned')]),
+  body: Type.Optional(Type.String({ description: 'The body it sits on, for the viewer to place it.' })),
+  point: Type.Optional(Vec3('Where it is on that body, mm in the part’s own frame.')),
+}, { additionalProperties: false });
+export type PhysicsControl = Static<typeof PhysicsControlSchema>;
+
+/**
+ * A firmware-like controller of one motor: one press runs one cycle (its `moves`, with `pause` between them), debounced, and at most
+ * `queue` presses wait while a cycle runs (more are rejected, and counted). It commands motion only; whether an item actually left
+ * is what `counter` observes, which a real device without a sensor does not know. A reset stops the motor and reboots: nothing moves
+ * on boot, and if a cycle was interrupted the rotor must be re-aligned (jog, then aligned) before it dispenses again.
+ */
+export const PhysicsControllerSchema = Type.Object({
+  motor: Type.String(),
+  moves: Type.Array(Type.Number(), { minItems: 1, description: 'One cycle: relative moves of the motor, degrees, in turn.' }),
+  pause: Type.Number({ minimum: 0, description: 's between moves.' }),
+  settle: Type.Number({ minimum: 0, description: 's after the last move before the cycle is reported done.' }),
+  debounce: Type.Number({ minimum: 0, description: 's a press must last to count (as a GPIO filter’s delayed_on).' }),
+  queue: Type.Integer({ minimum: 0, description: 'Presses that may wait while a cycle runs.' }),
+  boot: Type.Number({ minimum: 0, description: 's from reset until presses are accepted.' }),
+  prime: Type.Integer({ minimum: 0, description: 'Cycles a prime runs.' }),
+  jog: Type.Number({ description: 'Degrees a jog moves the motor.' }),
+  stall: Type.Number({ exclusiveMinimum: 0, description: 'Lost travel (degrees at the motor) beyond which the cycle is a fault.' }),
+  counter: Type.String({ description: 'The counter that observes items leaving.' }),
+  controls: Type.Array(PhysicsControlSchema, { minItems: 1 }),
+}, { additionalProperties: false });
+export type PhysicsController = Static<typeof PhysicsControllerSchema>;
 
 /** A scripted input of a scenario. Joint/push timelines are interpolated linearly and held after the last; magnet switches are discrete. */
 export const PhysicsDriveSchema = Type.Union([
@@ -92,6 +184,12 @@ export const PhysicsDriveSchema = Type.Union([
     timeline: Type.Array(Type.Array(Type.Number(), { minItems: 4, maxItems: 4 }), { minItems: 2, description: '[s, x, y, z]: where the fingertip has moved from the point, in mm. It pushes in the direction of its first move.' }),
     until: Type.Optional(Type.Number({ minimum: 0, description: 'When the finger is taken away, in s; it stays to the end by default.' })),
   }, { additionalProperties: false, description: 'A fingertip (a 1 mm ball) touching the point from outside is moved along the timeline, pushing whatever it meets.' }),
+  Type.Object({
+    kind: Type.Literal('press'),
+    control: Type.String(),
+    at: Type.Number({ minimum: 0 }),
+    hold: Type.Number({ exclusiveMinimum: 0, description: 'How long it is held down, s.' }),
+  }, { additionalProperties: false, description: 'A controller button pressed at `at` and let go after `hold`.' }),
   Type.Object({
     kind: Type.Literal('force'),
     body: Type.String(),
@@ -131,6 +229,19 @@ export const PhysicsCheckSchema = Type.Union([
     bodies: Type.Array(Type.String(), { minItems: 2, maxItems: 2 }),
     touching: Type.Boolean(),
   }, { additionalProperties: false, description: 'Whether two bodies touch.' }),
+  Type.Object({
+    kind: Type.Literal('counter'),
+    at: Type.Number({ minimum: 0 }),
+    counter: Type.String(),
+    min: Type.Optional(Type.Number()), max: Type.Optional(Type.Number()),
+  }, { additionalProperties: false, description: 'How many items a counter has counted so far.' }),
+  Type.Object({
+    kind: Type.Literal('controller'),
+    at: Type.Number({ minimum: 0 }),
+    field: Type.Union([Type.Literal('cycles'), Type.Literal('rejected'), Type.Literal('queued'), Type.Literal('lost'), Type.Literal('idleExits'), Type.Literal('state')]),
+    min: Type.Optional(Type.Number()), max: Type.Optional(Type.Number()),
+    state: Type.Optional(Type.String({ description: 'The state it must be in (field state).' })),
+  }, { additionalProperties: false, description: 'The controller’s commanded cycles, rejected or queued presses, lost motor travel (degrees), items that left outside a cycle, or its state.' }),
 ]);
 export type PhysicsCheck = Static<typeof PhysicsCheckSchema>;
 
@@ -140,6 +251,7 @@ export const PhysicsScenarioSchema = Type.Object({
   gravity: Type.Optional(Vec3('The direction gravity pulls in, in the assembled frame; [0, 0, −1] by default. [0, 0, 1] turns the assembly upside down.')),
   poses: Type.Optional(Type.Record(Type.String(), PhysicsPoseSchema, { description: 'Where free bodies start, instead of their pose in `PhysicsSpec.poses` or the assembly (e.g. a lighter turned over above its bay).' })),
   magnets: Type.Optional(Type.Record(Type.String(), Type.Boolean(), { description: 'Initial enabled states by magnet id, overriding the spec for this scenario.' })),
+  items: Type.Optional(Type.Array(Type.String(), { description: 'The loose items present (all by default); e.g. none for an empty hopper.' })),
   duration: Type.Number({ exclusiveMinimum: 0, description: 's.' }),
   drives: Type.Optional(Type.Array(PhysicsDriveSchema)),
   checks: Type.Array(PhysicsCheckSchema, { minItems: 1 }),
@@ -152,6 +264,12 @@ export const PhysicsSpecSchema = Type.Object({
   poses: Type.Optional(Type.Record(Type.String(), PhysicsPoseSchema, { description: 'The poses the mechanism starts from (and its joints are measured from), where they differ from the assembly’s: e.g. a latch closed, where the assembly shows it open.' })),
   exclude: Type.Optional(Type.Array(Type.Array(Type.String(), { minItems: 2, maxItems: 2 }), { description: 'Pairs of bodies that never collide.' })),
   maxStep: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: 'The longest time step (s) the mechanism simulates faithfully with, where it needs a shorter one than the default 0.5 ms: e.g. gears meshing by their teeth (0.1 ms; with longer steps their teeth skip).' })),
+  precise: Type.Optional(Type.Boolean({ description: 'Solve contacts to a tight tolerance: many loose items pressed against parts that a motor turns through gear teeth (docs/physics-plan.md, "Motors and loose items").' })),
+  attached: Type.Optional(Type.Record(Type.String(), Type.String(), { description: 'Parts or reference objects that ride rigidly on a body, part id → body id (e.g. a magnet sealed into a moving part): the viewer moves each with its body, keeping where it starts relative to it. They are not bodies themselves.' })),
+  items: Type.Optional(Type.Array(PhysicsItemSchema)),
+  motors: Type.Optional(Type.Array(PhysicsMotorSchema)),
+  counters: Type.Optional(Type.Array(PhysicsCounterSchema)),
+  controller: Type.Optional(PhysicsControllerSchema),
   scenarios: Type.Optional(Type.Array(PhysicsScenarioSchema)),
 }, { additionalProperties: false });
 export type PhysicsSpec = Static<typeof PhysicsSpecSchema>;

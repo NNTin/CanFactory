@@ -4557,6 +4557,148 @@
                       }
                     },
                     "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "modelId",
+                      "modelVersion",
+                      "parameters"
+                    ],
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "enum": [
+                          "treat-dispenser"
+                        ]
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
+                        "enum": [
+                          "3"
+                        ]
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "required": [
+                          "treatLength",
+                          "treatWidth",
+                          "treatThickness",
+                          "treatCornerRadius",
+                          "pocketClearance",
+                          "bottleNeck",
+                          "threadClearance",
+                          "flapMagnets",
+                          "flapBand",
+                          "flapBandNotch",
+                          "bottleDiameter"
+                        ],
+                        "properties": {
+                          "treatLength": {
+                            "type": "number",
+                            "title": "Treat length",
+                            "description": "Longest side of the treats, mm. Measure the largest of a bag; the rotor’s pockets are sized from it.",
+                            "default": 14,
+                            "minimum": 10,
+                            "maximum": 18,
+                            "multipleOf": 0.1
+                          },
+                          "treatWidth": {
+                            "type": "number",
+                            "title": "Treat width",
+                            "description": "Middle side of the treats, mm.",
+                            "default": 9,
+                            "minimum": 6,
+                            "maximum": 12,
+                            "multipleOf": 0.1
+                          },
+                          "treatThickness": {
+                            "type": "number",
+                            "title": "Treat thickness",
+                            "description": "Thinnest side of the treats, mm (the rotor’s pocket reaches its axis whatever it is: the simulation’s treats are this thick).",
+                            "default": 5,
+                            "minimum": 3,
+                            "maximum": 7,
+                            "multipleOf": 0.1
+                          },
+                          "treatCornerRadius": {
+                            "type": "number",
+                            "title": "Treat corner radius",
+                            "description": "Rounding of the treats’ edges and corners, mm (used by the simulation only).",
+                            "default": 1.5,
+                            "minimum": 0.5,
+                            "maximum": 2.5,
+                            "multipleOf": 0.1
+                          },
+                          "pocketClearance": {
+                            "type": "number",
+                            "title": "Pocket clearance",
+                            "description": "Play round a treat in a rotor pocket, mm. More takes bigger treats, and lets two thin ones in.",
+                            "default": 1,
+                            "minimum": 0.4,
+                            "maximum": 2,
+                            "multipleOf": 0.05
+                          },
+                          "bottleNeck": {
+                            "enum": [
+                              "pco-1881",
+                              "pco-1810"
+                            ],
+                            "title": "Bottle neck",
+                            "description": "The thread of the bottle that screws into the top. Print the thread coupon first: real bottles vary.",
+                            "default": "pco-1881"
+                          },
+                          "threadClearance": {
+                            "type": "number",
+                            "title": "Thread clearance",
+                            "description": "Radial play of the body’s thread on the bottle’s, mm; tune it with the coupon.",
+                            "default": 0.3,
+                            "minimum": 0.1,
+                            "maximum": 0.5,
+                            "multipleOf": 0.05
+                          },
+                          "flapMagnets": {
+                            "type": "boolean",
+                            "title": "Flap magnets",
+                            "description": "Embed two Ø8 × 1 mm N45 disc magnets (supermagnete S-08-01-N) that repel each other: one in the flap’s counterweight, one in the inner body above it. They add to the counterweight’s closing force, the more the further the flap opens. Both prints pause for you to drop a magnet in.",
+                            "default": false
+                          },
+                          "flapBand": {
+                            "enum": [
+                              "none",
+                              "12",
+                              "14",
+                              "16",
+                              "30",
+                              "31"
+                            ],
+                            "title": "Flap band",
+                            "description": "An office rubber band by size number, stretched across the flap’s arm to hold it shut more firmly the further it opens: hooked into a pair of notches outside the inner body’s side walls (`Band notch`). None: the counterweight alone.",
+                            "default": "none"
+                          },
+                          "flapBandNotch": {
+                            "type": "integer",
+                            "title": "Band notch",
+                            "description": "Which pair of notches the band is hooked into, 1 (innermost, softest) to 5 (outermost, firmest). Every band offered works in notch 4.",
+                            "default": 4,
+                            "minimum": 1,
+                            "maximum": 5
+                          },
+                          "bottleDiameter": {
+                            "type": "number",
+                            "title": "Bottle diameter",
+                            "description": "Largest diameter of the bottle, mm (0.5 l PET bottles are about 65 mm). Sets the base plate’s size so that a full bottle cannot easily tip the dispenser over.",
+                            "default": 65,
+                            "minimum": 55,
+                            "maximum": 95,
+                            "multipleOf": 1
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 ],
                 "description": "Complete, uncoerced settings for one model version."
