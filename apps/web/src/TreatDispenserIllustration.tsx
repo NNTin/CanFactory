@@ -173,7 +173,7 @@ export function TreatDispenserIllustration() {
           .map((q, i) => <polygon key={i} points={poly(q)} />)}
       </g>
       {/* the bottle's neck and shoulder above the boss */}
-      <path d={`M${at(-L.neck.ring / 2, bossTop).join(' ')}V${at(0, bossTop + 6).at(1)?.toFixed(2)}L${at(-BOTTLE_R * 0.8, SHOULDER - 8).join(' ')}M${at(L.neck.ring / 2, bossTop).join(' ')}V${at(0, bossTop + 6).at(1)?.toFixed(2)}L${at(BOTTLE_R * 0.8, SHOULDER - 8).join(' ')}`} fill="none" stroke="#5f8f9a" strokeWidth=".7" />
+      <path d={`M${at(-L.neck.ring / 2, bossTop).join(' ')}V${at(0, bossTop + 6).at(1)?.toFixed(2)}l${(-(BOTTLE_R * 0.8 - L.neck.ring / 2) * 0.4 * scale).toFixed(2)} ${(-(SHOULDER - 14 - bossTop) * 0.4 * scale).toFixed(2)}M${at(L.neck.ring / 2, bossTop).join(' ')}V${at(0, bossTop + 6).at(1)?.toFixed(2)}l${((BOTTLE_R * 0.8 - L.neck.ring / 2) * 0.4 * scale).toFixed(2)} ${(-(SHOULDER - 14 - bossTop) * 0.4 * scale).toFixed(2)}`} fill="none" stroke="#5f8f9a" strokeWidth=".7" />
       {/* in the cut-away half: the 28BYJ-48 on the block's right face, the ULN2003 board below it */}
       <g fill="none" stroke="#35575d" strokeWidth=".6" strokeDasharray="2 1.5">
         <circle cx={mx} cy={my} r={L.canR * scale} />
