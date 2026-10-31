@@ -12,6 +12,7 @@ import { PRESSURE_PAD } from './pressurePad.ts';
 const source = readFileSync(new URL('../../../models/miter-box/generator.scad', import.meta.url), 'utf8');
 const padSource = readFileSync(new URL('../../../models/pressure-pad/generator.scad', import.meta.url), 'utf8');
 const find = (key: string) => miterBox.controls.find(control => control.key === key) as Control;
+const need = (id: string) => findPart(id) ?? (() => { throw new Error(`Missing ${id}`); })();
 const settings = (overrides: Partial<MiterBoxParameters> = {}): MiterBoxParameters => ({ ...DEFAULT_MITER_BOX, ...overrides });
 const turn = ([x, y]: [number, number], degrees: number): [number, number] => {
   const c = Math.cos(degrees * Math.PI / 180), s = Math.sin(degrees * Math.PI / 180);
@@ -60,13 +61,13 @@ describe('miter box contract', () => {
     const library = (standard: string) => parts.filter(p => p.attributes['standard'] === standard && MITER_BOX_THREADS.includes(p.attributes['thread'] as never)).map(p => p.id);
     expect([...MITER_BOX_NUTS]).toEqual(library('ISO 4032'));
     expect([...MITER_BOX_PAD_NUTS]).toEqual(library('ISO 10511'));
-    expect(MITER_BOX_CLAMP_SCREWS.every(id => findPart(id)?.attributes['standard'] === 'ISO 4017' && dimensionOf(findPart(id) ?? parts[0]!, 'l') >= 30)).toBe(true);
+    expect(MITER_BOX_CLAMP_SCREWS.every(id => findPart(id)?.attributes['standard'] === 'ISO 4017' && dimensionOf(need(id), 'l') >= 30)).toBe(true);
     for (const thread of MITER_BOX_THREADS) {
       const p = { ...miterBox.defaults, thread } as ParameterValues;
       expect(offeredOptions(find('nut'), p).map(o => o.value)).toEqual([`iso-4032-${thread.toLowerCase()}`]);
       expect(offeredOptions(find('padNut'), p).map(o => o.value)).toEqual([`iso-10511-${thread.toLowerCase()}`]);
       for (const screw of MITER_BOX_CLAMP_SCREWS.filter(id => id.includes(thread.toLowerCase())))
-        expect(miterBoxPadsFit(findPart(screw)!, findPart(`iso-10511-${thread.toLowerCase()}`)!, 0.6), screw).toBe(true);
+        expect(miterBoxPadsFit(need(screw), need(`iso-10511-${thread.toLowerCase()}`), 0.6), screw).toBe(true);
     }
   });
 
