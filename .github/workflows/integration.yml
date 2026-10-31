@@ -66,6 +66,15 @@ jobs:
         env:
           OPENSCAD_RUNNER: docker
 
+      # The thrust pads' snap bumps narrow their mouths 0.15 mm below the pad nut's flats on purpose (as on the pressure pad);
+      # the nut passing them shares up to ~1.5 mm³ while each pad slides on. Everything else in the miter box clears.
+      - name: Check miter box assembly, guide swings and clamp travel (default and M5, widest and tallest)
+        run: |
+          npm run check:assembly -- miter-box --tolerance 2
+          npm run check:assembly -- miter-box --tolerance 2 --parameters '{"thread":"M5","nut":"iso-4032-m5","padNut":"iso-10511-m5","clampScrew":"iso-4017-m5x50","stockWidth":50,"stockHeight":35}'
+        env:
+          OPENSCAD_RUNNER: docker
+
       - name: Check magnetic cat toy assembly paths (centred and eccentric)
         run: |
           npm run check:assembly -- magnetic-cat-toy

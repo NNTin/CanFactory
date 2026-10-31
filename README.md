@@ -64,6 +64,11 @@ Interactive physics starts fully assembled with empty sockets: drag the ball and
 without resetting it (approximate dipole forces/torques; virtual switches, not switchable hardware).
 Physics assumes the ball stays closed; seam strength and grip-hole interaction require physical tests.
 
+The [adjustable miter box](docs/miter-box.md) is an original saw guide whose two slotted posts stand on a turntable: set the
+guide at any angle up to 45° either way and lock it with a knob, or drop the index pin into the 0, 22.5 or 45° stop. Two
+hold-downs press the stock onto the bed through free-turning thrust pads (the pressure pad's), sliding across for its width and
+screwing down for its height. The slots are sized from your saw's kerf.
+
 The [PET-bottle treat dispenser](docs/treat-dispenser.md) is a gumball-style dispenser after bovineblitz's (CC BY-NC 4.0): an
 inverted 0.5 l bottle over a two-pocket rotor that a 28BYJ-48 turns half a turn per press, a sprung TPU flap and a cavity against
 jams, and an ESP32-C3 SuperMini with ESPHome firmware inside the body, all on one USB-C cable. Its Simulate mode drops real treats

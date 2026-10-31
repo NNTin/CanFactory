@@ -59,6 +59,10 @@ SCREW_D = 8;   // thread diameter
 SCREW_S = 13;  // head width across flats
 SCREW_K = 5.45; // head height
 
+// Grip flutes round the pad's rim, for a pad used as a knob (the miter box's): 0 for a plain rim, else at least 2. The
+// flutes leave the slot's side (±40° round +X) plain, so the mouth's snap bumps keep their full wall.
+GRIP = 0; //[0:1:24]
+
 ROUNDNESS = 96; //[48,96,144]
 
 // ---------------------------------------------------------------
@@ -158,7 +162,18 @@ module pad() {
         // a thrust pad's tip recess under the nut
         if (THRUST) translate([0, 0, LIP + POCKET_H - 0.01]) cylinder(d = HOLE, h = TIP + 0.01);
         sole_relief();
+        grip();
     }
+}
+
+// Flutes 1.5 mm in radius, centred on the rim, from 40° to 320° round from +X.
+GRIP_R = 1.5;
+GRIP_FROM = 40;
+assert(GRIP == 0 || GRIP >= 2, "GRIP must be 0 or at least 2");
+assert(GRIP == 0 || R - GRIP_R >= CHAMBER_D/2 + 2, "the grip flutes need 2 mm of wall round the chamber");
+module grip() {
+    if (GRIP >= 2) for (i = [0 : GRIP - 1]) rotate(GRIP_FROM + i*(360 - 2*GRIP_FROM)/(GRIP - 1))
+        translate([R, 0, -1]) cylinder(r = GRIP_R, h = HEIGHT + 2, $fn = 24);
 }
 
 // The extender: the nut end on the bed, the head end on top; both pockets and slots open along +X.
