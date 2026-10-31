@@ -2318,6 +2318,87 @@ export interface operations {
                          */
                         bottleDiameter: number;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "miter-box";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Adjustable miter box parameters. All fields are required; dimensions are in millimetres; the nuts and the screw are parts-library ids. */
+                    parameters: {
+                        /**
+                         * Widest stock
+                         * @description The widest stock the box takes, across the bed from the fence, in mm. Sets the bed’s depth and how far out the guide’s front post stands.
+                         * @default 30
+                         */
+                        stockWidth: number;
+                        /**
+                         * Tallest stock
+                         * @description The tallest stock the box takes, in mm: the fence is this high, the hold-downs clear it and the guide posts stand above it.
+                         * @default 30
+                         */
+                        stockHeight: number;
+                        /**
+                         * Guide above the stock
+                         * @description How far the saw slots reach above the tallest stock, in mm: the saw is guided over this height when it starts a cut. Keep the posts lower than your saw’s blade is deep under its back.
+                         * @default 25
+                         */
+                        guideDepth: number;
+                        /**
+                         * Post length
+                         * @description Each guide post’s length along the saw, in mm; the two posts are about 100 mm apart.
+                         * @default 16
+                         */
+                        guideLength: number;
+                        /**
+                         * Saw kerf
+                         * @description The width of your saw’s cut (across its set teeth), in mm. Measure a test cut: a Japanese pull saw cuts about 0.5 mm, a tenon saw about 1 mm, a mitre saw 1.2 to 1.5 mm.
+                         * @default 1.2
+                         */
+                        bladeKerf: number;
+                        /**
+                         * Slot clearance
+                         * @description Play each side of the saw in its slots, in mm. The slots are the kerf plus twice this wide.
+                         * @default 0.15
+                         */
+                        slotClearance: number;
+                        /**
+                         * Thread
+                         * @description The thread of every screw and nut; the nuts and the clamp screw below are those of this thread.
+                         * @default M6
+                         * @enum {unknown}
+                         */
+                        thread: "M5" | "M6";
+                        /**
+                         * Nut
+                         * @description The regular hexagon nut: the hold-downs’ T-nuts, the angle lock’s nut and the base’s nuts.
+                         * @default iso-4032-m6
+                         * @enum {unknown}
+                         */
+                        nut: "iso-4032-m5" | "iso-4032-m6";
+                        /**
+                         * Pad nut
+                         * @description The nylon-insert nut run onto each clamp screw’s tip, which turns freely in its thrust pad.
+                         * @default iso-10511-m6
+                         * @enum {unknown}
+                         */
+                        padNut: "iso-10511-m5" | "iso-10511-m6";
+                        /**
+                         * Clamp screw
+                         * @description The hexagon head screw of each hold-down (its head locks in the knob). The longer, the lower the stock it reaches.
+                         * @default iso-4017-m6x60
+                         * @enum {unknown}
+                         */
+                        clampScrew: "iso-4017-m5x30" | "iso-4017-m5x40" | "iso-4017-m5x50" | "iso-4017-m6x30" | "iso-4017-m6x40" | "iso-4017-m6x50" | "iso-4017-m6x60";
+                        /**
+                         * Fit
+                         * @description Play round the turntable, the arm, nuts and screws, on each side, in mm.
+                         * @default 0.3
+                         */
+                        fit: number;
+                    };
                 };
             };
         };
