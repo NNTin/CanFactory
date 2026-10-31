@@ -13,7 +13,7 @@ spec:
   replicas: {{ $settings.replicas }}
   revisionHistoryLimit: 3
   minReadySeconds: 5
-  progressDeadlineSeconds: 300
+  progressDeadlineSeconds: {{ $.Values.rollout.progressDeadlineSeconds }}
   strategy:
     type: RollingUpdate
     rollingUpdate:

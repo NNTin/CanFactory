@@ -1,6 +1,6 @@
 FROM node:22.22.3-trixie-slim@sha256:8cd0ffd483b64585c6d135364bea5f937ff40cd3da431789af011f9ee8d55af0 AS node
 
-FROM node AS build
+FROM node AS manifests
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 COPY apps/api/package.json apps/api/package.json
@@ -12,16 +12,24 @@ COPY packages/client/package.json packages/client/package.json
 COPY packages/physics/package.json packages/physics/package.json
 COPY packages/part-geometry/package.json packages/part-geometry/package.json
 COPY packages/catio/package.json packages/catio/package.json
+
+# Production dependencies only: the api and worker images' own layer, unchanged until the lockfile changes.
+FROM manifests AS deps
+RUN npm ci --omit=dev
+
+FROM manifests AS build
 RUN npm ci
 COPY . .
 # The commit the web app shows in its footer (the build context has no .git).
 ARG GIT_COMMIT_SHA=""
 RUN npm run build
+RUN node --import tsx tools/runtime-files.ts /runtime
 
 FROM node AS api
 LABEL org.opencontainers.image.source="https://github.com/NNTin/CanFactory"
 WORKDIR /app
-COPY --from=build /app /app
+COPY --from=deps /app/node_modules /app/node_modules
+COPY --from=build /runtime /app
 USER node
 ENV PROJECT_ROOT=/app NODE_ENV=production HOST=0.0.0.0
 CMD ["node", "--import", "tsx", "apps/api/src/main.ts"]
@@ -30,7 +38,8 @@ FROM openscad/openscad:dev.2026-01-19@sha256:0af06bc2aa7a45d18b01a23cfb9dae6dddc
 LABEL org.opencontainers.image.source="https://github.com/NNTin/CanFactory"
 WORKDIR /app
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
-COPY --from=build /app /app
+COPY --from=deps /app/node_modules /app/node_modules
+COPY --from=build /runtime /app
 USER 1000:1000
 ENV PROJECT_ROOT=/app NODE_ENV=production QT_QPA_PLATFORM=offscreen
 CMD ["node", "--import", "tsx", "apps/worker/src/main.ts"]
