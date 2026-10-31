@@ -9,6 +9,9 @@ images:
     repository: ghcr.io/nntin/canfactory-worker
     digest: ""
 imagePullSecrets: []
+# Deployments count image pulls toward the progress deadline too; slow links must not mark a rollout failed.
+rollout:
+  progressDeadlineSeconds: 1800
 secrets:
   api: canfactory-api
   worker: canfactory-worker
@@ -50,8 +53,8 @@ offers:
     requests: {cpu: 100m, memory: 192Mi}
     limits: {cpu: 500m, memory: 512Mi}
 release:
-  # Counts image pull time as well as the run; NUC pulls of the api image take minutes.
-  activeDeadlineSeconds: 900
+  # Counts image pull time as well as the run: at ~2 Mbit/s a fresh api image takes many minutes.
+  activeDeadlineSeconds: 1800
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
