@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, ObjectStorage, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair, type RenderJob } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { startStorageServices } from './storage-services.ts';
@@ -83,7 +83,7 @@ const store = new PostgresStorage(services.databaseUrl, repositoryRoot, director
 await store.migrate(); await store.seed();
 const app = await createApp(store);
 const artifactBytes = async (job: RenderJob) => Buffer.concat(await (await store.readArtifact(job)).toArray() as Buffer[]);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy, esp32-c3-supermini-case, treat-dispenser) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy, esp32-c3-supermini-case, treat-dispenser, miter-box) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = (await selectRunner(directory, ['docker'], WORKER_LIMITS)).run;
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -1285,6 +1285,60 @@ try {
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
     console.log(`PASS treat dispenser ${name}: 10 closed prints, an open pocket with the shaft's tip in it, slot, drop, cavity and funnel, a solid tight bore, the flap's snap hinge, open nut bays, the magnets' cavities sealed when fitted, the band's slots and grooved pegs, the bottle's thread open from its entry down, matching preview/download bytes`);
+  }
+  // Miter box: the defaults; the narrowest, shortest stock with the finest slots and the tightest fit; the widest, tallest stock with
+  // the widest slots, the longest posts and the loosest fit; M5 throughout. Every part one closed solid, at the size the layout
+  // gives; the guide's slots and kerf groove open along the saw's line and the lock's slot and channel, the stops and the nut
+  // pockets open in the base.
+  for (const [name, overrides] of (!only || only === 'miter-box' ? [
+    ['default', {}], ['narrow, low, fine slots, tight', { stockWidth: 15, stockHeight: 15, clampScrew: 'iso-4017-m6x40', bladeKerf: 0.4, slotClearance: 0.05, guideLength: 10, guideDepth: 15, fit: 0.1 }],
+    ['wide, tall, coarse slots, loose', { stockWidth: 50, stockHeight: 50, bladeKerf: 3, slotClearance: 0.4, guideLength: 30, guideDepth: 50, fit: 0.6 }],
+    ['M5', { thread: 'M5', nut: 'iso-4032-m5', padNut: 'iso-10511-m5', clampScrew: 'iso-4017-m5x50' }],
+  ] as const : [])) {
+    const parameters: MiterBoxParameters = { ...DEFAULT_MITER_BOX, ...overrides };
+    assert.deepEqual(validateParameters(miterBox, parameters), [], name);
+    const queued = await store.enqueue(miterBox, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
+    assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `miter box ${name}`);
+    const result = await store.getJob(queued.id);
+    assert.equal(result?.status, 'succeeded', `miter box ${name}`);
+    if (!result.artifact || !('parts' in result.artifact)) throw new Error('Expected the miter box ZIP.');
+    const ids = ['base', 'turntable', 'fence-left', 'fence-right', 'holddown-left', 'holddown-right', 'pad-left', 'pad-right', 'knob-left', 'knob-right', 'lock-knob'];
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ids);
+    const bytes = await artifactBytes(result), entries = unzipSync(bytes);
+    const mesh = (id: string) => parseStl(Buffer.from(entries[`${id}.stl`] ?? []));
+    for (const id of ids) assert.equal(shells(mesh(id)), 1, `miter box ${name}: ${id} is one closed solid`);
+    const l = miterBoxLayout(parameters), B = MITER_BOX;
+    const size = (id: string) => { const part = result.artifact && 'parts' in result.artifact ? result.artifact.parts.find(p => p.id === id) : undefined; return part ? [part.dimensions.x, part.dimensions.y, part.dimensions.z] : []; };
+    const near = (actual: number[], want: number[], what: string) => want.forEach((value, i) => assert.ok(Math.abs((actual[i] ?? NaN) - value) < 0.05, `miter box ${name}: ${what} ${actual.join(' × ')} != ${want.join(' × ')}`));
+    near(size('base'), [2 * l.halfLength, l.front - l.back, l.bed + B.fenceGap], 'base');
+    near(size('turntable').slice(2), [B.arm + l.postHeight], 'turntable height');
+    near(size('fence-right'), [l.halfLength - l.notch, B.fenceOuter, l.fenceHeight], 'fence half');
+    near(size('holddown-left'), [l.beamTop - l.bed + B.apron, l.beamTip - l.columnBack, B.holdDown.width], 'hold-down (on its side)');
+    near(size('pad-left'), [B.pad.diameter, B.pad.diameter, B.pad.height], 'thrust pad');
+    near(size('knob-left').slice(2), [B.knob.height], 'knob height');
+    // probes, in each part's printed frame: the turntable is printed with its bottom at z = 0, the base as it stands
+    const tt = (x: number, y: number, z: number): [number, number, number] => [x, y, z - (l.bed - B.arm)];
+    assert.equal(housingSolid(mesh('turntable'), tt(0, l.frontPost, l.bed + l.postHeight / 2)), false, `${name}: front post's slot`);
+    assert.equal(housingSolid(mesh('turntable'), tt(0, -l.rearPost, l.bed + l.postHeight / 2)), false, `${name}: rear post's slot`);
+    assert.equal(housingSolid(mesh('turntable'), tt((l.slot + B.postWall) / 2, l.frontPost, l.bed + l.postHeight / 2)), true, `${name}: front post's wall`);
+    assert.equal(housingSolid(mesh('turntable'), tt(0, l.armTip - 2, l.bed - B.kerfDepth / 2)), false, `${name}: kerf groove at the arm's tip`);
+    assert.equal(housingSolid(mesh('turntable'), tt(0, 0, l.bed - B.arm + 1)), true, `${name}: turntable under the groove`);
+    assert.equal(housingSolid(mesh('turntable'), tt(l.knobX, l.knobY, l.bed - B.arm / 2)), false, `${name}: lock screw's hole`);
+    const lock = (degrees: number, z: number): [number, number, number] => {
+      const a = (l.lockAngle + degrees) * Math.PI / 180;
+      return [l.lockRadius * Math.cos(a), l.lockRadius * Math.sin(a), z];
+    };
+    for (const degrees of [-45, 0, 45]) {
+      assert.equal(housingSolid(mesh('base'), lock(degrees, l.lockCeiling + B.lockFloor / 2)), false, `${name}: lock slot at ${degrees}°`);
+      assert.equal(housingSolid(mesh('base'), lock(degrees, l.lockCeiling - 1)), false, `${name}: lock channel at ${degrees}°`);
+    }
+    const beside = (l.lockRadius + l.d / 2 + l.fit + 1) / l.lockRadius;
+    assert.equal(housingSolid(mesh('base'), lock(0, l.lockCeiling + B.lockFloor / 2).map((v, i) => i < 2 ? v * beside : v) as [number, number, number]), true, `${name}: floor beside the lock slot`);
+    assert.equal(housingSolid(mesh('base'), [l.pinX, l.pinY, l.bed - B.arm - B.pinDepth / 2]), false, `${name}: index stop at 0°`);
+    assert.equal(housingSolid(mesh('base'), [0, l.W / 2, l.bed - B.arm - 1]), true, `${name}: socket's floor`);
+    assert.equal(housingSolid(mesh('base'), [l.holdX, l.holdScrews[0] ?? 0, l.nutM / 2]), false, `${name}: hold-down's nut pocket`);
+    console.log(`PASS miter box ${name}: 11 closed prints at the layout's sizes, open saw slots and kerf groove, lock slot and channel, stops and nut pockets`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {
