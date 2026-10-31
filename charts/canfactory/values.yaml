@@ -50,6 +50,8 @@ offers:
     requests: {cpu: 100m, memory: 192Mi}
     limits: {cpu: 500m, memory: 512Mi}
 release:
+  # Counts image pull time as well as the run; NUC pulls of the api image take minutes.
+  activeDeadlineSeconds: 900
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
