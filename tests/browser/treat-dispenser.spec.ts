@@ -18,6 +18,13 @@ async function report(page: Page): Promise<Report | undefined> {
   return text ? JSON.parse(text) as Report : undefined;
 }
 
+test('the model library card shows the assembled and section views', async ({ page }) => {
+  await page.goto('/#/models');
+  const art = page.locator('.model-card', { hasText: treatDispenser.title }).getByRole('img', { name: 'Treat dispenser: assembled and section views' });
+  await expect(art).toBeVisible();
+  for (const view of ['assembled', 'section']) await expect(art.locator(`[data-view="${view}"]`)).toBeVisible();
+});
+
 test('dispenses from the BOOT button on the case in the back wall: the motor turns the rotor a full turn, and treats leave down the chute', async ({ page }) => {
   // the mechanism's 0.1 ms steps with a pile of treats in contact run in slow motion
   test.setTimeout(1_500_000);
