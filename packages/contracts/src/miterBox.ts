@@ -52,8 +52,8 @@ export const MITER_BOX = {
   pad: { diameter: 20, height: 17, surface: 'flat', relief: 1 },
   /** The index pin: an ISO 8734 dowel pin, its play in both holes, its depth in the base, and how far it stands above the turntable. */
   pin: 'iso-8734-5x20', pinPlay: 0.1, pinDepth: 5, pinLift: 5.2,
-  /** The least stock height a hold-down presses, and the least range of heights it must cover. */
-  minHeight: 3, minHeightRange: 5,
+  /** The least stock height a hold-down presses, and how low (of the tallest stock) its screw must at least reach. */
+  minHeight: 3, reach: 1 / 3,
   /** Each hold-down: its width (X), its column's depth (Y), the slot's lip over the T-nut's channel. */
   holdDown: { width: 16, column: 26, lip: 4 },
   /** The least ledge under a screw's head in a counterbore, and the gap over the screw's tip at the base's bottom. */
@@ -263,8 +263,9 @@ export function miterBoxIssues(p: MiterBoxParameters): ParameterIssue[] {
   const l = miterBoxLayout(p);
   if (l.fenceHeight < l.fenceLedge + l.capK + 0.5 - 1e-9)
     issues.push({ field: 'stockHeight', message: `The fence must be at least ${Math.ceil(l.fenceLedge + l.capK + 0.5)} mm high to sink its ${l.fenceScrew.designation} screws.` });
-  if (l.clampLow > p.stockHeight - MITER_BOX.minHeightRange + 1e-9)
-    issues.push({ field: 'clampScrew', message: `An ${l.clampScrew.designation} only reaches stock ${l.clampLow.toFixed(1)} mm high: choose a longer screw (or lower the tallest stock).` });
+  const reach = Math.max(MITER_BOX.minHeight, p.stockHeight * MITER_BOX.reach);
+  if (l.clampLow > reach + 1e-9)
+    issues.push({ field: 'clampScrew', message: `An ${l.clampScrew.designation} only reaches down to stock ${l.clampLow.toFixed(1)} mm high; the clamps must reach ${reach.toFixed(1)} mm (a third of the tallest stock): choose a longer screw, or lower the tallest stock.` });
   return issues;
 }
 
@@ -411,8 +412,9 @@ export function miterBoxAssembly(p: MiterBoxParameters): Assembly {
     { title: 'Screw the hold-downs on behind the fence', parts: ['holddown-left', 'holddown-right', ...ids('hold-screw', holdCount)], from: [0, 0, 40] },
     { title: 'Push a nut up into each hold-down’s slot (a T-nut: it slides, it cannot turn)', parts: ['tnut-left', 'tnut-right'], from: [0, 0, -20] },
     { title: 'Snap each clamp screw’s head into its knob, then turn it down through the T-nut', parts: ['clamp-screw-left', 'knob-left', 'clamp-screw-right', 'knob-right'], from: [0, 0, 40] },
-    { title: 'Run a nylon-insert nut onto each screw’s tip, flush with it', parts: ['pad-nut-left', 'pad-nut-right'], from: [0, 0, -15] },
-    { title: 'Slide each thrust pad over its nut from the side', parts: ['pad-left', 'pad-right'], from: [30, 0, 0] },
+    { title: 'Run a nylon-insert nut onto each screw’s tip, flush with it', parts: ['pad-nut-left', 'pad-nut-right'], from: [0, 0, -35] },
+    // the pad's slot opens along its +X: it comes from -X onto the screw
+    { title: 'Slide each thrust pad over its nut from the side', parts: ['pad-left', 'pad-right'], from: [-30, 0, 0] },
   ];
 
   // the guide's movements: lift the pin, swing (every 3°), drop the pin into a stop (or leave it up and lock with the knob)
@@ -445,6 +447,6 @@ export function miterBoxAssembly(p: MiterBoxParameters): Assembly {
       base: '#d9cfbc', turntable: '#d98460', 'fence-left': '#8aa6a3', 'fence-right': '#8aa6a3', 'holddown-left': '#5f7350', 'holddown-right': '#5f7350',
       'pad-left': '#3f5560', 'pad-right': '#3f5560', 'knob-left': '#e0b048', 'knob-right': '#e0b048', 'lock-knob': '#e0b048',
     },
-    poses, steps, lift: 10, motion,
+    poses, steps, lift: 30, motion,
   };
 }

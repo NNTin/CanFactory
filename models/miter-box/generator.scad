@@ -145,8 +145,9 @@ module base() {
         translate([0, 0, BED - ARM]) cylinder(r = TURNTABLE + FIT, h = ARM + FENCE_GAP + 1, $fn = 4*ROUNDNESS);
         translate([0, 0, BED - ARM]) linear_extrude(ARM + FENCE_GAP + 1) offset(delta = FIT) arm_sweep();
         // the angle lock: the screw's slot through the floor, the nut's channel under it (the nut's flats against its walls)
-        lock_arc(SD/2 + FIT, LOCK_CEILING - E, BED);
-        lock_arc((NS + 2*FIT)/2, -1, LOCK_CEILING);
+        lock_arc(SD/2 + FIT, LOCK_CEILING - E, BED, 0);
+        // the nut's corners reach past its centre along the channel: the channel runs on that far
+        lock_arc((NS + 2*FIT)/2, -1, LOCK_CEILING, (NUT_E/2 + FIT)/LOCK_RADIUS*180/PI);
         // the index pin's stops
         for (a = STOPS) for (s = a == 0 ? [1] : [-1, 1]) rotate(s*a)
             translate([PIN_X, PIN_Y, BED - ARM - PIN_DEPTH]) cylinder(r = PIN_R, h = PIN_DEPTH + 1, $fn = 48);
@@ -161,12 +162,13 @@ module base() {
     }
 }
 
-// An arc of the lock knob's path, `half` wide each side of it, from z0 to z1, with round ends.
-module lock_arc(half, z0, z1) {
+// An arc of the lock knob's path, `half` wide each side of it, from z0 to z1, `beyond`° past either end, with round ends.
+module lock_arc(half, z0, z1, beyond) {
+    reach = MAX_ANGLE + beyond;
     translate([0, 0, z0]) {
-        rotate(LOCK_ANGLE - MAX_ANGLE) rotate_extrude(angle = 2*MAX_ANGLE, $fn = 4*ROUNDNESS)
+        rotate(LOCK_ANGLE - reach) rotate_extrude(angle = 2*reach, $fn = 4*ROUNDNESS)
             translate([LOCK_RADIUS - half, 0]) square([2*half, z1 - z0]);
-        for (a = [-MAX_ANGLE, MAX_ANGLE]) rotate(LOCK_ANGLE + a) translate([LOCK_RADIUS, 0, 0]) cylinder(r = half, h = z1 - z0, $fn = 48);
+        for (a = [-reach, reach]) rotate(LOCK_ANGLE + a) translate([LOCK_RADIUS, 0, 0]) cylinder(r = half, h = z1 - z0, $fn = 48);
     }
 }
 
