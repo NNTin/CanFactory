@@ -431,9 +431,14 @@
     "release": {
       "type": "object",
       "required": [
+        "activeDeadlineSeconds",
         "resources"
       ],
       "properties": {
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "minimum": 60
+        },
         "resources": {
           "type": "object",
           "required": [
