@@ -1,8 +1,8 @@
 import { DEFAULT_MITER_BOX, MITER_BOX, miterBoxLayout } from '@canfactory/contracts';
 
 /**
- * The miter box from above, drawn from its layout (1 px = 1 mm): the fence along the top, a strip of stock against it under the two
- * hold-downs, and the turntable's guide (its two slotted posts on the saw's line, the lock knob beside it) over the scale. On hover
+ * The miter box from above, drawn from its layout (1 px = 1 mm): the fence along the top (part of the base, stopping short of the
+ * turntable, whose two retaining pins reach over its rim), a strip of stock against it under the two hold-downs, and the turntable's guide (its two slotted posts on the saw's line, the lock knob beside it) over the scale. On hover
  * the guide swings to the 45° stop, across to 22.5° the other way and back to the square cut.
  */
 export function MiterBoxIllustration() {
@@ -10,7 +10,7 @@ export function MiterBoxIllustration() {
   const cx = 120, cy = 50;
   const X = (x: number) => cx + x, Y = (y: number) => cy + y;
   const half = l.postWidth / 2, pl = l.guideLength;
-  const fence = (s: number) => [[l.notch, 0], [l.halfLength, 0], [l.halfLength, -MITER_BOX.fenceOuter], [l.fenceStart, -MITER_BOX.fenceOuter], [l.fenceStart, -MITER_BOX.fence], [l.notch + MITER_BOX.fence, -MITER_BOX.fence]]
+  const fence = (s: number) => [[l.fenceStart, 0], [l.halfLength, 0], [l.halfLength, -MITER_BOX.fence], [l.fenceStart, -MITER_BOX.fence]]
     .map(([x = 0, y = 0]) => `${X(s * x)},${Y(y)}`).join(' ');
   const polar = (r: number, degrees: number) => [X(-r * Math.sin(degrees * Math.PI / 180)), Y(r * Math.cos(degrees * Math.PI / 180))] as const;
   const ticks = Array.from({ length: 2 * MITER_BOX.maxAngle / MITER_BOX.tick + 1 }, (_, i) => -MITER_BOX.maxAngle + i * MITER_BOX.tick);
@@ -46,9 +46,13 @@ export function MiterBoxIllustration() {
     {/* the stock, against the fence */}
     <rect className="mb-stock" x={X(-l.halfLength + 4)} y={Y(0)} width={2 * l.halfLength - 8} height={stockWidth} fill="#e9c58f" stroke="#b78b52" strokeWidth=".6" />
     {[6, 12, 18].map(y => <path key={y} d={`M${X(-l.halfLength + 6)},${Y(y)} q 40 -2 80 1 t 90 -1`} fill="none" stroke="#c99e64" strokeWidth=".5" />)}
-    {/* the fence over the turntable; the guide's posts, pin and knob over the stock; the hold-downs */}
-    <polygon points={fence(1)} fill="#8aa6a3" stroke="#5a7471" strokeWidth=".7" />
-    <polygon points={fence(-1)} fill="#8aa6a3" stroke="#5a7471" strokeWidth=".7" />
+    {/* the fence and the hold-downs' sockets (one piece with the base), the turntable's retaining pins; the guide's posts, pin and knob over the stock; the hold-downs */}
+    {[-1, 1].map(s => <g key={s}>
+      <polygon points={fence(s)} fill="#c9bea6" stroke="#8f8571" strokeWidth=".7" />
+      <rect x={X(s * l.holdX - l.holdPinL / 2)} y={Y(l.blockBack)} width={l.holdPinL} height={-MITER_BOX.fence - l.blockBack} fill="#c9bea6" stroke="#8f8571" strokeWidth=".7" />
+      <rect x={X(s * l.retainTip)} y={Y(l.retainY - l.retainD / 2)} width={l.retainL} height={l.retainD} rx="1" fill="#b9c0c4" stroke="#6d757a" strokeWidth=".4"
+        transform={`rotate(${s > 0 ? MITER_BOX.retainAngle : 180 - MITER_BOX.retainAngle} ${X(s * l.retainTip)} ${Y(l.retainY)})`} />
+    </g>)}
     <g className="mb-guide">
       {post(-l.rearPost)}{post(l.frontPost)}
       <circle cx={X(l.pinX)} cy={Y(l.pinY)} r={l.pinR + .4} fill="#9aa3a8" stroke="#5f676b" strokeWidth=".5" />
