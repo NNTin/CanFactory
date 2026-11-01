@@ -4699,6 +4699,154 @@
                       }
                     },
                     "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "modelId",
+                      "modelVersion",
+                      "parameters"
+                    ],
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "enum": [
+                          "miter-box"
+                        ]
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
+                        "enum": [
+                          "1"
+                        ]
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "required": [
+                          "stockWidth",
+                          "stockHeight",
+                          "guideDepth",
+                          "guideLength",
+                          "bladeKerf",
+                          "slotClearance",
+                          "thread",
+                          "nut",
+                          "padNut",
+                          "clampScrew",
+                          "fit"
+                        ],
+                        "properties": {
+                          "stockWidth": {
+                            "type": "number",
+                            "title": "Widest stock",
+                            "description": "The widest stock the box takes, across the bed from the fence, in mm. Sets the bed’s depth and how far out the guide’s front post stands.",
+                            "default": 30,
+                            "minimum": 15,
+                            "maximum": 50,
+                            "multipleOf": 1
+                          },
+                          "stockHeight": {
+                            "type": "number",
+                            "title": "Tallest stock",
+                            "description": "The tallest stock the box takes, in mm: the fence is this high, the hold-downs clear it and the guide posts stand above it.",
+                            "default": 30,
+                            "minimum": 15,
+                            "maximum": 50,
+                            "multipleOf": 1
+                          },
+                          "guideDepth": {
+                            "type": "number",
+                            "title": "Guide above the stock",
+                            "description": "How far the saw slots reach above the tallest stock, in mm: the saw is guided over this height when it starts a cut. Keep the posts lower than your saw’s blade is deep under its back.",
+                            "default": 25,
+                            "minimum": 15,
+                            "maximum": 50,
+                            "multipleOf": 1
+                          },
+                          "guideLength": {
+                            "type": "number",
+                            "title": "Post length",
+                            "description": "Each guide post’s length along the saw, in mm; the two posts are about 100 mm apart.",
+                            "default": 16,
+                            "minimum": 10,
+                            "maximum": 30,
+                            "multipleOf": 1
+                          },
+                          "bladeKerf": {
+                            "type": "number",
+                            "title": "Saw kerf",
+                            "description": "The width of your saw’s cut (across its set teeth), in mm. Measure a test cut: a Japanese pull saw cuts about 0.5 mm, a tenon saw about 1 mm, a mitre saw 1.2 to 1.5 mm.",
+                            "default": 1.2,
+                            "minimum": 0.4,
+                            "maximum": 3,
+                            "multipleOf": 0.05
+                          },
+                          "slotClearance": {
+                            "type": "number",
+                            "title": "Slot clearance",
+                            "description": "Play each side of the saw in its slots, in mm. The slots are the kerf plus twice this wide.",
+                            "default": 0.15,
+                            "minimum": 0.05,
+                            "maximum": 0.4,
+                            "multipleOf": 0.01
+                          },
+                          "thread": {
+                            "enum": [
+                              "M5",
+                              "M6"
+                            ],
+                            "title": "Thread",
+                            "description": "The thread of every screw and nut; the nuts and the clamp screw below are those of this thread.",
+                            "default": "M6"
+                          },
+                          "nut": {
+                            "enum": [
+                              "iso-4032-m5",
+                              "iso-4032-m6"
+                            ],
+                            "title": "Nut",
+                            "description": "The regular hexagon nut: the hold-downs’ T-nuts, the angle lock’s nut and the base’s nuts.",
+                            "default": "iso-4032-m6"
+                          },
+                          "padNut": {
+                            "enum": [
+                              "iso-10511-m5",
+                              "iso-10511-m6"
+                            ],
+                            "title": "Pad nut",
+                            "description": "The nylon-insert nut run onto each clamp screw’s tip, which turns freely in its thrust pad.",
+                            "default": "iso-10511-m6"
+                          },
+                          "clampScrew": {
+                            "enum": [
+                              "iso-4017-m5x30",
+                              "iso-4017-m5x40",
+                              "iso-4017-m5x50",
+                              "iso-4017-m6x30",
+                              "iso-4017-m6x40",
+                              "iso-4017-m6x50",
+                              "iso-4017-m6x60"
+                            ],
+                            "title": "Clamp screw",
+                            "description": "The hexagon head screw of each hold-down (its head locks in the knob). The longer, the lower the stock it reaches.",
+                            "default": "iso-4017-m6x60"
+                          },
+                          "fit": {
+                            "type": "number",
+                            "title": "Fit",
+                            "description": "Play round the turntable, the arm, nuts and screws, on each side, in mm.",
+                            "default": 0.3,
+                            "minimum": 0.1,
+                            "maximum": 0.6,
+                            "multipleOf": 0.05
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Adjustable miter box parameters. All fields are required; dimensions are in millimetres; the nuts and the screw are parts-library ids."
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 ],
                 "description": "Complete, uncoerced settings for one model version."
