@@ -620,7 +620,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         return <button key={row.key} type="button" className={row.reference ? 'reference' : undefined} aria-pressed={visible} data-parts={row.ids.join(' ')}
           disabled={absent} title={absent ? `Enable ${title} with magnet controls` : `${visible ? 'Hide' : 'Show'} ${title}`} onClick={() => toggle(row.ids, visible)}>
           {visible ? <Eye size={13} aria-hidden="true" /> : <EyeOff size={13} aria-hidden="true" />}{row.title}
-          {row.count > 1 && <>{' '}<span className="part-count">× {row.count}</span></>}
+          {row.count > 1 && <>{' '}<span className="part-quantity">× {row.count}</span></>}
           {color && <span className="part-color" style={{ backgroundColor: color }} title={`Suggested filament: ${color}`} aria-hidden="true" />}
         </button>;
       })}</div>
