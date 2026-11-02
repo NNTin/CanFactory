@@ -1121,7 +1121,8 @@ main {
 .window-cat-guard-illustration,
 .qr-magnet-tag-illustration,
 .cat-collar-tag-illustration,
-.treat-dispenser-illustration {
+.treat-dispenser-illustration,
+.miter-box-illustration {
   width: 250px;
   height: 210px;
 }
@@ -1344,6 +1345,35 @@ main {
   .model-card:focus-visible .sbd-ball,
   .model-card:hover .sbd-spring,
   .model-card:focus-visible .sbd-spring {
+    animation: none;
+  }
+}
+/* The miter box: on hover the guide swings to the 45° stop, across to 22.5° the other way, and back to the square cut. */
+.mb-guide {
+  transform-box: view-box;
+  transform-origin: 120px 50px;
+}
+.model-card:hover .mb-guide,
+.model-card:focus-visible .mb-guide {
+  animation: mb-swing 4.8s ease-in-out infinite;
+}
+@keyframes mb-swing {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25%,
+  35% {
+    transform: rotate(45deg);
+  }
+  65%,
+  75% {
+    transform: rotate(-22.5deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .model-card:hover .mb-guide,
+  .model-card:focus-visible .mb-guide {
     animation: none;
   }
 }

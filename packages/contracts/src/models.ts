@@ -1,3 +1,4 @@
+import { DEFAULT_MITER_BOX, MITER_BOX, MITER_BOX_CLAMP_SCREWS, MITER_BOX_KNOB_CONSTANTS, MITER_BOX_NUTS, MITER_BOX_PAD_CONSTANTS, MITER_BOX_PAD_NUTS, MITER_BOX_THREADS, MiterBoxParametersSchema, miterBoxAssembly, miterBoxIssues, miterBoxLayout, miterBoxReferences, miterBoxScadLayout, type MiterBoxParameters } from './miterBox.ts';
 import { DEFAULT_ESP32_CASE, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LED_DEFINES, Esp32CaseParametersSchema, esp32CaseAssembly, esp32CaseBase, type Esp32CaseParameters } from './esp32Case.ts';
 import { CORNER_LATCH, CORNER_LATCH_SCREWS, DEFAULT_CORNER_LATCH, cornerLatchAssembly, cornerLatchIssues, cornerLatchLayout } from './outsideCornerToggleLatch.ts';
 import { magneticCatToyPhysics } from './magneticCatToyPhysics.ts';
@@ -3682,8 +3683,72 @@ export const magneticCatToy = {
     ] };
   },
 } satisfies ModelDefinition;
+
+/**
+ * Adjustable miter box (models/miter-box/generator.scad, docs/miter-box.md): an original design. One base carries the bed, the
+ * fence and the hold-downs' sockets; the guide's two slotted posts stand on a turntable's arm and turn about a pivot on the fence's
+ * face. Stainless dowel pins in the fence's ends hold the turntable in; a knob locks it at any angle by friction, an index pin
+ * stops it at 0, ±22.5 and ±45°. Two pinned hold-downs press the stock onto the bed through free-turning thrust pads. The knobs and the
+ * pads are pressure pads (models/pressure-pad/generator.scad); every dimension comes from miterBox.ts (`miterBoxScadLayout`).
+ */
+const mbSchema = MiterBoxParametersSchema;
+const mbThreadFiltered = (c: Control): Control => ({ ...c, part: c.part && { ...c.part, filter: { control: 'thread', attribute: 'thread' } } });
+const miterBoxControls: Control[] = [
+  control(mbSchema, 'stockWidth', 'basic'), control(mbSchema, 'stockHeight', 'basic'),
+  control(mbSchema, 'bladeKerf', 'basic'), control(mbSchema, 'guideDepth', 'basic'),
+  enumControl(mbSchema, 'thread', 'basic', MITER_BOX_THREADS.map(value => ({ value, label: value, description: `Metric ${value} nuts and screws throughout.` }))),
+  mbThreadFiltered(partControl(mbSchema, 'nut', 'basic', 'nut', MITER_BOX_NUTS)),
+  mbThreadFiltered(partControl(mbSchema, 'padNut', 'basic', 'nut', MITER_BOX_PAD_NUTS)),
+  mbThreadFiltered(partControl(mbSchema, 'clampScrew', 'basic', 'screw', MITER_BOX_CLAMP_SCREWS)),
+  control(mbSchema, 'guideLength', 'advanced'), control(mbSchema, 'slotClearance', 'advanced'), control(mbSchema, 'fit', 'advanced'),
+];
+const MB_SOURCE = 'models/miter-box/generator.scad';
+const MB_DEFINES: PartDefines = {
+  nut: { NUT_D: ['d', 'value'], NUT_S: ['s', 'max'], NUT_M: ['m', 'max'] },
+  clampScrew: { SCREW_D: ['d', 'value'], SCREW_S: ['s', 'max'], SCREW_K: ['k', 'max'] },
+};
+// the layout rides on `thread` (scadEncode takes strings); the cache key holds every setting
+const mbPart = (id: string, title: string, piece: string): ModelPart => ({ id, title, sourcePath: MB_SOURCE, scadConstants: { PART: piece }, scadMapping: { thread: 'LAYOUT' }, partDefines: MB_DEFINES });
+const mbPad = (id: string, title: string, knob: boolean): ModelPart => ({
+  id, title, sourcePath: 'models/pressure-pad/generator.scad', scadConstants: knob ? MITER_BOX_KNOB_CONSTANTS : MITER_BOX_PAD_CONSTANTS, scadMapping: { fit: 'FIT' },
+  partDefines: knob ? { clampScrew: { SCREW_D: ['d', 'value'], SCREW_S: ['s', 'max'], SCREW_K: ['k', 'max'] } } : { padNut: { NUT_D: ['d', 'value'], NUT_S: ['s', 'max'], NUT_H: [['h', 'm'], 'max'] } },
+});
+export const miterBox = {
+  id: 'miter-box' as const, version: '1' as const, title: 'Adjustable miter box',
+  description: 'A miter box whose saw guide turns: two slotted posts on a turntable, one behind the fence and one in front of the stock, set at any angle up to 45° either way and locked there with a knob, with index-pin stops at 0 (square), 22.5 and 45° and an engraved scale. The base is one print with the fence; stainless dowel pins hold the turntable in. Two hold-downs press the stock onto the bed through free-turning thrust pads: slide them across to suit its width, screw them down to suit its height. Size it for your stock and your saw’s kerf; hand-tightened with printed knobs on library screws.',
+  attribution: 'CanFactory (original design)',
+  printNotes: 'PETG (or PLA), 0.2 mm layers, four perimeters, 30 % infill; no supports. Print each part as generated: the base flat (the fence and the hold-downs’ sockets stand up from it; the pins’ holes are pointed at the top so that they print), the turntable on its flat bottom with the posts up (the lock nut’s pocket faces down and bridges), the hold-downs on their sides, the knobs on their slotted backs and the pads on their backs. Measure your saw’s kerf on a test cut before you set it. Hardware, all from the parts list: push the lock nut up into its pocket under the turntable’s arm and drop the turntable into its socket; push a stainless 4 × 12 pin into each fence’s bore from behind until it reaches over the turntable’s rim (tap them back from the gap with a punch to take the turntable out again); turn the lock screw (in its knob) down through the arm’s nut. Stand each hold-down in its socket and press a stainless 4 × 30 pin across the socket and through it. Push a nut up into each hold-down’s slot, turn the clamp screw (in its knob) down through it, run a nylon-insert nut onto its tip until flush and slide the thrust pad over that nut. The pins’ holes in the base are printed at the pins’ size, for a press fit: if one is too tight, open it with a drill of the pin’s size. To set an angle: lift the index pin, turn the arm, drop the pin into a stop, or set the arm on the scale and tighten the lock knob (its screw presses on the base). Fix the box to a bench with four 4 mm countersunk wood screws, or clamp it. Prototype: not yet cut-tested; check the guide square with a try square before the first cut.',
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  parts: [
+    mbPart('base', 'Base: bed, fence, hold-down sockets, stops and scale', 'base'),
+    mbPart('turntable', 'Turntable with the two slotted guide posts', 'turntable'),
+    mbPart('holddown-left', 'Hold-down, left', 'holddown'), mbPart('holddown-right', 'Hold-down, right', 'holddown'),
+    mbPad('pad-left', 'Thrust pad, left clamp', false), mbPad('pad-right', 'Thrust pad, right clamp', false),
+    mbPad('knob-left', 'Knob, left clamp', true), mbPad('knob-right', 'Knob, right clamp', true), mbPad('lock-knob', 'Knob, angle lock', true),
+  ],
+  assetPaths: [`${FONTS_DIR}/LiberationSans-Bold.ttf`],
+  parameterSchema: mbSchema, controls: miterBoxControls, defaults: DEFAULT_MITER_BOX, scadMapping: {},
+  scadEncode: { thread: (_value: string, parameters: ParameterValues) => miterBoxScadLayout(parameters as MiterBoxParameters) },
+  assembly: miterBoxAssembly(DEFAULT_MITER_BOX),
+  assemblyForParameters: parameters => miterBoxAssembly(parameters as MiterBoxParameters),
+  linkedReferences: parameters => miterBoxIssues(parameters as MiterBoxParameters).length > 0 ? [] : miterBoxReferences(parameters as MiterBoxParameters),
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(mbSchema, parameters) ? miterBoxIssues(parameters) : [{ field: '', message: 'Parameters do not match the miter box schema.' }];
+  },
+  derived(parameters: unknown) {
+    if (!Value.Check(mbSchema, parameters) || miterBoxIssues(parameters).length) return { slotCount: null };
+    const l = miterBoxLayout(parameters);
+    const span = l.frontPost + l.rearPost + l.guideLength;
+    return { slotCount: null, notes: [
+      `Saw slots ${l.slot.toFixed(2)} mm wide, ${l.postHeight} mm high above the bed, in two ${l.guideLength} mm posts ${span.toFixed(0)} mm apart end to end; the guide turns ${MITER_BOX.maxAngle}° either way about the fence’s face.`,
+      `Angle: index-pin stops at 0, ±22.5 and ±${MITER_BOX.maxAngle}° (an ${l.pin.designation}); any angle between on the scale, locked by the knob (an ${l.lockScrew.designation} through an ${l.nut.designation} in the arm, pressing on the base).`,
+      `Clamps: each pad slides from ${l.slotFrom} to ${l.slotTo} mm from the fence across the stock and screws down on stock ${l.clampLow.toFixed(0)} to ${parameters.stockHeight} mm high.`,
+      `Base ${2 * l.halfLength} × ${l.front - l.back} mm and ${l.bed} mm thick at the bed, with the fence (a ${(2 * l.fenceStart).toFixed(0)} mm gap round the turntable); turntable Ø${(2 * l.turntable).toFixed(0)} mm. No nuts in the base: 2 ${l.retainer.designation} hold the turntable in, 2 ${l.holdPin.designation} the hold-downs. Hardware: 3 ${l.nut.designation} (lock and T-nuts), 2 ${l.clampScrew.designation} and 2 ${l.padNut.designation} (clamps).`,
+    ] };
+  },
+} satisfies ModelDefinition;
 /** The one registration of each catalogue model. A `const` tuple, so that `RenderRequestSchema` (index.ts) derives a typed branch per model from it. */
-export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser] as const satisfies readonly ModelDefinition[];
+export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser, miterBox] as const satisfies readonly ModelDefinition[];
 export const models: readonly ModelDefinition[] = registeredModels;
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }

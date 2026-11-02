@@ -19,6 +19,7 @@ import { PrintedScreenHookIllustration } from './PrintedScreenHookIllustration.t
 import { CameraHousingIllustration } from './CameraHousingIllustration.tsx';
 import { SpringBallDetentIllustration } from './SpringBallDetentIllustration.tsx';
 import { TreatDispenserIllustration } from './TreatDispenserIllustration.tsx';
+import { MiterBoxIllustration } from './MiterBoxIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { CatioOverview } from './CatioOverview.tsx';
 import { CatioPlannerRoute } from './CatioPlannerRoute.tsx';
@@ -297,6 +298,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'xiao-sense-camera-housing': CameraHousingIllustration,
   'esp32-c3-supermini-case': Esp32CaseIllustration,
   'treat-dispenser': TreatDispenserIllustration,
+  'miter-box': MiterBoxIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names
