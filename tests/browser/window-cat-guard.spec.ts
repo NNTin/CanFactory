@@ -15,6 +15,18 @@ test('the preview splits the guard into segments with a splice bar over every jo
     'left-bar-1', 'left-bar-2', 'right-bar-1', 'right-bar-2', 'strip-bar-1-1', 'strip-bar-1-2', 'strip-bar-2-1', 'strip-bar-2-2', 'strip-bar-3-1', 'strip-bar-3-2', 'strip-bar-4-1', 'strip-bar-4-2']);
   expect(visible.filter(id => id.endsWith('-screw'))).toHaveLength(24);
   expect(visible.filter(id => id.endsWith('-nut'))).toHaveLength(24);
+  // the parts list counts the same library part once (one row of 24 screws, one of 24 nuts), and its row hides and shows all of them
+  const parts = page.getByRole('group', { name: 'Visible parts' });
+  const screws = parts.getByTitle(/^Hide all 24 of Countersunk head screw M3/);
+  await expect(screws).toHaveCount(1);
+  await expect(screws).toContainText('× 24');
+  await expect(parts.getByTitle(/^Hide all 24 of Hexagon nut M3/)).toHaveCount(1);
+  await expect(parts.getByRole('button', { name: /screw/ })).toHaveCount(1);
+  await screws.click();
+  await expect(viewer).not.toHaveAttribute('data-visible-parts', /-screw\b/);
+  expect((await viewer.getAttribute('data-visible-parts') ?? '').split(' ').filter(id => id.endsWith('-nut'))).toHaveLength(24);
+  await parts.getByTitle(/^Show all 24 of Countersunk head screw M3/).click();
+  await expect(viewer).toHaveAttribute('data-visible-parts', visible.join(' '));
 
   // The slider: parts as printed, laid out, then one stop per joint, the strip onto the left panel and the right panel onto it.
   const slider = page.getByRole('slider', { name: 'Assembly', exact: true });

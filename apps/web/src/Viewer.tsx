@@ -11,6 +11,7 @@ import { MagnetControls } from './MagnetControls.tsx';
 import { ControllerHotspots, ControllerPanel } from './ControllerControls.tsx';
 import { viewerGrid } from './viewerLayout.ts';
 import { createStage, smoothNormals } from './stage.ts';
+import { groupParts } from './viewerPartGroups.ts';
 
 /**
  * One mesh to show: STL `bytes`, or a `geometry` built from a library part's dimensions (e.g. a magnet). `reference` marks a
@@ -531,12 +532,14 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     return new Set(magnets.filter(m => m.hideWhenDisabled && !present.has(m.body)).map(m => m.body));
   }, [simulating, activePhysics, enabledMagnets]);
   useEffect(() => { scene.current?.setHidden(new Set([...hidden, ...absentMagnets])); }, [hidden, absentMagnets]);
-  const toggle = (id: string) => setHidden(current => {
+  // Shows or hides every mesh of a row at once: a group of the same library part (the screws of the joints) is one row.
+  const toggle = (ids: readonly string[], visible: boolean) => setHidden(current => {
     const next = new Set(current);
-    if (!next.delete(id)) next.add(id);
+    for (const id of ids) if (visible) next.add(id); else next.delete(id);
     return next;
   });
   const displayedAssembly = shownAssembly ?? assembly;
+  const partRows = useMemo(() => groupParts(loadedParts, displayedAssembly, partTitles), [loadedParts, displayedAssembly, partTitles]);
   const stops = displayedAssembly ? assemblyStops(displayedAssembly) - 1 : 1;
   // Play: the slider runs to the end at PLAY_SECONDS a segment (from the start if it is at the end); any other input stops it.
   useEffect(() => {
@@ -608,14 +611,17 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     </div>}
     {displayedAssembly && format === 'zip' && url && loadedParts.length > 0 && <div className="assembly-parts" role="group" aria-label="Visible parts">
       <span>PARTS</span>
-      <div>{loadedParts.map(part => {
-        const absent = absentMagnets.has(part.id);
-        const visible = !hidden.has(part.id) && !absent;
-        const title = partTitles[part.id] ?? part.id;
-        return <button key={part.id} type="button" className={part.reference ? 'reference' : undefined} aria-pressed={visible}
-          disabled={absent} title={absent ? `Enable ${title} with magnet controls` : `${visible ? 'Hide' : 'Show'} ${title}`} onClick={() => toggle(part.id)}>
-          {visible ? <Eye size={13} aria-hidden="true" /> : <EyeOff size={13} aria-hidden="true" />}{title}
-          {displayedAssembly.partColors?.[part.id] && <span className="part-color" style={{ backgroundColor: displayedAssembly.partColors[part.id] }} title={`Suggested filament: ${displayedAssembly.partColors[part.id]}`} aria-hidden="true" />}
+      <div>{partRows.map(row => {
+        const present = row.ids.filter(id => !absentMagnets.has(id));
+        const absent = present.length === 0;
+        const visible = present.some(id => !hidden.has(id));
+        const title = row.count > 1 ? `all ${row.count} of ${row.title}` : row.title;
+        const color = displayedAssembly.partColors?.[row.ids[0] ?? ''];
+        return <button key={row.key} type="button" className={row.reference ? 'reference' : undefined} aria-pressed={visible} data-parts={row.ids.join(' ')}
+          disabled={absent} title={absent ? `Enable ${title} with magnet controls` : `${visible ? 'Hide' : 'Show'} ${title}`} onClick={() => toggle(row.ids, visible)}>
+          {visible ? <Eye size={13} aria-hidden="true" /> : <EyeOff size={13} aria-hidden="true" />}{row.title}
+          {row.count > 1 && <>{' '}<span className="part-quantity">× {row.count}</span></>}
+          {color && <span className="part-color" style={{ backgroundColor: color }} title={`Suggested filament: ${color}`} aria-hidden="true" />}
         </button>;
       })}</div>
     </div>}
