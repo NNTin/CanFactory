@@ -4806,7 +4806,7 @@
                               "iso-4032-m6"
                             ],
                             "title": "Nut",
-                            "description": "The regular hexagon nut: the hold-downs’ T-nuts, the angle lock’s nut and the base’s nuts.",
+                            "description": "The regular hexagon nut: the hold-downs’ T-nuts and the angle lock’s nut, in the turntable’s arm.",
                             "default": "iso-4032-m6"
                           },
                           "padNut": {
@@ -4835,7 +4835,7 @@
                           "fit": {
                             "type": "number",
                             "title": "Fit",
-                            "description": "Play round the turntable, the arm, nuts and screws, on each side, in mm.",
+                            "description": "Play round the turntable, the arm, the hold-downs in their sockets, nuts and screws, on each side, in mm.",
                             "default": 0.3,
                             "minimum": 0.1,
                             "maximum": 0.6,

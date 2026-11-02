@@ -2373,7 +2373,7 @@ export interface operations {
                         thread: "M5" | "M6";
                         /**
                          * Nut
-                         * @description The regular hexagon nut: the hold-downs’ T-nuts, the angle lock’s nut and the base’s nuts.
+                         * @description The regular hexagon nut: the hold-downs’ T-nuts and the angle lock’s nut, in the turntable’s arm.
                          * @default iso-4032-m6
                          * @enum {unknown}
                          */
@@ -2394,7 +2394,7 @@ export interface operations {
                         clampScrew: "iso-4017-m5x30" | "iso-4017-m5x40" | "iso-4017-m5x50" | "iso-4017-m6x30" | "iso-4017-m6x40" | "iso-4017-m6x50" | "iso-4017-m6x60";
                         /**
                          * Fit
-                         * @description Play round the turntable, the arm, nuts and screws, on each side, in mm.
+                         * @description Play round the turntable, the arm, the hold-downs in their sockets, nuts and screws, on each side, in mm.
                          * @default 0.3
                          */
                         fit: number;

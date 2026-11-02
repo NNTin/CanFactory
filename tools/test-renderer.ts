@@ -1288,8 +1288,8 @@ try {
   }
   // Miter box: the defaults; the narrowest, shortest stock with the finest slots and the tightest fit; the widest, tallest stock with
   // the widest slots, the longest posts and the loosest fit; M5 throughout. Every part one closed solid, at the size the layout
-  // gives; the guide's slots and kerf groove open along the saw's line and the lock's slot and channel, the stops and the nut
-  // pockets open in the base.
+  // gives; the guide's slots, kerf groove and lock nut's pocket open; in the base (one piece with the fence) the stops, the
+  // retaining pins' holes, the hold-downs' sockets and their pins' holes open, and no nut pockets.
   for (const [name, overrides] of (!only || only === 'miter-box' ? [
     ['default', {}], ['narrow, low, fine slots, tight', { stockWidth: 15, stockHeight: 15, clampScrew: 'iso-4017-m6x40', bladeKerf: 0.4, slotClearance: 0.05, guideLength: 10, guideDepth: 15, fit: 0.1 }],
     ['wide, tall, coarse slots, loose', { stockWidth: 50, stockHeight: 50, bladeKerf: 3, slotClearance: 0.4, guideLength: 30, guideDepth: 50, fit: 0.6 }],
@@ -1303,7 +1303,7 @@ try {
     const result = await store.getJob(queued.id);
     assert.equal(result?.status, 'succeeded', `miter box ${name}`);
     if (!result.artifact || !('parts' in result.artifact)) throw new Error('Expected the miter box ZIP.');
-    const ids = ['base', 'turntable', 'fence-left', 'fence-right', 'holddown-left', 'holddown-right', 'pad-left', 'pad-right', 'knob-left', 'knob-right', 'lock-knob'];
+    const ids = ['base', 'turntable', 'holddown-left', 'holddown-right', 'pad-left', 'pad-right', 'knob-left', 'knob-right', 'lock-knob'];
     assert.deepEqual(result.artifact.parts.map(part => part.id), ids);
     const bytes = await artifactBytes(result), entries = unzipSync(bytes);
     const mesh = (id: string) => parseStl(Buffer.from(entries[`${id}.stl`] ?? []));
@@ -1311,10 +1311,9 @@ try {
     const l = miterBoxLayout(parameters), B = MITER_BOX;
     const size = (id: string) => { const part = result.artifact && 'parts' in result.artifact ? result.artifact.parts.find(p => p.id === id) : undefined; return part ? [part.dimensions.x, part.dimensions.y, part.dimensions.z] : []; };
     const near = (actual: number[], want: number[], what: string) => want.forEach((value, i) => assert.ok(Math.abs((actual[i] ?? NaN) - value) < 0.05, `miter box ${name}: ${what} ${actual.join(' × ')} != ${want.join(' × ')}`));
-    near(size('base'), [2 * l.halfLength, l.front - l.back, l.bed + B.fenceGap], 'base');
+    near(size('base'), [2 * l.halfLength, l.front - l.back, l.bed + l.fenceHeight], 'base with its fence');
     near(size('turntable').slice(2), [B.arm + l.postHeight], 'turntable height');
-    near(size('fence-right'), [l.halfLength - l.notch, B.fenceOuter, l.fenceHeight], 'fence half');
-    near(size('holddown-left'), [l.beamTop - l.bed + B.apron, l.beamTip - l.columnBack, B.holdDown.width], 'hold-down (on its side)');
+    near(size('holddown-left'), [l.beamTop - l.socketFloor, l.beamTip - l.columnBack, B.holdDown.width], 'hold-down (on its side)');
     near(size('pad-left'), [B.pad.diameter, B.pad.diameter, B.pad.height], 'thrust pad');
     near(size('knob-left').slice(2), [B.knob.height], 'knob height');
     // probes, in each part's printed frame: the turntable is printed with its bottom at z = 0, the base as it stands
@@ -1325,20 +1324,28 @@ try {
     assert.equal(housingSolid(mesh('turntable'), tt(0, l.armTip - 2, l.bed - B.kerfDepth / 2)), false, `${name}: kerf groove at the arm's tip`);
     assert.equal(housingSolid(mesh('turntable'), tt(0, 0, l.bed - B.arm + 1)), true, `${name}: turntable under the groove`);
     assert.equal(housingSolid(mesh('turntable'), tt(l.knobX, l.knobY, l.bed - B.arm / 2)), false, `${name}: lock screw's hole`);
-    const lock = (degrees: number, z: number): [number, number, number] => {
-      const a = (l.lockAngle + degrees) * Math.PI / 180;
-      return [l.lockRadius * Math.cos(a), l.lockRadius * Math.sin(a), z];
-    };
-    for (const degrees of [-45, 0, 45]) {
-      assert.equal(housingSolid(mesh('base'), lock(degrees, l.lockCeiling + B.lockFloor / 2)), false, `${name}: lock slot at ${degrees}°`);
-      assert.equal(housingSolid(mesh('base'), lock(degrees, l.lockCeiling - 1)), false, `${name}: lock channel at ${degrees}°`);
-    }
-    const beside = (l.lockRadius + l.d / 2 + l.fit + 1) / l.lockRadius;
-    assert.equal(housingSolid(mesh('base'), lock(0, l.lockCeiling + B.lockFloor / 2).map((v, i) => i < 2 ? v * beside : v) as [number, number, number]), true, `${name}: floor beside the lock slot`);
+    assert.equal(housingSolid(mesh('turntable'), tt(l.knobX + l.nutS / 2 - 0.5, l.knobY, l.bed - B.arm + l.lockPocket / 2)), false, `${name}: lock nut's pocket under the arm`);
+    assert.equal(housingSolid(mesh('turntable'), tt(l.knobX + l.nutS / 2 - 0.5, l.knobY, l.bed - (B.arm - l.lockPocket) / 2)), true, `${name}: arm over the lock nut`);
+    // the base: the stops and the socket's floor, the fence standing beyond the socket with the retaining pins' holes in its ends
     assert.equal(housingSolid(mesh('base'), [l.pinX, l.pinY, l.bed - B.arm - B.pinDepth / 2]), false, `${name}: index stop at 0°`);
     assert.equal(housingSolid(mesh('base'), [0, l.W / 2, l.bed - B.arm - 1]), true, `${name}: socket's floor`);
-    assert.equal(housingSolid(mesh('base'), [l.holdX, l.holdScrews[0] ?? 0, l.nutM / 2]), false, `${name}: hold-down's nut pocket`);
-    console.log(`PASS miter box ${name}: 11 closed prints at the layout's sizes, open saw slots and kerf groove, lock slot and channel, stops and nut pockets`);
+    for (const s of [-1, 1]) {
+      assert.equal(housingSolid(mesh('base'), [s * (l.fenceStart + 2), -B.fence / 2, l.bed + l.fenceHeight - 2]), true, `${name}: fence beyond the socket`);
+      // the retaining pin's bore, halfway between the fence's end and the pin's tail, and the fence over it
+      const along = (l.retainOut + l.retainL) / 2, a = B.retainAngle * Math.PI / 180;
+      const bore: [number, number] = [s * (l.retainTip + along * Math.cos(a)), l.retainY - along * Math.sin(a)];
+      assert.equal(housingSolid(mesh('base'), [...bore, l.retainZ]), false, `${name}: retaining pin's bore`);
+      assert.equal(housingSolid(mesh('base'), [...bore, l.retainZ + l.retainD]), true, `${name}: fence over the retaining pin`);
+      assert.equal(housingSolid(mesh('base'), [s * l.holdX, l.holdPinY, l.socketFloor + 3]), false, `${name}: hold-down's socket`);
+      assert.equal(housingSolid(mesh('base'), [s * l.holdX, l.holdPinY, l.socketFloor - 1]), true, `${name}: socket's floor`);
+      const wall = s * (l.holdX + B.holdDown.width / 2 + l.fit + 2);
+      assert.equal(housingSolid(mesh('base'), [wall, l.holdPinY, l.holdPinZ]), false, `${name}: hold-down pin's hole in the socket's wall`);
+      assert.equal(housingSolid(mesh('base'), [wall, l.holdPinY, l.holdPinZ + l.holdPinD]), true, `${name}: socket's wall`);
+    }
+    // the hold-down, printed on its side: (x, y, z) as it stands lies at (z, y, width/2 - x); the pin's hole across its column
+    assert.equal(housingSolid(mesh('holddown-left'), [l.holdPinZ, l.holdPinY, B.holdDown.width / 2]), false, `${name}: hold-down's pin hole`);
+    assert.equal(housingSolid(mesh('holddown-left'), [l.holdPinZ + l.holdPinD, l.holdPinY, B.holdDown.width / 2]), true, `${name}: hold-down's column`);
+    console.log(`PASS miter box ${name}: 9 closed prints at the layout's sizes, open saw slots, kerf groove and lock nut pocket, base with its fence, stops, retaining pins' holes and pinned hold-down sockets`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

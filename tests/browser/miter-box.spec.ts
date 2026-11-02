@@ -24,7 +24,7 @@ test('the card shows the box from above, and on hover its guide swings to the st
   expect(errors).toEqual([]);
 });
 
-test('previews the assembly and its movements, sizes the saw slots and downloads the eleven parts', async ({ page }, testInfo) => {
+test('previews the assembly and its movements, sizes the saw slots and downloads the nine parts', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/#/models');
@@ -34,14 +34,15 @@ test('previews the assembly and its movements, sizes the saw slots and downloads
   await expect(download).toBeEnabled();
   // the parts list names the printed parts and the library hardware
   for (const title of ['Turntable with the two slotted guide posts', 'Hold-down, left', 'Knob, angle lock']) await expect(page.getByTitle(`Hide ${title}`, { exact: true })).toBeVisible();
-  await expect(page.getByTitle(/^Hide Hardened dowel pin 5 × 20/).first()).toBeVisible();
+  await expect(page.getByTitle(/^Hide Stainless parallel pin 4 × 20/).first()).toBeVisible();
+  await expect(page.getByTitle(/^Hide Stainless parallel pin 4 × 12/).first()).toBeVisible();
   // the slider: the steps, then the guide's and the clamps' movements
   const slider = page.getByRole('slider', { name: 'Assembly', exact: true });
   await slider.press('Home');
   await slider.press('ArrowRight');
   await expect(slider).toHaveAttribute('aria-valuetext', 'Lift and lay out the parts');
   await slider.press('ArrowRight');
-  await expect(slider).toHaveAttribute('aria-valuetext', /^Step 1 of 11 · Press a nut into each pocket under the base/);
+  await expect(slider).toHaveAttribute('aria-valuetext', /^Step 1 of 12 · Push the angle lock’s nut up into its pocket under the turntable’s arm/);
   await slider.press('End');
   await expect(slider).toHaveAttribute('aria-valuetext', /Screw the pads down onto the stock/);
   await page.screenshot({ path: testInfo.outputPath('miter-box-assembly.png'), fullPage: true });

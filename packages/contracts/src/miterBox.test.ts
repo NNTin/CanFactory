@@ -5,7 +5,7 @@ import { resolveAssembly } from './assembly.ts';
 import { dimensionOf, findPart, parts } from './parts/index.ts';
 import {
   DEFAULT_MITER_BOX, MITER_BOX, MITER_BOX_CLAMP_SCREWS, MITER_BOX_NUTS, MITER_BOX_PAD_NUTS, MITER_BOX_PARTS, MITER_BOX_THREADS, miterBoxAssembly, miterBoxClampPoses,
-  miterBoxGuidePoses, miterBoxIssues, miterBoxLayout, miterBoxPadsFit, miterBoxScadValues, type MiterBoxParameters,
+  miterBoxGuidePoses, miterBoxIssues, miterBoxLayout, miterBoxPadsFit, miterBoxPinPoses, miterBoxScadValues, type MiterBoxParameters,
 } from './miterBox.ts';
 import { PRESSURE_PAD } from './pressurePad.ts';
 
@@ -85,43 +85,72 @@ describe('miter box contract', () => {
       const l = miterBoxLayout(settings(overrides));
       const what = JSON.stringify(overrides);
       const half = l.postWidth / 2, pl = l.guideLength;
-      // the front post and the lock knob stay in front of the widest stock; the rear post and the pin behind the fence
+      // the front post and the lock knob stay in front of the widest stock; the rear post and the pin behind the stock's face
       for (const [, y] of swept(-half, half, l.frontPost - pl / 2, l.frontPost + pl / 2)) expect(y, what).toBeGreaterThanOrEqual(l.W);
       for (const [, y] of sweptCircle(l.knobX, l.knobY, MITER_BOX.knob.diameter / 2)) expect(y, what).toBeGreaterThanOrEqual(l.W);
-      for (const [, y] of swept(-half, half, -l.rearPost - pl / 2, -l.rearPost + pl / 2)) expect(y, what).toBeLessThanOrEqual(-MITER_BOX.fence);
-      for (const [, y] of sweptCircle(l.pinX, l.pinY, l.pinR)) expect(y, what).toBeLessThanOrEqual(-MITER_BOX.fence);
+      for (const [, y] of swept(-half, half, -l.rearPost - pl / 2, -l.rearPost + pl / 2)) expect(y, what).toBeLessThanOrEqual(-MITER_BOX.margin + 1e-9);
+      for (const [, y] of sweptCircle(l.pinX, l.pinY, l.pinR)) expect(y, what).toBeLessThanOrEqual(-MITER_BOX.margin + 1e-9);
+      // the fence (part of the base) stops beyond the turntable's socket; nothing turning over the turntable reaches its retainers
+      expect(l.fenceStart, what).toBeGreaterThan(l.turntable + l.fit);
+      const retainer = Math.hypot(l.retainTip, l.retainY) - l.retainD / 2;
+      for (const [x, y] of [...swept(-half, half, -l.rearPost - pl / 2, -l.rearPost + pl / 2), ...sweptCircle(l.pinX, l.pinY, l.pinR)])
+        expect(Math.hypot(x, y), what).toBeLessThan(retainer - MITER_BOX.margin + 1e-6);
       // the knob and the pin stand beside the saw's line, the kerf groove reaches past both posts
       expect(Math.abs(l.knobX) - MITER_BOX.knob.diameter / 2, what).toBeGreaterThan(l.slot / 2 + 1);
       expect(l.pinX - l.pinR, what).toBeGreaterThan(l.postWidth / 2);
       expect(l.armTip, what).toBeGreaterThan(l.frontPost + pl / 2);
-      // the hold-downs (and their pads) stand off the saw's line at 45° and outside the turntable
-      const inner = l.holdX - Math.max(MITER_BOX.holdDown.width, MITER_BOX.pad.diameter) / 2;
-      expect(inner, what).toBeGreaterThan(Math.max(-l.columnBack, l.slotTo + MITER_BOX.pad.diameter / 2) + l.slot / 2);
+      // the hold-downs, their sockets' blocks and their pads stand off the saw's line at 45° and outside the turntable
+      const inner = l.holdX - Math.max(l.holdPinL, MITER_BOX.pad.diameter) / 2;
+      expect(inner, what).toBeGreaterThan(Math.max(-l.blockBack, l.slotTo + MITER_BOX.pad.diameter / 2) + l.slot / 2);
       expect(inner, what).toBeGreaterThan(l.turntable + l.fit);
       // the posts reach above the tallest stock, the hold-downs' beams over the fence and the retracted pads
       expect(l.postHeight, what).toBeGreaterThan(settings(overrides).stockHeight);
       expect(l.beamBottom - MITER_BOX.pad.height - 0.5, what).toBeGreaterThan(l.bed + settings(overrides).stockHeight);
-      expect(l.beamBottom, what).toBeGreaterThan(l.bed + MITER_BOX.fenceGap + l.fenceHeight);
+      expect(l.beamBottom, what).toBeGreaterThan(l.bed + l.fenceHeight);
     }
   });
 
-  it('stacks the angle lock and the base’s screws so that every nut is fully engaged and no tip reaches the bench', () => {
+  it('holds the turntable and the hold-downs with stainless dowel pins and puts no nut in the base', () => {
     for (const overrides of spread) {
       const l = miterBoxLayout(settings(overrides));
-      const lockTip = l.bed + PRESSURE_PAD.lip - dimensionOf(l.lockScrew, 'l');
-      expect(lockTip).toBeGreaterThanOrEqual(MITER_BOX.tip - 1e-9);
-      expect(lockTip).toBeLessThanOrEqual(l.lockCeiling - l.nutM);
-      expect(l.lockCeiling).toBeGreaterThanOrEqual(l.nutM + 1);
-      // the fence's and the hold-downs' screws: ledges at least `ledge`, tips just over the base's bottom, inside their nuts
-      expect(l.fenceLedge).toBeGreaterThanOrEqual(MITER_BOX.ledge);
-      expect(l.holdLedge).toBeGreaterThanOrEqual(MITER_BOX.ledge);
-      expect(dimensionOf(l.fenceScrew, 'l')).toBeCloseTo(l.fenceLedge + l.bed + MITER_BOX.fenceGap - MITER_BOX.tip);
-      expect(dimensionOf(l.holdScrew, 'l')).toBeCloseTo(l.holdLedge + l.bed - MITER_BOX.apron - MITER_BOX.tip);
-      // the index pin: in the base by pinDepth, standing above the turntable, its lift clear of the socket's floor
+      const what = JSON.stringify(overrides);
+      for (const pin of [l.pin, l.retainer, l.holdPin]) expect(pin.attributes['material'], what).toBe('Stainless steel A1');
+      // the retainers: over the turntable's top with play, over its rim by retainOverlap, held in the fence by at least
+      // retainGrip, behind the stock's face, inside their bores (which leave the fence's back face), and pushed in from behind
+      // clear of the hold-downs' blocks
+      const ca = Math.cos(MITER_BOX.retainAngle * Math.PI / 180);
+      expect(l.retainZ - l.retainD / 2 - l.bed, what).toBeCloseTo(MITER_BOX.retainPlay);
+      expect(l.turntable - l.retainTip, what).toBeCloseTo(MITER_BOX.retainOverlap);
+      expect(l.retainL - l.retainOut, what).toBeGreaterThanOrEqual(MITER_BOX.retainGrip);
+      expect(l.retainY + l.retainD / 2 * ca, what).toBeLessThanOrEqual(-MITER_BOX.margin + 1e-3);
+      expect(l.retainL, what).toBeLessThanOrEqual(l.retainBack);
+      expect(l.holdX - l.holdPinL / 2, what).toBeGreaterThan(l.retainApproach);
+      // the hold-down's pin: across the socket's walls (each at least socket.wall) and the column, inside the block's height
+      expect((l.holdPinL - MITER_BOX.holdDown.width) / 2 - l.fit, what).toBeGreaterThanOrEqual(MITER_BOX.socket.wall);
+      expect(l.holdPinZ - l.holdPinD / 2, what).toBeGreaterThan(l.socketFloor + 2);
+      expect(l.holdPinZ + l.holdPinD / 2, what).toBeLessThan(l.bed + l.fenceHeight - 2);
+      // the lock: its nut in the arm under at least lockCeiling, the screw through it reaching the base's floor with the knob just over the arm
+      expect(MITER_BOX.arm - l.lockPocket, what).toBeGreaterThanOrEqual(MITER_BOX.lockCeiling - 1e-9);
+      expect(l.lockShank - MITER_BOX.arm, what).toBeGreaterThanOrEqual(MITER_BOX.lockRise);
+      expect(l.lockShank, what).toBe(dimensionOf(l.lockScrew, 'l') - PRESSURE_PAD.lip);
+      expect(l.lockShank, what).toBeGreaterThanOrEqual(l.lockPocket);
+      // the index pin: in the base by pinDepth over a floor, standing above the turntable, its lift clear of the socket's floor
       expect(l.pinL - MITER_BOX.arm - MITER_BOX.pinDepth).toBeGreaterThanOrEqual(5);
       expect(MITER_BOX.pinLift).toBeGreaterThan(MITER_BOX.pinDepth);
-      expect(l.bed - MITER_BOX.arm).toBeGreaterThanOrEqual(MITER_BOX.pinDepth + 1.5);
+      expect(l.bed - MITER_BOX.arm - MITER_BOX.pinDepth).toBeCloseTo(MITER_BOX.stopFloor);
     }
+    // the base is thinner than the first design's 17.7 mm, and no reference is a nut under the base
+    expect(miterBoxLayout(settings()).bed).toBeLessThanOrEqual(12.2);
+    const references = miterBox.linkedReferences(miterBox.defaults);
+    expect(references.filter(reference => findPart(reference.part)?.family === 'nut').map(reference => reference.id).sort())
+      .toEqual(['lock-nut', 'pad-nut-left', 'pad-nut-right', 'tnut-left', 'tnut-right']);
+  });
+
+  it('offers the stainless dowel pins in the parts library', () => {
+    const stainless = parts.filter(p => p.family === 'pin' && p.attributes['material'] === 'Stainless steel A1');
+    expect(stainless.length).toBe(parts.filter(p => p.family === 'pin' && p.attributes['material'] === 'Steel').length);
+    expect(need('iso-2338-4x12-a1').designation).toBe('ISO 2338 4 m6 × 12 – A1');
+    expect(dimensionOf(need('iso-2338-4x30-a1'), 'd', 'max')).toBeCloseTo(4.012);
   });
 
   it('assembles every part and moves the guide and the clamps as the layout says', () => {
@@ -131,7 +160,7 @@ describe('miter box contract', () => {
     const ids = new Set([...MITER_BOX_PARTS, ...(assembly?.references ?? []).map(reference => reference.id)]);
     for (const id of MITER_BOX_PARTS) expect(miterBox.assembly.poses[id], id).toBeDefined();
     for (const step of miterBox.assembly.steps) for (const id of step.parts) expect(ids.has(id), id).toBe(true);
-    expect(assembly?.references?.length).toBe(25);
+    expect(assembly?.references?.length).toBe(13);
     const l = miterBoxLayout(p);
     const motion = miterBoxAssembly(p).motion ?? [];
     expect(motion.map(m => m.title)).toHaveLength(6);
@@ -141,10 +170,14 @@ describe('miter box contract', () => {
     expect(end(0)['pin']).toEqual(miterBoxGuidePoses(l, 45).pin);
     expect(end(1)['turntable']?.rotation?.[2]).toBeCloseTo(-22.5);
     expect(end(2)['pin']).toEqual(miterBoxGuidePoses(l, 10, MITER_BOX.pinLift).pin);
-    // the lock screw follows the knob round the pivot; its nut turns with it, flats across the channel
+    // the lock screw follows the knob round the pivot; its nut turns with the arm, in its pocket
     const at45 = miterBoxGuidePoses(l, 45);
     expect(Math.hypot(at45['lock-knob']?.position[0] ?? 0, at45['lock-knob']?.position[1] ?? 0)).toBeCloseTo(l.lockRadius, 2);
-    expect(at45['lock-nut']?.rotation[2]).toBeCloseTo(l.lockAngle + 45, 2);
+    expect(at45['lock-nut']?.rotation[2]).toBeCloseTo(45 + 30, 2);
+    // the pins lie along X: the retainers reaching over the turntable from the fence's ends, the hold-downs' across their sockets
+    const pins = miterBoxPinPoses(l);
+    expect(pins['retainer-right']).toEqual({ position: [l.retainTip, l.retainY, l.retainZ], rotation: [0, 90, -MITER_BOX.retainAngle] });
+    expect(pins['hold-pin-left']?.position[0]).toBeCloseTo(-l.holdX + l.holdPinL / 2);
     // the clamps: pads slid to both ends of the slot, then screwed down to the lowest stock
     const slide = motion[4]?.frames ?? [];
     expect(Math.min(...slide.map(frame => frame['pad-left']?.position[1] ?? Infinity))).toBeCloseTo(l.slotFrom);
@@ -161,5 +194,6 @@ describe('miter box contract', () => {
     expect(notes.join(' ')).toMatch(/Saw slots 1\.50 mm wide/);
     expect(notes.join(' ')).toMatch(/0, ±22\.5 and ±45°/);
     expect(notes.join(' ')).toMatch(/ISO 4017 M6 × 60/);
+    expect(notes.join(' ')).toMatch(/No nuts in the base: 2 ISO 2338 4 m6 × 12 – A1/);
   });
 });

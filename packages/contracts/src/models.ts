@@ -3685,9 +3685,10 @@ export const magneticCatToy = {
 } satisfies ModelDefinition;
 
 /**
- * Adjustable miter box (models/miter-box/generator.scad, docs/miter-box.md): an original design. The guide's two slotted posts
- * stand on a turntable's arm and turn about a pivot on the fence's face; a knob locks it at any angle by friction, an index pin
- * stops it at 0, ±22.5 and ±45°. Two hold-downs press the stock onto the bed through free-turning thrust pads. The knobs and the
+ * Adjustable miter box (models/miter-box/generator.scad, docs/miter-box.md): an original design. One base carries the bed, the
+ * fence and the hold-downs' sockets; the guide's two slotted posts stand on a turntable's arm and turn about a pivot on the fence's
+ * face. Stainless dowel pins in the fence's ends hold the turntable in; a knob locks it at any angle by friction, an index pin
+ * stops it at 0, ±22.5 and ±45°. Two pinned hold-downs press the stock onto the bed through free-turning thrust pads. The knobs and the
  * pads are pressure pads (models/pressure-pad/generator.scad); every dimension comes from miterBox.ts (`miterBoxScadLayout`).
  */
 const mbSchema = MiterBoxParametersSchema;
@@ -3714,14 +3715,13 @@ const mbPad = (id: string, title: string, knob: boolean): ModelPart => ({
 });
 export const miterBox = {
   id: 'miter-box' as const, version: '1' as const, title: 'Adjustable miter box',
-  description: 'A miter box whose saw guide turns: two slotted posts on a turntable, one behind the fence and one in front of the stock, set at any angle up to 45° either way and locked there with a knob, with index-pin stops at 0 (square), 22.5 and 45° and an engraved scale. Two hold-downs press the stock onto the bed through free-turning thrust pads: slide them across to suit its width, screw them down to suit its height. Size it for your stock and your saw’s kerf; hand-tightened with printed knobs on library screws.',
+  description: 'A miter box whose saw guide turns: two slotted posts on a turntable, one behind the fence and one in front of the stock, set at any angle up to 45° either way and locked there with a knob, with index-pin stops at 0 (square), 22.5 and 45° and an engraved scale. The base is one print with the fence; stainless dowel pins hold the turntable in. Two hold-downs press the stock onto the bed through free-turning thrust pads: slide them across to suit its width, screw them down to suit its height. Size it for your stock and your saw’s kerf; hand-tightened with printed knobs on library screws.',
   attribution: 'CanFactory (original design)',
-  printNotes: 'PETG (or PLA), 0.2 mm layers, four perimeters, 30 % infill; no supports. Print each part as generated: the base flat (its nut pockets and the lock channel face down and bridge), the turntable on its flat bottom with the posts up, the fence halves upright, the hold-downs on their sides, the knobs on their slotted backs and the pads on their backs. Measure your saw’s kerf on a test cut before you set it. Hardware, all from the parts list: press the base’s nuts into their pockets from below and the lock nut into its curved channel; drop the turntable in, then turn the lock screw (in its knob) down through the arm into the nut. Screw the fence halves and the hold-downs down (a hex key through the counterbores). Push a nut up into each hold-down’s slot, turn the clamp screw (in its knob) down through it, run a nylon-insert nut onto its tip until flush and slide the thrust pad over that nut. To set an angle: lift the index pin, turn the arm, drop the pin into a stop, or set the arm on the scale and tighten the lock knob. Fix the box to a bench with four 4 mm countersunk wood screws, or clamp it. Prototype: not yet cut-tested; check the guide square with a try square before the first cut.',
+  printNotes: 'PETG (or PLA), 0.2 mm layers, four perimeters, 30 % infill; no supports. Print each part as generated: the base flat (the fence and the hold-downs’ sockets stand up from it; the pins’ holes are pointed at the top so that they print), the turntable on its flat bottom with the posts up (the lock nut’s pocket faces down and bridges), the hold-downs on their sides, the knobs on their slotted backs and the pads on their backs. Measure your saw’s kerf on a test cut before you set it. Hardware, all from the parts list: push the lock nut up into its pocket under the turntable’s arm and drop the turntable into its socket; push a stainless 4 × 12 pin into each fence’s bore from behind until it reaches over the turntable’s rim (tap them back from the gap with a punch to take the turntable out again); turn the lock screw (in its knob) down through the arm’s nut. Stand each hold-down in its socket and press a stainless 4 × 30 pin across the socket and through it. Push a nut up into each hold-down’s slot, turn the clamp screw (in its knob) down through it, run a nylon-insert nut onto its tip until flush and slide the thrust pad over that nut. The pins’ holes in the base are printed at the pins’ size, for a press fit: if one is too tight, open it with a drill of the pin’s size. To set an angle: lift the index pin, turn the arm, drop the pin into a stop, or set the arm on the scale and tighten the lock knob (its screw presses on the base). Fix the box to a bench with four 4 mm countersunk wood screws, or clamp it. Prototype: not yet cut-tested; check the guide square with a try square before the first cut.',
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
   parts: [
-    mbPart('base', 'Base: bed, socket, lock channel, stops and scale', 'base'),
+    mbPart('base', 'Base: bed, fence, hold-down sockets, stops and scale', 'base'),
     mbPart('turntable', 'Turntable with the two slotted guide posts', 'turntable'),
-    mbPart('fence-left', 'Fence, left half', 'fence-left'), mbPart('fence-right', 'Fence, right half', 'fence-right'),
     mbPart('holddown-left', 'Hold-down, left', 'holddown'), mbPart('holddown-right', 'Hold-down, right', 'holddown'),
     mbPad('pad-left', 'Thrust pad, left clamp', false), mbPad('pad-right', 'Thrust pad, right clamp', false),
     mbPad('knob-left', 'Knob, left clamp', true), mbPad('knob-right', 'Knob, right clamp', true), mbPad('lock-knob', 'Knob, angle lock', true),
@@ -3741,9 +3741,9 @@ export const miterBox = {
     const span = l.frontPost + l.rearPost + l.guideLength;
     return { slotCount: null, notes: [
       `Saw slots ${l.slot.toFixed(2)} mm wide, ${l.postHeight} mm high above the bed, in two ${l.guideLength} mm posts ${span.toFixed(0)} mm apart end to end; the guide turns ${MITER_BOX.maxAngle}° either way about the fence’s face.`,
-      `Angle: index-pin stops at 0, ±22.5 and ±${MITER_BOX.maxAngle}° (an ${l.pin.designation}); any angle between on the scale, locked by the knob (${l.lockScrew.designation} into an ${l.nut.designation} sliding under the base).`,
+      `Angle: index-pin stops at 0, ±22.5 and ±${MITER_BOX.maxAngle}° (an ${l.pin.designation}); any angle between on the scale, locked by the knob (an ${l.lockScrew.designation} through an ${l.nut.designation} in the arm, pressing on the base).`,
       `Clamps: each pad slides from ${l.slotFrom} to ${l.slotTo} mm from the fence across the stock and screws down on stock ${l.clampLow.toFixed(0)} to ${parameters.stockHeight} mm high.`,
-      `Base ${2 * l.halfLength} × ${l.front - l.back} mm; turntable Ø${(2 * l.turntable).toFixed(0)} mm. Hardware: ${2 * l.fenceScrewX.length} ${l.fenceScrew.designation} (fence) and ${2 * l.holdScrews.length} ${l.holdScrew.designation} (hold-downs) with ${2 * l.fenceScrewX.length + 2 * l.holdScrews.length + 3} ${l.nut.designation} in all, 2 ${l.clampScrew.designation} and 2 ${l.padNut.designation} (clamps).`,
+      `Base ${2 * l.halfLength} × ${l.front - l.back} mm and ${l.bed} mm thick at the bed, with the fence (a ${(2 * l.fenceStart).toFixed(0)} mm gap round the turntable); turntable Ø${(2 * l.turntable).toFixed(0)} mm. No nuts in the base: 2 ${l.retainer.designation} hold the turntable in, 2 ${l.holdPin.designation} the hold-downs. Hardware: 3 ${l.nut.designation} (lock and T-nuts), 2 ${l.clampScrew.designation} and 2 ${l.padNut.designation} (clamps).`,
     ] };
   },
 } satisfies ModelDefinition;
