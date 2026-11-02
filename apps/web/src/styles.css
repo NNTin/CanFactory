@@ -802,6 +802,11 @@ main {
   flex: 1;
   width: auto;
 }
+.assembly-parts .part-count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
 .assembly-parts .part-color {
   display: inline-block;
   width: 0.85rem;

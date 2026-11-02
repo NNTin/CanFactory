@@ -35,7 +35,8 @@ test('previews the assembly and its movements, sizes the saw slots and downloads
   // the parts list names the printed parts and the library hardware
   for (const title of ['Turntable with the two slotted guide posts', 'Hold-down, left', 'Knob, angle lock']) await expect(page.getByTitle(`Hide ${title}`, { exact: true })).toBeVisible();
   await expect(page.getByTitle(/^Hide Stainless parallel pin 4 × 20/).first()).toBeVisible();
-  await expect(page.getByTitle(/^Hide Stainless parallel pin 4 × 12/).first()).toBeVisible();
+  // the two 4 × 12 pins are one row of the parts list
+  await expect(page.getByTitle('Hide all 2 of Stainless parallel pin 4 × 12', { exact: true })).toHaveCount(1);
   // the slider: the steps, then the guide's and the clamps' movements
   const slider = page.getByRole('slider', { name: 'Assembly', exact: true });
   await slider.press('Home');

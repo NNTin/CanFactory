@@ -108,7 +108,10 @@ test('sizes the cigarette case’s magnet pockets for a library magnet, and show
   const ids = ['magnet-box-plus-y', 'magnet-box-minus-y', 'magnet-lid-plus-y', 'magnet-lid-minus-y'];
   await expect(page.getByTestId('stl-viewer')).toHaveAttribute('data-visible-parts', new RegExp(ids.join('.*')));
   const group = page.getByRole('group', { name: 'Visible parts' });
-  await expect(group.getByRole('button', { name: /Disc magnet Ø 8 × 2 mm, N45/ })).toHaveCount(4);
+  // the four magnets are one row of the parts list, counted
+  const magnetRow = group.getByRole('button', { name: /Disc magnet Ø 8 × 2 mm, N45/ });
+  await expect(magnetRow).toHaveCount(1);
+  await expect(magnetRow).toContainText('× 4');
   await page.getByRole('slider', { name: 'Assembly' }).fill('1');
   await page.screenshot({ path: testInfo.outputPath('magnets.png') });
   // the choice links to the magnet's library page, which lists the case under “Used by”

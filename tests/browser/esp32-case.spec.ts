@@ -23,7 +23,10 @@ test('previews LED openings, board and headers, plays assembly and downloads all
   await expect(page.getByRole('link', { name: 'MakerOnline', exact: true })).toHaveAttribute('href', /makeronline.com/);
   await expect(page.getByRole('link', { name: model.license, exact: true })).toHaveAttribute('href', model.licenseUrl);
   await expect(page.getByTitle('Hide ESP32-C3 SuperMini', { exact: true })).toBeVisible();
-  for (const row of [1, 2]) await expect(page.getByTitle(`Hide Würth 1 × 8 straight pin header, 2.54 mm (row ${row})`, { exact: true })).toBeVisible();
+  // both rows of headers are one row of the parts list, which hides and shows them together
+  const headers = page.getByTitle('Hide all 2 of Würth 1 × 8 straight pin header, 2.54 mm', { exact: true });
+  await expect(headers).toBeVisible();
+  await expect(headers).toContainText('× 2');
   const slider = page.getByRole('slider', { name: 'Assembly', exact: true });
   await slider.press('Home');
   for (const caption of ['Lift and lay out the parts', 'Step 1 of 2 · With the board seated, insert both headers from below and solder', 'Assembled']) {
