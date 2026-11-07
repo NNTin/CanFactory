@@ -1311,9 +1311,10 @@ try {
     assert.equal(shells(clip), 1, `wand holder ${name}: one closed solid`);
     const l = wandHolderLayout(parameters), H = WAND_HOLDER;
     const size = result.artifact.parts[0]?.dimensions;
-    assert.ok(size && Math.abs(size.z - Math.max(l.tubeHeight, H.height)) < 0.01, `wand holder ${name}: height ${size?.z}`);
+    if (!size) throw new Error('Expected the clip’s dimensions.');
+    assert.ok(Math.abs(size.z - Math.max(l.tubeHeight, H.height)) < 0.01, `wand holder ${name}: height ${size.z}`);
     const lipEnd = l.middle * Math.sin(l.tip * Math.PI / 180) + H.flare * Math.sin(H.flareAngle * Math.PI / 180) + H.band / 2;
-    assert.ok(size && Math.abs(size.y - 2 * Math.max(lipEnd, l.outside)) < 0.3, `wand holder ${name}: width ${size?.y}`);
+    assert.ok(Math.abs(size.y - 2 * Math.max(lipEnd, l.outside)) < 0.3, `wand holder ${name}: width ${size.y}`);
     const between = l.bore - (parameters.clearance + parameters.squeeze) / 2;
     assert.equal(housingSolid(clip, [l.tubeX, 0, l.tubeHeight - 5]), false, `wand holder ${name}: bore`);
     assert.equal(housingSolid(clip, [l.tubeX, 0, H.floor / 2]), false, `wand holder ${name}: vent through the floor`);

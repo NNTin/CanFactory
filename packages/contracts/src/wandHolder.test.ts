@@ -70,7 +70,9 @@ describe('wand holder contract', () => {
     expect(l.tubeHeight).toBe(42);
     // the bore stays clear of the band
     expect(-l.tubeX - l.bore).toBeGreaterThan(l.outside + 1);
-    expect(validateParameters(wandHolder, settings({ handleDiameter: 12, socketDepth: 35 }))).toEqual([{ field: 'socketDepth', message: expect.stringContaining('at least 3 handle diameters deep (36.0 mm') }]);
+    const shallow = validateParameters(wandHolder, settings({ handleDiameter: 12, socketDepth: 35 }));
+    expect(shallow.map(issue => issue.field)).toEqual(['socketDepth']);
+    expect(shallow[0]?.message).toContain('at least 3 handle diameters deep (36.0 mm');
     expect(validateParameters(wandHolder, settings({ handleDiameter: 12, socketDepth: 36 }))).toEqual([]);
     expect(validateParameters(wandHolder, settings({ handleDiameter: 5, socketDepth: 25, clearance: 0.5, squeeze: 0 }))).toEqual([]);
     expect(validateParameters(wandHolder, { ...settings(), postDiameter: 100 })).not.toEqual([]);

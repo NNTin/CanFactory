@@ -70,6 +70,11 @@ is one print with the fence and takes no nuts: stainless dowel pins hold the tur
 press the stock onto the bed through free-turning thrust pads (the pressure pad's), sliding across for its width and screwing
 down for its height. The slots are sized from your saw's kerf.
 
+The [wand holder](docs/wand-holder.md) snaps onto a sisal scratching post from the side, at any height, and holds a feather or
+spring wand toy upright beside it. One fixed C-shaped spring clip grips any post 90 to 110 mm across the rope; ridges inside press
+into the sisal. The wand's handle end pushes into a 40 mm deep socket with crush ribs, sized for its diameter (8 mm by default).
+Print it in PETG.
+
 The [PET-bottle treat dispenser](docs/treat-dispenser.md) is a gumball-style dispenser after bovineblitz's (CC BY-NC 4.0): an
 inverted 0.5 l bottle over a two-pocket rotor that a 28BYJ-48 turns half a turn per press, a sprung TPU flap and a cavity against
 jams, and an ESP32-C3 SuperMini with ESPHome firmware inside the body, all on one USB-C cable. Its Simulate mode drops real treats

@@ -3782,7 +3782,7 @@ export const wandHolder = {
     return { slotCount: null, notes: [
       `Grips posts ${WAND_HOLDER.postMin} to ${WAND_HOLDER.postMax} mm across the rope (one fixed clip): relaxed, its ridges are ${WAND_HOLDER.gripD} mm across; seated it wraps ${Math.round(thin.wrap)}° round a ${WAND_HOLDER.postMin} mm post and ${Math.round(thick.wrap)}° round a ${WAND_HOLDER.postMax} mm one, its tips ${mm(thin.behind)} and ${mm(thick.behind)} past the widest line.`,
       `Bend: about ${pc(thick.passing)} strain at the arms’ roots going over a ${WAND_HOLDER.postMax} mm post (${pc(thin.passing)} over ${WAND_HOLDER.postMin} mm), ${pc(thick.seated)} sitting on it: well inside PETG’s elastic range.`,
-      `Socket: a ${mm(2 * l.bore)} bore, ${parameters.socketDepth} mm deep above a ${WAND_HOLDER.floor} mm floor, upright beside the post; ${WAND_HOLDER.ribs} crush ribs leave ${mm(l.ribCircle)} for the ${mm(parameters.handleDiameter)} handle, squeezing each by ${mm(parameters.squeeze)}.`,
+      `Socket: bore ${(2 * l.bore).toFixed(2)} mm, ${parameters.socketDepth} mm deep above a ${WAND_HOLDER.floor} mm floor, upright beside the post; ${WAND_HOLDER.ribs} crush ribs leave ${l.ribCircle.toFixed(2)} mm for the ${mm(parameters.handleDiameter)} handle, squeezing each by ${parameters.squeeze.toFixed(2)} mm.`,
     ] };
   },
 } satisfies ModelDefinition;
