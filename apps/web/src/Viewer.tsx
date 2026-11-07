@@ -9,8 +9,9 @@ import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import type { ReferenceObject } from './referenceObjects.ts';
 import { MagnetControls } from './MagnetControls.tsx';
 import { ControllerHotspots, ControllerPanel } from './ControllerControls.tsx';
-import { viewerGrid } from './viewerLayout.ts';
+import { spreadApart, viewerGrid } from './viewerLayout.ts';
 import { createStage, smoothNormals } from './stage.ts';
+import { groupParts, partGroupKeys } from './viewerPartGroups.ts';
 
 /**
  * One mesh to show: STL `bytes`, or a `geometry` built from a library part's dimensions (e.g. a magnet). `reference` marks a
@@ -53,7 +54,13 @@ interface SceneController {
   setItems: (items: readonly { id: string; vertices: readonly number[]; pose: Pose }[]) => void;
   /** Where a point of a shown part (its own frame, mm) is on the screen, in pixels from the viewer's top left. */
   screenPoint: (id: string, point: readonly number[]) => [number, number] | undefined;
+  /** While the parts lie on the print bed: a tag for each cell that stands for several identical parts, how many of them are shown and
+   * where the top of the one drawn there is on the screen (pixels from the viewer's top left). */
+  bedTags: () => BedTag[];
 }
+
+/** The “× N” over a print-bed cell of identical library parts. */
+interface BedTag { key: string; count: number; at: [number, number] }
 
 /** A part as the viewer shows it, for the parts list: its id (the STL name without `.stl`) and whether it is a reference object. */
 interface LoadedPart { id: string; reference: boolean }
@@ -150,6 +157,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
   const [enabledMagnets, setEnabledMagnets] = useState<Record<string, boolean>>({});
   const [controllerReport, setControllerReport] = useState<ControllerReport>();
   const [controlPositions, setControlPositions] = useState<Record<string, [number, number]>>({});
+  const [bedTags, setBedTags] = useState<BedTag[]>([]);
   const movableBodies = useRef<string[]>([]);
   const [upsideDown, setUpsideDown] = useState(false);
   const worker = useRef<Worker | undefined>(undefined);
@@ -174,6 +182,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     let placements: Placement[] = []; let currentAssembly: Assembly | undefined; let sliderValue = 0;
     let frames: ReturnType<typeof motionFrames> = [];
     let hiddenIds: ReadonlySet<string> = new Set();
+    // the print bed's cells of several identical library parts: their meshes, which lie on top of each other there
+    let bedGroups: { key: string; placements: Placement[] }[] = [];
     let restoreLayoutFrame = () => {};
     // The visible parts, also on the container (`data-visible-parts`), so the page's tests can see what the scene shows.
     const showParts = () => {
@@ -219,11 +229,22 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         }).filter(part => part !== null);
         if (prepared.length === 0) throw new Error('The preview contains no visible geometry.');
         geometries = prepared.map(part => part.geometry);
-        // Arrange parts on an auto-sized grid, one cell per part, each centred in its cell and standing on the floor (z = 0
-        // in the parts' frame); a single part sits centred at the origin.
-        const bed = viewerGrid(prepared.map(part => part.size));
+        // Arrange parts on an auto-sized bed, each centred in its cell and standing on the floor (z = 0 in the parts' frame); a single
+        // part sits centred at the origin. Identical library parts (the screws of the joints) share one cell, lying on top of each
+        // other so that one is seen, and leave it each for its own pose as the slider lifts them.
+        const keyOf = partGroupKeys(assembly);
+        const cellOf = new Map<string, number>();
+        const cellSizes: THREE.Vector3[] = [];
+        const cellIndex = prepared.map(part => {
+          const key = keyOf(part);
+          let index = cellOf.get(key);
+          if (index === undefined) { index = cellSizes.length; cellOf.set(key, index); cellSizes.push(part.size); }
+          return index;
+        });
+        const bed = viewerGrid(cellSizes);
+        element.dataset['bedCells'] = String(cellSizes.length);
         placements = prepared.map((part, index) => {
-          const [cx, cy] = bed.centres[index] ?? [0, 0];
+          const [cx, cy] = bed.centres[cellIndex[index] ?? 0] ?? [0, 0];
           const color = assembly?.partColors?.[part.id];
           let partMaterial = part.reference ? referenceMaterial : material;
           if (!part.reference && color) {
@@ -239,6 +260,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
           group.add(partMesh);
           return new Placement(part.id, partMesh, grid);
         });
+        bedGroups = [...cellOf.entries()].map(([key, cell]) => ({ key, placements: placements.filter((_, index) => cellIndex[index] === cell) }))
+          .filter(group => group.placements.length > 1);
         currentAssembly = assembly;
         frames = assembly ? motionFrames(assembly) : [];
         // Frame every layout the slider passes through, so that no part leaves the view while scrubbing.
@@ -297,6 +320,19 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
           itemMeshes.set(item.id, mesh);
         }
         stage.invalidate();
+      },
+      bedTags() {
+        if (!currentAssembly || assemblyState(currentAssembly, sliderValue).arrange >= 0.5) return [];
+        const rect = stage.renderer.domElement.getBoundingClientRect(), box = element.getBoundingClientRect();
+        return bedGroups.flatMap(({ key, placements: members }): BedTag[] => {
+          const shown = members.filter(placement => placement.mesh.visible);
+          const bounds = shown[0]?.mesh.geometry.boundingBox;
+          if (!shown[0] || !bounds) return [];
+          const top = new THREE.Vector3((bounds.min.x + bounds.max.x) / 2, (bounds.min.y + bounds.max.y) / 2, bounds.max.z);
+          const projected = shown[0].mesh.localToWorld(top).project(stage.camera);
+          if (projected.z > 1) return [];
+          return [{ key, count: shown.length, at: [Math.round(rect.left - box.left + (projected.x + 1) / 2 * rect.width), Math.round(rect.top - box.top + (1 - projected.y) / 2 * rect.height)] }];
+        });
       },
       screenPoint(id, point) {
         const mesh = placements.find(placement => placement.id === id)?.mesh;
@@ -472,22 +508,26 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         if (at) next[control.id] = [at[0], at[1]];
       }
       // buttons a few millimetres apart (B and R on the case's lid) would cover each other: push each pair 34 px apart about its middle
-      const ids = Object.keys(next);
-      for (let pass = 0; pass < 3; pass++) for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
-        const a = next[ids[i] ?? ''], b = next[ids[j] ?? ''];
-        if (!a || !b) continue;
-        const dx = b[0] - a[0], dy = b[1] - a[1], distance = Math.hypot(dx, dy);
-        if (distance >= 34) continue;
-        const [ux, uy] = distance > 1e-6 ? [dx / distance, dy / distance] : [1, 0], push = (34 - distance) / 2;
-        a[0] -= ux * push; a[1] -= uy * push; b[0] += ux * push; b[1] += uy * push;
-      }
-      for (const id of ids) { const at = next[id]; if (at) next[id] = [Math.round(at[0]), Math.round(at[1])]; }
+      spreadApart(Object.values(next), [34, 34]);
       setControlPositions(current => JSON.stringify(current) === JSON.stringify(next) ? current : next);
     };
     update();
     const timer = window.setInterval(update, 100);
     return () => { window.clearInterval(timer); };
   }, [simulating, activePhysics]);
+  // the print bed's “× N” tags follow the camera and the slider, ten times a second, while the parts are shown without the physics
+  useEffect(() => {
+    if (simulating || loadedParts.length === 0) { setBedTags([]); return; }
+    const update = () => {
+      const next = scene.current?.bedTags() ?? [];
+      // tags of neighbouring cells (the screws beside the nuts) would cover each other
+      spreadApart(next.map(tag => tag.at), [46, 20]);
+      setBedTags(current => JSON.stringify(current) === JSON.stringify(next) ? current : next);
+    };
+    update();
+    const timer = window.setInterval(update, 100);
+    return () => { window.clearInterval(timer); };
+  }, [simulating, loadedParts]);
   const pressControl = (id: string, pressed: boolean) => { worker.current?.postMessage({ type: 'control', id, pressed } satisfies PhysicsRequest); };
   const turnOver = () => {
     const next = !upsideDown;
@@ -531,12 +571,14 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     return new Set(magnets.filter(m => m.hideWhenDisabled && !present.has(m.body)).map(m => m.body));
   }, [simulating, activePhysics, enabledMagnets]);
   useEffect(() => { scene.current?.setHidden(new Set([...hidden, ...absentMagnets])); }, [hidden, absentMagnets]);
-  const toggle = (id: string) => setHidden(current => {
+  // Shows or hides every mesh of a row at once: a group of the same library part (the screws of the joints) is one row.
+  const toggle = (ids: readonly string[], visible: boolean) => setHidden(current => {
     const next = new Set(current);
-    if (!next.delete(id)) next.add(id);
+    for (const id of ids) if (visible) next.add(id); else next.delete(id);
     return next;
   });
   const displayedAssembly = shownAssembly ?? assembly;
+  const partRows = useMemo(() => groupParts(loadedParts, displayedAssembly, partTitles), [loadedParts, displayedAssembly, partTitles]);
   const stops = displayedAssembly ? assemblyStops(displayedAssembly) - 1 : 1;
   // Play: the slider runs to the end at PLAY_SECONDS a segment (from the start if it is at the end); any other input stops it.
   useEffect(() => {
@@ -579,6 +621,9 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         {physics && displayedAssembly && format === 'zip' && url && <button type="button" aria-label="Simulate" aria-pressed={simulating} title={simulating ? 'Stop the physics' : 'Simulate: drag the parts and see them move'}
           onClick={() => { setPlaying(false); setSimulating(value => !value); }}><Atom size={17} /></button>}
       </div>
+      {bedTags.length > 0 && <div className="bed-tags" aria-hidden="true">
+        {bedTags.map(tag => <span key={tag.key} className="bed-quantity" style={{ left: tag.at[0], top: tag.at[1] }}>× {tag.count}</span>)}
+      </div>}
       {simulating && activePhysics?.controller && <ControllerHotspots controller={activePhysics.controller} positions={controlPositions} onPress={pressControl} />}
       <div className="viewer-instructions"><span>Drag to orbit</span><i /><span>Scroll to zoom</span><i /><span>Right-drag to pan</span></div>
       <div className="axis-label"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
@@ -608,14 +653,17 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     </div>}
     {displayedAssembly && format === 'zip' && url && loadedParts.length > 0 && <div className="assembly-parts" role="group" aria-label="Visible parts">
       <span>PARTS</span>
-      <div>{loadedParts.map(part => {
-        const absent = absentMagnets.has(part.id);
-        const visible = !hidden.has(part.id) && !absent;
-        const title = partTitles[part.id] ?? part.id;
-        return <button key={part.id} type="button" className={part.reference ? 'reference' : undefined} aria-pressed={visible}
-          disabled={absent} title={absent ? `Enable ${title} with magnet controls` : `${visible ? 'Hide' : 'Show'} ${title}`} onClick={() => toggle(part.id)}>
-          {visible ? <Eye size={13} aria-hidden="true" /> : <EyeOff size={13} aria-hidden="true" />}{title}
-          {displayedAssembly.partColors?.[part.id] && <span className="part-color" style={{ backgroundColor: displayedAssembly.partColors[part.id] }} title={`Suggested filament: ${displayedAssembly.partColors[part.id]}`} aria-hidden="true" />}
+      <div>{partRows.map(row => {
+        const present = row.ids.filter(id => !absentMagnets.has(id));
+        const absent = present.length === 0;
+        const visible = present.some(id => !hidden.has(id));
+        const title = row.count > 1 ? `all ${row.count} of ${row.title}` : row.title;
+        const color = displayedAssembly.partColors?.[row.ids[0] ?? ''];
+        return <button key={row.key} type="button" className={row.reference ? 'reference' : undefined} aria-pressed={visible} data-parts={row.ids.join(' ')}
+          disabled={absent} title={absent ? `Enable ${title} with magnet controls` : `${visible ? 'Hide' : 'Show'} ${title}`} onClick={() => toggle(row.ids, visible)}>
+          {visible ? <Eye size={13} aria-hidden="true" /> : <EyeOff size={13} aria-hidden="true" />}{row.title}
+          {row.count > 1 && <>{' '}<span className="part-quantity">× {row.count}</span></>}
+          {color && <span className="part-color" style={{ backgroundColor: color }} title={`Suggested filament: ${color}`} aria-hidden="true" />}
         </button>;
       })}</div>
     </div>}
