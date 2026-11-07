@@ -2399,6 +2399,40 @@ export interface operations {
                          */
                         fit: number;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "wand-holder";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    parameters: {
+                        /**
+                         * Wand handle diameter
+                         * @description Diameter of the wand toy’s rigid handle end that goes into the socket (the issue’s 8 mm). Measure it with a caliper: the socket’s ribs grip it by this.
+                         * @default 8
+                         */
+                        handleDiameter: number;
+                        /**
+                         * Socket depth
+                         * @description How deep the socket holds the handle, above its closed floor. 40 mm (five handle diameters) keeps a tugged wand from levering itself out; at least three diameters.
+                         * @default 40
+                         */
+                        socketDepth: number;
+                        /**
+                         * Socket clearance
+                         * @description Play between the handle and the bore on each side. The ribs stand this much plus their squeeze proud of the bore, so the grip does not change with it: raise it if your printer prints holes small.
+                         * @default 0.2
+                         */
+                        clearance: number;
+                        /**
+                         * Rib squeeze
+                         * @description How far the handle squeezes each of the socket’s three crush ribs. More holds tighter and is harder to push in; 0 leaves a loose guide hole.
+                         * @default 0.15
+                         */
+                        squeeze: number;
+                    };
                 };
             };
         };

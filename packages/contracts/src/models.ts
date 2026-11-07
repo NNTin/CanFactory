@@ -1,3 +1,4 @@
+import { DEFAULT_WAND_HOLDER, WAND_HOLDER, WandHolderParametersSchema, wandHolderAssembly, wandHolderFlex, wandHolderIssues, wandHolderLayout } from './wandHolder.ts';
 import { DEFAULT_MITER_BOX, MITER_BOX, MITER_BOX_CLAMP_SCREWS, MITER_BOX_KNOB_CONSTANTS, MITER_BOX_NUTS, MITER_BOX_PAD_CONSTANTS, MITER_BOX_PAD_NUTS, MITER_BOX_THREADS, MiterBoxParametersSchema, miterBoxAssembly, miterBoxIssues, miterBoxLayout, miterBoxReferences, miterBoxScadLayout, type MiterBoxParameters } from './miterBox.ts';
 import { DEFAULT_ESP32_CASE, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LED_DEFINES, Esp32CaseParametersSchema, esp32CaseAssembly, esp32CaseBase, type Esp32CaseParameters } from './esp32Case.ts';
 import { CORNER_LATCH, CORNER_LATCH_SCREWS, DEFAULT_CORNER_LATCH, cornerLatchAssembly, cornerLatchIssues, cornerLatchLayout } from './outsideCornerToggleLatch.ts';
@@ -3747,8 +3748,46 @@ export const miterBox = {
     ] };
   },
 } satisfies ModelDefinition;
+
+/**
+ * Wand holder (models/wand-holder/generator.scad, docs/wand-holder.md): an original design. A C-shaped spring clip snaps round a
+ * sisal scratching post from the side, at any height, one fixed design for posts from 90 to 110 mm across the rope (its own bend
+ * takes up the diameter: there is no diameter setting); an upright socket at its back holds a wand toy's handle by friction, on
+ * crush ribs. Only the socket is sized from settings (wandHolder.ts).
+ */
+const whSchema = WandHolderParametersSchema;
+const wandHolderControls: Control[] = [
+  control(whSchema, 'handleDiameter', 'basic'), control(whSchema, 'socketDepth', 'basic'),
+  control(whSchema, 'clearance', 'advanced'), control(whSchema, 'squeeze', 'advanced'),
+];
+export const wandHolder = {
+  id: 'wand-holder' as const, version: '1' as const, title: 'Wand holder',
+  description: `A holder that snaps onto a cat scratching post from the side, at any height, and holds a feather or spring wand toy upright beside it, ready to play. A C-shaped spring clip goes round the post: press its mouth against the post and the flared lips spread its arms until they spring shut round it. One fixed clip grips any post ${WAND_HOLDER.postMin} to ${WAND_HOLDER.postMax} mm across the sisal rope (about 10 cm), with ridges inside that press into the rope so it does not slide down. The wand’s handle end pushes into a deep socket with crush ribs, parallel to the post, sized for your wand’s handle (8 mm by default).`,
+  attribution: 'CanFactory (original design)',
+  printNotes: 'PETG, not PLA: the clip bends every time it goes on or comes off (up to about 1.3 % strain over the thickest post), which PETG takes many times over and PLA, stiffer and more brittle, may crack under. Print it as generated, standing on its bottom face, with no supports: the arms then bend along the printed lines, never across the layers. 0.2 mm layers, four perimeters (or 100 % infill) so the band is solid plastic, 20 % infill elsewhere. To fit it, hold it by the socket, press its mouth flat against the post at the height you want and push until it snaps round; to move it, pull it straight back off. Push the wand’s rigid handle end down into the socket until it stops on the floor; if it is too tight, raise the socket clearance or lower the rib squeeze, if loose, the other way.',
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  parts: [{
+    id: 'clip', title: 'Wand holder: post clip with wand socket', sourcePath: 'models/wand-holder/generator.scad',
+    scadMapping: { handleDiameter: 'HANDLE_D', socketDepth: 'SOCKET_DEPTH', clearance: 'CLEARANCE', squeeze: 'SQUEEZE' },
+  }],
+  parameterSchema: whSchema, controls: wandHolderControls, defaults: DEFAULT_WAND_HOLDER, scadMapping: {},
+  assembly: wandHolderAssembly(),
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(whSchema, parameters) ? wandHolderIssues(parameters) : [{ field: '', message: 'Parameters do not match the wand holder schema.' }];
+  },
+  derived(parameters: unknown) {
+    if (!Value.Check(whSchema, parameters)) return { slotCount: null };
+    const l = wandHolderLayout(parameters), thin = wandHolderFlex(WAND_HOLDER.postMin), thick = wandHolderFlex(WAND_HOLDER.postMax);
+    const mm = (value: number) => `${Math.round(value * 10) / 10} mm`, pc = (value: number) => `${(value * 100).toFixed(1)} %`;
+    return { slotCount: null, notes: [
+      `Grips posts ${WAND_HOLDER.postMin} to ${WAND_HOLDER.postMax} mm across the rope (one fixed clip): relaxed, its ridges are ${WAND_HOLDER.gripD} mm across; seated it wraps ${Math.round(thin.wrap)}° round a ${WAND_HOLDER.postMin} mm post and ${Math.round(thick.wrap)}° round a ${WAND_HOLDER.postMax} mm one, its tips ${mm(thin.behind)} and ${mm(thick.behind)} past the widest line.`,
+      `Bend: about ${pc(thick.passing)} strain at the arms’ roots going over a ${WAND_HOLDER.postMax} mm post (${pc(thin.passing)} over ${WAND_HOLDER.postMin} mm), ${pc(thick.seated)} sitting on it: well inside PETG’s elastic range.`,
+      `Socket: a ${mm(2 * l.bore)} bore, ${parameters.socketDepth} mm deep above a ${WAND_HOLDER.floor} mm floor, upright beside the post; ${WAND_HOLDER.ribs} crush ribs leave ${mm(l.ribCircle)} for the ${mm(parameters.handleDiameter)} handle, squeezing each by ${mm(parameters.squeeze)}.`,
+    ] };
+  },
+} satisfies ModelDefinition;
 /** The one registration of each catalogue model. A `const` tuple, so that `RenderRequestSchema` (index.ts) derives a typed branch per model from it. */
-export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser, miterBox] as const satisfies readonly ModelDefinition[];
+export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser, miterBox, wandHolder] as const satisfies readonly ModelDefinition[];
 export const models: readonly ModelDefinition[] = registeredModels;
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }

@@ -16,11 +16,14 @@ export const everydayObjectFamily: PartFamily = {
     { key: 'thickness', label: 'Thickness', symbol: 'T', required: true },
     { key: 'bodyHeight', label: 'Body height (below the hood)', symbol: 'h', required: false },
     { key: 'profileExponent', label: 'Plan shape (superellipse exponent: 2 is an ellipse)', symbol: 'n', required: false },
+    { key: 'rope', label: 'Rope thickness', symbol: 'r', required: false },
   ],
 };
 
 const confirmed = measured('manufacturer', 'bic-graphic-j25');
 const estimated = measured('estimated', 'canfactory-lighter-estimate');
+const trunk = measured('manufacturer', 'heise-trixie-43991');
+const rope = measured('estimated', 'canfactory-sisal-rope-estimate');
 
 export const everydayObjectParts: Part[] = [
   {
@@ -32,5 +35,15 @@ export const everydayObjectParts: Part[] = [
     sources: ['bic-graphic-j25', '4imprint-j25', 'wemag-j25', 'canfactory-lighter-estimate'],
     notes: 'Height, width and thickness are BIC’s own (confirmed by two retailers; US listings give 7/8 × 2 7/16 in, 22.2 × 61.9 mm). The oval plan, the hood, the wheel and the lever are estimated from photographs: no published figure exists for them. The model leaves out the inside of the hood.',
     preview: { kind: 'stl', path: 'parts/everyday-objects/bic-j25-mini-lighter.stl' },
+  },
+  {
+    id: 'trixie-43991-sisal-trunk', family: 'everyday-object', title: 'TRIXIE replacement sisal trunk, ø 9 × 40 cm (43991)', designation: 'TRIXIE 43991', aliases: [],
+    description: 'A replacement trunk for cat trees: a core wound with natural sisal rope, 90 mm across the rope and 400 mm long, with an M8 threaded rod and two M8 screws to fix it. The wand holder’s clip is made to grip it, as the thinnest post it fits.',
+    standard: null, product: { manufacturer: 'TRIXIE', sku: '43991', url: 'https://preisvergleich.heise.de/trixie-ersatzstamm-fuer-kratzbaeume-9x40cm-beige-43991-a2557956.html' },
+    attributes: { kind: 'scratching post', manufacturer: 'TRIXIE' },
+    dimensions: { height: trunk(400), width: trunk(90), thickness: trunk(90), rope: rope(6) },
+    sources: ['heise-trixie-43991', 'canfactory-sisal-rope-estimate'],
+    notes: 'Length and diameter as listed (the diameter is over the rope). The rope’s thickness is estimated and drawn as rings, one per turn, rather than as a helix; the M8 fixings at the ends are left out.',
+    preview: { kind: 'stl', path: 'parts/everyday-objects/trixie-43991-sisal-trunk.stl' },
   },
 ];

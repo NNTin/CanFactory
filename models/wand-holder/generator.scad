@@ -6,8 +6,9 @@
 // The clip: a band BAND thick and HEIGHT high that wraps WRAP degrees round the post, open towards +X. Relaxed, its grip
 // face (the crests of the ridges inside) is GRIP_D across, less than the thinnest post it is for (POST_MIN), so on any post
 // from POST_MIN to POST_MAX it stands opened a little and squeezes the post. It goes on by pressing its mouth against the post:
-// the flared lips at its tips (FLARE long, FLARE_ANGLE out) spread the arms until the post's widest line has passed, and they
-// spring back round it. It comes off the same way, pulled back by the socket. One fixed design for every post in the range:
+// the flared lips at its tips (FLARE long, turned FLARE_ANGLE outwards from the mouth's axis, so that the mouth widens towards
+// the post and any post in the range meets their inner faces as a wedge) spread the arms until the post's widest line has
+// passed, and they spring back round it. It comes off the same way, pulled back by the socket. One fixed design for every post in the range:
 // the band's own bend takes up the post's diameter, so there is no diameter setting
 // (packages/contracts/src/wandHolder.ts, wandHolderFlex, works out the bend's strain at both ends of the range).
 //
@@ -41,8 +42,8 @@ RIDGE_LAND = 0.4;   // the flat on each ridge's crest
 BAND = 3.5;         // the band behind the ridges
 HEIGHT = 36;        // along the post
 WRAP = 270;         // degrees round the post, relaxed
-FLARE = 12;         // each lip's length beyond the tip
-FLARE_ANGLE = 35;   // and how far it turns outwards from the band's tangent
+FLARE = 18;         // each lip's length beyond the tip
+FLARE_ANGLE = 40;   // and its angle outwards from the mouth's axis (+X)
 BACK = 12;          // the web joins the band from -BACK to +BACK degrees about -X
 
 // --- Fixed: the socket ---
@@ -79,13 +80,11 @@ module band_section() {
 
 module band() { rotate([0, 0, TIP]) rotate_extrude(angle = WRAP) band_section(); }
 
-// A lip at the +Y tip, mirrored for the other: it leaves the band's end along its tangent turned FLARE_ANGLE outwards.
+// A lip at the +Y tip, mirrored for the other: from the band's end, FLARE_ANGLE outwards from +X.
 module lip() {
   r = BAND / 2 - 0.02;
-  tangent = [sin(TIP), -cos(TIP)];
-  normal = [cos(TIP), sin(TIP)];
-  dir = cos(FLARE_ANGLE) * tangent + sin(FLARE_ANGLE) * normal;
-  a = R_MID * normal;
+  dir = [cos(FLARE_ANGLE), sin(FLARE_ANGLE)];
+  a = R_MID * [cos(TIP), sin(TIP)];
   linear_extrude(HEIGHT) hull() { translate(a) circle(r = r, $fn = 48); translate(a + FLARE * dir) circle(r = r, $fn = 48); }
 }
 
