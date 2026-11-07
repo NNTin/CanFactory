@@ -33,8 +33,16 @@ test('the preview splits the guard into segments with a splice bar over every jo
   const steps = windowCatGuard.assembly.steps;
   await slider.press('Home');
   await expect(slider).toHaveAttribute('aria-valuetext', 'Parts as printed');
+  // on the print bed the 24 screws share one cell, and the 24 nuts another, each tagged with its count (the slider reads 0 on load,
+  // but the scene shows the parts assembled until it moves)
+  await slider.press('ArrowRight');
+  await slider.press('Home');
+  await expect(viewer).toHaveAttribute('data-bed-cells', String(visible.filter(id => !/-(screw|nut)$/.test(id)).length + 2));
+  await expect(page.locator('.bed-quantity')).toHaveText(['× 24', '× 24']);
   await slider.press('ArrowRight');
   await expect(slider).toHaveAttribute('aria-valuetext', 'Lift and lay out the parts');
+  // lifted, each goes to its own bolt: the tags are gone
+  await expect(page.locator('.bed-quantity')).toHaveCount(0);
   // the last stop is the finished guard
   for (const [index, step] of steps.slice(0, -1).entries()) {
     await slider.press('ArrowRight');
