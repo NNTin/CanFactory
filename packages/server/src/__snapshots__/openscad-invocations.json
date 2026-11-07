@@ -3769,5 +3769,42 @@
    "fit=0.1": "00330d2ad849c2c87f2eccb12d2a38121235340f9a01e272906e1fcb19140ace",
    "fit=0.6": "1051e0aeaf33ca421a2b7972ce244afdecda1d666b408659d5d696e4618b30b7"
   }
+ },
+ "wand-holder": {
+  "defaults": [
+   {
+    "file": "openscad",
+    "args": [
+     "--backend",
+     "Manifold",
+     "--export-format",
+     "binstl",
+     "-o",
+     "<scratch>/job/clip.stl",
+     "-D",
+     "HANDLE_D=8",
+     "-D",
+     "SOCKET_DEPTH=40",
+     "-D",
+     "CLEARANCE=0.2",
+     "-D",
+     "SQUEEZE=0.15",
+     "<root>/models/wand-holder/generator.scad"
+    ],
+    "timeout": 120000,
+    "killSignal": "SIGKILL",
+    "fontPath": "<root>/models/fonts"
+   }
+  ],
+  "variants": {
+   "handleDiameter=5": "c48bffe85164a26a4dd4ac19a6f9ea5d62148a65127aac2183690fca41ae888c",
+   "handleDiameter=12": "1a781a86dbf6a1f17dd970f8b287315f8b93f0363c9d4a3675190d18b64d21e0",
+   "socketDepth=25": "5f5f769daa65c32ac12496ad0fabd10858ff4f856e7ad9e9487386aa11ebd159",
+   "socketDepth=60": "cc303de28b8879d1f970f5b70d4db2119c346f2ceaa86a16b01fe1c07664a223",
+   "clearance=0.1": "15d7577a6fcba29db0d7b16470e48229bcd77fb8d3021204812b97f3d79bea67",
+   "clearance=0.5": "b821ab7ab77c8ff93325cd9277f581453a31700947cb7ca8c0f490057ce657ca",
+   "squeeze=0": "4ad3af50aad9de9c41e2c854175fb794d09f0fb0ec1c055b283777a2e428c9cc",
+   "squeeze=0.4": "c691d931ab7dc29b5139413217ace6cc5207b54706e9b7575571337960d08401"
+  }
  }
 }

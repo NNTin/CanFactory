@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { DEFAULT_WAND_HOLDER, WAND_HOLDER, wandHolder, wandHolderLayout, type WandHolderParameters, DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, ObjectStorage, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair, type RenderJob } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { startStorageServices } from './storage-services.ts';
@@ -83,7 +83,7 @@ const store = new PostgresStorage(services.databaseUrl, repositoryRoot, director
 await store.migrate(); await store.seed();
 const app = await createApp(store);
 const artifactBytes = async (job: RenderJob) => Buffer.concat(await (await store.readArtifact(job)).toArray() as Buffer[]);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy, esp32-c3-supermini-case, treat-dispenser, miter-box) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy, esp32-c3-supermini-case, treat-dispenser, miter-box, wand-holder) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = (await selectRunner(directory, ['docker'], WORKER_LIMITS)).run;
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -1290,6 +1290,40 @@ try {
   // the widest slots, the longest posts and the loosest fit; M5 throughout. Every part one closed solid, at the size the layout
   // gives; the guide's slots, kerf groove and lock nut's pocket open; in the base (one piece with the fence) the stops, the
   // retaining pins' holes, the hold-downs' sockets and their pins' holes open, and no nut pockets.
+  // Wand holder: the defaults, the thinnest handle in the shallowest socket with the most play and no squeeze, and the thickest
+  // handle in the deepest socket with the most squeeze. One closed solid as tall as its socket (or its band) and as wide as the
+  // band's lips; the bore open down to its floor, the vent through the floor, the ribs standing in the bore, the band solid.
+  for (const [name, overrides] of (!only || only === 'wand-holder' ? [
+    ['default', {}], ['5 mm handle, 25 mm deep, loose', { handleDiameter: 5, socketDepth: 25, clearance: 0.5, squeeze: 0 }],
+    ['12 mm handle, 60 mm deep, tight', { handleDiameter: 12, socketDepth: 60, clearance: 0.1, squeeze: 0.4 }],
+  ] as const : [])) {
+    const started = Date.now();
+    const parameters: WandHolderParameters = { ...DEFAULT_WAND_HOLDER, ...overrides };
+    assert.deepEqual(validateParameters(wandHolder, parameters), [], name);
+    const queued = await store.enqueue(wandHolder, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
+    assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `wand holder ${name}`);
+    const result = await store.getJob(queued.id);
+    assert.equal(result?.status, 'succeeded', `wand holder ${name}`);
+    if (!result.artifact || !('parts' in result.artifact)) throw new Error('Expected the wand holder ZIP.');
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['clip']);
+    const clip = parseStl(Buffer.from(unzipSync(await artifactBytes(result))['clip.stl'] ?? []));
+    assert.equal(shells(clip), 1, `wand holder ${name}: one closed solid`);
+    const l = wandHolderLayout(parameters), H = WAND_HOLDER;
+    const size = result.artifact.parts[0]?.dimensions;
+    assert.ok(size && Math.abs(size.z - Math.max(l.tubeHeight, H.height)) < 0.01, `wand holder ${name}: height ${size?.z}`);
+    const lipEnd = l.middle * Math.sin(l.tip * Math.PI / 180) + H.flare * Math.sin(H.flareAngle * Math.PI / 180) + H.band / 2;
+    assert.ok(size && Math.abs(size.y - 2 * Math.max(lipEnd, l.outside)) < 0.3, `wand holder ${name}: width ${size?.y}`);
+    const between = l.bore - (parameters.clearance + parameters.squeeze) / 2;
+    assert.equal(housingSolid(clip, [l.tubeX, 0, l.tubeHeight - 5]), false, `wand holder ${name}: bore`);
+    assert.equal(housingSolid(clip, [l.tubeX, 0, H.floor / 2]), false, `wand holder ${name}: vent through the floor`);
+    assert.equal(housingSolid(clip, [l.tubeX + H.vent / 2 + 1, 0, H.floor / 2]), true, `wand holder ${name}: floor`);
+    if (parameters.clearance + parameters.squeeze > 0.2) assert.equal(housingSolid(clip, [l.tubeX + between, 0, l.tubeHeight / 2]), true, `wand holder ${name}: rib towards the post`);
+    assert.equal(housingSolid(clip, [l.tubeX + between * Math.cos(Math.PI / 3), between * Math.sin(Math.PI / 3), l.tubeHeight / 2]), false, `wand holder ${name}: bore between the ribs`);
+    assert.equal(housingSolid(clip, [0, l.outside - H.band / 2, H.height / 2]), true, `wand holder ${name}: band`);
+    assert.equal(housingSolid(clip, [0, 0, H.height / 2]), false, `wand holder ${name}: the post's place`);
+    console.log(`PASS wand holder ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
   for (const [name, overrides] of (!only || only === 'miter-box' ? [
     ['default', {}], ['narrow, low, fine slots, tight', { stockWidth: 15, stockHeight: 15, clampScrew: 'iso-4017-m6x40', bladeKerf: 0.4, slotClearance: 0.05, guideLength: 10, guideDepth: 15, fit: 0.1 }],
     ['wide, tall, coarse slots, loose', { stockWidth: 50, stockHeight: 50, bladeKerf: 3, slotClearance: 0.4, guideLength: 30, guideDepth: 50, fit: 0.6 }],
