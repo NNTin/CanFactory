@@ -62,7 +62,7 @@ test('browses the parts library: families, filters in the link, a hovered part n
 
   // The link works on its own, as a fresh page.
   await page.goto('/#/parts/everyday-object/bic-j25-mini-lighter');
-  expect(await shownParts(page)).toEqual(['bic-j25-mini-lighter']);
+  expect(await shownParts(page)).toEqual(['bic-j25-mini-lighter', 'trixie-43991-sisal-trunk']);
   await expect(page.getByRole('article', { name: 'BIC Mini lighter (J25) details' }).getByText('Estimated').first()).toBeVisible();
 
   // The window catio's hardware families build their previews from their own dimensions.
