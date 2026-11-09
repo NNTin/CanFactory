@@ -1,4 +1,4 @@
-import { CATIO_NET_CORD, cornerBracketHoles, devBoardLayout, METRIC_THREADS, stepperDriverLayout, type DevBoardComponent, type MetricThread, type Part, type StepperDriverComponent } from '@canfactory/contracts';
+import { CATIO_NET_CORD, cornerBracketHoles, devBoardLayout, METRIC_THREADS, prototypeBoardLayout, stepperDriverLayout, type DevBoardComponent, type MetricThread, type Part, type PrototypeBoardPad, type StepperDriverComponent } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -536,6 +536,70 @@ function stepperDriver(part: Part): Piece[] {
   return [prism(outline, 0, t, DRIVER_PCB), ...layout.components.map(component => solid(component, DRIVER_COLOURS[component.kind])), ...pins, solid(layout.plug, NYLON)];
 }
 
+const PROTO_SURFACE = { 'white mask': 0xf2f1ec, 'green mask': 0x1f6b3a, FR2: 0xb47a3e, FR4: 0xd2c890 } as const;
+const PROTO_COPPER = { gold: GOLD, tin: 0xc9ccd0, copper: 0xc7794a } as const;
+const COPPER_THICKNESS = 0.035;
+/** Few segments per curve (a circle is drawn as an octagon): a board has up to some two thousand holes, each cut through it and ringed by its pads. */
+const PROTO_SEGMENTS = 4;
+
+/** A prism of `shape` from z0 up by `height`, with few segments per curve. */
+function plate(shape: THREE.Shape, z0: number, height: number, color: number): Piece {
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false, curveSegments: PROTO_SEGMENTS });
+  geometry.translate(0, 0, z0);
+  return paint(geometry, color);
+}
+
+function prototypeBoard(part: Part): Piece[] {
+  // the board lying component side up, as its layout places everything: corner at the origin, columns along X and rows along Y;
+  // copper drawn 35 µm thick on the faces, the slab in its top surface's colour
+  const layout = prototypeBoardLayout(part);
+  if (!layout) return [];
+  const { L, W, t, r } = layout.outline; const drill = layout.drill / 2;
+  const bore = (x: number, y: number, radius: number) => { const path = new THREE.Path(); path.absarc(x, y, radius, 0, Math.PI * 2, true); return path; };
+  const outline = boardOutline(L, W, r, [], 0);
+  outline.holes.push(...layout.holes.map(hole => bore(hole.x, hole.y, drill)), ...layout.mountingHoles.map(hole => bore(hole.x, hole.y, hole.d / 2)));
+  const top = layout.surface.top;
+  const slab = plate(outline, 0, t, top === 'bare' ? PROTO_SURFACE[layout.material] : PROTO_SURFACE[top]);
+  const copper = PROTO_COPPER[layout.finish];
+  const padShape = (pad: PrototypeBoardPad, x: number, y: number) => {
+    const shape = new THREE.Shape();
+    if (pad.shape === 'round') shape.absarc(x, y, pad.size / 2, 0, Math.PI * 2, false);
+    else { const h = pad.size / 2; shape.moveTo(x - h, y - h); shape.lineTo(x + h, y - h); shape.lineTo(x + h, y + h); shape.lineTo(x - h, y + h); shape.lineTo(x - h, y - h); }
+    shape.holes.push(bore(x, y, drill));
+    return shape;
+  };
+  const pieces = [slab];
+  for (const side of ['top', 'bottom'] as const) {
+    const pad = layout.pads[side]; const z0 = side === 'top' ? t : -COPPER_THICKNESS;
+    const traces = layout.traces.filter(trace => trace.side === side);
+    if (pad?.shape === 'square' && traces.every(trace => trace.width >= pad.size)) {
+      // a stripboard's strips: one plate along each run of linked holes, with its holes (a hole on its own keeps its square pad)
+      for (const net of layout.nets) {
+        const points = net.holes.map(([column, row]) => layout.point(column, row));
+        const xs = points.map(point => point.x); const ys = points.map(point => point.y); const h = pad.size / 2;
+        const [x0, x1, y0, y1] = [Math.min(...xs) - h, Math.max(...xs) + h, Math.min(...ys) - h, Math.max(...ys) + h];
+        const strip = new THREE.Shape(); strip.moveTo(x0, y0); strip.lineTo(x1, y0); strip.lineTo(x1, y1); strip.lineTo(x0, y1); strip.lineTo(x0, y0);
+        strip.holes.push(...points.map(point => bore(point.x, point.y, drill)));
+        pieces.push(plate(strip, z0, COPPER_THICKNESS, copper));
+      }
+      for (const hole of layout.holes.filter(hole => hole.net === null)) pieces.push(plate(padShape(pad, hole.x, hole.y), z0, COPPER_THICKNESS, copper));
+      continue;
+    }
+    if (pad) for (const hole of layout.holes) pieces.push(plate(padShape(pad, hole.x, hole.y), z0, COPPER_THICKNESS, copper));
+    // each trace from pad to pad, reaching a little into both pads so that the copper is one piece
+    const reach = pad ? pad.size / 2 - 0.1 : drill;
+    for (const trace of traces) {
+      const [a, b] = [layout.point(...trace.from), layout.point(...trace.to)];
+      const along = Math.hypot(b.x - a.x, b.y - a.y) - 2 * reach;
+      const box = new THREE.BoxGeometry(along, trace.width, COPPER_THICKNESS);
+      box.rotateZ(Math.atan2(b.y - a.y, b.x - a.x));
+      box.translate((a.x + b.x) / 2, (a.y + b.y) / 2, z0 + COPPER_THICKNESS / 2);
+      pieces.push(paint(box, copper));
+    }
+  }
+  return pieces;
+}
+
 /** Row along Y; short solder tails down, mating posts up, grounded at the short tips. */
 function pinHeader(part: Part): Piece[] {
   const pitch = value(part, 'e'), width = value(part, 'W'), length = value(part, 'L');
@@ -554,7 +618,7 @@ function pinHeader(part: Part): Piece[] {
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
   'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'rubber-band': rubberBand, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, 'pin-header': pinHeader, heatsink, mesh,
-  'stepper-motor': stepperMotor, 'stepper-driver': stepperDriver,
+  'stepper-motor': stepperMotor, 'stepper-driver': stepperDriver, 'prototype-board': prototypeBoard,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */

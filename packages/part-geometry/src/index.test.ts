@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dimensionOf, parts, type Part } from '@canfactory/contracts';
+import { dimensionOf, parts, prototypeBoardLayout, type Part } from '@canfactory/contracts';
 import * as THREE from 'three';
 import { partGeometry } from './index.ts';
 
@@ -55,6 +55,14 @@ describe('part geometry', () => {
       const box = size(part);
       expect([box.x, box.y], part.id).toEqual([expect.closeTo(dimensionOf(part, 'W'), 4), expect.closeTo(dimensionOf(part, 'L'), 4)]);
       expect(box.z, part.id).toBeCloseTo(dimensionOf(part, 'Hm'), 4);
+    }
+  });
+  it('draws a prototype board at its outline, the copper 35 µm on each side that has it', () => {
+    for (const part of parts.filter(p => p.family === 'prototype-board')) {
+      const layout = prototypeBoardLayout(part); if (!layout) throw new Error(`${part.id} has no layout`);
+      const box = size(part);
+      expect([box.x, box.y], part.id).toEqual([expect.closeTo(dimensionOf(part, 'L'), 4), expect.closeTo(dimensionOf(part, 'W'), 4)]);
+      expect(box.z, part.id).toBeCloseTo(dimensionOf(part, 't') + 0.035 * ((layout.pads.top ? 1 : 0) + (layout.pads.bottom ? 1 : 0)), 4);
     }
   });
 });
