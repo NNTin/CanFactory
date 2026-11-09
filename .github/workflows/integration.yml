@@ -75,6 +75,15 @@ jobs:
         env:
           OPENSCAD_RUNNER: docker
 
+      # The four crush ribs squeeze the lighter by design (~15 mm³ on the check's 0.25 mm cells); with them pulled back every
+      # surface clears at the default 1 mm³ (docs/magnetic-lighter-keychain.md#assembly-preview).
+      - name: Check magnetic lighter keychain assembly (lighter in the holder, the plate on its magnets; ribs pulled back)
+        run: |
+          npm run check:assembly -- magnetic-lighter-keychain --tolerance 20 --snap-tolerance 20
+          npm run check:assembly -- magnetic-lighter-keychain --defines '{"SQUEEZE":-1}'
+        env:
+          OPENSCAD_RUNNER: docker
+
       - name: Check wand holder assembly (the clip spread over the post and seated on it)
         run: npm run check:assembly -- wand-holder
         env:

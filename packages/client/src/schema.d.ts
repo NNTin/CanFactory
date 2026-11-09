@@ -2433,6 +2433,73 @@ export interface operations {
                          */
                         squeeze: number;
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "magnetic-lighter-keychain";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Magnetic lighter keychain parameters. All fields are required; dimensions are in millimetres; the magnet and split ring are parts-library ids. */
+                    parameters: {
+                        /**
+                         * Lighter fit
+                         * @description Gap per side between the lighter and the sleeve’s bore, in mm, for the holder and its fit check alike. The crush ribs stand this much plus their squeeze proud of the bore, so the grip does not change with it: raise it if the lighter does not slide into the fit check.
+                         * @default 0.2
+                         */
+                        fit: number;
+                        /**
+                         * Rib squeeze
+                         * @description How far the lighter squeezes each of the four crush ribs on its flat faces, in mm. They hold it as it hangs mouth down from the keys: more holds tighter and is harder to pull out.
+                         * @default 0.15
+                         */
+                        squeeze: number;
+                        /**
+                         * Wall
+                         * @description The sleeve’s wall, in mm, which also sets the outline the foot and the keychain plate share. 1.6 mm is four lines of a 0.4 mm nozzle.
+                         * @default 1.6
+                         */
+                        wall: number;
+                        /**
+                         * Sleeve depth
+                         * @description How much of the lighter’s 50 mm plastic body the sleeve holds, above the foot, in mm. The hood, the wheel and the lever stay clear above it, so the lighter can be used in the holder.
+                         * @default 35
+                         */
+                        sleeveDepth: number;
+                        /**
+                         * Magnet fit
+                         * @description Gap per side between a magnet (at its greatest diameter) and its cavity, in mm, in both holders and the keychain fit check. Raise it if the magnets do not drop into the fit check’s pockets.
+                         * @default 0.1
+                         */
+                        magnetFit: number;
+                        /**
+                         * Skin under the magnets
+                         * @description The plastic between the magnets and the flat bed face, in mm, rounded up to whole layers. Thinner pulls harder; at least 0.4 mm keeps two full layers at 0.2 mm, so the face prints closed and flat.
+                         * @default 0.4
+                         */
+                        skin: number;
+                        /**
+                         * Layer height
+                         * @description Your slicer’s layer height, in mm: the skin and the pause height are put on layer boundaries.
+                         * @default 0.2
+                         */
+                        layerHeight: number;
+                        /**
+                         * Magnets
+                         * @description The disc magnets sealed in the lighter holder’s foot and in the keychain plate, two in each. Each is a real product from the parts library; its cavities are cut to its greatest size plus the magnet fit.
+                         * @default supermagnete-s-08-02-n
+                         * @enum {unknown}
+                         */
+                        magnet: "supermagnete-s-04-02-n" | "supermagnete-s-05-01-n" | "supermagnete-s-05-02-n52n" | "supermagnete-s-06-01-n" | "supermagnete-s-06-02-n" | "supermagnete-s-06-03-n" | "supermagnete-s-08-01-n" | "supermagnete-s-08-02-n" | "supermagnete-s-08-03-n" | "supermagnete-s-10-01-n" | "supermagnete-s-10-02-n" | "supermagnete-s-10-03-n";
+                        /**
+                         * Split ring
+                         * @description The split ring that hangs the keychain plate on your keys, a real product from the parts library. The eyelet’s hole is sized for its band, and the ring is checked to go round the eyelet’s bridge.
+                         * @default avco-kr-9335
+                         * @enum {unknown}
+                         */
+                        splitRing: "avco-kr-90920" | "avco-kr-90930" | "avco-kr-92000" | "avco-kr-92100" | "avco-kr-92200" | "avco-kr-9335" | "avco-kr-9337" | "avco-kr-93400";
+                    };
                 };
             };
         };

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { AI_DUCK_VARIANTS, aiRubberDuck, artifactFormat, cigaretteCase, findPart, fruitFlyTrap, litterShovel, models, mossPlanter, partFamilies, parts, partsOfFamily, partUsage, plankConnector, type ModelDefinition } from './index.ts';
+import { AI_DUCK_VARIANTS, aiRubberDuck, artifactFormat, cigaretteCase, findPart, fruitFlyTrap, litterShovel, magneticLighterKeychain, models, mossPlanter, partFamilies, parts, partsOfFamily, partUsage, plankConnector, type ModelDefinition } from './index.ts';
 
 const part = (id: string) => findPart(id) ?? (() => { throw new Error(id); })();
 
 // The web app reads the catalogue straight from this registry; no API serves it (#95).
 describe('the bundled catalogue', () => {
   it('lists every model, with its file format', () => {
-    expect(models.map(model => model.id).sort()).toEqual(['ai-rubber-duck', 'cat-collar-tag', 'cigarette-case', 'esp32-c3-supermini-case', 'fruit-fly-trap', 'litter-shovel', 'magnetic-cat-toy', 'miter-box', 'moss-planter', 'outside-corner-toggle-latch', 'plank-connector', 'pressure-pad', 'printed-corner-bracket', 'printed-screen-hook', 'qr-magnet-tag', 'spring-ball-detent', 'toggle-latch', 'treat-dispenser', 'wand-holder', 'window-cat-guard', 'xiao-sense-camera-housing']);
+    expect(models.map(model => model.id).sort()).toEqual(['ai-rubber-duck', 'cat-collar-tag', 'cigarette-case', 'esp32-c3-supermini-case', 'fruit-fly-trap', 'litter-shovel', 'magnetic-cat-toy', 'magnetic-lighter-keychain', 'miter-box', 'moss-planter', 'outside-corner-toggle-latch', 'plank-connector', 'pressure-pad', 'printed-corner-bracket', 'printed-screen-hook', 'qr-magnet-tag', 'spring-ball-detent', 'toggle-latch', 'treat-dispenser', 'wand-holder', 'window-cat-guard', 'xiao-sense-camera-housing']);
     expect(fruitFlyTrap.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false, properties: { trapDiameter: { type: 'number', minimum: 20, maximum: 200 } } });
     expect([fruitFlyTrap, plankConnector].map(artifactFormat)).toEqual(['stl', 'stl']);
     expect([aiRubberDuck, mossPlanter, cigaretteCase, litterShovel].map(artifactFormat)).toEqual(['zip', 'zip', 'zip', 'zip']);
@@ -51,6 +51,6 @@ describe('the bundled catalogue', () => {
       { modelId: 'catio/window-insert', modelTitle: 'Window catio: window insert', via: 'Spreader feet (32 mm)', kind: 'concept' },
       { modelId: 'catio/tunnel', modelTitle: 'Window catio: tunnel', via: 'Support feet (32 mm)', kind: 'concept' },
     ]);
-    expect(partUsage(part('bic-j25-mini-lighter'))).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview', kind: 'model' }]);
+    expect(partUsage(part('bic-j25-mini-lighter'))).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview', kind: 'model' }, { modelId: 'magnetic-lighter-keychain', modelTitle: magneticLighterKeychain.title, via: 'Assembly preview', kind: 'model' }]);
   });
 });

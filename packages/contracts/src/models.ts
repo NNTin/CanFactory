@@ -1,3 +1,4 @@
+import { DEFAULT_LIGHTER_KEYCHAIN, MagneticLighterKeychainParametersSchema, lighterKeychainAssembly, lighterKeychainIssues, lighterKeychainNotes, lighterKeychainReferences, KEYCHAIN_MAGNETS, KEYCHAIN_SPLIT_RINGS } from './magneticLighterKeychain.ts';
 import { DEFAULT_WAND_HOLDER, WAND_HOLDER, WandHolderParametersSchema, wandHolderAssembly, wandHolderFlex, wandHolderIssues, wandHolderLayout } from './wandHolder.ts';
 import { DEFAULT_MITER_BOX, MITER_BOX, MITER_BOX_CLAMP_SCREWS, MITER_BOX_KNOB_CONSTANTS, MITER_BOX_NUTS, MITER_BOX_PAD_CONSTANTS, MITER_BOX_PAD_NUTS, MITER_BOX_THREADS, MiterBoxParametersSchema, miterBoxAssembly, miterBoxIssues, miterBoxLayout, miterBoxReferences, miterBoxScadLayout, type MiterBoxParameters } from './miterBox.ts';
 import { DEFAULT_ESP32_CASE, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LED_DEFINES, Esp32CaseParametersSchema, esp32CaseAssembly, esp32CaseBase, type Esp32CaseParameters } from './esp32Case.ts';
@@ -3786,8 +3787,52 @@ export const wandHolder = {
     ] };
   },
 } satisfies ModelDefinition;
+/**
+ * Magnetic lighter keychain (models/magnetic-lighter-keychain/generator.scad, docs/magnetic-lighter-keychain.md): an original design.
+ * A sleeve for the parts library's BIC Mini lighter with two magnets sealed in its flat foot, a keychain plate with two more and an
+ * eyelet for a split ring, and two small fit checks printed first (magneticLighterKeychain.ts).
+ */
+const mlkSchema = MagneticLighterKeychainParametersSchema;
+const magneticLighterKeychainControls: Control[] = [
+  control(mlkSchema, 'fit', 'basic'),
+  partControl(mlkSchema, 'magnet', 'basic', 'magnet', KEYCHAIN_MAGNETS),
+  partControl(mlkSchema, 'splitRing', 'basic', 'split-ring', KEYCHAIN_SPLIT_RINGS),
+  control(mlkSchema, 'sleeveDepth', 'basic'),
+  control(mlkSchema, 'layerHeight', 'basic'),
+  control(mlkSchema, 'squeeze', 'advanced'), control(mlkSchema, 'magnetFit', 'advanced'),
+  control(mlkSchema, 'skin', 'advanced'), control(mlkSchema, 'wall', 'advanced'),
+];
+const MLK_SOURCE = 'models/magnetic-lighter-keychain/generator.scad';
+const MLK_LIGHTER = { fit: 'FIT', squeeze: 'SQUEEZE', wall: 'WALL', sleeveDepth: 'SLEEVE' };
+const MLK_MAGNETS = { wall: 'WALL', fit: 'FIT', magnetFit: 'MAGNET_FIT', skin: 'SKIN', layerHeight: 'LAYER' };
+const MLK_MAGNET_DEFINES: PartDefines = { magnet: { MAGNET_D: ['diameter', 'max'], MAGNET_T: ['thickness', 'max'] } };
+const MLK_RING_DEFINES: PartDefines = { splitRing: { RING_A: ['a', 'max'], RING_B: ['b', 'max'] } };
+export const magneticLighterKeychain = {
+  id: 'magnetic-lighter-keychain' as const, version: '1' as const, title: 'Magnetic lighter keychain',
+  description: 'A holder that puts a BIC Mini lighter (J25) on your keychain and lets you pull it off and snap it back with magnets. The lighter slides into a sleeve and is held by crush ribs; two magnets sealed in its foot pair with two in a small keychain plate with an eyelet for a split ring. The foot’s underside is flat, so the holder also sticks to the fridge on its own. Two small fit checks, a ring of the sleeve and the magnet floor, try the fit before the real prints. The fit, the magnets and the split ring are settings.',
+  attribution: 'CanFactory (original design)',
+  printNotes: 'Print the two fit checks first, each as generated, with no supports: slide the lighter into the lighter fit check (it should go in with a light push and not drop out turned over: otherwise change the lighter fit or the rib squeeze), and press a magnet into each of the keychain fit check’s open pockets (it should drop in and sit below the top: otherwise raise the magnet fit). Then the lighter holder (foot down) and the keychain holder (flat face down, eyelet up), each with a pause at the height shown under the settings: drop in the magnets as the polarity note says and resume. PLA or PETG, 0.2 mm layers, a smooth sheet for the flat faces. Neodymium magnets jump to a steel print sheet and to each other: drop each in with tweezers and check it lies flat before resuming.',
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  parts: [
+    { id: 'lighter-fit-check', title: 'Lighter fit check (a ring of the sleeve)', sourcePath: MLK_SOURCE, scadConstants: { PART: 'lighter-fit-check' }, scadMapping: MLK_LIGHTER },
+    { id: 'keychain-fit-check', title: 'Keychain fit check (the magnet floor, open, and an eyelet sample)', sourcePath: MLK_SOURCE, scadConstants: { PART: 'keychain-fit-check' }, scadMapping: MLK_MAGNETS, partDefines: { ...MLK_MAGNET_DEFINES, ...MLK_RING_DEFINES } },
+    // both holders enclose their magnets' sealed cavities
+    { id: 'keychain-holder', title: 'Keychain holder', sourcePath: MLK_SOURCE, scadConstants: { PART: 'keychain-holder' }, scadMapping: MLK_MAGNETS, partDefines: { ...MLK_MAGNET_DEFINES, ...MLK_RING_DEFINES }, sealedVoids: true },
+    { id: 'lighter-holder', title: 'Lighter holder', sourcePath: MLK_SOURCE, scadConstants: { PART: 'lighter-holder' }, scadMapping: { ...MLK_LIGHTER, ...MLK_MAGNETS }, partDefines: MLK_MAGNET_DEFINES, sealedVoids: true },
+  ],
+  parameterSchema: mlkSchema, controls: magneticLighterKeychainControls, defaults: Object.fromEntries(magneticLighterKeychainControls.map(c => [c.key, c.default])), scadMapping: {},
+  assembly: lighterKeychainAssembly(DEFAULT_LIGHTER_KEYCHAIN),
+  assemblyForParameters: lighterKeychainAssembly,
+  linkedReferences: lighterKeychainReferences,
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(mlkSchema, parameters) ? lighterKeychainIssues(parameters) : [{ field: '', message: 'Parameters do not match the magnetic lighter keychain schema.' }];
+  },
+  derived(parameters: unknown) {
+    return { slotCount: null, ...(Value.Check(mlkSchema, parameters) && lighterKeychainIssues(parameters).length === 0 ? { notes: lighterKeychainNotes(parameters) } : {}) };
+  },
+} satisfies ModelDefinition;
 /** The one registration of each catalogue model. A `const` tuple, so that `RenderRequestSchema` (index.ts) derives a typed branch per model from it. */
-export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser, miterBox, wandHolder] as const satisfies readonly ModelDefinition[];
+export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser, miterBox, wandHolder, magneticLighterKeychain] as const satisfies readonly ModelDefinition[];
 export const models: readonly ModelDefinition[] = registeredModels;
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }

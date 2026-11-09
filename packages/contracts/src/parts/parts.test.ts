@@ -451,7 +451,7 @@ describe('parts library', () => {
       { modelId: 'treat-dispenser', modelTitle: 'PET-bottle treat dispenser', via: 'Assembly preview', kind: 'model' }]);
     const lighter = findPart('bic-j25-mini-lighter');
     if (!lighter) throw new Error('Expected the lighter');
-    expect(partUsage(lighter)).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview', kind: 'model' }]);
+    expect(partUsage(lighter)).toEqual([{ modelId: 'cigarette-case', modelTitle: cigaretteCase.title, via: 'Assembly preview', kind: 'model' }, { modelId: 'magnetic-lighter-keychain', modelTitle: 'Magnetic lighter keychain', via: 'Assembly preview', kind: 'model' }]);
     const bearing = findPart('bearing-608');
     if (!bearing) throw new Error('Expected the 608 bearing');
     expect(partUsage(bearing)).toEqual([]);
