@@ -3,12 +3,13 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { DEFAULT_WAND_HOLDER, WAND_HOLDER, wandHolder, wandHolderLayout, type WandHolderParameters, DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { magneticLighterKeychain, type MagneticLighterKeychainParameters, DEFAULT_WAND_HOLDER, WAND_HOLDER, wandHolder, wandHolderLayout, type WandHolderParameters, DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, ObjectStorage, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair, type RenderJob } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { startStorageServices } from './storage-services.ts';
 import jsQR from 'jsqr';
 import { parseStl, type Mesh } from './stl-to-scad/stl.ts';
+import { checkLighterKeychain, LIGHTER_KEYCHAIN_PARTS } from './lighter-keychain-checks.ts';
 
 // Two logos for the cigarette case's underside, read from SVG as the editor does.
 const RING_AND_STAR = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill-rule="evenodd" d="M50 2a48 48 0 1 0 0.01 0zM50 10a40 40 0 1 1 -0.01 0z"/><path d="M50 18 L69 76 L20 40 L80 40 L31 76 Z"/></svg>');
@@ -83,7 +84,7 @@ const store = new PostgresStorage(services.databaseUrl, repositoryRoot, director
 await store.migrate(); await store.seed();
 const app = await createApp(store);
 const artifactBytes = async (job: RenderJob) => Buffer.concat(await (await store.readArtifact(job)).toArray() as Buffer[]);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy, esp32-c3-supermini-case, treat-dispenser, miter-box, wand-holder) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy, esp32-c3-supermini-case, treat-dispenser, miter-box, wand-holder, magnetic-lighter-keychain) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = (await selectRunner(directory, ['docker'], WORKER_LIMITS)).run;
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -1324,6 +1325,31 @@ try {
     assert.equal(housingSolid(clip, [0, l.outside - H.band / 2, H.height / 2]), true, `wand holder ${name}: band`);
     assert.equal(housingSolid(clip, [0, 0, H.height / 2]), false, `wand holder ${name}: the post's place`);
     console.log(`PASS wand holder ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  }
+  // Magnetic lighter keychain: the defaults, the largest magnets and ring with the thickest skin at the coarsest layers and the
+  // loosest fits, the smallest at the finest layers and tightest fits, 1 mm magnets without squeeze, and 10 mm magnets at a thin
+  // wall. The four prints in order, each checked by checkLighterKeychain (tools/lighter-keychain-checks.ts): the holders one solid
+  // with a sealed cavity per magnet, every print at its layout's size, cavities, skins, caps, ribs, bore and eyelets in place.
+  for (const [name, overrides] of (!only || only === 'magnetic-lighter-keychain' ? [
+    ['default', {}],
+    ['largest magnets and ring, thick skin, coarse layers, loose', { magnet: 'supermagnete-s-10-03-n', splitRing: 'avco-kr-93400', skin: 1.2, layerHeight: 0.32, wall: 3, fit: 0.6, sleeveDepth: 45, magnetFit: 0.3 }],
+    ['smallest magnets and ring, finest layers, tight', { magnet: 'supermagnete-s-04-02-n', splitRing: 'avco-kr-90920', layerHeight: 0.08, wall: 1.2, fit: 0.1, sleeveDepth: 15, squeeze: 0.4, magnetFit: 0.05 }],
+    ['1 mm magnets, no squeeze', { magnet: 'supermagnete-s-05-01-n', squeeze: 0, layerHeight: 0.12 }],
+    ['10 × 1 mm magnets at a 1.4 mm wall', { magnet: 'supermagnete-s-10-01-n', wall: 1.4 }],
+  ] as const : [])) {
+    const started = Date.now();
+    const parameters = { ...magneticLighterKeychain.defaults, ...overrides } as MagneticLighterKeychainParameters;
+    assert.deepEqual(validateParameters(magneticLighterKeychain, parameters), [], name);
+    const queued = await store.enqueue(magneticLighterKeychain, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
+    assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `lighter keychain ${name}`);
+    const result = await store.getJob(queued.id);
+    assert.equal(result?.status, 'succeeded', `lighter keychain ${name}`);
+    if (!result.artifact || !('parts' in result.artifact)) throw new Error('Expected the lighter keychain ZIP.');
+    assert.deepEqual(result.artifact.parts.map(part => part.id), [...LIGHTER_KEYCHAIN_PARTS]);
+    const entries = unzipSync(await artifactBytes(result));
+    checkLighterKeychain(id => parseStl(Buffer.from(entries[`${id}.stl`] ?? [])), parameters, name, shells, housingSolid);
+    console.log(`PASS lighter keychain ${name}: ${result.artifact.triangles} triangles, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   for (const [name, overrides] of (!only || only === 'miter-box' ? [
     ['default', {}], ['narrow, low, fine slots, tight', { stockWidth: 15, stockHeight: 15, clampScrew: 'iso-4017-m6x40', bladeKerf: 0.4, slotClearance: 0.05, guideLength: 10, guideDepth: 15, fit: 0.1 }],

@@ -89,3 +89,4 @@ export * from './esp32Case.ts';
 export * from './treatDispenser.ts';
 export * from './miterBox.ts';
 export * from './wandHolder.ts';
+export * from './magneticLighterKeychain.ts';

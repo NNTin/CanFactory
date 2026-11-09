@@ -75,6 +75,11 @@ spring wand toy upright beside it. One fixed C-shaped spring clip grips any post
 into the sisal. The wand's handle end pushes into a 40 mm deep socket with crush ribs, sized for its diameter (8 mm by default).
 Print it in PETG.
 
+The [magnetic lighter keychain](docs/magnetic-lighter-keychain.md) puts a BIC Mini lighter (J25) on your keys: a sleeve with crush
+ribs holds it, and two magnets sealed in its flat foot (dropped in at a print pause) pair with two in a small keychain plate with
+an eyelet for a split ring. Pull it off, snap it back; the foot also sticks to the fridge. Two small fit checks try the lighter's
+fit and the magnet floor first; the fits, the magnets and the split ring are parts-library settings.
+
 The [PET-bottle treat dispenser](docs/treat-dispenser.md) is a gumball-style dispenser after bovineblitz's (CC BY-NC 4.0): an
 inverted 0.5 l bottle over a two-pocket rotor that a 28BYJ-48 turns half a turn per press, a sprung TPU flap and a cavity against
 jams, and an ESP32-C3 SuperMini with ESPHome firmware inside the body, all on one USB-C cable. Its Simulate mode drops real treats
