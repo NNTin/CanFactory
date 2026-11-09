@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
 import { cigaretteCase, models, partUsage, plankConnector } from '../models.ts';
-import { componentTop, devBoardLayout, findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, springRate, stepperDriverComponentTop, stepperDriverLayout, type Part } from './index.ts';
+import { componentTop, devBoardLayout, findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, prototypeBoardConnections, prototypeBoardLayout, springRate, stepperDriverComponentTop, stepperDriverLayout, type Part } from './index.ts';
 
 const root = (path: string) => new URL(`../../../../${path}`, import.meta.url);
 const dimension = (part: Part, key: string) => part.dimensions[key]?.value ?? Number.NaN;
@@ -320,6 +320,101 @@ describe('parts library', () => {
       expect(connector && stepperDriverComponentTop(layout.plug) > stepperDriverComponentTop(connector), message).toBe(true);
       expect(dimension(part, 'H'), message).toBeCloseTo(t + Math.max(layout.pinHeight, ...layout.components.map(stepperDriverComponentTop)), 6);
       expect(dimension(part, 'Hm'), message).toBeCloseTo(t + stepperDriverComponentTop(layout.plug), 6);
+    }
+  });
+
+  it('lays out every prototype board on its grid: holes and pads inside the outline, nets the traces connect, mounting holes clear of the holes', () => {
+    const boards = parts.filter(part => part.family === 'prototype-board');
+    expect(boards.map(part => part.id)).toEqual([
+      'adafruit-perma-proto-quarter', 'adafruit-perma-proto-half', 'adafruit-perma-proto-full', 'roth-re200-hp', 'roth-re200-lf', 'roth-re212-hp',
+      'busboard-st1', 'busboard-st1-d', 'generic-proto-board-40x60', 'generic-proto-board-50x70', 'generic-proto-board-70x90', 'generic-proto-board-80x120',
+    ]);
+    for (const part of boards) {
+      const layout = prototypeBoardLayout(part); const message = part.id;
+      if (!layout) throw new Error(`${part.id} has no layout`);
+      const [L, W, t, e, x0, y0, d] = ['L', 'W', 't', 'e', 'x0', 'y0', 'd'].map(key => dimension(part, key)) as [number, number, number, number, number, number, number];
+      // the dimensions are the layout's, the grid at the 0.1" pitch, as many holes as the attributes say
+      expect([layout.outline.L, layout.outline.W, layout.outline.t, layout.grid.pitch, layout.grid.x0, layout.grid.y0, layout.drill], message).toEqual([L, W, t, e, x0, y0, d]);
+      expect(e, message).toBe(2.54);
+      expect(part.attributes['grid'], message).toBe(`${layout.grid.columns} × ${layout.grid.rows}`);
+      expect(Number(part.attributes['holes']), message).toBe(layout.holes.length);
+      // every hole at its grid position, once, addressable by (column, row) and by its label; its pad inside the outline
+      const pad = Math.max(layout.pads.top?.size ?? 0, layout.pads.bottom?.size ?? 0);
+      expect(pad, message).toBeGreaterThan(d);
+      const seen = new Set<string>();
+      for (const hole of layout.holes) {
+        const where = `${message}: (${hole.column}, ${hole.row})`;
+        expect([hole.x, hole.y], where).toEqual([expect.closeTo(x0 + hole.column * e, 6), expect.closeTo(y0 + hole.row * e, 6)]);
+        expect(layout.hole(hole.column, hole.row), where).toBe(hole);
+        expect(layout.point(hole.column, hole.row), where).toEqual({ x: hole.x, y: hole.y });
+        if (hole.label) expect(layout.holeByLabel(hole.label), where).toBe(hole);
+        expect(hole.x - pad / 2, where).toBeGreaterThan(0); expect(hole.x + pad / 2, where).toBeLessThan(L);
+        expect(hole.y - pad / 2, where).toBeGreaterThan(0); expect(hole.y + pad / 2, where).toBeLessThan(W);
+        seen.add(`${hole.column},${hole.row}`);
+      }
+      expect(seen.size, message).toBe(layout.holes.length);
+      expect(layout.hole(-1, 0), message).toBeUndefined(); expect(layout.hole(layout.grid.columns, 0), message).toBeUndefined();
+      const labels = layout.holes.flatMap(hole => hole.label ? [hole.label] : []);
+      expect(new Set(labels).size, message).toBe(labels.length);
+      // each trace links two drilled neighbours, one pitch apart; the nets are what the traces connect, and every hole knows its net
+      for (const trace of layout.traces) {
+        const [a, b] = [layout.hole(...trace.from), layout.hole(...trace.to)];
+        expect(a && b && Math.hypot(b.x - a.x, b.y - a.y), `${message}: trace`).toBeCloseTo(e, 6);
+        expect(trace.width, `${message}: trace`).toBeGreaterThan(0);
+      }
+      const connected = prototypeBoardConnections(layout).map(group => group.map(([column, row]) => `${column},${row}`).join(' ')).sort();
+      expect(layout.nets.map(net => net.holes.map(([column, row]) => `${column},${row}`).join(' ')).sort(), message).toEqual(connected);
+      expect(new Set(layout.nets.map(net => net.id)).size, message).toBe(layout.nets.length);
+      for (const net of layout.nets) for (const [column, row] of net.holes) expect(layout.hole(column, row)?.net, `${message}: ${net.id}`).toBe(net.id);
+      expect(layout.holes.filter(hole => hole.net !== null).length, message).toBe(layout.nets.reduce((sum, net) => sum + net.holes.length, 0));
+      // the mounting holes inside the outline and clear of every hole, at the diameter the dimensions give
+      for (const mount of layout.mountingHoles) {
+        expect(mount.d, message).toBe(dimension(part, 'dm'));
+        expect(mount.x - mount.d / 2 > 0 && mount.x + mount.d / 2 < L && mount.y - mount.d / 2 > 0 && mount.y + mount.d / 2 < W, message).toBe(true);
+        for (const hole of layout.holes) expect(Math.hypot(hole.x - mount.x, hole.y - mount.y), `${message}: mounting hole × (${hole.column}, ${hole.row})`).toBeGreaterThan(mount.d / 2 + d / 2);
+      }
+      // the attributes say what the layout has
+      expect(part.attributes['plating'], message).toBe(layout.plated ? 'plated through' : 'unplated');
+      expect(part.attributes['copper'], message).toBe(layout.pads.top ? 'both sides' : 'one side');
+      if (!layout.pads.top) expect(layout.plated, `${message}: a single-sided board's holes are unplated`).toBe(false);
+      const pattern = part.attributes['pattern'];
+      if (pattern === 'isolated pads') expect(layout.nets, message).toEqual([]);
+      if (pattern === 'linked pads') expect(layout.nets.map(net => [net.kind, net.holes.length]), message).toEqual([['linked', layout.holes.length]]);
+      if (pattern === 'strips') for (const net of layout.nets) expect(new Set(net.holes.map(([, row]) => row)).size, `${message}: ${net.id} along X`).toBe(1);
+    }
+
+    // the Perma-Protos as Adafruit's EAGLE files and pages give them: two 5-hole strips per column, four rails the board's length,
+    // printed A1 to J<n> and + / − rails, the mounting holes the published distance apart
+    for (const [id, columns, spacing] of [['adafruit-perma-proto-quarter', 15, 35.56], ['adafruit-perma-proto-half', 30, 73.66], ['adafruit-perma-proto-full', 60, 74.93]] as const) {
+      const layout = prototypeBoardLayout(findPart(id) as Part); if (!layout) throw new Error(id);
+      expect(layout.holes.length, id).toBe(columns * 14);
+      expect(layout.nets.filter(net => net.kind === 'strip').map(net => net.holes.length), id).toEqual(Array.from({ length: 2 * columns }, () => 5));
+      expect(layout.nets.filter(net => net.kind === 'rail').map(net => [net.id, net.holes.length]).sort(), id)
+        .toEqual([['rail bottom +', columns], ['rail bottom -', columns], ['rail top +', columns], ['rail top -', columns]]);
+      expect([layout.holeByLabel('A1'), layout.holeByLabel('E1'), layout.holeByLabel('F1'), layout.holeByLabel(`J${columns}`)].map(hole => hole && [hole.column, hole.row]), id)
+        .toEqual([[0, 3], [0, 7], [0, 10], [columns - 1, 14]]);
+      expect(layout.hole(0, 3)?.net, id).toBe(layout.hole(0, 7)?.net);
+      expect(layout.hole(0, 7)?.net, id).not.toBe(layout.hole(0, 10)?.net);
+      expect(layout.hole(0, 8), `${id}: the middle channel is undrilled`).toBeUndefined();
+      expect(layout.holeByLabel('bottom + 1')?.row, id).toBe(0);
+      const xs = layout.mountingHoles.map(mount => mount.x);
+      for (let i = 1; i < xs.length; i++) expect((xs[i] ?? 0) - (xs[i - 1] ?? 0), id).toBeCloseTo(spacing, 2);
+    }
+    // the Roth cards' 61 × 38 grid fills Roth's drawing: 152.40 × 93.98 mm between the outer holes, 3.86–3.89 and 3.07–3.15 mm margins
+    for (const id of ['roth-re200-hp', 'roth-re200-lf', 'roth-re212-hp']) {
+      const part = findPart(id) as Part; const layout = prototypeBoardLayout(part); if (!layout) throw new Error(id);
+      const last = layout.point(60, 37);
+      expect([last.x - layout.grid.x0, last.y - layout.grid.y0], id).toEqual([expect.closeTo(152.4, 6), expect.closeTo(93.98, 6)]);
+      expect([dimension(part, 'L') - last.x, dimension(part, 'W') - last.y], id).toEqual([expect.closeTo(3.89, 6), expect.closeTo(3.07, 6)]);
+    }
+    // BusBoard's strips: 19 along X, the four mounting holes on the grid 2.800" × 1.600" apart breaking strips 2 and 18
+    for (const id of ['busboard-st1', 'busboard-st1-d']) {
+      const layout = prototypeBoardLayout(findPart(id) as Part); if (!layout) throw new Error(id);
+      expect(layout.holes.length, id).toBe(31 * 19 - 4);
+      expect(layout.nets.filter(net => net.holes.length === 31).length, id).toBe(17);
+      expect(layout.nets.filter(net => net.holes.length === 27).map(net => net.holes[0]?.[1]), id).toEqual([1, 17]);
+      const xs = layout.mountingHoles.map(mount => mount.x); const ys = layout.mountingHoles.map(mount => mount.y);
+      expect([Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)], id).toEqual([expect.closeTo(71.12, 6), expect.closeTo(40.64, 6)]);
     }
   });
 

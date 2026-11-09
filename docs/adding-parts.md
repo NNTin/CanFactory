@@ -1,7 +1,7 @@
 # The parts library
 
 The parts library is a catalogue of real-world parts that models are made to fit: screws, nuts, washers, magnets, threaded
-inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, development boards, stepper motors and their driver boards, mesh and netting by the roll, and everyday objects such as the BIC
+inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, development boards, stepper motors and their driver boards, prototype boards (perfboard and stripboard), mesh and netting by the roll, and everyday objects such as the BIC
 Mini lighter the cigarette case holds. Every entry is one real
 item, a size of a standard part (ISO 4762 M3 × 10) or a named product (supermagnete S-06-02-N), with its dimensions, their
 tolerances where the source gives them, and the source of every value.
@@ -242,6 +242,96 @@ The test checks:
   its header, the plug above its connector, and both heights.
 
 Measure your motor and board before a tight fit, and correct a value under the same id.
+
+### Prototype boards
+
+The **`prototype-board`** family (`prototype-boards.ts`) holds boards on the 2.54 mm grid that circuits are soldered on. It
+was added for KiPrint's wire-routing guides, which sit on the component side and address holes by (column, row):
+
+- **Adafruit Perma-Proto, quarter, half and full (1608, 1609, 1606):** a breadboard's layout as a PCB. Each column has two
+  5-hole strips (A–E, F–J), and four power rails run the board's length.
+  - Every position comes from Adafruit's EAGLE files ([Adafruit-Perma-Proto-PCB](https://github.com/adafruit/Adafruit-Perma-Proto-PCB),
+    CC BY-SA; only its values are used), which give the outline, the R2.54 corners, the Ø1.2 mm holes in Ø1.93 mm pads through
+    both sides, the strips and rails as nets, the printed labels and the Ø3.2 mm mounting holes. A one-off check compared the
+    layouts with the files hole by hole and net by net, and they matched.
+  - Adafruit's pages give the drill, the plating, the gold finish, the unmasked bottom, the mounting-hole spacing and (quarter
+    and full) 0.063" FR4. The half-sized page gives no thickness, so that board's 1.6 mm is `estimated`.
+- **Roth Elektronik laboratory cards, 100 × 160 mm:** RE200-HP (FR2) and RE200-LF (FR4), with isolated Ø2.2 mm pads, and
+  RE212-HP, whose Ø2.1 mm pads are all linked by thin traces for cutting. Roth's data sheets give the material, the copper,
+  the finish, the pads and the hole, and a drawing that dimensions the 61 × 38 grid to the board's edges. The RE212-HP's trace
+  width (0.3 mm) is not given and is drawn so. Roth's strip boards have no data sheet that could be found, and none are listed.
+- **BusBoard StripBoard Size1, ST1 (single-sided) and ST1-D (double-sided, plated):** 80 × 50 mm, 31 × 19 holes of Ø0.94 mm,
+  19 strips along the length, and four Ø3.18 mm mounting holes on the grid, 2.800" × 1.600" apart, all from BusBoard's data
+  sheets.
+  - The margins are not dimensioned: the grid is centred, as the mounting holes are, and `x0`/`y0` are `estimated`.
+  - The strip width (2.0 mm) and the ST1-D's top pads (Ø1.8 mm) are read off BusBoard's drawings and photograph, and are
+    `estimated`.
+  - The mounting holes are wider than a strip, so strips 2 and 18 are broken there.
+- **Generic green double-sided boards, 4 × 6, 5 × 7, 7 × 9 and 8 × 12 cm:** no maker draws them, so every value is
+  `estimated` (source `canfactory-prototype-board-estimate`), as follows.
+  - Hole counts are the ones sellers most often state: 20 × 14, 24 × 18, 30 × 24 and 42 × 28. Sellers differ.
+  - Ø1.0 mm plated holes in Ø1.8 mm round pads on both sides, 1.6 mm FR4 under green mask (as ProtoSupplies gives for its
+    8 × 12 cm board).
+  - An Ø2 mm mounting hole 2.5 mm from both edges in each corner, and the grid centred on the board.
+  - Count and measure your board, and correct a value under the same id.
+- **Not listed:** Vero stripboard (Vero Technologies publishes no dimensioned drawing; BusBoard's is the same 0.1" stripboard
+  pattern).
+
+Dimensions:
+
+- **Outline:** `L` along X and `W` along Y (not the longer and shorter side: the quarter Perma-Proto's `L` is the shorter), `t`,
+  and the corner `r` (square corners when omitted).
+- **Grid:** the pitch `e`, and `x0`, `y0`, the centre of hole (0, 0) from the edges at x = 0 and y = 0.
+- **Holes and copper:** the drill `d`, the round pad `D` (`pad`), the strip width `sw` (stripboard) and the mounting hole `dm`.
+
+The attributes give the pattern (isolated pads, linked pads, strips, or breadboard strips and rails), the grid (columns × rows),
+the hole count, the plating, whether copper is on one side or both, the material, the solder mask and the maker.
+
+Each board has a layout, `prototypeBoardLayout(part)`:
+
+- **Frame:** as the development boards': millimetres, the underside on z = 0 with the board's corner at the origin, seen from the
+  component side. For a single-sided board that is the bare side, with the copper underneath; Roth's drawings show the copper
+  side, so left and right are swapped. The board runs from x = 0 to `L` and from y = 0 to `W`.
+- **Columns and rows:** columns are counted along +X and rows along +Y, both from 0. Hole (column, row) is at
+  `point(column, row)` = (`x0` + column × `e`, `y0` + row × `e`), and `hole(column, row)` is the drilled hole there (undefined
+  where the grid is empty, such as the Perma-Proto's middle channel, or off the grid).
+- **Labels:** `columnLabels` and `rowLabels` are what the board prints, and each hole's `label` joins them. `holeByLabel('A1')`
+  finds a hole by its label.
+  - The Perma-Proto prints columns 1–N and rows A–J, so A1 is (0, 3), E1 is (0, 7), F1 is (0, 10) and J30 is (29, 14) on the
+    half-sized board.
+  - Its rails are rows 0 and 1 (`bottom +`, `bottom -`) and rows 16 and 17 (`top +`, `top -`), with hole labels such as
+    `top + 5`.
+  - The other boards print no labels.
+- **`pads`:** the pad on each side (round or square, its size), null on a side without copper.
+- **`traces`:** the copper between neighbouring holes, with its side and width: the stripboards' strips, the Perma-Proto's
+  strips and rails, and the RE212's links.
+- **`nets`:** the holes the traces connect, each with an `id` (`strip 3`, `strip 1A-E`, `rail top +`, `all pads`) and a `kind`.
+  Each hole has its `net`, null for an isolated pad.
+  - `prototypeBoardConnections(layout, traces)` gives the nets that remain when some traces are left out, which is how a cut
+    strip or link is modelled.
+- **`mountingHoles`:** centre, diameter, unplated.
+- **Surfaces:** `outline`, `surface` (mask colour per side), `material` and `finish`.
+
+The test checks:
+
+- every hole on its grid, once, inside the outline with its pad, and found by its position and its label;
+- every trace one pitch long between drilled holes;
+- the nets equal to what the traces connect;
+- the mounting holes clear of every hole;
+- the attributes matching the layout;
+- for the Perma-Protos, their strips, rails, labels and mounting-hole spacing;
+- for the Roth cards, the drawing's grid and margins;
+- for the BusBoards, their strips and mounting-hole pattern.
+
+The preview (`@canfactory/part-geometry`) draws the board with every hole cut through it, the pads, strips and traces as 35 µm
+copper, and the slab in its top surface's colour. Circles are drawn as octagons so that a 2318-hole board stays light.
+
+Planned next, which the layout is built for (not implemented):
+
+- **Solid-core hookup wire:** a family with the conductor diameter, the insulation's outer diameter and its tolerance, AWG and
+  mm², the insulation material and the temperature rating.
+- **Assemblies:** a board with routed wires (each a list of hole refs, `PrototypeBoardHoleRef` = [column, row]) and guide
+  prints, split into several prints per board, each addressing its holes by (column, row).
 
 ## Previews
 
