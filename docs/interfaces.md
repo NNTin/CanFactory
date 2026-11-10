@@ -10,13 +10,16 @@ them offline using `npm run contracts:generate` and `npm run contracts:check`.
 The catalogue is not served: the web app bundles `@canfactory/contracts` and reads the models (`models`, `findModel`,
 `artifactFormat`) and the parts library (`partFamilies`, `partsOfFamily`, `findPartSource`, `partUsage`) from it, so the
 browser and the API validate against the same definitions. A render request's `modelVersion` is the bundled
-definition's `version`.
+definition's `version`. One exception, for callers that cannot import the bundle: the read-only parts routes below serve
+single parts and board layouts from the same bundled data ([Parts library](#parts-library)).
 
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/v1/models/{id}/reference.stl` | Stream the original supplied reference bytes. 404 if the model has none. |
 | `GET /api/v1/market` | The visitor's market from Cloudflare's `CF-IPCountry` (DE/AT/CH → `DE`, else `US`) and which affiliate networks link in each market. `private, no-store`. |
 | `GET /api/v1/offers?market=DE&parts=<id>[:<qty>],…` | Where to buy parts: ranked affiliate offers per part in packs that cover each quantity, and the buy list grouped by shop. 404 for an unknown part. See [affiliate-offers.md](affiliate-offers.md). |
+| `GET /api/v1/parts/{id}` | A part of the library, with its family and resolved sources. 404 `PART_NOT_FOUND`. Cacheable (see below). |
+| `GET /api/v1/parts/{id}/layout` | A prototype or development board's layout. 404 `PART_NOT_FOUND`, or `LAYOUT_NOT_AVAILABLE` for other parts. Cacheable. |
 | `POST /api/v1/renders` | Submit complete settings; return an existing successful render (200) or pending job (202). |
 | `GET /api/v1/renders/{id}` | Poll status, expiry, derived slot count, and available artifact metadata. |
 | `GET /api/v1/renders/{id}/stl` | Stream generated binary STL; `?download=true` changes only content disposition. |
@@ -130,3 +133,34 @@ policies. Generated files and dependencies are excluded from Git.
 Nginx resolves the API service through Docker DNS every five seconds, so API
 container address changes do not require restarting the frontend. Web health
 checks exercise both the static page and the proxied API health endpoint.
+
+## Parts library
+
+KiPrint runs server-side and builds its KiCad projects on a prototype board's grid, so it reads the board data from two
+read-only routes. They serve the bundled `@canfactory/contracts` data (`partResponse` and `partLayoutData`), and their schemas
+are `PartResponseSchema` and `PartLayoutSchema` in `packages/contracts/src/partsApi.ts`.
+
+- **`GET /api/v1/parts/{id}`:** `{ part, family, sources, layout }`.
+  - `part` is the `Part`: dimensions in mm, each with `min`/`max`, `basis` and `source`.
+  - `sources` resolves every source the part cites.
+  - `layout` is the URL of its layout, or null.
+- **`GET /api/v1/parts/{id}/layout`:** one of two layouts, by `kind`.
+  - `prototype-board`, in `prototypeBoardLayout`'s frame (`frame` describes it):
+    - `outline` `{ L, W, t, r }`;
+    - `grid` `{ x0, y0, pitch, columns, rows }`, where (`x0`, `y0`) is hole (0, 0)'s offset from the corner;
+    - `columnLabels`, `rowLabels`;
+    - `drill`, `plated`, `pads` `{ top, bottom }` (round or square, `size`; null on a side without copper);
+    - `surface`, `material`, `finish`;
+    - `holes` `[{ column, row, x, y, label, net }]`, every drilled hole;
+    - `traces` `[{ from, to, side, width }]`, between neighbouring holes `[column, row]`;
+    - `nets` `[{ id, kind, holes }]`;
+    - `mountingHoles` `[{ x, y, d, plated }]`.
+  - `dev-board`, in `devBoardLayout`'s frame: `outline` `{ W, L, t, r }`, `pins`, `castellated`, `usb`, `components`,
+    `antennaKeepout`, `externalAntenna`, `bottomPads`, `bareUnderside`, `solderMask`.
+- **Caching:** both routes send `Cache-Control: public, max-age=300` and `ETag: "parts-<version>"`.
+  - `<version>` is a digest of the bundled parts library (families, parts, sources and layouts), so it changes exactly when
+    a deploy changes the contracts' parts data.
+  - A request whose `If-None-Match` holds it (weak or strong) gets `304` with no body.
+
+The [wire-guide design](wire-guide.md) addresses the same holes by `[column, row]`, and its JSON Schema is
+`docs/schemas/wire-guide-design.schema.json`.

@@ -6,6 +6,7 @@ import { cornerBracketFamily, cornerBracketParts } from './corner-brackets.ts';
 import { devBoardFamily, devBoardParts } from './dev-boards.ts';
 import { everydayObjectFamily, everydayObjectParts } from './everyday-objects.ts';
 import { heatsinkFamily, heatsinkParts } from './heatsinks.ts';
+import { hookupWireFamily, hookupWireParts } from './hookup-wires.ts';
 import { insertFamily, insertParts } from './inserts.ts';
 import { insertNutFamily, insertNutParts } from './insert-nuts.ts';
 import { levellingFootFamily, levellingFootParts } from './levelling-feet.ts';
@@ -37,6 +38,7 @@ export { PART_SOURCES, findPartSource } from './sources.ts';
 export { cornerBracketHoles } from './corner-brackets.ts';
 export { componentTop, devBoardLayout, type DevBoardArea, type DevBoardComponent, type DevBoardComponentTop, type DevBoardExternalAntenna, type DevBoardLayout, type DevBoardPin, type DevBoardPoint } from './dev-boards.ts';
 export { prototypeBoardConnections, prototypeBoardLayout, type PrototypeBoardGrid, type PrototypeBoardHole, type PrototypeBoardHoleRef, type PrototypeBoardLayout, type PrototypeBoardMountingHole, type PrototypeBoardNet, type PrototypeBoardPad, type PrototypeBoardPoint, type PrototypeBoardTrace } from './prototype-boards.ts';
+export { AWG_SOLID, hookupWireChannelWidth, hookupWireRating, type HookupWireRating } from './hookup-wires.ts';
 export { springRate } from './springs.ts';
 export { STERLING } from './rubber-bands.ts';
 export { stepperDriverComponentTop, stepperDriverLayout, type StepperDriverComponent, type StepperDriverLayout, type StepperDriverPin, type StepperDriverPoint } from './stepper-drivers.ts';
@@ -46,21 +48,20 @@ export { stepperDriverComponentTop, stepperDriverLayout, type StepperDriverCompo
  * data as tables (one row per size or product), expanded into parts; see docs/adding-parts.md.
  *
  * TODO(parts): families to add next: batteries (CR2032 and other coin cells, AA/AAA; IEC 60086), O-rings (ISO 3601),
- * rods and shafts (linear shafts, threaded rods), solid-core hookup wire (conductor and insulation diameters, AWG/mm², insulation
- * material and temperature rating; for the wires routed on a prototype board), and more everyday objects.
+ * rods and shafts (linear shafts, threaded rods), and more everyday objects.
  */
 export const partFamilies: readonly PartFamily[] = [
   magnetFamily, screwFamily, nutFamily, washerFamily, insertFamily, bearingFamily, pinFamily, everydayObjectFamily,
   woodScrewFamily, nailFamily, insertNutFamily, levellingFootFamily, toggleLatchFamily, screenHookFamily, cornerBracketFamily,
   setScrewFamily, ballFamily, springFamily, splitRingFamily, rubberBandFamily, nfcTagFamily, catCollarFamily, devBoardFamily, pinHeaderFamily, heatsinkFamily, meshFamily,
-  stepperMotorFamily, stepperDriverFamily, prototypeBoardFamily,
+  stepperMotorFamily, stepperDriverFamily, prototypeBoardFamily, hookupWireFamily,
 ];
 
 export const parts: readonly Part[] = [
   ...magnetParts, ...screwParts, ...nutParts, ...washerParts, ...insertParts, ...bearingParts, ...pinParts, ...everydayObjectParts,
   ...woodScrewParts, ...nailParts, ...insertNutParts, ...levellingFootParts, ...toggleLatchParts, ...screenHookParts, ...cornerBracketParts,
   ...setScrewParts, ...ballParts, ...springParts, ...splitRingParts, ...rubberBandParts, ...nfcTagParts, ...catCollarParts, ...devBoardParts, ...pinHeaderParts, ...heatsinkParts, ...meshParts,
-  ...stepperMotorParts, ...stepperDriverParts, ...prototypeBoardParts,
+  ...stepperMotorParts, ...stepperDriverParts, ...prototypeBoardParts, ...hookupWireParts,
 ];
 
 /** The parts by id (the first of an id), so that a drawing's hundreds of fasteners each find theirs at once. */

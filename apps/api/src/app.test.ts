@@ -12,11 +12,11 @@ afterEach(async () => { await app.close(); await store.close(); });
 const payload = { modelId: fruitFlyTrap.id, modelVersion: fruitFlyTrap.version, parameters: fruitFlyTrap.defaults };
 
 describe('model and render API', () => {
-  it('serves the reference STL and OpenAPI, but not the catalogue: the web app bundles it from contracts', async () => {
+  it('serves the reference STL and OpenAPI, but not the model catalogue or part lists: the web app bundles them from contracts', async () => {
     expect((await app.inject('/api/v1/models/fruit-fly-trap/reference.stl')).rawPayload.length).toBeGreaterThan(100000);
     expect((await app.inject('/api/v1/models/missing/reference.stl')).json<{ code: string }>().code).toBe('MODEL_NOT_FOUND');
     expect((await app.inject('/api/openapi.json')).body).toContain('createRender');
-    for (const url of ['/api/v1/models', '/api/v1/models/fruit-fly-trap', '/api/v1/part-families', '/api/v1/part-families/screw', '/api/v1/parts/iso-4762-m3x10']) {
+    for (const url of ['/api/v1/models', '/api/v1/models/fruit-fly-trap', '/api/v1/part-families', '/api/v1/part-families/screw', '/api/v1/parts']) {
       const removed = await app.inject(url);
       expect(removed.json<{ code: string }>().code, url).toBe('NOT_FOUND');
     }

@@ -17,6 +17,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/parts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A part of the library, with its family and its sources
+         * @description Dimensions are millimetres with their basis and source. `layout` is the URL of the board layout for prototype and development boards, null otherwise.
+         */
+        get: operations["getPart"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/parts/{id}/layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The layout of a prototype or development board
+         * @description Prototype boards (`kind: prototype-board`): the outline, the hole grid (pitch, columns × rows, the first hole’s offset), the printed labels, drill and pad diameters, every drilled hole with its label and net, the copper traces and the nets they connect, and the mounting holes. Development boards (`kind: dev-board`): pins, USB-C receptacle, components, antenna. `frame` describes the coordinate frame (mm).
+         */
+        get: operations["getPartLayout"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market": {
         parameters: {
             query?: never;
@@ -168,6 +208,368 @@ export interface operations {
                 content: {
                     "model/stl": string;
                 };
+            };
+            /** @description Default Response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Stable machine-readable error code.
+                         * @example INVALID_PARAMETERS
+                         */
+                        code: string;
+                        /** @description Actionable human-readable explanation. */
+                        message: string;
+                        issues: {
+                            field: string;
+                            message: string;
+                        }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
+                    };
+                };
+            };
+        };
+    };
+    getPart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A part of the parts library, with its family and its sources. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        part: {
+                            id: string;
+                            family: string;
+                            /** @description A plain name, e.g. “Socket head cap screw M3 × 10”. */
+                            title: string;
+                            /** @description How it is ordered: the standard designation or the manufacturer’s article number. */
+                            designation: string;
+                            /** @description Other designations of the same part, e.g. the DIN standard an ISO standard replaced. */
+                            aliases: string[];
+                            /** @description What exactly this item is, in one or two sentences, so that it can be told apart from its neighbours. */
+                            description: string;
+                            /** @description The id of the source that defines it, for a standard part. */
+                            standard: string | null;
+                            /** @description The product, for a part that is not defined by a standard. */
+                            product: {
+                                manufacturer: string;
+                                sku: string;
+                                url: string;
+                            } | null;
+                            /** @description Facets the library filters by (see the family’s `attributes`). */
+                            attributes: {
+                                [key: string]: string;
+                            };
+                            /** @description Keyed by the family’s dimension keys. */
+                            dimensions: {
+                                [key: string]: {
+                                    /** @description Nominal value in mm. */
+                                    value: number;
+                                    /** @description Smallest allowed value in mm, when known. */
+                                    min: number | null;
+                                    /** @description Largest allowed value in mm, when known. */
+                                    max: number | null;
+                                    /** @description `standard`: from the part’s standard. `manufacturer`: from the maker’s data. `estimated`: no published figure; estimated (e.g. from photographs), as `source` explains. */
+                                    basis: "standard" | "manufacturer" | "estimated";
+                                    /** @description The id of the source it was read from. */
+                                    source: string;
+                                };
+                            };
+                            /** @description Ids of every source used for this part. */
+                            sources: string[];
+                            notes: string | null;
+                            preview: {
+                                /** @enum {string} */
+                                kind: "procedural";
+                            } | {
+                                /** @enum {string} */
+                                kind: "stl";
+                                /** @description The STL, rendered from the SCAD file beside it (see `partAssetPath`). */
+                                path: string;
+                            };
+                        };
+                        family: {
+                            id: string;
+                            title: string;
+                            description: string;
+                            /** @description Facets of the family, in display order. */
+                            attributes: {
+                                key: string;
+                                label: string;
+                            }[];
+                            /** @description The dimensions of the family, in display order. */
+                            dimensions: {
+                                key: string;
+                                label: string;
+                                /** @description The letter used in the standard’s drawing, e.g. “dk”. */
+                                symbol: string;
+                                /** @description Whether every part of the family has it. */
+                                required: boolean;
+                            }[];
+                        };
+                        /** @description Every source the part cites, resolved. */
+                        sources: {
+                            /** @description Stable id, referenced by parts and dimensions. */
+                            id: string;
+                            title: string;
+                            /** @description Who publishes it, e.g. “ISO” or “supermagnete (Webcraft GmbH)”. */
+                            publisher: string;
+                            url: string | null;
+                            /** @description `standard`: the standard that defines the part. `manufacturer`: the maker’s own data sheet or product page. `reference`: a published copy of a standard’s table, or other secondary data. */
+                            kind: "standard" | "manufacturer" | "reference";
+                            /** @description The date the values were read from it (ISO 8601), for web pages that can change. */
+                            accessed: string;
+                        }[];
+                        layout: string | null;
+                    };
+                };
+            };
+            /** @description Not modified: the If-None-Match ETag is the current parts library version. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Stable machine-readable error code.
+                         * @example INVALID_PARAMETERS
+                         */
+                        code: string;
+                        /** @description Actionable human-readable explanation. */
+                        message: string;
+                        issues: {
+                            field: string;
+                            message: string;
+                        }[];
+                        /** @description Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output). */
+                        detail?: string;
+                        /** @description Identifier to quote when reporting the fault (a failed render: its job id). */
+                        reference?: string;
+                        /** @description Whether the same request may succeed on another attempt. False for defects that the same settings hit again. */
+                        retryable?: boolean;
+                    };
+                };
+            };
+        };
+    };
+    getPartLayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A board’s layout, by `kind`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        kind: "prototype-board";
+                        partId: string;
+                        frame: string;
+                        /** @description The board runs from x = 0 to L and y = 0 to W, t thick, corner radius r (0: square). */
+                        outline: {
+                            L: number;
+                            W: number;
+                            t: number;
+                            r: number;
+                        };
+                        /** @description Grid position (column, row) is at (x0 + column × pitch, y0 + row × pitch): (x0, y0) is the first hole’s offset from the corner. */
+                        grid: {
+                            x0: number;
+                            y0: number;
+                            pitch: number;
+                            columns: number;
+                            rows: number;
+                        };
+                        /** @description What the board prints beside each column, by column (null: nothing). */
+                        columnLabels: (string | null)[];
+                        /** @description What the board prints beside each row, by row (null: nothing). */
+                        rowLabels: (string | null)[];
+                        /** @description Hole (drill) diameter. */
+                        drill: number;
+                        plated: boolean;
+                        /** @description The pad round every hole on each side (null: no copper on that side). */
+                        pads: {
+                            top: {
+                                shape: "round" | "square";
+                                size: number;
+                            } | null;
+                            bottom: {
+                                shape: "round" | "square";
+                                size: number;
+                            } | null;
+                        };
+                        surface: {
+                            top: "white mask" | "green mask" | "bare";
+                            bottom: "white mask" | "green mask" | "bare";
+                        };
+                        material: "FR4" | "FR2";
+                        finish: "gold" | "tin" | "copper";
+                        /** @description Every drilled hole of the grid (a grid position can be empty), row by row. */
+                        holes: {
+                            column: number;
+                            row: number;
+                            x: number;
+                            y: number;
+                            label: string | null;
+                            net: string | null;
+                        }[];
+                        /** @description Copper between neighbouring holes. Leave cut ones out and recompute the connected holes for the nets that remain. */
+                        traces: {
+                            /** @description A grid position [column, row], 0-based. */
+                            from: [
+                                number,
+                                number
+                            ];
+                            /** @description A grid position [column, row], 0-based. */
+                            to: [
+                                number,
+                                number
+                            ];
+                            side: "top" | "bottom";
+                            width: number;
+                        }[];
+                        /** @description The holes the traces connect. */
+                        nets: {
+                            id: string;
+                            kind: "strip" | "rail" | "linked";
+                            holes: [
+                                number,
+                                number
+                            ][];
+                        }[];
+                        mountingHoles: {
+                            x: number;
+                            y: number;
+                            d: number;
+                            plated: boolean;
+                        }[];
+                    } | {
+                        /** @enum {string} */
+                        kind: "dev-board";
+                        partId: string;
+                        frame: string;
+                        /** @description The board runs from x = 0 to W and y = 0 to L, t thick, corner radius r (0: square). */
+                        outline: {
+                            W: number;
+                            L: number;
+                            t: number;
+                            r: number;
+                        };
+                        pins: {
+                            name: string;
+                            x: number;
+                            y: number;
+                        }[];
+                        castellated: boolean;
+                        usb: {
+                            x0: number;
+                            y0: number;
+                            x1: number;
+                            y1: number;
+                            height: number;
+                        };
+                        components: {
+                            name: string;
+                            /** @enum {unknown} */
+                            kind: "camera" | "pcb" | "button" | "led" | "chip" | "regulator" | "crystal" | "diode" | "antenna" | "connector" | "shield" | "other";
+                            x: number;
+                            y: number;
+                            width: number;
+                            length: number;
+                            height: number;
+                            rotation: number;
+                            base?: number;
+                            top?: {
+                                shape: "round" | "oval" | "rectangle";
+                                width: number;
+                                length: number;
+                                height: number;
+                            };
+                            travel?: number;
+                            sized: "standard" | "manufacturer" | "estimated";
+                            source: string;
+                        }[];
+                        antennaKeepout: {
+                            x0: number;
+                            y0: number;
+                            x1: number;
+                            y1: number;
+                        };
+                        externalAntenna: {
+                            /** @enum {string} */
+                            kind: "connector";
+                            name: string;
+                            x: number;
+                            y: number;
+                            matedHeight: number;
+                            select: string;
+                            source: string;
+                        } | {
+                            /** @enum {string} */
+                            kind: "solder points";
+                            signal: {
+                                x: number;
+                                y: number;
+                            };
+                            ground: {
+                                x: number;
+                                y: number;
+                            };
+                            how: string;
+                            source: string;
+                        } | null;
+                        bottomPads: {
+                            name: string;
+                            x: number;
+                            y: number;
+                        }[];
+                        bareUnderside: boolean;
+                        solderMask: "black" | "blue";
+                    };
+                };
+            };
+            /** @description Not modified: the If-None-Match ETag is the current parts library version. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Default Response */
             404: {

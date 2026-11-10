@@ -102,6 +102,1497 @@
         }
       }
     },
+    "/api/v1/parts/{id}": {
+      "get": {
+        "operationId": "getPart",
+        "summary": "A part of the library, with its family and its sources",
+        "tags": [
+          "Parts"
+        ],
+        "description": "Dimensions are millimetres with their basis and source. `layout` is the URL of the board layout for prototype and development boards, null otherwise.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A part of the parts library, with its family and its sources.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "part",
+                    "family",
+                    "sources",
+                    "layout"
+                  ],
+                  "properties": {
+                    "part": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "family",
+                        "title",
+                        "designation",
+                        "aliases",
+                        "description",
+                        "standard",
+                        "product",
+                        "attributes",
+                        "dimensions",
+                        "sources",
+                        "notes",
+                        "preview"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                        },
+                        "family": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "A plain name, e.g. “Socket head cap screw M3 × 10”."
+                        },
+                        "designation": {
+                          "type": "string",
+                          "description": "How it is ordered: the standard designation or the manufacturer’s article number."
+                        },
+                        "aliases": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Other designations of the same part, e.g. the DIN standard an ISO standard replaced."
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "What exactly this item is, in one or two sentences, so that it can be told apart from its neighbours."
+                        },
+                        "standard": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The id of the source that defines it, for a standard part."
+                        },
+                        "product": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "manufacturer",
+                                "sku",
+                                "url"
+                              ],
+                              "properties": {
+                                "manufacturer": {
+                                  "type": "string"
+                                },
+                                "sku": {
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The product, for a part that is not defined by a standard."
+                        },
+                        "attributes": {
+                          "type": "object",
+                          "description": "Facets the library filters by (see the family’s `attributes`).",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "dimensions": {
+                          "type": "object",
+                          "description": "Keyed by the family’s dimension keys.",
+                          "additionalProperties": {
+                            "type": "object",
+                            "required": [
+                              "value",
+                              "min",
+                              "max",
+                              "basis",
+                              "source"
+                            ],
+                            "properties": {
+                              "value": {
+                                "type": "number",
+                                "description": "Nominal value in mm."
+                              },
+                              "min": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Smallest allowed value in mm, when known."
+                              },
+                              "max": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Largest allowed value in mm, when known."
+                              },
+                              "basis": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "standard"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "manufacturer"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "estimated"
+                                    ]
+                                  }
+                                ],
+                                "description": "`standard`: from the part’s standard. `manufacturer`: from the maker’s data. `estimated`: no published figure; estimated (e.g. from photographs), as `source` explains."
+                              },
+                              "source": {
+                                "type": "string",
+                                "description": "The id of the source it was read from."
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Ids of every source used for this part."
+                        },
+                        "notes": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "preview": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "kind"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "procedural"
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "required": [
+                                "kind",
+                                "path"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "stl"
+                                  ]
+                                },
+                                "path": {
+                                  "type": "string",
+                                  "description": "The STL, rendered from the SCAD file beside it (see `partAssetPath`)."
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "family": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "title",
+                        "description",
+                        "attributes",
+                        "dimensions"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "attributes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "label"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Facets of the family, in display order."
+                        },
+                        "dimensions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "label",
+                              "symbol",
+                              "required"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "symbol": {
+                                "type": "string",
+                                "description": "The letter used in the standard’s drawing, e.g. “dk”."
+                              },
+                              "required": {
+                                "type": "boolean",
+                                "description": "Whether every part of the family has it."
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "The dimensions of the family, in display order."
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "title",
+                          "publisher",
+                          "url",
+                          "kind",
+                          "accessed"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Stable id, referenced by parts and dimensions."
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "publisher": {
+                            "type": "string",
+                            "description": "Who publishes it, e.g. “ISO” or “supermagnete (Webcraft GmbH)”."
+                          },
+                          "url": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "kind": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "standard"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "manufacturer"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "reference"
+                                ]
+                              }
+                            ],
+                            "description": "`standard`: the standard that defines the part. `manufacturer`: the maker’s own data sheet or product page. `reference`: a published copy of a standard’s table, or other secondary data."
+                          },
+                          "accessed": {
+                            "type": "string",
+                            "description": "The date the values were read from it (ISO 8601), for web pages that can change."
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "description": "Every source the part cites, resolved."
+                    },
+                    "layout": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "Where its layout is served (prototype and development boards)."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "A part of the parts library, with its family and its sources."
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified: the If-None-Match ETag is the current parts library version."
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parts/{id}/layout": {
+      "get": {
+        "operationId": "getPartLayout",
+        "summary": "The layout of a prototype or development board",
+        "tags": [
+          "Parts"
+        ],
+        "description": "Prototype boards (`kind: prototype-board`): the outline, the hole grid (pitch, columns × rows, the first hole’s offset), the printed labels, drill and pad diameters, every drilled hole with its label and net, the copper traces and the nets they connect, and the mounting holes. Development boards (`kind: dev-board`): pins, USB-C receptacle, components, antenna. `frame` describes the coordinate frame (mm).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A board’s layout, by `kind`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "partId",
+                        "frame",
+                        "outline",
+                        "grid",
+                        "columnLabels",
+                        "rowLabels",
+                        "drill",
+                        "plated",
+                        "pads",
+                        "surface",
+                        "material",
+                        "finish",
+                        "holes",
+                        "traces",
+                        "nets",
+                        "mountingHoles"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "prototype-board"
+                          ]
+                        },
+                        "partId": {
+                          "type": "string"
+                        },
+                        "frame": {
+                          "type": "string"
+                        },
+                        "outline": {
+                          "type": "object",
+                          "required": [
+                            "L",
+                            "W",
+                            "t",
+                            "r"
+                          ],
+                          "properties": {
+                            "L": {
+                              "type": "number"
+                            },
+                            "W": {
+                              "type": "number"
+                            },
+                            "t": {
+                              "type": "number"
+                            },
+                            "r": {
+                              "type": "number"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "The board runs from x = 0 to L and y = 0 to W, t thick, corner radius r (0: square)."
+                        },
+                        "grid": {
+                          "type": "object",
+                          "required": [
+                            "x0",
+                            "y0",
+                            "pitch",
+                            "columns",
+                            "rows"
+                          ],
+                          "properties": {
+                            "x0": {
+                              "type": "number"
+                            },
+                            "y0": {
+                              "type": "number"
+                            },
+                            "pitch": {
+                              "type": "number"
+                            },
+                            "columns": {
+                              "type": "integer"
+                            },
+                            "rows": {
+                              "type": "integer"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Grid position (column, row) is at (x0 + column × pitch, y0 + row × pitch): (x0, y0) is the first hole’s offset from the corner."
+                        },
+                        "columnLabels": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "description": "What the board prints beside each column, by column (null: nothing)."
+                        },
+                        "rowLabels": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "description": "What the board prints beside each row, by row (null: nothing)."
+                        },
+                        "drill": {
+                          "type": "number",
+                          "description": "Hole (drill) diameter."
+                        },
+                        "plated": {
+                          "type": "boolean"
+                        },
+                        "pads": {
+                          "type": "object",
+                          "required": [
+                            "top",
+                            "bottom"
+                          ],
+                          "properties": {
+                            "top": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "shape",
+                                    "size"
+                                  ],
+                                  "properties": {
+                                    "shape": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "round"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "square"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "size": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "bottom": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "shape",
+                                    "size"
+                                  ],
+                                  "properties": {
+                                    "shape": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "round"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "square"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "size": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "The pad round every hole on each side (null: no copper on that side)."
+                        },
+                        "surface": {
+                          "type": "object",
+                          "required": [
+                            "top",
+                            "bottom"
+                          ],
+                          "properties": {
+                            "top": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "white mask"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "green mask"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "bare"
+                                  ]
+                                }
+                              ]
+                            },
+                            "bottom": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "white mask"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "green mask"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "bare"
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "material": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "FR4"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "FR2"
+                              ]
+                            }
+                          ]
+                        },
+                        "finish": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "gold"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "tin"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "copper"
+                              ]
+                            }
+                          ]
+                        },
+                        "holes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "column",
+                              "row",
+                              "x",
+                              "y",
+                              "label",
+                              "net"
+                            ],
+                            "properties": {
+                              "column": {
+                                "type": "integer"
+                              },
+                              "row": {
+                                "type": "integer"
+                              },
+                              "x": {
+                                "type": "number"
+                              },
+                              "y": {
+                                "type": "number"
+                              },
+                              "label": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "net": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Every drilled hole of the grid (a grid position can be empty), row by row."
+                        },
+                        "traces": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "from",
+                              "to",
+                              "side",
+                              "width"
+                            ],
+                            "properties": {
+                              "from": {
+                                "type": "array",
+                                "additionalItems": false,
+                                "items": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  }
+                                ],
+                                "minItems": 2,
+                                "description": "A grid position [column, row], 0-based."
+                              },
+                              "to": {
+                                "type": "array",
+                                "additionalItems": false,
+                                "items": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  }
+                                ],
+                                "minItems": 2,
+                                "description": "A grid position [column, row], 0-based."
+                              },
+                              "side": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "top"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "bottom"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "width": {
+                                "type": "number"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Copper between neighbouring holes. Leave cut ones out and recompute the connected holes for the nets that remain."
+                        },
+                        "nets": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "kind",
+                              "holes"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "strip"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "rail"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "linked"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "holes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "array",
+                                  "additionalItems": false,
+                                  "items": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0
+                                    },
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0
+                                    }
+                                  ],
+                                  "minItems": 2,
+                                  "description": "A grid position [column, row], 0-based."
+                                }
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "The holes the traces connect."
+                        },
+                        "mountingHoles": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "x",
+                              "y",
+                              "d",
+                              "plated"
+                            ],
+                            "properties": {
+                              "x": {
+                                "type": "number"
+                              },
+                              "y": {
+                                "type": "number"
+                              },
+                              "d": {
+                                "type": "number"
+                              },
+                              "plated": {
+                                "type": "boolean"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "additionalProperties": false,
+                      "description": "A prototype board’s layout (prototypeBoardLayout)."
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "partId",
+                        "frame",
+                        "outline",
+                        "pins",
+                        "castellated",
+                        "usb",
+                        "components",
+                        "antennaKeepout",
+                        "externalAntenna",
+                        "bottomPads",
+                        "bareUnderside",
+                        "solderMask"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "dev-board"
+                          ]
+                        },
+                        "partId": {
+                          "type": "string"
+                        },
+                        "frame": {
+                          "type": "string"
+                        },
+                        "outline": {
+                          "type": "object",
+                          "required": [
+                            "W",
+                            "L",
+                            "t",
+                            "r"
+                          ],
+                          "properties": {
+                            "W": {
+                              "type": "number"
+                            },
+                            "L": {
+                              "type": "number"
+                            },
+                            "t": {
+                              "type": "number"
+                            },
+                            "r": {
+                              "type": "number"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "The board runs from x = 0 to W and y = 0 to L, t thick, corner radius r (0: square)."
+                        },
+                        "pins": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "name",
+                              "x",
+                              "y"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "x": {
+                                "type": "number"
+                              },
+                              "y": {
+                                "type": "number"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "castellated": {
+                          "type": "boolean"
+                        },
+                        "usb": {
+                          "type": "object",
+                          "required": [
+                            "x0",
+                            "y0",
+                            "x1",
+                            "y1",
+                            "height"
+                          ],
+                          "properties": {
+                            "x0": {
+                              "type": "number"
+                            },
+                            "y0": {
+                              "type": "number"
+                            },
+                            "x1": {
+                              "type": "number"
+                            },
+                            "y1": {
+                              "type": "number"
+                            },
+                            "height": {
+                              "type": "number"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "components": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "name",
+                              "kind",
+                              "x",
+                              "y",
+                              "width",
+                              "length",
+                              "height",
+                              "rotation",
+                              "sized",
+                              "source"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "enum": [
+                                  "camera",
+                                  "pcb",
+                                  "button",
+                                  "led",
+                                  "chip",
+                                  "regulator",
+                                  "crystal",
+                                  "diode",
+                                  "antenna",
+                                  "connector",
+                                  "shield",
+                                  "other"
+                                ]
+                              },
+                              "x": {
+                                "type": "number"
+                              },
+                              "y": {
+                                "type": "number"
+                              },
+                              "width": {
+                                "type": "number"
+                              },
+                              "length": {
+                                "type": "number"
+                              },
+                              "height": {
+                                "type": "number"
+                              },
+                              "rotation": {
+                                "type": "number"
+                              },
+                              "base": {
+                                "type": "number"
+                              },
+                              "top": {
+                                "type": "object",
+                                "required": [
+                                  "shape",
+                                  "width",
+                                  "length",
+                                  "height"
+                                ],
+                                "properties": {
+                                  "shape": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "round"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "oval"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "rectangle"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "width": {
+                                    "type": "number"
+                                  },
+                                  "length": {
+                                    "type": "number"
+                                  },
+                                  "height": {
+                                    "type": "number"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "travel": {
+                                "type": "number"
+                              },
+                              "sized": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "standard"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "manufacturer"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "estimated"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "source": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "antennaKeepout": {
+                          "type": "object",
+                          "required": [
+                            "x0",
+                            "y0",
+                            "x1",
+                            "y1"
+                          ],
+                          "properties": {
+                            "x0": {
+                              "type": "number"
+                            },
+                            "y0": {
+                              "type": "number"
+                            },
+                            "x1": {
+                              "type": "number"
+                            },
+                            "y1": {
+                              "type": "number"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "externalAntenna": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "kind",
+                                "name",
+                                "x",
+                                "y",
+                                "matedHeight",
+                                "select",
+                                "source"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "connector"
+                                  ]
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "matedHeight": {
+                                  "type": "number"
+                                },
+                                "select": {
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "required": [
+                                "kind",
+                                "signal",
+                                "ground",
+                                "how",
+                                "source"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "solder points"
+                                  ]
+                                },
+                                "signal": {
+                                  "type": "object",
+                                  "required": [
+                                    "x",
+                                    "y"
+                                  ],
+                                  "properties": {
+                                    "x": {
+                                      "type": "number"
+                                    },
+                                    "y": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "ground": {
+                                  "type": "object",
+                                  "required": [
+                                    "x",
+                                    "y"
+                                  ],
+                                  "properties": {
+                                    "x": {
+                                      "type": "number"
+                                    },
+                                    "y": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "how": {
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bottomPads": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "name",
+                              "x",
+                              "y"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "x": {
+                                "type": "number"
+                              },
+                              "y": {
+                                "type": "number"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "bareUnderside": {
+                          "type": "boolean"
+                        },
+                        "solderMask": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "black"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "blue"
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false,
+                      "description": "A development board’s layout (devBoardLayout)."
+                    }
+                  ],
+                  "description": "A board’s layout, by `kind`."
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified: the If-None-Match ETag is the current parts library version."
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "issues"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Stable machine-readable error code.",
+                      "example": "INVALID_PARAMETERS"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Actionable human-readable explanation."
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "field",
+                          "message"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Technical detail for whoever fixes the fault (a failed render: which part and check, or the generator's output)."
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "Identifier to quote when reporting the fault (a failed render: its job id)."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether the same request may succeed on another attempt. False for defects that the same settings hit again."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market": {
       "get": {
         "operationId": "getMarket",
@@ -6441,6 +7932,10 @@
     {
       "name": "Models",
       "description": "Files of the provided models. The catalogue itself (models and parts) is bundled into the web app from @canfactory/contracts."
+    },
+    {
+      "name": "Parts",
+      "description": "The bundled parts library, read-only, for callers that cannot import @canfactory/contracts (KiPrint): a part, and the layout of a prototype or development board. Cacheable: the ETag is the parts library’s version."
     },
     {
       "name": "Renders",

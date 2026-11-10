@@ -1,4 +1,5 @@
-import Fastify, { type FastifyReply } from 'fastify';
+import { createHash } from 'node:crypto';
+import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
@@ -6,6 +7,7 @@ import { Type } from 'typebox';
 import {
   AFFILIATE_ACCOUNTS, artifactFormat, DownloadQuerySchema, ErrorSchema, IdParamsSchema, MarketInfoSchema, OffersQuerySchema, OffersSchema,
   RenderRequestSchema, RenderSchema, enabledNetworks, findModel, findPart, marketOfCountry, matchOffers, offers, parseOfferParts, validateParameters,
+  PART_SOURCES, PartLayoutSchema, PartResponseSchema, partFamilies, partLayoutData, partResponse, parts,
   type AffiliateAccounts, type AwinLive, type Offer, type Render,
 } from '@canfactory/contracts';
 import { AppError, type ArtifactFormat, type PostgresStorage, type RenderJob } from '@canfactory/server';
@@ -29,6 +31,24 @@ function publicRender(job: RenderJob): Render {
     artifact: job.status === 'succeeded' && job.artifact ? { ...job.artifact, url: `/api/v1/renders/${job.id}/${suffix}` } : null,
     error: job.error,
   };
+}
+
+let partsDigest: string | undefined;
+/**
+ * The version of the bundled parts library: a digest of its families, parts, sources and layouts, computed once. Every parts
+ * response carries it as its ETag, so a cache revalidates exactly when a deploy changes the contracts' parts data.
+ */
+export function partsVersion(): string {
+  partsDigest ??= createHash('sha256').update(JSON.stringify({ partFamilies, parts, sources: PART_SOURCES, layouts: parts.map(partLayoutData) })).digest('hex').slice(0, 24);
+  return partsDigest;
+}
+
+/** Sets the parts library's caching headers; true when the request's If-None-Match already has this version (answer 304). */
+function cachedPart(request: FastifyRequest, reply: FastifyReply): boolean {
+  const etag = `"parts-${partsVersion()}"`;
+  reply.header('ETag', etag).header('Cache-Control', 'public, max-age=300');
+  const match = request.headers['if-none-match'];
+  return typeof match === 'string' && match.split(',').some(tag => ['*', etag].includes(tag.trim().replace(/^W\//, '')));
 }
 
 /** Build routes without side effects; omitting storage supports offline OpenAPI generation. */
@@ -61,7 +81,7 @@ export async function createApp(storage?: PostgresStorage, logging = false, opti
       openapi: '3.0.3',
       info: { title: 'CanFactory API', version: '1.0.0', description: 'Local parametric STL generation. Dimensions are millimetres. Generated jobs and files expire one hour after creation; there are no saved user designs.' },
       servers: [{ url: '/' }],
-      tags: [{ name: 'Models', description: 'Files of the provided models. The catalogue itself (models and parts) is bundled into the web app from @canfactory/contracts.' }, { name: 'Renders', description: 'Temporary render jobs and their STL artifacts.' }, { name: 'Offers', description: 'Where to buy the parts: affiliate links of Amazon and Awin advertisers, by market.' }],
+      tags: [{ name: 'Models', description: 'Files of the provided models. The catalogue itself (models and parts) is bundled into the web app from @canfactory/contracts.' }, { name: 'Parts', description: 'The bundled parts library, read-only, for callers that cannot import @canfactory/contracts (KiPrint): a part, and the layout of a prototype or development board. Cacheable: the ETag is the parts library’s version.' }, { name: 'Renders', description: 'Temporary render jobs and their STL artifacts.' }, { name: 'Offers', description: 'Where to buy the parts: affiliate links of Amazon and Awin advertisers, by market.' }],
     },
   });
   await app.register(swaggerUi, { routePrefix: '/api/docs' });
@@ -93,6 +113,36 @@ export async function createApp(storage?: PostgresStorage, logging = false, opti
     if (!model.referenceName) throw new AppError(404, 'REFERENCE_NOT_AVAILABLE', 'This model has no downloadable reference file.');
     return reply.type('model/stl').header('Content-Disposition', `inline; filename="${model.id}-reference.stl"`)
       .send(await store().readReference(model));
+  });
+
+  // The parts library, read-only (contracts): for KiPrint, which builds its projects on a board's grid server-side.
+  const notModified = { description: 'Not modified: the If-None-Match ETag is the current parts library version.', type: 'null' } as const;
+  /** A 304 has no body (the handlers return null for it). */
+  const onSend = (_request: FastifyRequest, reply: FastifyReply, payload: unknown) => Promise.resolve(reply.statusCode === 304 ? '' : payload);
+  app.get('/api/v1/parts/:id', {
+    onSend,
+    schema: { operationId: 'getPart', tags: ['Parts'], summary: 'A part of the library, with its family and its sources',
+      description: 'Dimensions are millimetres with their basis and source. `layout` is the URL of the board layout for prototype and development boards, null otherwise.',
+      params: IdParamsSchema, response: { 200: PartResponseSchema, 304: notModified, 404: ErrorSchema } },
+  }, (request, reply) => {
+    const part = findPart(request.params.id); const body = part && partResponse(part);
+    if (!body) throw new AppError(404, 'PART_NOT_FOUND', `${request.params.id} is not in the library.`);
+    if (cachedPart(request, reply)) { reply.code(304); return null; }
+    return body;
+  });
+
+  app.get('/api/v1/parts/:id/layout', {
+    onSend,
+    schema: { operationId: 'getPartLayout', tags: ['Parts'], summary: 'The layout of a prototype or development board',
+      description: 'Prototype boards (`kind: prototype-board`): the outline, the hole grid (pitch, columns × rows, the first hole’s offset), the printed labels, drill and pad diameters, every drilled hole with its label and net, the copper traces and the nets they connect, and the mounting holes. Development boards (`kind: dev-board`): pins, USB-C receptacle, components, antenna. `frame` describes the coordinate frame (mm).',
+      params: IdParamsSchema, response: { 200: PartLayoutSchema, 304: notModified, 404: ErrorSchema } },
+  }, (request, reply) => {
+    const part = findPart(request.params.id);
+    if (!part) throw new AppError(404, 'PART_NOT_FOUND', `${request.params.id} is not in the library.`);
+    const layout = partLayoutData(part);
+    if (!layout) throw new AppError(404, 'LAYOUT_NOT_AVAILABLE', `${part.id} is a ${part.family}; only prototype and development boards have a layout.`);
+    if (cachedPart(request, reply)) { reply.code(304); return null; }
+    return layout;
   });
 
   // Offers: curated listings of the parts (contracts), with the Awin feed rows the offers service stored (see docs/affiliate-offers.md).

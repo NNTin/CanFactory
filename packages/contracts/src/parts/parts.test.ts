@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Value } from 'typebox/value';
 import { describe, expect, it } from 'vitest';
 import { cigaretteCase, models, partUsage, plankConnector } from '../models.ts';
-import { componentTop, devBoardLayout, findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, prototypeBoardConnections, prototypeBoardLayout, springRate, stepperDriverComponentTop, stepperDriverLayout, type Part } from './index.ts';
+import { AWG_SOLID, componentTop, hookupWireChannelWidth, hookupWireRating, devBoardLayout, findPart, findPartSource, ISO_273_CLEARANCE_HOLES, METRIC_THREADS, PART_SOURCES, partAssetPath, partFamilies, parts, PartFamilySchema, PartSchema, PartSourceSchema, prototypeBoardConnections, prototypeBoardLayout, springRate, stepperDriverComponentTop, stepperDriverLayout, type Part } from './index.ts';
 
 const root = (path: string) => new URL(`../../../../${path}`, import.meta.url);
 const dimension = (part: Part, key: string) => part.dimensions[key]?.value ?? Number.NaN;
@@ -146,6 +146,19 @@ describe('parts library', () => {
         expect(dimension(part, 'neckMax'), message).toBeGreaterThan(150);
         expect(dimension(part, 'neckMax'), message).toBeLessThan(350);
         if ('neckMin' in part.dimensions) expect(dimension(part, 'neckMin'), message).toBeLessThan(dimension(part, 'neckMax'));
+      }
+      if (part.family === 'hookup-wire') {
+        // the insulation round the conductor: its outer diameter about the conductor plus two walls, its limits round its value
+        const D = part.dimensions['D'];
+        expect(dimension(part, 'D'), message).toBeGreaterThan(d);
+        if ('t' in part.dimensions) expect(dimension(part, 'D'), message).toBeCloseTo(d + 2 * dimension(part, 't'), 1);
+        expect(D?.min ?? D?.value ?? 0, message).toBeLessThanOrEqual(D?.value ?? 0);
+        expect(D?.max ?? D?.value ?? 0, message).toBeGreaterThanOrEqual(D?.value ?? 0);
+        const rating = hookupWireRating(part);
+        expect(AWG_SOLID[rating?.awg ?? 0]?.d, message).toBeCloseTo(d, 1);
+        expect(rating?.crossSection, message).toBeCloseTo(Math.PI * d * d / 4, 1);
+        expect(rating?.temperature, message).toBeGreaterThanOrEqual(60);
+        expect(hookupWireChannelWidth(part, 0.2), message).toBeCloseTo((D?.max ?? D?.value ?? 0) + 0.2, 6);
       }
       if (part.family === 'bearing') expect(dimension(part, 'D'), message).toBeGreaterThan(d);
       if (part.family === 'magnet' && part.attributes['shape'] !== 'block') expect(dimension(part, 'diameter'), message).toBeGreaterThan(dimension(part, 'innerDiameter') || 0);
