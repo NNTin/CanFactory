@@ -6549,6 +6549,593 @@
                       }
                     },
                     "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "modelId",
+                      "modelVersion",
+                      "parameters"
+                    ],
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "enum": [
+                          "prototype-wire-guide"
+                        ]
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
+                        "enum": [
+                          "1"
+                        ]
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "required": [
+                          "design"
+                        ],
+                        "properties": {
+                          "design": {
+                            "type": "object",
+                            "required": [
+                              "schemaVersion",
+                              "boardPartId",
+                              "wirePartId",
+                              "wires",
+                              "prints",
+                              "guide"
+                            ],
+                            "properties": {
+                              "schemaVersion": {
+                                "type": "number",
+                                "enum": [
+                                  1
+                                ]
+                              },
+                              "boardPartId": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                                "maxLength": 64,
+                                "description": "A prototype-board part of the parts library."
+                              },
+                              "wirePartId": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                                "maxLength": 64,
+                                "description": "The hookup-wire part of every wire without its own."
+                              },
+                              "source": {
+                                "type": "object",
+                                "required": [
+                                  "tool",
+                                  "version",
+                                  "projectId"
+                                ],
+                                "properties": {
+                                  "tool": {
+                                    "type": "string",
+                                    "enum": [
+                                      "kiprint"
+                                    ]
+                                  },
+                                  "version": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 32
+                                  },
+                                  "projectId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 64
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "description": "Where the design came from: display and traceability only."
+                              },
+                              "components": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "ref",
+                                    "footprint",
+                                    "pins",
+                                    "body"
+                                  ],
+                                  "properties": {
+                                    "ref": {
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.+-]{0,31}$",
+                                      "description": "Reference designator, e.g. \"U1\"."
+                                    },
+                                    "footprint": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64,
+                                      "description": "Footprint name, display only (e.g. \"DIP-8\")."
+                                    },
+                                    "pins": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "array",
+                                        "additionalItems": false,
+                                        "items": [
+                                          {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 255
+                                          },
+                                          {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 255
+                                          }
+                                        ],
+                                        "minItems": 2,
+                                        "description": "A grid position [column, row], 0-based: column along +X, row along +Y."
+                                      },
+                                      "minItems": 1,
+                                      "maxItems": 64,
+                                      "description": "The holes its leads use."
+                                    },
+                                    "body": {
+                                      "anyOf": [
+                                        {
+                                          "type": "object",
+                                          "required": [
+                                            "kind",
+                                            "x",
+                                            "y",
+                                            "w",
+                                            "h",
+                                            "height"
+                                          ],
+                                          "properties": {
+                                            "kind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "box"
+                                              ]
+                                            },
+                                            "x": {
+                                              "type": "number",
+                                              "minimum": -50,
+                                              "maximum": 500,
+                                              "description": "Lowest X of the box (mm)."
+                                            },
+                                            "y": {
+                                              "type": "number",
+                                              "minimum": -50,
+                                              "maximum": 500,
+                                              "description": "Lowest Y of the box (mm)."
+                                            },
+                                            "w": {
+                                              "type": "number",
+                                              "minimum": 0.1,
+                                              "maximum": 500,
+                                              "description": "Size along X (mm)."
+                                            },
+                                            "h": {
+                                              "type": "number",
+                                              "minimum": 0.1,
+                                              "maximum": 500,
+                                              "description": "Size along Y (mm)."
+                                            },
+                                            "height": {
+                                              "type": "number",
+                                              "minimum": 0.1,
+                                              "maximum": 100,
+                                              "description": "Top of the obstacle above the PCB top (mm)."
+                                            }
+                                          },
+                                          "additionalProperties": false
+                                        },
+                                        {
+                                          "type": "object",
+                                          "required": [
+                                            "kind",
+                                            "cx",
+                                            "cy",
+                                            "d",
+                                            "height"
+                                          ],
+                                          "properties": {
+                                            "kind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "cylinder"
+                                              ]
+                                            },
+                                            "cx": {
+                                              "type": "number",
+                                              "minimum": -50,
+                                              "maximum": 500,
+                                              "description": "Centre X (mm)."
+                                            },
+                                            "cy": {
+                                              "type": "number",
+                                              "minimum": -50,
+                                              "maximum": 500,
+                                              "description": "Centre Y (mm)."
+                                            },
+                                            "d": {
+                                              "type": "number",
+                                              "minimum": 0.1,
+                                              "maximum": 500,
+                                              "description": "Diameter (mm)."
+                                            },
+                                            "height": {
+                                              "type": "number",
+                                              "minimum": 0.1,
+                                              "maximum": 100,
+                                              "description": "Top of the obstacle above the PCB top (mm)."
+                                            }
+                                          },
+                                          "additionalProperties": false
+                                        }
+                                      ],
+                                      "description": "An obstacle in the board frame (mm): a box from its lowest corner, or a vertical cylinder."
+                                    }
+                                  },
+                                  "additionalProperties": false,
+                                  "description": "A placed through-hole part: its pin holes take no wire end, and its body is a keep-out."
+                                },
+                                "maxItems": 100
+                              },
+                              "wires": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "id",
+                                    "from",
+                                    "to",
+                                    "path",
+                                    "level"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.+-]{0,31}$",
+                                      "description": "Wire id, e.g. \"W1\"."
+                                    },
+                                    "wirePartId": {
+                                      "type": "string",
+                                      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                                      "maxLength": 64,
+                                      "description": "A hookup-wire part for this wire only (e.g. a thicker power wire); the design’s `wirePartId` otherwise."
+                                    },
+                                    "net": {
+                                      "type": "string",
+                                      "maxLength": 64,
+                                      "description": "KiCad net name, display only."
+                                    },
+                                    "from": {
+                                      "type": "array",
+                                      "additionalItems": false,
+                                      "items": [
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 255
+                                        },
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 255
+                                        }
+                                      ],
+                                      "minItems": 2,
+                                      "description": "A grid position [column, row], 0-based: column along +X, row along +Y."
+                                    },
+                                    "to": {
+                                      "type": "array",
+                                      "additionalItems": false,
+                                      "items": [
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 255
+                                        },
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 255
+                                        }
+                                      ],
+                                      "minItems": 2,
+                                      "description": "A grid position [column, row], 0-based: column along +X, row along +Y."
+                                    },
+                                    "path": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "array",
+                                        "additionalItems": false,
+                                        "items": [
+                                          {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 255
+                                          },
+                                          {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 255
+                                          }
+                                        ],
+                                        "minItems": 2,
+                                        "description": "A grid position [column, row], 0-based: column along +X, row along +Y."
+                                      },
+                                      "maxItems": 64,
+                                      "description": "The grid waypoints between `from` and `to` (both excluded): the wire runs from → path… → to in axis-aligned segments. Empty for a straight wire."
+                                    },
+                                    "level": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 5,
+                                      "description": "Channel layer, 0 = the lowest above the board."
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "minItems": 1,
+                                "maxItems": 200
+                              },
+                              "prints": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "id",
+                                    "wireIds"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.+-]{0,31}$",
+                                      "description": "Print id, e.g. \"G1\"."
+                                    },
+                                    "wireIds": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z0-9][A-Za-z0-9_.+-]{0,31}$",
+                                        "description": "A wire id."
+                                      },
+                                      "minItems": 1,
+                                      "maxItems": 200
+                                    },
+                                    "region": {
+                                      "type": "object",
+                                      "required": [
+                                        "from",
+                                        "to"
+                                      ],
+                                      "properties": {
+                                        "from": {
+                                          "type": "array",
+                                          "additionalItems": false,
+                                          "items": [
+                                            {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 255
+                                            },
+                                            {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 255
+                                            }
+                                          ],
+                                          "minItems": 2,
+                                          "description": "A grid position [column, row], 0-based: column along +X, row along +Y."
+                                        },
+                                        "to": {
+                                          "type": "array",
+                                          "additionalItems": false,
+                                          "items": [
+                                            {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 255
+                                            },
+                                            {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 255
+                                            }
+                                          ],
+                                          "minItems": 2,
+                                          "description": "A grid position [column, row], 0-based: column along +X, row along +Y."
+                                        }
+                                      },
+                                      "additionalProperties": false,
+                                      "description": "The grid rectangle the print covers, corners included; its wires must lie inside it."
+                                    }
+                                  },
+                                  "additionalProperties": false,
+                                  "description": "One separate guide print and the wires it holds."
+                                },
+                                "minItems": 1,
+                                "maxItems": 8
+                              },
+                              "guide": {
+                                "type": "object",
+                                "required": [
+                                  "registration",
+                                  "coverThickness",
+                                  "channelClearance",
+                                  "funnelTopDiameter",
+                                  "funnelBottomDiameter",
+                                  "funnelStandoff"
+                                ],
+                                "properties": {
+                                  "registration": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "mounting-holes"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "edge-clips"
+                                        ]
+                                      }
+                                    ],
+                                    "description": "How a print locates on the board."
+                                  },
+                                  "coverThickness": {
+                                    "type": "number",
+                                    "minimum": 0.6,
+                                    "maximum": 4,
+                                    "description": "The cover plate over the board, under the lowest channel layer; the funnels open at its top and go through it (mm)."
+                                  },
+                                  "channelClearance": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                    "description": "Added to the insulation’s largest outer diameter for a channel’s width (mm)."
+                                  },
+                                  "funnelTopDiameter": {
+                                    "type": "number",
+                                    "minimum": 1,
+                                    "maximum": 5,
+                                    "description": "Funnel opening at the cover (mm)."
+                                  },
+                                  "funnelBottomDiameter": {
+                                    "type": "number",
+                                    "minimum": 0.3,
+                                    "maximum": 3,
+                                    "description": "Funnel outlet above the hole (mm)."
+                                  },
+                                  "funnelStandoff": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 10,
+                                    "description": "Gap between the funnel outlet and the PCB top (mm)."
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "keepouts": {
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "kind",
+                                        "x",
+                                        "y",
+                                        "w",
+                                        "h",
+                                        "height"
+                                      ],
+                                      "properties": {
+                                        "kind": {
+                                          "type": "string",
+                                          "enum": [
+                                            "box"
+                                          ]
+                                        },
+                                        "x": {
+                                          "type": "number",
+                                          "minimum": -50,
+                                          "maximum": 500,
+                                          "description": "Lowest X of the box (mm)."
+                                        },
+                                        "y": {
+                                          "type": "number",
+                                          "minimum": -50,
+                                          "maximum": 500,
+                                          "description": "Lowest Y of the box (mm)."
+                                        },
+                                        "w": {
+                                          "type": "number",
+                                          "minimum": 0.1,
+                                          "maximum": 500,
+                                          "description": "Size along X (mm)."
+                                        },
+                                        "h": {
+                                          "type": "number",
+                                          "minimum": 0.1,
+                                          "maximum": 500,
+                                          "description": "Size along Y (mm)."
+                                        },
+                                        "height": {
+                                          "type": "number",
+                                          "minimum": 0.1,
+                                          "maximum": 100,
+                                          "description": "Top of the obstacle above the PCB top (mm)."
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "kind",
+                                        "cx",
+                                        "cy",
+                                        "d",
+                                        "height"
+                                      ],
+                                      "properties": {
+                                        "kind": {
+                                          "type": "string",
+                                          "enum": [
+                                            "cylinder"
+                                          ]
+                                        },
+                                        "cx": {
+                                          "type": "number",
+                                          "minimum": -50,
+                                          "maximum": 500,
+                                          "description": "Centre X (mm)."
+                                        },
+                                        "cy": {
+                                          "type": "number",
+                                          "minimum": -50,
+                                          "maximum": 500,
+                                          "description": "Centre Y (mm)."
+                                        },
+                                        "d": {
+                                          "type": "number",
+                                          "minimum": 0.1,
+                                          "maximum": 500,
+                                          "description": "Diameter (mm)."
+                                        },
+                                        "height": {
+                                          "type": "number",
+                                          "minimum": 0.1,
+                                          "maximum": 100,
+                                          "description": "Top of the obstacle above the PCB top (mm)."
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    }
+                                  ],
+                                  "description": "An obstacle in the board frame (mm): a box from its lowest corner, or a vertical cylinder."
+                                },
+                                "maxItems": 64,
+                                "description": "Obstacles that are not components."
+                              }
+                            },
+                            "additionalProperties": false,
+                            "title": "Wire-guide design",
+                            "description": "The wire-guide design (docs/schemas/wire-guide-design.schema.json): the board, the wires and their routes and levels, the prints and the guide settings, as KiPrint or the assistant writes it, or imported from a .json file."
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Prototype wire guide parameters: the wire-guide design, a structured document."
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 ],
                 "description": "Complete, uncoerced settings for one model version."

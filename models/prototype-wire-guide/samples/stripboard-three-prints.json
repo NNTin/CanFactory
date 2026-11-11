@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "boardPartId": "busboard-st1",
+  "wirePartId": "alpha-wire-3050-1",
+  "wires": [
+    { "id": "W1", "from": [2, 3], "to": [8, 3], "path": [], "level": 0 },
+    { "id": "W2", "from": [3, 6], "to": [3, 14], "path": [], "level": 0 },
+    { "id": "W3", "from": [5, 10], "to": [8, 16], "path": [[8, 10]], "level": 0 },
+    { "id": "W4", "from": [11, 4], "to": [19, 4], "path": [], "level": 0 },
+    { "id": "W5", "from": [15, 2], "to": [15, 9], "path": [], "level": 1 },
+    { "id": "W6", "from": [22, 5], "to": [28, 12], "path": [[28, 5]], "level": 0 },
+    { "id": "W7", "from": [24, 14], "to": [24, 8], "path": [], "level": 0 }
+  ],
+  "prints": [
+    { "id": "G1", "wireIds": ["W1", "W2", "W3"], "region": { "from": [0, 0], "to": [9, 18] } },
+    { "id": "G2", "wireIds": ["W4", "W5"], "region": { "from": [10, 0], "to": [20, 18] } },
+    { "id": "G3", "wireIds": ["W6", "W7"], "region": { "from": [21, 0], "to": [30, 18] } }
+  ],
+  "guide": { "registration": "edge-clips", "coverThickness": 1.2, "channelClearance": 0.2, "funnelTopDiameter": 2, "funnelBottomDiameter": 1, "funnelStandoff": 1 }
+}

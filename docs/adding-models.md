@@ -87,6 +87,17 @@ An encoder gets all the (validated) parameters too, for a value that depends on 
 code's module rectangles at the chosen error correction, with the logo's knockout cleared (`qrScad`, see
 [qr-magnet-tag.md](qr-magnet-tag.md)); the text itself never reaches OpenSCAD.
 
+**Structured documents.** A parameter may be a whole JSON document rather than a number, boolean or string: the prototype wire
+guide's `design` is a `WireGuideDesign`. Its control is of kind `document` (`documentControl`). Its property in
+`parameterSchema` is the document's schema, and the model lists it in `documents`:
+
+- `issues` checks a value, with JSON Pointer paths. `validateParameters` reports them as fields under the key
+  (`design/wires/3/path/1`) instead of the schema's errors, in the API and the worker alike.
+- `scad` writes a valid value for `-D` with trusted code, as numbers only.
+
+Bound the document's size in `issues`. The API takes request bodies up to 256 KiB. Name the parts-library families its
+geometry reads in `linkedFamilies`, so that their data is part of the cache fingerprint. See [wire-guide.md](wire-guide.md#the-guide-prints).
+
 **Derived notes (optional).** `derived(parameters)` may return `notes`: short facts worked out from valid settings, which the
 editor shows under the basic settings, e.g. the QR tag's filament-change height and its code's size.
 

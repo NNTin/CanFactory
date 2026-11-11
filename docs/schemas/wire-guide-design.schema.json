@@ -404,7 +404,7 @@
           "type": "number",
           "minimum": 0.6,
           "maximum": 4,
-          "description": "Cover plate over the top channel layer (mm)."
+          "description": "The cover plate over the board, under the lowest channel layer; the funnels open at its top and go through it (mm)."
         },
         "channelClearance": {
           "type": "number",

@@ -76,7 +76,7 @@ export type WireGuidePrint = Static<typeof WireGuidePrintSchema>;
 
 export const WireGuideSettingsSchema = Type.Object({
   registration: Type.Union([Type.Literal('mounting-holes'), Type.Literal('edge-clips')], { description: 'How a print locates on the board.' }),
-  coverThickness: Mm(0.6, 4, 'Cover plate over the top channel layer (mm).'),
+  coverThickness: Mm(0.6, 4, 'The cover plate over the board, under the lowest channel layer; the funnels open at its top and go through it (mm).'),
   channelClearance: Mm(0, 1, 'Added to the insulation’s largest outer diameter for a channel’s width (mm).'),
   funnelTopDiameter: Mm(1, 5, 'Funnel opening at the cover (mm).'),
   funnelBottomDiameter: Mm(0.3, 3, 'Funnel outlet above the hole (mm).'),

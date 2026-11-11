@@ -4,8 +4,8 @@ A wire-guide design (`WireGuideDesign`, `packages/contracts/src/wireGuide.ts`) i
 and the renderer (#152). It describes the solid-core wires routed on a prototype board and the separate guide prints that hold
 them. The guide sits on the component side and stays on the board. Only the wire ends are soldered, on the solder side.
 
-A design is data, never code. The renderer (the `prototype-wire-guide` model, a later phase) turns it into geometry with
-trusted code, and `validateWireGuideDesign` checks it the same way everywhere it is used.
+A design is data, never code. The renderer (the `prototype-wire-guide` model, see [The guide prints](#the-guide-prints)) turns it
+into geometry with trusted code, and `validateWireGuideDesign` checks it the same way everywhere it is used.
 
 ## Where the schema lives
 
@@ -107,3 +107,91 @@ KiPrint runs server-side and can't import the bundle, so it reads the board data
 
 - `GET /api/v1/parts/{id}`: a part, its family and its resolved sources.
 - `GET /api/v1/parts/{id}/layout`: the layout of a prototype or development board.
+
+## The guide prints
+
+The `prototype-wire-guide` model renders a design: one STL per print, in a ZIP (`print-1.stl` …), on the usual
+`/api/v1/renders/{id}/zip` route.
+
+### The design as a parameter
+
+The model has one parameter, `design`, a **structured document** (control kind `document`, `ModelDefinition.documents`):
+
+- **Schema:** `WireGuideDesignSchema`. A render request carries the design as a JSON object: `parameters: { design: {…} }`.
+- **Validation:** `validateParameters` checks it with the model's `prototypeWireGuideIssues`. That is `validateWireGuideDesign`
+  plus the renderer's own bounds:
+  - at most 200 kB as JSON (the API takes request bodies up to 256 KiB);
+  - at most 2000 grid points (ends and waypoints) over all wires.
+
+  Each issue's field is `design` followed by its JSON Pointer, e.g. `design/wires/3/path/1`. The API (422
+  `INVALID_PARAMETERS`) and the worker (`SETTINGS_INVALID`) report the same issues.
+- **SCAD input:** `wireGuideScad` works out every print's geometry (`wireGuideGeometry`) and writes it as `-D GUIDE=`, nested
+  lists of numbers only. Each print's part picks its own print with the trusted constant `PRINT`. Ids, net names, footprints
+  and part ids never reach OpenSCAD.
+- **Cache key:** the parameters, as for every model, as canonical JSON (keys sorted at every depth). The board and wire parts'
+  data is part of the fingerprint (`linkedFamilies`).
+
+### Geometry
+
+Each print is drawn where it sits on the board (the board's frame), the right way up:
+
+- **Block and plate.** A block over the print's wires and funnels, plus a 1.2 mm margin, and over its region if it has one. It
+  may overhang the outline by at most the margin. Its underside is at the PCB's top + `funnelStandoff`. The bottom
+  `coverThickness` of it is the **cover plate**: it lies over the board, under the lowest channel layer.
+- **Channels.** Each wire's channel is as wide as its own wire's insulation OD `max` + `channelClearance`
+  (`hookupWireChannelWidth`; a per-wire `wirePartId` overrides the design's). Channels are open upwards, from the floor of
+  their layer to the top.
+  - The floors step up by the print's widest channel + 0.6 mm per layer. A print uses only the levels it has, so its
+    layers are those levels, compressed.
+  - The top is the highest floor + the widest channel.
+- **Bridges.** Where a higher channel crosses or runs over a lower one, a 0.6 mm bridge carries the higher wire. The lower wire
+  passes under it, in a tunnel at least as tall as the widest channel.
+- **Funnels.** Every wire end has a funnel: a cone from the outlet (`funnelBottomDiameter`) at the underside to the opening
+  (`funnelTopDiameter`) just above the plate's top, then a shaft of the opening's diameter up through the top.
+- **Pockets.** Every component body and keep-out is pocketed from below, grown by 0.3 mm on every side and on top.
+  - A pocket that would leave less than 0.4 mm under the top goes through the print.
+  - A body lower than the underside gets no pocket.
+  - A print may therefore be several bodies (`separateBodies`), though the samples are one.
+- **Registration.**
+  - `mounting-holes`: a boss on the two mounting holes nearest the print's middle. Each boss is a column (the hole + 1.2 mm
+    wall), standing on the board when there is a standoff, with a pin (the hole − 0.3 mm) three quarters of the way down
+    the hole. A print with a `region` takes only the mounting holes in its region, so prints never share one; it may have
+    none.
+  - `edge-clips`: the print spans the board's width, and a clip on each edge along X grips the board. Each clip is a wall
+    0.2 mm off the edge, a 0.6 mm lip under the board, and a foot on its top.
+
+### Keep-out conventions (for KiPrint)
+
+- A box is given by its lowest corner (`x`, `y`), `w` along X and `h` along Y. A cylinder has a vertical axis, centre
+  (`cx`, `cy`) and diameter `d`.
+- `height` is the top of the body above the PCB's top surface (z = t + height in the board frame).
+- Give the real body envelope. The renderer adds its own 0.3 mm clearance (`WIRE_GUIDE_GEOMETRY.pocketClearance`).
+- Keep-outs may overlap each other, the outline and print boundaries. Validation keeps channels clear of them by half a
+  channel's width, and wire ends off them. Component pins may lie under their body.
+
+### Samples and tests
+
+The sample designs in `models/prototype-wire-guide/samples/` are:
+
+| Sample | Board | What it covers |
+| --- | --- | --- |
+| `perfboard-one-level.json` | perfboard | one print, one level; bosses; DIP-8 and tall-capacitor pockets. It is the model's default. |
+| `perfboard-two-levels.json` | perfboard | crossings on two levels, a per-wire 22 AWG override; edge clips |
+| `stripboard-three-prints.json` | stripboard | three prints by region |
+| `perma-proto-bus.json` | Perma-Proto | rails and strips (bus) |
+
+- `npm run test:renderer` (`TEST_ONLY=prototype-wire-guide`) renders each sample. It checks every print with
+  `tools/wire-guide-checks.ts` against the encoder's geometry: one closed solid; open channels, tunnels and funnels; solid
+  bridges, plate, pins and clips; open pockets.
+- The unit tests cover the samples, the numbers-only encoding, the bounds, and the API–worker parity of issues.
+
+### Editor
+
+The editor's document field (`apps/web/src/WireGuideField.tsx`) shows:
+
+- a map and summary of the design: board, wire, wire count, levels and prints;
+- the guide's settings;
+- **Import design (.json)** and **Download design**.
+
+An imported file is checked in the browser with the same function. Only a valid design replaces the current one; an invalid
+one is listed with its issues. So the model works without the assistant.

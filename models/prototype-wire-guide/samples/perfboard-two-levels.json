@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "boardPartId": "generic-proto-board-50x70",
+  "wirePartId": "alpha-wire-3050-1",
+  "wires": [
+    { "id": "W1", "wirePartId": "alpha-wire-3051-1", "net": "VCC", "from": [2, 5], "to": [20, 5], "path": [], "level": 0 },
+    { "id": "W2", "net": "A", "from": [6, 2], "to": [6, 10], "path": [], "level": 1 },
+    { "id": "W3", "net": "B", "from": [10, 2], "to": [14, 12], "path": [[10, 8], [14, 8]], "level": 1 },
+    { "id": "W4", "net": "GND", "from": [2, 12], "to": [12, 14], "path": [[12, 12]], "level": 0 }
+  ],
+  "prints": [{ "id": "G1", "wireIds": ["W1", "W2", "W3", "W4"] }],
+  "guide": { "registration": "edge-clips", "coverThickness": 1, "channelClearance": 0.2, "funnelTopDiameter": 2.2, "funnelBottomDiameter": 1.1, "funnelStandoff": 0.5 }
+}

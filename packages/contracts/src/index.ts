@@ -23,6 +23,7 @@ export * from './physicsPieces.ts';
 export * from './cigaretteCasePhysics.ts';
 export * from './spurGear.ts';
 export * from './wireGuide.ts';
+export * from './prototypeWireGuide.ts';
 export * from './partsApi.ts';
 /** The toggle latch's mechanism, shared by the catalogue card's side view and the assembly preview. */
 export * as toggleLatchMechanism from './toggleLatchMechanism.ts';
