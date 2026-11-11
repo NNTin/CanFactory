@@ -91,6 +91,22 @@ describe('wire-guide design', () => {
     expect(crowded.length).toBe(WIRE_GUIDE_LIMITS.issues);
   });
 
+  it('stops checking at the issue limit, however many problems a schema-valid design has', () => {
+    // the worst case: the whole board under keep-outs, and 200 wires zig-zagging across it over all 64 waypoints, which would
+    // be millions of "runs through" and "doubles back" issues if they were all collected
+    const zigzag = Array.from({ length: WIRE_GUIDE_LIMITS.waypoints }, (_, i) => [i % 2 ? 0 : 45, 0] as [number, number]);
+    const worst: WireGuideDesign = {
+      ...valid(), boardPartId: 'roth-re200-hp', components: [], prints: [{ id: 'G1', wireIds: ['W0'] }],
+      guide: { ...valid().guide, registration: 'edge-clips' },
+      keepouts: Array.from({ length: WIRE_GUIDE_LIMITS.keepouts }, () => ({ kind: 'box' as const, x: 0, y: 0, w: 170, h: 110, height: 10 })),
+      wires: Array.from({ length: WIRE_GUIDE_LIMITS.wires }, (_, i) => ({ id: `W${i}`, from: [0, 0] as [number, number], to: [45, 0] as [number, number], path: zigzag, level: 0 })),
+    };
+    const started = performance.now();
+    expect(validateWireGuideDesign(worst)).toHaveLength(WIRE_GUIDE_LIMITS.issues);
+    // bounded by the limit, not the design: well under the seconds the full list would take
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
   it('needs a prototype board of the library, and hookup wire for every wire', () => {
     expect(issuesAfter(d => { d.boardPartId = 'alpha-wire-3051-1'; })).toContainEqual({ path: '/boardPartId', message: 'alpha-wire-3051-1 is a hookup-wire, not a prototype board.' });
     expect(issuesAfter(d => { d.boardPartId = 'no-such-board'; })[0]?.path).toBe('/boardPartId');

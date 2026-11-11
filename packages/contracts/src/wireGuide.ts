@@ -174,13 +174,24 @@ export function validateWireGuideDesign(design: unknown): WireGuideIssue[] {
     }
     return issues.length ? issues : [{ path: '', message: 'The design does not match the WireGuideDesign schema.' }];
   }
-  return designIssues(design).slice(0, WIRE_GUIDE_LIMITS.issues);
+  const issues: WireGuideIssue[] = [];
+  try { designIssues(design, issues); }
+  catch (error) { if (error !== ENOUGH) throw error; }
+  return issues;
 }
 
-/** The checks beyond the schema, for a design that matches it. */
-function designIssues(design: WireGuideDesign): WireGuideIssue[] {
-  const issues: WireGuideIssue[] = [];
-  const issue = (path: string, message: string) => { issues.push({ path, message }); };
+/** Thrown by `designIssues` once it has `WIRE_GUIDE_LIMITS.issues` issues, so that a hostile design costs no more to check. */
+const ENOUGH = new Error('Enough issues.');
+
+/**
+ * The checks beyond the schema, for a design that matches it, into `issues`. It stops (throwing `ENOUGH`) at the limit: the
+ * work is bounded by the issues it reports, not by how many problems a large design has.
+ */
+function designIssues(design: WireGuideDesign, issues: WireGuideIssue[]): void {
+  const issue = (path: string, message: string) => {
+    issues.push({ path, message });
+    if (issues.length >= WIRE_GUIDE_LIMITS.issues) throw ENOUGH;
+  };
 
   // --- the board and the wire parts ---
   const boardPart = findPart(design.boardPartId);
@@ -226,7 +237,7 @@ function designIssues(design: WireGuideDesign): WireGuideIssue[] {
   design.wires.forEach((wire, index) => { if (!printOf.has(wire.id)) issue(`/wires/${index}`, `Wire ${wire.id} is in no print: every wire belongs to exactly one print.`); });
 
   // Everything below needs the board.
-  if (!board) return issues;
+  if (!board) return;
   const { grid, outline } = board;
   const onGrid = ([column, row]: Ref) => column < grid.columns && row < grid.rows;
   const mm = ([column, row]: Ref) => board.point(column, row);
@@ -347,7 +358,6 @@ function designIssues(design: WireGuideDesign): WireGuideIssue[] {
         issue(`/prints/${p}/region`, `Print ${design.prints[p]?.id}’s region overlaps print ${design.prints[q]?.id}’s.`);
     });
   });
-  return issues;
 }
 
 /** The layout a valid design is drawn on (undefined when its board is not a prototype board of the library). */
