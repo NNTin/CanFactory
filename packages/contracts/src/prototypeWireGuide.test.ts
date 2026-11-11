@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { activeParts, findPart, hookupWireChannelWidth, prototypeWireGuide, scadDefines, validateParameters, validateWireGuideDesign, linkedPartData, type WireGuideDesign } from './index.ts';
-import { DEFAULT_WIRE_GUIDE_DESIGN, prototypeWireGuideIssues, WIRE_GUIDE_GEOMETRY, wireGuideGeometry, wireGuideScad } from './prototypeWireGuide.ts';
+import { activeParts, findPart, hookupWireChannelWidth, prototypeWireGuide, scadDefines, validateParameters, validateWireGuideDesign, linkedPartData, WIRE_GUIDE_LIMITS, type WireGuideDesign } from './index.ts';
+import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, wireGuideGeometry, wireGuideScad } from './prototypeWireGuide.ts';
 
 const SAMPLES = new URL('../../../models/prototype-wire-guide/samples/', import.meta.url);
 const sample = (name: string) => JSON.parse(readFileSync(new URL(name, SAMPLES), 'utf8')) as WireGuideDesign;
@@ -19,7 +19,7 @@ describe('prototype-wire-guide samples', () => {
     expect([...patterns].sort()).toEqual(['breadboard strips and rails', 'isolated pads', 'strips']);
   });
   it.each(names)('%s is a valid design and valid parameters', name => {
-    expect(prototypeWireGuideIssues(sample(name))).toEqual([]);
+    expect(validateWireGuideDesign(sample(name))).toEqual([]);
     expect(validateParameters(prototypeWireGuide, { design: sample(name) })).toEqual([]);
   });
   it('the default design is the one-level perfboard sample', () => {
@@ -120,19 +120,19 @@ describe('prototype-wire-guide validation', () => {
     expect(validateParameters(prototypeWireGuide, {}).length).toBeGreaterThan(0);
     expect(validateParameters(prototypeWireGuide, { design: 'W1' })[0]?.field).toBe('design');
   });
-  it('bounds the design: its size as JSON and, for a valid design, its grid points', () => {
-    const big = { ...clone(DEFAULT_WIRE_GUIDE_DESIGN), source: { tool: 'kiprint', version: '1', projectId: 'x'.repeat(WIRE_GUIDE_GEOMETRY.maxBytes) } };
-    const [tooBig] = prototypeWireGuideIssues(big);
+  it('bounds the design in the shared validateWireGuideDesign: its size as JSON and its grid points', () => {
+    const big = { ...clone(DEFAULT_WIRE_GUIDE_DESIGN), source: { tool: 'kiprint', version: '1', projectId: 'x'.repeat(WIRE_GUIDE_LIMITS.bytes) } };
+    const [tooBig] = validateWireGuideDesign(big);
     expect(tooBig?.path).toBe('');
     expect(tooBig?.message).toMatch(/at most 200 kB/);
-    // one straight wire per row of a Roth card, through every column as a waypoint: valid for the contract, 2318 grid points
+    // one straight wire per row of a Roth card, through every column as a waypoint: within every item limit, but 2318 grid points
     const row = (r: number) => ({ id: `W${r}`, from: [0, r] as [number, number], to: [60, r] as [number, number], path: Array.from({ length: 59 }, (_, k) => [k + 1, r] as [number, number]), level: 0 });
     const wires = Array.from({ length: 38 }, (_, r) => row(r));
     const long: WireGuideDesign = { ...clone(DEFAULT_WIRE_GUIDE_DESIGN), boardPartId: 'roth-re200-hp', components: [], keepouts: [], wires,
       prints: [{ id: 'G1', wireIds: wires.map(wire => wire.id) }], guide: { ...DEFAULT_WIRE_GUIDE_DESIGN.guide, registration: 'edge-clips' } };
-    expect(validateWireGuideDesign(long)).toEqual([]);
-    expect(prototypeWireGuideIssues(long)).toEqual([{ path: '/wires', message: 'The wires have 2318 grid points (ends and waypoints) in all; the guide renders at most 2000.' }]);
+    expect(validateWireGuideDesign(long)).toEqual([{ path: '/wires', message: 'The wires have 2318 grid points (ends and waypoints) in all; a design has at most 2000.' }]);
+    expect(validateParameters(prototypeWireGuide, { design: long })).toEqual([{ field: 'design/wires', message: 'The wires have 2318 grid points (ends and waypoints) in all; a design has at most 2000.' }]);
     long.wires = wires.slice(0, 32); long.prints = [{ id: 'G1', wireIds: long.wires.map(wire => wire.id) }];
-    expect(prototypeWireGuideIssues(long)).toEqual([]);
+    expect(validateWireGuideDesign(long)).toEqual([]);
 });
 });

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowDownToLine, FileUp } from 'lucide-react';
-import { prototypeWireGuideIssues, WIRE_GUIDE_GEOMETRY, wireGuideBoard, WireGuideSettingsSchema, wireGuideSummary, type Control, type ParameterValue, type WireGuideDesign, type WireGuideSettings } from '@canfactory/contracts';
+import { validateWireGuideDesign, WIRE_GUIDE_LIMITS, wireGuideBoard, WireGuideSettingsSchema, wireGuideSummary, type Control, type ParameterValue, type WireGuideDesign, type WireGuideSettings } from '@canfactory/contracts';
 
 const LEVEL_COLORS = ['#c46543', '#3f6fb5', '#637655', '#9a5bb0', '#b08a2e', '#2e8f8a'];
 type NumberSetting = Exclude<keyof WireGuideSettings, 'registration'>;
@@ -43,12 +43,12 @@ function BoardMap({ design }: { design: WireGuideDesign }) {
 /**
  * A `document` control for a wire-guide design: the design's summary and map, the guide's settings, and “Import design (.json)”, so
  * that the model works without the assistant. A file is read here, in the browser, and checked with the same function as the API and
- * the worker (`prototypeWireGuideIssues`); only a valid design replaces the current one, an invalid one is listed with its issues.
+ * the worker (`validateWireGuideDesign`); only a valid design replaces the current one, an invalid one is listed with its issues.
  */
 export function WireGuideField({ control, value, disabled, change }: { control: Control; value: ParameterValue | undefined; disabled: boolean; change: (value: ParameterValue) => void }) {
   const id = `parameter-${control.key}`;
   const design = typeof value === 'object' ? value as WireGuideDesign : undefined;
-  const issues = useMemo(() => design ? prototypeWireGuideIssues(design) : [{ path: '', message: 'No design.' }], [design]);
+  const issues = useMemo(() => design ? validateWireGuideDesign(design) : [{ path: '', message: 'No design.' }], [design]);
   const summary = useMemo(() => design && issues.length === 0 ? wireGuideSummary(design) : undefined, [design, issues]);
   const [rejected, setRejected] = useState<{ name: string; issues: { path: string; message: string }[] } | null>(null);
   const [loaded, setLoaded] = useState<string | null>(null);
@@ -56,10 +56,10 @@ export function WireGuideField({ control, value, disabled, change }: { control: 
   const load = async (file: File | undefined) => {
     if (!file) return;
     setRejected(null);
-    if (file.size > WIRE_GUIDE_GEOMETRY.maxBytes) { setRejected({ name: file.name, issues: [{ path: '', message: `This file is larger than ${WIRE_GUIDE_GEOMETRY.maxBytes / 1000} kB.` }] }); return; }
+    if (file.size > WIRE_GUIDE_LIMITS.bytes) { setRejected({ name: file.name, issues: [{ path: '', message: `This file is larger than ${WIRE_GUIDE_LIMITS.bytes / 1000} kB.` }] }); return; }
     let parsed: unknown;
     try { parsed = JSON.parse(await file.text()); } catch { setRejected({ name: file.name, issues: [{ path: '', message: 'This file is not JSON.' }] }); return; }
-    const found = prototypeWireGuideIssues(parsed);
+    const found = validateWireGuideDesign(parsed);
     if (found.length) { setRejected({ name: file.name, issues: found }); return; }
     change(parsed as WireGuideDesign);
     setLoaded(file.name);

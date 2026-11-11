@@ -14,8 +14,8 @@ import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TIP_ANGLE, TREAT_BAND_SIZES, TRE
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, parts as allParts, type MetricThread, type Part } from './parts/index.ts';
-import { DEFAULT_WIRE_GUIDE_DESIGN, prototypeWireGuideIssues, WIRE_GUIDE_GEOMETRY, wireGuideScad, wireGuideSummary } from './prototypeWireGuide.ts';
-import { WIRE_GUIDE_LIMITS, WireGuideDesignSchema, type WireGuideDesign } from './wireGuide.ts';
+import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, wireGuideScad, wireGuideSummary } from './prototypeWireGuide.ts';
+import { validateWireGuideDesign, WIRE_GUIDE_LIMITS, WireGuideDesignSchema, type WireGuideDesign } from './wireGuide.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
 import { PRESSURE_PAD, PRESSURE_PAD_SURFACES, PRESSURE_PAD_TYPES, pressurePadExtenderTravel, pressurePadLeg, pressurePadMinDiameter, pressurePadMinExtenderDiameter, pressurePadMinExtenderLength, pressurePadMinHeight, type PressurePadSurface, type PressurePadType } from './pressurePad.ts';
@@ -3871,7 +3871,7 @@ export const magneticLighterKeychain = {
 /**
  * Prototype-board wire guide (models/prototype-wire-guide/guide.scad, docs/wire-guide.md): the printed guides that hold the
  * solid-core wires of a wire-guide design (`WireGuideDesign`) on a prototype board, one STL per print of the design. Its one
- * parameter is the design itself, a structured document: validated by `prototypeWireGuideIssues` and written for SCAD by
+ * parameter is the design itself, a structured document: validated by `validateWireGuideDesign` (the one check the assistant, KiPrint, the API and the worker share) and written for SCAD by
  * `wireGuideScad` as numbers only (`documents`). Each print's part renders the same generator with its own `PRINT`.
  */
 export const PrototypeWireGuideParametersSchema = Type.Object({
@@ -3882,7 +3882,7 @@ const pwgControls: Control[] = [documentControl(PrototypeWireGuideParametersSche
 const PWG_SOURCE = 'models/prototype-wire-guide/guide.scad';
 const designOf = (parameters: unknown): WireGuideDesign | undefined => {
   const design = parameters !== null && typeof parameters === 'object' ? (parameters as { design?: unknown }).design : undefined;
-  return design !== undefined && prototypeWireGuideIssues(design).length === 0 ? design as WireGuideDesign : undefined;
+  return design !== undefined && validateWireGuideDesign(design).length === 0 ? design as WireGuideDesign : undefined;
 };
 export const prototypeWireGuide = {
   id: 'prototype-wire-guide' as const, version: '1' as const, title: 'Prototype-board wire guide',
@@ -3899,7 +3899,7 @@ export const prototypeWireGuide = {
   })),
   parameterSchema: PrototypeWireGuideParametersSchema, controls: pwgControls,
   defaults: { design: DEFAULT_WIRE_GUIDE_DESIGN }, scadMapping: {},
-  documents: { design: { issues: prototypeWireGuideIssues, scad: value => wireGuideScad(value as WireGuideDesign) } },
+  documents: { design: { issues: validateWireGuideDesign, scad: value => wireGuideScad(value as WireGuideDesign) } },
   linkedFamilies: ['prototype-board', 'hookup-wire'],
   validate(parameters: unknown): ParameterIssue[] {
     return Value.Check(PrototypeWireGuideParametersSchema, parameters) ? [] : [{ field: '', message: 'Parameters do not match the prototype wire guide schema.' }];

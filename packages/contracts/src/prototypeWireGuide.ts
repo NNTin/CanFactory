@@ -1,5 +1,5 @@
 import { dimensionOf, findPart, hookupWireChannelWidth } from './parts/index.ts';
-import { validateWireGuideDesign, wireGuideBoard, type Keepout, type WireGuideDesign, type WireGuideIssue } from './wireGuide.ts';
+import { validateWireGuideDesign, wireGuideBoard, type Keepout, type WireGuideDesign } from './wireGuide.ts';
 
 /**
  * The `prototype-wire-guide` model's geometry, worked out from a valid `WireGuideDesign` by trusted code: every print's plate,
@@ -27,10 +27,6 @@ export const WIRE_GUIDE_GEOMETRY = {
   /** Edge clips on the board's two edges along X: gap to the edge, wall thickness, width along X, the lip's reach under the board,
    * how far the wall goes below the board's underside, the lip's gap under it, and the foot's reach over the board's top. */
   clip: { gap: 0.2, wall: 1.4, width: 10, lip: 0.6, below: 1.4, lipGap: 0.15, foot: 0.6 },
-  /** The most grid points (ends and waypoints) of all wires: bounds the SCAD input and the render time. */
-  maxPoints: 2000,
-  /** The most bytes of the design as JSON. */
-  maxBytes: 200_000,
 } as const;
 
 /** One print's geometry, in mm. */
@@ -61,28 +57,6 @@ export interface WireGuidePrintGeometry {
 
 const round = (value: number) => Math.round(value * 10000) / 10000;
 
-/** Every grid point of the design's wires: ends and waypoints. */
-export const wireGuidePoints = (design: Pick<WireGuideDesign, 'wires'>): number =>
-  design.wires.reduce((sum, wire) => sum + wire.path.length + 2, 0);
-
-/**
- * The model's own checks of a design, beyond the contract's: its size (as JSON, and in grid points), so that what reaches the
- * renderer is bounded. Then `validateWireGuideDesign`. Issue paths are JSON Pointers into the design.
- */
-export function prototypeWireGuideIssues(design: unknown): WireGuideIssue[] {
-  let bytes: number;
-  try { bytes = (JSON.stringify(design) as string | undefined)?.length ?? 0; } catch { return [{ path: '', message: 'The design is not a JSON document.' }]; }
-  if (bytes > WIRE_GUIDE_GEOMETRY.maxBytes)
-    return [{ path: '', message: `The design is ${Math.ceil(bytes / 1000)} kB as JSON; the guide takes at most ${WIRE_GUIDE_GEOMETRY.maxBytes / 1000} kB.` }];
-  const issues = validateWireGuideDesign(design);
-  if (issues.length) return issues;
-  const valid = design as WireGuideDesign;
-  const points = wireGuidePoints(valid);
-  if (points > WIRE_GUIDE_GEOMETRY.maxPoints)
-    return [{ path: '/wires', message: `The wires have ${points} grid points (ends and waypoints) in all; the guide renders at most ${WIRE_GUIDE_GEOMETRY.maxPoints}.` }];
-  return [];
-}
-
 /** The channel width of each wire of a valid design: its own part's (or the design's) insulation OD max, plus the clearance. */
 function channelWidths(design: WireGuideDesign): number[] {
   return design.wires.map(wire => {
@@ -105,7 +79,7 @@ function offPlanes(value: number, planes: readonly number[]): number {
 
 /** The geometry of every print of a valid design, in the order of `design.prints`. Throws for a design that is not valid. */
 export function wireGuideGeometry(design: WireGuideDesign): WireGuidePrintGeometry[] {
-  const issues = prototypeWireGuideIssues(design);
+  const issues = validateWireGuideDesign(design);
   if (issues.length) throw new Error(`Invalid wire-guide design: ${issues.map(issue => `${issue.path || '/'}: ${issue.message}`).join(' ')}`);
   const board = wireGuideBoard(design);
   if (!board) throw new Error(`${design.boardPartId} is not a prototype board.`);

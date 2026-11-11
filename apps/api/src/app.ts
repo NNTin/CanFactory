@@ -56,7 +56,7 @@ export async function createApp(storage?: PostgresStorage, logging = false, opti
   const accounts = options.accounts ?? AFFILIATE_ACCOUNTS;
   const catalogue = options.catalogue ?? offers;
   const app = Fastify({
-    // Room for a document parameter: a wire-guide design is at most WIRE_GUIDE_GEOMETRY.maxBytes (200 kB) as JSON.
+    // Room for a document parameter: a wire-guide design is at most WIRE_GUIDE_LIMITS.bytes (200 kB) as JSON.
     logger: logging, bodyLimit: 262_144,
     ajv: { customOptions: { coerceTypes: false, removeAdditional: false, useDefaults: false, multipleOfPrecision: 8 } },
   }).withTypeProvider<TypeBoxTypeProvider>();

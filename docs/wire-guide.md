@@ -63,40 +63,43 @@ Keepout =
 the worker. `path` is the JSON Pointer of the field the issue is about (`/wires/3/path/1`), and an empty list means the design
 is valid. It returns at most 100 issues.
 
-1. **Schema:** a design that doesn't match the schema gets the schema's issues only. The schema enforces these bounds:
+1. **Size:** a design is at most 200 kB as JSON (`WIRE_GUIDE_LIMITS.bytes`), and its wires have at most 2000 grid points
+   (ends and waypoints) together (`WIRE_GUIDE_LIMITS.points`). A design over 200 kB gets that issue only. The schema can't
+   express either bound, so its description states them.
+2. **Schema:** a design that doesn't match the schema gets the schema's issues only. The schema enforces these bounds:
    - at most 200 wires, 64 waypoints per wire, 8 prints, 6 levels (0–5), 100 components of up to 64 pins each, and 64
      keep-outs;
    - grid indices from 0 to 255;
    - every dimension within its bounds: cover 0.6–4 mm, clearance 0–1 mm, funnel opening 1–5 mm, outlet 0.3–3 mm, standoff
      0–10 mm, keep-outs up to 500 mm across and 100 mm high.
-2. **Parts:**
+3. **Parts:**
    - `boardPartId` is a prototype board of the library;
    - `wirePartId` and every per-wire `wirePartId` are hookup-wire parts;
    - each wire's conductor passes the board's holes and the funnel's outlet;
    - each wire's channel is narrower than the pitch.
-3. **Ids:** wire ids, print ids and component refs are unique.
-4. **Guide:**
+4. **Ids:** wire ids, print ids and component refs are unique.
+5. **Guide:**
    - the funnel's outlet is no wider than its opening;
    - the opening is no wider than the pitch, so neighbouring funnels don't merge;
    - `mounting-holes` registration needs a board with mounting holes.
-5. **Components:** every pin is a drilled hole, and no hole is the pin of two components. A component's body is a keep-out.
-6. **Wire ends:**
+6. **Components:** every pin is a drilled hole, and no hole is the pin of two components. A component's body is a keep-out.
+7. **Wire ends:**
    - every end is a drilled hole (`hole(column, row)`);
    - each hole takes at most one wire end;
    - no end is in a component's pin hole, or under a component's body or a keep-out;
    - a wire doesn't start and end at the same hole.
-7. **Paths:**
+8. **Paths:**
    - every point is on the board's grid;
    - every segment runs along a column or a row and has a length;
    - the channel stays inside the outline;
    - no segment runs through a component's body or a keep-out, grown by half the channel's width.
    - A waypoint may lie over an empty grid position, such as the Perma-Proto's middle channel.
-8. **Levels:**
+9. **Levels:**
    - two wires on the same level never cross or overlap;
    - a wire never crosses itself;
    - no wire, on any level, passes over another wire's end (that wire drops into its hole there) or over a component's pin
      hole.
-9. **Prints:**
+10. **Prints:**
    - every wire belongs to exactly one print, and every wire a print lists exists;
    - a print's `region`, when given, lies on the grid, holds all of its wires, and doesn't overlap another print's region.
 
@@ -118,10 +121,8 @@ The `prototype-wire-guide` model renders a design: one STL per print, in a ZIP (
 The model has one parameter, `design`, a **structured document** (control kind `document`, `ModelDefinition.documents`):
 
 - **Schema:** `WireGuideDesignSchema`. A render request carries the design as a JSON object: `parameters: { design: {…} }`.
-- **Validation:** `validateParameters` checks it with the model's `prototypeWireGuideIssues`. That is `validateWireGuideDesign`
-  plus the renderer's own bounds:
-  - at most 200 kB as JSON (the API takes request bodies up to 256 KiB);
-  - at most 2000 grid points (ends and waypoints) over all wires.
+- **Validation:** `validateParameters` checks it with `validateWireGuideDesign` itself, the one function the assistant, KiPrint,
+  the API, the worker and the editor share; its size bounds included. The API takes request bodies up to 256 KiB.
 
   Each issue's field is `design` followed by its JSON Pointer, e.g. `design/wires/3/path/1`. The API (422
   `INVALID_PARAMETERS`) and the worker (`SETTINGS_INVALID`) report the same issues.
