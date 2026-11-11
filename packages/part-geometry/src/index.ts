@@ -615,10 +615,31 @@ function pinHeader(part: Part): Piece[] {
   }).flat()];
 }
 
+const PVC = 0xc23b2e;
+const KYNAR = 0x2f6fc0;
+const WIRE_LENGTH = 40;
+const STRIPPED = 5;
+
+/** A 40 mm piece lying along X on z = 0, its ends stripped for 5 mm: the conductor at its diameter, the insulation at its largest. */
+function hookupWire(part: Part): Piece[] {
+  const r = value(part, 'd') / 2, R = largest(part, 'D') / 2;
+  const colour = part.attributes['insulation']?.startsWith('Kynar') ? KYNAR : PVC;
+  const copper = part.attributes['conductor']?.includes('silver') ? NICKEL : 0xc9ccd0;
+  const length = WIRE_LENGTH - 2 * STRIPPED;
+  // the conductor's ends and the insulation are separate closed solids that touch at the insulation's faces
+  const pieces = [
+    revolve([[0, 0], [r, 0], [r, STRIPPED], [0, STRIPPED]], copper, 24),
+    revolve([[0, STRIPPED], [R, STRIPPED], [R, STRIPPED + length], [0, STRIPPED + length]], colour, 24),
+    revolve([[0, STRIPPED + length], [r, STRIPPED + length], [r, WIRE_LENGTH], [0, WIRE_LENGTH]], copper, 24),
+  ];
+  for (const piece of pieces) { piece.rotateY(Math.PI / 2); piece.translate(-WIRE_LENGTH / 2, 0, R); }
+  return pieces;
+}
+
 const BUILDERS: Record<string, (part: Part) => Piece[]> = {
   screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
   'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'rubber-band': rubberBand, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, 'pin-header': pinHeader, heatsink, mesh,
-  'stepper-motor': stepperMotor, 'stepper-driver': stepperDriver, 'prototype-board': prototypeBoard,
+  'stepper-motor': stepperMotor, 'stepper-driver': stepperDriver, 'prototype-board': prototypeBoard, 'hookup-wire': hookupWire,
 };
 
 /** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */

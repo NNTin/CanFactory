@@ -29,7 +29,7 @@ implementations, registrations and data copies it deletes.
 | `packages/client` | Library (browser) | A typed `openapi-fetch` client over the generated `schema.d.ts`. | none (generated from the API) |
 | `packages/physics` | Library (Node and browser) | MuJoCo WebAssembly physics: scene compiler (spec to MJCF), simulation, scenario runner, interactive session, V-HACD decomposition. | contracts (types and materials only) |
 | `packages/part-geometry` | Library (Node and browser, Three.js) | `partGeometry(part)`: the one drawing of a procedural parts-library part, from its dimensions. The parts library, the editor's reference objects and the assembly check use it. | contracts |
-| `apps/api` | Process (Fastify) | The public HTTP API: render jobs and artifacts, model reference STLs, market and offers. Also serves OpenAPI. The catalogue and parts library are not served; the web app bundles them. | contracts, server |
+| `apps/api` | Process (Fastify) | The public HTTP API: render jobs and artifacts, model reference STLs, market and offers. Also serves OpenAPI. The catalogue and parts library are bundled into the web app; single parts and board layouts are also served read-only (`/api/v1/parts/{id}`, `/layout`) for KiPrint. | contracts, server |
 | `apps/worker` | Process (no HTTP) | Claims render jobs, runs **OpenSCAD** in a subprocess, validates the meshes, and publishes STL or ZIP artifacts. | contracts, server |
 | `packages/catio` | Library (Node and browser, no Three.js) | The catio's pure domain: the planner's project document, commands, history and `evaluateProject`, and the layouts, parts lists, steps and checks of the enclosure, window insert, tunnel and couplings. Nothing in it reads storage or draws. | contracts |
 | `apps/web` | Browser SPA (React, Vite, Three.js) | Model library and editor, viewer with assembly and physics modes, parts library pages, buy list, and the catio planner and sub-assembly pages. | catio, client, contracts, physics, part-geometry |
@@ -234,8 +234,9 @@ The only geometry *renderer* is OpenSCAD in the worker. The browser *previews*:
 - **Data:** `packages/contracts/src/parts/` has one file per family (25 families), a `schema.ts` for the shape of `Part`,
   `PartFamily` and `Dimension`, cited `sources.ts`, and `ids.lock` to keep part ids permanent. A part with an STL preview
   (an everyday object) has its SCAD and STL in `parts/<family>/`; every other part is drawn by `@canfactory/part-geometry`.
-- **Bundled** into the web app from contracts (`partFamilies`, `partsOfFamily`, `findPartSource`); no API route or
-  storage serves it. Its "used by" lists come from `partUsage()`, which merges the model registry (part-linked controls and reference
+- **Bundled** into the web app from contracts (`partFamilies`, `partsOfFamily`, `findPartSource`); no storage holds it.
+  The API serves single parts and board layouts from the same bundle, read-only, for KiPrint (`GET /api/v1/parts/{id}`,
+  `/layout`; [interfaces.md](interfaces.md#parts-library)). Its "used by" lists come from `partUsage()`, which merges the model registry (part-linked controls and reference
   objects) with `concepts.ts` (catio pages).
 - **Consumed by** the models (`partDefines` sizes SCAD from part dimensions, part-linked controls offer only parts that
   fit), by the editor's reference objects, by the physics specs (library hardware becomes exact primitives), by the catio

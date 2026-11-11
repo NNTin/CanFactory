@@ -110,6 +110,8 @@ docker compose up --build -d --wait
 
 The API serves renders and their files, the original reference STLs, the visitor's market and the parts' offers. The
 catalogue itself, the models and the parts library, is not an API: the web app bundles it from `@canfactory/contracts`.
+Single parts and board layouts are also served read-only, for KiPrint (`GET /api/v1/parts/{id}` and `/layout`, see
+[interfaces.md](docs/interfaces.md#parts-library)).
 
 Compose runs the same storage as production: PostgreSQL for the render queue and
 the seeded model revisions, Garage S3 for reference and generated files. A one-shot `release`

@@ -10,6 +10,7 @@ const MESH_ACCESSED = '2026-10-13';
 const STEPPER_ACCESSED = '2026-10-20';
 const BAND_ACCESSED = '2026-10-24';
 const PROTO_ACCESSED = '2026-11-09';
+const WIRE_ACCESSED = '2026-11-10';
 
 const iso = (number: string, title: string): PartSource => ({
   id: `iso-${number.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, title: `ISO ${number}: ${title}`, publisher: 'ISO',
@@ -160,6 +161,12 @@ export const PART_SOURCES: readonly PartSource[] = [
   { id: 'busboard-st1-d', title: 'ST1-D data sheet, BPS-DAT-(ST1-D)-Rev1: double-sided FR4, plated through holes, full-length strips underneath and single pads on top, 589 holes (31 × 19), 0.94 mm holes, 2.54 mm pitch, 80 × 50 × 1.60 mm, 4 × 3.18 mm unplated mounting holes on the 0.1" grid, 1.600" (40.6 mm) × 2.800" (71.1 mm) apart, no silkscreen', publisher: 'BusBoard Prototype Systems', url: 'https://busboardcom.busboard.us/documents/datasheets/BPS-DAT-(ST1-D)-Datasheet.pdf', kind: 'manufacturer', accessed: PROTO_ACCESSED },
   { id: 'protosupplies-pcb-8x12', title: 'PCB 8 x 12 cm Universal Prototype Board: 8 × 12 cm, 1.6 mm FR-4, double-sided with green solder mask, plated through holes with the same pads on both sides, HASL, holes on 2.54 mm centres with the grid lettered and numbered in copper (no hole count, hole or pad size)', publisher: 'ProtoSupplies', url: 'https://protosupplies.com/product/pcb-8-x-12-cm-universal-prototype-board/', kind: 'reference', accessed: PROTO_ACCESSED },
   { id: 'canfactory-prototype-board-estimate', title: 'Prototype boards no maker draws: the usual values of the generic boards, and margins and copper widths the makers do not dimension (docs/adding-parts.md, “Prototype boards”)', publisher: 'CanFactory', url: 'https://github.com/NNTin/CanFactory/blob/develop/docs/adding-parts.md#prototype-boards', kind: 'reference', accessed: PROTO_ACCESSED },
+  // Solid-core hookup wire, read 2026-11-10.
+  { id: 'alpha-wire-3051-1', title: 'Hook-Up Wire 3051/1: 22 (solid) AWG tinned copper, diameter 0.025"; 0.016" wall, nom. PVC; insulated diameter 0.057" ± 0.002"; UL AWM style 1007 80 °C / 300 V RMS, style 1569 105 °C / 300 V RMS, VW-1; CSA TR-64 90 °C', publisher: 'Alpha Wire', url: 'https://www.alphawire.com/Products/Wire/Hook-Up-Wire/Premium/3051_1', kind: 'manufacturer', accessed: WIRE_ACCESSED },
+  { id: 'alpha-wire-3050-1', title: 'Hook-Up Wire 3050/1: 24 (solid) AWG tinned copper, diameter 0.020"; 0.016" wall, nom. PVC; insulated diameter 0.052" ± 0.002"; UL AWM style 1007 80 °C / 300 V RMS, style 1569 105 °C / 300 V RMS, VW-1; CSA TR-64 90 °C', publisher: 'Alpha Wire', url: 'https://www.alphawire.com/Products/Wire/Hook-Up-Wire/Premium/3050_1', kind: 'manufacturer', accessed: WIRE_ACCESSED },
+  { id: 'jonard-kynar-30', title: '30 AWG Kynar® Wire (wire-wrap): 30 AWG (0.25 mm) solid silver-plated OFHC copper, Kynar insulation 0.005" (0.127 mm), overall diameter 0.020" (0.50 mm), meets or exceeds UL 1423, up to 105 °C', publisher: 'Jonard Tools', url: 'https://jonard.com/wire-wrap-wire-kynar-and-tefzel?v=431', kind: 'manufacturer', accessed: WIRE_ACCESSED },
+  { id: 'astm-b258-table', title: 'American wire gauge table: the diameters and cross-sections of ASTM B258 (Standard Specification for Standard Nominal Diameters and Cross-Sectional Areas of AWG Sizes of Solid Round Wires)', publisher: 'Wikipedia (after ASTM International’s B258)', url: 'https://en.wikipedia.org/wiki/American_wire_gauge#Tables_of_AWG_wire_sizes', kind: 'reference', accessed: WIRE_ACCESSED },
+  { id: 'canfactory-hookup-wire-estimate', title: 'Hookup wire no maker draws: the usual insulation of unbranded wire, after the branded wire of the same UL style (docs/adding-parts.md, “Hookup wire”)', publisher: 'CanFactory', url: 'https://github.com/NNTin/CanFactory/blob/develop/docs/adding-parts.md#hookup-wire', kind: 'reference', accessed: WIRE_ACCESSED },
 ];
 
 export function findPartSource(id: string): PartSource | undefined { return PART_SOURCES.find(source => source.id === id); }

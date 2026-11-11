@@ -1,13 +1,13 @@
 # The parts library
 
 The parts library is a catalogue of real-world parts that models are made to fit: screws, nuts, washers, magnets, threaded
-inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, development boards, stepper motors and their driver boards, prototype boards (perfboard and stripboard), mesh and netting by the roll, and everyday objects such as the BIC
+inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, development boards, stepper motors and their driver boards, prototype boards (perfboard and stripboard), solid-core hookup wire, mesh and netting by the roll, and everyday objects such as the BIC
 Mini lighter the cigarette case holds. Every entry is one real
 item, a size of a standard part (ISO 4762 M3 × 10) or a named product (supermagnete S-06-02-N), with its dimensions, their
 tolerances where the source gives them, and the source of every value.
 
 The data lives in `packages/contracts/src/parts/`, one file per family. The web app bundles it with the rest of
-`@canfactory/contracts` (no API serves it, see [interfaces.md](interfaces.md)) and browses it on its own page, the parts library (`#/parts`). Each family page lists its parts with filters and search, shows the listed parts side
+`@canfactory/contracts` (see [interfaces.md](interfaces.md); the API serves single parts and board layouts read-only, for KiPrint) and browses it on its own page, the parts library (`#/parts`). Each family page lists its parts with filters and search, shows the listed parts side
 by side and true to size in a live 3D preview (hover one, in the preview or the list, to highlight it and read its
 description), and shows the selected part's dimensions, sources and the models that use it.
 
@@ -326,12 +326,38 @@ The test checks:
 The preview (`@canfactory/part-geometry`) draws the board with every hole cut through it, the pads, strips and traces as 35 µm
 copper, and the slab in its top surface's colour. Circles are drawn as octagons so that a 2318-hole board stays light.
 
-Planned next, which the layout is built for (not implemented):
+The wires routed on a board and their guide prints are a [wire-guide design](wire-guide.md), which addresses holes by
+`[column, row]` in this frame.
 
-- **Solid-core hookup wire:** a family with the conductor diameter, the insulation's outer diameter and its tolerance, AWG and
-  mm², the insulation material and the temperature rating.
-- **Assemblies:** a board with routed wires (each a list of hole refs, `PrototypeBoardHoleRef` = [column, row]) and guide
-  prints, split into several prints per board, each addressing its holes by (column, row).
+### Hookup wire
+
+The **`hookup-wire`** family (`hookup-wires.ts`) holds solid-core wire for the wires routed on a prototype board and laid in a
+printed guide. One part is one wire (gauge, insulation and maker), sold by the reel:
+
+- **Alpha Wire 3051/1 (22 AWG) and 3050/1 (24 AWG):** solid tinned copper under a nominal 0.016" PVC wall.
+  - Alpha's product pages give the conductor, the insulated diameter with its ± 0.002" tolerance, and UL AWM styles 1007
+    (80 °C) and 1569 (105 °C), 300 V. The library lists 105 °C.
+- **Generic 26 AWG solid PVC (UL 1007):** no maker draws it.
+  - The conductor is ASTM B258's.
+  - The insulation is drawn as Alpha's: the same 0.016" wall and ± 0.002", all `estimated`. Measure your reel.
+- **Jonard 30 AWG Kynar wire-wrap wire:** solid silver-plated copper under a 0.005" Kynar wall, 0.020" (0.50 mm) overall.
+  - Jonard gives no tolerance for these.
+  - The conductor is ASTM B258's 30 AWG.
+
+Dimensions:
+
+- **`d`:** the conductor's diameter.
+- **`D`:** the insulation's outer diameter, with its limits when the maker gives them. A guide's channel takes the `max`:
+  `hookupWireChannelWidth(part, clearance)` is `D` max plus the clearance.
+- **`t`:** the nominal insulation wall.
+
+The attributes give the gauge (`awg`), the cross-section (`crossSection`, from ASTM B258), the conductor, the insulation
+material, the temperature and voltage rating, the UL style and the maker. `hookupWireRating(part)` reads the gauge, the
+cross-section and the temperature as numbers.
+
+The test checks that `D` is about `d` plus two walls with its value inside its limits, that the conductor and the
+cross-section match the gauge, and the channel width. The preview draws a 40 mm piece lying along X, its ends stripped for
+5 mm, at the insulation's largest diameter.
 
 ## Previews
 
