@@ -75,6 +75,10 @@ spring wand toy upright beside it. One fixed C-shaped spring clip grips any post
 into the sisal. The wand's handle end pushes into a 40 mm deep socket with crush ribs, sized for its diameter (8 mm by default).
 Print it in PETG.
 
+The [trolley-token and shopping-list holder](docs/trolley-token.md) is designed by
+[jhappone](https://www.thingiverse.com/jhappone/designs) and published under CC BY 4.0 on
+[Thingiverse](https://www.thingiverse.com/thing:4126950). The two original printed pieces are available as a ZIP, with an assembly and paper-clamp movement preview. A metal torsion spring and axle are required.
+
 The [magnetic lighter keychain](docs/magnetic-lighter-keychain.md) puts a BIC Mini lighter (J25) on your keys: a sleeve with crush
 ribs holds it, and two magnets sealed in its flat foot (dropped in at a print pause) pair with two in a small keychain plate with
 an eyelet for a split ring. Pull it off, snap it back; the foot also sticks to the fridge. Two small fit checks try the lighter's

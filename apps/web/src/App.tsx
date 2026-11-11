@@ -21,6 +21,7 @@ import { SpringBallDetentIllustration } from './SpringBallDetentIllustration.tsx
 import { TreatDispenserIllustration } from './TreatDispenserIllustration.tsx';
 import { MiterBoxIllustration } from './MiterBoxIllustration.tsx';
 import { WandHolderIllustration } from './WandHolderIllustration.tsx';
+import { TrolleyTokenIllustration } from './TrolleyTokenIllustration.tsx';
 import { LighterKeychainIllustration } from './LighterKeychainIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { CatioOverview } from './CatioOverview.tsx';
@@ -303,6 +304,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'miter-box': MiterBoxIllustration,
   'wand-holder': WandHolderIllustration,
   'magnetic-lighter-keychain': LighterKeychainIllustration,
+  'trolley-token': TrolleyTokenIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names

@@ -1,0 +1,48 @@
+{
+  "source": {
+    "index": 0,
+    "valid": true,
+    "volume": 1073.4217545895024,
+    "min": [
+      15.009228083972983,
+      -15.000000000000572,
+      1.4999999999999778
+    ],
+    "max": [
+      40.01809195689152,
+      14.999999999999533,
+      8.54557849423705
+    ],
+    "size": [
+      25.008863872918532,
+      30.000000000000107,
+      7.0455784942370725
+    ],
+    "faces": {
+      "PLANE": 36,
+      "CYLINDER": 18
+    }
+  },
+  "sourceSha256": "e8b91a6793234231c4c39c2f3755e163f5880837bbbb541843a088df75126d0c",
+  "cadqueryVersion": "2.6.1",
+  "ocpVersion": "7.8.1.1.post1",
+  "tolerance": 0.01,
+  "angularTolerance": 0.1,
+  "relativeDeflection": true,
+  "printRotation": [
+    180.0,
+    0.26138493093829307,
+    0.0
+  ],
+  "printTranslation": [
+    -27.479210796295398,
+    -5.160316618457728e-13,
+    8.61400346875841
+  ],
+  "points": 1740,
+  "triangles": 3484,
+  "meshVolume": 1073.445186287548,
+  "volumeRelativeError": 2.1828976304538728e-05,
+  "scadBytes": 95834,
+  "inversePlacement": "source = inverse(rotation) * (print - printTranslation)"
+}

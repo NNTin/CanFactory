@@ -3,11 +3,12 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { magneticLighterKeychain, type MagneticLighterKeychainParameters, DEFAULT_WAND_HOLDER, WAND_HOLDER, wandHolder, wandHolderLayout, type WandHolderParameters, DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { trolleyToken, magneticLighterKeychain, type MagneticLighterKeychainParameters, DEFAULT_WAND_HOLDER, WAND_HOLDER, wandHolder, wandHolderLayout, type WandHolderParameters, DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, ObjectStorage, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair, type RenderJob } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { startStorageServices } from './storage-services.ts';
 import jsQR from 'jsqr';
+import { compareMeshes } from './stl-to-scad/compare.ts';
 import { parseStl, type Mesh } from './stl-to-scad/stl.ts';
 import { checkLighterKeychain, LIGHTER_KEYCHAIN_PARTS } from './lighter-keychain-checks.ts';
 
@@ -84,7 +85,7 @@ const store = new PostgresStorage(services.databaseUrl, repositoryRoot, director
 await store.migrate(); await store.seed();
 const app = await createApp(store);
 const artifactBytes = async (job: RenderJob) => Buffer.concat(await (await store.readArtifact(job)).toArray() as Buffer[]);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy, esp32-c3-supermini-case, treat-dispenser, miter-box, wand-holder, magnetic-lighter-keychain) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy, esp32-c3-supermini-case, treat-dispenser, miter-box, wand-holder, magnetic-lighter-keychain, trolley-token) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = (await selectRunner(directory, ['docker'], WORKER_LIMITS)).run;
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -1128,6 +1129,33 @@ try {
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
     console.log(`PASS magnetic cat toy ${name}: 5 connected prints, ${l.mountBase} mm tray / M3×${l.screwLength} screws, ${l.columns} × ${l.rows} flush sockets with push-out holes, no raised ribs, hollow grip shells, rear-loaded magnet pairs, thin touching bearing floors, staggered push-out bores and adjustable grip holes, ball-retaining slots`);
+  }
+  if (!only || only === 'trolley-token') {
+    const model = trolleyToken;
+    const queued = await store.enqueue(model, {});
+    const job = await store.claim(); assert.ok(job?.leaseToken);
+    assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true);
+    const result = await store.getJob(queued.id);
+    assert.equal(result?.status, 'succeeded');
+    if (!result.artifact || !('parts' in result.artifact)) throw new Error('Expected the trolley token ZIP.');
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['body', 'clip']);
+    const bytes = await artifactBytes(result), entries = unzipSync(bytes);
+    assert.deepEqual(Object.keys(entries), ['body.stl', 'clip.stl']);
+    for (const [id, file, expected] of [['body', 'Main_body.stl', [51.625, 30, 7.5]], ['clip', 'Clip.print.stl', [25, 30, 7]]] as const) {
+      const stl = Buffer.from(entries[`${id}.stl`] ?? []), info = inspectStl(stl);
+      const header = stl.subarray(0, 80).toString('utf8');
+      assert.ok(header.includes('jhappone')); assert.ok(header.includes('CC BY 4.0'));
+      for (const [i, axis] of (['x', 'y', 'z'] as const).entries())
+        assert.ok(Math.abs(info.dimensions[axis] - (expected[i] ?? NaN)) < 0.02, `${id}: ${axis} size`);
+      const reference = parseStl(await readFile(join(repositoryRoot, 'models/trolley-token/reference', file)));
+      const comparison = compareMeshes(reference, parseStl(stl));
+      assert.ok(comparison.iou >= 0.99, `${id}: source IoU ${comparison.iou}`);
+      assert.ok(Math.abs(comparison.volumeRelativeError) < 0.002, `${id}: source volume`);
+    }
+    const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
+    assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
+    assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
+    console.log('PASS trolley token: two connected prints, original STL geometry, author/licence headers and identical preview/download bytes');
   }
   for (const ledHoles of !only || only === 'esp32-c3-supermini-case' ? [true, false] : []) for (const flushHeaders of [true, false]) for (const tallerEnclosure of [true, false]) {
     const model = esp32C3SuperminiCase;
