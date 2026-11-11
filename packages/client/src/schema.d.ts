@@ -2902,6 +2902,15 @@ export interface operations {
                          */
                         splitRing: "avco-kr-90920" | "avco-kr-90930" | "avco-kr-92000" | "avco-kr-92100" | "avco-kr-92200" | "avco-kr-9335" | "avco-kr-9337" | "avco-kr-93400";
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "trolley-token";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "3";
+                    parameters: Record<string, never>;
                 };
             };
         };

@@ -266,9 +266,10 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         frames = assembly ? motionFrames(assembly) : [];
         // Frame every layout the slider passes through, so that no part leaves the view while scrubbing.
         const frame = new THREE.Box3();
+        const requestedProgress = sliderValue;
         const stops = assembly ? assemblyStops(assembly) - 1 : 0;
         for (const t of assembly ? Array.from({ length: stops * 4 + 1 }, (_, i) => i / (stops * 4)) : [0]) { place(t); group.updateMatrixWorld(true); frame.union(new THREE.Box3().setFromObject(group)); }
-        place(sliderValue);
+        place(requestedProgress);
         const frameSize = frame.getSize(new THREE.Vector3());
         const focus = new THREE.Vector3();
         if (assembly) { frame.getCenter(focus); focus.y = 0; }

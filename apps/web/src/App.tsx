@@ -21,6 +21,7 @@ import { SpringBallDetentIllustration } from './SpringBallDetentIllustration.tsx
 import { TreatDispenserIllustration } from './TreatDispenserIllustration.tsx';
 import { MiterBoxIllustration } from './MiterBoxIllustration.tsx';
 import { WandHolderIllustration } from './WandHolderIllustration.tsx';
+import { TrolleyTokenIllustration } from './TrolleyTokenIllustration.tsx';
 import { LighterKeychainIllustration } from './LighterKeychainIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { CatioOverview } from './CatioOverview.tsx';
@@ -303,6 +304,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'miter-box': MiterBoxIllustration,
   'wand-holder': WandHolderIllustration,
   'magnetic-lighter-keychain': LighterKeychainIllustration,
+  'trolley-token': TrolleyTokenIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names
@@ -593,6 +595,7 @@ function Editor({ model }: { model: ModelDefinition }) {
         </> : <>
           <div className="panel-heading"><div><SlidersHorizontal size={16} /><h2>About this model</h2></div></div>
           <p className="panel-intro">This model doesn’t have adjustable settings yet. {model.parts && model.parts.length > 0 ? `All ${model.parts.length} parts render together, exactly as designed.` : 'It renders exactly as designed.'}</p>
+          {valid && derived.notes?.map(note => <div key={note} className="slot-note derived-note"><Sparkles size={14} /><span>{note}</span></div>)}
         </>}
       </aside>
       <section className="preview-panel" aria-label="Model preview and download">
