@@ -17,10 +17,16 @@ test('previews jhappone’s clamp, plays its hinge movement and downloads both a
   await expect(page.getByRole('link', { name: 'Thingiverse', exact: true })).toHaveAttribute('href', 'https://www.thingiverse.com/thing:4126950');
   await expect(page.getByRole('link', { name: 'jhappone', exact: true })).toHaveAttribute('href', 'https://www.thingiverse.com/jhappone/designs');
   await expect(page.getByRole('link', { name: 'CC BY 4.0', exact: true })).toHaveAttribute('href', model.licenseUrl);
-  await expect(page.getByText(/The spring and axle are required hardware and are not in the print ZIP/)).toBeVisible();
+  await expect(page.getByText(/Required hardware: a metal torsion spring and axle/)).toBeVisible();
   await expect(page.getByTitle('Hide Trolley token body', { exact: true })).toBeVisible();
   await expect(page.getByTitle('Hide Shopping-list clamp', { exact: true })).toBeVisible();
   const slider = page.getByRole('slider', { name: 'Assembly', exact: true });
+  // Compare the actual meshes at first load with returning to the print bed; the caption alone missed a framing bug.
+  const canvas = page.getByTestId('stl-viewer').locator('canvas');
+  const printed = await canvas.screenshot();
+  await slider.press('End');
+  await slider.press('Home');
+  expect(await canvas.screenshot()).toEqual(printed);
   await slider.press('Home');
   const captions = ['Lift and lay out the parts', 'Step 1 of 1 · Lower the clip between the hinge ears; fit the spring and axle', 'Movement 1 of 2 · Press the pad to open the paper grip', 'Movement 2 of 2 · Release the pad to close the grip'];
   for (const caption of captions) {

@@ -595,6 +595,7 @@ function Editor({ model }: { model: ModelDefinition }) {
         </> : <>
           <div className="panel-heading"><div><SlidersHorizontal size={16} /><h2>About this model</h2></div></div>
           <p className="panel-intro">This model doesn’t have adjustable settings yet. {model.parts && model.parts.length > 0 ? `All ${model.parts.length} parts render together, exactly as designed.` : 'It renders exactly as designed.'}</p>
+          {valid && derived.notes?.map(note => <div key={note} className="slot-note derived-note"><Sparkles size={14} /><span>{note}</span></div>)}
         </>}
       </aside>
       <section className="preview-panel" aria-label="Model preview and download">
