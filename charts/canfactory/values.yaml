@@ -24,6 +24,13 @@ storage:
   generatedBucket: canfactory-generated
 web:
   replicas: 2
+  # The embedded assistant (#152), served to the browser as /config.json. Off: no panel, and the assistant's code never loads.
+  # On, `edgeBaseUrl` is the tinytinkerer edge (production api.tiny.nntin.xyz, develop api.dev.tiny.nntin.xyz), which the CSP's
+  # connect-src then allows; `githubClientId` is tinytinkerer's GitHub OAuth App client id (a public value).
+  assistant:
+    enabled: false
+    edgeBaseUrl: ""
+    githubClientId: ""
   resources:
     requests: {cpu: 50m, memory: 64Mi}
     limits: {cpu: 250m, memory: 128Mi}

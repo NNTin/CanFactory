@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.10@sha256:865e5dd094beca432e8c0a1d5e1c465db5f998dca4e439981029b3b81fb39ed5
 FROM node:22.22.3-trixie-slim@sha256:8cd0ffd483b64585c6d135364bea5f937ff40cd3da431789af011f9ee8d55af0 AS node
 
 FROM node AS manifests
@@ -18,7 +19,9 @@ FROM manifests AS deps
 RUN npm ci --omit=dev
 
 FROM manifests AS build
-RUN npm ci
+# The dev dependencies include @nntin/tinytinkerer-embed from GitHub Packages, which needs a token even to read. It comes in as a
+# BuildKit secret, never a build argument (provenance records those), and lives only in this RUN's environment.
+RUN --mount=type=secret,id=node_auth_token,env=NODE_AUTH_TOKEN npm ci
 COPY . .
 # The commit the web app shows in its footer (the build context has no .git).
 ARG GIT_COMMIT_SHA=""

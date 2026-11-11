@@ -1,10 +1,12 @@
 :root {
   font-family: Inter, "Segoe UI", Arial, sans-serif;
-  color: #282e2b;
-  background: #f6f5f0;
+  color: var(--ink);
+  background: var(--paper);
   font-synthesis: none;
   font-weight: 400;
   font-size: 14px;
+  --ink: #282e2b;
+  --paper: #f6f5f0;
   --accent: #bd5839;
   --muted: #7d8178;
   --line: #e3e4dc;
@@ -2543,3 +2545,19 @@ main {
 .controller-buttons button { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); cursor: pointer; touch-action: none; }
 .controller-buttons button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .controller-panel small { color: var(--muted); }
+
+/* The embedded assistant (#152; apps/web/src/assistant). Only rendered when /config.json enables it. */
+.app-frame { display: flex; align-items: flex-start; }
+.app-frame > .app-shell { flex: 1; min-width: 0; }
+.assistant-dock { position: sticky; top: 0; flex: none; width: 400px; height: 100vh; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: var(--surface); }
+.assistant-dock-heading { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--line); }
+.assistant-dock-heading .eyebrow { display: inline-flex; align-items: center; gap: 6px; }
+.assistant-dock .assistant-host { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.assistant-status { margin: 16px; color: var(--muted); }
+.assistant-error { color: var(--accent); }
+.assistant-launcher { position: fixed; right: 20px; bottom: 20px; z-index: 30; display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); box-shadow: 0 6px 20px rgb(40 46 43 / 14%); cursor: pointer; }
+.assistant-launcher:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.widget-stage.assistant-floating-stage { position: fixed; inset: 0; z-index: 30; min-height: 0; pointer-events: none; }
+.assistant-floating-stage > * { pointer-events: auto; }
+/* The tokens `theme` doesn't set (the package declares its own at zero specificity, so this wins inside the panel only). */
+.tt-app-embed { --tt-muted: var(--muted); --tt-link: var(--accent); }

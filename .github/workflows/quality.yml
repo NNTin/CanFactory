@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: read
+  # @nntin/tinytinkerer-embed comes from GitHub Packages (#152); npm ci needs a token to read it.
+  packages: read
 
 concurrency:
   group: quality-${{ github.workflow }}-${{ github.ref }}
@@ -32,9 +34,15 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run quality checks
         run: npm run check
 
       - name: Build frontend
         run: npm run build
+
+      # #152: with the assistant off or not yet opened, no tinytinkerer runtime is in the startup bundle.
+      - name: Check the startup bundle
+        run: npm run check:web-bundle

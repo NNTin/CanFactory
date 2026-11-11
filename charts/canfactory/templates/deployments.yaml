@@ -101,6 +101,7 @@ spec:
             - {name: scratch, mountPath: /tmp}
             {{- if eq $role "web" }}
             - {name: nginx, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf, readOnly: true}
+            - {name: nginx, mountPath: /etc/nginx/canfactory/config.json, subPath: config.json, readOnly: true}
             {{- end }}
       volumes:
         - name: scratch

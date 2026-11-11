@@ -101,8 +101,12 @@ verification against the supplied 3MFs.
 Requires Docker Engine/Desktop and Docker Compose.
 
 ```sh
-docker compose up --build -d --wait
+NODE_AUTH_TOKEN=$(gh auth token) docker compose up --build -d --wait
 ```
+
+The image build installs the dev dependencies, which include `@nntin/tinytinkerer-embed` from GitHub Packages, and GitHub
+Packages needs a token even to read (see [Development and verification](#development-and-verification)). Compose hands it to
+the build as a BuildKit secret; it is never a build argument and never lands in an image layer.
 
 - App: <http://localhost:5173>
 - Interactive API documentation: <http://localhost:5173/api/docs>
@@ -145,10 +149,23 @@ and model licensing are recorded in [ATTRIBUTION.md](models/fruit-fly-trap/ATTRI
 Use Node.js 22.22 or newer, then install the locked dependencies:
 
 ```sh
-npm ci
+NODE_AUTH_TOKEN=$(gh auth token) npm ci
 npm run check
 npm run build
+npm run check:web-bundle
 ```
+
+The embedded assistant's package, `@nntin/tinytinkerer-embed`, comes from GitHub Packages (`.npmrc`), which needs a token
+with `read:packages` even for a public package: `gh auth token` works once `gh auth refresh -s read:packages` has granted the
+scope. It is a dev dependency, because the web app bundles it, so `npm ci --omit=dev` (the api and worker images) needs no
+token. In GitHub Actions every job that runs `npm ci` sets `NODE_AUTH_TOKEN` from the workflow's `GITHUB_TOKEN` with
+`packages: read`.
+
+The assistant (#152) is configured at runtime, by `/config.json`: the build ships
+[`apps/web/public/config.json`](apps/web/public/config.json), which leaves it off, and the chart writes the real one from
+`web.assistant` (`enabled`, `edgeBaseUrl`, `githubClientId`), along with the Content Security Policy that allows that edge.
+Off, the page loads none of it; `check:web-bundle` checks a build's startup bundle for the package's runtime. GitHub sign-in
+doesn't work on localhost (the OAuth App's callback covers `nntin.xyz` only); try the assistant on the preview.
 
 `check` runs strict TypeScript, strict lint, OpenAPI/client drift checks, and the
 contract/API/queue tests. The queue, API and worker tests run against a real

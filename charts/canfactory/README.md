@@ -44,5 +44,11 @@ Service and all other requests to web. API probes/metrics listen on a private
 3002 port which is intentionally absent from the public Service. The web image's
 Compose proxy configuration is replaced with a chart-owned static-only config.
 
+`web.assistant` configures the embedded assistant (#152), served to the browser as `/config.json` from the web ConfigMap. It
+is off by default. Enabling it requires `edgeBaseUrl` (the tinytinkerer edge: `https://api.tiny.nntin.xyz` for production,
+`https://api.dev.tiny.nntin.xyz` for the preview) and takes `githubClientId` (tinytinkerer's OAuth App client id, a public
+value). The web server's Content Security Policy then allows that edge's origin and `https://api.github.com` in `connect-src`;
+with the assistant off it allows only same-origin connections.
+
 Use `tools/check-chart.sh` to validate representative replica configurations and the worker bound. See
 `docs/kubernetes-tech-plan.md` for fencing, expiry and upgrade behavior.

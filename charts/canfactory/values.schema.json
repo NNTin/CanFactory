@@ -166,7 +166,8 @@
       "type": "object",
       "required": [
         "replicas",
-        "resources"
+        "resources",
+        "assistant"
       ],
       "properties": {
         "replicas": {
@@ -210,6 +211,29 @@
                   "type": "string"
                 }
               }
+            }
+          }
+        },
+        "assistant": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "edgeBaseUrl",
+            "githubClientId"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "edgeBaseUrl": {
+              "type": "string",
+              "description": "The tinytinkerer edge; an https origin with an optional path. It goes into the CSP header, so no quotes, spaces or semicolons.",
+              "pattern": "^(https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?)?$"
+            },
+            "githubClientId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]*$"
             }
           }
         }
