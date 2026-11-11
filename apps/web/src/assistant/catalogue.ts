@@ -1,7 +1,7 @@
 // The read-only CanFactory tools (#152 §4), as plain functions over the bundled contracts: parts, prototype-board layouts and the
 // model catalogue. No editor and no network. Results are compact on purpose (the model pays for every token): a board's summary,
 // never every hole. tools.ts gives them their Zod schemas.
-import { artifactFormat, findModel, findPart, findPartFamily, findPartSource, models, partFamilies, parts, prototypeBoardLayout, type Part, type PrototypeBoardHole, type PrototypeBoardHoleRef, type PrototypeBoardLayout } from '@canfactory/contracts';
+import { artifactFormat, findModel, validateWireGuideDesign, findPart, findPartFamily, findPartSource, models, partFamilies, parts, prototypeBoardLayout, type Part, type PrototypeBoardHole, type PrototypeBoardHoleRef, type PrototypeBoardLayout } from '@canfactory/contracts';
 
 /** Thrown for a request the tool can't answer (an unknown id): the model reads the message as the tool's error. */
 export class ToolInputError extends Error {}
@@ -93,6 +93,12 @@ export function queryPrototypeBoard(input: { partId: string; holes?: PrototypeBo
       return { a: ref(a), b: ref(b), connected: net !== null || (first !== undefined && first === second), net, ...(first && second ? {} : { problem: 'Not a drilled hole of this board.' }) };
     }),
   };
+}
+
+/** The shared wire-guide validation (the API and the worker run the same), so a design is checked before anyone renders it. */
+export function checkWireGuideDesign(input: { design: unknown }) {
+  const issues = validateWireGuideDesign(input.design);
+  return { valid: issues.length === 0, issues };
 }
 
 /** The model catalogue. */

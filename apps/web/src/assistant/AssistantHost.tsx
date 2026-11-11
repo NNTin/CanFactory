@@ -48,8 +48,7 @@ function getAssistant(settings: AssistantConfig) {
     documentGlobals: EMBEDDED_DOCUMENT_GLOBAL_CAPABILITIES,
     humanInput: false,
     // No mcpServers in this phase: KiPrint comes with #152 phase 4.
-    // TODO(#152, F8): Settings → Tools still lets a user add their own MCP servers, whose tools run in the same loop as the editor
-    // tools. Whether CanFactory allows that is the owner's decision; until then this is tinytinkerer's default, with no workaround.
+    // Users may add their own MCP servers in Settings → Tools (tinytinkerer's default): intentional, the owner's decision on #152 (F8).
   });
   assistant = { app, config };
   return assistant;

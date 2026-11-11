@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { findModel, models, parts, partsOfFamily, type ModelDefinition } from '@canfactory/contracts';
+import { findModel, models, parts, partsOfFamily, validateWireGuideDesign, type ModelDefinition, type WireGuideDesign } from '@canfactory/contracts';
 import { z, type Tool } from '@nntin/tinytinkerer-embed';
 import { controllerSlot, createCanfactoryController, editorSession, NOT_MOUNTED } from './controller.ts';
 import { assistantPolicy, IDENTITY } from './policy.ts';
@@ -26,7 +26,7 @@ describe('the CanFactory tool group', () => {
     expect(toolGroup.id).toBe('canfactory');
     expect(byId.size).toBe(toolGroup.tools.length);
     expect([...byId.keys()].sort()).toEqual(['canfactory_get_editor_state', 'canfactory_get_model_schema', 'canfactory_get_part', 'canfactory_get_prototype_board_layout',
-      'canfactory_list_models', 'canfactory_query_prototype_board', 'canfactory_search_parts', 'canfactory_set_model_parameters']);
+      'canfactory_list_models', 'canfactory_query_prototype_board', 'canfactory_search_parts', 'canfactory_set_model_parameters', 'canfactory_validate_wire_guide_design']);
     for (const { schema, outputSchema } of toolGroup.tools) {
       // What the runtime sends the model as the tool's JSON Schema.
       expect(() => z.toJSONSchema(schema)).not.toThrow();
@@ -34,8 +34,8 @@ describe('the CanFactory tool group', () => {
     }
   });
 
-  it('has no wire-guide tools yet (#152 phase 2)', () => {
-    expect([...byId.keys()].filter(id => id.includes('wire_guide'))).toEqual([]);
+  it('can check a wire guide, but not open one yet (that needs #152 phase 2’s model)', () => {
+    expect([...byId.keys()].filter(id => id.includes('wire_guide'))).toEqual(['canfactory_validate_wire_guide_design']);
   });
 });
 
@@ -94,6 +94,30 @@ describe('prototype-board tools', () => {
   });
 });
 
+describe('canfactory_validate_wire_guide_design', () => {
+  // Two wires on the half Perma-Proto, one print.
+  const design = (): WireGuideDesign => ({
+    schemaVersion: 1, boardPartId: 'adafruit-perma-proto-half', wirePartId: 'alpha-wire-3051-1',
+    wires: [{ id: 'W1', from: [0, 3], to: [5, 3], path: [], level: 0 }, { id: 'W2', from: [2, 5], to: [2, 11], path: [], level: 0 }],
+    prints: [{ id: 'G1', wireIds: ['W1', 'W2'] }],
+    guide: { registration: 'mounting-holes', coverThickness: 1.2, channelClearance: 0.2, funnelTopDiameter: 2.2, funnelBottomDiameter: 1, funnelStandoff: 0.5 },
+  });
+
+  it('accepts a valid design', async () => {
+    expect(await call('canfactory_validate_wire_guide_design', { design: design() })).toEqual({ valid: true, issues: [] });
+  });
+
+  it('reports exactly the shared validation’s issues, malformed designs included, as the API and the worker do', async () => {
+    const crossing = design();
+    crossing.wires.push({ id: 'W3', from: [4, 1], to: [4, 6], path: [], level: 0 });
+    for (const candidate of [crossing, { ...design(), boardPartId: 'm3-hex-nut' }, { schemaVersion: 2 }, 'not a design', null]) {
+      const result = await call('canfactory_validate_wire_guide_design', { design: candidate }) as { valid: boolean; issues: unknown[] };
+      expect(result.valid).toBe(false);
+      expect(result.issues).toEqual(validateWireGuideDesign(candidate));
+    }
+  });
+});
+
 describe('model tools', () => {
   it('lists every model and describes every model’s parameters within the output schemas', async () => {
     const list = await call('canfactory_list_models', {}) as { models: { id: string }[] };
@@ -136,6 +160,7 @@ describe('the assistant policy', () => {
     const all = assistantPolicy.instructions?.({ boundary: 'synthesis', toolIds: [...byId.keys()] }) ?? '';
     expect(all).toContain('canfactory_set_model_parameters');
     expect(all).toMatch(/never invent a dimension/i);
+    expect(all).toContain('canfactory_validate_wire_guide_design');
     const none = assistantPolicy.instructions?.({ boundary: 'decision', toolIds: [] }) ?? '';
     expect(none).not.toContain('canfactory_');
     expect(none).toMatch(/clarifying question/);
