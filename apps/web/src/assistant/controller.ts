@@ -31,6 +31,33 @@ export interface EditorSession {
   setParameters(parameters: ParameterValues): void;
 }
 
+/**
+ * The session a mounted editor registers. `snapshot` is the editor's state as of its last commit; `apply` hands it new parameters
+ * (a React state update, seen only after the next commit). Until the editor commits a new snapshot, the session reports the
+ * parameters it applied, so a second tool call in the same turn builds on the first instead of on stale state, and
+ * get_editor_state right after a set reads the change. A newer snapshot (the commit, or the user's own edit) always wins.
+ */
+export function createEditorSession(model: ModelDefinition, snapshot: () => EditorState | null, apply: (parameters: ParameterValues) => void): EditorSession {
+  let applied: { over: EditorState; state: EditorState } | null = null;
+  const state = (): EditorState => {
+    const current = snapshot();
+    if (!current) throw new Error('The editor is still starting.');
+    if (applied?.over === current) return applied.state;
+    applied = null;
+    return current;
+  };
+  return {
+    model,
+    state,
+    setParameters(parameters) {
+      const current = state();
+      // Only validated parameters are applied (canfactory_set_model_parameters); their render is pending until the editor commits.
+      applied = { over: snapshot() ?? current, state: { ...current, parameters, issues: [], render: { ...current.render, status: 'updating', error: null } } };
+      apply(parameters);
+    },
+  };
+}
+
 export type SetParametersResult =
   | { ok: true; modelId: string; opened: boolean; parameters: ParameterValues; note: string }
   | { ok: false; issues: ParameterIssue[] };

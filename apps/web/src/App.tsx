@@ -24,7 +24,7 @@ import { WandHolderIllustration } from './WandHolderIllustration.tsx';
 import { LighterKeychainIllustration } from './LighterKeychainIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { AssistantPanel, useAssistantConfig } from './assistant/index.tsx';
-import { controllerSlot, createCanfactoryController, editorSession, takePendingParameters, type EditorState } from './assistant/controller.ts';
+import { controllerSlot, createCanfactoryController, createEditorSession, editorSession, takePendingParameters, type EditorState } from './assistant/controller.ts';
 import { CatioOverview } from './CatioOverview.tsx';
 import { CatioPlannerRoute } from './CatioPlannerRoute.tsx';
 import { CatioSubassemblyRoute } from './CatioSubassemblyPage.tsx';
@@ -540,11 +540,7 @@ function Editor({ model }: { model: ModelDefinition }) {
     };
   });
   useEffect(() => {
-    editorSession.set({
-      model,
-      state: () => { if (!latest.current) throw new Error('The editor is still starting.'); return latest.current; },
-      setParameters: next => { setParameters(next); setDownloadError(null); setViewerError(null); },
-    });
+    editorSession.set(createEditorSession(model, () => latest.current, next => { setParameters(next); setDownloadError(null); setViewerError(null); }));
     return () => { editorSession.set(null); };
   }, [model]);
 

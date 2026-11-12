@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { findModel, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
-import { createCanfactoryController, editorSession, NO_EDITOR, takePendingParameters, type EditorSession, type EditorState } from './controller.ts';
+import { findModel, validateParameters, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
+import { createCanfactoryController, createEditorSession, editorSession, NO_EDITOR, takePendingParameters, type EditorSession, type EditorState } from './controller.ts';
 
 const trap = findModel('fruit-fly-trap') as ModelDefinition;
 const duck = findModel('ai-rubber-duck') as ModelDefinition;
@@ -87,5 +87,47 @@ describe('canfactory_set_model_parameters', () => {
     expect(tools.canfactory_set_model_parameters({ modelId: trap.id, parameters: { trapHeight: 80 } })).toMatchObject({ ok: true, opened: true });
     expect(openModel).toHaveBeenCalledWith(trap.id);
     expect(takePendingParameters(trap)).toMatchObject({ trapHeight: 80 });
+  });
+});
+
+describe('the editor session', () => {
+  /** An editor as React runs it: `apply` queues the change, and the snapshot changes only when `commit` runs. */
+  function laggingEditor(model: ModelDefinition) {
+    const snapshot = (parameters: ParameterValues): EditorState => ({ modelId: model.id, modelVersion: model.version, title: model.title, parameters, issues: [],
+      render: { status: 'ready', error: null, dimensions: null, parts: null, volumeMm3: null } });
+    let committed = snapshot({ ...model.defaults });
+    let queued: ParameterValues | null = null;
+    const session = createEditorSession(model, () => committed, next => { queued = next; });
+    return { session, commit: () => { if (queued) committed = snapshot(queued); queued = null; }, edit: (parameters: ParameterValues) => { committed = snapshot(parameters); } };
+  }
+
+  it('keeps two changes in one turn, made before the editor commits, and reads them back', () => {
+    const editor = laggingEditor(trap);
+    editorSession.set(editor.session);
+    const { controller: tools } = controller();
+    expect(tools.canfactory_set_model_parameters({ modelId: trap.id, parameters: { trapHeight: 80 } })).toMatchObject({ ok: true });
+    expect(tools.canfactory_set_model_parameters({ modelId: trap.id, parameters: { brimWidth: 12 } })).toMatchObject({ ok: true, parameters: { trapHeight: 80, brimWidth: 12 } });
+    expect(tools.canfactory_get_editor_state({})).toMatchObject({ parameters: { trapHeight: 80, brimWidth: 12 }, render: { status: 'updating' } });
+    editor.commit();
+    expect(tools.canfactory_get_editor_state({})).toMatchObject({ parameters: { trapHeight: 80, brimWidth: 12 }, render: { status: 'ready' } });
+  });
+
+  it('validates the second change against the first', () => {
+    const editor = laggingEditor(trap);
+    editorSession.set(editor.session);
+    const { controller: tools } = controller();
+    tools.canfactory_set_model_parameters({ modelId: trap.id, parameters: { trapDiameter: 20 } });
+    // A 25 mm opening is fine on the default 60 mm funnel, but not on the 20 mm one just set.
+    expect(validateParameters(trap, { ...trap.defaults, nozzleDiameter: 25 })).toEqual([]);
+    expect(tools.canfactory_set_model_parameters({ modelId: trap.id, parameters: { nozzleDiameter: 25 } })).toMatchObject({ ok: false, issues: [{ field: 'nozzleDiameter' }] });
+  });
+
+  it('gives way to the editor’s own newer state, e.g. the user’s edit', () => {
+    const editor = laggingEditor(trap);
+    editorSession.set(editor.session);
+    const { controller: tools } = controller();
+    tools.canfactory_set_model_parameters({ modelId: trap.id, parameters: { trapHeight: 80 } });
+    editor.edit({ ...trap.defaults, trapHeight: 90 });
+    expect(tools.canfactory_get_editor_state({})).toMatchObject({ parameters: { trapHeight: 90 } });
   });
 });
