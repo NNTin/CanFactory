@@ -1,3 +1,4 @@
+import { TrolleyTokenParametersSchema, trolleyTokenAssembly } from './trolleyToken.ts';
 import { DEFAULT_LIGHTER_KEYCHAIN, MagneticLighterKeychainParametersSchema, lighterKeychainAssembly, lighterKeychainIssues, lighterKeychainNotes, lighterKeychainReferences, KEYCHAIN_MAGNETS, KEYCHAIN_SPLIT_RINGS } from './magneticLighterKeychain.ts';
 import { DEFAULT_WAND_HOLDER, WAND_HOLDER, WandHolderParametersSchema, wandHolderAssembly, wandHolderFlex, wandHolderIssues, wandHolderLayout } from './wandHolder.ts';
 import { DEFAULT_MITER_BOX, MITER_BOX, MITER_BOX_CLAMP_SCREWS, MITER_BOX_KNOB_CONSTANTS, MITER_BOX_NUTS, MITER_BOX_PAD_CONSTANTS, MITER_BOX_PAD_NUTS, MITER_BOX_THREADS, MiterBoxParametersSchema, miterBoxAssembly, miterBoxIssues, miterBoxLayout, miterBoxReferences, miterBoxScadLayout, type MiterBoxParameters } from './miterBox.ts';
@@ -3913,8 +3914,28 @@ export const prototypeWireGuide = {
     ] };
   },
 } satisfies ModelDefinition;
+/** jhappone's original two-part spring clamp, converted from the supplied STEP without redesign. */
+export const trolleyToken = {
+  id: 'trolley-token' as const, version: '3' as const, title: 'Trolley token and shopping-list holder',
+  description: 'jhappone’s trolley token with a spring-operated shopping-list clamp. Two printed parts, a metal torsion spring and an axle form the paper grip. The original geometry is preserved; the live assembly shows how the printed pieces fit together.',
+  attribution: 'jhappone (Thingiverse); STEP format conversion by CanFactory',
+  attributionLinks: [{ text: 'jhappone', url: 'https://www.thingiverse.com/jhappone/designs' }, { text: 'Thingiverse', url: 'https://www.thingiverse.com/thing:4126950' }],
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  printNotes: 'Print the body flat underside down and the clip flat outer face down, as provided in the ZIP. The original token is 23.25 mm across and 2.5 mm thick. Check compatibility with your trolley lock. Drill the axle holes to suit your axle; the author uses a 2.5 mm axle. Fit a suitable metal torsion spring to close the jaws, then secure the axle. The original CAD has 1 mm pilot holes and does not specify spring dimensions or axle retention. Follow the author’s build notes and check the grip and free movement after assembly. The spring and axle are required hardware and are not in the print ZIP. This is the original fixed design; there are no angle or coin-size controls.',
+  parts: [
+    { id: 'body', title: 'Trolley token body', sourcePath: 'models/trolley-token/body.scad', scadMapping: {} },
+    { id: 'clip', title: 'Shopping-list clamp', sourcePath: 'models/trolley-token/clip.scad', scadMapping: {} },
+  ],
+  assembly: trolleyTokenAssembly,
+  parameterSchema: TrolleyTokenParametersSchema, controls: [], defaults: {}, scadMapping: {},
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(TrolleyTokenParametersSchema, parameters) ? [] : [{ field: '', message: 'This source design has no adjustable settings.' }];
+  },
+  derived: () => ({ slotCount: null, notes: ['Required hardware: a metal torsion spring and axle (the author uses 2.5 mm). Drill the original 1 mm pilot holes to suit.', 'Both printable parts retain jhappone’s original geometry.'] }),
+} satisfies ModelDefinition;
+
 /** The one registration of each catalogue model. A `const` tuple, so that `RenderRequestSchema` (index.ts) derives a typed branch per model from it. */
-export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser, miterBox, wandHolder, magneticLighterKeychain, prototypeWireGuide] as const satisfies readonly ModelDefinition[];
+export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser, miterBox, wandHolder, magneticLighterKeychain, trolleyToken, prototypeWireGuide] as const satisfies readonly ModelDefinition[];
 export const models: readonly ModelDefinition[] = registeredModels;
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }

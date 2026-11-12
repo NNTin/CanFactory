@@ -1,0 +1,20 @@
+{
+  "title": "Trolley token \u2014 STEP conversion versus the original STLs",
+  "notes": [
+    "Original design by jhappone, Thingiverse 4126950, CC BY 4.0. No design changes; rigid print placement only.",
+    "Clip.print.stl is the supplied Clip.stl rotated 180 degrees about X; the supplied originals remain unchanged.",
+    "The STEP clip carries a 0.26138493093829307 degree assembled tilt. The conversion flattens its outer face for printing, then the assembly pose reverses this rigid transform."
+  ],
+  "parts": [
+    {
+      "name": "Token body",
+      "scad": "body.scad",
+      "stl": "reference/Main_body.stl"
+    },
+    {
+      "name": "Paper clamp",
+      "scad": "clip.scad",
+      "stl": "reference/Clip.print.stl"
+    }
+  ]
+}

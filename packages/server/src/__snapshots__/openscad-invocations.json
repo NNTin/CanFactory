@@ -3974,6 +3974,41 @@
    "splitRing=\"avco-kr-93400\"": "a158fa60ae13016c19aef1dd278e91e182b7b0c49d3e2ad8aba87c5f80d9d81a"
   }
  },
+ "trolley-token": {
+  "defaults": [
+   {
+    "file": "openscad",
+    "args": [
+     "--backend",
+     "Manifold",
+     "--export-format",
+     "binstl",
+     "-o",
+     "<scratch>/job/body.stl",
+     "<root>/models/trolley-token/body.scad"
+    ],
+    "timeout": 120000,
+    "killSignal": "SIGKILL",
+    "fontPath": "<root>/models/fonts"
+   },
+   {
+    "file": "openscad",
+    "args": [
+     "--backend",
+     "Manifold",
+     "--export-format",
+     "binstl",
+     "-o",
+     "<scratch>/job/clip.stl",
+     "<root>/models/trolley-token/clip.scad"
+    ],
+    "timeout": 120000,
+    "killSignal": "SIGKILL",
+    "fontPath": "<root>/models/fonts"
+   }
+  ],
+  "variants": {}
+ },
  "prototype-wire-guide": {
   "defaults": [
    {

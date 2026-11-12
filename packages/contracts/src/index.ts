@@ -1,6 +1,7 @@
 import { Type, type Static, type TLiteral, type TObject } from 'typebox';
 import { registeredModels, type ModelDefinition } from './models.ts';
 export * from './models.ts';
+export * from './trolleyToken.ts';
 export * from './assembly.ts';
 export * from './bom.ts';
 export * from './svgLogo.ts';

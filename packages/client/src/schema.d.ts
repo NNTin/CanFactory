@@ -2904,6 +2904,15 @@ export interface operations {
                     };
                 } | {
                     /** @enum {string} */
+                    modelId: "trolley-token";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "3";
+                    parameters: Record<string, never>;
+                } | {
+                    /** @enum {string} */
                     modelId: "prototype-wire-guide";
                     /**
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
