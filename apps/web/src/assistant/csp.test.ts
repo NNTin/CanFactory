@@ -8,8 +8,12 @@ const directives = (policy: string) => new Map(policy.split(';').map(part => par
 }));
 
 // The chart (production and preview) and the Compose image each set the policy; only the assistant's edge in connect-src differs.
-const nginx = readFileSync('docker/nginx.conf', 'utf8').match(/default "([^"]+)";/)?.[1] ?? '';
-const chart = readFileSync('charts/canfactory/templates/web-config.yaml', 'utf8').match(/\$csp := printf "([^"]+)"/)?.[1] ?? '';
+const nginxConf = readFileSync('docker/nginx.conf', 'utf8');
+const nginx = nginxConf.match(/ \$content_security_policy \{\s*default "([^"]+)";/)?.[1] ?? '';
+const chartTemplate = readFileSync('charts/canfactory/templates/web-config.yaml', 'utf8');
+const chart = chartTemplate.match(/\$csp := printf "([^"]+)"/)?.[1] ?? '';
+const nginxWorker = nginxConf.match(/\$worker_content_security_policy \{\s*default "([^"]+)";/)?.[1] ?? '';
+const chartWorker = chartTemplate.match(/\$workerCsp := "([^"]+)"/)?.[1] ?? '';
 
 describe('the Content Security Policy (#152)', () => {
   it('is the same in the chart and in the Compose image, apart from the edge', () => {
@@ -26,5 +30,13 @@ describe('the Content Security Policy (#152)', () => {
     expect(policy.get('worker-src')).toBe("'self'");
     expect(policy.get('object-src')).toBe("'none'");
     expect(policy.get('default-src')).toBe("'self'");
+  });
+
+  it('allows eval only in the physics worker (MuJoCo’s Emscripten bindings), the same in both', () => {
+    expect(nginxWorker).not.toBe('');
+    expect(chartWorker).toBe(nginxWorker);
+    expect(directives(nginxWorker).get('script-src')).toBe("'self' 'unsafe-eval' 'wasm-unsafe-eval'");
+    expect(nginx).not.toContain("'unsafe-eval'");
+    expect(chart).not.toContain("'unsafe-eval'");
   });
 });

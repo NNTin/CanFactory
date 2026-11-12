@@ -34,6 +34,13 @@ test('with the assistant off, the page is as before and loads none of it', async
     const policy = (await document).headers()['content-security-policy'] ?? '';
     expect(policy).toContain("script-src 'self' 'wasm-unsafe-eval'");
     expect(policy).toContain(`connect-src 'self' ${EDGE} https://api.github.com`);
+    expect(policy).not.toContain("'unsafe-eval'");
+    // The physics worker gets its own policy, the only one with eval (physics.spec.ts runs the engine under it).
+    const entry = /\/assets\/index-[^"]+\.js/.exec(await (await page.request.get('/')).text())?.[0] ?? '/missing';
+    const script = /physicsWorker-[^"/]+\.js/.exec(await (await page.request.get(entry)).text())?.[0] ?? 'missing';
+    const worker = await page.request.get(`/assets/${script}`);
+    expect(worker.ok()).toBe(true);
+    expect(worker.headers()['content-security-policy']).toContain("script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'");
   }
 });
 
