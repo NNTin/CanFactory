@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowDownToLine, FileUp } from 'lucide-react';
-import { validateWireGuideDesign, WIRE_GUIDE_LIMITS, wireGuideBoard, WireGuideSettingsSchema, wireGuideSummary, type Control, type ParameterValue, type WireGuideDesign, type WireGuideSettings } from '@canfactory/contracts';
+import { validateWireGuideDesign, wireGuideBoard, WireGuideSettingsSchema, wireGuideSummary, type Control, type ParameterValue, type WireGuideDesign, type WireGuideSettings } from '@canfactory/contracts';
+import { readWireGuideFile, WIRE_GUIDE_FILE_MAX_BYTES, wireGuideFileText } from './wireGuideImport.ts';
 
 const LEVEL_COLORS = ['#c46543', '#3f6fb5', '#637655', '#9a5bb0', '#b08a2e', '#2e8f8a'];
 type NumberSetting = Exclude<keyof WireGuideSettings, 'registration'>;
@@ -56,17 +57,16 @@ export function WireGuideField({ control, value, disabled, change }: { control: 
   const load = async (file: File | undefined) => {
     if (!file) return;
     setRejected(null);
-    if (file.size > WIRE_GUIDE_LIMITS.bytes) { setRejected({ name: file.name, issues: [{ path: '', message: `This file is larger than ${WIRE_GUIDE_LIMITS.bytes / 1000} kB.` }] }); return; }
-    let parsed: unknown;
-    try { parsed = JSON.parse(await file.text()); } catch { setRejected({ name: file.name, issues: [{ path: '', message: 'This file is not JSON.' }] }); return; }
-    const found = validateWireGuideDesign(parsed);
-    if (found.length) { setRejected({ name: file.name, issues: found }); return; }
-    change(parsed as WireGuideDesign);
+    // Only a loose cap on the raw file here: the design's own bound is checked on the parsed value (readWireGuideFile).
+    if (file.size > WIRE_GUIDE_FILE_MAX_BYTES) { setRejected({ name: file.name, issues: [{ path: '', message: `This file is larger than ${WIRE_GUIDE_FILE_MAX_BYTES / 1_000_000} MB.` }] }); return; }
+    const read = readWireGuideFile(await file.text());
+    if ('issues' in read) { setRejected({ name: file.name, issues: read.issues }); return; }
+    change(read.design);
     setLoaded(file.name);
   };
   const download = () => {
     if (!design) return;
-    const url = URL.createObjectURL(new Blob([JSON.stringify(design, null, 2) + '\n'], { type: 'application/json' }));
+    const url = URL.createObjectURL(new Blob([wireGuideFileText(design)], { type: 'application/json' }));
     const link = document.createElement('a'); link.href = url; link.download = `${design.boardPartId}-wire-guide.json`;
     link.click(); setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
