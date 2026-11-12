@@ -53,6 +53,13 @@ export function sourceFingerprint(root: string, model: ModelDefinition): string 
 const CONTENT_TYPES: Record<ArtifactFormat, string> = { stl: 'model/stl', zip: 'application/zip' };
 
 const CLOCK = 'floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint';
+/** JSON with every object's keys sorted, at any depth: the same parameters give the same cache key whatever order a client sent
+ * them in, a document parameter's fields included. For flat parameters it is the sorted top-level object it always was. */
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, item: unknown) => item !== null && typeof item === 'object' && !Array.isArray(item)
+    ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
+}
+
 const JOB_COLUMNS = `id::text, cache_key AS "cacheKey", model_id AS "modelId", model_version AS "modelVersion",
   source_hash AS "sourceHash", renderer_fingerprint AS "rendererFingerprint", parameters, status,
   created_at::float8 AS "createdAt", expires_at::float8 AS "expiresAt", attempts,
@@ -178,7 +185,7 @@ export class PostgresStorage implements AwinStore {
     if (entry.sourceHash !== sourceFingerprint(this.projectRoot, model)) {
       throw new AppError(409, 'MODEL_VERSION_CONFLICT', 'The model release changed. Please reload and retry.');
     }
-    const normalized = JSON.stringify(Object.fromEntries(Object.entries(parameters).sort(([a], [b]) => a.localeCompare(b))));
+    const normalized = canonicalJson(parameters);
     const cacheKey = createHash('sha256').update(`${model.id}:${entry.sourceHash}:${RENDERER_FINGERPRINT}:${normalized}`).digest('hex');
     return this.transaction(async client => {
       await client.query('SELECT pg_advisory_xact_lock($1)', [ADMISSION_LOCK]);

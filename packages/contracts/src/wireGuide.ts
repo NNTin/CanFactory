@@ -13,10 +13,19 @@ import { findPart, prototypeBoardLayout, type Part, type PrototypeBoardLayout } 
  * keep-outs are in millimetres.
  */
 
-/** The size limits of a design, so that validating and rendering one stays bounded. */
+/**
+ * The size limits of a design, so that validating and rendering one stays bounded. Besides the schema's item counts: `bytes`, the
+ * most a design may be as JSON, and `points`, the most grid points (ends and waypoints) of all its wires together (it bounds the
+ * renderer's input), which `validateWireGuideDesign` checks.
+ */
 export const WIRE_GUIDE_LIMITS = {
   wires: 200, waypoints: 64, prints: 8, levels: 6, components: 100, pinsPerComponent: 64, keepouts: 64, gridIndex: 255, issues: 100,
+  bytes: 200_000, points: 2000,
 } as const;
+
+/** Every grid point of the design's wires: ends and waypoints. */
+export const wireGuidePoints = (design: Pick<WireGuideDesign, 'wires'>): number =>
+  design.wires.reduce((sum, wire) => sum + wire.path.length + 2, 0);
 
 const Id = (description: string) => Type.String({ pattern: '^[A-Za-z0-9][A-Za-z0-9_.+-]{0,31}$', description });
 const PartId = (description: string) => Type.String({ pattern: '^[a-z0-9]+(-[a-z0-9]+)*$', maxLength: 64, description });
@@ -76,7 +85,7 @@ export type WireGuidePrint = Static<typeof WireGuidePrintSchema>;
 
 export const WireGuideSettingsSchema = Type.Object({
   registration: Type.Union([Type.Literal('mounting-holes'), Type.Literal('edge-clips')], { description: 'How a print locates on the board.' }),
-  coverThickness: Mm(0.6, 4, 'Cover plate over the top channel layer (mm).'),
+  coverThickness: Mm(0.6, 4, 'The cover plate over the board, under the lowest channel layer; the funnels open at its top and go through it (mm).'),
   channelClearance: Mm(0, 1, 'Added to the insulation’s largest outer diameter for a channel’s width (mm).'),
   funnelTopDiameter: Mm(1, 5, 'Funnel opening at the cover (mm).'),
   funnelBottomDiameter: Mm(0.3, 3, 'Funnel outlet above the hole (mm).'),
@@ -100,7 +109,7 @@ export const WireGuideDesignSchema = Type.Object({
   keepouts: Type.Optional(Type.Array(KeepoutSchema, { maxItems: WIRE_GUIDE_LIMITS.keepouts, description: 'Obstacles that are not components.' })),
 }, {
   additionalProperties: false, title: 'WireGuideDesign',
-  description: 'Solid-core wires routed on a prototype board and the guide prints that hold them. Frame: prototypeBoardLayout’s (mm, PCB underside on z = 0, board corner at the origin, seen from the component side, columns along +X and rows along +Y, 0-based).',
+  description: `Solid-core wires routed on a prototype board and the guide prints that hold them. Frame: prototypeBoardLayout’s (mm, PCB underside on z = 0, board corner at the origin, seen from the component side, columns along +X and rows along +Y, 0-based). Beyond this schema, validateWireGuideDesign bounds a design to ${WIRE_GUIDE_LIMITS.bytes / 1000} kB as JSON and ${WIRE_GUIDE_LIMITS.points} grid points (ends and waypoints) over all wires.`,
 });
 export type WireGuideDesign = Static<typeof WireGuideDesignSchema>;
 
@@ -156,12 +165,17 @@ function wireOf(part: Part | undefined): { D: number; d: number } | undefined {
 }
 
 /**
- * Every problem with a wire-guide design, as field-level issues (empty when it is valid): the schema first (a design that does
- * not match it is not checked further), then the board, the parts, the holes, the paths, the levels and the prints. Pure: it
+ * Every problem with a wire-guide design, as field-level issues (empty when it is valid): its size as JSON (`WIRE_GUIDE_LIMITS.bytes`)
+ * and the schema first (a design that fails either is not checked further), then its grid points (`WIRE_GUIDE_LIMITS.points`), the
+ * board, the parts, the holes, the paths, the levels and the prints. Pure: it
  * reads only the bundled parts library, so the assistant, the API and the worker report the same issues. At most
  * `WIRE_GUIDE_LIMITS.issues` issues are returned.
  */
 export function validateWireGuideDesign(design: unknown): WireGuideIssue[] {
+  let bytes: number;
+  try { bytes = (JSON.stringify(design) as string | undefined)?.length ?? 0; } catch { return [{ path: '', message: 'The design is not a JSON document.' }]; }
+  if (bytes > WIRE_GUIDE_LIMITS.bytes)
+    return [{ path: '', message: `The design is ${Math.ceil(bytes / 1000)} kB as JSON; a design is at most ${WIRE_GUIDE_LIMITS.bytes / 1000} kB.` }];
   if (!Value.Check(WireGuideDesignSchema, design)) {
     const seen = new Set<string>();
     const issues: WireGuideIssue[] = [];
@@ -192,6 +206,11 @@ function designIssues(design: WireGuideDesign, issues: WireGuideIssue[]): void {
     issues.push({ path, message });
     if (issues.length >= WIRE_GUIDE_LIMITS.issues) throw ENOUGH;
   };
+
+  // --- the size: the grid points of all wires together ---
+  const points = wireGuidePoints(design);
+  if (points > WIRE_GUIDE_LIMITS.points)
+    issue('/wires', `The wires have ${points} grid points (ends and waypoints) in all; a design has at most ${WIRE_GUIDE_LIMITS.points}.`);
 
   // --- the board and the wire parts ---
   const boardPart = findPart(design.boardPartId);

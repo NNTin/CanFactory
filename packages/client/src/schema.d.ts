@@ -2911,6 +2911,156 @@ export interface operations {
                      */
                     modelVersion: "3";
                     parameters: Record<string, never>;
+                } | {
+                    /** @enum {string} */
+                    modelId: "prototype-wire-guide";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    /** @description Prototype wire guide parameters: the wire-guide design, a structured document. */
+                    parameters: {
+                        /**
+                         * Wire-guide design
+                         * @description The wire-guide design (docs/schemas/wire-guide-design.schema.json): the board, the wires and their routes and levels, the prints and the guide settings, as KiPrint or the assistant writes it, or imported from a .json file.
+                         */
+                        design: {
+                            /** @enum {number} */
+                            schemaVersion: 1;
+                            /** @description A prototype-board part of the parts library. */
+                            boardPartId: string;
+                            /** @description The hookup-wire part of every wire without its own. */
+                            wirePartId: string;
+                            /** @description Where the design came from: display and traceability only. */
+                            source?: {
+                                /** @enum {string} */
+                                tool: "kiprint";
+                                version: string;
+                                projectId: string;
+                            };
+                            components?: {
+                                /** @description Reference designator, e.g. "U1". */
+                                ref: string;
+                                /** @description Footprint name, display only (e.g. "DIP-8"). */
+                                footprint: string;
+                                /** @description The holes its leads use. */
+                                pins: [
+                                    number,
+                                    number
+                                ][];
+                                /** @description An obstacle in the board frame (mm): a box from its lowest corner, or a vertical cylinder. */
+                                body: {
+                                    /** @enum {string} */
+                                    kind: "box";
+                                    /** @description Lowest X of the box (mm). */
+                                    x: number;
+                                    /** @description Lowest Y of the box (mm). */
+                                    y: number;
+                                    /** @description Size along X (mm). */
+                                    w: number;
+                                    /** @description Size along Y (mm). */
+                                    h: number;
+                                    /** @description Top of the obstacle above the PCB top (mm). */
+                                    height: number;
+                                } | {
+                                    /** @enum {string} */
+                                    kind: "cylinder";
+                                    /** @description Centre X (mm). */
+                                    cx: number;
+                                    /** @description Centre Y (mm). */
+                                    cy: number;
+                                    /** @description Diameter (mm). */
+                                    d: number;
+                                    /** @description Top of the obstacle above the PCB top (mm). */
+                                    height: number;
+                                };
+                            }[];
+                            wires: {
+                                /** @description Wire id, e.g. "W1". */
+                                id: string;
+                                /** @description A hookup-wire part for this wire only (e.g. a thicker power wire); the design’s `wirePartId` otherwise. */
+                                wirePartId?: string;
+                                /** @description KiCad net name, display only. */
+                                net?: string;
+                                /** @description A grid position [column, row], 0-based: column along +X, row along +Y. */
+                                from: [
+                                    number,
+                                    number
+                                ];
+                                /** @description A grid position [column, row], 0-based: column along +X, row along +Y. */
+                                to: [
+                                    number,
+                                    number
+                                ];
+                                /** @description The grid waypoints between `from` and `to` (both excluded): the wire runs from → path… → to in axis-aligned segments. Empty for a straight wire. */
+                                path: [
+                                    number,
+                                    number
+                                ][];
+                                /** @description Channel layer, 0 = the lowest above the board. */
+                                level: number;
+                            }[];
+                            prints: {
+                                /** @description Print id, e.g. "G1". */
+                                id: string;
+                                wireIds: string[];
+                                /** @description The grid rectangle the print covers, corners included; its wires must lie inside it. */
+                                region?: {
+                                    /** @description A grid position [column, row], 0-based: column along +X, row along +Y. */
+                                    from: [
+                                        number,
+                                        number
+                                    ];
+                                    /** @description A grid position [column, row], 0-based: column along +X, row along +Y. */
+                                    to: [
+                                        number,
+                                        number
+                                    ];
+                                };
+                            }[];
+                            guide: {
+                                /** @description How a print locates on the board. */
+                                registration: "mounting-holes" | "edge-clips";
+                                /** @description The cover plate over the board, under the lowest channel layer; the funnels open at its top and go through it (mm). */
+                                coverThickness: number;
+                                /** @description Added to the insulation’s largest outer diameter for a channel’s width (mm). */
+                                channelClearance: number;
+                                /** @description Funnel opening at the cover (mm). */
+                                funnelTopDiameter: number;
+                                /** @description Funnel outlet above the hole (mm). */
+                                funnelBottomDiameter: number;
+                                /** @description Gap between the funnel outlet and the PCB top (mm). */
+                                funnelStandoff: number;
+                            };
+                            /** @description Obstacles that are not components. */
+                            keepouts?: ({
+                                /** @enum {string} */
+                                kind: "box";
+                                /** @description Lowest X of the box (mm). */
+                                x: number;
+                                /** @description Lowest Y of the box (mm). */
+                                y: number;
+                                /** @description Size along X (mm). */
+                                w: number;
+                                /** @description Size along Y (mm). */
+                                h: number;
+                                /** @description Top of the obstacle above the PCB top (mm). */
+                                height: number;
+                            } | {
+                                /** @enum {string} */
+                                kind: "cylinder";
+                                /** @description Centre X (mm). */
+                                cx: number;
+                                /** @description Centre Y (mm). */
+                                cy: number;
+                                /** @description Diameter (mm). */
+                                d: number;
+                                /** @description Top of the obstacle above the PCB top (mm). */
+                                height: number;
+                            })[];
+                        };
+                    };
                 };
             };
         };

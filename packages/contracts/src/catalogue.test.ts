@@ -6,7 +6,7 @@ const part = (id: string) => findPart(id) ?? (() => { throw new Error(id); })();
 // The web app reads the catalogue straight from this registry; no API serves it (#95).
 describe('the bundled catalogue', () => {
   it('lists every model, with its file format', () => {
-    expect(models.map(model => model.id).sort()).toEqual(['ai-rubber-duck', 'cat-collar-tag', 'cigarette-case', 'esp32-c3-supermini-case', 'fruit-fly-trap', 'litter-shovel', 'magnetic-cat-toy', 'magnetic-lighter-keychain', 'miter-box', 'moss-planter', 'outside-corner-toggle-latch', 'plank-connector', 'pressure-pad', 'printed-corner-bracket', 'printed-screen-hook', 'qr-magnet-tag', 'spring-ball-detent', 'toggle-latch', 'treat-dispenser', 'trolley-token', 'wand-holder', 'window-cat-guard', 'xiao-sense-camera-housing']);
+    expect(models.map(model => model.id).sort()).toEqual(['ai-rubber-duck', 'cat-collar-tag', 'cigarette-case', 'esp32-c3-supermini-case', 'fruit-fly-trap', 'litter-shovel', 'magnetic-cat-toy', 'magnetic-lighter-keychain', 'miter-box', 'moss-planter', 'outside-corner-toggle-latch', 'plank-connector', 'pressure-pad', 'printed-corner-bracket', 'printed-screen-hook', 'prototype-wire-guide', 'qr-magnet-tag', 'spring-ball-detent', 'toggle-latch', 'treat-dispenser', 'trolley-token', 'wand-holder', 'window-cat-guard', 'xiao-sense-camera-housing']);
     expect(fruitFlyTrap.parameterSchema).toMatchObject({ type: 'object', additionalProperties: false, properties: { trapDiameter: { type: 'number', minimum: 20, maximum: 200 } } });
     expect([fruitFlyTrap, plankConnector].map(artifactFormat)).toEqual(['stl', 'stl']);
     expect([aiRubberDuck, mossPlanter, cigaretteCase, litterShovel].map(artifactFormat)).toEqual(['zip', 'zip', 'zip', 'zip']);
