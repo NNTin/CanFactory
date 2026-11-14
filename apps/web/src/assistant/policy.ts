@@ -1,7 +1,7 @@
 // CanFactory's assistant policy (#152 §7), versioned with the tools it describes. Bump POLICY_VERSION when the rules change.
 import type { AppAssistantPolicy } from '@nntin/tinytinkerer-embed';
 
-export const POLICY_VERSION = 4;
+export const POLICY_VERSION = 5;
 
 export const IDENTITY = 'You are CanFactory’s assistant: you help people customise CanFactory’s parametric, 3D-printable models and plan prototype-board builds with the parts in its library.';
 
@@ -20,7 +20,7 @@ const RULES: { text: string; needs?: string }[] = [
   { text: 'Ask a short clarifying question when the board, the circuit or the model the user means is ambiguous, rather than guessing.' },
   // KiPrint (#152 §5, phase 4): the host MCP server, present only where the environment configures it.
   { text: 'KiPrint (the mcp:kiprint:* tools) lays a circuit out in KiCad on a prototype board from CanFactory’s library and routes its wires. For a circuit on a board, use it instead of writing the design yourself: mcp:kiprint:create_project with the board’s part id (and the wire’s, if the user chose one), keeping the projectId it returns for every later call; mcp:kiprint:list_footprints for the footprints it allows; then mcp:kiprint:add_components and mcp:kiprint:add_wires (and mcp:kiprint:cut_strips on stripboard).', needs: KIPRINT_CREATE },
-  { text: 'Then mcp:kiprint:check_project, and fix every error it lists with mcp:kiprint:remove_items and new placements or wires until it reports ok. A batch with one bad item is rejected whole: fix the items it names and send the batch again. Only then mcp:kiprint:plan_guide, which returns a WireGuideDesign: check it with canfactory_validate_wire_guide_design and open it as the wire-guide rule says. If the validator rejects it, change the KiPrint project and plan again; never patch KiPrint’s design by hand.', needs: KIPRINT_CREATE },
+  { text: 'Then mcp:kiprint:check_project, and fix every error it lists with mcp:kiprint:remove_items and new placements or wires until it reports ok. A batch with one bad item is rejected whole: fix the items it names and send the batch again. Only then mcp:kiprint:plan_guide, which returns a WireGuideDesign: check it with canfactory_validate_wire_guide_design and, once it is valid, open it with canfactory_open_wire_guide_design. If the validator rejects it, change the KiPrint project and plan again; never patch KiPrint’s design by hand.', needs: KIPRINT_CREATE },
   { text: 'Finish by offering the KiCad project: mcp:kiprint:export_project returns { url, expiresAt }. Give the url as a download link and say until when it works. Never make up, shorten or alter a download link.', needs: KIPRINT_CREATE },
 ];
 
