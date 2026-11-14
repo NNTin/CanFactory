@@ -27,7 +27,7 @@ describe('prototype-wire-guide samples', () => {
     expect(validateWireGuideDesign(sample(name))).toEqual([]);
     expect(validateParameters(prototypeWireGuide, { design: sample(name) })).toEqual([]);
   });
-  it('keeps KiPrint’s two designs with bends under a higher wire as invalid fixtures, rerouted straight under it in the samples', () => {
+  it('keeps KiPrint’s two designs with bends under a higher wire as invalid fixtures, rerouted by KiPrint in the samples', () => {
     const invalid = (name: string) => JSON.parse(readFileSync(new URL(`invalid/${name}`, SAMPLES), 'utf8')) as WireGuideDesign;
     expect(readdirSync(new URL('invalid/', SAMPLES)).sort()).toEqual(['kiprint-crossing-two-levels.json', 'kiprint-perma-proto-timer.json']);
     const why = 'a wire runs straight under a wire on a higher level, so that it can be threaded under its bridge.';
@@ -40,8 +40,8 @@ describe('prototype-wire-guide samples', () => {
       { path: '/wires/2/path/0', message: `Wire C turns at [5, 6] under wire B on level 2: ${why}` },
       { path: '/wires/2/path/1', message: `Wire C turns at [16, 6] under wire B on level 2: ${why}` },
     ]);
-    // the samples differ from them only in those wires' paths
-    for (const [name, ids] of [['kiprint-perma-proto-timer.json', ['W7', 'W8']], ['kiprint-crossing-two-levels.json', ['C']]] as const) {
+    // KiPrint's router (main 417ae4c) reroutes the samples; they differ from the fixtures only in those wires
+    for (const [name, ids] of [['kiprint-perma-proto-timer.json', ['W2', 'W5', 'W8']], ['kiprint-crossing-two-levels.json', ['B']]] as const) {
       const [fixture, rerouted] = [invalid(name), sample(name)];
       for (const wire of rerouted.wires) if (!(ids as readonly string[]).includes(wire.id)) expect(wire).toEqual(fixture.wires.find(w => w.id === wire.id));
       expect({ ...rerouted, wires: [] }).toEqual({ ...fixture, wires: [] });
