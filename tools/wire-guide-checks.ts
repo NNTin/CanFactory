@@ -75,8 +75,10 @@ export function checkWireGuide(mesh: (print: number) => Mesh, design: WireGuideD
       is(m, [x, y, higher.floor + high.width / 2], false, `${label} the higher channel at [${cell}]`);
     }
 
-    // funnels: open below the plate, through it and up the shaft; solid plate beside the outlet
+    // funnels: open down to the board (through a boss's column or a clip's foot beside the hole), through the plate and up the shaft
     for (const funnel of print.funnels) {
+      for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [-1, 0], [0, -1]] as const)
+        is(m, [funnel.x + dx * 0.3 * funnel.bottom, funnel.y + dy * 0.3 * funnel.bottom, print.board.t + 0.05], false, `${label} the funnel's bore over the board`);
       is(m, [funnel.x, funnel.y, block.zBase + 0.05], false, `${label} the funnel's outlet`);
       is(m, [funnel.x, funnel.y, (block.zBase + plateTop) / 2], false, `${label} the funnel`);
       is(m, [funnel.x, funnel.y, block.zTop - 0.1], false, `${label} the funnel's shaft`);

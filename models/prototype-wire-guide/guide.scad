@@ -59,17 +59,22 @@ module layer_cut(layer) {
 }
 
 // A funnel at a wire end: a cone from its outlet at the plate's underside to its opening just above the plate's top (the floor of
-// the lowest channels), then a shaft up through the top. The cone runs on below the underside, and its corner sits FUNNEL_KINK
-// above the plate's top, so that no ring of it lies in the underside's or a floor's plane.
+// the lowest channels), then a shaft up through the top. Below the underside the outlet goes on as a bore, BORE_DEPTH into the
+// board's thickness, so that a boss's column or a clip's foot standing on the board beside the hole never closes it. The cone's
+// corners sit FUNNEL_KINK above the plate's top and below the underside, so that no ring of it lies in the underside's or a
+// floor's plane.
 FUNNEL_KINK = 0.05;
+BORE_DEPTH = 0.3;
 module funnel(f) {
   rb = f[2] / 2; rt = f[3] / 2;
   kink = plate_top + FUNNEL_KINK;
   slope = (rt - rb) / (kink - z_base);
-  // below the underside: down to half the outlet's radius (or 1 mm for a straight bore)
-  below = slope > 0 ? rb / 2 / slope : 1;
+  // the bore's top, under the underside: where the cone is a little narrower than the outlet (never less than half of it)
+  below = slope > 0 ? min(FUNNEL_KINK, rb / 2 / slope) : FUNNEL_KINK;
+  bore_r = rb - slope * below;
+  bore_bottom = min(board[2], z_base - below) - BORE_DEPTH;
   translate([f[0], f[1], 0]) rotate_extrude()
-    polygon([[0, z_base - below], [rb - slope * below, z_base - below], [rt, kink], [rt, z_top + 1], [0, z_top + 1]]);
+    polygon([[0, bore_bottom], [bore_r, bore_bottom], [bore_r, z_base - below], [rt, kink], [rt, z_top + 1], [0, z_top + 1]]);
 }
 
 module pocket(p) {

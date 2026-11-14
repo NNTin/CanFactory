@@ -1,0 +1,194 @@
+{
+ "schemaVersion": 1,
+ "boardPartId": "busboard-st1",
+ "wirePartId": "alpha-wire-3051-1",
+ "source": {
+  "tool": "kiprint",
+  "version": "0.0.0-test",
+  "projectId": "scenario-stripboard-regulator"
+ },
+ "components": [
+  {
+   "ref": "J1",
+   "footprint": "TerminalBlock_1x02_P5.08mm",
+   "pins": [
+    [
+     4,
+     7
+    ],
+    [
+     4,
+     9
+    ]
+   ],
+   "body": {
+    "kind": "box",
+    "x": 8.51,
+    "y": 17.36,
+    "w": 8.1,
+    "h": 10.2,
+    "height": 10
+   }
+  },
+  {
+   "ref": "U1",
+   "footprint": "TO-220-3_Vertical",
+   "pins": [
+    [
+     12,
+     7
+    ],
+    [
+     12,
+     8
+    ],
+    [
+     12,
+     9
+    ]
+   ],
+   "body": {
+    "kind": "box",
+    "x": 29.13,
+    "y": 17.36,
+    "w": 4.7,
+    "h": 10.2,
+    "height": 19
+   }
+  },
+  {
+   "ref": "C1",
+   "footprint": "CP_Radial_D8.0mm_P5.08mm",
+   "pins": [
+    [
+     18,
+     7
+    ],
+    [
+     18,
+     9
+    ]
+   ],
+   "body": {
+    "kind": "cylinder",
+    "cx": 47.62,
+    "cy": 22.46,
+    "d": 8,
+    "height": 12.5
+   }
+  },
+  {
+   "ref": "J2",
+   "footprint": "PinHeader_1x03_P2.54mm_Vertical",
+   "pins": [
+    [
+     26,
+     9
+    ],
+    [
+     26,
+     8
+    ],
+    [
+     26,
+     7
+    ]
+   ],
+   "body": {
+    "kind": "box",
+    "x": 66.67,
+    "y": 18.65,
+    "w": 2.54,
+    "h": 7.62,
+    "height": 8.5
+   }
+  }
+ ],
+ "wires": [
+  {
+   "id": "W1",
+   "net": "strip 10",
+   "from": [
+    9,
+    9
+   ],
+   "to": [
+    9,
+    13
+   ],
+   "path": [],
+   "level": 0
+  },
+  {
+   "id": "W2",
+   "net": "strip 10",
+   "from": [
+    21,
+    7
+   ],
+   "to": [
+    24,
+    13
+   ],
+   "path": [
+    [
+     21,
+     13
+    ]
+   ],
+   "level": 1
+  },
+  {
+   "id": "W3",
+   "net": "strip 9 (2)",
+   "from": [
+    7,
+    8
+   ],
+   "to": [
+    20,
+    3
+   ],
+   "path": [
+    [
+     7,
+     3
+    ]
+   ],
+   "level": 0
+  },
+  {
+   "id": "W4",
+   "net": "strip 9",
+   "from": [
+    23,
+    8
+   ],
+   "to": [
+    23,
+    15
+   ],
+   "path": [],
+   "level": 0
+  }
+ ],
+ "prints": [
+  {
+   "id": "G1",
+   "wireIds": [
+    "W1",
+    "W2",
+    "W3",
+    "W4"
+   ]
+  }
+ ],
+ "guide": {
+  "registration": "mounting-holes",
+  "coverThickness": 1.2,
+  "channelClearance": 0.25,
+  "funnelTopDiameter": 2,
+  "funnelBottomDiameter": 1,
+  "funnelStandoff": 0.5
+ }
+}
