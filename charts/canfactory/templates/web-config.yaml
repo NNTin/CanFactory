@@ -1,5 +1,10 @@
 {{- $assistant := .Values.web.assistant }}
 {{- $connect := list "'self'" }}
+{{- /* KiPrint (templates/kiprint.yaml) joins the assistant's host MCP servers while it is deployed. */}}
+{{- $mcpServers := $assistant.mcpServers }}
+{{- if and .Values.kiprint.enabled .Values.kiprint.assistant }}
+{{- $mcpServers = append $mcpServers (dict "id" "kiprint" "name" "KiPrint" "url" (printf "https://%s/mcp" .Values.kiprint.hostname)) }}
+{{- end }}
 {{- if $assistant.enabled }}
 {{- $edge := urlParse (required "web.assistant.edgeBaseUrl is required when the assistant is enabled" $assistant.edgeBaseUrl) }}
 {{- /* The assistant's edge, and api.github.com: the browser reads the signed-in user from it with the token directly (#152). */}}
@@ -16,7 +21,7 @@ metadata:
   name: {{ .Release.Name }}-web
 data:
   # The web app's runtime config (apps/web/src/assistant/config.ts), read at startup instead of baked into the build.
-  config.json: {{ dict "assistant" (dict "enabled" $assistant.enabled "edgeBaseUrl" $assistant.edgeBaseUrl "githubClientId" $assistant.githubClientId) | toJson | quote }}
+  config.json: {{ dict "assistant" (dict "enabled" $assistant.enabled "edgeBaseUrl" $assistant.edgeBaseUrl "githubClientId" $assistant.githubClientId "mcpServers" $mcpServers) | toJson | quote }}
   nginx.conf: |
     worker_processes auto;
     pid /tmp/nginx.pid;

@@ -49,6 +49,58 @@ is off by default. Enabling it requires `edgeBaseUrl` (the tinytinkerer edge: `h
 `https://api.dev.tiny.nntin.xyz` for the preview) and takes `githubClientId` (tinytinkerer's OAuth App client id, a public
 value). The web server's Content Security Policy then allows that edge's origin and `https://api.github.com` in `connect-src`;
 with the assistant off it allows only same-origin connections.
+`web.assistant.mcpServers` lists further host MCP servers for the assistant, empty by default; a deployed KiPrint adds itself
+(below). The edge proxies them and adds their token from its `MCP_HOST_TOKENS`, so they are not in the CSP. The app marks each
+one required: while its tools are missing, the model is told the server is unavailable.
+
+`kiprint` deploys KiPrint's MCP server (#152 §6, `templates/kiprint.yaml`), the private image `ghcr.io/nntin/kiprint` that
+the KiPrint repository publishes. Its digest is one value, `images.kiprint.digest`, pinned in `values.yaml`: a new KiPrint
+image is a one-line bump. `kiprint.enabled` is off by default, and then nothing of it renders. Enabling it requires
+`kiprint.hostname` (`kiprint.nntin.xyz` for production, `kiprint-preview.nntin.xyz` for the preview) and renders, labelled
+`app.kubernetes.io/name: kiprint`:
+
+- a one-replica Deployment with the `Recreate` strategy (its volume is ReadWriteOnce), the chart's pod security settings
+  (uid/gid 1000 with `fsGroup`, read-only root, `/tmp` an `emptyDir`), 1 CPU / 1.5 GiB limits and `/healthz` probes;
+- a `kiprint.persistence.size` (5 GiB) PersistentVolumeClaim at `KIPRINT_DATA_DIR=/data`, kept on uninstall. On a cluster
+  without a default StorageClass, set `storageClassName`, and `volumeName` for a pre-created PersistentVolume;
+- a Service on 8080, and an HTTPRoute on `kiprint.gateway` for the hostname with only `/mcp`, `/healthz` and `/downloads/*`.
+  It adds no middleware, so Traefik doesn't buffer `/mcp`'s server-sent events, and no CORS. `/healthz` and the signed
+  download links need no token; KiPrint itself answers `/mcp` without the bearer token with 401;
+- with `kiprint.assistant` (the default), `{id: kiprint, name: KiPrint, url: https://<hostname>/mcp}` in the web assistant's
+  `/config.json`, so disabling KiPrint also takes it out of the assistant.
+
+Its environment is `KIPRINT_BEARER_TOKEN` from the existing Secret `kiprint.bearerToken` (`kiprint-token`, key `token`),
+`CANFACTORY_API_URL` (the API Service), `KIPRINT_DATA_DIR`, `KIPRINT_PUBLIC_URL` (`https://` + the hostname) and
+`KIPRINT_PROJECT_TTL` (`kiprint.projectTtl`, 7d). The chart never holds the token. The pod pulls with the chart-wide
+`imagePullSecrets` plus `kiprint.imagePullSecrets` (`ghcr-kiprint`). Before enabling it, the owner creates both Secrets in the
+release namespace without printing either value:
+
+```sh
+# A GitHub classic PAT with read:packages only, read without echoing it.
+read -rs PAT
+kubectl -n <namespace> create secret docker-registry ghcr-kiprint \
+  --docker-server=ghcr.io --docker-username=<github user> --docker-password="$PAT"
+unset PAT
+# The environment's MCP token, straight from the token file (production's key is kiprint.nntin.xyz).
+jq -r '."kiprint-preview.nntin.xyz"' /home/ao/.secrets/kiprint-mcp-tokens.json |
+  kubectl -n <namespace> create secret generic kiprint-token --from-file=token=/dev/stdin
+```
+
+The same token is the hostname's entry in the tinytinkerer edge's `MCP_HOST_TOKENS`; rotating it means updating both.
+
+The chart owns no network policy. In a namespace that denies unspecified ingress, the infrastructure repository allows:
+
+- the Gateway's Traefik pods to pods labelled `app.kubernetes.io/name: kiprint` on TCP 8080;
+- those pods to the API pods (`app.kubernetes.io/component: api`) on TCP 3001, for `GET /api/v1/parts/{id}` and `/layout`;
+- if egress is restricted too, KiPrint's DNS. It needs no other egress.
+
+The preview's HelmRelease enables it with:
+
+```yaml
+kiprint:
+  enabled: true
+  hostname: kiprint-preview.nntin.xyz
+```
 
 Use `tools/check-chart.sh` to validate representative replica configurations and the worker bound. See
 `docs/kubernetes-tech-plan.md` for fencing, expiry and upgrade behavior.

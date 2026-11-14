@@ -143,6 +143,24 @@ jobs, parameters, and files expire after one hour and are cleaned up within the
 next maintenance cycle (one minute). The API never serves expired artifacts. The browser remembers the last valid settings;
 Reset restores model defaults. There are no accounts or backend saved designs.
 
+### KiPrint locally
+
+The optional `kiprint` profile adds KiPrint's MCP server (#152), which reads boards from the Compose API. Its image,
+`ghcr.io/nntin/kiprint`, is private, so log in to GHCR with a token that can read it first. Any local token works, since it
+only guards your own port:
+
+```sh
+gh auth token | docker login ghcr.io -u "$(gh api user --jq .login)" --password-stdin
+KIPRINT_BEARER_TOKEN=$(openssl rand -base64 32) NODE_AUTH_TOKEN=$(gh auth token) \
+  docker compose --profile kiprint up --build -d --wait
+```
+
+It listens on <http://localhost:8080> (`KIPRINT_PORT` selects another port, `KIPRINT_IMAGE` another image, by default the
+`main` tag): `POST /mcp` with `Authorization: Bearer $KIPRINT_BEARER_TOKEN`, `GET /healthz`, and the download links that
+`export_project` returns. Projects are kept in the `canfactory_kiprint` volume. The embedded assistant can't call this
+server: the tinytinkerer edge only proxies public https hosts. Call it with an MCP client, or with `curl` as KiPrint's README
+shows. The assistant uses KiPrint on the preview (`kiprint-preview.nntin.xyz`).
+
 The provided model source and STL are preserved under
 [`models/fruit-fly-trap/reference`](models/fruit-fly-trap/reference). The adapted
 generator is [`generator.scad`](models/fruit-fly-trap/generator.scad). Attribution

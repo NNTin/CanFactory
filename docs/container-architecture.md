@@ -191,6 +191,13 @@ suspended until the `offers.secret` Secret holds `AWIN_DATAFEED_KEY` and the
 network policy allows egress to both Awin hosts on 443. See
 [affiliate-offers.md](affiliate-offers.md).
 
+KiPrint's MCP server (#152 phase 4, `charts/canfactory/templates/kiprint.yaml`) is deployed only where
+`kiprint.enabled` is set: one replica of the private image `ghcr.io/nntin/kiprint` with a 5 GiB volume, reached through the
+same tunnel and Traefik as `kiprint-preview.nntin.xyz` (preview) or `kiprint.nntin.xyz` (production). The route exposes
+only `/mcp`, `/healthz` and `/downloads/*`. Its only intended caller is the tinytinkerer edge, which adds the bearer token,
+and KiPrint calls back only to the API Service for board layouts. The chart README lists the Secrets and the network
+allowances it needs. Locally, Compose's `kiprint` profile runs it (README, "KiPrint locally").
+
 Preview and download still pass through the API and reference the same immutable
 artifact. API reads enforce expiry regardless of object cleanup timing. There is
 no worker HTTP Service or API-to-worker RPC. PostgreSQL is also the job queue;
