@@ -5,7 +5,7 @@ import { join } from 'node:path';
  * The startup bundle carries no tinytinkerer runtime (#152): with the assistant off, or before it opens, the page loads exactly what it
  * did before the embed. Reads a built apps/web/dist, follows the entry's static imports (what the browser must load before the app
  * runs; dynamic import() chunks are left out) and fails if any of them holds code from the @nntin/tinytinkerer-embed root. Only the
- * side-effect-free /oauth subpath may be eager. One static import of the root, even of a constant, pulls the whole runtime in (+437 KB
+ * side-effect-free /oauth and /stage subpaths may be eager. One static import of the root, even of a constant, pulls the whole runtime in (+437 KB
  * gzipped, measured in phase 0); this is the check that would catch it. Run after `npm run build`.
  */
 const dist = process.argv[2] ?? 'apps/web/dist';

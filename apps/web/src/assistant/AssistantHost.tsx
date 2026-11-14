@@ -67,9 +67,9 @@ export default function AssistantHost({ settings, layout }: { settings: Assistan
     <BrowserAppShell app={app} config={config} BootScreen={Loading} globalHosts={NO_GLOBAL_HOST_CAPABILITIES}>
       {layout === 'sidebar'
         ? <ChatApp mode="sidebar" side="right" fill morphable={false} storageKey="canfactory-assistant" LoadingComponent={Loading} />
-        // The floating stage is laid out as a whole page; over CanFactory's it is a fixed, click-through overlay (styles.css).
+        // Over CanFactory's page: a fixed, click-through overlay. tinytinkerer clamps the window's size to the viewport itself.
         : <ChatApp presentation={presentation} onPresentationChange={setPresentation} morphable={false} storageKey="canfactory-assistant-floating" LoadingComponent={Loading}
-          stageClassName="assistant-floating-stage" defaultWidth={Math.min(400, window.innerWidth - 24)} defaultHeight={Math.min(640, window.innerHeight - 96)} />}
+          overlay defaultHeight={Math.min(640, window.innerHeight - 96)} />}
     </BrowserAppShell>
   </div>;
 }

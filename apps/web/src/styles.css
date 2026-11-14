@@ -2558,10 +2558,9 @@ main {
 .assistant-error { color: var(--accent); }
 .assistant-launcher { position: fixed; right: 20px; bottom: 20px; z-index: 30; display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); box-shadow: 0 6px 20px rgb(40 46 43 / 14%); cursor: pointer; }
 .assistant-launcher:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.widget-stage.assistant-floating-stage { position: fixed; inset: 0; z-index: 30; min-height: 0; pointer-events: none; }
-.assistant-floating-stage > * { pointer-events: auto; }
-/* The tokens `theme` doesn't set (the package declares its own at zero specificity, so this wins inside the panel only). */
-.tt-app-embed { --tt-muted: var(--muted); --tt-link: var(--accent); }
+/* The tokens `theme` (AssistantHost.tsx) doesn't set, on the wrapper: the stage inherits them, the package's zero-specificity
+   defaults lose to them, and they stay inside the panel. The five `theme` sets are inline on the stage and outrank any rule here. */
+.assistant-host.tt-app-embed { --tt-muted: var(--muted); --tt-link: var(--accent); }
 
 /* A wire-guide design (WireGuideField): its board map, summary, import and settings. */
 .wire-guide-map {

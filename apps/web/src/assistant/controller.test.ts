@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { findModel, validateParameters, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
+import { DEFAULT_WIRE_GUIDE_DESIGN, findModel, validateParameters, validateWireGuideDesign, type ModelDefinition, type ParameterValues, type WireGuideDesign } from '@canfactory/contracts';
 import { createCanfactoryController, createEditorSession, editorSession, NO_EDITOR, takePendingParameters, type EditorSession, type EditorState } from './controller.ts';
 
 const trap = findModel('fruit-fly-trap') as ModelDefinition;
 const duck = findModel('ai-rubber-duck') as ModelDefinition;
+const guide = findModel('prototype-wire-guide') as ModelDefinition;
 
 /** A mounted editor of `model`, as the Editor component registers it. */
 function mount(model: ModelDefinition, parameters: ParameterValues = { ...model.defaults }) {
@@ -89,15 +90,73 @@ describe('canfactory_set_model_parameters', () => {
     expect(takePendingParameters(trap)).toMatchObject({ trapHeight: 80 });
   });
 
-  it('doesn’t open the wire guide (a document parameter), with or without a design, and points to the JSON import', () => {
-    const guide = findModel('prototype-wire-guide') as ModelDefinition;
+  it('doesn’t open the wire guide (a document parameter), with or without a design, and points to its own tool', () => {
     editorSession.set(null);
     const { controller: tools, openModel } = controller();
     for (const parameters of [{ design: guide.defaults['design'] }, {}] as ParameterValues[]) {
       const result = tools.canfactory_set_model_parameters({ modelId: guide.id, parameters });
-      expect(result).toMatchObject({ ok: false, issues: [{ field: 'design', message: expect.stringContaining('Import design (.json)') as unknown }] });
+      expect(result).toMatchObject({ ok: false, issues: [{ field: 'design', message: expect.stringContaining('canfactory_open_wire_guide_design') as unknown }] });
     }
+    // Not even with the wire guide's editor open.
+    const { setParameters } = mount(guide);
+    expect(tools.canfactory_set_model_parameters({ modelId: guide.id, parameters: { design: guide.defaults['design'] } as ParameterValues })).toMatchObject({ ok: false });
+    expect(setParameters).not.toHaveBeenCalled();
     expect(openModel).not.toHaveBeenCalled();
+    expect(takePendingParameters(guide)).toBeUndefined();
+  });
+});
+
+describe('canfactory_open_wire_guide_design', () => {
+  // Two wires on the half Perma-Proto, one print.
+  const design = (): WireGuideDesign => ({
+    schemaVersion: 1, boardPartId: 'adafruit-perma-proto-half', wirePartId: 'alpha-wire-3051-1',
+    wires: [{ id: 'W1', from: [0, 3], to: [5, 3], path: [], level: 0 }, { id: 'W2', from: [2, 5], to: [2, 11], path: [], level: 0 }],
+    prints: [{ id: 'G1', wireIds: ['W1', 'W2'] }],
+    guide: { registration: 'mounting-holes', coverThickness: 1.2, channelClearance: 0.2, funnelTopDiameter: 2.2, funnelBottomDiameter: 1, funnelStandoff: 0.5 },
+  });
+
+  it('rejects an invalid design with the shared validation’s issues, and opens nothing', () => {
+    const { setParameters } = mount(guide);
+    const { controller: tools, openModel } = controller();
+    const crossing = design();
+    crossing.wires.push({ id: 'W3', from: [4, 1], to: [4, 6], path: [], level: 0 });
+    for (const candidate of [crossing, { ...design(), boardPartId: 'm3-hex-nut' }, { schemaVersion: 2 }, 'not a design', null]) {
+      const issues = validateWireGuideDesign(candidate);
+      expect(issues.length).toBeGreaterThan(0);
+      // Exactly what canfactory_validate_wire_guide_design reports: { path (JSON Pointer), message }.
+      expect(tools.canfactory_open_wire_guide_design({ design: candidate })).toEqual({ ok: false, issues });
+    }
+    expect(setParameters).not.toHaveBeenCalled();
+    expect(openModel).not.toHaveBeenCalled();
+    expect(takePendingParameters(guide)).toBeUndefined();
+  });
+
+  it('opens the wire guide’s editor on a valid design when another model (or none) is open', () => {
+    for (const mounted of [trap, null]) {
+      if (mounted) mount(mounted); else editorSession.set(null);
+      const { controller: tools, openModel, savedParameters } = controller();
+      const result = tools.canfactory_open_wire_guide_design({ design: design() });
+      expect(result).toMatchObject({ ok: true, modelId: guide.id, opened: true, summary: { wires: 2, levels: 1, prints: [{ id: 'G1', wires: 2 }] } });
+      expect(openModel).toHaveBeenCalledWith(guide.id);
+      // The editor starts from the design (the same path a model opened with set_model_parameters takes), not from saved settings.
+      expect(savedParameters).not.toHaveBeenCalled();
+      const pending = takePendingParameters(guide);
+      expect(pending).toEqual({ design: design() });
+      expect(validateParameters(guide, pending)).toEqual([]);
+    }
+  });
+
+  it('replaces the design in an open wire-guide editor, through the editor’s own parameters', () => {
+    const { setParameters, state } = mount(guide, { design: DEFAULT_WIRE_GUIDE_DESIGN });
+    const { controller: tools, openModel } = controller();
+    const input = design();
+    expect(tools.canfactory_open_wire_guide_design({ design: input })).toMatchObject({ ok: true, opened: false });
+    expect(openModel).not.toHaveBeenCalled();
+    expect(setParameters).toHaveBeenCalledTimes(1);
+    expect(state.parameters).toEqual({ design: input });
+    // A copy: the model's later edits to its input can't change the editor's design.
+    input.wires.pop();
+    expect((state.parameters['design'] as WireGuideDesign).wires).toHaveLength(2);
     expect(takePendingParameters(guide)).toBeUndefined();
   });
 });
