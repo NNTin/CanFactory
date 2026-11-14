@@ -166,6 +166,8 @@ describe('the assistant policy', () => {
     expect(all).toContain('canfactory_set_model_parameters');
     expect(all).toMatch(/never invent a dimension/i);
     expect(all).toContain('canfactory_validate_wire_guide_design');
+    // It agrees with canfactory_set_model_parameters, which won’t open the wire guide.
+    expect(all).toMatch(/rejects the prototype-wire-guide model.*Import design \(\.json\)/);
     const none = assistantPolicy.instructions?.({ boundary: 'decision', toolIds: [] }) ?? '';
     expect(none).not.toContain('canfactory_');
     expect(none).toMatch(/clarifying question/);

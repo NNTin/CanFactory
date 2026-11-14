@@ -98,6 +98,8 @@ export function takePendingParameters(model: ModelDefinition): ParameterValues |
  *
  * `set_model_parameters` validates the merged parameters with the model's own validation (`validateParameters`: its TypeBox
  * schema, part filters, limits and checks) and rejects them whole if anything is wrong. It never clamps or corrects a value.
+ * It doesn't open a model with a `document` parameter (the wire guide): that comes with its own tool (#152); until then the user
+ * imports the design.
  */
 export function createCanfactoryController(options: { openModel: (modelId: string) => void; savedParameters: (model: ModelDefinition) => ParameterValues; session?: Slot<EditorSession> }): CanfactoryController {
   const session = options.session ?? editorSession;
@@ -111,6 +113,8 @@ export function createCanfactoryController(options: { openModel: (modelId: strin
       const { modelId, parameters: changes } = input as { modelId: string; parameters: ParameterValues };
       const model = findModel(modelId);
       if (!model) return { ok: false, issues: [{ field: 'modelId', message: `There is no model “${modelId}”. List the models with canfactory_list_models.` }] };
+      const document = model.controls.find(control => control.kind === 'document');
+      if (document) return { ok: false, issues: [{ field: document.key, message: `${model.title} can’t be opened from the chat yet. Give the user the validated design as JSON to load with “Import design (.json)” in its editor.` }] };
       const unknown = Object.keys(changes).filter(key => !(key in model.defaults));
       if (unknown.length > 0) return { ok: false, issues: unknown.map(field => ({ field, message: `${model.title} has no parameter “${field}”. Read its parameters with canfactory_get_model_schema.` })) };
       const current = session.get();

@@ -88,6 +88,18 @@ describe('canfactory_set_model_parameters', () => {
     expect(openModel).toHaveBeenCalledWith(trap.id);
     expect(takePendingParameters(trap)).toMatchObject({ trapHeight: 80 });
   });
+
+  it('doesn’t open the wire guide (a document parameter), with or without a design, and points to the JSON import', () => {
+    const guide = findModel('prototype-wire-guide') as ModelDefinition;
+    editorSession.set(null);
+    const { controller: tools, openModel } = controller();
+    for (const parameters of [{ design: guide.defaults['design'] }, {}] as ParameterValues[]) {
+      const result = tools.canfactory_set_model_parameters({ modelId: guide.id, parameters });
+      expect(result).toMatchObject({ ok: false, issues: [{ field: 'design', message: expect.stringContaining('Import design (.json)') as unknown }] });
+    }
+    expect(openModel).not.toHaveBeenCalled();
+    expect(takePendingParameters(guide)).toBeUndefined();
+  });
 });
 
 describe('the editor session', () => {

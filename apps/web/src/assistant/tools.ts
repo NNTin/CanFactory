@@ -92,7 +92,7 @@ export const catalogueTools: Tool<unknown, unknown>[] = [
     z.object({ models: z.array(z.object({ id: z.string(), version: z.string(), title: z.string(), description: z.string(), format: z.enum(['stl', 'zip']), adjustable: z.boolean() })) }),
     listModels),
   tool('canfactory_get_model_schema',
-    'A model’s parameters as its editor offers them: key, label, kind, unit, default, bounds, step and options. A `document` parameter takes a whole structured document (e.g. a WireGuideDesign); its default is one.',
+    'A model’s parameters as its editor offers them: key, label, kind, unit, default, bounds, step and options. A `document` parameter (the wire guide’s design) takes a whole structured document, and its default is one; canfactory_set_model_parameters can’t change it.',
     z.object({ modelId: z.string() }),
     z.object({
       id: z.string(), version: z.string(), title: z.string(), printNotes: z.string(), note: z.string(),
@@ -118,7 +118,7 @@ export const editorTools = createStageTools<CanfactoryController>({
       outputSchema: editorState,
     },
     canfactory_set_model_parameters: {
-      description: 'Open a model in the editor (if it isn’t already) and change some of its parameters; the others keep their current values. The whole set is checked by the model’s own validation: an invalid value is rejected with the reason, never clamped. The editor then renders it.',
+      description: 'Open a model in the editor (if it isn’t already) and change some of its parameters; the others keep their current values. The whole set is checked by the model’s own validation: an invalid value is rejected with the reason, never clamped. The editor then renders it. Not for a model with a `document` parameter (the wire guide).',
       schema: z.object({ modelId: z.string().describe('The model id, from canfactory_list_models'), parameters: parameters.describe('Parameter key → new value; only the ones to change') }),
       outputSchema: z.union([
         z.object({ ok: z.literal(true), modelId: z.string(), opened: z.boolean(), parameters, note: z.string() }),
