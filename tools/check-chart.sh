@@ -39,39 +39,51 @@ if web_config --set web.assistant.enabled=true > /dev/null 2>&1; then
   echo 'An enabled assistant without an edge was accepted.' >&2
   exit 1
 fi
+# Host MCP servers reach /config.json as configured, and stay off the CSP: the browser calls them only through the edge.
+servers=$(web_config --set web.assistant.enabled=true,web.assistant.edgeBaseUrl=https://api.dev.tiny.nntin.xyz \
+  --set-json 'web.assistant.mcpServers=[{"id":"kiprint","name":"KiPrint","url":"https://kiprint-preview.nntin.xyz/mcp"}]')
+grep -qF '\"mcpServers\":[{\"id\":\"kiprint\",\"name\":\"KiPrint\",\"url\":\"https://kiprint-preview.nntin.xyz/mcp\"}]' <<<"$servers" \
+  || { echo 'config.json does not list the host MCP server.' >&2; exit 1; }
+! grep -q "connect-src[^;]*kiprint" <<<"$servers" || { echo 'The CSP must not allow host MCP servers.' >&2; exit 1; }
+web_config | grep -qF '\"mcpServers\":[]' || { echo 'config.json must list no host MCP servers by default.' >&2; exit 1; }
 echo 'PASS assistant runtime config and CSP'
-# KiPrint (#152 §6): off by default, so nothing of it renders; on, it needs its digest and hostname, takes its token from the
-# named Secret only, and its route exposes only /mcp, /healthz and /downloads.
+# KiPrint (#152 §6): off by default, so nothing of it renders and the assistant lists no host server; on, it needs a digest and
+# its hostname, takes its token from the named Secret only, joins the assistant's config.json, and its route exposes only
+# /mcp, /healthz and /downloads.
 helm template canfactory charts/canfactory --kube-version 1.36.4 -f charts/canfactory/ci/values.json > "$rendered"
-! grep -q kiprint "$rendered" || { echo 'KiPrint rendered while disabled.' >&2; exit 1; }
-kiprint=(kiprint.enabled=true kiprint.hostname=kiprint-preview.nntin.xyz images.kiprint.digest=sha256:1111111111111111111111111111111111111111111111111111111111111111)
-for missing in hostname digest; do
-  case $missing in
-    hostname) values="${kiprint[0]},${kiprint[2]}" ;;
-    digest) values="${kiprint[0]},${kiprint[1]}" ;;
-  esac
+! grep -qi kiprint "$rendered" || { echo 'KiPrint rendered while disabled.' >&2; exit 1; }
+for values in kiprint.enabled=true images.kiprint.digest=,kiprint.enabled=true,kiprint.hostname=kiprint-preview.nntin.xyz; do
   if helm template canfactory charts/canfactory --kube-version 1.36.4 -f charts/canfactory/ci/values.json --set "$values" > /dev/null 2>&1; then
-    echo "KiPrint without its $missing was accepted." >&2
+    echo "KiPrint was accepted with only $values." >&2
     exit 1
   fi
 done
+kiprint=kiprint.enabled=true,kiprint.hostname=kiprint-preview.nntin.xyz,web.assistant.enabled=true,web.assistant.edgeBaseUrl=https://api.dev.tiny.nntin.xyz
 helm template canfactory charts/canfactory --namespace canfactory-validation --kube-version 1.36.4 -f charts/canfactory/ci/values.json \
-  --set "$(IFS=,; echo "${kiprint[*]}")" > "$rendered"
-validate 15
+  --set "$kiprint" > "$rendered"
+validate 14
 expect() { grep -qF -- "$1" "$rendered" || { echo "KiPrint: missing $1" >&2; exit 1; }; }
-expect 'image: "ghcr.io/nntin/kiprint@sha256:1111111111111111111111111111111111111111111111111111111111111111"'
+digest=$(sed -nE '/^  kiprint:$/,/digest/{s/^    digest: "(sha256:[a-f0-9]{64})"$/\1/p}' charts/canfactory/values.yaml)
+[ -n "$digest" ] || { echo 'images.kiprint.digest is not pinned in values.yaml.' >&2; exit 1; }
+expect "image: \"ghcr.io/nntin/kiprint@$digest\""
+expect 'app.kubernetes.io/name: kiprint'
 expect '- name: ghcr-kiprint'
 expect 'type: Recreate'
-expect 'name: kiprint-mcp'
-expect 'key: KIPRINT_BEARER_TOKEN'
+expect 'name: kiprint-token'
+expect 'key: token'
 expect 'value: "http://canfactory-api.canfactory-validation.svc.cluster.local:3001"'
 expect 'value: "https://kiprint-preview.nntin.xyz"'
 expect '- "kiprint-preview.nntin.xyz"'
 expect 'storage: 5Gi'
 expect 'httpGet: {path: /healthz, port: http}'
+expect '\"mcpServers\":[{\"id\":\"kiprint\",\"name\":\"KiPrint\",\"url\":\"https://kiprint-preview.nntin.xyz/mcp\"}]'
 paths=$(grep -oE 'path: \{type: [A-Za-z]+, value: [^}]+\}' "$rendered" | sort | tr '\n' ' ')
 [ "$paths" = 'path: {type: Exact, value: /healthz} path: {type: Exact, value: /mcp} path: {type: PathPrefix, value: /downloads} ' ] \
   || { echo "KiPrint route paths: $paths" >&2; exit 1; }
 # No CORS headers, and no Traefik middleware (an ExtensionRef filter), so nothing buffers /mcp's server-sent events.
 ! grep -qiE 'access-control|extensionref' "$rendered" || { echo 'KiPrint route must add no CORS or middleware.' >&2; exit 1; }
+# The chart owns no network policy or namespace; the infrastructure repository does.
+! grep -qE 'kind: (NetworkPolicy|Namespace)' "$rendered" || { echo 'The chart must not render network policies or namespaces.' >&2; exit 1; }
+helm template canfactory charts/canfactory --kube-version 1.36.4 -f charts/canfactory/ci/values.json --show-only templates/web-config.yaml \
+  --set "$kiprint,kiprint.assistant=false" | grep -qF '\"mcpServers\":[]' || { echo 'kiprint.assistant=false still lists KiPrint.' >&2; exit 1; }
 echo 'PASS KiPrint deployment and route'

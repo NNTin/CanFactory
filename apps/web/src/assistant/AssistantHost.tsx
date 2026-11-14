@@ -47,7 +47,8 @@ function getAssistant(settings: AssistantConfig) {
     // CanFactory owns its head, favicon and telemetry consent; tinytinkerer touches none of them.
     documentGlobals: EMBEDDED_DOCUMENT_GLOBAL_CAPABILITIES,
     humanInput: false,
-    // No mcpServers in this phase: KiPrint comes with #152 phase 4.
+    // KiPrint (#152 phase 4), when the environment's /config.json lists it; its tools reach the model as mcp:kiprint:<tool>.
+    mcpServers: settings.mcpServers,
     // Users may add their own MCP servers in Settings → Tools (tinytinkerer's default): intentional, the owner's decision on #152 (F8).
   });
   assistant = { app, config };

@@ -238,7 +238,8 @@
           "required": [
             "enabled",
             "edgeBaseUrl",
-            "githubClientId"
+            "githubClientId",
+            "mcpServers"
           ],
           "properties": {
             "enabled": {
@@ -252,6 +253,32 @@
             "githubClientId": {
               "type": "string",
               "pattern": "^[A-Za-z0-9._-]*$"
+            },
+            "mcpServers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "name",
+                  "url"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "url": {
+                    "type": "string",
+                    "pattern": "^https://[^/\\s]+(/\\S*)?$"
+                  }
+                }
+              }
             }
           }
         }
@@ -547,8 +574,8 @@
         "bearerToken",
         "persistence",
         "gateway",
-        "networkPolicy",
-        "resources"
+        "resources",
+        "assistant"
       ],
       "properties": {
         "enabled": {
@@ -646,31 +673,6 @@
             }
           }
         },
-        "networkPolicy": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "enabled",
-            "gatewayNamespace",
-            "gatewayPodLabels"
-          ],
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "gatewayNamespace": {
-              "type": "string",
-              "minLength": 1
-            },
-            "gatewayPodLabels": {
-              "type": "object",
-              "minProperties": 1,
-              "additionalProperties": {
-                "type": "string"
-              }
-            }
-          }
-        },
         "resources": {
           "type": "object",
           "required": [
@@ -709,6 +711,9 @@
               }
             }
           }
+        },
+        "assistant": {
+          "type": "boolean"
         }
       }
     }

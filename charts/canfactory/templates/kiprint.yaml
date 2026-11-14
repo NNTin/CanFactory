@@ -1,18 +1,19 @@
 {{- /* KiPrint's MCP server (#152 §6). Its only intended caller is the tinytinkerer edge, which adds the bearer token; KiPrint
-       checks it on /mcp itself, so the route carries no authentication middleware, and no CORS. */}}
+       checks it on /mcp itself, so the route carries no authentication middleware, and no CORS. Namespaces and network
+       policies belong to the infrastructure repository (see the README for the allowances KiPrint needs). */}}
 {{- with .Values.kiprint }}
 {{- if .enabled }}
 {{- $image := $.Values.images.kiprint }}
 {{- $hostname := required "kiprint.hostname is required when KiPrint is enabled" .hostname }}
 {{- $name := printf "%s-kiprint" $.Release.Name }}
+{{- $labels := dict "app.kubernetes.io/name" "kiprint" "app.kubernetes.io/part-of" "canfactory" "app.kubernetes.io/instance" $.Release.Name "app.kubernetes.io/managed-by" $.Release.Service "app.kubernetes.io/component" "mcp-server" }}
+{{- $selector := dict "app.kubernetes.io/name" "kiprint" "app.kubernetes.io/instance" $.Release.Name }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ $name }}
-  labels:
-    {{- include "canfactory.labels" $ | nindent 4 }}
-    app.kubernetes.io/component: kiprint
+  labels: {{ toYaml $labels | nindent 4 }}
   # Uninstalling the chart does not delete persistent data.
   annotations:
     helm.sh/resource-policy: keep
@@ -32,9 +33,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}
-  labels:
-    {{- include "canfactory.labels" $ | nindent 4 }}
-    app.kubernetes.io/component: kiprint
+  labels: {{ toYaml $labels | nindent 4 }}
 spec:
   # One server per volume: calls on a project are serialized inside the process.
   replicas: 1
@@ -43,14 +42,10 @@ spec:
   strategy:
     type: Recreate
   selector:
-    matchLabels:
-      app.kubernetes.io/instance: {{ $.Release.Name }}
-      app.kubernetes.io/component: kiprint
+    matchLabels: {{ toYaml $selector | nindent 6 }}
   template:
     metadata:
-      labels:
-        {{- include "canfactory.labels" $ | nindent 8 }}
-        app.kubernetes.io/component: kiprint
+      labels: {{ toYaml $labels | nindent 8 }}
     spec:
       automountServiceAccountToken: false
       serviceAccountName: {{ $.Release.Name }}
@@ -116,12 +111,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ $name }}
-  labels: {{ include "canfactory.labels" $ | nindent 4 }}
+  labels: {{ toYaml $labels | nindent 4 }}
 spec:
   type: ClusterIP
-  selector:
-    app.kubernetes.io/instance: {{ $.Release.Name }}
-    app.kubernetes.io/component: kiprint
+  selector: {{ toYaml $selector | nindent 4 }}
   ports:
     - name: http
       port: 8080
@@ -133,7 +126,7 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: {{ $name }}
-  labels: {{ include "canfactory.labels" $ | nindent 4 }}
+  labels: {{ toYaml $labels | nindent 4 }}
 spec:
   parentRefs:
     - name: {{ .gateway.name }}
@@ -158,49 +151,5 @@ spec:
       backendRefs:
         - name: {{ $name }}
           port: 8080
-{{- if .networkPolicy.enabled }}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: {{ $name }}-from-gateway
-  labels: {{ include "canfactory.labels" $ | nindent 4 }}
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/instance: {{ $.Release.Name }}
-      app.kubernetes.io/component: kiprint
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: {{ .networkPolicy.gatewayNamespace }}
-          podSelector:
-            matchLabels: {{ toYaml .networkPolicy.gatewayPodLabels | nindent 14 }}
-      ports:
-        - {protocol: TCP, port: 8080}
----
-# KiPrint reads boards from the API: GET /api/v1/parts/{id} and /layout.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: {{ $name }}-to-api
-  labels: {{ include "canfactory.labels" $ | nindent 4 }}
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/instance: {{ $.Release.Name }}
-      app.kubernetes.io/component: api
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/instance: {{ $.Release.Name }}
-              app.kubernetes.io/component: kiprint
-      ports:
-        - {protocol: TCP, port: 3001}
-{{- end }}
 {{- end }}
 {{- end }}
