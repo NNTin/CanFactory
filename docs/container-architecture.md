@@ -194,7 +194,8 @@ network policy allows egress to both Awin hosts on 443. See
 KiPrint's MCP server (#152 phase 4, `charts/canfactory/templates/kiprint.yaml`) is deployed only where
 `kiprint.enabled` is set: one replica of the private image `ghcr.io/nntin/kiprint` with a 5 GiB volume, reached through the
 same tunnel and Traefik as `kiprint-preview.nntin.xyz` (preview) or `kiprint.nntin.xyz` (production). The route exposes
-only `/mcp`, `/healthz` and `/downloads/*`. Its only intended caller is the tinytinkerer edge, which adds the bearer token,
+the diagnostic homepage at exact `/`, `/mcp`, `/healthz` and `/downloads/*`. The homepage shows basic server/build
+information for development and debugging. MCP's only intended caller is the tinytinkerer edge, which adds the bearer token,
 and KiPrint calls back only to the API Service for board layouts. The chart README lists the Secrets and the network
 allowances it needs. Locally, Compose's `kiprint` profile runs it (README, "KiPrint locally").
 

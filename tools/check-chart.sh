@@ -49,7 +49,7 @@ web_config | grep -qF '\"mcpServers\":[]' || { echo 'config.json must list no ho
 echo 'PASS assistant runtime config and CSP'
 # KiPrint (#152 §6): off by default, so nothing of it renders and the assistant lists no host server; on, it needs a digest and
 # its hostname, takes its token from the named Secret only, joins the assistant's config.json, and its route exposes only
-# /mcp, /healthz and /downloads.
+# the diagnostic homepage, /mcp, /healthz and /downloads.
 helm template canfactory charts/canfactory --kube-version 1.36.4 -f charts/canfactory/ci/values.json > "$rendered"
 ! grep -qi kiprint "$rendered" || { echo 'KiPrint rendered while disabled.' >&2; exit 1; }
 for values in kiprint.enabled=true images.kiprint.digest=,kiprint.enabled=true,kiprint.hostname=kiprint-preview.nntin.xyz; do
@@ -78,7 +78,7 @@ expect 'storage: 5Gi'
 expect 'httpGet: {path: /healthz, port: http}'
 expect '\"mcpServers\":[{\"id\":\"kiprint\",\"name\":\"KiPrint\",\"url\":\"https://kiprint-preview.nntin.xyz/mcp\"}]'
 paths=$(grep -oE 'path: \{type: [A-Za-z]+, value: [^}]+\}' "$rendered" | sort | tr '\n' ' ')
-[ "$paths" = 'path: {type: Exact, value: /healthz} path: {type: Exact, value: /mcp} path: {type: PathPrefix, value: /downloads} ' ] \
+[ "$paths" = 'path: {type: Exact, value: /healthz} path: {type: Exact, value: /mcp} path: {type: Exact, value: /} path: {type: PathPrefix, value: /downloads} ' ] \
   || { echo "KiPrint route paths: $paths" >&2; exit 1; }
 # No CORS headers, and no Traefik middleware (an ExtensionRef filter), so nothing buffers /mcp's server-sent events.
 ! grep -qiE 'access-control|extensionref' "$rendered" || { echo 'KiPrint route must add no CORS or middleware.' >&2; exit 1; }
