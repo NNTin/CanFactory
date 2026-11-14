@@ -33,7 +33,7 @@ function tool<I extends z.ZodType, O extends z.ZodType>(id: string, description:
 
 export const catalogueTools: Tool<unknown, unknown>[] = [
   tool('canfactory_search_parts',
-    'Search CanFactory’s parts library (screws, nuts, magnets, inserts, development and prototype boards, …). Every word of `query` must match the id, title, designation, an alias or an attribute. Returns matching parts and the list of families.',
+    'Start here when planning a circuit on a named prototype board, including a 555 blinker on a half Perma-Proto: resolve its real part id before reading the board layout or creating a KiPrint project. Search CanFactory’s parts library (screws, nuts, magnets, inserts, development and prototype boards, …). Every word of `query` must match the id, title, designation, an alias or an attribute. Returns matching parts and the list of families.',
     z.object({
       query: z.string().max(200).optional().describe('Words to match, e.g. "M3 socket" or "perma proto half"'),
       family: z.string().optional().describe('Only this family id, e.g. "prototype-board"'),
@@ -53,7 +53,7 @@ export const catalogueTools: Tool<unknown, unknown>[] = [
     }),
     getPart),
   tool('canfactory_get_prototype_board_layout',
-    'A prototype board’s layout summary: outline, hole grid (pitch, columns × rows, first-hole offset), printed column and row labels, drill and pads, the copper nets (strips, rails) with their extent, and the mounting holes. Not every hole: look holes up with canfactory_query_prototype_board.',
+    'Read this before planning component placement or wiring on a prototype board. Returns its layout summary: outline, hole grid (pitch, columns × rows, first-hole offset), printed column and row labels, drill and pads, the copper nets (strips, rails) with their extent, and the mounting holes. Not every hole: look holes up with canfactory_query_prototype_board.',
     z.object({ partId: z.string().describe('A part of the "prototype-board" family') }),
     z.object({
       partId: z.string(), frame: z.string(), outline: z.object({ L: z.number(), W: z.number(), t: z.number(), r: z.number() }),
@@ -68,7 +68,7 @@ export const catalogueTools: Tool<unknown, unknown>[] = [
     }),
     prototypeBoardSummary),
   tool('canfactory_query_prototype_board',
-    'Look up holes of a prototype board: by position ([column, row]) for their coordinates, label and net; by printed label (e.g. "A1", "J30"); and whether pairs of holes are connected by the board’s copper.',
+    'Verify a prototype board’s copper connectivity before choosing component pins or wire ends. Look up holes by position ([column, row]) for their coordinates, label and net; by printed label (e.g. "A1", "J30"); and whether pairs of holes are connected by the board’s copper. This tool can verify the copper connections on a half Perma-Proto.',
     z.object({
       partId: z.string().describe('A part of the "prototype-board" family'),
       holes: z.array(hole).max(QUERY_LIMIT).optional(),
