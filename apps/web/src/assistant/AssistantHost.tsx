@@ -41,13 +41,14 @@ function getAssistant(settings: AssistantConfig) {
     // A reviewed subset: the tool picker and the context meter. No code execution, browser state or web search.
     plugins: () => loadPlugins(['plugin-tool-tree', 'plugin-context-usage']),
     appToolGroup: toolGroup,
+    // Picker UI only; the runtime derives planner/decision descriptors directly from the registered tools.
     toolTreeSummarizer: genericToolTreeSummarizer,
     appAssistantPolicy: assistantPolicy,
     starterPrompts: STARTER_PROMPTS,
     // CanFactory owns its head, favicon and telemetry consent; tinytinkerer touches none of them.
     documentGlobals: EMBEDDED_DOCUMENT_GLOBAL_CAPABILITIES,
     humanInput: false,
-    // KiPrint (#152 phase 4), when the environment's /config.json lists it; its tools reach the model as mcp:kiprint:<tool>.
+    // KiPrint (#152 phase 4): runtime ids mcp:kiprint:<tool> reach the model as wire-safe mcp_kiprint_<tool> names.
     mcpServers: settings.mcpServers,
     // Users may add their own MCP servers in Settings → Tools (tinytinkerer's default): intentional, the owner's decision on #152 (F8).
   });
