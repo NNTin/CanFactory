@@ -63,9 +63,10 @@ image is a one-line bump. `kiprint.enabled` is off by default, and then nothing 
   (uid/gid 1000 with `fsGroup`, read-only root, `/tmp` an `emptyDir`), 1 CPU / 1.5 GiB limits and `/healthz` probes;
 - a `kiprint.persistence.size` (5 GiB) PersistentVolumeClaim at `KIPRINT_DATA_DIR=/data`, kept on uninstall. On a cluster
   without a default StorageClass, set `storageClassName`, and `volumeName` for a pre-created PersistentVolume;
-- a Service on 8080, and an HTTPRoute on `kiprint.gateway` for the hostname with only `/mcp`, `/healthz` and `/downloads/*`.
-  It adds no middleware, so Traefik doesn't buffer `/mcp`'s server-sent events, and no CORS. `/healthz` and the signed
-  download links need no token; KiPrint itself answers `/mcp` without the bearer token with 401;
+- a Service on 8080, and an HTTPRoute on `kiprint.gateway` for the hostname with an exact `/` diagnostic homepage,
+  `/mcp`, `/healthz` and `/downloads/*`. The homepage shows KiPrint's app version, full git hash, KiCad version and uptime.
+  It adds no middleware, so Traefik doesn't buffer `/mcp`'s server-sent events, and no CORS. The homepage, `/healthz` and
+  the signed download links need no token; KiPrint itself answers `/mcp` without the bearer token with 401;
 - with `kiprint.assistant` (the default), `{id: kiprint, name: KiPrint, url: https://<hostname>/mcp}` in the web assistant's
   `/config.json`, so disabling KiPrint also takes it out of the assistant.
 
