@@ -30,8 +30,9 @@ storage:
 web:
   replicas: 2
   # The embedded assistant (#152), served to the browser as /config.json. Off: no panel, and the assistant's code never loads.
-  # On, `edgeBaseUrl` is the tinytinkerer edge (production api.tiny.nntin.xyz, develop api.dev.tiny.nntin.xyz), which the CSP's
-  # connect-src then allows; `githubClientId` is tinytinkerer's GitHub OAuth App client id (a public value).
+  # On, `edgeBaseUrl` is the tinytinkerer edge (api.dev.tiny.nntin.xyz, its develop edge, for preview and production until it is
+  # stable; production then moves to api.tiny.nntin.xyz), which the CSP's connect-src then allows; `githubClientId` is
+  # tinytinkerer's GitHub OAuth App client id (a public value).
   # `mcpServers` are host MCP servers the edge proxies (and adds the token for), e.g. KiPrint:
   # [{id: kiprint, name: KiPrint, url: "https://kiprint-preview.nntin.xyz/mcp"}]. The browser never calls them directly.
   assistant:

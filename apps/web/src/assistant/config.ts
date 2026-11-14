@@ -7,7 +7,10 @@ import { GITHUB_OAUTH_CALLBACK_PATH, type GitHubOAuthCallbackConfig } from '@nnt
 export const STORAGE_NAMESPACE = 'canfactory';
 
 export interface AssistantConfig {
-  /** The tinytinkerer edge, e.g. https://api.tiny.nntin.xyz. The CSP's connect-src allows its origin. */
+  /**
+   * The tinytinkerer edge: https://api.dev.tiny.nntin.xyz for the preview and production until it is stable, then
+   * https://api.tiny.nntin.xyz for production. The CSP's connect-src allows its origin.
+   */
   edgeBaseUrl: string;
   /** tinytinkerer's GitHub OAuth App client id; null when the environment has none yet (sign-in is then unavailable). */
   githubClientId: string | null;
