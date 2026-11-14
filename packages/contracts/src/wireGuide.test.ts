@@ -190,6 +190,30 @@ describe('wire-guide design', () => {
     expect(self).toContainEqual({ path: '/wires/5/path', message: 'Wire W6 crosses or doubles back over itself at [25, 12].' });
   });
 
+  it('lets a wire run straight under a higher one, however far, but not turn under it', () => {
+    // W6 on level 1 runs down column 10 over W4's straight run (rows 5–10): any length is threadable
+    const along = (d: WireGuideDesign, to: [number, number], path: [number, number][]) => {
+      d.wires.push({ id: 'W6', from: [11, 5], to, path, level: 1 }); print(d, 'G2').wireIds.push('W6');
+    };
+    expect(issuesAfter(d => along(d, [11, 10], [[10, 5], [10, 10]]))).toEqual([]);
+    // on to row 13 it covers [10, 12], where W4 turns
+    expect(issuesAfter(d => along(d, [11, 13], [[10, 5], [10, 13]]))).toEqual([
+      { path: '/wires/3/path/0', message: 'Wire W4 turns at [10, 12] under wire W6 on level 1: a wire runs straight under a wire on a higher level, so that it can be threaded under its bridge.' },
+    ]);
+    // W6 on level 0 turns twice in column 4, under W3 (level 1); on level 2 it is the higher wire, and W3 runs straight under it
+    const bends = (level: number) => issuesAfter(d => { d.wires.push({ id: 'W6', from: [3, 5], to: [7, 4], path: [[4, 5], [4, 4]], level }); print(d, 'G1').wireIds.push('W6'); });
+    expect(bends(0)).toEqual([
+      { path: '/wires/5/path/0', message: 'Wire W6 turns at [4, 5] under wire W3 on level 1: a wire runs straight under a wire on a higher level, so that it can be threaded under its bridge.' },
+      { path: '/wires/5/path/1', message: 'Wire W6 turns at [4, 4] under wire W3 on level 1: a wire runs straight under a wire on a higher level, so that it can be threaded under its bridge.' },
+    ]);
+    expect(bends(2)).toEqual([]);
+    // a waypoint that doesn't turn is no corner
+    expect(issuesAfter(d => { wire(d, 'W1').path = [[4, 3]]; })).toEqual([]);
+    // a wire's end under a higher wire is the existing issue: its funnel would open the higher wire's bridge and floor
+    expect(issuesAfter(d => { wire(d, 'W1').to = [4, 3]; }))
+      .toContainEqual({ path: '/wires/2/path', message: 'Wire W3 passes over [4, 3], where wire W1 drops into its hole.' });
+  });
+
   it('puts every wire in exactly one print, and keeps each print’s wires in its region on the board', () => {
     expect(issuesAfter(d => { print(d, 'G1').wireIds = ['W1', 'W2', 'W3']; })).toContainEqual({ path: '/wires/4', message: 'Wire W5 is in no print: every wire belongs to exactly one print.' });
     expect(issuesAfter(d => { print(d, 'G2').wireIds.push('W1'); })).toContainEqual({ path: '/prints/1/wireIds/1', message: 'Wire W1 is already in print G1: every wire belongs to exactly one print.' });

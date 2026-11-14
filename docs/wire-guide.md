@@ -98,7 +98,12 @@ is valid. It returns at most 100 issues.
    - two wires on the same level never cross or overlap;
    - a wire never crosses itself;
    - no wire, on any level, passes over another wire's end (that wire drops into its hole there) or over a component's pin
-     hole.
+     hole. A lower wire's end under a higher wire isn't buildable either way: its funnel's shaft would open the higher wire's
+     bridge and floor;
+   - a wire runs straight through every grid position that a wire on a higher level covers. It may not turn there, so that it
+     can be threaded under that wire's bridge. A straight run under a higher wire may be any length. The issue is at the
+     corner's waypoint (`/wires/<i>/path/<j>`): `Wire C turns at [5, 6] under wire B on level 2: a wire runs straight under a
+     wire on a higher level, so that it can be threaded under its bridge.`
 10. **Prints:**
    - every wire belongs to exactly one print, and every wire a print lists exists;
    - a print's `region`, when given, lies on the grid, holds all of its wires, and doesn't overlap another print's region.
@@ -190,10 +195,12 @@ The sample designs in `models/prototype-wire-guide/samples/` are:
 | `perma-proto-bus.json` | Perma-Proto | rails and strips (bus) |
 | `stripboard-boss-neighbours.json` | stripboard | wire ends on the four holes beside a mounting hole, under its boss's column |
 | `pockets-on-channel-sides.json` | perfboard | box and round bodies exactly half a channel + 0.3 mm from their channels |
-| `kiprint-perma-proto-timer.json` | Perma-Proto quarter | KiPrint's `plan_guide` output: 4 components, 8 wires on 2 levels |
-| `kiprint-crossing-two-levels.json` | perfboard | KiPrint: 4 wires on 3 levels, crossing |
+| `kiprint-perma-proto-timer.json` | Perma-Proto quarter | KiPrint's `plan_guide` output: 4 components, 8 wires on 2 levels (W7, W8 rerouted) |
+| `kiprint-crossing-two-levels.json` | perfboard | KiPrint: 4 wires on 3 levels, crossing (C rerouted) |
 | `kiprint-stripboard-regulator.json` | stripboard | KiPrint: a 19 mm tall TO-220, pocketed through |
 
+- `invalid/` keeps KiPrint's original two designs, whose lower wires turn under a higher wire, as fixtures. A unit test pins
+  their issues. The samples differ from them only in those wires' paths.
 - `npm run test:renderer` (`TEST_ONLY=prototype-wire-guide`) renders each sample. It checks every print with
   `tools/wire-guide-checks.ts` against the encoder's geometry: one closed solid with no float32 repairs; open channels, tunnels
   and funnels, each funnel's bore open down to the board; solid bridges, plate, pins and clips; open pockets.
