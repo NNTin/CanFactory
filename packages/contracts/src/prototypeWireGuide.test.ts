@@ -27,6 +27,26 @@ describe('prototype-wire-guide samples', () => {
     expect(validateWireGuideDesign(sample(name))).toEqual([]);
     expect(validateParameters(prototypeWireGuide, { design: sample(name) })).toEqual([]);
   });
+  it('keeps KiPrint’s two designs with bends under a higher wire as invalid fixtures, rerouted straight under it in the samples', () => {
+    const invalid = (name: string) => JSON.parse(readFileSync(new URL(`invalid/${name}`, SAMPLES), 'utf8')) as WireGuideDesign;
+    expect(readdirSync(new URL('invalid/', SAMPLES)).sort()).toEqual(['kiprint-crossing-two-levels.json', 'kiprint-perma-proto-timer.json']);
+    const why = 'a wire runs straight under a wire on a higher level, so that it can be threaded under its bridge.';
+    expect(validateWireGuideDesign(invalid('kiprint-perma-proto-timer.json'))).toEqual([
+      { path: '/wires/6/path/0', message: `Wire W7 turns at [8, 10] under wire W2 on level 1: ${why}` },
+      { path: '/wires/6/path/1', message: `Wire W7 turns at [8, 11] under wire W2 on level 1: ${why}` },
+      { path: '/wires/7/path/0', message: `Wire W8 turns at [13, 14] under wire W5 on level 1: ${why}` },
+    ]);
+    expect(validateWireGuideDesign(invalid('kiprint-crossing-two-levels.json'))).toEqual([
+      { path: '/wires/2/path/0', message: `Wire C turns at [5, 6] under wire B on level 2: ${why}` },
+      { path: '/wires/2/path/1', message: `Wire C turns at [16, 6] under wire B on level 2: ${why}` },
+    ]);
+    // the samples differ from them only in those wires' paths
+    for (const [name, ids] of [['kiprint-perma-proto-timer.json', ['W7', 'W8']], ['kiprint-crossing-two-levels.json', ['C']]] as const) {
+      const [fixture, rerouted] = [invalid(name), sample(name)];
+      for (const wire of rerouted.wires) if (!(ids as readonly string[]).includes(wire.id)) expect(wire).toEqual(fixture.wires.find(w => w.id === wire.id));
+      expect({ ...rerouted, wires: [] }).toEqual({ ...fixture, wires: [] });
+    }
+  });
   it('the default design is the one-level perfboard sample', () => {
     expect(DEFAULT_WIRE_GUIDE_DESIGN).toEqual(sample('perfboard-one-level.json'));
     expect(validateParameters(prototypeWireGuide, prototypeWireGuide.defaults)).toEqual([]);

@@ -70,7 +70,7 @@ export const WireGuideWireSchema = Type.Object({
   from: WireGuideHoleRefSchema,
   to: WireGuideHoleRefSchema,
   path: Type.Array(WireGuideHoleRefSchema, { maxItems: WIRE_GUIDE_LIMITS.waypoints, description: 'The grid waypoints between `from` and `to` (both excluded): the wire runs from → path… → to in axis-aligned segments. Empty for a straight wire.' }),
-  level: Type.Integer({ minimum: 0, maximum: WIRE_GUIDE_LIMITS.levels - 1, description: 'Channel layer, 0 = the lowest above the board.' }),
+  level: Type.Integer({ minimum: 0, maximum: WIRE_GUIDE_LIMITS.levels - 1, description: 'Channel layer, 0 = the lowest above the board. A wire runs straight (no corner) through every grid position a wire on a higher level covers, so that it can be threaded under that wire’s bridge.' }),
 }, { additionalProperties: false });
 export type WireGuideWire = Static<typeof WireGuideWireSchema>;
 
@@ -314,6 +314,7 @@ function designIssues(design: WireGuideDesign, issues: WireGuideIssue[]): void {
 
   // --- paths: on the grid, axis-aligned, inside the outline, clear of obstacles; the levels: no crossing or overlap ---
   const occupied = new Map<string, string>();
+  const routes: { index: number; points: Ref[]; cells: Set<string> }[] = [];
   const regions = design.prints.map(print => print.region && {
     c0: Math.min(print.region.from[0], print.region.to[0]), c1: Math.max(print.region.from[0], print.region.to[0]),
     r0: Math.min(print.region.from[1], print.region.to[1]), r1: Math.max(print.region.from[1], print.region.to[1]),
@@ -343,6 +344,7 @@ function designIssues(design: WireGuideDesign, issues: WireGuideIssue[]): void {
     });
 
     const cells = rasterize(points);
+    routes.push({ index, points, cells: new Set(cells.map(key)) });
     const visited = new Set<string>();
     const reported = new Set<string>();
     cells.forEach((cell, c) => {
@@ -367,6 +369,20 @@ function designIssues(design: WireGuideDesign, issues: WireGuideIssue[]): void {
     if (region && cells.some(([column, row]) => column < region.c0 || column > region.c1 || row < region.r0 || row > region.r1))
       issue(`/wires/${index}`, `Wire ${wire.id} leaves the region of print ${design.prints[print ?? 0]?.id}.`);
   });
+
+  // --- bends under a higher wire: a lower wire runs straight through every cell a wire on a higher level covers, so that it can be
+  // threaded under that wire's bridge (a wire's end under another wire is the "passes over … drops into its hole" issue above) ---
+  for (const low of routes) {
+    const wire = design.wires[low.index];
+    if (!wire) continue;
+    low.points.slice(1, -1).forEach((corner, w) => {
+      const [before, after] = [low.points[w], low.points[w + 2]];
+      if (!before || !after || (before[0] === corner[0]) === (corner[0] === after[0])) return; // straight on through the waypoint
+      const over = routes.find(other => (design.wires[other.index]?.level ?? -1) > wire.level && other.cells.has(key(corner)));
+      const high = over && design.wires[over.index];
+      if (high) issue(`/wires/${low.index}/path/${w}`, `Wire ${wire.id} turns at ${show(corner)} under wire ${high.id} on level ${high.level}: a wire runs straight under a wire on a higher level, so that it can be threaded under its bridge.`);
+    });
+  }
 
   // --- prints: their regions on the board, and apart ---
   regions.forEach((region, p) => {

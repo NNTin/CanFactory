@@ -2998,7 +2998,7 @@ export interface operations {
                                     number,
                                     number
                                 ][];
-                                /** @description Channel layer, 0 = the lowest above the board. */
+                                /** @description Channel layer, 0 = the lowest above the board. A wire runs straight (no corner) through every grid position a wire on a higher level covers, so that it can be threaded under that wire’s bridge. */
                                 level: number;
                             }[];
                             prints: {

@@ -1,0 +1,299 @@
+{
+ "schemaVersion": 1,
+ "boardPartId": "adafruit-perma-proto-quarter",
+ "wirePartId": "alpha-wire-3051-1",
+ "source": {
+  "tool": "kiprint",
+  "version": "0.0.0-test",
+  "projectId": "scenario-perma-proto-timer"
+ },
+ "components": [
+  {
+   "ref": "U1",
+   "footprint": "DIP-8_W7.62mm",
+   "pins": [
+    [
+     4,
+     7
+    ],
+    [
+     5,
+     7
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     7,
+     7
+    ],
+    [
+     7,
+     10
+    ],
+    [
+     6,
+     10
+    ],
+    [
+     5,
+     10
+    ],
+    [
+     4,
+     10
+    ]
+   ],
+   "body": {
+    "kind": "box",
+    "x": 13.145,
+    "y": 22.225,
+    "w": 9.27,
+    "h": 6.35,
+    "height": 5.33
+   }
+  },
+  {
+   "ref": "R1",
+   "footprint": "R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+   "pins": [
+    [
+     9,
+     5
+    ],
+    [
+     12,
+     5
+    ]
+   ],
+   "body": {
+    "kind": "box",
+    "x": 27.33,
+    "y": 15.26,
+    "w": 6.3,
+    "h": 2.5,
+    "height": 2.5
+   }
+  },
+  {
+   "ref": "C1",
+   "footprint": "CP_Radial_D5.0mm_P2.54mm",
+   "pins": [
+    [
+     10,
+     12
+    ],
+    [
+     11,
+     12
+    ]
+   ],
+   "body": {
+    "kind": "cylinder",
+    "cx": 30.48,
+    "cy": 34.29,
+    "d": 5,
+    "height": 11.5
+   }
+  },
+  {
+   "ref": "D1",
+   "footprint": "LED_D5.0mm",
+   "pins": [
+    [
+     1,
+     12
+    ],
+    [
+     2,
+     12
+    ]
+   ],
+   "body": {
+    "kind": "cylinder",
+    "cx": 7.62,
+    "cy": 34.29,
+    "d": 5.8,
+    "height": 8.6
+   }
+  }
+ ],
+ "wires": [
+  {
+   "id": "W1",
+   "net": "rail bottom -",
+   "from": [
+    4,
+    5
+   ],
+   "to": [
+    4,
+    1
+   ],
+   "path": [],
+   "level": 0
+  },
+  {
+   "id": "W2",
+   "net": "rail top +",
+   "from": [
+    7,
+    5
+   ],
+   "to": [
+    7,
+    16
+   ],
+   "path": [
+    [
+     8,
+     5
+    ],
+    [
+     8,
+     16
+    ]
+   ],
+   "level": 1
+  },
+  {
+   "id": "W3",
+   "net": "rail top +",
+   "from": [
+    4,
+    12
+   ],
+   "to": [
+    4,
+    16
+   ],
+   "path": [],
+   "level": 0
+  },
+  {
+   "id": "W4",
+   "net": "strip 7A-E",
+   "from": [
+    6,
+    4
+   ],
+   "to": [
+    9,
+    4
+   ],
+   "path": [],
+   "level": 0
+  },
+  {
+   "id": "W5",
+   "net": "strip 13A-E",
+   "from": [
+    12,
+    4
+   ],
+   "to": [
+    2,
+    14
+   ],
+   "path": [
+    [
+     13,
+     4
+    ],
+    [
+     13,
+     17
+    ],
+    [
+     2,
+     17
+    ]
+   ],
+   "level": 1
+  },
+  {
+   "id": "W6",
+   "net": "rail bottom -",
+   "from": [
+    1,
+    10
+   ],
+   "to": [
+    1,
+    1
+   ],
+   "path": [],
+   "level": 0
+  },
+  {
+   "id": "W7",
+   "net": "strip 7F-J",
+   "from": [
+    10,
+    10
+   ],
+   "to": [
+    6,
+    11
+   ],
+   "path": [
+    [
+     8,
+     10
+    ],
+    [
+     8,
+     11
+    ]
+   ],
+   "level": 0
+  },
+  {
+   "id": "W8",
+   "net": "rail bottom -",
+   "from": [
+    11,
+    14
+   ],
+   "to": [
+    12,
+    1
+   ],
+   "path": [
+    [
+     13,
+     14
+    ],
+    [
+     13,
+     1
+    ]
+   ],
+   "level": 0
+  }
+ ],
+ "prints": [
+  {
+   "id": "G1",
+   "wireIds": [
+    "W1",
+    "W2",
+    "W3",
+    "W4",
+    "W5",
+    "W6",
+    "W7",
+    "W8"
+   ]
+  }
+ ],
+ "guide": {
+  "registration": "mounting-holes",
+  "coverThickness": 1.2,
+  "channelClearance": 0.25,
+  "funnelTopDiameter": 2,
+  "funnelBottomDiameter": 1,
+  "funnelStandoff": 0.5
+ }
+}
