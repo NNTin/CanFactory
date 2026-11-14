@@ -45,10 +45,11 @@ Service and all other requests to web. API probes/metrics listen on a private
 Compose proxy configuration is replaced with a chart-owned static-only config.
 
 `web.assistant` configures the embedded assistant (#152), served to the browser as `/config.json` from the web ConfigMap. It
-is off by default. Enabling it requires `edgeBaseUrl` (the tinytinkerer edge: `https://api.tiny.nntin.xyz` for production,
-`https://api.dev.tiny.nntin.xyz` for the preview) and takes `githubClientId` (tinytinkerer's OAuth App client id, a public
-value). The web server's Content Security Policy then allows that edge's origin and `https://api.github.com` in `connect-src`;
-with the assistant off it allows only same-origin connections.
+is off by default. Enabling it requires `edgeBaseUrl` (the tinytinkerer edge: `https://api.dev.tiny.nntin.xyz`, tinytinkerer's
+develop edge, for both the preview and production until it is stable; production then moves to `https://api.tiny.nntin.xyz`)
+and takes `githubClientId` (tinytinkerer's OAuth App client id, a public value). The web server's Content Security Policy then
+allows that edge's origin and `https://api.github.com` in `connect-src`; with the assistant off it allows only same-origin
+connections.
 `web.assistant.mcpServers` lists further host MCP servers for the assistant, empty by default; a deployed KiPrint adds itself
 (below). The edge proxies them and adds their token from its `MCP_HOST_TOKENS`, so they are not in the CSP. The app marks each
 one required: while its tools are missing, the model is told the server is unavailable.
