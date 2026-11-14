@@ -1,10 +1,9 @@
 // The CanFactory tool group (#152 §4). Lazy: only AssistantHost.tsx (and tests) import this, so the package root never reaches the
-// startup bundle. Zod checks the shape at the tool boundary; the values are checked by the contracts (TypeBox and each model's own
+// startup bundle (the editor's stage handle comes from the side-effect-free /stage subpath, in controller.ts). Zod checks the shape at the tool boundary; the values are checked by the contracts (TypeBox and each model's own
 // validation) in catalogue.ts and controller.ts. Every tool has an output schema, so a result that drifts fails loudly.
-// Not here yet: canfactory_open_wire_guide_design, which needs the prototype-wire-guide model (#152 phase 2).
-import { createStageControllerHandle, createStageTools, z, type AppToolGroup, type Tool } from '@nntin/tinytinkerer-embed';
+import { createStageTools, z, type AppToolGroup, type Tool } from '@nntin/tinytinkerer-embed';
 import { checkWireGuideDesign, getPart, listModels, modelSchema, prototypeBoardSummary, queryPrototypeBoard, QUERY_LIMIT, SEARCH_LIMIT, searchParts } from './catalogue.ts';
-import { controllerSlot, NOT_MOUNTED, type CanfactoryController } from './controller.ts';
+import { editorHandle, type CanfactoryController } from './controller.ts';
 
 const scalar = z.union([z.number(), z.boolean(), z.string()]);
 /** A parameter's value: a scalar, or a structured document (#152 phase 2). The model's own validation decides which it takes. */
@@ -13,6 +12,8 @@ const nullable = <T extends z.ZodType>(schema: T) => z.union([schema, z.null()])
 const hole = z.tuple([z.number().int().min(0), z.number().int().min(0)]).describe('A hole as [column, row], both counted from 0');
 const point = { x: z.number(), y: z.number() };
 const issue = z.object({ field: z.string(), message: z.string() });
+/** A wire-guide design's issue: a JSON Pointer into the design, and the reason (`validateWireGuideDesign`). */
+const designIssue = z.object({ path: z.string(), message: z.string() });
 const partSummary = { id: z.string(), family: z.string(), title: z.string(), designation: z.string() };
 const holeInfo = { hole, x: z.number(), y: z.number(), label: nullable(z.string()), net: nullable(z.string()) };
 
@@ -84,7 +85,7 @@ export const catalogueTools: Tool<unknown, unknown>[] = [
     'Check a WireGuideDesign (schemaVersion 1) with CanFactory’s shared validation, the one the API and the renderer use: the board, the hookup-wire parts, holes, axis-aligned paths on the grid, levels (no crossing on one level), prints and size limits. Returns field-level issues as { path (JSON Pointer), message }; fix every one and check again. Shape: { schemaVersion: 1, boardPartId, wirePartId, components?: [{ ref, footprint, pins: [[column, row]…], body: keepout }], wires: [{ id, wirePartId?, net?, from: [column, row], to: [column, row], path: [[column, row]…] (corner waypoints), level: integer from 0 }], prints: [{ id, wireIds, region?: { from, to } }], guide: { registration: "mounting-holes" | "edge-clips", coverThickness, channelClearance, funnelTopDiameter, funnelBottomDiameter, funnelStandoff } (mm), keepouts?: [{ kind: "box", x, y, w, h, height } | { kind: "cylinder", cx, cy, d, height }] (mm) }.',
     // Any JSON: the shared validation reports a malformed design with the same issues the API and the worker would.
     z.object({ design: z.unknown().describe('The WireGuideDesign document') }),
-    z.object({ valid: z.boolean(), issues: z.array(z.object({ path: z.string(), message: z.string() })) }),
+    z.object({ valid: z.boolean(), issues: z.array(designIssue) }),
     checkWireGuideDesign),
   tool('canfactory_list_models',
     'The models in CanFactory’s library: id, title, what it is, its file format and whether it has adjustable parameters.',
@@ -105,10 +106,6 @@ export const catalogueTools: Tool<unknown, unknown>[] = [
     modelSchema),
 ];
 
-/** The handle the editor tools call. The app installs its controller in the eager `controllerSlot`; this follows it. */
-export const editorHandle = createStageControllerHandle<CanfactoryController>(NOT_MOUNTED);
-controllerSlot.subscribe(controller => { editorHandle.setController(controller); });
-
 export const editorTools = createStageTools<CanfactoryController>({
   handle: editorHandle,
   methods: {
@@ -118,11 +115,22 @@ export const editorTools = createStageTools<CanfactoryController>({
       outputSchema: editorState,
     },
     canfactory_set_model_parameters: {
-      description: 'Open a model in the editor (if it isn’t already) and change some of its parameters; the others keep their current values. The whole set is checked by the model’s own validation: an invalid value is rejected with the reason, never clamped. The editor then renders it. Not for a model with a `document` parameter (the wire guide).',
+      description: 'Open a model in the editor (if it isn’t already) and change some of its parameters; the others keep their current values. The whole set is checked by the model’s own validation: an invalid value is rejected with the reason, never clamped. The editor then renders it. Not for a model with a `document` parameter: open a wire guide with canfactory_open_wire_guide_design.',
       schema: z.object({ modelId: z.string().describe('The model id, from canfactory_list_models'), parameters: parameters.describe('Parameter key → new value; only the ones to change') }),
       outputSchema: z.union([
         z.object({ ok: z.literal(true), modelId: z.string(), opened: z.boolean(), parameters, note: z.string() }),
         z.object({ ok: z.literal(false), issues: z.array(issue) }),
+      ]),
+    },
+    canfactory_open_wire_guide_design: {
+      description: 'Open a WireGuideDesign in the editor of the prototype-wire-guide model, replacing the design it has, and let the editor render it. The design is checked first with the same validation as canfactory_validate_wire_guide_design; an invalid one is rejected with its issues as { path (JSON Pointer), message }, and nothing is opened. Check the design with canfactory_validate_wire_guide_design before you call this.',
+      schema: z.object({ design: z.unknown().describe('The WireGuideDesign document, as checked with canfactory_validate_wire_guide_design') }),
+      outputSchema: z.union([
+        z.object({
+          ok: z.literal(true), modelId: z.string(), opened: z.boolean(), note: z.string(),
+          summary: z.object({ board: z.string(), wire: z.string(), wires: z.number(), prints: z.array(z.object({ id: z.string(), wires: z.number() })), levels: z.number() }),
+        }),
+        z.object({ ok: z.literal(false), issues: z.array(designIssue) }),
       ]),
     },
   },

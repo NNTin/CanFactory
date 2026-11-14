@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
 import { DEFAULT_WIRE_GUIDE_DESIGN, findModel, models, parts, partsOfFamily, validateWireGuideDesign, type ModelDefinition, type WireGuideDesign } from '@canfactory/contracts';
 import { z, type Tool } from '@nntin/tinytinkerer-embed';
-import { controllerSlot, createCanfactoryController, editorSession, NOT_MOUNTED } from './controller.ts';
+import { createCanfactoryController, editorHandle, editorSession, NOT_MOUNTED } from './controller.ts';
 import { assistantPolicy, IDENTITY } from './policy.ts';
-import { editorHandle, toolGroup } from './tools.ts';
+import { toolGroup } from './tools.ts';
 
 const byId = new Map(toolGroup.tools.map(tool => [tool.id, tool]));
 function tool(id: string): Tool<unknown, unknown> {
@@ -26,7 +26,7 @@ describe('the CanFactory tool group', () => {
     expect(toolGroup.id).toBe('canfactory');
     expect(byId.size).toBe(toolGroup.tools.length);
     expect([...byId.keys()].sort()).toEqual(['canfactory_get_editor_state', 'canfactory_get_model_schema', 'canfactory_get_part', 'canfactory_get_prototype_board_layout',
-      'canfactory_list_models', 'canfactory_query_prototype_board', 'canfactory_search_parts', 'canfactory_set_model_parameters', 'canfactory_validate_wire_guide_design']);
+      'canfactory_list_models', 'canfactory_open_wire_guide_design', 'canfactory_query_prototype_board', 'canfactory_search_parts', 'canfactory_set_model_parameters', 'canfactory_validate_wire_guide_design']);
     for (const { schema, outputSchema } of toolGroup.tools) {
       // What the runtime sends the model as the tool's JSON Schema.
       expect(() => z.toJSONSchema(schema)).not.toThrow();
@@ -34,8 +34,8 @@ describe('the CanFactory tool group', () => {
     }
   });
 
-  it('can check a wire guide, but not open one yet (that needs #152 phase 2’s model)', () => {
-    expect([...byId.keys()].filter(id => id.includes('wire_guide'))).toEqual(['canfactory_validate_wire_guide_design']);
+  it('can check a wire guide and open it in the editor', () => {
+    expect([...byId.keys()].filter(id => id.includes('wire_guide')).sort()).toEqual(['canfactory_open_wire_guide_design', 'canfactory_validate_wire_guide_design']);
   });
 });
 
@@ -140,22 +140,27 @@ describe('editor tools through the stage handle', () => {
   const trap = findModel('fruit-fly-trap') as ModelDefinition;
 
   it('fail with a clear message until the app installs its controller', async () => {
-    controllerSlot.set(null);
+    editorHandle.setController(null);
     await expect(editorHandle.request('canfactory_get_editor_state', {})).rejects.toThrow(NOT_MOUNTED);
   });
 
   it('reach the app’s controller, and validate what it returns', async () => {
     const opened: string[] = [];
-    controllerSlot.set(createCanfactoryController({ openModel: id => { opened.push(id); }, savedParameters: model => ({ ...model.defaults }) }));
+    editorHandle.setController(createCanfactoryController({ openModel: id => { opened.push(id); }, savedParameters: model => ({ ...model.defaults }) }));
     editorSession.set(null);
     await expect(call('canfactory_get_editor_state', {})).rejects.toThrow(/No model is open/);
     expect(await call('canfactory_set_model_parameters', { modelId: trap.id, parameters: { trapHeight: 80 } })).toMatchObject({ ok: true, opened: true });
     expect(opened).toEqual([trap.id]);
     expect(await call('canfactory_set_model_parameters', { modelId: trap.id, parameters: { trapHeight: 1e6 } })).toMatchObject({ ok: false });
+    // The wire guide: an invalid design comes back with the validation tool's issues, a valid one opens its editor.
+    const invalid = await call('canfactory_validate_wire_guide_design', { design: { schemaVersion: 2 } }) as { issues: unknown[] };
+    expect(await call('canfactory_open_wire_guide_design', { design: { schemaVersion: 2 } })).toEqual({ ok: false, issues: invalid.issues });
+    expect(await call('canfactory_open_wire_guide_design', { design: DEFAULT_WIRE_GUIDE_DESIGN })).toMatchObject({ ok: true, modelId: 'prototype-wire-guide', opened: true });
+    expect(opened).toEqual([trap.id, 'prototype-wire-guide']);
     // A malformed result (here: a controller bug) fails the call instead of reaching the model.
-    controllerSlot.set({ ...createCanfactoryController({ openModel: () => undefined, savedParameters: () => ({}) }), canfactory_get_editor_state: () => ({ modelId: 1 }) as never });
+    editorHandle.setController({ ...createCanfactoryController({ openModel: () => undefined, savedParameters: () => ({}) }), canfactory_get_editor_state: () => ({ modelId: 1 }) as never });
     await expect(call('canfactory_get_editor_state', {})).rejects.toThrow();
-    controllerSlot.set(null);
+    editorHandle.setController(null);
   });
 });
 
@@ -166,8 +171,14 @@ describe('the assistant policy', () => {
     expect(all).toContain('canfactory_set_model_parameters');
     expect(all).toMatch(/never invent a dimension/i);
     expect(all).toContain('canfactory_validate_wire_guide_design');
-    // It agrees with canfactory_set_model_parameters, which won’t open the wire guide.
-    expect(all).toMatch(/rejects the prototype-wire-guide model.*Import design \(\.json\)/);
+    // Validate before opening, and canfactory_set_model_parameters still won’t change a design.
+    expect(all).toMatch(/canfactory_validate_wire_guide_design reports the design valid, open it with canfactory_open_wire_guide_design/);
+    expect(all).toMatch(/canfactory_set_model_parameters can’t change a design/);
+    expect(all).toMatch(/never claim a guide has rendered/);
+    // Without the open tool (a turn that doesn't offer it), the rule about it is left out and the JSON import remains.
+    const validateOnly = assistantPolicy.instructions?.({ boundary: 'synthesis', toolIds: ['canfactory_validate_wire_guide_design'] }) ?? '';
+    expect(validateOnly).not.toContain('canfactory_open_wire_guide_design');
+    expect(validateOnly).toContain('Import design (.json)');
     const none = assistantPolicy.instructions?.({ boundary: 'decision', toolIds: [] }) ?? '';
     expect(none).not.toContain('canfactory_');
     expect(none).toMatch(/clarifying question/);
