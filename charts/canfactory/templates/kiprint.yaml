@@ -1,0 +1,206 @@
+{{- /* KiPrint's MCP server (#152 §6). Its only intended caller is the tinytinkerer edge, which adds the bearer token; KiPrint
+       checks it on /mcp itself, so the route carries no authentication middleware, and no CORS. */}}
+{{- with .Values.kiprint }}
+{{- if .enabled }}
+{{- $image := $.Values.images.kiprint }}
+{{- $hostname := required "kiprint.hostname is required when KiPrint is enabled" .hostname }}
+{{- $name := printf "%s-kiprint" $.Release.Name }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "canfactory.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: kiprint
+  # Uninstalling the chart does not delete persistent data.
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .persistence.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .persistence.volumeName }}
+  volumeName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .persistence.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "canfactory.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: kiprint
+spec:
+  # One server per volume: calls on a project are serialized inside the process.
+  replicas: 1
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: {{ $.Values.rollout.progressDeadlineSeconds }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: kiprint
+  template:
+    metadata:
+      labels:
+        {{- include "canfactory.labels" $ | nindent 8 }}
+        app.kubernetes.io/component: kiprint
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: {{ $.Release.Name }}
+      terminationGracePeriodSeconds: 45
+      imagePullSecrets: {{ concat $.Values.imagePullSecrets .imagePullSecrets | toYaml | nindent 8 }}
+      # The image runs as `node` (uid 1000); fsGroup makes the volume writable for it.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: kiprint
+          image: {{ printf "%s@%s" $image.repository (required "images.kiprint.digest is required when KiPrint is enabled" $image.digest) | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext: {{ include "canfactory.security" $ | nindent 12 }}
+          resources: {{ toYaml .resources | nindent 12 }}
+          env:
+            - name: KIPRINT_BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .bearerToken.secret }}
+                  key: {{ .bearerToken.key }}
+            - name: CANFACTORY_API_URL
+              value: {{ printf "http://%s-api.%s.svc.cluster.local:3001" $.Release.Name $.Release.Namespace | quote }}
+            - name: KIPRINT_DATA_DIR
+              value: /data
+            - name: KIPRINT_PUBLIC_URL
+              value: {{ printf "https://%s" $hostname | quote }}
+            - name: KIPRINT_PROJECT_TTL
+              value: {{ .projectTtl | quote }}
+          ports:
+            - {name: http, containerPort: 8080}
+          # The server checks for KiCad before it listens.
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 15
+          # Keep serving while endpoint withdrawal reaches ingress.
+          lifecycle:
+            preStop:
+              sleep: {seconds: 5}
+          volumeMounts:
+            # KiCad keeps its settings and plots under /tmp.
+            - {name: scratch, mountPath: /tmp}
+            - {name: data, mountPath: /data}
+      volumes:
+        - name: scratch
+          emptyDir:
+            sizeLimit: 512Mi
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ $name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{ include "canfactory.labels" $ | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: kiprint
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Only KiPrint's three public paths; the Gateway answers anything else with 404. Traefik buffers nothing without a buffering
+# middleware, and KiPrint marks its SSE responses `X-Accel-Buffering: no`, so /mcp streams as written.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $name }}
+  labels: {{ include "canfactory.labels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ .gateway.name }}
+      namespace: {{ .gateway.namespace }}
+      sectionName: {{ .gateway.sectionName }}
+  hostnames:
+    - {{ $hostname | quote }}
+  rules:
+    - matches:
+        - path: {type: Exact, value: /mcp}
+        - path: {type: Exact, value: /healthz}
+        - path: {type: PathPrefix, value: /downloads}
+      filters:
+        # The same response headers as CanFactory's own routes.
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - {name: Strict-Transport-Security, value: max-age=31536000; includeSubDomains; preload}
+              - {name: X-Content-Type-Options, value: nosniff}
+              - {name: X-Frame-Options, value: SAMEORIGIN}
+              - {name: X-XSS-Protection, value: 1; mode=block}
+      backendRefs:
+        - name: {{ $name }}
+          port: 8080
+{{- if .networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-from-gateway
+  labels: {{ include "canfactory.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: kiprint
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .networkPolicy.gatewayNamespace }}
+          podSelector:
+            matchLabels: {{ toYaml .networkPolicy.gatewayPodLabels | nindent 14 }}
+      ports:
+        - {protocol: TCP, port: 8080}
+---
+# KiPrint reads boards from the API: GET /api/v1/parts/{id} and /layout.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-to-api
+  labels: {{ include "canfactory.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: api
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+              app.kubernetes.io/component: kiprint
+      ports:
+        - {protocol: TCP, port: 3001}
+{{- end }}
+{{- end }}
+{{- end }}

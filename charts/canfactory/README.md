@@ -50,5 +50,40 @@ is off by default. Enabling it requires `edgeBaseUrl` (the tinytinkerer edge: `h
 value). The web server's Content Security Policy then allows that edge's origin and `https://api.github.com` in `connect-src`;
 with the assistant off it allows only same-origin connections.
 
+`kiprint` deploys KiPrint's MCP server (#152 §6, `templates/kiprint.yaml`), the image `ghcr.io/nntin/kiprint` that the
+KiPrint repository publishes. It is off by default, and then nothing of it renders. Enabling it requires
+`images.kiprint.digest` and `kiprint.hostname` (`kiprint.nntin.xyz` for production, `kiprint-preview.nntin.xyz` for the
+preview), and renders:
+
+- a one-replica Deployment with the `Recreate` strategy (its volume is ReadWriteOnce), the chart's pod security settings
+  (uid 1000, read-only root, `/tmp` an `emptyDir`), 1 CPU / 1.5 GiB limits and `/healthz` probes;
+- a `kiprint.persistence.size` (5 GiB) PersistentVolumeClaim at `KIPRINT_DATA_DIR=/data`, kept on uninstall. On a cluster
+  without a dynamic provisioner, set `storageClassName` and `volumeName` to a pre-created PersistentVolume;
+- a Service on 8080, and an HTTPRoute on `kiprint.gateway` for the hostname with only `/mcp`, `/healthz` and `/downloads/*`.
+  It adds no middleware, so Traefik doesn't buffer `/mcp`'s server-sent events, and no CORS. `/healthz` and the signed
+  download links need no token; KiPrint itself answers `/mcp` without the bearer token with 401;
+- with `kiprint.networkPolicy.enabled`, two ingress allowances for namespaces that deny unspecified ingress: the Gateway's
+  pods to KiPrint on 8080, and KiPrint to the API on 3001 (`CANFACTORY_API_URL` is the API Service).
+
+Its environment is `KIPRINT_BEARER_TOKEN` from the existing Secret `kiprint.bearerToken` (`kiprint-mcp`, key
+`KIPRINT_BEARER_TOKEN`), `CANFACTORY_API_URL`, `KIPRINT_DATA_DIR`, `KIPRINT_PUBLIC_URL` (`https://` + the hostname) and
+`KIPRINT_PROJECT_TTL` (`kiprint.projectTtl`, 7d). The chart never holds the token. The image is private: the pod pulls with
+the chart-wide `imagePullSecrets` plus `kiprint.imagePullSecrets` (`ghcr-kiprint`). Before enabling it, the owner creates
+both Secrets in the release namespace (`canfactory`, and `canfactory-validation` for the preview) without printing either
+value:
+
+```sh
+# A GitHub classic PAT with read:packages only, read without echoing it.
+read -rsp 'PAT: ' pat; echo
+kubectl -n canfactory create secret docker-registry ghcr-kiprint \
+  --docker-server=ghcr.io --docker-username=<github user> --docker-password="$pat"
+unset pat
+# The environment's MCP token, straight from the token file (the preview's key is kiprint-preview.nntin.xyz).
+jq -j '."kiprint.nntin.xyz"' ~/.secrets/kiprint-mcp-tokens.json |
+  kubectl -n canfactory create secret generic kiprint-mcp --from-file=KIPRINT_BEARER_TOKEN=/dev/stdin
+```
+
+The same token is the hostname's entry in the tinytinkerer edge's `MCP_HOST_TOKENS`; rotating it means updating both.
+
 Use `tools/check-chart.sh` to validate representative replica configurations and the worker bound. See
 `docs/kubernetes-tech-plan.md` for fencing, expiry and upgrade behavior.

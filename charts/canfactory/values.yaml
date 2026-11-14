@@ -8,6 +8,11 @@ images:
   worker:
     repository: ghcr.io/nntin/canfactory-worker
     digest: ""
+  # KiPrint's MCP server (#152 §6): built and published by NNTin/KiPrint, not by this repository's workflow, so
+  # tools/stamp-chart-digests.py leaves it as it is. Set the digest KiPrint's CI publishes to enable `kiprint`.
+  kiprint:
+    repository: ghcr.io/nntin/kiprint
+    digest: ""
 imagePullSecrets: []
 # Deployments count image pulls toward the progress deadline too; slow links must not mark a rollout failed.
 rollout:
@@ -65,3 +70,39 @@ release:
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
+# KiPrint (#152 §6, templates/kiprint.yaml): the MCP server the assistant calls through the tinytinkerer edge. Off, nothing is
+# rendered. On, it needs images.kiprint.digest and `hostname` (production kiprint.nntin.xyz, preview kiprint-preview.nntin.xyz),
+# and these owner-created Secrets in the release namespace: `imagePullSecrets` (the image is private) and `bearerToken`.
+kiprint:
+  enabled: false
+  hostname: ""
+  # How long a project lives after its last change (KIPRINT_PROJECT_TTL): 7d, 36h, 30m or seconds.
+  projectTtl: 7d
+  # Added to the chart-wide imagePullSecrets: a docker-registry Secret for ghcr.io with read:packages.
+  imagePullSecrets:
+    - name: ghcr-kiprint
+  # KIPRINT_BEARER_TOKEN comes from this existing Secret; the chart never holds the token itself.
+  bearerToken:
+    secret: kiprint-mcp
+    key: KIPRINT_BEARER_TOKEN
+  # KIPRINT_DATA_DIR. One replica with the Recreate strategy: the volume is ReadWriteOnce, and two servers on one volume
+  # would lose updates. Empty storageClassName uses the cluster default; volumeName binds a pre-created PersistentVolume.
+  persistence:
+    size: 5Gi
+    storageClassName: ""
+    volumeName: ""
+  # The HTTPRoute's parent: the Gateway that routes CanFactory's other hostnames.
+  gateway:
+    name: canfactory
+    namespace: canfactory-edge
+    sectionName: http
+  # Ingress allowances for namespaces that deny unspecified ingress: the Gateway's pods reach KiPrint, and KiPrint reaches the
+  # API Service for GET /api/v1/parts/{id}/layout.
+  networkPolicy:
+    enabled: true
+    gatewayNamespace: canfactory-edge
+    gatewayPodLabels:
+      app.kubernetes.io/name: traefik
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {cpu: "1", memory: 1536Mi}
