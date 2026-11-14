@@ -3,13 +3,14 @@ import { MagneticCatToyIllustration } from './MagneticCatToyIllustration.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Atom, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, ShoppingBasket, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from '@canfactory/client';
-import { artifactFormat, controlRange, controlShown, decodeLogo, findModel, findPartFamily, modelBom, models, modelUsage, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
+import { artifactFormat, controlRange, controlShown, decodeLogo, findModel, findPartFamily, modelBom, models, modelUsage, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, parameterString, type ModelDefinition, type ParameterValue, type ParameterValues } from '@canfactory/contracts';
 import { PartsLibrary } from './PartsLibrary.tsx';
 import { BuyListPage, DisclosurePage, Hardware, PrivacyPage } from './Shopping.tsx';
 import { useBuyList, useMarket } from './shopping.ts';
 import { referenceObjects } from './referenceObjects.ts';
 import { formatHash, parseHash, partLink, type Route } from './route.ts';
 import { Viewer } from './Viewer.tsx';
+import { WireGuideField } from './WireGuideField.tsx';
 import { ToggleLatchIllustration, OutsideCornerToggleLatchIllustration } from './ToggleLatchIllustration.tsx';
 import { WindowCatGuardIllustration } from './WindowCatGuardIllustration.tsx';
 import { QrMagnetTagIllustration } from './QrMagnetTagIllustration.tsx';
@@ -21,6 +22,7 @@ import { SpringBallDetentIllustration } from './SpringBallDetentIllustration.tsx
 import { TreatDispenserIllustration } from './TreatDispenserIllustration.tsx';
 import { MiterBoxIllustration } from './MiterBoxIllustration.tsx';
 import { WandHolderIllustration } from './WandHolderIllustration.tsx';
+import { TrolleyTokenIllustration } from './TrolleyTokenIllustration.tsx';
 import { LighterKeychainIllustration } from './LighterKeychainIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { AssistantPanel, useAssistantConfig } from './assistant/index.tsx';
@@ -51,7 +53,7 @@ function restoreSettings(model: ModelDefinition): ParameterValues {
     if (stored) {
       const values: unknown = JSON.parse(stored);
       if (values !== null && typeof values === 'object' && validateParameters(model, values).length === 0) {
-        const entries = Object.entries(values).filter((entry): entry is [string, number | boolean | string] => ['number', 'boolean', 'string'].includes(typeof entry[1]));
+        const entries = Object.entries(values).filter((entry): entry is [string, ParameterValue] => ['number', 'boolean', 'string'].includes(typeof entry[1]) || (entry[1] !== null && typeof entry[1] === 'object'));
         return Object.fromEntries(entries);
       }
     }
@@ -305,6 +307,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'miter-box': MiterBoxIllustration,
   'wand-holder': WandHolderIllustration,
   'magnetic-lighter-keychain': LighterKeychainIllustration,
+  'trolley-token': TrolleyTokenIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names
@@ -320,7 +323,7 @@ function recommendation(control: Control, controls: readonly Control[], paramete
     const range = entry.ranges.find(candidate => candidate.value === value);
     if (!range) return [];
     const other = controls.find(candidate => candidate.key === entry.control);
-    return [{ minimum: range.minimum, maximum: range.maximum, label: other?.label ?? entry.control, choice: other?.options?.find(option => option.value === value)?.label ?? String(value) }];
+    return [{ minimum: range.minimum, maximum: range.maximum, label: other?.label ?? entry.control, choice: other?.options?.find(option => option.value === value)?.label ?? parameterString(value) }];
   });
   if (ranges.length === 0) return undefined;
   return { minimum: Math.max(...ranges.map(range => range.minimum)), maximum: Math.min(...ranges.map(range => range.maximum)), ranges };
@@ -386,8 +389,9 @@ function LogoField({ control, value, disabled, issue, change }: { control: Contr
   </div>;
 }
 
-function Field({ control, value, options, disabled, issue, recommended, change }: { control: Control; value: number | boolean | string | undefined; options: Control['options']; disabled: boolean; issue: string | undefined; recommended?: Recommendation | undefined; change: (value: number | boolean | string) => void }) {
+function Field({ control, value, options, disabled, issue, recommended, change }: { control: Control; value: ParameterValue | undefined; options: Control['options']; disabled: boolean; issue: string | undefined; recommended?: Recommendation | undefined; change: (value: ParameterValue) => void }) {
   const id = `parameter-${control.key}`;
+  if (control.kind === 'document') return <WireGuideField control={control} value={value} disabled={disabled} change={change} />;
   if (control.kind === 'svg') return <LogoField control={control} value={typeof value === 'string' ? value : ''} disabled={disabled} issue={issue} change={change} />;
   if (control.kind === 'text') {
     const text = typeof value === 'string' ? value : '';
@@ -544,7 +548,7 @@ function Editor({ model }: { model: ModelDefinition }) {
     return () => { editorSession.set(null); };
   }, [model]);
 
-  const change = (key: string, value: number | boolean | string) => {
+  const change = (key: string, value: ParameterValue) => {
     setParameters(current => {
       const next = { ...current, [key]: value };
       // A part choice filtered by this control (Control.part.filter) moves to the first part it now offers, preferring one that the
@@ -611,6 +615,7 @@ function Editor({ model }: { model: ModelDefinition }) {
         </> : <>
           <div className="panel-heading"><div><SlidersHorizontal size={16} /><h2>About this model</h2></div></div>
           <p className="panel-intro">This model doesn’t have adjustable settings yet. {model.parts && model.parts.length > 0 ? `All ${model.parts.length} parts render together, exactly as designed.` : 'It renders exactly as designed.'}</p>
+          {valid && derived.notes?.map(note => <div key={note} className="slot-note derived-note"><Sparkles size={14} /><span>{note}</span></div>)}
         </>}
       </aside>
       <section className="preview-panel" aria-label="Model preview and download">

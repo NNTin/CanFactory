@@ -404,7 +404,7 @@
           "type": "number",
           "minimum": 0.6,
           "maximum": 4,
-          "description": "Cover plate over the top channel layer (mm)."
+          "description": "The cover plate over the board, under the lowest channel layer; the funnels open at its top and go through it (mm)."
         },
         "channelClearance": {
           "type": "number",
@@ -535,5 +535,5 @@
   },
   "additionalProperties": false,
   "title": "WireGuideDesign",
-  "description": "Solid-core wires routed on a prototype board and the guide prints that hold them. Frame: prototypeBoardLayout’s (mm, PCB underside on z = 0, board corner at the origin, seen from the component side, columns along +X and rows along +Y, 0-based)."
+  "description": "Solid-core wires routed on a prototype board and the guide prints that hold them. Frame: prototypeBoardLayout’s (mm, PCB underside on z = 0, board corner at the origin, seen from the component side, columns along +X and rows along +Y, 0-based). Beyond this schema, validateWireGuideDesign bounds a design to 200 kB as JSON and 2000 grid points (ends and waypoints) over all wires."
 }

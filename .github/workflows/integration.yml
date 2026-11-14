@@ -89,6 +89,11 @@ jobs:
         env:
           OPENSCAD_RUNNER: docker
 
+      - name: Check trolley token assembly and paper-clamp movement
+        run: npm run check:assembly -- trolley-token
+        env:
+          OPENSCAD_RUNNER: docker
+
       - name: Check wand holder assembly (the clip spread over the post and seated on it)
         run: npm run check:assembly -- wand-holder
         env:

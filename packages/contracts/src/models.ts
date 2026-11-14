@@ -1,3 +1,4 @@
+import { TrolleyTokenParametersSchema, trolleyTokenAssembly } from './trolleyToken.ts';
 import { DEFAULT_LIGHTER_KEYCHAIN, MagneticLighterKeychainParametersSchema, lighterKeychainAssembly, lighterKeychainIssues, lighterKeychainNotes, lighterKeychainReferences, KEYCHAIN_MAGNETS, KEYCHAIN_SPLIT_RINGS } from './magneticLighterKeychain.ts';
 import { DEFAULT_WAND_HOLDER, WAND_HOLDER, WandHolderParametersSchema, wandHolderAssembly, wandHolderFlex, wandHolderIssues, wandHolderLayout } from './wandHolder.ts';
 import { DEFAULT_MITER_BOX, MITER_BOX, MITER_BOX_CLAMP_SCREWS, MITER_BOX_KNOB_CONSTANTS, MITER_BOX_NUTS, MITER_BOX_PAD_CONSTANTS, MITER_BOX_PAD_NUTS, MITER_BOX_THREADS, MiterBoxParametersSchema, miterBoxAssembly, miterBoxIssues, miterBoxLayout, miterBoxReferences, miterBoxScadLayout, type MiterBoxParameters } from './miterBox.ts';
@@ -13,7 +14,9 @@ import { cigaretteCasePhysics } from './cigaretteCasePhysics.ts';
 import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TIP_ANGLE, TREAT_BAND_SIZES, TREAT_DISPENSER, TREAT_FIRMWARE, TreatDispenserParametersSchema, treatBandPart, treatBandTorque, treatCycleSteps, treatDispenserAssembly, treatDispenserIssues, treatDispenserLayout, treatDispenserPhysics, treatFootprint, treatScadLayout, type BottleNeck, type TreatDispenserParameters } from './treatDispenser.ts';
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
-import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, type MetricThread, type Part } from './parts/index.ts';
+import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, parts as allParts, type MetricThread, type Part } from './parts/index.ts';
+import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, wireGuideScad, wireGuideSummary } from './prototypeWireGuide.ts';
+import { validateWireGuideDesign, WIRE_GUIDE_LIMITS, WireGuideDesignSchema, type WireGuideDesign } from './wireGuide.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
 import { PRESSURE_PAD, PRESSURE_PAD_SURFACES, PRESSURE_PAD_TYPES, pressurePadExtenderTravel, pressurePadLeg, pressurePadMinDiameter, pressurePadMinExtenderDiameter, pressurePadMinExtenderLength, pressurePadMinHeight, type PressurePadSurface, type PressurePadType } from './pressurePad.ts';
@@ -60,12 +63,12 @@ export const ControlSchema = Type.Object({
   key: Type.String(),
   label: Type.String(),
   description: Type.String(),
-  kind: Type.Union([Type.Literal('number'), Type.Literal('boolean'), Type.Literal('enum'), Type.Literal('text'), Type.Literal('svg')], {
-    description: 'An `svg` control takes an SVG file, which the editor turns into a logo string (packages/contracts/src/svgLogo.ts); its value is that string, empty for none.',
+  kind: Type.Union([Type.Literal('number'), Type.Literal('boolean'), Type.Literal('enum'), Type.Literal('text'), Type.Literal('svg'), Type.Literal('document')], {
+    description: 'An `svg` control takes an SVG file, which the editor turns into a logo string (packages/contracts/src/svgLogo.ts); its value is that string, empty for none. A `document` control takes a structured JSON document checked against its own schema (`documentSchema`), such as a wire-guide design; the editor imports it from a .json file.',
   }),
   group: Type.Union([Type.Literal('basic'), Type.Literal('advanced')]),
   unit: Type.Union([Type.Literal('mm'), Type.Null()]),
-  default: Type.Union([Type.Number(), Type.Boolean(), Type.String()]),
+  default: Type.Union([Type.Number(), Type.Boolean(), Type.String(), Type.Record(Type.String(), Type.Unknown())], { description: 'The default value; for a `document` control, a whole document.' }),
   minimum: Type.Union([Type.Number(), Type.Null()]),
   maximum: Type.Union([Type.Number(), Type.Null()], { description: 'Upper bound of a number; for a text control, the most characters allowed.' }),
   step: Type.Union([Type.Number(), Type.Null()]),
@@ -91,9 +94,16 @@ export const ControlSchema = Type.Object({
     { description: 'For part-id options: offer only the parts whose attribute equals the current value of another (enum) control, e.g. the screws of the chosen thread. The editor lists only those, and moves the choice to the first of them when the other control changes; while the control is shown, any other part is invalid. Null to offer every option.' }),
   }, { additionalProperties: false }), Type.Null()],
   { description: 'For an enum control whose options are real-world parts: the parts-library family they link to. The editor links the selected option to the library. Null for none.' }),
+  document: Type.Optional(Type.Literal('wire-guide-design', { description: 'For a `document` control: the kind of document it takes, so that the editor shows its summary and settings. `wire-guide-design` is a WireGuideDesign (docs/schemas/wire-guide-design.schema.json).' })),
 }, { additionalProperties: false });
 export type Control = Static<typeof ControlSchema>;
-export type ParameterValues = Record<string, number | boolean | string>;
+/** The value of a `document` parameter: a structured document checked against its own schema (e.g. a `WireGuideDesign`). */
+export type ParameterDocument = { readonly [key: string]: unknown };
+/** One parameter's value: a number, boolean or string, or a structured document (a `document` control). */
+export type ParameterValue = number | boolean | string | ParameterDocument;
+export type ParameterValues = Record<string, ParameterValue>;
+/** A parameter's value as text, for comparing it with an enum's or an attribute's values: empty for a document or a missing value. */
+export const parameterString = (value: ParameterValue | undefined): string => value === undefined || typeof value === 'object' ? '' : String(value);
 
 function control<T extends { properties: Record<string, TSchema> }>(
   schema: T, key: keyof T['properties'] & string, group: Control['group'], enabledWhen: string | null = null, unit: Control['unit'] = 'mm',
@@ -145,7 +155,7 @@ function partControl<T extends { properties: Record<string, TSchema> }>(
 /** Whether a control is shown for these parameters (`Control.visibleWhen`). */
 export function controlShown(control: Control, parameters: ParameterValues): boolean {
   const conditions = control.visibleWhen === null ? [] : Array.isArray(control.visibleWhen) ? control.visibleWhen : [control.visibleWhen];
-  return conditions.every(condition => condition.values.includes(String(parameters[condition.control])));
+  return conditions.every(condition => condition.values.includes(parameterString(parameters[condition.control])));
 }
 
 /**
@@ -178,7 +188,7 @@ function limitIssues(model: ModelDefinition, parameters: ParameterValues): Param
 export function partOptionOffered(control: Control, option: string, parameters: ParameterValues): boolean {
   const filter = control.part?.filter;
   if (!filter) return true;
-  return findPart(option)?.attributes[filter.attribute] === String(parameters[filter.control]);
+  return findPart(option)?.attributes[filter.attribute] === parameterString(parameters[filter.control]);
 }
 
 /** The options of a control that are offered for these parameters (see `partOptionOffered`). */
@@ -193,7 +203,7 @@ function partFilterIssues(model: ModelDefinition, parameters: ParameterValues): 
     const value = parameters[control.key];
     if (!filter || !controlShown(control, parameters) || typeof value !== 'string' || partOptionOffered(control, value, parameters)) return [];
     const other = model.controls.find(c => c.key === filter.control);
-    const wanted = String(parameters[filter.control]);
+    const wanted = parameterString(parameters[filter.control]);
     return [{ field: control.key, message: `${findPart(value)?.title ?? value} does not match the ${other?.label.toLowerCase() ?? filter.control} (${wanted}). Choose one with ${filter.attribute} ${wanted}.` }];
   });
 }
@@ -210,6 +220,18 @@ function textControl<T extends { properties: Record<string, TSchema> }>(schema: 
 /** A control for a logo-string property: the editor reads an SVG file into it (`svgToLogo`). `maximum` carries the string's length limit. */
 function svgControl<T extends { properties: Record<string, TSchema> }>(schema: T, key: keyof T['properties'] & string, group: Control['group']): Control {
   return { ...textControl(schema, key, group), kind: 'svg' };
+}
+
+/** A control for a structured-document property (`ModelDefinition.documents`): the editor imports it from a .json file and shows
+ * the document's own summary and settings. */
+function documentControl<T extends { properties: Record<string, TSchema> }>(
+  schema: T, key: keyof T['properties'] & string, group: Control['group'], document: NonNullable<Control['document']>, value: ParameterDocument,
+): Control {
+  const property: TSchema & { title?: string; description?: string } = schema.properties[key] ?? (() => { throw new Error(`Unknown parameter ${key}.`); })();
+  return {
+    key, group, enabledWhen: null, visibleWhen: null, options: null, bands: null, recommended: null, part: null, kind: 'document', unit: null,
+    minimum: null, maximum: null, step: null, label: property.title ?? key, description: property.description ?? '', default: value, document,
+  };
 }
 
 /** Mirrors the original SCAD layout, counting unique cutters (the seam is not duplicated). */
@@ -403,6 +425,13 @@ export interface ModelDefinition {
   /** How a mapped parameter is written after `-D NAME=`, for values that are not plain numbers, booleans or strings (see `scadLiteral`).
    * It gets the (validated) value and all the parameters, for a value that depends on others (the QR tag's code on its error correction). */
   scadEncode?: Record<string, (value: string, parameters: ParameterValues) => string>;
+  /** Parameters whose value is a structured document (a `document` control): `issues` checks one (JSON Pointer paths into it; the
+   * parameter's field is the key followed by the path, e.g. `design/wires/3/path/1`), and `scad` writes a valid one after
+   * `-D NAME=` with trusted code, as numbers only. See `validateParameters` and `scadLiteral`. */
+  documents?: Record<string, { issues: (value: unknown) => { path: string; message: string }[]; scad: (value: ParameterDocument, parameters: ParameterValues) => string }>;
+  /** Parts-library families whose data the geometry reads (e.g. a document's board and wires), for the cache fingerprint
+   * (`linkedPartData`). */
+  linkedFamilies?: string[];
   /** For a single-generator model: dimensions of chosen library parts it is sized from (see `PartDefines`). */
   partDefines?: PartDefines;
   /** Only for an assembly: reference objects that depend on the parameters (see `LinkedReference`, `resolveAssembly`). */
@@ -416,9 +445,14 @@ export interface ModelDefinition {
   derived: (parameters: unknown) => { slotCount: number | null; notes?: string[] };
 }
 
-/** The OpenSCAD literal for a validated parameter value: the model's `scadEncode` for that key (given a string), or else JSON, which
- * writes numbers, booleans and quoted, escaped strings the way OpenSCAD reads them. */
-export function scadLiteral(model: ModelDefinition, key: string, value: number | boolean | string, parameters: ParameterValues = {}): string {
+/** The OpenSCAD literal for a validated parameter value: the model's `documents` encoder for a document, its `scadEncode` for that
+ * key (given a string), or else JSON, which writes numbers, booleans and quoted, escaped strings the way OpenSCAD reads them. */
+export function scadLiteral(model: ModelDefinition, key: string, value: ParameterValue, parameters: ParameterValues = {}): string {
+  if (typeof value === 'object') {
+    const document = model.documents?.[key];
+    if (!document) throw new Error(`Parameter ${key} is not a document.`);
+    return document.scad(value, parameters);
+  }
   const encode = model.scadEncode?.[key];
   if (encode) {
     if (typeof value !== 'string') throw new Error(`Parameter ${key} must be a string.`);
@@ -460,8 +494,12 @@ export function scadDefines(model: ModelDefinition, source: { scadMapping?: Reco
  */
 export function linkedPartData(model: ModelDefinition): { id: string; dimensions: Part['dimensions'] }[] {
   const keys = new Set([model.partDefines, ...(model.parts ?? []).map(part => part.partDefines)].flatMap(defines => Object.keys(defines ?? {})));
-  return [...keys].flatMap(key => model.controls.find(control => control.key === key)?.options ?? [])
-    .flatMap(option => { const part = findPart(option.value); return part ? [{ id: part.id, dimensions: part.dimensions }] : []; });
+  const families = new Set(model.linkedFamilies ?? []);
+  return [
+    ...[...keys].flatMap(key => model.controls.find(control => control.key === key)?.options ?? [])
+      .flatMap(option => { const part = findPart(option.value); return part ? [{ id: part.id, dimensions: part.dimensions }] : []; }),
+    ...allParts.filter(part => families.has(part.family)).map(part => ({ id: part.id, dimensions: part.dimensions })),
+  ];
 }
 
 /** True for a multi-part assembly model (rendered as N independent solids, packaged as one ZIP). */
@@ -904,7 +942,7 @@ const cigaretteCaseParts: ModelPart[] = [
   { id: 'mini-box', title: 'Mini box', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_box.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...MINI_LID_SNAP_MAPPING, ...MINI_BOX_SNAP_MAPPING } },
   { id: 'mini-lid', title: 'Mini box lid', sourcePath: `${CIGARETTE_CASE_DIR}11_-_Honeycomb_-_topminibox_-_top.scad`, scadMapping: { ...CLEARANCE_MAPPING, ...MINI_LID_SNAP_MAPPING, miniLidCrushSqueeze: 'CRUSH_SQUEEZE' } },
   { id: 'case-text', title: 'Case text (second filament)', sourcePath: 'models/cigarette-case/underside-text.scad', scadMapping: TEXT_MAPPING, separateBodies: true,
-    includedWhen: parameters => hasSecondFilamentMark({ undersideMark: String(parameters['undersideMark']), engraveText: String(parameters['engraveText'] ?? ''), logo: String(parameters['logo'] ?? ''), textMode: String(parameters['textMode']) }) },
+    includedWhen: parameters => hasSecondFilamentMark({ undersideMark: parameterString(parameters['undersideMark']), engraveText: parameterString(parameters['engraveText']), logo: parameterString(parameters['logo']), textMode: parameterString(parameters['textMode']) }) },
 ];
 
 /**
@@ -1615,7 +1653,7 @@ const duckDefaults: AiRubberDuckParameters = { variant: 'claude-v1-round', bodyL
 /** Same face frame as generator.scad: across=-Y, up=Z, out=-X. STLs print face down;
  * undo that turn, then place them in this frame. Dimensions are checked against rendered meshes. */
 export function aiDuckAssembly(parameters: ParameterValues): Assembly {
-  const variant = String(parameters['variant']);
+  const variant = parameterString(parameters['variant']);
   const s = Number(parameters['bodyLength']) / 90;
   const round = variant.endsWith('round'), codex = variant.startsWith('codex'), anthropic = variant.startsWith('anthropic');
   const brand = variant.split('-')[0] ?? '';
@@ -1649,8 +1687,8 @@ export function aiDuckAssembly(parameters: ParameterValues): Assembly {
 const duckParts: ModelPart[] = [
   { id: 'body', title: 'Duck body' },
   { id: 'face', title: 'Face / head' },
-  { id: 'chevron', title: 'Chevron insert', includedWhen: (p: ParameterValues) => String(p['variant']).startsWith('codex') },
-  { id: 'bar', title: 'Bar insert', includedWhen: (p: ParameterValues) => String(p['variant']).startsWith('codex') || p['variant'] === 'anthropic-v1-round' },
+  { id: 'chevron', title: 'Chevron insert', includedWhen: (p: ParameterValues) => parameterString(p['variant']).startsWith('codex') },
+  { id: 'bar', title: 'Bar insert', includedWhen: (p: ParameterValues) => parameterString(p['variant']).startsWith('codex') || p['variant'] === 'anthropic-v1-round' },
 ].map(part => ({ ...part, sourcePath: 'models/ai-rubber-duck/generator.scad', scadConstants: { PART: part.id }, scadMapping: { variant: 'VARIANT', bodyLength: 'BODY_LENGTH', clearance: 'CLEARANCE' } }));
 
 export const aiRubberDuck = {
@@ -2647,7 +2685,7 @@ export const qrMagnetTag = {
   scadMapping: {},
   // Only numbers reach OpenSCAD: the code as rectangles of modules, encoded again from the validated text, and the logo's outline.
   scadEncode: {
-    qrText: (text: string, parameters: ParameterValues) => qrScad({ qrText: text, errorCorrection: parameters['errorCorrection'] as QrEcc, logo: String(parameters['logo'] ?? ''), logoSize: Number(parameters['logoSize']), moduleStyle: parameters['moduleStyle'] as QrModuleStyle }),
+    qrText: (text: string, parameters: ParameterValues) => qrScad({ qrText: text, errorCorrection: parameters['errorCorrection'] as QrEcc, logo: parameterString(parameters['logo']), logoSize: Number(parameters['logoSize']), moduleStyle: parameters['moduleStyle'] as QrModuleStyle }),
     logo: logoScad,
   },
   validate(parameters: unknown): ParameterIssue[] {
@@ -3831,8 +3869,73 @@ export const magneticLighterKeychain = {
     return { slotCount: null, ...(Value.Check(mlkSchema, parameters) && lighterKeychainIssues(parameters).length === 0 ? { notes: lighterKeychainNotes(parameters) } : {}) };
   },
 } satisfies ModelDefinition;
+/**
+ * Prototype-board wire guide (models/prototype-wire-guide/guide.scad, docs/wire-guide.md): the printed guides that hold the
+ * solid-core wires of a wire-guide design (`WireGuideDesign`) on a prototype board, one STL per print of the design. Its one
+ * parameter is the design itself, a structured document: validated by `validateWireGuideDesign` (the one check the assistant, KiPrint, the API and the worker share) and written for SCAD by
+ * `wireGuideScad` as numbers only (`documents`). Each print's part renders the same generator with its own `PRINT`.
+ */
+export const PrototypeWireGuideParametersSchema = Type.Object({
+  design: Type.Unsafe<WireGuideDesign>({ ...WireGuideDesignSchema, title: 'Wire-guide design', description: 'The wire-guide design (docs/schemas/wire-guide-design.schema.json): the board, the wires and their routes and levels, the prints and the guide settings, as KiPrint or the assistant writes it, or imported from a .json file.' }),
+}, { additionalProperties: false, description: 'Prototype wire guide parameters: the wire-guide design, a structured document.' });
+export type PrototypeWireGuideParameters = Static<typeof PrototypeWireGuideParametersSchema>;
+const pwgControls: Control[] = [documentControl(PrototypeWireGuideParametersSchema, 'design', 'basic', 'wire-guide-design', DEFAULT_WIRE_GUIDE_DESIGN)];
+const PWG_SOURCE = 'models/prototype-wire-guide/guide.scad';
+const designOf = (parameters: unknown): WireGuideDesign | undefined => {
+  const design = parameters !== null && typeof parameters === 'object' ? (parameters as { design?: unknown }).design : undefined;
+  return design !== undefined && validateWireGuideDesign(design).length === 0 ? design as WireGuideDesign : undefined;
+};
+export const prototypeWireGuide = {
+  id: 'prototype-wire-guide' as const, version: '1' as const, title: 'Prototype-board wire guide',
+  description: 'Printed guides that lay solid-core hookup wire on a prototype board exactly where a wire-guide design routes it: a plate over the board with a channel for every wire, the channels of higher levels bridging the lower ones where they cross, a funnel down to the hole at each wire end, pockets over the components, and bosses in the mounting holes or clips on the board’s edges. One STL per print of the design. Import a design (.json) from KiPrint or the assistant.',
+  attribution: 'CanFactory (original design)',
+  printNotes: `Print each guide as generated, plate down, with no supports: the bridges over the lower channels span less than ${WIRE_GUIDE_GEOMETRY.margin + 2} mm. 0.2 mm layers or finer, so the channels keep their width. Fit the components first, then press the guide onto the board (bosses into the mounting holes, or clips over the edges). Lay the lowest level’s wires first: push one end down its funnel into the hole, press the wire into its channel, threading it under the bridges where a higher channel crosses, and push the other end down its funnel. Then the next level. Solder the ends on the solder side; the guide stays on the board.`,
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  // One part per print, up to the contract's limit; a design renders as many as it has. A print may be several bodies, where a tall
+  // component's pocket goes through it.
+  parts: Array.from({ length: WIRE_GUIDE_LIMITS.prints }, (_, index) => ({
+    id: `print-${index + 1}`, title: `Guide print ${index + 1}`, sourcePath: PWG_SOURCE,
+    scadConstants: { PRINT: index }, scadMapping: { design: 'GUIDE' }, separateBodies: true,
+    includedWhen: (parameters: ParameterValues) => (designOf(parameters)?.prints.length ?? 1) > index,
+  })),
+  parameterSchema: PrototypeWireGuideParametersSchema, controls: pwgControls,
+  defaults: { design: DEFAULT_WIRE_GUIDE_DESIGN }, scadMapping: {},
+  documents: { design: { issues: validateWireGuideDesign, scad: value => wireGuideScad(value as WireGuideDesign) } },
+  linkedFamilies: ['prototype-board', 'hookup-wire'],
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(PrototypeWireGuideParametersSchema, parameters) ? [] : [{ field: '', message: 'Parameters do not match the prototype wire guide schema.' }];
+  },
+  derived(parameters: unknown) {
+    const design = designOf(parameters);
+    if (!design) return { slotCount: null };
+    const summary = wireGuideSummary(design);
+    return { slotCount: null, notes: [
+      `${summary.board}: ${summary.wires} wire${summary.wires === 1 ? '' : 's'} on ${summary.levels} level${summary.levels === 1 ? '' : 's'}, in ${summary.prints.length} print${summary.prints.length === 1 ? '' : 's'}.`,
+    ] };
+  },
+} satisfies ModelDefinition;
+/** jhappone's original two-part spring clamp, converted from the supplied STEP without redesign. */
+export const trolleyToken = {
+  id: 'trolley-token' as const, version: '3' as const, title: 'Trolley token and shopping-list holder',
+  description: 'jhappone’s trolley token with a spring-operated shopping-list clamp. Two printed parts, a metal torsion spring and an axle form the paper grip. The original geometry is preserved; the live assembly shows how the printed pieces fit together.',
+  attribution: 'jhappone (Thingiverse); STEP format conversion by CanFactory',
+  attributionLinks: [{ text: 'jhappone', url: 'https://www.thingiverse.com/jhappone/designs' }, { text: 'Thingiverse', url: 'https://www.thingiverse.com/thing:4126950' }],
+  license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  printNotes: 'Print the body flat underside down and the clip flat outer face down, as provided in the ZIP. The original token is 23.25 mm across and 2.5 mm thick. Check compatibility with your trolley lock. Drill the axle holes to suit your axle; the author uses a 2.5 mm axle. Fit a suitable metal torsion spring to close the jaws, then secure the axle. The original CAD has 1 mm pilot holes and does not specify spring dimensions or axle retention. Follow the author’s build notes and check the grip and free movement after assembly. The spring and axle are required hardware and are not in the print ZIP. This is the original fixed design; there are no angle or coin-size controls.',
+  parts: [
+    { id: 'body', title: 'Trolley token body', sourcePath: 'models/trolley-token/body.scad', scadMapping: {} },
+    { id: 'clip', title: 'Shopping-list clamp', sourcePath: 'models/trolley-token/clip.scad', scadMapping: {} },
+  ],
+  assembly: trolleyTokenAssembly,
+  parameterSchema: TrolleyTokenParametersSchema, controls: [], defaults: {}, scadMapping: {},
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(TrolleyTokenParametersSchema, parameters) ? [] : [{ field: '', message: 'This source design has no adjustable settings.' }];
+  },
+  derived: () => ({ slotCount: null, notes: ['Required hardware: a metal torsion spring and axle (the author uses 2.5 mm). Drill the original 1 mm pilot holes to suit.', 'Both printable parts retain jhappone’s original geometry.'] }),
+} satisfies ModelDefinition;
+
 /** The one registration of each catalogue model. A `const` tuple, so that `RenderRequestSchema` (index.ts) derives a typed branch per model from it. */
-export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser, miterBox, wandHolder, magneticLighterKeychain] as const satisfies readonly ModelDefinition[];
+export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser, miterBox, wandHolder, magneticLighterKeychain, trolleyToken, prototypeWireGuide] as const satisfies readonly ModelDefinition[];
 export const models: readonly ModelDefinition[] = registeredModels;
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }
@@ -3855,13 +3958,23 @@ export function partUsage(part: Part): PartUsage[] {
   ];
 }
 
-/** Validates unknown browser/API input, including cross-field rules, without coercion. */
+/**
+ * Validates unknown browser/API input, including cross-field rules, without coercion. A document parameter (`documents`) is checked
+ * by its own `issues`, whose paths follow its key (`design/wires/3/path/1`), instead of by the parameter schema's errors; the API
+ * and the worker both call this, so they report the same issues.
+ */
 export function validateParameters(model: ModelDefinition, parameters: unknown): ParameterIssue[] {
+  const documents = Object.entries(model.documents ?? {});
+  const record = parameters !== null && typeof parameters === 'object' && !Array.isArray(parameters) ? parameters as Record<string, unknown> : undefined;
+  const documentIssues = record ? documents.flatMap(([key, document]) => Object.hasOwn(record, key)
+    ? document.issues(record[key]).map(issue => ({ field: `${key}${issue.path}`, message: issue.message })) : []) : [];
   if (!Value.Check(model.parameterSchema, parameters)) {
-    return [...Value.Errors(model.parameterSchema, parameters)].map(error => ({
+    const inDocument = (path: string) => documents.some(([key]) => record && Object.hasOwn(record, key) && (path === `/${key}` || path.startsWith(`/${key}/`)));
+    return [...documentIssues, ...[...Value.Errors(model.parameterSchema, parameters)].filter(error => !inDocument(error.instancePath)).map(error => ({
       field: error.instancePath.replace(/^\//, ''), message: error.message,
-    }));
+    }))];
   }
+  if (documentIssues.length) return documentIssues;
   const filtered = [...partFilterIssues(model, parameters as ParameterValues), ...limitIssues(model, parameters as ParameterValues)];
   return filtered.length > 0 ? filtered : model.validate(parameters);
 }

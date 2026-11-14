@@ -1,6 +1,7 @@
 import { Type, type Static, type TLiteral, type TObject } from 'typebox';
 import { registeredModels, type ModelDefinition } from './models.ts';
 export * from './models.ts';
+export * from './trolleyToken.ts';
 export * from './assembly.ts';
 export * from './bom.ts';
 export * from './svgLogo.ts';
@@ -23,6 +24,7 @@ export * from './physicsPieces.ts';
 export * from './cigaretteCasePhysics.ts';
 export * from './spurGear.ts';
 export * from './wireGuide.ts';
+export * from './prototypeWireGuide.ts';
 export * from './partsApi.ts';
 /** The toggle latch's mechanism, shared by the catalogue card's side view and the assembly preview. */
 export * as toggleLatchMechanism from './toggleLatchMechanism.ts';

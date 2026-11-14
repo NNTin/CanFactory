@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { findModel, models, parts, partsOfFamily, validateWireGuideDesign, type ModelDefinition, type WireGuideDesign } from '@canfactory/contracts';
+import { DEFAULT_WIRE_GUIDE_DESIGN, findModel, models, parts, partsOfFamily, validateWireGuideDesign, type ModelDefinition, type WireGuideDesign } from '@canfactory/contracts';
 import { z, type Tool } from '@nntin/tinytinkerer-embed';
 import { controllerSlot, createCanfactoryController, editorSession, NOT_MOUNTED } from './controller.ts';
 import { assistantPolicy, IDENTITY } from './policy.ts';
@@ -128,6 +128,11 @@ describe('model tools', () => {
       // The defaults it reports are a valid parameter set of the model.
       expect(Value.Check(model.parameterSchema, Object.fromEntries(schema.parameters.map(parameter => [parameter.key, parameter.default])))).toBe(true);
     }
+  });
+
+  it('reports a document parameter with its whole default document', async () => {
+    const schema = await call('canfactory_get_model_schema', { modelId: 'prototype-wire-guide' }) as { parameters: { key: string; kind: string; default: unknown }[] };
+    expect(schema.parameters).toMatchObject([{ key: 'design', kind: 'document', default: DEFAULT_WIRE_GUIDE_DESIGN }]);
   });
 });
 

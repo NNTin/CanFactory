@@ -20,7 +20,7 @@
 import { appendFile, cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { DEFAULT_QR_MAGNET_TAG, minModuleSize, QR_BLEED, QR_BLEED_POINTS, QR_MIN_MODULE, QR_MODULE_STYLES, QR_NOZZLES, qrMagnetTag, validateParameters, type ParameterValues, type QrModuleStyle, type QrNozzle } from '@canfactory/contracts';
+import { DEFAULT_QR_MAGNET_TAG, minModuleSize, QR_BLEED, QR_BLEED_POINTS, QR_MIN_MODULE, QR_MODULE_STYLES, QR_NOZZLES, qrMagnetTag, validateParameters, parameterString, type ParameterValues, type QrModuleStyle, type QrNozzle } from '@canfactory/contracts';
 import { selectRunner, WORKER_LIMITS } from '@canfactory/server';
 import { CHECK_ECC as ECC, CHECK_TEXT as TEXT, COUPON, sliceSample, type SampleKind } from './slicer/centre.ts';
 import { checkPrint, moduleMap, type Grid, type PrintCheck } from './slicer/check.ts';
@@ -99,7 +99,7 @@ function report(o: Outcome): string {
     `  expected: ${c.expect === 'pass' ? 'every module read right' + (c.kind === 'code' ? ' and jsQR decodes the text' : '') : 'at least one module read wrong (a negative control)'}`,
     `  module ${c.module} mm; validation's minimum for ${c.style} with a ${c.nozzle} mm nozzle and ${c.bleed} mm bleed: ${c.minimum} mm`
       + ` (QR_MIN_MODULE['${c.style}']['${c.nozzle}'] = [${row.join(', ')}] at bleeds [${QR_BLEED_POINTS.join(', ')}]; packages/contracts/src/qrMagnetTag.ts)`,
-    `  tile ${o.size} mm, layer ${o.parameters['layerHeight']} mm; parameters differing from the defaults: ${JSON.stringify(differing(o.parameters))}`,
+    `  tile ${o.size} mm, layer ${parameterString(o.parameters['layerHeight'])} mm; parameters differing from the defaults: ${JSON.stringify(differing(o.parameters))}`,
     `  ${c.kind === 'coupon' ? `the ${COUPON.length} × ${COUPON.length} neighbourhood coupon (tools/slicer/coupon.ts) in place of the code` : `the code of ${JSON.stringify(TEXT)} at ${ECC}`}`,
   ];
   if (o.error) lines.push(`  error: ${o.error}`);

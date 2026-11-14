@@ -3,13 +3,15 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { magneticLighterKeychain, type MagneticLighterKeychainParameters, DEFAULT_WAND_HOLDER, WAND_HOLDER, wandHolder, wandHolderLayout, type WandHolderParameters, DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { trolleyToken, magneticLighterKeychain, type MagneticLighterKeychainParameters, prototypeWireGuide, DEFAULT_WAND_HOLDER, WAND_HOLDER, wandHolder, wandHolderLayout, type WandHolderParameters, DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, parameterString, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { inspectStl, ObjectStorage, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair, type RenderJob } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { startStorageServices } from './storage-services.ts';
 import jsQR from 'jsqr';
+import { compareMeshes } from './stl-to-scad/compare.ts';
 import { parseStl, type Mesh } from './stl-to-scad/stl.ts';
 import { checkLighterKeychain, LIGHTER_KEYCHAIN_PARTS } from './lighter-keychain-checks.ts';
+import { checkWireGuide, wireGuideSamples } from './wire-guide-checks.ts';
 
 // Two logos for the cigarette case's underside, read from SVG as the editor does.
 const RING_AND_STAR = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill-rule="evenodd" d="M50 2a48 48 0 1 0 0.01 0zM50 10a40 40 0 1 1 -0.01 0z"/><path d="M50 18 L69 76 L20 40 L80 40 L31 76 Z"/></svg>');
@@ -84,7 +86,7 @@ const store = new PostgresStorage(services.databaseUrl, repositoryRoot, director
 await store.migrate(); await store.seed();
 const app = await createApp(store);
 const artifactBytes = async (job: RenderJob) => Buffer.concat(await (await store.readArtifact(job)).toArray() as Buffer[]);
-/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy, esp32-c3-supermini-case, treat-dispenser, miter-box, wand-holder, magnetic-lighter-keychain) runs a single model's cases. */
+/** TEST_ONLY=cigarette-case (or fruit-fly-trap, moss-planter, plank-connector, litter-shovel, ai-rubber-duck, toggle-latch, pressure-pad, window-cat-guard, qr-magnet-tag, printed-corner-bracket, printed-screen-hook, spring-ball-detent, cat-collar-tag, magnetic-cat-toy, esp32-c3-supermini-case, treat-dispenser, miter-box, wand-holder, magnetic-lighter-keychain, trolley-token, prototype-wire-guide) runs a single model's cases. */
 const only = process.env['TEST_ONLY'];
 const runner = (await selectRunner(directory, ['docker'], WORKER_LIMITS)).run;
 // The worker repairs float32 slivers so that users get their model; here every repair is a failure: the geometry is fragile and
@@ -232,7 +234,7 @@ try {
     assert.deepEqual(result.artifact.parts.map(part => part.id), wanted.map(part => part.id), `cigarette case ${name}: parts`);
     const c = Number(parameters['clearance']);
     // the mini lid's ribs and bumps stand C + squeeze or C + engagement proud of its sides, the holder's bumps the engagement past the bay
-    const miniLidWidth = { 'crush-ribs': 25.579 - 2 * c + 2 * Number(parameters['miniLidCrushSqueeze']), detent: 25.579 - 2 * c + 2 * Number(parameters['miniLidDetentEngage']) }[String(parameters['miniLidSnap'])] ?? 25.579 - 4 * c;
+    const miniLidWidth = { 'crush-ribs': 25.579 - 2 * c + 2 * Number(parameters['miniLidCrushSqueeze']), detent: 25.579 - 2 * c + 2 * Number(parameters['miniLidDetentEngage']) }[parameterString(parameters['miniLidSnap'])] ?? 25.579 - 4 * c;
     const expected: Record<string, [number, number, number]> = {
       'case-box': [55.888, 34.398, 77.171], 'case-lid': [55.888, 34.398, 41.868],
       'mini-holder': [11.792 - 2 * c, parameters['holderSnap'] === 'detent' ? 22.789 + 2 * Number(parameters['holderDetentEngage']) : 22.789 - 2 * c, 32.695],
@@ -249,7 +251,7 @@ try {
       }
       if (part.id === 'case-text') {
         // The letters must lie inside the free area, be 0.8 mm thick, and be no wider than the contract's estimate, which is an upper bound (else the estimate would let clipped text through).
-        const estimate = textWidth(String(parameters['textFont']), String(parameters['engraveText']), Number(parameters['textSize']));
+        const estimate = textWidth(parameterString(parameters['textFont']), parameterString(parameters['engraveText']), Number(parameters['textSize']));
         assert.ok(part.dimensions.x <= 35.01 && part.dimensions.y <= 16.01 && Math.abs(part.dimensions.z - 0.8) < 0.01, `case-text size ${JSON.stringify(part.dimensions)}`);
         assert.ok(part.dimensions.x <= estimate + 0.05, `case-text width ${part.dimensions.x} vs estimate ${estimate}`);
         continue;
@@ -305,7 +307,7 @@ try {
     if (name === 'default') plainVolume = volume;
     if (name.endsWith(' medium')) {
       // one hole's worth of material goes through both walls: at least the cylinder through them, the holes growing with the screw
-      const hole = holeDiameter({ screwHoles: String(parameters['screwHoles']) as 'M2', holeFit: 'medium' });
+      const hole = holeDiameter({ screwHoles: parameterString(parameters['screwHoles']) as 'M2', holeFit: 'medium' });
       const removed = plainVolume - volume;
       assert.ok(Math.abs(removed - 4 * Math.PI * (hole / 2) ** 2 * 2 * wall) < 0.02 * removed, `plank connector ${name}: removed ${removed}`);
       assert.ok(volume < previousHoleVolume, `plank connector ${name}: holes must grow with the screw`);
@@ -847,7 +849,7 @@ try {
     finally { clearInterval(heartbeat); }
     const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `printed screen hook ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
     assert.deepEqual(result.artifact.parts.map(part => part.id), ['long', 'short']);
-    const screw = findPart(String(parameters['woodScrew'])); assert.ok(screw);
+    const screw = findPart(parameterString(parameters['woodScrew'])); assert.ok(screw);
     const shape = printedScreenHookShape(parameters as unknown as Parameters<typeof printedScreenHookShape>[0], screw);
     for (const part of result.artifact.parts) {
       const rise = part.id === 'long' ? shape.rise.long : shape.rise.short;
@@ -893,7 +895,7 @@ try {
     const result = await store.getJob(queued.id); assert.equal(result?.status, 'succeeded', `spring ball detent ${name}`); assert.ok(result.artifact && 'parts' in result.artifact);
     const press = parameters['retention'] === 'press-cap';
     assert.deepEqual(result.artifact.parts.map(part => part.id), press ? ['body', 'cap'] : ['body']);
-    const chosen = (key: string) => { const found = findPart(String(parameters[key])); assert.ok(found); return found; };
+    const chosen = (key: string) => { const found = findPart(parameterString(parameters[key])); assert.ok(found); return found; };
     const layout = springBallDetentLayout(parameters as unknown as SpringBallDetentSize, { ball: chosen('ball'), spring: chosen('spring'), setScrew: chosen('setScrew') });
     const [body, cap] = result.artifact.parts; assert.ok(body);
     assert.ok(Math.abs(body.dimensions.z - Number(parameters['bodyLength'])) < 0.01, `spring ball detent ${name}: length ${body.dimensions.z}`);
@@ -1128,6 +1130,33 @@ try {
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
     console.log(`PASS magnetic cat toy ${name}: 5 connected prints, ${l.mountBase} mm tray / M3×${l.screwLength} screws, ${l.columns} × ${l.rows} flush sockets with push-out holes, no raised ribs, hollow grip shells, rear-loaded magnet pairs, thin touching bearing floors, staggered push-out bores and adjustable grip holes, ball-retaining slots`);
+  }
+  if (!only || only === 'trolley-token') {
+    const model = trolleyToken;
+    const queued = await store.enqueue(model, {});
+    const job = await store.claim(); assert.ok(job?.leaseToken);
+    assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true);
+    const result = await store.getJob(queued.id);
+    assert.equal(result?.status, 'succeeded');
+    if (!result.artifact || !('parts' in result.artifact)) throw new Error('Expected the trolley token ZIP.');
+    assert.deepEqual(result.artifact.parts.map(part => part.id), ['body', 'clip']);
+    const bytes = await artifactBytes(result), entries = unzipSync(bytes);
+    assert.deepEqual(Object.keys(entries), ['body.stl', 'clip.stl']);
+    for (const [id, file, expected] of [['body', 'Main_body.stl', [51.625, 30, 7.5]], ['clip', 'Clip.print.stl', [25, 30, 7]]] as const) {
+      const stl = Buffer.from(entries[`${id}.stl`] ?? []), info = inspectStl(stl);
+      const header = stl.subarray(0, 80).toString('utf8');
+      assert.ok(header.includes('jhappone')); assert.ok(header.includes('CC BY 4.0'));
+      for (const [i, axis] of (['x', 'y', 'z'] as const).entries())
+        assert.ok(Math.abs(info.dimensions[axis] - (expected[i] ?? NaN)) < 0.02, `${id}: ${axis} size`);
+      const reference = parseStl(await readFile(join(repositoryRoot, 'models/trolley-token/reference', file)));
+      const comparison = compareMeshes(reference, parseStl(stl));
+      assert.ok(comparison.iou >= 0.99, `${id}: source IoU ${comparison.iou}`);
+      assert.ok(Math.abs(comparison.volumeRelativeError) < 0.002, `${id}: source volume`);
+    }
+    const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
+    assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
+    assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
+    console.log('PASS trolley token: two connected prints, original STL geometry, author/licence headers and identical preview/download bytes');
   }
   for (const ledHoles of !only || only === 'esp32-c3-supermini-case' ? [true, false] : []) for (const flushHeaders of [true, false]) for (const tallerEnclosure of [true, false]) {
     const model = esp32C3SuperminiCase;
@@ -1407,6 +1436,28 @@ try {
     assert.equal(housingSolid(mesh('holddown-left'), [l.holdPinZ, l.holdPinY, B.holdDown.width / 2]), false, `${name}: hold-down's pin hole`);
     assert.equal(housingSolid(mesh('holddown-left'), [l.holdPinZ + l.holdPinD, l.holdPinY, B.holdDown.width / 2]), true, `${name}: hold-down's column`);
     console.log(`PASS miter box ${name}: 9 closed prints at the layout's sizes, open saw slots, kerf groove and lock nut pocket, base with its fence, stops, retaining pins' holes and pinned hold-down sockets`);
+  }
+  // Prototype-board wire guide: every checked-in sample design (models/prototype-wire-guide/samples): one print on one level
+  // (perfboard, mounting-hole bosses, pockets over a DIP and through a tall capacitor), crossings on two levels with a per-wire
+  // thicker wire (perfboard, edge clips), three prints by region (stripboard), and a Perma-Proto's rails and strips. Each print one
+  // closed solid in the ZIP, at its block's size, checked by checkWireGuide (tools/wire-guide-checks.ts): channels, bridges over
+  // the lower channels' tunnels, funnels, pockets, bosses and clips where the encoder put them; the ZIP served on its route.
+  for (const [name, design] of !only || only === 'prototype-wire-guide' ? wireGuideSamples(repositoryRoot) : []) {
+    const started = Date.now();
+    const parameters = { design };
+    assert.deepEqual(validateParameters(prototypeWireGuide, parameters), [], name);
+    const queued = await store.enqueue(prototypeWireGuide, parameters);
+    const job = await store.claim(); assert.ok(job?.leaseToken);
+    assert.equal(await renderJob(store, job, new AbortController().signal, runner, noteRepair(job)), true, `wire guide ${name}`);
+    const result = await store.getJob(queued.id);
+    assert.equal(result?.status, 'succeeded', `wire guide ${name}`);
+    if (!result.artifact || !('parts' in result.artifact)) throw new Error('Expected the wire guide ZIP.');
+    assert.deepEqual(result.artifact.parts.map(part => part.id), design.prints.map((_, index) => `print-${index + 1}`));
+    const bytes = await artifactBytes(result), entries = unzipSync(bytes);
+    const probes = checkWireGuide(index => parseStl(Buffer.from(entries[`print-${index + 1}.stl`] ?? [])), design, name, shells, housingSolid);
+    const preview = await app.inject(`/api/v1/renders/${job.id}/zip`);
+    assert.equal(preview.statusCode, 200); assert.deepEqual(preview.rawPayload, bytes);
+    console.log(`PASS wire guide ${name}: ${design.prints.length} print(s), ${result.artifact.triangles} triangles, ${probes} probes, ${((Date.now() - started) / 1000).toFixed(1)} s`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

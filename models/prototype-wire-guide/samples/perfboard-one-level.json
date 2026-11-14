@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "boardPartId": "generic-proto-board-40x60",
+  "wirePartId": "alpha-wire-3051-1",
+  "components": [
+    { "ref": "U1", "footprint": "DIP-8", "pins": [[14, 5], [15, 5], [16, 5], [17, 5], [14, 8], [15, 8], [16, 8], [17, 8]],
+      "body": { "kind": "box", "x": 40.2, "y": 17.2, "w": 10.1, "h": 5.6, "height": 3.5 } }
+  ],
+  "wires": [
+    { "id": "W1", "net": "VCC", "from": [2, 2], "to": [10, 2], "path": [], "level": 0 },
+    { "id": "W2", "net": "SIG", "from": [2, 4], "to": [8, 8], "path": [[8, 4]], "level": 0 },
+    { "id": "W3", "net": "GND", "from": [12, 3], "to": [12, 10], "path": [], "level": 0 },
+    { "id": "W4", "net": "OUT", "from": [13, 5], "to": [13, 12], "path": [], "level": 0 }
+  ],
+  "prints": [{ "id": "G1", "wireIds": ["W1", "W2", "W3", "W4"] }],
+  "guide": { "registration": "mounting-holes", "coverThickness": 1.2, "channelClearance": 0.2, "funnelTopDiameter": 2.2, "funnelBottomDiameter": 1.2, "funnelStandoff": 1 },
+  "keepouts": [{ "kind": "cylinder", "cx": 15, "cy": 30, "d": 5, "height": 11 }]
+}

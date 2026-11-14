@@ -92,13 +92,13 @@ export const catalogueTools: Tool<unknown, unknown>[] = [
     z.object({ models: z.array(z.object({ id: z.string(), version: z.string(), title: z.string(), description: z.string(), format: z.enum(['stl', 'zip']), adjustable: z.boolean() })) }),
     listModels),
   tool('canfactory_get_model_schema',
-    'A model’s parameters as its editor offers them: key, label, kind, unit, default, bounds, step and options.',
+    'A model’s parameters as its editor offers them: key, label, kind, unit, default, bounds, step and options. A `document` parameter takes a whole structured document (e.g. a WireGuideDesign); its default is one.',
     z.object({ modelId: z.string() }),
     z.object({
       id: z.string(), version: z.string(), title: z.string(), printNotes: z.string(), note: z.string(),
       parameters: z.array(z.object({
-        key: z.string(), label: z.string(), description: z.string(), kind: z.enum(['number', 'boolean', 'enum', 'text', 'svg']), group: z.enum(['basic', 'advanced']),
-        unit: nullable(z.literal('mm')), default: scalar, minimum: nullable(z.number()), maximum: nullable(z.number()), step: nullable(z.number()),
+        key: z.string(), label: z.string(), description: z.string(), kind: z.enum(['number', 'boolean', 'enum', 'text', 'svg', 'document']), group: z.enum(['basic', 'advanced']),
+        unit: nullable(z.literal('mm')), default: parameterValue, minimum: nullable(z.number()), maximum: nullable(z.number()), step: nullable(z.number()),
         enabledWhen: nullable(z.string()), options: nullable(z.array(z.object({ value: z.string(), label: z.string() }))),
       })),
     }),

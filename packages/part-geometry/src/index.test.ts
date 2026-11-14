@@ -27,13 +27,12 @@ const size = (part: Part) => {
 };
 
 describe('part geometry', () => {
-  it('builds every procedural part as closed solids, which the collision check needs to tell inside from outside', () => {
-    // a staple's legs meet its points without a shared edge; it is not checked against a model
-    for (const part of parts.filter(p => p.preview.kind === 'procedural' && p.family !== 'nail')) {
-      const geometry = partGeometry(part); if (!geometry) throw new Error(`${part.id} has no geometry`);
-      expect(openEdges(geometry), part.id).toBe(0);
-      geometry.dispose();
-    }
+  // A test per part keeps the timeout independent of catalogue size. A staple's legs meet its points without a shared edge;
+  // it is not checked against a model.
+  it.each(parts.filter(p => p.preview.kind === 'procedural' && p.family !== 'nail'))('builds $id as closed solids, which the collision check needs to tell inside from outside', part => {
+    const geometry = partGeometry(part); if (!geometry) throw new Error(`${part.id} has no geometry`);
+    expect(openEdges(geometry), part.id).toBe(0);
+    geometry.dispose();
   });
   it('draws what a printed pocket must take: a magnet at its largest, an insert as the hole it is melted into', () => {
     for (const part of parts.filter(p => p.family === 'magnet' && p.attributes['shape'] !== 'block'))

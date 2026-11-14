@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
 import { activeParts, artifactFormat, findModel, linkedPartData, modelSourcePaths, partUsage, scadDefines, springBallDetent, validateParameters, type ParameterValues } from './models.ts';
 import { assemblyScale, resolveAssembly } from './assembly.ts';
-import { modelBom, RenderRequestSchema } from './index.ts';
+import { modelBom, parameterString, RenderRequestSchema } from './index.ts';
 import { dimensionOf, findPart, parts } from './parts/index.ts';
 import {
   DETENT, DETENT_BALLS, DETENT_SET_SCREWS, DETENT_SPRINGS, DETENT_THREADS, HEX_KEYS, lipOverlap, protrusionRange, SPRING_BALL_DETENT_DEFAULT,
@@ -40,7 +40,7 @@ describe('spring ball detent contract', () => {
     expect([...DETENT_SPRINGS]).toEqual(parts.filter(p => p.family === 'spring').map(p => p.id));
     expect([...DETENT_SET_SCREWS]).toEqual(parts.filter(p => p.family === 'set-screw').map(p => p.id));
     for (const id of [defaults['ball'], defaults['spring'], defaults['setScrew']])
-      expect(partUsage(part(String(id))).map(use => use.modelId)).toContain('spring-ball-detent');
+      expect(partUsage(part(parameterString(id))).map(use => use.modelId)).toContain('spring-ball-detent');
     expect(linkedPartData(springBallDetent).map(entry => entry.id)).toEqual([...DETENT_BALLS, ...DETENT_SPRINGS, ...DETENT_SET_SCREWS]);
   });
 
