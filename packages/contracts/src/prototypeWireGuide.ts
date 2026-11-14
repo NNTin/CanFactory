@@ -66,13 +66,14 @@ function channelWidths(design: WireGuideDesign): number[] {
   });
 }
 
-/** Moves `value` off each of `planes` by at least 0.02 mm (upwards), so that a pocket's top never coincides with another face. */
-function offPlanes(value: number, planes: readonly number[]): number {
+/** Moves `value` off each of `planes` by at least 0.02 mm (upwards, or downwards for `direction` -1), so that a pocket's top or
+ * side never coincides with another face. */
+function offPlanes(value: number, planes: readonly number[], direction: 1 | -1 = 1): number {
   let result = value;
   for (let pass = 0; pass < planes.length + 1; pass++) {
     const near = planes.find(plane => Math.abs(result - plane) < 0.02);
     if (near === undefined) break;
-    result = near + 0.02;
+    result = near + direction * 0.02;
   }
   return result;
 }
@@ -171,14 +172,26 @@ export function wireGuideGeometry(design: WireGuideDesign): WireGuidePrintGeomet
 
     // --- pockets over the obstacles that reach the print's underside ---
     const planes = [zBase, plateTop, zTop, ...layers.flatMap(layer => [layer.floor, ...layer.bridgeBottom === null ? [] : [layer.bridgeBottom]])];
+    // A pocket's sides (a round one's extremes along X and Y) are moved out off the channels' sides and the block's: a channel
+    // half its width + the clearance from a body would have a side on the pocket's, which leaves float32 slivers or breaks the mesh.
+    const [xSides, ySides] = [[x0, x1], [y0, y1]];
+    for (const { wire, width } of wires) for (const [column, row] of [wire.from, ...wire.path, wire.to]) {
+      const { x, y } = mm(column, row);
+      xSides.push(x - width / 2, x + width / 2); ySides.push(y - width / 2, y + width / 2);
+    }
     const c = G.pocketClearance;
     const pockets = obstacles.flatMap((keepout): WireGuidePrintGeometry['pockets'] => {
       const height = outline.t + keepout.height + c;
       if (height <= zBase) return [];
       const top = round(height >= zTop - G.minimumSkin ? zTop + 1 : offPlanes(Math.max(height, zBase + 0.3), planes));
-      return keepout.kind === 'box'
-        ? [{ kind: 'box', x: round(keepout.x - c), y: round(keepout.y - c), w: round(keepout.w + 2 * c), h: round(keepout.h + 2 * c), top }]
-        : [{ kind: 'cylinder', x: keepout.cx, y: keepout.cy, d: round(keepout.d + 2 * c), top }];
+      if (keepout.kind === 'cylinder') {
+        const { cx, cy } = keepout;
+        const radius = offPlanes(keepout.d / 2 + c, [...xSides.map(x => Math.abs(x - cx)), ...ySides.map(y => Math.abs(y - cy))]);
+        return [{ kind: 'cylinder', x: cx, y: cy, d: round(2 * radius), top }];
+      }
+      const [left, right] = [offPlanes(keepout.x - c, xSides, -1), offPlanes(keepout.x + keepout.w + c, xSides)];
+      const [front, back] = [offPlanes(keepout.y - c, ySides, -1), offPlanes(keepout.y + keepout.h + c, ySides)];
+      return [{ kind: 'box', x: round(left), y: round(front), w: round(right - left), h: round(back - front), top }];
     });
 
     return {

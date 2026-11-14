@@ -1439,9 +1439,11 @@ try {
   }
   // Prototype-board wire guide: every checked-in sample design (models/prototype-wire-guide/samples): one print on one level
   // (perfboard, mounting-hole bosses, pockets over a DIP and through a tall capacitor), crossings on two levels with a per-wire
-  // thicker wire (perfboard, edge clips), three prints by region (stripboard), and a Perma-Proto's rails and strips. Each print one
-  // closed solid in the ZIP, at its block's size, checked by checkWireGuide (tools/wire-guide-checks.ts): channels, bridges over
-  // the lower channels' tunnels, funnels, pockets, bosses and clips where the encoder put them; the ZIP served on its route.
+  // thicker wire (perfboard, edge clips), three prints by region (stripboard), a Perma-Proto's rails and strips, wire ends beside a
+  // mounting hole under its boss's column (stripboard), bodies whose pockets would have a side on a channel's, and KiPrint's three
+  // plan_guide designs. Each print one closed solid in the ZIP, at its block's size, checked by checkWireGuide
+  // (tools/wire-guide-checks.ts): channels, bridges over the lower channels' tunnels, funnels and their bores down to the board,
+  // pockets, bosses and clips where the encoder put them; the ZIP served on its route.
   for (const [name, design] of !only || only === 'prototype-wire-guide' ? wireGuideSamples(repositoryRoot) : []) {
     const started = Date.now();
     const parameters = { design };

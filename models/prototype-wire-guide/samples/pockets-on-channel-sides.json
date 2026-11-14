@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "boardPartId": "generic-proto-board-40x60",
+  "wirePartId": "alpha-wire-3051-1",
+  "wires": [
+    { "id": "W1", "from": [2, 3], "to": [12, 3], "path": [], "level": 0 },
+    { "id": "W2", "from": [2, 6], "to": [12, 6], "path": [], "level": 0 },
+    { "id": "W3", "from": [2, 9], "to": [12, 9], "path": [], "level": 0 },
+    { "id": "W4", "from": [2, 12], "to": [12, 12], "path": [], "level": 0 }
+  ],
+  "prints": [
+    { "id": "G1", "wireIds": ["W1", "W2", "W3", "W4"] }
+  ],
+  "guide": { "registration": "mounting-holes", "coverThickness": 1.2, "channelClearance": 0.25, "funnelTopDiameter": 2, "funnelBottomDiameter": 1, "funnelStandoff": 1 },
+  "keepouts": [
+    { "kind": "box", "x": 16.03, "y": 12.2843, "w": 15.24, "h": 1.5, "height": 1 },
+    { "kind": "box", "x": 16.03, "y": 19.9043, "w": 15.24, "h": 1.5, "height": 10 },
+    { "kind": "cylinder", "cx": 23.65, "cy": 30.0243, "d": 5, "height": 2 },
+    { "kind": "cylinder", "cx": 23.65, "cy": 37.6443, "d": 5, "height": 10 }
+  ]
+}

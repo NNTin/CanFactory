@@ -149,8 +149,13 @@ Each print is drawn where it sits on the board (the board's frame), the right wa
   passes under it, in a tunnel at least as tall as the widest channel.
 - **Funnels.** Every wire end has a funnel: a cone from the outlet (`funnelBottomDiameter`) at the underside to the opening
   (`funnelTopDiameter`) just above the plate's top, then a shaft of the opening's diameter up through the top.
+  - Below the underside, the outlet goes on as a bore 0.3 mm into the board's thickness. A boss's column or a clip's foot
+    standing on the board beside the hole is cut through and never closes it. On a stripboard, the four holes 2.54 mm from a
+    mounting hole lie under its boss's column.
 - **Pockets.** Every component body and keep-out is pocketed from below, grown by 0.3 mm on every side and on top.
   - A pocket that would leave less than 0.4 mm under the top goes through the print.
+  - A pocket side (or a round pocket's edge along X or Y) within 0.02 mm of a channel's or the block's side moves 0.02 mm
+    further out. Coincident sides leave float32 slivers, or a mesh that can't be repaired.
   - A body lower than the underside gets no pocket.
   - A print may therefore be several bodies (`separateBodies`), though the samples are one.
 - **Registration.**
@@ -169,6 +174,9 @@ Each print is drawn where it sits on the board (the board's frame), the right wa
 - Give the real body envelope. The renderer adds its own 0.3 mm clearance (`WIRE_GUIDE_GEOMETRY.pocketClearance`).
 - Keep-outs may overlap each other, the outline and print boundaries. Validation keeps channels clear of them by half a
   channel's width, and wire ends off them. Component pins may lie under their body.
+- Half a channel's width is all the renderer needs. Its 0.3 mm pocket clearance may cut into a channel's side, which leaves the
+  channel open. A router doesn't need to add the clearance to its own margin.
+- With `mounting-holes` registration, wire ends may use the holes beside a mounting hole (see Funnels).
 
 ### Samples and tests
 
@@ -180,10 +188,15 @@ The sample designs in `models/prototype-wire-guide/samples/` are:
 | `perfboard-two-levels.json` | perfboard | crossings on two levels, a per-wire 22 AWG override; edge clips |
 | `stripboard-three-prints.json` | stripboard | three prints by region |
 | `perma-proto-bus.json` | Perma-Proto | rails and strips (bus) |
+| `stripboard-boss-neighbours.json` | stripboard | wire ends on the four holes beside a mounting hole, under its boss's column |
+| `pockets-on-channel-sides.json` | perfboard | box and round bodies exactly half a channel + 0.3 mm from their channels |
+| `kiprint-perma-proto-timer.json` | Perma-Proto quarter | KiPrint's `plan_guide` output: 4 components, 8 wires on 2 levels |
+| `kiprint-crossing-two-levels.json` | perfboard | KiPrint: 4 wires on 3 levels, crossing |
+| `kiprint-stripboard-regulator.json` | stripboard | KiPrint: a 19 mm tall TO-220, pocketed through |
 
 - `npm run test:renderer` (`TEST_ONLY=prototype-wire-guide`) renders each sample. It checks every print with
-  `tools/wire-guide-checks.ts` against the encoder's geometry: one closed solid; open channels, tunnels and funnels; solid
-  bridges, plate, pins and clips; open pockets.
+  `tools/wire-guide-checks.ts` against the encoder's geometry: one closed solid with no float32 repairs; open channels, tunnels
+  and funnels, each funnel's bore open down to the board; solid bridges, plate, pins and clips; open pockets.
 - The unit tests cover the samples, the numbers-only encoding, the bounds, and the API–worker parity of issues.
 
 ### Editor

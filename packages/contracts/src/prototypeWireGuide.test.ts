@@ -13,8 +13,13 @@ const leaves = (value: unknown): unknown[] => Array.isArray(value) ? value.flatM
 
 describe('prototype-wire-guide samples', () => {
   const names = readdirSync(SAMPLES).filter(name => name.endsWith('.json'));
-  it('are checked in for one level, two levels with crossings, three prints and each board pattern', () => {
-    expect(names.sort()).toEqual(['perfboard-one-level.json', 'perfboard-two-levels.json', 'perma-proto-bus.json', 'stripboard-three-prints.json']);
+  it('are checked in for one level, two levels with crossings, three prints, each board pattern, KiPrint’s designs and the edge cases', () => {
+    expect(names.sort()).toEqual([
+      'kiprint-crossing-two-levels.json', 'kiprint-perma-proto-timer.json', 'kiprint-stripboard-regulator.json',
+      'perfboard-one-level.json', 'perfboard-two-levels.json', 'perma-proto-bus.json', 'pockets-on-channel-sides.json',
+      'stripboard-boss-neighbours.json', 'stripboard-three-prints.json',
+    ]);
+    expect(names.filter(name => name.startsWith('kiprint-')).every(name => sample(name).source?.tool === 'kiprint')).toBe(true);
     const patterns = new Set(names.map(name => findPart(sample(name).boardPartId)?.attributes['pattern']));
     expect([...patterns].sort()).toEqual(['breadboard strips and rails', 'isolated pads', 'strips']);
   });
@@ -88,6 +93,26 @@ describe('wireGuideGeometry', () => {
     expect(dip?.top).toBeCloseTo(1.6 + 1.5 + WIRE_GUIDE_GEOMETRY.pocketClearance, 6);
     expect(wireGuideGeometry(DEFAULT_WIRE_GUIDE_DESIGN)[0]?.pockets[0]?.top).toBeGreaterThan(print.block.zTop);
     expect(capacitor?.top).toBeGreaterThan(print.block.zTop);
+  });
+  it('moves a pocket’s sides, and a round pocket’s extremes, 0.02 mm out off the channels’ sides', () => {
+    const design = sample('pockets-on-channel-sides.json');
+    const [print] = wireGuideGeometry(design);
+    if (!print) throw new Error('Expected a print.');
+    const c = WIRE_GUIDE_GEOMETRY.pocketClearance;
+    // each body is half a channel + the clearance above its wire: the pocket's near side would lie on the channel's
+    const sides = print.wires.map(wire => (print.grid.y0 + must(wire.points[0])[1] * print.grid.pitch) + wire.width / 2);
+    print.pockets.forEach((pocket, index) => {
+      const keepout = must(design.keepouts?.[index]);
+      const near = pocket.kind === 'box' ? pocket.y : pocket.y - pocket.d / 2;
+      expect(near).toBeCloseTo(must(sides[index]) - 0.02, 4);
+      if (pocket.kind === 'box' && keepout.kind === 'box') {
+        expect(pocket.y + pocket.h).toBeCloseTo(keepout.y + keepout.h + c, 4); // the far side is clear of every side: unchanged
+        expect([pocket.x, pocket.w]).toEqual([keepout.x - c, keepout.w + 2 * c].map(value => Math.round(value * 10000) / 10000));
+      }
+    });
+    // KiPrint's designs keep their pockets as the bodies + the clearance
+    const [timer] = wireGuideGeometry(sample('kiprint-perma-proto-timer.json'));
+    expect(timer?.pockets.map(pocket => pocket.kind === 'box' ? pocket.w : pocket.d)).toEqual([9.87, 6.9, 5.6, 6.4]);
   });
   it('compresses a print’s levels to the ones it uses', () => {
     const design = sample('stripboard-three-prints.json');
