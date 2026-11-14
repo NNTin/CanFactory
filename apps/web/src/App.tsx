@@ -26,7 +26,7 @@ import { TrolleyTokenIllustration } from './TrolleyTokenIllustration.tsx';
 import { LighterKeychainIllustration } from './LighterKeychainIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { AssistantPanel, useAssistantConfig } from './assistant/index.tsx';
-import { controllerSlot, createCanfactoryController, createEditorSession, editorSession, takePendingParameters, type EditorState } from './assistant/controller.ts';
+import { createCanfactoryController, createEditorSession, editorHandle, editorSession, takePendingParameters, type EditorState } from './assistant/controller.ts';
 import { CatioOverview } from './CatioOverview.tsx';
 import { CatioPlannerRoute } from './CatioPlannerRoute.tsx';
 import { CatioSubassemblyRoute } from './CatioSubassemblyPage.tsx';
@@ -676,8 +676,8 @@ export function App() {
   const buyList = useBuyList();
   const assistant = useAssistantConfig();
   useEffect(() => {
-    controllerSlot.set(createCanfactoryController({ openModel: id => { navigate({ view: 'models', model: id }); }, savedParameters: restoreSettings }));
-    return () => { controllerSlot.set(null); };
+    editorHandle.setController(createCanfactoryController({ openModel: id => { navigate({ view: 'models', model: id }); }, savedParameters: restoreSettings }));
+    return () => { editorHandle.setController(null); };
   }, [navigate]);
 
   const shell = <div className="app-shell">

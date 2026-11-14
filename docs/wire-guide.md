@@ -209,3 +209,9 @@ The editor's document field (`apps/web/src/WireGuideField.tsx`) shows:
 
 An imported file is checked in the browser with the same function. Only a valid design replaces the current one; an invalid
 one is listed with its issues. So the model works without the assistant.
+
+The assistant opens a design with `canfactory_open_wire_guide_design` (`apps/web/src/assistant/controller.ts`). It checks the
+design with `validateWireGuideDesign` first and returns the same `{ path, message }` issues as
+`canfactory_validate_wire_guide_design`, opening nothing. A valid design replaces the editor's own, through the editor's
+parameters as an import does, so the editor's render queue and its one-job rule apply. `canfactory_set_model_parameters`
+rejects this model: a design is never set as a parameter.
