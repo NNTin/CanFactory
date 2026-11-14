@@ -28,6 +28,9 @@ jobs:
   validate:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -35,6 +38,8 @@ jobs:
           node-version: 22.22.3
           cache: npm
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run check
       - run: npm run build
       - name: Install checksum-verified Helm and schema validator
@@ -70,6 +75,9 @@ jobs:
       - name: Publish immutable application images
         # Layer cache in GHCR: unchanged layers (base, production node_modules) keep their digests across builds,
         # so the cluster pulls only the app layer. develop writes it; pull requests read it and reuse develop's layers.
+        # The build stage's npm ci reads GitHub Packages: the token is a BuildKit secret, never a build argument (provenance).
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p release
           for role in api worker web; do
@@ -79,7 +87,7 @@ jobs:
             docker buildx build --platform linux/amd64 --target "$role" \
               --tag "ghcr.io/nntin/canfactory-$role:sha-$REVISION" \
               --label "org.opencontainers.image.revision=$REVISION" \
-              --build-arg "GIT_COMMIT_SHA=$REVISION" \
+              --build-arg "GIT_COMMIT_SHA=$REVISION" --secret id=node_auth_token,env=NODE_AUTH_TOKEN \
               --cache-from "type=registry,ref=$cache" "${cache_to[@]}" \
               --metadata-file "release/$role.json" --provenance=mode=max --sbom=true --push .
           done

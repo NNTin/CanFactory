@@ -1,8 +1,22 @@
+{{- $assistant := .Values.web.assistant }}
+{{- $connect := list "'self'" }}
+{{- if $assistant.enabled }}
+{{- $edge := urlParse (required "web.assistant.edgeBaseUrl is required when the assistant is enabled" $assistant.edgeBaseUrl) }}
+{{- /* The assistant's edge, and api.github.com: the browser reads the signed-in user from it with the token directly (#152). */}}
+{{- $connect = concat $connect (list (printf "%s://%s" $edge.scheme $edge.host) "https://api.github.com") }}
+{{- end }}
+{{- /* Keep in step with docker/nginx.conf; apps/web/src/assistant/csp.test.ts compares them. */}}
+{{- /* The physics worker's own policy: MuJoCo's Emscripten bindings build their call wrappers with new Function(), so the worker,
+       and only the worker, allows 'unsafe-eval' (a dedicated worker takes its CSP from its script's response). */}}
+{{- $workerCsp := "default-src 'self'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; connect-src 'self'; object-src 'none'; base-uri 'self'" }}
+{{- $csp := printf "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.githubusercontent.com; font-src 'self' data:; connect-src %s; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" (join " " $connect) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}-web
 data:
+  # The web app's runtime config (apps/web/src/assistant/config.ts), read at startup instead of baked into the build.
+  config.json: {{ dict "assistant" (dict "enabled" $assistant.enabled "edgeBaseUrl" $assistant.edgeBaseUrl "githubClientId" $assistant.githubClientId) | toJson | quote }}
   nginx.conf: |
     worker_processes auto;
     pid /tmp/nginx.pid;
@@ -22,13 +36,25 @@ data:
         root /usr/share/nginx/html;
         index index.html;
         location /api/ { return 404; }
+        # Every location repeats the header: nginx drops a server's add_header in a location that adds its own.
+        location ~ ^/assets/physicsWorker-[^/]+\.js$ {
+          expires 1y;
+          add_header Cache-Control "public, immutable";
+          add_header Content-Security-Policy "{{ $workerCsp }}" always;
+        }
         location /assets/ {
           expires 1y;
           add_header Cache-Control "public, immutable";
+          add_header Content-Security-Policy "{{ $csp }}" always;
+        }
+        location = /config.json {
+          alias /etc/nginx/canfactory/config.json;
+          add_header Cache-Control "no-cache";
         }
         location / {
           try_files $uri $uri/ /index.html;
           add_header Cache-Control "no-cache";
+          add_header Content-Security-Policy "{{ $csp }}" always;
         }
       }
     }

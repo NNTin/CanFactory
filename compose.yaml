@@ -9,6 +9,10 @@ x-storage-env: &storage-env
   S3_SECRET_ACCESS_KEY: compose-garage-secret-0000000000000000
   S3_CATALOGUE_BUCKET: canfactory-catalogue
   S3_GENERATED_BUCKET: canfactory-generated
+# Every image builds the Dockerfile's `build` stage, whose `npm ci` reads GitHub Packages: run Compose with NODE_AUTH_TOKEN set
+# (locally `NODE_AUTH_TOKEN=$(gh auth token) docker compose up --build`).
+x-build-secrets: &build-secrets
+  secrets: [node_auth_token]
 services:
   postgres:
     # Keep in step with tools/storage-services.ts.
@@ -46,6 +50,7 @@ services:
     build:
       context: .
       target: api
+      <<: *build-secrets
     command: ["node", "--import", "tsx", "tools/maintenance.ts", "buckets", "release"]
     environment: *storage-env
     depends_on:
@@ -58,6 +63,7 @@ services:
     build:
       context: .
       target: api
+      <<: *build-secrets
     command: ["sh", "-c", "while node --import tsx tools/maintenance.ts cleanup; do sleep 60; done"]
     restart: unless-stopped
     environment: *storage-env
@@ -68,6 +74,7 @@ services:
     build:
       context: .
       target: api
+      <<: *build-secrets
     init: true
     restart: unless-stopped
     environment: *storage-env
@@ -84,6 +91,7 @@ services:
     build:
       context: .
       target: worker
+      <<: *build-secrets
     init: true
     restart: unless-stopped
     environment: *storage-env
@@ -102,6 +110,7 @@ services:
     build:
       context: .
       target: web
+      <<: *build-secrets
     restart: unless-stopped
     networks:
       default:
@@ -117,6 +126,9 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+secrets:
+  node_auth_token:
+    environment: NODE_AUTH_TOKEN
 volumes:
   postgres:
   garage:

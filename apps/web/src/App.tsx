@@ -1,6 +1,6 @@
 import { Esp32CaseIllustration } from './Esp32CaseIllustration.tsx';
 import { MagneticCatToyIllustration } from './MagneticCatToyIllustration.tsx';
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Atom, BookOpen, Box, Check, ChevronDown, CircleAlert, FileUp, Layers3, LoaderCircle, RotateCcw, ShoppingBasket, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from '@canfactory/client';
 import { artifactFormat, controlRange, controlShown, decodeLogo, findModel, findPartFamily, modelBom, models, modelUsage, offeredOptions, parts, partOptionOffered, resolveAssembly, SVG_MAX_BYTES, SvgError, svgToLogo, validateParameters, type Control, parameterString, type ModelDefinition, type ParameterValue, type ParameterValues } from '@canfactory/contracts';
@@ -25,6 +25,8 @@ import { WandHolderIllustration } from './WandHolderIllustration.tsx';
 import { TrolleyTokenIllustration } from './TrolleyTokenIllustration.tsx';
 import { LighterKeychainIllustration } from './LighterKeychainIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
+import { AssistantPanel, useAssistantConfig } from './assistant/index.tsx';
+import { controllerSlot, createCanfactoryController, createEditorSession, editorSession, takePendingParameters, type EditorState } from './assistant/controller.ts';
 import { CatioOverview } from './CatioOverview.tsx';
 import { CatioPlannerRoute } from './CatioPlannerRoute.tsx';
 import { CatioSubassemblyRoute } from './CatioSubassemblyPage.tsx';
@@ -498,7 +500,8 @@ function RenderProblemBanner({ problem, retry }: { problem: RenderProblem; retry
 }
 
 function Editor({ model }: { model: ModelDefinition }) {
-  const [parameters, setParameters] = useState<ParameterValues>(() => restoreSettings(model));
+  // Parameters the assistant set while opening this model come first (assistant/controller.ts).
+  const [parameters, setParameters] = useState<ParameterValues>(() => takePendingParameters(model) ?? restoreSettings(model));
   const [advanced, setAdvanced] = useState(false);
   const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
   const [viewerError, setViewerError] = useState<string | null>(null);
@@ -529,6 +532,21 @@ function Editor({ model }: { model: ModelDefinition }) {
     try { localStorage.setItem(settingsKey(model), JSON.stringify(parameters)); } catch { /* Optional local preference storage. */ }
   }, [parameters, model, valid]);
   useEffect(() => { setViewerError(null); setDownloadError(null); }, [url]);
+  // What the assistant's editor tools read and change: the latest state after every render, and the same path a control takes.
+  const latest = useRef<EditorState | null>(null);
+  useEffect(() => {
+    latest.current = {
+      modelId: model.id, modelVersion: model.version, title: model.title, parameters, issues,
+      render: {
+        status: !valid ? 'invalid' : error ? 'failed' : ready ? 'ready' : rendering.phase === 'queued' ? 'queued' : rendering.phase === 'running' ? 'rendering' : 'updating',
+        error, dimensions: artifact?.dimensions ?? null, parts: artifact?.parts?.length ?? null, volumeMm3: artifact?.volume ?? null,
+      },
+    };
+  });
+  useEffect(() => {
+    editorSession.set(createEditorSession(model, () => latest.current, next => { setParameters(next); setDownloadError(null); setViewerError(null); }));
+    return () => { editorSession.set(null); };
+  }, [model]);
 
   const change = (key: string, value: ParameterValue) => {
     setParameters(current => {
@@ -656,8 +674,13 @@ export function App() {
   const family = partsRoute?.family ? findPartFamily(partsRoute.family) : undefined;
   const shopping = useMarket();
   const buyList = useBuyList();
+  const assistant = useAssistantConfig();
+  useEffect(() => {
+    controllerSlot.set(createCanfactoryController({ openModel: id => { navigate({ view: 'models', model: id }); }, savedParameters: restoreSettings }));
+    return () => { controllerSlot.set(null); };
+  }, [navigate]);
 
-  return <div className="app-shell">
+  const shell = <div className="app-shell">
     <header className="site-header"><button className="brand" type="button" aria-label="CanFactory model library" onClick={openLibrary}><span className="brand-mark"><Layers3 size={24} strokeWidth={1.7} /></span>CanFactory<span className="brand-dot">.</span></button>
       <span className="header-tagline">A little factory for useful things.</span><div className="header-right">
         <button type="button" className="library-link" aria-current={route.view === 'models' ? 'page' : undefined} onClick={openLibrary}>Model library <span>{models.length.toString().padStart(2, '0')}</span></button>
@@ -694,4 +717,6 @@ export function App() {
     </main>
     <footer className="site-footer"><span>MAKE IT FIT. MAKE IT REAL.</span><span>CanFactory · Your local workshop · <a className="footer-link" href={formatHash({ view: 'disclosure' })}>Disclosure</a> · <a className="footer-link" href={formatHash({ view: 'privacy' })}>Privacy</a> · <BuildCommit /></span></footer>
   </div>;
+  // With the assistant off (runtime config), the page is exactly as before: no frame, no panel, and its code never loads.
+  return assistant ? <div className="app-frame">{shell}<AssistantPanel config={assistant} /></div> : shell;
 }
