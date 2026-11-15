@@ -1,3 +1,4 @@
+import { RubberBandLauncherParametersSchema, rubberBandLauncherAssembly } from './rubberBandLauncher.ts';
 import { TrolleyTokenParametersSchema, trolleyTokenAssembly } from './trolleyToken.ts';
 import { DEFAULT_LIGHTER_KEYCHAIN, MagneticLighterKeychainParametersSchema, lighterKeychainAssembly, lighterKeychainIssues, lighterKeychainNotes, lighterKeychainReferences, KEYCHAIN_MAGNETS, KEYCHAIN_SPLIT_RINGS } from './magneticLighterKeychain.ts';
 import { DEFAULT_WAND_HOLDER, WAND_HOLDER, WandHolderParametersSchema, wandHolderAssembly, wandHolderFlex, wandHolderIssues, wandHolderLayout } from './wandHolder.ts';
@@ -3934,8 +3935,29 @@ export const trolleyToken = {
   derived: () => ({ slotCount: null, notes: ['Required hardware: a metal torsion spring and axle (the author uses 2.5 mm). Drill the original 1 mm pilot holes to suit.', 'Both printable parts retain jhappone’s original geometry.'] }),
 } satisfies ModelDefinition;
 
+/** FerryTeacher's print-in-place rubber band launcher: its two bodies, reconstructed as SCAD and verified against the STL. */
+export const rubberBandLauncher = {
+  id: 'rubber-band-launcher' as const, version: '1' as const, title: 'Rubber band launcher',
+  description: 'FerryTeacher’s rubber band pistol: a frame with a barrel, a notch at the back of its top edge and an oval grip, and a ridged trigger that turns on two pins between the frame’s side plates. The two print together in place, the trigger already held on its pins. Both are reconstructed from the original STL as editable SCAD and verified against it; the preview pulls the trigger to its stop.',
+  attribution: 'FerryTeacher (Cults3D)',
+  attributionLinks: [{ text: 'FerryTeacher', url: 'https://cults3d.com/en/users/FerryTeacher' }, { text: 'Cults3D', url: 'https://cults3d.com/en/3d-model/game/rubber-band-launcher' }],
+  printNotes: 'Print in place: load frame.stl and trigger.stl together at their own coordinates (as one object with two parts), standing on the barrel’s top edge as provided, so that the trigger is printed on its pins inside the frame. Do not move either part; the pins only fit as printed. Free the trigger gently after printing. Non-commercial use only (CC BY-NC-SA): do not sell the prints or the files, and share adaptations under the same licence.',
+  // ShareAlike: these reconstructions are adaptations of a CC BY-NC-SA design (models/rubber-band-launcher/ATTRIBUTION.md).
+  license: 'CC BY-NC-SA', licenseUrl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+  parts: [
+    { id: 'frame', title: 'Frame', sourcePath: 'models/rubber-band-launcher/frame.scad', scadMapping: {} },
+    { id: 'trigger', title: 'Trigger', sourcePath: 'models/rubber-band-launcher/trigger.scad', scadMapping: {} },
+  ],
+  assembly: rubberBandLauncherAssembly,
+  parameterSchema: RubberBandLauncherParametersSchema, controls: [], defaults: {}, scadMapping: {},
+  validate(parameters: unknown): ParameterIssue[] {
+    return Value.Check(RubberBandLauncherParametersSchema, parameters) ? [] : [{ field: '', message: 'This source design has no adjustable settings.' }];
+  },
+  derived: () => ({ slotCount: null, notes: ['Print both parts together, in place: the trigger is captured on its pivot pins as it prints.', 'Non-commercial use only (CC BY-NC-SA).'] }),
+} satisfies ModelDefinition;
+
 /** The one registration of each catalogue model. A `const` tuple, so that `RenderRequestSchema` (index.ts) derives a typed branch per model from it. */
-export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser, miterBox, wandHolder, magneticLighterKeychain, trolleyToken, prototypeWireGuide] as const satisfies readonly ModelDefinition[];
+export const registeredModels = [fruitFlyTrap, mossPlanter, cigaretteCase, plankConnector, litterShovel, aiRubberDuck, toggleLatch, outsideCornerToggleLatch, pressurePad, windowCatGuard, qrMagnetTag, printedCornerBracket, printedScreenHook, springBallDetent, catCollarTag, cameraHousing, magneticCatToy, esp32C3SuperminiCase, treatDispenser, miterBox, wandHolder, magneticLighterKeychain, trolleyToken, prototypeWireGuide, rubberBandLauncher] as const satisfies readonly ModelDefinition[];
 export const models: readonly ModelDefinition[] = registeredModels;
 
 export function findModel(id: string): ModelDefinition | undefined { return models.find(model => model.id === id); }

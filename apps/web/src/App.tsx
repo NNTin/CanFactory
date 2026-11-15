@@ -23,6 +23,7 @@ import { TreatDispenserIllustration } from './TreatDispenserIllustration.tsx';
 import { MiterBoxIllustration } from './MiterBoxIllustration.tsx';
 import { WandHolderIllustration } from './WandHolderIllustration.tsx';
 import { TrolleyTokenIllustration } from './TrolleyTokenIllustration.tsx';
+import { RubberBandLauncherIllustration } from './RubberBandLauncherIllustration.tsx';
 import { LighterKeychainIllustration } from './LighterKeychainIllustration.tsx';
 import { useRender, type RenderProblem } from './useRender.ts';
 import { AssistantPanel, useAssistantConfig } from './assistant/index.tsx';
@@ -308,6 +309,7 @@ const ILLUSTRATIONS: Record<string, () => ReactElement> = {
   'wand-holder': WandHolderIllustration,
   'magnetic-lighter-keychain': LighterKeychainIllustration,
   'trolley-token': TrolleyTokenIllustration,
+  'rubber-band-launcher': RubberBandLauncherIllustration,
 };
 
 /** The sub-range of a number control recommended for the current value of one other control (Control.recommended): `label` names

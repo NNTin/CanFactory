@@ -4032,5 +4032,40 @@
    }
   ],
   "variants": {}
+ },
+ "rubber-band-launcher": {
+  "defaults": [
+   {
+    "file": "openscad",
+    "args": [
+     "--backend",
+     "Manifold",
+     "--export-format",
+     "binstl",
+     "-o",
+     "<scratch>/job/frame.stl",
+     "<root>/models/rubber-band-launcher/frame.scad"
+    ],
+    "timeout": 120000,
+    "killSignal": "SIGKILL",
+    "fontPath": "<root>/models/fonts"
+   },
+   {
+    "file": "openscad",
+    "args": [
+     "--backend",
+     "Manifold",
+     "--export-format",
+     "binstl",
+     "-o",
+     "<scratch>/job/trigger.stl",
+     "<root>/models/rubber-band-launcher/trigger.scad"
+    ],
+    "timeout": 120000,
+    "killSignal": "SIGKILL",
+    "fontPath": "<root>/models/fonts"
+   }
+  ],
+  "variants": {}
  }
 }
