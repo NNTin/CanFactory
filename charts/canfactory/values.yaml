@@ -9,10 +9,11 @@ images:
     repository: ghcr.io/nntin/canfactory-worker
     digest: ""
   # KiPrint's MCP server (#152 §6): built and published by NNTin/KiPrint, not by this repository's workflow, so
-  # tools/stamp-chart-digests.py leaves it as it is. Bump it to the digest KiPrint's CI publishes (KiPrint main 24211222).
+  # tools/stamp-chart-digests.py leaves it as it is. Bump it to the digest KiPrint's CI publishes (KiPrint main 417ae4c).
+  # Only a default: preview's KiPrint image is set by Flux automation in the infrastructure repo (NNTin/lair.nntin.xyz, #163).
   kiprint:
     repository: ghcr.io/nntin/kiprint
-    digest: "sha256:8ef62c668ab98f25e4fc97e864411f4cb186bb868853783ba82e613f5352fd58"
+    digest: "sha256:fc47853718c5628abf915c6754c45b5874a39fb2d381738f34b8304085d35ae2"
 imagePullSecrets: []
 # Deployments count image pulls toward the progress deadline too; slow links must not mark a rollout failed.
 rollout:
