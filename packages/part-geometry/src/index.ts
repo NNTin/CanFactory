@@ -322,7 +322,11 @@ function spring(part: Part): Piece[] {
  * How a part is drawn where it is fitted, when that differs from the part as sold: a torsion spring wound by `wind` degrees from its
  * free leg position, with its legs cut to `legs` mm (first the leg at the start of the coil, then the one at its end).
  */
-export interface PartShape { wind?: number; legs?: readonly [number, number] }
+/**
+ * How a part is fitted, for parts whose shape depends on it: a torsion spring wound by `wind` degrees, its legs cut to `legs`; a
+ * rubber band stretched round `loop`, a convex outline (x, y in mm, in its own XY plane), which it hugs from outside.
+ */
+export interface PartShape { wind?: number; legs?: readonly [number, number]; loop?: readonly (readonly [number, number])[] }
 
 /**
  * A torsion spring, closely wound, with straight tangential legs: the coil's axis is Z, its body from z = 0 up. The first leg
@@ -376,10 +380,45 @@ function nfcTag(part: Part): Piece[] {
 
 const RUBBER = 0xc8a46a;
 
-function rubberBand(part: Part): Piece[] {
+function rubberBand(part: Part, shape: PartShape): Piece[] {
+  const t = value(part, 'thickness'); const w = value(part, 'width');
+  if (shape.loop) return [stretchedBand(shape.loop, t, w)];
   // a loose band: a round loop as long round as twice its flat length, its width along Z, its wall `thickness` thick
-  const r2 = value(part, 'length') / Math.PI; const r1 = r2 - value(part, 'thickness'); const w = value(part, 'width');
+  const r2 = value(part, 'length') / Math.PI; const r1 = r2 - t;
   return [ring([[r1, 0], [r2, 0], [r2, w], [r1, w]], RUBBER, 64)];
+}
+
+/**
+ * A band stretched round a convex outline (`PartShape.loop`): its inner face is the outline, its outer face the outline moved out
+ * by the band's thickness (along each corner's bisector), its width along Z from 0. One closed shell, wound outwards.
+ */
+function stretchedBand(loop: readonly (readonly [number, number])[], thickness: number, width: number): Piece {
+  let inner = loop.map(([x, y]) => new THREE.Vector2(x, y));
+  const area = inner.reduce((sum, p, i) => { const q = inner[(i + 1) % inner.length] ?? p; return sum + p.x * q.y - q.x * p.y; }, 0);
+  if (area < 0) inner = inner.reverse();
+  const n = inner.length;
+  const outer = inner.map((p, i) => {
+    const prev = inner[(i + n - 1) % n] ?? p, next = inner[(i + 1) % n] ?? p;
+    const e1 = p.clone().sub(prev).normalize(), e2 = next.clone().sub(p).normalize();
+    // outward normals of a counter-clockwise outline point right of each edge
+    const n1 = new THREE.Vector2(e1.y, -e1.x), n2 = new THREE.Vector2(e2.y, -e2.x);
+    const bisector = n1.clone().add(n2).normalize();
+    return p.clone().addScaledVector(bisector, thickness / Math.max(0.5, bisector.dot(n1)));
+  });
+  const positions: number[] = [];
+  const corner = (ring: THREE.Vector2[], i: number, z: number) => { const p = ring[i % n] ?? new THREE.Vector2(); return [p.x, p.y, z]; };
+  const quad = (a: number[], b: number[], c: number[], d: number[]) => positions.push(...a, ...b, ...c, ...a, ...c, ...d);
+  for (let i = 0; i < n; i++) {
+    const j = i + 1;
+    quad(corner(outer, i, 0), corner(outer, j, 0), corner(outer, j, width), corner(outer, i, width));
+    quad(corner(inner, j, 0), corner(inner, i, 0), corner(inner, i, width), corner(inner, j, width));
+    quad(corner(inner, i, width), corner(outer, i, width), corner(outer, j, width), corner(inner, j, width));
+    quad(corner(inner, j, 0), corner(outer, j, 0), corner(outer, i, 0), corner(inner, i, 0));
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  return paint(geometry, RUBBER);
 }
 
 function catCollar(part: Part): Piece[] {

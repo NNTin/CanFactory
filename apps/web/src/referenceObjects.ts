@@ -20,11 +20,12 @@ export type ReferenceObject = { id: string; url: string } | { id: string; geomet
 
 /** The assembly's reference objects that the viewer can show, in the order the assembly lists them. */
 export function referenceObjects(assembly: Assembly | undefined): ReferenceObject[] {
-  return (assembly?.references ?? []).flatMap(({ id, part, legs }): ReferenceObject[] => {
+  return (assembly?.references ?? []).flatMap(({ id, part, legs, loop }): ReferenceObject[] => {
     const found = findPart(part);
     if (!found) return [];
     const url = partStlUrl(found);
-    const cut = legs ? { legs: [legs[0] ?? 0, legs[1] ?? 0] as const } : {};
-    return url ? [{ id, url }] : [{ id, geometry: (wind = 0) => partGeometry(found, { ...cut, wind }), winds: found.family === 'torsion-spring' }];
+    // a torsion spring's legs as cut, a rubber band as stretched round its outline
+    const fitted = { ...legs ? { legs: [legs[0] ?? 0, legs[1] ?? 0] as const } : {}, ...loop ? { loop: loop.map(([x = 0, y = 0]) => [x, y] as const) } : {} };
+    return url ? [{ id, url }] : [{ id, geometry: (wind = 0) => partGeometry(found, { ...fitted, wind }), winds: found.family === 'torsion-spring' }];
   });
 }

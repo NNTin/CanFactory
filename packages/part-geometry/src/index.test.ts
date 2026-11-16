@@ -34,6 +34,20 @@ describe('part geometry', () => {
     expect(openEdges(geometry), part.id).toBe(0);
     geometry.dispose();
   });
+  it('draws a rubber band stretched round an outline as one closed band hugging it from outside', () => {
+    const band = parts.find(part => part.id === 'alliance-sterling-19'); if (!band) throw new Error('Missing band #19');
+    // a stadium: two pegs 30 mm apart, 2 mm round
+    const loop = [...Array.from({ length: 13 }, (_, i) => [30 + 2 * Math.cos(-Math.PI / 2 + i * Math.PI / 12), 2 * Math.sin(-Math.PI / 2 + i * Math.PI / 12)] as const),
+      ...Array.from({ length: 13 }, (_, i) => [2 * Math.cos(Math.PI / 2 + i * Math.PI / 12), 2 * Math.sin(Math.PI / 2 + i * Math.PI / 12)] as const)];
+    const geometry = partGeometry(band, { loop }); if (!geometry) throw new Error('No geometry');
+    expect(openEdges(geometry)).toBe(0);
+    geometry.computeBoundingBox();
+    const box = geometry.boundingBox ?? new THREE.Box3(), t = dimensionOf(band, 'thickness');
+    // a corner of the outline moves out along its bisector, a little more than the thickness
+    expect(box.min.x).toBeCloseTo(-2 - t, 1); expect(box.max.x).toBeCloseTo(32 + t, 1);
+    expect(box.max.y).toBeCloseTo(2 + t, 1); expect(box.max.z - box.min.z).toBeCloseTo(dimensionOf(band, 'width'), 6);
+    geometry.dispose();
+  });
   it('draws what a printed pocket must take: a magnet at its largest, an insert as the hole it is melted into', () => {
     for (const part of parts.filter(p => p.family === 'magnet' && p.attributes['shape'] !== 'block'))
       expect(size(part).x, part.id).toBeCloseTo(dimensionOf(part, 'diameter', 'max'), 1);

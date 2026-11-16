@@ -22,10 +22,12 @@ function procedural(part: Part, shape: PartShape = {}): Mesh | undefined {
   return { tris };
 }
 
-/** How a reference is fitted in the assembled pose: a torsion spring wound (`Pose.wind`), with its legs as the assembly cuts them. */
+/** How a reference is fitted in the assembled pose: a torsion spring wound (`Pose.wind`), with its legs as the assembly cuts them; a
+ * rubber band stretched round its outline (`loop`). */
 function referenceShape(assembly: Assembly, id: string, wind = assembly.poses[id]?.wind ?? 0): PartShape {
-  const legs = assembly.references?.find(reference => reference.id === id)?.legs;
-  return { wind, ...(legs ? { legs: [legs[0] ?? 0, legs[1] ?? 0] } : {}) };
+  const reference = assembly.references?.find(candidate => candidate.id === id);
+  const legs = reference?.legs, loop = reference?.loop;
+  return { wind, ...(legs ? { legs: [legs[0] ?? 0, legs[1] ?? 0] } : {}), ...(loop ? { loop: loop.map(([x = 0, y = 0]) => [x, y] as const) } : {}) };
 }
 
 /**
