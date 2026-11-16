@@ -3068,7 +3068,7 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "1";
+                    modelVersion: "2";
                     parameters: Record<string, never>;
                 };
             };
