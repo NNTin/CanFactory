@@ -4,8 +4,8 @@ Renderer: wasm — OpenSCAD version 2025.01.19 via openscad-wasm-prebuilt (Manif
 
 | Part | Result | Size Δ (mm) | Volume Δ | IoU | Mean dev (mm) | Ref tris | SCAD bytes | Render (s) |
 |---|---|---|---|---|---|---|---|---|
-| Rubber Band Launcher frame | PASS | -0.020 / -0.000 / 0.007 | -0.37 % | 0.9716 | 0.059 | 85268 | 54843 | 5.5 |
-| Rubber Band Launcher trigger | PASS | -0.002 / -0.001 / 0.003 | 0.03 % | 0.9978 | 0.006 | 34518 | 4880 | 0.7 |
+| Rubber Band Launcher frame | PASS | -0.020 / -0.000 / 0.007 | -0.37 % | 0.9716 | 0.059 | 85268 | 58977 | 5.9 |
+| Rubber Band Launcher trigger | PASS | -0.002 / -0.001 / 0.003 | 0.03 % | 0.9978 | 0.006 | 34518 | 58977 | 1.1 |
 
 ## Sources
 
@@ -19,15 +19,18 @@ separate closed bodies posed as they print together (print in place). They are s
 `Rubber Band Launcher.frame.stl` (85 268 triangles) and `Rubber Band Launcher.trigger.stl` (34 518 triangles): the
 same triangles, unchanged and unmoved, one body per file (binary STL).
 
-| STL | Part | SCAD |
+| STL | Body | SCAD |
 |---|---|---|
-| Rubber Band Launcher.frame | Frame: barrel with its tip and arm under the barrel, side plates, oval handle with grip pockets | `../frame.scad` |
-| Rubber Band Launcher.trigger | Trigger: plate with grip ridges and the two conical pivot pins | `../trigger.scad` |
+| Rubber Band Launcher.frame | Frame: barrel with its tip and arm under the barrel, side plates, oval handle with grip pockets | `../launcher.scad`, `PART="frame"` |
+| Rubber Band Launcher.trigger | Trigger: plate with grip ridges and the two conical pivot pins | `../launcher.scad`, `PART="trigger"` |
+
+The two bodies print together in place: `launcher.scad` with its default `PART="print"` is both, as one print (the
+download); each body is verified on its own.
 
 ## Method and limits
 
 Both bodies are modelled lying flat (the 20 mm thickness along Z) and stood up as the source prints them, on the
-barrel's top edge; the trigger keeps its place in the frame, so the two prints together are the original
+barrel's top edge; the trigger keeps its place in the frame, so the one print is the original
 print-in-place layout. The frame is mirror-symmetric about its mid plane except for the 0.6 mm embossed plus.
 
 - Frame, side plates (0 to 3.25 mm from each face): 14 slices, each the measured section at its middle height

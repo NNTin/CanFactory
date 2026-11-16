@@ -8,24 +8,27 @@
 **NonCommercial, ShareAlike.** Do not sell the prints or the files. CanFactory's SCAD files are adaptations and carry the
 same licence; anything you derive from them must too.
 
-The design is a rubber band pistol in two pieces that print together, in place: the **frame** (barrel, side plates, an
-arm under the barrel and an oval grip with a pocket on each side) and the **trigger**, which turns on two conical pins in
-sockets in the frame's side plates. The ZIP holds both as `frame.stl` and `trigger.stl`. The model has no adjustable settings.
+The design is a rubber band pistol made as **one print-in-place piece**: the **frame** (barrel, side plates, an arm under
+the barrel and an oval grip with a pocket on each side) and the **trigger**, which is printed on two conical pins in
+sockets in the frame's side plates. The trigger cannot be fitted after printing; once printed and freed, it turns on its
+pins. The ZIP holds the one print, `launcher.stl`, with both bodies in place. The model has no adjustable settings.
 
 ## Print
 
-Load both STLs together at their own coordinates, as one object with two parts (in PrusaSlicer or Bambu Studio: import both
-and keep their positions), standing on the barrel's top edge as provided. The trigger is printed on its pins inside the
-frame; do not move either part. The frame is 126.9 × 20.6 × 109.6 mm, the trigger 46.3 × 16.6 × 57.1 mm. After printing,
-work the trigger gently until it turns freely.
+Print `launcher.stl` as it is, standing on the barrel's top edge, without separating or moving its bodies. It is
+126.9 × 20.6 × 109.6 mm; the trigger (46.3 × 16.6 × 57.1 mm) prints inside the frame. After printing, work the trigger
+gently until it turns freely.
 
-The preview shows both parts as printed, then pulls the trigger 8° to its stop: it meets the frame's spine at about 8.5°.
-`npm run check:assembly -- rubber-band-launcher` checks the rest position and every frame of the movement for collisions.
+The preview shows the piece as printed (the frame and the trigger are separate bodies of the one print, so each can be
+hidden), frees the trigger, then pulls it 8° to its stop: it meets the frame's spine at about 8.5°.
+`npm run check:assembly -- rubber-band-launcher` checks the printed position and every frame of the movement for
+collisions between the bodies.
 
 ## Reconstruction
 
-The source is one STL (119 786 triangles) with the two bodies. Each is rebuilt as a self-contained OpenSCAD file
-(`models/rubber-band-launcher/frame.scad`, `trigger.scad`) and verified against its body with `tools/stl-to-scad`:
+The source is one STL (119 786 triangles) with the two bodies. Both are rebuilt in one self-contained OpenSCAD file,
+`models/rubber-band-launcher/launcher.scad` (`PART` = `print`, `frame` or `trigger`), and each body is verified against its
+source body with `tools/stl-to-scad`:
 
 | Part | Bounding box Δ | Volume Δ | IoU | Closed manifold |
 |---|---|---|---|---|

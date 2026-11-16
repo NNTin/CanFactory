@@ -14,15 +14,18 @@
     "`Rubber Band Launcher.frame.stl` (85 268 triangles) and `Rubber Band Launcher.trigger.stl` (34 518 triangles): the",
     "same triangles, unchanged and unmoved, one body per file (binary STL).",
     "",
-    "| STL | Part | SCAD |",
+    "| STL | Body | SCAD |",
     "|---|---|---|",
-    "| Rubber Band Launcher.frame | Frame: barrel with its tip and arm under the barrel, side plates, oval handle with grip pockets | `../frame.scad` |",
-    "| Rubber Band Launcher.trigger | Trigger: plate with grip ridges and the two conical pivot pins | `../trigger.scad` |",
+    "| Rubber Band Launcher.frame | Frame: barrel with its tip and arm under the barrel, side plates, oval handle with grip pockets | `../launcher.scad`, `PART=\"frame\"` |",
+    "| Rubber Band Launcher.trigger | Trigger: plate with grip ridges and the two conical pivot pins | `../launcher.scad`, `PART=\"trigger\"` |",
+    "",
+    "The two bodies print together in place: `launcher.scad` with its default `PART=\"print\"` is both, as one print (the",
+    "download); each body is verified on its own.",
     "",
     "## Method and limits",
     "",
     "Both bodies are modelled lying flat (the 20 mm thickness along Z) and stood up as the source prints them, on the",
-    "barrel's top edge; the trigger keeps its place in the frame, so the two prints together are the original",
+    "barrel's top edge; the trigger keeps its place in the frame, so the one print is the original",
     "print-in-place layout. The frame is mirror-symmetric about its mid plane except for the 0.6 mm embossed plus.",
     "",
     "- Frame, side plates (0 to 3.25 mm from each face): 14 slices, each the measured section at its middle height",
@@ -42,15 +45,21 @@
   "parts": [
     {
       "name": "Rubber Band Launcher frame",
-      "scad": "../frame.scad",
+      "scad": "../launcher.scad",
       "stl": "Rubber Band Launcher.frame.stl",
-      "sourceSha256": "4546ebe181ec7104b7927a6620d0a1136b64877ebe12b67785a4dd219549f4c8"
+      "sourceSha256": "4546ebe181ec7104b7927a6620d0a1136b64877ebe12b67785a4dd219549f4c8",
+      "defines": {
+        "PART": "\"frame\""
+      }
     },
     {
       "name": "Rubber Band Launcher trigger",
-      "scad": "../trigger.scad",
+      "scad": "../launcher.scad",
       "stl": "Rubber Band Launcher.trigger.stl",
-      "sourceSha256": "3ebb6cdced9ec52635b188ed7b1ce2d879026b1dc24f14e4279ef29566ebebb6"
+      "sourceSha256": "3ebb6cdced9ec52635b188ed7b1ce2d879026b1dc24f14e4279ef29566ebebb6",
+      "defines": {
+        "PART": "\"trigger\""
+      }
     }
   ]
 }

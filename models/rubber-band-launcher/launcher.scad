@@ -1,29 +1,37 @@
-// Rubber Band Launcher (frame) - OpenSCAD reconstruction.
+// Rubber Band Launcher - OpenSCAD reconstruction of the print-in-place pair: the frame and its trigger.
 //
 // Original design: "Rubber Band Launcher" by FerryTeacher (https://cults3d.com/en/users/FerryTeacher), published on
 // Cults3D (https://cults3d.com/en/3d-model/game/rubber-band-launcher) under CC BY-NC-SA (Attribution-NonCommercial-
-// ShareAlike). This file is a derivative reconstruction of the frame body of the design's STL (Rubber Band Launcher.stl)
-// made for CanFactory, and is shared under the same licence: no commercial use, and adaptations must carry the same
-// licence. It grants no additional rights to the original. See ../ATTRIBUTION.md.
+// ShareAlike). This file is a derivative reconstruction of the design's STL (Rubber Band Launcher.stl) made for
+// CanFactory, and is shared under the same licence: no commercial use, and adaptations must carry the same licence. It
+// grants no additional rights to the original. See ../ATTRIBUTION.md.
 //
-// Geometry: a 20 mm thick pistol frame, mirror-symmetric about its mid plane (z = 10) apart from the embossed plus on
-// the top face. Each half is
+// One print, two bodies: the trigger is printed on its pivot pins, inside the frame, and cannot be fitted afterwards; once
+// printed it turns on its pins. PART = "print" (the default, the download) is both, as they print; "frame" and "trigger"
+// are one body each, for comparing them with the source's two bodies (references/manifest.json).
+//
+// Frame: a 20 mm thick pistol frame, mirror-symmetric about its mid plane (z = 10) apart from the embossed plus on the
+// top face. Each half is
 //   - the side plate (0 .. PLATE_T): measured sections, one per slice of PLATE_LAYERS, which carry its edge rounding (it
 //     varies around the outline: narrow on the rail, wide on the grip);
-//   - above it, up to the mid plane: the barrel rail (RAIL_T), the arm under the barrel, and the handle and the barrel's tip with an
-//     oval cross section (HANDLE_ROUND_W x HANDLE_ROUND_H, faces at HANDLE_FACE_Z);
+//   - above it, up to the mid plane: the barrel rail (RAIL_T), the arm under the barrel, and the handle and the barrel's
+//     tip with an oval cross section (HANDLE_ROUND_W x HANDLE_ROUND_H, faces at HANDLE_FACE_Z);
 //   - minus the grip pocket (rim fillet POCKET_RIM_R, floor fillet POCKET_FLOOR_R, floor at POCKET_FLOOR_Z) and the
 //     conical socket for the trigger's pivot pin.
-// Between the plates the upper body is open (z PLATE_T .. 20 - PLATE_T): the trigger sits there. Rounded surfaces are
-// stacks of offset slices (ROUND_STEPS per quarter round). Outlines are measured sections, simplified to 0.02-0.03 mm.
-// Millimetres. Modelled lying flat (x along the barrel, y up the gun, z through the thickness), then stood up as the
-// source prints it (print_pose): on the top edge of the barrel, the side plates vertical, centred on the Z axis with its
-// base on z = 0. The trigger (trigger.scad) shares this frame: both prints together are the original print-in-place layout.
+// Between the plates the upper body is open (z PLATE_T .. 20 - PLATE_T): the trigger sits there.
+// Trigger: a 12 mm thick plate (the measured outline, edges rounded with TRIGGER_EDGE_R), five lens-shaped grip ridges
+// on its front edge, and a conical pivot pin on each face, in the frame's sockets.
+// Rounded surfaces are stacks of offset slices. Outlines are measured sections, simplified to 0.02-0.03 mm. Millimetres.
+// Modelled lying flat (x along the barrel, y up the gun, z through the thickness), then stood up as the source prints it
+// (print_pose): on the top edge of the barrel, the side plates vertical, centred on the Z axis with its base on z = 0.
 
 // Facets around a full circle.
 ROUNDNESS = 64; //[32:8:192]
 // Slices per quarter round of the rounded edges.
 ROUND_STEPS = 8; //[2:1:24]
+
+// Which bodies: "print" both, as they print together in place (the download); "frame" or "trigger" alone (verification).
+PART = "print"; // [print, frame, trigger]
 
 THICKNESS = 20;          // between the side plates' outer faces (the embossed plus stands on top of it)
 PLATE_T = 3.25;          // side plate over the trigger's cavity
@@ -589,4 +597,59 @@ module frame() {
     translate([0, 0, THICKNESS - 0.1]) linear_extrude(PLUS_HEIGHT + 0.1) difference() { polygon(PLUS_OUT); polygon(PLUS_IN); }
 }
 
-print_pose() frame();
+// ---- Trigger ----
+
+MID_Z = HALF;            // the frame's mid plane, which the trigger is centred on
+TRIGGER_THICKNESS = 12;  // plate, face to face
+TRIGGER_EDGE_R = 0.9;    // rounded edges of the plate
+TRIGGER_ROUND_STEPS = 6; // slices per quarter round of its edges
+PIN_TIP_Z = 1.716;       // apex of the lower pin (the upper one is its mirror image about MID_Z)
+PIN_SLOPE = 0.84;        // pin radius per mm from its apex
+RIDGE_TIPS = [[7.14, 11.54], [7.52, 8.81], [7.88, 6.07], [8.16, 3.27], [8.34, 0.51]];
+RIDGE_NORMAL = [-0.994, -0.107]; // outward normal of the front edge at the ridges
+RIDGE_HEIGHT = 0.54;     // how far a ridge stands out at the mid plane
+RIDGE_WIDTH = 1.14;      // along the edge
+RIDGE_LENGTH = 8;        // through the thickness
+
+// Measured outline (x, y) at 2 mm from the face, counter-clockwise.
+TRIGGER = [
+    [9.80,-1.92], [10.09,-2.09], [10.40,-2.21], [10.91,-2.28], [11.24,-2.26], [13.15,-1.76], [14.87,-1.21],
+    [16.56,-0.58], [18.22,0.13], [19.09,0.54], [20.63,1.34], [22.19,2.25], [23.71,3.23], [25.17,4.28], [26.58,5.41],
+    [27.94,6.60], [29.24,7.85], [30.47,9.17], [31.64,10.54], [32.74,11.97], [33.27,12.70], [34.26,14.21],
+    [35.18,15.76], [35.59,16.51], [36.17,19.61], [36.83,22.72], [37.40,25.09], [38.01,27.33], [38.68,29.46],
+    [39.40,31.46], [40.20,33.33], [40.84,34.61], [41.45,35.68], [42.10,36.68], [42.80,37.62], [43.58,38.53],
+    [44.15,39.13], [44.90,39.85], [47.19,41.85], [48.14,42.72], [49.01,43.61], [49.82,44.55], [50.57,45.56],
+    [51.29,46.66], [52.11,48.13], [52.79,49.54], [53.41,51.01], [53.48,51.47], [53.42,51.86], [53.33,52.10],
+    [53.10,52.52], [52.56,53.36], [51.95,54.15], [51.57,54.57], [51.27,54.75], [50.92,54.81], [31.90,54.81],
+    [31.64,54.77], [31.48,54.71], [31.26,54.57], [31.09,54.39], [11.63,27.27], [10.31,25.29], [9.49,23.94],
+    [8.70,22.43], [8.17,21.20], [7.94,20.54], [7.70,19.66], [7.56,19.02], [7.42,18.03], [7.35,17.21], [7.33,16.31],
+    [7.40,14.46], [7.68,11.83], [7.67,11.63], [7.73,11.44], [8.06,9.08], [8.05,8.88], [8.11,8.69], [8.18,8.18],
+    [8.42,6.34], [8.41,6.13], [8.47,5.94], [8.55,5.14], [8.71,3.60], [8.68,3.39], [8.74,3.18], [8.80,2.37],
+    [8.89,0.87], [8.85,0.63], [8.91,0.41], [8.95,-0.51], [9.08,-1.00], [9.22,-1.31], [9.42,-1.58]];
+
+TRIGGER_FACE_Z = MID_Z - TRIGGER_THICKNESS / 2;
+
+module trigger_plate() {
+    r = TRIGGER_EDGE_R;
+    for (i = [0 : TRIGGER_ROUND_STEPS - 1]) let (t0 = 90 * i / TRIGGER_ROUND_STEPS, t1 = 90 * (i + 1) / TRIGGER_ROUND_STEPS, g = -r + r * sin((t0 + t1) / 2))
+        for (z = [[TRIGGER_FACE_Z + r - r * cos(t0), TRIGGER_FACE_Z + r - r * cos(t1)], [MID_Z * 2 - TRIGGER_FACE_Z - r + r * cos(t1), MID_Z * 2 - TRIGGER_FACE_Z - r + r * cos(t0)]])
+            translate([0, 0, z[0]]) linear_extrude(z[1] - z[0]) offset(delta = g) polygon(TRIGGER);
+    translate([0, 0, TRIGGER_FACE_Z + r]) linear_extrude(TRIGGER_THICKNESS - 2 * r) polygon(TRIGGER);
+}
+
+module ridges() {
+    for (p = RIDGE_TIPS) {
+        c = p - RIDGE_HEIGHT * RIDGE_NORMAL;
+        translate([c[0], c[1], MID_Z]) scale([RIDGE_HEIGHT, RIDGE_WIDTH / 2, RIDGE_LENGTH / 2]) sphere(1, $fn = 24);
+    }
+}
+
+module pins() {
+    h = TRIGGER_FACE_Z + TRIGGER_EDGE_R - PIN_TIP_Z;
+    module pin() translate([PIVOT[0], PIVOT[1], PIN_TIP_Z]) cylinder(h = h, r1 = 0, r2 = h * PIN_SLOPE, $fn = ROUNDNESS);
+    pin();
+    translate([0, 0, 2 * MID_Z]) mirror([0, 0, 1]) pin();
+}
+
+if (PART == "print" || PART == "frame") print_pose() frame();
+if (PART == "print" || PART == "trigger") print_pose() union() { trigger_plate(); ridges(); pins(); }

@@ -6,7 +6,7 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { findPart, partAssetPath, type Assembly, type ParameterValues, type Part } from '@canfactory/contracts';
+import { bodyTriangles, findPart, partAssetPath, type Assembly, type ParameterValues, type Part } from '@canfactory/contracts';
 import { partGeometry, type PartShape } from '@canfactory/part-geometry';
 import { fontsPath, openScadArgs, renderActiveParts, repositoryRoot, selectRunner, type Defines } from '@canfactory/server';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
@@ -53,8 +53,11 @@ export async function renderAssemblyMeshes(model: Parameters<typeof renderActive
     const signal = new AbortController().signal;
     let started = Date.now();
     for await (const { part, output } of renderActiveParts(run, signal, repositoryRoot, model, parameters, directory, overrides)) {
-      parts.set(part.id, parseStl(await readFile(output)));
-      console.log(`rendered ${part.id} (${kind}, ${seconds(started)})`);
+      const mesh = parseStl(await readFile(output));
+      // a print-in-place part is posed and checked as its bodies (ModelPart.bodies), as the preview shows them
+      if (part.bodies) for (const [id, tris] of Object.entries(bodyTriangles(mesh.tris, part.bodies))) parts.set(id, { tris });
+      else parts.set(part.id, mesh);
+      console.log(`rendered ${part.id}${part.bodies ? ` as ${part.bodies.map(body => body.id).join(' and ')}` : ''} (${kind}, ${seconds(started)})`);
       started = Date.now();
     }
     // Reference objects are checked like parts, as the editor shows them: a procedural part (a magnet, a screw, ...) built from its
