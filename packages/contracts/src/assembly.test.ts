@@ -4,6 +4,7 @@ import { Value } from 'typebox/value';
 import { assemblyOffset, assemblyScale, assemblyState, assemblyStops, motionFrames, motionPose } from './assembly.ts';
 import { activeParts, AssemblySchema, isAssembly, models, type Assembly } from './models.ts';
 import { findPart, partAssetPath } from './parts/index.ts';
+import { poseIds } from './printBodies.ts';
 
 const assembly: Assembly = {
   poses: { base: { position: [0, 0, 0] }, top: { position: [0, 0, 10] }, insert: { position: [1, 0, 5] } },
@@ -88,9 +89,10 @@ describe('registered assemblies', () => {
       const references = (data.references ?? []).map(reference => reference.id);
       // steps may also move the reference objects the model links for its defaults (e.g. the pressure pad's screws and nuts)
       const linked = (model.linkedReferences?.(model.defaults) ?? []).map(reference => reference.id);
-      const ids = [...model.parts.map(part => part.id), ...references, ...linked];
+      // a print-in-place part is posed by its bodies (ModelPart.bodies)
+      const ids = [...poseIds(model.parts), ...references, ...linked];
       expect(new Set(ids).size).toBe(ids.length);
-      expect([...activeParts(model, model.defaults).map(part => part.id), ...references].filter(id => !(id in data.poses))).toEqual([]);
+      expect([...poseIds(activeParts(model, model.defaults)), ...references].filter(id => !(id in data.poses))).toEqual([]);
       for (const id of [...Object.keys(data.poses), ...data.steps.flatMap(step => step.parts)]) expect(ids).toContain(id);
       expect(data.steps.length).toBeGreaterThan(0);
       expect(data.lift).toBeGreaterThanOrEqual(0);

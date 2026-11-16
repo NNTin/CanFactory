@@ -21,7 +21,7 @@
  * .github/workflows/integration.yml; compare a full run with the one before your change rather than expecting it to pass.
  */
 import { parseArgs } from 'node:util';
-import { assemblyOffset, assemblyScale, motionFrames, isAssembly, models, resolveAssembly, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
+import { assemblyOffset, assemblyScale, motionFrames, isAssembly, models, poseIds, resolveAssembly, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
 import { renderAssemblyMeshes, windingReferences } from './assembly-meshes.ts';
 import { intersectionVolume } from './stl-to-scad/compare.ts';
 import { bounds, g, type Mesh } from './stl-to-scad/stl.ts';
@@ -73,7 +73,7 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
   // With the reference objects these parameters add (e.g. the magnets of a magnet snap).
   const assembly = resolveAssembly(model, model.assembly, parameters) ?? model.assembly;
   const parts = await renderAssemblyMeshes(model, assembly, parameters, overrides);
-  const ids = [...model.parts.map(part => part.id), ...(assembly.references ?? []).map(reference => reference.id)];
+  const ids = [...poseIds(model.parts), ...(assembly.references ?? []).map(reference => reference.id)];
   const unknown = [...Object.keys(assembly.poses), ...assembly.steps.flatMap(step => step.parts)].filter(id => !ids.includes(id));
   if (unknown.length > 0) throw new Error(`${model.id}: the assembly names parts that do not exist: ${unknown.join(', ')}`);
 

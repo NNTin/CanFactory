@@ -71,6 +71,16 @@ model with no adjustable parameters simply leaves every mapping empty (empty `pa
 mappings are part of the cache fingerprint, as are all part sources. Because a part receives no other `-D`, its own
 constants (`ROUNDNESS` etc.) apply exactly as written.
 
+**Print-in-place parts.** Bodies that are printed together and cannot be put together afterwards, but move once printed
+(a trigger printed on its pins inside a frame), are one part: one SCAD file and one STL in the ZIP, never separate prints.
+List the bodies in `ModelPart.bodies` (`{ id, title, point }`, the point inside that body, in the part's frame), which also
+allows the part to be several closed bodies. The preview and `npm run check:assembly` split the STL into those bodies
+(`splitBodies` in `packages/contracts/src/printBodies.ts`), keep them together on the print bed as printed, and pose and move
+each on its own: the assembly's poses, steps and movements name the bodies, not the part. Give such an assembly `lift: 0`
+(nothing is lifted or laid out; the slider's first stop reads “As printed”) and no step that inserts or mounts a body; a
+step with no travel can name what is done to the print, such as freeing a body. The rubber band launcher is the example
+([rubber-band-launcher.md](rubber-band-launcher.md)).
+
 A shared generator can select a physical piece with `ModelPart.scadConstants`
 (e.g. the AI duck's `{ PART: 'face' }`). These are trusted number, boolean or
 string literals, not editable parameters. `scadDefines` validates their

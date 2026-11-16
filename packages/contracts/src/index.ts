@@ -3,6 +3,7 @@ import { registeredModels, type ModelDefinition } from './models.ts';
 export * from './models.ts';
 export * from './trolleyToken.ts';
 export * from './rubberBandLauncher.ts';
+export * from './printBodies.ts';
 export * from './assembly.ts';
 export * from './bom.ts';
 export * from './svgLogo.ts';

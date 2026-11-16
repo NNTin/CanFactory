@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { Atom, Box, Eye, EyeOff, FlipVertical2, Grid2X2, Pause, Play, RotateCcw } from 'lucide-react';
-import { assemblyOffset, assemblyScale, assemblyState, assemblyWind, assemblyStops, motionFrames, motionPose, type Assembly, type AssemblyState, type PhysicsSpec } from '@canfactory/contracts';
+import { assemblyOffset, assemblyScale, assemblyState, assemblyWind, assemblyStops, motionFrames, motionPose, splitBodies, type Assembly, type AssemblyState, type PhysicsSpec, type PrintBody } from '@canfactory/contracts';
 import type { ControllerReport, PhysicsRequest, PhysicsUpdate } from '@canfactory/physics';
 import { unzipSync } from 'fflate';
 import * as THREE from 'three';
@@ -17,8 +17,9 @@ import { groupParts, partGroupKeys } from './viewerPartGroups.ts';
  * One mesh to show: STL `bytes`, or a `geometry` built from a library part's dimensions (e.g. a magnet). `reference` marks a
  * real-world object from the assembly (e.g. a lighter), shown in its own colour: it is not printed.
  */
-/** A part to show: an STL, or a reference object's geometry; `rewind` builds a torsion spring's again, wound by that many degrees. */
-type Part = { name: string; reference?: boolean } & ({ bytes: ArrayBuffer } | { geometry: THREE.BufferGeometry; rewind?: (wind: number) => THREE.BufferGeometry | null });
+/** A part to show: an STL, or a reference object's geometry; `rewind` builds a torsion spring's again, wound by that many degrees.
+ * `print` names the print-in-place part a body comes from (ModelPart.bodies): the bodies of one print lie together on the bed. */
+type Part = { name: string; reference?: boolean; print?: string } & ({ bytes: ArrayBuffer } | { geometry: THREE.BufferGeometry; rewind?: (wind: number) => THREE.BufferGeometry | null });
 
 interface SceneController {
   /**
@@ -127,6 +128,25 @@ export function partsFromZip(bytes: ArrayBuffer): { name: string; bytes: ArrayBu
   return parts;
 }
 
+/** A print-in-place part's STL (ModelPart.bodies) as one mesh per body, each in the print's frame; other parts as they are. */
+export function bodiesOf(parts: { name: string; bytes: ArrayBuffer }[], bodies: Readonly<Record<string, readonly PrintBody[]>>): Part[] {
+  return parts.flatMap((part): Part[] => {
+    const id = part.name.replace(/\.stl$/i, ''), list = bodies[id];
+    if (!list) return [part];
+    const geometry = new STLLoader().parse(part.bytes);
+    const positions = (geometry.index ? geometry.toNonIndexed() : geometry).getAttribute('position').array;
+    const split = splitBodies(positions, list);
+    geometry.dispose();
+    return list.map(body => {
+      const triangles = split[body.id] ?? [];
+      const array = new Float32Array(triangles.length * 9);
+      triangles.forEach((t, i) => array.set(positions.subarray(t * 9, t * 9 + 9), i * 9));
+      const piece = new THREE.BufferGeometry(); piece.setAttribute('position', new THREE.BufferAttribute(array, 3));
+      return { name: body.id, geometry: piece, print: id };
+    });
+  });
+}
+
 /** The caption for slider value `t`: the movement that is playing, or that has just finished at a stop. */
 function assemblyCaption(assembly: Assembly, t: number): string {
   const motion = assembly.motion ?? [];
@@ -136,7 +156,8 @@ function assemblyCaption(assembly: Assembly, t: number): string {
   const step = assembly.steps[segment - 2];
   if (step) return `Step ${segment - 1} of ${assembly.steps.length} · ${step.title}`;
   const movement = motion[segment - 2 - assembly.steps.length];
-  return movement ? `Movement ${segment - 1 - assembly.steps.length} of ${motion.length} · ${movement.title}` : 'Lift and lay out the parts';
+  // without a lift (a print-in-place piece) the parts stay where they print
+  return movement ? `Movement ${segment - 1 - assembly.steps.length} of ${motion.length} · ${movement.title}` : assembly.lift === 0 ? 'As printed' : 'Lift and lay out the parts';
 }
 
 /** Seconds the play button spends on each of the slider's segments. */
@@ -145,9 +166,10 @@ const PLAY_SECONDS = 2.4;
 /**
  * Displays the actual downloadable file(s). Camera controls do not change model dimensions. With an assembly, a slider takes the
  * parts from the print bed to the finished assembly, together with its reference objects (`references`), which are not in the file.
- * Every part is shown by default; the parts list under the slider hides or shows each one (`partTitles` names them).
+ * Every part is shown by default; the parts list under the slider hides or shows each one (`partTitles` names them). A
+ * print-in-place part (`printBodies`, by part id) is shown as its bodies, each posed on its own, lying together on the bed as printed.
  */
-export function Viewer({ url, format, assembly, references = [], partTitles = {}, physics, onError, onLoaded }: { url: string | null; format: 'stl' | 'zip'; assembly?: Assembly | undefined; references?: ReferenceObject[]; partTitles?: Record<string, string>; physics?: PhysicsSpec | undefined; onError: (message: string) => void; onLoaded: (url: string) => void }) {
+export function Viewer({ url, format, assembly, references = [], partTitles = {}, printBodies = {}, physics, onError, onLoaded }: { url: string | null; format: 'stl' | 'zip'; assembly?: Assembly | undefined; references?: ReferenceObject[]; partTitles?: Record<string, string>; printBodies?: Readonly<Record<string, readonly PrintBody[]>>; physics?: PhysicsSpec | undefined; onError: (message: string) => void; onLoaded: (url: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const scene = useRef<SceneController | null>(null);
   const [wireframe, setWireframe] = useState(false);
@@ -159,6 +181,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
   const [playing, setPlaying] = useState(false);
   const assemblyRef = useRef(assembly); assemblyRef.current = assembly;
   const referencesRef = useRef(references); referencesRef.current = references;
+  const printBodiesRef = useRef(printBodies); printBodiesRef.current = printBodies;
   const onErrorRef = useRef(onError); onErrorRef.current = onError;
   const onLoadedRef = useRef(onLoaded); onLoadedRef.current = onLoaded;
   const physicsRef = useRef(physics); physicsRef.current = physics;
@@ -240,10 +263,14 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
           geometry.computeBoundingBox();
           const bounds = geometry.boundingBox;
           if (!bounds) { geometry.dispose(); return null; }
-          return { id: part.name.replace(/\.stl$/i, ''), reference: part.reference === true, geometry, bounds, size: bounds.getSize(new THREE.Vector3()), rewind: 'rewind' in part ? part.rewind : undefined };
+          return { id: part.name.replace(/\.stl$/i, ''), reference: part.reference === true, print: part.print, geometry, bounds, size: bounds.getSize(new THREE.Vector3()), rewind: 'rewind' in part ? part.rewind : undefined };
         }).filter(part => part !== null);
         if (prepared.length === 0) throw new Error('The preview contains no visible geometry.');
         geometries = prepared.map(part => part.geometry);
+        // The bodies of one print-in-place part stay together on the bed, as printed: one cell, placed by the whole print's bounds.
+        const printBounds = new Map<string, THREE.Box3>();
+        for (const part of prepared) if (part.print) printBounds.set(part.print, (printBounds.get(part.print) ?? new THREE.Box3()).union(part.bounds));
+        for (const part of prepared) { const whole = part.print ? printBounds.get(part.print) : undefined; if (whole) { part.bounds = whole; part.size = whole.getSize(new THREE.Vector3()); } }
         // Arrange parts on an auto-sized bed, each centred in its cell and standing on the floor (z = 0 in the parts' frame); a single
         // part sits centred at the origin. Identical library parts (the screws of the joints) share one cell, lying on top of each
         // other so that one is seen, and leave it each for its own pose as the slider lifts them.
@@ -251,7 +278,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
         const cellOf = new Map<string, number>();
         const cellSizes: THREE.Vector3[] = [];
         const cellIndex = prepared.map(part => {
-          const key = keyOf(part);
+          const key = part.print ? `print:${part.print}` : keyOf(part);
           let index = cellOf.get(key);
           if (index === undefined) { index = cellSizes.length; cellOf.set(key, index); cellSizes.push(part.size); }
           return index;
@@ -431,6 +458,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     // Capture metadata with this URL: settings can change during the fetch.
     const loadedAssembly = assemblyRef.current;
     const loadedReferences = referencesRef.current;
+    const loadedBodies = printBodiesRef.current;
     // Reference objects are static files, or built from their part's dimensions: one that cannot be loaded is left out rather
     // than failing the preview.
     const loadReference = async (reference: ReferenceObject): Promise<Part[]> => {
@@ -448,7 +476,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
       const bytes = await response.arrayBuffer();
       const extra = await loadReferences;
       if (abort.signal.aborted) return;
-      const loaded = scene.current?.setParts(format === 'zip' ? [...partsFromZip(bytes), ...extra] : [{ name: 'model', bytes }], format === 'zip' ? loadedAssembly : undefined);
+      const loaded = scene.current?.setParts(format === 'zip' ? [...bodiesOf(partsFromZip(bytes), loadedBodies), ...extra] : [{ name: 'model', bytes }], format === 'zip' ? loadedAssembly : undefined);
       if (loaded) {
         setLoadedParts(format === 'zip' ? loaded : []);
         setShownAssembly(format === 'zip' ? loadedAssembly : undefined);

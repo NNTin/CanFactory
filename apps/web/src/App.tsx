@@ -48,6 +48,21 @@ function Attribution({ text, links = [] }: { text: string; links?: ModelDefiniti
 }
 const settingsKey = (model: ModelDefinition) => `canfactory:settings:${model.id}:${model.version}`;
 
+/** How a model without settings renders: its parts, or a print-in-place part's bodies printed as one piece. */
+function aboutParts(parts: ModelDefinition['parts']): string {
+  if (!parts || parts.length === 0) return 'It renders exactly as designed.';
+  const prints = parts.filter(part => part.bodies);
+  if (prints.length === parts.length && prints.length === 1)
+    return `It is one print, exactly as designed: its ${prints[0]?.bodies?.length ?? 0} moving parts are printed in place, together, and cannot be put together afterwards.`;
+  return parts.length === 1 ? 'It renders exactly as designed.' : `All ${parts.length} parts render together, exactly as designed.`;
+}
+
+/** For the parts count: how many bodies the rendered parts' print-in-place prints hold, e.g. “2 bodies printed in place · ”. */
+function printedInPlace(parts: ModelDefinition['parts'], rendered: readonly { id: string }[]): string {
+  const bodies = rendered.reduce((sum, part) => sum + (parts?.find(candidate => candidate.id === part.id)?.bodies?.length ?? 0), 0);
+  return bodies > 0 ? `${bodies} bodies printed in place · ` : '';
+}
+
 function restoreSettings(model: ModelDefinition): ParameterValues {
   try {
     const stored = localStorage.getItem(settingsKey(model));
@@ -519,7 +534,9 @@ function Editor({ model }: { model: ModelDefinition }) {
   const assembly = useMemo(() => resolveAssembly(model, model.assembly, displayedParameters), [model, displayedParameters]);
   const references = useMemo(() => referenceObjects(assembly), [assembly]);
   const physics = useMemo(() => model.physics?.(displayedParameters), [model, displayedParameters]);
-  const partTitles = useMemo(() => Object.fromEntries([...(model.parts ?? []), ...(assembly?.references ?? [])].map(part => [part.id, part.title])), [model, assembly]);
+  // a print-in-place part is shown, and listed, as its bodies (ModelPart.bodies)
+  const partTitles = useMemo(() => Object.fromEntries([...(model.parts ?? []).flatMap((part): { id: string; title: string }[] => part.bodies ?? [part]), ...(assembly?.references ?? [])].map(part => [part.id, part.title])), [model, assembly]);
+  const printBodies = useMemo(() => Object.fromEntries((model.parts ?? []).flatMap(part => part.bodies ? [[part.id, part.bodies] as const] : [])), [model]);
   const render = rendering.completed?.render;
   const artifact = render?.artifact;
   const url = artifact?.url ?? null;
@@ -616,7 +633,7 @@ function Editor({ model }: { model: ModelDefinition }) {
           <p className="local-note">Your settings stay in this browser.</p>
         </> : <>
           <div className="panel-heading"><div><SlidersHorizontal size={16} /><h2>About this model</h2></div></div>
-          <p className="panel-intro">This model doesn’t have adjustable settings yet. {model.parts && model.parts.length > 0 ? `All ${model.parts.length} parts render together, exactly as designed.` : 'It renders exactly as designed.'}</p>
+          <p className="panel-intro">This model doesn’t have adjustable settings yet. {aboutParts(model.parts)}</p>
           {valid && derived.notes?.map(note => <div key={note} className="slot-note derived-note"><Sparkles size={14} /><span>{note}</span></div>)}
         </>}
       </aside>
@@ -624,13 +641,13 @@ function Editor({ model }: { model: ModelDefinition }) {
         <div className="preview-heading"><span className="eyebrow"><Box size={15} /> LIVE PREVIEW</span><span className={`status ${ready && !error ? 'status-ready' : ''}`} role="status">
           {ready && !error ? <Check size={13} /> : error || !valid ? <CircleAlert size={13} /> : <LoaderCircle size={13} className="spin" />}{status}
         </span></div>
-        <Viewer url={url} format={format} assembly={assembly} references={references} partTitles={partTitles} physics={physics} onError={setViewerError} onLoaded={setLoadedUrl} />
+        <Viewer url={url} format={format} assembly={assembly} references={references} partTitles={partTitles} printBodies={printBodies} physics={physics} onError={setViewerError} onLoaded={setLoadedUrl} />
         {!ready && url && !error && <div className="previous-preview">Showing the previous preview while your changes are prepared.</div>}
         {!ready && url && rendering.problem && <div className="previous-preview previous-preview-stale">This is the last preview that rendered. It does not match your current settings.</div>}
         {rendering.problem ? <RenderProblemBanner problem={rendering.problem} retry={retry} />
           : (error || (!valid && issues.length > 0)) && <div className="error-banner" role="alert"><CircleAlert size={17} /><span>{error ?? issues[0]?.message}</span>{error && <button type="button" onClick={retry}>Try again</button>}</div>}
         <div className="model-stats">
-          {artifact?.parts ? <div><span>PARTS</span><strong>{artifact.parts.length} <small>· {(artifact.volume / 1000).toFixed(1)} cm³ total</small></strong></div>
+          {artifact?.parts ? <div><span>PARTS</span><strong>{artifact.parts.length} <small>· {printedInPlace(model.parts, artifact.parts)}{(artifact.volume / 1000).toFixed(1)} cm³ total</small></strong></div>
             : <div><span>PRINT DIMENSIONS</span><strong>{artifact?.dimensions ? `${artifact.dimensions.x.toFixed(1)} × ${artifact.dimensions.y.toFixed(1)} × ${artifact.dimensions.z.toFixed(1)}` : '—'} <small>mm</small></strong></div>}
           <div><span>FILE FORMAT</span><strong>{format.toUpperCase()} <small>{artifact ? `· ${(artifact.bytes / 1_000_000).toFixed(2)} MB` : '· binary'}</small></strong></div>
         </div>
