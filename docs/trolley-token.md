@@ -42,7 +42,7 @@ The holes are printed 2.4 mm, ISO 273's medium clearance for M2, so there is not
 1. **Cut the spring's legs** to 5 mm and 6 mm, measured from where each leaves the coil.
 2. **Fit the spring.** Put it between the clip's two knuckles, with its legs crossed: the 6 mm leg goes on the seat under the pad
    (the clip's short end). Lower the clip between the body's hinge ears, setting the 5 mm leg on the body's seat ahead of the hinge.
-3. **Fit the nut.** Push the nut into the hexagonal trap in the ear with the round boss, corners up and down.
+3. **Fit the nut.** Push the nut into the hexagonal trap in the boss on the −Y hinge ear (the side away from the screw head), corners up and down.
 4. **Fit the screw.** Push the screw in from the other ear, through the clip and the spring, and turn it into the nut until the
    head just seats. Do not clamp the ears onto the clip; a drop of threadlocker keeps the screw there.
 5. **Check it.** Press the pad: the rear grip should open freely and the spring should close it again.

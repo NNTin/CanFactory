@@ -3926,7 +3926,7 @@ export const trolleyToken = {
   attribution: 'jhappone (Thingiverse); STEP format conversion and hardware fittings by CanFactory',
   attributionLinks: [{ text: 'jhappone', url: 'https://www.thingiverse.com/jhappone/designs' }, { text: 'Thingiverse', url: 'https://www.thingiverse.com/thing:4126950' }],
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
-  printNotes: 'Print the body flat underside down and the clip flat outer face down, as provided in the ZIP; no supports are needed (the nut trap’s roof is pointed). The token is 23.25 mm across and 2.5 mm thick: check it against your trolley lock. Hardware, not in the ZIP: one ISO 4762 (DIN 912) M2 × 16 socket head screw, one ISO 4032 (DIN 934) M2 hex nut and one torsion spring of 0.5 mm wire, 2.5 mm inside, with 180° legs (Gutekunst T-16102L). Its holes are 2.4 mm clearance for M2: do not drill them. Cut the spring’s legs to 5 and 6 mm from the coil. Push the nut into the trap in the hinge ear without the boss’s head side, corners up. Put the spring between the clip’s knuckles with its legs crossed, the 5 mm leg on the body’s seat and the 6 mm leg on the seat under the pad, then lower the clip between the ears and push the screw through from the other ear, through the clip and the spring, into the nut. Tighten it until the head just seats, without pinching the clip; a drop of threadlocker keeps it there. Check that the pad opens the grip freely and that the spring closes it.',
+  printNotes: 'Print the body flat underside down and the clip flat outer face down, as provided in the ZIP; no supports are needed (the nut trap’s roof is pointed). The token is 23.25 mm across and 2.5 mm thick: check it against your trolley lock. Hardware, not in the ZIP: one ISO 4762 (DIN 912) M2 × 16 socket head screw, one ISO 4032 (DIN 934) M2 hex nut and one torsion spring of 0.5 mm wire, 2.5 mm inside, with 180° legs (Gutekunst T-16102L). Its holes are 2.4 mm clearance for M2: do not drill them. Cut the spring’s legs to 5 and 6 mm from the coil. Push the nut into the hexagonal trap in the boss on the −Y hinge ear (the side away from the screw head), corners up and down. Put the spring between the clip’s knuckles with its legs crossed, the 5 mm leg on the body’s seat and the 6 mm leg on the seat under the pad, then lower the clip between the ears and push the screw through from the other ear, through the clip and the spring, into the nut. Tighten it until the head just seats, without pinching the clip; a drop of threadlocker keeps it there. Check that the pad opens the grip freely and that the spring closes it.',
   parts: [
     { id: 'body', title: 'Trolley token body', sourcePath: 'models/trolley-token/body.scad', scadMapping: {} },
     { id: 'clip', title: 'Shopping-list clamp', sourcePath: 'models/trolley-token/clip.scad', scadMapping: {} },
@@ -3939,7 +3939,7 @@ export const trolleyToken = {
   },
   derived: () => ({ slotCount: null, notes: [
     'Required hardware: an M2 × 16 socket head screw, an M2 hex nut and a 0.5 × 2.5 mm torsion spring with 180° legs (Gutekunst T-16102L), legs cut to 5 and 6 mm.',
-    'The printed holes are 2.4 mm M2 clearance and the nut has a trap: no drilling.',
+    'The printed holes are 2.4 mm M2 clearance and the nut goes into the hexagonal trap in the boss on the −Y hinge ear (the side away from the screw head): no drilling.',
     'The printable parts keep jhappone’s original shape, with CanFactory’s pivot, nut trap and spring seats.',
   ] }),
 } satisfies ModelDefinition;

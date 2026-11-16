@@ -106,6 +106,11 @@ describe('jhappone trolley token and shopping-list holder, fitted for M2 hardwar
     expect(model.printNotes).toContain('do not drill');
     expect(model.printNotes).not.toMatch(/2\.5 mm axle|pilot/);
     expect(model.derived().notes.join(' ')).toContain('no drilling');
+    // the print notes, the derived notes and the docs say where the nut goes in the same words
+    const trap = 'the hexagonal trap in the boss on the −Y hinge ear (the side away from the screw head)';
+    expect(model.printNotes).toContain(`Push the nut into ${trap}, corners up and down.`);
+    expect(model.derived().notes.join(' ')).toContain(trap);
+    expect(readFileSync(new URL('../../../docs/trolley-token.md', import.meta.url), 'utf8')).toContain(trap);
     expect(model.attribution).toContain('jhappone');
     expect(model.attributionLinks).toContainEqual({ text: 'Thingiverse', url: 'https://www.thingiverse.com/thing:4126950' });
     expect(model.licenseUrl).toBe('https://creativecommons.org/licenses/by/4.0/');
