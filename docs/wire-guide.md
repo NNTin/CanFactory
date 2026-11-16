@@ -222,3 +222,24 @@ design with `validateWireGuideDesign` first and returns the same `{ path, messag
 `canfactory_validate_wire_guide_design`, opening nothing. A valid design replaces the editor's own, through the editor's
 parameters as an import does, so the editor's render queue and its one-job rule apply. `canfactory_set_model_parameters`
 rejects this model: a design is never set as a parameter.
+
+### What the assistant's activity panel shows
+
+Each CanFactory tool has an activity summary (`apps/web/src/assistant/activity.ts`, over the result schemas in `results.ts`), so a
+completed call reads as what it found instead of tinytinkerer's neutral “Unknown”. The summaries keep three facts apart:
+
+- **Execution.** A tool that threw is the panel's own “failed” entry; a summary only describes a result that came back. A
+  result that doesn't match the tool's output schema, or is absent, stays “Unknown” with whatever came back.
+- **The domain.** No matching parts and a `connected: false` pair are successful reads (OK, with their counts). A design that is
+  `valid: false`, and a parameter change or design the editor rejected (`ok: false`), are errors that name their first issue and
+  list every one. A query pair that names an undrilled hole is a warning: the read worked, that pair has no answer.
+- **Rendering.** Opening a design or changing parameters only requests a render: its summary says “render requested, not ready
+  yet”. `canfactory_get_editor_state` reports the render status it read (queued, rendering, pending, invalid, failed or ready),
+  “when read”. A summary describes its own result and never changes later, so an old “queued” stays queued; read the state again.
+
+The collapsed line is one sentence. Expanding it shows the details and the raw result (the panel bounds its length), so a board's
+layout is not dumped by default.
+
+A new tool (such as the reference-based validate and open tools #170 adds) gets the same: an output schema in `results.ts`, a
+`describe…` function in `activity.ts`, and `summarize(label, schema, describe…)` on the tool (or as the stage method's
+`summarizeActivity`). Keep the rules: a rejection is an error with its issues, a requested render is not ready.
