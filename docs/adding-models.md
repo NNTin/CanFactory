@@ -81,6 +81,12 @@ each on its own: the assembly's poses, steps and movements name the bodies, not 
 step with no travel can name what is done to the print, such as freeing a body. The rubber band launcher is the example
 ([rubber-band-launcher.md](rubber-band-launcher.md)).
 
+**Rubber bands in an assembly.** A reference rubber band is drawn as a loose round loop unless its entry in `references`
+has a `loop`: the convex outline (in the band's own XY plane, its width along Z) it is stretched round, e.g. the hull of two
+pegs or of a barrel's outline. The band then hugs that outline from outside, as one closed shell that `check:assembly`
+collides like any part. A movement can stretch it further with its pose's `scale` along the outline (the launcher's return
+band follows the trigger this way).
+
 A shared generator can select a physical piece with `ModelPart.scadConstants`
 (e.g. the AI duck's `{ PART: 'face' }`). These are trusted number, boolean or
 string literals, not editable parameters. `scadDefines` validates their

@@ -94,7 +94,7 @@ jobs:
         env:
           OPENSCAD_RUNNER: docker
 
-      - name: Check rubber band launcher (trigger in place in the frame, and its pull)
+      - name: Check rubber band launcher (trigger and both rubber bands at rest, loading, a shot and the return)
         run: npm run check:assembly -- rubber-band-launcher
         env:
           OPENSCAD_RUNNER: docker

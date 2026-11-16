@@ -82,7 +82,9 @@ The [trolley-token and shopping-list holder](docs/trolley-token.md) is designed 
 The [rubber band launcher](docs/rubber-band-launcher.md) is designed by [FerryTeacher](https://cults3d.com/en/users/FerryTeacher)
 and published under CC BY-NC-SA on [Cults3D](https://cults3d.com/en/3d-model/game/rubber-band-launcher) (non-commercial use only;
 adaptations share alike). It is one print: the trigger is printed in place on its pins inside the frame and turns once
-freed. Reconstructed from the original STL as editable SCAD and verified against it, with a preview of the trigger pull.
+freed; pulling it lifts the shot band (a #19 rubber band) out of the notch. CanFactory adds pegs for a #8 return band that
+pulls the trigger back after each shot. Reconstructed from the original STL as editable SCAD and verified against it, with
+a preview of a shot.
 
 The [magnetic lighter keychain](docs/magnetic-lighter-keychain.md) puts a BIC Mini lighter (J25) on your keys: a sleeve with crush
 ribs holds it, and two magnets sealed in its flat foot (dropped in at a print pause) pair with two in a small keychain plate with

@@ -374,6 +374,7 @@ export const AssemblySchema = Type.Object({
     part: Type.String({ description: 'The id of the parts-library entry it is.' }),
     title: Type.String({ description: 'What it is: the part’s title, e.g. “BIC Mini lighter (J25)”.' }),
     legs: Type.Optional(Type.Array(Type.Number({ exclusiveMinimum: 0 }), { minItems: 2, maxItems: 2, description: 'For a torsion spring: the lengths in mm its two legs are cut to (the leg at the start of the coil first), where the model has them shorter than sold.' })),
+    loop: Type.Optional(Type.Array(Type.Array(Type.Number(), { minItems: 2, maxItems: 2 }), { minItems: 3, description: 'For a rubber band: the convex outline (x, y in mm, in the band’s own XY plane, its width along Z) it is stretched round and hugs from outside, e.g. round two pegs. Its pose places that plane; a movement may stretch it further with `scale`.' })),
   }, { additionalProperties: false }), { description: 'Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. They are parts-library entries. Not printed and not in the ZIP.' })),
   motion: Type.Optional(Type.Array(Type.Object({
     title: Type.String({ description: 'Short caption, e.g. “Close the lever”.' }),
@@ -3953,13 +3954,13 @@ export const trolleyToken = {
 } satisfies ModelDefinition;
 
 /** FerryTeacher's print-in-place rubber band launcher: one print of two bodies (frame and trigger), reconstructed as SCAD and
- * verified against the STL. */
+ * verified against the STL, with CanFactory's return band pegs. */
 export const rubberBandLauncher = {
-  id: 'rubber-band-launcher' as const, version: '2' as const, title: 'Rubber band launcher',
-  description: 'FerryTeacher’s rubber band pistol, printed in one piece: the ridged trigger is printed on its two pins between the frame’s side plates and turns on them once freed. It cannot be fitted after printing. Reconstructed from the original STL as editable SCAD and verified against it; the preview pulls the trigger to its stop.',
+  id: 'rubber-band-launcher' as const, version: '3' as const, title: 'Rubber band launcher',
+  description: 'FerryTeacher’s rubber band pistol, printed in one piece: the ridged trigger is printed on its two pins between the frame’s side plates and turns on them once freed. Hook a band into the groove at the barrel’s tip and stretch it back into the notch at the back, where it sits on the trigger’s top end; pulling the trigger lifts that end through the notch and pushes the band out over its lip, and the band flies. CanFactory adds a return band: a small rubber band round a peg on the frame and one on the trigger pulls the trigger back to rest after each shot. Reconstructed from the original STL as editable SCAD and verified against it.',
   attribution: 'FerryTeacher (Cults3D)',
   attributionLinks: [{ text: 'FerryTeacher', url: 'https://cults3d.com/en/users/FerryTeacher' }, { text: 'Cults3D', url: 'https://cults3d.com/en/3d-model/game/rubber-band-launcher' }],
-  printNotes: 'One print, in place: print launcher.stl as it is, standing on the barrel’s top edge, without moving or separating anything. It holds the frame and the trigger, which is printed on its pins inside the frame and cannot be put in afterwards. After printing, free the trigger gently until it turns on its pins. Non-commercial use only (CC BY-NC-SA): do not sell the prints or the files, and share adaptations under the same licence.',
+  printNotes: 'One print, in place: print launcher.stl as it is, standing on the barrel’s top edge, without moving or separating anything; no supports (the two return band pegs are pointed upwards, their heads overhang 0.6 mm). It holds the frame and the trigger, which is printed on its pins inside the frame and cannot be put in afterwards. After printing, free the trigger gently until it turns on its pins. Fit the return band, an office rubber band #8 (⅞″ × 1/16″), round the peg on the frame’s arm and the peg on the trigger’s finger end, over their heads: it holds the trigger back at rest and pulls it back after each shot. To load, hook a shot band, a #19 (3½″ × 1/16″), into the groove in the front of the barrel’s tip, stretch it back along both sides of the barrel and drop its end into the notch at the back, on the trigger. Pull the trigger to fire. Never aim at faces, people or animals. Non-commercial use only (CC BY-NC-SA): do not sell the prints or the files, and share adaptations under the same licence.',
   // ShareAlike: these reconstructions are adaptations of a CC BY-NC-SA design (models/rubber-band-launcher/ATTRIBUTION.md).
   license: 'CC BY-NC-SA', licenseUrl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
   parts: [
@@ -3970,7 +3971,11 @@ export const rubberBandLauncher = {
   validate(parameters: unknown): ParameterIssue[] {
     return Value.Check(RubberBandLauncherParametersSchema, parameters) ? [] : [{ field: '', message: 'This source design has no adjustable settings.' }];
   },
-  derived: () => ({ slotCount: null, notes: ['One print: the trigger is printed in place on its pins inside the frame and cannot be fitted afterwards.', 'Non-commercial use only (CC BY-NC-SA).'] }),
+  derived: () => ({ slotCount: null, notes: [
+    'One print: the trigger is printed in place on its pins inside the frame and cannot be fitted afterwards.',
+    'Bands: a #19 (3½″ × 1/16″) to shoot, hooked from the barrel’s tip into the notch; a #8 (⅞″ × 1/16″) round the two pegs returns the trigger.',
+    'Non-commercial use only (CC BY-NC-SA).',
+  ] }),
 } satisfies ModelDefinition;
 
 /** The one registration of each catalogue model. A `const` tuple, so that `RenderRequestSchema` (index.ts) derives a typed branch per model from it. */

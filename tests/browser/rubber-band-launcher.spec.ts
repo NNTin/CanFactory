@@ -4,7 +4,7 @@ import { unzipSync } from 'fflate';
 import { inspectStl } from '@canfactory/server';
 import { rubberBandLauncher as model } from '@canfactory/contracts';
 
-test('previews FerryTeacher’s launcher as one print-in-place piece, pulls its trigger and downloads the one attributed print', async ({ page }, testInfo) => {
+test('previews FerryTeacher’s launcher as one print-in-place piece with its two bands, fires a shot and downloads the one attributed print', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/#/models');
@@ -20,20 +20,25 @@ test('previews FerryTeacher’s launcher as one print-in-place piece, pulls its 
   await expect(page.getByText(/One print: the trigger is printed in place on its pins/)).toBeVisible();
   await expect(page.getByText(/2 moving parts are printed in place, together, and cannot be put together afterwards/)).toBeVisible();
   await expect(page.getByText('2 bodies printed in place', { exact: false })).toBeVisible();
+  await expect(page.getByText(/Bands: a #19 .* to shoot, .* a #8 .* returns the trigger/)).toBeVisible();
+  // both bands are hardware for this build
+  const hardware = page.getByRole('region', { name: 'Hardware for this build' });
+  for (const band of ['Rubber band #19 (3.5″ × 1/16″)', 'Rubber band #8 (7/8″ × 1/16″)']) await expect(hardware.getByRole('link', { name: band })).toBeVisible();
   await expect(page.getByTitle('Hide Frame', { exact: true })).toBeVisible();
   await expect(page.getByTitle('Hide Trigger', { exact: true })).toBeVisible();
-  // the two bodies of the one print lie together on the bed, as printed, and both are shown
+  // the two bodies of the one print lie together on the bed, as printed (one cell; the bands have one each), and all are shown
   const viewer = page.getByTestId('stl-viewer');
-  await expect(viewer).toHaveAttribute('data-bed-cells', '1');
-  await expect(viewer).toHaveAttribute('data-visible-parts', 'frame trigger');
+  await expect(viewer).toHaveAttribute('data-bed-cells', '3');
+  await expect(viewer).toHaveAttribute('data-visible-parts', 'frame trigger return-band shot-band');
   const slider = page.getByRole('slider', { name: 'Assembly', exact: true });
   await slider.press('Home');
-  const captions = ['As printed', 'Step 1 of 1 · Free the trigger: work it gently until it turns on its pins', 'Movement 1 of 2 · Pull the trigger to its stop', 'Movement 2 of 2 · Release the trigger'];
+  const captions = ['Lift and lay out the parts', ...model.assembly.steps.map((step, i) => `Step ${i + 1} of 2 · ${step.title}`), ...(model.assembly.motion ?? []).map((movement, i) => `Movement ${i + 1} of 2 · ${movement.title}`)];
+  expect(captions[3]).toContain('lifts the shot band out of the notch');
   for (const caption of captions) {
     await slider.press('ArrowRight');
     await expect(slider).toHaveAttribute('aria-valuetext', caption);
   }
-  await page.screenshot({ path: testInfo.outputPath('rubber-band-launcher-released.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('rubber-band-launcher-fired.png'), fullPage: true });
   const pending = page.waitForEvent('download');
   await download.click();
   const path = await (await pending).path();
@@ -44,6 +49,7 @@ test('previews FerryTeacher’s launcher as one print-in-place piece, pulls its 
   const stl = Buffer.from(entries['launcher.stl'] ?? []), info = inspectStl(stl, { allowDisconnected: true });
   expect(stl.subarray(0, 80).toString()).toContain('FerryTeacher');
   expect(stl.subarray(0, 80).toString()).toContain('CC BY-NC-SA');
-  for (const [i, axis] of (['x', 'y', 'z'] as const).entries()) expect(Math.abs(info.dimensions[axis] - ([126.875, 20.6, 109.613][i] ?? NaN))).toBeLessThan(0.1);
+  // with the return band's pegs, 2.8 mm out of one face
+  for (const [i, axis] of (['x', 'y', 'z'] as const).entries()) expect(Math.abs(info.dimensions[axis] - ([126.875, 23.4, 109.613][i] ?? NaN))).toBeLessThan(0.1);
   expect(errors).toEqual([]);
 });
