@@ -1215,8 +1215,12 @@ try {
       lowest[id] = bounds(mesh).min; sourceLowest[id] = bounds(reference).min;
       const [ours, theirs] = [boxSize(bounds(mesh)), boxSize(bounds(reference))];
       for (const i of [0, 2]) assert.ok(Math.abs((ours[i] ?? NaN) - (theirs[i] ?? NaN)) < 0.1, `${id}: size along axis ${i}`);
-      const comparison = compareMeshes(reference, mesh);
-      // the reconstruction (frame -0.37 %, trigger +0.03 %) and a peg (under +0.3 %)
+      // The source's shape, registered by the sides the peg leaves alone (x and z by their minima, y by its maximum: the peg stands
+      // out of the -y face, and would shift a bounding-box centre by 1.4 mm). The peg costs little: frame 0.9716 -> 0.970, trigger
+      // 0.998 -> 0.995; volume: the reconstruction (frame -0.37 %, trigger +0.03 %) and a peg (under +0.3 %).
+      const [box, sourceBox] = [bounds(mesh), bounds(reference)];
+      const comparison = compareMeshes(reference, mesh, { offset: [sourceBox.min[0] - box.min[0], sourceBox.max[1] - box.max[1], sourceBox.min[2] - box.min[2]] });
+      assert.ok(comparison.iou >= 0.96, `${id}: source IoU ${comparison.iou}`);
       assert.ok(Math.abs(comparison.volumeRelativeError) < 0.02, `${id}: volume ${comparison.volumeRelativeError}`);
     }
     for (const i of [0, 2])

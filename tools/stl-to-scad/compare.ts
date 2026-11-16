@@ -114,14 +114,16 @@ export interface Comparison {
 
 /**
  * Compare a candidate solid with a reference. The candidate is translated so the bounding-box centres coincide (source
- * STLs sit at arbitrary build-plate positions), after the reference is optionally scaled by `referenceScale`.
+ * STLs sit at arbitrary build-plate positions), after the reference is optionally scaled by `referenceScale`. `offset`
+ * translates it by that instead, for a candidate whose bounding box differs from the reference's on purpose (an added
+ * feature on one side) and must be registered by the sides that do not.
  */
-export function compareMeshes(reference: Mesh, candidate: Mesh, options: { cellSize?: number; referenceScale?: number; bandHeight?: number } = {}): Comparison {
+export function compareMeshes(reference: Mesh, candidate: Mesh, options: { cellSize?: number; referenceScale?: number; bandHeight?: number; offset?: readonly [number, number, number] } = {}): Comparison {
   const cell = options.cellSize ?? 0.2;
   const ref = options.referenceScale && options.referenceScale !== 1 ? transform(reference, options.referenceScale) : reference;
   const refBounds = bounds(ref), candBounds = bounds(candidate);
   const rc = center(refBounds), cc = center(candBounds);
-  const moved = transform(candidate, 1, [rc[0] - cc[0], rc[1] - cc[1], rc[2] - cc[2]]);
+  const moved = transform(candidate, 1, options.offset ? [...options.offset] : [rc[0] - cc[0], rc[1] - cc[1], rc[2] - cc[2]]);
   const rs = size(refBounds), cs = size(candBounds);
   const sizeDelta: [number, number, number] = [cs[0] - rs[0], cs[1] - rs[1], cs[2] - rs[2]];
   const turnedRef = rotateZ(ref, SAMPLE_ROTATION, rc[0], rc[1]);
