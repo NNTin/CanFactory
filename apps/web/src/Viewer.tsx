@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { Atom, Box, Eye, EyeOff, FlipVertical2, Grid2X2, Pause, Play, RotateCcw } from 'lucide-react';
-import { assemblyOffset, assemblyScale, assemblyState, assemblyStops, motionFrames, motionPose, type Assembly, type AssemblyState, type PhysicsSpec } from '@canfactory/contracts';
+import { assemblyOffset, assemblyScale, assemblyState, assemblyWind, assemblyStops, motionFrames, motionPose, type Assembly, type AssemblyState, type PhysicsSpec } from '@canfactory/contracts';
 import type { ControllerReport, PhysicsRequest, PhysicsUpdate } from '@canfactory/physics';
 import { unzipSync } from 'fflate';
 import * as THREE from 'three';
@@ -17,7 +17,8 @@ import { groupParts, partGroupKeys } from './viewerPartGroups.ts';
  * One mesh to show: STL `bytes`, or a `geometry` built from a library part's dimensions (e.g. a magnet). `reference` marks a
  * real-world object from the assembly (e.g. a lighter), shown in its own colour: it is not printed.
  */
-type Part = { name: string; reference?: boolean } & ({ bytes: ArrayBuffer } | { geometry: THREE.BufferGeometry });
+/** A part to show: an STL, or a reference object's geometry; `rewind` builds a torsion spring's again, wound by that many degrees. */
+type Part = { name: string; reference?: boolean } & ({ bytes: ArrayBuffer } | { geometry: THREE.BufferGeometry; rewind?: (wind: number) => THREE.BufferGeometry | null });
 
 interface SceneController {
   /**
@@ -79,7 +80,18 @@ class Placement {
   private readonly rotation = new THREE.Quaternion();
   private readonly position = new THREE.Vector3();
   private readonly next = new THREE.Quaternion();
-  constructor(readonly id: string, readonly mesh: THREE.Mesh, private readonly grid: THREE.Vector3) {}
+  private wound = 0;
+  constructor(readonly id: string, readonly mesh: THREE.Mesh, private readonly grid: THREE.Vector3, private readonly rewind?: (wind: number) => THREE.BufferGeometry | null) {}
+
+  /** A torsion spring's geometry, wound as this state has it (`assemblyWind`): built again when that changes by a tenth of a degree. */
+  private wind(wind: number) {
+    if (!this.rewind || Math.abs(wind - this.wound) < 0.1) return;
+    const geometry = this.rewind(wind);
+    if (!geometry) return;
+    this.mesh.geometry.dispose();
+    this.mesh.geometry = smoothNormals(geometry);
+    this.wound = wind;
+  }
 
   /**
    * Blends from the print bed to the part's (offset) assembled pose while the parts are lifted, then follows the steps, then the
@@ -87,6 +99,7 @@ class Placement {
    * one, linearly).
    */
   apply(assembly: Assembly, state: AssemblyState, frames: ReturnType<typeof motionFrames>) {
+    this.wind(assemblyWind(assembly, frames, this.id, state));
     const moving = motionPose(frames, this.id, state);
     if (moving) {
       poseRotation(moving.from, this.rotation); poseRotation(moving.to, this.next);
@@ -216,6 +229,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
       },
       setParts(parts, assembly) {
         group.clear();
+        // with the geometries built again for a wound spring
+        for (const placement of placements) placement.mesh.geometry.dispose();
         for (const geometry of geometries) geometry.dispose();
         geometries = [];
         for (const current of coloredMaterials) current.dispose();
@@ -225,7 +240,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
           geometry.computeBoundingBox();
           const bounds = geometry.boundingBox;
           if (!bounds) { geometry.dispose(); return null; }
-          return { id: part.name.replace(/\.stl$/i, ''), reference: part.reference === true, geometry, bounds, size: bounds.getSize(new THREE.Vector3()) };
+          return { id: part.name.replace(/\.stl$/i, ''), reference: part.reference === true, geometry, bounds, size: bounds.getSize(new THREE.Vector3()), rewind: 'rewind' in part ? part.rewind : undefined };
         }).filter(part => part !== null);
         if (prepared.length === 0) throw new Error('The preview contains no visible geometry.');
         geometries = prepared.map(part => part.geometry);
@@ -258,7 +273,7 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
             -part.bounds.min.z);
           partMesh.position.copy(grid);
           group.add(partMesh);
-          return new Placement(part.id, partMesh, grid);
+          return new Placement(part.id, partMesh, grid, part.rewind);
         });
         bedGroups = [...cellOf.entries()].map(([key, cell]) => ({ key, placements: placements.filter((_, index) => cellIndex[index] === cell) }))
           .filter(group => group.placements.length > 1);
@@ -417,7 +432,10 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     // Reference objects are static files, or built from their part's dimensions: one that cannot be loaded is left out rather
     // than failing the preview.
     const loadReference = async (reference: ReferenceObject): Promise<Part[]> => {
-      if (!('url' in reference)) { const geometry = reference.geometry(); return geometry ? [{ name: reference.id, geometry, reference: true }] : []; }
+      if (!('url' in reference)) {
+        const geometry = reference.geometry();
+        return geometry ? [{ name: reference.id, geometry, reference: true, ...(reference.winds ? { rewind: reference.geometry } : {}) }] : [];
+      }
       const response = await fetch(reference.url, { signal: abort.signal });
       return response.ok ? [{ name: `${reference.id}.stl`, bytes: await response.arrayBuffer(), reference: true }] : [];
     };

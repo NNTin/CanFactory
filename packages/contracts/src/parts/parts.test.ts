@@ -126,6 +126,16 @@ describe('parts library', () => {
         const force = Number(/Fn = ([\d.]+) N/.exec(part.notes ?? '')?.[1]);
         expect(springRate(part) * (dimension(part, 'L0') - dimension(part, 'Ln')), message).toBeCloseTo(force, 0);
       }
+      if (part.family === 'torsion-spring') {
+        // closely wound: the coil body is one wire per coil and one more; the legs are the coils' fraction of a turn apart; the
+        // mandrel fits inside the coil; the outer diameter is the inner one and two wires
+        const coils = Number(part.attributes['coils']);
+        expect(dimension(part, 'Lk'), message).toBeCloseTo((coils + 1) * d, 1);
+        expect((coils % 1) * 360, message).toBe(Number.parseFloat(part.attributes['legPosition'] ?? ''));
+        expect(part.dimensions['Dd']?.max ?? Number.NaN, message).toBeLessThan(part.dimensions['Di']?.min ?? Number.NaN);
+        expect(dimension(part, 'De'), message).toBeCloseTo(dimension(part, 'Di') + 2 * d, 6);
+        expect(dimension(part, 'Ls'), message).toBeGreaterThan(dimension(part, 'De'));
+      }
       if (part.family === 'split-ring') {
         // the band is the ring's radial width (one maker's A is 0.25 mm off it), of wire no thicker than the band, two turns thick
         expect(dimension(part, 'D'), message).toBeGreaterThan(d);

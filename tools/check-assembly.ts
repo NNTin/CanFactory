@@ -22,7 +22,7 @@
  */
 import { parseArgs } from 'node:util';
 import { assemblyOffset, assemblyScale, motionFrames, isAssembly, models, resolveAssembly, validateParameters, type Assembly, type AssemblyState, type ModelDefinition, type ParameterValues } from '@canfactory/contracts';
-import { renderAssemblyMeshes } from './assembly-meshes.ts';
+import { renderAssemblyMeshes, windingReferences } from './assembly-meshes.ts';
 import { intersectionVolume } from './stl-to-scad/compare.ts';
 import { bounds, g, type Mesh } from './stl-to-scad/stl.ts';
 
@@ -111,13 +111,16 @@ async function checkModel(model: ModelDefinition & { assembly: Assembly }, param
     findings.push({ check: `step ${index + 1} last ${closing.toFixed(0)} mm (snaps engaging; worst ${snap > 0 ? `${at.toFixed(2)} mm before seated` : 'sample'})`, volume: snap, snap: true });
   });
 
+  const springs = windingReferences(assembly);
   motionFrames(assembly).forEach((frames, index) => {
     let worst: Finding = { check: '', volume: 0 };
     frames.slice(1).forEach((poses, frame) => {
       const placed = new Map<string, Mesh>();
       for (const [id, mesh] of parts) {
         const pose = poses[id];
-        if (pose) placed.set(id, place(mesh, pose.rotation ?? [0, 0, 0], pose.position, pose.scale));
+        // a torsion spring wound further (or less) than it is assembled is built again at that angle
+        const wound = pose?.wind !== undefined && pose.wind !== (assembly.poses[id]?.wind ?? 0) ? springs.get(id)?.(pose.wind) : undefined;
+        if (pose) placed.set(id, place(wound ?? mesh, pose.rotation ?? [0, 0, 0], pose.position, pose.scale));
       }
       for (const finding of pairs('', placed)) if (finding.volume > worst.volume) worst = { check: `${finding.check.slice(2)}, frame ${frame + 1} of ${frames.length - 1}`, volume: finding.volume };
     });

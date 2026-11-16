@@ -24,6 +24,7 @@ import { setScrewFamily, setScrewParts } from './set-screws.ts';
 import { splitRingFamily, splitRingParts } from './split-rings.ts';
 import { rubberBandFamily, rubberBandParts } from './rubber-bands.ts';
 import { springFamily, springParts } from './springs.ts';
+import { torsionSpringFamily, torsionSpringParts } from './torsion-springs.ts';
 import { stepperDriverFamily, stepperDriverParts } from './stepper-drivers.ts';
 import { stepperMotorFamily, stepperMotorParts } from './stepper-motors.ts';
 import { toggleLatchFamily, toggleLatchParts } from './toggle-latches.ts';
@@ -53,14 +54,14 @@ export { stepperDriverComponentTop, stepperDriverLayout, type StepperDriverCompo
 export const partFamilies: readonly PartFamily[] = [
   magnetFamily, screwFamily, nutFamily, washerFamily, insertFamily, bearingFamily, pinFamily, everydayObjectFamily,
   woodScrewFamily, nailFamily, insertNutFamily, levellingFootFamily, toggleLatchFamily, screenHookFamily, cornerBracketFamily,
-  setScrewFamily, ballFamily, springFamily, splitRingFamily, rubberBandFamily, nfcTagFamily, catCollarFamily, devBoardFamily, pinHeaderFamily, heatsinkFamily, meshFamily,
+  setScrewFamily, ballFamily, springFamily, torsionSpringFamily, splitRingFamily, rubberBandFamily, nfcTagFamily, catCollarFamily, devBoardFamily, pinHeaderFamily, heatsinkFamily, meshFamily,
   stepperMotorFamily, stepperDriverFamily, prototypeBoardFamily, hookupWireFamily,
 ];
 
 export const parts: readonly Part[] = [
   ...magnetParts, ...screwParts, ...nutParts, ...washerParts, ...insertParts, ...bearingParts, ...pinParts, ...everydayObjectParts,
   ...woodScrewParts, ...nailParts, ...insertNutParts, ...levellingFootParts, ...toggleLatchParts, ...screenHookParts, ...cornerBracketParts,
-  ...setScrewParts, ...ballParts, ...springParts, ...splitRingParts, ...rubberBandParts, ...nfcTagParts, ...catCollarParts, ...devBoardParts, ...pinHeaderParts, ...heatsinkParts, ...meshParts,
+  ...setScrewParts, ...ballParts, ...springParts, ...torsionSpringParts, ...splitRingParts, ...rubberBandParts, ...nfcTagParts, ...catCollarParts, ...devBoardParts, ...pinHeaderParts, ...heatsinkParts, ...meshParts,
   ...stepperMotorParts, ...stepperDriverParts, ...prototypeBoardParts, ...hookupWireParts,
 ];
 

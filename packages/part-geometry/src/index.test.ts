@@ -42,6 +42,27 @@ describe('part geometry', () => {
       expect(size(part).z, part.id).toBeCloseTo(dimensionOf(part, 'l'), 6);
     }
   });
+  it('draws a torsion spring by its leg position, and wound and with its legs cut as it is fitted', () => {
+    const spring = parts.find(p => p.id === 'gutekunst-t-16102l'); if (!spring) throw new Error('no T-16102L');
+    const box = (shape: Parameters<typeof partGeometry>[1]) => {
+      const geometry = partGeometry(spring, shape); if (!geometry) throw new Error('no spring geometry');
+      expect(openEdges(geometry)).toBe(0);
+      geometry.computeBoundingBox(); const found = geometry.boundingBox ?? new THREE.Box3(); geometry.dispose();
+      return found;
+    };
+    const d = dimensionOf(spring, 'd'), De = dimensionOf(spring, 'De'), Ls = dimensionOf(spring, 'Ls');
+    // 180°: both legs along -X, side by side, so the spring is the coil's width across and the leg's length long
+    const free = box({});
+    expect(free.min.x).toBeCloseTo(-Ls, 0); expect(free.max.x).toBeCloseTo(De / 2, 1);
+    expect(free.max.y - free.min.y).toBeCloseTo(De, 1);
+    expect(free.max.z - free.min.z).toBeCloseTo(dimensionOf(spring, 'Lk'), 1);
+    // cut to 6 and 5 mm and wound a quarter turn: the second leg now points along +Y (turned clockwise seen from +Z, as a
+    // left-hand coil winds)
+    const fitted = box({ wind: 90, legs: [6, 5] });
+    expect(fitted.min.x).toBeCloseTo(-6, 0);
+    expect(fitted.max.y).toBeGreaterThan(5 - d);
+    expect(fitted.max.z - fitted.min.z).toBeCloseTo(dimensionOf(spring, 'Lk') + d / 4, 1);
+  });
   it('draws a stepper motor and its driver board at their own sizes: over the ears and the shaft, the board with the plug in it', () => {
     for (const part of parts.filter(p => p.family === 'stepper-motor')) {
       const box = size(part);

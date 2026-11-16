@@ -61,6 +61,16 @@ export function motionPose(frames: Record<string, Pose>[][], partId: string, sta
 }
 
 /**
+ * A torsion spring's wind in this state (`Pose.wind`, degrees): between two motion frames linearly, else its pose's, which it
+ * takes as it leaves the print bed (where it lies as sold, unwound).
+ */
+export function assemblyWind(assembly: Assembly, frames: Record<string, Pose>[][], partId: string, state: AssemblyState): number {
+  const moving = motionPose(frames, partId, state);
+  if (moving) return (moving.from.wind ?? 0) + ((moving.to.wind ?? 0) - (moving.from.wind ?? 0)) * moving.f;
+  return (assembly.poses[partId]?.wind ?? 0) * state.arrange;
+}
+
+/**
  * The part's offset from its assembled pose in this state, once it has left the print bed: the unplayed part of every step
  * it moves in, plus the lift, which is removed during the last step.
  */
@@ -118,6 +128,8 @@ export function resolveAssembly(model: Pick<ModelDefinition, 'linkedReferences' 
       const riders = linked.filter(reference => reference.movesWith !== undefined && step.parts.includes(reference.movesWith)).map(reference => reference.id);
       return riders.length > 0 ? { ...step, parts: [...step.parts, ...riders] } : step;
     }), ...linkedSteps(linked)],
-    references: [...assembly.references ?? [], ...linked.map(reference => ({ id: reference.id, part: reference.part, title: `${findPart(reference.part)?.title ?? reference.part} (${reference.label})` }))],
+    references: [...assembly.references ?? [], ...linked.map(reference => ({
+      id: reference.id, part: reference.part, title: `${findPart(reference.part)?.title ?? reference.part} (${reference.label})`, ...(reference.legs ? { legs: reference.legs } : {}),
+    }))],
   };
 }

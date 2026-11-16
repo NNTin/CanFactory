@@ -1,7 +1,7 @@
 {
   "title": "Trolley token \u2014 STEP conversion versus the original STLs",
   "notes": [
-    "Original design by jhappone, Thingiverse 4126950, CC BY 4.0. No design changes; rigid print placement only.",
+    "Original design by jhappone, Thingiverse 4126950, CC BY 4.0. The conversion itself makes no design changes (rigid print placement only); it is compared here rendered with M2_HARDWARE = false, without CanFactory's fittings for the M2 screw, nut and torsion spring (CONVERSION.md).",
     "Clip.print.stl is the supplied Clip.stl rotated 180 degrees about X; the supplied originals remain unchanged.",
     "The STEP clip carries a 0.26138493093829307 degree assembled tilt. The conversion flattens its outer face for printing, then the assembly pose reverses this rigid transform."
   ],
@@ -9,12 +9,18 @@
     {
       "name": "Token body",
       "scad": "body.scad",
-      "stl": "reference/Main_body.stl"
+      "stl": "reference/Main_body.stl",
+      "defines": {
+        "M2_HARDWARE": "false"
+      }
     },
     {
       "name": "Paper clamp",
       "scad": "clip.scad",
-      "stl": "reference/Clip.print.stl"
+      "stl": "reference/Clip.print.stl",
+      "defines": {
+        "M2_HARDWARE": "false"
+      }
     }
   ]
 }

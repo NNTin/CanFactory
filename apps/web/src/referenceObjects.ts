@@ -12,15 +12,19 @@ export function partStlUrl(part: Part): string | undefined {
   return path ? urls[`../../../${path}`] : undefined;
 }
 
-/** A reference object as the viewer loads it: its bundled STL, or its geometry built from the part's dimensions (e.g. a magnet). */
-export type ReferenceObject = { id: string; url: string } | { id: string; geometry: () => BufferGeometry | null };
+/**
+ * A reference object as the viewer loads it: its bundled STL, or its geometry built from the part's dimensions (e.g. a magnet),
+ * wound by `wind` degrees for a torsion spring (`Pose.wind`) and with its legs as the assembly cuts them.
+ */
+export type ReferenceObject = { id: string; url: string } | { id: string; geometry: (wind?: number) => BufferGeometry | null; winds: boolean };
 
 /** The assembly's reference objects that the viewer can show, in the order the assembly lists them. */
 export function referenceObjects(assembly: Assembly | undefined): ReferenceObject[] {
-  return (assembly?.references ?? []).flatMap(({ id, part }): ReferenceObject[] => {
+  return (assembly?.references ?? []).flatMap(({ id, part, legs }): ReferenceObject[] => {
     const found = findPart(part);
     if (!found) return [];
     const url = partStlUrl(found);
-    return url ? [{ id, url }] : [{ id, geometry: () => partGeometry(found) }];
+    const cut = legs ? { legs: [legs[0] ?? 0, legs[1] ?? 0] as const } : {};
+    return url ? [{ id, url }] : [{ id, geometry: (wind = 0) => partGeometry(found, { ...cut, wind }), winds: found.family === 'torsion-spring' }];
   });
 }

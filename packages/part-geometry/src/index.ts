@@ -282,6 +282,27 @@ function ball(part: Part): Piece[] {
   return [paint(sphere, NICKEL)];
 }
 
+/** A round wire of diameter d along a centre line through `points`, its ends capped on the tube's own end rings, facing out, so
+ * that it is a closed solid. */
+function wire(points: THREE.Vector3[], d: number, segments: number): Piece[] {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const tube = new THREE.TubeGeometry(curve, segments, d / 2, 8, false);
+  const cap = (index: number, outward: number): Piece => {
+    const centre = curve.getPointAt(index / segments); const normal = tube.normals[index]; const binormal = tube.binormals[index];
+    if (!normal || !binormal) throw new Error('The wire has no frame at its end.');
+    // as TubeGeometry places a ring's vertices
+    const at = (j: number) => {
+      const angle = j / 8 * Math.PI * 2;
+      return centre.clone().addScaledVector(normal, -Math.cos(angle) * d / 2).addScaledVector(binormal, Math.sin(angle) * d / 2);
+    };
+    const facing = new THREE.Vector3().crossVectors(at(0).sub(centre), at(1).sub(centre)).dot(curve.getTangentAt(index / segments)) * outward > 0;
+    const fan = Array.from({ length: 8 }, (_, j) => [centre, ...(facing ? [at(j), at(j + 1)] : [at(j + 1), at(j)])].flatMap(v => v.toArray())).flat();
+    const disc = new THREE.BufferGeometry(); disc.setAttribute('position', new THREE.Float32BufferAttribute(fan, 3)); disc.computeVertexNormals();
+    return paint(disc, STEEL);
+  };
+  return [paint(tube, STEEL), cap(0, -1), cap(segments, 1)];
+}
+
 function spring(part: Part): Piece[] {
   // the wire's centre line as a helix at the mean diameter, at its free length; closed ends drawn as one flat turn each
   const d = value(part, 'd'); const De = value(part, 'De'); const L0 = value(part, 'L0');
@@ -294,23 +315,42 @@ function spring(part: Part): Piece[] {
     const z = d / 2 + (L0 - d) * Math.min(1, Math.max(0, (turn - 1) / coils));
     points.push(new THREE.Vector3(radius * Math.cos(turn * 2 * Math.PI), radius * Math.sin(turn * 2 * Math.PI), z));
   }
-  const curve = new THREE.CatmullRomCurve3(points);
-  const tube = new THREE.TubeGeometry(curve, samples, d / 2, 8, false);
-  // the wire's ends capped on the tube's own end rings, facing out, so that it is a closed solid
-  const cap = (index: number, outward: number): Piece => {
-    const centre = curve.getPointAt(index / samples); const normal = tube.normals[index]; const binormal = tube.binormals[index];
-    if (!normal || !binormal) throw new Error('The spring has no frame at its end.');
-    // as TubeGeometry places a ring's vertices
-    const at = (j: number) => {
-      const angle = j / 8 * Math.PI * 2;
-      return centre.clone().addScaledVector(normal, -Math.cos(angle) * d / 2).addScaledVector(binormal, Math.sin(angle) * d / 2);
-    };
-    const facing = new THREE.Vector3().crossVectors(at(0).sub(centre), at(1).sub(centre)).dot(curve.getTangentAt(index / samples)) * outward > 0;
-    const fan = Array.from({ length: 8 }, (_, j) => [centre, ...(facing ? [at(j), at(j + 1)] : [at(j + 1), at(j)])].flatMap(v => v.toArray())).flat();
-    const disc = new THREE.BufferGeometry(); disc.setAttribute('position', new THREE.Float32BufferAttribute(fan, 3)); disc.computeVertexNormals();
-    return paint(disc, STEEL);
+  return wire(points, d, samples);
+}
+
+/**
+ * How a part is drawn where it is fitted, when that differs from the part as sold: a torsion spring wound by `wind` degrees from its
+ * free leg position, with its legs cut to `legs` mm (first the leg at the start of the coil, then the one at its end).
+ */
+export interface PartShape { wind?: number; legs?: readonly [number, number] }
+
+/**
+ * A torsion spring, closely wound, with straight tangential legs: the coil's axis is Z, its body from z = 0 up. The first leg
+ * leaves the bottom coil at +Y and points along -X; the second leaves the top coil, the coils' fraction of a turn further round
+ * (its leg position), so that a 180° spring has both legs along -X, side by side. Winding it (`PartShape.wind`, in the coiling
+ * direction, which closes the coils) turns the second leg about the axis and adds that fraction of a coil.
+ */
+function torsionSpring(part: Part, shape: PartShape): Piece[] {
+  const d = value(part, 'd'); const radius = (value(part, 'Di') + d) / 2; const coils = Number(part.attributes['coils'] ?? 2);
+  const pitch = (value(part, 'Lk') - d) / coils; const turns = coils + (shape.wind ?? 0) / 360;
+  const [first, second] = shape.legs ?? [value(part, 'Ls'), value(part, 'Ls')];
+  // left-handed: the wire turns clockwise seen from +Z as it rises
+  const sense = part.attributes['winding'] === 'right' ? 1 : -1;
+  const angle = (u: number) => -sense * Math.PI / 2 + sense * u;
+  const at = (u: number) => new THREE.Vector3(radius * Math.cos(angle(u)), radius * Math.sin(angle(u)), d / 2 + pitch * u / (2 * Math.PI));
+  const along = (u: number) => new THREE.Vector3(-sense * Math.sin(angle(u)), sense * Math.cos(angle(u)), 0);
+  const end = turns * 2 * Math.PI; const samples = Math.ceil(turns * 24);
+  // a leg's centre line from its tip towards the coil, every half millimetre, without the point where it leaves the coil
+  const leg = (from: THREE.Vector3, direction: THREE.Vector3, length: number) => {
+    const count = Math.max(2, Math.ceil(length / 0.5));
+    return Array.from({ length: count }, (_, i) => from.clone().addScaledVector(direction, length * (1 - i / count)));
   };
-  return [paint(tube, STEEL), cap(0, -1), cap(samples, 1)];
+  const points = [
+    ...leg(at(0), along(0).negate(), first),
+    ...Array.from({ length: samples + 1 }, (_, i) => at(i / samples * end)),
+    ...leg(at(end), along(end), second).reverse(),
+  ];
+  return wire(points, d, points.length * 2);
 }
 
 function splitRing(part: Part): Piece[] {
@@ -636,17 +676,20 @@ function hookupWire(part: Part): Piece[] {
   return pieces;
 }
 
-const BUILDERS: Record<string, (part: Part) => Piece[]> = {
-  screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
+const BUILDERS: Record<string, (part: Part, shape: PartShape) => Piece[]> = {
+  'torsion-spring': torsionSpring, screw, nut, washer, 'threaded-insert': insert, bearing, pin, magnet, 'wood-screw': woodScrew, nail: staple, 'insert-nut': insertNut, 'levelling-foot': levellingFoot, 'toggle-latch': toggleLatch, 'screen-hook': screenHook, 'corner-bracket': cornerBracket,
   'set-screw': setScrew, ball, spring, 'split-ring': splitRing, 'rubber-band': rubberBand, 'nfc-tag': nfcTag, 'cat-collar': catCollar, 'dev-board': devBoard, 'pin-header': pinHeader, heatsink, mesh,
   'stepper-motor': stepperMotor, 'stepper-driver': stepperDriver, 'prototype-board': prototypeBoard, 'hookup-wire': hookupWire,
 };
 
-/** The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview). */
-export function partGeometry(part: Part): THREE.BufferGeometry | null {
+/**
+ * The part as one geometry with vertex colours, or null for a family without a builder (those parts have an STL preview); with
+ * `shape`, as it is fitted (a wound torsion spring with cut legs).
+ */
+export function partGeometry(part: Part, shape: PartShape = {}): THREE.BufferGeometry | null {
   const build = BUILDERS[part.family];
   if (!build) return null;
-  const pieces = build(part);
+  const pieces = build(part, shape);
   const merged = mergeGeometries(pieces, false);
   for (const piece of pieces) piece.dispose();
   return merged;

@@ -7,19 +7,39 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { findPart, partAssetPath, type Assembly, type ParameterValues, type Part } from '@canfactory/contracts';
-import { partGeometry } from '@canfactory/part-geometry';
+import { partGeometry, type PartShape } from '@canfactory/part-geometry';
 import { fontsPath, openScadArgs, renderActiveParts, repositoryRoot, selectRunner, type Defines } from '@canfactory/server';
 import { bounds, g, parseStl, type Mesh } from './stl-to-scad/stl.ts';
 
 /** A part's geometry from the parts library's builders (@canfactory/part-geometry) as an STL's triangles. */
-function procedural(part: Part): Mesh | undefined {
-  const geometry = partGeometry(part);
+function procedural(part: Part, shape: PartShape = {}): Mesh | undefined {
+  const geometry = partGeometry(part, shape);
   if (!geometry) return undefined;
   const position = geometry.getAttribute('position');
   const tris = new Float64Array(position.count * 3);
   for (let i = 0; i < position.count; i++) tris.set([position.getX(i), position.getY(i), position.getZ(i)], i * 3);
   geometry.dispose();
   return { tris };
+}
+
+/** How a reference is fitted in the assembled pose: a torsion spring wound (`Pose.wind`), with its legs as the assembly cuts them. */
+function referenceShape(assembly: Assembly, id: string, wind = assembly.poses[id]?.wind ?? 0): PartShape {
+  const legs = assembly.references?.find(reference => reference.id === id)?.legs;
+  return { wind, ...(legs ? { legs: [legs[0] ?? 0, legs[1] ?? 0] } : {}) };
+}
+
+/**
+ * The torsion springs among the assembly's references, by id: each one's mesh wound by a given angle, for the poses (motion
+ * frames) that wind it further than its assembled pose.
+ */
+export function windingReferences(assembly: Assembly): Map<string, (wind: number) => Mesh> {
+  const springs = new Map<string, (wind: number) => Mesh>();
+  for (const reference of assembly.references ?? []) {
+    const part = findPart(reference.part);
+    if (part?.family !== 'torsion-spring') continue;
+    springs.set(reference.id, wind => procedural(part, referenceShape(assembly, reference.id, wind)) ?? { tris: new Float64Array() });
+  }
+  return springs;
 }
 
 const seconds = (started: number) => `${((Date.now() - started) / 1000).toFixed(1)} s`;
@@ -42,7 +62,7 @@ export async function renderAssemblyMeshes(model: Parameters<typeof renderActive
     for (const reference of assembly.references ?? []) {
       const part = findPart(reference.part);
       if (!part) throw new Error(`${model.id}: reference ${reference.id} is not in the parts library.`);
-      const built = procedural(part);
+      const built = procedural(part, referenceShape(assembly, reference.id));
       if (built) {
         parts.set(reference.id, built);
         console.log(`built reference ${reference.id} (${part.id})`);
