@@ -1,7 +1,7 @@
 # The parts library
 
 The parts library is a catalogue of real-world parts that models are made to fit: screws, nuts, washers, magnets, threaded
-inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, split rings, NFC tags, cat collars, development boards, stepper motors and their driver boards, prototype boards (perfboard and stripboard), solid-core hookup wire, mesh and netting by the roll, and everyday objects such as the BIC
+inserts, bearings, pins, wood screws, staples, insert nuts for wood, levelling feet, toggle latches, insect screen hooks, flat corner brackets, set screws, steel balls, compression springs, torsion springs, split rings, NFC tags, cat collars, development boards, stepper motors and their driver boards, prototype boards (perfboard and stripboard), solid-core hookup wire, mesh and netting by the roll, and everyday objects such as the BIC
 Mini lighter the cigarette case holds. Every entry is one real
 item, a size of a standard part (ISO 4762 M3 × 10) or a named product (supermagnete S-06-02-N), with its dimensions, their
 tolerances where the source gives them, and the source of every value.
@@ -89,6 +89,32 @@ whole catalogue:
 `npm run check:assembly` checks them as the parts library draws them (`@canfactory/part-geometry`). A set screw is drawn at its
 nominal diameter: a hole it is turned into must be cut to clear it (as a tap-drill hole does not), or the check counts its
 thread.
+
+### Torsion springs
+
+The **`torsion-spring`** family (`torsion-springs.ts`) was added for the [trolley token](trolley-token.md)'s clamp, which turns on
+an M2 screw. It holds Gutekunst's stainless T-1610xL line, read from each article's page on federnshop.com: 0.5 mm wire, 2.5 mm
+inside, 25 mm straight tangential legs, in the four leg positions 0°, 90°, 180° and 270°.
+
+- **Dimensions:** wire `d`, inner diameter `Di` (± its tolerance), outer diameter `De` (`Di + 2d`: the maker gives no `De`), the
+  mandrel `Dd` (its `min` and `max` are the maker's Ddmin and Ddmax: the pin or screw it may turn on), the coil body's length
+  `Lk` (Lk0) and the leg length `Ls`.
+- **Attributes:** the leg position, the total coils, the coiling direction, the largest torque Mn and angle αn, and the rate,
+  which is Mn / αn (the maker gives none).
+- **The leg position:** it is the coils' fraction of a turn, so 4.5 coils is 180°. With tangential legs, 180° means the legs
+  leave the coil at opposite sides and lie side by side, pointing the same way; 0° means they leave at the same side, pointing
+  opposite ways.
+- **The test:** it checks that the coil is closely wound (`Lk` = (coils + 1) × `d`), that the leg position is the coils' fraction,
+  and that the mandrel fits inside the coil.
+
+The parts library draws a spring as sold: the coil's axis along Z, its first leg along −X. A model draws it as fitted, and
+`partGeometry(part, shape)` takes that shape:
+- `wind`: the degrees it is wound in its coiling direction, which turns its second leg;
+- `legs`: the lengths its legs are cut to.
+
+An assembly gives the wind in the spring reference's pose (`Pose.wind`, interpolated between motion frames) and the cut lengths
+on the reference (`legs`). The editor and `npm run check:assembly` both build the spring that way, so a leg that bears on a seat
+is checked against it at every frame.
 
 ### Pin headers
 

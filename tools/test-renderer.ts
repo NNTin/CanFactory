@@ -3,8 +3,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { rubberBandLauncher, trolleyToken, magneticLighterKeychain, type MagneticLighterKeychainParameters, prototypeWireGuide, DEFAULT_WAND_HOLDER, WAND_HOLDER, wandHolder, wandHolderLayout, type WandHolderParameters, DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, parameterString, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
-import { inspectStl, ObjectStorage, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair, type RenderJob } from '@canfactory/server';
+import { rubberBandLauncher, trolleyToken, TROLLEY_TOKEN_CLIP_ANGLE, TROLLEY_TOKEN_HARDWARE, TROLLEY_TOKEN_HINGE, trolleyTokenClipPose, magneticLighterKeychain, type MagneticLighterKeychainParameters, prototypeWireGuide, DEFAULT_WAND_HOLDER, WAND_HOLDER, wandHolder, wandHolderLayout, type WandHolderParameters, DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, parameterString, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { fontsPath, inspectStl, ObjectStorage, openScadArgs, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair, type RenderJob } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { startStorageServices } from './storage-services.ts';
 import jsQR from 'jsqr';
@@ -1142,21 +1142,51 @@ try {
     assert.deepEqual(result.artifact.parts.map(part => part.id), ['body', 'clip']);
     const bytes = await artifactBytes(result), entries = unzipSync(bytes);
     assert.deepEqual(Object.keys(entries), ['body.stl', 'clip.stl']);
-    for (const [id, file, expected] of [['body', 'Main_body.stl', [51.625, 30, 7.5]], ['clip', 'Clip.print.stl', [25, 30, 7]]] as const) {
+    const delivered: Record<string, Mesh> = {};
+    for (const [id, file, expected] of [['body', 'Main_body.stl', [51.625, 30, 8]], ['clip', 'Clip.print.stl', [25, 30, 7]]] as const) {
       const stl = Buffer.from(entries[`${id}.stl`] ?? []), info = inspectStl(stl);
       const header = stl.subarray(0, 80).toString('utf8');
       assert.ok(header.includes('jhappone')); assert.ok(header.includes('CC BY 4.0'));
       for (const [i, axis] of (['x', 'y', 'z'] as const).entries())
         assert.ok(Math.abs(info.dimensions[axis] - (expected[i] ?? NaN)) < 0.02, `${id}: ${axis} size`);
+      delivered[id] = parseStl(stl);
+      // the unchanged STEP conversion inside it still matches the original STL
+      const source = join(directory, `trolley-${id}-source.stl`);
+      await runner(openScadArgs(source, [['M2_HARDWARE', 'false']], join(repositoryRoot, `models/trolley-token/${id}.scad`)), new AbortController().signal, fontsPath);
       const reference = parseStl(await readFile(join(repositoryRoot, 'models/trolley-token/reference', file)));
-      const comparison = compareMeshes(reference, parseStl(stl));
+      const comparison = compareMeshes(reference, parseStl(await readFile(source)));
       assert.ok(comparison.iou >= 0.99, `${id}: source IoU ${comparison.iou}`);
       assert.ok(Math.abs(comparison.volumeRelativeError) < 0.002, `${id}: source volume`);
     }
+    // The M2 fittings, probed in the assembled frame (the body's print frame; the clip's is its closed pose undone).
+    const [ax, , az] = TROLLEY_TOKEN_HINGE, hw = TROLLEY_TOKEN_HARDWARE, tilt = TROLLEY_TOKEN_CLIP_ANGLE * Math.PI / 180;
+    const clipAt = trolleyTokenClipPose(0).position;
+    const toClip = ([x, y, z]: [number, number, number]): [number, number, number] => {
+      const [dx, dy, dz] = [x - (clipAt[0] ?? 0), y, z - (clipAt[2] ?? 0)];
+      return [dx * Math.cos(tilt) - dz * Math.sin(tilt), -dy, -(dx * Math.sin(tilt) + dz * Math.cos(tilt))];
+    };
+    const body = delivered['body'], clip = delivered['clip'];
+    if (!body || !clip) throw new Error('Expected both trolley token parts.');
+    // a point 0.2 mm into a leg's seat, 4 mm along the leg (`top`: the clip's, above its leg), relative to the hinge
+    const seat = (angle: number, top: boolean, y: number): [number, number, number] => {
+      const a = angle * Math.PI / 180, z0 = top ? 1.5 : -1.5, side = top ? 1 : -1, depth = 0.25 + 0.2;
+      return [ax + z0 * Math.sin(a) - 4 * Math.cos(a) + side * depth * Math.sin(a), y, az + z0 * Math.cos(a) + 4 * Math.sin(a) + side * depth * Math.cos(a)];
+    };
+    for (const [label, point, solid] of [
+      ['M2 clearance through the head-side ear', [ax + 0.9, 6.25, az], false], ['the ear round the clearance hole', [ax + 1.6, 6.25, az], true],
+      ['M2 clearance through the nut-side ear', [ax + 0.9, -6.25, az], false], ['the wall the nut seats against', [ax + 1.9, -6.6, az], true],
+      ['the nut trap, across its flats', [ax + 1.9, -7.7, az], false], ['the nut trap, at its upper corner', [ax, -7.7, az + 2.3], false],
+      ['the boss round the trap', [ax + 2.7, -8.5, az], true], ['the boss over the trap, past the screw’s tip', [ax, -(hw.screwLength - hw.earY) - 0.3, az + 2.7], true],
+      ['the relief under the coil', [ax, 0, 2.25], false], ['the body’s seat for the first leg', seat(hw.bodyLegAngle, false, -1.125), true],
+    ] as const) assert.equal(housingSolid(body, [...point]), solid, `body: ${label}`);
+    for (const [label, point, solid] of [
+      ['M2 clearance through a knuckle', [ax + 0.9, 3.45, az], false], ['the other knuckle', [ax - 0.9, -3.45, az], false],
+      ['the knuckle round the clearance hole', [ax + 1.6, 3.45, az], true], ['the pad’s seat for the second leg', seat(hw.clipLegAngle, true, 1.125), true],
+    ] as const) assert.equal(housingSolid(clip, toClip([...point])), solid, `clip: ${label}`);
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log('PASS trolley token: two connected prints, original STL geometry, author/licence headers and identical preview/download bytes');
+    console.log('PASS trolley token: two connected prints, the original STL geometry inside, M2 clearance holes, nut trap and boss, coil relief and spring-leg seats, author/licence headers and identical preview/download bytes');
   }
   if (!only || only === 'rubber-band-launcher') {
     const model = rubberBandLauncher;

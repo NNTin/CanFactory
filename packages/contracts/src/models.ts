@@ -1,5 +1,5 @@
 import { RubberBandLauncherParametersSchema, rubberBandLauncherAssembly } from './rubberBandLauncher.ts';
-import { TrolleyTokenParametersSchema, trolleyTokenAssembly } from './trolleyToken.ts';
+import { TrolleyTokenParametersSchema, trolleyTokenAssembly, trolleyTokenHardware } from './trolleyToken.ts';
 import { DEFAULT_LIGHTER_KEYCHAIN, MagneticLighterKeychainParametersSchema, lighterKeychainAssembly, lighterKeychainIssues, lighterKeychainNotes, lighterKeychainReferences, KEYCHAIN_MAGNETS, KEYCHAIN_SPLIT_RINGS } from './magneticLighterKeychain.ts';
 import { DEFAULT_WAND_HOLDER, WAND_HOLDER, WandHolderParametersSchema, wandHolderAssembly, wandHolderFlex, wandHolderIssues, wandHolderLayout } from './wandHolder.ts';
 import { DEFAULT_MITER_BOX, MITER_BOX, MITER_BOX_CLAMP_SCREWS, MITER_BOX_KNOB_CONSTANTS, MITER_BOX_NUTS, MITER_BOX_PAD_CONSTANTS, MITER_BOX_PAD_NUTS, MITER_BOX_THREADS, MiterBoxParametersSchema, miterBoxAssembly, miterBoxIssues, miterBoxLayout, miterBoxReferences, miterBoxScadLayout, type MiterBoxParameters } from './miterBox.ts';
@@ -320,7 +320,9 @@ export function partDefineLiteral(part: Part, define: PartDefine): string {
  */
 export interface LinkedReference {
   id: string; part: string; label: string;
-  pose: { position: [number, number, number]; rotation?: [number, number, number]; scale?: [number, number, number] };
+  pose: { position: [number, number, number]; rotation?: [number, number, number]; scale?: [number, number, number]; wind?: number };
+  /** A torsion spring's legs, cut to these lengths in mm (see the assembly's `references`). */
+  legs?: [number, number];
   movesWith?: string;
   /** A step of its own, after the assembly's steps (e.g. driving in screws once the parts are together): references with the same
    * title move together, from their `from` offset, in the order the titles first appear. */
@@ -334,6 +336,7 @@ const PoseSchema = Type.Object({
   position: Vector('Translation in mm, applied after the rotation.'),
   rotation: Type.Optional(Vector('Rotation in degrees about the part’s own origin, applied about X, then Y, then Z.')),
   scale: Type.Optional(Vector('Scale per axis about the part’s own origin, applied before the rotation; 1 by default. For a part that is squeezed in place, such as a compression spring drawn at its free length and compressed to its installed length.')),
+  wind: Type.Optional(Type.Number({ minimum: 0, description: 'For a torsion spring reference: the degrees it is wound from its free leg position, in its coiling direction (its second leg turned about its coil’s axis); 0 by default. Interpolated linearly between motion frames, like the scale.' })),
 }, { additionalProperties: false });
 
 /**
@@ -362,6 +365,7 @@ export const AssemblySchema = Type.Object({
     id: Type.String({ description: 'Its key in `poses` and `steps`.' }),
     part: Type.String({ description: 'The id of the parts-library entry it is.' }),
     title: Type.String({ description: 'What it is: the part’s title, e.g. “BIC Mini lighter (J25)”.' }),
+    legs: Type.Optional(Type.Array(Type.Number({ exclusiveMinimum: 0 }), { minItems: 2, maxItems: 2, description: 'For a torsion spring: the lengths in mm its two legs are cut to (the leg at the start of the coil first), where the model has them shorter than sold.' })),
   }, { additionalProperties: false }), { description: 'Real-world objects shown in the preview for comparison, e.g. a lighter in its bay. They are parts-library entries. Not printed and not in the ZIP.' })),
   motion: Type.Optional(Type.Array(Type.Object({
     title: Type.String({ description: 'Short caption, e.g. “Close the lever”.' }),
@@ -3915,24 +3919,29 @@ export const prototypeWireGuide = {
     ] };
   },
 } satisfies ModelDefinition;
-/** jhappone's original two-part spring clamp, converted from the supplied STEP without redesign. */
+/** jhappone's two-part spring clamp, converted from the supplied STEP and fitted for an M2 × 16 pivot screw, an M2 nut and a stock torsion spring. */
 export const trolleyToken = {
   id: 'trolley-token' as const, version: '3' as const, title: 'Trolley token and shopping-list holder',
-  description: 'jhappone’s trolley token with a spring-operated shopping-list clamp. Two printed parts, a metal torsion spring and an axle form the paper grip. The original geometry is preserved; the live assembly shows how the printed pieces fit together.',
-  attribution: 'jhappone (Thingiverse); STEP format conversion by CanFactory',
+  description: 'jhappone’s trolley token with a spring-operated shopping-list clamp. Two printed parts turn on an M2 × 16 screw, held by an M2 nut in a trap, with a stock torsion spring (Gutekunst T-16102L) closing the paper grip. The original shape is kept; CanFactory sized its pivot, nut trap and spring seats for this hardware, and the live assembly shows it fitted.',
+  attribution: 'jhappone (Thingiverse); STEP format conversion and hardware fittings by CanFactory',
   attributionLinks: [{ text: 'jhappone', url: 'https://www.thingiverse.com/jhappone/designs' }, { text: 'Thingiverse', url: 'https://www.thingiverse.com/thing:4126950' }],
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
-  printNotes: 'Print the body flat underside down and the clip flat outer face down, as provided in the ZIP. The original token is 23.25 mm across and 2.5 mm thick. Check compatibility with your trolley lock. Drill the axle holes to suit your axle; the author uses a 2.5 mm axle. Fit a suitable metal torsion spring to close the jaws, then secure the axle. The original CAD has 1 mm pilot holes and does not specify spring dimensions or axle retention. Follow the author’s build notes and check the grip and free movement after assembly. The spring and axle are required hardware and are not in the print ZIP. This is the original fixed design; there are no angle or coin-size controls.',
+  printNotes: 'Print the body flat underside down and the clip flat outer face down, as provided in the ZIP; no supports are needed (the nut trap’s roof is pointed). The token is 23.25 mm across and 2.5 mm thick: check it against your trolley lock. Hardware, not in the ZIP: one ISO 4762 (DIN 912) M2 × 16 socket head screw, one ISO 4032 (DIN 934) M2 hex nut and one torsion spring of 0.5 mm wire, 2.5 mm inside, with 180° legs (Gutekunst T-16102L). Its holes are 2.4 mm clearance for M2: do not drill them. Cut the spring’s legs to 5 and 6 mm from the coil. Push the nut into the hexagonal trap in the boss on the −Y hinge ear (the side away from the screw head), corners up and down. Put the spring between the clip’s knuckles with its legs crossed, the 5 mm leg on the body’s seat and the 6 mm leg on the seat under the pad, then lower the clip between the ears and push the screw through from the other ear, through the clip and the spring, into the nut. Tighten it until the head just seats, without pinching the clip; a drop of threadlocker keeps it there. Check that the pad opens the grip freely and that the spring closes it.',
   parts: [
     { id: 'body', title: 'Trolley token body', sourcePath: 'models/trolley-token/body.scad', scadMapping: {} },
     { id: 'clip', title: 'Shopping-list clamp', sourcePath: 'models/trolley-token/clip.scad', scadMapping: {} },
   ],
   assembly: trolleyTokenAssembly,
+  linkedReferences: () => trolleyTokenHardware(),
   parameterSchema: TrolleyTokenParametersSchema, controls: [], defaults: {}, scadMapping: {},
   validate(parameters: unknown): ParameterIssue[] {
     return Value.Check(TrolleyTokenParametersSchema, parameters) ? [] : [{ field: '', message: 'This source design has no adjustable settings.' }];
   },
-  derived: () => ({ slotCount: null, notes: ['Required hardware: a metal torsion spring and axle (the author uses 2.5 mm). Drill the original 1 mm pilot holes to suit.', 'Both printable parts retain jhappone’s original geometry.'] }),
+  derived: () => ({ slotCount: null, notes: [
+    'Required hardware: an M2 × 16 socket head screw, an M2 hex nut and a 0.5 × 2.5 mm torsion spring with 180° legs (Gutekunst T-16102L), legs cut to 5 and 6 mm.',
+    'The printed holes are 2.4 mm M2 clearance and the nut goes into the hexagonal trap in the boss on the −Y hinge ear (the side away from the screw head): no drilling.',
+    'The printable parts keep jhappone’s original shape, with CanFactory’s pivot, nut trap and spring seats.',
+  ] }),
 } satisfies ModelDefinition;
 
 /** FerryTeacher's print-in-place rubber band launcher: its two bodies, reconstructed as SCAD and verified against the STL. */

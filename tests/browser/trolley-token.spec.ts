@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { unzipSync } from 'fflate';
 import { inspectStl } from '@canfactory/server';
-import { trolleyToken as model } from '@canfactory/contracts';
+import { resolveAssembly, trolleyToken as model } from '@canfactory/contracts';
 
-test('previews jhappone’s clamp, plays its hinge movement and downloads both attributed prints', async ({ page }, testInfo) => {
+test('previews jhappone’s clamp with its M2 screw, nut and torsion spring, plays its hinge movement and downloads both attributed prints', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/#/models');
@@ -17,9 +17,15 @@ test('previews jhappone’s clamp, plays its hinge movement and downloads both a
   await expect(page.getByRole('link', { name: 'Thingiverse', exact: true })).toHaveAttribute('href', 'https://www.thingiverse.com/thing:4126950');
   await expect(page.getByRole('link', { name: 'jhappone', exact: true })).toHaveAttribute('href', 'https://www.thingiverse.com/jhappone/designs');
   await expect(page.getByRole('link', { name: 'CC BY 4.0', exact: true })).toHaveAttribute('href', model.licenseUrl);
-  await expect(page.getByText(/Required hardware: a metal torsion spring and axle/)).toBeVisible();
+  await expect(page.getByText(/Required hardware: an M2 × 16 socket head screw, an M2 hex nut and a 0\.5 × 2\.5 mm torsion spring/)).toBeVisible();
+  await expect(page.getByText(/no drilling/)).toBeVisible();
   await expect(page.getByTitle('Hide Trolley token body', { exact: true })).toBeVisible();
   await expect(page.getByTitle('Hide Shopping-list clamp', { exact: true })).toBeVisible();
+  // the hardware is shown with the prints: the spring, the nut and the screw
+  const assembly = resolveAssembly(model, model.assembly, {});
+  if (!assembly) throw new Error('Expected the trolley token assembly.');
+  for (const reference of assembly.references ?? []) await expect(page.getByTitle(`Hide ${reference.title}`, { exact: true })).toBeVisible();
+  await expect(page.getByTestId('stl-viewer')).toHaveAttribute('data-visible-parts', /spring/);
   const slider = page.getByRole('slider', { name: 'Assembly', exact: true });
   // Compare the actual meshes at first load with returning to the print bed; the caption alone missed a framing bug.
   const canvas = page.getByTestId('stl-viewer').locator('canvas');
@@ -28,7 +34,9 @@ test('previews jhappone’s clamp, plays its hinge movement and downloads both a
   await slider.press('Home');
   expect(await canvas.screenshot()).toEqual(printed);
   await slider.press('Home');
-  const captions = ['Lift and lay out the parts', 'Step 1 of 1 · Lower the clip between the hinge ears; fit the spring and axle', 'Movement 1 of 2 · Press the pad to open the paper grip', 'Movement 2 of 2 · Release the pad to close the grip'];
+  const captions = ['Lift and lay out the parts', ...assembly.steps.map((step, i) => `Step ${i + 1} of 3 · ${step.title}`),
+    ...(assembly.motion ?? []).map((movement, i) => `Movement ${i + 1} of 2 · ${movement.title}`)];
+  expect(captions).toHaveLength(6);
   for (const caption of captions) {
     await slider.press('ArrowRight');
     await expect(slider).toHaveAttribute('aria-valuetext', caption);
@@ -47,7 +55,7 @@ test('previews jhappone’s clamp, plays its hinge movement and downloads both a
   if (!path) throw new Error('Expected the completed print ZIP.');
   const entries = unzipSync(new Uint8Array(await readFile(path)));
   expect(Object.keys(entries)).toEqual(['body.stl', 'clip.stl']);
-  for (const [id, dimensions] of [['body', [51.625, 30, 7.5]], ['clip', [25, 30, 7]]] as const) {
+  for (const [id, dimensions] of [['body', [51.625, 30, 8]], ['clip', [25, 30, 7]]] as const) {
     const stl = Buffer.from(entries[`${id}.stl`] ?? []), info = inspectStl(stl);
     expect(stl.subarray(0, 80).toString()).toContain('jhappone');
     expect(stl.subarray(0, 80).toString()).toContain('CC BY 4.0');

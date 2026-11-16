@@ -11,6 +11,7 @@ const STEPPER_ACCESSED = '2026-10-20';
 const BAND_ACCESSED = '2026-10-24';
 const PROTO_ACCESSED = '2026-11-09';
 const WIRE_ACCESSED = '2026-11-10';
+const TORSION_ACCESSED = '2026-11-16';
 
 const iso = (number: string, title: string): PartSource => ({
   id: `iso-${number.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, title: `ISO ${number}: ${title}`, publisher: 'ISO',
@@ -100,6 +101,9 @@ export const PART_SOURCES: readonly PartSource[] = [
   { ...din('5401', 'Rolling bearings — Balls for rolling bearings and general industrial use'), accessed: DETENT_ACCESSED },
   { id: 'kugel-pompel-din-5401', title: 'Data sheet: dimensional/shape accuracy and roughness, DIN 5401:2002-08 (V1.03): each grade’s boundary dimensions', publisher: 'Kugel Pompel GmbH', url: 'https://www.kugelpompel.at/img/cms/Downloads/Datenbl%C3%A4tter%20Normen/Data%20sheet%20Dimensional%20shape%20accuracy%20and%20roughness%20DIN%205401%20V1-03.pdf', kind: 'reference', accessed: DETENT_ACCESSED },
   { id: 'gutekunst-compression-springs', title: 'Compression springs: each article’s data (d, De, L0, Ln, Lndyn, R, Fn, n, tolerances)', publisher: 'Gutekunst + Co. KG Federnfabriken (federnshop.com)', url: 'https://www.federnshop.com/en/products/compression_springs.html', kind: 'manufacturer', accessed: DETENT_ACCESSED },
+  // The trolley token's torsion spring, read 2026-11-16.
+  { id: 'gutekunst-torsion-springs', title: 'Torsion springs: each article’s data (d, Di ± tolerance, Ddmin, Ddmax, nt, Lk0, Ls, leg position when relaxed, coiling direction, Mn ± tolerance, αn), with straight tangential legs (TS1) in the leg positions 0, 90, 180 and 270 degrees', publisher: 'Gutekunst + Co. KG Federnfabriken (federnshop.com)', url: 'https://www.federnshop.com/en/products/torsion_springs.html', kind: 'manufacturer', accessed: TORSION_ACCESSED },
+  { id: 'din-en-13906-3', title: 'DIN EN 13906-3: Cylindrical helical springs made from round wire and bar — Calculation and design — Part 3: Torsion springs', publisher: 'DIN', url: 'https://www.dinmedia.de/en/search?query=DIN%20EN%2013906-3', kind: 'standard', accessed: TORSION_ACCESSED },
   { id: 'din-en-13906-1', title: 'DIN EN 13906-1: Cylindrical helical springs made from round wire and bar — Calculation and design — Part 1: Compression springs', publisher: 'DIN', url: 'https://www.dinmedia.de/en/search?query=DIN%20EN%2013906-1', kind: 'standard', accessed: DETENT_ACCESSED },
   { ...iso('4026', 'Hexagon socket set screws with flat point'), accessed: DETENT_ACCESSED },
   { id: 'fasteners-eu-iso-4026', title: 'ISO 4026 dimension table', publisher: 'fasteners.eu', url: 'https://www.fasteners.eu/standards/ISO/4026/', kind: 'reference', accessed: DETENT_ACCESSED },

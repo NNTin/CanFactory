@@ -77,7 +77,7 @@ Print it in PETG.
 
 The [trolley-token and shopping-list holder](docs/trolley-token.md) is designed by
 [jhappone](https://www.thingiverse.com/jhappone/designs) and published under CC BY 4.0 on
-[Thingiverse](https://www.thingiverse.com/thing:4126950). The two original printed pieces are available as a ZIP, with an assembly and paper-clamp movement preview. A metal torsion spring and axle are required.
+[Thingiverse](https://www.thingiverse.com/thing:4126950). The two printed pieces are available as a ZIP, fitted by CanFactory for an M2 × 16 screw as the pivot, an M2 nut in a trap and a stock torsion spring (Gutekunst T-16102L), with an assembly and paper-clamp movement preview that shows the hardware.
 
 The [rubber band launcher](docs/rubber-band-launcher.md) is designed by [FerryTeacher](https://cults3d.com/en/users/FerryTeacher)
 and published under CC BY-NC-SA on [Cults3D](https://cults3d.com/en/3d-model/game/rubber-band-launcher) (non-commercial use only;
