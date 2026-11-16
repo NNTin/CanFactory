@@ -416,6 +416,8 @@ export function Viewer({ url, format, assembly, references = [], partTitles = {}
     };
     return () => {
       scene.current = null;
+      // with the geometries built again for a wound spring, as setParts disposes them
+      for (const placement of placements) placement.mesh.geometry.dispose();
       for (const geometry of geometries) geometry.dispose();
       for (const current of coloredMaterials) current.dispose();
       for (const mesh of itemMeshes.values()) mesh.geometry.dispose();
