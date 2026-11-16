@@ -4,8 +4,8 @@ Renderer: wasm — OpenSCAD version 2025.01.19 via openscad-wasm-prebuilt (Manif
 
 | Part | Result | Size Δ (mm) | Volume Δ | IoU | Mean dev (mm) | Ref tris | SCAD bytes | Render (s) |
 |---|---|---|---|---|---|---|---|---|
-| Rubber Band Launcher frame | PASS | -0.020 / -0.000 / 0.007 | -0.37 % | 0.9716 | 0.059 | 85268 | 58977 | 5.9 |
-| Rubber Band Launcher trigger | PASS | -0.002 / -0.001 / 0.003 | 0.03 % | 0.9978 | 0.006 | 34518 | 58977 | 1.1 |
+| Rubber Band Launcher frame | PASS | -0.020 / -0.000 / 0.007 | -0.37 % | 0.9716 | 0.059 | 85268 | 60848 | 6.6 |
+| Rubber Band Launcher trigger | PASS | -0.002 / -0.001 / 0.003 | 0.03 % | 0.9978 | 0.006 | 34518 | 60848 | 1.0 |
 
 ## Sources
 
@@ -26,6 +26,9 @@ same triangles, unchanged and unmoved, one body per file (binary STL).
 
 The two bodies print together in place: `launcher.scad` with its default `PART="print"` is both, as one print (the
 download); each body is verified on its own.
+
+The download also carries CanFactory's return-band pegs (`RETURN_BAND`, on by default); the comparison renders
+each body without them (`RETURN_BAND=false`), as the source has it.
 
 ## Method and limits
 

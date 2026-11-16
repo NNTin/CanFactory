@@ -22,8 +22,11 @@
 // Trigger: a 12 mm thick plate (the measured outline, edges rounded with TRIGGER_EDGE_R), five lens-shaped grip ridges
 // on its front edge, and a conical pivot pin on each face, in the frame's sockets.
 // Rounded surfaces are stacks of offset slices. Outlines are measured sections, simplified to 0.02-0.03 mm. Millimetres.
+// Return band (RETURN_BAND, CanFactory's addition): a teardrop peg with a head on the arm and one on the trigger's finger end,
+// standing 2.8 mm out of the z = 0 face, for a rubber band that pulls the trigger back to rest after a shot.
 // Modelled lying flat (x along the barrel, y up the gun, z through the thickness), then stood up as the source prints it
-// (print_pose): on the top edge of the barrel, the side plates vertical, centred on the Z axis with its base on z = 0.
+// (print_pose): on the top edge of the barrel, the side plates vertical, the frame centred on the Z axis (the pegs aside)
+// with its base on z = 0.
 
 // Facets around a full circle.
 ROUNDNESS = 64; //[32:8:192]
@@ -32,6 +35,9 @@ ROUND_STEPS = 8; //[2:1:24]
 
 // Which bodies: "print" both, as they print together in place (the download); "frame" or "trigger" alone (verification).
 PART = "print"; // [print, frame, trigger]
+// CanFactory's return band (not in the source design): a peg on the frame's arm and one on the trigger's finger end, on the
+// z = 0 side, for a rubber band that pulls the trigger back to rest after each shot. False is the source design as published.
+RETURN_BAND = true;
 
 THICKNESS = 20;          // between the side plates' outer faces (the embossed plus stands on top of it)
 PLATE_T = 3.25;          // side plate over the trigger's cavity
@@ -46,6 +52,16 @@ SOCKET_APEX_Z = 1.12;    // conical socket for the trigger's pin: apex height ab
 SOCKET_SLOPE = 0.83;     // ... radius per mm of depth
 PLUS_HEIGHT = 0.6;       // embossed plus on the top face
 LAYER_JITTER = [0.003, 0.002]; // see plate()
+
+// Return band pegs (RETURN_BAND): stems across the thickness, standing out of the z = 0 face, a teardrop in section (its point
+// up the print, towards -y, so that it prints without supports), with a head that keeps the band on. The band runs between
+// them in BAND_PEG_GAP, outside the frame's face.
+ARM_PEG = [6, 30];         // the frame's: on the arm, in front of the trigger
+TRIGGER_PEG = [10.5, 4];   // the trigger's: on its finger end, in front of the side plates (as printed)
+BAND_PEG_R = 1.3;          // stem radius
+BAND_PEG_HEAD_R = 1.9;     // head radius
+BAND_PEG_GAP = [-2.0, 0];  // z range the band runs in, between the head and the face
+BAND_PEG_HEAD_T = 0.8;     // head thickness, beyond the gap
 TOP_Y = 54.813;          // top edge of the barrel, which the print stands on
 
 // Measured outlines (x, y), counter-clockwise: RAIL 4 mm above the face, TIP, ARM and HANDLE at the mid plane, POCKET
@@ -591,10 +607,18 @@ module half() {
 // Stand the flat model up on the barrel's top edge (y = TOP_Y), centred through the thickness.
 module print_pose() translate([0, -(THICKNESS + PLUS_HEIGHT) / 2, TOP_Y]) rotate([-90, 0, 0]) children();
 
+// A return band peg at `at`: its stem from `root` (inside the body) out through the gap, then its head.
+module band_peg(at, root) {
+    module teardrop(r) hull() { circle(r, $fn = ROUNDNESS / 2); translate([0, -r * sqrt(2)]) square(0.01, center = true); }
+    translate([at[0], at[1], BAND_PEG_GAP[0]]) linear_extrude(root - BAND_PEG_GAP[0]) teardrop(BAND_PEG_R);
+    translate([at[0], at[1], BAND_PEG_GAP[0] - BAND_PEG_HEAD_T]) linear_extrude(BAND_PEG_HEAD_T + 0.01) teardrop(BAND_PEG_HEAD_R);
+}
+
 module frame() {
     half();
     translate([0, 0, THICKNESS]) mirror([0, 0, 1]) half();
     translate([0, 0, THICKNESS - 0.1]) linear_extrude(PLUS_HEIGHT + 0.1) difference() { polygon(PLUS_OUT); polygon(PLUS_IN); }
+    if (RETURN_BAND) band_peg(ARM_PEG, 3);
 }
 
 // ---- Trigger ----
@@ -652,4 +676,7 @@ module pins() {
 }
 
 if (PART == "print" || PART == "frame") print_pose() frame();
-if (PART == "print" || PART == "trigger") print_pose() union() { trigger_plate(); ridges(); pins(); }
+if (PART == "print" || PART == "trigger") print_pose() union() {
+    trigger_plate(); ridges(); pins();
+    if (RETURN_BAND) band_peg(TRIGGER_PEG, TRIGGER_FACE_Z + 0.6);
+}

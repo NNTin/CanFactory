@@ -9,7 +9,7 @@ import { createApp } from '../apps/api/src/app.ts';
 import { startStorageServices } from './storage-services.ts';
 import jsQR from 'jsqr';
 import { compareMeshes } from './stl-to-scad/compare.ts';
-import { bounds, parseStl, type Mesh } from './stl-to-scad/stl.ts';
+import { bounds, parseStl, size as boxSize, type Mesh } from './stl-to-scad/stl.ts';
 import { checkLighterKeychain, LIGHTER_KEYCHAIN_PARTS } from './lighter-keychain-checks.ts';
 import { checkWireGuide, wireGuideSamples } from './wire-guide-checks.ts';
 
@@ -1203,26 +1203,28 @@ try {
     const stl = Buffer.from(entries['launcher.stl'] ?? []), info = inspectStl(stl, { allowDisconnected: true });
     const header = stl.subarray(0, 80).toString('utf8');
     assert.ok(header.includes('FerryTeacher')); assert.ok(header.includes('CC BY-NC-SA'));
+    // the return band's pegs stand 2.8 mm out of one face (y); along x and z the print is the source's
     for (const [i, axis] of (['x', 'y', 'z'] as const).entries())
-      assert.ok(Math.abs(info.dimensions[axis] - ([126.875, 20.6, 109.613][i] ?? NaN)) < 0.1, `launcher: ${axis} size ${info.dimensions[axis]}`);
-    // its two bodies, as the preview and check:assembly find them, each the source's body, where the source has it
+      assert.ok(Math.abs(info.dimensions[axis] - ([126.875, 20.6 + 2.8, 109.613][i] ?? NaN)) < 0.1, `launcher: ${axis} size ${info.dimensions[axis]}`);
+    // its two bodies, as the preview and check:assembly find them: each the source's body with its peg, where the source has it
     const bodies = bodyTriangles(parseStl(stl).tris, model.parts[0]?.bodies ?? []);
     const lowest: Record<string, number[]> = {}, sourceLowest: Record<string, number[]> = {};
     for (const id of ['frame', 'trigger']) {
       const tris = bodies[id]; if (!tris) throw new Error(`launcher: no ${id} body`);
       const mesh = { tris }, reference = parseStl(await readFile(join(repositoryRoot, 'models/rubber-band-launcher/references', `Rubber Band Launcher.${id}.stl`)));
       lowest[id] = bounds(mesh).min; sourceLowest[id] = bounds(reference).min;
+      const [ours, theirs] = [boxSize(bounds(mesh)), boxSize(bounds(reference))];
+      for (const i of [0, 2]) assert.ok(Math.abs((ours[i] ?? NaN) - (theirs[i] ?? NaN)) < 0.1, `${id}: size along axis ${i}`);
       const comparison = compareMeshes(reference, mesh);
-      assert.ok(comparison.iou >= 0.96, `${id}: source IoU ${comparison.iou}`);
-      assert.ok(Math.abs(comparison.volumeRelativeError) < 0.02, `${id}: source volume ${comparison.volumeRelativeError}`);
+      assert.ok(comparison.volumeRelativeError > 0 && comparison.volumeRelativeError < 0.02, `${id}: volume ${comparison.volumeRelativeError} (the source's and a peg)`);
     }
-    for (const i of [0, 1, 2])
+    for (const i of [0, 2])
       assert.ok(Math.abs(((lowest['trigger']?.[i] ?? NaN) - (lowest['frame']?.[i] ?? NaN)) - ((sourceLowest['trigger']?.[i] ?? NaN) - (sourceLowest['frame']?.[i] ?? NaN))) < 0.1, `trigger offset along axis ${i}`);
     assert.ok(Math.abs(lowest['frame']?.[2] ?? NaN) < 0.01 && Math.abs(lowest['trigger']?.[2] ?? NaN) < 0.01);
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`), download = await app.inject(`/api/v1/renders/${job.id}/zip?download=true`);
     assert.equal(preview.statusCode, 200); assert.equal(download.statusCode, 200);
     assert.deepEqual(preview.rawPayload, bytes); assert.deepEqual(download.rawPayload, bytes);
-    console.log('PASS rubber band launcher: one print-in-place STL of two bodies (frame and trigger), each matching the source body in its printed place, with author/licence headers');
+    console.log('PASS rubber band launcher: one print-in-place STL of two bodies (frame and trigger, each with its return band peg), in their printed places, with author/licence headers');
   }
   for (const ledHoles of !only || only === 'esp32-c3-supermini-case' ? [true, false] : []) for (const flushHeaders of [true, false]) for (const tallerEnclosure of [true, false]) {
     const model = esp32C3SuperminiCase;

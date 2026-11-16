@@ -22,6 +22,9 @@
     "The two bodies print together in place: `launcher.scad` with its default `PART=\"print\"` is both, as one print (the",
     "download); each body is verified on its own.",
     "",
+    "The download also carries CanFactory's return-band pegs (`RETURN_BAND`, on by default); the comparison renders",
+    "each body without them (`RETURN_BAND=false`), as the source has it.",
+    "",
     "## Method and limits",
     "",
     "Both bodies are modelled lying flat (the 20 mm thickness along Z) and stood up as the source prints them, on the",
@@ -49,7 +52,8 @@
       "stl": "Rubber Band Launcher.frame.stl",
       "sourceSha256": "4546ebe181ec7104b7927a6620d0a1136b64877ebe12b67785a4dd219549f4c8",
       "defines": {
-        "PART": "\"frame\""
+        "PART": "\"frame\"",
+        "RETURN_BAND": "false"
       }
     },
     {
@@ -58,7 +62,8 @@
       "stl": "Rubber Band Launcher.trigger.stl",
       "sourceSha256": "3ebb6cdced9ec52635b188ed7b1ce2d879026b1dc24f14e4279ef29566ebebb6",
       "defines": {
-        "PART": "\"trigger\""
+        "PART": "\"trigger\"",
+        "RETURN_BAND": "false"
       }
     }
   ]

@@ -36,8 +36,22 @@ axis with its base on z = 0; the trigger keeps its place in the frame. The recon
 curved surfaces with stacked slices and leaves out the ramps at the ends of the barrel rail's slot; the deviations are
 listed in the verification report.
 
+## Changes by CanFactory
+
+The download is an adaptation of FerryTeacher's design. Compared with the original STL:
+
+1. **Reconstructed** as editable OpenSCAD (`launcher.scad`) from measured sections and fitted fillets; curved surfaces are
+   stacked slices, and the ramps at the ends of the barrel rail's slot are left out (see the verification report).
+2. **Placed** for printing: the source's orientation (standing on the barrel's top edge), the frame centred on the Z axis
+   with its base on z = 0, the trigger in its place in the frame.
+3. **Return band pegs** added (`RETURN_BAND`, on in the download): a teardrop peg with a head on the frame's arm and one on
+   the trigger's finger end, standing 2.8 mm out of one face, for a #8 rubber band that pulls the trigger back to rest
+   after each shot. They print without supports and keep the pair one print in place.
+
+As CC BY-NC-SA's ShareAlike term requires, these adaptations are shared under CC BY-NC-SA too, and remain non-commercial.
+
 `references/Rubber Band Launcher.frame.stl` and `references/Rubber Band Launcher.trigger.stl` are comparison copies of the
-two bodies of the original (the same triangles, unmoved, one body per binary STL), against which the SCAD files are
-verified.
+two bodies of the original (the same triangles, unmoved, one body per binary STL), against which `launcher.scad` is
+verified with `RETURN_BAND=false` (the source design as published).
 
 The catalogue and the generated STL headers retain the author and CC BY-NC-SA credit.
