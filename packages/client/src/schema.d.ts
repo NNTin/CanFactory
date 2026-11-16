@@ -3061,6 +3061,15 @@ export interface operations {
                             })[];
                         };
                     };
+                } | {
+                    /** @enum {string} */
+                    modelId: "rubber-band-launcher";
+                    /**
+                     * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
+                     * @enum {string}
+                     */
+                    modelVersion: "1";
+                    parameters: Record<string, never>;
                 };
             };
         };

@@ -94,6 +94,11 @@ jobs:
         env:
           OPENSCAD_RUNNER: docker
 
+      - name: Check rubber band launcher (trigger in place in the frame, and its pull)
+        run: npm run check:assembly -- rubber-band-launcher
+        env:
+          OPENSCAD_RUNNER: docker
+
       - name: Check wand holder assembly (the clip spread over the post and seated on it)
         run: npm run check:assembly -- wand-holder
         env:
