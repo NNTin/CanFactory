@@ -3,7 +3,7 @@ import type { Assembly } from './models.ts';
 import type { PrintBody } from './printBodies.ts';
 import { dimensionOf, findPart } from './parts/index.ts';
 
-/** Verified reconstruction of FerryTeacher's print-in-place launcher, with CanFactory's return band. See
+/** Verified reconstruction of FerryTeacher's print-in-place launcher, with CanFactory's return band grooves. See
  * models/rubber-band-launcher/references/VERIFICATION.md and docs/rubber-band-launcher.md. */
 // An empty property map with an impossible index type keeps the render-request union assignable to ParameterValues.
 const noParameters: Record<string, TNever> = {};
@@ -59,8 +59,9 @@ export const RUBBER_BAND_LAUNCHER_BODIES: PrintBody[] = [
 const band = (id: string) => findPart(id) ?? (() => { throw new Error(`Missing the rubber band ${id}.`); })();
 /** The shot band: an office band #19 (3½″ × 1/16″, 1.6 mm wide, for the 2.2 mm groove in the barrel's tip). */
 export const RUBBER_BAND_LAUNCHER_SHOT_BAND = band('alliance-sterling-19');
-/** The return band: an office band #8 (⅞″ × 1/16″) round the pegs on the arm and on the trigger. */
-export const RUBBER_BAND_LAUNCHER_RETURN_BAND = band('alliance-sterling-8');
+/** The return band: an office band #18 (3″ × 1/16″) from the trigger's top end down the frame's sides and round the bottom of the grip,
+ * stretched about 1.54× at rest and 1.64× pulled. */
+export const RUBBER_BAND_LAUNCHER_RETURN_BAND = band('alliance-sterling-18');
 
 // ---- The shot band: hooked into the groove in the front of the barrel's tip, its strands along both sides of the frame, its back
 // end across the notch, pulled against the lip in front of it and resting on the trigger's top end.
@@ -107,45 +108,52 @@ function shotBandTilt(angle: number): number | undefined {
   return low - LIP_TOP >= 0.05 - 1e-9 && angle > RUBBER_BAND_LAUNCHER_REST ? undefined : Math.asin((low - GROOVE_LOW) / SHOT_REACH);
 }
 
-// ---- The return band: round a peg on the frame's arm and one on the trigger's finger end (launcher.scad ARM_PEG, TRIGGER_PEG),
-// outside the frame's z = 0 face, in BAND_PEG_GAP.
+// ---- The return band: across the trigger's top end, in the groove there (launcher.scad TRIGGER_GROOVE), its two strands down the
+// frame's sides to the bottom of the grip, round it in the groove there (GRIP_GROOVE). Pulling the trigger lifts its top end, away
+// from the grip: the band stretches, and pulls it back.
 
-const ARM_PEG: readonly [number, number] = [6, 30];
-const TRIGGER_PEG: readonly [number, number] = [10.5, 4];
-/** The band's lower edge (flat z): inside BAND_PEG_GAP (-2 .. 0), clear of the pegs' heads and the frame's face. */
-const RETURN_LOW = -1.8;
-/** Round the arm peg's stem (its teardrop's point is inside the band), and round the whole of the trigger peg's teardrop, which turns
- * with the trigger. */
-const ARM_PEG_R = 1.35, TRIGGER_PEG_R = 1.9;
-const restSpan = Math.hypot(...turned(TRIGGER_PEG, RUBBER_BAND_LAUNCHER_REST).map((v, i) => v - (ARM_PEG[i] ?? 0)) as [number, number]);
+/** The trigger's groove, as printed (flat model): its apex, TRIGGER_GROOVE_DEPTH under the top edge. */
+const TRIGGER_GROOVE: readonly [number, number] = [43, TOP_Y - 2.2];
+/** The grip's groove: its floor, at the bottom of the grip (GRIP_GROOVE_X), GRIP_GROOVE_DEPTH up. */
+const GRIP_GROOVE: readonly [number, number] = [35.8, -54.8 + 1.5];
+/** From the trigger's groove to the grip's, the trigger turned by `angle`: the band's middle plane holds this line and the thickness. */
+function returnSpan(angle: number) {
+  const [gx, gy] = turned(TRIGGER_GROOVE, angle), dx = GRIP_GROOVE[0] - gx, dy = GRIP_GROOVE[1] - gy, span = Math.hypot(dx, dy);
+  return { gx, gy, span, ux: dx / span, uy: dy / span };
+}
+const restSpan = returnSpan(RUBBER_BAND_LAUNCHER_REST).span;
 
-/** The outline the return band is stretched round at rest: the hull of the two pegs, from the arm peg (at the origin) along x. */
-export const RUBBER_BAND_LAUNCHER_RETURN_LOOP: [number, number][] = (() => {
-  const circle = (cx: number, r: number) => Array.from({ length: 48 }, (_, i) => [cx + r * Math.cos(i * Math.PI / 24), r * Math.sin(i * Math.PI / 24)] as [number, number]);
-  const points = [...circle(0, ARM_PEG_R), ...circle(restSpan, TRIGGER_PEG_R)].sort((p, q) => p[0] - q[0] || p[1] - q[1]);
-  const cross = (o: number[], a: number[], b: number[]) => ((a[0] ?? 0) - (o[0] ?? 0)) * ((b[1] ?? 0) - (o[1] ?? 0)) - ((a[1] ?? 0) - (o[1] ?? 0)) * ((b[0] ?? 0) - (o[0] ?? 0));
-  const half = (list: [number, number][]) => list.reduce<[number, number][]>((hull, p) => {
-    while (hull.length >= 2 && cross(hull[hull.length - 2] ?? p, hull[hull.length - 1] ?? p, p) <= 0) hull.pop();
-    hull.push(p); return hull;
-  }, []);
-  const lower = half(points), upper = half([...points].reverse());
-  return [...lower.slice(0, -1), ...upper.slice(0, -1)].map(([x, y]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000]);
-})();
+/**
+ * The outline the return band is stretched round, at rest (x from the trigger's groove towards the grip's, y the flat model's z): the
+ * frame and the trigger within the band's width, in its plane. Across the trigger's top in its groove, out over the side plates in
+ * the notch and down both sides (the plates' faces, then the grip's), round the bottom of the grip in its groove. Measured on
+ * launcher.scad's bodies as the hull of every frame of the pull, each shortened to the rest span (a movement stretches it back with
+ * its scale, so it clears both bodies throughout), and 0.05 mm out.
+ */
+export const RUBBER_BAND_LAUNCHER_RETURN_LOOP: [number, number][] = [
+  [-1.26, 3.98], [2.11, 0.71], [2.57, 0.36], [3.04, 0.13], [3.53, -0.01], [3.83, -0.05], [44.89, -0.05], [97.74, 1.6], [100.18,
+  5.03], [100.6, 5.82], [100.95, 6.71], [101.21, 7.69], [101.38, 8.72], [101.46, 9.79], [101.41, 11.07], [101.25, 12.11],
+  [101.01, 13.1], [100.68, 14.01], [100.27, 14.82], [99.9, 15.39], [97.74, 18.4], [44.89, 20.05], [3.83, 20.05], [3.53, 20.01],
+  [3.04, 19.87], [2.57, 19.64], [2.11, 19.29], [-1.26, 16.02]];
 
-/** The return band, the trigger turned by `angle`: from the arm peg towards the trigger peg, stretched to their distance. */
+/** The return band, the trigger turned by `angle`: from the trigger's groove towards the grip's, stretched to their distance. */
 function returnBandPose(angle: number): Pose {
-  const [tx, ty] = turned(TRIGGER_PEG, angle), dx = tx - ARM_PEG[0], dy = ty - ARM_PEG[1], span = Math.hypot(dx, dy);
-  // local x along the band, its width (local z) along the flat model's +z: about X by -90, then about Y
-  return { position: upright([ARM_PEG[0], ARM_PEG[1], RETURN_LOW]), rotation: [-90, degrees(Math.atan2(-dy / span, -dx / span)), 0], scale: [span / restSpan, 1, 1] };
+  const { gx, gy, span, ux, uy } = returnSpan(angle), half = dimensionOf(RUBBER_BAND_LAUNCHER_RETURN_BAND, 'width') / 2;
+  // local x along the band (upright (-ux, 0, uy)), y the flat model's z, its width (local z) across, upright (-uy, 0, -ux), centred
+  return { position: [-gx + half * uy, -HALF, gy + HEIGHT - TOP_Y + half * ux], rotation: [0, degrees(-Math.asin(uy)), 0], scale: [span / restSpan, 1, 1] };
 }
 
-/** How far the return band is stretched, the trigger turned by `angle`: its length round the pegs over its loose loop (twice the flat
- * length). */
+/** How far the return band is stretched, the trigger turned by `angle`: its middle line (round its outline, half its thickness out)
+ * over its loose loop (twice the flat length). */
 export function rubberBandLauncherReturnStretch(angle: number): number {
-  const [tx, ty] = turned(TRIGGER_PEG, angle), span = Math.hypot(tx - ARM_PEG[0], ty - ARM_PEG[1]);
-  const around = 2 * span + Math.PI * (ARM_PEG_R + TRIGGER_PEG_R);
-  return around / (2 * dimensionOf(RUBBER_BAND_LAUNCHER_RETURN_BAND, 'length'));
+  const scale = returnSpan(angle).span / restSpan, loop = RUBBER_BAND_LAUNCHER_RETURN_LOOP;
+  const around = loop.reduce((sum, [x, y], i) => { const [nx, ny] = loop[(i + 1) % loop.length] ?? [x, y]; return sum + Math.hypot((nx - x) * scale, ny - y); }, 0);
+  return (around + Math.PI * dimensionOf(RUBBER_BAND_LAUNCHER_RETURN_BAND, 'thickness')) / (2 * dimensionOf(RUBBER_BAND_LAUNCHER_RETURN_BAND, 'length'));
 }
+
+/** Fitting the return band: hooked into the grip's groove, stretched by this much more and let down along its strands into the
+ * trigger's groove. */
+const FIT_STRETCH = 1.08;
 
 // ---- The assembly: off the print bed and upright, the trigger freed to rest; the return band fitted, the shot band loaded; then a
 // shot (the trigger pulled to its stop: the shot band rides up on its top end until it is over the lip, and flies) and the return
@@ -170,6 +178,9 @@ function shotFrames(): Pose[] {
 
 export const rubberBandLauncherAssembly: Assembly = (() => {
   const pull = angles(RUBBER_BAND_LAUNCHER_REST, RUBBER_BAND_LAUNCHER_PULL), shot = shotFrames();
+  // the band lifted back along itself by what the stretch adds, so that its end in the grip's groove stays put
+  const rest = returnSpan(RUBBER_BAND_LAUNCHER_REST), lifted = (FIT_STRETCH - 1) * rest.span;
+  const fitFrom: Vec3 = [lifted * rest.ux, 0, -lifted * rest.uy];
   return {
     poses: {
       frame: FRAME_POSE, trigger: rubberBandLauncherTriggerPose(RUBBER_BAND_LAUNCHER_REST),
@@ -177,11 +188,11 @@ export const rubberBandLauncherAssembly: Assembly = (() => {
     },
     partColors: { frame: '#497c85', trigger: '#e5a54b' },
     references: [
-      { id: 'return-band', part: RUBBER_BAND_LAUNCHER_RETURN_BAND.id, title: `${RUBBER_BAND_LAUNCHER_RETURN_BAND.title} (return band, round the pegs on the arm and the trigger)`, loop: RUBBER_BAND_LAUNCHER_RETURN_LOOP },
+      { id: 'return-band', part: RUBBER_BAND_LAUNCHER_RETURN_BAND.id, title: `${RUBBER_BAND_LAUNCHER_RETURN_BAND.title} (return band, from the trigger’s top end down the grip)`, loop: RUBBER_BAND_LAUNCHER_RETURN_LOOP },
       { id: 'shot-band', part: RUBBER_BAND_LAUNCHER_SHOT_BAND.id, title: `${RUBBER_BAND_LAUNCHER_SHOT_BAND.title} (shot band, from the barrel’s tip into the notch)`, loop: RUBBER_BAND_LAUNCHER_SHOT_LOOP },
     ],
     steps: [
-      { title: 'Free the trigger and fit the return band round the peg on the arm and the peg on the trigger', parts: ['return-band'], from: [0, -6, 0] },
+      { title: 'Free the trigger and fit the return band: hook it into the groove under the grip, stretch it up both sides and into the groove on the trigger’s top end', parts: ['return-band'], from: fitFrom, scaleFrom: [FIT_STRETCH, 1, 1] },
       { title: 'Load a shot band: hook it into the groove at the barrel’s tip, stretch it back along both sides and into the notch, on the trigger', parts: ['shot-band'], from: [4, 0, 12], scaleFrom: [1.06, 1, 1] },
     ],
     motion: [
