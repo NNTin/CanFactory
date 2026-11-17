@@ -15,9 +15,9 @@ describe('FerryTeacher rubber band launcher', () => {
     expect(model.controls).toEqual([]);
     expect(validateParameters(model, {})).toEqual([]);
     expect(Value.Check(RenderRequestSchema, { modelId: model.id, modelVersion: model.version, parameters: {} })).toBe(true);
-    for (const modelVersion of ['1', '2']) expect(Value.Check(RenderRequestSchema, { modelId: model.id, modelVersion, parameters: {} })).toBe(false);
+    for (const modelVersion of ['1', '2', '3']) expect(Value.Check(RenderRequestSchema, { modelId: model.id, modelVersion, parameters: {} })).toBe(false);
     for (const parameters of [{ scale: 1 }, { bandLength: 60 }, null, []]) expect(validateParameters(model, parameters)).not.toEqual([]);
-    // the download carries the return band's pegs (launcher.scad's default); only the verification turns them off
+    // the download carries the return band's grooves (launcher.scad's default); only the verification turns them off
     for (const part of model.parts) expect(scadDefines(model, part, {})).toEqual([]);
   });
 
@@ -50,23 +50,36 @@ describe('FerryTeacher rubber band launcher', () => {
       expect(shot[i]?.[0] ?? NaN).toBeGreaterThan(shot[i - 1]?.[0] ?? NaN);
       expect(shot[i]?.[2] ?? NaN).toBeGreaterThan(shot[i - 1]?.[2] ?? NaN);
     }
-    // the return band stretches as the trigger is pulled and stays taut at rest
-    const stretches = angles.map(rubberBandLauncherReturnStretch);
+    // the return band stretches as the trigger is pulled (its top end lifts away from the grip) and stays taut at rest: a #18 round
+    // the trigger's top end and the bottom of the grip, about 1.54× at rest and 1.64× pulled
+    const stretches = [RUBBER_BAND_LAUNCHER_REST, ...angles].map(rubberBandLauncherReturnStretch);
     for (let i = 1; i < stretches.length; i++) expect(stretches[i] ?? NaN).toBeGreaterThan(stretches[i - 1] ?? NaN);
-    expect(rubberBandLauncherReturnStretch(RUBBER_BAND_LAUNCHER_REST)).toBeGreaterThan(1.1);
-    expect(rubberBandLauncherReturnStretch(RUBBER_BAND_LAUNCHER_PULL)).toBeLessThan(2);
+    expect(rubberBandLauncherReturnStretch(RUBBER_BAND_LAUNCHER_REST)).toBeCloseTo(1.54, 2);
+    expect(rubberBandLauncherReturnStretch(RUBBER_BAND_LAUNCHER_PULL)).toBeCloseTo(1.64, 2);
+    // its pose follows the trigger: stretched along itself as far as the trigger's groove has moved from the grip's
+    const scales = [assembly.poses['return-band'], ...(pull?.slice(1) ?? []).map(frame => frame['return-band'])].map(pose => pose?.scale?.[0] ?? NaN);
+    expect(scales[0]).toBe(1);
+    for (let i = 1; i < scales.length; i++) expect(scales[i] ?? NaN).toBeGreaterThan(scales[i - 1] ?? NaN);
     // letting go moves the trigger and the return band; the shot band has gone
     expect(assembly.motion?.[1]?.frames.every(frame => Object.keys(frame).sort().join() === 'return-band,trigger')).toBe(true);
     expect(back).toHaveLength(angles.length + 1);
   });
 
   it('shows and lists both rubber bands, fitted and loaded before the shot', () => {
-    expect(assembly.references?.map(reference => [reference.id, reference.part])).toEqual([['return-band', 'alliance-sterling-8'], ['shot-band', 'alliance-sterling-19']]);
-    expect(modelBom(model, {})).toEqual([{ partId: 'alliance-sterling-8', quantity: 1 }, { partId: 'alliance-sterling-19', quantity: 1 }]);
+    expect(assembly.references?.map(reference => [reference.id, reference.part])).toEqual([['return-band', 'alliance-sterling-18'], ['shot-band', 'alliance-sterling-19']]);
+    expect(modelBom(model, {})).toEqual([{ partId: 'alliance-sterling-18', quantity: 1 }, { partId: 'alliance-sterling-19', quantity: 1 }]);
     expect(assembly.steps.map(step => step.parts)).toEqual([['return-band'], ['shot-band']]);
     // a 1/16″ band fits the 2.2 mm groove in the barrel's tip
     expect(dimensionOf(RUBBER_BAND_LAUNCHER_SHOT_BAND, 'width')).toBeLessThan(2.2);
-    expect(dimensionOf(RUBBER_BAND_LAUNCHER_RETURN_BAND, 'width')).toBeLessThan(2);
+    // the return band's 1/16″ fits the 2.2 mm groove round the bottom of the grip (and the V on the trigger, 4.4 mm across its top)
+    expect(dimensionOf(RUBBER_BAND_LAUNCHER_RETURN_BAND, 'width')).toBeLessThan(2.2);
+    // hooked into the grip's groove and let down into the trigger's: its end in the grip's groove stays put while it is fitted
+    const fit = assembly.steps[0], rest = assembly.poses['return-band'];
+    const angle = (rest?.rotation?.[1] ?? NaN) * Math.PI / 180, along = [Math.cos(angle), -Math.sin(angle)] as const;
+    const span = Math.max(...(assembly.references?.[0]?.loop ?? []).map(([x = 0]) => x));
+    // the far end moves by the step's offset plus the extra stretch along the band (local x, upright (cos, 0, -sin) of the turn about Y)
+    const moved = [0, 2].map((axis, i) => (fit?.from[axis] ?? NaN) + ((fit?.scaleFrom?.[0] ?? NaN) - 1) * span * (along[i] ?? NaN));
+    for (const value of moved) expect(Math.abs(value)).toBeLessThan(0.1);
   });
 
   it('credits FerryTeacher, keeps the NonCommercial and ShareAlike terms and explains both bands', () => {
@@ -75,7 +88,7 @@ describe('FerryTeacher rubber band launcher', () => {
     expect(model.licenseUrl).toBe('https://creativecommons.org/licenses/by-nc-sa/4.0/');
     expect(model.attributionLinks).toContainEqual({ text: 'Cults3D', url: 'https://cults3d.com/en/3d-model/game/rubber-band-launcher' });
     expect(model.attributionLinks).toContainEqual({ text: 'FerryTeacher', url: 'https://cults3d.com/en/users/FerryTeacher' });
-    for (const phrase of ['One print, in place', 'cannot be put in afterwards', 'return band', 'shot band', '#19', '#8', 'Non-commercial', 'same licence'])
+    for (const phrase of ['One print, in place', 'cannot be put in afterwards', 'return band', 'shot band', '#19', '#18', 'groove', 'Non-commercial', 'same licence'])
       expect(model.printNotes).toContain(phrase);
     expect(`CanFactory | ${model.license} | ${model.attribution}`.length).toBeLessThanOrEqual(80);
   });
