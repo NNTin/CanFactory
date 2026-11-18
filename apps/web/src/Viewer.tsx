@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerE
 import { Atom, Box, Eye, EyeOff, FlipVertical2, Grid2X2, Pause, Play, RotateCcw } from 'lucide-react';
 import { assemblyOffset, assemblyScale, assemblyState, assemblyWind, assemblyStops, motionFrames, motionPose, splitBodies, type Assembly, type AssemblyState, type PhysicsSpec, type PrintBody } from '@canfactory/contracts';
 import type { ControllerReport, PhysicsRequest, PhysicsUpdate } from '@canfactory/physics';
-import { unzipSync } from 'fflate';
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
@@ -12,6 +11,7 @@ import { ControllerHotspots, ControllerPanel } from './ControllerControls.tsx';
 import { spreadApart, viewerGrid } from './viewerLayout.ts';
 import { createStage, smoothNormals } from './stage.ts';
 import { groupParts, partGroupKeys } from './viewerPartGroups.ts';
+import { partsFromZip } from './viewerZip.ts';
 
 /**
  * One mesh to show: STL `bytes`, or a `geometry` built from a library part's dimensions (e.g. a magnet). `reference` marks a
@@ -120,13 +120,8 @@ class Placement {
   }
 }
 
-/** Splits a fetched ZIP into its STL entries, in archive order. Throws if it contains no entries. */
-export function partsFromZip(bytes: ArrayBuffer): { name: string; bytes: ArrayBuffer }[] {
-  const entries = unzipSync(new Uint8Array(bytes));
-  const parts = Object.entries(entries).map(([name, data]) => ({ name, bytes: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) }));
-  if (parts.length === 0) throw new Error('The preview archive contained no parts.');
-  return parts;
-}
+/** A fetched ZIP's STL parts (viewerZip.ts), also for the scenes that load a model's parts themselves. */
+export { partsFromZip };
 
 /** A print-in-place part's STL (ModelPart.bodies) as one mesh per body, each in the print's frame; other parts as they are. */
 export function bodiesOf(parts: { name: string; bytes: ArrayBuffer }[], bodies: Readonly<Record<string, readonly PrintBody[]>>): Part[] {
