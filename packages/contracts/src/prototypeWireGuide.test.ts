@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { activeParts, findPart, hookupWireChannelWidth, prototypeWireGuide, scadDefines, validateParameters, validateWireGuideDesign, linkedPartData, WIRE_GUIDE_LIMITS, type WireGuideDesign } from './index.ts';
-import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, WIRE_GUIDE_LEVEL_COLORS, plainText, wireGuideAssembly, wireGuideAssemblyText, wireGuideGeometry, wireGuideLayerBodies, wireGuidePieces, wireGuideScad, wireGuideStack, wireGuideSummary, type WireGuidePrintGeometry } from './prototypeWireGuide.ts';
+import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, WIRE_GUIDE_LEVEL_COLORS, WIRE_GUIDE_MAX_PEGS, plainText, wireGuideAssembly, wireGuideAssemblyText, wireGuideGeometry, wireGuideLayerBodies, wireGuidePieces, wireGuideScad, wireGuideStack, wireGuideSummary, type WireGuidePrintGeometry } from './prototypeWireGuide.ts';
 
 const SAMPLES = new URL('../../../models/prototype-wire-guide/samples/', import.meta.url);
 const sample = (name: string) => JSON.parse(readFileSync(new URL(name, SAMPLES), 'utf8')) as WireGuideDesign;
@@ -277,6 +277,21 @@ describe('separate layers and pegs (guide.parts)', () => {
         expect(peg.hole - peg.shaft).toBeCloseTo(WIRE_GUIDE_GEOMETRY.peg.holePlay, 6);
       }
     }
+  });
+
+  it('never makes more pegs than the model has parts for, and gives each one a part', () => {
+    expect(WIRE_GUIDE_MAX_PEGS).toBe(4);
+    const pegParts = prototypeWireGuide.parts.filter(part => part.id.startsWith('print-1-peg-')).map(part => part.id);
+    expect(pegParts).toEqual(Array.from({ length: WIRE_GUIDE_MAX_PEGS }, (_, j) => `print-1-peg-${j + 1}`));
+    for (const name of readdirSync(SAMPLES).filter(file => file.endsWith('.json'))) for (const print of wireGuideGeometry(sample(name)))
+      expect(print.stack.pegs.length, name).toBeLessThanOrEqual(WIRE_GUIDE_MAX_PEGS);
+    // the most a stack can have, here: two socket pegs under channels and two dowels
+    expect(printOf(sample('kiprint-perma-proto-timer.json')).stack.pegs).toHaveLength(WIRE_GUIDE_MAX_PEGS);
+    // the summary's problems are its own copy, not the cached geometry's
+    const layered = structuredClone(sample('stripboard-boss-neighbours.json'));
+    delete layered.guide.parts;
+    wireGuideSummary(layered).prints[0]?.problems.push('changed');
+    expect(wireGuideSummary(layered).prints[0]?.problems).toHaveLength(1);
   });
 
   it('lines up every stack of two or more layers on two pegs through all of them, adding dowels where the board has no usable hole', () => {

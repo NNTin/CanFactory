@@ -17,7 +17,7 @@ import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TIP_ANGLE, TREAT_BAND_SIZES, TRE
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, parts as allParts, type MetricThread, type Part } from './parts/index.ts';
-import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, wireGuideAssembly, wireGuideAssemblyText, wireGuidePieceId, wireGuidePieces, wireGuidePrintPieces, wireGuideProblems, wireGuideScad, wireGuideSummary } from './prototypeWireGuide.ts';
+import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, WIRE_GUIDE_MAX_PEGS, wireGuideAssembly, wireGuideAssemblyText, wireGuidePieceId, wireGuidePieces, wireGuidePrintPieces, wireGuideProblems, wireGuideScad, wireGuideSummary } from './prototypeWireGuide.ts';
 import { validateWireGuideDesign, WIRE_GUIDE_LIMITS, WireGuideDesignSchema, type WireGuideDesign } from './wireGuide.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
@@ -3919,8 +3919,7 @@ const pwgPart = (print: number, kind: 'print' | 'layer' | 'peg', index: number, 
     },
   };
 };
-/** The most pegs a print can have: a board peg in each of two mounting holes, and two dowels where neither goes through its layers. */
-const PWG_MAX_PEGS = 4;
+
 export const prototypeWireGuide = {
   id: 'prototype-wire-guide' as const, version: '2' as const, title: 'Prototype-board wire guide',
   description: 'Printed guides that lay solid-core hookup wire on a prototype board exactly where a wire-guide design routes it: a channel for every wire, the channels of higher levels bridging the lower ones where they cross, a funnel down to the hole at each wire end, pockets over the components, located by the mounting holes or clips on the board’s edges. Each print of the design is printed as separate layers, one per wire level it uses, stacked on separate pegs through matching holes; a design may ask for one piece per print instead. Import a design (.json) from KiPrint or the assistant.',
@@ -3932,7 +3931,7 @@ export const prototypeWireGuide = {
   parts: Array.from({ length: WIRE_GUIDE_LIMITS.prints }, (_, print) => [
     pwgPart(print, 'print', 0, `Guide print ${print + 1}, one piece`),
     ...Array.from({ length: WIRE_GUIDE_LIMITS.levels }, (_, layer) => pwgPart(print, 'layer', layer, `Guide print ${print + 1}, layer ${layer + 1}`)),
-    ...Array.from({ length: PWG_MAX_PEGS }, (_, peg) => pwgPart(print, 'peg', peg, `Guide print ${print + 1}, peg ${peg + 1}`)),
+    ...Array.from({ length: WIRE_GUIDE_MAX_PEGS }, (_, peg) => pwgPart(print, 'peg', peg, `Guide print ${print + 1}, peg ${peg + 1}`)),
   ]).flat(),
   assemblyForParameters: (parameters: ParameterValues) => {
     const design = designOf(parameters);

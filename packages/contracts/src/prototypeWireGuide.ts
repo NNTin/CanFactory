@@ -272,6 +272,10 @@ export function wireGuideGeometry(design: WireGuideDesign): WireGuidePrintGeomet
   });
 }
 
+/** The most pegs a print's stack can have: a board peg in each of the (at most two) mounting holes its one-piece print uses, and
+ * two dowels where neither goes through its layers. The model has a part for each (models.ts). */
+export const WIRE_GUIDE_MAX_PEGS = 4;
+
 const distanceToBox = (x: number, y: number, x0: number, y0: number, x1: number, y1: number) =>
   Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(y0 - y, 0, y - y1));
 const show = (value: number) => `${round(Math.round(value * 100) / 100)}`;
@@ -357,7 +361,7 @@ export function wireGuideLayerBodies(print: Omit<WireGuidePrintGeometry, 'stack'
  *
  * - **Board pegs** stand in the mounting holes the one-piece print would have bosses in, up through every layer, or into a socket in
  *   the plate where a channel passes over the hole. A hole whose peg would cut a channel, funnel or pocket even so, or whose shoulder
- *   would cover a wire end's hole or a component's lead or body, gets none (a note says so).
+ *   would cover a wire end's hole or a component's lead or body, is a problem: the layers can't be made (below).
  * - **Dowels**: a print of two or more layers is lined up by two pegs through every layer. Where it has fewer, dowels stand in blind
  *   holes of the bottom layer, at the free points between the board's holes farthest apart (and from a peg through the layers).
  * - A print that can't be lined up so, a mounting hole that can't take a peg, or a layer above the bottom that would be loose pieces
@@ -467,6 +471,8 @@ export function wireGuideStack(print: Omit<WireGuidePrintGeometry, 'stack'>, wir
   }
   const plate = wireGuideLayerBodies(print, 0, holes);
   if (plate > 1) notes.push(`Its bottom layer is ${plate} pieces where pockets go through it, as a one-piece print would be.`);
+  // the model's parts list has a slot for each peg a stack can have: two board pegs and two dowels
+  if (pegs.length > WIRE_GUIDE_MAX_PEGS) throw new Error(`A print has ${pegs.length} pegs; the model has parts for ${WIRE_GUIDE_MAX_PEGS}.`);
   return { pieces: 'layers', problems, layers: parts, pegs, notes };
 }
 
@@ -646,7 +652,7 @@ export function wireGuideSummary(design: WireGuideDesign): { board: string; wire
   const prints = design.prints.map((print, index) => {
     const stack = geometry[index]?.stack;
     const [layers, pegs] = stack?.pieces === 'layers' ? [stack.layers.length, stack.pegs.length] : [0, 0];
-    return { id: print.id, wires: print.wireIds.length, layers, pegs, pieces: stack?.pieces === 'layers' ? layers + pegs : 1, problems: stack?.problems ?? [] };
+    return { id: print.id, wires: print.wireIds.length, layers, pegs, pieces: stack?.pieces === 'layers' ? layers + pegs : 1, problems: [...stack?.problems ?? []] };
   });
   return {
     board: board?.title ?? design.boardPartId,
