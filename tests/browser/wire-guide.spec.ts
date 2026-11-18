@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { unzipSync } from 'fflate';
 import { wireGuideGeometry, wireGuidePieces, type WireGuideDesign } from '@canfactory/contracts';
 import { bounds, parseStl } from '../../tools/stl-to-scad/stl.ts';
@@ -9,6 +9,19 @@ import { bounds, parseStl } from '../../tools/stl-to-scad/stl.ts';
 const SAMPLES = new URL('../../models/prototype-wire-guide/samples/', import.meta.url);
 const sample = async (name: string) => JSON.parse(await readFile(new URL(name, SAMPLES), 'utf8')) as WireGuideDesign;
 
+/**
+ * Opens the wire guide's editor once its layout has settled: where the deployment enables the assistant, its column mounts after
+ * the lazy assistant loads, and the editor beside it mounts again then (its settings survive in local storage, an import being
+ * read does not), so the test imports only after that. The editor shows its default design first.
+ */
+async function open(page: Page) {
+  const config = page.waitForResponse(response => new URL(response.url()).pathname === '/config.json');
+  await page.goto('/#/models/prototype-wire-guide');
+  const enabled = await (await config).json().then((body: { assistant?: { enabled?: boolean } }) => body.assistant?.enabled === true).catch(() => false);
+  if (enabled) await expect(page.getByRole('complementary', { name: 'Assistant' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('wire-guide-pieces')).toHaveText('G1: 1 layer + 2 pegs');
+}
+
 test('renders the three-level guide as three stacked layers and two separate pegs, assembles them, and downloads those pieces', async ({ page }, testInfo) => {
   test.setTimeout(400_000);
   const design = await sample('perma-proto-half-three-levels.json');
@@ -17,7 +30,7 @@ test('renders the three-level guide as three stacked layers and two separate peg
   if (!print) throw new Error('Expected a print.');
   expect(pieces.map(piece => piece.id)).toEqual(['print-1-layer-1', 'print-1-layer-2', 'print-1-layer-3', 'print-1-peg-1', 'print-1-peg-2']);
 
-  await page.goto('/#/models/prototype-wire-guide');
+  await open(page);
   await page.locator('#parameter-design').setInputFiles({ name: 'perma-proto-half-three-levels.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(design)) });
   await expect(page.getByTestId('wire-guide-summary')).toContainText('16 on 3 levels');
   await expect(page.getByTestId('wire-guide-pieces')).toHaveText('G1: 3 layers + 2 pegs');
@@ -76,7 +89,7 @@ test('separate layers that can’t be made are an error with the explicit way ou
   // the stripboard sample's wire end beside a mounting hole leaves no room for a peg there; it asks for one piece
   const design = await sample('stripboard-boss-neighbours.json');
   expect(design.guide.parts).toBe('single');
-  await page.goto('/#/models/prototype-wire-guide');
+  await open(page);
   await page.locator('#parameter-design').setInputFiles({ name: 'neighbours.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(design)) });
   await expect(page.getByTestId('wire-guide-pieces')).toHaveText('G1: 1 piece');
   await page.getByLabel('Printed as').selectOption('layers');
