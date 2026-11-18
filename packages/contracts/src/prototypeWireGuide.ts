@@ -572,9 +572,15 @@ export function wireGuideAssembly(design: WireGuideDesign): { poses: Record<stri
   return { poses, steps, partColors, lift: 10 };
 }
 
+/** A free-text field reduced to plain-name characters (letters, digits, `_ . + -`), at most 64, for the assembly guide: no line
+ * break, space or control character of a caller's text reaches it. */
+export const plainText = (value: string) => value.replace(/[^A-Za-z0-9_.+-]/g, '').slice(0, 64) || '(unnamed)';
+
 /**
  * The ZIP's `wire-guide-assembly.txt` for a valid design: what each STL is, how many of each to print and which way up, the pegs'
- * fit, and the order to put them together in. Only ids, numbers and fixed text: the design's own ids are its schema's plain names.
+ * fit, and the order to put them together in. Only ids, numbers and fixed text: the design's own ids are its schema's plain names
+ * (their pattern allows no spaces or line breaks), and its free-text source fields (KiPrint's version and project id) are reduced
+ * to plain-name characters (`plainText`), so that no caller's text can add a line to the instructions.
  */
 export function wireGuideAssemblyText(design: WireGuideDesign): string {
   const G = WIRE_GUIDE_GEOMETRY, P = G.peg;
@@ -586,7 +592,7 @@ export function wireGuideAssemblyText(design: WireGuideDesign): string {
     `Board: ${summary.board} (${design.boardPartId}). Wire: ${summary.wire}.`,
     `${summary.wires} wire${summary.wires === 1 ? '' : 's'} on ${summary.levels} level${summary.levels === 1 ? '' : 's'}, in ${design.prints.length} print${design.prints.length === 1 ? '' : 's'}; ${pieces.length} STL file${pieces.length === 1 ? '' : 's'}.`,
     `Pieces: ${design.guide.parts ?? 'layers'}${design.guide.parts === undefined ? ' (the default)' : ''}. Registration: ${design.guide.registration}.`,
-    ...design.source ? [`Planned by ${design.source.tool} ${design.source.version}, project ${design.source.projectId}.`] : [],
+    ...design.source ? [`Planned by ${design.source.tool} ${plainText(design.source.version)}, project ${plainText(design.source.projectId)}.`] : [],
     'wire-guide-design.json is the design these pieces were made from.',
     '',
     'Print one of each STL file. Each lies the way up it is used: print it as it is in the file, with no supports.',

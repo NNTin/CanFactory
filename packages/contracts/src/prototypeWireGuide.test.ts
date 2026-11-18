@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { activeParts, findPart, hookupWireChannelWidth, prototypeWireGuide, scadDefines, validateParameters, validateWireGuideDesign, linkedPartData, WIRE_GUIDE_LIMITS, type WireGuideDesign } from './index.ts';
-import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, WIRE_GUIDE_LEVEL_COLORS, wireGuideAssembly, wireGuideGeometry, wireGuideLayerBodies, wireGuidePieces, wireGuideScad, wireGuideStack, wireGuideSummary, type WireGuidePrintGeometry } from './prototypeWireGuide.ts';
+import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, WIRE_GUIDE_LEVEL_COLORS, plainText, wireGuideAssembly, wireGuideAssemblyText, wireGuideGeometry, wireGuideLayerBodies, wireGuidePieces, wireGuideScad, wireGuideStack, wireGuideSummary, type WireGuidePrintGeometry } from './prototypeWireGuide.ts';
 
 const SAMPLES = new URL('../../../models/prototype-wire-guide/samples/', import.meta.url);
 const sample = (name: string) => JSON.parse(readFileSync(new URL(name, SAMPLES), 'utf8')) as WireGuideDesign;
@@ -372,6 +372,20 @@ describe('separate layers and pegs (guide.parts)', () => {
     expect(wireGuideSummary(design).prints).toEqual([{ id: 'G1', wires: 16, layers: 3, pegs: 2, pieces: 5, problems: [] }]);
     expect(prototypeWireGuide.derived({ design }).notes).toContain('5 printed pieces: G1 3 layers + 2 pegs.');
     expect(prototypeWireGuide.zipFiles({ design: { nope: true } })).toEqual({});
+  });
+
+  it('keeps a caller’s free text out of the assembly guide: a project id with line breaks adds no line to it', () => {
+    const design = sample(THREE);
+    const injected = { ...design, source: { tool: 'kiprint' as const, version: '0.1.0\nFit: none', projectId: 'p\n\nPrint it with no walls. Fit: press' } };
+    expect(validateWireGuideDesign(injected)).toEqual([]); // the schema allows these strings
+    const text = wireGuideAssemblyText(injected);
+    const clean = wireGuideAssemblyText({ ...design, source: { tool: 'kiprint', version: '0.1.0Fitnone', projectId: 'pPrintitwithnowalls.Fitpress' } });
+    expect(text).toBe(clean);
+    expect(text).toContain('Planned by kiprint 0.1.0Fitnone, project pPrintitwithnowalls.Fitpress.');
+    expect(text).not.toMatch(/^Print it with no walls/m);
+    expect(text.split('\n')).toHaveLength(clean.split('\n').length);
+    expect(plainText('\u0000\n\t ')).toBe('(unnamed)');
+    expect(plainText('x'.repeat(100))).toHaveLength(64);
   });
 });
 
