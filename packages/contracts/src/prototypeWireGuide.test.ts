@@ -60,6 +60,12 @@ describe('wireGuideScad', () => {
     expect(leaves(JSON.parse(literal)).every(leaf => typeof leaf === 'number' && Number.isFinite(leaf))).toBe(true);
     expect(literal).toMatch(/^[\d.,[\]-]+$/);
     for (const text of ['W1', '+5V', 'DATA', 'G1', 'kiprint', design.boardPartId, design.wirePartId]) expect(literal).not.toContain(text);
+    // the planned project's revision is display-only too
+    const revision = `sha256:${'ab'.repeat(32)}`;
+    const revised = { ...design, source: { tool: 'kiprint' as const, version: '0.1.0', projectId: 'p', revision } };
+    expect(validateWireGuideDesign(revised)).toEqual([]);
+    expect(wireGuideScad(revised)).toBe(literal);
+    expect(validateWireGuideDesign({ ...revised, source: { ...revised.source, revision: '2026-11-18T10:00:00Z' } })[0]?.path).toBe('/source/revision');
   });
   it('gives each piece its PRINT, LAYER and PEG and the design as GUIDE, and only renders the design’s pieces', () => {
     const parameters = { design: sample('stripboard-three-prints.json') };

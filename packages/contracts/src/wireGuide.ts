@@ -104,6 +104,7 @@ export const WireGuideDesignSchema = Type.Object({
     tool: Type.Literal('kiprint'),
     version: Type.String({ minLength: 1, maxLength: 32 }),
     projectId: Type.String({ minLength: 1, maxLength: 64 }),
+    revision: Type.Optional(Type.String({ pattern: '^sha256:[0-9a-f]{64}$', description: 'The planned project’s revision: a digest of everything that defines it (components with their values, wires, cuts and declared circuit), never a time, so that two plans of the same project differ in it when anything changed in between. Display-only: it never reaches SCAD.' })),
   }, { additionalProperties: false, description: 'Where the design came from: display and traceability only.' })),
   components: Type.Optional(Type.Array(WireGuideComponentSchema, { maxItems: WIRE_GUIDE_LIMITS.components })),
   wires: Type.Array(WireGuideWireSchema, { minItems: 1, maxItems: WIRE_GUIDE_LIMITS.wires }),

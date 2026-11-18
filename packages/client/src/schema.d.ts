@@ -2938,6 +2938,8 @@ export interface operations {
                                 tool: "kiprint";
                                 version: string;
                                 projectId: string;
+                                /** @description The planned project’s revision: a digest of everything that defines it (components with their values, wires, cuts and declared circuit), never a time, so that two plans of the same project differ in it when anything changed in between. Display-only: it never reaches SCAD. */
+                                revision?: string;
                             };
                             components?: {
                                 /** @description Reference designator, e.g. "U1". */

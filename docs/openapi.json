@@ -6658,6 +6658,11 @@
                                     "type": "string",
                                     "minLength": 1,
                                     "maxLength": 64
+                                  },
+                                  "revision": {
+                                    "type": "string",
+                                    "pattern": "^sha256:[0-9a-f]{64}$",
+                                    "description": "The planned project’s revision: a digest of everything that defines it (components with their values, wires, cuts and declared circuit), never a time, so that two plans of the same project differ in it when anything changed in between. Display-only: it never reaches SCAD."
                                   }
                                 },
                                 "additionalProperties": false,

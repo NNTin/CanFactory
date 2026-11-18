@@ -35,7 +35,7 @@ Holes and waypoints are grid positions `[column, row]`. Keep-outs are in millime
   schemaVersion: 1,
   boardPartId: 'adafruit-perma-proto-half',     // a prototype-board part
   wirePartId: 'alpha-wire-3051-1',              // a hookup-wire part
-  source?: { tool: 'kiprint', version, projectId },
+  source?: { tool: 'kiprint', version, projectId, revision? },  // revision: sha256 of the planned project's state
   components?: [{ ref: 'U1', footprint: 'DIP-8', pins: [[20, 7], …], body: Keepout }],
   wires: [{ id: 'W1', wirePartId?, net?, from: [0, 3], to: [5, 3], path: [], level: 0 }],
   prints: [{ id: 'G1', wireIds: ['W1'], region?: { from: [0, 0], to: [9, 17] } }],
@@ -56,6 +56,10 @@ Keepout =
 - **Channel width:** a wire's channel is its insulation's largest outer diameter plus `channelClearance`. The width comes from
   `hookupWireChannelWidth(part, clearance)`, which reads `dimensionOf(part, 'D', 'max')`.
 - **Display-only fields:** ids and net names are for display. They never reach SCAD.
+- **Source revision:** `source.revision` (optional, `sha256:<hex>`) is KiPrint's digest of the project it planned: its components
+  with their values, wires, cuts and declared circuit, never a time. Since the design (and so its digest) carries it, two plans of a
+  project differ whenever anything changed between them, even geometry-neutral changes such as a value. CanFactory's printed-parts
+  ZIP and KiPrint's KiCad ZIP both carry the design, so both name the exact project snapshot they were made from.
 - **Pieces:** `guide.parts` says how each print is made: `layers` (the default, also when it is absent) as separate stackable
   layers and pegs, `single` as one piece per print with its registration fused on, as before #170. See
   [Separate layers and pegs](#separate-layers-and-pegs).
