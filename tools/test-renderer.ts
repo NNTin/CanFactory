@@ -1,17 +1,21 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
-import { bodyTriangles, rubberBandLauncher, trolleyToken, TROLLEY_TOKEN_CLIP_ANGLE, TROLLEY_TOKEN_HARDWARE, TROLLEY_TOKEN_HINGE, trolleyTokenClipPose, magneticLighterKeychain, type MagneticLighterKeychainParameters, prototypeWireGuide, DEFAULT_WAND_HOLDER, WAND_HOLDER, wandHolder, wandHolderLayout, type WandHolderParameters, DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, parameterString, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
+import { bodyTriangles, rubberBandLauncher, trolleyToken, TROLLEY_TOKEN_CLIP_ANGLE, TROLLEY_TOKEN_HARDWARE, TROLLEY_TOKEN_HINGE, trolleyTokenClipPose, magneticLighterKeychain, type MagneticLighterKeychainParameters, prototypeWireGuide, wireGuideAssemblyText, wireGuidePieces, DEFAULT_WAND_HOLDER, WAND_HOLDER, wandHolder, wandHolderLayout, type WandHolderParameters, DEFAULT_MITER_BOX, MITER_BOX, miterBox, miterBoxLayout, type MiterBoxParameters, BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TREAT_DISPENSER, poseLocal, treatBolts, treatDispenser, treatDispenserLayout, treatPartPoses, type TreatDispenserParameters, ESP32_CASE_HEADER_OPENINGS, ESP32_CASE_HEADER_DEFINES, ESP32_CASE_LEDS, esp32C3SuperminiCase, cameraHousing, cameraHousingLayout, CAMERA_HARDWARE, DEFAULT_CAMERA_HOUSING, type CameraHousingParameters, activeParts, magneticCatToy, magneticCatToyLayout, TOY, catCollarTag, catCollarTagSettings, collarTagLayout, COLLAR_TAG_SHAPES, springBallDetent, springBallDetentLayout, type SpringBallDetentSize, printedCornerBracket, printedScreenHook, printedScreenHookShape, maxLogoSize, QR_TAG, QR_TAG_JOINTS, QR_TAG_SHAPES, qrMagnetTag, qrTagCode, qrTagLayout, qrTagSettings, type QrMagnetTagParameters, aiRubberDuck, AI_DUCK_VARIANTS, CASE_MAGNETS, cigaretteCase, findPart, SNAP_TUNING, fruitFlyTrap, holeDiameter, LATCH_MACHINE_SCREWS, LATCH_WOOD_SCREWS, litterShovel, mossPlanter, plankConnector, pressurePad, SCOOP_BLADE, windowCatGuard, windowCatGuardLayout, WINDOW_CAT_GUARD, WINDOW_CAT_GUARD_SPLICE, type WindowCatGuardParameters, toggleLatch, outsideCornerToggleLatch, cornerLatchLayout, latchScrewHoles, dimensionOf, type OutsideCornerToggleLatchParameters, sieveGaps, svgToLogo, textWidth, validateParameters, parameterString, type LitterShovelParameters, type ParameterValues } from '@canfactory/contracts';
 import { fontsPath, inspectStl, ObjectStorage, openScadArgs, PostgresStorage, renderJob, repositoryRoot, selectRunner, WORKER_LIMITS, type MeshRepair, type RenderJob } from '@canfactory/server';
 import { createApp } from '../apps/api/src/app.ts';
 import { startStorageServices } from './storage-services.ts';
 import jsQR from 'jsqr';
-import { compareMeshes } from './stl-to-scad/compare.ts';
+import { compareMeshes, intersectionVolume } from './stl-to-scad/compare.ts';
 import { bounds, parseStl, size as boxSize, type Mesh } from './stl-to-scad/stl.ts';
 import { checkLighterKeychain, LIGHTER_KEYCHAIN_PARTS } from './lighter-keychain-checks.ts';
-import { checkWireGuide, wireGuideSamples } from './wire-guide-checks.ts';
+import { checkWireGuide, checkWireGuidePieces, wireGuideSamples } from './wire-guide-checks.ts';
+
+/** Where the wire guide's measured meshes and the three-level sample's ZIP are written (uploaded with the integration diagnostics). */
+const evidenceDirectory = join(repositoryRoot, 'test-results', 'wire-guide');
 
 // Two logos for the cigarette case's underside, read from SVG as the editor does.
 const RING_AND_STAR = svgToLogo('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill-rule="evenodd" d="M50 2a48 48 0 1 0 0.01 0zM50 10a40 40 0 1 1 -0.01 0z"/><path d="M50 18 L69 76 L20 40 L80 40 L31 76 Z"/></svg>');
@@ -1509,13 +1513,20 @@ try {
     console.log(`PASS miter box ${name}: 9 closed prints at the layout's sizes, open saw slots, kerf groove and lock nut pocket, base with its fence, stops, retaining pins' holes and pinned hold-down sockets`);
   }
   // Prototype-board wire guide: every checked-in sample design (models/prototype-wire-guide/samples): one print on one level
-  // (perfboard, mounting-hole bosses, pockets over a DIP and through a tall capacitor), crossings on two levels with a per-wire
+  // (perfboard, pegs in the mounting holes, pockets over a DIP and through a tall capacitor), crossings on two levels with a per-wire
   // thicker wire (perfboard, edge clips), three prints by region (stripboard), a Perma-Proto's rails and strips, wire ends beside a
-  // mounting hole under its boss's column (stripboard), bodies whose pockets would have a side on a channel's, and KiPrint's three
-  // plan_guide designs. Each print one closed solid in the ZIP, at its block's size, checked by checkWireGuide
-  // (tools/wire-guide-checks.ts): channels, bridges over the lower channels' tunnels, funnels and their bores down to the board,
-  // pockets, bosses and clips where the encoder put them; the ZIP served on its route.
-  for (const [name, design] of !only || only === 'prototype-wire-guide' ? wireGuideSamples(repositoryRoot) : []) {
+  // mounting hole (stripboard), bodies whose pockets would have a side on a channel's, KiPrint's three plan_guide designs and a
+  // representative half Perma-Proto with 16 wires on three levels crossing at the same holes. Each is made as separate layers and
+  // pegs (guide.parts' default), checked by checkWireGuidePieces (tools/wire-guide-checks.ts) on the ZIP's actual meshes: each
+  // piece on the bed, the layers' channels, covers, funnels, pockets and peg holes, the pegs' outlines, the shafts' play in their
+  // holes and no shared volume assembled; two of them also as one piece per print (guide.parts single), checked by
+  // checkWireGuide as before. The ZIP carries its assembly guide and the design, and is served on its route. What was measured is
+  // written to test-results/wire-guide/ (uploaded with the integration diagnostics).
+  const wireGuideEvidence: unknown[] = [];
+  const singles = new Set(['stripboard-boss-neighbours.json', 'perfboard-two-levels.json']);
+  const wireGuideCases = (!only || only === 'prototype-wire-guide' ? wireGuideSamples(repositoryRoot) : []).flatMap(([name, design]): [string, typeof design][] =>
+    singles.has(name) ? [[name, design], [`${name} (single)`, { ...design, guide: { ...design.guide, parts: 'single' } }]] : [[name, design]]);
+  for (const [name, design] of wireGuideCases) {
     const started = Date.now();
     const parameters = { design };
     assert.deepEqual(validateParameters(prototypeWireGuide, parameters), [], name);
@@ -1525,12 +1536,25 @@ try {
     const result = await store.getJob(queued.id);
     assert.equal(result?.status, 'succeeded', `wire guide ${name}`);
     if (!result.artifact || !('parts' in result.artifact)) throw new Error('Expected the wire guide ZIP.');
-    assert.deepEqual(result.artifact.parts.map(part => part.id), design.prints.map((_, index) => `print-${index + 1}`));
+    const pieces = wireGuidePieces(design);
+    assert.deepEqual(result.artifact.parts.map(part => part.id), pieces.map(piece => piece.id), `wire guide ${name}: the ZIP's parts are the design's pieces`);
     const bytes = await artifactBytes(result), entries = unzipSync(bytes);
-    const probes = checkWireGuide(index => parseStl(Buffer.from(entries[`print-${index + 1}.stl`] ?? [])), design, name, shells, housingSolid);
+    assert.deepEqual(Object.keys(entries).sort(), [...pieces.map(piece => `${piece.id}.stl`), 'wire-guide-assembly.txt', 'wire-guide-design.json'].sort(), `wire guide ${name}: the ZIP's files`);
+    assert.deepEqual(JSON.parse(Buffer.from(entries['wire-guide-design.json'] ?? []).toString('utf8')), design, `wire guide ${name}: the ZIP's design is the one rendered`);
+    assert.equal(Buffer.from(entries['wire-guide-assembly.txt'] ?? []).toString('utf8'), wireGuideAssemblyText(design), `wire guide ${name}: the assembly guide`);
+    const stl = (id: string) => entries[`${id}.stl`] ? parseStl(Buffer.from(entries[`${id}.stl`] ?? [])) : undefined;
+    const one = checkWireGuide(index => stl(`print-${index + 1}`) ?? { tris: new Float64Array() }, design, name, shells, housingSolid);
+    const layered = checkWireGuidePieces(stl, design, name, shells, housingSolid, (a, b) => intersectionVolume(a, b, 0.1));
     const preview = await app.inject(`/api/v1/renders/${job.id}/zip`);
     assert.equal(preview.statusCode, 200); assert.deepEqual(preview.rawPayload, bytes);
-    console.log(`PASS wire guide ${name}: ${design.prints.length} print(s), ${result.artifact.triangles} triangles, ${probes} probes, ${((Date.now() - started) / 1000).toFixed(1)} s`);
+    const seconds = (Date.now() - started) / 1000;
+    wireGuideEvidence.push({ name, zipBytes: bytes.length, zipSha256: createHash('sha256').update(bytes).digest('hex'), seconds, probes: one + layered.probes, largestSharedVolumeMm3: layered.shared, pieces: layered.pieces });
+    if (name === 'perma-proto-half-three-levels.json') { await mkdir(evidenceDirectory, { recursive: true }); await writeFile(join(evidenceDirectory, 'perma-proto-half-three-levels.zip'), bytes); }
+    console.log(`PASS wire guide ${name}: ${pieces.length} piece(s) (${pieces.map(piece => piece.id).join(', ')}), ${result.artifact.triangles} triangles, ${one + layered.probes} probes, largest shared volume assembled ${layered.shared.toFixed(3)} mm³, ${seconds.toFixed(1)} s`);
+  }
+  if (wireGuideEvidence.length) {
+    await mkdir(evidenceDirectory, { recursive: true });
+    await writeFile(join(evidenceDirectory, 'wire-guide-meshes.json'), `${JSON.stringify(wireGuideEvidence, null, 2)}\n`);
   }
   assert.deepEqual(repairs, [], `Renders needed float32 sliver repairs (fragile geometry):\n${repairs.join('\n')}`);
 } finally {

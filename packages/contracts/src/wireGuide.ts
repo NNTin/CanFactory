@@ -90,6 +90,9 @@ export const WireGuideSettingsSchema = Type.Object({
   funnelTopDiameter: Mm(1, 5, 'Funnel opening at the cover (mm).'),
   funnelBottomDiameter: Mm(0.3, 3, 'Funnel outlet above the hole (mm).'),
   funnelStandoff: Mm(0, 10, 'Gap between the funnel outlet and the PCB top (mm).'),
+  parts: Type.Optional(Type.Union([Type.Literal('layers'), Type.Literal('single')], {
+    description: 'How each print is made: `layers` (the default when absent) prints one separate, stackable layer per wire level it uses, with separate pegs through matching holes; `single` prints it as one piece with its registration fused on, as before.',
+  })),
 }, { additionalProperties: false });
 export type WireGuideSettings = Static<typeof WireGuideSettingsSchema>;
 

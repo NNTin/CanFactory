@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { activeParts, findPart, hookupWireChannelWidth, prototypeWireGuide, scadDefines, validateParameters, validateWireGuideDesign, linkedPartData, WIRE_GUIDE_LIMITS, type WireGuideDesign } from './index.ts';
-import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, wireGuideGeometry, wireGuideScad } from './prototypeWireGuide.ts';
+import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, WIRE_GUIDE_LEVEL_COLORS, wireGuideAssembly, wireGuideGeometry, wireGuideLayerBodies, wireGuidePieces, wireGuideScad, wireGuideStack, wireGuideSummary, type WireGuidePrintGeometry } from './prototypeWireGuide.ts';
 
 const SAMPLES = new URL('../../../models/prototype-wire-guide/samples/', import.meta.url);
 const sample = (name: string) => JSON.parse(readFileSync(new URL(name, SAMPLES), 'utf8')) as WireGuideDesign;
@@ -16,7 +16,7 @@ describe('prototype-wire-guide samples', () => {
   it('are checked in for one level, two levels with crossings, three prints, each board pattern, KiPrint’s designs and the edge cases', () => {
     expect(names.sort()).toEqual([
       'kiprint-crossing-two-levels.json', 'kiprint-perma-proto-timer.json', 'kiprint-stripboard-regulator.json',
-      'perfboard-one-level.json', 'perfboard-two-levels.json', 'perma-proto-bus.json', 'pockets-on-channel-sides.json',
+      'perfboard-one-level.json', 'perfboard-two-levels.json', 'perma-proto-bus.json', 'perma-proto-half-three-levels.json', 'pockets-on-channel-sides.json',
       'stripboard-boss-neighbours.json', 'stripboard-three-prints.json',
     ]);
     expect(names.filter(name => name.startsWith('kiprint-')).every(name => sample(name).source?.tool === 'kiprint')).toBe(true);
@@ -61,12 +61,23 @@ describe('wireGuideScad', () => {
     expect(literal).toMatch(/^[\d.,[\]-]+$/);
     for (const text of ['W1', '+5V', 'DATA', 'G1', 'kiprint', design.boardPartId, design.wirePartId]) expect(literal).not.toContain(text);
   });
-  it('gives each print part its PRINT and the design as GUIDE, and only renders the design’s prints', () => {
+  it('gives each piece its PRINT, LAYER and PEG and the design as GUIDE, and only renders the design’s pieces', () => {
     const parameters = { design: sample('stripboard-three-prints.json') };
     const parts = activeParts(prototypeWireGuide, parameters);
-    expect(parts.map(part => part.id)).toEqual(['print-1', 'print-2', 'print-3']);
-    expect(scadDefines(prototypeWireGuide, must(parts[2]), parameters)).toEqual([['GUIDE', wireGuideScad(parameters.design)], ['PRINT', '2']]);
-    expect(activeParts(prototypeWireGuide, prototypeWireGuide.defaults).map(part => part.id)).toEqual(['print-1']);
+    expect(parts.map(part => part.id)).toEqual(['print-1-layer-1', 'print-2-layer-1', 'print-2-layer-2', 'print-2-peg-1', 'print-2-peg-2', 'print-3-layer-1']);
+    expect(parts.map(part => part.id)).toEqual(wireGuidePieces(parameters.design).map(piece => piece.id));
+    const guide = ['GUIDE', wireGuideScad(parameters.design)];
+    expect(scadDefines(prototypeWireGuide, must(parts[2]), parameters)).toEqual([guide, ['PRINT', '1'], ['LAYER', '1'], ['PEG', '-1']]);
+    expect(scadDefines(prototypeWireGuide, must(parts[4]), parameters)).toEqual([guide, ['PRINT', '1'], ['LAYER', '-1'], ['PEG', '1']]);
+    expect(activeParts(prototypeWireGuide, prototypeWireGuide.defaults).map(part => part.id)).toEqual(['print-1-layer-1', 'print-1-peg-1', 'print-1-peg-2']);
+    // one piece per print, as before, when the design asks for it
+    const single = { design: { ...parameters.design, guide: { ...parameters.design.guide, parts: 'single' as const } } };
+    const pieces = activeParts(prototypeWireGuide, single);
+    expect(pieces.map(part => part.id)).toEqual(['print-1', 'print-2', 'print-3']);
+    expect(scadDefines(prototypeWireGuide, must(pieces[2]), single)).toEqual([['GUIDE', wireGuideScad(single.design)], ['PRINT', '2'], ['LAYER', '-1'], ['PEG', '-1']]);
+    // an invalid design (which validation rejects before any render) stands for one piece, as before
+    const invalid = clone(single.design); must(invalid.wires[0]).to = must(invalid.wires[0]).from;
+    expect(activeParts(prototypeWireGuide, { design: invalid }).map(part => part.id)).toEqual(['print-1']);
   });
   it('refuses an invalid design', () => {
     const design = clone(DEFAULT_WIRE_GUIDE_DESIGN); must(design.wires[0]).to = [2, 2];
@@ -181,3 +192,164 @@ describe('prototype-wire-guide validation', () => {
     expect(validateWireGuideDesign(long)).toEqual([]);
 });
 });
+
+/** The pictured kind of guide: a half Perma-Proto with 16 wires on 3 levels, red level-0 wires crossed by a blue level-1 wire that
+ * a green level-2 wire crosses at the same holes. Representative: built for this test, not the owner's exact project. */
+const THREE = 'perma-proto-half-three-levels.json';
+const printOf = (design: WireGuideDesign, index = 0): WireGuidePrintGeometry => must(wireGuideGeometry(design)[index]);
+
+describe('separate layers and pegs (guide.parts)', () => {
+  it('makes the three-level crossing three stacked layers, the blue crossing wire in the middle one', () => {
+    const design = sample(THREE);
+    expect(design.guide.parts).toBeUndefined(); // layers are the default
+    const { stack, layers, block } = printOf(design);
+    expect(stack.pieces).toBe('layers');
+    expect(stack.reason).toBeNull();
+    // the crossing: at [6..8, 4] a red wire on level 0, the blue W4 on level 1 and the green W5 on level 2
+    const on = (id: string) => must(design.wires.find(wire => wire.id === id)).level;
+    expect([on('W1'), on('W2'), on('W3'), on('W4'), on('W5')]).toEqual([0, 0, 0, 1, 2]);
+    expect(stack.layers.map(layer => layer.level)).toEqual([0, 1, 2]);
+    expect(stack.layers[1]?.wireIds).toEqual(['W4', 'W14']);
+    expect(stack.layers.map(layer => layer.wireIds.length)).toEqual([12, 2, 2]);
+    // worked out by hand: the board 1.6 mm, standoff 1, plate 1.2, the 22 AWG wire 1.4986 + 0.2 clearance, bridges 0.6
+    const channel = 1.4986 + 0.2, plate = 1.6 + 1 + 1.2;
+    const expected = [[2.6, plate + channel], [plate + channel, plate + 2 * (channel + 0.6) - 0.6], [plate + 2 * (channel + 0.6) - 0.6, plate + 2 * (channel + 0.6) + channel]];
+    stack.layers.forEach((layer, k) => { expect(layer.zBottom).toBeCloseTo(must(expected[k])[0] ?? 0, 4); expect(layer.zTop).toBeCloseTo(must(expected[k])[1] ?? 0, 4); });
+    expect(must(stack.layers.at(-1)).zTop).toBeCloseTo(block.zTop, 6);
+    // each layer above the bottom starts where the one-piece print's bridge over the lower channels starts
+    expect(stack.layers.slice(1).map(layer => layer.zBottom)).toEqual(layers.slice(1).map(layer => layer.bridgeBottom));
+    expect(wireGuidePieces(design).map(piece => piece.id)).toEqual(['print-1-layer-1', 'print-1-layer-2', 'print-1-layer-3', 'print-1-peg-1', 'print-1-peg-2']);
+  });
+
+  it('puts a separate board peg in each mounting hole, with its fit worked out from the hole', () => {
+    const { stack, block } = printOf(sample(THREE));
+    expect(stack.pegs.map(peg => [peg.kind, peg.through, peg.x, peg.y]).sort()).toEqual([['board', true, 3.81, 25.4], ['board', true, 77.47, 25.4]]);
+    for (const peg of stack.pegs) {
+      // a Ø3.2 hole: a Ø2.9 tip 1.2 mm down it, a Ø5.2 shoulder (the hole + 2 × the 1 mm standoff), a Ø3.8 shaft in Ø4.1 holes
+      expect([peg.holeDiameter, peg.shaft, peg.hole, peg.shoulder, peg.zBottom]).toEqual([3.2, 3.8, 4.1, 5.2, 0.4]);
+      expect(peg.profile[1]).toEqual([1.45, 0]);
+      // its seat meets the hole's rim at the board's top
+      const seat = peg.profile.findIndex(([r, z]) => r > 1.6 && z > 1.2);
+      const [[r0, z0], [r1, z1]] = [must(peg.profile[seat - 1]), must(peg.profile[seat])];
+      expect(r0 + (r1 - r0) * (1.2 - z0) / (z1 - z0)).toBeCloseTo(1.6, 6);
+      // the shoulder's top is the guide's underside, its shaft stops 0.2 under the stack's top
+      expect(peg.profile).toContainEqual([2.6, block.zBase - peg.zBottom]);
+      expect(Math.max(...peg.profile.map(([, z]) => z)) + peg.zBottom).toBeCloseTo(block.zTop - 0.2, 6);
+      expect(peg.holeBottom).toBeLessThan(block.zBase);
+      expect(peg.holeTop).toBeGreaterThan(block.zTop);
+    }
+  });
+
+  it('prints every peg upright without supports: no part of its outline overhangs by more than 45°', () => {
+    for (const name of [THREE, 'kiprint-perma-proto-timer.json', 'perfboard-two-levels.json', 'perfboard-one-level.json'])
+      for (const print of wireGuideGeometry(sample(name))) for (const peg of print.stack.pegs) {
+        const outline = peg.profile.slice(1, -1);
+        outline.slice(1).forEach(([r, z], i) => {
+          const [r0, z0] = must(outline[i]);
+          expect(z, `${name}: the outline goes up`).toBeGreaterThanOrEqual(z0 - 1e-9);
+          if (r > r0 + 1e-9) expect(r - r0, `${name}: a widening is at most 45°`).toBeLessThanOrEqual(z - z0 + 1e-6);
+        });
+        expect(must(peg.profile[0])[1]).toBe(0);
+      }
+  });
+
+  it('keeps every peg’s hole clear of every channel, funnel, pocket and other hole by 0.6 mm, in every sample', () => {
+    const clear = WIRE_GUIDE_GEOMETRY.peg.keepClear;
+    for (const name of readdirSync(SAMPLES).filter(file => file.endsWith('.json'))) for (const print of wireGuideGeometry(sample(name))) {
+      const { grid } = print;
+      const at = ([c, r]: [number, number]) => [grid.x0 + c * grid.pitch, grid.y0 + r * grid.pitch] as const;
+      for (const peg of print.stack.pegs) {
+        const r = peg.hole / 2;
+        if (peg.through) for (const wire of print.wires) wire.points.slice(1).forEach((b, i) => {
+          const [[ax, ay], [bx, by]] = [at(must(wire.points[i])), at(b)];
+          const dx = Math.max(Math.min(ax, bx) - wire.width / 2 - peg.x, 0, peg.x - Math.max(ax, bx) - wire.width / 2);
+          const dy = Math.max(Math.min(ay, by) - wire.width / 2 - peg.y, 0, peg.y - Math.max(ay, by) - wire.width / 2);
+          expect(Math.hypot(dx, dy), `${name}: a peg's hole next to a channel`).toBeGreaterThanOrEqual(r + clear - 1e-6);
+        });
+        for (const funnel of print.funnels) expect(Math.hypot(funnel.x - peg.x, funnel.y - peg.y), `${name}: a funnel`).toBeGreaterThanOrEqual(r + clear + funnel.top / 2 - 1e-6);
+        for (const other of print.stack.pegs) if (other !== peg) expect(Math.hypot(other.x - peg.x, other.y - peg.y)).toBeGreaterThanOrEqual(r + other.hole / 2 + clear - 1e-6);
+        expect(peg.hole - peg.shaft).toBeCloseTo(WIRE_GUIDE_GEOMETRY.peg.holePlay, 6);
+      }
+    }
+  });
+
+  it('lines up every stack of two or more layers on two pegs through all of them, adding dowels where the board has no usable hole', () => {
+    for (const name of readdirSync(SAMPLES).filter(file => file.endsWith('.json'))) for (const print of wireGuideGeometry(sample(name)))
+      if (print.stack.pieces === 'layers' && print.stack.layers.length >= 2) expect(print.stack.pegs.filter(peg => peg.through).length, name).toBe(2);
+    // the quarter Perma-Proto's mounting holes lie under channels: their pegs reach only into sockets in the plate, and two dowels line up the layers
+    const timer = printOf(sample('kiprint-perma-proto-timer.json')).stack;
+    expect(timer.pegs.map(peg => [peg.kind, peg.through])).toEqual([['board', false], ['board', false], ['dowel', true], ['dowel', true]]);
+    const plateTop = printOf(sample('kiprint-perma-proto-timer.json')).plateTop;
+    for (const peg of timer.pegs.filter(peg => !peg.through)) expect(peg.holeTop).toBeCloseTo(plateTop - WIRE_GUIDE_GEOMETRY.minimumSkin, 6);
+    expect(timer.notes.filter(note => note.includes('socket'))).toHaveLength(2);
+    // edge clips: the clips stay on the bottom layer, two dowels line up the two layers
+    const clips = printOf(sample('perfboard-two-levels.json'));
+    expect(clips.stack.pegs.map(peg => peg.kind)).toEqual(['dowel', 'dowel']);
+    expect(must(clips.stack.layers[0]).zBottom).toBe(-WIRE_GUIDE_GEOMETRY.clip.below);
+  });
+
+  it('says why a mounting hole has no peg, and makes a print one piece, with the reason, when it can’t be lined up or would fall apart', () => {
+    expect(printOf(sample('stripboard-boss-neighbours.json')).stack.notes).toEqual(['The mounting hole at (4.44, 4.68) mm has no peg: its hole would cut a funnel.']);
+    // no room for a dowel anywhere: a pocket over the whole print
+    const clips = printOf(sample('perfboard-two-levels.json'));
+    const { block } = clips;
+    const crowded = { ...clips, pockets: [{ kind: 'box' as const, x: block.x0, y: block.y0, w: block.x1 - block.x0, h: block.y1 - block.y0, top: block.zBase + 0.5 }] };
+    const design = sample('perfboard-two-levels.json');
+    const stack = wireGuideStack(crowded, design.wires, design.guide, [], { columns: 24, rows: 18 });
+    expect(stack).toMatchObject({ pieces: 'single', reason: 'there is no room for two alignment pegs clear of its channels, funnels and pockets', layers: [], pegs: [] });
+    // through pockets round a square: layer 2 would be a loose square inside them
+    const three = printOf(sample(THREE));
+    const [cx, cy] = [40, 40], top = three.block.zTop + 1;
+    const ring = [[cx - 6, cy - 6, 12, 1], [cx - 6, cy + 5, 12, 1], [cx - 6, cy - 6, 1, 12], [cx + 5, cy - 6, 1, 12]].map(([x, y, w, h]) => ({ kind: 'box' as const, x: x ?? 0, y: y ?? 0, w: w ?? 0, h: h ?? 0, top }));
+    const ringed = { ...three, pockets: [...three.pockets, ...ring] };
+    expect(wireGuideLayerBodies(three, 1, [])).toBe(1);
+    expect(wireGuideLayerBodies(ringed, 1, [])).toBe(2);
+    const fallen = wireGuideStack(ringed, sample(THREE).wires, sample(THREE).guide, [], { columns: 30, rows: 18 });
+    expect(fallen.pieces).toBe('single');
+    expect(fallen.reason).toBe('its layer 2 would be 2 loose pieces between its pockets and holes');
+  });
+
+  it('keeps the one-piece print, bosses fused, for guide.parts single', () => {
+    const design = sample(THREE);
+    const single = { ...design, guide: { ...design.guide, parts: 'single' as const } };
+    const [layered, fused] = [printOf(design), printOf(single)];
+    expect(fused.stack).toEqual({ pieces: 'single', reason: null, layers: [], pegs: [], notes: [] });
+    expect({ ...fused, stack: null }).toEqual({ ...layered, stack: null });
+    expect(wireGuidePieces(single).map(piece => piece.id)).toEqual(['print-1']);
+    const [a, b] = [JSON.parse(wireGuideScad(design)) as unknown[][], JSON.parse(wireGuideScad(single)) as unknown[][]];
+    expect(must(a[0]).slice(0, 10)).toEqual(must(b[0]).slice(0, 10));
+    expect(must(b[0]).slice(10)).toEqual([0, [], [], []]);
+    expect(must(a[0]).slice(10, 13)).toEqual([1, layered.stack.layers.map(layer => [layer.zBottom, layer.zTop]), layered.stack.pegs.map(peg => [peg.x, peg.y, peg.hole, peg.holeBottom, peg.holeTop])]);
+  });
+
+  it('assembles the pieces where they go: pegs into the board, then each layer down over them, coloured by level', () => {
+    const design = sample(THREE);
+    const assembly = wireGuideAssembly(design);
+    const { stack } = printOf(design);
+    expect(Object.keys(assembly.poses).sort()).toEqual(wireGuidePieces(design).map(piece => piece.id).sort());
+    stack.layers.forEach((layer, k) => expect(assembly.poses[`print-1-layer-${k + 1}`]?.position).toEqual([0, 0, layer.zBottom]));
+    stack.pegs.forEach((peg, j) => expect(assembly.poses[`print-1-peg-${j + 1}`]?.position).toEqual([peg.x, peg.y, peg.zBottom]));
+    expect(assembly.steps.map(step => step.parts)).toEqual([['print-1-peg-1', 'print-1-peg-2'], ['print-1-layer-1'], ['print-1-layer-2'], ['print-1-layer-3']]);
+    expect(assembly.steps[2]?.title).toBe('Print G1: slide layer 2 down over the pegs, then lay level 1’s wires in it (W4, W14)');
+    expect(assembly.partColors['print-1-layer-2']).toBe(WIRE_GUIDE_LEVEL_COLORS[1]);
+    expect(prototypeWireGuide.assemblyForParameters({ design })).toEqual(assembly);
+  });
+
+  it('writes the ZIP’s assembly guide and the design, naming every STL it holds', () => {
+    const design = sample(THREE);
+    const files = prototypeWireGuide.zipFiles({ design });
+    expect(Object.keys(files).sort()).toEqual(['wire-guide-assembly.txt', 'wire-guide-design.json']);
+    expect(JSON.parse(must(files['wire-guide-design.json']))).toEqual(design);
+    const text = must(files['wire-guide-assembly.txt']);
+    for (const piece of wireGuidePieces(design)) expect(text.match(new RegExp(`^  ${piece.id}\\.stl `, 'gm'))?.length, piece.id).toBe(1);
+    expect(text).toContain('Print one of each STL file.');
+    expect(text).toContain('a 2.9 mm tip in the 3.2 mm hole, a 45° seat on its rim, a 5.2 mm shoulder the bottom layer rests on, and a 3.8 mm shaft');
+    expect(text).toContain('0.3 mm wider than its shaft (a sliding fit, e.g. 3.8 mm in 4.1 mm)');
+    expect(text).toContain('it has not been checked with a printed guide');
+    expect(text).toContain('layer 2 from the bottom: the channels of level 1 (W4, W14)');
+    expect(wireGuideSummary(design).prints).toEqual([{ id: 'G1', wires: 16, layers: 3, pegs: 2, pieces: 5, reason: null }]);
+    expect(prototypeWireGuide.derived({ design }).notes).toContain('5 printed pieces: G1 3 layers + 2 pegs.');
+    expect(prototypeWireGuide.zipFiles({ design: { nope: true } })).toEqual({});
+  });
+});
+

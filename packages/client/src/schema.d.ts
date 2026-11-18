@@ -2918,7 +2918,7 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "1";
+                    modelVersion: "2";
                     /** @description Prototype wire guide parameters: the wire-guide design, a structured document. */
                     parameters: {
                         /**
@@ -3032,6 +3032,8 @@ export interface operations {
                                 funnelBottomDiameter: number;
                                 /** @description Gap between the funnel outlet and the PCB top (mm). */
                                 funnelStandoff: number;
+                                /** @description How each print is made: `layers` (the default when absent) prints one separate, stackable layer per wire level it uses, with separate pegs through matching holes; `single` prints it as one piece with its registration fused on, as before. */
+                                parts?: "layers" | "single";
                             };
                             /** @description Obstacles that are not components. */
                             keepouts?: ({

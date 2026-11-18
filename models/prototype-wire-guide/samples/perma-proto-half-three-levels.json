@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 1,
+  "boardPartId": "adafruit-perma-proto-half",
+  "wirePartId": "alpha-wire-3051-1",
+  "components": [
+    {
+      "ref": "U1",
+      "footprint": "DIP-8",
+      "pins": [
+        [
+          18,
+          7
+        ],
+        [
+          19,
+          7
+        ],
+        [
+          20,
+          7
+        ],
+        [
+          21,
+          7
+        ],
+        [
+          18,
+          10
+        ],
+        [
+          19,
+          10
+        ],
+        [
+          20,
+          10
+        ],
+        [
+          21,
+          10
+        ]
+      ],
+      "body": {
+        "kind": "box",
+        "x": 48.3,
+        "y": 22.2,
+        "w": 10.1,
+        "h": 6.4,
+        "height": 3.5
+      }
+    },
+    {
+      "ref": "R1",
+      "footprint": "R_Axial_P10.16mm",
+      "pins": [
+        [
+          23,
+          12
+        ],
+        [
+          27,
+          12
+        ]
+      ],
+      "body": {
+        "kind": "box",
+        "x": 63.56999999999999,
+        "y": 33.04,
+        "w": 7.48,
+        "h": 2.5,
+        "height": 2.5
+      }
+    },
+    {
+      "ref": "C1",
+      "footprint": "CP_Radial_D5.0mm",
+      "pins": [
+        [
+          24,
+          5
+        ],
+        [
+          26,
+          5
+        ]
+      ],
+      "body": {
+        "kind": "cylinder",
+        "cx": 67.31,
+        "cy": 16.509999999999998,
+        "d": 5,
+        "height": 11
+      }
+    },
+    {
+      "ref": "D1",
+      "footprint": "LED_D5.0mm",
+      "pins": [
+        [
+          28,
+          13
+        ],
+        [
+          28,
+          14
+        ]
+      ],
+      "body": {
+        "kind": "cylinder",
+        "cx": 74.93,
+        "cy": 38.10000000000001,
+        "d": 5.8,
+        "height": 8.6
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "W1",
+      "from": [
+        6,
+        1
+      ],
+      "to": [
+        6,
+        6
+      ],
+      "path": [],
+      "level": 0
+    },
+    {
+      "id": "W2",
+      "from": [
+        7,
+        1
+      ],
+      "to": [
+        7,
+        6
+      ],
+      "path": [],
+      "level": 0
+    },
+    {
+      "id": "W3",
+      "from": [
+        8,
+        1
+      ],
+      "to": [
+        8,
+        6
+      ],
+      "path": [],
+      "level": 0
+    },
+    {
+      "id": "W4",
+      "from": [
+        4,
+        4
+      ],
+      "to": [
+        11,
+        4
+      ],
+      "path": [],
+      "level": 1
+    },
+    {
+      "id": "W5",
+      "from": [
+        9,
+        7
+      ],
+      "to": [
+        5,
+        1
+      ],
+      "path": [
+        [
+          9,
+          4
+        ],
+        [
+          5,
+          4
+        ]
+      ],
+      "level": 2
+    },
+    {
+      "id": "W6",
+      "from": [
+        18,
+        6
+      ],
+      "to": [
+        18,
+        3
+      ],
+      "path": [],
+      "level": 0
+    },
+    {
+      "id": "W7",
+      "from": [
+        19,
+        6
+      ],
+      "to": [
+        19,
+        1
+      ],
+      "path": [],
+      "level": 0
+    },
+    {
+      "id": "W8",
+      "from": [
+        20,
+        6
+      ],
+      "to": [
+        23,
+        6
+      ],
+      "path": [],
+      "level": 0
+    },
+    {
+      "id": "W9",
+      "from": [
+        21,
+        11
+      ],
+      "to": [
+        21,
+        14
+      ],
+      "path": [],
+      "level": 0
+    },
+    {
+      "id": "W10",
+      "from": [
+        20,
+        11
+      ],
+      "to": [
+        20,
+        16
+      ],
+      "path": [],
+      "level": 0
+    },
+    {
+      "id": "W11",
+      "from": [
+        18,
+        11
+      ],
+      "to": [
+        13,
+        11
+      ],
+      "path": [],
+      "level": 0
+    },
+    {
+      "id": "W12",
+      "from": [
+        22,
+        13
+      ],
+      "to": [
+        26,
+        13
+      ],
+      "path": [],
+      "level": 0
+    },
+    {
+      "id": "W13",
+      "from": [
+        1,
+        10
+      ],
+      "to": [
+        1,
+        14
+      ],
+      "path": [],
+      "level": 0
+    },
+    {
+      "id": "W14",
+      "from": [
+        15,
+        13
+      ],
+      "to": [
+        15,
+        10
+      ],
+      "path": [],
+      "level": 1
+    },
+    {
+      "id": "W15",
+      "from": [
+        16,
+        12
+      ],
+      "to": [
+        16,
+        10
+      ],
+      "path": [],
+      "level": 2
+    },
+    {
+      "id": "W16",
+      "from": [
+        25,
+        1
+      ],
+      "to": [
+        29,
+        1
+      ],
+      "path": [],
+      "level": 0
+    }
+  ],
+  "prints": [
+    {
+      "id": "G1",
+      "wireIds": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13",
+        "W14",
+        "W15",
+        "W16"
+      ]
+    }
+  ],
+  "guide": {
+    "registration": "mounting-holes",
+    "coverThickness": 1.2,
+    "channelClearance": 0.2,
+    "funnelTopDiameter": 2.2,
+    "funnelBottomDiameter": 1.2,
+    "funnelStandoff": 1
+  }
+}

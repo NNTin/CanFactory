@@ -1,4 +1,5 @@
-// CanFactory prototype-board wire guide: one guide print of a wire-guide design (#152, docs/wire-guide.md).
+// CanFactory prototype-board wire guide: one printed piece of a wire-guide design (#152, #170, docs/wire-guide.md): a whole print,
+// one separate layer of a print, or one of its separate pegs.
 //
 // Every number comes from trusted code: wireGuideScad (packages/contracts/src/prototypeWireGuide.ts) works out each print's
 // plate, channels, bridges, funnels, pockets and registration from the validated design and passes them as GUIDE, a list
@@ -18,10 +19,19 @@
 //   [[x, y, columnD, pinD, pinBottom, columnBottom, top], ...],   mounting-hole bosses (columnBottom -1: no column)
 //   [[x, width], ...],                       edge clips at y = 0 and y = W
 //   [L, W, t],                               the board
+//   layered,                                 1: made as separate layers and pegs (no bosses: holes for the pegs), 0: one piece
+//   [[zBottom, zTop], ...],                  layers, lowest first: the slice of the block each is (layered only)
+//   [[x, y, d, bottom, top], ...],           the pegs' holes, from `bottom` to `top` (layered only)
+//   [[[r, z], ...], ...],                    each peg's outline, turned about its axis, from its lowest point at z = 0
 // ]
+//
+// LAYER -1 and PEG -1: the whole print, drawn where it sits on the board (a one-piece print). LAYER k: its layer k, lying on the
+// print bed (its underside on z = 0). PEG j: its peg j, upright, its lowest point on z = 0 at the origin.
 
 GUIDE = [];
 PRINT = 0;
+LAYER = -1;
+PEG = -1;
 
 $fn = 32;
 // Fixed dimensions, as WIRE_GUIDE_GEOMETRY.clip.
@@ -32,6 +42,7 @@ BRIDGE_INSET = 0.01;
 P = GUIDE[PRINT];
 grid = P[0]; block = P[1]; plate_top = P[2]; layers = P[3]; wires = P[4];
 funnels = P[5]; pockets = P[6]; bosses = P[7]; clips = P[8]; board = P[9];
+layered = P[10] == 1; slices = P[11]; holes = P[12]; pegs = P[13];
 z_base = block[4]; z_top = block[5];
 
 function at(c, r) = [grid[0] + c * grid[2], grid[1] + r * grid[2]];
@@ -56,6 +67,12 @@ module layer_cut(layer) {
       translate([0, 0, layers[higher][1]]) linear_extrude(z_top + 2 - layers[higher][1])
         union() for (w = wires) if (w[0] == higher) channel_2d(w[2], w[1] - 2 * BRIDGE_INSET);
   }
+}
+
+// One layer's channels alone, open from its floor up through the top (a separate layer: nothing of a higher one is over them).
+module own_cut(layer) {
+  translate([0, 0, layers[layer][0]]) linear_extrude(z_top + 1 - layers[layer][0])
+    union() for (w = wires) if (w[0] == layer) channel_2d(w[2], w[1]);
 }
 
 // A funnel at a wire end: a cone from its outlet at the plate's underside to its opening just above the plate's top (the floor of
@@ -100,13 +117,35 @@ module clip(c) {
     translate([x - (width - 0.4) / 2, -CLIP_GAP - 0.3, board[2]]) cube([width - 0.4, CLIP_GAP + 0.3 + CLIP_FOOT, z_base - board[2] + (plate_top - z_base) / 2]);
 }
 
-difference() {
-  union() {
-    translate([block[0], block[1], z_base]) cube([block[2] - block[0], block[3] - block[1], z_top - z_base]);
-    for (b = bosses) boss(b);
-    for (c = clips) { clip(c); translate([0, board[1], 0]) mirror([0, 1, 0]) clip(c); }
+// The whole print where it sits on the board, one piece with its bosses; or, for its layer LAYER, the block with that layer's
+// channels, the funnels, pockets and the pegs' holes.
+module guide() {
+  difference() {
+    union() {
+      translate([block[0], block[1], z_base]) cube([block[2] - block[0], block[3] - block[1], z_top - z_base]);
+      if (!layered) for (b = bosses) boss(b);
+      for (c = clips) { clip(c); translate([0, board[1], 0]) mirror([0, 1, 0]) clip(c); }
+    }
+    // a layer holds only its own level's channels: it is closed over the lower levels' wires, which lie in the layers below it
+    if (layered && LAYER >= 0) own_cut(LAYER);
+    else for (layer = [0 : len(layers) - 1]) layer_cut(layer);
+    for (f = funnels) funnel(f);
+    for (p = pockets) pocket(p);
+    if (layered) for (h = holes) translate([h[0], h[1], h[3]]) cylinder(d = h[2], h = h[4] - h[3], $fn = 64);
   }
-  for (layer = [0 : len(layers) - 1]) layer_cut(layer);
-  for (f = funnels) funnel(f);
-  for (p = pockets) pocket(p);
 }
+
+// Layer k: the slice of the print from its underside to its top (the lowest reaches down to the clips, the highest up to the
+// top), moved down onto the print bed.
+module layer(k) {
+  lo = k == 0 ? -10 : slices[k][0];
+  hi = k == len(slices) - 1 ? z_top + 10 : slices[k][1];
+  translate([0, 0, -slices[k][0]]) intersection() {
+    guide();
+    translate([block[0] - 10, block[1] - 10, lo]) cube([block[2] - block[0] + 20, block[3] - block[1] + 20, hi - lo]);
+  }
+}
+
+if (PEG >= 0) rotate_extrude($fn = 64) polygon(pegs[PEG]);
+else if (LAYER >= 0) layer(LAYER);
+else guide();

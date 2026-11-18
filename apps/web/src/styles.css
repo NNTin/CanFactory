@@ -2589,6 +2589,12 @@ main {
 .wire-guide-actions {
   margin-bottom: 4px;
 }
+/* A print made in one piece although layers were asked for, and why. */
+.wire-guide-single {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
 .wire-guide-settings {
   margin-top: 16px;
 }

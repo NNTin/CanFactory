@@ -6597,7 +6597,7 @@
                         "type": "string",
                         "description": "Version returned by the catalogue. Refresh the catalogue on a version conflict.",
                         "enum": [
-                          "1"
+                          "2"
                         ]
                       },
                       "parameters": {
@@ -7047,6 +7047,23 @@
                                     "minimum": 0,
                                     "maximum": 10,
                                     "description": "Gap between the funnel outlet and the PCB top (mm)."
+                                  },
+                                  "parts": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "layers"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "single"
+                                        ]
+                                      }
+                                    ],
+                                    "description": "How each print is made: `layers` (the default when absent) prints one separate, stackable layer per wire level it uses, with separate pegs through matching holes; `single` prints it as one piece with its registration fused on, as before."
                                   }
                                 },
                                 "additionalProperties": false

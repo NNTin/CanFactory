@@ -88,6 +88,10 @@ export async function renderJob(store: PostgresStorage, job: RenderJob, signal: 
         entries[`${part.id}.stl`] = bytes;
         parts.push({ id: part.id, title: part.title, bytes: info.bytes, triangles: info.triangles, dimensions: info.dimensions, volume: info.volume, ...info.meshRepairs ? { meshRepairs: info.meshRepairs } : {} });
       }
+      for (const [name, text] of Object.entries(model.zipFiles?.(job.parameters) ?? {})) {
+        if (!/^[a-z0-9][a-z0-9.-]*\.(txt|json)$/.test(name) || entries[name]) throw new RenderFailure('RENDERER_INTERNAL', DEFECT, `${model.id}: invalid ZIP file name ${name}.`, false);
+        entries[name] = Buffer.from(text, 'utf8');
+      }
       const zipBytes = Buffer.from(zipSync(entries, { level: 6 }));
       const output = join(directory, 'model.zip');
       await writeFile(output, zipBytes);

@@ -429,6 +429,19 @@
           "minimum": 0,
           "maximum": 10,
           "description": "Gap between the funnel outlet and the PCB top (mm)."
+        },
+        "parts": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "layers"
+            },
+            {
+              "type": "string",
+              "const": "single"
+            }
+          ],
+          "description": "How each print is made: `layers` (the default when absent) prints one separate, stackable layer per wire level it uses, with separate pegs through matching holes; `single` prints it as one piece with its registration fused on, as before."
         }
       },
       "additionalProperties": false
