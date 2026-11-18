@@ -84,7 +84,11 @@ export function WireGuideField({ control, value, disabled, change }: { control: 
       <dt>Prints</dt><dd>{summary.prints.map(print => `${print.id} (${print.wires} wire${print.wires === 1 ? '' : 's'})`).join(', ')}</dd>
       <dt>Pieces</dt><dd data-testid="wire-guide-pieces">{summary.prints.map(print => `${print.id}: ${wireGuidePrintPieces(print)}`).join(', ')}</dd>
     </dl>}
-    {summary?.prints.filter(print => print.reason).map(print => <p key={print.id} className="wire-guide-single" role="note">{print.id} is printed in one piece: {print.reason}.</p>)}
+    {summary && summary.prints.some(print => print.problems.length > 0) && <div className="field-error wire-guide-layer-problems" role="alert">
+      <strong>These separate layers can’t be made, so nothing renders:</strong>
+      <ul>{summary.prints.flatMap(print => print.problems.map(problem => <li key={`${print.id}:${problem}`}>{print.id}: {problem}.</li>))}</ul>
+      <span>Change the design, or <button type="button" className="text-button" disabled={disabled} onClick={() => setGuide({ parts: 'single' })}>print each guide in one piece instead</button>.</span>
+    </div>}
     <div className="logo-actions wire-guide-actions">
       <label className="logo-choose">
         <input id={id} type="file" accept=".json,application/json" disabled={disabled} aria-describedby={`${id}-description`}

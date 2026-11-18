@@ -204,7 +204,7 @@ describe('separate layers and pegs (guide.parts)', () => {
     expect(design.guide.parts).toBeUndefined(); // layers are the default
     const { stack, layers, block } = printOf(design);
     expect(stack.pieces).toBe('layers');
-    expect(stack.reason).toBeNull();
+    expect(stack.problems).toEqual([]);
     // the crossing: at [6..8, 4] a red wire on level 0, the blue W4 on level 1 and the green W5 on level 2
     const on = (id: string) => must(design.wires.find(wire => wire.id === id)).level;
     expect([on('W1'), on('W2'), on('W3'), on('W4'), on('W5')]).toEqual([0, 0, 0, 1, 2]);
@@ -288,15 +288,26 @@ describe('separate layers and pegs (guide.parts)', () => {
     expect(must(clips.stack.layers[0]).zBottom).toBe(-WIRE_GUIDE_GEOMETRY.clip.below);
   });
 
-  it('says why a mounting hole has no peg, and makes a print one piece, with the reason, when it can’t be lined up or would fall apart', () => {
-    expect(printOf(sample('stripboard-boss-neighbours.json')).stack.notes).toEqual(['The mounting hole at (4.44, 4.68) mm has no peg: its hole would cut a funnel.']);
+  it('never falls back to one piece: separate layers that can’t be made are validation issues naming the way out, and nothing renders', () => {
+    // a wire end beside the stripboard's mounting hole: no room for a peg's hole there. The sample asks for one piece; asked for
+    // layers (or by default) the design is rejected, with the explicit choice offered
+    const neighbours = sample('stripboard-boss-neighbours.json');
+    expect(neighbours.guide.parts).toBe('single');
+    const layered = structuredClone(neighbours);
+    delete layered.guide.parts;
+    expect(validateWireGuideDesign(layered)).toEqual([]); // the shared contract: still a valid design
+    expect(printOf(layered).stack).toMatchObject({ pieces: 'layers', problems: ['The mounting hole at (4.44, 4.68) mm can\'t take a peg: its hole would cut a funnel'] });
+    expect(validateParameters(prototypeWireGuide, { design: layered })).toEqual([{ field: 'design/guide/parts',
+      message: 'Print G1 can’t be made as separate layers: The mounting hole at (4.44, 4.68) mm can\'t take a peg: its hole would cut a funnel. Change the design (move the wire or component), or choose one piece per print (guide.parts "single").' }]);
+    expect(validateParameters(prototypeWireGuide, { design: neighbours })).toEqual([]);
     // no room for a dowel anywhere: a pocket over the whole print
     const clips = printOf(sample('perfboard-two-levels.json'));
     const { block } = clips;
     const crowded = { ...clips, pockets: [{ kind: 'box' as const, x: block.x0, y: block.y0, w: block.x1 - block.x0, h: block.y1 - block.y0, top: block.zBase + 0.5 }] };
     const design = sample('perfboard-two-levels.json');
     const stack = wireGuideStack(crowded, design.wires, design.guide, [], { columns: 24, rows: 18 });
-    expect(stack).toMatchObject({ pieces: 'single', reason: 'there is no room for two alignment pegs clear of its channels, funnels and pockets', layers: [], pegs: [] });
+    expect(stack.pieces).toBe('layers');
+    expect(stack.problems).toContain('there is no room for two alignment pegs through its layers, clear of its channels, funnels and pockets');
     // through pockets round a square: layer 2 would be a loose square inside them
     const three = printOf(sample(THREE));
     const [cx, cy] = [40, 40], top = three.block.zTop + 1;
@@ -305,21 +316,26 @@ describe('separate layers and pegs (guide.parts)', () => {
     expect(wireGuideLayerBodies(three, 1, [])).toBe(1);
     expect(wireGuideLayerBodies(ringed, 1, [])).toBe(2);
     const fallen = wireGuideStack(ringed, sample(THREE).wires, sample(THREE).guide, [], { columns: 30, rows: 18 });
-    expect(fallen.pieces).toBe('single');
-    expect(fallen.reason).toBe('its layer 2 would be 2 loose pieces between its pockets and holes');
+    expect(fallen.pieces).toBe('layers');
+    expect(fallen.problems).toContain('its layer 2 would be 2 loose pieces between its pockets and holes');
+    // every sample asking for layers can be made so
+    for (const name of readdirSync(SAMPLES).filter(file => file.endsWith('.json'))) for (const print of wireGuideGeometry(sample(name))) expect(print.stack.problems, name).toEqual([]);
   });
 
   it('keeps the one-piece print, bosses fused, for guide.parts single', () => {
     const design = sample(THREE);
     const single = { ...design, guide: { ...design.guide, parts: 'single' as const } };
     const [layered, fused] = [printOf(design), printOf(single)];
-    expect(fused.stack).toEqual({ pieces: 'single', reason: null, layers: [], pegs: [], notes: [] });
+    expect(fused.stack).toEqual({ pieces: 'single', problems: [], layers: [], pegs: [], notes: [] });
     expect({ ...fused, stack: null }).toEqual({ ...layered, stack: null });
     expect(wireGuidePieces(single).map(piece => piece.id)).toEqual(['print-1']);
     const [a, b] = [JSON.parse(wireGuideScad(design)) as unknown[][], JSON.parse(wireGuideScad(single)) as unknown[][]];
     expect(must(a[0]).slice(0, 10)).toEqual(must(b[0]).slice(0, 10));
     expect(must(b[0]).slice(10)).toEqual([0, [], [], []]);
     expect(must(a[0]).slice(10, 13)).toEqual([1, layered.stack.layers.map(layer => [layer.zBottom, layer.zTop]), layered.stack.pegs.map(peg => [peg.x, peg.y, peg.hole, peg.holeBottom, peg.holeTop])]);
+    // each peg's rings, bottom to top, none on the axis (guide.scad closes the ends: axis points would make empty triangles)
+    expect(must(a[0])[13]).toEqual(layered.stack.pegs.map(peg => peg.profile.filter(([r]) => r > 0)));
+    expect((must(a[0])[13] as [number, number][][]).every(rings => rings.length >= 3 && rings.every(([r]) => r > 0))).toBe(true);
   });
 
   it('assembles the pieces where they go: pegs into the board, then each layer down over them, coloured by level', () => {
@@ -347,7 +363,7 @@ describe('separate layers and pegs (guide.parts)', () => {
     expect(text).toContain('0.3 mm wider than its shaft (a sliding fit, e.g. 3.8 mm in 4.1 mm)');
     expect(text).toContain('it has not been checked with a printed guide');
     expect(text).toContain('layer 2 from the bottom: the channels of level 1 (W4, W14)');
-    expect(wireGuideSummary(design).prints).toEqual([{ id: 'G1', wires: 16, layers: 3, pegs: 2, pieces: 5, reason: null }]);
+    expect(wireGuideSummary(design).prints).toEqual([{ id: 'G1', wires: 16, layers: 3, pegs: 2, pieces: 5, problems: [] }]);
     expect(prototypeWireGuide.derived({ design }).notes).toContain('5 printed pieces: G1 3 layers + 2 pegs.');
     expect(prototypeWireGuide.zipFiles({ design: { nope: true } })).toEqual({});
   });

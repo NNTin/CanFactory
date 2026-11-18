@@ -1515,17 +1515,17 @@ try {
   // Prototype-board wire guide: every checked-in sample design (models/prototype-wire-guide/samples): one print on one level
   // (perfboard, pegs in the mounting holes, pockets over a DIP and through a tall capacitor), crossings on two levels with a per-wire
   // thicker wire (perfboard, edge clips), three prints by region (stripboard), a Perma-Proto's rails and strips, wire ends beside a
-  // mounting hole (stripboard), bodies whose pockets would have a side on a channel's, KiPrint's three plan_guide designs and a
+  // mounting hole under its boss's column (stripboard, one piece: a peg's hole there would cut their funnels), bodies whose pockets would have a side on a channel's, KiPrint's three plan_guide designs and a
   // representative half Perma-Proto with 16 wires on three levels crossing at the same holes. Each is made as separate layers and
   // pegs (guide.parts' default), checked by checkWireGuidePieces (tools/wire-guide-checks.ts) on the ZIP's actual meshes: each
   // piece on the bed, the layers' channels, covers, funnels, pockets and peg holes, the pegs' outlines, the shafts' play in their
-  // holes and no shared volume assembled; two of them also as one piece per print (guide.parts single), checked by
+  // holes and no shared volume assembled; two more also as one piece per print (guide.parts single), checked by
   // checkWireGuide as before. The ZIP carries its assembly guide and the design, and is served on its route. What was measured is
   // written to test-results/wire-guide/ (uploaded with the integration diagnostics).
   const wireGuideEvidence: unknown[] = [];
-  const singles = new Set(['stripboard-boss-neighbours.json', 'perfboard-two-levels.json']);
+  const singles = new Set(['perfboard-two-levels.json', 'perma-proto-half-three-levels.json']);
   const wireGuideCases = (!only || only === 'prototype-wire-guide' ? wireGuideSamples(repositoryRoot) : []).flatMap(([name, design]): [string, typeof design][] =>
-    singles.has(name) ? [[name, design], [`${name} (single)`, { ...design, guide: { ...design.guide, parts: 'single' } }]] : [[name, design]]);
+    singles.has(name) ? [[name, design], [`${name} (single)`, { ...design, guide: { ...design.guide, parts: 'single' as const } }]] : [[name, design]]);
   for (const [name, design] of wireGuideCases) {
     const started = Date.now();
     const parameters = { design };

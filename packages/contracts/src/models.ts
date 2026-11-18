@@ -17,7 +17,7 @@ import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TIP_ANGLE, TREAT_BAND_SIZES, TRE
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, parts as allParts, type MetricThread, type Part } from './parts/index.ts';
-import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, wireGuideAssembly, wireGuideAssemblyText, wireGuidePieceId, wireGuidePieces, wireGuidePrintPieces, wireGuideScad, wireGuideSummary } from './prototypeWireGuide.ts';
+import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, wireGuideAssembly, wireGuideAssemblyText, wireGuidePieceId, wireGuidePieces, wireGuidePrintPieces, wireGuideProblems, wireGuideScad, wireGuideSummary } from './prototypeWireGuide.ts';
 import { validateWireGuideDesign, WIRE_GUIDE_LIMITS, WireGuideDesignSchema, type WireGuideDesign } from './wireGuide.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
@@ -3945,7 +3945,10 @@ export const prototypeWireGuide = {
   documents: { design: { issues: validateWireGuideDesign, scad: value => wireGuideScad(value as WireGuideDesign) } },
   linkedFamilies: ['prototype-board', 'hookup-wire'],
   validate(parameters: unknown): ParameterIssue[] {
-    return Value.Check(PrototypeWireGuideParametersSchema, parameters) ? [] : [{ field: '', message: 'Parameters do not match the prototype wire guide schema.' }];
+    if (!Value.Check(PrototypeWireGuideParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the prototype wire guide schema.' }];
+    // a valid design whose separate layers can't be made (it asks for them, or by default): nothing renders until it changes
+    const design = designOf(parameters);
+    return design ? wireGuideProblems(design) : [];
   },
   derived(parameters: unknown) {
     const design = designOf(parameters);
@@ -3954,7 +3957,6 @@ export const prototypeWireGuide = {
     return { slotCount: null, notes: [
       `${summary.board}: ${summary.wires} wire${summary.wires === 1 ? '' : 's'} on ${summary.levels} level${summary.levels === 1 ? '' : 's'}, in ${summary.prints.length} print${summary.prints.length === 1 ? '' : 's'}.`,
       `${summary.pieces} printed piece${summary.pieces === 1 ? '' : 's'}: ${summary.prints.map(print => `${print.id} ${wireGuidePrintPieces(print)}`).join(', ')}.`,
-      ...summary.prints.filter(print => print.reason).map(print => `${print.id} is one piece: ${print.reason}.`),
     ] };
   },
 } satisfies ModelDefinition;

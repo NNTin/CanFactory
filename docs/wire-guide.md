@@ -58,8 +58,13 @@ Keepout =
 - **Display-only fields:** ids and net names are for display. They never reach SCAD.
 - **Pieces:** `guide.parts` says how each print is made: `layers` (the default, also when it is absent) as separate stackable
   layers and pegs, `single` as one piece per print with its registration fused on, as before #170. See
-  [Separate layers and pegs](#separate-layers-and-pegs). It is optional, so designs written before it still validate; they now
-  render as layers.
+  [Separate layers and pegs](#separate-layers-and-pegs).
+  - **What changed for existing designs (#170).** The field is optional, so every design written before it still matches the
+    schema and the API accepts it as before. Its *physical output* is not unchanged: a design without `parts` now renders as
+    separate layers and pegs instead of one fused piece per print. A design that needs the old output asks for it with
+    `"parts": "single"`, which renders it as before. The model's version went from 1 to 2, so a cached or queued fused render of
+    version 1 is never served for it.
+  - Nothing chooses `single` for a design: a design whose layers can't be made is rejected with the reason (below).
 
 ## Validation
 
@@ -212,12 +217,14 @@ level the print uses, and separate pegs (`wireGuideStack`, `WIRE_GUIDE_GEOMETRY.
   to the shaft.
   - Where a channel passes over the hole, the peg's shaft only goes into a socket in the bottom layer's plate, stopping 0.4 mm
     under the channels' floor (a plate of at least 1 mm), and dowels line up the layers.
-  - A hole whose peg would cut a funnel, pocket or the print's edge, or whose shoulder would cover a wire end's hole or a component,
-    gets no peg; the assembly guide says which and why.
+  - Every mounting hole the one-piece print would have a boss in gets a peg, so the print is located on the board as before. A
+    hole whose peg would cut a funnel, pocket or the print's edge, or whose shoulder would cover a wire end's hole or a component,
+    makes the layers impossible (below).
 - **Dowels.** A stack of two or more layers is lined up on two pegs through all of them. Where it has fewer board pegs through it
   (edge clips, a region without mounting holes, holes under channels), Ø2 mm dowels stand in blind holes in the bottom layer, 0.6
   mm above its underside, at the free points between the board's holes that are farthest apart (or farthest from the one board
-  peg), and up through the layers above.
+  peg), and up through the layers above. They line the layers up with each other only: they never stand in the board, so no new
+  hole is drilled. The board is located by its real mounting holes' pegs, or by the bottom layer's edge clips.
 - **Fit.** Every layer's hole for a peg is its shaft + 0.3 mm across: a sliding fit, so the layers go down over the pegs by hand.
   Each hole keeps 0.6 mm from every channel, funnel, pocket and other hole. These are designed sizes; they have not been checked
   with a printed guide, and a printer that prints holes small may need them reamed.
@@ -225,15 +232,19 @@ level the print uses, and separate pegs (`wireGuideStack`, `WIRE_GUIDE_GEOMETRY.
   tip. Neither needs supports: a layer's underside is flat, and a peg's outline never widens faster than 45°. A bottom layer with
   edge clips, and a one-piece print, have their registration below their underside and need supports under it. The preview's
   assembly places each STL by its pose: a layer lifted by its underside's height, a peg moved to its hole.
+- **Mesh.** A peg is its outline's rings turned about its axis (64 sides) and closed by a flat face at each end: a polyhedron,
+  so that no point lies on the axis (rings of coincident points there would be empty triangles).
 - **Quantities.** One of each STL. Pegs are separate files even when they are alike, so that the parts count, the preview and the
   ZIP agree piece for piece.
 - **Assembly.** Fit the components; push the board pegs into the mounting holes; slide layer 1 down over them (onto their
   shoulders), drop in any dowels, and lay level 0's wires; then each layer above in turn, laying its wires. Solder the ends on
   the solder side. Each layer's wires hold it down.
-- **When a print stays one piece.** A print that can't be lined up (no room for two pegs through its layers) or one of whose
-  layers above the bottom would be loose pieces (between through pockets, estimated on a 0.2 mm grid,
-  `wireGuideLayerBodies`) is made as one piece, as with `single`, and the editor and the assembly guide say why. Nothing is
-  dropped silently.
+- **When the layers can't be made.** A mounting hole that can't take a peg, a stack with no room for two pegs through its layers,
+  or a layer above the bottom that would be loose pieces (between through pockets, estimated on a 0.2 mm grid,
+  `wireGuideLayerBodies`) makes the design invalid for this model: `validateParameters` reports it on `design/guide/parts`, naming
+  the print, what is in the way and the two ways out (change the design, or ask for one piece). The API rejects it (422), the
+  worker never renders it, and the editor lists it with a button that sets “Printed as” to one piece. It never falls back to one
+  piece on its own, and `validateWireGuideDesign` (the shared contract KiPrint ports) is unchanged: the design itself stays valid.
 
 ### Keep-out conventions (for KiPrint)
 
@@ -257,7 +268,7 @@ The sample designs in `models/prototype-wire-guide/samples/` are:
 | `perfboard-two-levels.json` | perfboard | crossings on two levels, a per-wire 22 AWG override; edge clips |
 | `stripboard-three-prints.json` | stripboard | three prints by region |
 | `perma-proto-bus.json` | Perma-Proto | rails and strips (bus) |
-| `stripboard-boss-neighbours.json` | stripboard | wire ends on the four holes beside a mounting hole, under its boss's column |
+| `stripboard-boss-neighbours.json` | stripboard | wire ends on the four holes beside a mounting hole, under its boss's column; asks for one piece (`"parts": "single"`): as layers, that hole could take no peg |
 | `pockets-on-channel-sides.json` | perfboard | box and round bodies exactly half a channel + 0.3 mm from their channels |
 | `kiprint-perma-proto-timer.json` | Perma-Proto quarter | KiPrint's `plan_guide` output: 4 components, 8 wires on 2 levels (W7, W8 rerouted) |
 | `kiprint-crossing-two-levels.json` | perfboard | KiPrint: 4 wires on 3 levels, crossing (C rerouted) |
@@ -288,7 +299,7 @@ The sample designs in `models/prototype-wire-guide/samples/` are:
 The editor's document field (`apps/web/src/WireGuideField.tsx`) shows:
 
 - a map and summary of the design: board, wire, wire count, levels, prints and each print's pieces (e.g. “G1: 3 layers + 2
-  pegs”), and why a print is one piece when layers were asked for;
+  pegs”), and, when its layers can't be made, why, with a button to print each guide in one piece instead;
 - the guide's settings, “Printed as” (`guide.parts`) among them;
 - **Import design (.json)** and **Download design**.
 

@@ -22,7 +22,7 @@
 //   layered,                                 1: made as separate layers and pegs (no bosses: holes for the pegs), 0: one piece
 //   [[zBottom, zTop], ...],                  layers, lowest first: the slice of the block each is (layered only)
 //   [[x, y, d, bottom, top], ...],           the pegs' holes, from `bottom` to `top` (layered only)
-//   [[[r, z], ...], ...],                    each peg's outline, turned about its axis, from its lowest point at z = 0
+//   [[[r, z], ...], ...],                    each peg's outline off its axis, bottom to top, from its lowest point at z = 0
 // ]
 //
 // LAYER -1 and PEG -1: the whole print, drawn where it sits on the board (a one-piece print). LAYER k: its layer k, lying on the
@@ -146,6 +146,15 @@ module layer(k) {
   }
 }
 
-if (PEG >= 0) rotate_extrude($fn = 64) polygon(pegs[PEG]);
+// A peg: its outline's rings turned about the axis, 64 sides, closed by a flat face at each end. A polyhedron rather than
+// rotate_extrude, whose outline would need points on the axis: rings of coincident points there make empty triangles.
+module peg(rings) {
+  n = 64; k = len(rings);
+  points = [for (i = [0 : k - 1]) for (j = [0 : n - 1]) [rings[i][0] * cos(360 * j / n), rings[i][0] * sin(360 * j / n), rings[i][1]]];
+  sides = [for (i = [0 : k - 2]) for (j = [0 : n - 1]) [i * n + j, (i + 1) * n + j, (i + 1) * n + (j + 1) % n, i * n + (j + 1) % n]];
+  polyhedron(points, concat([[for (j = [0 : n - 1]) j]], sides, [[for (j = [n - 1 : -1 : 0]) (k - 1) * n + j]]));
+}
+
+if (PEG >= 0) peg(pegs[PEG]);
 else if (LAYER >= 0) layer(LAYER);
 else guide();

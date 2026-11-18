@@ -75,12 +75,13 @@ export interface WireGuidePegPart {
   shoulder: number | null;
 }
 
-/** How a print is made: as separate stacked layers and pegs, or as one piece (`guide.parts` `single`, or a print that can't be
- * layered, with the reason). */
+/** How a print is made: as separate stacked layers and pegs, or as one piece (only when the design asks for `guide.parts`
+ * `single`). */
 export interface WireGuideStack {
   pieces: 'layers' | 'single';
-  /** Why a print asked for in layers is one piece (a print with `single` asked for has none). */
-  reason: string | null;
+  /** Why its separate layers can't be made as the design asks (layers): each is a validation issue of the model (`design/guide/parts`),
+   * so nothing renders until the design changes or asks for one piece. Never a silent fall back to one piece. */
+  problems: string[];
   layers: WireGuideLayerPart[];
   pegs: WireGuidePegPart[];
   /** Facts the assembly notes state (e.g. a mounting hole left without a peg, and why). */
@@ -359,16 +360,16 @@ export function wireGuideLayerBodies(print: Omit<WireGuidePrintGeometry, 'stack'
  *   would cover a wire end's hole or a component's lead or body, gets none (a note says so).
  * - **Dowels**: a print of two or more layers is lined up by two pegs through every layer. Where it has fewer, dowels stand in blind
  *   holes of the bottom layer, at the free points between the board's holes farthest apart (and from a peg through the layers).
- * - A print that can't be lined up so, or one of whose layers above the bottom would be loose pieces (`wireGuideLayerBodies`), is
- *   made as one piece instead, with the reason.
+ * - A print that can't be lined up so, a mounting hole that can't take a peg, or a layer above the bottom that would be loose pieces
+ *   (`wireGuideLayerBodies`) is a problem: the model's validation reports it (`design/guide/parts`), and nothing renders. The design
+ *   may ask for one piece (`single`) instead; that is never chosen for it.
  */
 export function wireGuideStack(print: Omit<WireGuidePrintGeometry, 'stack'>, wires: readonly { id: string; level: number }[], guide: WireGuideDesign['guide'],
   pins: readonly { x: number; y: number }[], cells: { columns: number; rows: number }): WireGuideStack {
   const G = WIRE_GUIDE_GEOMETRY, P = G.peg;
   const { block, layers, board, grid } = print;
-  if (guide.parts === 'single') return { pieces: 'single', reason: null, layers: [], pegs: [], notes: [] };
-  const single = (reason: string): WireGuideStack => ({ pieces: 'single', reason, layers: [], pegs: [], notes: [] });
-  const notes: string[] = [];
+  if (guide.parts === 'single') return { pieces: 'single', problems: [], layers: [], pegs: [], notes: [] };
+  const notes: string[] = [], problems: string[] = [];
   const boxes = channelBoxes(print);
   const pegs: WireGuidePegPart[] = [];
   const socketTop = round(print.plateTop - G.minimumSkin);
@@ -395,7 +396,7 @@ export function wireGuideStack(print: Omit<WireGuidePrintGeometry, 'stack'>, wir
     // its seat: a 45° cone from the tip, on the hole's rim at the board's top, out to the shoulder (or straight to the shaft)
     const rTop = standoff >= 0.05 ? rHole + Math.min(P.wall, standoff) : null;
     const rShaft = round(rTop === null ? rHole + P.shaftOver / 2 : Math.min(rHole + P.shaftOver / 2, rTop - P.holePlay / 2 - P.bearing));
-    if (2 * rShaft < P.minShaft) { notes.push(`${where} has no peg: the standoff leaves no room for a shoulder round a shaft of ${P.minShaft} mm.`); continue; }
+    if (2 * rShaft < P.minShaft) { problems.push(`${where} can't take a peg: the standoff leaves no room for a shoulder round a shaft of ${P.minShaft} mm`); continue; }
     const hole = round(2 * rShaft + P.holePlay);
     let through = true;
     let cut = blocked(boss.x, boss.y, hole / 2, true);
@@ -403,13 +404,13 @@ export function wireGuideStack(print: Omit<WireGuidePrintGeometry, 'stack'>, wir
       through = false;
       cut = socketTop - block.zBase < P.socketDepth + P.topGap - 1e-6 ? 'a channel (the plate is too thin for a socket under it)' : blocked(boss.x, boss.y, hole / 2, false);
     }
-    if (cut) { notes.push(`${where} has no peg: its hole would cut ${cut}.`); continue; }
+    if (cut) { problems.push(`${where} can't take a peg: its hole would cut ${cut}`); continue; }
     if (rTop !== null) {
       const bore = print.funnels.some(funnel => Math.hypot(funnel.x - boss.x, funnel.y - boss.y) < rTop + funnel.bottom / 2 + 0.2);
       const lead = pins.some(pin => Math.hypot(pin.x - boss.x, pin.y - boss.y) < rTop + 0.5);
       const body = print.pockets.some(pocket => pocket.kind === 'box' ? distanceToBox(boss.x, boss.y, pocket.x, pocket.y, pocket.x + pocket.w, pocket.y + pocket.h) < rTop + 0.2
         : Math.hypot(pocket.x - boss.x, pocket.y - boss.y) < rTop + 0.2 + pocket.d / 2);
-      if (bore || lead || body) { notes.push(`${where} has no peg: its shoulder under the guide would cover ${bore ? 'a wire end’s hole' : lead ? 'a component’s lead' : 'a component'}.`); continue; }
+      if (bore || lead || body) { problems.push(`${where} can't take a peg: its shoulder under the guide would cover ${bore ? 'a wire end’s hole' : lead ? 'a component’s lead' : 'a component'}`); continue; }
     }
     const holeTop = through ? round(block.zTop + 1) : socketTop;
     const profile: [number, number][] = [[0, tipBottom], [rTip, tipBottom], [rTip, t - P.pinPlay / 2]];
@@ -426,7 +427,7 @@ export function wireGuideStack(print: Omit<WireGuidePrintGeometry, 'stack'>, wir
       shoulder: rTop === null ? null : round(2 * rTop),
     });
   }
-  if (guide.registration === 'mounting-holes' && pegs.length === 0)
+  if (guide.registration === 'mounting-holes' && print.bosses.length === 0)
     notes.push('No peg locates this print on the board: it is located by its wire ends’ funnels alone.');
 
   // --- dowels, so that two pegs through every layer line up a stack ---
@@ -444,7 +445,7 @@ export function wireGuideStack(print: Omit<WireGuidePrintGeometry, 'stack'>, wir
       const from = lining()[0] ?? { x: cx, y: cy };
       const best = free.reduce<{ x: number; y: number } | undefined>((found, point) =>
         !found || Math.hypot(point.x - from.x, point.y - from.y) > Math.hypot(found.x - from.x, found.y - from.y) + 1e-9 ? point : found, undefined);
-      if (!best) return single(`there is no room for ${lining().length === 1 ? 'an alignment peg' : 'two alignment pegs'} clear of its channels, funnels and pockets`);
+      if (!best) { problems.push(`there is no room for ${lining().length === 1 ? 'an alignment peg' : 'two alignment pegs'} through its layers, clear of its channels, funnels and pockets`); break; }
       const bottom = round(block.zBase + P.dowelFloor);
       pegs.push({
         kind: 'dowel', through: true, x: best.x, y: best.y, holeDiameter: null, zBottom: bottom,
@@ -462,11 +463,11 @@ export function wireGuideStack(print: Omit<WireGuidePrintGeometry, 'stack'>, wir
   const holes = pegs.map(peg => ({ x: peg.x, y: peg.y, d: peg.hole, bottom: peg.holeBottom, top: peg.holeTop }));
   for (let k = 1; k < layers.length; k++) {
     const bodies = wireGuideLayerBodies(print, k, holes);
-    if (bodies > 1) return single(`its layer ${k + 1} would be ${bodies} loose pieces between its pockets and holes`);
+    if (bodies > 1) problems.push(`its layer ${k + 1} would be ${bodies} loose pieces between its pockets and holes`);
   }
   const plate = wireGuideLayerBodies(print, 0, holes);
   if (plate > 1) notes.push(`Its bottom layer is ${plate} pieces where pockets go through it, as a one-piece print would be.`);
-  return { pieces: 'layers', reason: null, layers: parts, pegs, notes };
+  return { pieces: 'layers', problems, layers: parts, pegs, notes };
 }
 
 /**
@@ -489,7 +490,8 @@ export function wireGuideScad(design: WireGuideDesign): string {
     print.stack.pieces === 'layers' ? 1 : 0,
     print.stack.layers.map(layer => [layer.zBottom, layer.zTop]),
     print.stack.pegs.map(peg => [peg.x, peg.y, peg.hole, peg.holeBottom, peg.holeTop]),
-    print.stack.pegs.map(peg => peg.profile),
+    // the outline's rings off the axis: guide.scad closes the ends with flat faces (points on the axis would make empty triangles)
+    print.stack.pegs.map(peg => peg.profile.filter(([r]) => r > 0)),
   ]);
   return JSON.stringify(prints, (_key, value: unknown) => typeof value === 'number' ? finite(value) : value);
 }
@@ -596,7 +598,7 @@ export function wireGuideAssemblyText(design: WireGuideDesign): string {
     const mine = pieces.filter(piece => piece.print === p);
     lines.push(`Print ${id} (${p + 1} of ${geometry.length}): ${mine.length} piece${mine.length === 1 ? '' : 's'}`);
     if (print.stack.pieces === 'single') {
-      lines.push(`  ${wireGuidePieceId(p, 'print')}.stl  the whole print in one piece${print.stack.reason ? `, because ${print.stack.reason}` : ' (pieces: single)'}.`);
+      lines.push(`  ${wireGuidePieceId(p, 'print')}.stl  the whole print in one piece, as the design asks (pieces: single).`);
       lines.push(`    Its ${print.bosses.length ? 'bosses' : print.clips.length ? 'clips' : 'registration'} are part of it and stand below its underside: print it plate down${print.bosses.length || print.clips.length ? ' on supports' : ''}.`);
     } else {
       print.stack.layers.forEach((layer, k) => {
@@ -631,14 +633,14 @@ export function wireGuideAssemblyText(design: WireGuideDesign): string {
 }
 
 /** What the editor's summary shows of a design: its board, wires and prints (titles from the parts library). */
-export function wireGuideSummary(design: WireGuideDesign): { board: string; wire: string; wires: number; prints: { id: string; wires: number; layers: number; pegs: number; pieces: number; reason: string | null }[]; levels: number; pieces: number } {
+export function wireGuideSummary(design: WireGuideDesign): { board: string; wire: string; wires: number; prints: { id: string; wires: number; layers: number; pegs: number; pieces: number; problems: string[] }[]; levels: number; pieces: number } {
   const board = findPart(design.boardPartId);
   const wire = findPart(design.wirePartId);
   const geometry = cachedGeometry(design);
   const prints = design.prints.map((print, index) => {
     const stack = geometry[index]?.stack;
     const [layers, pegs] = stack?.pieces === 'layers' ? [stack.layers.length, stack.pegs.length] : [0, 0];
-    return { id: print.id, wires: print.wireIds.length, layers, pegs, pieces: stack?.pieces === 'layers' ? layers + pegs : 1, reason: stack?.reason ?? null };
+    return { id: print.id, wires: print.wireIds.length, layers, pegs, pieces: stack?.pieces === 'layers' ? layers + pegs : 1, problems: stack?.problems ?? [] };
   });
   return {
     board: board?.title ?? design.boardPartId,
@@ -648,6 +650,17 @@ export function wireGuideSummary(design: WireGuideDesign): { board: string; wire
     levels: new Set(design.wires.map(wire => wire.level)).size,
     pieces: prints.reduce((sum, print) => sum + print.pieces, 0),
   };
+}
+
+/**
+ * Why a valid design's separate layers can't be made (`WireGuideStack.problems`), as the model's validation reports them: on
+ * `design/guide/parts`, each naming its print and what to do. Empty for a design that asks for one piece per print.
+ */
+export function wireGuideProblems(design: WireGuideDesign): { field: string; message: string }[] {
+  return cachedGeometry(design).flatMap((print, index) => print.stack.problems.map(problem => ({
+    field: 'design/guide/parts',
+    message: `Print ${design.prints[index]?.id ?? index + 1} can’t be made as separate layers: ${problem}. Change the design (move the wire or component), or choose one piece per print (guide.parts "single").`,
+  })));
 }
 
 /** A print's pieces in words, e.g. “3 layers + 2 pegs” or “1 piece”. */
