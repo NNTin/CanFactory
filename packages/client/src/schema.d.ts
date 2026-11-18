@@ -2918,7 +2918,7 @@ export interface operations {
                      * @description Version returned by the catalogue. Refresh the catalogue on a version conflict.
                      * @enum {string}
                      */
-                    modelVersion: "1";
+                    modelVersion: "2";
                     /** @description Prototype wire guide parameters: the wire-guide design, a structured document. */
                     parameters: {
                         /**
@@ -2938,6 +2938,8 @@ export interface operations {
                                 tool: "kiprint";
                                 version: string;
                                 projectId: string;
+                                /** @description The planned project’s revision: a digest of everything that defines it (components with their values, wires, cuts and declared circuit), never a time, so that two plans of the same project differ in it when anything changed in between. Display-only: it never reaches SCAD. */
+                                revision?: string;
                             };
                             components?: {
                                 /** @description Reference designator, e.g. "U1". */
@@ -3032,6 +3034,8 @@ export interface operations {
                                 funnelBottomDiameter: number;
                                 /** @description Gap between the funnel outlet and the PCB top (mm). */
                                 funnelStandoff: number;
+                                /** @description How each print is made: `layers` (the default when absent) prints one separate, stackable layer per wire level it uses, with separate pegs through matching holes; `single` prints it as one piece with its registration fused on, as before. */
+                                parts?: "layers" | "single";
                             };
                             /** @description Obstacles that are not components. */
                             keepouts?: ({

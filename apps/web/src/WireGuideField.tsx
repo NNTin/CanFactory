@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { ArrowDownToLine, FileUp } from 'lucide-react';
-import { validateWireGuideDesign, wireGuideBoard, WireGuideSettingsSchema, wireGuideSummary, type Control, type ParameterValue, type WireGuideDesign, type WireGuideSettings } from '@canfactory/contracts';
+import { validateWireGuideDesign, wireGuideBoard, WIRE_GUIDE_LEVEL_COLORS, WireGuideSettingsSchema, wireGuidePrintPieces, wireGuideSummary, type Control, type ParameterValue, type WireGuideDesign, type WireGuideSettings } from '@canfactory/contracts';
 import { readWireGuideFile, WIRE_GUIDE_FILE_MAX_BYTES, wireGuideFileText } from './wireGuideImport.ts';
 
-const LEVEL_COLORS = ['#c46543', '#3f6fb5', '#637655', '#9a5bb0', '#b08a2e', '#2e8f8a'];
-type NumberSetting = Exclude<keyof WireGuideSettings, 'registration'>;
+// the preview colours each layer as its level is here
+const LEVEL_COLORS = WIRE_GUIDE_LEVEL_COLORS;
+type NumberSetting = Exclude<keyof WireGuideSettings, 'registration' | 'parts'>;
 const NUMBER_SETTINGS: { key: NumberSetting; label: string }[] = [
   { key: 'coverThickness', label: 'Plate thickness' }, { key: 'channelClearance', label: 'Channel clearance' },
   { key: 'funnelTopDiameter', label: 'Funnel opening' }, { key: 'funnelBottomDiameter', label: 'Funnel outlet' },
@@ -74,14 +75,20 @@ export function WireGuideField({ control, value, disabled, change }: { control: 
   const issueAt = (path: string) => issues.find(issue => issue.path === path)?.message;
 
   return <div className={`select-field wire-guide-field ${disabled ? 'field-disabled' : ''}`}>
-    <div className="field-heading"><label htmlFor={id}>{control.label}</label>{summary && <span className="text-count">{summary.wires} wire{summary.wires === 1 ? '' : 's'} · {summary.prints.length} print{summary.prints.length === 1 ? '' : 's'}</span>}</div>
+    <div className="field-heading"><label htmlFor={id}>{control.label}</label>{summary && <span className="text-count">{summary.wires} wire{summary.wires === 1 ? '' : 's'} · {summary.prints.length} print{summary.prints.length === 1 ? '' : 's'} · {summary.pieces} piece{summary.pieces === 1 ? '' : 's'}</span>}</div>
     {design && <BoardMap design={design} />}
     {summary && <dl className="wire-guide-summary" data-testid="wire-guide-summary">
       <dt>Board</dt><dd>{summary.board}</dd>
       <dt>Wire</dt><dd>{summary.wire}</dd>
       <dt>Wires</dt><dd>{summary.wires} on {summary.levels} level{summary.levels === 1 ? '' : 's'}</dd>
       <dt>Prints</dt><dd>{summary.prints.map(print => `${print.id} (${print.wires} wire${print.wires === 1 ? '' : 's'})`).join(', ')}</dd>
+      <dt>Pieces</dt><dd data-testid="wire-guide-pieces">{summary.prints.map(print => `${print.id}: ${wireGuidePrintPieces(print)}`).join(', ')}</dd>
     </dl>}
+    {summary && summary.prints.some(print => print.problems.length > 0) && <div className="field-error wire-guide-layer-problems" role="alert">
+      <strong>These separate layers can’t be made, so nothing renders:</strong>
+      <ul>{summary.prints.flatMap(print => print.problems.map(problem => <li key={`${print.id}:${problem}`}>{print.id}: {problem}.</li>))}</ul>
+      <span>Change the design, or <button type="button" className="text-button" disabled={disabled} onClick={() => setGuide({ parts: 'single' })}>print each guide in one piece instead</button>.</span>
+    </div>}
     <div className="logo-actions wire-guide-actions">
       <label className="logo-choose">
         <input id={id} type="file" accept=".json,application/json" disabled={disabled} aria-describedby={`${id}-description`}
@@ -105,6 +112,13 @@ export function WireGuideField({ control, value, disabled, change }: { control: 
           <option value="edge-clips">Clips on the board’s edges</option>
         </select>
         {issueAt('/guide/registration') && <p className="field-error">{issueAt('/guide/registration')}</p>}
+      </div>
+      <div className="select-field">
+        <label htmlFor={`${id}-parts`}>Printed as</label>
+        <select id={`${id}-parts`} value={design.guide.parts ?? 'layers'} disabled={disabled} onChange={event => setGuide({ parts: event.currentTarget.value as NonNullable<WireGuideSettings['parts']> })}>
+          <option value="layers">Separate layers, one per level, on separate pegs</option>
+          <option value="single">One piece per print</option>
+        </select>
       </div>
       {NUMBER_SETTINGS.map(({ key, label }) => {
         const range = settingRange(key);

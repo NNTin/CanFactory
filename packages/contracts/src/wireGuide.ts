@@ -90,6 +90,9 @@ export const WireGuideSettingsSchema = Type.Object({
   funnelTopDiameter: Mm(1, 5, 'Funnel opening at the cover (mm).'),
   funnelBottomDiameter: Mm(0.3, 3, 'Funnel outlet above the hole (mm).'),
   funnelStandoff: Mm(0, 10, 'Gap between the funnel outlet and the PCB top (mm).'),
+  parts: Type.Optional(Type.Union([Type.Literal('layers'), Type.Literal('single')], {
+    description: 'How each print is made: `layers` (the default when absent) prints one separate, stackable layer per wire level it uses, with separate pegs through matching holes; `single` prints it as one piece with its registration fused on, as before.',
+  })),
 }, { additionalProperties: false });
 export type WireGuideSettings = Static<typeof WireGuideSettingsSchema>;
 
@@ -101,6 +104,7 @@ export const WireGuideDesignSchema = Type.Object({
     tool: Type.Literal('kiprint'),
     version: Type.String({ minLength: 1, maxLength: 32 }),
     projectId: Type.String({ minLength: 1, maxLength: 64 }),
+    revision: Type.Optional(Type.String({ pattern: '^sha256:[0-9a-f]{64}$', description: 'The planned project’s revision: a digest of everything that defines it (components with their values, wires, cuts and declared circuit), never a time, so that two plans of the same project differ in it when anything changed in between. Display-only: it never reaches SCAD.' })),
   }, { additionalProperties: false, description: 'Where the design came from: display and traceability only.' })),
   components: Type.Optional(Type.Array(WireGuideComponentSchema, { maxItems: WIRE_GUIDE_LIMITS.components })),
   wires: Type.Array(WireGuideWireSchema, { minItems: 1, maxItems: WIRE_GUIDE_LIMITS.wires }),

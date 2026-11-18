@@ -17,7 +17,7 @@ import { BOTTLE_NECKS, DEFAULT_TREAT_DISPENSER, TIP_ANGLE, TREAT_BAND_SIZES, TRE
 import { Type, type Static, type TObject, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { dimensionOf, findPart, ISO_273_CLEARANCE_HOLES, partAssetPath, parts as allParts, type MetricThread, type Part } from './parts/index.ts';
-import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, wireGuideScad, wireGuideSummary } from './prototypeWireGuide.ts';
+import { DEFAULT_WIRE_GUIDE_DESIGN, WIRE_GUIDE_GEOMETRY, WIRE_GUIDE_MAX_PEGS, wireGuideAssembly, wireGuideAssemblyText, wireGuidePieceId, wireGuidePieces, wireGuidePrintPieces, wireGuideProblems, wireGuideScad, wireGuideSummary } from './prototypeWireGuide.ts';
 import { validateWireGuideDesign, WIRE_GUIDE_LIMITS, WireGuideDesignSchema, type WireGuideDesign } from './wireGuide.ts';
 import { TEXT_ADVANCES } from './textMetrics.ts';
 import { decodeLogo, LOGO_MAX_LENGTH, logoScad, SvgError } from './svgLogo.ts';
@@ -448,6 +448,11 @@ export interface ModelDefinition {
   linkedFamilies?: string[];
   /** For a single-generator model: dimensions of chosen library parts it is sized from (see `PartDefines`). */
   partDefines?: PartDefines;
+  /** Only for an assembly: text files the ZIP carries beside its STLs for these (valid) parameters, by file name, e.g. the wire
+   * guide's assembly instructions. The file names are fixed by trusted code (the renderer accepts only plain `.txt`/`.json`
+   * names). Generated content, such as instructions, must keep callers' free text out of it (or reduced to plain names); a file
+   * may also be a caller's own document as given, such as the wire guide's `wire-guide-design.json`. */
+  zipFiles?: (parameters: ParameterValues) => Record<string, string>;
   /** Only for an assembly: reference objects that depend on the parameters (see `LinkedReference`, `resolveAssembly`). */
   linkedReferences?: (parameters: ParameterValues) => LinkedReference[];
   /** For number controls whose room depends on other parameters: the narrower range they have for these (schema-valid)
@@ -3885,9 +3890,11 @@ export const magneticLighterKeychain = {
 } satisfies ModelDefinition;
 /**
  * Prototype-board wire guide (models/prototype-wire-guide/guide.scad, docs/wire-guide.md): the printed guides that hold the
- * solid-core wires of a wire-guide design (`WireGuideDesign`) on a prototype board, one STL per print of the design. Its one
- * parameter is the design itself, a structured document: validated by `validateWireGuideDesign` (the one check the assistant, KiPrint, the API and the worker share) and written for SCAD by
- * `wireGuideScad` as numbers only (`documents`). Each print's part renders the same generator with its own `PRINT`.
+ * solid-core wires of a wire-guide design (`WireGuideDesign`) on a prototype board: per print of the design, its separate layers
+ * and pegs (`guide.parts` `layers`, the default) or one piece (`single`), one STL each (`wireGuidePieces`). Its one parameter is the
+ * design itself, a structured document: validated by `validateWireGuideDesign` (the one check the assistant, KiPrint, the API and
+ * the worker share) and written for SCAD by `wireGuideScad` as numbers only (`documents`). Each piece's part renders the same
+ * generator with its own `PRINT`, `LAYER` and `PEG`.
  */
 export const PrototypeWireGuideParametersSchema = Type.Object({
   design: Type.Unsafe<WireGuideDesign>({ ...WireGuideDesignSchema, title: 'Wire-guide design', description: 'The wire-guide design (docs/schemas/wire-guide-design.schema.json): the board, the wires and their routes and levels, the prints and the guide settings, as KiPrint or the assistant writes it, or imported from a .json file.' }),
@@ -3899,25 +3906,50 @@ const designOf = (parameters: unknown): WireGuideDesign | undefined => {
   const design = parameters !== null && typeof parameters === 'object' ? (parameters as { design?: unknown }).design : undefined;
   return design !== undefined && validateWireGuideDesign(design).length === 0 ? design as WireGuideDesign : undefined;
 };
+/** The pieces a part stands for: a one-piece print, a layer or a peg of print `print`; present only when the design has it. */
+const pwgPart = (print: number, kind: 'print' | 'layer' | 'peg', index: number, title: string): ModelPart => {
+  const id = wireGuidePieceId(print, kind, index);
+  return {
+    id, title, sourcePath: PWG_SOURCE, scadMapping: { design: 'GUIDE' }, separateBodies: true,
+    scadConstants: { PRINT: print, LAYER: kind === 'layer' ? index : -1, PEG: kind === 'peg' ? index : -1 },
+    includedWhen: (parameters: ParameterValues) => {
+      const design = designOf(parameters);
+      // an invalid design (which validation rejects before any render) stands for one piece, as before
+      return (design ? wireGuidePieces(design) : print === 0 && kind === 'print' ? [{ id }] : []).some(piece => piece.id === id);
+    },
+  };
+};
+
 export const prototypeWireGuide = {
-  id: 'prototype-wire-guide' as const, version: '1' as const, title: 'Prototype-board wire guide',
-  description: 'Printed guides that lay solid-core hookup wire on a prototype board exactly where a wire-guide design routes it: a plate over the board with a channel for every wire, the channels of higher levels bridging the lower ones where they cross, a funnel down to the hole at each wire end, pockets over the components, and bosses in the mounting holes or clips on the board’s edges. One STL per print of the design. Import a design (.json) from KiPrint or the assistant.',
+  id: 'prototype-wire-guide' as const, version: '2' as const, title: 'Prototype-board wire guide',
+  description: 'Printed guides that lay solid-core hookup wire on a prototype board exactly where a wire-guide design routes it: a channel for every wire, the channels of higher levels bridging the lower ones where they cross, a funnel down to the hole at each wire end, pockets over the components, located by the mounting holes or clips on the board’s edges. Each print of the design is printed as separate layers, one per wire level it uses, stacked on separate pegs through matching holes; a design may ask for one piece per print instead. Import a design (.json) from KiPrint or the assistant.',
   attribution: 'CanFactory (original design)',
-  printNotes: `Print each guide as generated, plate down, with no supports: the bridges over the lower channels span less than ${WIRE_GUIDE_GEOMETRY.margin + 2} mm. 0.2 mm layers or finer, so the channels keep their width. Fit the components first, then press the guide onto the board (bosses into the mounting holes, or clips over the edges). Lay the lowest level’s wires first: push one end down its funnel into the hole, press the wire into its channel, threading it straight under the bridges where a higher channel crosses or runs over it, and push the other end down its funnel. Then the next level. Solder the ends on the solder side; the guide stays on the board.`,
+  printNotes: `Print one of each STL in the ZIP, each as it lies in the file, with no supports (a one-piece print or a layer with edge clips needs supports under its registration). wire-guide-assembly.txt in the ZIP lists every piece, how many, the pegs' fit and the order to assemble them. 0.2 mm layers or finer, so the channels keep their width. Fit the components first. Push the board pegs into the mounting holes, slide the bottom layer down over them and lay its level's wires: push one end down its funnel into the hole, press the wire into its channel and push the other end down its funnel. Then each layer above, in order: its bridges come down over the lower wires. The peg holes are ${WIRE_GUIDE_GEOMETRY.peg.holePlay} mm wider than the shafts (a sliding fit, as designed; not yet checked with a printed guide). Solder the ends on the solder side; the guide stays on the board.`,
   license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
-  // One part per print, up to the contract's limit; a design renders as many as it has. A print may be several bodies, where a tall
-  // component's pocket goes through it.
-  parts: Array.from({ length: WIRE_GUIDE_LIMITS.prints }, (_, index) => ({
-    id: `print-${index + 1}`, title: `Guide print ${index + 1}`, sourcePath: PWG_SOURCE,
-    scadConstants: { PRINT: index }, scadMapping: { design: 'GUIDE' }, separateBodies: true,
-    includedWhen: (parameters: ParameterValues) => (designOf(parameters)?.prints.length ?? 1) > index,
-  })),
+  // Every piece a design can have, up to the contract's limits; a design renders the ones it has (`wireGuidePieces`): per print one
+  // piece, or a layer per level and its pegs. A piece may be several bodies, where a tall component's pocket goes through it.
+  parts: Array.from({ length: WIRE_GUIDE_LIMITS.prints }, (_, print) => [
+    pwgPart(print, 'print', 0, `Guide print ${print + 1}, one piece`),
+    ...Array.from({ length: WIRE_GUIDE_LIMITS.levels }, (_, layer) => pwgPart(print, 'layer', layer, `Guide print ${print + 1}, layer ${layer + 1}`)),
+    ...Array.from({ length: WIRE_GUIDE_MAX_PEGS }, (_, peg) => pwgPart(print, 'peg', peg, `Guide print ${print + 1}, peg ${peg + 1}`)),
+  ]).flat(),
+  assemblyForParameters: (parameters: ParameterValues) => {
+    const design = designOf(parameters);
+    return design ? wireGuideAssembly(design) : { poses: {}, steps: [], lift: 0 };
+  },
+  zipFiles: (parameters: ParameterValues): Record<string, string> => {
+    const design = designOf(parameters);
+    return design ? { 'wire-guide-assembly.txt': wireGuideAssemblyText(design), 'wire-guide-design.json': `${JSON.stringify(design, null, 2)}\n` } : {};
+  },
   parameterSchema: PrototypeWireGuideParametersSchema, controls: pwgControls,
   defaults: { design: DEFAULT_WIRE_GUIDE_DESIGN }, scadMapping: {},
   documents: { design: { issues: validateWireGuideDesign, scad: value => wireGuideScad(value as WireGuideDesign) } },
   linkedFamilies: ['prototype-board', 'hookup-wire'],
   validate(parameters: unknown): ParameterIssue[] {
-    return Value.Check(PrototypeWireGuideParametersSchema, parameters) ? [] : [{ field: '', message: 'Parameters do not match the prototype wire guide schema.' }];
+    if (!Value.Check(PrototypeWireGuideParametersSchema, parameters)) return [{ field: '', message: 'Parameters do not match the prototype wire guide schema.' }];
+    // a valid design whose separate layers can't be made (it asks for them, or by default): nothing renders until it changes
+    const design = designOf(parameters);
+    return design ? wireGuideProblems(design) : [];
   },
   derived(parameters: unknown) {
     const design = designOf(parameters);
@@ -3925,6 +3957,7 @@ export const prototypeWireGuide = {
     const summary = wireGuideSummary(design);
     return { slotCount: null, notes: [
       `${summary.board}: ${summary.wires} wire${summary.wires === 1 ? '' : 's'} on ${summary.levels} level${summary.levels === 1 ? '' : 's'}, in ${summary.prints.length} print${summary.prints.length === 1 ? '' : 's'}.`,
+      `${summary.pieces} printed piece${summary.pieces === 1 ? '' : 's'}: ${summary.prints.map(print => `${print.id} ${wireGuidePrintPieces(print)}`).join(', ')}.`,
     ] };
   },
 } satisfies ModelDefinition;

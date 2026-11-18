@@ -35,12 +35,12 @@ Holes and waypoints are grid positions `[column, row]`. Keep-outs are in millime
   schemaVersion: 1,
   boardPartId: 'adafruit-perma-proto-half',     // a prototype-board part
   wirePartId: 'alpha-wire-3051-1',              // a hookup-wire part
-  source?: { tool: 'kiprint', version, projectId },
+  source?: { tool: 'kiprint', version, projectId, revision? },  // revision: sha256 of the planned project's state
   components?: [{ ref: 'U1', footprint: 'DIP-8', pins: [[20, 7], …], body: Keepout }],
   wires: [{ id: 'W1', wirePartId?, net?, from: [0, 3], to: [5, 3], path: [], level: 0 }],
   prints: [{ id: 'G1', wireIds: ['W1'], region?: { from: [0, 0], to: [9, 17] } }],
   guide: { registration: 'mounting-holes' | 'edge-clips', coverThickness, channelClearance,
-           funnelTopDiameter, funnelBottomDiameter, funnelStandoff },
+           funnelTopDiameter, funnelBottomDiameter, funnelStandoff, parts?: 'layers' | 'single' },
   keepouts?: Keepout[],
 }
 
@@ -56,6 +56,19 @@ Keepout =
 - **Channel width:** a wire's channel is its insulation's largest outer diameter plus `channelClearance`. The width comes from
   `hookupWireChannelWidth(part, clearance)`, which reads `dimensionOf(part, 'D', 'max')`.
 - **Display-only fields:** ids and net names are for display. They never reach SCAD.
+- **Source revision:** `source.revision` (optional, `sha256:<hex>`) is KiPrint's digest of the project it planned: its components
+  with their values, wires, cuts and declared circuit, never a time. Since the design (and so its digest) carries it, two plans of a
+  project differ whenever anything changed between them, even geometry-neutral changes such as a value. CanFactory's printed-parts
+  ZIP and KiPrint's KiCad ZIP both carry the design, so both name the exact project snapshot they were made from.
+- **Pieces:** `guide.parts` says how each print is made: `layers` (the default, also when it is absent) as separate stackable
+  layers and pegs, `single` as one piece per print with its registration fused on, as before #170. See
+  [Separate layers and pegs](#separate-layers-and-pegs).
+  - **What changed for existing designs (#170).** The field is optional, so every design written before it still matches the
+    schema and the API accepts it as before. Its *physical output* is not unchanged: a design without `parts` now renders as
+    separate layers and pegs instead of one fused piece per print. A design that needs the old output asks for it with
+    `"parts": "single"`, which renders it as before. The model's version went from 1 to 2, so a cached or queued fused render of
+    version 1 is never served for it.
+  - Nothing chooses `single` for a design: a design whose layers can't be made is rejected with the reason (below).
 
 ## Validation
 
@@ -118,8 +131,20 @@ KiPrint runs server-side and can't import the bundle, so it reads the board data
 
 ## The guide prints
 
-The `prototype-wire-guide` model renders a design: one STL per print, in a ZIP (`print-1.stl` …), on the usual
-`/api/v1/renders/{id}/zip` route.
+The `prototype-wire-guide` model renders a design as a ZIP on the usual `/api/v1/renders/{id}/zip` route: one STL per printed
+piece (`wireGuidePieces`), `wire-guide-assembly.txt` (what each STL is, how many to print, which way up, the pegs' fit and the
+order to assemble them in) and `wire-guide-design.json` (the design they were made from). Per print of the design:
+
+- `layers` (the default): `print-N-layer-K.stl` for each of its layers, from the bottom (K = 1), then `print-N-peg-J.stl` for each
+  peg;
+- `single`, or a print that can't be layered (the assembly guide and the editor say why): `print-N.stl`, the whole print.
+
+This ZIP is the printed guide. KiPrint's KiCad-project ZIP (`export_project`) is a different file: the board, the components and
+the planned wires for KiCad, with the design it planned as `wire-guide-design.json`. Both carry the design, so a test can check
+that they hold the same one.
+
+The model is at version 2: the pieces changed, so renders queued or cached for version 1 (one fused STL per print) are not served
+for it (the cache key and the worker's check include the model's version and sources).
 
 ### The design as a parameter
 
@@ -139,7 +164,7 @@ The model has one parameter, `design`, a **structured document** (control kind `
 
 ### Geometry
 
-Each print is drawn where it sits on the board (the board's frame), the right way up:
+Each print is worked out where it sits on the board (the board's frame), the right way up; its separate layers are slices of it:
 
 - **Block and plate.** A block over the print's wires and funnels, plus a 1.2 mm margin, and over its region if it has one. It
   may overhang the outline by at most the margin. Its underside is at the PCB's top + `funnelStandoff`. The bottom
@@ -163,13 +188,67 @@ Each print is drawn where it sits on the board (the board's frame), the right wa
     further out. Coincident sides leave float32 slivers, or a mesh that can't be repaired.
   - A body lower than the underside gets no pocket.
   - A print may therefore be several bodies (`separateBodies`), though the samples are one.
-- **Registration.**
+- **Registration.** As here for a one-piece print; separate layers have separate pegs instead of the bosses (see
+  [Separate layers and pegs](#separate-layers-and-pegs)), and the clips stay on the bottom layer.
   - `mounting-holes`: a boss on the two mounting holes nearest the print's middle. Each boss is a column (the hole + 1.2 mm
     wall), standing on the board when there is a standoff, with a pin (the hole − 0.3 mm) three quarters of the way down
     the hole. A print with a `region` takes only the mounting holes in its region, so prints never share one; it may have
     none.
   - `edge-clips`: the print spans the board's width, and a clip on each edge along X grips the board. Each clip is a wall
     0.2 mm off the edge, a 0.6 mm lip under the board, and a foot on its top.
+
+### Separate layers and pegs
+
+With `guide.parts` `layers` (the default), each print is made as separate layers that stack on the board, one for each wire
+level the print uses, and separate pegs (`wireGuideStack`, `WIRE_GUIDE_GEOMETRY.peg`).
+
+- **Levels to layers.** A print's layers are its levels, compressed and in order: a print using levels 0, 1 and 2 has layers
+  1, 2 and 3 from the bottom (`print-N-layer-1` holds level 0); one using levels 0 and 2 has two. So the number of layers is the
+  number of levels its wires occupy. Each layer's wires are listed in the assembly guide and the preview's steps.
+- **What a layer is.** The print's block (above) sliced at its bridges' undersides: layer 1 from the underside up to where the
+  next level's bridges start, each layer above from there to the next, the top one to the top. A layer holds only its own level's
+  channels, open upwards with a floor under them (the plate, or 0.6 mm, the bridge's thickness). It is closed over the lower
+  levels: its underside lies on their wires, as the one-piece print's bridges do where they cross, so the wires keep the heights,
+  routes and crossing order of the one-piece print and a lower wire is held in its channel along its whole length. Every layer
+  has every funnel's shaft, so each wire end can be pushed down through the layers above its own, and the component pockets where
+  they reach it. The bottom layer has the funnels' cones and the edge clips.
+- **Board pegs.** In the mounting holes the one-piece print had bosses in (the two nearest the print's middle, within its region),
+  a separate peg each: a tip 0.3 mm narrower than the hole, three quarters of the way down it; a 45° seat that sits on the hole's
+  rim at the board's top; a shoulder (the hole + up to 2 × 1.2 mm, no wider than the hole + 2 × the standoff) up to the guide's
+  underside, which the bottom layer rests on and so sets the standoff; and a shaft (the hole + 0.6 mm, or narrower to leave the
+  shoulder 0.4 mm of bearing round its hole) up through every layer, stopping 0.2 mm under the top, with a 0.3 mm chamfer. For a
+  Ø3.2 mm hole and a 1 mm standoff: a Ø2.9 tip, a Ø5.2 shoulder and a Ø3.8 shaft. Without a standoff the seat widens straight
+  to the shaft.
+  - Where a channel passes over the hole, the peg's shaft only goes into a socket in the bottom layer's plate, stopping 0.4 mm
+    under the channels' floor (a plate of at least 1 mm), and dowels line up the layers.
+  - Every mounting hole the one-piece print would have a boss in gets a peg, so the print is located on the board as before. A
+    hole whose peg would cut a funnel, pocket or the print's edge, or whose shoulder would cover a wire end's hole or a component,
+    makes the layers impossible (below).
+- **Dowels.** A stack of two or more layers is lined up on two pegs through all of them. Where it has fewer board pegs through it
+  (edge clips, a region without mounting holes, holes under channels), Ø2 mm dowels stand in blind holes in the bottom layer, 0.6
+  mm above its underside, at the free points between the board's holes that are farthest apart (or farthest from the one board
+  peg), and up through the layers above. They line the layers up with each other only: they never stand in the board, so no new
+  hole is drilled. The board is located by its real mounting holes' pegs, or by the bottom layer's edge clips.
+- **Fit.** Every layer's hole for a peg is its shaft + 0.3 mm across: a sliding fit, so the layers go down over the pegs by hand.
+  Each hole keeps 0.6 mm from every channel, funnel, pocket and other hole. These are designed sizes; they have not been checked
+  with a printed guide, and a printer that prints holes small may need them reamed.
+- **Orientation.** Every STL lies the way it is used, ready to print: a layer flat on its underside (z = 0), a peg upright on its
+  tip. Neither needs supports: a layer's underside is flat, and a peg's outline never widens faster than 45°. A bottom layer with
+  edge clips, and a one-piece print, have their registration below their underside and need supports under it. The preview's
+  assembly places each STL by its pose: a layer lifted by its underside's height, a peg moved to its hole.
+- **Mesh.** A peg is its outline's rings turned about its axis (64 sides) and closed by a flat face at each end: a polyhedron,
+  so that no point lies on the axis (rings of coincident points there would be empty triangles).
+- **Quantities.** One of each STL. Pegs are separate files even when they are alike, so that the parts count, the preview and the
+  ZIP agree piece for piece.
+- **Assembly.** Fit the components; push the board pegs into the mounting holes; slide layer 1 down over them (onto their
+  shoulders), drop in any dowels, and lay level 0's wires; then each layer above in turn, laying its wires. Solder the ends on
+  the solder side. Each layer's wires hold it down.
+- **When the layers can't be made.** A mounting hole that can't take a peg, a stack with no room for two pegs through its layers,
+  or a layer above the bottom that would be loose pieces (between through pockets, estimated on a 0.2 mm grid,
+  `wireGuideLayerBodies`) makes the design invalid for this model: `validateParameters` reports it on `design/guide/parts`, naming
+  the print, what is in the way and the two ways out (change the design, or ask for one piece). The API rejects it (422), the
+  worker never renders it, and the editor lists it with a button that sets “Printed as” to one piece. It never falls back to one
+  piece on its own, and `validateWireGuideDesign` (the shared contract KiPrint ports) is unchanged: the design itself stays valid.
 
 ### Keep-out conventions (for KiPrint)
 
@@ -193,25 +272,39 @@ The sample designs in `models/prototype-wire-guide/samples/` are:
 | `perfboard-two-levels.json` | perfboard | crossings on two levels, a per-wire 22 AWG override; edge clips |
 | `stripboard-three-prints.json` | stripboard | three prints by region |
 | `perma-proto-bus.json` | Perma-Proto | rails and strips (bus) |
-| `stripboard-boss-neighbours.json` | stripboard | wire ends on the four holes beside a mounting hole, under its boss's column |
+| `stripboard-boss-neighbours.json` | stripboard | wire ends on the four holes beside a mounting hole, under its boss's column; asks for one piece (`"parts": "single"`): as layers, that hole could take no peg |
 | `pockets-on-channel-sides.json` | perfboard | box and round bodies exactly half a channel + 0.3 mm from their channels |
 | `kiprint-perma-proto-timer.json` | Perma-Proto quarter | KiPrint's `plan_guide` output: 4 components, 8 wires on 2 levels (W7, W8 rerouted) |
 | `kiprint-crossing-two-levels.json` | perfboard | KiPrint: 4 wires on 3 levels, crossing (C rerouted) |
 | `kiprint-stripboard-regulator.json` | stripboard | KiPrint: a 19 mm tall TO-220, pocketed through |
+| `perma-proto-half-three-levels.json` | Perma-Proto half | 16 wires on 3 levels: red level-0 wires crossed by a blue level-1 wire that a green level-2 wire crosses at the same holes, as in the owner's picture (#170). Representative, made for the tests: not a reconstruction of the owner's project. 3 layers and 2 board pegs |
 
 - `invalid/` keeps KiPrint's original two designs, whose lower wires turn under a higher wire, as fixtures. A unit test pins
   their issues. The samples differ from them only in those wires' paths.
-- `npm run test:renderer` (`TEST_ONLY=prototype-wire-guide`) renders each sample. It checks every print with
-  `tools/wire-guide-checks.ts` against the encoder's geometry: one closed solid with no float32 repairs; open channels, tunnels
-  and funnels, each funnel's bore open down to the board; solid bridges, plate, pins and clips; open pockets.
+- `npm run test:renderer` (`TEST_ONLY=prototype-wire-guide`) renders each sample as separate layers and pegs, and two of them
+  also as one piece per print. On the ZIP's actual meshes (`tools/wire-guide-checks.ts`), against the encoder's geometry:
+  - the ZIP holds exactly the design's pieces, its assembly guide and the design;
+  - each piece is one closed solid with no float32 repairs, lying on the print bed at its size;
+  - each layer: its own channels open over a solid floor, the lower levels' channels covered, every funnel open through it (and
+    down to the board in the bottom layer), pockets open, each peg's hole open at its radius with a wall beyond it, sockets
+    closed above, clips;
+  - each peg: its mesh is its outline, turned;
+  - assembled at their poses: the layers stack without gaps, every shaft has play all round in each layer's hole, and no two
+    pieces share volume (voxels of 0.1 mm);
+  - a one-piece print, as before: open channels, tunnels and funnels, solid bridges, plate, pins and clips, open pockets.
+
+  It writes what it measured (each piece's triangles, shells, volume and size, the ZIP's size and SHA-256) to
+  `test-results/wire-guide/wire-guide-meshes.json`, and the three-level sample's ZIP beside it; CI uploads both with the
+  integration diagnostics.
 - The unit tests cover the samples, the numbers-only encoding, the bounds, and the API–worker parity of issues.
 
 ### Editor
 
 The editor's document field (`apps/web/src/WireGuideField.tsx`) shows:
 
-- a map and summary of the design: board, wire, wire count, levels and prints;
-- the guide's settings;
+- a map and summary of the design: board, wire, wire count, levels, prints and each print's pieces (e.g. “G1: 3 layers + 2
+  pegs”), and, when its layers can't be made, why, with a button to print each guide in one piece instead;
+- the guide's settings, “Printed as” (`guide.parts`) among them;
 - **Import design (.json)** and **Download design**.
 
 An imported file is checked in the browser with the same function. Only a valid design replaces the current one; an invalid
